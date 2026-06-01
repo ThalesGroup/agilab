@@ -49,6 +49,9 @@ git status --short --branch --untracked-files=no
 
 `./dev release` must start with the strict AGILAB audit/review gate
 (`./dev audit --strict`) before impact, PyPI, docs, typing, and badge checks.
+The GitHub `pypi-publish` release workflow must mirror that ordering by running
+`tools/agilab_audit.py --strict` as its first validation step after checkout,
+Python, and `uv` setup.
 
 If the checkout is dirty or diverged, do not call it release-ready until the
 dirty paths and ahead/behind state are explained.

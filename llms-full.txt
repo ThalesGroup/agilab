@@ -28,7 +28,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB Deep Audit Skill Use this skill when the user asks for an AGILAB audit or a review artifact. Do not treat an audit request as a maintenance/fix request unless the user explicitly asks to patch findings.
 - agilab-docs: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks). (.claude/skills/agilab-docs/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-31
+  updated: 2026-06-01
   preview: # Docs Skill (AGILAB) Use this skill when editing docs content or docs build tooling for AGILAB. ## Source Of Truth - Canonical editable docs source is `../thales_agilab/docs/source`.
 - agilab-evidence-contracts: Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation. (.claude/skills/agilab-evidence-contracts/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)

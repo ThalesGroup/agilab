@@ -95,11 +95,12 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     assert "isolated-pytorch-playground-analysis" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
     assert payload["coverage"]["pytorch_analysis_robot"] == {
         "apps": ["pytorch_playground_project"],
-        "forbidden_text": ["Project:"],
+        "forbidden_sidebar_text": ["Project:"],
         "flags": ["browser_error_check"],
         "pages": ["ANALYSIS"],
         "required_actions": ["Refresh evidence"],
-        "required_text": ["Page", "PyTorch Playground", "Refresh evidence", "Settings", "Synced RUN snippet"],
+        "required_links": ["Page=>current_page=view_app_ui"],
+        "required_text": ["PyTorch Playground", "Refresh evidence", "Settings", "Synced RUN snippet"],
     }
     assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-visual-smoke"] == {
         "actions": [],
@@ -145,6 +146,8 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         click_action_labels: str = "",
         required_text: str = "",
         forbidden_text: str = "",
+        forbidden_sidebar_text: str = "",
+        required_links: str = "",
         required_action_labels: str = "",
         success_screenshot: bool = False,
         above_fold_check: bool = False,
@@ -158,6 +161,8 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
             click_action_labels=click_action_labels,
             required_text=required_text,
             forbidden_text=forbidden_text,
+            forbidden_sidebar_text=forbidden_sidebar_text,
+            required_links=required_links,
             required_action_labels=required_action_labels,
             success_screenshot=success_screenshot,
             above_fold_check=above_fold_check,
@@ -194,7 +199,8 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         pages="ANALYSIS",
         apps=module.REQUIRED_PYTORCH_ANALYSIS_APP,
         required_text=",".join(module.REQUIRED_PYTORCH_ANALYSIS_TEXT),
-        forbidden_text=",".join(module.REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_TEXT),
+        forbidden_sidebar_text=",".join(module.REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_SIDEBAR_TEXT),
+        required_links=",".join(module.REQUIRED_PYTORCH_ANALYSIS_LINKS),
         required_action_labels=",".join(module.REQUIRED_PYTORCH_ANALYSIS_ACTIONS),
         browser_error_check=True,
     )
@@ -487,6 +493,8 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
         click_action_labels="",
         required_text="",
         forbidden_text="",
+        forbidden_sidebar_text="",
+        required_links="",
         required_action_labels="",
         success_screenshot=False,
         above_fold_check=False,
@@ -500,6 +508,8 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
         click_action_labels="",
         required_text="",
         forbidden_text="",
+        forbidden_sidebar_text="",
+        required_links="",
         required_action_labels="",
         success_screenshot=False,
         above_fold_check=False,
@@ -513,6 +523,8 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
         click_action_labels="",
         required_text="",
         forbidden_text="",
+        forbidden_sidebar_text="",
+        required_links="",
         required_action_labels="",
         success_screenshot=False,
         above_fold_check=False,
@@ -526,6 +538,8 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
         click_action_labels="",
         required_text="PyTorch Playground",
         forbidden_text="",
+        forbidden_sidebar_text="",
+        required_links="",
         required_action_labels="",
         success_screenshot=False,
         above_fold_check=False,
@@ -602,9 +616,13 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
     assert "isolated-pytorch-playground-analysis does not target pytorch_playground_project" in details
     assert (
         "isolated-pytorch-playground-analysis is missing required text probes: "
-        "Page, Refresh evidence, Settings, Synced RUN snippet"
+        "Refresh evidence, Settings, Synced RUN snippet"
     ) in details
-    assert "isolated-pytorch-playground-analysis is missing forbidden text probes: Project:" in details
+    assert "isolated-pytorch-playground-analysis is missing forbidden sidebar text probes: Project:" in details
+    assert (
+        "isolated-pytorch-playground-analysis is missing required link probes: "
+        "Page=>current_page=view_app_ui"
+    ) in details
     assert "isolated-pytorch-playground-analysis is missing required action probes: Refresh evidence" in details
     assert "isolated-pytorch-playground-analysis does not enable browser_error_check" in details
     assert "ui-robot-matrix profile does not run isolated-pytorch-playground-analysis" in details

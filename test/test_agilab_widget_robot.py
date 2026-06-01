@@ -135,6 +135,8 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.above_fold_check is False
     assert args.required_text == ""
     assert args.forbidden_text == ""
+    assert args.forbidden_sidebar_text == ""
+    assert args.required_links == ""
     assert args.required_action_labels == ""
     assert args.visual_mask_dynamic_regions is False
     assert args.success_screenshot is False
@@ -902,6 +904,126 @@ def test_forbidden_text_probe_reports_visible_forbidden_text() -> None:
     assert probe.status == "failed"
     assert probe.kind == "forbidden_text"
     assert "forbidden text present" in probe.detail
+
+
+def test_forbidden_sidebar_text_probe_reports_visible_sidebar_text() -> None:
+    module = _load_module()
+
+    class _SidebarLocator:
+        def count(self) -> int:
+            return 1
+
+        def nth(self, index: int):
+            assert index == 0
+            return self
+
+        def inner_text(self, **_kwargs) -> str:
+            return "Project: PyTorch Playground\nPage"
+
+    class _Page:
+        url = "http://demo/ANALYSIS"
+        frames: list[object] = []
+        main_frame = None
+
+        @staticmethod
+        def locator(selector: str) -> _SidebarLocator:
+            assert selector == "[data-testid='stSidebar']"
+            return _SidebarLocator()
+
+    probe = module._forbidden_sidebar_text_probe(
+        _Page(),
+        app_name="pytorch_playground_project",
+        display="ANALYSIS",
+        forbidden_sidebar_text=("Project:",),
+        timeout_ms=100,
+    )
+
+    assert probe.status == "failed"
+    assert probe.kind == "forbidden_sidebar_text"
+    assert "forbidden sidebar text present" in probe.detail
+
+
+def test_required_link_probe_matches_label_and_href_fragments() -> None:
+    module = _load_module()
+
+    class _LinkLocator:
+        def count(self) -> int:
+            return 1
+
+        def nth(self, index: int):
+            assert index == 0
+            return self
+
+        def is_visible(self, **_kwargs) -> bool:
+            return True
+
+        def get_attribute(self, name: str, **_kwargs) -> str:
+            assert name == "href"
+            return "/ANALYSIS?current_page=view_app_ui&active_app=pytorch_playground_project"
+
+    class _Page:
+        url = "http://demo/ANALYSIS"
+        frames: list[object] = []
+        main_frame = None
+
+        @staticmethod
+        def get_by_role(role: str, name):
+            assert role == "link"
+            assert getattr(name, "pattern", "Page") == "Page"
+            return _LinkLocator()
+
+    probe = module._required_link_probe(
+        _Page(),
+        app_name="pytorch_playground_project",
+        display="ANALYSIS",
+        required_links=("Page=>current_page=view_app_ui;pytorch_playground_project",),
+        timeout_ms=100,
+    )
+
+    assert probe.status == "interacted"
+    assert probe.kind == "required_link"
+    assert "required links visible" in probe.detail
+
+
+def test_required_link_probe_reports_missing_href_fragment() -> None:
+    module = _load_module()
+
+    class _LinkLocator:
+        def count(self) -> int:
+            return 1
+
+        def nth(self, index: int):
+            assert index == 0
+            return self
+
+        def is_visible(self, **_kwargs) -> bool:
+            return True
+
+        def get_attribute(self, name: str, **_kwargs) -> str:
+            assert name == "href"
+            return "/ANALYSIS?current_page=view_maps"
+
+    class _Page:
+        url = "http://demo/ANALYSIS"
+        frames: list[object] = []
+        main_frame = None
+
+        @staticmethod
+        def get_by_role(role: str, name):
+            assert role == "link"
+            return _LinkLocator()
+
+    probe = module._required_link_probe(
+        _Page(),
+        app_name="pytorch_playground_project",
+        display="ANALYSIS",
+        required_links=("Page=>current_page=view_app_ui",),
+        timeout_ms=100,
+    )
+
+    assert probe.status == "failed"
+    assert probe.kind == "required_link"
+    assert "required links missing" in probe.detail
 
 
 def test_required_action_probe_trial_clicks_child_frame_button() -> None:

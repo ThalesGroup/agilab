@@ -92,6 +92,11 @@ def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
 
     assert 'python-version: ["3.13"]' in text
     assert 'python-version: ["3.13", "3.14"]' not in text
+    assert "Run strict AGILAB audit review" in text
+    assert "tools/agilab_audit.py --strict" in text
+    assert text.index("tools/agilab_audit.py --strict") < text.index(
+        "Install Playwright browser for frontend smoke"
+    )
     assert "Install Playwright browser for frontend smoke" in text
     assert "python -m playwright install --with-deps chromium" in text
     assert "tools/workflow_parity.py" in text

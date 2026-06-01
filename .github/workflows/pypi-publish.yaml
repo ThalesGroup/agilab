@@ -62,6 +62,11 @@ jobs:
       - name: Install uv
         run: python -m pip install --upgrade --no-cache-dir uv
 
+      - name: Run strict AGILAB audit review
+        run: |
+          set -euxo pipefail
+          uv --preview-features extra-build-dependencies run python tools/agilab_audit.py --strict
+
       - name: Install Playwright browser for frontend smoke
         run: |
           set -euxo pipefail
