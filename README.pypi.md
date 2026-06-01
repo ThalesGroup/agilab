@@ -7,6 +7,18 @@
 [![Docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
 
+<details>
+<summary>More project badges</summary>
+
+[![GitHub AI scraper: discoverable](https://img.shields.io/badge/github--ai--scraper-discoverable-0F766E)](https://pypi.org/project/github-ai-scraper/)
+[![Skills](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills.svg)](https://github.com/ThalesGroup/agilab/blob/main/AGENT_SKILLS.md)
+[![Standard: Agent Skills](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-standard.svg)](https://agentskills.io/)
+[![Works with](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-works-with.svg)](https://github.com/ThalesGroup/agilab/blob/main/tools/agent_workflows.md)
+[![Agent API: CLI Python](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-api.svg)](https://github.com/ThalesGroup/agilab/blob/main/tools/agent_workflows.md)
+[![Style guard: Ruff changed-files](https://img.shields.io/badge/style%20guard-Ruff%20changed--files-0F766E)](https://docs.astral.sh/ruff/)
+
+</details>
+
 # AGILAB
 
 AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.
