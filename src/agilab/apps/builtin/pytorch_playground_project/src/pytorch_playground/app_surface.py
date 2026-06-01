@@ -381,27 +381,31 @@ def _render_full_surface(
 
     root = container or st
     _render_surface_styles()
-    analysis_column, controls_column = root.columns([0.70, 0.30])
+    if container is None:
+        analysis_container = root
+        controls_container = st.sidebar
+    else:
+        analysis_container, controls_container = root.columns([0.70, 0.30])
 
-    with controls_column:
-        controls_column.markdown("**Run**")
+    with controls_container:
+        controls_container.markdown("**Run**")
         try:
             app_args_form = _load_app_args_form()
         except (ImportError, OSError, ValueError) as exc:
             _render_dependency_import_error(
-                exc, configure_page=False, container=controls_column
+                exc, configure_page=False, container=controls_container
             )
         else:
             _render_run_button(
-                active_app_path, container=controls_column, app_args_form=app_args_form
+                active_app_path, container=controls_container, app_args_form=app_args_form
             )
             app_args_form.render(
                 env=env or runtime_env,
-                container=controls_column,
+                container=controls_container,
                 wide=False,
                 compact=True,
             )
-    with analysis_column:
+    with analysis_container:
         _render_analysis_surface(active_app_path, configure_page=False, compact=True)
 
 
