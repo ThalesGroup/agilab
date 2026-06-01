@@ -27,6 +27,9 @@ is not a scratchpad or task log.
 
 ## Current rules
 
+- When asked to hide badges or public README metadata, do not interpret
+  "hide" as deletion. Keep badge source/assets available and move secondary
+  badges into a rendered expander unless the user explicitly asks for removal.
 - When external agent-instruction projects inspire AGILAB, extract the
   AGILAB-native operating primitive and reject generic boilerplate replacement.
 - When a pre-push guard fails, do not bypass it silently. Re-run the underlying

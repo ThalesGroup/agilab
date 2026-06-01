@@ -90,6 +90,11 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 ## Public Docs Constraint
 
 - Public documentation must not mention non-public apps/repositories.
+- When the user asks to hide or de-emphasize public README/PyPI README badges,
+  preserve the badge sources and assets unless removal is explicitly requested.
+  Move non-primary badges into a rendered ``<details>`` expander such as
+  ``More project badges`` instead of deleting badge markdown, generated SVGs,
+  or agent/discovery badge assets.
 - Release-proof and install-proof docs that execute the packaged first proof
   should use `agilab[examples]`, not bare `agilab`, because the base package is
   intentionally lean while the demo proof depends on packaged example payloads.
