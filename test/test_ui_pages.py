@@ -1595,7 +1595,7 @@ def test_explore_page_multiselect(mock_ui_env):
     _assert_docs_actions_absent(at)
     markdown_values = [item.value for item in at.markdown]
     assert all("Analysis workspace" not in value for value in markdown_values)
-    assert any("Analysis views" in value for value in markdown_values)
+    assert all("Analysis views" not in value for value in markdown_values)
     caption_values = [str(item.value) for item in at.caption]
     assert all(
         "Project evidence, available outputs" not in value for value in caption_values
