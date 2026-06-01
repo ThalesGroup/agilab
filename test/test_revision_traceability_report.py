@@ -88,6 +88,7 @@ def test_revision_traceability_reports_missing_synthetic_repo_contracts(
     core = _load_module(CORE_PATH, "revision_traceability_core_missing_test_module")
     app_dir = tmp_path / "src" / "agilab" / "apps" / "builtin" / "demo_project"
     app_dir.mkdir(parents=True)
+    (app_dir / "README.md").write_text("synthetic incomplete app\n", encoding="utf-8")
     hidden_cache_dir = (
         tmp_path
         / "src"

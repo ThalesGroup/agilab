@@ -82,6 +82,31 @@ def test_py7zr_archive_error_resolution_handles_missing_package_exceptions_attr(
     assert resolved == (_ArchiveError, _Bad7zFile)
 
 
+def test_py7zr_package_compatibility_restores_missing_top_level_exports():
+    class _Archive:
+        pass
+
+    class _ArchiveError(Exception):
+        pass
+
+    class _Bad7zFile(_ArchiveError):
+        pass
+
+    fake_py7zr = SimpleNamespace()
+    fake_implementation = SimpleNamespace(SevenZipFile=_Archive)
+    fake_exceptions = SimpleNamespace(ArchiveError=_ArchiveError, Bad7zFile=_Bad7zFile)
+
+    data_archive_support.ensure_py7zr_package_compatibility(
+        fake_py7zr,
+        implementation_module=fake_implementation,
+        exceptions_module=fake_exceptions,
+    )
+
+    assert fake_py7zr.SevenZipFile is _Archive
+    assert fake_py7zr.ArchiveError is _ArchiveError
+    assert fake_py7zr.Bad7zFile is _Bad7zFile
+
+
 def test_unzip_data_propagates_unexpected_extract_bug(tmp_path: Path):
     archive = tmp_path / "demo.7z"
     archive.write_bytes(b"7z")

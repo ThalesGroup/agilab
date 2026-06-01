@@ -14,8 +14,8 @@ dependencies = [
     "agi-node>=2026.05.25,<2027.0",
     "fireducks>=1.4.4,<2",
     "pydantic>=2.11,<2.13",
-    "py7zr>=1.0,<1.1",
-    "streamlit>=1.56,<1.57",
+    "py7zr>=1.1,<1.2",
+    "streamlit>=1.56,<1.59",
 ]
 
 [dependency-groups]

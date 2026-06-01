@@ -3,7 +3,7 @@ name = "execution_polars_project"
 version = "2026.05.30.post1"
 description = "Built-in AGILab execution playground using PolarsWorker"
 requires-python = ">=3.11"
-dependencies = ["agi-env>=2026.05.31", "agi-node>=2026.05.31", "agi-cluster>=2026.05.31", "polars>=1.35,<2", "pydantic>=2.11,<2.13", "streamlit>=1.56,<1.57"]
+dependencies = ["agi-env>=2026.05.31", "agi-node>=2026.05.31", "agi-cluster>=2026.05.31", "polars>=1.35,<2", "pydantic>=2.11,<2.13", "streamlit>=1.56,<1.59"]
 
 [tool.uv.sources]
 agi-env = { path = "../../../core/agi-env", editable = true }

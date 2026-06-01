@@ -14,7 +14,7 @@ dependencies = [
     "pandas>=2.3.0,<4",
     "plotly>=6.3.0,<7",
     "pydantic>=2.11,<2.13",
-    "streamlit>=1.56,<1.57",
+    "streamlit>=1.56,<1.59",
     "torch>=2.8.0,<3",
 ]
 

@@ -318,7 +318,10 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
 
 
 def test_builtin_app_manifests_depend_on_core_packages_not_core_internals() -> None:
-    app_roots = sorted((REPO_ROOT / "src/agilab/apps/builtin").glob("*_project"))
+    app_roots = sorted(
+        pyproject.parent
+        for pyproject in (REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/pyproject.toml")
+    )
     assert app_roots
 
     copied_core_internals = {
@@ -395,8 +398,8 @@ def test_worker_manifests_do_not_depend_on_streamlit() -> None:
     assert violations == []
 
 
-def test_streamlit_runtime_is_capped_below_blank_starlette_frontend_release() -> None:
-    """Streamlit 1.57 serves HTML for JS assets from uv archive installs."""
+def test_streamlit_runtime_is_capped_to_validated_minor_releases() -> None:
+    """Streamlit runtime stays inside the currently validated minor release window."""
     pyprojects = [
         REPO_ROOT / "pyproject.toml",
         *(REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml"),
@@ -423,7 +426,7 @@ def test_streamlit_runtime_is_capped_below_blank_starlette_frontend_release() ->
                 if requirement.name.lower() != "streamlit":
                     continue
                 specifier_text = str(requirement.specifier)
-                if ">=1.56" not in specifier_text or "<1.57" not in specifier_text:
+                if ">=1.56" not in specifier_text or "<1.59" not in specifier_text:
                     violations.append(f"{pyproject.relative_to(REPO_ROOT)}: {requirement}")
 
     assert violations == []

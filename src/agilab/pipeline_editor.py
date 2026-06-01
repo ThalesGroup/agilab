@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import streamlit as st
 import tomli_w
 import tomllib
-from code_editor import code_editor
+from agilab.code_editor_component import code_editor
 
 from agi_gui.pagelib import export_df, get_css_text, get_custom_buttons, get_info_bar
 

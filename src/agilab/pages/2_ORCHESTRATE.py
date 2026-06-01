@@ -1656,7 +1656,7 @@ async def _render_deployment_panel(
     initial_verbose: int,
     show_install: bool,
     install_status: dict[str, Any],
-) -> int:
+) -> tuple[int, dict[str, Any]]:
     """Render the deployment expander and return the effective verbose level."""
     verbose = initial_verbose
     workerless = bool(install_status.get("workerless"))
@@ -1690,7 +1690,7 @@ async def _render_deployment_panel(
                 st.info(
                     "INSTALL is hidden. Re-enable Resources and install, then retry INSTALL."
                 )
-            return verbose
+            return verbose, install_status
 
         enabled = cluster_params.get("cluster_enabled", False)
         raw_scheduler = cluster_params.get("scheduler", "")
@@ -1749,7 +1749,7 @@ async def _render_deployment_panel(
                 or install_state.install_command is None
             ):
                 st.warning(install_state.action.disabled_reason)
-                return verbose
+                return verbose, install_status
             st.session_state["_install_logs_expanded"] = True
             _reset_traceback_skip()
             clear_log()
@@ -1793,8 +1793,9 @@ async def _render_deployment_panel(
                 if result.status == "success":
                     st.session_state["SET ARGS"] = True
                     st.session_state["show_run"] = True
+                    install_status = _app_install_status(env)
 
-    return verbose
+    return verbose, install_status
 
 
 async def _render_distribution_panel(
@@ -2480,11 +2481,18 @@ async def page() -> None:
         show_run=show_run,
     )
 
-    verbose = await _render_deployment_panel(
+    verbose, install_status = await _render_deployment_panel(
         env,
         initial_verbose=selected_verbose_int,
         show_install=show_install,
         install_status=install_status,
+    )
+    installed = bool(
+        install_status.get("manager_ready") and install_status.get("worker_ready")
+    )
+    install_block_reason = (
+        _install_status_warning_message(install_status)
+        or _runtime_status_label(install_status)[1]
     )
     await _render_distribution_panel(
         env,

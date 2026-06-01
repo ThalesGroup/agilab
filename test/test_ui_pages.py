@@ -1055,6 +1055,15 @@ def test_orchestrate_resource_summary_uses_updated_cluster_widget_state():
     assert placeholder_index < cluster_widget_index < summary_index
 
 
+def test_orchestrate_rechecks_install_status_after_install_before_run_gate():
+    source = Path("src/agilab/pages/2_ORCHESTRATE.py").read_text(encoding="utf-8")
+    after_deployment = source.split("verbose, install_status = await _render_deployment_panel", 1)[1]
+    before_execute = after_deployment.split("await render_execute_section", 1)[0]
+
+    assert "installed = bool(" in before_execute
+    assert "install_block_reason = (" in before_execute
+
+
 def test_execute_page_realigns_stale_agi_space_session_env(mock_ui_env, tmp_path):
     """Source ORCHESTRATE must not keep an old installed agi-space active app."""
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
