@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-01T13:02:51Z",
+  "generated_at_utc": "2026-06-01T17:01:12Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -31,7 +31,7 @@
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-31",
+      "updated": "2026-06-01",
       "path": ".codex/skills/agilab-docs/SKILL.md",
       "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- Canonical editable docs source is `../thales_agilab/docs/source`."
     },

@@ -111,6 +111,14 @@ Use this runbook whenever you:
   Do not update tests to expect newly introduced clutter unless the user
   explicitly approves that clutter as product behavior. Add a negative
   regression assertion for removed text when practical.
+- **Documentation screenshot update contract**: When documentation changes touch
+  visible UI behavior, page labels, screenshots, GIFs, or diagrams derived from
+  screenshots, refresh the corresponding source screenshot assets as part of the
+  same docs update. Keep screenshots in the canonical docs source first, sync the
+  public mirror, update captions/alt text and references, and inspect the
+  rendered page so stale UI such as old labels, duplicate sidebars, or outdated
+  screenshots cannot remain in published docs. Do not hand-edit generated
+  `docs/html` screenshots or `_images`; regenerate or resync from source.
 - **Shared page chrome restraint**: Keep global AGILAB page chrome minimal. Do
   not add active-project labels, chips, or badges above page controls by
   default; project identity belongs in the project selector, the sidebar, or an

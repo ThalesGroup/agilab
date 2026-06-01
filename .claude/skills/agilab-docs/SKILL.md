@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-31
+  updated: 2026-06-01
 ---
 
 # Docs Skill (AGILAB)
@@ -35,17 +35,24 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
    still points to the intended file. Do not rely on XML validity alone; inspect
    the rendered preview for clipped text, overlong labels, hidden cards, and
    unreadable feedback arrows.
-4. Validate the mirror stamp before committing:
+4. If the change touches visible UI behavior, page labels, screenshots, GIFs, or
+   screenshot-derived diagrams, refresh the corresponding source screenshot
+   assets in the canonical docs tree in the same change. Update captions, alt
+   text, and `.rst` references together; sync the mirror; and inspect the
+   rendered page so stale labels, duplicate sidebars, old workflow names, or
+   outdated screenshots cannot remain in public docs. Do not hand-edit generated
+   `docs/html/_images` or copied Sphinx outputs.
+5. Validate the mirror stamp before committing:
    `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`
-5. Rebuild or run the docs profile when the rendered page matters:
+6. Rebuild or run the docs profile when the rendered page matters:
    `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile docs`
-6. Verify the change exists in both:
+7. Verify the change exists in both:
    - `../thales_agilab/docs/source/<file>`
    - `docs/source/<file>` when it is part of the public mirror
    - the locally rendered HTML output when a build was run
-7. Validate the rendered public page after publish. Prefer checking the HTML page
+8. Validate the rendered public page after publish. Prefer checking the HTML page
    that embeds the figure, not a guessed raw asset URL.
-8. During an SVG tuning loop, do not publish every micro-retouch. Publish only after
+9. During an SVG tuning loop, do not publish every micro-retouch. Publish only after
    the local region is stable and both canonical + mirror copies are committed.
 
 If you accidentally edit `docs/html` directly, discard that manual edit and regenerate from source.

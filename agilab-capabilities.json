@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-01T16:04:54Z",
+  "generated_at_utc": "2026-06-01T17:01:12Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -801,7 +801,7 @@
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
       "path": ".claude/skills/agilab-docs/SKILL.md",
-      "updated": "2026-05-31"
+      "updated": "2026-06-01"
     },
     {
       "name": "agilab-evidence-contracts",
