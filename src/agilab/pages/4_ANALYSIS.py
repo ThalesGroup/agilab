@@ -2813,12 +2813,6 @@ async def _render_configured_app_surface(
             env=st.session_state.get("env"),
             container=st.sidebar,
         )
-        if active_app_path is not None:
-            project_label = _analysis_project_link_label(
-                active_app_path.name,
-                app_surface_cfg=surface_config,
-            )
-            st.markdown(f"**{html.escape(project_label)}**")
         st.subheader(app_surface_title(surface_config))
         render_app_surface(
             active_app_path,

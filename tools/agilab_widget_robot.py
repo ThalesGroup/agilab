@@ -4583,6 +4583,8 @@ def sweep_page(  # pragma: no cover - live browser path
     above_fold_check: bool = False,
     required_text: Sequence[str] = (),
     forbidden_text: Sequence[str] = (),
+    forbidden_sidebar_text: Sequence[str] = (),
+    required_links: Sequence[str] = (),
     required_action_labels: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     success_screenshot: bool = False,
@@ -4715,6 +4717,26 @@ def sweep_page(  # pragma: no cover - live browser path
                         app_name=app_name,
                         display=display,
                         forbidden_text=forbidden_text,
+                        timeout_ms=widget_timeout_ms,
+                    )
+                )
+            if forbidden_sidebar_text and not any(probe.status == "failed" for probe in probes):
+                probes.append(
+                    _forbidden_sidebar_text_probe(
+                        page,
+                        app_name=app_name,
+                        display=display,
+                        forbidden_sidebar_text=forbidden_sidebar_text,
+                        timeout_ms=widget_timeout_ms,
+                    )
+                )
+            if required_links and not any(probe.status == "failed" for probe in probes):
+                probes.append(
+                    _required_link_probe(
+                        page,
+                        app_name=app_name,
+                        display=display,
+                        required_links=required_links,
                         timeout_ms=widget_timeout_ms,
                     )
                 )
@@ -5602,6 +5624,155 @@ def _forbidden_text_probe(  # pragma: no cover - live browser path
     )
 
 
+def _page_and_frame_sidebar_text(page: Any, *, timeout_ms: float = 1000.0) -> str:  # pragma: no cover - live browser path
+    texts: list[str] = []
+    for _owner_name, owner in _page_and_child_frame_owners(page):
+        try:
+            locator = owner.locator("[data-testid='stSidebar']")
+            count = int(locator.count())
+        except Exception:
+            continue
+        for index in range(min(count, 8)):
+            try:
+                text = locator.nth(index).inner_text(timeout=timeout_ms)
+            except Exception:
+                continue
+            if text:
+                texts.append(str(text))
+    return "\n".join(texts)
+
+
+def _forbidden_sidebar_text_probe(  # pragma: no cover - live browser path
+    page: Any,
+    *,
+    app_name: str,
+    display: str,
+    forbidden_sidebar_text: Sequence[str],
+    timeout_ms: float,
+) -> WidgetProbe:
+    expected = tuple(str(label).strip() for label in forbidden_sidebar_text if str(label).strip())
+    text = _page_and_frame_sidebar_text(page, timeout_ms=timeout_ms)
+    normalized_text = text.lower()
+    present = [label for label in expected if label.lower() in normalized_text]
+    if present:
+        detail = f"forbidden sidebar text present: {present}; sidebar text sample={text[:500]!r}"
+        return WidgetProbe(
+            app_name,
+            display,
+            "forbidden_sidebar_text",
+            "sidebars",
+            "failed",
+            _short_detail(detail),
+            getattr(page, "url", ""),
+        )
+    detail = f"forbidden sidebar text absent from page and child frame sidebars: {list(expected)}"
+    return WidgetProbe(
+        app_name,
+        display,
+        "forbidden_sidebar_text",
+        "sidebars",
+        "interacted",
+        _short_detail(detail),
+        getattr(page, "url", ""),
+    )
+
+
+def _required_link_spec_parts(spec: str) -> tuple[str, tuple[str, ...]]:
+    raw = str(spec).strip()
+    if "=>" in raw:
+        label, fragments = raw.split("=>", 1)
+    elif "|" in raw:
+        label, fragments = raw.split("|", 1)
+    else:
+        label, fragments = raw, ""
+    return label.strip(), tuple(part.strip() for part in fragments.split(";") if part.strip())
+
+
+def _visible_link_href(owner: Any, label: str, *, timeout_ms: float) -> tuple[str | None, str]:
+    if not hasattr(owner, "get_by_role"):
+        return None, "owner has no role locator"
+    try:
+        locator = owner.get_by_role("link", name=re.compile(re.escape(label), re.IGNORECASE))
+    except TypeError:
+        try:
+            locator = owner.get_by_role("link", name=label)
+        except Exception as exc:
+            return None, f"link role lookup failed: {exc}"
+    except Exception as exc:
+        return None, f"link role lookup failed: {exc}"
+    try:
+        count = int(locator.count())
+    except Exception as exc:
+        return None, f"link candidate count failed: {exc}"
+    if count <= 0:
+        return None, "no link candidates"
+    last_detail = "no visible link candidates"
+    for index in range(min(count, 20)):
+        try:
+            candidate = locator.nth(index)
+            if not candidate.is_visible(timeout=timeout_ms):
+                last_detail = "link candidate was not visible"
+                continue
+            href = candidate.get_attribute("href", timeout=timeout_ms) or ""
+            return str(href), "link is visible"
+        except Exception as exc:
+            last_detail = f"link candidate could not be inspected: {exc}"
+    return None, last_detail
+
+
+def _required_link_probe(  # pragma: no cover - live browser path
+    page: Any,
+    *,
+    app_name: str,
+    display: str,
+    required_links: Sequence[str],
+    timeout_ms: float,
+) -> WidgetProbe:
+    expected = tuple(_required_link_spec_parts(spec) for spec in required_links if str(spec).strip())
+    missing: list[str] = []
+    found: list[str] = []
+    details: list[str] = []
+    owners = _page_and_child_frame_owners(page)
+    for label, fragments in expected:
+        label_found = False
+        label_details: list[str] = []
+        for owner_name, owner in owners:
+            href, detail = _visible_link_href(owner, label, timeout_ms=timeout_ms)
+            if href is not None and all(fragment in href for fragment in fragments):
+                found.append(f"{label}@{owner_name}:{href}")
+                label_found = True
+                break
+            if href is not None:
+                missing_fragments = [fragment for fragment in fragments if fragment not in href]
+                detail = f"href={href!r} missing fragments={missing_fragments}"
+            label_details.append(f"{owner_name}: {detail}")
+        if not label_found:
+            spec = label if not fragments else f"{label}=>{';'.join(fragments)}"
+            missing.append(spec)
+            details.append(f"{spec}: {'; '.join(label_details)}")
+    if missing:
+        detail = f"required links missing: {missing}; " + " | ".join(details)
+        return WidgetProbe(
+            app_name,
+            display,
+            "required_link",
+            "page_and_frames",
+            "failed",
+            _short_detail(detail),
+            getattr(page, "url", ""),
+        )
+    detail = f"required links visible with expected href fragments: {found}"
+    return WidgetProbe(
+        app_name,
+        display,
+        "required_link",
+        "page_and_frames",
+        "interacted",
+        _short_detail(detail),
+        getattr(page, "url", ""),
+    )
+
+
 def _trial_click_required_button(  # pragma: no cover - live browser path
     owner: Any,
     label: str,
@@ -5724,6 +5895,8 @@ def sweep_direct_apps_page(  # pragma: no cover - live browser path
     above_fold_check: bool = False,
     required_text: Sequence[str] = (),
     forbidden_text: Sequence[str] = (),
+    forbidden_sidebar_text: Sequence[str] = (),
+    required_links: Sequence[str] = (),
     required_action_labels: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     failure_bundle_dir: Path | None = None,
@@ -5851,6 +6024,8 @@ def sweep_direct_apps_page(  # pragma: no cover - live browser path
                         above_fold_check=above_fold_check,
                         required_text=required_text,
                         forbidden_text=forbidden_text,
+                        forbidden_sidebar_text=forbidden_sidebar_text,
+                        required_links=required_links,
                         required_action_labels=required_action_labels,
                         visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                         failure_bundle_dir=failure_bundle_dir,
@@ -5903,6 +6078,8 @@ def sweep_app(  # pragma: no cover - live browser path
     above_fold_check: bool = False,
     required_text: Sequence[str] = (),
     forbidden_text: Sequence[str] = (),
+    forbidden_sidebar_text: Sequence[str] = (),
+    required_links: Sequence[str] = (),
     required_action_labels: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
@@ -6008,6 +6185,8 @@ def sweep_app(  # pragma: no cover - live browser path
                                 above_fold_check=above_fold_check,
                                 required_text=required_text,
                                 forbidden_text=forbidden_text,
+                                forbidden_sidebar_text=forbidden_sidebar_text,
+                                required_links=required_links,
                                 required_action_labels=required_action_labels,
                                 visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                                 success_screenshot=success_screenshot,
@@ -6123,6 +6302,8 @@ def sweep_app(  # pragma: no cover - live browser path
                     above_fold_check=above_fold_check,
                     required_text=required_text,
                     forbidden_text=forbidden_text,
+                    forbidden_sidebar_text=forbidden_sidebar_text,
+                    required_links=required_links,
                     required_action_labels=required_action_labels,
                     visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                     failure_bundle_dir=failure_bundle_dir,
@@ -6177,6 +6358,8 @@ def sweep_remote_app(  # pragma: no cover - live browser path
     above_fold_check: bool = False,
     required_text: Sequence[str] = (),
     forbidden_text: Sequence[str] = (),
+    forbidden_sidebar_text: Sequence[str] = (),
+    required_links: Sequence[str] = (),
     required_action_labels: Sequence[str] = (),
     visual_mask_dynamic_regions: bool = False,
     viewport_width: int = DEFAULT_VIEWPORT_WIDTH,
@@ -6261,6 +6444,8 @@ def sweep_remote_app(  # pragma: no cover - live browser path
                         above_fold_check=above_fold_check,
                         required_text=required_text,
                         forbidden_text=forbidden_text,
+                        forbidden_sidebar_text=forbidden_sidebar_text,
+                        required_links=required_links,
                         required_action_labels=required_action_labels,
                         visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                         success_screenshot=success_screenshot,
@@ -6396,6 +6581,8 @@ def sweep_remote_app(  # pragma: no cover - live browser path
                             above_fold_check=above_fold_check,
                             required_text=required_text,
                             forbidden_text=forbidden_text,
+                            forbidden_sidebar_text=forbidden_sidebar_text,
+                            required_links=required_links,
                             required_action_labels=required_action_labels,
                             visual_mask_dynamic_regions=visual_mask_dynamic_regions,
                             failure_bundle_dir=failure_bundle_dir,
@@ -6527,6 +6714,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--above-fold-check", action="store_true", help="Fail when expected page headings or primary controls are not visible above the initial viewport fold.")
     parser.add_argument("--required-text", default="", help="Comma-separated text that must be visible in the page or a child iframe after render.")
     parser.add_argument("--forbidden-text", default="", help="Comma-separated text that must not be visible in the page or a child iframe after render.")
+    parser.add_argument("--forbidden-sidebar-text", default="", help="Comma-separated text that must not be visible in Streamlit sidebars after render.")
+    parser.add_argument("--required-links", default="", help="Comma-separated link specs that must be visible, formatted as label=>href-fragment[;href-fragment].")
     parser.add_argument("--required-action-labels", default="", help="Comma-separated button labels that must be visible, enabled, and trial-clickable in the page or a child iframe.")
     parser.add_argument("--visual-mask-dynamic-regions", action="store_true", help="Mask volatile log/progress/code regions before success screenshots for visual baseline evidence.")
     parser.add_argument("--success-screenshot", action="store_true", help="Capture a screenshot for each passed page when --screenshot-dir is set.")
@@ -6598,6 +6787,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - live b
     preselect_labels = parse_csv(args.preselect_labels)
     required_text = parse_csv(args.required_text)
     forbidden_text = parse_csv(args.forbidden_text)
+    forbidden_sidebar_text = parse_csv(args.forbidden_sidebar_text)
+    required_links = parse_csv(args.required_links)
     required_action_labels = parse_csv(args.required_action_labels)
     if args.action_button_policy == "click-selected" and not click_action_labels:
         parser.error("--click-action-labels is required with --action-button-policy click-selected")
@@ -6665,6 +6856,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - live b
                 above_fold_check=args.above_fold_check,
                 required_text=required_text,
                 forbidden_text=forbidden_text,
+                forbidden_sidebar_text=forbidden_sidebar_text,
+                required_links=required_links,
                 required_action_labels=required_action_labels,
                 visual_mask_dynamic_regions=args.visual_mask_dynamic_regions,
                 viewport_width=args.viewport_width,
@@ -6719,6 +6912,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - live b
                 above_fold_check=args.above_fold_check,
                 required_text=required_text,
                 forbidden_text=forbidden_text,
+                forbidden_sidebar_text=forbidden_sidebar_text,
+                required_links=required_links,
                 required_action_labels=required_action_labels,
                 visual_mask_dynamic_regions=args.visual_mask_dynamic_regions,
                 viewport_width=args.viewport_width,
