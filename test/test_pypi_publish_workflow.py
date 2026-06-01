@@ -339,8 +339,12 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
 
 def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_assets() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    retention_block = text[
+        text.index("  pypi-release-retention:") : text.index("  publish-dataset-release-assets:")
+    ]
 
     assert "pypi-release-retention:" in text
+    assert "actions: write" in retention_block
     assert "(github.event.inputs.include_existing_pypi || 'false') != 'true'" in text
     assert "needs.pypi-provenance-evidence.result == 'success'" in text
     assert "PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}" in text
@@ -359,6 +363,9 @@ def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_asse
     assert "--github-confirm-login-timeout 1800" in text
     assert "--github-confirm-login-poll-delay 5" in text
     assert "--github-token \"${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}\"" in text
+    assert "Clear temporary PyPI confirmation variable" in retention_block
+    assert "if: ${{ always() }}" in retention_block
+    assert "_cleanup_github_confirm_login_variable" in retention_block
     assert "--protect-versions-from-projects" in text
     assert "--repo-root ." in text
     assert "--protect-version \"$current_version\"" not in text

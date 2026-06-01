@@ -691,7 +691,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: read
+      actions: write
     env:
       PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
       PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
@@ -734,6 +734,24 @@ jobs:
             args+=(--package "$package")
           done
           python tools/pypi_release_retention.py "${args[@]}"
+
+      - name: Clear temporary PyPI confirmation variable
+        if: ${{ always() }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+
+          from tools.pypi_release_retention import _cleanup_github_confirm_login_variable
+
+          _cleanup_github_confirm_login_variable(
+              repository=os.environ["GITHUB_REPOSITORY"],
+              variable="PYPI_CONFIRM_LOGIN_URL",
+              token=os.environ["GITHUB_TOKEN"],
+          )
+          PY
 
   publish-dataset-release-assets:
     if: ${{ always() && needs.test.result == 'success' && needs.release-plan.result == 'success' }}
