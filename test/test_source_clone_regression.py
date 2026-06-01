@@ -64,6 +64,19 @@ def _clone_unresolved_dataset_pointers(clone_root: Path) -> list[Path]:
     return unresolved
 
 
+def _copy_materialized_dataset_payloads_from_parent(
+    clone_root: Path,
+    unresolved: list[Path],
+) -> None:
+    """Recover nested local clones when git-lfs leaves pointers behind."""
+    for target in unresolved:
+        relative = target.relative_to(clone_root)
+        source = ROOT / relative
+        if not source.is_file() or _is_git_lfs_pointer_file(source):
+            continue
+        shutil.copy2(source, target)
+
+
 def _materialize_fresh_source_clone(tmp_path: Path) -> Path:
     clone_root = tmp_path / "source-clone"
     clone_root.mkdir()
@@ -84,6 +97,7 @@ def _materialize_fresh_source_clone(tmp_path: Path) -> Path:
     )
     unresolved_before = _clone_unresolved_dataset_pointers(clone_root)
     if unresolved_before:
+        _copy_materialized_dataset_payloads_from_parent(clone_root, unresolved_before)
         unresolved_after = _clone_unresolved_dataset_pointers(clone_root)
         if unresolved_after:
             unresolved_report = "\n".join(
@@ -139,6 +153,46 @@ def test_materialize_fresh_source_clone_fails_when_lfs_pointer_remains(tmp_path:
 
     with pytest.raises(AssertionError, match="payloads are still pointers"):
         _materialize_fresh_source_clone(tmp_path)
+
+
+def test_materialize_fresh_source_clone_recovers_from_parent_payload(
+    tmp_path: Path,
+    monkeypatch,
+):
+    parent = tmp_path / "parent"
+    payload = parent / "src" / "demo_worker" / "dataset.7z"
+    payload.parent.mkdir(parents=True)
+    payload.write_bytes(b"7z\xbc\xafmaterialized")
+
+    def _fake_run(cmd, **kwargs):
+        if cmd[:2] == ["git", "clone"]:
+            assert kwargs["check"] is False
+            clone_root = Path(cmd[-1])
+            dataset = clone_root / "src" / "demo_worker" / "dataset.7z"
+            dataset.parent.mkdir(parents=True, exist_ok=True)
+            dataset.write_text(
+                "\n".join(
+                    [
+                        "version https://git-lfs.github.com/spec/v1",
+                        "oid sha256:0000000000000000000000000000000000000000000000000000000000000000",
+                        "size 12",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
+
+        if cmd[:3] == ["git", "-C", str(tmp_path / "source-clone")]:
+            return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
+
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    monkeypatch.setattr(sys.modules[__name__], "ROOT", parent)
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    clone_root = _materialize_fresh_source_clone(tmp_path)
+
+    assert (clone_root / "src" / "demo_worker" / "dataset.7z").read_bytes() == b"7z\xbc\xafmaterialized"
 
 
 def _run_clone_newcomer_proof(clone_root: Path) -> dict[str, object]:
