@@ -51,8 +51,19 @@ Use this skill when editing:
 - For an app-owned Streamlit surface that should appear as the app's primary
   ANALYSIS experience, declare `[app_surface]` in the app's `app_settings.toml`
   with a project-local entrypoint such as `pytorch_playground/app_surface.py`.
-  Keep `pages.view_module = []` when the app surface replaces generic page
-  launchers. Do not create a generic `apps-pages/view_<app>` bridge for this.
+  Use `[pages] restrict_to_view_module = true` for app-surface-first projects;
+  an empty or missing `pages.view_module` may be migrated to the virtual
+  `view_app_ui` launcher so the app surface is selected and visible in the
+  ANALYSIS sidebar. Do not create a generic `apps-pages/view_<app>` bridge for
+  this.
+- Treat `view_app_ui` as an internal route key, not a user-facing label. Sidebar
+  links for app surfaces should use `[app_surface].title`, route through the app
+  surface renderer, and avoid exposing duplicate `view_app_ui` bridge links.
+- Render an ANALYSIS sidebar launcher from one place per page route. If the main
+  page persists selected views after rendering controls, do not also render the
+  same project label or app-surface link before the main-page body; add a
+  regression assertion that the compact project caption and app-surface link
+  appear exactly once.
 
 ## Session State Rules (Avoid Common Crashes)
 

@@ -1365,7 +1365,7 @@ def test_analysis_page_state_falls_back_to_all_views_when_restrict_config_is_emp
     assert state.widget_selection == ()
 
 
-def test_app_surface_migration_preserves_intentionally_empty_analysis_views(tmp_path: Path):
+def test_app_surface_migration_selects_app_ui_by_default(tmp_path: Path):
     module = _load_analysis_module()
     active_app_path = tmp_path / "app_surface_project"
     surface_module = active_app_path / "src" / "demo_surface"
@@ -1390,7 +1390,7 @@ default = "streamlit"
 
     assert changed is True
     assert cfg["pages"]["restrict_to_view_module"] is True
-    assert cfg["pages"]["view_module"] == []
+    assert cfg["pages"]["view_module"] == ["view_app_ui"]
     assert "view_app_ui" not in cfg["pages"]
     assert cfg["app_surface"]["entrypoint"] == "demo_surface/app.py"
 

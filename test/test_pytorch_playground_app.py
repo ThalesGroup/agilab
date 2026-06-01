@@ -12,6 +12,7 @@ from types import ModuleType
 from types import SimpleNamespace
 import zipfile
 
+import agi_env as agi_env_package
 import numpy as np
 import pandas as pd
 import pytest
@@ -389,7 +390,7 @@ def test_app_surface_analysis_uses_orchestrate_args(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "pytorch_playground", fake_package)
     monkeypatch.setattr(module, "_resolve_active_app_path", lambda _active_app=None: PROJECT_PATH.resolve())
-    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _active_app_path: (SimpleNamespace(), fake_args))
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _active_app_path, **_kwargs: (SimpleNamespace(), fake_args))
     monkeypatch.setattr(module, "_analysis_evidence_dirs", lambda _env, _args, _path: evidence_dirs)
     monkeypatch.setattr(module, "_has_evidence", lambda paths: paths == evidence_dirs)
 
@@ -443,7 +444,7 @@ def test_app_surface_analysis_uses_manifest_token_from_session(monkeypatch):
     monkeypatch.setitem(sys.modules, "pytorch_playground", fake_package)
     monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
     monkeypatch.setattr(module, "_resolve_active_app_path", lambda _active_app=None: PROJECT_PATH.resolve())
-    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _active_app_path: (SimpleNamespace(), fake_args))
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _active_app_path, **_kwargs: (SimpleNamespace(), fake_args))
     monkeypatch.setattr(module, "_analysis_evidence_dirs", lambda _env, _args, _path: evidence_dirs)
     monkeypatch.setattr(module, "_has_evidence", lambda paths: paths == evidence_dirs)
 
@@ -490,7 +491,7 @@ def test_app_surface_analysis_no_evidence_avoids_playground_import(monkeypatch, 
     monkeypatch.setattr(
         module,
         "_load_orchestrate_args",
-        lambda _active_app_path: (
+        lambda _active_app_path, **_kwargs: (
             SimpleNamespace(AGILAB_EXPORT_ABS=tmp_path / "export", target="pytorch_playground_project"),
             SimpleNamespace(data_out=tmp_path / "evidence"),
         ),
@@ -632,7 +633,7 @@ def test_app_surface_run_button_persists_args_records_manifest_and_reruns(
     )
 
     monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
-    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path: (runtime_env, initial_args))
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path, **_kwargs: (runtime_env, initial_args))
     monkeypatch.setattr(module, "_analysis_evidence_dirs", lambda _env, _args, _path: [evidence])
     monkeypatch.setattr(
         module,
@@ -749,7 +750,7 @@ def test_app_surface_full_renders_orchestrate_form_and_analysis_together(monkeyp
     monkeypatch.setitem(sys.modules, "streamlit", _FakeStreamlit())
     monkeypatch.setitem(sys.modules, "pytorch_playground", fake_package)
     monkeypatch.setattr(module, "_load_app_args_form", lambda: fake_app_args_form)
-    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _active_app_path: (fake_runtime_env, fake_args))
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _active_app_path, **_kwargs: (fake_runtime_env, fake_args))
     monkeypatch.setattr(module, "_analysis_evidence_dirs", lambda _env, _args, _path: evidence_dirs)
     monkeypatch.setattr(module, "_has_evidence", lambda paths: paths == evidence_dirs)
 
@@ -818,7 +819,7 @@ def test_app_surface_full_reports_app_args_form_dependency_error(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "streamlit", _FakeStreamlit())
     monkeypatch.setattr(module, "_load_playground_ui_or_report", lambda **_kwargs: SimpleNamespace(PAGE_TITLE="PyTorch Playground"))
-    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path: (SimpleNamespace(), SimpleNamespace()))
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path, **_kwargs: (SimpleNamespace(), SimpleNamespace()))
     monkeypatch.setattr(module, "_load_app_args_form", lambda: (_ for _ in ()).throw(ImportError("broken app form dependency")))
     monkeypatch.setattr(
         module,
@@ -956,7 +957,7 @@ def test_app_surface_full_run_button_executes_before_analysis(monkeypatch):
 
     load_calls: list[Path] = []
 
-    def _load_args(path):
+    def _load_args(path, **_kwargs):
         load_calls.append(path)
         return runtime_env, args_model
 
@@ -1019,9 +1020,7 @@ def test_app_surface_additional_modes_and_error_paths(monkeypatch: pytest.Monkey
             instance.app_settings_file.write_text("[args]\nsample_count=96\n", encoding="utf-8")
             return instance
 
-    fake_agi_env_module = ModuleType("agi_env")
-    fake_agi_env_module.AgiEnv = FakeAgiEnv
-    monkeypatch.setitem(sys.modules, "agi_env", fake_agi_env_module)
+    monkeypatch.setattr(agi_env_package, "AgiEnv", FakeAgiEnv)
 
     env, args_model = module._load_orchestrate_args(PROJECT_PATH.resolve())
     assert args_model.sample_count == 96
@@ -1055,7 +1054,7 @@ def test_app_surface_additional_modes_and_error_paths(monkeypatch: pytest.Monkey
             events.append(("st-error", message))
 
     monkeypatch.setitem(sys.modules, "streamlit", FakeStreamlit())
-    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path: (_ for _ in ()).throw(RuntimeError("bad args")))
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path, **_kwargs: (_ for _ in ()).throw(RuntimeError("bad args")))
     module._render_analysis_surface(PROJECT_PATH.resolve())
     assert ("st-error", "Unable to load ORCHESTRATE app arguments: bad args") in events
     module._render_full_surface(PROJECT_PATH.resolve())
@@ -1077,7 +1076,7 @@ def test_app_surface_additional_modes_and_error_paths(monkeypatch: pytest.Monkey
     monkeypatch.setattr(
         module,
         "_render_analysis_surface",
-        lambda path: events.append(("render-analysis", path)),
+        lambda path, **kwargs: events.append(("render-analysis", (path, kwargs))),
     )
     monkeypatch.setattr(
         module,
@@ -1086,10 +1085,41 @@ def test_app_surface_additional_modes_and_error_paths(monkeypatch: pytest.Monkey
     )
     module.render(mode="analysis")
     module.render(mode="full", env="env", container="container")
-    assert ("render-analysis", None) in events
+    assert ("render-analysis", (None, {"env": None, "configure_page": True, "compact": False})) in events
     assert ("render-full", (None, {"env": "env", "container": "container"})) in events
     with pytest.raises(ValueError, match="Unsupported PyTorch Playground app surface mode"):
         module.render(mode="unknown")
+
+
+def test_app_surface_load_orchestrate_args_reuses_parent_env_without_for_app(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_app_surface_module("pytorch_playground_app_surface_parent_env_test")
+    active_app = tmp_path / "apps" / "builtin" / "pytorch_playground_project"
+    active_app.mkdir(parents=True)
+    settings_file = tmp_path / "workspace" / "app_settings.toml"
+    settings_file.parent.mkdir(parents=True)
+    settings_file.write_text("[args]\nsample_count = 112\n", encoding="utf-8")
+
+    class ForbiddenAgiEnv:
+        @classmethod
+        def for_app(cls, **_kwargs):
+            raise AssertionError("inline app surface must reuse the parent env")
+
+    monkeypatch.setattr(agi_env_package, "AgiEnv", ForbiddenAgiEnv)
+
+    parent_env = SimpleNamespace(
+        active_app=active_app,
+        app="pytorch_playground_project",
+        apps_path=tmp_path / "apps",
+        app_settings_file=settings_file,
+    )
+
+    env, args_model = module._load_orchestrate_args(active_app, env=parent_env)
+
+    assert env is parent_env
+    assert args_model.sample_count == 112
 
 
 def test_app_surface_run_button_idle_and_failure_paths(monkeypatch: pytest.MonkeyPatch):
@@ -1124,7 +1154,7 @@ def test_app_surface_run_button_idle_and_failure_paths(monkeypatch: pytest.Monke
             events.append(("click", label))
             return True
 
-    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path: (_ for _ in ()).throw(RuntimeError("run failed")))
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path, **_kwargs: (_ for _ in ()).throw(RuntimeError("run failed")))
     module._render_run_button(PROJECT_PATH.resolve(), container=ClickContainer())
     assert ("error", "Run failed: run failed") in events
 

@@ -155,6 +155,13 @@ Use this runbook whenever you:
   shared core, do not create import cycles, and do not move logic across package
   boundaries unless the dependency direction remains valid and the validation
   scope covers the affected callers.
+- **Existing mechanism first**: Before adding a new UI control, workflow path,
+  configuration key, launcher, persistence model, or helper abstraction, search
+  for the existing mechanism that already solves the same user intent. Reuse or
+  extend that mechanism when it is part of the established product contract.
+  Do not invent a parallel mechanism just because it is faster locally; only add
+  a new mechanism when the existing one is objectively insufficient, and state
+  why in the change summary and regression plan.
 - **Change-reporting accuracy rule**: When summarizing edits, make the coverage
   of the summary explicit enough that nearby preserved text is not mistaken for
   deleted text. If a change inserts rules around an existing rule, say whether

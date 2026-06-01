@@ -45,6 +45,7 @@ view_module = []
 title = "PyTorch Playground"
 entrypoint = "pytorch_playground/app_surface.py"
 default = "streamlit"
+sidebar_controls = true
 
 [app_surface.backends.streamlit]
 title = "PyTorch Playground"

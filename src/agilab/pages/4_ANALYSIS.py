@@ -120,6 +120,7 @@ import_agilab_symbols(
         "app_surface_config": "app_surface_config",
         "app_surface_title": "app_surface_title",
         "configured_app_surface_entrypoint": "configured_app_surface_entrypoint",
+        "render_app_surface": "render_app_surface",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "app_surface.py",
@@ -1727,9 +1728,9 @@ def _migrate_declared_app_surface_config(
     )
     declared_app_ui_page = _declared_app_ui_page_config(active_app_path)
     if seed_restricts_views:
-        desired_modules = _dedupe_preserve_order(seed_modules)
-        if declared_app_ui_page is not None and not desired_modules:
-            desired_modules = [_APP_UI_PAGE_KEY]
+        desired_modules = _dedupe_preserve_order(seed_modules or [_APP_UI_PAGE_KEY])
+        if _APP_UI_PAGE_KEY not in desired_modules:
+            desired_modules.insert(0, _APP_UI_PAGE_KEY)
         if pages.get("restrict_to_view_module") is not True:
             pages["restrict_to_view_module"] = True
             changed = True
@@ -2018,7 +2019,14 @@ def _find_view_entry(
     return str(candidate), entry_point
 
 
-def _view_label(option_id: str, builtin_names: set[str]) -> str:
+def _view_label(
+    option_id: str,
+    builtin_names: set[str],
+    *,
+    app_surface_cfg: dict[str, Any] | None = None,
+) -> str:
+    if option_id == _APP_UI_PAGE_KEY and app_surface_cfg:
+        return app_surface_title(app_surface_cfg)
     if option_id in builtin_names:
         return option_id
     try:
@@ -2311,6 +2319,13 @@ def _analysis_sidebar_view_url(project: str | None, view_path: Path) -> str:
     return f"?{urlencode(params)}"
 
 
+def _analysis_sidebar_route_url(project: str | None, route: str) -> str:
+    params = {"current_page": route}
+    if project:
+        params["active_app"] = project
+    return f"?{urlencode(params)}"
+
+
 def _analysis_sidebar_notebook_url(project: str | None, notebook_path: Path) -> str:
     params = {"current_notebook": str(notebook_path.resolve())}
     if project:
@@ -2325,6 +2340,7 @@ def _render_analysis_sidebar_view_launcher(
     view_names: list[str],
     resolved_pages: dict[str, Path],
     custom_view_lookup: dict[str, Path],
+    app_surface_cfg: dict[str, Any] | None = None,
 ) -> None:
     launch_options = list(dict.fromkeys(selected_views))
     if not launch_options:
@@ -2340,13 +2356,20 @@ def _render_analysis_sidebar_view_launcher(
     missing_views: list[str] = []
     for view_name in launch_options:
         view_path = _resolve_view_path(view_name, resolved_pages, custom_view_lookup)
-        display_label = _view_label(view_name, builtin_names)
+        display_label = _view_label(
+            view_name,
+            builtin_names,
+            app_surface_cfg=app_surface_cfg,
+        )
         if view_path is None:
             missing_views.append(display_label)
             continue
-        link_href = html.escape(
-            _analysis_sidebar_view_url(project, view_path), quote=True
+        view_url = (
+            _analysis_sidebar_route_url(project, _APP_UI_PAGE_KEY)
+            if view_name == _APP_UI_PAGE_KEY and app_surface_cfg
+            else _analysis_sidebar_view_url(project, view_path)
         )
+        link_href = html.escape(view_url, quote=True)
         link_label = html.escape(display_label)
         link_weight = "650" if view_name in linked_views else "450"
         link_rows.append(
@@ -2746,11 +2769,30 @@ async def _render_configured_app_surface(
     entrypoint = configured_app_surface_entrypoint(active_app_path, cfg)
     if entrypoint is None:
         return False
+    if current_page in {None, "", "main"}:
+        return False
     if _is_app_surface_overview_requested(current_page):
         return False
     if _query_param_is_truthy(st.query_params.get(_APP_SURFACE_HIDE_QUERY_PARAM)):
         return False
     surface_config = app_surface_config(active_app_path, cfg)
+    if surface_config.get("sidebar_controls"):
+        render_app_surface(
+            active_app_path,
+            mode="controls",
+            config=cfg,
+            env=st.session_state.get("env"),
+            container=st.sidebar,
+        )
+        st.subheader(app_surface_title(surface_config))
+        render_app_surface(
+            active_app_path,
+            mode="analysis",
+            config=cfg,
+            env=st.session_state.get("env"),
+            container=st.container(),
+        )
+        return True
     await render_view_page(
         entrypoint,
         title=app_surface_title(surface_config),
@@ -2892,12 +2934,15 @@ async def main():
         sidebar_selected_views: list[str],
         sidebar_selected_notebooks: list[str],
     ) -> None:
+        if project:
+            st.sidebar.caption(f"Project: `{project}`")
         _render_analysis_sidebar_view_launcher(
             project=project,
             selected_views=sidebar_selected_views,
             view_names=all_available_views,
             resolved_pages=resolved_pages,
             custom_view_lookup=custom_view_lookup,
+            app_surface_cfg=app_surface_config(active_app_path, cfg),
         )
         _render_analysis_sidebar_notebook_launcher(
             project=project,
@@ -2913,6 +2958,7 @@ async def main():
     )
     app_surface_will_render = (
         configured_app_surface_entrypoint(active_app_path, cfg) is not None
+        and current_page not in {None, "", "main"}
         and not _is_app_surface_overview_requested(current_page)
         and not _query_param_is_truthy(st.query_params.get(_APP_SURFACE_HIDE_QUERY_PARAM))
     )
@@ -2929,6 +2975,10 @@ async def main():
     # Route: only render a child surface when the param is concrete, not "main"/empty.
     # The sidebar launchers above stay visible on child views/notebooks.
     if _consume_legacy_app_ui_route_for_app_surface(current_page, active_app_path):
+        if await _render_configured_app_surface(
+            active_app_path, cfg, current_page=_APP_UI_PAGE_KEY
+        ):
+            return
         current_page = None
     if await _render_selected_notebook_route(current_notebook):
         return
@@ -2963,7 +3013,11 @@ async def main():
             "Analysis views",
             view_names,
             key=selection_key,
-            format_func=lambda option: _view_label(option, set(resolved_pages.keys())),
+            format_func=lambda option: _view_label(
+                option,
+                set(resolved_pages.keys()),
+                app_surface_cfg=app_surface_config(active_app_path, cfg),
+            ),
             help="Selected views are persisted in the active project's app settings.",
         )
 
@@ -3171,7 +3225,11 @@ async def render_view_page(
         await _render_view_page_inline(view_path, active_app_arg)
         return
 
-    port = _port_for(f"{view_key}|{active_app_arg}")
+    try:
+        view_version_token = str(int(view_path.stat().st_mtime_ns))
+    except OSError:
+        view_version_token = "missing"
+    port = _port_for(f"{view_key}|{active_app_arg}|{view_version_token}")
     sidecar_ready = _ensure_sidecar(view_key, view_path, port, active_app_arg)
 
     # Regular iframe (child keeps its own sidebar if it has one), preserve extra query params (e.g., datadir_rel)
