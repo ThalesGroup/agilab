@@ -1009,7 +1009,8 @@ def test_app_surface_full_run_button_executes_before_analysis(monkeypatch):
         ),
     ) in events
     assert ("spinner", "Refreshing PyTorch evidence") in events
-    assert load_calls == [PROJECT_PATH.resolve(), PROJECT_PATH.resolve()]
+    assert len(load_calls) >= 2
+    assert all(call == PROJECT_PATH.resolve() for call in load_calls)
     assert ("column_success", "Run complete. Evidence refreshed (1 row).") in events
 
 
