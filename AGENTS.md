@@ -99,6 +99,26 @@ Use this runbook whenever you:
   silently return. If an automated regression is genuinely not practical,
   document the reason, the closest manual/robot validation, and the remaining
   risk before closing the fix.
+- **Reproduce-before-fix rule**: Before patching a logged failure, preserve the
+  smallest command, test, fixture, or scenario that reproduces the problem. If
+  the failure cannot be reproduced locally, state that explicitly, identify the
+  most likely boundary from the log, and avoid broad speculative edits.
+- **Diagnostic quality rule**: If a failure was slow or ambiguous to diagnose,
+  improve the error message, log context, status report, or validation output
+  as part of the fix when practical. A good fix should make the next failure in
+  the same area faster to classify without requiring source-code archaeology.
+- **Dependency-bound validation rule**: When changing dependency caps or
+  compatibility shims, validate the meaningful boundary versions when practical:
+  the currently installed version, the new lower or upper bound, and an import
+  or runtime smoke that exercises the affected API. If boundary validation is
+  too expensive or platform-specific, document the untested edge and rely on the
+  closest local or CI matrix check.
+- **Environment-pollution regression rule**: If a bug depends on local state
+  such as `HOME`, `~/.agilab`, `.agilab-path`, `.venv`, cluster settings,
+  ignored generated files, cached wheels, or stale app/workspace copies, add a
+  polluted-environment regression rather than only testing the clean path. The
+  regression should prove AGILAB ignores, isolates, repairs, or reports the
+  polluted state intentionally.
 - **Reasonable factorization check**: When adding new code, look for nearby
   existing helpers, contracts, or patterns that can reasonably be reused or
   extended instead of duplicating logic. Factor only when it reduces real
