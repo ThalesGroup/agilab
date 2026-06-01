@@ -112,7 +112,7 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
                 "--check-workflow",
                 ".github/workflows/pypi-publish.yaml",
             ),
-            _uv_python("tools/pypi_release_version_policy.py"),
+            _uv_python("tools/pypi_release_version_policy.py", "--skip-existing-pypi"),
             _uv_python("tools/pypi_project_preflight.py"),
             _uv_python(
                 "tools/pypi_trusted_publisher_contract.py",
