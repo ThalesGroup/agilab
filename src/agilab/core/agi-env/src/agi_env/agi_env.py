@@ -289,6 +289,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         with cls._lock:
             cls._instance = None
+            cls._ip_local_cache = {"127.0.0.1", "::1"}
+            cls._share_mount_warning_keys = set()
+            cls._pythonpath_entries = []
     install_type: int | None = None  # deprecated: derived from flags for backward compatibility
     apps_path: Path | None = None
     app: str | None = None

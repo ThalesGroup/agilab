@@ -473,6 +473,14 @@ def test_direct_pypi_delete_submits_reauth_before_delete_form() -> None:
 def test_direct_pypi_delete_consumes_confirm_login_url_after_runner_login_redirect() -> None:
     module = _load_module()
     confirm_url = "https://pypi.org/account/confirm-login/?token=token"
+    cleanup_calls = []
+
+    class ConfirmProvider:
+        def __call__(self) -> str:
+            return confirm_url
+
+        def cleanup(self) -> None:
+            cleanup_calls.append("cleanup")
 
     class FakeResponse:
         def __init__(self, *, text: str, url: str) -> None:
@@ -544,16 +552,61 @@ def test_direct_pypi_delete_consumes_confirm_login_url_after_runner_login_redire
         repo="pypi",
         username="maintainer",
         password="secret",
-        confirm_login_url_provider=lambda: confirm_url,
+        confirm_login_url_provider=ConfirmProvider(),
         session_factory=lambda: session,
     )
 
     assert confirm_url in session.get_urls
+    assert cleanup_calls == ["cleanup"]
     assert session.delete_attempts == 2
     assert session.posts[-1][1]["data"] == {
         "csrf_token": "delete-csrf",
         "confirm_delete_version": "2026.5.17",
     }
+
+
+def test_delete_github_actions_variable_handles_success_and_missing(monkeypatch) -> None:
+    module = _load_module()
+    requests = []
+    responses = iter([object(), module.urllib.error.HTTPError("url", 404, "missing", {}, None)])
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self):
+            return b""
+
+    def fake_urlopen(request, timeout):
+        requests.append((request, timeout))
+        response = next(responses)
+        if isinstance(response, Exception):
+            raise response
+        return Response()
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", fake_urlopen)
+
+    assert (
+        module._delete_github_actions_variable(
+            repository="owner/repo",
+            variable="PYPI_CONFIRM_LOGIN_URL",
+            token="token",
+        )
+        is True
+    )
+    assert (
+        module._delete_github_actions_variable(
+            repository="owner/repo",
+            variable="PYPI_CONFIRM_LOGIN_URL",
+            token="token",
+        )
+        is False
+    )
+    assert requests[0][0].get_method() == "DELETE"
+    assert requests[0][1] == 15
 
 
 def test_fresh_totp_code_waits_until_reused_code_changes(monkeypatch) -> None:

@@ -397,6 +397,12 @@ def _consume_confirm_login_url(session: Any, url: str) -> None:
     response.raise_for_status()
 
 
+def _cleanup_confirm_login_url_provider(provider: Callable[[], str | None] | None) -> None:
+    cleanup = getattr(provider, "cleanup", None)
+    if callable(cleanup):
+        cleanup()
+
+
 def _fetch_github_actions_variable(
     *,
     repository: str,
@@ -424,6 +430,61 @@ def _fetch_github_actions_variable(
         ) from exc
     value = str(payload.get("value") or "").strip()
     return value or None
+
+
+def _delete_github_actions_variable(
+    *,
+    repository: str,
+    variable: str,
+    token: str,
+) -> bool:
+    api_url = f"https://api.github.com/repos/{repository}/actions/variables/{variable}"
+    request = urllib.request.Request(
+        api_url,
+        method="DELETE",
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "agilab-pypi-release-retention/1",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            response.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return False
+        raise RuntimeError(
+            f"GitHub Actions variable delete failed with HTTP {exc.code}"
+        ) from exc
+    return True
+
+
+def _cleanup_github_confirm_login_variable(
+    *,
+    repository: str,
+    variable: str,
+    token: str,
+) -> None:
+    try:
+        deleted = _delete_github_actions_variable(
+            repository=repository,
+            variable=variable,
+            token=token,
+        )
+    except RuntimeError as exc:
+        print(
+            "::warning title=PyPI release retention::"
+            f"Unable to clear temporary GitHub Actions variable {variable!r}: {exc}",
+            file=sys.stderr,
+        )
+        return
+    if deleted:
+        print(
+            f"[pypi-retention] cleared temporary GitHub Actions variable {variable!r}",
+            file=sys.stderr,
+        )
 
 
 def _wait_for_github_confirm_login_url(
@@ -632,6 +693,7 @@ def delete_release_via_pypi_web(
                 confirm_url = confirm_login_url_provider()
                 if confirm_url:
                     _consume_confirm_login_url(session, confirm_url)
+                    _cleanup_confirm_login_url_provider(confirm_login_url_provider)
                     response = open_delete_page()
                     if response is None:
                         return
@@ -1018,6 +1080,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                     timeout=args.github_confirm_login_timeout,
                     poll_delay=args.github_confirm_login_poll_delay,
                 )
+
+            def cleanup_confirm_provider() -> None:
+                _cleanup_github_confirm_login_variable(
+                    repository=args.github_confirm_login_repository,
+                    variable=args.github_confirm_login_variable,
+                    token=args.github_token,
+                )
+
+            confirm_provider.cleanup = cleanup_confirm_provider  # type: ignore[attr-defined]
 
         delete_blocked = False
         rotating_totp_secret = _rotating_totp_secret(args.otp_code, args.totp_secret)

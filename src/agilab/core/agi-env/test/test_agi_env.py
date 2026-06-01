@@ -3188,6 +3188,18 @@ def test_is_local_and_has_admin_rights_helpers(monkeypatch):
     assert AgiEnv.has_admin_rights() is False
 
 
+def test_reset_clears_runtime_class_caches():
+    AgiEnv._ip_local_cache = {"127.0.0.1", "::1", "192.168.10.10"}
+    AgiEnv._share_mount_warning_keys = {("/tmp/local", "/tmp/cluster")}
+    AgiEnv._pythonpath_entries = ["/tmp/project/src"]
+
+    AgiEnv.reset()
+
+    assert AgiEnv._ip_local_cache == {"127.0.0.1", "::1"}
+    assert AgiEnv._share_mount_warning_keys == set()
+    assert AgiEnv._pythonpath_entries == []
+
+
 def test_create_symlink_windows_hits_success_and_failure_branches(tmp_path: Path, monkeypatch):
     src_dir = tmp_path / "src"
     src_dir.mkdir()
