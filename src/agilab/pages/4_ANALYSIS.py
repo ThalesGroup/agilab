@@ -87,6 +87,7 @@ import_agilab_symbols(
     globals(),
     "agilab.workflow_ui",
     {
+        "render_context_expander": "render_context_expander",
         "render_project_evidence_drawer": "render_project_evidence_drawer",
     },
     current_file=__file__,
@@ -1728,9 +1729,9 @@ def _migrate_declared_app_surface_config(
     )
     declared_app_ui_page = _declared_app_ui_page_config(active_app_path)
     if seed_restricts_views:
-        desired_modules = _dedupe_preserve_order(seed_modules)
-        if declared_app_ui_page is not None and not desired_modules:
-            desired_modules = [_APP_UI_PAGE_KEY]
+        desired_modules = _dedupe_preserve_order(seed_modules or [_APP_UI_PAGE_KEY])
+        if _APP_UI_PAGE_KEY not in desired_modules:
+            desired_modules.insert(0, _APP_UI_PAGE_KEY)
         if pages.get("restrict_to_view_module") is not True:
             pages["restrict_to_view_module"] = True
             changed = True
@@ -2019,7 +2020,14 @@ def _find_view_entry(
     return str(candidate), entry_point
 
 
-def _view_label(option_id: str, builtin_names: set[str]) -> str:
+def _view_label(
+    option_id: str,
+    builtin_names: set[str],
+    *,
+    app_surface_cfg: dict[str, Any] | None = None,
+) -> str:
+    if option_id == _APP_UI_PAGE_KEY and app_surface_cfg:
+        return "Page"
     if option_id in builtin_names:
         return option_id
     try:
@@ -2312,6 +2320,39 @@ def _analysis_sidebar_view_url(project: str | None, view_path: Path) -> str:
     return f"?{urlencode(params)}"
 
 
+def _analysis_sidebar_route_url(project: str | None, route: str) -> str:
+    params = {"current_page": route}
+    if project:
+        params["active_app"] = project
+    return f"?{urlencode(params)}"
+
+
+def _analysis_project_link_label(
+    project: str,
+    *,
+    app_surface_cfg: dict[str, Any] | None = None,
+) -> str:
+    if app_surface_cfg:
+        title = app_surface_title(app_surface_cfg).strip()
+        if title and title != "App Surface":
+            return title
+    return project.replace("_", " ").title()
+
+
+def _render_analysis_project_sidebar_label(
+    project: str | None,
+    active_app_path: Path | None,
+    cfg: dict[str, Any],
+) -> None:
+    if not project:
+        return
+    label = _analysis_project_link_label(
+        project,
+        app_surface_cfg=app_surface_config(active_app_path, cfg),
+    )
+    st.sidebar.markdown(f"**{html.escape(label)}**")
+
+
 def _analysis_sidebar_notebook_url(project: str | None, notebook_path: Path) -> str:
     params = {"current_notebook": str(notebook_path.resolve())}
     if project:
@@ -2326,6 +2367,7 @@ def _render_analysis_sidebar_view_launcher(
     view_names: list[str],
     resolved_pages: dict[str, Path],
     custom_view_lookup: dict[str, Path],
+    app_surface_cfg: dict[str, Any] | None = None,
 ) -> None:
     launch_options = list(dict.fromkeys(selected_views))
     if not launch_options:
@@ -2341,13 +2383,20 @@ def _render_analysis_sidebar_view_launcher(
     missing_views: list[str] = []
     for view_name in launch_options:
         view_path = _resolve_view_path(view_name, resolved_pages, custom_view_lookup)
-        display_label = _view_label(view_name, builtin_names)
+        display_label = _view_label(
+            view_name,
+            builtin_names,
+            app_surface_cfg=app_surface_cfg,
+        )
         if view_path is None:
             missing_views.append(display_label)
             continue
-        link_href = html.escape(
-            _analysis_sidebar_view_url(project, view_path), quote=True
+        view_url = (
+            _analysis_sidebar_route_url(project, _APP_UI_PAGE_KEY)
+            if view_name == _APP_UI_PAGE_KEY and app_surface_cfg
+            else _analysis_sidebar_view_url(project, view_path)
         )
+        link_href = html.escape(view_url, quote=True)
         link_label = html.escape(display_label)
         link_weight = "650" if view_name in linked_views else "450"
         link_rows.append(
@@ -2362,8 +2411,9 @@ def _render_analysis_sidebar_view_launcher(
                 "<style>"
                 ".agilab-analysis-view-links{display:flex;flex-direction:column;"
                 "gap:.12rem;margin:.1rem 0 .45rem 0;}"
-                ".agilab-analysis-view-link a{font-size:.88rem;line-height:1.18;text-decoration:none;}"
-                ".agilab-analysis-view-link a:hover{text-decoration:underline;}"
+                ".agilab-analysis-view-link a{font-size:.88rem;line-height:1.18;"
+                "color:var(--primary-color);text-decoration:underline;}"
+                ".agilab-analysis-view-link a:hover{text-decoration-thickness:2px;}"
                 "</style>"
                 "<div class='agilab-analysis-view-links'>"
                 + "".join(link_rows)
@@ -2412,8 +2462,9 @@ def _render_analysis_sidebar_notebook_launcher(
                 "<style>"
                 ".agilab-analysis-notebook-links{display:flex;flex-direction:column;"
                 "gap:.12rem;margin:.1rem 0 .45rem 0;}"
-                ".agilab-analysis-notebook-link a{font-size:.88rem;line-height:1.18;text-decoration:none;}"
-                ".agilab-analysis-notebook-link a:hover{text-decoration:underline;}"
+                ".agilab-analysis-notebook-link a{font-size:.88rem;line-height:1.18;"
+                "color:var(--primary-color);text-decoration:underline;}"
+                ".agilab-analysis-notebook-link a:hover{text-decoration-thickness:2px;}"
                 "</style>"
                 "<div class='agilab-analysis-notebook-links'>"
                 + "".join(link_rows)
@@ -2747,6 +2798,8 @@ async def _render_configured_app_surface(
     entrypoint = configured_app_surface_entrypoint(active_app_path, cfg)
     if entrypoint is None:
         return False
+    if current_page in {None, "", "main"}:
+        return False
     if _is_app_surface_overview_requested(current_page):
         return False
     if _query_param_is_truthy(st.query_params.get(_APP_SURFACE_HIDE_QUERY_PARAM)):
@@ -2760,6 +2813,12 @@ async def _render_configured_app_surface(
             env=st.session_state.get("env"),
             container=st.sidebar,
         )
+        if active_app_path is not None:
+            project_label = _analysis_project_link_label(
+                active_app_path.name,
+                app_surface_cfg=surface_config,
+            )
+            st.markdown(f"**{html.escape(project_label)}**")
         st.subheader(app_surface_title(surface_config))
         render_app_surface(
             active_app_path,
@@ -2793,10 +2852,7 @@ async def main():
         st.query_params["active_app"] = env.app
 
     # Sidebar header/logo
-    render_page_header(st, page_label="ANALYSIS", env=env)
-    from agilab.workflow_ui import render_context_expander
-
-    render_context_expander(st, page_label="ANALYSIS", env=env)
+    render_page_header(st, page_label="ANALYSIS", env=None)
 
     if env.app:
         st.query_params["active_app"] = env.app
@@ -2828,6 +2884,7 @@ async def main():
         migrated_cfg = True
     if migrated_cfg:
         _write_config(app_settings, cfg)
+    _render_analysis_project_sidebar_label(project, active_app_path, cfg)
     configured_views: list[str] = [
         str(v)
         for v in cfg.get("pages", {}).get("view_module", [])
@@ -2860,9 +2917,13 @@ async def main():
     selection_key = f"view_selection__{project or 'default'}"
     pages_cfg = cfg.get("pages", {})
     pages_cfg = pages_cfg if isinstance(pages_cfg, dict) else {}
+    surface_config = app_surface_config(active_app_path, cfg)
+    pages_cfg_for_selection = dict(pages_cfg)
+    if surface_config and _APP_UI_PAGE_KEY in configured_views:
+        pages_cfg_for_selection["restrict_to_view_module"] = False
     has_view_session_selection = selection_key in st.session_state
     selection_state = build_analysis_view_selection_state(
-        pages_cfg=pages_cfg,
+        pages_cfg=pages_cfg_for_selection,
         current_page=current_page,
         configured_views=configured_views,
         resolved_pages=resolved_pages,
@@ -2916,6 +2977,7 @@ async def main():
             view_names=all_available_views,
             resolved_pages=resolved_pages,
             custom_view_lookup=custom_view_lookup,
+            app_surface_cfg=app_surface_config(active_app_path, cfg),
         )
         _render_analysis_sidebar_notebook_launcher(
             project=project,
@@ -2931,6 +2993,7 @@ async def main():
     )
     app_surface_will_render = (
         configured_app_surface_entrypoint(active_app_path, cfg) is not None
+        and current_page not in {None, "", "main"}
         and not _is_app_surface_overview_requested(current_page)
         and not _query_param_is_truthy(st.query_params.get(_APP_SURFACE_HIDE_QUERY_PARAM))
     )
@@ -2947,6 +3010,10 @@ async def main():
     # Route: only render a child surface when the param is concrete, not "main"/empty.
     # The sidebar launchers above stay visible on child views/notebooks.
     if _consume_legacy_app_ui_route_for_app_surface(current_page, active_app_path):
+        if await _render_configured_app_surface(
+            active_app_path, cfg, current_page=_APP_UI_PAGE_KEY
+        ):
+            return
         current_page = None
     if await _render_selected_notebook_route(current_notebook):
         return
@@ -2972,6 +3039,7 @@ async def main():
         key_prefix="analysis:evidence",
         expanded=False,
     )
+    render_context_expander(st, page_label="ANALYSIS", env=env)
 
     with st.expander("Choose analysis views", expanded=False):
         st.caption(
@@ -2981,7 +3049,11 @@ async def main():
             "Analysis views",
             view_names,
             key=selection_key,
-            format_func=lambda option: _view_label(option, set(resolved_pages.keys())),
+            format_func=lambda option: _view_label(
+                option,
+                set(resolved_pages.keys()),
+                app_surface_cfg=app_surface_config(active_app_path, cfg),
+            ),
             help="Selected views are persisted in the active project's app settings.",
         )
 
@@ -2998,7 +3070,7 @@ async def main():
         expanded=not selected_views and not selected_notebooks,
     )
 
-    pages_cfg_for_selection = dict(pages_cfg)
+    pages_cfg_for_persistence = dict(pages_cfg_for_selection)
     selected_view_set = set(selected_views)
     configured_default_views = [
         view_name
@@ -3006,15 +3078,15 @@ async def main():
         if view_name in selected_view_set
     ]
     if configured_default_views:
-        pages_cfg_for_selection["default_views"] = configured_default_views
-        pages_cfg_for_selection["default_view"] = configured_default_views[0]
+        pages_cfg_for_persistence["default_views"] = configured_default_views
+        pages_cfg_for_persistence["default_view"] = configured_default_views[0]
     else:
-        pages_cfg_for_selection.pop("default_views", None)
-        pages_cfg_for_selection.pop("default_view", None)
+        pages_cfg_for_persistence.pop("default_views", None)
+        pages_cfg_for_persistence.pop("default_view", None)
     selection_for_state = list(selected_views)
 
     selection_state = build_analysis_view_selection_state(
-        pages_cfg=pages_cfg_for_selection,
+        pages_cfg=pages_cfg_for_persistence,
         current_page=current_page,
         configured_views=configured_views,
         resolved_pages=resolved_pages,

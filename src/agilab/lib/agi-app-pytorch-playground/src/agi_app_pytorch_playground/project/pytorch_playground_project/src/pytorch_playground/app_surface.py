@@ -106,13 +106,60 @@ def _resolve_active_app_path(active_app: Path | None = None) -> Path | None:
     return None
 
 
-def _load_orchestrate_args(active_app_path: Path):
-    from agi_env import AgiEnv
+def _env_matches_active_app(env: Any, active_app_path: Path) -> bool:
+    try:
+        resolved_active_app = active_app_path.expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        resolved_active_app = active_app_path.expanduser()
+
+    for value in (
+        getattr(env, "active_app", None),
+        getattr(env, "app_path", None),
+    ):
+        if not value:
+            continue
+        try:
+            if Path(str(value)).expanduser().resolve(strict=False) == resolved_active_app:
+                return True
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
+
+    app_name = active_app_path.name
+    current_app = Path(str(getattr(env, "app", "") or "")).name
+    if current_app != app_name:
+        return False
+    apps_path = getattr(env, "apps_path", None)
+    if not apps_path:
+        return True
+    try:
+        root = Path(str(apps_path)).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return True
+    return resolved_active_app in {
+        (root / app_name).resolve(strict=False),
+        (root / "builtin" / app_name).resolve(strict=False),
+    }
+
+
+def _load_orchestrate_args(active_app_path: Path, *, env: Any | None = None):
     from pytorch_playground import app_args
 
-    env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+    if env is None:
+        from agi_env import AgiEnv
+
+        env = getattr(AgiEnv, "for_app", AgiEnv)(
+            apps_path=active_app_path.parent,
+            app=active_app_path.name,
+            verbose=0,
+        )
+        settings_path = env.app_settings_file
+    else:
+        settings_path = active_app_path / "src" / "app_settings.toml"
+        env_settings_file = getattr(env, "app_settings_file", None)
+        if env_settings_file and _env_matches_active_app(env, active_app_path):
+            settings_path = Path(env_settings_file)
     args_model = app_args.ensure_defaults(
-        app_args.load_args(env.app_settings_file), env=env
+        app_args.load_args(settings_path), env=env
     )
     return env, args_model
 
@@ -221,6 +268,7 @@ def _render_missing_evidence(paths: list[Path], *, configure_page: bool = True) 
 def _render_analysis_surface(
     active_app_path: Path | None,
     *,
+    env: Any | None = None,
     configure_page: bool = True,
     compact: bool = False,
 ) -> None:
@@ -233,7 +281,7 @@ def _render_analysis_surface(
         playground_ui.main(configure_page=configure_page, compact=compact)
         return
     try:
-        runtime_env, args_model = _load_orchestrate_args(active_app_path)
+        runtime_env, args_model = _load_orchestrate_args(active_app_path, env=env)
         evidence_dirs = _analysis_evidence_dirs(
             runtime_env, args_model, active_app_path
         )
@@ -294,7 +342,11 @@ def _run_playground_once(runtime_env: Any, args_model: Any):
 
 
 def _render_run_button(
-    active_app_path: Path, *, container: Any, app_args_form: Any | None = None
+    active_app_path: Path,
+    *,
+    container: Any,
+    env: Any | None = None,
+    app_args_form: Any | None = None,
 ) -> None:
     import streamlit as st
 
@@ -306,7 +358,7 @@ def _render_run_button(
     ):
         return
     try:
-        runtime_env, args_model = _load_orchestrate_args(active_app_path)
+        runtime_env, args_model = _load_orchestrate_args(active_app_path, env=env)
         persist_current_args = getattr(
             app_args_form or _load_app_args_form(), "persist_current_args", None
         )
@@ -411,7 +463,7 @@ def _render_controls_surface(
 
     controls_container = container or st.sidebar
     try:
-        runtime_env, _args_model = _load_orchestrate_args(active_app_path)
+        runtime_env, _args_model = _load_orchestrate_args(active_app_path, env=env)
     except Exception as exc:
         controls_container.error(f"Unable to load ORCHESTRATE app arguments: {exc}")
         return
@@ -428,6 +480,7 @@ def _render_controls_surface(
             _render_run_button(
                 active_app_path,
                 container=controls_container,
+                env=env or runtime_env,
                 app_args_form=app_args_form,
             )
             app_args_form.render(
@@ -482,7 +535,12 @@ def _render_full_surface(
     if container is None:
         if not embedded:
             _render_controls_surface(active_app_path, env=env or runtime_env)
-        _render_analysis_surface(active_app_path, configure_page=False, compact=True)
+        _render_analysis_surface(
+            active_app_path,
+            env=env or runtime_env,
+            configure_page=False,
+            compact=True,
+        )
         return
     else:
         analysis_container, controls_container = root.columns([0.70, 0.30])
@@ -491,7 +549,12 @@ def _render_full_surface(
         active_app_path, env=env or runtime_env, container=controls_container
     )
     with analysis_container:
-        _render_analysis_surface(active_app_path, configure_page=False, compact=True)
+        _render_analysis_surface(
+            active_app_path,
+            env=env or runtime_env,
+            configure_page=False,
+            compact=True,
+        )
 
 
 def render(
@@ -516,6 +579,7 @@ def render(
         active_app_path = _resolve_active_app_path(active_app)
         _render_analysis_surface(
             active_app_path,
+            env=env,
             configure_page=container is None,
             compact=container is not None,
         )

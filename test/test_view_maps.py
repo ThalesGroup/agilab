@@ -726,7 +726,7 @@ def test_view_maps_main_initializes_env_and_invokes_page(tmp_path, monkeypatch) 
     assert fake_st.session_state["TABLE_MAX_ROWS"] == 12
     assert fake_st.session_state["GUI_SAMPLING"] == 3
     assert fake_st.calls["info"] == []
-    assert f"Project: `{active_app.name}`" in fake_st.calls["caption"]
+    assert f"`{active_app.name}`" in fake_st.calls["caption"]
     assert any("Back to ANALYSIS" in caption for caption in fake_st.calls["caption"])
     assert str(active_app) in fake_st.calls["code"]
 
@@ -774,7 +774,7 @@ def test_view_maps_bootstrap_keeps_absolute_app_path_out_of_main_status() -> Non
 
     assert 'st.info(f"active_app:' not in source
     assert "_render_app_page_context(app, active_app)" in source
-    assert 'st.caption(f"Project: `{app}`")' in source
+    assert 'st.caption(f"`{app}`")' in source
     assert "Back to ANALYSIS" in source
     assert 'st.expander("Runtime context", expanded=False)' in source
     assert 'with st.sidebar.expander("Data source", expanded=False):' in source

@@ -477,6 +477,80 @@ def test_main_does_not_hide_parent_sidebar_on_main_route(tmp_path: Path, monkeyp
     assert sidebar_hides == []
 
 
+def test_main_renders_analysis_context_after_evidence_overview(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    events: list[str] = []
+
+    class _Context:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+    fake_st = SimpleNamespace(
+        query_params={"active_app": "flight_telemetry_project"},
+        session_state={},
+    )
+    fake_st.info = lambda _message: None
+    fake_st.caption = lambda _message: None
+    fake_st.expander = lambda *_args, **_kwargs: _Context()
+    fake_st.multiselect = (
+        lambda _label, _options, *, key, **_kwargs: list(fake_st.session_state.get(key, []))
+    )
+    fake_env = SimpleNamespace(
+        app="flight_telemetry_project",
+        projects=["flight_telemetry_project"],
+        AGILAB_PAGES_ABS=str(tmp_path / "pages"),
+        resolve_user_app_settings_file=lambda _project: tmp_path / "app_settings.toml",
+    )
+
+    async def _false(*_args, **_kwargs):
+        return False
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_initialize_analysis_env", lambda _request: fake_env)
+    monkeypatch.setattr(module, "_read_config", lambda _path: {})
+    monkeypatch.setattr(module, "_write_config", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_migrate_declared_app_ui_page_config", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(module, "_migrate_declared_app_surface_config", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(module, "_migrate_legacy_analysis_page_config", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(module, "discover_views", lambda _path: [])
+    monkeypatch.setattr(module, "_resolve_discovered_views", lambda _views: {})
+    monkeypatch.setattr(module, "discover_project_notebooks", lambda _active_app_path: {})
+    monkeypatch.setattr(module, "_consume_legacy_app_ui_route_for_app_surface", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(module, "_render_selected_notebook_route", _false)
+    monkeypatch.setattr(module, "_render_selected_view_route", _false)
+    monkeypatch.setattr(module, "_render_configured_app_surface", _false)
+    monkeypatch.setattr(module, "_active_app_path_for_env", lambda _env: tmp_path / "app")
+    monkeypatch.setattr(module, "render_page_header", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_store_active_app", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_render_analysis_project_sidebar_label", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_render_analysis_sidebar_view_launcher", lambda **_kwargs: None)
+    monkeypatch.setattr(module, "_render_analysis_sidebar_notebook_launcher", lambda **_kwargs: None)
+    monkeypatch.setattr(module, "_render_analysis_surface_guide", lambda **_kwargs: None)
+    monkeypatch.setattr(module, "_render_custom_analysis_page_authoring", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        module,
+        "_render_analysis_workspace_overview",
+        lambda *_args, **_kwargs: events.append("Discovered evidence"),
+    )
+    monkeypatch.setattr(
+        module,
+        "render_project_evidence_drawer",
+        lambda *_args, **_kwargs: events.append("Evidence drawer"),
+    )
+    monkeypatch.setattr(
+        module,
+        "render_context_expander",
+        lambda *_args, **_kwargs: events.append("Analysis context"),
+    )
+
+    asyncio.run(module.main())
+
+    assert events == ["Discovered evidence", "Evidence drawer", "Analysis context"]
+
+
 def test_render_configured_app_surface_skips_when_hidden_or_overview_requested(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
     app = tmp_path / "demo_project"
@@ -1365,7 +1439,7 @@ def test_analysis_page_state_falls_back_to_all_views_when_restrict_config_is_emp
     assert state.widget_selection == ()
 
 
-def test_app_surface_migration_preserves_intentionally_empty_analysis_views(tmp_path: Path):
+def test_app_surface_migration_selects_app_ui_by_default(tmp_path: Path):
     module = _load_analysis_module()
     active_app_path = tmp_path / "app_surface_project"
     surface_module = active_app_path / "src" / "demo_surface"
@@ -1390,7 +1464,7 @@ default = "streamlit"
 
     assert changed is True
     assert cfg["pages"]["restrict_to_view_module"] is True
-    assert cfg["pages"]["view_module"] == []
+    assert cfg["pages"]["view_module"] == ["view_app_ui"]
     assert "view_app_ui" not in cfg["pages"]
     assert cfg["app_surface"]["entrypoint"] == "demo_surface/app.py"
 

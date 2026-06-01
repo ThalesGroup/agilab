@@ -93,7 +93,7 @@ def _analysis_return_url(app: str) -> str:
 def _render_app_page_context(app: str, active_app: Path) -> None:
     columns = st.columns(2)
     with columns[0]:
-        st.caption(f"Project: `{app}`")
+        st.caption(f"`{app}`")
     with columns[1]:
         link_button = getattr(st, "link_button", None)
         url = _analysis_return_url(app)

@@ -112,6 +112,11 @@ class _FakeStreamlit:
         self.events.append(("link_button", f"{label}:{url}:{key or ''}:{kwargs.get('type', '')}"))
 
 
+class _NoKeyLinkButtonStreamlit(_FakeStreamlit):
+    def link_button(self, label: str, url: str, *, type: str = "secondary", width: str = "content"):
+        self.events.append(("link_button", f"{label}:{url}:nokey:{type}:{width}"))
+
+
 def test_fake_streamlit_and_sidebar_helpers_are_exercised() -> None:
     streamlit = _FakeStreamlit()
     sidebar = _FakeSidebar(streamlit)
@@ -182,6 +187,42 @@ def test_render_context_expander_links_back_to_project_page(tmp_path) -> None:
         "Change project:/PROJECT_STATUS?active_app=flight_telemetry_project:context_expander:WORKFLOW:change_project:secondary",
     ) in fake_st.events
     assert not [event for event in fake_st.events if event[0] == "selectbox"]
+
+
+def test_workflow_link_buttons_do_not_require_key_support(monkeypatch) -> None:
+    fake_st = _NoKeyLinkButtonStreamlit()
+    monkeypatch.setattr(
+        workflow_ui,
+        "project_next_action",
+        lambda _env: {
+            "id": "analysis",
+            "label": "Review evidence",
+            "detail": "Open analysis.",
+            "url": "/ANALYSIS",
+            "type": "primary",
+        },
+    )
+
+    workflow_ui.render_next_best_action(
+        fake_st,
+        env=SimpleNamespace(app="demo_project"),
+        key_prefix="demo",
+    )
+    workflow_ui._render_context_link(
+        fake_st,
+        label="Change project",
+        url="/PROJECT_STATUS",
+        key="demo:change_project",
+    )
+
+    assert (
+        "link_button",
+        "Review evidence:/ANALYSIS:nokey:primary:content",
+    ) in fake_st.events
+    assert (
+        "link_button",
+        "Change project:/PROJECT_STATUS:nokey:secondary:content",
+    ) in fake_st.events
 
 
 def test_project_widget_key_is_scoped_by_page_and_project() -> None:

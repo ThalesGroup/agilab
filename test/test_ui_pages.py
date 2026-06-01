@@ -763,6 +763,22 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     assert '"Open"' not in pipeline_source
 
 
+def test_review_context_expanders_render_after_primary_page_evidence():
+    workflow_source = Path("src/agilab/pages/3_WORKFLOW.py").read_text(encoding="utf-8")
+    analysis_source = Path("src/agilab/pages/4_ANALYSIS.py").read_text(encoding="utf-8")
+
+    assert workflow_source.index("page()\n        render_context_expander") > workflow_source.index(
+        "        page()"
+    )
+    analysis_context = 'render_context_expander(st, page_label="ANALYSIS", env=env)'
+    assert analysis_source.index("_render_analysis_workspace_overview(") < analysis_source.index(
+        analysis_context
+    )
+    assert analysis_source.index("render_project_evidence_drawer(") < analysis_source.index(
+        analysis_context
+    )
+
+
 def test_orchestrate_page_exposes_analysis_preview_expander(mock_ui_env):
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     env = AgiEnv(
@@ -1834,7 +1850,11 @@ def test_explore_page_app_surface_back_keeps_single_app_ui_sidebar_view(mock_ui_
 
     assert not at.exception
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
-    assert "view_app_ui" in sidebar_markdown
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "Project:" not in sidebar_markdown
+    assert ">Page</a>" in sidebar_markdown
+    assert ">view_app_ui</a>" not in sidebar_markdown
+    assert sidebar_markdown.count("current_page=view_app_ui") == 1
     assert "view_other" not in sidebar_markdown
     assert "current_page=" in sidebar_markdown
     with env.resolve_user_app_settings_file("flight_telemetry_project").open("rb") as f:
@@ -1842,6 +1862,82 @@ def test_explore_page_app_surface_back_keeps_single_app_ui_sidebar_view(mock_ui_
     assert persisted["pages"]["restrict_to_view_module"] is True
     assert persisted["pages"]["view_module"] == ["view_app_ui"]
     assert "view_app_ui" not in persisted["pages"]
+
+
+def test_explore_page_app_surface_uses_standard_view_selection(mock_ui_env):
+    pages_dir = mock_ui_env["pages_dir"]
+    (pages_dir / "view_app_ui.py").write_text(
+        "import streamlit as st\n\ndef main():\n    st.write('app ui bridge')\n",
+        encoding="utf-8",
+    )
+    (pages_dir / "view_extra.py").write_text(
+        "import streamlit as st\n\ndef main():\n    st.write('extra view')\n",
+        encoding="utf-8",
+    )
+    app_surface = mock_ui_env["project_dir"] / "src" / "demo" / "app_surface.py"
+    app_surface.parent.mkdir(parents=True)
+    app_surface.write_text(
+        "def render(mode='analysis', container=None, **_kwargs):\n"
+        "    import streamlit as st\n"
+        "    target = container or st\n"
+        "    target.markdown(f'surface:{mode}')\n",
+        encoding="utf-8",
+    )
+    settings_payload = (
+        "[pages]\n"
+        "restrict_to_view_module = true\n"
+        "view_module = []\n"
+        "\n"
+        "[app_surface]\n"
+        "title = 'Demo Surface'\n"
+        "entrypoint = 'demo/app_surface.py'\n"
+        "sidebar_controls = true\n"
+    )
+    (mock_ui_env["project_dir"] / "src" / "app_settings.toml").write_text(
+        settings_payload,
+        encoding="utf-8",
+    )
+
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    at.query_params["current_page"] = "main"
+    env = AgiEnv(
+        apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
+    )
+    env.AGILAB_PAGES_ABS = str(pages_dir)
+    settings_file = env.resolve_user_app_settings_file("flight_telemetry_project")
+    settings_file.write_text(settings_payload, encoding="utf-8")
+    at.session_state["env"] = env
+
+    at.run()
+
+    assert not at.exception
+    markdown_text = "\n".join(str(item.value) for item in at.markdown)
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "Project:" not in sidebar_markdown
+    assert "surface:analysis" not in markdown_text
+    assert "surface:controls" not in sidebar_markdown
+    assert ">Page</a>" in sidebar_markdown
+    assert ">view_app_ui</a>" not in sidebar_markdown
+    assert sidebar_markdown.count("current_page=view_app_ui") == 1
+    assert "Choose analysis views" in [str(item.label) for item in at.expander]
+    assert "Additional views" not in [
+        str(item.label) for item in at.sidebar.expander
+    ]
+    selection_key = "view_selection__flight_telemetry_project"
+    at.multiselect(key=selection_key).select("view_extra").run()
+
+    assert not at.exception
+    with settings_file.open("rb") as f:
+        persisted = tomllib.load(f)
+    assert persisted["pages"]["view_module"] == ["view_app_ui", "view_extra"]
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "Project:" not in sidebar_markdown
+    assert ">Page</a>" in sidebar_markdown
+    assert ">view_app_ui</a>" not in sidebar_markdown
+    assert "view_extra" in sidebar_markdown
+    assert "current_page=" in sidebar_markdown
 
 
 def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
