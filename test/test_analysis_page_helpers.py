@@ -437,6 +437,7 @@ def test_main_does_not_hide_parent_sidebar_on_main_route(tmp_path: Path, monkeyp
     fake_st = SimpleNamespace(
         query_params={"active_app": "flight_telemetry_project"},
         session_state={},
+        info=lambda *_args, **_kwargs: None,
     )
     fake_env = SimpleNamespace(
         app="flight_telemetry_project",

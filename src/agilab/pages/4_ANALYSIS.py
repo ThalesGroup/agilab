@@ -2350,7 +2350,10 @@ def _render_analysis_project_sidebar_label(
         project,
         app_surface_cfg=app_surface_config(active_app_path, cfg),
     )
-    st.sidebar.markdown(f"**{html.escape(label)}**")
+    sidebar = getattr(st, "sidebar", None)
+    if sidebar is None or not hasattr(sidebar, "markdown"):
+        return
+    sidebar.markdown(f"**{html.escape(label)}**")
 
 
 def _analysis_sidebar_notebook_url(project: str | None, notebook_path: Path) -> str:
