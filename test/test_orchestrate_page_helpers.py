@@ -1354,6 +1354,138 @@ def test_install_status_workerless_labels_skip_worker_staleness():
     )
 
 
+def test_execute_page_install_refreshes_status_before_run_gate(monkeypatch, tmp_path):
+    module = _load_orchestrate_module()
+
+    class _State(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    class _Placeholder:
+        def code(self, *_args, **_kwargs):
+            return None
+
+        def empty(self):
+            return None
+
+    class _FakeStreamlit:
+        def __init__(self):
+            self.session_state = _State(
+                app_settings={
+                    "args": {},
+                    "cluster": {
+                        "verbose": 1,
+                        "cluster_enabled": False,
+                        "scheduler": "",
+                        "workers": {},
+                        "workers_data_path": "",
+                    },
+                },
+                mode=1,
+                log_text="",
+            )
+            self.buttons = {}
+
+        def expander(self, *_args, **_kwargs):
+            return self
+
+        def spinner(self, *_args, **_kwargs):
+            return self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def caption(self, *_args, **_kwargs):
+            return None
+
+        def warning(self, *_args, **_kwargs):
+            return None
+
+        def code(self, *_args, **_kwargs):
+            return None
+
+        def empty(self):
+            return _Placeholder()
+
+        def button(self, label, **kwargs):
+            key = str(kwargs.get("key") or label)
+            self.buttons[key] = dict(kwargs)
+            return key == "install_btn" and not bool(kwargs.get("disabled"))
+
+    active_app = tmp_path / "pytorch_playground_project"
+    active_app.mkdir()
+    env = SimpleNamespace(
+        app="pytorch_playground_project",
+        active_app=active_app,
+        agi_cluster=None,
+        is_source_env=False,
+        is_worker_env=False,
+        snippet_tail="asyncio.run(main())",
+    )
+    initial_status = {
+        "workerless": False,
+        "manager_ready": False,
+        "worker_ready": False,
+        "manager_exists": False,
+        "worker_exists": False,
+        "manager_problem": "",
+        "worker_problem": "",
+    }
+    refreshed_status = {
+        "workerless": False,
+        "manager_ready": True,
+        "worker_ready": True,
+        "manager_exists": True,
+        "worker_exists": True,
+        "manager_problem": "",
+        "worker_problem": "",
+    }
+    fake_st = _FakeStreamlit()
+    install_calls = []
+
+    async def _fake_install_worker_action(*_args, **_kwargs):
+        install_calls.append("install")
+        return SimpleNamespace(status="success", data={"install_log": ["installed"]})
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "render_cluster_settings_ui", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_render_orchestrate_resource_summary", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "build_install_snippet", lambda **_kwargs: "asyncio.run(main())")
+    monkeypatch.setattr(module, "_store_orchestrate_notebook_snippet", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "consume_pending_install_action", lambda _session_state: False)
+    monkeypatch.setattr(module, "_reset_traceback_skip", lambda: None)
+    monkeypatch.setattr(module, "clear_log", lambda: None)
+    monkeypatch.setattr(module, "_append_log_lines", lambda local_log, line: local_log.append(line))
+    monkeypatch.setattr(module, "_install_worker_action", _fake_install_worker_action)
+    monkeypatch.setattr(module, "render_action_result", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_app_install_status", lambda _env: refreshed_status)
+
+    verbose, returned_status = module.asyncio.run(
+        module._render_deployment_panel(
+            env,
+            initial_verbose=0,
+            show_install=True,
+            install_status=initial_status,
+        )
+    )
+
+    assert verbose == 1
+    assert returned_status is refreshed_status
+    assert install_calls == ["install"]
+    assert fake_st.buttons["install_btn"]["disabled"] is False
+    assert fake_st.session_state["SET ARGS"] is True
+    assert fake_st.session_state["show_run"] is True
+
+
 def test_set_active_app_query_param_ignores_streamlit_api_errors(monkeypatch):
     module = _load_orchestrate_module()
 
