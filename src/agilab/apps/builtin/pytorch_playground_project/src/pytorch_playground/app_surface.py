@@ -346,6 +346,98 @@ def _render_surface_styles() -> None:
     )
 
 
+def _query_param_is_truthy(name: str) -> bool:
+    import streamlit as st
+
+    try:
+        value = st.query_params.get(name)
+    except Exception:
+        value = None
+    if isinstance(value, (list, tuple)):
+        value = value[-1] if value else ""
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _hide_embedded_streamlit_sidebar() -> None:
+    import streamlit as st
+
+    st.markdown(
+        """
+        <style>
+        html, body,
+        [data-testid="stApp"],
+        [data-testid="stAppViewContainer"],
+        [data-testid="stMain"],
+        .main {
+          margin-left: 0 !important;
+          padding-left: 0 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+        section[data-testid="stSidebar"],
+        [data-testid="stSidebar"],
+        [data-testid="stSidebarContent"],
+        [data-testid="stSidebarHeader"],
+        [data-testid="stSidebarNav"],
+        [data-testid="stSidebarUserContent"],
+        [data-testid="stSidebarCollapsedControl"],
+        [data-testid="collapsedControl"],
+        [aria-label="Sidebar"],
+        [aria-label="sidebar"],
+        button[title="Open sidebar"],
+        button[title="Close sidebar"] {
+          display: none !important;
+          visibility: hidden !important;
+          width: 0 !important;
+          min-width: 0 !important;
+          max-width: 0 !important;
+        }
+        header[data-testid="stHeader"] {
+          left: 0 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_controls_surface(
+    active_app_path: Path,
+    *,
+    env: Any | None = None,
+    container: Any | None = None,
+) -> None:
+    import streamlit as st
+
+    controls_container = container or st.sidebar
+    try:
+        runtime_env, _args_model = _load_orchestrate_args(active_app_path)
+    except Exception as exc:
+        controls_container.error(f"Unable to load ORCHESTRATE app arguments: {exc}")
+        return
+
+    with controls_container:
+        controls_container.markdown("**Run**")
+        try:
+            app_args_form = _load_app_args_form()
+        except (ImportError, OSError, ValueError) as exc:
+            _render_dependency_import_error(
+                exc, configure_page=False, container=controls_container
+            )
+        else:
+            _render_run_button(
+                active_app_path,
+                container=controls_container,
+                app_args_form=app_args_form,
+            )
+            app_args_form.render(
+                env=env or runtime_env,
+                container=controls_container,
+                wide=False,
+                compact=True,
+            )
+
+
 def _render_full_surface(
     active_app_path: Path | None,
     *,
@@ -368,10 +460,16 @@ def _render_full_surface(
         return
 
     if container is None:
+        embedded = _query_param_is_truthy("embed")
         st.set_page_config(
             page_title=getattr(playground_ui, "PAGE_TITLE", "PyTorch Playground"),
             layout="wide",
+            initial_sidebar_state="collapsed" if embedded else "auto",
         )
+        if embedded:
+            _hide_embedded_streamlit_sidebar()
+    else:
+        embedded = False
 
     try:
         runtime_env, _args_model = _load_orchestrate_args(active_app_path)
@@ -382,34 +480,18 @@ def _render_full_surface(
     root = container or st
     _render_surface_styles()
     if container is None:
-        analysis_container = None
-        controls_container = st.sidebar
+        if not embedded:
+            _render_controls_surface(active_app_path, env=env or runtime_env)
+        _render_analysis_surface(active_app_path, configure_page=False, compact=True)
+        return
     else:
         analysis_container, controls_container = root.columns([0.70, 0.30])
 
-    with controls_container:
-        controls_container.markdown("**Run**")
-        try:
-            app_args_form = _load_app_args_form()
-        except (ImportError, OSError, ValueError) as exc:
-            _render_dependency_import_error(
-                exc, configure_page=False, container=controls_container
-            )
-        else:
-            _render_run_button(
-                active_app_path, container=controls_container, app_args_form=app_args_form
-            )
-            app_args_form.render(
-                env=env or runtime_env,
-                container=controls_container,
-                wide=False,
-                compact=True,
-            )
-    if analysis_container is None:
+    _render_controls_surface(
+        active_app_path, env=env or runtime_env, container=controls_container
+    )
+    with analysis_container:
         _render_analysis_surface(active_app_path, configure_page=False, compact=True)
-    else:
-        with analysis_container:
-            _render_analysis_surface(active_app_path, configure_page=False, compact=True)
 
 
 def render(
@@ -425,9 +507,18 @@ def render(
         app_args_form = _load_app_args_form()
         app_args_form.render(env=env, container=container)
         return
+    if surface_mode == "controls":
+        active_app_path = _resolve_active_app_path(active_app)
+        if active_app_path is not None:
+            _render_controls_surface(active_app_path, env=env, container=container)
+        return
     if surface_mode == "analysis":
         active_app_path = _resolve_active_app_path(active_app)
-        _render_analysis_surface(active_app_path)
+        _render_analysis_surface(
+            active_app_path,
+            configure_page=container is None,
+            compact=container is not None,
+        )
         return
     if surface_mode == "full":
         active_app_path = _resolve_active_app_path(active_app)

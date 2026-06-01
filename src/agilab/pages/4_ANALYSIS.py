@@ -120,6 +120,7 @@ import_agilab_symbols(
         "app_surface_config": "app_surface_config",
         "app_surface_title": "app_surface_title",
         "configured_app_surface_entrypoint": "configured_app_surface_entrypoint",
+        "render_app_surface": "render_app_surface",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "app_surface.py",
@@ -2751,6 +2752,23 @@ async def _render_configured_app_surface(
     if _query_param_is_truthy(st.query_params.get(_APP_SURFACE_HIDE_QUERY_PARAM)):
         return False
     surface_config = app_surface_config(active_app_path, cfg)
+    if surface_config.get("sidebar_controls"):
+        render_app_surface(
+            active_app_path,
+            mode="controls",
+            config=cfg,
+            env=st.session_state.get("env"),
+            container=st.sidebar,
+        )
+        st.subheader(app_surface_title(surface_config))
+        render_app_surface(
+            active_app_path,
+            mode="analysis",
+            config=cfg,
+            env=st.session_state.get("env"),
+            container=st.container(),
+        )
+        return True
     await render_view_page(
         entrypoint,
         title=app_surface_title(surface_config),
@@ -3171,7 +3189,11 @@ async def render_view_page(
         await _render_view_page_inline(view_path, active_app_arg)
         return
 
-    port = _port_for(f"{view_key}|{active_app_arg}")
+    try:
+        view_version_token = str(int(view_path.stat().st_mtime_ns))
+    except OSError:
+        view_version_token = "missing"
+    port = _port_for(f"{view_key}|{active_app_arg}|{view_version_token}")
     sidecar_ready = _ensure_sidecar(view_key, view_path, port, active_app_arg)
 
     # Regular iframe (child keeps its own sidebar if it has one), preserve extra query params (e.g., datadir_rel)
