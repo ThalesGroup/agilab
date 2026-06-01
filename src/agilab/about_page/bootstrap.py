@@ -140,8 +140,17 @@ def source_launch_env_updates(apps_path: Path | None) -> dict[str, str]:
     }
 
 
-def _is_already_initialised_env_error(exc: RuntimeError) -> bool:
+def _is_already_initialised_env_error(exc: BaseException) -> bool:
     return "AgiEnv is already initialised with a different configuration" in str(exc)
+
+
+def _project_switch_failure_message(target_name: str, exc: BaseException) -> str:
+    if _is_already_initialised_env_error(exc):
+        return (
+            f"Unable to switch to project '{target_name}'. Refresh the page or "
+            "restart AGILAB, then select the project again."
+        )
+    return f"Unable to switch to project '{target_name}': {exc}"
 
 
 def _normalize_path(value: Any) -> Path | None:
@@ -418,7 +427,7 @@ def _rebootstrap_same_named_active_app(env: Any, target_path: Path, target_name:
         if previous_init_done is not None:
             env.init_done = previous_init_done
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        streamlit.warning(f"Unable to switch to project '{target_name}': {exc}")
+        streamlit.warning(_project_switch_failure_message(target_name, exc))
         return False
     return True
 
@@ -437,7 +446,7 @@ def apply_active_app_request(env: Any, request_value: Optional[str], *, streamli
     try:
         env.change_app(target_path)
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        streamlit.warning(f"Unable to switch to project '{target_name}': {exc}")
+        streamlit.warning(_project_switch_failure_message(target_name, exc))
         return False
     return True
 
