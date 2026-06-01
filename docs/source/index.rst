@@ -36,7 +36,7 @@ branching into cluster mode, external app repositories, or broader workflows.
 
 For release-level evidence, use :doc:`release-proof`; it points to the
 `latest public GitHub release
-<https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.31-2>`__,
+<https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.01>`__,
 package proof, CI guardrails, and hosted demo status.
 
 This documentation then expands into architecture, service mode, API
