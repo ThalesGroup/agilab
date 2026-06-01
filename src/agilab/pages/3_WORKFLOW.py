@@ -95,6 +95,7 @@ import_agilab_symbols(
     "agilab.workflow_ui",
     {
         "is_dag_based_app": "is_dag_based_app",
+        "render_context_expander": "render_context_expander",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
@@ -1618,9 +1619,6 @@ def main() -> None:
             page_label="WORKFLOW",
             docs_html_file="experiment-help.html",
         )
-        from agilab.workflow_ui import render_context_expander
-
-        render_context_expander(st, page_label="WORKFLOW", env=env)
 
         st.session_state.setdefault("stages_file_name", STAGES_FILE_NAME)
         st.session_state.setdefault("help_path", Path(env.agilab_pck) / "gui/help")
@@ -1656,6 +1654,7 @@ def main() -> None:
             st.session_state.setdefault(key, value)
 
         page()
+        render_context_expander(st, page_label="WORKFLOW", env=env)
 
     except (
         RuntimeError,

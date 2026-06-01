@@ -87,6 +87,7 @@ import_agilab_symbols(
     globals(),
     "agilab.workflow_ui",
     {
+        "render_context_expander": "render_context_expander",
         "render_project_evidence_drawer": "render_project_evidence_drawer",
     },
     current_file=__file__,
@@ -2852,9 +2853,6 @@ async def main():
 
     # Sidebar header/logo
     render_page_header(st, page_label="ANALYSIS", env=None)
-    from agilab.workflow_ui import render_context_expander
-
-    render_context_expander(st, page_label="ANALYSIS", env=env)
 
     if env.app:
         st.query_params["active_app"] = env.app
@@ -3041,6 +3039,7 @@ async def main():
         key_prefix="analysis:evidence",
         expanded=False,
     )
+    render_context_expander(st, page_label="ANALYSIS", env=env)
 
     with st.expander("Choose analysis views", expanded=False):
         st.caption(

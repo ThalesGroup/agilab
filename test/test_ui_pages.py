@@ -763,6 +763,22 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     assert '"Open"' not in pipeline_source
 
 
+def test_review_context_expanders_render_after_primary_page_evidence():
+    workflow_source = Path("src/agilab/pages/3_WORKFLOW.py").read_text(encoding="utf-8")
+    analysis_source = Path("src/agilab/pages/4_ANALYSIS.py").read_text(encoding="utf-8")
+
+    assert workflow_source.index("page()\n        render_context_expander") > workflow_source.index(
+        "        page()"
+    )
+    analysis_context = 'render_context_expander(st, page_label="ANALYSIS", env=env)'
+    assert analysis_source.index("_render_analysis_workspace_overview(") < analysis_source.index(
+        analysis_context
+    )
+    assert analysis_source.index("render_project_evidence_drawer(") < analysis_source.index(
+        analysis_context
+    )
+
+
 def test_orchestrate_page_exposes_analysis_preview_expander(mock_ui_env):
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     env = AgiEnv(
