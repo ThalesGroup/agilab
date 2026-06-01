@@ -30,6 +30,15 @@ APP_TRACE_FILES = (
     Path("lab_stages.toml"),
     Path("notebook_export.toml"),
 )
+APP_SOURCE_MARKERS = (
+    Path("README.md"),
+    Path("pyproject.toml"),
+    Path("src/app_settings.toml"),
+    Path("src/app_args_form.py"),
+    Path("src/pre_prompt.json"),
+    Path("pipeline_view.dot"),
+    Path("lab_stages.toml"),
+)
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -141,6 +150,10 @@ def _app_trace_row(repo_root: Path, app_dir: Path) -> dict[str, Any]:
     }
 
 
+def _is_app_source_dir(app_dir: Path) -> bool:
+    return any((app_dir / marker).exists() for marker in APP_SOURCE_MARKERS)
+
+
 def build_revision_traceability(repo_root: Path) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     core_components = [
@@ -151,7 +164,7 @@ def build_revision_traceability(repo_root: Path) -> dict[str, Any]:
     app_rows = [
         _app_trace_row(repo_root, app_dir)
         for app_dir in sorted(apps_root.iterdir())
-        if app_dir.is_dir() and not app_dir.name.startswith(".")
+        if app_dir.is_dir() and not app_dir.name.startswith(".") and _is_app_source_dir(app_dir)
     ]
     missing_core = [row["name"] for row in core_components if not row["exists"]]
     missing_app_pyprojects = [
