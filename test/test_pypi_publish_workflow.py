@@ -291,6 +291,23 @@ def test_pypi_publish_attests_and_uploads_release_supply_chain_assets() -> None:
     assert "gh release create \"$release_tag\"" in text
 
 
+def test_pypi_publish_dataset_release_is_separate_from_code_release() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "publish-dataset-release-assets:" in text
+    assert "tools/dataset_release_assets.py" in text
+    assert "lfs: true" in text
+    assert "dataset-release-assets" in text
+    assert "DATASET_RELEASE_TAG" in text
+    assert "gh release view \"$dataset_release_tag\"" in text
+    assert "gh release create \"$DATASET_RELEASE_TAG\" dataset-release-assets/*" in text
+    assert "PyPI packages keep their packaged datasets" in text
+
+    dataset_job = text.split("publish-dataset-release-assets:", 1)[1].split("sync-hf-space:", 1)[0]
+    assert "github-release-assets" not in dataset_job
+    assert "needs.release-plan.outputs.pypi_publish_selected == 'true'" not in dataset_job
+
+
 def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 

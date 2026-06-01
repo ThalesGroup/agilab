@@ -603,6 +603,17 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "release-distribution-evidence.tar.gz": (
             "workflow must attach the complete release distribution evidence archive"
         ),
+        "publish-dataset-release-assets:": (
+            "workflow must publish datasets through a separate GitHub release job"
+        ),
+        "tools/dataset_release_assets.py": "workflow must build deterministic dataset release assets",
+        "DATASET_RELEASE_TAG": "dataset releases must use a dataset-specific tag namespace",
+        "gh release view \"$dataset_release_tag\"": (
+            "dataset release job must skip unchanged dataset payloads"
+        ),
+        "gh release create \"$DATASET_RELEASE_TAG\" dataset-release-assets/*": (
+            "dataset release job must upload dataset assets to the dataset release"
+        ),
         "allow_post_release:": "workflow must require an explicit public .postN hotfix override",
         "post_release_reason:": "workflow must capture the public .postN hotfix justification",
         "tools/pypi_release_version_policy.py": (
