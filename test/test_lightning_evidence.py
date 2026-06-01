@@ -226,3 +226,38 @@ def test_lightning_json_safe_handles_array_like_fallbacks() -> None:
 
     assert lightning_evidence._json_safe(BrokenItem()) == [1, 2]
     assert lightning_evidence._json_safe(BrokenListAndDetach()) == {"tensor": 3}
+
+
+def test_lightning_evidence_remaining_helper_edges() -> None:
+    class BrokenEverything:
+        marker = "keeps-dict"
+
+        def item(self):
+            raise RuntimeError("bad scalar")
+
+        def tolist(self):
+            raise RuntimeError("bad list")
+
+        def detach(self):
+            raise RuntimeError("bad detach")
+
+    class BrokenNoDict:
+        __slots__ = ()
+
+        def item(self):
+            raise RuntimeError("bad scalar")
+
+        def tolist(self):
+            raise RuntimeError("bad list")
+
+        def detach(self):
+            raise RuntimeError("bad detach")
+
+        def __str__(self) -> str:
+            return "opaque"
+
+    assert lightning_evidence.collect_callback_metrics(SimpleNamespace(callback_metrics="bad")) == {}
+    assert lightning_evidence.collect_trainer_config(None) == {}
+    assert lightning_evidence._json_safe(BrokenEverything()).endswith("BrokenEverything")
+    assert lightning_evidence._json_safe(BrokenNoDict()) == "opaque"
+    assert lightning_evidence._duration_seconds("2026-06-01T00:00:02Z", "2026-06-01T00:00:01Z") == 0.0

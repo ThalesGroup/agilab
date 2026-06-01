@@ -45,3 +45,44 @@ def test_external_source_boundary_marks_repository_as_untrusted(tmp_path: Path):
     assert boundary["metadata"]["exists"] is True
     assert boundary["metadata"]["is_dir"] is True
     assert boundary["content"]["sha256_scope"] == "resolved_path"
+
+
+def test_untrusted_content_boundary_serializes_metadata_and_trusted_status(
+    tmp_path: Path,
+    monkeypatch,
+):
+    boundary = untrusted_content_boundary.build_untrusted_content_boundary(
+        "trusted payload",
+        source_kind="generated_notebook",
+        source_name="demo.ipynb",
+        trust_status="trusted",
+        metadata={
+            "path": Path("demo.ipynb"),
+            "items": [Path("a.py"), ("b.py",)],
+            "tags": {"notebook", "reviewed"},
+            "raw": object(),
+        },
+    )
+
+    assert boundary["trust"]["review_required"] is False
+    assert boundary["metadata"]["path"] == "demo.ipynb"
+    assert boundary["metadata"]["items"] == ["a.py", ["b.py"]]
+    assert set(boundary["metadata"]["tags"]) == {"notebook", "reviewed"}
+    assert boundary["metadata"]["raw"].startswith("<object object at ")
+    assert untrusted_content_boundary.untrusted_content_notice("not a boundary") == (
+        "Untrusted content boundary: source=unknown/, trust=untrusted, sha256=."
+    )
+
+    original_resolve = untrusted_content_boundary.Path.resolve
+
+    def fail_resolve(self, *args, **kwargs):
+        if self == tmp_path / "unresolved":
+            raise RuntimeError("cannot resolve")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(untrusted_content_boundary.Path, "resolve", fail_resolve)
+    unresolved = untrusted_content_boundary.build_external_source_boundary(
+        tmp_path / "unresolved",
+        source_kind="external_app_repository",
+    )
+    assert unresolved["metadata"]["resolved_path"] == str(tmp_path / "unresolved")

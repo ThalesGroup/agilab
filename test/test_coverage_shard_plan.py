@@ -51,6 +51,7 @@ def test_static_plan_preserves_fallback_chunks_when_timings_are_missing(tmp_path
     assert plan.mode == "static"
     assert list(chunks) == list(module.AGI_GUI_CHUNKS)
     assert "src/agilab/lib/agi-gui/test/test_agi_gui_package.py" in chunks["support"]
+    assert "src/agilab/lib/agi-web/test/test_agi_web_component.py" in chunks["support"]
     assert "src/agilab/test" not in chunks["support"]
     assert "test/test_audience_bridges.py" in chunks["support"]
     assert "test/test_evidence_contract.py" in chunks["support"]
@@ -59,6 +60,8 @@ def test_static_plan_preserves_fallback_chunks_when_timings_are_missing(tmp_path
     assert "test/test_lightning_evidence.py" in chunks["support"]
     assert "test/test_pytorch_playground_app.py" in chunks["support"]
     assert "test/test_python_versions.py" in chunks["support"]
+    assert "test/test_streamlit_156_adoption.py" in chunks["support"]
+    assert "test/test_ui_performance.py" in chunks["support"]
     assert chunks["pages-flow"] == [
         "test/test_ui_pages.py",
         "-k",
@@ -67,7 +70,10 @@ def test_static_plan_preserves_fallback_chunks_when_timings_are_missing(tmp_path
     assert "test/test_notebook_demo.py" in chunks["pipeline"]
     assert "test/test_notebook_import_sample.py" in chunks["pipeline"]
     assert "test/test_promotion_dossier.py" in chunks["pipeline"]
+    assert "test/test_run_markdown_evidence.py" in chunks["pipeline"]
     assert "test/test_run_storyboard.py" in chunks["pipeline"]
+    assert "test/test_untrusted_content_boundary.py" in chunks["pipeline"]
+    assert "test/test_workflow_validation.py" in chunks["pipeline"]
     assert "test/test_pypi_app_packages.py" in chunks["pages-rest"]
     assert "test/test_agi_pages_chart_spec.py" in chunks["pages-rest"]
     assert "test/test_run_storyboard.py" in chunks["pages-rest"]

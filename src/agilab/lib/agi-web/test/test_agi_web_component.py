@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import builtins
+import dataclasses
+import datetime as dt
+import decimal
+import enum
 import importlib
 import importlib.metadata
 import sys
 import tomllib
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -134,3 +140,134 @@ def test_agi_web_render_streamlit_uses_components_html() -> None:
 
     assert agi_web.render_streamlit(component, streamlit=fake_st, height=400) == "rendered"
     assert calls[0][1:] == (400, False)
+
+
+def test_agi_web_records_from_data_covers_mapping_and_scalar_shapes() -> None:
+    agi_web = _load_agi_web()
+
+    class PolarsLike:
+        def to_dicts(self):
+            return [{"b": 2, "a": 1}]
+
+    class MappingFrame:
+        def to_dict(self, **kwargs):
+            if kwargs:
+                raise TypeError("orient is not supported")
+            return {"x": [1, 2], "y": [3, 4]}
+
+    assert agi_web.records_from_data(PolarsLike()) == [{"b": 2, "a": 1}]
+    assert agi_web.records_from_data(MappingFrame()) == [
+        {"x": 1, "y": 3},
+        {"x": 2, "y": 4},
+    ]
+    assert agi_web.records_from_data({"x": [1, 2], "y": [3, 4]}) == [
+        {"x": 1, "y": 3},
+        {"x": 2, "y": 4},
+    ]
+    assert agi_web.records_from_data([(1, 2), "plain"], max_rows=0) == []
+    assert agi_web.records_from_data(7) == [{"value": 7}]
+
+
+def test_agi_web_normalize_json_value_handles_portable_scalars() -> None:
+    agi_web = _load_agi_web()
+
+    @dataclasses.dataclass(frozen=True)
+    class Payload:
+        path: Path
+        count: int
+
+    class Mood(enum.Enum):
+        HAPPY = "happy"
+
+    class Scalar:
+        def item(self):
+            return decimal.Decimal("2.5")
+
+    class BrokenScalar:
+        def item(self):
+            raise RuntimeError("not scalar")
+
+        def __str__(self) -> str:
+            return "broken"
+
+    payload_id = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    normalized = agi_web.normalize_json_value(
+        {
+            "bytes": b"\x00\xff",
+            "date": dt.date(2026, 6, 1),
+            "datetime": dt.datetime(2026, 6, 1, 12, 30),
+            "decimal": decimal.Decimal("2"),
+            "enum": Mood.HAPPY,
+            "path": Path("artifact.json"),
+            "payload": Payload(Path("nested.txt"), 3),
+            "scalar": Scalar(),
+            "uuid": payload_id,
+        }
+    )
+
+    assert normalized == {
+        "bytes": "00ff",
+        "date": "2026-06-01",
+        "datetime": "2026-06-01T12:30:00",
+        "decimal": 2,
+        "enum": "happy",
+        "path": "artifact.json",
+        "payload": {"count": 3, "path": "nested.txt"},
+        "scalar": 2.5,
+        "uuid": str(payload_id),
+    }
+    assert agi_web.normalize_json_value(decimal.Decimal("NaN")) is None
+    assert agi_web.normalize_json_value(float("inf")) is None
+    assert agi_web.normalize_json_value(BrokenScalar()) == "broken"
+
+
+def test_agi_web_component_variants_and_notebook_fallback(monkeypatch) -> None:
+    agi_web = _load_agi_web()
+    component = agi_web.AgiWebComponent(
+        component_id=None,
+        title="Portable",
+        subtitle="Evidence island",
+        renderer=agi_web.AgiWebRendererSpec(
+            renderer_id="Renderer ID",
+            technology="unknown-tech",
+            assets=[
+                agi_web.AgiWebAsset(
+                    asset_id="style",
+                    kind="css",
+                    href="style.css",
+                    integrity="sha256-demo",
+                    mime_type="text/css",
+                )
+            ],
+        ),
+        actions=[
+            agi_web.AgiWebAction(
+                action_id="open",
+                label="Open",
+                target="details",
+                payload={"path": Path("result.json")},
+                style="primary",
+            )
+        ],
+    )
+
+    payload = component.as_dict(include_evidence=False)
+    assert "evidence" not in payload
+    assert payload["component_id"] == "component"
+    assert payload["renderer"]["renderer_id"] == "renderer-id"
+    assert payload["renderer"]["technology"] == "custom"
+    assert payload["renderer"]["assets"][0]["mime_type"] == "text/css"
+    assert payload["actions"][0]["payload"] == {"path": "result.json"}
+
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "IPython.display":
+            raise ImportError("IPython unavailable")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    fallback = agi_web.render_notebook(component, height=10, width="<100%>")
+    assert isinstance(fallback, str)
+    assert "min-height:240px" in fallback
+    assert "&lt;100%&gt;" in fallback

@@ -143,7 +143,7 @@ def test_streamlit_config_getter_prefers_get_option_over_legacy_config_get():
     class FakeConfig:
         @staticmethod
         def get(_key: str) -> str:
-            return "legacy"
+            return "0.0.0.0"
 
     class FakeStreamlit:
         config = FakeConfig()
@@ -156,6 +156,30 @@ def test_streamlit_config_getter_prefers_get_option_over_legacy_config_get():
 
     assert getter is not None
     assert getter("server.address") == "modern"
+
+
+def test_streamlit_config_getter_uses_legacy_config_get_and_stop_is_optional():
+    class FakeConfig:
+        @staticmethod
+        def get(_key: str) -> str:
+            return "0.0.0.0"
+
+    class FakeStreamlit:
+        config = FakeConfig()
+        errors: list[str] = []
+
+        @classmethod
+        def error(cls, message: str) -> None:
+            cls.errors.append(message)
+
+    getter = streamlit_config_getter_from_module(FakeStreamlit)
+
+    assert getter is not None
+    assert getter("server.address") == "0.0.0.0"
+    with pytest.raises(PublicBindPolicyError, match="0.0.0.0"):
+        enforce_public_bind_policy_or_stop(FakeStreamlit, {})
+    assert FakeStreamlit.errors
+    assert streamlit_config_getter_from_module(object()) is None
 
 
 def test_main_page_entrypoint_enforces_public_bind_guard():

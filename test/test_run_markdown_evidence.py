@@ -8,6 +8,7 @@ from agilab import run_markdown_evidence
 
 def test_run_markdown_evidence_writes_plan_process_report_and_manifest(tmp_path: Path):
     paths = run_markdown_evidence.build_run_evidence_paths(tmp_path / "run_1_evidence")
+    assert paths.as_dict()["root"] == str(tmp_path / "run_1_evidence")
     log_path = tmp_path / "run.log"
     log_path.write_text("ok\n", encoding="utf-8")
 
@@ -70,10 +71,16 @@ def test_run_markdown_evidence_writes_plan_process_report_and_manifest(tmp_path:
     }
 
 
-def test_execution_approval_contract():
+def test_execution_approval_contract(tmp_path: Path):
     assert run_markdown_evidence.requires_execution_approval(cluster_enabled=False, service_mode=False) is False
     assert run_markdown_evidence.requires_execution_approval(cluster_enabled=True, service_mode=False) is True
     assert run_markdown_evidence.requires_execution_approval(cluster_enabled=False, service_mode=True) is True
     assert run_markdown_evidence.approval_status(approval_required=False, approved=False) == "not_required"
     assert run_markdown_evidence.approval_status(approval_required=True, approved=False) == "pending"
     assert run_markdown_evidence.approval_status(approval_required=True, approved=True) == "approved"
+    assert run_markdown_evidence._flat_metadata({"nested": {"path": tmp_path}}) == {
+        "nested": {"path": str(tmp_path)}
+    }
+    missing_info = run_markdown_evidence.file_artifact_info(tmp_path / "missing.txt", root=tmp_path)
+    assert missing_info["exists"] is False
+    assert missing_info["relative_path"] == "missing.txt"

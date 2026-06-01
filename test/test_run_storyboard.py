@@ -20,14 +20,22 @@ def _load_module(path: Path, name: str):
     return module
 
 
-def _write_manifest(tmp_path: Path, *, status: str = "pass") -> Path:
+def _write_manifest(
+    tmp_path: Path,
+    *,
+    status: str = "pass",
+    artifact_exists: bool = True,
+    validation_status: str | None = None,
+) -> Path:
     run_manifest = _load_module(RUN_MANIFEST_PATH, "run_manifest_for_storyboard_test")
+    tmp_path.mkdir(parents=True, exist_ok=True)
     active_app = tmp_path / "flight_telemetry_project"
-    active_app.mkdir()
+    active_app.mkdir(parents=True)
     repo_root = tmp_path / "repo"
-    repo_root.mkdir()
+    repo_root.mkdir(parents=True)
     artifact = tmp_path / "trajectory_summary.json"
-    artifact.write_text('{"rows": 3}\n', encoding="utf-8")
+    if artifact_exists:
+        artifact.write_text('{"rows": 3}\n', encoding="utf-8")
     manifest = run_manifest.build_run_manifest(
         path_id="source-checkout-first-proof",
         label="Source checkout first proof",
@@ -56,8 +64,12 @@ def _write_manifest(tmp_path: Path, *, status: str = "pass") -> Path:
         validations=[
             run_manifest.RunManifestValidation(
                 label="proof_steps",
-                status=status,
-                summary="all proof steps passed" if status == "pass" else "proof failed",
+                status=validation_status or status,
+                summary=(
+                    "all proof steps passed"
+                    if (validation_status or status) == "pass"
+                    else "proof failed"
+                ),
             )
         ],
         run_id="story-demo",
@@ -114,6 +126,32 @@ def test_run_storyboard_strict_fails_on_failed_manifest(tmp_path: Path) -> None:
 
     assert module.main([str(manifest_path), "--output-dir", str(tmp_path / "story")]) == 0
     assert module.main([str(manifest_path), "--output-dir", str(tmp_path / "story"), "--strict"]) == 1
+
+
+def test_run_storyboard_next_actions_cover_missing_and_unknown_cases(tmp_path: Path) -> None:
+    module = _load_module(STORYBOARD_PATH, "run_storyboard_next_actions_test_module")
+
+    missing_artifact = module.build_run_story(
+        _write_manifest(tmp_path / "missing-artifact", artifact_exists=False)
+    )
+    assert missing_artifact["story"]["headline"].endswith("passed for flight_telemetry_project.")
+    assert missing_artifact["next_actions"][0] == "Regenerate missing artifacts before sharing the run."
+    assert "trajectory_summary.json" in missing_artifact["next_actions"][1]
+
+    failed_validation = module.build_run_story(
+        _write_manifest(tmp_path / "failed-validation", validation_status="fail")
+    )
+    assert failed_validation["story"]["headline"].endswith(
+        "finished with unknown status for flight_telemetry_project."
+    )
+    assert failed_validation["next_actions"][0].startswith("Fix or rerun the failing validation")
+
+    unknown = module.build_run_story(
+        _write_manifest(tmp_path / "unknown", status="unknown", validation_status="pass")
+    )
+    assert unknown["next_actions"] == [
+        "Rerun the manifest-producing command until the status is pass or fail."
+    ]
 
 
 def test_lab_run_routes_storyboard(monkeypatch) -> None:

@@ -1967,6 +1967,139 @@ def test_pytorch_playground_renders_agi_web_panel_with_streamlit_component(monke
     assert "snapshots" in fragments[0]
 
 
+def test_pytorch_playground_agi_web_fallback_edges(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    config = module.PlaygroundConfig(sample_count=32, grid_size=12, seed=9)
+    result = _minimal_playground_result(module, config)
+    frame = pd.DataFrame({"x1": [0, 1, 2], "x2": [3, 4, 5], "target": [0, 1, 0]})
+
+    monkeypatch.setattr(module, "_agi_web_records_from_data", None)
+    assert module._agi_web_frame_records(frame, ("x1", "x2", "target"), max_rows=2) == [
+        {"x1": 0, "x2": 3, "target": 0},
+        {"x1": 2, "x2": 5, "target": 0},
+    ]
+    assert module._agi_web_snapshot_records(pd.DataFrame({"epoch": [0], "x1": [1]})) == []
+    assert module._agi_web_snapshot_records(
+        pd.DataFrame({"epoch": [float("nan")], "x1": [1], "x2": [2], "probability": [0.5]})
+    ) == []
+    many_epochs = pd.DataFrame(
+        {
+            "epoch": list(range(5)),
+            "x1": list(range(5)),
+            "x2": list(range(5)),
+            "probability": [0.5] * 5,
+        }
+    )
+    assert [row["epoch"] for row in module._agi_web_snapshot_records(many_epochs, max_epochs=3)] == [0, 2, 4]
+    assert module._simpler_hidden_layers((16, 8)) == (10,)
+    assert module._wider_hidden_layers((4,)) == (5, 5)
+    recommendations = module._tuning_recommendations(
+        config,
+        {
+            "summary": {"validation_accuracy": 0.5, "train_accuracy": 0.55},
+            "grid": pd.DataFrame({"probability": [0.49, 0.51]}),
+        },
+    )
+    assert "Sharpen the boundary" in {item["title"] for item in recommendations}
+
+    component_cls = module._AgiWebComponent
+    renderer_cls = module._AgiWebRendererSpec
+    render_fn = module._render_agi_web_streamlit
+    monkeypatch.setattr(module, "_AgiWebComponent", None)
+    assert module._build_agi_web_playground_component(
+        config,
+        result,
+        pending_changes=False,
+        preset_label="Playground",
+    ) is None
+    monkeypatch.setattr(module, "_AgiWebComponent", component_cls)
+    monkeypatch.setattr(module, "_AgiWebRendererSpec", renderer_cls)
+
+    monkeypatch.setattr(module, "_render_agi_web_streamlit", None)
+    assert not module._render_agi_web_boundary_panel(
+        config,
+        result,
+        pending_changes=False,
+        preset_label="Playground",
+    )
+
+    class NoSessionState:
+        pass
+
+    monkeypatch.setattr(module, "st", NoSessionState())
+    module._session_state_set("ignored", "value")
+    sleeps: list[float] = []
+    monkeypatch.setattr(module.time, "sleep", lambda seconds: sleeps.append(seconds))
+    module._request_live_rerun(0.01)
+    assert sleeps == [0.01]
+
+    reruns = []
+    monkeypatch.setattr(module, "st", SimpleNamespace(rerun=lambda: reruns.append("rerun")))
+    module._request_live_rerun(0)
+    assert reruns == ["rerun"]
+    monkeypatch.setattr(module, "_render_agi_web_streamlit", render_fn)
+    monkeypatch.setattr(module, "_build_agi_web_playground_component", lambda *_args, **_kwargs: None)
+    assert not module._render_agi_web_boundary_panel(
+        config,
+        result,
+        pending_changes=False,
+        preset_label="Playground",
+    )
+
+
+def test_pytorch_playground_instant_panel_returns_after_agi_web_render(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    config = module.PlaygroundConfig(sample_count=32, grid_size=12, seed=10)
+    result = _minimal_playground_result(module, config)
+    events = []
+    fake_st = SimpleNamespace(
+        markdown=lambda *args, **kwargs: events.append(("markdown", args, kwargs)),
+        columns=lambda *_args, **_kwargs: pytest.fail("Plotly fallback should not render after AGI web success"),
+    )
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_render_agi_web_boundary_panel", lambda *_args, **_kwargs: True)
+
+    module._render_instant_boundary_panel(
+        config,
+        result,
+        pending_changes=False,
+        preset_label="Playground",
+    )
+
+    assert events and events[0][0] == "markdown"
+
+
+def test_pytorch_playground_latest_evidence_selection_edges(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    assert module._load_latest_evidence_result(
+        [],
+        evidence_manifest_token=("not-an-int", tmp_path),
+    ) is None
+
+    evidence_root = tmp_path / "evidence"
+    evidence_root.mkdir()
+    (evidence_root / "manifest.json").write_text("{}", encoding="utf-8")
+    original_resolve = module.Path.resolve
+
+    def fail_resolve(self: Path, *args, **kwargs):
+        if self == evidence_root:
+            raise OSError("resolve failed")
+        return original_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(module.Path, "resolve", fail_resolve)
+
+    loaded = module._load_latest_evidence_result(
+        [evidence_root],
+        evidence_manifest_token=(evidence_root.stat().st_mtime_ns, evidence_root),
+    )
+
+    assert loaded is not None
+    assert loaded[2] == evidence_root
+
+
 def test_pytorch_playground_evidence_pack_is_deterministic(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
