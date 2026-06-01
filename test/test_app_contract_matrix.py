@@ -38,6 +38,29 @@ def test_app_contract_matrix_passes_current_repo():
     assert "public_app_catalog_matches_package_contract" in check_ids
 
 
+def test_discover_builtin_projects_ignores_untracked_workspace_dirs(tmp_path: Path, monkeypatch):
+    module = _load_module()
+    builtin_root = tmp_path / module.BUILTIN_APPS_REL
+    tracked_project = builtin_root / "flight_telemetry_project"
+    local_workspace = builtin_root / "scratch_project"
+    tracked_project.mkdir(parents=True)
+    local_workspace.mkdir()
+
+    def _fake_run(*args, **kwargs):
+        return module.subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=(
+                "src/agilab/apps/builtin/flight_telemetry_project/pyproject.toml\0"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", _fake_run)
+
+    assert module.discover_builtin_projects(tmp_path) == (tracked_project,)
+
+
 def test_app_contract_matrix_detects_promoted_catalog_drift():
     module = _load_module()
 

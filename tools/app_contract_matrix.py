@@ -11,6 +11,7 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 import tomllib
 from typing import Any, Mapping, Sequence
@@ -113,9 +114,66 @@ def _has_dependency(dependencies: Sequence[str], package: str) -> bool:
     return any(pattern.match(item.strip()) for item in dependencies)
 
 
+def _tracked_builtin_project_names(repo_root: Path) -> set[str] | None:
+    """Return tracked built-in project directory names for git checkouts."""
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "ls-files",
+                "-z",
+                "--",
+                str(BUILTIN_APPS_REL),
+            ],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except (OSError, ValueError):
+        return None
+    if result.returncode != 0:
+        return None
+
+    names: set[str] = set()
+    prefix = BUILTIN_APPS_REL.as_posix()
+    for item in result.stdout.split("\0"):
+        if not item:
+            continue
+        path = Path(item)
+        parts = path.parts
+        if len(parts) <= len(BUILTIN_APPS_REL.parts):
+            continue
+        try:
+            rel = path.relative_to(prefix)
+        except ValueError:
+            continue
+        project_name = rel.parts[0]
+        if project_name.endswith("_project"):
+            names.add(project_name)
+    return names
+
+
 def discover_builtin_projects(repo_root: Path) -> tuple[Path, ...]:
     builtin_root = repo_root / BUILTIN_APPS_REL
-    return tuple(sorted(path for path in builtin_root.glob("*_project") if path.is_dir()))
+    tracked_project_names = _tracked_builtin_project_names(repo_root)
+    if tracked_project_names is not None:
+        return tuple(
+            sorted(
+                builtin_root / name
+                for name in tracked_project_names
+                if (builtin_root / name).is_dir()
+            )
+        )
+    return tuple(
+        sorted(
+            path
+            for path in builtin_root.glob("*_project")
+            if path.is_dir() and (path / "pyproject.toml").is_file()
+        )
+    )
 
 
 def discover_page_bundle_projects(repo_root: Path) -> tuple[Path, ...]:
