@@ -730,6 +730,65 @@ jobs:
           done
           python tools/pypi_release_retention.py "${args[@]}"
 
+  publish-dataset-release-assets:
+    if: ${{ always() && needs.test.result == 'success' && needs.release-plan.result == 'success' }}
+    needs:
+      - test
+      - release-plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      actions: read
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build dataset release assets
+        id: dataset-assets
+        run: |
+          python tools/dataset_release_assets.py \
+            --repo-root . \
+            --output-dir dataset-release-assets \
+            --release-tag "$RELEASE_TAG" \
+            --github-output "$GITHUB_OUTPUT" \
+            --github-step-summary "$GITHUB_STEP_SUMMARY" \
+            --fail-on-lfs-pointer
+      - name: Check for existing dataset release
+        id: dataset-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dataset_release_tag="${{ steps.dataset-assets.outputs.dataset_release_tag }}"
+          if gh release view "$dataset_release_tag" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Dataset release $dataset_release_tag already exists; dataset payload is unchanged." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Attest dataset release assets
+        if: ${{ steps.dataset-assets.outputs.dataset_count != '0' && steps.dataset-release.outputs.exists != 'true' }}
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dataset-release-assets/**
+      - name: Create dataset GitHub Release
+        if: ${{ steps.dataset-assets.outputs.dataset_count != '0' && steps.dataset-release.outputs.exists != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DATASET_RELEASE_TAG: ${{ steps.dataset-assets.outputs.dataset_release_tag }}
+          DATASET_MANIFEST_SHA256: ${{ steps.dataset-assets.outputs.dataset_manifest_sha256 }}
+        run: |
+          gh release create "$DATASET_RELEASE_TAG" dataset-release-assets/* \
+            --title "AGILAB datasets ${DATASET_RELEASE_TAG#datasets-}" \
+            --notes "Complete AGILAB dataset assets for manifest $DATASET_MANIFEST_SHA256. PyPI packages keep their packaged datasets; this separate release is for source checkouts and Git LFS pointer replacement. Code release: $RELEASE_TAG."
+
   sync-hf-space:
     if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true' && needs.publish-release-assets.result == 'success' }}
     needs:
