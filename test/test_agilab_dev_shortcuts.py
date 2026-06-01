@@ -418,6 +418,15 @@ def test_release_shortcut_runs_local_release_guards():
             "extra-build-dependencies",
             "run",
             "python",
+            "tools/agilab_audit.py",
+            "--strict",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
             "tools/impact_validate.py",
             "--staged",
         ],
@@ -504,7 +513,18 @@ def test_release_shortcut_runs_local_release_guards():
 
 
 def test_release_shortcut_keeps_impact_arguments():
-    assert agilab_dev.planned_commands(["release", "--files", "pyproject.toml"])[0] == [
+    commands = agilab_dev.planned_commands(["release", "--files", "pyproject.toml"])
+
+    assert commands[0] == [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "python",
+        "tools/agilab_audit.py",
+        "--strict",
+    ]
+    assert commands[1] == [
         "uv",
         "--preview-features",
         "extra-build-dependencies",

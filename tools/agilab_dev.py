@@ -105,6 +105,7 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command in {"release", "pre-release"}:
         forwarded = args or ["--staged"]
         return [
+            _uv_python("tools/agilab_audit.py", "--strict"),
             _uv_python("tools/impact_validate.py", *forwarded),
             _uv_python(
                 "tools/release_plan.py",
@@ -221,7 +222,7 @@ High-frequency mappings:
   audit-preflight -> Print the mandatory architecture-foundation preflight for deep AGILAB audits.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
   typing    -> Run the forward shared-core ty typing profile. Mypy remains the curated temporary release guard under shared-core-typing.
-  release   -> Run local release guards: impact, generated PyPI plan, release cadence, PyPI project preflight, trusted publisher contract, Ruff availability, docs, dependency policy, typing, and badge freshness.
+  release   -> Run local release guards: AGILAB audit/review, impact, generated PyPI plan, release cadence, PyPI project preflight, trusted publisher contract, Ruff availability, docs, dependency policy, typing, and badge freshness.
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
   clean     -> Dry-run cleanup of ignored local build/lib duplicate-source trees; pass --apply to remove them.

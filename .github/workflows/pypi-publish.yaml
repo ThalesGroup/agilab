@@ -62,6 +62,11 @@ jobs:
       - name: Install uv
         run: python -m pip install --upgrade --no-cache-dir uv
 
+      - name: Run strict AGILAB audit review
+        run: |
+          set -euxo pipefail
+          uv --preview-features extra-build-dependencies run python tools/agilab_audit.py --strict
+
       - name: Install Playwright browser for frontend smoke
         run: |
           set -euxo pipefail
@@ -744,11 +749,11 @@ jobs:
     env:
       RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           lfs: true
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.13"
       - name: Build dataset release assets
@@ -775,7 +780,7 @@ jobs:
           fi
       - name: Attest dataset release assets
         if: ${{ steps.dataset-assets.outputs.dataset_count != '0' && steps.dataset-release.outputs.exists != 'true' }}
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-path: dataset-release-assets/**
       - name: Create dataset GitHub Release

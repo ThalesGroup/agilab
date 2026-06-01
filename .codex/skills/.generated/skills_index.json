@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-01T17:01:12Z",
+  "generated_at_utc": "2026-06-01T17:05:13Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -39,7 +39,7 @@
       "name": "agilab-evidence-contracts",
       "description": "Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-31",
+      "updated": "2026-06-01",
       "path": ".codex/skills/agilab-evidence-contracts/SKILL.md",
       "body_preview": "# AGILAB Evidence Contracts\nUse this skill when a change affects AGILAB's evidence-first value: proving that\nan experiment, app run, notebook migration, agent action, or release can be\nreviewed and replayed. The default stance is simple: a feature is not validated"
     },
