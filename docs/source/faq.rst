@@ -394,6 +394,7 @@ Typical refresh path::
 
    uv --preview-features extra-build-dependencies run python tools/generate_component_coverage_badges.py --components agi-gui
 
+Use ``--components agi-web`` for the portable web-component contract badge.
 For the global badge, you also need the corresponding aggregate XML inputs
 before regenerating ``badges/coverage-agilab.svg``.
 

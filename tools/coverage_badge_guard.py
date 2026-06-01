@@ -22,16 +22,18 @@ from typing import Iterable, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-COVERAGE_COMPONENTS = ("agi-env", "agi-node", "agi-cluster", "agi-gui")
+COVERAGE_COMPONENTS = ("agi-env", "agi-node", "agi-cluster", "agi-gui", "agi-web")
 AGGREGATE_COMPONENTS = ("agi-core", "agilab")
 ALL_COMPONENTS = (*COVERAGE_COMPONENTS, *AGGREGATE_COMPONENTS)
 CORE_COMPONENTS = {"agi-env", "agi-node", "agi-cluster"}
+GLOBAL_COMPONENTS = {"agi-env", "agi-node", "agi-cluster", "agi-gui"}
 
 COMPONENT_XML = {
     "agi-env": "coverage-agi-env.xml",
     "agi-node": "coverage-agi-node.xml",
     "agi-cluster": "coverage-agi-cluster.xml",
     "agi-gui": "coverage-agi-gui.xml",
+    "agi-web": "coverage-agi-web.xml",
 }
 
 COVERAGE_TOOLING_TESTS = {
@@ -167,6 +169,8 @@ def _is_gui_coverage_path(path: str) -> bool:
         return False
     if path == "pyproject.toml" or path.endswith("/pyproject.toml"):
         return False
+    if path.startswith("src/agilab/lib/agi-web/"):
+        return False
     if path.startswith("src/agilab/core/"):
         return False
     if path.startswith("src/agilab/test/"):
@@ -192,6 +196,8 @@ def changed_coverage_components(paths: Sequence[str]) -> dict[str, list[str]]:
         if path.startswith("src/agilab/core/test/"):
             by_component["agi-node"].append(path)
             by_component["agi-cluster"].append(path)
+        if path.startswith("src/agilab/lib/agi-web/"):
+            by_component["agi-web"].append(path)
         if _is_gui_coverage_path(path):
             by_component["agi-gui"].append(path)
         if (
@@ -211,7 +217,7 @@ def expand_with_aggregates(components: Iterable[str]) -> list[str]:
     selected = set(components)
     if selected & CORE_COMPONENTS:
         selected.add("agi-core")
-    if selected & set(COVERAGE_COMPONENTS):
+    if selected & GLOBAL_COMPONENTS:
         selected.add("agilab")
     return [component for component in ALL_COMPONENTS if component in selected]
 
@@ -350,6 +356,13 @@ def _guard_commands(components: Sequence[str]) -> list[str]:
         )
     if "agi-gui" in components:
         commands.append("uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile agi-gui")
+    if "agi-web" in components:
+        commands.append(
+            "uv --preview-features extra-build-dependencies run --no-project "
+            "--with-editable ./src/agilab/lib/agi-web --with pytest --with pytest-cov "
+            "python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' "
+            "--cov=agi_web --cov-report=xml:coverage-agi-web.xml src/agilab/lib/agi-web/test"
+        )
     if components:
         commands.append(
             "uv --preview-features extra-build-dependencies run python "
