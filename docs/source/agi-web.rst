@@ -4,8 +4,9 @@ agi-web API
 ``agi-web`` is the portable AGILAB web component contract. It is not a second
 application framework and it does not make AGILAB depend on a JavaScript build
 pipeline. It gives apps a stable, JSON-normalized payload and evidence hash so
-the same UI island can render in Streamlit/static HTML today and later move to
-other adapters without changing the app-side contract.
+the same UI island can render in Streamlit/static HTML today through bundled
+Canvas2D/WebGL adapters while keeping a React-ready component boundary without
+changing the app-side contract.
 
 Use ``agi-web`` when a view needs browser-level fluidity, for example a
 training playground, a simulation cockpit, or an interactive digital twin view.
@@ -62,13 +63,13 @@ Example
 Current boundary
 ----------------
 
-The shipped renderer is a build-free static/Streamlit adapter with a WebGL
-heatmap path and Canvas2D overlay/fallback: timeline chips, play/pause,
-arrow-key scrubbing, confidence HUD, uncertainty contour, and pointer
-inspection. React is supported as a contract technology but is not a bundled
-runtime adapter yet. That distinction is deliberate: AGILAB apps should first
-own a stable payload/evidence contract, then add heavier frontend adapters only
-where the UX requires them.
+The shipped renderer is a build-free static/Streamlit adapter with Canvas2D
+and WebGL paths: timeline chips, play/pause, arrow-key scrubbing, confidence
+HUD, uncertainty contour, and pointer inspection. React is supported as a
+first-class renderer technology in the payload contract and adapter boundary,
+but AGILAB does not yet ship a shared React application shell. That distinction
+is deliberate: AGILAB apps should first own a stable payload/evidence contract,
+then add heavier frontend adapters only where the UX requires them.
 
 Visual guard
 ------------

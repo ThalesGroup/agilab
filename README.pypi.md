@@ -57,8 +57,8 @@ code, stage order, runtime hints, and review context remain usable through the
 stable, production-grade core technology if the AGILAB UI or distributed
 runtime is no longer the right interface for that work.
 Apps can also declare multiple UI surfaces, so the same runtime and evidence
-contract can be exposed through Streamlit, hosted Hugging Face, or future
-NiceGUI/Gradio/FastAPI adapters.
+contract can be exposed through Streamlit, hosted Hugging Face, or
+browser-native `agi-web` UI islands with React-ready component contracts.
 
 ## Demo Routes
 
@@ -225,7 +225,7 @@ what they need:
 |---|---|---|
 | Base package | Lightweight `agilab` command shell plus Python 3.13 stdlib shims. It does not install the core runtime, UI, apps, pages, notebooks, or model stacks by default. | Version/help checks, package/app management commands, and metadata/reporting helpers that do not execute AGILAB runtime code. |
 | `core` extra | `agi-core`, which wires `agi-env`, `agi-node`, and `agi-cluster` for compact local/distributed runtime smoke checks. | CLI proof, source-checkout validation, notebook/API runtime, and worker-runtime development without the UI or packaged examples. |
-| `ui` extra | Streamlit UI, page helpers, portable `agi-web` UI-island contracts, pandas/network graph utilities, `agi-apps`, and the `agi-pages` provider. Promoted app and page payload packages are on PyPI; unpromoted app payloads remain release artifacts until publication is enabled. | Running the local product UI with the packaged runtime and optional public demo assets. |
+| `ui` extra | Streamlit UI, page helpers, portable `agi-web` Canvas2D/WebGL and React-ready UI-island contracts, pandas/network graph utilities, `agi-apps`, and the `agi-pages` provider. Promoted app and page payload packages are on PyPI; unpromoted app payloads remain release artifacts until publication is enabled. | Running the local product UI with the packaged runtime and optional public demo assets. |
 | `examples` extra | `agi-apps` app catalog/examples plus notebook/demo helper dependencies such as JupyterLab and optional plotting packages. | Running packaged notebooks, demos, learning examples, and package first-proof routes. |
 | `pages` extra | `agi-pages` page-provider helpers without the full UI profile. | Installing or validating sidecar page-bundle discovery separately from built-in app projects. |
 | `proof` extra | Optional `cryptography` dependency for detached Ed25519 proof-capsule signatures. | Signing `.agipack` archives and verifying them against local trust policies. |
@@ -328,7 +328,7 @@ Use three planes to read that tree:
 | Area | Role | Stability contract |
 |---|---|---|
 | `src/agilab/core/*` | Runtime packages and compact API. | Stable where documented. |
-| `src/agilab/lib/agi-gui`, `src/agilab/lib/agi-web`, `src/agilab/pages` | Main web UI, Streamlit page helpers, portable UI-island contracts, and app-surface launch adapters. | Beta product surface; app runtime contracts should not depend on one UI backend. |
+| `src/agilab/lib/agi-gui`, `src/agilab/lib/agi-web`, `src/agilab/pages` | Main web UI, Streamlit page helpers, portable Canvas2D/WebGL and React-ready UI-island contracts, and app-surface launch adapters. | Beta product surface; app runtime contracts should not depend on one UI backend. |
 | `src/agilab/lib/agi-apps` | PyPI umbrella carrying app catalog/example assets and exact-pinning the app payload packages already promoted to PyPI. Deferred app payloads remain release artifacts until publication is enabled. | Packaged asset surface for the `ui` and `examples` extras. |
 | `src/agilab/lib/agi-pages` | PyPI provider package for public analysis page discovery. Published `agi-page-*` payload packages are distributed independently; `agi-pages` supplies the discovery/provider surface. | Packaged page-provider surface for the `ui` and `pages` extras. |
 | `src/agilab/apps/builtin` | First-proof and demo apps. | Packaged examples, not deployment templates. |

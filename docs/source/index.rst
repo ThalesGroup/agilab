@@ -26,9 +26,10 @@ work.
 
 AGILAB is not locked to one web frontend. App projects can declare app-owned
 UI surfaces so the same runtime, artifacts, and evidence contract can be opened
-through the local Streamlit UI, a hosted Hugging Face backend, or future
-adapters. See :doc:`apps-pages` for the ``[app_surface]`` contract and the
-generic ``agilab app surface`` launcher.
+through the local Streamlit UI, a hosted Hugging Face backend, or browser-native
+``agi-web`` UI islands with React-ready component contracts. See
+:doc:`apps-pages` for the ``[app_surface]`` contract and the generic
+``agilab app surface`` launcher.
 
 If the local first proof fails, use :doc:`newcomer-troubleshooting` before
 branching into cluster mode, external app repositories, or broader workflows.

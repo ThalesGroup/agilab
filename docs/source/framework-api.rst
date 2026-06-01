@@ -16,8 +16,9 @@ Core and UI packages
   pages and page bundles.
 - ``agi_web`` is the portable web component contract under
   ``src/agilab/lib/agi-web``. Use it when an app needs one evidence-backed
-  payload that can render through Streamlit/static HTML now and through future
-  React, Canvas, or WebGL adapters later.
+  payload that can render through Streamlit/static HTML now through bundled
+  Canvas2D/WebGL adapters while keeping a React-ready component contract for
+  app-owned adapters.
 - ``agi_core`` keeps the shared framework contracts intentionally thin; for now,
   the architecture page is more useful than autodoc because the top-level Python
   package exports only a minimal public surface.
