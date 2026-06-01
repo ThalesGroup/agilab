@@ -127,6 +127,16 @@ def _project_pyprojects() -> list[Path]:
     ]
 
 
+def test_root_requires_python_matches_published_classifiers() -> None:
+    project = _load_pyproject(REPO_ROOT / "pyproject.toml")["project"]
+    classifiers = set(project.get("classifiers", []))
+    requires_python = SpecifierSet(project["requires-python"])
+
+    assert "3.13" in requires_python
+    assert "3.14" not in requires_python
+    assert "Programming Language :: Python :: 3.14" not in classifiers
+
+
 def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
     deps = _dependency_names(REPO_ROOT / "pyproject.toml")
 
