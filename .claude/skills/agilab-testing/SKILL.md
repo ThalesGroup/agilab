@@ -137,6 +137,22 @@ Use this skill when validating changes.
   - For PyCharm/source-install bugs, include a focused AppTest or helper test that runs with
     explicit `--apps-path` and a polluted fake home so the old bug cannot be hidden by the
     developer machine's clean state.
+- Streamlit sidecar bootstrap regressions:
+  - For app-owned sidecars launched from ANALYSIS, cover the exact sidecar path:
+    direct `streamlit run <app_surface.py> -- --active-app <project>` or a
+    helper test for `render(mode="full", active_app=<project>)`. A regression
+    should prove the process does not exit immediately with code `1` before
+    Streamlit can render a useful diagnostic.
+  - Do not import heavy scientific, worker, or manager dependencies merely to
+    resolve the active app, load lightweight form constants, or bootstrap page
+    chrome. Move dependency-free constants to a low-dependency module, lazy-load
+    the heavy runtime only after evidence/args are ready, and keep package
+    `__init__` exports lazy when eager imports can pull in NumPy, Pandas, Torch,
+    workers, or cluster code.
+  - If optional scientific dependencies fail to import, render a controlled
+    Streamlit error/caption and keep the sidecar alive when possible. Test both
+    the no-argv direct entrypoint and the `--active-app` sidecar path when those
+    code paths differ.
 - Workflow action feedback:
   - When a bug is visible only after clicking a workflow button, cover both the
     helper/action function and the UI surface that renders the result.

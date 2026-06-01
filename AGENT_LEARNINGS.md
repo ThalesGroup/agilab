@@ -29,3 +29,7 @@ is not a scratchpad or task log.
 
 - When external agent-instruction projects inspire AGILAB, extract the
   AGILAB-native operating primitive and reject generic boilerplate replacement.
+- When a pre-push guard fails, do not bypass it silently. Re-run the underlying
+  guard with useful output, classify whether the failure belongs to the current
+  diff, a real repository contract, or polluted local filesystem state, then
+  fix the right layer or document the exact unrelated failure before pushing.

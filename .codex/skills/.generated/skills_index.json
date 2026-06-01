@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-01T05:28:09Z",
+  "generated_at_utc": "2026-06-01T13:02:51Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -135,7 +135,7 @@
       "name": "agilab-streamlit-pages",
       "description": "Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-31",
+      "updated": "2026-06-01",
       "path": ".codex/skills/agilab-streamlit-pages/SKILL.md",
       "body_preview": "# Streamlit Pages Skill (AGILAB)\nUse this skill when editing:\n- `src/agilab/main_page.py`\n- `src/agilab/pages/*.py`"
     },

@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-31
+  updated: 2026-06-01
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -71,6 +71,10 @@ Use this skill when editing:
 - If you need to “reset” a widget value:
   - Use a different key (versioned key pattern), or
   - Gate the reset behind a rerun and only mutate state before widget creation.
+- When Streamlit raises a duplicate-widget ID error, check whether the page or
+  app surface is being rendered twice before only adding widget keys. Add stable
+  keys for repeated controls, but fix duplicate entrypoint execution at the
+  source.
 
 ## Recommended Pattern
 
@@ -125,6 +129,14 @@ Use this skill when editing:
 
 - Keep sidebar text short and action-oriented. Remove labels that only restate the active
   project/page or explain obvious scope such as "actions below apply to this project".
+- Keep shared page chrome minimal. Do not add global active-project labels,
+  chips, or badges above page controls; the selected project belongs in the
+  selector, the sidebar, or an explicitly opened context expander.
+- For visible-label cleanup, search every render path before closing the task:
+  page files, `main_page.py`, `page_bootstrap.py`, `workflow_ui.py`,
+  `page_project_selector.py`, lazy-import wrappers, CSS class names, and tests.
+  Add or update a negative regression assertion for removed text so tests do
+  not encode newly introduced clutter as expected behavior.
 - Prefer page headers with a few read-only KPI cards over status banners that say
   `ready`, `not set`, or `missing` without useful context.
 - Use the same visual semantics across pages:

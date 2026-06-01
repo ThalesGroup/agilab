@@ -80,7 +80,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB Security Review Patterns Use this skill to review AGILAB changes through a security-hardening lens before merge, release, or public documentation. It is a review workflow, not a pentest claim. Keep findings tied to concrete files, commands, and user impact.
 - agilab-streamlit-pages: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX). (.claude/skills/agilab-streamlit-pages/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-31
+  updated: 2026-06-01
   preview: # Streamlit Pages Skill (AGILAB) Use this skill when editing: - `src/agilab/main_page.py` - `src/agilab/pages/*.py`
 - agilab-testing: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression). (.claude/skills/agilab-testing/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)

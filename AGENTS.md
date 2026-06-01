@@ -99,6 +99,22 @@ Use this runbook whenever you:
   silently return. If an automated regression is genuinely not practical,
   document the reason, the closest manual/robot validation, and the remaining
   risk before closing the fix.
+- **Streamlit duplicate-widget triage**: For duplicate element ID errors, first
+  check whether the page, app surface, or entrypoint is being executed twice.
+  Add stable widget keys for repeated controls, but do not mask duplicate
+  rendering by adding keys when the real bug is a double `main()` call or a
+  duplicated render path.
+- **Visible-label cleanup contract**: When the user asks to remove visible UI
+  text, search all render paths before closing the task: page files,
+  `main_page.py`, `page_bootstrap.py`, `workflow_ui.py`,
+  `page_project_selector.py`, lazy-import wrappers, CSS class names, and tests.
+  Do not update tests to expect newly introduced clutter unless the user
+  explicitly approves that clutter as product behavior. Add a negative
+  regression assertion for removed text when practical.
+- **Shared page chrome restraint**: Keep global AGILAB page chrome minimal. Do
+  not add active-project labels, chips, or badges above page controls by
+  default; project identity belongs in the project selector, the sidebar, or an
+  explicitly opened context expander.
 - **Reproduce-before-fix rule**: Before patching a logged failure, preserve the
   smallest command, test, fixture, or scenario that reproduces the problem. If
   the failure cannot be reproduced locally, state that explicitly, identify the
@@ -119,6 +135,18 @@ Use this runbook whenever you:
   polluted-environment regression rather than only testing the clean path. The
   regression should prove AGILAB ignores, isolates, repairs, or reports the
   polluted state intentionally.
+- **Pre-push guard pollution triage**: If a pre-push guard fails on projects,
+  app catalogs, docs rows, or generated artifacts that are not part of the
+  pushed diff, first classify whether the failure comes from the current diff,
+  a real repository contract issue, or polluted local filesystem state. Compare
+  `git diff --name-only @{u}..HEAD`, `git ls-files`, and `git check-ignore -v`
+  before patching product code or bypassing the hook. Untracked generated app
+  directories, local `.venv` links, build outputs, and workspace copies under
+  source trees must be treated as environment pollution unless they are tracked
+  release assets. If the guard should ignore them, fix or tighten the guard at
+  the inventory layer and add a polluted-workspace regression; if bypassing is
+  still necessary, state the exact unrelated guard failure and the targeted
+  check that was run.
 - **Reasonable factorization check**: When adding new code, look for nearby
   existing helpers, contracts, or patterns that can reasonably be reused or
   extended instead of duplicating logic. Factor only when it reduces real
