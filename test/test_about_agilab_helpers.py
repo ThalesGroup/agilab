@@ -2188,6 +2188,30 @@ def test_bootstrap_active_app_helpers_handle_empty_same_and_failed_switch(tmp_pa
     )
     assert any("cannot switch" in warning for warning in warnings)
 
+    class InternalBrokenEnv(FakeEnv):
+        def __init__(self):
+            super().__init__()
+            self.app = "default"
+
+        def change_app(self, _path: Path) -> None:
+            raise RuntimeError(
+                "AgiEnv is already initialised with a different configuration; "
+                "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
+            )
+
+    warnings.clear()
+    assert not bootstrap.apply_active_app_request(
+        InternalBrokenEnv(),
+        "known",
+        streamlit=SimpleNamespace(warning=warnings.append),
+    )
+    assert warnings == [
+        "Unable to switch to project 'known'. Refresh the page or restart AGILAB, "
+        "then select the project again."
+    ]
+    assert "AgiEnv.reset" not in warnings[0]
+    assert "change_app" not in warnings[0]
+
 
 def test_bootstrap_additional_active_app_and_source_path_edges(tmp_path, monkeypatch):
     bootstrap = about_agilab._about_bootstrap
