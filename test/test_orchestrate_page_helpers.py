@@ -2343,3 +2343,43 @@ def test_benchmark_display_date_imports_os_when_not_provided(
     assert module.benchmark_display_date(
         benchmark, ""
     ) == module.datetime.fromtimestamp(0).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def test_orchestrate_run_readiness_allows_direct_mode_with_stale_worker():
+    module = _load_orchestrate_module()
+    install_status = {
+        "manager_exists": True,
+        "manager_ready": True,
+        "worker_ready": False,
+        "worker_exists": True,
+        "worker_problem": "missing modules: torch",
+    }
+
+    assert module._run_mode_requires_worker_environment(0) is False
+    assert module._run_mode_requires_worker_environment("0") is False
+    assert (
+        module._install_ready_for_run(install_status, worker_required=False) is True
+    )
+    assert module._install_block_reason_for_run(
+        install_status, worker_required=False
+    ) == ""
+
+
+def test_orchestrate_run_readiness_blocks_scaled_mode_with_stale_worker():
+    module = _load_orchestrate_module()
+    install_status = {
+        "manager_exists": True,
+        "manager_ready": True,
+        "worker_ready": False,
+        "worker_exists": True,
+        "worker_problem": "missing modules: torch",
+    }
+
+    assert module._run_mode_requires_worker_environment(1) is True
+    assert module._run_mode_requires_worker_environment([0, "4"]) is True
+    assert (
+        module._install_ready_for_run(install_status, worker_required=True) is False
+    )
+    assert "missing modules: torch" in module._install_block_reason_for_run(
+        install_status, worker_required=True
+    )

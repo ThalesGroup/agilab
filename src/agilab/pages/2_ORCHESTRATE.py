@@ -1414,6 +1414,46 @@ def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
     return "Needs INSTALL", "Manager and worker environments are not installed yet."
 
 
+def _run_mode_requires_worker_environment(run_mode: Any) -> bool:
+    if isinstance(run_mode, (list, tuple, set)):
+        return any(_run_mode_requires_worker_environment(mode) for mode in run_mode)
+    try:
+        return int(run_mode) != 0
+    except (TypeError, ValueError):
+        return True
+
+
+def _install_ready_for_run(
+    install_status: dict[str, Any], *, worker_required: bool
+) -> bool:
+    manager_ready = bool(
+        install_status.get("manager_exists") and install_status.get("manager_ready")
+    )
+    if not worker_required:
+        return manager_ready
+    return manager_ready and bool(
+        install_status.get("worker_exists") and install_status.get("worker_ready")
+    )
+
+
+def _install_block_reason_for_run(
+    install_status: dict[str, Any], *, worker_required: bool
+) -> str:
+    if worker_required:
+        return (
+            _install_status_warning_message(install_status)
+            or _runtime_status_label(install_status)[1]
+        )
+    if install_status.get("manager_exists") and install_status.get("manager_ready"):
+        return ""
+    if install_status.get("manager_exists"):
+        return str(
+            install_status.get("manager_problem")
+            or "Manager environment is missing or stale."
+        )
+    return "Manager environment has not been created yet. Run INSTALL before RUN."
+
+
 def _install_status_warning_message(install_status: dict[str, Any]) -> str | None:
     """Return a warning only for existing-but-stale install environments."""
     stale_problems = []
@@ -2443,12 +2483,14 @@ async def page() -> None:
     _consume_first_proof_action_query_seed(st.session_state, st.query_params, env=env)
 
     install_status = _app_install_status(env)
-    installed = bool(
-        install_status.get("manager_ready") and install_status.get("worker_ready")
+    worker_required_for_run = _run_mode_requires_worker_environment(
+        st.session_state.get("mode", 0)
     )
-    install_block_reason = (
-        _install_status_warning_message(install_status)
-        or _runtime_status_label(install_status)[1]
+    installed = _install_ready_for_run(
+        install_status, worker_required=worker_required_for_run
+    )
+    install_block_reason = _install_block_reason_for_run(
+        install_status, worker_required=worker_required_for_run
     )
 
     # Sidebar toggles for each page section
@@ -2487,12 +2529,14 @@ async def page() -> None:
         show_install=show_install,
         install_status=install_status,
     )
-    installed = bool(
-        install_status.get("manager_ready") and install_status.get("worker_ready")
+    worker_required_for_run = _run_mode_requires_worker_environment(
+        st.session_state.get("mode", 0)
     )
-    install_block_reason = (
-        _install_status_warning_message(install_status)
-        or _runtime_status_label(install_status)[1]
+    installed = _install_ready_for_run(
+        install_status, worker_required=worker_required_for_run
+    )
+    install_block_reason = _install_block_reason_for_run(
+        install_status, worker_required=worker_required_for_run
     )
     await _render_distribution_panel(
         env,
@@ -2505,6 +2549,15 @@ async def page() -> None:
         project_path=project_path,
         show_run=show_run,
         verbose=verbose,
+    )
+    worker_required_for_run = _run_mode_requires_worker_environment(
+        st.session_state.get("mode", 0)
+    )
+    installed = _install_ready_for_run(
+        install_status, worker_required=worker_required_for_run
+    )
+    install_block_reason = _install_block_reason_for_run(
+        install_status, worker_required=worker_required_for_run
     )
     _render_orchestrate_notebook_expander(env)
 
@@ -2534,6 +2587,7 @@ async def page() -> None:
         deps=execute_deps,
         install_ready=installed,
         install_disabled_reason=install_block_reason,
+        worker_env_required=worker_required_for_run,
     )
 
 

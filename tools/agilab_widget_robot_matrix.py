@@ -261,6 +261,27 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         missing_selected_action_policy="ignore-absent",
         action_timeout_seconds=180.0,
     ),
+    "current-home-pytorch-direct-run-readiness": RobotScenario(
+        name="current-home-pytorch-direct-run-readiness",
+        description=(
+            "Assert the PyTorch Playground direct ORCHESTRATE run path keeps RUN "
+            "enabled when the manager environment is ready. This catches stale "
+            "worker-env gates leaking into direct mode."
+        ),
+        pages="ORCHESTRATE",
+        apps_pages="none",
+        runtime_isolation="current-home",
+        action_button_policy="click-selected",
+        apps="pytorch_playground_project",
+        click_action_labels="RUN",
+        preselect_labels="Run now",
+        required_text="pytorch_playground_project,RUN",
+        missing_selected_action_policy="fail",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=300.0,
+        max_action_clicks_per_page=0,
+        browser_error_check=True,
+    ),
     "current-home-orchestrate-journey": RobotScenario(
         name="current-home-orchestrate-journey",
         description=(

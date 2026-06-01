@@ -127,6 +127,12 @@ Use this runbook whenever you:
   shared core, do not create import cycles, and do not move logic across package
   boundaries unless the dependency direction remains valid and the validation
   scope covers the affected callers.
+- **Change-reporting accuracy rule**: When summarizing edits, make the coverage
+  of the summary explicit enough that nearby preserved text is not mistaken for
+  deleted text. If a change inserts rules around an existing rule, say whether
+  the existing rule was preserved, moved, rewritten, or removed. Do not list
+  only the newly added items when that can reasonably imply adjacent existing
+  guidance disappeared.
 - **PR-first publishing**: For normal code, docs, tests, workflow, and badge changes,
   work on a short branch, push it, open a GitHub PR, merge through the PR, and delete
   the branch after merge. Keep one coherent change per PR and stage only the files
