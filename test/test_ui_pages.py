@@ -1133,6 +1133,16 @@ def test_execute_page_realigns_stale_active_app_only_for_source_root(
 def test_execute_page_allows_direct_run_when_only_worker_install_is_missing(mock_ui_env):
     """ORCHESTRATE direct mode should not block RUN on a missing worker env."""
 
+    worker_src = (
+        mock_ui_env["project_dir"]
+        / "src"
+        / "flight_telemetry_worker"
+        / "flight_telemetry_worker.py"
+    )
+    worker_src.parent.mkdir(parents=True, exist_ok=True)
+    worker_src.write_text("# worker source placeholder for path resolution\n", encoding="utf-8")
+    _seed_probeable_venv(mock_ui_env["project_dir"] / ".venv")
+
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
