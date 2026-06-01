@@ -87,6 +87,18 @@ Use this runbook whenever you:
   confirmation after local validation). When a change maps cleanly to one of the repo workflow
   profiles, prefer `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>`
   over handwritten command variants.
+- **Fix-log regression contract**: When the user requests a fix and provides a
+  corresponding error log, first ask why the failure was not caught by an
+  existing regression test. Identify the real root cause from the log and fix
+  it at the right layer: app-local when the bug is app-specific, shared helper
+  or core only when the failure class is shared, and dependency/configuration
+  policy when the defect is environmental or packaging-related. Avoid masking
+  symptoms with narrow call-site guards when a deeper contract is wrong. Turn
+  the root-cause analysis into a new or tightened regression test that fails on
+  the logged bug and passes with the fix, so the same failure class cannot
+  silently return. If an automated regression is genuinely not practical,
+  document the reason, the closest manual/robot validation, and the remaining
+  risk before closing the fix.
 - **PR-first publishing**: For normal code, docs, tests, workflow, and badge changes,
   work on a short branch, push it, open a GitHub PR, merge through the PR, and delete
   the branch after merge. Keep one coherent change per PR and stage only the files
