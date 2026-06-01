@@ -1,16 +1,11 @@
 [![PyPI version](https://img.shields.io/pypi/v/agilab.svg?cacheSeconds=300)](https://pypi.org/project/agilab/)
+[![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
 [![Latest proven release](https://img.shields.io/badge/release%20proof-latest%20proven%20release-0F766E)](https://thalesgroup.github.io/agilab/release-proof.html)
 [![Supply chain: SBOM, audit, provenance](https://img.shields.io/badge/supply%20chain-SBOM%20%2B%20audit%20%2B%20provenance-0F766E)](https://thalesgroup.github.io/agilab/release-proof.html)
 [![First proof: passing](https://img.shields.io/badge/first%20proof-passing-0F766E)](https://thalesgroup.github.io/agilab/release-proof.html)
-[![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
 [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![Docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
-[![GitHub AI scraper: discoverable](https://img.shields.io/badge/github--ai--scraper-discoverable-0F766E)](https://pypi.org/project/github-ai-scraper/)
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
-[![Skills](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills.svg)](https://github.com/ThalesGroup/agilab/blob/main/AGENT_SKILLS.md)
-[![Standard: Agent Skills](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-standard.svg)](https://agentskills.io/)
-[![Works with](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-works-with.svg)](https://github.com/ThalesGroup/agilab/blob/main/tools/agent_workflows.md)
-[![Style guard: Ruff changed-files](https://img.shields.io/badge/style%20guard-Ruff%20changed--files-0F766E)](https://docs.astral.sh/ruff/)
 
 # AGILAB
 
