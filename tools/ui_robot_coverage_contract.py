@@ -31,8 +31,9 @@ REQUIRED_HF_FIRST_PROOF_PAGES = ("view_forecast_analysis", "view_maps", "view_re
 FORBIDDEN_HF_FIRST_PROOF_APPS = ("flight_project", "weather_forecast_legacy_project")
 REQUIRED_PYTORCH_ANALYSIS_SCENARIO = "isolated-pytorch-playground-analysis"
 REQUIRED_PYTORCH_ANALYSIS_APP = "pytorch_playground_project"
-REQUIRED_PYTORCH_ANALYSIS_TEXT = ("PyTorch Playground", "Page", "Refresh evidence", "Synced RUN snippet", "Settings")
-REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_TEXT = ("Project:",)
+REQUIRED_PYTORCH_ANALYSIS_TEXT = ("PyTorch Playground", "Refresh evidence", "Synced RUN snippet", "Settings")
+REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_SIDEBAR_TEXT = ("Project:",)
+REQUIRED_PYTORCH_ANALYSIS_LINKS = ("Page=>current_page=view_app_ui",)
 REQUIRED_PYTORCH_ANALYSIS_ACTIONS = ("Refresh evidence",)
 REQUIRED_HF_ROBOT_SCENARIOS = {
     "hf-first-proof-visual-smoke": {
@@ -136,6 +137,14 @@ def _scenario_required_text(widget_robot: Any, scenario: Any) -> set[str]:
 
 def _scenario_forbidden_text(widget_robot: Any, scenario: Any) -> set[str]:
     return set(widget_robot.parse_csv(str(getattr(scenario, "forbidden_text", ""))))
+
+
+def _scenario_forbidden_sidebar_text(widget_robot: Any, scenario: Any) -> set[str]:
+    return set(widget_robot.parse_csv(str(getattr(scenario, "forbidden_sidebar_text", ""))))
+
+
+def _scenario_required_links(widget_robot: Any, scenario: Any) -> set[str]:
+    return set(widget_robot.parse_csv(str(getattr(scenario, "required_links", ""))))
 
 
 def _scenario_required_actions(widget_robot: Any, scenario: Any) -> set[str]:
@@ -384,14 +393,16 @@ def evaluate_contract() -> dict[str, Any]:
         pages = sorted(_scenario_pages(widget_robot, pytorch_scenario))
         apps = sorted(_scenario_apps(widget_robot, pytorch_scenario))
         required_text = sorted(_scenario_required_text(widget_robot, pytorch_scenario))
-        forbidden_text = sorted(_scenario_forbidden_text(widget_robot, pytorch_scenario))
+        forbidden_sidebar_text = sorted(_scenario_forbidden_sidebar_text(widget_robot, pytorch_scenario))
+        required_links = sorted(_scenario_required_links(widget_robot, pytorch_scenario))
         required_actions = sorted(_scenario_required_actions(widget_robot, pytorch_scenario))
         flags = sorted(_scenario_flags(pytorch_scenario))
         pytorch_analysis = {
             "pages": pages,
             "apps": apps,
             "required_text": required_text,
-            "forbidden_text": forbidden_text,
+            "forbidden_sidebar_text": forbidden_sidebar_text,
+            "required_links": required_links,
             "required_actions": required_actions,
             "flags": flags,
         }
@@ -418,15 +429,24 @@ def evaluate_contract() -> dict[str, Any]:
                     + ", ".join(missing_text),
                 )
             )
-        missing_forbidden_text = sorted(
-            set(REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_TEXT) - set(forbidden_text)
+        missing_forbidden_sidebar_text = sorted(
+            set(REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_SIDEBAR_TEXT) - set(forbidden_sidebar_text)
         )
-        if missing_forbidden_text:
+        if missing_forbidden_sidebar_text:
             issues.append(
                 CoverageIssue(
                     "pytorch_analysis_robot",
-                    f"{REQUIRED_PYTORCH_ANALYSIS_SCENARIO} is missing forbidden text probes: "
-                    + ", ".join(missing_forbidden_text),
+                    f"{REQUIRED_PYTORCH_ANALYSIS_SCENARIO} is missing forbidden sidebar text probes: "
+                    + ", ".join(missing_forbidden_sidebar_text),
+                )
+            )
+        missing_links = sorted(set(REQUIRED_PYTORCH_ANALYSIS_LINKS) - set(required_links))
+        if missing_links:
+            issues.append(
+                CoverageIssue(
+                    "pytorch_analysis_robot",
+                    f"{REQUIRED_PYTORCH_ANALYSIS_SCENARIO} is missing required link probes: "
+                    + ", ".join(missing_links),
                 )
             )
         missing_actions = sorted(set(REQUIRED_PYTORCH_ANALYSIS_ACTIONS) - set(required_actions))
