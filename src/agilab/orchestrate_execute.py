@@ -440,6 +440,7 @@ async def render_execute_section(
     deps: OrchestrateExecuteDeps,
     install_ready: bool = True,
     install_disabled_reason: str = "",
+    worker_env_required: bool | None = None,
 ) -> None:
     clear_log = deps.clear_log
     update_log = deps.update_log
@@ -452,12 +453,17 @@ async def render_execute_section(
     _capture_dataframe_preview_state = deps.capture_dataframe_preview_state
     _restore_dataframe_preview_state = deps.restore_dataframe_preview_state
     generate_profile_report = deps.generate_profile_report
+    resolved_worker_env_required = (
+        not app_declares_workerless(env)
+        if worker_env_required is None
+        else bool(worker_env_required)
+    )
     execute_state = build_orchestrate_execute_workflow_state(
         show_run_panel=show_run_panel,
         cmd=cmd,
         project_path=project_path,
         worker_env_path=getattr(env, "wenv_abs", None),
-        worker_env_required=not app_declares_workerless(env),
+        worker_env_required=resolved_worker_env_required,
         install_ready=install_ready,
         install_disabled_reason=install_disabled_reason,
     )
@@ -604,7 +610,7 @@ async def render_execute_section(
                 created_at=run_started_at,
                 metadata={
                     "dag_based_app": dag_based_app,
-                    "worker_env_required": not app_declares_workerless(env),
+                    "worker_env_required": resolved_worker_env_required,
                     "benchmark": bool(st.session_state.get("benchmark")),
                 },
             )

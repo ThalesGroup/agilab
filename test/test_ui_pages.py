@@ -1060,8 +1060,8 @@ def test_orchestrate_rechecks_install_status_after_install_before_run_gate():
     after_deployment = source.split("verbose, install_status = await _render_deployment_panel", 1)[1]
     before_execute = after_deployment.split("await render_execute_section", 1)[0]
 
-    assert "installed = bool(" in before_execute
-    assert "install_block_reason = (" in before_execute
+    assert "installed = _install_ready_for_run(" in before_execute
+    assert "install_block_reason = _install_block_reason_for_run(" in before_execute
 
 
 def test_execute_page_realigns_stale_agi_space_session_env(mock_ui_env, tmp_path):
@@ -1130,8 +1130,8 @@ def test_execute_page_realigns_stale_active_app_only_for_source_root(
     assert str(source_project / ".venv") in code_text
 
 
-def test_execute_page_keeps_run_button_visible_before_install(mock_ui_env):
-    """ORCHESTRATE should show a disabled RUN action before INSTALL finishes."""
+def test_execute_page_allows_direct_run_when_only_worker_install_is_missing(mock_ui_env):
+    """ORCHESTRATE direct mode should not block RUN on a missing worker env."""
 
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     env = AgiEnv(
@@ -1153,8 +1153,7 @@ def test_execute_page_keeps_run_button_visible_before_install(mock_ui_env):
     assert not at.exception
     run_button = at.button(key="run_btn")
     assert run_button.label == "RUN"
-    assert getattr(run_button, "disabled", None) is True
-    assert "Run INSTALL first" in _page_text(at)
+    assert getattr(run_button, "disabled", None) is False
 
 
 def test_execute_page_hides_distribution_preview_for_workerless_app(mock_ui_env):

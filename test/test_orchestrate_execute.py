@@ -594,6 +594,39 @@ async def test_pending_run_action_reports_install_required_when_controls_hidden(
     assert ("error", "RUN is not available yet. Run INSTALL first, then retry RUN.") in fake_st.messages
 
 
+@pytest.mark.asyncio
+async def test_render_execute_section_allows_direct_mode_without_worker_env(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit({"app_settings": {"args": {}}})
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+    project_path = tmp_path / "project"
+    (project_path / ".venv").mkdir(parents=True)
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="pytorch_playground_project",
+        wenv_abs=tmp_path / "missing-worker",
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=project_path,
+        app_state_name="pytorch_playground_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(fake_st.messages, fake_st.session_state),
+        install_ready=True,
+        worker_env_required=False,
+    )
+
+    run_button_calls = [
+        kwargs for key, kwargs in fake_st.button_calls if key == "run_btn"
+    ]
+    assert run_button_calls
+    assert run_button_calls[-1]["disabled"] is False
+
+
 def test_execute_notice_round_trip_renders_and_clears():
     fake_st = _FakeStreamlit()
     orchestrate_execute.queue_execute_notice(fake_st.session_state, kind="success", message="Loaded output.")
