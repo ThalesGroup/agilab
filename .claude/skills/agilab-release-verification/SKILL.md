@@ -43,10 +43,12 @@ Run this before tagging or dispatching the release workflow:
 
 ```bash
 git status --short --branch --untracked-files=no
-./dev audit --strict
 ./dev maintenance
 ./dev release
 ```
+
+`./dev release` must start with the strict AGILAB audit/review gate
+(`./dev audit --strict`) before impact, PyPI, docs, typing, and badge checks.
 
 If the checkout is dirty or diverged, do not call it release-ready until the
 dirty paths and ahead/behind state are explained.

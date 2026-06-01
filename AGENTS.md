@@ -49,8 +49,9 @@ Use this runbook whenever you:
   promoted PyPI package metadata, app catalog entries, and public docs rows; it is also
   part of the release shortcut and targeted pre-push guards,
   `audit` is the quick robustness check before handoff between machines,
-  `flow` matches local GitHub workflow profiles, `release` checks impact, generated PyPI release
-  plan, trusted-publisher contract, Ruff availability, dependency policy, strict typing, docs, and badges before a tag,
+  `flow` matches local GitHub workflow profiles, `release` starts with the strict AGILAB audit/review,
+  then checks impact, generated PyPI release plan, trusted-publisher contract, Ruff availability,
+  dependency policy, strict typing, docs, and badges before a tag,
   `badge` checks badge freshness when intentionally requested, `maintenance` reports the
   extension contract kit, ADRs, docs drift, app/package contracts, Evidence Core docs,
   release skip-existing behavior, TODO hotspots, generated artifacts, and coverage signal,
