@@ -480,8 +480,10 @@ same release.
 
 Acceptance gate:
 
-- `./dev release`, `./dev docs`, and the release proof report pass from a clean
-  checkout
+- `./dev release` passes from a clean checkout, starting with its strict AGILAB
+  audit/review gate before impact, PyPI, docs, typing, and badge checks
+- the GitHub release workflow mirrors the same audit-first validation order
+- `./dev docs` and the release proof report pass from a clean checkout
 - the release proof names the exact version, validation routes, and known
   non-certified environments
 - the publish workflow shows which split packages were uploaded and which were

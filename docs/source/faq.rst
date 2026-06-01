@@ -439,7 +439,9 @@ Use the smallest tool that proves the change you made. The usual choices are:
    * - Coverage badge refresh
      - ``./dev badge`` or the relevant coverage-badge generator
    * - Pre-release local guardrails
-     - ``./dev release``
+     - ``./dev release``; it starts with the strict AGILAB audit/review gate
+       before impact, PyPI, docs, typing, and badge checks. The GitHub release
+       workflow mirrors the same audit-first validation order.
    * - IDE wrapper regeneration
      - ``uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py``
    * - Newcomer UI startup smoke
