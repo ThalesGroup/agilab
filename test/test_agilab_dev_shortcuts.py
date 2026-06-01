@@ -447,6 +447,7 @@ def test_release_shortcut_runs_local_release_guards():
             "run",
             "python",
             "tools/pypi_release_version_policy.py",
+            "--skip-existing-pypi",
         ],
         [
             "uv",
