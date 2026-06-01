@@ -25,14 +25,17 @@ contract. Do not answer from memory.
 ./dev --print-only release
 uv --preview-features extra-build-dependencies run python tools/release_plan.py --check-workflow .github/workflows/pypi-publish.yaml
 uv --preview-features extra-build-dependencies run python tools/pypi_project_preflight.py
-rg -n "sync-hf-space|publish-release-assets|pypi-release-retention|release-proof|HF_TOKEN|hf_space_release_sync" .github/workflows/pypi-publish.yaml tools README.md docs/source
+rg -n "sync-hf-space|publish-release-assets|publish-dataset-release-assets|dataset_release_assets|pypi-release-retention|release-proof|HF_TOKEN|hf_space_release_sync" .github/workflows/pypi-publish.yaml tools README.md docs/source
 ```
 
 State whether Hugging Face sync, release proof refresh, PyPI retention, GitHub
-release assets, and docs updates are workflow-owned or manual for the current
-release scope. For PyPI, inspect whether the optimized release plan selected
-packages or skipped already-complete PyPI artifacts. If a workflow owns a step,
-give its condition instead of adding a duplicate manual step.
+code release assets, GitHub dataset release assets, and docs updates are
+workflow-owned or manual for the current release scope. For PyPI, inspect
+whether the optimized release plan selected packages or skipped
+already-complete PyPI artifacts. For datasets, inspect whether the workflow
+publishes a separate `datasets-<content-hash>` release or skips it because the
+same dataset payload already exists. If a workflow owns a step, give its
+condition instead of adding a duplicate manual step.
 
 ## Release Readiness Gate
 
@@ -129,6 +132,7 @@ workflow dispatch:
 - `pypi-provenance-evidence`: verifies PyPI attestations only for `provenance_packages` selected by the release plan.
 - `pypi-release-retention`: prunes older public PyPI releases only for selected provenance packages; missing current releases or failed cleanup are hard failures.
 - `publish-release-assets`: uploads release artifacts and supply-chain evidence to GitHub Releases.
+- `publish-dataset-release-assets`: builds a complete tracked-dataset archive, manifest, and checksums from an LFS-materialized checkout, then creates a separate content-addressed `datasets-<manifest-hash>` GitHub Release only when that dataset payload has not already been published. This job is intentionally independent from PyPI package selection; PyPI packages keep their packaged datasets.
 - `sync-hf-space`: deploys the public Hugging Face Space after release assets only when the umbrella `agilab` release is selected.
 - `sync-hf-space` also runs the hosted smoke check and records the deployed Space commit in release proof; package-only app/page publishes should skip it by release scope.
 
@@ -148,11 +152,13 @@ gh run view <run-id> --repo ThalesGroup/agilab --json status,conclusion,url,jobs
 ```
 
 Success requires the relevant publish, provenance, retention, release-assets,
-and `sync-hf-space` jobs to be successful or intentionally skipped by release
-scope. If the optimized release plan reports `pypi_publish_selected=false`, the
+dataset-release-assets, and `sync-hf-space` jobs to be successful or
+intentionally skipped by release scope. If the optimized release plan reports
+`pypi_publish_selected=false`, the
 publish/provenance/retention/release-assets path is expected to skip. Do not
 report that as a failed release unless the user intended a new public
-publication.
+publication. The dataset release job has a separate skip condition: unchanged
+dataset content should reuse the existing `datasets-<content-hash>` release.
 
 ### GitHub Release
 
@@ -165,6 +171,15 @@ uv run python tools/release_status.py --tag <tag>
 Check that assets exist and match the expected tag. Do not treat a tag alone as
 a release. Prefer `tools/release_status.py` when you need one bounded tag-level
 truth check across GitHub Release assets and PyPI package versions.
+
+For dataset assets, check the separate dataset release, not the source/code
+release. The code release should contain wheels, sdists, checksum manifests,
+distribution evidence, provenance evidence, and supply-chain evidence. The
+dataset release should contain `agilab-datasets-<hash>.tar.gz`,
+`dataset-release-manifest.json`, and `dataset-SHA256SUMS.txt` under a
+`datasets-<manifest-hash>` tag. Do not remove datasets from PyPI package
+contents only because the dataset GitHub Release exists; the dataset release is
+an additional source/LFS recovery surface.
 
 For optimized split-package or repair releases, do not run `release_status.py`
 against every public AGILAB package unless every package was intentionally

@@ -3,7 +3,7 @@ name: agilab-evidence-contracts
 description: Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-31
+  updated: 2026-06-01
 ---
 
 # AGILAB Evidence Contracts
@@ -27,7 +27,7 @@ Classify the touched surface before editing:
 - **Agent evidence**: `agilab.agent_run.v1` manifests, event streams,
   stdout/stderr artifacts, lineage, handoff, and redaction behavior.
 - **Supply-chain evidence**: SBOM, `pip-audit`, PyPI provenance, release assets,
-  version alignment, and trusted-publisher outputs.
+  dataset release manifests, version alignment, and trusted-publisher outputs.
 - **UI robot evidence**: screenshots, robot JSON, route coverage, widget actions,
   and public demo proof artifacts.
 - **Workflow dry-run evidence**: static validation reports for `lab_stages.toml`,
@@ -48,6 +48,12 @@ For every new or changed evidence output, verify:
 - It has a documented verification, replay, or inspection command.
 - It has at least one regression test that catches schema or path drift.
 - Public docs describe what the evidence proves and what it does not prove.
+
+For GitHub dataset release evidence, also verify that the manifest records every
+tracked dataset path, size, `sha256`, LFS-tracking status, and whether the file
+is packaged into PyPI artifacts. The release archive must contain materialized
+dataset contents, not Git LFS pointer files, and it must remain separate from
+the normal source/code GitHub Release assets.
 
 ## Anti-Patterns
 
@@ -92,7 +98,8 @@ copy.
 4. Prefer a small verifier over manual inspection for critical evidence.
 5. For docs, state the exact command and path that produce the evidence.
 6. For release work, compare `CHANGELOG.md`, release proof, workflow output,
-   PyPI/GitHub release state, docs, and Hugging Face sync before claiming done.
+   PyPI/GitHub code release state, GitHub dataset release state, docs, and
+   Hugging Face sync before claiming done.
 7. For external inspiration, record the AGILAB-native evidence primitive that
    was shipped, or state explicitly why no implementation was adopted.
 
