@@ -23,18 +23,9 @@ No unreleased public changes.
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.01
 
-### Added
-
-- Added content-addressed dataset release asset generation so source checkouts have a GitHub Release recovery surface for tracked datasets alongside the PyPI package contents.
-- Added an `agi-web` coverage badge and broader frontend component contract coverage for React-ready UI surfaces.
-
 ### Changed
 
 - Published AGILAB `2026.06.01` to PyPI for `agi-env`, `agi-gui`, `agi-web`, `agi-page-geospatial-map`, `agi-page-network-map`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-flight-telemetry`, `agi-app-weather-forecast`, `agi-app-pytorch-playground`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
-- Improved the PyTorch Playground analysis and app-surface UX, including sidebar controls, inline analysis rendering, and packaged payload alignment.
-- Hardened release readiness with strict audit-first validation, dataset release workflow action pinning, and clearer local release cadence policy checks.
-- Refined ORCHESTRATE and ANALYSIS readiness behavior around direct-run gating, view selection sync, and source bootstrap diagnostics.
-- Capped the root `agilab` package metadata at Python `<3.14` so fresh source clones select a supported interpreter instead of attempting an unsupported Python 3.14 dev dependency solve.
 - Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
 - Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
