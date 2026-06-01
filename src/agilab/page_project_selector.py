@@ -71,6 +71,7 @@ def render_project_selector(
     help_text: str = "Project workspace used by this page. Type in the dropdown to search.",
     show_edit_button: bool = True,
     edit_label: str = "Edit",
+    container: Any | None = None,
 ) -> str | None:
     """Render the project selector without an extra filter text field."""
     project_names = _refresh_project_names(streamlit, projects)
@@ -79,18 +80,19 @@ def render_project_selector(
         project_names = sorted([*project_names, current], key=lambda name: (name.casefold(), name))
 
     streamlit.session_state.pop("project_filter", None)
+    target = container if container is not None else streamlit.sidebar
     if not project_names:
-        streamlit.sidebar.info("No projects available.")
+        target.info("No projects available.")
         return None
 
     if streamlit.session_state.get(key) not in project_names:
         streamlit.session_state.pop(key, None)
 
     default_index = project_names.index(current) if current in project_names else 0
-    selector_host = streamlit.sidebar
-    edit_host = streamlit.sidebar
+    selector_host = target
+    edit_host = target
     if show_edit_button:
-        selector_host, edit_host = streamlit.sidebar.columns([0.76, 0.24], vertical_alignment="bottom")
+        selector_host, edit_host = target.columns([0.76, 0.24], vertical_alignment="bottom")
 
     selection = selector_host.selectbox(
         label,
@@ -98,6 +100,7 @@ def render_project_selector(
         index=default_index,
         key=key,
         help=help_text,
+        label_visibility="collapsed",
     )
     if show_edit_button:
         if edit_host.button(edit_label, key=f"{key}__edit", help=f"Edit {selection}.", width="stretch"):

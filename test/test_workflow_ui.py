@@ -149,8 +149,8 @@ def test_render_page_context_renders_project_cockpit(tmp_path) -> None:
     workflow_ui.render_page_context(fake_st, page_label="ORCHESTRATE", env=env)
 
     markdown = "\n".join(body for kind, body in fake_st.events if kind == "markdown")
-    assert "Project status" in markdown
-    assert "flight_telemetry_project" in markdown
+    assert ("expander", "Project status:False") in fake_st.events
+    assert "Project</div>" not in markdown
     assert "manifest: run_manifest.json" in markdown
     assert "Page</div>" not in markdown
     assert "Artifacts</div>" not in markdown
@@ -159,6 +159,29 @@ def test_render_page_context_renders_project_cockpit(tmp_path) -> None:
         "link_button",
         "Review evidence:/ANALYSIS?active_app=flight_telemetry_project:project_cockpit:ORCHESTRATE:next:analysis:primary",
     ) in fake_st.events
+
+
+def test_render_context_expander_links_back_to_project_page(tmp_path) -> None:
+    fake_st = _FakeStreamlit()
+    runenv = tmp_path / "run"
+    runenv.mkdir()
+    (runenv / "run_manifest.json").write_text("{}", encoding="utf-8")
+    env = SimpleNamespace(
+        app="flight_telemetry_project",
+        target="flight_telemetry_worker",
+        active_app=tmp_path,
+        runenv=runenv,
+        app_data_rel=tmp_path / "data",
+    )
+
+    workflow_ui.render_context_expander(fake_st, page_label="WORKFLOW", env=env)
+
+    assert ("expander", "Workflow context:False") in fake_st.events
+    assert (
+        "link_button",
+        "Change project:/PROJECT_STATUS?active_app=flight_telemetry_project:context_expander:WORKFLOW:change_project:secondary",
+    ) in fake_st.events
+    assert not [event for event in fake_st.events if event[0] == "selectbox"]
 
 
 def test_project_widget_key_is_scoped_by_page_and_project() -> None:

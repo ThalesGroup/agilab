@@ -13,8 +13,23 @@ from .app_args import (
     merge_args,
     to_playground_config,
 )
-from .pytorch_playground import PytorchPlayground, PytorchPlaygroundApp
 from .reduction import PYTORCH_PLAYGROUND_REDUCE_CONTRACT
+
+_MANAGER_EXPORTS = {"PytorchPlayground", "PytorchPlaygroundApp"}
+
+
+def __getattr__(name: str):
+    if name in _MANAGER_EXPORTS:
+        from .pytorch_playground import PytorchPlayground, PytorchPlaygroundApp
+
+        exports = {
+            "PytorchPlayground": PytorchPlayground,
+            "PytorchPlaygroundApp": PytorchPlaygroundApp,
+        }
+        value = exports[name]
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     "ArgsModel",

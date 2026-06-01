@@ -75,6 +75,7 @@ ALLOWED_CORE_PAGE_ENTRIES = {
     "__pycache__",
     "0_SETTINGS.py",
     "1_PROJECT.py",
+    "1_PROJECT_STATUS.py",
     "2_ORCHESTRATE.py",
     "3_WORKFLOW.py",
     "4_ANALYSIS.py",

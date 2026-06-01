@@ -318,6 +318,7 @@ def test_render_view_page_embeds_sidecar_with_streamlit_iframe(tmp_path: Path, m
     view_path = tmp_path / "view_demo.py"
     view_path.write_text("", encoding="utf-8")
     calls: list[tuple[str, dict[str, object]]] = []
+    sidebar_hides: list[str] = []
 
     class _Column:
         def __enter__(self):
@@ -345,7 +346,7 @@ def test_render_view_page_embeds_sidecar_with_streamlit_iframe(tmp_path: Path, m
     )
 
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "_hide_parent_sidebar", lambda: None)
+    monkeypatch.setattr(module, "_hide_parent_sidebar", lambda: sidebar_hides.append("hide"))
     monkeypatch.setattr(module, "_is_hosted_analysis_runtime", lambda _env: False)
     monkeypatch.setattr(module, "_ensure_sidecar", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(module, "_port_for", lambda _key: 8765)
@@ -355,6 +356,7 @@ def test_render_view_page_embeds_sidecar_with_streamlit_iframe(tmp_path: Path, m
     assert calls == [
         ("http://127.0.0.1:8765/?datadir_rel=sample&embed=true", {"height": 900})
     ]
+    assert sidebar_hides == []
 
 
 def test_hide_parent_sidebar_emits_sidecar_sidebar_css(monkeypatch):
@@ -467,6 +469,8 @@ def test_main_does_not_hide_parent_sidebar_on_main_route(tmp_path: Path, monkeyp
     monkeypatch.setattr(module, "render_project_selector", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "_store_active_app", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "_active_app_arg_for_env", lambda _env: "")
+    monkeypatch.setattr(module, "_render_analysis_sidebar_view_launcher", lambda **_kwargs: None)
+    monkeypatch.setattr(module, "_render_analysis_sidebar_notebook_launcher", lambda **_kwargs: None)
 
     asyncio.run(module.main())
 
@@ -553,6 +557,7 @@ def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, mon
     notebook_path.parent.mkdir(parents=True)
     notebook_path.write_text("{}", encoding="utf-8")
     calls: list[tuple[str, dict[str, object]]] = []
+    sidebar_hides: list[str] = []
 
     class _Column:
         def __enter__(self):
@@ -580,7 +585,7 @@ def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, mon
     )
 
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "_hide_parent_sidebar", lambda: None)
+    monkeypatch.setattr(module, "_hide_parent_sidebar", lambda: sidebar_hides.append("hide"))
     monkeypatch.setattr(module, "_is_hosted_analysis_runtime", lambda _env: False)
     monkeypatch.setattr(module, "_ensure_notebook_sidecar", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(module, "_port_for", lambda _key: 8766)
@@ -593,6 +598,7 @@ def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, mon
             {"height": 900},
         )
     ]
+    assert sidebar_hides == []
 
 
 def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Path, monkeypatch):

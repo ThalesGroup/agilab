@@ -22,6 +22,26 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+try:
+    from .app_args import (
+        ACTIVATIONS,
+        DATASETS,
+        DEFAULT_FEATURES,
+        FEATURES,
+        OPTIMIZERS,
+        REGULARIZATIONS,
+        coerce_feature_names as _coerce_feature_names,
+    )
+except ImportError:  # pragma: no cover - direct script execution fallback
+    from app_args import (
+        ACTIVATIONS,
+        DATASETS,
+        DEFAULT_FEATURES,
+        FEATURES,
+        OPTIMIZERS,
+        REGULARIZATIONS,
+        coerce_feature_names as _coerce_feature_names,
+    )
 
 try:  # pragma: no cover - exercised conditionally in environments with torch
     import torch
@@ -30,20 +50,6 @@ except Exception:  # pragma: no cover - lightweight environments may omit torch
     torch = None  # type: ignore[assignment]
     nn = None  # type: ignore[assignment]
 
-DATASETS = ("circles", "xor", "spiral", "gaussian")
-FEATURES = (
-    "x1",
-    "x2",
-    "x1_squared",
-    "x2_squared",
-    "x1_x2",
-    "sin_x1",
-    "sin_x2",
-)
-DEFAULT_FEATURES = ("x1", "x2", "x1_squared", "x2_squared", "x1_x2")
-ACTIVATIONS = ("tanh", "relu", "sigmoid", "identity")
-OPTIMIZERS = ("Adam", "SGD")
-REGULARIZATIONS = ("None", "L1", "L2")
 CONFIG_SCHEMA = "agilab.pytorch_playground_config.v1"
 EVIDENCE_SCHEMA = "agilab.pytorch_playground_evidence.v1"
 ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
@@ -210,17 +216,6 @@ def _coerce_hidden_layers(value: Any, default: tuple[int, ...] = (8, 8)) -> tupl
         except ValueError:
             return default
     return default
-
-
-def _coerce_feature_names(value: Any, default: tuple[str, ...] = DEFAULT_FEATURES) -> tuple[str, ...]:
-    if isinstance(value, str):
-        raw_values = [token.strip() for token in value.split(",")]
-    elif isinstance(value, (list, tuple)):
-        raw_values = [str(token).strip() for token in value]
-    else:
-        raw_values = list(default)
-    selected = tuple(name for name in raw_values if name in FEATURES)
-    return selected or default
 
 
 def _config_payload(config: PlaygroundConfig) -> dict[str, Any]:

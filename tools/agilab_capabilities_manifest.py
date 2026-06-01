@@ -452,7 +452,10 @@ def collect_public_apps() -> list[dict[str, Any]]:
     for project_path in sorted(builtin_root.glob("*_project")):
         if not project_path.is_dir():
             continue
-        metadata = _read_pyproject(project_path / "pyproject.toml").get("project", {})
+        pyproject_path = project_path / "pyproject.toml"
+        if not pyproject_path.is_file():
+            continue
+        metadata = _read_pyproject(pyproject_path).get("project", {})
         apps.setdefault(
             project_path.name,
             {

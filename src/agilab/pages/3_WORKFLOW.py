@@ -946,28 +946,8 @@ def sidebar_controls() -> None:
         persisted_lab = normalized_target
 
     st.session_state.pop("project_filter", None)
-    project_options = modules
-    project_index = modules.index(persisted_lab) if persisted_lab in modules else 0
-    if st.session_state.get("project_selectbox") not in project_options:
-        st.session_state.pop("project_selectbox", None)
-    project_selector_col, project_edit_col = st.sidebar.columns(
-        [0.76, 0.24], vertical_alignment="bottom"
-    )
-    selected_lab = project_selector_col.selectbox(
-        PIPELINE_PROJECT_LABEL,
-        project_options,
-        index=project_index,
-        on_change=lambda: on_lab_change(st.session_state.project_selectbox),
-        key="project_selectbox",
-        help=PIPELINE_PROJECT_HELP,
-    )
-    if project_edit_col.button(
-        "Edit",
-        key="project_selectbox__edit",
-        help=f"Edit {selected_lab}.",
-        width="stretch",
-    ):
-        switch_to_project_page(st, active_app=selected_lab)
+    st.session_state.pop("project_selectbox", None)
+    selected_lab = persisted_lab
     st.session_state["lab_dir_selectbox"] = selected_lab
     st.session_state["lab_dir"] = selected_lab
     if selected_lab != persisted_lab:
@@ -1433,7 +1413,6 @@ def _render_pipeline_workspace_overview(
     env: AgiEnv, lab_dir: Path, stages_file: Path
 ) -> None:
     stages = get_stages_list(lab_dir, stages_file)
-    total_stages = len(stages)
     dict_stages = [entry for entry in stages if isinstance(entry, dict)]
     displayable_stages = sum(1 for entry in dict_stages if _is_displayable_stage(entry))
     runnable_stages = sum(1 for entry in dict_stages if _is_runnable_stage(entry))
@@ -1450,22 +1429,15 @@ def _render_pipeline_workspace_overview(
     workspace_updated = _latest_pipeline_workspace_mtime(lab_dir, stages_file)
 
     with st.container(border=True):
-        top_cols = st.columns(3)
+        top_cols = st.columns(2)
         with top_cols[0]:
-            _render_pipeline_header_card(
-                "Workflow stages",
-                f"{displayable_stages}/{total_stages}",
-                "visible / stored",
-                state="ready" if total_stages else "incomplete",
-            )
-        with top_cols[1]:
             _render_pipeline_header_card(
                 "Runnable",
                 str(runnable_stages),
                 "stages with executable code",
                 state="ready" if runnable_stages else "incomplete",
             )
-        with top_cols[2]:
+        with top_cols[1]:
             _render_pipeline_header_card(
                 "Output files",
                 f"{output_count}{output_suffix}",
@@ -1646,6 +1618,9 @@ def main() -> None:
             page_label="WORKFLOW",
             docs_html_file="experiment-help.html",
         )
+        from agilab.workflow_ui import render_context_expander
+
+        render_context_expander(st, page_label="WORKFLOW", env=env)
 
         st.session_state.setdefault("stages_file_name", STAGES_FILE_NAME)
         st.session_state.setdefault("help_path", Path(env.agilab_pck) / "gui/help")

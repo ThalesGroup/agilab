@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import hashlib
 import importlib
 import importlib.util
@@ -29,8 +30,10 @@ PROJECT_PATH = Path("src/agilab/apps/builtin/pytorch_playground_project")
 PACKAGE_PROJECT_PATH = Path(
     "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project"
 )
+PACKAGE_APP_SURFACE_PATH = PACKAGE_PROJECT_PATH / "src/pytorch_playground/app_surface.py"
 PROJECT_SRC = PROJECT_PATH / "src"
 EXPECTED_SOURCE_PAYLOAD_DIFFS = {Path("pytorch_playground_worker/pyproject.toml")}
+RUN_BUTTON_KEY = "pytorch_playground:refresh_evidence:pytorch_playground_project"
 
 
 def _load_module():
@@ -203,6 +206,64 @@ def test_app_surface_resolves_equals_active_app_arg_and_path_fallback(monkeypatc
     assert paths == [bad_path]
 
 
+def test_app_surface_main_passes_project_path_without_argv(monkeypatch):
+    module = _load_app_surface_module("pytorch_playground_app_surface_direct_main_test")
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(sys, "argv", ["app_surface.py"])
+    monkeypatch.setattr(module, "render", lambda **kwargs: calls.append(kwargs))
+
+    try:
+        module.main()
+    finally:
+        sys.modules.pop(module.__name__, None)
+
+    assert calls == [{"mode": "full", "active_app": module._APP_PROJECT}]
+
+
+def test_app_surface_entrypoint_calls_main_once_and_run_button_has_key():
+    for path in (APP_SURFACE_PATH, PACKAGE_APP_SURFACE_PATH):
+        source = path.read_text(encoding="utf-8")
+        entrypoint = source.split('if __name__ == "__main__":', 1)[1]
+        assert entrypoint.count("main()") == 1
+        assert 'key=f"pytorch_playground:refresh_evidence:{active_app_path.name}"' in source
+
+
+def test_app_surface_reports_playground_ui_dependency_import_error(monkeypatch):
+    module = _load_app_surface_module("pytorch_playground_app_surface_import_error_test")
+    calls: list[tuple[str, object]] = []
+
+    class _FakeStreamlit:
+        def set_page_config(self, **kwargs):
+            calls.append(("set_page_config", kwargs))
+
+        def title(self, value):
+            calls.append(("title", value))
+
+        def error(self, value):
+            calls.append(("error", value))
+
+        def caption(self, value):
+            calls.append(("caption", value))
+
+    real_import = builtins.__import__
+
+    def _raising_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "pytorch_playground" and "playground_ui" in fromlist:
+            raise ImportError("broken pandas binary extension")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setitem(sys.modules, "streamlit", _FakeStreamlit())
+    monkeypatch.setattr(builtins, "__import__", _raising_import)
+
+    try:
+        assert module._load_playground_ui_or_report() is None
+    finally:
+        sys.modules.pop(module.__name__, None)
+
+    assert ("error", "PyTorch Playground scientific dependencies are not importable.") in calls
+    assert ("caption", "ImportError: broken pandas binary extension") in calls
+
+
 def test_app_surface_app_args_form_loader_reports_missing_spec(monkeypatch):
     module = _load_app_surface_module("pytorch_playground_app_surface_form_loader_test")
     monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
@@ -234,6 +295,43 @@ def test_app_surface_app_args_form_loader_marks_import_only_module(monkeypatch):
 
     assert loaded_module is loaded_modules[0]
     assert loaded_module._AGILAB_APP_ARGS_FORM_IMPORT_ONLY is True
+
+
+def test_pytorch_playground_app_args_form_import_does_not_require_core(monkeypatch):
+    original_modules = {
+        name: module
+        for name, module in sys.modules.items()
+        if name == "pytorch_playground" or name.startswith("pytorch_playground.")
+    }
+    for name in original_modules:
+        sys.modules.pop(name, None)
+
+    real_import = builtins.__import__
+
+    def _guard_core_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "pytorch_playground.core":
+            raise AssertionError("app args form must not import scientific core")
+        return real_import(name, globals, locals, fromlist, level)
+
+    spec = importlib.util.spec_from_file_location(
+        "pytorch_playground_app_args_form_no_core_test", APP_ARGS_FORM_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    module._AGILAB_APP_ARGS_FORM_IMPORT_ONLY = True
+    monkeypatch.setattr(builtins, "__import__", _guard_core_import)
+    sys.modules[spec.name] = module
+
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(spec.name, None)
+        for name in list(sys.modules):
+            if name == "pytorch_playground" or name.startswith("pytorch_playground."):
+                sys.modules.pop(name, None)
+        sys.modules.update(original_modules)
+
+    assert module.FORM_FIELDS
 
 
 def test_app_surface_resolves_active_app_from_argv_and_evidence_dirs(monkeypatch, tmp_path: Path):
@@ -576,7 +674,7 @@ def test_app_surface_styles_and_entrypoint_delegate_to_render(monkeypatch: pytes
 
     assert events[0][0] == "markdown"
     assert events[0][1][1] == {"unsafe_allow_html": True}
-    assert ("render", {"mode": "full"}) in events
+    assert ("render", {"mode": "full", "active_app": module._APP_PROJECT}) in events
 
 
 def test_app_surface_full_renders_orchestrate_form_and_analysis_together(monkeypatch):
@@ -681,6 +779,64 @@ def test_app_surface_full_renders_orchestrate_form_and_analysis_together(monkeyp
         "configure_page": False,
         "compact": True,
     }
+
+
+def test_app_surface_full_reports_app_args_form_dependency_error(monkeypatch):
+    module = _load_app_surface_module("pytorch_playground_app_surface_full_form_error_test")
+    events: list[tuple[str, object]] = []
+
+    class _Column:
+        def __init__(self, name: str):
+            self.name = name
+
+        def __enter__(self):
+            events.append((f"enter:{self.name}", self.name))
+            return self
+
+        def __exit__(self, *_args):
+            events.append((f"exit:{self.name}", self.name))
+            return False
+
+        def markdown(self, message):
+            events.append(("column_markdown", (self.name, message)))
+
+        def error(self, message):
+            events.append(("column_error", (self.name, message)))
+
+        def caption(self, message):
+            events.append(("column_caption", (self.name, message)))
+
+    class _FakeStreamlit:
+        session_state: dict[str, object] = {}
+
+        def set_page_config(self, **kwargs):
+            events.append(("page_config", kwargs))
+
+        def columns(self, spec):
+            events.append(("columns", spec))
+            return [_Column("analysis"), _Column("controls")]
+
+    monkeypatch.setitem(sys.modules, "streamlit", _FakeStreamlit())
+    monkeypatch.setattr(module, "_load_playground_ui_or_report", lambda **_kwargs: SimpleNamespace(PAGE_TITLE="PyTorch Playground"))
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path: (SimpleNamespace(), SimpleNamespace()))
+    monkeypatch.setattr(module, "_load_app_args_form", lambda: (_ for _ in ()).throw(ImportError("broken app form dependency")))
+    monkeypatch.setattr(
+        module,
+        "_render_analysis_surface",
+        lambda path, **kwargs: events.append(("analysis", {"path": path, **kwargs})),
+    )
+
+    try:
+        module.render(mode="full", active_app=PROJECT_PATH.resolve())
+    finally:
+        sys.modules.pop(module.__name__, None)
+
+    assert (
+        "column_error",
+        ("controls", "PyTorch Playground scientific dependencies are not importable."),
+    ) in events
+    assert ("column_caption", ("controls", "ImportError: broken app form dependency")) in events
+    assert any(kind == "analysis" for kind, _payload in events)
 
 
 def test_app_surface_run_once_uses_pytorch_worker(monkeypatch):
@@ -828,7 +984,15 @@ def test_app_surface_full_run_button_executes_before_analysis(monkeypatch):
     assert ordered == ["button", "run", "form", "analysis"]
     assert (
         "button",
-        ("controls", "Refresh evidence", {"type": "primary", "width": "stretch"}),
+        (
+            "controls",
+            "Refresh evidence",
+            {
+                "type": "primary",
+                "width": "stretch",
+                "key": RUN_BUTTON_KEY,
+            },
+        ),
     ) in events
     assert ("spinner", "Refreshing PyTorch evidence") in events
     assert load_calls == [PROJECT_PATH.resolve(), PROJECT_PATH.resolve()]
@@ -941,7 +1105,19 @@ def test_app_surface_run_button_idle_and_failure_paths(monkeypatch: pytest.Monke
             events.append(("error", message))
 
     assert module._render_run_button(PROJECT_PATH.resolve(), container=IdleContainer()) is None
-    assert events == [("button", ("Refresh evidence", {"type": "primary", "width": "stretch"}))]
+    assert events == [
+        (
+            "button",
+            (
+                "Refresh evidence",
+                {
+                    "type": "primary",
+                    "width": "stretch",
+                    "key": RUN_BUTTON_KEY,
+                },
+            ),
+        )
+    ]
 
     class ClickContainer(IdleContainer):
         def button(self, label, **kwargs):

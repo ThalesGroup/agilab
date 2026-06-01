@@ -426,6 +426,11 @@ def test_first_party_pages_configure_docs_menu_items() -> None:
             "render_page_chrome(",
             'docs_html_file="edit-help.html"',
         ),
+        "src/agilab/pages/1_PROJECT_STATUS.py": (
+            "render_page_chrome(",
+            "render_project_status_page(",
+            'docs_html_file="edit-help.html"',
+        ),
         "src/agilab/pages/2_ORCHESTRATE.py": (
             "render_page_chrome(",
             'docs_html_file="execute-help.html"',
@@ -729,20 +734,23 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     assert 'title="PROJECT"' in source
     assert 'url_path="PROJECT"' in source
     project_block = source.split("project_page = st.Page(", 1)[1].split(
+        "project_status_page", 1
+    )[0]
+    project_status_block = source.split("project_status_page = st.Page(", 1)[1].split(
         "orchestrate_page", 1
     )[0]
     assert '_page_file_runner(pages_root / "1_PROJECT.py")' in project_block
+    assert '_page_file_runner(pages_root / "1_PROJECT_STATUS.py")' in project_status_block
+    assert 'title="PROJECT"' in project_status_block
+    assert 'url_path="PROJECT_STATUS"' in project_status_block
     assert 'visibility="hidden"' in source
     assert 'title="ORCHESTRATE"' in source
     assert 'title="WORKFLOW"' in source
     assert 'title="ANALYSIS"' in source
-    assert (
-        'streamlit.sidebar.columns([0.76, 0.24], vertical_alignment="bottom")'
-        in selector_source
-    )
+    assert 'target.columns([0.76, 0.24], vertical_alignment="bottom")' in selector_source
     assert 'PROJECT_PAGE_PATH = Path("pages/1_PROJECT.py")' in selector_source
     assert "switch_to_project_page(streamlit, active_app=selection)" in selector_source
-    assert "switch_to_project_page(st, active_app=selected_lab)" in pipeline_source
+    assert "switch_to_project_page(st, active_app=selected_lab)" not in pipeline_source
     assert 'streamlit.switch_page(Path("pages/1_PROJECT.py"))' not in selector_source
     assert 'st.switch_page(Path("pages/1_PROJECT.py"))' not in pipeline_source
     assert 'st.sidebar.markdown(f"### [MLflow]({mlflow_url})")' in pipeline_source
@@ -753,6 +761,29 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     assert "stLinkButton" not in pipeline_source
     assert '"Open UI"' not in pipeline_source
     assert '"Open"' not in pipeline_source
+
+
+def test_orchestrate_page_exposes_analysis_preview_expander(mock_ui_env):
+    at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
+    env = AgiEnv(
+        apps_path=mock_ui_env["apps_dir"],
+        app="flight_telemetry_project",
+        verbose=0,
+    )
+    env.init_done = True
+    env.st_resources = (
+        Path(__file__).resolve().parents[1] / "src/agilab/resources"
+    ).resolve()
+    at.session_state["env"] = env
+    at.session_state["app_settings"] = {
+        "args": {},
+        "cluster": {"cluster_enabled": False},
+    }
+
+    at.run()
+
+    assert not at.exception
+    assert "Analysis preview" in [str(item.label) for item in at.expander]
 
 
 def test_page_file_runner_caches_modules_until_source_changes(tmp_path, monkeypatch):
@@ -1585,18 +1616,18 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "selected / available" not in markdown_text
     assert "agilab-header-value--incomplete" in markdown_text
     assert "Recommended" not in markdown_text
-    assert "Project</div>" in markdown_text
+    assert "Project</div>" not in markdown_text
     assert "Artifact formats" not in markdown_text
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     assert "### Active project" not in sidebar_markdown
     assert all(
         text_input.key != "project_filter" for text_input in at.sidebar.text_input
     )
-    assert "### Analysis views" in sidebar_markdown
+    assert "### Analysis views" not in sidebar_markdown
     assert "agilab-analysis-view-links" in sidebar_markdown
     assert "current_page=" in sidebar_markdown
     assert "view_maps" in sidebar_markdown
-    assert "### Notebooks" in sidebar_markdown
+    assert "### Notebooks" not in sidebar_markdown
     assert "agilab-analysis-notebook-links" in sidebar_markdown
     assert "current_notebook=" in sidebar_markdown
     assert "lab_stages.ipynb" in sidebar_markdown
@@ -1753,7 +1784,7 @@ def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
     reloaded_sidebar_markdown = "\n".join(
         str(item.value) for item in reloaded.sidebar.markdown
     )
-    assert "view_maps" not in reloaded_sidebar_markdown
+    assert "view_maps" in reloaded_sidebar_markdown
     assert "view_barycentric" in reloaded_sidebar_markdown
     assert "current_page=" in reloaded_sidebar_markdown
 
@@ -1847,9 +1878,9 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
     assert "1 linked to flight_telemetry_project" in markdown_text
     assert "agilab-header-value agilab-header-value--ready'>1/2</div>" in markdown_text
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
-    assert "### Notebooks" in sidebar_markdown
+    assert "### Notebooks" not in sidebar_markdown
     assert "extra/demo.ipynb" in sidebar_markdown
-    assert "lab_stages.ipynb" not in sidebar_markdown
+    assert "lab_stages.ipynb" in sidebar_markdown
     assert "current_notebook=" in sidebar_markdown
 
     reloaded = _app_test("src/agilab/pages/4_ANALYSIS.py")
@@ -1869,7 +1900,7 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
         str(item.value) for item in reloaded.sidebar.markdown
     )
     assert "extra/demo.ipynb" in reloaded_sidebar_markdown
-    assert "lab_stages.ipynb" not in reloaded_sidebar_markdown
+    assert "lab_stages.ipynb" in reloaded_sidebar_markdown
     assert "current_notebook=" in reloaded_sidebar_markdown
 
 
@@ -1929,7 +1960,7 @@ def test_experiment_page_load(mock_ui_env):
     assert not at.exception
     _assert_docs_actions_absent(at)
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
-    assert "Workflow stages" in markdown_text
+    assert "Workflow stages" not in markdown_text
     assert "Runnable" in markdown_text
     assert "Output files" in markdown_text
     assert "Dataframes" in markdown_text
@@ -2112,7 +2143,7 @@ def test_edit_page_load(mock_ui_env):
     assert "Settings" in markdown_text
     assert "Cluster share" in markdown_text
     assert "API keys" in markdown_text
-    assert "Project</div>" in markdown_text
+    assert "Project</div>" not in markdown_text
     assert "Project workspace" not in markdown_text
     assert "README" not in markdown_text
     assert all(
@@ -2338,7 +2369,7 @@ def test_explore_page_deselect_view(mock_ui_env):
     assert "Open view_barycentric" not in btns
     assert not card_open_buttons
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
-    assert "view_maps" not in sidebar_markdown
+    assert "view_maps" in sidebar_markdown
     assert "view_barycentric" in sidebar_markdown
 
 
@@ -2546,12 +2577,9 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         assert all(
             text_input.key != "project_filter" for text_input in at.sidebar.text_input
         )
-        assert [selectbox.label for selectbox in at.sidebar.selectbox][0] == "Project"
+        assert not [selectbox for selectbox in at.sidebar.selectbox if selectbox.key == "project_selectbox"]
         assert "Runtime diagnostics" not in _element_labels(at.sidebar)
         assert "Diagnostics level" not in _element_labels(at.sidebar)
-        project_select = at.sidebar.selectbox(key="project_selectbox")
-        assert project_select.label == "Project"
-        assert "Type in the dropdown to search." in str(project_select.help)
         sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
         sidebar_caption = "\n".join(str(item.value) for item in at.sidebar.caption)
         assert "### Active project" not in sidebar_markdown
@@ -2565,45 +2593,22 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         )
         assert "Start it from Edit." not in sidebar_caption
         assert "MLflow" not in sidebar_markdown
-        assert list(project_select.options) == [
-            "flight_telemetry_project",
-            "sb3_trainer_project",
-        ]
-        assert at.session_state["lab_dir_selectbox"] == project_select.value
+        assert at.session_state["lab_dir_selectbox"] == "flight_telemetry_project"
         markdown_text = "\n".join(str(item.value) for item in at.markdown)
-        assert "Workflow stages" in markdown_text
+        assert "Workflow stages" not in markdown_text
         assert (
             "agilab-header-value agilab-header-value--ready'>1/1</div>" in markdown_text
         )
         assert "Workflow graph" in markdown_text
         assert "stages / dependencies" in markdown_text
 
-        initial_lab = at.session_state["lab_dir_selectbox"]
-        target_lab = (
-            "sb3_trainer_project"
-            if initial_lab != "sb3_trainer_project"
-            else "flight_telemetry_project"
-        )
-        expected_prompt = (
-            "trainer prompt" if target_lab == "sb3_trainer_project" else "flight prompt"
-        )
-
-        at.sidebar.selectbox(key="project_selectbox").set_value(target_lab).run()
-
-        assert not at.exception
-        assert at.session_state["project_selectbox"] == target_lab
-        assert at.session_state["lab_dir_selectbox"] == target_lab
-        assert Path(at.session_state["stages_file"]).parent.name == target_lab
-        assert Path(str(at.session_state["index_page"])).parts[0] == target_lab
         assert (
-            at.text_area(key=f"{target_lab}_lab_stages.toml_q_stage_0").value
-            == expected_prompt
+            at.text_area(key="flight_telemetry_project_lab_stages.toml_q_stage_0").value
+            == "flight prompt"
         )
-        if target_lab == "sb3_trainer_project":
-            assert (trainer_project / "notebooks" / "lab_stages.ipynb").is_file()
 
 
-def test_pipeline_page_project_selectbox_replaces_filter_and_switches_projects(
+def test_pipeline_page_does_not_render_sidebar_project_selector(
     mock_ui_env, tmp_path
 ):
     export_root = tmp_path / "export"
@@ -2644,20 +2649,10 @@ def test_pipeline_page_project_selectbox_replaces_filter_and_switches_projects(
         assert all(
             text_input.key != "project_filter" for text_input in at.sidebar.text_input
         )
-        project_select = at.sidebar.selectbox(key="project_selectbox")
-        assert project_select.label == "Project"
-        assert list(project_select.options) == [
-            "flight_telemetry_project",
-            "sb3_trainer_project",
-        ]
-
-        project_select.set_value("sb3_trainer_project").run()
-
-        assert not at.exception
-        assert at.session_state["project_selectbox"] == "sb3_trainer_project"
-        assert at.session_state["lab_dir_selectbox"] == "sb3_trainer_project"
+        assert not [selectbox for selectbox in at.sidebar.selectbox if selectbox.key == "project_selectbox"]
+        assert at.session_state["lab_dir_selectbox"] == "flight_telemetry_project"
         assert (
-            Path(at.session_state["stages_file"]).parent.name == "sb3_trainer_project"
+            Path(at.session_state["stages_file"]).parent.name == "flight_telemetry_project"
         )
 
 
@@ -2699,12 +2694,7 @@ def test_pipeline_page_project_selectbox_uses_canonical_project_names(
         at.run()
         assert not at.exception
 
-        project_select = at.sidebar.selectbox(key="project_selectbox")
-        assert list(project_select.options) == [
-            "flight_telemetry_project",
-            "sb3_trainer_project",
-        ]
-        assert "flight" not in project_select.options
+        assert not [selectbox for selectbox in at.sidebar.selectbox if selectbox.key == "project_selectbox"]
         assert at.session_state["lab_dir_selectbox"] == "flight_telemetry_project"
         assert (
             Path(at.session_state["stages_file"]).parent.name
@@ -2747,15 +2737,13 @@ def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tm
         )
 
         at.session_state["env"] = env
-        at.session_state["project_selectbox"] = "sb3_trainer_project"
         at.run()
         assert not at.exception
 
-        project_select = at.sidebar.selectbox(key="project_selectbox")
-        assert project_select.value == "sb3_trainer_project"
-        assert at.session_state["lab_dir_selectbox"] == "sb3_trainer_project"
+        assert not [selectbox for selectbox in at.sidebar.selectbox if selectbox.key == "project_selectbox"]
+        assert at.session_state["lab_dir_selectbox"] == "flight_telemetry_project"
         assert (
-            Path(at.session_state["stages_file"]).parent.name == "sb3_trainer_project"
+            Path(at.session_state["stages_file"]).parent.name == "flight_telemetry_project"
         )
         assert (trainer_project / "notebooks" / "lab_stages.ipynb").is_file()
 
@@ -2862,9 +2850,9 @@ R = "runpy"
         assert "second prompt" in stored
 
 
-def test_edit_page_project_selectbox(mock_ui_env):
-    """Test that the EDIT page has a project selectbox with available projects."""
-    at = _app_test("src/agilab/pages/1_PROJECT.py")
+def test_project_status_page_owns_project_selectbox_and_edit_button(mock_ui_env):
+    """The visible PROJECT status page owns project selection and edit navigation."""
+    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
@@ -2875,7 +2863,6 @@ def test_edit_page_project_selectbox(mock_ui_env):
     env.projects = ["flight_telemetry_project"]
     env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
     at.session_state["env"] = env
-    at.session_state["sidebar_selection"] = "Edit"
 
     at.run()
     assert not at.exception
@@ -2886,11 +2873,12 @@ def test_edit_page_project_selectbox(mock_ui_env):
         sb.key for sb in sidebar_selectboxes
     ]
     assert selectbox_keys, (
-        "EDIT page should have at least one selectbox "
+        "PROJECT status page should have a main project selectbox "
         f"(main={len(main_selectboxes)}, sidebar={len(sidebar_selectboxes)}, "
         f"errors={[e.value for e in at.error]})"
     )
     assert "project_selectbox" in selectbox_keys
+    assert "project_selectbox__edit" in [button.key for button in at.button]
     assert "project_selectbox__edit" not in [button.key for button in at.sidebar.button]
     assert "project_filter" not in [ti.key for ti in at.sidebar.text_input]
 

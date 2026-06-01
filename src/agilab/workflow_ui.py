@@ -436,9 +436,6 @@ def _render_cockpit_card(streamlit: Any, *, label: str, value: str, caption: str
 
 def _project_cockpit_cards(page_label: str, env: Any | None) -> list[dict[str, str]]:
     del page_label
-    project_name = _project_display_name(env)
-    project_root = _project_path(env)
-    project_ready = bool(project_root and (project_root.exists() or project_root.is_symlink()))
     install_value, install_caption, install_state = _project_install_status(env)
     run_value, run_caption, run_state = _run_history(env)
     evidence = _scan_project_evidence(env)
@@ -460,12 +457,6 @@ def _project_cockpit_cards(page_label: str, env: Any | None) -> list[dict[str, s
         evidence_caption = "run ORCHESTRATE -> EXECUTE"
         evidence_state = "incomplete"
     return [
-        {
-            "label": "Project",
-            "value": project_name,
-            "caption": "selected" if project_ready else "select or create a project",
-            "state": "ready" if project_ready else "incomplete",
-        },
         {
             "label": "Install",
             "value": install_value,
@@ -560,8 +551,116 @@ def render_project_evidence_drawer(
     )
 
 
+def _render_project_status_body(
+    streamlit: Any,
+    *,
+    page_label: str,
+    env: Any,
+    key_prefix: str,
+) -> None:
+    cards = _project_cockpit_cards(page_label, env)
+    columns = streamlit.columns(len(cards))
+    for column, card in zip(columns, cards):
+        with column:
+            _render_cockpit_card(streamlit, **card)
+    render_next_best_action(
+        streamlit,
+        env=env,
+        key_prefix=key_prefix,
+    )
+
+
+def render_project_status_page(streamlit: Any, *, env: Any | None = None) -> None:
+    """Render the PROJECT status menu page."""
+    if env is None:
+        return None
+    if not callable(getattr(streamlit, "markdown", None)) or not callable(
+        getattr(streamlit, "columns", None)
+    ):
+        return None
+    _render_project_status_body(
+        streamlit,
+        page_label="PROJECT",
+        env=env,
+        key_prefix="project_status_page",
+    )
+    return None
+
+
+def _render_context_link(
+    streamlit: Any,
+    *,
+    label: str,
+    url: str,
+    key: str,
+    type: str = "secondary",
+) -> None:
+    link_button = getattr(streamlit, "link_button", None)
+    if callable(link_button):
+        link_button(label, url, key=key, type=type, width="content")
+        return
+    streamlit.markdown(f"[{label}]({url})")
+
+
+def render_context_expander(
+    streamlit: Any,
+    *,
+    page_label: str,
+    env: Any | None = None,
+    expanded: bool = False,
+) -> None:
+    """Render compact project context on execution/review pages without selectors."""
+    if env is None:
+        return None
+    if not callable(getattr(streamlit, "expander", None)) or not callable(
+        getattr(streamlit, "columns", None)
+    ):
+        return None
+
+    normalized_page = _stable_key_part(page_label).upper()
+    title = {
+        "WORKFLOW": "Workflow context",
+        "ANALYSIS": "Analysis context",
+    }.get(normalized_page, "Project context")
+    key_root = f"context_expander:{_stable_key_part(page_label)}"
+    with streamlit.expander(title, expanded=expanded):
+        _render_project_status_body(
+            streamlit,
+            page_label=normalized_page,
+            env=env,
+            key_prefix=key_root,
+        )
+        link_columns = streamlit.columns(3)
+        with link_columns[0]:
+            _render_context_link(
+                streamlit,
+                label="Change project",
+                url=_project_page_url("PROJECT_STATUS", env),
+                key=f"{key_root}:change_project",
+            )
+        with link_columns[1]:
+            target_page = "ORCHESTRATE" if normalized_page == "ANALYSIS" else "ANALYSIS"
+            target_label = "Run again" if normalized_page == "ANALYSIS" else "Analyze"
+            _render_context_link(
+                streamlit,
+                label=target_label,
+                url=_project_page_url(target_page, env),
+                key=f"{key_root}:{_stable_key_part(target_label)}",
+            )
+        with link_columns[2]:
+            peer_page = "WORKFLOW" if normalized_page == "ANALYSIS" else "ORCHESTRATE"
+            peer_label = "Open workflow" if normalized_page == "ANALYSIS" else "Run"
+            _render_context_link(
+                streamlit,
+                label=peer_label,
+                url=_project_page_url(peer_page, env),
+                key=f"{key_root}:{_stable_key_part(peer_label)}",
+            )
+    return None
+
+
 def render_page_context(streamlit: Any, *, page_label: str, env: Any | None = None) -> None:
-    """Render the compact project cockpit shared by Streamlit pages."""
+    """Render the compact project cockpit as an optional expander."""
     if env is None:
         return None
     if not callable(getattr(streamlit, "markdown", None)) or not callable(
@@ -569,26 +668,29 @@ def render_page_context(streamlit: Any, *, page_label: str, env: Any | None = No
     ):
         return None
 
-    def _render_body() -> None:
-        streamlit.markdown("### Project status")
-        cards = _project_cockpit_cards(page_label, env)
-        columns = streamlit.columns(len(cards))
-        for column, card in zip(columns, cards):
-            with column:
-                _render_cockpit_card(streamlit, **card)
-        render_next_best_action(
+    def _render_body(*, render_fallback_title: bool = False) -> None:
+        if render_fallback_title:
+            streamlit.markdown("### Project status")
+        _render_project_status_body(
             streamlit,
+            page_label=page_label,
             env=env,
             key_prefix=f"project_cockpit:{_stable_key_part(page_label)}",
         )
 
+    expander_fn = getattr(streamlit, "expander", None)
     container_fn = getattr(streamlit, "container", None)
-    context = container_fn(border=True) if callable(container_fn) else streamlit
+    if callable(expander_fn):
+        context = expander_fn("Project status", expanded=False)
+        render_fallback_title = False
+    else:
+        context = container_fn(border=True) if callable(container_fn) else streamlit
+        render_fallback_title = True
     if hasattr(context, "__enter__") and hasattr(context, "__exit__"):
         with context:
-            _render_body()
+            _render_body(render_fallback_title=render_fallback_title)
     else:
-        _render_body()
+        _render_body(render_fallback_title=render_fallback_title)
     return None
 
 
