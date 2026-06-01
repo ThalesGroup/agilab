@@ -346,12 +346,6 @@ def render_page_context(*args: Any, **kwargs: Any) -> Any:
     return _workflow_ui_module.render_page_context(*args, **kwargs)
 
 
-def render_active_project_chip(*args: Any, **kwargs: Any) -> bool:
-    return _lazy_import_attr("agilab.page_bootstrap", "render_active_project_chip")(
-        *args, **kwargs
-    )
-
-
 # --- minimal session-state safety (add this block) ---
 def _pre_render_reset() -> None:
     # If last run asked for a reset, clear BEFORE widgets are created this run
@@ -970,7 +964,6 @@ def _render_navigation_context(
         pass
     render_sidebar_settings_link(env)
     render_pinned_expanders(st)
-    render_active_project_chip(st, env=env)
     if show_project_context:
         render_page_context(st, page_label=page_label, env=env)
 

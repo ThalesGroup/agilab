@@ -770,11 +770,7 @@ def test_page_bootstrap_configure_page_chrome_sets_docs_title_and_theme(tmp_path
 
 def test_page_bootstrap_render_page_header_orders_shared_sidebar_context():
     events: list[tuple[str, object]] = []
-    fake_st = SimpleNamespace(
-        markdown=lambda body, **_kwargs: events.append(
-            ("chip", "agilab-active-project-chip" in str(body))
-        )
-    )
+    fake_st = SimpleNamespace()
     env = SimpleNamespace(app="demo")
 
     page_bootstrap.render_page_header(
@@ -794,18 +790,13 @@ def test_page_bootstrap_render_page_header_orders_shared_sidebar_context():
     assert events == [
         ("logo", None),
         ("pinned", True),
-        ("chip", True),
         ("context", (True, {"page_label": "PROJECT", "env": env})),
     ]
 
 
 def test_page_bootstrap_render_page_header_skips_project_context_by_default():
     events: list[tuple[str, object]] = []
-    fake_st = SimpleNamespace(
-        markdown=lambda body, **_kwargs: events.append(
-            ("chip", "agilab-active-project-chip" in str(body))
-        )
-    )
+    fake_st = SimpleNamespace()
 
     page_bootstrap.render_page_header(
         fake_st,
@@ -820,7 +811,7 @@ def test_page_bootstrap_render_page_header_skips_project_context_by_default():
         ),
     )
 
-    assert events == [("logo", None), ("pinned", True), ("chip", True)]
+    assert events == [("logo", None), ("pinned", True)]
 
 
 def test_page_bootstrap_render_page_chrome_uses_env_resources():
@@ -6265,14 +6256,10 @@ def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
     assert "Success criteria" in body
 
 
-def test_main_navigation_context_imports_page_bootstrap_active_project_chip(monkeypatch):
-    """ABOUT navigation must not lazy-import a missing project chip helper."""
+def test_main_navigation_context_does_not_render_active_project_chip(monkeypatch):
+    """ABOUT navigation should not duplicate the selected project above page controls."""
     fake_st = _FakeStreamlit()
     env = SimpleNamespace(app="flight_telemetry_project", target="", active_app="")
-    about_agilab._LAZY_IMPORT_ATTR_CACHE.pop(
-        ("agilab.page_bootstrap", "render_active_project_chip"),
-        None,
-    )
 
     monkeypatch.setattr(about_agilab, "st", fake_st)
     monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "0.test")
@@ -6290,5 +6277,5 @@ def test_main_navigation_context_imports_page_bootstrap_active_project_chip(monk
     markdown_text = "\n".join(
         value for event, value in fake_st.events if event == "markdown"
     )
-    assert "agilab-active-project-chip" in markdown_text
-    assert "flight_telemetry_project" in markdown_text
+    assert "agilab-active-project-chip" not in markdown_text
+    assert "Project: flight_telemetry_project" not in markdown_text

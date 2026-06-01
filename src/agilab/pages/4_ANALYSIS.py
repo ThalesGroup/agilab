@@ -851,8 +851,11 @@ def exec_bg(
     stderr = open(agi_env.err_log, "ab", buffering=0)
     env = dict(os.environ)
     env.pop("PYTHONPATH", None)
+    env.pop("VIRTUAL_ENV", None)
     if process_env:
         env.update(process_env)
+        if not env.get("VIRTUAL_ENV"):
+            env.pop("VIRTUAL_ENV", None)
     command: str | list[str]
     if isinstance(cmd, str):
         command = cmd
@@ -1722,8 +1725,11 @@ def _migrate_declared_app_surface_config(
         and isinstance(seed_pages.get("view_module"), list)
         else []
     )
+    declared_app_ui_page = _declared_app_ui_page_config(active_app_path)
     if seed_restricts_views:
-        desired_modules = _dedupe_preserve_order(seed_modules or [_APP_UI_PAGE_KEY])
+        desired_modules = _dedupe_preserve_order(seed_modules)
+        if declared_app_ui_page is not None and not desired_modules:
+            desired_modules = [_APP_UI_PAGE_KEY]
         if pages.get("restrict_to_view_module") is not True:
             pages["restrict_to_view_module"] = True
             changed = True
@@ -1731,7 +1737,7 @@ def _migrate_declared_app_surface_config(
             pages["view_module"] = desired_modules
             changed = True
 
-    if _declared_app_ui_page_config(active_app_path) is None:
+    if declared_app_ui_page is None:
         if _APP_UI_PAGE_KEY in pages:
             del pages[_APP_UI_PAGE_KEY]
             changed = True
@@ -2320,9 +2326,12 @@ def _render_analysis_sidebar_view_launcher(
     resolved_pages: dict[str, Path],
     custom_view_lookup: dict[str, Path],
 ) -> None:
-    launch_options = list(dict.fromkeys([*view_names, *selected_views]))
+    launch_options = list(dict.fromkeys(selected_views))
     if not launch_options:
-        st.sidebar.info("No analysis views available.")
+        if view_names:
+            st.sidebar.info("No analysis views selected.")
+        else:
+            st.sidebar.info("No analysis views available.")
         return
 
     builtin_names = set(resolved_pages.keys())
@@ -2878,19 +2887,44 @@ async def main():
         st.session_state[notebook_selection_key] = notebook_widget_selection
     selected_notebooks = list(notebook_widget_selection)
 
-    _render_analysis_sidebar_view_launcher(
-        project=project,
-        selected_views=selected_views,
-        view_names=all_available_views,
-        resolved_pages=resolved_pages,
-        custom_view_lookup=custom_view_lookup,
+    def _render_sidebar_launchers(
+        *,
+        sidebar_selected_views: list[str],
+        sidebar_selected_notebooks: list[str],
+    ) -> None:
+        _render_analysis_sidebar_view_launcher(
+            project=project,
+            selected_views=sidebar_selected_views,
+            view_names=all_available_views,
+            resolved_pages=resolved_pages,
+            custom_view_lookup=custom_view_lookup,
+        )
+        _render_analysis_sidebar_notebook_launcher(
+            project=project,
+            selected_notebooks=sidebar_selected_notebooks,
+            notebook_names=notebook_names,
+            notebook_lookup=notebook_lookup,
+        )
+
+    route_view_path = (
+        _resolve_view_path(current_page, resolved_pages, custom_view_lookup)
+        if current_page
+        else None
     )
-    _render_analysis_sidebar_notebook_launcher(
-        project=project,
-        selected_notebooks=selected_notebooks,
-        notebook_names=notebook_names,
-        notebook_lookup=notebook_lookup,
+    app_surface_will_render = (
+        configured_app_surface_entrypoint(active_app_path, cfg) is not None
+        and not _is_app_surface_overview_requested(current_page)
+        and not _query_param_is_truthy(st.query_params.get(_APP_SURFACE_HIDE_QUERY_PARAM))
     )
+    if (
+        current_notebook
+        or route_view_path is not None
+        or app_surface_will_render
+    ):
+        _render_sidebar_launchers(
+            sidebar_selected_views=selected_views,
+            sidebar_selected_notebooks=selected_notebooks,
+        )
 
     # Route: only render a child surface when the param is concrete, not "main"/empty.
     # The sidebar launchers above stay visible on child views/notebooks.
@@ -3001,6 +3035,11 @@ async def main():
             config_changed = True
     if config_changed:
         _write_config(app_settings, cfg)
+
+    _render_sidebar_launchers(
+        sidebar_selected_views=selected_views,
+        sidebar_selected_notebooks=selected_notebooks,
+    )
 
     _render_custom_analysis_page_authoring(
         project=project,

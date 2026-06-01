@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import html
 import importlib
 import importlib.util
 from pathlib import Path
@@ -242,42 +241,6 @@ def configure_page_chrome(
         inject_theme(resources_path)
 
 
-def _active_project_label(env: Any | None) -> str:
-    """Return the display label for the currently selected project."""
-    if env is None:
-        return ""
-    for attr_name in ("app", "target", "active_app"):
-        value = getattr(env, attr_name, None)
-        text = str(value or "").strip()
-        if not text:
-            continue
-        return Path(text).name
-    return ""
-
-
-def render_active_project_chip(streamlit: Any, *, env: Any | None = None) -> bool:
-    """Render a compact selected-project chip in shared page chrome."""
-    project_label = _active_project_label(env)
-    if not project_label:
-        return False
-    escaped_label = html.escape(project_label)
-    streamlit.markdown(
-        (
-            "<style>"
-            ".agilab-active-project-chip{display:inline-flex;align-items:center;"
-            "gap:.35rem;border:1px solid rgba(49,51,63,.18);border-radius:999px;"
-            "padding:.18rem .58rem;margin:.2rem 0 .45rem 0;font-size:.78rem;"
-            "line-height:1.2;background:rgba(250,250,250,.78);color:rgba(49,51,63,.78);}"
-            ".agilab-active-project-chip span{font-weight:650;color:rgba(49,51,63,.96);}"
-            "</style>"
-            "<div class='agilab-active-project-chip'>Project: "
-            f"<span>{escaped_label}</span></div>"
-        ),
-        unsafe_allow_html=True,
-    )
-    return True
-
-
 def render_page_header(
     streamlit: Any,
     *,
@@ -306,7 +269,6 @@ def render_page_header(
 
     render_logo()
     render_pinned_expanders(streamlit)
-    render_active_project_chip(streamlit, env=env)
     if show_project_context and render_page_context is not None:
         render_page_context(streamlit, page_label=page_label, env=env)
 
