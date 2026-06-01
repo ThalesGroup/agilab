@@ -2369,7 +2369,7 @@ def test_explore_page_deselect_view(mock_ui_env):
     assert "Open view_barycentric" not in btns
     assert not card_open_buttons
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
-    assert "view_maps" in sidebar_markdown
+    assert "view_maps" not in sidebar_markdown
     assert "view_barycentric" in sidebar_markdown
 
 

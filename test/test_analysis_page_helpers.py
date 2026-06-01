@@ -655,6 +655,43 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     assert not any("'" in part for part in command)
 
 
+def test_exec_bg_clears_parent_python_environment(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    captured: dict[str, object] = {}
+
+    class _FakeProcess:
+        pass
+
+    def _fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["env"] = kwargs["env"]
+        captured["cwd"] = kwargs["cwd"]
+        return _FakeProcess()
+
+    monkeypatch.setenv("PYTHONPATH", "/bad/pythonpath")
+    monkeypatch.setenv("VIRTUAL_ENV", "/bad/manager-venv")
+    monkeypatch.setattr(module.subprocess, "Popen", _fake_popen)
+
+    fake_env = SimpleNamespace(
+        out_log=str(tmp_path / "sidecar.log"),
+        err_log=str(tmp_path / "sidecar.err"),
+    )
+    process = module.exec_bg(
+        fake_env,
+        ["uv", "run", "--project", str(tmp_path), "python", "-m", "streamlit"],
+        cwd=str(tmp_path),
+        process_env={"PATH": "/tool/bin"},
+    )
+
+    assert isinstance(process, _FakeProcess)
+    assert captured["cwd"] == str(tmp_path)
+    assert captured["command"][0] == "uv"
+    child_env = captured["env"]
+    assert child_env["PATH"] == "/tool/bin"
+    assert "PYTHONPATH" not in child_env
+    assert "VIRTUAL_ENV" not in child_env
+
+
 def test_source_bootstrap_stamp_invalidates_when_core_path_changes(tmp_path: Path):
     module = _load_analysis_module()
     project_root = tmp_path / "page_project"
@@ -1326,6 +1363,36 @@ def test_analysis_page_state_falls_back_to_all_views_when_restrict_config_is_emp
 
     assert state.view_names == (custom_key, "view_maps")
     assert state.widget_selection == ()
+
+
+def test_app_surface_migration_preserves_intentionally_empty_analysis_views(tmp_path: Path):
+    module = _load_analysis_module()
+    active_app_path = tmp_path / "app_surface_project"
+    surface_module = active_app_path / "src" / "demo_surface"
+    surface_module.mkdir(parents=True)
+    (surface_module / "app.py").write_text("def main():\n    pass\n", encoding="utf-8")
+    (active_app_path / "src" / "app_settings.toml").write_text(
+        """
+[pages]
+restrict_to_view_module = true
+view_module = []
+
+[app_surface]
+title = "Demo surface"
+entrypoint = "demo_surface/app.py"
+default = "streamlit"
+""".lstrip(),
+        encoding="utf-8",
+    )
+    cfg = {"pages": {"restrict_to_view_module": True, "view_module": []}}
+
+    changed = module._migrate_declared_app_surface_config(active_app_path, cfg)
+
+    assert changed is True
+    assert cfg["pages"]["restrict_to_view_module"] is True
+    assert cfg["pages"]["view_module"] == []
+    assert "view_app_ui" not in cfg["pages"]
+    assert cfg["app_surface"]["entrypoint"] == "demo_surface/app.py"
 
 
 def test_analysis_page_state_handles_invalid_and_unresolved_defaults(tmp_path: Path):
