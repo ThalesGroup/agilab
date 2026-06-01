@@ -459,16 +459,23 @@ def _render_controls_surface(
     env: Any | None = None,
     container: Any | None = None,
 ) -> None:
+    from contextlib import nullcontext
+
     import streamlit as st
 
-    controls_container = container or st.sidebar
+    controls_container = container if container is not None else getattr(st, "sidebar", st)
     try:
         runtime_env, _args_model = _load_orchestrate_args(active_app_path, env=env)
     except Exception as exc:
         controls_container.error(f"Unable to load ORCHESTRATE app arguments: {exc}")
         return
 
-    with controls_container:
+    controls_context = (
+        controls_container
+        if hasattr(controls_container, "__enter__")
+        else nullcontext(controls_container)
+    )
+    with controls_context:
         controls_container.markdown("**Run**")
         try:
             app_args_form = _load_app_args_form()
@@ -534,7 +541,28 @@ def _render_full_surface(
     _render_surface_styles()
     if container is None:
         if not embedded:
-            _render_controls_surface(active_app_path, env=env or runtime_env)
+            sidebar = getattr(st, "sidebar", None)
+            if sidebar is not None:
+                _render_controls_surface(
+                    active_app_path,
+                    env=env or runtime_env,
+                    container=sidebar,
+                )
+            else:
+                analysis_container, controls_container = root.columns([0.70, 0.30])
+                _render_controls_surface(
+                    active_app_path,
+                    env=env or runtime_env,
+                    container=controls_container,
+                )
+                with analysis_container:
+                    _render_analysis_surface(
+                        active_app_path,
+                        env=env or runtime_env,
+                        configure_page=False,
+                        compact=True,
+                    )
+                return
         _render_analysis_surface(
             active_app_path,
             env=env or runtime_env,
