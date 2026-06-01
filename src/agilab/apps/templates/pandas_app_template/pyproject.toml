@@ -15,7 +15,7 @@ dependencies = [
     "pandas>=2.3.0,<4",
     "pydantic>=2.11,<2.13",
     "py7zr>=1.0,<1.1",
-    "streamlit>=1.56,<1.57",
+    "streamlit>=1.56,<1.59",
 ]
 
 [dependency-groups]

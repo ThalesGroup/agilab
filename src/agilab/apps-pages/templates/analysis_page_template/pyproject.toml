@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "agi-env>=2026.05.18,<2027.0",
     "agi-node>=2026.05.18,<2027.0",
-    "streamlit>=1.56,<1.57",
+    "streamlit>=1.56,<1.59",
 ]
 
 [build-system]

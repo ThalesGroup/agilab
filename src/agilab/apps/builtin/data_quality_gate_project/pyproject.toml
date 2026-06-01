@@ -3,7 +3,7 @@ name = "data_quality_gate_project"
 version = "2026.05.30.post1"
 description = "Built-in AGILAB data contract and drift gate app with promotion evidence"
 requires-python = ">=3.11"
-dependencies = ["agi-env>=2026.05.31", "agi-node>=2026.05.31", "agi-cluster>=2026.05.31", "pandas>=2.3.0,<4", "pydantic>=2.11,<2.13", "streamlit>=1.56,<1.57"]
+dependencies = ["agi-env>=2026.05.31", "agi-node>=2026.05.31", "agi-cluster>=2026.05.31", "pandas>=2.3.0,<4", "pydantic>=2.11,<2.13", "streamlit>=1.56,<1.59"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
