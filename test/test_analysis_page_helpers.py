@@ -1498,7 +1498,7 @@ def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path, monke
     pyproject = tomllib.loads((tmp_path / "demo_view" / "pyproject.toml").read_text(encoding="utf-8"))
     assert pyproject["project"]["name"] == "view-demo-view"
     dependencies = pyproject["project"]["dependencies"]
-    assert "streamlit>=1.56,<1.59" in dependencies
+    assert "streamlit>=1.58,<2" in dependencies
     assert any(dependency.startswith("agi-env>=") for dependency in dependencies)
 
     template_text = entrypoint.read_text(encoding="utf-8")

@@ -68,7 +68,7 @@ def test_agi_gui_declares_streamlit_ui_runtime() -> None:
 
     assert f"agi-env=={_project_version(AGI_ENV_ROOT / 'pyproject.toml')}" in dependencies
     assert any(
-        _requirement_name(dependency) == "streamlit" and ">=1.56" in dependency
+        _requirement_name(dependency) == "streamlit" and ">=1.58" in dependency and "<2" in dependency
         for dependency in dependencies
     )
     assert "watchdog" in {_requirement_name(dependency) for dependency in dependencies}

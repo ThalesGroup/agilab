@@ -913,7 +913,7 @@ def test_repository_analysis_page_template_is_complete() -> None:
     pyproject = tomllib.loads((template.root_path / "pyproject.toml").read_text(encoding="utf-8"))
     dependencies = pyproject["project"]["dependencies"]
     assert pyproject["project"]["requires-python"] == ">=3.11"
-    assert "streamlit>=1.56,<1.59" in dependencies
+    assert "streamlit>=1.58,<2" in dependencies
     assert any(dependency.startswith("agi-env>=") for dependency in dependencies)
 
     entrypoint_text = (template.root_path / template.contract.entrypoint).read_text(encoding="utf-8")
