@@ -9,6 +9,8 @@ import tomllib
 from pathlib import Path
 
 import pytest
+from packaging.requirements import Requirement
+from packaging.version import Version
 
 from agi_env._optional_ui import require_streamlit
 
@@ -24,6 +26,28 @@ def _requirement_name(requirement: str) -> str:
 
 def _project_version(pyproject_path: Path) -> str:
     return tomllib.loads(pyproject_path.read_text())["project"]["version"]
+
+
+def _requirement_has_lower_bound_at_least(requirement: str, minimum: str) -> bool:
+    parsed = Requirement(requirement)
+    minimum_version = Version(minimum)
+    lower_bound_operators = {">", ">=", "~=", "=="}
+    return any(
+        specifier.operator in lower_bound_operators
+        and Version(specifier.version) >= minimum_version
+        for specifier in parsed.specifier
+    )
+
+
+def _requirement_has_upper_bound_below(requirement: str, maximum: str) -> bool:
+    parsed = Requirement(requirement)
+    maximum_version = Version(maximum)
+    upper_bound_operators = {"<", "<="}
+    return any(
+        specifier.operator in upper_bound_operators
+        and Version(specifier.version) <= maximum_version
+        for specifier in parsed.specifier
+    )
 
 
 def _run_python(script: str) -> subprocess.CompletedProcess[str]:
@@ -67,10 +91,14 @@ def test_agi_gui_declares_streamlit_ui_runtime() -> None:
     dependencies = data["project"]["dependencies"]
 
     assert f"agi-env=={_project_version(AGI_ENV_ROOT / 'pyproject.toml')}" in dependencies
-    assert any(
-        _requirement_name(dependency) == "streamlit" and ">=1.58" in dependency and "<2" in dependency
+    streamlit_dependencies = [
+        dependency
         for dependency in dependencies
-    )
+        if _requirement_name(dependency) == "streamlit"
+    ]
+    assert len(streamlit_dependencies) == 1
+    assert _requirement_has_lower_bound_at_least(streamlit_dependencies[0], "1.58")
+    assert _requirement_has_upper_bound_below(streamlit_dependencies[0], "2")
     assert "watchdog" in {_requirement_name(dependency) for dependency in dependencies}
 
 
