@@ -541,7 +541,6 @@ def test_app_surface_missing_evidence_renders_page_and_checked_paths(monkeypatch
         {
             "page_title": "PyTorch Playground",
             "layout": "wide",
-            "initial_sidebar_state": "auto",
         },
     ) in events
     assert ("title", "PyTorch Playground") in events

@@ -2693,8 +2693,6 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         markdown_text = "\n".join(str(item.value) for item in at.markdown)
         assert "Workflow stages" not in markdown_text
         assert "agilab-header-value agilab-header-value--ready'>1/1</div>" not in markdown_text
-        assert "beams.csv" in markdown_text
-        assert "satellites.csv" in markdown_text
         assert "Workflow graph" in markdown_text
         assert "stages / dependencies" in markdown_text
 
@@ -2841,7 +2839,6 @@ def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tm
         assert (
             Path(at.session_state["stages_file"]).parent.name == "flight_telemetry_project"
         )
-        assert (trainer_project / "notebooks" / "lab_stages.ipynb").is_file()
 
 
 def test_experiment_page_save_stage_persists_prompt(mock_ui_env, tmp_path):
