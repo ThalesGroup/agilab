@@ -99,6 +99,14 @@ Use this runbook whenever you:
   silently return. If an automated regression is genuinely not practical,
   document the reason, the closest manual/robot validation, and the remaining
   risk before closing the fix.
+- **Reasonable factorization check**: When adding new code, look for nearby
+  existing helpers, contracts, or patterns that can reasonably be reused or
+  extended instead of duplicating logic. Factor only when it reduces real
+  duplication or preserves a shared contract without increasing blast radius.
+  Respect dependency-avoidance rules: do not pull app-specific dependencies into
+  shared core, do not create import cycles, and do not move logic across package
+  boundaries unless the dependency direction remains valid and the validation
+  scope covers the affected callers.
 - **PR-first publishing**: For normal code, docs, tests, workflow, and badge changes,
   work on a short branch, push it, open a GitHub PR, merge through the PR, and delete
   the branch after merge. Keep one coherent change per PR and stage only the files
