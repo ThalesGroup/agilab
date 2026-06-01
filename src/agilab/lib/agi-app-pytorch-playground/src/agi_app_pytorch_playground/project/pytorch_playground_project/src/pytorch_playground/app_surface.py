@@ -382,7 +382,7 @@ def _render_full_surface(
     root = container or st
     _render_surface_styles()
     if container is None:
-        analysis_container = root
+        analysis_container = None
         controls_container = st.sidebar
     else:
         analysis_container, controls_container = root.columns([0.70, 0.30])
@@ -405,8 +405,11 @@ def _render_full_surface(
                 wide=False,
                 compact=True,
             )
-    with analysis_container:
+    if analysis_container is None:
         _render_analysis_surface(active_app_path, configure_page=False, compact=True)
+    else:
+        with analysis_container:
+            _render_analysis_surface(active_app_path, configure_page=False, compact=True)
 
 
 def render(
