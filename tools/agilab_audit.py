@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -37,6 +38,18 @@ def _git(args: list[str], *, cwd: Path = ROOT) -> tuple[int, str, str]:
     return _run(["git", *args], cwd=cwd)
 
 
+def _is_expected_github_tag_checkout(*, detached: bool, head: str | None) -> bool:
+    """GitHub release workflows check out tags as detached HEADs by design."""
+    if not detached or not head:
+        return False
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return False
+    if os.environ.get("GITHUB_REF_TYPE") != "tag":
+        return False
+    expected_sha = os.environ.get("GITHUB_SHA", "")
+    return bool(expected_sha and head == expected_sha)
+
+
 def _worktrees() -> list[dict[str, str]]:
     rc, out, err = _git(["worktree", "list", "--porcelain"])
     if rc:
@@ -62,6 +75,7 @@ def _audit_worktree(path: Path, *, fetch: bool) -> dict[str, Any]:
     rc, status, err = _git(["status", "--short", "--branch", "--untracked-files=no"], cwd=path)
     branch_rc, branch, _branch_err = _git(["branch", "--show-current"], cwd=path)
     head_rc, head, _head_err = _git(["rev-parse", "--short", "HEAD"], cwd=path)
+    head_full_rc, head_full, _head_full_err = _git(["rev-parse", "HEAD"], cwd=path)
     upstream_rc, upstream, _upstream_err = _git(
         ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
         cwd=path,
@@ -69,9 +83,14 @@ def _audit_worktree(path: Path, *, fetch: bool) -> dict[str, Any]:
     main_rc, main_counts, _main_err = _git(["rev-list", "--left-right", "--count", "HEAD...origin/main"], cwd=path)
     warnings: list[str] = []
     dirty_lines = [line for line in status.splitlines() if line and not line.startswith("## ")]
+    detached = branch_rc == 0 and not branch
+    expected_detached = _is_expected_github_tag_checkout(
+        detached=detached,
+        head=head_full if head_full_rc == 0 else None,
+    )
     if dirty_lines:
         warnings.append("tracked changes present")
-    if branch_rc == 0 and not branch:
+    if detached and not expected_detached:
         warnings.append("detached HEAD")
     if main_rc == 0:
         ahead, behind = (int(part) for part in main_counts.split())
@@ -83,7 +102,8 @@ def _audit_worktree(path: Path, *, fetch: bool) -> dict[str, Any]:
         "path": str(path),
         "status": status if rc == 0 else err,
         "branch": branch if branch_rc == 0 and branch else None,
-        "detached": branch_rc == 0 and not branch,
+        "detached": detached,
+        "detached_expected": expected_detached,
         "head": head if head_rc == 0 else None,
         "upstream": upstream if upstream_rc == 0 else None,
         "ahead_behind_origin_main": main_counts if main_rc == 0 else None,
@@ -149,6 +169,8 @@ def render_text(report: dict[str, Any]) -> str:
     for worktree in report["worktrees"]:
         label = worktree["branch"] or "detached"
         lines.append(f"- {worktree['path']}: {label} {worktree['head']}")
+        if worktree.get("detached_expected"):
+            lines.append("  info: expected GitHub Actions tag checkout")
         for warning in worktree["warnings"]:
             lines.append(f"  warning: {warning}")
     lines.append("")
