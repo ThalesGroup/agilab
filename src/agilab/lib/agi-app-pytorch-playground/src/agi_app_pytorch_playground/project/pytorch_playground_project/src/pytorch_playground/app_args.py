@@ -14,7 +14,21 @@ ActivationName = Literal["tanh", "relu", "sigmoid", "identity"]
 OptimizerName = Literal["Adam", "SGD"]
 RegularizationName = Literal["None", "L1", "L2"]
 
-DEFAULT_FEATURE_NAMES = "x1,x2,x1_squared,x2_squared,x1_x2"
+DATASETS: tuple[DatasetName, ...] = ("circles", "xor", "spiral", "gaussian")
+FEATURES = (
+    "x1",
+    "x2",
+    "x1_squared",
+    "x2_squared",
+    "x1_x2",
+    "sin_x1",
+    "sin_x2",
+)
+DEFAULT_FEATURES = ("x1", "x2", "x1_squared", "x2_squared", "x1_x2")
+ACTIVATIONS: tuple[ActivationName, ...] = ("tanh", "relu", "sigmoid", "identity")
+OPTIMIZERS: tuple[OptimizerName, ...] = ("Adam", "SGD")
+REGULARIZATIONS: tuple[RegularizationName, ...] = ("None", "L1", "L2")
+DEFAULT_FEATURE_NAMES = ",".join(DEFAULT_FEATURES)
 
 
 class PytorchPlaygroundArgs(BaseModel):
@@ -106,8 +120,21 @@ def ensure_defaults(args: PytorchPlaygroundArgs, **_: Any) -> PytorchPlaygroundA
     return PytorchPlaygroundArgs(**args.model_dump(mode="json"))
 
 
+def coerce_feature_names(
+    value: Any, default: tuple[str, ...] = DEFAULT_FEATURES
+) -> tuple[str, ...]:
+    if isinstance(value, str):
+        raw_values = [token.strip() for token in value.split(",")]
+    elif isinstance(value, (list, tuple)):
+        raw_values = [str(token).strip() for token in value]
+    else:
+        raw_values = list(default)
+    selected = tuple(name for name in raw_values if name in FEATURES)
+    return selected or default
+
+
 def to_playground_config(args: PytorchPlaygroundArgs):
-    from .core import PlaygroundConfig, _coerce_feature_names, _parse_hidden_layers
+    from .core import PlaygroundConfig, _parse_hidden_layers
 
     return PlaygroundConfig(
         dataset=args.dataset,
@@ -123,16 +150,23 @@ def to_playground_config(args: PytorchPlaygroundArgs):
         epochs=args.epochs,
         batch_size=args.batch_size,
         seed=args.seed,
-        feature_names=_coerce_feature_names(args.feature_names),
+        feature_names=coerce_feature_names(args.feature_names),
         grid_size=args.grid_size,
     )
 
 
 __all__ = [
+    "ACTIVATIONS",
     "ArgsModel",
     "ArgsOverrides",
+    "DATASETS",
+    "DEFAULT_FEATURES",
+    "FEATURES",
+    "OPTIMIZERS",
     "PytorchPlaygroundArgs",
     "PytorchPlaygroundArgsTD",
+    "REGULARIZATIONS",
+    "coerce_feature_names",
     "dump_args",
     "ensure_defaults",
     "load_args",

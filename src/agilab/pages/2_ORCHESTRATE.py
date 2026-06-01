@@ -1615,6 +1615,40 @@ def _render_orchestrate_notebook_expander(env: Any) -> None:
         st.caption("Includes: " + ", ".join(label for label, _snippet in snippets))
 
 
+def _render_orchestrate_analysis_expander(env: Any) -> None:
+    """Render a compact read-only analysis preview without replacing ANALYSIS."""
+    active_app = getattr(env, "active_app", None)
+
+    with st.expander("Analysis preview", expanded=False):
+        st.caption(
+            "Quickly inspect the latest app-owned analysis surface from ORCHESTRATE. "
+            "Use ANALYSIS for the full evidence workspace, notebooks, manifests, and artifacts."
+        )
+        if active_app is None:
+            st.info("Select a project before opening an analysis preview.")
+            return
+
+        project_path = Path(active_app)
+        if configured_app_surface_entrypoint(project_path) is None:
+            st.info("This project does not declare an app-specific analysis surface yet.")
+            return
+
+        try:
+            rendered = render_app_surface(
+                project_path,
+                mode="analysis",
+                env=env,
+                container=st,
+                streamlit=st,
+            )
+        except Exception as exc:  # pragma: no cover - defensive UI guard
+            st.warning(f"Analysis preview is unavailable: {exc}")
+            return
+
+        if not rendered:
+            st.info("No analysis preview was rendered for the selected project.")
+
+
 def _safe_display_path(value: Any) -> str:
     return _environment_safe_display_path(value)
 
@@ -2417,7 +2451,6 @@ async def page() -> None:
     if current_project not in projects:
         current_project = projects[0] if projects else None
     previous_project = current_project
-    render_project_selector(st, projects, current_project, on_change=on_project_change)
     project_changed = st.session_state.pop("project_changed", False)
     if project_changed or env.app != previous_project:
         _set_active_app_query_param(env.app)
@@ -2559,6 +2592,7 @@ async def page() -> None:
     install_block_reason = _install_block_reason_for_run(
         install_status, worker_required=worker_required_for_run
     )
+    _render_orchestrate_analysis_expander(env)
     _render_orchestrate_notebook_expander(env)
 
     execute_deps = OrchestrateExecuteDeps(

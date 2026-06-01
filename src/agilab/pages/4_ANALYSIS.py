@@ -2222,10 +2222,6 @@ def _render_analysis_workspace_overview(
     )
 
     with st.container(border=True):
-        st.markdown("### Evidence first")
-        st.caption(
-            "Start from discovered project outputs, then choose the page or notebook that best reviews them."
-        )
         cols = st.columns(4)
         with cols[0]:
             suffix = "+" if artifact_summary["truncated"] else ""
@@ -2324,14 +2320,13 @@ def _render_analysis_sidebar_view_launcher(
     resolved_pages: dict[str, Path],
     custom_view_lookup: dict[str, Path],
 ) -> None:
-    launch_options = list(dict.fromkeys(selected_views or view_names))
+    launch_options = list(dict.fromkeys([*view_names, *selected_views]))
     if not launch_options:
         st.sidebar.info("No analysis views available.")
         return
 
     builtin_names = set(resolved_pages.keys())
     linked_views = set(selected_views)
-    st.sidebar.markdown("### Analysis views")
     link_rows: list[str] = []
     missing_views: list[str] = []
     for view_name in launch_options:
@@ -2377,12 +2372,11 @@ def _render_analysis_sidebar_notebook_launcher(
     notebook_names: list[str],
     notebook_lookup: dict[str, Path],
 ) -> None:
-    launch_options = list(dict.fromkeys(selected_notebooks or notebook_names))
+    launch_options = list(dict.fromkeys([*notebook_names, *selected_notebooks]))
     if not launch_options:
         return
 
     linked_notebooks = set(selected_notebooks)
-    st.sidebar.markdown("### Notebooks")
     link_rows: list[str] = []
     missing_notebooks: list[str] = []
     for notebook_name in launch_options:
@@ -2773,13 +2767,10 @@ async def main():
 
     # Sidebar header/logo
     render_page_header(st, page_label="ANALYSIS", env=env)
+    from agilab.workflow_ui import render_context_expander
 
-    # Sidebar: project selection
-    projects = env.projects
-    current_project = (
-        env.app if env.app in projects else (projects[0] if projects else None)
-    )
-    render_project_selector(st, projects, current_project, on_change=on_project_change)
+    render_context_expander(st, page_label="ANALYSIS", env=env)
+
     if env.app:
         st.query_params["active_app"] = env.app
     if env.app:
@@ -2797,16 +2788,6 @@ async def main():
     custom_view_lookup: dict[str, Path] = {}
     pages_root = Path(env.AGILAB_PAGES_ABS)
 
-    # Route: only render a child surface when the param is concrete, not "main"/empty
-    if _consume_legacy_app_ui_route_for_app_surface(current_page, active_app_path):
-        current_page = None
-    if await _render_selected_notebook_route(current_notebook):
-        return
-    if await _render_selected_view_route(current_page):
-        return
-
-    # ---------- Main analysis page ----------
-
     # Load config and ensure structure
     cfg = _read_config(app_settings)
     if "pages" not in cfg:
@@ -2820,10 +2801,6 @@ async def main():
         migrated_cfg = True
     if migrated_cfg:
         _write_config(app_settings, cfg)
-    if await _render_configured_app_surface(
-        active_app_path, cfg, current_page=current_page
-    ):
-        return
     configured_views: list[str] = [
         str(v)
         for v in cfg.get("pages", {}).get("view_module", [])
@@ -2901,6 +2878,35 @@ async def main():
         st.session_state[notebook_selection_key] = notebook_widget_selection
     selected_notebooks = list(notebook_widget_selection)
 
+    _render_analysis_sidebar_view_launcher(
+        project=project,
+        selected_views=selected_views,
+        view_names=all_available_views,
+        resolved_pages=resolved_pages,
+        custom_view_lookup=custom_view_lookup,
+    )
+    _render_analysis_sidebar_notebook_launcher(
+        project=project,
+        selected_notebooks=selected_notebooks,
+        notebook_names=notebook_names,
+        notebook_lookup=notebook_lookup,
+    )
+
+    # Route: only render a child surface when the param is concrete, not "main"/empty.
+    # The sidebar launchers above stay visible on child views/notebooks.
+    if _consume_legacy_app_ui_route_for_app_surface(current_page, active_app_path):
+        current_page = None
+    if await _render_selected_notebook_route(current_notebook):
+        return
+    if await _render_selected_view_route(current_page):
+        return
+    if await _render_configured_app_surface(
+        active_app_path, cfg, current_page=current_page
+    ):
+        return
+
+    # ---------- Main analysis page ----------
+
     _render_analysis_workspace_overview(
         env,
         selection_state=selection_state,
@@ -2912,7 +2918,7 @@ async def main():
         st,
         env=env,
         key_prefix="analysis:evidence",
-        expanded=not selected_views and not selected_notebooks,
+        expanded=False,
     )
 
     with st.expander("Choose analysis views", expanded=False):
@@ -2968,19 +2974,6 @@ async def main():
     selected_notebooks = [
         name for name in selected_notebooks if name in notebook_lookup
     ]
-    _render_analysis_sidebar_view_launcher(
-        project=project,
-        selected_views=selected_views,
-        view_names=view_names,
-        resolved_pages=resolved_pages,
-        custom_view_lookup=custom_view_lookup,
-    )
-    _render_analysis_sidebar_notebook_launcher(
-        project=project,
-        selected_notebooks=selected_notebooks,
-        notebook_names=notebook_names,
-        notebook_lookup=notebook_lookup,
-    )
 
     persisted_pages = cfg.setdefault("pages", {})
     config_changed = False
@@ -3038,8 +3031,6 @@ async def render_notebook_page(notebook_path: Path):
         ).as_posix()
     except ValueError:
         notebook_label = resolved_notebook.name
-
-    _hide_parent_sidebar()
 
     back_col, title_col, _ = st.columns([1, 6, 1])
     with back_col:
@@ -3114,8 +3105,6 @@ async def render_view_page(
 ):
     """Render a specific view by launching it as a sidecar app in its own venv and iframing it."""
     env = st.session_state["env"]
-    # Hide THIS page's sidebar while a child view is displayed
-    _hide_parent_sidebar()
 
     if show_back:
         back_col, title_col, _ = st.columns([1, 6, 1])

@@ -15,14 +15,14 @@ if str(_HERE) not in sys.path:
 
 from agi_env.streamlit_args import load_args_state, persist_args  # noqa: E402
 from pytorch_playground import app_args  # noqa: E402
-from pytorch_playground.core import (  # noqa: E402
+from pytorch_playground.app_args import (  # noqa: E402
     ACTIVATIONS,
     DATASETS,
     DEFAULT_FEATURES,
     FEATURES,
     OPTIMIZERS,
     REGULARIZATIONS,
-    _coerce_feature_names,
+    coerce_feature_names as _coerce_feature_names,
 )
 
 APP_FORM_ID = "pytorch_playground_args"

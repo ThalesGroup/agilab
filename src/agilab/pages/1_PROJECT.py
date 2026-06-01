@@ -2567,14 +2567,6 @@ def _render_active_project_sidebar(env) -> None:
     projects = list(getattr(env, "projects", []) or [])
     if not projects:
         st.sidebar.info("No projects available.")
-    else:
-        render_project_selector(
-            st,
-            projects,
-            env.app,
-            on_change=on_project_change,
-            show_edit_button=False,
-        )
     _render_pypi_app_install_action(env)
     env = st.session_state["env"]
     st.session_state["_env"] = env

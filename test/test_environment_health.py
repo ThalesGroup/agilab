@@ -183,7 +183,7 @@ def test_environment_health_helper_edges_and_render_panel(tmp_path, monkeypatch)
             return [FakeColumn(self) for _ in range(count)]
 
         def expander(self, label, *, expanded=False):
-            assert label == "Environment details"
+            assert label in {"Environment Health", "Environment details"}
             assert expanded is False
             return FakeContext(self)
 

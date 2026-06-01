@@ -7,6 +7,7 @@ from types import ModuleType
 from typing import Any
 
 _APP_SRC = Path(__file__).resolve().parents[1]
+_APP_PROJECT = _APP_SRC.parent
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _LAST_MANIFEST_SESSION_KEY = "pytorch_playground_last_manifest"
 
@@ -54,6 +55,40 @@ def _load_app_args_form() -> ModuleType:
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _render_dependency_import_error(
+    exc: BaseException,
+    *,
+    configure_page: bool = True,
+    container: Any | None = None,
+) -> None:
+    import streamlit as st
+
+    root = container or st
+    if configure_page:
+        st.set_page_config(page_title="PyTorch Playground", layout="wide")
+        st.title("PyTorch Playground")
+    root.error("PyTorch Playground scientific dependencies are not importable.")
+    root.caption(f"{type(exc).__name__}: {exc}")
+    root.caption(
+        "Reinstall the AGILAB environment or rerun the installer before opening this surface."
+    )
+
+
+def _load_playground_ui_or_report(
+    *,
+    configure_page: bool = True,
+    container: Any | None = None,
+) -> Any | None:
+    try:
+        from pytorch_playground import playground_ui
+    except (ImportError, OSError, ValueError) as exc:
+        _render_dependency_import_error(
+            exc, configure_page=configure_page, container=container
+        )
+        return None
+    return playground_ui
 
 
 def _resolve_active_app_path(active_app: Path | None = None) -> Path | None:
@@ -190,8 +225,11 @@ def _render_analysis_surface(
     compact: bool = False,
 ) -> None:
     if active_app_path is None:
-        from pytorch_playground import playground_ui
-
+        playground_ui = _load_playground_ui_or_report(
+            configure_page=configure_page
+        )
+        if playground_ui is None:
+            return
         playground_ui.main(configure_page=configure_page, compact=compact)
         return
     try:
@@ -199,16 +237,30 @@ def _render_analysis_surface(
         evidence_dirs = _analysis_evidence_dirs(
             runtime_env, args_model, active_app_path
         )
-        if not _has_evidence(evidence_dirs):
-            _render_missing_evidence(evidence_dirs, configure_page=configure_page)
-            return
-        from pytorch_playground import app_args, playground_ui
-
-        config = app_args.to_playground_config(args_model)
     except Exception as exc:
         import streamlit as st
 
         st.error(f"Unable to load ORCHESTRATE app arguments: {exc}")
+        return
+    if not _has_evidence(evidence_dirs):
+        _render_missing_evidence(evidence_dirs, configure_page=configure_page)
+        return
+    try:
+        from pytorch_playground import app_args
+
+        config = app_args.to_playground_config(args_model)
+    except (ImportError, OSError, ValueError) as exc:
+        _render_dependency_import_error(exc, configure_page=configure_page)
+        return
+    except Exception as exc:
+        import streamlit as st
+
+        st.error(f"Unable to build PyTorch Playground config: {exc}")
+        return
+    playground_ui = _load_playground_ui_or_report(
+        configure_page=configure_page
+    )
+    if playground_ui is None:
         return
     playground_kwargs = dict(
         config_override=config,
@@ -246,7 +298,12 @@ def _render_run_button(
 ) -> None:
     import streamlit as st
 
-    if not container.button("Refresh evidence", type="primary", width="stretch"):
+    if not container.button(
+        "Refresh evidence",
+        type="primary",
+        width="stretch",
+        key=f"pytorch_playground:refresh_evidence:{active_app_path.name}",
+    ):
         return
     try:
         runtime_env, args_model = _load_orchestrate_args(active_app_path)
@@ -295,16 +352,26 @@ def _render_full_surface(
     env: Any | None = None,
     container: Any | None = None,
 ) -> None:
-    from pytorch_playground import playground_ui
-
     if active_app_path is None:
+        playground_ui = _load_playground_ui_or_report()
+        if playground_ui is None:
+            return
         playground_ui.main()
         return
 
     import streamlit as st
 
+    playground_ui = _load_playground_ui_or_report(
+        configure_page=container is None, container=container
+    )
+    if playground_ui is None:
+        return
+
     if container is None:
-        st.set_page_config(page_title=playground_ui.PAGE_TITLE, layout="wide")
+        st.set_page_config(
+            page_title=getattr(playground_ui, "PAGE_TITLE", "PyTorch Playground"),
+            layout="wide",
+        )
 
     try:
         runtime_env, _args_model = _load_orchestrate_args(active_app_path)
@@ -316,15 +383,24 @@ def _render_full_surface(
     _render_surface_styles()
     analysis_column, controls_column = root.columns([0.70, 0.30])
 
-    app_args_form = _load_app_args_form()
     with controls_column:
         controls_column.markdown("**Run**")
-        _render_run_button(
-            active_app_path, container=controls_column, app_args_form=app_args_form
-        )
-        app_args_form.render(
-            env=env or runtime_env, container=controls_column, wide=False, compact=True
-        )
+        try:
+            app_args_form = _load_app_args_form()
+        except (ImportError, OSError, ValueError) as exc:
+            _render_dependency_import_error(
+                exc, configure_page=False, container=controls_column
+            )
+        else:
+            _render_run_button(
+                active_app_path, container=controls_column, app_args_form=app_args_form
+            )
+            app_args_form.render(
+                env=env or runtime_env,
+                container=controls_column,
+                wide=False,
+                compact=True,
+            )
     with analysis_column:
         _render_analysis_surface(active_app_path, configure_page=False, compact=True)
 
@@ -354,7 +430,7 @@ def render(
 
 
 def main() -> None:
-    render(mode="full")
+    render(mode="full", active_app=_APP_PROJECT)
 
 
 if __name__ == "__main__":

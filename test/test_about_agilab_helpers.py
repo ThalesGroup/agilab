@@ -770,13 +770,18 @@ def test_page_bootstrap_configure_page_chrome_sets_docs_title_and_theme(tmp_path
 
 def test_page_bootstrap_render_page_header_orders_shared_sidebar_context():
     events: list[tuple[str, object]] = []
-    fake_st = SimpleNamespace()
+    fake_st = SimpleNamespace(
+        markdown=lambda body, **_kwargs: events.append(
+            ("chip", "agilab-active-project-chip" in str(body))
+        )
+    )
     env = SimpleNamespace(app="demo")
 
     page_bootstrap.render_page_header(
         fake_st,
         page_label="PROJECT",
         env=env,
+        show_project_context=True,
         render_logo=lambda: events.append(("logo", None)),
         render_pinned_expanders=lambda streamlit: events.append(
             ("pinned", streamlit is fake_st)
@@ -789,8 +794,33 @@ def test_page_bootstrap_render_page_header_orders_shared_sidebar_context():
     assert events == [
         ("logo", None),
         ("pinned", True),
+        ("chip", True),
         ("context", (True, {"page_label": "PROJECT", "env": env})),
     ]
+
+
+def test_page_bootstrap_render_page_header_skips_project_context_by_default():
+    events: list[tuple[str, object]] = []
+    fake_st = SimpleNamespace(
+        markdown=lambda body, **_kwargs: events.append(
+            ("chip", "agilab-active-project-chip" in str(body))
+        )
+    )
+
+    page_bootstrap.render_page_header(
+        fake_st,
+        page_label="ANALYSIS",
+        env=SimpleNamespace(app="demo"),
+        render_logo=lambda: events.append(("logo", None)),
+        render_pinned_expanders=lambda streamlit: events.append(
+            ("pinned", streamlit is fake_st)
+        ),
+        render_page_context=lambda *_args, **_kwargs: events.append(
+            ("context", None)
+        ),
+    )
+
+    assert events == [("logo", None), ("pinned", True), ("chip", True)]
 
 
 def test_page_bootstrap_render_page_chrome_uses_env_resources():
@@ -6233,3 +6263,32 @@ def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
     assert "run_manifest.json" in body
     assert "Follow these steps" in body
     assert "Success criteria" in body
+
+
+def test_main_navigation_context_imports_page_bootstrap_active_project_chip(monkeypatch):
+    """ABOUT navigation must not lazy-import a missing project chip helper."""
+    fake_st = _FakeStreamlit()
+    env = SimpleNamespace(app="flight_telemetry_project", target="", active_app="")
+    about_agilab._LAZY_IMPORT_ATTR_CACHE.pop(
+        ("agilab.page_bootstrap", "render_active_project_chip"),
+        None,
+    )
+
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "0.test")
+    monkeypatch.setattr(about_agilab, "render_sidebar_version", lambda _version: None)
+    monkeypatch.setattr(about_agilab, "render_sidebar_settings_link", lambda _env: None)
+    monkeypatch.setattr(about_agilab, "render_pinned_expanders", lambda _streamlit: None)
+    monkeypatch.setattr(about_agilab, "render_page_context", lambda *_args, **_kwargs: None)
+
+    about_agilab._render_navigation_context(
+        env,
+        page_label="MAIN_PAGE",
+        show_project_context=False,
+    )
+
+    markdown_text = "\n".join(
+        value for event, value in fake_st.events if event == "markdown"
+    )
+    assert "agilab-active-project-chip" in markdown_text
+    assert "flight_telemetry_project" in markdown_text

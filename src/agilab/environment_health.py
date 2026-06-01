@@ -540,8 +540,16 @@ def render_environment_health_panel(
     install_status: Mapping[str, Any] | None = None,
 ) -> EnvironmentHealth:
     health = build_environment_health(env, app_settings=app_settings, install_status=install_status)
-    with streamlit.container(border=True):
-        streamlit.markdown("### Environment Health")
+    expander_fn = getattr(streamlit, "expander", None)
+    if callable(expander_fn):
+        context = expander_fn("Environment Health", expanded=False)
+        render_fallback_title = False
+    else:
+        context = streamlit.container(border=True)
+        render_fallback_title = True
+    with context:
+        if render_fallback_title:
+            streamlit.markdown("### Environment Health")
         for start in range(0, len(health.cards), 4):
             row_cards = health.cards[start : start + 4]
             columns = streamlit.columns(len(row_cards))
