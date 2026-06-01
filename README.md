@@ -5,7 +5,7 @@
   <a href="https://thalesgroup.github.io/agilab/release-proof.html"><img src="https://img.shields.io/badge/supply%20chain-SBOM%20%2B%20audit%20%2B%20provenance-0F766E" alt="Supply chain: SBOM, audit, provenance" /></a>
   <a href="https://thalesgroup.github.io/agilab/release-proof.html"><img src="https://img.shields.io/badge/first%20proof-passing-0F766E" alt="First proof: passing" /></a>
   <a href="https://opensource.org/licenses/BSD-3-Clause"><img src="https://img.shields.io/badge/License-BSD%203--Clause-blue.svg" alt="License: BSD 3-Clause" /></a>
-  <a href="https://thalesgroup.github.io/agilab"><img src="https://img.shields.io/badge/Documentation-online-brightgreen.svg" alt="Documentation" /></a>
+  <a href="https://thalesgroup.github.io/agilab"><img src="https://img.shields.io/badge/Docs-online-brightgreen.svg" alt="Docs" /></a>
   <a href="https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml"><img src="https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
 </p>
 
@@ -13,6 +13,34 @@
   <a href="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml"><img src="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main" alt="Coverage workflow" /></a>
   <a href="https://codecov.io/gh/ThalesGroup/agilab"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg" alt="agilab coverage" /></a>
 </p>
+
+<details>
+<summary>More project badges</summary>
+
+<p>
+  <a href="https://pypi.org/project/github-ai-scraper/"><img src="https://img.shields.io/badge/github--ai--scraper-discoverable-0F766E" alt="GitHub AI scraper discoverable" /></a>
+  <a href="https://github.com/ThalesGroup/agilab"><img src="https://img.shields.io/github/stars/ThalesGroup/agilab?style=flat&label=stars" alt="GitHub stars" /></a>
+  <a href="https://pypi.org/project/agilab/"><img src="https://img.shields.io/pypi/dm/agilab" alt="PyPI downloads" /></a>
+  <a href="https://github.com/ThalesGroup/agilab/issues"><img src="https://img.shields.io/github/issues/ThalesGroup/agilab" alt="Open issues" /></a>
+  <a href="https://github.com/ThalesGroup/agilab/pulse"><img src="https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg" alt="Commit activity" /></a>
+  <a href="AGENT_SKILLS.md"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills.svg" alt="Skills" /></a>
+  <a href="https://agentskills.io/"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-standard.svg" alt="Standard: Agent Skills" /></a>
+  <a href="tools/agent_workflows.md"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-works-with.svg" alt="Works with Codex Claude Aider and OpenCode" /></a>
+  <a href="badges/agent-api.svg"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-api.svg" alt="Agent API: CLI Python" /></a>
+  <a href="docs/source/environment.rst"><img src="https://img.shields.io/badge/Language-python%20free--threaded%20%26%20cythonized-5B6CFF" alt="Language Python free-threaded and Cythonized" /></a>
+  <a href="https://github.com/ThalesGroup/agilab/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome" /></a>
+  <a href="https://github.com/ThalesGroup/agilab"><img src="https://img.shields.io/github/repo-size/ThalesGroup/agilab" alt="Repo size" /></a>
+  <a href="https://docs.astral.sh/ruff/"><img src="https://img.shields.io/badge/style%20guard-Ruff%20changed--files-0F766E" alt="Style guard: Ruff changed-files" /></a>
+  <a href="https://orcid.org/0009-0003-5375-368X"><img src="https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid" alt="ORCID" /></a>
+  <a href="https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-gui"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-gui.svg" alt="agi-gui coverage" /></a>
+  <a href="https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-web"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-web.svg" alt="agi-web coverage" /></a>
+  <a href="https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-env"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-env.svg" alt="agi-env coverage" /></a>
+  <a href="https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-node"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-node.svg" alt="agi-node coverage" /></a>
+  <a href="https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-cluster"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-cluster.svg" alt="agi-cluster coverage" /></a>
+  <a href="https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-core"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-core.svg" alt="agi-core coverage" /></a>
+</p>
+
+</details>
 
 # AGILAB
 
