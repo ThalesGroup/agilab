@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-31T21:02:18Z",
+  "generated_at_utc": "2026-06-01T05:28:09Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -10,7 +10,7 @@
     "repository": "https://github.com/ThalesGroup/agilab",
     "documentation": "https://thalesgroup.github.io/agilab/",
     "project": "agilab",
-    "version": "2026.05.31"
+    "version": "2026.05.31.post1"
   },
   "boundary": {
     "proves": "This manifest proves that public AGILAB surfaces are discoverable from checked-in contracts.",
@@ -252,7 +252,7 @@
       "name": "agi-env",
       "role": "runtime-component",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.05.31.post1",
       "description": "Environment bootstrap package for AGILAB with virtualenv, path, and runtime helpers",
       "project": "src/agilab/core/agi-env",
       "pyproject": "src/agilab/core/agi-env/pyproject.toml",
@@ -263,7 +263,7 @@
       "name": "agi-gui",
       "role": "ui-component",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.05.31.post1",
       "description": "AGILAB Streamlit UI dependency bundle and compatibility imports",
       "project": "src/agilab/lib/agi-gui",
       "pyproject": "src/agilab/lib/agi-gui/pyproject.toml",
@@ -274,7 +274,7 @@
       "name": "agi-web",
       "role": "ui-component",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.05.31.post1",
       "description": "AGILAB portable web component contract with static Canvas2D/WebGL adapters for Streamlit and HTML",
       "project": "src/agilab/lib/agi-web",
       "pyproject": "src/agilab/lib/agi-web/pyproject.toml",
@@ -461,7 +461,7 @@
       "name": "agi-pages",
       "role": "page-umbrella",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.05.31.post1",
       "description": "AGILAB public analysis page umbrella and provider package",
       "project": "src/agilab/lib/agi-pages",
       "pyproject": "src/agilab/lib/agi-pages/pyproject.toml",
@@ -472,7 +472,7 @@
       "name": "agi-node",
       "role": "runtime-component",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.05.31.post1",
       "description": "Distributed worker orchestration and execution support library for AGILAB",
       "project": "src/agilab/core/agi-node",
       "pyproject": "src/agilab/core/agi-node/pyproject.toml",
@@ -483,7 +483,7 @@
       "name": "agi-cluster",
       "role": "runtime-component",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.05.31.post1",
       "description": "Distributed cluster orchestration layer for AGILAB workers over local and SSH backends",
       "project": "src/agilab/core/agi-cluster",
       "pyproject": "src/agilab/core/agi-cluster/pyproject.toml",
@@ -494,7 +494,7 @@
       "name": "agi-core",
       "role": "runtime-bundle",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.05.31.post1",
       "description": "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together",
       "project": "src/agilab/core/agi-core",
       "pyproject": "src/agilab/core/agi-core/pyproject.toml",
@@ -593,7 +593,7 @@
       "name": "agi-app-pytorch-playground",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.05.31",
+      "version": "2026.05.31.post1",
       "description": "AGILAB PyTorch playground app for reproducible neural-network experiments",
       "project": "src/agilab/lib/agi-app-pytorch-playground",
       "pyproject": "src/agilab/lib/agi-app-pytorch-playground/pyproject.toml",
@@ -637,7 +637,7 @@
       "name": "agi-apps",
       "role": "app-umbrella",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.05.31.post1",
       "description": "AGILAB public app package umbrella and example assets",
       "project": "src/agilab/lib/agi-apps",
       "pyproject": "src/agilab/lib/agi-apps/pyproject.toml",
@@ -648,7 +648,7 @@
       "name": "agilab",
       "role": "top-level-bundle",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.05.31.post1",
       "description": "AGILAB is a reproducible AI/ML workbench for engineering teams.",
       "project": ".",
       "pyproject": "pyproject.toml",
@@ -718,7 +718,7 @@
       "package": "agi-app-pytorch-playground",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-pytorch-playground",
-      "version": "2026.05.31",
+      "version": "2026.05.31.post1",
       "description": "AGILAB PyTorch playground app for reproducible neural-network experiments"
     },
     {
@@ -861,7 +861,7 @@
       "name": "agilab-release-verification",
       "description": "Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks \"ready for release?\", \"release it\", \"all good?\", \"HF aligned?\", \"why badge failed?\", or any release/publication alignment check.",
       "path": ".claude/skills/agilab-release-verification/SKILL.md",
-      "updated": "2026-05-30"
+      "updated": "2026-06-01"
     },
     {
       "name": "agilab-runbook",

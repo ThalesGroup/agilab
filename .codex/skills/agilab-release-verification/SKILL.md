@@ -3,7 +3,7 @@ name: agilab-release-verification
 description: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-30
+  updated: 2026-06-01
 ---
 
 # AGILAB Release Verification
@@ -165,6 +165,24 @@ uv run python tools/release_status.py --tag <tag>
 Check that assets exist and match the expected tag. Do not treat a tag alone as
 a release. Prefer `tools/release_status.py` when you need one bounded tag-level
 truth check across GitHub Release assets and PyPI package versions.
+
+For optimized split-package or repair releases, do not run `release_status.py`
+against every public AGILAB package unless every package was intentionally
+published at the same version. Pass the completed workflow's
+`provenance_packages` list, plus the exact package version when the tag suffix
+does not equal the package version:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/release_status.py \
+  --tag <tag> \
+  --package-version <package-version> \
+  --packages "<provenance-packages-from-workflow>"
+```
+
+This avoids false failures on unchanged public apps/pages that are expected to
+remain on their previous PyPI version. If old versions were pruned manually
+outside the first workflow attempt, verify the selected package set with this
+package-scoped command before calling the release complete.
 
 ### PyPI
 
