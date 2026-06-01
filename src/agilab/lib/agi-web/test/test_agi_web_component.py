@@ -48,6 +48,15 @@ def test_agi_web_exposes_version() -> None:
     assert agi_web.__version__ == installed_version
 
 
+def test_agi_web_version_falls_back_when_package_metadata_missing(monkeypatch) -> None:
+    def missing_version(name):
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(importlib.metadata, "version", missing_version)
+
+    assert _load_agi_web().__version__ == "0+unknown"
+
+
 def test_agi_web_component_evidence_is_deterministic_and_payload_sensitive() -> None:
     agi_web = _load_agi_web()
     renderer = agi_web.AgiWebRendererSpec(
@@ -142,6 +151,33 @@ def test_agi_web_render_streamlit_uses_components_html() -> None:
     assert calls[0][1:] == (400, False)
 
 
+def test_agi_web_render_streamlit_imports_default_streamlit(monkeypatch) -> None:
+    agi_web = _load_agi_web()
+    calls: list[tuple[str, int, bool]] = []
+
+    def html_renderer(fragment, *, height, scrolling):
+        calls.append((fragment, height, scrolling))
+        return "rendered"
+
+    fake_st = SimpleNamespace(components=SimpleNamespace(v1=SimpleNamespace(html=html_renderer)))
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "streamlit":
+            return fake_st
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    component = agi_web.AgiWebComponent(
+        component_id="demo",
+        title="Demo",
+        renderer=agi_web.AgiWebRendererSpec("demo"),
+    )
+
+    assert agi_web.render_streamlit(component, height=360) == "rendered"
+    assert calls[0][1:] == (360, False)
+
+
 def test_agi_web_records_from_data_covers_mapping_and_scalar_shapes() -> None:
     agi_web = _load_agi_web()
 
@@ -164,6 +200,10 @@ def test_agi_web_records_from_data_covers_mapping_and_scalar_shapes() -> None:
         {"x": 1, "y": 3},
         {"x": 2, "y": 4},
     ]
+    assert agi_web.records_from_data() == []
+    assert agi_web.records_from_data({}) == []
+    assert agi_web.records_from_data({"x": 1, "y": 2}) == [{"x": 1, "y": 2}]
+    assert agi_web.records_from_data({"x": [1], "y": [2, 3]}) == [{"x": [1], "y": [2, 3]}]
     assert agi_web.records_from_data([(1, 2), "plain"], max_rows=0) == []
     assert agi_web.records_from_data(7) == [{"value": 7}]
 
@@ -189,6 +229,12 @@ def test_agi_web_normalize_json_value_handles_portable_scalars() -> None:
 
         def __str__(self) -> str:
             return "broken"
+
+    class NonCallableItem:
+        item = "not-callable"
+
+        def __str__(self) -> str:
+            return "non-callable"
 
     payload_id = uuid.UUID("12345678-1234-5678-1234-567812345678")
     normalized = agi_web.normalize_json_value(
@@ -219,6 +265,7 @@ def test_agi_web_normalize_json_value_handles_portable_scalars() -> None:
     assert agi_web.normalize_json_value(decimal.Decimal("NaN")) is None
     assert agi_web.normalize_json_value(float("inf")) is None
     assert agi_web.normalize_json_value(BrokenScalar()) == "broken"
+    assert agi_web.normalize_json_value(NonCallableItem()) == "non-callable"
 
 
 def test_agi_web_component_variants_and_notebook_fallback(monkeypatch) -> None:
@@ -271,3 +318,30 @@ def test_agi_web_component_variants_and_notebook_fallback(monkeypatch) -> None:
     assert isinstance(fallback, str)
     assert "min-height:240px" in fallback
     assert "&lt;100%&gt;" in fallback
+
+
+def test_agi_web_render_notebook_returns_ipython_html(monkeypatch) -> None:
+    agi_web = _load_agi_web()
+    component = agi_web.AgiWebComponent(
+        component_id="demo",
+        title="Demo",
+        renderer=agi_web.AgiWebRendererSpec("demo"),
+    )
+
+    class FakeHTML:
+        def __init__(self, fragment):
+            self.fragment = fragment
+
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "IPython.display":
+            return SimpleNamespace(HTML=FakeHTML)
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    rendered = agi_web.render_notebook(component)
+
+    assert isinstance(rendered, FakeHTML)
+    assert 'class="agi-web-shell"' in rendered.fragment
