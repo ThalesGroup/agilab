@@ -29,6 +29,44 @@ def _exception_class(container: Any | None, name: str) -> type[BaseException] | 
     return None
 
 
+def _plain_class(container: Any | None, name: str) -> type[Any] | None:
+    candidate = getattr(container, name, None)
+    if isinstance(candidate, type):
+        return candidate
+    return None
+
+
+def _restore_py7zr_exception_exports(
+    py7zr_module: Any,
+    exceptions_module: Any | None,
+) -> None:
+    for name in (
+        "AbsolutePathError",
+        "ArchiveError",
+        "Bad7zFile",
+        "CrcError",
+        "DecompressionError",
+        "InternalError",
+        "PasswordRequired",
+        "UnsupportedCompressionMethodError",
+    ):
+        candidate = _exception_class(exceptions_module, name)
+        if candidate is not None and _exception_class(py7zr_module, name) is None:
+            setattr(py7zr_module, name, candidate)
+
+
+def _load_py7zr_implementation_module(
+    py7zr_module: Any = py7zr,
+    exceptions_module: Any | None = None,
+) -> Any | None:
+    """Return the implementation module that still owns ``SevenZipFile``."""
+    _restore_py7zr_exception_exports(py7zr_module, exceptions_module)
+    try:
+        return importlib.import_module("py7zr.py7zr")
+    except (AttributeError, ImportError):
+        return None
+
+
 def _py7zr_archive_error_classes(
     py7zr_module: Any = py7zr,
     exceptions_module: Any | None = None,
@@ -43,12 +81,65 @@ def _py7zr_archive_error_classes(
     return tuple(classes)
 
 
+def _py7zr_sevenzip_file_class(
+    py7zr_module: Any = py7zr,
+    implementation_module: Any | None = None,
+) -> type[Any]:
+    """Resolve ``SevenZipFile`` across py7zr package layouts."""
+    for container in (py7zr_module, implementation_module):
+        candidate = _plain_class(container, "SevenZipFile")
+        if candidate is not None:
+            return candidate
+    raise AttributeError("py7zr SevenZipFile class is unavailable")
+
+
+def ensure_py7zr_package_compatibility(
+    py7zr_module: Any = py7zr,
+    *,
+    implementation_module: Any | None = None,
+    exceptions_module: Any | None = None,
+) -> Any:
+    """Populate py7zr compatibility attributes removed from newer package layouts."""
+    implementation_module = (
+        PY7ZR_IMPLEMENTATION_MODULE if implementation_module is None else implementation_module
+    )
+    exceptions_module = PY7ZR_EXCEPTIONS_MODULE if exceptions_module is None else exceptions_module
+
+    _restore_py7zr_exception_exports(py7zr_module, exceptions_module)
+
+    if _plain_class(py7zr_module, "SevenZipFile") is None:
+        setattr(
+            py7zr_module,
+            "SevenZipFile",
+            _py7zr_sevenzip_file_class(py7zr_module, implementation_module),
+        )
+
+    bad7z_file = (
+        _exception_class(py7zr_module, "Bad7zFile")
+        or _exception_class(exceptions_module, "Bad7zFile")
+    )
+    if bad7z_file is not None and _exception_class(py7zr_module, "Bad7zFile") is None:
+        setattr(py7zr_module, "Bad7zFile", bad7z_file)
+
+    archive_error = (
+        _exception_class(py7zr_module, "ArchiveError")
+        or _exception_class(exceptions_module, "ArchiveError")
+    )
+    if archive_error is not None and _exception_class(py7zr_module, "ArchiveError") is None:
+        setattr(py7zr_module, "ArchiveError", archive_error)
+
+    return py7zr_module
+
+
 PY7ZR_EXCEPTIONS_MODULE = _load_py7zr_exceptions_module()
+PY7ZR_IMPLEMENTATION_MODULE = _load_py7zr_implementation_module(py7zr, PY7ZR_EXCEPTIONS_MODULE)
 PY7ZR_ARCHIVE_ERROR_CLASSES = _py7zr_archive_error_classes(py7zr, PY7ZR_EXCEPTIONS_MODULE)
 PY7ZR_BAD7Z_FILE = (
     _exception_class(PY7ZR_EXCEPTIONS_MODULE, "Bad7zFile")
     or _exception_class(py7zr, "Bad7zFile")
 )
+PY7ZR_SEVENZIP_FILE = _py7zr_sevenzip_file_class(py7zr, PY7ZR_IMPLEMENTATION_MODULE)
+ensure_py7zr_package_compatibility()
 EXTRACTION_FAILURE_EXCEPTIONS = (OSError, *PY7ZR_ARCHIVE_ERROR_CLASSES)
 
 

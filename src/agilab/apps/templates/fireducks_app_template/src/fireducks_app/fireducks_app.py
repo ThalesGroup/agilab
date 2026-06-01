@@ -4,6 +4,7 @@ from typing import Any, List, Tuple
 
 import py7zr
 
+from agi_env.data_archive_support import ensure_py7zr_package_compatibility
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
 from .fireducks_app_args import (
@@ -16,6 +17,7 @@ from .fireducks_app_args import (
 )
 
 logger = logging.getLogger(__name__)
+ensure_py7zr_package_compatibility(py7zr)
 
 
 class FireducksApp(BaseWorker):

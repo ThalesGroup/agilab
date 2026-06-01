@@ -71,7 +71,7 @@ from agi_gui.pagelib import (
 from agi_gui.ux_widgets import compact_choice
 from pathspec import PathSpec
 from pathspec.gitignore import GitIgnoreSpec
-from code_editor import code_editor
+from agilab.code_editor_component import code_editor
 from agi_env import AgiEnv
 from agi_env.app_provider_registry import resolve_installed_app_project
 

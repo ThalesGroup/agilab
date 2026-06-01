@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 import pandas as pd
+from agilab.code_editor_component import code_editor
 import streamlit as st
-from code_editor import code_editor
 
 try:
     import networkx as nx
