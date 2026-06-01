@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import inspect
 import json
 import os
 import re
@@ -504,17 +505,13 @@ def render_next_best_action(
     """Render one navigation CTA derived from project readiness."""
     action = project_next_action(env)
     streamlit.caption(f"{title}: {action['detail']}")
-    link_button = getattr(streamlit, "link_button", None)
-    if callable(link_button):
-        link_button(
-            action["label"],
-            action["url"],
-            key=f"{key_prefix}:next:{_stable_key_part(action['id'])}",
-            type=action.get("type", "primary"),
-            width="content",
-        )
-    else:
-        streamlit.markdown(f"[{action['label']}]({action['url']})")
+    _render_link_button(
+        streamlit,
+        label=action["label"],
+        url=action["url"],
+        key=f"{key_prefix}:next:{_stable_key_part(action['id'])}",
+        type=action.get("type", "primary"),
+    )
     return action
 
 
@@ -595,9 +592,36 @@ def _render_context_link(
     key: str,
     type: str = "secondary",
 ) -> None:
+    _render_link_button(streamlit, label=label, url=url, key=key, type=type)
+
+
+def _callable_accepts_keyword(callable_obj: Any, keyword: str) -> bool:
+    try:
+        signature = inspect.signature(callable_obj)
+    except (TypeError, ValueError):
+        return True
+    if keyword in signature.parameters:
+        return True
+    return any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in signature.parameters.values()
+    )
+
+
+def _render_link_button(
+    streamlit: Any,
+    *,
+    label: str,
+    url: str,
+    key: str,
+    type: str = "secondary",
+) -> None:
     link_button = getattr(streamlit, "link_button", None)
     if callable(link_button):
-        link_button(label, url, key=key, type=type, width="content")
+        kwargs = {"type": type, "width": "content"}
+        if _callable_accepts_keyword(link_button, "key"):
+            kwargs["key"] = key
+        link_button(label, url, **kwargs)
         return
     streamlit.markdown(f"[{label}]({url})")
 

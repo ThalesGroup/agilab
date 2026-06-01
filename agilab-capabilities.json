@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-01T13:02:51Z",
+  "generated_at_utc": "2026-06-01T16:04:54Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 15,
     "agent_skill_count": 33,
-    "evidence_schema_count": 213,
+    "evidence_schema_count": 214,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1384,6 +1384,12 @@
         "src/agilab/data_connector_view_surface.py",
         "tools/data_connector_view_surface_report.py",
         "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.dataset_release_assets.v1",
+      "sources": [
+        "tools/dataset_release_assets.py"
       ]
     },
     {

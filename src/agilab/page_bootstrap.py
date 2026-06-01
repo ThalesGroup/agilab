@@ -241,6 +241,35 @@ def configure_page_chrome(
         inject_theme(resources_path)
 
 
+def _active_project_label(env: Any | None) -> str:
+    """Return the display label for the currently selected project."""
+    if env is None:
+        return ""
+    for attr_name in ("app", "target", "active_app"):
+        value = getattr(env, attr_name, None)
+        text = str(value or "").strip()
+        if not text:
+            continue
+        label = Path(text).name
+        if label.endswith("_project"):
+            label = label[: -len("_project")]
+        return label.replace("_", " ").title().replace("Pytorch", "PyTorch")
+    return ""
+
+
+def render_active_project_chip(streamlit: Any, *, env: Any | None = None) -> bool:
+    """Render a compact selected-project label using the historical page-chrome path."""
+    project_label = _active_project_label(env)
+    if not project_label:
+        return False
+    sidebar = getattr(streamlit, "sidebar", None)
+    markdown = getattr(sidebar, "markdown", None)
+    if not callable(markdown):
+        return False
+    markdown(f"**{project_label}**")
+    return True
+
+
 def render_page_header(
     streamlit: Any,
     *,
@@ -269,6 +298,7 @@ def render_page_header(
 
     render_logo()
     render_pinned_expanders(streamlit)
+    render_active_project_chip(streamlit, env=env)
     if show_project_context and render_page_context is not None:
         render_page_context(streamlit, page_label=page_label, env=env)
 

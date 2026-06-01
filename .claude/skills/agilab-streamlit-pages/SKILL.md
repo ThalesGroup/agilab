@@ -59,6 +59,10 @@ Use this skill when editing:
 - Treat `view_app_ui` as an internal route key, not a user-facing label. Sidebar
   links for app surfaces should use `[app_surface].title`, route through the app
   surface renderer, and avoid exposing duplicate `view_app_ui` bridge links.
+- Keep the standard ANALYSIS view multiselect usable for app-surface projects:
+  `view_app_ui` may be the default selected sidebar launcher, but users must
+  still be able to add other installed analysis views through the same existing
+  selector instead of a custom "additional views" control.
 - Render an ANALYSIS sidebar launcher from one place per page route. If the main
   page persists selected views after rendering controls, do not also render the
   same project label or app-surface link before the main-page body; add a

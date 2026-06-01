@@ -90,7 +90,7 @@ def main() -> None:
         return
 
     env = _load_project_env(active_app)
-    st.subheader(f"Project: {getattr(env, 'app', active_app)}")
+    st.subheader(str(getattr(env, "app", active_app)))
     st.caption(f"Project path: {getattr(env, 'active_app', active_app)}")
 
     dataset_root = _dataset_root(env)

@@ -1834,10 +1834,9 @@ def test_explore_page_app_surface_back_keeps_single_app_ui_sidebar_view(mock_ui_
 
     assert not at.exception
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
-    sidebar_captions = "\n".join(str(item.value) for item in at.sidebar.caption)
-    assert "Project: `flight_telemetry_project`" in sidebar_captions
-    assert sidebar_captions.count("Project: `flight_telemetry_project`") == 1
-    assert ">Demo Surface</a>" in sidebar_markdown
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "Project:" not in sidebar_markdown
+    assert ">Page</a>" in sidebar_markdown
     assert ">view_app_ui</a>" not in sidebar_markdown
     assert sidebar_markdown.count("current_page=view_app_ui") == 1
     assert "view_other" not in sidebar_markdown
@@ -1898,12 +1897,11 @@ def test_explore_page_app_surface_uses_standard_view_selection(mock_ui_env):
     assert not at.exception
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
-    sidebar_captions = "\n".join(str(item.value) for item in at.sidebar.caption)
-    assert "Project: `flight_telemetry_project`" in sidebar_captions
-    assert sidebar_captions.count("Project: `flight_telemetry_project`") == 1
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "Project:" not in sidebar_markdown
     assert "surface:analysis" not in markdown_text
     assert "surface:controls" not in sidebar_markdown
-    assert ">Demo Surface</a>" in sidebar_markdown
+    assert ">Page</a>" in sidebar_markdown
     assert ">view_app_ui</a>" not in sidebar_markdown
     assert sidebar_markdown.count("current_page=view_app_ui") == 1
     assert "Choose analysis views" in [str(item.label) for item in at.expander]
@@ -1918,10 +1916,9 @@ def test_explore_page_app_surface_uses_standard_view_selection(mock_ui_env):
         persisted = tomllib.load(f)
     assert persisted["pages"]["view_module"] == ["view_app_ui", "view_extra"]
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
-    sidebar_captions = "\n".join(str(item.value) for item in at.sidebar.caption)
-    assert "Project: `flight_telemetry_project`" in sidebar_captions
-    assert sidebar_captions.count("Project: `flight_telemetry_project`") == 1
-    assert ">Demo Surface</a>" in sidebar_markdown
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "Project:" not in sidebar_markdown
+    assert ">Page</a>" in sidebar_markdown
     assert ">view_app_ui</a>" not in sidebar_markdown
     assert "view_extra" in sidebar_markdown
     assert "current_page=" in sidebar_markdown
