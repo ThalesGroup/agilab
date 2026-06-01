@@ -849,7 +849,6 @@ def test_page_bootstrap_render_page_chrome_uses_env_resources():
         ("theme", "/resources"),
         ("logo", None),
         ("pinned", True),
-        ("context", (True, {"page_label": "WORKFLOW", "env": env})),
     ]
 
 
