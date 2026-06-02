@@ -5,7 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from agilab.page_bootstrap import ensure_page_env, render_page_chrome
-from agilab.page_project_selector import render_project_selector
+from agilab.page_project_selector import render_project_action_sidebar, render_project_selector
 from agilab.workflow_ui import render_project_status_page
 
 
@@ -32,13 +32,15 @@ def main() -> None:
     )
     projects = list(getattr(env, "projects", []) or [])
     current_project = env.app if getattr(env, "app", None) in projects else (projects[0] if projects else None)
-    render_project_selector(
+    selected_project = render_project_selector(
         st,
         projects,
         current_project,
         on_change=_on_project_change,
         container=st,
+        show_edit_button=False,
     )
+    render_project_action_sidebar(st, selected_project, container=st.sidebar)
     render_project_status_page(st, env=env)
 
 

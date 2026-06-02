@@ -9,6 +9,21 @@ from typing import Any, Callable, Iterable
 NAVIGATION_PAGE_ROUTES_ATTR = "_NAVIGATION_PAGE_ROUTES"
 PROJECT_ROUTE_ID = "project"
 PROJECT_PAGE_PATH = Path("pages/1_PROJECT.py")
+PROJECT_ACTIONS = ("Edit", "Create", "Import", "Rename", "Delete")
+PROJECT_ACTION_LABELS = {
+    "Edit": "Edit files",
+    "Create": "Create project",
+    "Import": "Import archive",
+    "Rename": "Rename project",
+    "Delete": "Delete project",
+}
+PROJECT_ACTION_HELP = {
+    "Edit": "Open project files, settings, arguments, runtime, and code editors.",
+    "Create": "Create a new project from a template or notebook.",
+    "Import": "Restore a project from an exported AGILAB archive.",
+    "Rename": "Rename the active project and update AGILAB selection.",
+    "Delete": "Open the guarded project deletion flow.",
+}
 MAIN_NAVIGATION_MODULES = ("__main__", "agilab.main_page")
 
 
@@ -49,15 +64,70 @@ def _registered_navigation_page(route_id: str) -> Any | None:
     return None
 
 
-def switch_to_project_page(streamlit: Any, *, active_app: str | None = None) -> bool:
+def _canonical_project_action(action: Any) -> str:
+    """Return the canonical PROJECT edit-page action name."""
+    requested = str(action or "").strip()
+    if requested.casefold() == "clone":
+        requested = "Create"
+    for canonical in PROJECT_ACTIONS:
+        if requested.casefold() == canonical.casefold():
+            return canonical
+    raise ValueError(f"Unsupported PROJECT action: {action!r}")
+
+
+def switch_to_project_page(
+    streamlit: Any,
+    *,
+    active_app: str | None = None,
+    sidebar_selection: str | None = None,
+) -> bool:
     """Switch to PROJECT using the active ``st.navigation`` page when available."""
     switch_page = getattr(streamlit, "switch_page", None)
     if not callable(switch_page):
         return False
     if active_app is not None:
         streamlit.query_params["active_app"] = str(active_app)
+    if sidebar_selection is not None:
+        action = _canonical_project_action(sidebar_selection)
+        streamlit.session_state["sidebar_selection"] = action
+        streamlit.query_params["sidebar_selection"] = action
     switch_page(_registered_navigation_page(PROJECT_ROUTE_ID) or PROJECT_PAGE_PATH)
     return True
+
+
+def render_project_action_sidebar(
+    streamlit: Any,
+    current_project: str | None,
+    *,
+    container: Any | None = None,
+    key: str = "project_action",
+    actions: Iterable[Any] = PROJECT_ACTIONS,
+) -> str | None:
+    """Render direct sidebar entry points to existing PROJECT edit-page actions."""
+    target = container if container is not None else streamlit.sidebar
+    project = str(current_project or "").strip()
+    if not project:
+        target.info("Select a project to enable project actions.")
+        return None
+
+    target.markdown("### Project actions")
+    target.caption("Open a project tool directly.")
+    for raw_action in actions:
+        action = _canonical_project_action(raw_action)
+        button_key = f"{key}__{action.casefold()}"
+        if target.button(
+            PROJECT_ACTION_LABELS[action],
+            key=button_key,
+            help=PROJECT_ACTION_HELP[action],
+            width="stretch",
+        ):
+            switch_to_project_page(
+                streamlit,
+                active_app=project,
+                sidebar_selection=action,
+            )
+            return action
+    return None
 
 
 def render_project_selector(
