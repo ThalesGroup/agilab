@@ -81,6 +81,7 @@ pin_safe_action_extra_fields = _generated_actions_module.pin_safe_action_extra_f
 safe_action_contract_sha256 = _generated_actions_module.safe_action_contract_sha256
 safe_action_contract_stage_code = _generated_actions_module.safe_action_contract_stage_code
 safe_action_catalog_options = _generated_actions_module.safe_action_catalog_options
+safe_action_template_code = _generated_actions_module.safe_action_template_code
 stage_generation_extra_fields = _generated_actions_module.stage_generation_extra_fields
 summarize_generated_actions = _generated_actions_module.summarize_generated_actions
 validate_generated_action_contract = _generated_actions_module.validate_generated_action_contract
@@ -3490,14 +3491,32 @@ def display_lab_tab(
             st.session_state.pop(key, None)
             select_kwargs["index"] = 0
         selected = st.selectbox("Existing Safe Action", options, **select_kwargs)
+        selected_text = str(selected)
+        last_selected_key = f"{key}__last_selected"
+        selection_changed = st.session_state.get(last_selected_key) != selected_text
+        st.session_state[last_selected_key] = selected_text
         for action in existing_safe_actions:
-            if selected == action.label:
+            if selected_text == action.label:
                 st.session_state.pop(f"{key}__template_prompt", None)
+                st.session_state[f"{key}__safe_action_code"] = action.code
+                st.session_state[f"{key}__safe_action_question"] = action.question
+                st.session_state[f"{key}__safe_action_changed"] = selection_changed
                 st.caption(f"Reusing existing Safe Action from stage {action.stage_index + 1}.")
                 return action
-        template = catalog_by_label.get(str(selected))
+        st.session_state.pop(f"{key}__safe_action_code", None)
+        st.session_state.pop(f"{key}__safe_action_question", None)
+        st.session_state[f"{key}__safe_action_changed"] = False
+        template = catalog_by_label.get(selected_text)
         if template:
-            st.session_state[f"{key}__template_prompt"] = str(template.get("prompt") or "")
+            prompt = str(template.get("prompt") or "")
+            try:
+                template_code = safe_action_template_code(str(template.get("action") or ""))
+            except GeneratedActionError:
+                template_code = ""
+            st.session_state[f"{key}__template_prompt"] = prompt
+            st.session_state[f"{key}__safe_action_code"] = template_code
+            st.session_state[f"{key}__safe_action_question"] = prompt
+            st.session_state[f"{key}__safe_action_changed"] = selection_changed
             st.caption(f"{selected}. Edit the prompt below, then generate a validated Safe Action.")
             return None
         st.session_state.pop(f"{key}__template_prompt", None)
@@ -3509,6 +3528,25 @@ def display_lab_tab(
         template_prompt = str(st.session_state.get(f"{selection_key}__template_prompt") or "").strip()
         if template_prompt and not str(st.session_state.get(prompt_key) or "").strip():
             st.session_state[prompt_key] = template_prompt
+
+    def _hydrate_selected_safe_action_editor(
+        selection_key: str,
+        *,
+        q_key: str,
+        code_val_key: str,
+        rev_key: str,
+    ) -> None:
+        if not st.session_state.get(f"{selection_key}__safe_action_changed"):
+            return
+        code = str(st.session_state.get(f"{selection_key}__safe_action_code") or "")
+        if not code.strip():
+            return
+        question = str(st.session_state.get(f"{selection_key}__safe_action_question") or "").strip()
+        if question:
+            st.session_state[q_key] = question
+        st.session_state[code_val_key] = code
+        st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
+        st.session_state[f"{selection_key}__safe_action_changed"] = False
 
     def _answer_from_pinned_safe_action(action: _PinnedSafeAction, df_path: Path) -> List[Any]:
         return [
@@ -4041,6 +4079,12 @@ def display_lab_tab(
                 else None
             )
             _seed_safe_action_template_prompt(f"{safe_prefix}_safe_action_choice_{stage}", q_key)
+            _hydrate_selected_safe_action_editor(
+                f"{safe_prefix}_safe_action_choice_{stage}",
+                q_key=q_key,
+                code_val_key=code_val_key,
+                rev_key=rev_key,
+            )
             current_contract = _safe_action_contract_payload(entry.get(STAGE_ACTION_CONTRACT_FIELD))
             if current_contract is not None:
                 current_safe_action_pinned = bool(entry.get(STAGE_SAFE_ACTION_PINNED_FIELD))
