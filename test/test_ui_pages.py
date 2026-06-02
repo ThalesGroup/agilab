@@ -91,7 +91,7 @@ def test_primary_pages_keep_homogeneous_support_field_order() -> None:
         "async def main" if "async def main" in workflow_source else "def main"
     )
     workflow_main = workflow_source[workflow_source.index(workflow_main_marker) :]
-    assert 'st.sidebar.expander("Install from pypi.org", expanded=False)' in project_source
+    assert 'st.sidebar.expander("Install another version", expanded=False)' in project_source
     assert '"Check",' in project_source
     assert '"Install agi-app",' in project_source
     assert '"Reviewed",' in project_source
@@ -1175,7 +1175,9 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert str(data_share) not in markdown_text
     expander_labels = [str(item.label) for item in at.expander]
     assert "Environment details" in expander_labels
-    assert expander_labels[-1] == "Environment details"
+    assert expander_labels.index("Environment details") < expander_labels.index(
+        "1. Resources and deployment"
+    )
     assert "Evidence drawer" not in expander_labels
     assert "Deployment logs" not in expander_labels
     assert "Observe benchmark results" not in expander_labels
@@ -1250,6 +1252,23 @@ def test_orchestrate_resource_summary_uses_updated_cluster_widget_state():
     )
 
     assert placeholder_index < cluster_widget_index < summary_index
+
+
+def test_orchestrate_expanders_render_below_banner_slot():
+    source = Path("src/agilab/pages/2_ORCHESTRATE.py").read_text(encoding="utf-8")
+
+    chrome_index = source.index("render_page_chrome(")
+    banner_slot_index = source.index("orchestrate_banner_slot = st.container()")
+    banner_render_index = source.index("with orchestrate_banner_slot:")
+    details_index = source.index(
+        "_environment_render_environment_details(st, environment_health.details)"
+    )
+    deployment_index = source.index(
+        "verbose, install_status = await _render_deployment_panel"
+    )
+
+    assert chrome_index < banner_slot_index < banner_render_index
+    assert banner_render_index < details_index < deployment_index
 
 
 def test_orchestrate_rechecks_install_status_after_install_before_run_gate():
@@ -2444,8 +2463,15 @@ def test_project_sidebar_orders_active_project_before_actions():
     assert "def render_project_dashboard(env)" in source
     dashboard_body = source[source.index("def render_project_dashboard(env)") :]
     dashboard_body = dashboard_body.split("def handle_project_selection(", 1)[0]
+    assert "with st.container(border=True):" in dashboard_body
     assert 'st.expander("Project metrics", expanded=False)' in dashboard_body
     assert "_render_project_software_metrics(env)" in dashboard_body
+    assert dashboard_body.index("with st.container(border=True):") < dashboard_body.index(
+        'st.expander("Project metrics", expanded=False)'
+    )
+    assert dashboard_body.index(
+        'st.expander("Project metrics", expanded=False)'
+    ) < dashboard_body.index("render_environment_details(st, health.details)")
     assert "_render_edit_project_metric" not in source
     assert "Choose what to do with the active project" not in source
     assert "Actions below apply to this selected project" not in source
@@ -2462,6 +2488,29 @@ def test_project_sidebar_orders_active_project_before_actions():
     assert "Source KLOC" in source
     assert "Project Name (no suffix)" not in source
     assert "New Project Name (no suffix)" not in source
+    project_status_source = Path("src/agilab/pages/1_PROJECT_STATUS.py").read_text(
+        encoding="utf-8"
+    )
+    chrome_index = project_status_source.index("render_page_chrome(")
+    selector_index = project_status_source.index("render_project_selector(")
+    dashboard_index = project_status_source.index(
+        "project_editor_page.render_project_dashboard(env)"
+    )
+    sidebar_index = project_status_source.index(
+        "project_editor_page.render_project_sidebar("
+    )
+    assert chrome_index < selector_index < sidebar_index < dashboard_index
+
+
+def test_project_status_reloads_editor_helpers_when_source_changes():
+    source = Path("src/agilab/pages/1_PROJECT_STATUS.py").read_text(encoding="utf-8")
+    loader_body = source.split("def _load_project_editor_page_module", 1)[1].split(
+        "def _on_project_change", 1
+    )[0]
+
+    assert "source_mtime_ns = module_path.stat().st_mtime_ns" in loader_body
+    assert "__agilab_source_mtime_ns__" in loader_body
+    assert "spec.loader.exec_module(module)" in loader_body
 
 
 def test_execute_page_cython_setting_hydrates_from_app_settings(mock_ui_env):
@@ -3184,8 +3233,8 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     assert "Reviewed" in sidebar_checkbox_labels
     assert "Reviewed agi-app" not in sidebar_checkbox_labels
     sidebar_expander_labels = [str(expander.label) for expander in at.sidebar.expander]
-    assert "Install from pypi.org" in sidebar_expander_labels
-    assert sidebar_expander_labels.index("Install from pypi.org") < sidebar_expander_labels.index("Quick actions")
+    assert "Install another version" in sidebar_expander_labels
+    assert sidebar_expander_labels.index("Install another version") < sidebar_expander_labels.index("Quick actions")
     assert "agi-app from PyPI" not in sidebar_expander_labels
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     expander_labels = [str(item.label) for item in at.expander]

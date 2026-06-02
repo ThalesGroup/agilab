@@ -2424,6 +2424,7 @@ async def page() -> None:
         docs_html_file="execute-help.html",
         render_page_context=_skip_orchestrate_project_cockpit,
     )
+    orchestrate_banner_slot = st.container()
 
     if background_services_enabled() and not st.session_state.get("server_started"):
         activate_mlflow(env)
@@ -2558,12 +2559,14 @@ async def page() -> None:
     )
     st.session_state["cluster_verbose"] = selected_verbose_int
 
-    environment_health = _render_orchestrate_readiness_panel(
-        env,
-        app_settings=app_settings,
-        install_status=install_status,
-        show_run=show_run,
-    )
+    with orchestrate_banner_slot:
+        environment_health = _render_orchestrate_readiness_panel(
+            env,
+            app_settings=app_settings,
+            install_status=install_status,
+            show_run=show_run,
+        )
+    _environment_render_environment_details(st, environment_health.details)
 
     verbose, install_status = await _render_deployment_panel(
         env,
@@ -2632,7 +2635,6 @@ async def page() -> None:
         install_disabled_reason=install_block_reason,
         worker_env_required=worker_required_for_run,
     )
-    _environment_render_environment_details(st, environment_health.details)
 
 
 # ===========================
