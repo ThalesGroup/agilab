@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-06-02T13:17:08Z",
+  "created_at": "2026-06-02T14:01:51Z",
   "kind": "agilab.screenshot_manifest",
   "root": "../thales_agilab/docs/source/_static/page-shots",
   "schema": "agilab.screenshot_manifest.v1",
@@ -8,7 +8,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-06-02T13:17:08Z",
+      "created_at": "2026-06-02T14:01:51Z",
       "height_px": 850,
       "image_path": "analysis-page.png",
       "page": "analysis",
@@ -16,8 +16,7 @@
       "sha256": "69e971e72e8558045dac958c1dc3be5916558920ac09a3d5012484aec42274d4",
       "size_bytes": 232673,
       "source_command": [
-        "targeted-playwright-doc-project-page-capture",
-        "1440x850-project"
+        "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
       ],
       "url": "",
       "width_px": 1440
@@ -25,7 +24,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-06-02T13:17:08Z",
+      "created_at": "2026-06-02T14:01:51Z",
       "height_px": 850,
       "image_path": "core-pages-overview.png",
       "page": "core-pages-overview",
@@ -33,8 +32,7 @@
       "sha256": "c864b5b14e3bf92f0af764df2defa2f017305a0889998aa26f7f7be4eac21936",
       "size_bytes": 435662,
       "source_command": [
-        "targeted-playwright-doc-project-page-capture",
-        "1440x850-project"
+        "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
       ],
       "url": "",
       "width_px": 1440
@@ -42,7 +40,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-06-02T13:17:08Z",
+      "created_at": "2026-06-02T14:01:51Z",
       "height_px": 850,
       "image_path": "orchestrate-page.png",
       "page": "orchestrate",
@@ -50,8 +48,7 @@
       "sha256": "840b4bd8f3f33cb7924a9a2571e83962629ead43a891b8498a318fea3c7ff49d",
       "size_bytes": 75064,
       "source_command": [
-        "targeted-playwright-doc-project-page-capture",
-        "1440x850-project"
+        "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
       ],
       "url": "",
       "width_px": 1440
@@ -59,7 +56,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-06-02T13:17:08Z",
+      "created_at": "2026-06-02T14:01:51Z",
       "height_px": 1000,
       "image_path": "project-create-page.png",
       "page": "project-create",
@@ -67,8 +64,7 @@
       "sha256": "ea9dfc70552a974419dca6c05c5ad401ce3d68388886ac43e889dd38e3619c96",
       "size_bytes": 70902,
       "source_command": [
-        "targeted-playwright-doc-project-page-capture",
-        "1440x850-project"
+        "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
       ],
       "url": "",
       "width_px": 1440
@@ -76,16 +72,15 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-06-02T13:17:08Z",
+      "created_at": "2026-06-02T14:01:51Z",
       "height_px": 850,
       "image_path": "project-page.png",
       "page": "project",
       "project": "",
-      "sha256": "5d97ee5464cd8ea81f2ce3ed5c0927e26f48bd37f5bbe120efcce009a50208ba",
-      "size_bytes": 420131,
+      "sha256": "7a2a872a12e0d35f52989b905bb1f9eae2efb8650703fd6a816bbe5eb56d9d3f",
+      "size_bytes": 418764,
       "source_command": [
-        "targeted-playwright-doc-project-page-capture",
-        "1440x850-project"
+        "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
       ],
       "url": "",
       "width_px": 1440
@@ -93,7 +88,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-06-02T13:17:08Z",
+      "created_at": "2026-06-02T14:01:51Z",
       "height_px": 850,
       "image_path": "workflow-page.png",
       "page": "workflow",
@@ -101,15 +96,13 @@
       "sha256": "0a32f81d0b9d8f1fa82d5392fdd2000a26054d6abf761185c6a216b812995b44",
       "size_bytes": 304105,
       "source_command": [
-        "targeted-playwright-doc-project-page-capture",
-        "1440x850-project"
+        "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
       ],
       "url": "",
       "width_px": 1440
     }
   ],
   "source_command": [
-    "targeted-playwright-doc-project-page-capture",
-    "1440x850-project"
+    "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
   ]
 }
