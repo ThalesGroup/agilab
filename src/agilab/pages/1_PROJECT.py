@@ -2663,6 +2663,45 @@ def _render_active_project_sidebar(env) -> None:
     st.session_state["_env"] = env
 
 
+def _default_project_sidebar_action(actions: tuple[str, ...]) -> str:
+    if "Edit" in actions:
+        return "Edit"
+    if "Overview" in actions:
+        return "Overview"
+    return actions[0]
+
+
+def _render_project_quick_actions(actions: tuple[str, ...]) -> str:
+    quick_actions = tuple(action for action in actions if action not in {"Edit", "Overview"})
+    default_action = _default_project_sidebar_action(actions)
+    if not quick_actions:
+        return default_action
+
+    current_selection = st.session_state.get("sidebar_selection")
+    if current_selection not in actions:
+        current_selection = default_action
+    quick_options = ("None", *quick_actions)
+    quick_key = "project_sidebar_quick_action"
+    if st.session_state.get(quick_key) not in quick_options:
+        st.session_state[quick_key] = (
+            current_selection if current_selection in quick_actions else "None"
+        )
+
+    with st.sidebar.expander(
+        "Quick actions",
+        expanded=st.session_state.get(quick_key) in quick_actions,
+    ):
+        quick_choice = st.selectbox(
+            "Action",
+            options=quick_options,
+            key=quick_key,
+            help="Choose a project management action only when needed.",
+        )
+    if quick_choice in quick_actions:
+        return str(quick_choice)
+    return default_action
+
+
 def render_project_sidebar(
     env,
     *,
@@ -2690,20 +2729,11 @@ def render_project_sidebar(
     _render_active_project_sidebar(env)
     env = st.session_state["env"]
 
-    sidebar_selection = compact_choice(
-        st.sidebar,
-        "Project action",
-        actions,
-        key="sidebar_selection",
-        label_visibility="collapsed",
-        fallback="radio",
-    )
-    _render_pypi_app_install_action(env)
+    sidebar_selection = _render_project_quick_actions(actions)
+    st.session_state["sidebar_selection"] = sidebar_selection
 
     if sidebar_selection == "Overview":
-        st.sidebar.info(
-            "Choose Create, Import, Export, Rename, or Delete when you need to manage projects."
-        )
+        pass
     elif sidebar_selection == "Edit":
         if render_edit_body:
             handle_project_selection()
@@ -2719,6 +2749,7 @@ def render_project_sidebar(
         handle_project_delete()
     elif sidebar_selection == "Import":
         handle_project_import()
+    _render_pypi_app_install_action(env)
     return sidebar_selection
 
 
