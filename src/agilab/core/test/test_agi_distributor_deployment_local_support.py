@@ -211,7 +211,9 @@ def test_force_remove_swallows_filesystem_error_and_uses_subprocess(
 
 
 def test_deploy_local_worker_venv_cleanup_is_conditional() -> None:
-    source = Path(deployment_local_support.__file__).read_text(encoding="utf-8")
+    source = Path(
+        deployment_local_support.deploy_local_worker.__globals__["__file__"]
+    ).read_text(encoding="utf-8")
 
     assert '_force_remove(app_path / ".venv"' not in source
     assert "_remove_project_venv_if_mismatched(\n        app_path," in source

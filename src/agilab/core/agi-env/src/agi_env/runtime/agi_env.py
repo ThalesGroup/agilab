@@ -198,10 +198,17 @@ def _ensure_dir(path: str | Path) -> Path:
 
 def _resolve_worker_hook(filename: str) -> Path | None:
     """Return the path to the shared worker hook."""
-    return resolve_worker_hook(filename, module_file=__file__)
+    return resolve_worker_hook(filename, module_file=_public_agi_env_module_file())
 
 
 _resolve_worker_hook.cache_clear = resolve_worker_hook.cache_clear  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+
+
+def _public_agi_env_module_file() -> str:
+    """Return the public ``agi_env.agi_env`` module file when loaded via the shim."""
+    public_module = sys.modules.get("agi_env.agi_env")
+    public_module_file = getattr(public_module, "__file__", None)
+    return str(public_module_file or __file__)
 
 
 def _select_hook(local_candidate: Path, fallback_filename: str, hook_label: str) -> tuple[Path, bool]:
@@ -586,7 +593,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def locate_agilab_installation(verbose=False):
         """Attempt to locate the installed AGILab package path on disk."""
         return locate_agilab_installation_path(
-            module_file=__file__,
+            module_file=_public_agi_env_module_file(),
             find_spec=importlib.util.find_spec,
         )
 
