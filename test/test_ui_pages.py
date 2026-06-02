@@ -2943,8 +2943,8 @@ R = "runpy"
         assert "second prompt" in stored
 
 
-def test_project_status_page_owns_project_selectbox_and_sidebar_actions(mock_ui_env):
-    """The visible PROJECT status page exposes direct sidebar project actions."""
+def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_actions(mock_ui_env):
+    """The visible PROJECT status page keeps Edit and reuses PROJECT sidebar actions."""
     at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
@@ -2970,17 +2970,12 @@ def test_project_status_page_owns_project_selectbox_and_sidebar_actions(mock_ui_
         f"(main={len(main_selectboxes)}, sidebar={len(sidebar_selectboxes)}, "
         f"errors={[e.value for e in at.error]})"
     )
-    sidebar_button_keys = [button.key for button in at.sidebar.button]
     assert "project_selectbox" in selectbox_keys
-    assert "project_selectbox__edit" not in [button.key for button in at.button]
-    assert "project_selectbox__edit" not in sidebar_button_keys
-    assert {
-        "project_action__edit",
-        "project_action__create",
-        "project_action__import",
-        "project_action__rename",
-        "project_action__delete",
-    }.issubset(sidebar_button_keys)
+    assert "project_selectbox__edit" in [button.key for button in at.button]
+    assert "project_selectbox__edit" not in [button.key for button in at.sidebar.button]
+    assert at.session_state["sidebar_selection"] == "Create"
+    sidebar_labels = "\n".join(str(widget.label) for widget in at.sidebar)
+    assert "Project action" in sidebar_labels
     assert "project_filter" not in [ti.key for ti in at.sidebar.text_input]
 
 
