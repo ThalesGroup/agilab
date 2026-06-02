@@ -502,7 +502,6 @@ def test_release_preflight_profiles_only_for_real_pypi() -> None:
         "docs",
         "installer",
         "shared-core-typing",
-        "ty-typing",
         "dependency-policy",
         "release-proof",
     ]
