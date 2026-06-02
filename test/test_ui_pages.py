@@ -118,6 +118,9 @@ def test_primary_pages_keep_homogeneous_support_field_order() -> None:
     assert '"Apply",' in project_source
     assert "project_pypi_app_apply" in project_source
     assert "update_col, remove_col" not in project_source
+    assert 'with st.sidebar.expander(\n        "Quick actions"' in project_source
+    assert '"Project action"' not in project_source
+    assert '"None", *quick_actions' in project_source
     assert "def _batch_pypi_app_packages(" in project_source
     assert '"Update",' in project_source
     assert '"Remove",' in project_source
@@ -173,7 +176,7 @@ def test_primary_pages_keep_homogeneous_support_field_order() -> None:
         project_sidebar,
         (
             "_render_active_project_sidebar(env)",
-            '"Project action"',
+            "_render_project_quick_actions(actions)",
         ),
     )
 
@@ -2420,7 +2423,7 @@ def test_project_sidebar_orders_active_project_before_actions():
     sidebar_body = source[source.index("def render_project_sidebar(") :]
 
     active_project_index = sidebar_body.index("_render_active_project_sidebar(env)")
-    action_index = sidebar_body.index('"Project action"')
+    action_index = sidebar_body.index("_render_project_quick_actions(actions)")
 
     assert active_project_index < action_index
     assert "_render_sidebar_export_action" not in sidebar_body
@@ -3139,6 +3142,7 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     sidebar_selectboxes = list(at.sidebar.selectbox)
     sidebar_selectbox_labels = [str(selectbox.label) for selectbox in sidebar_selectboxes]
     assert "Catalog pypi.org" in sidebar_selectbox_labels
+    assert "Action" in sidebar_selectbox_labels
     assert "Catalog agi-app" not in sidebar_selectbox_labels
     selectbox_keys = [sb.key for sb in main_selectboxes] + [
         sb.key for sb in sidebar_selectboxes
@@ -3190,7 +3194,8 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     assert "Cluster share" in markdown_text
     assert "API keys" in markdown_text
     sidebar_labels = "\n".join(str(getattr(widget, "label", "")) for widget in at.sidebar)
-    assert "Project action" in sidebar_labels
+    assert "Quick actions" in sidebar_labels
+    assert "Project action" not in sidebar_labels
     assert "clone_dest" not in [ti.key for ti in at.sidebar.text_input]
     assert "project_filter" not in [ti.key for ti in at.sidebar.text_input]
 

@@ -178,6 +178,59 @@ def test_builtin_app_args_form_renders_without_streamlit_exception(
     assert not at.exception
 
 
+def test_flight_app_args_form_repairs_foreign_workspace_args(tmp_path: Path) -> None:
+    form_path = Path("src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py")
+    settings_file = tmp_path / "flight_telemetry_project" / "app_settings.toml"
+    settings_file.parent.mkdir(parents=True)
+    settings_file.write_text(
+        "\n".join(
+            (
+                "[cluster]",
+                "cluster_enabled = true",
+                "",
+                "[args]",
+                'dataset = "circles"',
+                "sample_count = 320",
+                "noise = 0.08",
+                'hidden_layers = "12,12"',
+                "learning_rate = 0.035",
+                "epochs = 90",
+            )
+        ),
+        encoding="utf-8",
+    )
+    env = _BuiltinFormEnv(
+        AGILAB_EXPORT_ABS=str(tmp_path / "export"),
+        active_app=str(form_path.parent.parent),
+        app="flight_telemetry_project",
+        app_settings_file=str(settings_file),
+        apps_path=str(form_path.parents[2]),
+        envars={},
+        share_root=tmp_path / "share",
+        target="flight_telemetry_project",
+    )
+
+    _clear_form_package_modules(form_path)
+    at = AppTest.from_file(str(form_path), default_timeout=30)
+    at.session_state["env"] = env
+    at.session_state["_env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+
+    at.run()
+
+    assert not at.exception
+    warning_text = "\n".join(str(message.value) for message in at.warning)
+    assert "Unable to load Flight args" not in warning_text
+    assert any("Reset incompatible Flight args" in str(message.value) for message in at.info)
+    with settings_file.open("rb") as stream:
+        persisted = tomllib.load(stream)
+    assert persisted["cluster"]["cluster_enabled"] is True
+    assert persisted["args"]["data_source"] == "file"
+    assert persisted["args"]["data_in"] == "flight_telemetry/dataset"
+    assert "dataset" not in persisted["args"]
+    assert "hidden_layers" not in persisted["args"]
+
+
 def test_minimal_app_app_args_form_renders_and_persists_args(tmp_path: Path) -> None:
     settings_file = tmp_path / "minimal_app_project" / "app_settings.toml"
     settings_file.parent.mkdir()

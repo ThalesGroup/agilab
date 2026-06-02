@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tomllib
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -48,10 +49,67 @@ def _parse_iso_date(value: Any, *, fallback: date) -> date:
     return fallback
 
 
+def _flight_arg_field_names() -> set[str]:
+    return set(FlightArgs.model_fields)
+
+
+def _read_stored_args_payload(settings_path: Path) -> dict[str, Any] | None:
+    if not settings_path.exists():
+        return {}
+    with settings_path.open("rb") as handle:
+        doc = tomllib.load(handle)
+    raw_payload = doc.get("args", {})
+    if not isinstance(raw_payload, dict):
+        return None
+    return dict(raw_payload)
+
+
+def _try_repair_foreign_args_payload(settings_path: Path) -> FlightArgs | None:
+    try:
+        raw_payload = _read_stored_args_payload(settings_path)
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    if not raw_payload:
+        return None
+
+    field_names = _flight_arg_field_names()
+    unknown_keys = sorted(key for key in raw_payload if key not in field_names)
+    if not unknown_keys:
+        return None
+
+    known_payload = {
+        key: value for key, value in raw_payload.items() if key in field_names
+    }
+    try:
+        repaired = apply_source_defaults(FlightArgs(**known_payload))
+    except Exception:
+        if known_payload:
+            return None
+        repaired = apply_source_defaults(FlightArgs())
+
+    try:
+        dump_args_to_toml(repaired, settings_path)
+    except Exception as exc:
+        st.caption(f"Flight args were repaired in memory but not persisted: {exc}")
+    else:
+        app_settings = st.session_state.get("app_settings")
+        if isinstance(app_settings, dict):
+            app_settings["args"] = repaired.to_toml_payload()
+            st.session_state["app_settings"] = app_settings
+        st.info(
+            f"Reset incompatible Flight args in `{settings_path}`; "
+            f"ignored {len(unknown_keys)} non-Flight field(s)."
+        )
+    return repaired
+
+
 def _load_current_args(settings_path: Path) -> FlightArgs:
     try:
         stored = load_args_from_toml(settings_path)
     except Exception as exc:
+        repaired = _try_repair_foreign_args_payload(settings_path)
+        if repaired is not None:
+            return repaired
         st.warning(f"Unable to load Flight args from `{settings_path}`: {exc}")
         return apply_source_defaults(FlightArgs())
     return apply_source_defaults(stored)
