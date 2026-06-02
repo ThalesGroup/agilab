@@ -12,6 +12,23 @@ from typing import Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 UV_RUN = ("uv", "--preview-features", "extra-build-dependencies", "run")
+DEFAULT_LINT_TARGETS = (
+    "src/agilab/security",
+    "src/agilab/evidence",
+    "src/agilab/agent_runtime",
+    "src/agilab/compat",
+    "src/agilab/core/agi-env/src/agi_env/ui/pagelib_selection_support.py",
+    "tools/agilab_audit.py",
+    "tools/agilab_dev.py",
+    "src/agilab/core/agi-env/test/test_pagelib_selection_support.py",
+    "test/test_agilab_audit.py",
+    "test/test_agilab_dev_shortcuts.py",
+    "test/test_agilab_module_layout.py",
+)
+DEFAULT_UNDEFINED_NAME_LINT_TARGETS = (
+    "src/agilab/core/agi-env/src/agi_env/ui/pagelib.py",
+    "src/agilab/core/agi-env/test/test_pagelib.py",
+)
 
 
 def _uv_python(*args: str) -> list[str]:
@@ -59,7 +76,18 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
         return [[*UV_RUN, "pytest", "-q", "-o", "addopts=", "--import-mode=importlib", *args]]
 
     if command == "lint":
-        return [_uv_dev("ruff", "check", *args)]
+        if args:
+            return [_uv_dev("ruff", "check", *args)]
+        return [
+            _uv_dev("ruff", "check", *DEFAULT_LINT_TARGETS),
+            _uv_dev(
+                "ruff",
+                "check",
+                "--select",
+                "F821,E9",
+                *DEFAULT_UNDEFINED_NAME_LINT_TARGETS,
+            ),
+        ]
 
     if command == "ruff":
         return [_uv_dev("ruff", *(args or ["check"]))]
@@ -214,7 +242,7 @@ High-frequency mappings:
   impact    -> Analyze changed files and list the required local validations; defaults to --staged.
   bugfix    -> Run impact triage, then run the GA-selected fast regression subset; defaults to --staged.
   test      -> Run targeted pytest with -q and repo-wide coverage disabled, while keeping all extra pytest arguments.
-  lint      -> Run Ruff through the repo dev extra; defaults to `ruff check`.
+  lint      -> Run Ruff through the repo dev extra on the default clean guardrail slice; pass paths for custom scope.
   regress   -> Use the GA regression selector on staged files and run the selected pytest subset.
   robust    -> Run the P0 robustness matrix of fail-closed bad-state scenarios.
   parallel-stage -> Create or validate a function + split rule + reducer contract for parallel execution.

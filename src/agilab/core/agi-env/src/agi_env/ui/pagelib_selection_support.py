@@ -110,7 +110,9 @@ def sidebar_views(
     """
     Create sidebar controls for lab and dataframe selection.
     """
-    env = session_state["env"]
+    env = session_state.get("env")
+    if env is None:
+        return
     export_root = path_cls(env.AGILAB_EXPORT_ABS)
     modules = session_state.get("modules", scan_dir_fn(export_root))
 

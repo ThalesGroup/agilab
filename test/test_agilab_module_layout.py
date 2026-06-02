@@ -87,6 +87,14 @@ def test_shared_core_compat_modules_preserve_legacy_module_identity():
     )
 
 
+def test_top_level_agilab_compat_modules_preserve_legacy_module_identity():
+    assert importlib.import_module("agilab.agent_run").__name__ == "agilab.agent_run"
+    assert (
+        importlib.import_module("agilab.pipeline_runtime").__name__
+        == "agilab.pipeline_runtime"
+    )
+
+
 def test_data_quality_gate_modules_are_classified_or_entrypoints() -> None:
     root = (
         Path(__file__).resolve().parents[1]

@@ -88,6 +88,36 @@ def test_lint_shortcut_provisions_ruff_from_dev_extra_by_default():
             "dev",
             "ruff",
             "check",
+            *agilab_dev.DEFAULT_LINT_TARGETS,
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--extra",
+            "dev",
+            "ruff",
+            "check",
+            "--select",
+            "F821,E9",
+            *agilab_dev.DEFAULT_UNDEFINED_NAME_LINT_TARGETS,
+        ],
+    ]
+
+
+def test_lint_shortcut_keeps_explicit_paths():
+    assert agilab_dev.planned_commands(["lint", "src/agilab/main_page.py"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--extra",
+            "dev",
+            "ruff",
+            "check",
+            "src/agilab/main_page.py",
         ]
     ]
 

@@ -197,6 +197,26 @@ def test_sidebar_views_support_and_on_df_change_manage_selection_state(tmp_path)
     assert stages_file.parent.is_dir()
 
 
+def test_sidebar_views_support_returns_when_environment_is_not_ready():
+    session_state = _State()
+    calls = []
+
+    sidebar_views(
+        session_state=session_state,
+        sidebar=_Sidebar(session_state),
+        scan_dir_fn=lambda path: calls.append(path),
+        find_files_fn=lambda _path: (_ for _ in ()).throw(AssertionError("no env")),
+        resolve_default_selection_fn=resolve_default_selection,
+        build_sidebar_dataframe_selection_fn=build_sidebar_dataframe_selection,
+        on_lab_change_fn=lambda *_args, **_kwargs: None,
+        on_df_change_fn=lambda *_args, **_kwargs: None,
+        path_cls=Path,
+    )
+
+    assert calls == []
+    assert session_state == {}
+
+
 def test_sidebar_views_support_handles_empty_dataframe_list(tmp_path):
     export_root = tmp_path / "export"
     (export_root / "lab_a").mkdir(parents=True)

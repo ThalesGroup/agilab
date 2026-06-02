@@ -2518,7 +2518,6 @@ def test_pagelib_wrapper_functions_delegate_selection_helpers(monkeypatch):
     monkeypatch.setattr(pagelib, "_resolve_active_app_impl", _capture_active)
     monkeypatch.setattr(pagelib, "_sidebar_views_impl", _capture_sidebar)
     monkeypatch.setattr(pagelib, "_on_df_change_impl", _capture_df)
-    monkeypatch.setattr(pagelib, "on_lab_change", lambda *_args, **_kwargs: None, raising=False)
     monkeypatch.setattr(pagelib, "load_last_stage", lambda *_args, **_kwargs: None, raising=False)
 
     assert pagelib.select_project(["demo_project"], "demo_project") == "selected"
@@ -2528,7 +2527,52 @@ def test_pagelib_wrapper_functions_delegate_selection_helpers(monkeypatch):
     assert captured["select"][1]["session_state"] is session_state
     assert captured["active"][1]["query_params"] == {"app": "demo"}
     assert captured["sidebar"][1]["session_state"] is session_state
+    assert captured["sidebar"][1]["on_lab_change_fn"] is pagelib.on_lab_change
     assert captured["df"][1]["session_state"] is session_state
+
+
+def test_on_lab_change_resets_project_state_and_persists_existing_app(tmp_path, monkeypatch):
+    class _SessionState(dict):
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    apps_path = tmp_path / "apps"
+    builtin_apps_path = apps_path / "builtin"
+    project_path = builtin_apps_path / "demo_project"
+    project_path.mkdir(parents=True)
+    state = _SessionState(
+        {
+            "index_page": "demo_project",
+            "demo_projectdf": "old.csv",
+            "stages_file": "old-stages.toml",
+            "df_file": "old.csv",
+            "env": SimpleNamespace(
+                apps_path=apps_path,
+                builtin_apps_path=builtin_apps_path,
+                projects=["demo_project"],
+            ),
+        }
+    )
+    stored = {}
+
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state=state))
+    monkeypatch.setattr(
+        pagelib,
+        "store_last_active_app",
+        lambda path: stored.setdefault("path", path),
+    )
+
+    pagelib.on_lab_change("demo_project")
+
+    assert "stages_file" not in state
+    assert "df_file" not in state
+    assert "demo_projectdf" not in state
+    assert state["_requested_lab_dir"] == "demo_project"
+    assert state["lab_dir"] == "demo_project"
+    assert state["project_changed"] is True
+    assert state["_experiment_reload_required"] is True
+    assert state["page_broken"] is True
+    assert stored["path"] == project_path
 
 
 def test_update_views_ignores_missing_page_between_listdir_and_stat(tmp_path, monkeypatch):
