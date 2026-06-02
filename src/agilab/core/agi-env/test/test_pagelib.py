@@ -2202,6 +2202,7 @@ def test_ensure_default_mlflow_experiment_ignores_create_error_and_retries_only_
 
 def test_activate_mlflow_keeps_server_stopped_when_port_never_opens(tmp_path, monkeypatch):
     errors: list[str] = []
+    launched: list[dict[str, object]] = []
     _patch_mlflow_cli(monkeypatch)
 
     class FakeSessionState(dict):
@@ -2221,13 +2222,23 @@ def test_activate_mlflow_keeps_server_stopped_when_port_never_opens(tmp_path, mo
     monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
     monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
     monkeypatch.setattr(pagelib, "_wait_for_listen_port", lambda _port: False)
-    monkeypatch.setattr(pagelib, "subproc", lambda *_args, **_kwargs: None)
+
+    def _record_subproc(_command, _cwd, **kwargs):
+        launched.append(kwargs)
+        return SimpleNamespace(pid=999999999, poll=lambda: 7, terminate=lambda: None)
+
+    monkeypatch.setattr(pagelib, "subproc", _record_subproc)
 
     started = pagelib.activate_mlflow(SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path))
 
     assert started is False
     assert fake_st.session_state.get("server_started") is False
     assert "mlflow_port" not in fake_st.session_state
+    assert launched
+    assert launched[0]["env"]["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] == "python"
+    assert launched[0]["stdout"].name == str(tmp_path / ".mlflow" / "mlflow-server.log")
+    assert launched[0]["stderr"] == pagelib.subprocess.STDOUT
+    assert launched[0]["start_new_session"] is True
     assert any("did not open its listening port" in message for message in errors)
 
 
