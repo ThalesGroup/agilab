@@ -287,7 +287,39 @@ def test_visual_baseline_records_support_absolute_paths_and_aliases(tmp_path) ->
     assert module._record_image_path(manifest, record) == image_path
     assert module.records_by_page(manifest)["home"] == record
     assert module.normalize_page_key("Execute now") == "orchestrate"
+    assert module.normalize_page_key("project-create-page.png") == "project-create"
+    assert module.normalize_page_key("project-page.png") == "project"
     assert module.normalize_page_key("custom diagnostics") == "custom-diagnostics"
+
+
+def test_visual_baseline_keeps_project_create_separate_from_project(tmp_path) -> None:
+    module = _load_module()
+    project_create = tmp_path / "project-create-page.png"
+    project = tmp_path / "project-page.png"
+    project_create.write_bytes(PNG_1X1)
+    project.write_bytes(PNG_1X1)
+    create_record = module.SCREENSHOTS.build_screenshot_record(
+        project_create,
+        page="project-create-page",
+        root=tmp_path,
+        created_at="2026-05-18T00:00:00Z",
+    )
+    project_record = module.SCREENSHOTS.build_screenshot_record(
+        project,
+        page="project-page",
+        root=tmp_path,
+        created_at="2026-05-18T00:00:00Z",
+    )
+    manifest = module.SCREENSHOTS.build_screenshot_manifest(
+        [create_record, project_record],
+        root=str(tmp_path),
+        created_at="2026-05-18T00:00:00Z",
+    )
+
+    records = module.records_by_page(manifest)
+
+    assert records["project-create"] == create_record
+    assert records["project"] == project_record
 
 
 def test_visual_baseline_report_json_cli_writes_output(tmp_path, capsys) -> None:

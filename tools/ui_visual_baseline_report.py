@@ -78,6 +78,7 @@ def normalize_page_key(value: str) -> str:
         ("workflow", ("workflow",)),
         ("analysis", ("analysis",)),
         ("settings", ("settings",)),
+        ("project-create", ("project-create",)),
         ("project", ("project",)),
     )
     for page, aliases in page_aliases:

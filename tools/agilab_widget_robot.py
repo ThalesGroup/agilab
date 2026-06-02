@@ -214,20 +214,20 @@ BROWSER_ISSUE_IGNORE_NEEDLES = (
 )
 PAGE_EXPECTED_TEXT = {
     "": ("Turn experiments", "First proof: built-in demo"),
-    "PROJECT": ("PROJECT", "Active app", "Project"),
-    "SETTINGS": ("SETTINGS", "Settings", "Runtime diagnostics", "Environment variables"),
-    "ORCHESTRATE": ("ORCHESTRATE", "INSTALL", "EXECUTE"),
-    "WORKFLOW": ("WORKFLOW", "Workflow", "Run"),
-    "ANALYSIS": ("ANALYSIS", "Choose pages", "View:"),
+    "PROJECT": ("PROJECT", "Flight Telemetry", "Install PyPI app"),
+    "SETTINGS": ("SETTINGS", "Settings", "README"),
+    "ORCHESTRATE": ("ORCHESTRATE", "Flight Telemetry", "Deploy"),
+    "WORKFLOW": ("WORKFLOW", "Flight Telemetry", "Data source"),
+    "ANALYSIS": ("ANALYSIS", "Flight Telemetry Project", "view_maps"),
 }
 PAGE_MIN_WIDGETS = {"": 1, "PROJECT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
 PAGE_ABOVE_FOLD_EXPECTED_LABELS = {
     "HOME": ("Turn experiments", "First proof: built-in demo"),
-    "PROJECT": ("PROJECT", "Active app", "Project"),
-    "SETTINGS": ("SETTINGS", "Runtime diagnostics", "Environment variables"),
-    "ORCHESTRATE": ("ORCHESTRATE", "INSTALL", "EXECUTE"),
-    "WORKFLOW": ("WORKFLOW", "Workflow", "Run"),
-    "ANALYSIS": ("ANALYSIS", "Choose pages", "View:"),
+    "PROJECT": ("PROJECT", "Flight Telemetry", "Install PyPI app"),
+    "SETTINGS": ("SETTINGS", "README"),
+    "ORCHESTRATE": ("ORCHESTRATE", "Flight Telemetry", "Deploy"),
+    "WORKFLOW": ("WORKFLOW", "Flight Telemetry", "Data source"),
+    "ANALYSIS": ("ANALYSIS", "Flight Telemetry Project", "view_maps"),
 }
 
 WIDGET_COLLECTOR_JS = r"""
