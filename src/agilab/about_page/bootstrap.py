@@ -160,17 +160,24 @@ def _normalize_path(value: Any) -> Path | None:
         return None
 
 
+def _canonical_apps_path(value: Any) -> Path | None:
+    path = _normalize_path(value)
+    if path is not None and path.name == "builtin":
+        return path.parent
+    return path
+
+
 def _existing_env_matches_apps_path(env: Any, apps_path: Path) -> bool:
-    expected = _normalize_path(apps_path)
+    expected = _canonical_apps_path(apps_path)
     if expected is None:
         return False
 
-    env_apps_path = _normalize_path(getattr(env, "apps_path", None))
+    env_apps_path = _canonical_apps_path(getattr(env, "apps_path", None))
     if env_apps_path is not None:
         return env_apps_path == expected
 
     active_app_path = _normalize_path(getattr(env, "active_app", None))
-    if active_app_path is not None and active_app_path.parent == expected:
+    if active_app_path is not None and _canonical_apps_path(active_app_path.parent) == expected:
         return True
 
     app_value = getattr(env, "app", None)
@@ -183,7 +190,7 @@ def _existing_env_matches_apps_path(env: Any, apps_path: Path) -> bool:
         and (explicit_app_path.is_absolute() or explicit_app_path.parent != Path("."))
     ):
         app_path = _normalize_path(app_value)
-        if app_path is not None and app_path.parent == expected:
+        if app_path is not None and _canonical_apps_path(app_path.parent) == expected:
             return True
 
     return False
@@ -198,6 +205,17 @@ def _recover_existing_env_for_apps_path(agi_env_cls: Any, apps_path: Path) -> An
     except RuntimeError:
         return None
     return env if _existing_env_matches_apps_path(env, apps_path) else None
+
+
+def _reset_agi_env_singleton(agi_env_cls: Any) -> bool:
+    reset = getattr(agi_env_cls, "reset", None)
+    if not callable(reset):
+        return False
+    try:
+        reset()
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return False
+    return True
 
 
 def persist_preinit_launch_env(
@@ -695,6 +713,27 @@ def bootstrap_page_environment(
             env = _recover_existing_env_for_apps_path(ports.agi_env_cls, apps_path)
             if env is not None:
                 streamlit.session_state["env"] = env
+            elif _reset_agi_env_singleton(ports.agi_env_cls):
+                persist_preinit_launch_env(
+                    ports.agi_env_cls,
+                    preinit_updates,
+                    environ=ports.environ,
+                )
+                try:
+                    env = ports.agi_env_cls(apps_path=apps_path, verbose=1)
+                except RuntimeError as retry_exc:
+                    if handle_data_root_failure(retry_exc, agi_env_cls=ports.agi_env_cls):
+                        return BootstrapResult(env=None, handled_recovery=True)
+                    if is_cluster_share_startup_error(retry_exc):
+                        handle_cluster_share_startup_error(
+                            streamlit=streamlit,
+                            exc=retry_exc,
+                            env_file_path=env_file_path,
+                            args=args,
+                            ports=ports,
+                        )
+                        return BootstrapResult(env=None, handled_recovery=True)
+                    raise
             else:
                 raise
         else:

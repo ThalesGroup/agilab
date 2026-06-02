@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-06-02T01:59:09Z",
+  "created_at": "2026-05-29T09:30:49Z",
   "kind": "agilab.screenshot_manifest",
   "root": "../thales_agilab/docs/source/_static/page-shots",
   "schema": "agilab.screenshot_manifest.v1",
@@ -8,115 +8,136 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-06-02T01:59:09Z",
-      "height_px": 850,
+      "created_at": "2026-05-29T09:30:49Z",
+      "height_px": 910,
       "image_path": "analysis-page.png",
       "page": "analysis",
       "project": "",
-      "sha256": "69e971e72e8558045dac958c1dc3be5916558920ac09a3d5012484aec42274d4",
-      "size_bytes": 232673,
+      "sha256": "b13d0613f5428ab4661a9b5115dd4c8d6819c43c813e3a4868b625c0a93bc0c6",
+      "size_bytes": 216711,
       "source_command": [
-        "clean-worktree-playwright-doc-page-shot-capture",
-        "1440x850-core-pages",
-        "1440x1000-project-create"
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "../thales_agilab/docs/source/_static/page-shots",
+        "--output",
+        "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
       ],
       "url": "",
-      "width_px": 1440
+      "width_px": 1600
     },
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-06-02T01:59:09Z",
-      "height_px": 850,
+      "created_at": "2026-05-29T09:30:49Z",
+      "height_px": 1310,
       "image_path": "core-pages-overview.png",
       "page": "core-pages-overview",
       "project": "",
-      "sha256": "c864b5b14e3bf92f0af764df2defa2f017305a0889998aa26f7f7be4eac21936",
-      "size_bytes": 435662,
+      "sha256": "14b1fe74e05d0db03ed897906e413f965fb1cf42463ad41209ec369036eb1415",
+      "size_bytes": 589930,
       "source_command": [
-        "clean-worktree-playwright-doc-page-shot-capture",
-        "1440x850-core-pages",
-        "1440x1000-project-create"
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "../thales_agilab/docs/source/_static/page-shots",
+        "--output",
+        "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
       ],
       "url": "",
-      "width_px": 1440
+      "width_px": 2086
     },
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-06-02T01:59:09Z",
-      "height_px": 850,
+      "created_at": "2026-05-29T09:30:49Z",
+      "height_px": 910,
       "image_path": "orchestrate-page.png",
       "page": "orchestrate",
       "project": "",
-      "sha256": "840b4bd8f3f33cb7924a9a2571e83962629ead43a891b8498a318fea3c7ff49d",
-      "size_bytes": 75064,
+      "sha256": "a34091eee6ecfb059e3d5dc33235f415a9718dc9f808d01beeb3c48b9df7ee27",
+      "size_bytes": 365616,
       "source_command": [
-        "clean-worktree-playwright-doc-page-shot-capture",
-        "1440x850-core-pages",
-        "1440x1000-project-create"
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "../thales_agilab/docs/source/_static/page-shots",
+        "--output",
+        "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
       ],
       "url": "",
-      "width_px": 1440
+      "width_px": 1600
     },
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-06-02T01:59:09Z",
-      "height_px": 1000,
+      "created_at": "2026-05-29T09:30:49Z",
+      "height_px": 1100,
       "image_path": "project-create-page.png",
       "page": "project-create",
       "project": "",
-      "sha256": "ea9dfc70552a974419dca6c05c5ad401ce3d68388886ac43e889dd38e3619c96",
-      "size_bytes": 70902,
+      "sha256": "3b417b2532fda437fa76280ba6b505781b635dc02dca1479aa92d5c4b1e37721",
+      "size_bytes": 76623,
       "source_command": [
-        "clean-worktree-playwright-doc-page-shot-capture",
-        "1440x850-core-pages",
-        "1440x1000-project-create"
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "../thales_agilab/docs/source/_static/page-shots",
+        "--output",
+        "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
       ],
       "url": "",
-      "width_px": 1440
+      "width_px": 1600
     },
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-06-02T01:59:09Z",
-      "height_px": 850,
+      "created_at": "2026-05-29T09:30:49Z",
+      "height_px": 910,
       "image_path": "project-page.png",
       "page": "project",
       "project": "",
-      "sha256": "fa73729b50cf68ac55c8642e6201a62d39d4e04962697657d992b5c3a139f810",
-      "size_bytes": 305874,
+      "sha256": "5e224490d92c51c207e266c508ee8e0302667ed6eca6f31b3a286614904b2e08",
+      "size_bytes": 263258,
       "source_command": [
-        "clean-worktree-playwright-doc-page-shot-capture",
-        "1440x850-core-pages",
-        "1440x1000-project-create"
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "../thales_agilab/docs/source/_static/page-shots",
+        "--output",
+        "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
       ],
       "url": "",
-      "width_px": 1440
+      "width_px": 1600
     },
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-06-02T01:59:09Z",
-      "height_px": 850,
+      "created_at": "2026-05-29T09:30:49Z",
+      "height_px": 910,
       "image_path": "workflow-page.png",
       "page": "workflow",
       "project": "",
-      "sha256": "0a32f81d0b9d8f1fa82d5392fdd2000a26054d6abf761185c6a216b812995b44",
-      "size_bytes": 304105,
+      "sha256": "5272c2dac44ea838a2bfe1cd4da306db7e2a4013b261a5c9c5b7772db6b5c3e3",
+      "size_bytes": 351517,
       "source_command": [
-        "clean-worktree-playwright-doc-page-shot-capture",
-        "1440x850-core-pages",
-        "1440x1000-project-create"
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "../thales_agilab/docs/source/_static/page-shots",
+        "--output",
+        "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
       ],
       "url": "",
-      "width_px": 1440
+      "width_px": 1600
     }
   ],
   "source_command": [
-    "clean-worktree-playwright-doc-page-shot-capture",
-    "1440x850-core-pages",
-    "1440x1000-project-create"
+    "python",
+    "tools/generate_screenshot_manifest.py",
+    "--root",
+    "../thales_agilab/docs/source/_static/page-shots",
+    "--output",
+    "../thales_agilab/docs/source/_static/page-shots/screenshot_manifest.json"
   ]
 }

@@ -1695,11 +1695,15 @@ def _render_orchestrate_readiness_panel(
     app_settings: dict[str, Any],
     install_status: dict[str, Any],
     show_run: bool,
-) -> None:
+) -> Any:
     """Render the shared first-run Environment Health surface."""
     del show_run
-    render_environment_health_panel(
-        st, env, app_settings=app_settings, install_status=install_status
+    return render_environment_health_panel(
+        st,
+        env,
+        app_settings=app_settings,
+        install_status=install_status,
+        render_details=False,
     )
 
 
@@ -2549,7 +2553,7 @@ async def page() -> None:
     )
     st.session_state["cluster_verbose"] = selected_verbose_int
 
-    _render_orchestrate_readiness_panel(
+    environment_health = _render_orchestrate_readiness_panel(
         env,
         app_settings=app_settings,
         install_status=install_status,
@@ -2623,6 +2627,7 @@ async def page() -> None:
         install_disabled_reason=install_block_reason,
         worker_env_required=worker_required_for_run,
     )
+    _environment_render_environment_details(st, environment_health.details)
 
 
 # ===========================
