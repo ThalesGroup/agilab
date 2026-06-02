@@ -1,15 +1,15 @@
-"""Compatibility loaders for UI helpers that are moving out of agi-env."""
+"""Compatibility shim for ``agi_gui._compat``.
+
+The implementation now lives in ``agi_gui.compat.module_alias``. Keep this shim so
+existing imports continue to work while internal code migrates to the classified
+package layout.
+"""
 
 from __future__ import annotations
 
-from importlib import import_module
-import sys
-from types import ModuleType
+from agi_gui.compat.module_alias import activate_compat_module as _activate_compat_module
 
-
-def alias_agi_env_module(target_name: str, source_name: str) -> ModuleType:
-    """Expose an existing agi_env UI module under the agi_gui namespace."""
-
-    module = import_module(source_name)
-    sys.modules[target_name] = module
-    return module
+_TARGET_MODULE = "agi_gui.compat.module_alias"
+_module = _activate_compat_module(__name__, _TARGET_MODULE)
+if _module is not None:
+    globals().update(_module.__dict__)

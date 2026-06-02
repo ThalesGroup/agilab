@@ -1,10 +1,8 @@
-"""AGILAB Streamlit UI package."""
+"""Reusable AGILAB Streamlit widgets."""
 
 from __future__ import annotations
 
-from importlib.metadata import PackageNotFoundError, version as _package_version
-
-from .widgets.file_picker import (
+from .file_picker import (
     FilePickerEntry,
     FilePickerRoot,
     agi_file_picker,
@@ -16,14 +14,7 @@ from .widgets.file_picker import (
     safe_upload_target,
     selected_paths_from_dataframe_state,
 )
-from .widgets.widget_registry import (
-    WidgetRegistry,
-    WidgetSpec,
-    default_widget_registry,
-    get_widget,
-    widget_registry_rows,
-)
-from .widgets.ux_widgets import (
+from .ux_widgets import (
     ActionSpec,
     ActionStyle,
     action_button,
@@ -39,24 +30,25 @@ from .widgets.ux_widgets import (
     status_container,
     toast,
 )
-
-try:
-    __version__ = _package_version("agi-gui")
-except PackageNotFoundError:
-    __version__ = "0+unknown"
+from .widget_registry import (
+    WidgetRegistry,
+    WidgetSpec,
+    default_widget_registry,
+    get_widget,
+    widget_registry_rows,
+)
 
 __all__ = [
-    "FilePickerEntry",
-    "FilePickerRoot",
     "ActionSpec",
     "ActionStyle",
+    "FilePickerEntry",
+    "FilePickerRoot",
     "WidgetRegistry",
     "WidgetSpec",
-    "__version__",
-    "agi_file_picker",
     "action_button",
     "action_row",
     "action_style",
+    "agi_file_picker",
     "compact_choice",
     "confirm_button",
     "default_widget_registry",

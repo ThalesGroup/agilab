@@ -9,6 +9,8 @@ from types import ModuleType
 
 
 AGI_GUI_ROOT = Path(__file__).resolve().parents[1]
+AGI_GUI_PACKAGE_ROOT = AGI_GUI_ROOT / "src" / "agi_gui"
+ENTRYPOINT_FILES = {"__init__.py"}
 
 
 def test_agi_gui_package_metadata_points_to_pages_lib() -> None:
@@ -82,3 +84,19 @@ def test_compatibility_proxy_modules_import_from_agi_env() -> None:
     for proxy_name in proxy_names:
         module = importlib.import_module(f"agi_gui.{proxy_name}")
         assert module.__name__ == f"agi_env.{proxy_name}"
+
+
+def test_top_level_agi_gui_modules_are_entrypoints_or_compatibility_shims() -> None:
+    direct_modules = sorted(AGI_GUI_PACKAGE_ROOT.glob("*.py"))
+
+    assert {path.name for path in direct_modules if path.name in ENTRYPOINT_FILES} == ENTRYPOINT_FILES
+
+    for path in direct_modules:
+        if path.name in ENTRYPOINT_FILES:
+            continue
+        text = path.read_text(encoding="utf-8")
+        assert "Compatibility shim" in text or "Compatibility import" in text
+        assert (
+            "activate_compat_module" in text
+            or "alias_agi_env_module" in text
+        ), path
