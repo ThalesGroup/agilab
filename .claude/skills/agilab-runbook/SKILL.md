@@ -160,6 +160,15 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   redundant fetch from `git pull` and avoids slow untracked scans. Group independent repo checks and
   fetches in parallel when the tooling allows it. If a checkout has tracked dirty paths, do not
   merge it until the dirty paths are reported and the update plan is adjusted.
+- **External AGILAB core pointer merges**: when a private app or integration repository
+  points `.external/agilab` at a stale AGILAB core branch and GitHub reports that
+  the branch has no history in common with current `main`, do not force-merge or
+  preserve the stale branch by default. Fetch the public AGILAB remote, check
+  whether the intended fix already exists on `origin/main`, move the external
+  pointer to the current public `origin/main` when it does, rerun the full
+  private app-local validation against that pointer, then commit only the
+  pointer update in the integration repository. After the pointer commit is
+  pushed and validated, delete the stale unmergeable public branch.
 - **Dirty worktree cleanup**: when cleaning stale local worktrees, do not delete dirty worktrees
   blindly. First inspect `git -C <worktree> status --short` and the branch relationship to
   `origin/main`. If dirty changes are obsolete but still worth preserving, archive
