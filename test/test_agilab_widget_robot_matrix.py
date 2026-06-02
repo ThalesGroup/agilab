@@ -406,7 +406,7 @@ def test_build_robot_command_enables_mobile_viewport(tmp_path) -> None:
 
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "PROJECT,ORCHESTRATE,ANALYSIS"
+    assert argv[argv.index("--pages") + 1] == "PROJECT,PROJECT_EDITOR,ORCHESTRATE,ANALYSIS"
     assert argv[argv.index("--viewport-width") + 1] == "390"
     assert argv[argv.index("--viewport-height") + 1] == "844"
     assert summary_path == tmp_path / "isolated-mobile-core-pages.json"
@@ -428,6 +428,7 @@ def test_build_robot_command_enables_release_evidence_controls(tmp_path) -> None
 
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
+    assert argv[argv.index("--pages") + 1] == "PROJECT,PROJECT_EDITOR,ORCHESTRATE,ANALYSIS"
     assert "--success-screenshot" in argv
     assert argv[argv.index("--max-first-render-seconds") + 1] == "90.0"
     assert argv[argv.index("--max-widgets-ready-seconds") + 1] == "30.0"
@@ -449,6 +450,7 @@ def test_build_robot_command_enables_fresh_browser_context(tmp_path) -> None:
 
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
+    assert argv[argv.index("--pages") + 1] == "PROJECT,PROJECT_EDITOR,ORCHESTRATE,ANALYSIS"
     assert "--fresh-browser-context-per-page" in argv
 
 
@@ -467,7 +469,7 @@ def test_build_robot_command_enables_keyboard_focus_check(tmp_path) -> None:
 
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
     assert "--keyboard-focus-check" in argv
 
 
@@ -506,7 +508,7 @@ def test_build_robot_command_enables_accessibility_check(tmp_path) -> None:
 
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
     assert "--accessibility-check" in argv
 
 
@@ -525,7 +527,7 @@ def test_build_robot_command_enables_browser_error_check(tmp_path) -> None:
 
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
     assert "--browser-error-check" in argv
 
 
@@ -571,7 +573,7 @@ def test_build_robot_command_enables_above_fold_check(tmp_path) -> None:
 
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
     assert "--above-fold-check" in argv
 
 
@@ -590,7 +592,7 @@ def test_build_robot_command_enables_visual_baseline_controls(tmp_path) -> None:
 
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
     assert "--success-screenshot" in argv
     assert "--visual-mask-dynamic-regions" in argv
     assert "--above-fold-check" in argv

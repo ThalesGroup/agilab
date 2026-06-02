@@ -445,7 +445,7 @@ def test_page_bootstrap_keeps_session_env_when_recorded_root_differs(tmp_path):
 
 
 def test_page_bootstrap_handles_defensive_path_and_lookup_edges(tmp_path):
-    apps_path = tmp_path / "apps"
+    apps_path = tmp_path / "repo" / "src" / "agilab" / "apps"
     apps_path.mkdir()
     (apps_path / "demo_project").mkdir()
 
@@ -1949,6 +1949,71 @@ def test_bootstrap_page_environment_reuses_warm_env_singleton(tmp_path, monkeypa
     assert port_calls.activated == []
 
 
+def test_bootstrap_page_environment_reuses_warm_source_builtin_singleton(
+    tmp_path, monkeypatch
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "repo" / "src" / "agilab" / "apps"
+    builtin_apps_path = apps_path / "builtin"
+    app_path = builtin_apps_path / "flight_telemetry_project"
+    app_path.mkdir(parents=True)
+    refreshed_envs: list[object] = []
+
+    existing_env = SimpleNamespace(
+        apps_path=builtin_apps_path,
+        app="flight_telemetry_project",
+        active_app=app_path,
+        projects={"flight_telemetry_project"},
+        is_source_env=True,
+        is_worker_env=False,
+        OPENAI_API_KEY="",
+        CLUSTER_CREDENTIALS="",
+        envars={},
+        init_done=False,
+    )
+
+    class WarmBuiltinAgiEnv:
+        @classmethod
+        def current(cls):
+            return existing_env
+
+        @staticmethod
+        def set_env_var(_key: str, _value: str) -> None:
+            return None
+
+        def __init__(self, *, apps_path: Path, verbose: int):
+            raise RuntimeError(
+                "AgiEnv is already initialised with a different configuration; "
+                "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
+            )
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(
+        bootstrap,
+        "default_agilab_path_file",
+        lambda **_kwargs: tmp_path / "missing-agilab-path",
+    )
+    ports, _port_calls = _make_bootstrap_ports(WarmBuiltinAgiEnv, environ={})
+
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=tmp_path / ".env",
+        load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+        logger=None,
+        apply_active_app_request=lambda _env, _requested: False,
+        handle_data_root_failure=lambda _exc, **_kwargs: False,
+        refresh_env_from_file=refreshed_envs.append,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+        ports=ports,
+    )
+
+    assert result.env is existing_env
+    assert fake_st.session_state["env"] is existing_env
+    assert existing_env.init_done is True
+    assert refreshed_envs == [existing_env]
+
+
 def test_bootstrap_page_environment_rejects_warm_env_with_different_apps_path(
     tmp_path, monkeypatch
 ):
@@ -2008,6 +2073,95 @@ def test_bootstrap_page_environment_rejects_warm_env_with_different_apps_path(
             store_cluster_credentials=lambda *_args, **_kwargs: True,
             ports=ports,
         )
+
+
+def test_bootstrap_page_environment_resets_unusable_warm_env_singleton(
+    tmp_path, monkeypatch
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "repo" / "src" / "agilab" / "apps"
+    app_path = apps_path / "flight_telemetry_project"
+    stale_apps_path = tmp_path / "stale" / "apps"
+    stale_app_path = stale_apps_path / "old_project"
+    app_path.mkdir(parents=True)
+    stale_app_path.mkdir(parents=True)
+    set_env_calls: list[tuple[str, str]] = []
+    refreshed_envs: list[object] = []
+
+    existing_env = SimpleNamespace(
+        apps_path=stale_apps_path,
+        app="old_project",
+        active_app=stale_app_path,
+        projects={"old_project"},
+        is_source_env=False,
+        is_worker_env=False,
+        OPENAI_API_KEY="",
+        CLUSTER_CREDENTIALS="",
+        envars={},
+        init_done=False,
+    )
+
+    class ResettableWarmAgiEnv:
+        reset_called = False
+
+        @classmethod
+        def current(cls):
+            return existing_env
+
+        @classmethod
+        def reset(cls):
+            cls.reset_called = True
+
+        @staticmethod
+        def set_env_var(key: str, value: str) -> None:
+            set_env_calls.append((key, value))
+
+        def __init__(self, *, apps_path: Path, verbose: int):
+            if not type(self).reset_called:
+                raise RuntimeError(
+                    "AgiEnv is already initialised with a different configuration; "
+                    "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
+                )
+            self.apps_path = apps_path
+            self.app = "flight_telemetry_project"
+            self.active_app = apps_path / self.app
+            self.projects = {"flight_telemetry_project"}
+            self.is_source_env = True
+            self.is_worker_env = False
+            self.OPENAI_API_KEY = ""
+            self.CLUSTER_CREDENTIALS = ""
+            self.envars = {}
+            self.init_done = False
+            self.verbose = verbose
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(
+        bootstrap,
+        "default_agilab_path_file",
+        lambda **_kwargs: tmp_path / "missing-agilab-path",
+    )
+    ports, _port_calls = _make_bootstrap_ports(ResettableWarmAgiEnv, environ={})
+
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=tmp_path / ".env",
+        load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+        logger=None,
+        apply_active_app_request=lambda _env, _requested: False,
+        handle_data_root_failure=lambda _exc, **_kwargs: False,
+        refresh_env_from_file=refreshed_envs.append,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+        ports=ports,
+    )
+
+    assert result.env is not existing_env
+    assert result.env.apps_path == apps_path
+    assert fake_st.session_state["env"] is result.env
+    assert result.env.init_done is True
+    assert ResettableWarmAgiEnv.reset_called is True
+    assert refreshed_envs == [result.env]
+    assert ("APPS_PATH", str(apps_path)) in set_env_calls
 
 
 def test_bootstrap_resolve_apps_path_rejects_empty_or_malformed_marker(tmp_path):

@@ -111,6 +111,7 @@ _environment_health_module = import_agilab_module(
 render_environment_health_panel = (
     _environment_health_module.render_environment_health_panel
 )
+render_environment_details = _environment_health_module.render_environment_details
 
 _page_project_selector_module = import_agilab_module(
     "agilab.page_project_selector",
@@ -944,9 +945,9 @@ def _install_pypi_app_package(
         requirement = _normalize_pypi_app_requirement(raw_requirement)
     except ValueError as exc:
         return ActionResult.warning(
-            "PyPI app package not installed.",
+            "agi-app not installed.",
             detail=str(exc),
-            next_action="Use a package name such as agi-app-weather-forecast.",
+            next_action="Use an agi-app name such as agi-app-weather-forecast.",
         )
 
     completed = _run_pypi_app_install(
@@ -958,15 +959,15 @@ def _install_pypi_app_package(
     data = completed.as_dict()
     if completed.status == "success":
         return ActionResult.success(
-            "PyPI app package installed.",
+            "agi-app installed.",
             detail=completed.output_tail or requirement,
             next_action="Refresh PROJECT or restart AGILAB, then select the new project.",
             data=data,
         )
     return ActionResult.error(
-        "PyPI app package install failed.",
+        "agi-app install failed.",
         detail=completed.output_tail or f"Command exited with {completed.returncode}.",
-        next_action="Check the package name, Python version support, and PyPI availability.",
+        next_action="Check the agi-app name, Python version support, and PyPI availability.",
         data=data,
     )
 
@@ -982,9 +983,9 @@ def _remove_pypi_app_package(
         package = _pypi_app_package_name(raw_requirement)
     except ValueError as exc:
         return ActionResult.warning(
-            "PyPI app package not removed.",
+            "agi-app not removed.",
             detail=str(exc),
-            next_action="Select an installed agi-app-* package.",
+            next_action="Select an installed agi-app.",
         )
 
     completed = _run_pypi_app_uninstall(
@@ -996,15 +997,15 @@ def _remove_pypi_app_package(
     data = completed.as_dict()
     if completed.status == "success":
         return ActionResult.success(
-            "PyPI app package removed.",
+            "agi-app removed.",
             detail=completed.output_tail or package,
             next_action="Refresh PROJECT or restart AGILAB.",
             data=data,
         )
     return ActionResult.error(
-        "PyPI app package remove failed.",
+        "agi-app remove failed.",
         detail=completed.output_tail or f"Command exited with {completed.returncode}.",
-        next_action="Check the package name and current Python environment.",
+        next_action="Check the agi-app name and current Python environment.",
         data=data,
     )
 
@@ -1014,15 +1015,15 @@ def _preflight_pypi_app_package(raw_requirement: str) -> ActionResult:
         preflight = _preflight_pypi_app_install(raw_requirement)
     except ValueError as exc:
         return ActionResult.warning(
-            "PyPI app package preflight did not run.",
+            "agi-app preflight did not run.",
             detail=str(exc),
-            next_action="Use a package name such as agi-app-weather-forecast.",
+            next_action="Use an agi-app name such as agi-app-weather-forecast.",
         )
     data = preflight.as_dict()
     metadata = preflight.metadata
     checks = [f"{key}: {value}" for key, value in preflight.checks.items()]
     detail_parts = [
-        f"Package: {preflight.package}",
+        f"agi-app: {preflight.package}",
         f"Version: {metadata.version if metadata else 'unknown'}",
         *checks,
     ]
@@ -1033,15 +1034,15 @@ def _preflight_pypi_app_package(raw_requirement: str) -> ActionResult:
     detail = "\n".join(detail_parts)
     if preflight.status == "pass":
         return ActionResult.success(
-            "PyPI app package preflight passed.",
+            "agi-app preflight passed.",
             detail=detail,
-            next_action="Review the package metadata, then install if it matches the expected app.",
+            next_action="Review the metadata, then install if it matches the expected app.",
             data=data,
         )
     return ActionResult.error(
-        "PyPI app package preflight failed.",
+        "agi-app preflight failed.",
         detail=detail,
-        next_action="Use another package or wait for a compatible release.",
+        next_action="Use another agi-app or wait for a compatible release.",
         data=data,
     )
 
@@ -1071,7 +1072,7 @@ def _render_pypi_metadata_summary(preflight_payload: dict[str, object] | None) -
     if isinstance(metadata, dict):
         rows.extend(
             [
-                {"Field": "Package", "Value": str(metadata.get("package") or "")},
+                {"Field": "agi-app", "Value": str(metadata.get("package") or "")},
                 {"Field": "Version", "Value": str(metadata.get("version") or "")},
                 {
                     "Field": "Requires-Python",
@@ -1120,13 +1121,13 @@ def _render_pypi_metadata_summary(preflight_payload: dict[str, object] | None) -
 
 def _render_installed_pypi_app_manager(env) -> None:
     installed = _list_installed_pypi_apps()
-    st.caption("Installed PyPI apps")
+    st.caption("Installed agi-apps")
     if not installed:
-        st.info("No installed agi-app-* packages were discovered.")
+        st.info("No installed agi-apps were discovered.")
         return
     rows = [
         {
-            "Package": app.package,
+            "agi-app": app.package,
             "Version": app.version,
             "Provider": app.provider,
             "Entry point": app.entry_point,
@@ -1137,26 +1138,26 @@ def _render_installed_pypi_app_manager(env) -> None:
     st.dataframe(rows, hide_index=True, width="stretch")
     package_options = sorted({app.package for app in installed}, key=str.lower)
     selected_package = st.selectbox(
-        "Installed package",
+        "Installed agi-app",
         options=package_options,
         key="project_pypi_app_installed_package",
     )
     confirmed = st.checkbox(
-        "Confirmed package management",
+        "Confirm agi-app management",
         key="project_pypi_app_manage_confirmed",
-        help="Update or remove only packages you intentionally installed into this AGILAB environment.",
+        help="Update or remove only agi-apps you intentionally installed into this AGILAB environment.",
     )
     update_col, remove_col = st.columns(2)
     with update_col:
         update_clicked = st.button(
-            "Update PyPI app",
+            "Update",
             key="project_pypi_app_update",
             disabled=not selected_package or not confirmed,
             width="stretch",
         )
     with remove_col:
         remove_clicked = st.button(
-            "Remove PyPI app",
+            "Remove",
             key="project_pypi_app_remove",
             disabled=not selected_package or not confirmed,
             width="stretch",
@@ -1165,10 +1166,10 @@ def _render_installed_pypi_app_manager(env) -> None:
         run_streamlit_action(
             st,
             ActionSpec(
-                name="Update PyPI app",
+                name="Update agi-app",
                 start_message=f"Updating {selected_package}...",
-                failure_title="PyPI app package update failed.",
-                failure_next_action="Check the package and current Python environment.",
+                failure_title="agi-app update failed.",
+                failure_next_action="Check the agi-app and current Python environment.",
             ),
             lambda: _install_pypi_app_package(selected_package),
             on_success=lambda _result: _refresh_projects_after_pypi_app_install(env),
@@ -1177,10 +1178,10 @@ def _render_installed_pypi_app_manager(env) -> None:
         run_streamlit_action(
             st,
             ActionSpec(
-                name="Remove PyPI app",
+                name="Remove agi-app",
                 start_message=f"Removing {selected_package}...",
-                failure_title="PyPI app package remove failed.",
-                failure_next_action="Check the package and current Python environment.",
+                failure_title="agi-app remove failed.",
+                failure_next_action="Check the agi-app and current Python environment.",
             ),
             lambda: _remove_pypi_app_package(selected_package),
             on_success=lambda _result: _refresh_projects_after_pypi_app_install(env),
@@ -1188,26 +1189,21 @@ def _render_installed_pypi_app_manager(env) -> None:
 
 
 def _render_pypi_app_install_action(env) -> None:
-    with st.sidebar.expander("Install PyPI app", expanded=False):
-        catalog_query = st.text_input(
-            "Catalog filter",
-            key="project_pypi_app_catalog_filter",
-            placeholder="weather",
-            help="Filter the promoted AGILAB app package catalog.",
-        )
-        catalog = _search_promoted_pypi_app_catalog(catalog_query)
+    with st.sidebar.expander("agi-app from PyPI", expanded=False):
+        catalog = _search_promoted_pypi_app_catalog("")
         catalog_options = ["", *catalog]
         catalog_choice = st.selectbox(
-            "Catalog package",
+            "Catalog agi-app",
             options=catalog_options,
             key="project_pypi_app_catalog_choice",
         )
-        raw_requirement = st.text_input(
-            "Package",
-            key="project_pypi_app_requirement",
-            placeholder="agi-app-weather-forecast",
-            help="Install one trusted agi-app-* package into the current AGILAB environment.",
-        )
+        with st.expander("Manual requirement", expanded=False):
+            raw_requirement = st.text_input(
+                "Requirement",
+                key="project_pypi_app_requirement",
+                placeholder="agi-app-weather-forecast==x.y.z",
+                help="Advanced override for an agi-app requirement. Leave empty to use the catalog selection.",
+            )
         selected_requirement = str(raw_requirement or "").strip() or catalog_choice
         requirement = ""
         if selected_requirement:
@@ -1220,7 +1216,7 @@ def _render_pypi_app_install_action(env) -> None:
 
         preflight_key = "project_pypi_app_preflight_payload"
         check_clicked = st.button(
-            "Check PyPI app",
+            "Check agi-app",
             key="project_pypi_app_preflight",
             disabled=not requirement,
             width="stretch",
@@ -1229,10 +1225,10 @@ def _render_pypi_app_install_action(env) -> None:
             result = run_streamlit_action(
                 st,
                 ActionSpec(
-                    name="Check PyPI app",
+                    name="Check agi-app",
                     start_message=f"Checking {requirement}...",
-                    failure_title="PyPI app package preflight failed.",
-                    failure_next_action="Check the package name and PyPI availability.",
+                    failure_title="agi-app preflight failed.",
+                    failure_next_action="Check the agi-app name and PyPI availability.",
                 ),
                 lambda: _preflight_pypi_app_package(requirement),
             )
@@ -1248,12 +1244,12 @@ def _render_pypi_app_install_action(env) -> None:
         )
 
         trusted = st.checkbox(
-            "Reviewed package",
+            "Reviewed agi-app",
             key="project_pypi_app_reviewed",
-            help="Only install PyPI packages you trust to run as local code.",
+            help="Only install agi-apps you trust to run as local code.",
         )
         install_clicked = st.button(
-            "Install PyPI app",
+            "Install agi-app",
             key="project_pypi_app_install",
             type="primary",
             disabled=not requirement or not trusted,
@@ -1263,17 +1259,18 @@ def _render_pypi_app_install_action(env) -> None:
             run_streamlit_action(
                 st,
                 ActionSpec(
-                    name="Install PyPI app",
+                    name="Install agi-app",
                     start_message=f"Installing {requirement}...",
-                    failure_title="PyPI app package install failed.",
-                    failure_next_action="Check the package name, Python version support, and PyPI availability.",
+                    failure_title="agi-app install failed.",
+                    failure_next_action="Check the agi-app name, Python version support, and PyPI availability.",
                 ),
                 lambda: _install_pypi_app_package(requirement),
                 on_success=lambda _result: _refresh_projects_after_pypi_app_install(
                     env
                 ),
             )
-        _render_installed_pypi_app_manager(env)
+        with st.expander("Installed agi-apps", expanded=False):
+            _render_installed_pypi_app_manager(env)
 
 
 def _repair_cloned_builtin_core_source_paths(
@@ -2528,8 +2525,10 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
 
 def render_project_dashboard(env) -> None:
     """Render PROJECT-owned dashboard panels for the active project."""
-    render_environment_health_panel(st, env)
-    _render_project_software_metrics(env)
+    health = render_environment_health_panel(st, env, render_details=False)
+    with st.expander("Project metrics", expanded=False):
+        _render_project_software_metrics(env)
+    render_environment_details(st, health.details)
 
 
 def handle_project_selection():
@@ -2587,7 +2586,6 @@ def _render_active_project_sidebar(env) -> None:
     projects = list(getattr(env, "projects", []) or [])
     if not projects:
         st.sidebar.info("No projects available.")
-    _render_pypi_app_install_action(env)
     env = st.session_state["env"]
     st.session_state["_env"] = env
 
@@ -2640,6 +2638,7 @@ def render_project_sidebar(
         label_visibility="collapsed",
         fallback="radio",
     )
+    _render_pypi_app_install_action(env)
 
     if sidebar_selection == "Overview":
         st.sidebar.info(
@@ -2874,13 +2873,7 @@ def _ast_base_name(node: ast.expr) -> str:
 
 
 def _project_worker_class_summary(project_root: Path | None) -> tuple[str, str]:
-    if project_root is None:
-        return "unknown", "project root missing"
-
-    candidate_roots = [project_root] if project_root.exists() else []
-    builtin_root = project_root.parent / "builtin" / project_root.name
-    if builtin_root.exists() and builtin_root not in candidate_roots:
-        candidate_roots.append(builtin_root)
+    candidate_roots = _project_metric_roots(project_root)
     if not candidate_roots:
         return "unknown", "project root missing"
 
@@ -2927,6 +2920,46 @@ def _project_worker_class_summary(project_root: Path | None) -> tuple[str, str]:
     return base_name, caption
 
 
+def _project_metric_roots(project_root: Path | None) -> list[Path]:
+    if project_root is None:
+        return []
+    candidate_roots = [project_root] if project_root.exists() else []
+    builtin_root = project_root.parent / "builtin" / project_root.name
+    if builtin_root.exists() and builtin_root not in candidate_roots:
+        candidate_roots.append(builtin_root)
+    return candidate_roots
+
+
+def _project_ui_page_count(active_app: Path | None) -> int:
+    candidate_roots = _project_metric_roots(active_app)
+    ui_files: set[Path] = set()
+    for root in candidate_roots:
+        pages_dir = root / "pages"
+        if pages_dir.is_dir():
+            ui_files.update(
+                path
+                for path in sorted(pages_dir.glob("*.py"))
+                if path.name != "__init__.py"
+            )
+        src_dir = root / "src"
+        if src_dir.is_dir():
+            for pattern in ("**/app_surface.py", "**/app_args_form.py", "**/streamlit_app.py"):
+                ui_files.update(
+                    path
+                    for path in sorted(src_dir.glob(pattern))
+                    if path.name != "__init__.py"
+                )
+    return len(ui_files)
+
+
+def _format_project_kloc(source_lines: object) -> str:
+    try:
+        lines = int(source_lines)
+    except (TypeError, ValueError):
+        return "unknown"
+    return f"{lines / 1000:.1f} KLOC"
+
+
 def _render_project_software_metrics(env) -> None:
     active_app = (
         Path(getattr(env, "active_app", ""))
@@ -2935,39 +2968,26 @@ def _render_project_software_metrics(env) -> None:
     )
     summary = _project_software_metric_summary(active_app)
     if summary is None:
-        _render_project_metric(
-            "Software metrics", "missing", _safe_display_path(active_app)
+        st.code(
+            f"Software metrics: missing ({_safe_display_path(active_app)})",
+            language="text",
         )
         return
     worker_class, worker_caption = _project_worker_class_summary(active_app)
-    with st.container(border=True):
-        top_cols = st.columns(3)
-        with top_cols[0]:
-            _render_project_metric("Worker class", worker_class, worker_caption)
-        with top_cols[1]:
-            _render_project_metric(
-                "Source LOC",
-                str(summary["source_lines"]),
-                "non-empty, non-comment Python lines",
+    st.code(
+        "\n".join(
+            (
+                f"Worker class: {worker_class} ({worker_caption})",
+                f"Source KLOC: {_format_project_kloc(summary['source_lines'])}",
+                f"Tests: {summary['test_files']}",
+                f"Functions: {summary['functions']}",
+                f"Classes: {summary['classes']}",
+                f"Docs/config files: {summary['docs_config']}",
+                f"UI pages: {_project_ui_page_count(active_app)}",
             )
-        with top_cols[2]:
-            _render_project_metric(
-                "Tests", str(summary["test_files"]), "test_*.py and test/ files"
-            )
-
-        bottom_cols = st.columns(3)
-        with bottom_cols[0]:
-            _render_project_metric(
-                "Functions", str(summary["functions"]), "sync and async definitions"
-            )
-        with bottom_cols[1]:
-            _render_project_metric(
-                "Classes", str(summary["classes"]), "Python class definitions"
-            )
-        with bottom_cols[2]:
-            _render_project_metric(
-                "Docs/config", str(summary["docs_config"]), "docs, TOML, JSON, YAML"
-            )
+        ),
+        language="text",
+    )
 
 
 def _expander_icon(label: str) -> str:

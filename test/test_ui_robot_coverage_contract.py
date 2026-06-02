@@ -325,7 +325,7 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
     module = _load_module()
     core_scenario = SimpleNamespace(
         name="core-selected-actions",
-        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        pages="HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
         click_action_labels="INSTALL,CHECK distribute,Run -> Load -> Export",
     )

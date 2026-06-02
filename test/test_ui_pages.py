@@ -428,7 +428,7 @@ def test_first_party_pages_configure_docs_menu_items() -> None:
         ),
         "src/agilab/pages/1_PROJECT_STATUS.py": (
             "render_page_chrome(",
-            "render_project_status_page(",
+            "render_project_dashboard(env)",
             'docs_html_file="edit-help.html"',
         ),
         "src/agilab/pages/2_ORCHESTRATE.py": (
@@ -1035,6 +1035,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert str(data_share) not in markdown_text
     expander_labels = [str(item.label) for item in at.expander]
     assert "Environment details" in expander_labels
+    assert expander_labels[-1] == "Environment details"
     assert "Evidence drawer" not in expander_labels
     assert "Install logs" not in expander_labels
     assert "Observe benchmark results" not in expander_labels
@@ -2238,6 +2239,7 @@ def test_edit_page_load(mock_ui_env):
     assert "Worker class" not in markdown_text
     assert "Source files" not in markdown_text
     assert "Source LOC" not in markdown_text
+    assert "Source KLOC" not in markdown_text
     assert "Functions" not in markdown_text
     assert "Classes" not in markdown_text
     assert "Docs/config" not in markdown_text
@@ -2284,7 +2286,10 @@ def test_project_sidebar_orders_active_project_before_actions():
     assert "_render_sidebar_project_metric" not in source
     assert "workspace ready" not in source
     assert "def render_project_dashboard(env)" in source
-    assert "_render_project_software_metrics(env)" in source
+    dashboard_body = source[source.index("def render_project_dashboard(env)") :]
+    dashboard_body = dashboard_body.split("def handle_project_selection(", 1)[0]
+    assert 'st.expander("Project metrics", expanded=False)' in dashboard_body
+    assert "_render_project_software_metrics(env)" in dashboard_body
     assert "_render_edit_project_metric" not in source
     assert "Choose what to do with the active project" not in source
     assert "Actions below apply to this selected project" not in source
@@ -2298,7 +2303,7 @@ def test_project_sidebar_orders_active_project_before_actions():
     assert '["Edit", "Clone", "Import", "Rename", "Delete"]' not in source
     assert "_render_project_workspace_overview" not in source
     assert "Python package used by RUN/ORCHESTRATE" not in source
-    assert "Source LOC" in source
+    assert "Source KLOC" in source
     assert "Project Name (no suffix)" not in source
     assert "New Project Name (no suffix)" not in source
 
@@ -2953,6 +2958,23 @@ R = "runpy"
         assert "second prompt" in stored
 
 
+def test_project_metrics_count_ui_pages_and_format_kloc(tmp_path):
+    project_page = _load_project_page_module()
+    project = tmp_path / "demo_project"
+    (project / "pages").mkdir(parents=True)
+    (project / "pages" / "1_PROJECT.py").write_text("import streamlit as st\n", encoding="utf-8")
+    (project / "pages" / "__init__.py").write_text("", encoding="utf-8")
+    package = project / "src" / "demo_project"
+    package.mkdir(parents=True)
+    (package / "app_surface.py").write_text("import streamlit as st\n", encoding="utf-8")
+    (package / "app_args_form.py").write_text("import streamlit as st\n", encoding="utf-8")
+    (package / "streamlit_app.py").write_text("import streamlit as st\n", encoding="utf-8")
+
+    assert project_page._project_ui_page_count(project) == 4
+    assert project_page._format_project_kloc(1540) == "1.5 KLOC"
+    assert project_page._format_project_kloc("bad") == "unknown"
+
+
 def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_actions(mock_ui_env):
     """The visible PROJECT page keeps Edit and reuses PROJECT sidebar actions."""
     at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
@@ -2989,11 +3011,16 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     assert "clone_env_strategy" not in at.session_state
     assert any(button.label == "Export" for button in at.sidebar.button)
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
-    assert "Worker class" in markdown_text
-    assert "Source LOC" in markdown_text
-    assert "Functions" in markdown_text
-    assert "Classes" in markdown_text
-    assert "Docs/config" in markdown_text
+    expander_labels = [str(item.label) for item in at.expander]
+    assert "Project metrics" in expander_labels
+    code_text = "\n".join(str(item.value) for item in at.code)
+    assert "Worker class" in code_text
+    assert "agilab-project-metric" not in markdown_text
+    assert "Source KLOC" in code_text
+    assert "Functions" in code_text
+    assert "Classes" in code_text
+    assert "Docs/config files" in code_text
+    assert "UI pages" in code_text
     assert "Project path" in markdown_text
     assert "Manager env" in markdown_text
     assert "Worker env" in markdown_text

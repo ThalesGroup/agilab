@@ -51,6 +51,10 @@ def test_resolve_pages_accepts_all_csv_and_home_alias() -> None:
     assert module.resolve_pages("all") == list(module.DEFAULT_PAGES)
     assert module.resolve_pages("none") == []
     assert module.resolve_pages("PROJECT, ANALYSIS") == ["PROJECT", "ANALYSIS"]
+    assert module.resolve_pages("PROJECT_EDITOR, PROJECT_EDIT") == [
+        "PROJECT_EDITOR",
+        "PROJECT_EDIT",
+    ]
 
 
 def test_settings_page_has_stable_robot_expectations() -> None:
@@ -69,8 +73,8 @@ def test_core_page_above_fold_expectations_track_current_layout() -> None:
     assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["PROJECT"] == (
         "PROJECT",
         "Flight Telemetry",
-        "Install PyPI app",
-        "Worker class",
+        "agi-app from PyPI",
+        "Project path",
     )
     assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["ORCHESTRATE"] == (
         "ORCHESTRATE",
@@ -87,6 +91,20 @@ def test_core_page_above_fold_expectations_track_current_layout() -> None:
         "Flight Telemetry Project",
         "view_maps",
     )
+
+
+def test_project_editor_page_has_stable_robot_expectations() -> None:
+    module = _load_module()
+
+    expected = ("PROJECT", "Flight Telemetry", "Edit project files")
+
+    assert "PROJECT_EDITOR" in module.DEFAULT_PAGES
+    assert module.PAGE_EXPECTED_TEXT["PROJECT_EDITOR"] == expected
+    assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["PROJECT_EDITOR"] == expected
+    assert module.PAGE_MIN_WIDGETS["PROJECT_EDITOR"] == 5
+    assert module.PAGE_EXPECTED_TEXT["PROJECT_EDIT"] == expected
+    assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["PROJECT_EDIT"] == expected
+    assert module.PAGE_MIN_WIDGETS["PROJECT_EDIT"] == 5
 
 
 def test_append_route_query_preserves_active_app_and_adds_deep_link() -> None:

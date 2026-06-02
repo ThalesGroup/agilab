@@ -177,6 +177,18 @@ def test_first_launch_robot_main_reports_human_failure(capsys, monkeypatch) -> N
     assert "synthetic failure" in output
 
 
+def test_first_launch_robot_readme_route_targets_project_editor() -> None:
+    module = _load_module()
+
+    route = module._readme_route("flight_telemetry_project")
+
+    assert route == (
+        "/PROJECT_EDITOR?active_app=flight_telemetry_project&"
+        "sidebar_selection=Edit&project_section=readme"
+    )
+    assert "/PROJECT_EDIT?" not in route
+
+
 def test_first_launch_robot_rejects_non_positive_timeouts() -> None:
     module = _load_module()
 

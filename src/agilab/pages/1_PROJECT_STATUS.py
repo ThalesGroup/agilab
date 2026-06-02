@@ -12,7 +12,6 @@ import streamlit as st
 from agilab.page_bootstrap import ensure_page_env, render_page_chrome
 from agilab.page_project_selector import render_project_selector
 from agilab.project_sidebar_support import PROJECT_STATUS_ACTIONS
-from agilab.workflow_ui import render_project_status_page
 
 _PROJECT_EDITOR_PAGE_MODULE = "agilab_project_edit_page_shared"
 
@@ -71,7 +70,6 @@ def main() -> None:
         render_edit_body=False,
     )
     project_editor_page.render_project_dashboard(env)
-    render_project_status_page(st, env=env)
 
 
 if __name__ == "__main__":
