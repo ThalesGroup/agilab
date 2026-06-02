@@ -95,7 +95,18 @@ def activate_compat_module(
     current_module = sys.modules.get(current_name)
     if current_module is None:
         return module
+    legacy_metadata = {
+        "__name__": current_module.__dict__.get("__name__"),
+        "__package__": current_module.__dict__.get("__package__"),
+        "__loader__": current_module.__dict__.get("__loader__"),
+        "__spec__": current_module.__dict__.get("__spec__"),
+        "__file__": current_module.__dict__.get("__file__"),
+        "__cached__": current_module.__dict__.get("__cached__"),
+    }
     current_module.__dict__.update(module.__dict__)
+    for key, value in legacy_metadata.items():
+        if value is not None:
+            current_module.__dict__[key] = value
     current_module.__dict__["_AGILAB_COMPAT_TARGET_MODULE"] = module
     current_module.__class__ = _CompatModule
     return None

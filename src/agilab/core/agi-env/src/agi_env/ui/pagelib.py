@@ -1051,7 +1051,7 @@ def sidebar_views():
         find_files_fn=find_files,
         resolve_default_selection_fn=resolve_default_selection,
         build_sidebar_dataframe_selection_fn=build_sidebar_dataframe_selection,
-        on_lab_change_fn=on_lab_change,  # ty: ignore[unresolved-reference]
+        on_lab_change_fn=on_lab_change,
         on_df_change_fn=on_df_change,
         path_cls=Path,
     )
@@ -1060,6 +1060,45 @@ def sidebar_views():
 def load_last_stage(_module_dir, _stages_file, _index_page_str):
     """Optional hook used by legacy sidebar integrations after dataframe changes."""
     return None
+
+
+def on_lab_change(new_index_page):
+    """Reset stale page state when the sidebar switches to another project."""
+    session_state = st.session_state
+    session_state.pop("stages_file", None)
+    session_state.pop("df_file", None)
+    session_state.pop(str(session_state.get("index_page", "")) + "df", None)
+    session_state["_requested_lab_dir"] = new_index_page
+    session_state["lab_dir"] = new_index_page
+    session_state["project_changed"] = True
+    session_state["_experiment_reload_required"] = True
+    try:
+        session_state.page_broken = True
+    except AttributeError:
+        session_state["page_broken"] = True
+
+    env = session_state.get("env")
+    if env is None:
+        return
+    try:
+        apps_path = Path(env.apps_path)
+        preferred_base = getattr(env, "builtin_apps_path", None)
+        candidates = active_app_candidates(
+            new_index_page,
+            apps_path,
+            getattr(env, "projects", None) or [],
+            preferred_base=Path(preferred_base) if preferred_base else None,
+        )
+        for candidate in candidates:
+            if candidate.exists():
+                store_last_active_app(candidate)
+                break
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        logger.debug(
+            "Could not persist active app selection for %s",
+            new_index_page,
+            exc_info=True,
+        )
 
 
 def on_df_change(module_dir, index_page, df_file=None, stages_file=None):

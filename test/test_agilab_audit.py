@@ -60,3 +60,13 @@ def test_strict_audit_still_warns_on_unexpected_detached_checkout(monkeypatch, t
     assert report["detached"] is True
     assert report["detached_expected"] is False
     assert "detached HEAD" in report["warnings"]
+
+
+def test_audit_worktree_reports_missing_path_without_running_git(tmp_path: Path) -> None:
+    missing = tmp_path / "stale-worktree"
+
+    report = agilab_audit._audit_worktree(missing, fetch=True)
+
+    assert report["status"] == "missing worktree path"
+    assert report["head"] is None
+    assert "missing worktree path; run git worktree prune" in report["warnings"]

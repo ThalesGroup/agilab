@@ -22,15 +22,18 @@ SCHEMA_VERSION = "agilab.audit.v1"
 
 
 def _run(command: list[str], *, cwd: Path = ROOT, timeout: int = 60) -> tuple[int, str, str]:
-    completed = subprocess.run(
-        command,
-        cwd=cwd,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=timeout,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        return 127, "", str(exc)
     return completed.returncode, completed.stdout.strip(), completed.stderr.strip()
 
 
@@ -70,6 +73,18 @@ def _worktrees() -> list[dict[str, str]]:
 
 
 def _audit_worktree(path: Path, *, fetch: bool) -> dict[str, Any]:
+    if not path.exists():
+        return {
+            "path": str(path),
+            "status": "missing worktree path",
+            "branch": None,
+            "detached": False,
+            "detached_expected": False,
+            "head": None,
+            "upstream": None,
+            "ahead_behind_origin_main": None,
+            "warnings": ["missing worktree path; run git worktree prune"],
+        }
     if fetch:
         _git(["fetch", "--prune", "origin"], cwd=path)
     rc, status, err = _git(["status", "--short", "--branch", "--untracked-files=no"], cwd=path)
