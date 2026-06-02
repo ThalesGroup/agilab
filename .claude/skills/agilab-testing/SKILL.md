@@ -121,6 +121,21 @@ Use this skill when validating changes.
   - Treat compatibility fallbacks that strip unsupported arguments as suspect:
     add one regression proving the fallback is not hiding a product-path
     downgrade.
+- Source-tree reorganization regressions:
+  - When moving modules into classified packages, test both static shim targets
+    and runtime legacy identity (`__name__`, `__package__`) for representative
+    import-safe shims. A shim that imports the right target but exposes the
+    target module name is still broken for callers, monkeypatching, and
+    diagnostics.
+  - For `agi-app-*` package payloads, treat the built-in app project as the
+    canonical source and `src/agilab/lib/app_project_build_support.py` as the
+    generator. Do not hand-edit embedded package payload copies without
+    regenerating or validating them against the generated payload contract.
+  - After app/package/page tree changes, run
+    `uv --preview-features extra-build-dependencies run python tools/app_contract_matrix.py --quiet`
+    or `./dev app-contracts` so stale embedded app payloads, package-data drift,
+    page-bundle contract drift, and local artifact leakage are caught before
+    release.
 - Cluster/share regressions:
   - For live cluster validation, never assume a worker IP from memory or a prior
     run. Run the official no-cache LAN discovery first and use only a fresh

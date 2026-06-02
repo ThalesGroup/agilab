@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-02T17:18:09Z",
+  "generated_at_utc": "2026-06-02T20:08:55Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -1751,18 +1751,24 @@
     {
       "schema": "agilab.notebook_export_handoff.v1",
       "sources": [
+        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.md",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
     {
       "schema": "agilab.notebook_export_manifest.v1",
       "sources": [
+        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
     {
       "schema": "agilab.notebook_export_portability.v1",
       "sources": [
+        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },

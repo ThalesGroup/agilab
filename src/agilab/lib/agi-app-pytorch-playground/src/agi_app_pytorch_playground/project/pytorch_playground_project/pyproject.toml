@@ -5,10 +5,10 @@ description = "Built-in AGILab app for reproducible PyTorch classifier playgroun
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "agi-env>=2026.05.30.post1",
-    "agi-node>=2026.05.30.post1",
-    "agi-cluster>=2026.05.30.post1",
-    "agi-gui>=2026.05.30.post1",
+    "agi-env>=2026.05.31",
+    "agi-node>=2026.05.31",
+    "agi-cluster>=2026.05.31",
+    "agi-gui>=2026.05.31",
     "agi-web>=2026.05.31",
     "numpy>=2.2,<3",
     "pandas>=2.3.0,<4",
@@ -26,6 +26,7 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
 [tool.agilab.app]
 distribution_preview = false
 service_mode = false

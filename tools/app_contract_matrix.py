@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 import tomllib
 from typing import Any, Mapping, Sequence
 
@@ -25,6 +26,7 @@ PUBLIC_APP_CATALOG_REL = Path("docs/source/public-app-catalog.rst")
 APPS_PAGES_CATALOG_REL = Path("docs/source/apps-pages.rst")
 AGI_APPS_CATALOG_REL = Path("src/agilab/lib/agi-apps/src/agi_apps/catalog.json")
 AGI_PAGES_PROVIDER_REL = Path("src/agilab/lib/agi-pages/src/agi_pages/__init__.py")
+APP_PROJECT_BUILD_SUPPORT_REL = Path("src/agilab/lib/app_project_build_support.py")
 REDUCER_EXEMPT_PROJECTS = frozenset({"minimal_app_project", "multi_app_dag_project"})
 OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS = frozenset(
     {
@@ -35,6 +37,23 @@ OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS = frozenset(
         "pytorch_playground_project",
     }
 )
+PAYLOAD_EXCLUDED_DIRS = frozenset(
+    {
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".venv",
+        "__pycache__",
+        "Modules",
+        "agilab",
+        "build",
+        "dist",
+        "notebooks",
+        "test",
+    }
+)
+PAYLOAD_EXCLUDED_FILES = frozenset({".DS_Store", ".gitignore", ".lock", "uv.lock"})
+PAYLOAD_EXCLUDED_SUFFIXES = frozenset({".c", ".pid", ".pyc", ".pyo", ".pyx", ".so"})
 
 
 @dataclass(frozen=True)
@@ -125,6 +144,180 @@ def _has_dependency(dependencies: Sequence[str], package: str) -> bool:
     return any(pattern.match(item.strip()) for item in dependencies)
 
 
+def _literal_string_assignments(path: Path, names: set[str]) -> dict[str, str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    values: dict[str, str] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not isinstance(node.value, ast.Constant) or not isinstance(node.value.value, str):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id in names:
+                values[target.id] = node.value.value
+    return values
+
+
+def _payload_package_data(pyproject: Mapping[str, Any], package_import: str) -> tuple[str, ...]:
+    tool = pyproject.get("tool", {})
+    setuptools = tool.get("setuptools", {}) if isinstance(tool, dict) else {}
+    package_data = (
+        setuptools.get("package-data", {})
+        if isinstance(setuptools, dict)
+        else {}
+    )
+    raw = package_data.get(package_import, ()) if isinstance(package_data, dict) else ()
+    if not isinstance(raw, list):
+        return ()
+    return tuple(str(item) for item in raw)
+
+
+def _payload_file_index(root: Path) -> dict[str, bytes]:
+    """Return comparable generated-payload files below ``root``."""
+
+    if not root.is_dir():
+        return {}
+
+    files: dict[str, bytes] = {}
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root)
+        if any(part in PAYLOAD_EXCLUDED_DIRS or part.endswith(".egg-info") for part in relative.parts):
+            continue
+        if not path.is_file():
+            continue
+        if path.name in PAYLOAD_EXCLUDED_FILES or path.suffix in PAYLOAD_EXCLUDED_SUFFIXES:
+            continue
+        files[relative.as_posix()] = path.read_bytes()
+    return files
+
+
+def _generated_app_payload_index(build_support: Any, project_name: str) -> dict[str, bytes]:
+    with tempfile.TemporaryDirectory(prefix="agilab-app-payload-") as tmp_dir:
+        target_root = Path(tmp_dir) / "project"
+        build_support.copy_app_project_payload(project_name, target_root)
+        return _payload_file_index(target_root / project_name)
+
+
+def _app_payload_contract_errors(
+    repo_root: Path,
+    package_specs: Mapping[str, str],
+    package_to_project: Mapping[str, str],
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Return generated-payload hook errors and checked-in payload drift."""
+
+    try:
+        build_support = _load_module(
+            repo_root,
+            APP_PROJECT_BUILD_SUPPORT_REL,
+            "agilab_app_contract_build_support",
+        )
+        raw_specs = build_support.app_project_specs()
+        build_support_error = ""
+    except Exception as exc:
+        build_support = None
+        raw_specs = ()
+        build_support_error = str(exc)
+
+    build_specs = {
+        str(spec.get("distribution")): {
+            "project": str(spec.get("project")),
+            "package": str(spec.get("package")),
+        }
+        for spec in raw_specs
+        if isinstance(spec, dict)
+    }
+    contract_errors: dict[str, dict[str, Any]] = {}
+    drift_errors: dict[str, dict[str, Any]] = {}
+
+    if build_support_error:
+        return (
+            {
+                "*": {
+                    "build_support": str(APP_PROJECT_BUILD_SUPPORT_REL),
+                    "error": build_support_error,
+                }
+            },
+            {},
+        )
+
+    for package, package_path in sorted(package_specs.items()):
+        expected_project = package_to_project.get(package, "")
+        build_spec = build_specs.get(package)
+        package_root = repo_root / package_path
+        setup_py = package_root / "setup.py"
+        pyproject_path = package_root / "pyproject.toml"
+        package_import = build_spec.get("package", "") if build_spec else ""
+        errors: dict[str, Any] = {}
+
+        if build_spec is None:
+            errors["missing_build_support_spec"] = True
+        elif build_spec.get("project") != expected_project:
+            errors["build_support_project"] = build_spec.get("project")
+            errors["expected_project"] = expected_project
+
+        try:
+            setup_values = _literal_string_assignments(setup_py, {"APP_PROJECT", "PACKAGE_IMPORT"})
+        except Exception as exc:
+            setup_values = {}
+            errors["setup_py_error"] = str(exc)
+        if setup_values.get("APP_PROJECT") != expected_project:
+            errors["setup_app_project"] = setup_values.get("APP_PROJECT")
+        if package_import and setup_values.get("PACKAGE_IMPORT") != package_import:
+            errors["setup_package_import"] = setup_values.get("PACKAGE_IMPORT")
+            errors["expected_package_import"] = package_import
+
+        try:
+            pyproject = _read_toml(pyproject_path)
+            package_data = _payload_package_data(pyproject, package_import)
+        except Exception as exc:
+            package_data = ()
+            errors["pyproject_error"] = str(exc)
+        if "project/**/*" not in package_data:
+            errors["package_data"] = list(package_data)
+            errors["expected_package_data"] = "project/**/*"
+
+        if errors:
+            contract_errors[package] = {
+                "package_path": package_path,
+                "project": expected_project,
+                **errors,
+            }
+
+        if not build_support or not package_import or not expected_project:
+            continue
+        embedded_payload = package_root / "src" / package_import / "project" / expected_project
+        if not embedded_payload.exists():
+            continue
+        generated_files = _generated_app_payload_index(build_support, expected_project)
+        embedded_files = _payload_file_index(embedded_payload)
+        missing = sorted(set(generated_files) - set(embedded_files))
+        extra = sorted(set(embedded_files) - set(generated_files))
+        changed = sorted(
+            path
+            for path in set(generated_files) & set(embedded_files)
+            if generated_files[path] != embedded_files[path]
+        )
+        if missing or extra or changed:
+            drift_errors[package] = {
+                "embedded_payload": _relative(repo_root, embedded_payload),
+                "missing_from_embedded": missing,
+                "extra_in_embedded": extra,
+                "changed": changed,
+            }
+
+    missing_build_specs = sorted(set(package_specs) - set(build_specs))
+    extra_build_specs = sorted(set(build_specs) - set(package_specs))
+    if missing_build_specs or extra_build_specs:
+        contract_errors.setdefault(
+            "*",
+            {
+                "missing_build_support_distributions": missing_build_specs,
+                "extra_build_support_distributions": extra_build_specs,
+            },
+        )
+    return contract_errors, drift_errors
+
+
 def _tracked_builtin_project_names(repo_root: Path) -> set[str] | None:
     """Return tracked built-in project directory names for git checkouts."""
     try:
@@ -165,6 +358,45 @@ def _tracked_builtin_project_names(repo_root: Path) -> set[str] | None:
         if project_name.endswith("_project"):
             names.add(project_name)
     return names
+
+
+def _tracked_children(repo_root: Path, root_rel: Path) -> set[str] | None:
+    """Return tracked direct children below ``root_rel`` for git checkouts."""
+
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "ls-files",
+                "-z",
+                "--",
+                str(root_rel),
+            ],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except (OSError, ValueError):
+        return None
+    if result.returncode != 0:
+        return None
+
+    children: set[str] = set()
+    prefix = root_rel.as_posix()
+    for item in result.stdout.split("\0"):
+        if not item:
+            continue
+        path = Path(item)
+        try:
+            rel = path.relative_to(prefix)
+        except ValueError:
+            continue
+        if rel.parts:
+            children.add(rel.parts[0])
+    return children
 
 
 def discover_builtin_projects(repo_root: Path) -> tuple[Path, ...]:
@@ -614,10 +846,71 @@ def _global_checks(
             details={"errors": package_mapping_errors, "package_to_project": package_to_project},
         )
     ]
+    payload_contract_errors, payload_drift_errors = _app_payload_contract_errors(
+        repo_root,
+        package_specs,
+        package_to_project,
+    )
+    checks.append(
+        _check(
+            "app_packages_use_generated_payload_contract",
+            "App packages use generated built-in payload contract",
+            not payload_contract_errors,
+            "app package setup hooks and package-data declarations generate payloads from built-in app sources",
+            evidence=(
+                str(APP_PROJECT_BUILD_SUPPORT_REL),
+                "tools/package_split_contract.py",
+                "src/agilab/lib/agi-app-*/setup.py",
+            ),
+            details={"errors": payload_contract_errors},
+        )
+    )
+    checks.append(
+        _check(
+            "checked_in_app_payloads_match_generated_payloads",
+            "Checked-in app payloads match generated payloads",
+            not payload_drift_errors,
+            "any checked-in embedded app payloads match the generated built-in source payload",
+            evidence=(str(APP_PROJECT_BUILD_SUPPORT_REL), "src/agilab/lib/agi-app-*"),
+            details={"errors": payload_drift_errors},
+        )
+    )
 
     page_package_to_module = {
         package: Path(page_path).name for package, page_path in sorted(page_package_specs.items())
     }
+    tracked_page_children = _tracked_children(repo_root, APPS_PAGES_REL)
+    if tracked_page_children is None:
+        tracked_page_children = {
+            path.name
+            for path in (repo_root / APPS_PAGES_REL).iterdir()
+            if path.is_file() or path.is_dir()
+        }
+    allowed_page_root_files = {"README.md", ".gitignore", "__init__.py"}
+    allowed_page_root_dirs = {"templates"}
+    invalid_page_children = sorted(
+        child
+        for child in tracked_page_children
+        if child not in allowed_page_root_files
+        and child not in allowed_page_root_dirs
+        and not child.startswith("view_")
+    )
+    unexpected_root_python = sorted(
+        child for child in tracked_page_children if child.endswith(".py") and child != "__init__.py"
+    )
+    checks.append(
+        _check(
+            "apps_pages_root_keeps_asset_bundle_shape",
+            "Apps-pages root keeps asset-bundle shape",
+            not invalid_page_children and not unexpected_root_python,
+            "apps-pages root only carries the provider, docs, templates, and view_* bundle projects",
+            evidence=(str(APPS_PAGES_REL), "tools/package_split_contract.py"),
+            details={
+                "invalid_children": invalid_page_children,
+                "unexpected_root_python": unexpected_root_python,
+            },
+        )
+    )
     page_mapping_errors = {
         package: {
             "package_path": page_package_specs[package],

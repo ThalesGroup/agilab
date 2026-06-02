@@ -4,7 +4,9 @@ import ast
 import builtins
 import importlib
 import json
+import os
 import runpy
+import subprocess
 import sys
 from pathlib import Path
 import tomllib
@@ -187,6 +189,33 @@ def _target_module_from_tescia_shim(path: Path) -> str:
     raise AssertionError(f"{path} does not declare _TARGET_MODULE")
 
 
+def _assert_tescia_legacy_module_identity(package_src: Path, modules: list[str]) -> None:
+    script = f"""
+import importlib
+
+modules = {modules!r}
+for name in modules:
+    module = importlib.import_module(name)
+    expected_package = name.rpartition(".")[0]
+    if module.__name__ != name or module.__package__ != expected_package:
+        raise AssertionError(
+            f"{{name}} exposed {{module.__name__}} / {{module.__package__}}"
+        )
+"""
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(package_src.resolve())
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path.cwd(),
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
 def test_tescia_diagnostic_modules_are_classified_or_entrypoints() -> None:
     package_root = APP_SRC / "tescia_diagnostic"
     direct_modules = sorted(package_root.glob("*.py"))
@@ -204,6 +233,13 @@ def test_tescia_diagnostic_modules_are_classified_or_entrypoints() -> None:
         assert "activate_compat_module" in text
         assert "classified" in text
         assert "package layout" in text
+
+    legacy_modules = [
+        f"tescia_diagnostic.{path.stem}"
+        for path in direct_modules
+        if path.name != "__init__.py"
+    ]
+    _assert_tescia_legacy_module_identity(package_root.parent, legacy_modules)
 
 
 def test_tescia_classified_modules_keep_bundled_resource_paths(monkeypatch) -> None:

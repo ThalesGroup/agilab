@@ -61,7 +61,8 @@ Use this runbook whenever you:
   `memory` checks path-scoped maintenance notes for source drift,
   `docs` keeps the public mirror aligned, `scope` fails fast when unrelated dirty
   scopes are mixed, `task-worktree` creates a sibling checkout for one isolated
-  branch, and `clean` dry-runs removal of ignored local build/lib duplicates unless `--apply`
+  branch, and `clean` dry-runs removal of ignored local build/lib duplicates
+  plus ignored local artifact directories under `src/agilab` unless `--apply`
   is passed. Use `--print-only` to audit the expanded commands.
 - **Upgrade packaged tools first**: Before launching the published CLI with `uvx
   agilab`, run `uv --preview-features extra-build-dependencies tool install --upgrade agilab` to install or pick up the latest wheel.

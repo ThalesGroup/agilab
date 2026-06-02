@@ -32,6 +32,9 @@ def test_app_contract_matrix_passes_current_repo():
     assert "pytorch_playground_project:worker_pyproject" in check_ids
     assert "page_bundle_specs_point_to_source_bundles" in check_ids
     assert "page_bundle_pyprojects_match_package_contract" in check_ids
+    assert "app_packages_use_generated_payload_contract" in check_ids
+    assert "checked_in_app_payloads_match_generated_payloads" in check_ids
+    assert "apps_pages_root_keeps_asset_bundle_shape" in check_ids
     assert "apps_pages_catalog_matches_page_contract" in check_ids
     assert "agi_pages_provider_matches_page_bundle_contract" in check_ids
     assert "promoted_pypi_app_catalog_matches_package_split" in check_ids
@@ -153,6 +156,67 @@ def test_app_contract_matrix_detects_page_bundle_pyproject_drift():
     assert failed["page_bundle_pyprojects_match_package_contract"]["details"]["errors"][
         "agi-page-renamed-map"
     ]["name"] == "agi-page-geospatial-map"
+
+
+def test_app_contract_matrix_detects_checked_in_payload_drift(tmp_path: Path, monkeypatch):
+    module = _load_module()
+    package_root = tmp_path / "src/agilab/lib/agi-app-demo"
+    package_import_root = package_root / "src/agi_app_demo"
+    embedded_project = package_import_root / "project/demo_project"
+    embedded_project.mkdir(parents=True)
+    (embedded_project / "value.txt").write_text("old\n", encoding="utf-8")
+    (package_root / "setup.py").write_text(
+        "APP_PROJECT = 'demo_project'\nPACKAGE_IMPORT = 'agi_app_demo'\n",
+        encoding="utf-8",
+    )
+    (package_root / "pyproject.toml").write_text(
+        "\n".join(
+            [
+                "[project]",
+                'name = "agi-app-demo"',
+                'version = "1.0"',
+                "",
+                "[tool.setuptools.package-data]",
+                '"agi_app_demo" = ["project/**/*"]',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeBuildSupport:
+        @staticmethod
+        def app_project_specs():
+            return (
+                {
+                    "project": "demo_project",
+                    "distribution": "agi-app-demo",
+                    "package": "agi_app_demo",
+                },
+            )
+
+        @staticmethod
+        def copy_app_project_payload(project_name: str, target_root: Path):
+            generated_project = target_root / project_name
+            generated_project.mkdir(parents=True)
+            (generated_project / "value.txt").write_text("new\n", encoding="utf-8")
+            return []
+
+    def _fake_load_module(_repo_root: Path, relative_path: Path, _module_name: str):
+        if relative_path == module.APP_PROJECT_BUILD_SUPPORT_REL:
+            return FakeBuildSupport
+        raise AssertionError(relative_path)
+
+    monkeypatch.setattr(module, "_load_module", _fake_load_module)
+
+    contract_errors, drift_errors = module._app_payload_contract_errors(
+        tmp_path,
+        {"agi-app-demo": "src/agilab/lib/agi-app-demo"},
+        {"agi-app-demo": "demo_project"},
+    )
+
+    assert contract_errors == {}
+    assert drift_errors["agi-app-demo"]["changed"] == ["value.txt"]
 
 
 def test_app_contract_matrix_cli_writes_json_output(tmp_path: Path, capsys):

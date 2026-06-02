@@ -50,3 +50,49 @@ def test_clean_stale_build_libs_reports_missing_trees(tmp_path: Path) -> None:
     results = clean_local_artifacts.clean_stale_build_libs(tmp_path, apply=True)
 
     assert [result.action for result in results] == ["missing", "missing"]
+
+
+def test_ignored_local_artifact_paths_stay_under_src_agilab(tmp_path: Path) -> None:
+    ignored_targets = [
+        tmp_path / "src/agilab/apps/builtin/demo_project/.venv",
+        tmp_path / "src/agilab/apps-pages/view_demo/__pycache__",
+        tmp_path / "src/agilab/lib/agi-demo/build",
+    ]
+    unsafe_target = tmp_path / "scratch/.venv"
+    for target in [*ignored_targets, unsafe_target]:
+        target.mkdir(parents=True)
+        (target / "artifact.txt").write_text("local\n", encoding="utf-8")
+
+    results = clean_local_artifacts.clean_ignored_local_artifacts(
+        tmp_path,
+        apply=False,
+        ignored_fn=lambda _root, _target: True,
+    )
+
+    assert [result.action for result in results] == ["would-remove"] * 3
+    assert [result.path for result in results] == [
+        "src/agilab/apps/builtin/demo_project/.venv",
+        "src/agilab/apps-pages/view_demo/__pycache__",
+        "src/agilab/lib/agi-demo/build",
+    ]
+    assert unsafe_target.exists()
+
+
+def test_clean_ignored_local_artifacts_apply_removes_only_safe_targets(tmp_path: Path) -> None:
+    target = tmp_path / "src/agilab/apps/builtin/demo_project/.pytest_cache"
+    target.mkdir(parents=True)
+    (target / "artifact.txt").write_text("local\n", encoding="utf-8")
+    outside = tmp_path / ".pytest_cache"
+    outside.mkdir()
+
+    results = clean_local_artifacts.clean_ignored_local_artifacts(
+        tmp_path,
+        apply=True,
+        ignored_fn=lambda _root, _target: True,
+    )
+
+    assert [result.path for result in results] == [
+        "src/agilab/apps/builtin/demo_project/.pytest_cache"
+    ]
+    assert not target.exists()
+    assert outside.exists()

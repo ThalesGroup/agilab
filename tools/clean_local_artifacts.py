@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 from typing import NamedTuple, Sequence
 
@@ -16,6 +16,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 STALE_BUILD_LIB_DIRS = (
     Path("src/agilab/core/agi-env/build/lib"),
     Path("src/agilab/core/agi-node/build/lib"),
+)
+LOCAL_ARTIFACT_DIR_NAMES = frozenset(
+    {
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".venv",
+        "__pycache__",
+        "build",
+        "dist",
+    }
 )
 
 
@@ -44,7 +55,7 @@ def stale_build_lib_paths(root: Path) -> list[Path]:
     return [root / rel for rel in STALE_BUILD_LIB_DIRS]
 
 
-def _is_safe_clean_target(root: Path, target: Path) -> bool:
+def _is_safe_build_lib_target(root: Path, target: Path) -> bool:
     resolved_root = root.resolve()
     resolved_target = target.resolve(strict=False)
     try:
@@ -52,6 +63,46 @@ def _is_safe_clean_target(root: Path, target: Path) -> bool:
     except ValueError:
         return False
     return resolved_target.name == "lib" and resolved_target.parent.name == "build"
+
+
+def _is_safe_local_artifact_target(root: Path, target: Path) -> bool:
+    resolved_root = root.resolve()
+    resolved_target = target.resolve(strict=False)
+    try:
+        relative = resolved_target.relative_to(resolved_root)
+    except ValueError:
+        return False
+    return len(relative.parts) >= 3 and relative.parts[:2] == ("src", "agilab") and target.name in LOCAL_ARTIFACT_DIR_NAMES
+
+
+def _is_git_ignored(root: Path, target: Path) -> bool:
+    completed = subprocess.run(
+        ["git", "-C", str(root), "check-ignore", "-q", "--", str(target)],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return completed.returncode == 0
+
+
+def ignored_local_artifact_paths(root: Path, *, ignored_fn=_is_git_ignored) -> list[Path]:
+    """Return ignored local artifact directories below ``src/agilab``."""
+
+    source_root = root / "src" / "agilab"
+    if not source_root.is_dir():
+        return []
+
+    targets: list[Path] = []
+    for current, dirnames, _filenames in os.walk(source_root):
+        current_path = Path(current)
+        for dirname in list(dirnames):
+            candidate = current_path / dirname
+            if dirname not in LOCAL_ARTIFACT_DIR_NAMES:
+                continue
+            dirnames.remove(dirname)
+            if _is_safe_local_artifact_target(root, candidate) and ignored_fn(root, candidate):
+                targets.append(candidate)
+    return sorted(targets)
 
 
 def clean_stale_build_libs(root: Path, *, apply: bool = False) -> list[CleanResult]:
@@ -64,7 +115,7 @@ def clean_stale_build_libs(root: Path, *, apply: bool = False) -> list[CleanResu
         if not exists:
             results.append(CleanResult(path=rel, action="missing", exists=False))
             continue
-        if not _is_safe_clean_target(root, target):
+        if not _is_safe_build_lib_target(root, target):
             raise RuntimeError(f"Refusing unsafe clean target: {target}")
         if apply:
             shutil.rmtree(target)
@@ -72,6 +123,34 @@ def clean_stale_build_libs(root: Path, *, apply: bool = False) -> list[CleanResu
         else:
             results.append(CleanResult(path=rel, action="would-remove", exists=True))
     return results
+
+
+def clean_ignored_local_artifacts(root: Path, *, apply: bool = False, ignored_fn=_is_git_ignored) -> list[CleanResult]:
+    """Dry-run or remove ignored local artifact directories below ``src/agilab``."""
+
+    results: list[CleanResult] = []
+    for target in ignored_local_artifact_paths(root, ignored_fn=ignored_fn):
+        rel = target.relative_to(root).as_posix()
+        if not _is_safe_local_artifact_target(root, target):
+            raise RuntimeError(f"Refusing unsafe clean target: {target}")
+        if apply:
+            shutil.rmtree(target)
+            results.append(CleanResult(path=rel, action="removed", exists=True))
+        else:
+            results.append(CleanResult(path=rel, action="would-remove", exists=True))
+    return results
+
+
+def clean_local_artifacts(root: Path, *, apply: bool = False) -> list[CleanResult]:
+    """Dry-run or remove known ignored local artifacts."""
+
+    by_path: dict[str, CleanResult] = {}
+    for result in [*clean_stale_build_libs(root, apply=apply), *clean_ignored_local_artifacts(root, apply=apply)]:
+        if result.action == "missing":
+            by_path.setdefault(result.path, result)
+            continue
+        by_path[result.path] = result
+    return [by_path[path] for path in sorted(by_path)]
 
 
 def _print_human(results: Sequence[CleanResult], *, apply: bool) -> None:
@@ -100,7 +179,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = repo_root(args.repo)
-    results = clean_stale_build_libs(root, apply=bool(args.apply))
+    results = clean_local_artifacts(root, apply=bool(args.apply))
 
     if args.json:
         payload = {
