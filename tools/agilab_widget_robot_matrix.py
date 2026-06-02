@@ -593,14 +593,14 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
     "current-home-first-proof-golden-path": RobotScenario(
         name="current-home-first-proof-golden-path",
         description=(
-            "Exercise the local first-proof path through INSTALL, CHECK, RUN/LOAD/EXPORT, "
+            "Exercise the local first-proof path through Deploy workers, CHECK, RUN/LOAD/EXPORT, "
             "then reopen ANALYSIS and assert first-proof artifacts are available."
         ),
         pages="ORCHESTRATE,ANALYSIS",
         apps_pages="none",
         runtime_isolation="current-home",
         action_button_policy="click-selected",
-        click_action_labels="INSTALL,CHECK distribute,Run -> Load -> Export",
+        click_action_labels="Deploy workers,CHECK distribute,Run -> Load -> Export",
         preselect_labels="Run now",
         route_query="first_proof_action=install",
         missing_selected_action_policy="ignore-absent",
@@ -614,14 +614,14 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
     "hf-first-proof-install": RobotScenario(
         name="hf-first-proof-install",
         description=(
-            "Run the hosted Hugging Face first-proof app INSTALL actions and "
+            "Run the hosted Hugging Face first-proof app Deploy workers actions and "
             "fail on fatal install feedback rendered in the page or action log."
         ),
         pages="ORCHESTRATE",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="click-selected",
-        click_action_labels="INSTALL",
+        click_action_labels="Deploy workers",
         missing_selected_action_policy="fail",
         action_timeout_seconds=600.0,
         page_timeout_seconds=900.0,

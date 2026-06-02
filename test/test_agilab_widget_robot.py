@@ -599,7 +599,7 @@ def test_keyboard_focus_result_probe_fails_on_focus_trap() -> None:
         display="PROJECT",
         url="http://demo/PROJECT",
         focusable_count=5,
-        visited_labels=["INSTALL", "INSTALL", "INSTALL"],
+        visited_labels=["Deploy workers", "Deploy workers", "Deploy workers"],
     )
 
     assert direct_failure.status == "failed"
@@ -756,8 +756,8 @@ def test_above_fold_result_probe_reports_missing_primary_target() -> None:
         app_name="flight_telemetry_project",
         display="ORCHESTRATE",
         url="http://demo/ORCHESTRATE",
-        expected_labels=("ORCHESTRATE", "INSTALL", "EXECUTE"),
-        seen_labels=("ORCHESTRATE", "INSTALL"),
+        expected_labels=("ORCHESTRATE", "Deploy workers", "EXECUTE"),
+        seen_labels=("ORCHESTRATE", "Deploy workers"),
         fold=900,
     )
 
@@ -773,7 +773,7 @@ def test_above_fold_result_probe_accepts_primary_targets() -> None:
         app_name="flight_telemetry_project",
         display="ORCHESTRATE",
         url="http://demo/ORCHESTRATE",
-        expected_labels=("ORCHESTRATE", "INSTALL", "EXECUTE"),
+        expected_labels=("ORCHESTRATE", "Deploy workers", "EXECUTE"),
         seen_labels=("ORCHESTRATE", "INSTALL action", "EXECUTE action"),
         fold=900,
     )
@@ -2091,7 +2091,7 @@ def test_current_home_action_preflight_allows_disabled_cluster_with_missing_shar
         active_app_query="flight_telemetry_project",
         page_name="ORCHESTRATE",
         action_button_policy="click-selected",
-        click_action_labels=["INSTALL"],
+        click_action_labels=["Deploy workers"],
         runtime_isolation="current-home",
         server_env={"AGI_CLUSTER_ENABLED": "0"},
         home_root=fake_home,
@@ -2144,7 +2144,7 @@ def test_current_home_action_preflight_blocks_missing_worker_dependency(tmp_path
     assert "weather_forecast_project" in detail
     assert "weather_forecast_worker" in detail
     assert "skforecast" in detail
-    assert "Run INSTALL" in detail
+    assert "Run Deploy workers" in detail
     assert calls
     argv = calls[0]["argv"]
     assert argv[:6] == ["/usr/bin/uv", "--quiet", "run", "--no-sync", "--project", str(worker_root)]
@@ -2161,7 +2161,7 @@ def test_current_home_action_preflight_does_not_block_install_when_worker_missin
         active_app_query="weather_forecast_project",
         page_name="ORCHESTRATE",
         action_button_policy="click-selected",
-        click_action_labels=["INSTALL"],
+        click_action_labels=["Deploy workers"],
         runtime_isolation="current-home",
         server_env={"AGI_CLUSTER_ENABLED": "0"},
         home_root=fake_home,
@@ -5276,7 +5276,7 @@ def test_install_selected_action_requires_enabled_followup_button(tmp_path) -> N
 
         def evaluate(self, script):
             if script == module.WIDGET_COLLECTOR_JS:
-                return [{"id": "install", "kind": "button", "label": "INSTALL", "disabled": True}]
+                return [{"id": "install", "kind": "button", "label": "Deploy workers", "disabled": True}]
             if script in {
                 module.OPEN_EXPANDERS_JS,
                 module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS,
@@ -5292,11 +5292,11 @@ def test_install_selected_action_requires_enabled_followup_button(tmp_path) -> N
     try:
         status, detail = module._probe_widget(
             _Page(),
-            {"id": "install", "kind": "button", "label": "INSTALL"},
+            {"id": "install", "kind": "button", "label": "Deploy workers"},
             timeout_ms=100,
             interaction_mode="full",
             action_button_policy="click-selected",
-            click_action_labels=["INSTALL"],
+            click_action_labels=["Deploy workers"],
             action_timeout_ms=100,
             upload_file=tmp_path / "fixture.txt",
             restore_view=None,
@@ -5305,7 +5305,7 @@ def test_install_selected_action_requires_enabled_followup_button(tmp_path) -> N
         module._wait_for_action_outcome = original_wait_for_action_outcome
 
     assert status == "failed"
-    assert "action='INSTALL' status=error" in detail
+    assert "action='Deploy workers' status=error" in detail
     assert "no expected enabled follow-up action" in detail
     assert clicks == [{"timeout": 100}]
 
@@ -5358,11 +5358,11 @@ def test_install_selected_action_passes_when_followup_is_enabled(tmp_path) -> No
     try:
         status, detail = module._probe_widget(
             _Page(),
-            {"id": "install", "kind": "button", "label": "INSTALL"},
+            {"id": "install", "kind": "button", "label": "Deploy workers"},
             timeout_ms=100,
             interaction_mode="full",
             action_button_policy="click-selected",
-            click_action_labels=["INSTALL"],
+            click_action_labels=["Deploy workers"],
             action_timeout_ms=100,
             upload_file=tmp_path / "fixture.txt",
             restore_view=None,
@@ -5371,7 +5371,7 @@ def test_install_selected_action_passes_when_followup_is_enabled(tmp_path) -> No
         module._wait_for_action_outcome = original_wait_for_action_outcome
 
     assert status == "interacted"
-    assert "action='INSTALL' status=success" in detail
+    assert "action='Deploy workers' status=success" in detail
     assert "enabled follow-up action 'CHECK distribute'" in detail
 
 
@@ -5540,7 +5540,7 @@ def test_unselected_action_button_is_trial_clicked_only(tmp_path) -> None:
 
     status, detail = module._probe_widget(
         _Page(),
-        {"id": "w1", "kind": "button", "label": "INSTALL"},
+        {"id": "w1", "kind": "button", "label": "Deploy workers"},
         timeout_ms=100,
         interaction_mode="full",
         action_button_policy="click-selected",
@@ -5630,7 +5630,7 @@ def test_expanders_hidden_after_collection_are_structural_probes(tmp_path) -> No
 
     status, detail = module._probe_widget(
         _Page(),
-        {"id": "w1", "kind": "expander", "label": "Install logs"},
+        {"id": "w1", "kind": "expander", "label": "Deployment logs"},
         timeout_ms=100,
         interaction_mode="full",
         action_button_policy="trial",

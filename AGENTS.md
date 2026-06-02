@@ -112,6 +112,17 @@ Use this runbook whenever you:
   Do not update tests to expect newly introduced clutter unless the user
   explicitly approves that clutter as product behavior. Add a negative
   regression assertion for removed text when practical.
+- **Cross-page action semantics**: When adding or renaming visible UI actions,
+  compare the label meaning across PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS,
+  SETTINGS, sidebars, and robot click labels before closing the task. Do not
+  reuse the same visible button text for different contracts across pages. Scope
+  labels by object and layer, for example `Install agi-app` for package/catalog
+  installation and `Deploy workers` for manager/worker environment deployment.
+  Do not rename stable lower-level APIs only to match product copy. In
+  ORCHESTRATE, `Deploy workers` may call `AGI.install` because that primitive
+  prepares manager and worker runtime environments and reuses an already-ready
+  local manager environment instead of forcing a reinstall. Update focused page
+  tests and robot action labels with the semantic split.
 - **Documentation screenshot update contract**: When documentation changes touch
   visible UI behavior, page labels, screenshots, GIFs, or diagrams derived from
   screenshots, refresh the corresponding source screenshot assets as part of the

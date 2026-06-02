@@ -34,6 +34,13 @@ BENCHMARK_MODE_COLUMN_HELP = (
     "Mode is a 4-slot execution signature: r=RAPIDS/GPU, d=Dask/cluster, "
     "c=Cython build, p=worker pool (process or thread backend). _ means disabled."
 )
+DEPLOY_WORKERS_AGI_INSTALL_RATIONALE = (
+    "Deploy workers uses the existing AGI.install API because that stable "
+    "runtime primitive prepares manager and worker environments. If the local "
+    "manager environment is already ready, AGI.install reuses it instead of "
+    "forcing a reinstall; the user-facing action is still deployment because "
+    "runtime readiness and workers are the goal."
+)
 
 BENCHMARK_MODE_LEGEND_MARKDOWN = (
     "**Mode legend**  \n"
@@ -391,17 +398,24 @@ def build_install_snippet(
 ) -> str:
     if app_declares_workerless(env):
         return _build_workerless_install_snippet(env=env, verbose=verbose)
-    return _build_agi_snippet(
-        env=env,
-        verbose=verbose,
-        method="install",
-        arguments=(
-            "app_env",
-            f"modes_enabled={mode!r}",
-            f"scheduler={_install_scheduler_expr(scheduler)}",
-            f"workers={workers}",
-            f"workers_data_path={workers_data_path}",
-        ),
+    return "\n".join(
+        [
+            "# Deploy workers intentionally calls AGI.install.",
+            "# AGI.install is the stable primitive that prepares manager/worker runtimes",
+            "# and reuses an already-ready local manager environment.",
+            _build_agi_snippet(
+                env=env,
+                verbose=verbose,
+                method="install",
+                arguments=(
+                    "app_env",
+                    f"modes_enabled={mode!r}",
+                    f"scheduler={_install_scheduler_expr(scheduler)}",
+                    f"workers={workers}",
+                    f"workers_data_path={workers_data_path}",
+                ),
+            ),
+        ]
     )
 
 

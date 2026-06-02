@@ -235,7 +235,7 @@ def _missing_install_paths(
 def _install_gap_reason(action_label: str, missing_install_paths: tuple[str, ...]) -> str:
     return (
         f"{action_label} is unavailable because the installation is incomplete. "
-        "Run INSTALL first to create: " + ", ".join(missing_install_paths)
+        "Run Deploy workers first to create: " + ", ".join(missing_install_paths)
     )
 
 
@@ -319,7 +319,7 @@ def build_orchestrate_install_workflow_state(
     raw_workers: Any,
     timestamp: str,
 ) -> OrchestrateInstallWorkflowState:
-    """Build the pure ORCHESTRATE INSTALL request state."""
+    """Build the pure ORCHESTRATE deploy-workers request state."""
     runtime_root = _install_runtime_root(
         active_app_path=active_app_path,
         agi_cluster_path=agi_cluster_path,
@@ -333,12 +333,12 @@ def build_orchestrate_install_workflow_state(
         visible=show_install,
         command_configured=command_configured,
         runtime_ready=runtime_root is not None,
-        hidden_reason="INSTALL controls are hidden.",
-        missing_command_reason="No INSTALL command configured; check deployment settings first.",
-        runtime_reason="Unable to resolve the INSTALL runtime root; reload the app and retry.",
+        hidden_reason="Deploy workers controls are hidden.",
+        missing_command_reason="No Deploy workers command configured; check deployment settings first.",
+        runtime_reason="Unable to resolve the Deploy workers runtime root; reload the app and retry.",
     )
     context_lines = (
-        "=== Install request ===",
+        "=== Deploy workers request ===",
         f"timestamp: {timestamp}",
         f"app: {app}",
         f"env_flags: source={is_source_env}, worker={is_worker_env}",
@@ -378,7 +378,7 @@ def build_orchestrate_distribution_workflow_state(
         runtime_ready=distribution_path is not None,
         hidden_reason="CHECK distribute controls are hidden.",
         missing_command_reason="No CHECK distribute command configured; check orchestration settings first.",
-        runtime_reason="Unable to resolve the worker environment path; run INSTALL, then retry CHECK distribute.",
+        runtime_reason="Unable to resolve the worker environment path; run Deploy workers, then retry CHECK distribute.",
     )
     return OrchestrateDistributionWorkflowState(
         show_distribute=show_distribute,
@@ -420,7 +420,7 @@ def _execute_readiness(
             missing_install_paths=missing_install_paths,
         )
     if not install_ready:
-        reason = install_disabled_reason or "RUN is unavailable because the installation is incomplete or stale. Run INSTALL first."
+        reason = install_disabled_reason or "RUN is unavailable because the deployment is incomplete or stale. Run Deploy workers first."
         return OrchestrateActionReadiness(
             action=action,
             enabled=False,
@@ -581,7 +581,7 @@ def build_orchestrate_combined_workflow_state(
     execute_state: OrchestrateExecuteWorkflowState,
     distribution_generated: bool = False,
 ) -> OrchestrateCombinedWorkflowState:
-    """Build a pure high-level INSTALL/CHECK/RUN phase model for ORCHESTRATE."""
+    """Build a pure high-level deploy/check/run phase model for ORCHESTRATE."""
     installed = not execute_state.missing_install_paths
     install_ready = install_state.action.enabled and not installed
     distribution_required = distribution_state.show_distribute

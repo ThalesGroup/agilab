@@ -54,6 +54,7 @@ import_agilab_symbols(
         "build_distribution_snippet": "build_distribution_snippet",
         "build_install_snippet": "build_install_snippet",
         "build_run_snippet": "build_run_snippet",
+        "DEPLOY_WORKERS_AGI_INSTALL_RATIONALE": "DEPLOY_WORKERS_AGI_INSTALL_RATIONALE",
         "available_benchmark_modes": "available_benchmark_modes",
         "BENCHMARK_MODE_LEGEND_MARKDOWN": "BENCHMARK_MODE_LEGEND_MARKDOWN",
         "benchmark_dataframe_column_config": "benchmark_dataframe_column_config",
@@ -1115,9 +1116,9 @@ async def _install_worker_action(
             install_stderr = "Detected install failure in logs."
 
     status_line = (
-        "✅ Install complete."
+        "✅ Worker deployment complete."
         if not error_flag
-        else "❌ Install finished with errors. Check logs above."
+        else "❌ Worker deployment finished with errors. Check logs above."
     )
     _append_log_lines(local_log, status_line)
     data = {
@@ -1135,19 +1136,19 @@ async def _install_worker_action(
         if diagnostic is not None:
             data["failure_category"] = diagnostic.category
         return ActionResult.error(
-            diagnostic.title if diagnostic else "Cluster installation failed.",
+            diagnostic.title if diagnostic else "Worker deployment failed.",
             detail=diagnostic.detail
             if diagnostic
             else str(
-                install_stderr or install_error or "Install logs indicate failure."
+                install_stderr or install_error or "Deployment logs indicate failure."
             ),
             next_action=diagnostic.next_action
             if diagnostic
-            else "Check install logs above, fix the worker environment, then rerun INSTALL.",
+            else "Check deployment logs above, fix the worker environment, then rerun Deploy workers.",
             data=data,
         )
     return ActionResult.success(
-        "Cluster installation completed.",
+        "Worker deployment completed.",
         data=data,
     )
 
@@ -1381,12 +1382,12 @@ def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
         if manager_ready:
             return "Ready", "Manager environment can import AGILAB runtime packages."
         if install_status.get("manager_exists"):
-            return "Needs INSTALL", install_status.get(
+            return "Needs deployment", install_status.get(
                 "manager_problem"
             ) or "Manager environment is missing or stale."
         return (
-            "Needs INSTALL",
-            "Manager environment has not been created yet. Run INSTALL before RUN.",
+            "Needs deployment",
+            "Manager environment has not been created yet. Run Deploy workers before RUN.",
         )
     if manager_ready and worker_ready:
         return (
@@ -1396,22 +1397,22 @@ def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
     if manager_ready:
         if not install_status.get("worker_exists"):
             return (
-                "Needs INSTALL",
-                "Worker environment has not been created yet. Run INSTALL before RUN.",
+                "Needs deployment",
+                "Worker environment has not been created yet. Run Deploy workers before RUN.",
             )
-        return "Needs INSTALL", install_status.get(
+        return "Needs deployment", install_status.get(
             "worker_problem"
         ) or "Worker environment is missing or stale."
     if worker_ready:
         if not install_status.get("manager_exists"):
             return (
-                "Needs INSTALL",
-                "Manager environment has not been created yet. Run INSTALL before RUN.",
+                "Needs deployment",
+                "Manager environment has not been created yet. Run Deploy workers before RUN.",
             )
-        return "Needs INSTALL", install_status.get(
+        return "Needs deployment", install_status.get(
             "manager_problem"
         ) or "Manager environment is missing or stale."
-    return "Needs INSTALL", "Manager and worker environments are not installed yet."
+    return "Needs deployment", "Manager and worker environments are not deployed yet."
 
 
 def _run_mode_requires_worker_environment(run_mode: Any) -> bool:
@@ -1451,7 +1452,7 @@ def _install_block_reason_for_run(
             install_status.get("manager_problem")
             or "Manager environment is missing or stale."
         )
-    return "Manager environment has not been created yet. Run INSTALL before RUN."
+    return "Manager environment has not been created yet. Run Deploy workers before RUN."
 
 
 def _install_status_warning_message(install_status: dict[str, Any]) -> str | None:
@@ -1472,7 +1473,7 @@ def _install_status_warning_message(install_status: dict[str, Any]) -> str | Non
     if not stale_problems:
         return None
     return (
-        "Environment install is incomplete or stale. Run INSTALL before RUN / LOAD / EXPORT. "
+        "Environment deployment is incomplete or stale. Run Deploy workers before RUN / LOAD / EXPORT. "
         + " | ".join(stale_problems)
     )
 
@@ -1525,9 +1526,9 @@ def _orchestrate_notebook_document(
     app_name = str(getattr(env, "app", "") or getattr(env, "target", "") or "project")
     snippet_labels = [label for label, _snippet in snippets]
     run_sentence = (
-        "Run cells selectively: INSTALL prepares environments, CHECK distribute previews work, and RUN executes."
+        "Run cells selectively: Deploy workers prepares manager/worker environments, CHECK distribute previews work, and RUN executes."
         if "CHECK distribute" in snippet_labels
-        else "Run cells selectively: INSTALL prepares environments and RUN executes."
+        else "Run cells selectively: Deploy workers prepares manager/worker environments and RUN executes."
     )
     cells: list[dict[str, Any]] = [
         _orchestrate_notebook_cell(
@@ -1538,6 +1539,7 @@ def _orchestrate_notebook_document(
                     "",
                     "This notebook records the ORCHESTRATE snippets generated by AGILAB.",
                     run_sentence,
+                    DEPLOY_WORKERS_AGI_INSTALL_RATIONALE,
                     "",
                     "Notebook import remains on the WORKFLOW page because import modifies workflow stages.",
                 ]
@@ -1574,7 +1576,7 @@ def _orchestrate_notebook_document(
 def _render_orchestrate_notebook_expander(env: Any) -> None:
     snippets: list[tuple[str, str]] = []
     for name, label in (
-        ("install", "INSTALL"),
+        ("install", "Deploy workers"),
         ("distribution", "CHECK distribute"),
         ("run", "RUN"),
     ):
@@ -1590,11 +1592,11 @@ def _render_orchestrate_notebook_expander(env: Any) -> None:
         if not snippets:
             if supports_distribution_preview(env):
                 st.info(
-                    "No orchestration snippets are available yet. Configure INSTALL, CHECK distribute, or RUN first."
+                    "No orchestration snippets are available yet. Configure Deploy workers, CHECK distribute, or RUN first."
                 )
             else:
                 st.info(
-                    "No orchestration snippets are available yet. Configure INSTALL or RUN first."
+                    "No orchestration snippets are available yet. Configure Deploy workers or RUN first."
                 )
             return
         app_name = str(
@@ -1738,13 +1740,14 @@ async def _render_deployment_panel(
     """Render the deployment expander and return the effective verbose level."""
     verbose = initial_verbose
     workerless = bool(install_status.get("workerless"))
-    with st.expander("1. Resources and install", expanded=True):
+    with st.expander("1. Resources and deployment", expanded=True):
         if workerless:
-            st.caption("Install the manager environment for this workerless local app.")
+            st.caption("Prepare the manager environment for this workerless local app.")
         else:
             st.caption(
-                "Choose local, local Dask, or LAN cluster resources, then install the manager and worker environments."
+                "Choose local, local Dask, or LAN cluster resources, then deploy the manager and worker environments."
             )
+        st.caption(DEPLOY_WORKERS_AGI_INSTALL_RATIONALE)
         install_warning = _install_status_warning_message(install_status)
         if install_warning:
             st.warning(install_warning)
@@ -1766,7 +1769,7 @@ async def _render_deployment_panel(
         if not show_install:
             if consume_pending_install_action(st.session_state):
                 st.info(
-                    "INSTALL is hidden. Re-enable Resources and install, then retry INSTALL."
+                    "Deploy workers is hidden. Re-enable Resources, then retry Deploy workers."
                 )
             return verbose, install_status
 
@@ -1802,23 +1805,25 @@ async def _render_deployment_panel(
             raw_workers=raw_workers,
             timestamp=datetime.now().isoformat(timespec="seconds"),
         )
-        with st.expander("Generated INSTALL snippet", expanded=False):
+        with st.expander("Generated Deploy workers snippet", expanded=False):
             st.code(cmd, language="python")
+            st.caption(DEPLOY_WORKERS_AGI_INSTALL_RATIONALE)
         if not install_state.action.enabled:
             st.caption(install_state.action.disabled_reason)
 
         existing_log = st.session_state.get("log_text", "").strip()
         if existing_log:
             install_expanded = st.session_state.get("_install_logs_expanded", False)
-            with st.expander("Install logs", expanded=install_expanded):
+            with st.expander("Deployment logs", expanded=install_expanded):
                 log_placeholder = st.empty()
                 log_placeholder.code(existing_log, language="python")
         pending_install_requested = consume_pending_install_action(st.session_state)
         install_requested = st.button(
-            "INSTALL",
+            "Deploy workers",
             key="install_btn",
             type="primary",
             disabled=not install_state.action.enabled,
+            help=DEPLOY_WORKERS_AGI_INSTALL_RATIONALE,
         )
         install_requested = install_requested or pending_install_requested
         if install_requested:
@@ -1835,7 +1840,7 @@ async def _render_deployment_panel(
             install_command = install_state.install_command
             context_lines = install_state.context_lines
             local_log: list[str] = []
-            log_expander = st.expander("Install logs", expanded=True)
+            log_expander = st.expander("Deployment logs", expanded=True)
             with log_expander:
                 log_placeholder = st.empty()
             with log_expander:
@@ -1890,7 +1895,7 @@ async def _render_distribution_panel(
 
     with st.expander(f"2. Configure run arguments for {module}", expanded=True):
         st.caption(
-            "Set the input, output, and app-specific parameters passed to INSTALL, "
+            "Set the input, output, and app-specific parameters passed to Deploy workers, "
             "CHECK distribute, RUN, or service mode."
         )
         app_args_form = env.app_args_form
@@ -2137,7 +2142,7 @@ async def _render_distribution_panel(
                     )
                 else:
                     st.caption(
-                        "Unable to resolve the worker environment path. Run INSTALL, then retry CHECK distribute."
+                        "Unable to resolve the worker environment path. Run Deploy workers, then retry CHECK distribute."
                     )
 
 
