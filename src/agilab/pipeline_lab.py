@@ -72,13 +72,40 @@ _generated_actions_module = import_agilab_module(
 GENERATION_MODE_PYTHON_SNIPPET = _generated_actions_module.GENERATION_MODE_PYTHON_SNIPPET
 GENERATION_MODE_SAFE_ACTIONS = _generated_actions_module.GENERATION_MODE_SAFE_ACTIONS
 STAGE_ACTION_CONTRACT_FIELD = _generated_actions_module.STAGE_ACTION_CONTRACT_FIELD
+STAGE_ACTION_CONTRACT_SHA256_FIELD = _generated_actions_module.STAGE_ACTION_CONTRACT_SHA256_FIELD
+STAGE_DATAFRAME_SCHEMA_SHA256_FIELD = _generated_actions_module.STAGE_DATAFRAME_SCHEMA_SHA256_FIELD
 STAGE_GENERATION_MODE_FIELD = _generated_actions_module.STAGE_GENERATION_MODE_FIELD
+STAGE_SAFE_ACTION_PINNED_FIELD = _generated_actions_module.STAGE_SAFE_ACTION_PINNED_FIELD
+pin_safe_action_extra_fields = _generated_actions_module.pin_safe_action_extra_fields
+safe_action_contract_stage_code = _generated_actions_module.safe_action_contract_stage_code
+stage_generation_extra_fields = _generated_actions_module.stage_generation_extra_fields
 
 GENERATION_MODE_LABELS = {
     GENERATION_MODE_SAFE_ACTIONS: "Safe actions",
     GENERATION_MODE_PYTHON_SNIPPET: "Python snippet (advanced)",
 }
 GENERATION_MODE_BY_LABEL = {label: mode for mode, label in GENERATION_MODE_LABELS.items()}
+SNIPPET_EDITOR_HEIGHT = 420
+
+
+def safe_action_pin_stage_update(
+    entry: Mapping[str, Any],
+    *,
+    code_current: str,
+    pinned: bool,
+    dataframe: Any = None,
+) -> tuple[str, Dict[str, Any]]:
+    """Return canonical code and metadata for a Safe Action pin/unpin update."""
+    if str(entry.get(STAGE_GENERATION_MODE_FIELD) or "") != GENERATION_MODE_SAFE_ACTIONS:
+        raise ValueError("Only Safe Action stages can be pinned as Safe Actions.")
+    contract = entry.get(STAGE_ACTION_CONTRACT_FIELD)
+    if not isinstance(contract, Mapping):
+        raise ValueError("Only stages with a validated Safe Action contract can be pinned.")
+    extra_fields = pin_safe_action_extra_fields(contract, df=dataframe, pinned=pinned)
+    if pinned:
+        return safe_action_contract_stage_code(extra_fields[STAGE_ACTION_CONTRACT_FIELD]), extra_fields
+    return code_current, extra_fields
+
 
 _pipeline_page_state_module = import_agilab_module(
     "agilab.pipeline_page_state",
@@ -3371,8 +3398,7 @@ def display_lab_tab(
         default_label = GENERATION_MODE_LABELS[mode]
         if st.session_state.get(key) not in labels:
             st.session_state[key] = default_label
-        selected_label = compact_choice(
-            st,
+        selected_label = st.selectbox(
             "Generation mode",
             labels,
             key=key,
@@ -3380,7 +3406,6 @@ def display_lab_tab(
                 "Safe actions asks the model for a validated JSON action contract. "
                 "Python snippet is for advanced manual code generation."
             ),
-            inline_limit=4,
         )
         selected_mode = GENERATION_MODE_BY_LABEL.get(str(selected_label), GENERATION_MODE_SAFE_ACTIONS)
         if selected_mode == GENERATION_MODE_SAFE_ACTIONS:
@@ -3402,10 +3427,16 @@ def display_lab_tab(
     def _generation_extra_fields(answer: List[Any], generation_mode: str) -> Dict[str, Any]:
         if len(answer) > 5 and isinstance(answer[5], dict):
             return dict(answer[5])
-        return {
-            STAGE_GENERATION_MODE_FIELD: generation_mode,
-            STAGE_ACTION_CONTRACT_FIELD: None,
-        }
+        return stage_generation_extra_fields(None, mode=generation_mode)
+
+    def _current_safe_action_dataframe() -> Any:
+        df_file = st.session_state.get("df_file")
+        if not df_file:
+            return None
+        try:
+            return load_df_cached(Path(df_file))
+        except Exception:
+            return None
 
     def _warn_generation_without_code(answer: List[Any]) -> None:
         detail = str(answer[4] if len(answer) > 4 else "").strip()
@@ -3941,7 +3972,7 @@ def display_lab_tab(
             editor_key = f"{safe_prefix}a{stage}-{rev}"
             snippet_dict = code_editor(
                 code_text if code_text.endswith("\n") else code_text + "\n",
-                height=(min(30, len(code_text)) if code_text else 100),
+                height=SNIPPET_EDITOR_HEIGHT,
                 theme="contrast",
                 buttons=normalize_custom_buttons(get_custom_buttons()),
                 info=get_info_bar(),
@@ -3958,6 +3989,76 @@ def display_lab_tab(
                     st.session_state[code_val_key] = normalized_text
                     st.session_state.pop(ignore_blank_key, None)
             code_current = st.session_state.get(code_val_key, "")
+
+            action_contract = entry.get(STAGE_ACTION_CONTRACT_FIELD)
+            stage_mode = str(entry.get(STAGE_GENERATION_MODE_FIELD) or generation_mode or "")
+            pin_clicked = False
+            unpin_clicked = False
+            if stage_mode == GENERATION_MODE_SAFE_ACTIONS and isinstance(action_contract, Mapping):
+                contract_hash = str(entry.get(STAGE_ACTION_CONTRACT_SHA256_FIELD) or "").strip()
+                pinned = bool(entry.get(STAGE_SAFE_ACTION_PINNED_FIELD))
+                if pinned:
+                    st.caption(
+                        "Pinned Safe Action: validated contract replay is locked"
+                        + (f" ({contract_hash[:12]})" if contract_hash else "")
+                        + "."
+                    )
+                    unpin_clicked = action_button(
+                        st,
+                        "Unpin Safe Action",
+                        key=f"{safe_prefix}_unpin_safe_action_{stage}",
+                        kind="revert",
+                    )
+                else:
+                    st.caption("Safe Action contract available. Pin it to lock replay to the validated contract.")
+                    pin_clicked = action_button(
+                        st,
+                        "Pin Safe Action",
+                        key=f"{safe_prefix}_pin_safe_action_{stage}",
+                        kind="save",
+                    )
+            elif stage_mode == GENERATION_MODE_PYTHON_SNIPPET:
+                st.caption(
+                    "Python snippet (advanced): raw Python cannot be pinned as a Safe Action. "
+                    "Regenerate this stage in Safe actions mode first."
+                )
+
+            if pin_clicked or unpin_clicked:
+                if not isinstance(action_contract, Mapping):
+                    st.warning("Only stages with a validated Safe Action contract can be pinned.")
+                    return
+                try:
+                    pinned = bool(pin_clicked)
+                    code_to_save, extra_fields = safe_action_pin_stage_update(
+                        {
+                            STAGE_GENERATION_MODE_FIELD: GENERATION_MODE_SAFE_ACTIONS,
+                            STAGE_ACTION_CONTRACT_FIELD: action_contract,
+                        },
+                        code_current=code_current,
+                        pinned=pinned,
+                        dataframe=_current_safe_action_dataframe(),
+                    )
+                    save_stage(
+                        module_path,
+                        [entry.get("D", ""), st.session_state.get(q_key, ""), entry.get("M", ""), code_to_save],
+                        stage,
+                        total_stages,
+                        stages_file,
+                        venv_map=selected_map,
+                        engine_map=engine_map,
+                        extra_fields=extra_fields,
+                    )
+                    st.session_state[code_val_key] = code_to_save
+                    st.session_state[pending_c_key] = code_to_save
+                    st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
+                    expander_state[stage] = True
+                    st.session_state[expander_state_key] = expander_state
+                    _bump_history_revision()
+                    st.success("Pinned Safe Action contract." if pinned else "Safe Action pin removed.")
+                    _rerun_fragment_or_app()
+                except Exception as exc:
+                    st.warning(f"Unable to update Safe Action pin: {exc}")
+                return
 
             if revert_pressed:
                 undo_stack = st.session_state.get(undo_key, [])

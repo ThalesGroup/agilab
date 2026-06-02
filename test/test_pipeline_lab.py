@@ -6123,3 +6123,55 @@ def test_display_lab_tab_appends_custom_initial_runtime_label(monkeypatch, tmp_p
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo_venv_0"] == custom_runtime
+
+
+def test_safe_action_pin_stage_update_rewrites_to_canonical_safe_action_code():
+    contract = {
+        "schema_version": 1,
+        "kind": "agilab.generated_dataframe_actions",
+        "actions": [{"action": "select_columns", "columns": ["x"]}],
+    }
+    entry = {
+        pipeline_lab.STAGE_GENERATION_MODE_FIELD: pipeline_lab.GENERATION_MODE_SAFE_ACTIONS,
+        pipeline_lab.STAGE_ACTION_CONTRACT_FIELD: contract,
+    }
+
+    code, fields = pipeline_lab.safe_action_pin_stage_update(
+        entry,
+        code_current="# user edit\n",
+        pinned=True,
+    )
+
+    assert fields[pipeline_lab.STAGE_SAFE_ACTION_PINNED_FIELD] is True
+    assert fields[pipeline_lab.STAGE_ACTION_CONTRACT_FIELD]["actions"][0]["action"] == "select_columns"
+    assert "Safe action contract: select columns." in code
+    assert "This stage is not raw model Python." in code
+    assert "# user edit" not in code
+
+
+def test_safe_action_pin_stage_update_unpins_without_rewriting_code_and_rejects_python_snippets():
+    contract = {
+        "schema_version": 1,
+        "kind": "agilab.generated_dataframe_actions",
+        "actions": [{"action": "select_columns", "columns": ["x"]}],
+    }
+    entry = {
+        pipeline_lab.STAGE_GENERATION_MODE_FIELD: pipeline_lab.GENERATION_MODE_SAFE_ACTIONS,
+        pipeline_lab.STAGE_ACTION_CONTRACT_FIELD: contract,
+    }
+
+    code, fields = pipeline_lab.safe_action_pin_stage_update(
+        entry,
+        code_current="# reviewed custom display edit\n",
+        pinned=False,
+    )
+
+    assert code == "# reviewed custom display edit\n"
+    assert fields[pipeline_lab.STAGE_SAFE_ACTION_PINNED_FIELD] is False
+
+    with pytest.raises(ValueError, match="Only Safe Action stages"):
+        pipeline_lab.safe_action_pin_stage_update(
+            {pipeline_lab.STAGE_GENERATION_MODE_FIELD: pipeline_lab.GENERATION_MODE_PYTHON_SNIPPET},
+            code_current="print('raw')\n",
+            pinned=True,
+        )
