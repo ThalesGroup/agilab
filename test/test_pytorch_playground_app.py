@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import builtins
 import hashlib
 import importlib
@@ -65,6 +66,40 @@ def _load_app_surface_module(name: str):
     return module
 
 
+def _target_module_from_pytorch_shim(path: Path) -> str:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "_TARGET_MODULE" for target in node.targets)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        ):
+            return node.value.value
+    raise AssertionError(f"{path} is missing _TARGET_MODULE")
+
+
+def test_pytorch_playground_modules_are_classified_or_entrypoints():
+    for package_root in (
+        PROJECT_SRC / "pytorch_playground",
+        PACKAGE_PROJECT_PATH / "src/pytorch_playground",
+    ):
+        assert (package_root / "__init__.py").is_file()
+        for section in ("compat", "domain", "runtime", "ui"):
+            assert (package_root / section / "__init__.py").is_file()
+
+        for path in sorted(package_root.glob("*.py")):
+            if path.name == "__init__.py":
+                continue
+            source = path.read_text(encoding="utf-8")
+            target_module = _target_module_from_pytorch_shim(path)
+            target_suffix = target_module.removeprefix("pytorch_playground.").replace(".", "/")
+            assert (package_root / f"{target_suffix}.py").is_file()
+            assert "activate_compat_module" in source
+            assert "classified" in source
+            assert "package layout" in source
+
+
 def test_playground_ui_import_prefers_package_when_streamlit_puts_script_dir_first(monkeypatch):
     script_dir = MODULE_PATH.resolve().parent
     project_src = PROJECT_SRC.resolve()
@@ -94,7 +129,7 @@ def test_playground_ui_import_prefers_package_when_streamlit_puts_script_dir_fir
     try:
         spec.loader.exec_module(module)
         assert sys.path[0] == str(project_src)
-        assert module._playground_core.__name__ == "pytorch_playground.core"
+        assert module._playground_core.__name__ == "pytorch_playground.domain.core"
     finally:
         sys.modules.pop(spec.name, None)
         for name in list(sys.modules):
@@ -223,7 +258,9 @@ def test_app_surface_main_passes_project_path_without_argv(monkeypatch):
 
 def test_app_surface_entrypoint_calls_main_once_and_run_button_has_key():
     for path in (APP_SURFACE_PATH, PACKAGE_APP_SURFACE_PATH):
-        source = path.read_text(encoding="utf-8")
+        assert _target_module_from_pytorch_shim(path) == "pytorch_playground.ui.app_surface"
+        target_path = path.parent / "ui" / "app_surface.py"
+        source = target_path.read_text(encoding="utf-8")
         entrypoint = source.split('if __name__ == "__main__":', 1)[1]
         assert entrypoint.count("main()") == 1
         assert 'key=f"pytorch_playground:refresh_evidence:{active_app_path.name}"' in source

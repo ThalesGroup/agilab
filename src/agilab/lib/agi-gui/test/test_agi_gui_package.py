@@ -84,6 +84,8 @@ def test_compatibility_proxy_modules_import_from_agi_env() -> None:
     for proxy_name in proxy_names:
         module = importlib.import_module(f"agi_gui.{proxy_name}")
         assert module.__name__ == f"agi_env.{proxy_name}"
+        assert sys.modules[f"agi_gui.{proxy_name}"] is module
+        assert sys.modules[f"agi_env.{proxy_name}"] is module
 
 
 def test_top_level_agi_gui_modules_are_entrypoints_or_compatibility_shims() -> None:

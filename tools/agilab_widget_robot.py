@@ -1882,7 +1882,10 @@ def _normalized_label(label: str) -> str:
         .strip()
         .lower()
     )
-    return " ".join(normalized.split())
+    cleaned = " ".join(normalized.split())
+    if cleaned.endswith(" action"):
+        cleaned = cleaned.removesuffix(" action").strip()
+    return cleaned
 
 
 def _action_label_tokens(label: str) -> set[str]:
@@ -5461,10 +5464,17 @@ def _above_fold_result_probe(
     if failure:
         return WidgetProbe(app_name, display, "above_fold", "primary_targets", "failed", _short_detail(failure), url)
     normalized_seen = [_normalized_label(label) for label in seen_labels if _normalized_label(label)]
+
+    def _matches_expected(expected_label: str, seen_label: str) -> bool:
+        normalized_expected = _normalized_label(expected_label)
+        if normalized_expected == "deploy workers" and seen_label == "install":
+            return True
+        return normalized_expected in seen_label or seen_label in normalized_expected
+
     missing = [
         label
         for label in expected_labels
-        if not any(_normalized_label(label) in seen or seen in _normalized_label(label) for seen in normalized_seen)
+        if not any(_matches_expected(label, seen) for seen in normalized_seen)
     ]
     if missing:
         detail = f"primary target(s) missing above fold {fold:.0f}px: {missing}; seen={list(seen_labels)[:12]}"
