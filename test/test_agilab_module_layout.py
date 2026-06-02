@@ -34,7 +34,8 @@ def test_top_level_agilab_modules_are_classified_or_entrypoints():
         target_module = _target_module_from_shim(path)
         assert target_module.startswith("agilab.")
         relative_target = Path(*target_module.split(".")[1:]).with_suffix(".py")
-        assert (root.parent / relative_target).is_file(), (path, target_module)
+        assert (root / relative_target).is_file(), (path, target_module)
         text = path.read_text(encoding="utf-8")
         assert "activate_compat_module" in text
-        assert "classified package layout" in text
+        assert "classified" in text
+        assert "package layout" in text

@@ -350,10 +350,9 @@ def safe_action_contract_stage_code(contract: GeneratedActionContract | Mapping[
 
 
 def safe_action_contract_sha256(contract: GeneratedActionContract | Mapping[str, Any]) -> str:
-    if isinstance(contract, GeneratedActionContract):
-        payload = contract.to_payload()
-    else:
-        payload = validate_generated_action_contract(contract).to_payload()
+    if isinstance(contract, Mapping):
+        contract = validate_generated_action_contract(contract)
+    payload = contract.to_payload()
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -399,9 +398,10 @@ def stage_generation_extra_fields(
         fields[STAGE_ACTION_CONTRACT_FIELD] = None
         return fields
     if isinstance(contract, GeneratedActionContract):
-        payload = contract.to_payload()
+        raw_payload: Mapping[str, Any] = contract.to_payload()
     else:
-        payload = validate_generated_action_contract(contract).to_payload()
+        raw_payload = contract
+    payload = validate_generated_action_contract(raw_payload, df=df).to_payload()
     fields[STAGE_ACTION_CONTRACT_FIELD] = payload
     fields[STAGE_ACTION_CONTRACT_SHA256_FIELD] = safe_action_contract_sha256(payload)
     fields[STAGE_SAFE_ACTION_PINNED_FIELD] = bool(
