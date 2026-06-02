@@ -2026,7 +2026,7 @@ async def test_install_worker_action_classifies_corrupted_dataset_archive(
         "or not a valid .7z dataset archive."
     )
     assert result.data["failure_category"] == "archive"
-    assert "rerun INSTALL" in str(result.next_action)
+    assert "rerun Deploy workers" in str(result.next_action)
     assert "not a 7z file" not in str((result.title, result.detail, result.next_action))
 
 
