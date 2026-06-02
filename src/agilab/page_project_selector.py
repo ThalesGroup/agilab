@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 NAVIGATION_PAGE_ROUTES_ATTR = "_NAVIGATION_PAGE_ROUTES"
-PROJECT_ROUTE_ID = "project"
+PROJECT_ROUTE_ID = "project_edit"
 PROJECT_PAGE_PATH = Path("pages/1_PROJECT.py")
 MAIN_NAVIGATION_MODULES = ("__main__", "agilab.main_page")
 
@@ -50,7 +50,7 @@ def _registered_navigation_page(route_id: str) -> Any | None:
 
 
 def switch_to_project_page(streamlit: Any, *, active_app: str | None = None) -> bool:
-    """Switch to PROJECT using the active ``st.navigation`` page when available."""
+    """Switch to PROJECT_EDIT using the active ``st.navigation`` page when available."""
     switch_page = getattr(streamlit, "switch_page", None)
     if not callable(switch_page):
         return False

@@ -4287,10 +4287,10 @@ def test_main_page_sidebar_links_active_app_readme(tmp_path, monkeypatch):
     assert readme.resolve().as_uri() not in readme_url
     assert (
         readme_url
-        == "/PROJECT?active_app=flight_telemetry_project&sidebar_selection=Edit&project_section=readme"
+        == "/PROJECT_EDIT?active_app=flight_telemetry_project&sidebar_selection=Edit&project_section=readme"
     )
     parsed = urlparse(readme_url)
-    assert parsed.path == "/PROJECT"
+    assert parsed.path == "/PROJECT_EDIT"
     assert parse_qs(parsed.query) == {
         "active_app": ["flight_telemetry_project"],
         "sidebar_selection": ["Edit"],

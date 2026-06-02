@@ -11,6 +11,7 @@ import streamlit as st
 
 from agilab.page_bootstrap import ensure_page_env, render_page_chrome
 from agilab.page_project_selector import render_project_selector
+from agilab.project_sidebar_support import PROJECT_STATUS_ACTIONS
 from agilab.workflow_ui import render_project_status_page
 
 _PROJECT_EDIT_PAGE_MODULE = "agilab_project_edit_page_shared"
@@ -63,9 +64,10 @@ def main() -> None:
         show_edit_button=True,
     )
     project_edit_page = _load_project_edit_page_module()
+    project_edit_page._consume_notebook_import_query_seed(st.session_state, st.query_params)
     project_edit_page.render_project_sidebar(
         env,
-        actions=project_edit_page.PROJECT_STATUS_ACTIONS,
+        actions=PROJECT_STATUS_ACTIONS,
         render_edit_body=False,
     )
     render_project_status_page(st, env=env)

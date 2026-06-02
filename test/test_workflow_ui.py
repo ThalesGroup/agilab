@@ -184,7 +184,7 @@ def test_render_context_expander_links_back_to_project_page(tmp_path) -> None:
     assert ("expander", "Workflow context:False") in fake_st.events
     assert (
         "link_button",
-        "Change project:/PROJECT_STATUS?active_app=flight_telemetry_project:context_expander:WORKFLOW:change_project:secondary",
+        "Change project:/PROJECT?active_app=flight_telemetry_project:context_expander:WORKFLOW:change_project:secondary",
     ) in fake_st.events
     assert not [event for event in fake_st.events if event[0] == "selectbox"]
 
@@ -250,7 +250,7 @@ def test_workflow_link_buttons_do_not_require_key_support(monkeypatch) -> None:
     workflow_ui._render_context_link(
         fake_st,
         label="Change project",
-        url="/PROJECT_STATUS",
+        url="/PROJECT",
         key="demo:change_project",
     )
 
@@ -260,7 +260,7 @@ def test_workflow_link_buttons_do_not_require_key_support(monkeypatch) -> None:
     ) in fake_st.events
     assert (
         "link_button",
-        "Change project:/PROJECT_STATUS:nokey:secondary:content",
+        "Change project:/PROJECT:nokey:secondary:content",
     ) in fake_st.events
 
 
