@@ -120,6 +120,22 @@ _page_project_selector_module = import_agilab_module(
 )
 render_project_selector = _page_project_selector_module.render_project_selector
 
+_project_sidebar_support_module = import_agilab_module(
+    "agilab.project_sidebar_support",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "project_sidebar_support.py",
+    fallback_name="agilab_project_sidebar_support_fallback",
+)
+PROJECT_EDITOR_ACTIONS = _project_sidebar_support_module.PROJECT_EDITOR_ACTIONS
+PROJECT_EDIT_ACTIONS = PROJECT_EDITOR_ACTIONS
+PROJECT_STATUS_ACTIONS = _project_sidebar_support_module.PROJECT_STATUS_ACTIONS
+_normalize_project_sidebar_actions = (
+    _project_sidebar_support_module.normalize_project_sidebar_actions
+)
+_ensure_project_sidebar_session_defaults = (
+    _project_sidebar_support_module.ensure_project_sidebar_session_defaults
+)
+
 _action_execution_module = import_agilab_module(
     "agilab.action_execution",
     current_file=__file__,
@@ -206,8 +222,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 CREATE_MODE_TEMPLATE = "Template clone"
 CREATE_MODE_NOTEBOOK = "From notebook"
-PROJECT_EDIT_ACTIONS = ("Edit", "Create", "Import", "Rename", "Delete")
-PROJECT_STATUS_ACTIONS = ("Overview", "Create", "Import", "Rename", "Delete")
 PROJECT_NOTEBOOK_IMPORT_START = "notebook-import"
 PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY = "_project_notebook_import_query_seed_consumed"
 PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY = "_project_notebook_import_defaults"
@@ -2586,40 +2600,10 @@ def _render_sidebar_export_action(env) -> None:
         handle_export_project()
 
 
-def _normalize_project_sidebar_actions(actions) -> tuple[str, ...]:
-    normalized: list[str] = []
-    aliases = {"Clone": "Create"}
-    allowed = set(PROJECT_EDIT_ACTIONS) | {"Overview"}
-    for raw_action in actions:
-        action = aliases.get(str(raw_action or "").strip(), str(raw_action or "").strip())
-        if action not in allowed:
-            raise ValueError(f"Unsupported PROJECT sidebar action: {raw_action!r}")
-        if action not in normalized:
-            normalized.append(action)
-    return tuple(normalized)
-
-
-def _ensure_project_sidebar_session_defaults(env, actions: tuple[str, ...]) -> None:
-    """Initialize state required by PROJECT sidebar handlers in any host page."""
-    st.session_state.setdefault("env", env)
-    st.session_state.setdefault("_env", env)
-    st.session_state.setdefault("orchest_functions", ["build_distribution"])
-    st.session_state.setdefault("templates", get_templates())
-    st.session_state.setdefault("archives", ["-- Select a file --"] + get_projects_zip())
-    st.session_state.setdefault("export_message", "")
-    st.session_state.setdefault("project_imported", False)
-    st.session_state.setdefault("project_created", False)
-    st.session_state.setdefault("show_widgets", [True, False])
-    st.session_state.setdefault("pages", [])
-    st.session_state.setdefault("switch_to_edit", False)
-    if actions:
-        st.session_state.setdefault("sidebar_selection", actions[0])
-
-
 def render_project_sidebar(
     env,
     *,
-    actions=PROJECT_EDIT_ACTIONS,
+    actions=PROJECT_EDITOR_ACTIONS,
     render_edit_body: bool = True,
 ) -> str | None:
     """Render the reusable PROJECT sidebar and dispatch selected project action."""
@@ -2627,7 +2611,13 @@ def render_project_sidebar(
     if not actions:
         return None
 
-    _ensure_project_sidebar_session_defaults(env, actions)
+    _ensure_project_sidebar_session_defaults(
+        st,
+        env,
+        actions,
+        get_templates=get_templates,
+        get_projects_zip=get_projects_zip,
+    )
 
     if st.session_state.get("sidebar_selection") == "Clone":
         st.session_state["sidebar_selection"] = "Create"
