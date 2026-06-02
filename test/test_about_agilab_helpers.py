@@ -446,7 +446,7 @@ def test_page_bootstrap_keeps_session_env_when_recorded_root_differs(tmp_path):
 
 def test_page_bootstrap_handles_defensive_path_and_lookup_edges(tmp_path):
     apps_path = tmp_path / "repo" / "src" / "agilab" / "apps"
-    apps_path.mkdir()
+    apps_path.mkdir(parents=True)
     (apps_path / "demo_project").mkdir()
 
     assert page_bootstrap._page_apps_path(_BrokenPath()) is None

@@ -1189,11 +1189,11 @@ def _render_installed_pypi_app_manager(env) -> None:
 
 
 def _render_pypi_app_install_action(env) -> None:
-    with st.sidebar.expander("agi-app from PyPI", expanded=False):
+    with st.sidebar.expander("agi-app", expanded=False):
         catalog = _search_promoted_pypi_app_catalog("")
         catalog_options = ["", *catalog]
         catalog_choice = st.selectbox(
-            "Catalog agi-app",
+            "Catalog pypi.org",
             options=catalog_options,
             key="project_pypi_app_catalog_choice",
         )
@@ -1215,17 +1215,26 @@ def _render_pypi_app_install_action(env) -> None:
                 st.warning(str(exc))
 
         preflight_key = "project_pypi_app_preflight_payload"
-        check_clicked = st.button(
-            "Check agi-app",
-            key="project_pypi_app_preflight",
-            disabled=not requirement,
-            width="stretch",
-        )
+        reviewed_key = "project_pypi_app_reviewed"
+        reviewed_requirement_key = "project_pypi_app_reviewed_requirement"
+        if st.session_state.get(reviewed_requirement_key) != requirement:
+            st.session_state[reviewed_requirement_key] = requirement
+            st.session_state[reviewed_key] = False
+            st.session_state.pop(preflight_key, None)
+
+        check_col, install_col = st.columns(2)
+        with check_col:
+            check_clicked = st.button(
+                "Check",
+                key="project_pypi_app_preflight",
+                disabled=not requirement,
+                width="stretch",
+            )
         if check_clicked and requirement:
             result = run_streamlit_action(
                 st,
                 ActionSpec(
-                    name="Check agi-app",
+                    name="Check",
                     start_message=f"Checking {requirement}...",
                     failure_title="agi-app preflight failed.",
                     failure_next_action="Check the agi-app name and PyPI availability.",
@@ -1235,31 +1244,37 @@ def _render_pypi_app_install_action(env) -> None:
             st.session_state[preflight_key] = result.data
 
         preflight_payload = st.session_state.get(preflight_key)
+        preflight_passed = False
         if isinstance(preflight_payload, dict):
             payload_requirement = str(preflight_payload.get("requirement") or "")
             if payload_requirement != requirement:
                 preflight_payload = None
+            else:
+                preflight_status = str(preflight_payload.get("status") or "").lower()
+                preflight_passed = preflight_status in {"pass", "success"}
         _render_pypi_metadata_summary(
             preflight_payload if isinstance(preflight_payload, dict) else None
         )
 
-        trusted = st.checkbox(
-            "Reviewed agi-app",
-            key="project_pypi_app_reviewed",
+        reviewed = bool(st.session_state.get(reviewed_key, False))
+        with install_col:
+            install_clicked = st.button(
+                "Install",
+                key="project_pypi_app_install",
+                type="primary",
+                disabled=not requirement or not preflight_passed or not reviewed,
+                width="stretch",
+            )
+        st.checkbox(
+            "Reviewed",
+            key=reviewed_key,
             help="Only install agi-apps you trust to run as local code.",
-        )
-        install_clicked = st.button(
-            "Install agi-app",
-            key="project_pypi_app_install",
-            type="primary",
-            disabled=not requirement or not trusted,
-            width="stretch",
         )
         if install_clicked:
             run_streamlit_action(
                 st,
                 ActionSpec(
-                    name="Install agi-app",
+                    name="Install",
                     start_message=f"Installing {requirement}...",
                     failure_title="agi-app install failed.",
                     failure_next_action="Check the agi-app name, Python version support, and PyPI availability.",
