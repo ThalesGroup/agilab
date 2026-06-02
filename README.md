@@ -165,7 +165,7 @@ install.
 ## [Quick Start](https://thalesgroup.github.io/agilab/quick-start.html)
 
 <p>
-  <a href="https://huggingface.co/spaces/jpmorard/agilab"><img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-md.svg" alt="Open in Hugging Face Spaces" /></a>
+  <a href="https://huggingface.co/spaces/jpmorard/agilab"><img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-xl.svg" alt="Open in Hugging Face Spaces" /></a>
   <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://kaggle.com/static/images/open-in-kaggle.svg" alt="Open In Kaggle" /></a>
 </p>
 
