@@ -28,6 +28,7 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
         "isolated-core-pages",
         "isolated-entry-and-app-pages",
         "isolated-project-page",
+        "isolated-project-editor-page",
         "isolated-project-notebook-import",
         "isolated-project-import-sidebar",
         "isolated-project-rename-sidebar",
@@ -36,7 +37,7 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
         "current-home-pytorch-direct-run-readiness",
         "current-home-orchestrate-journey",
     ]
-    isolated, entry, project, project_notebook, project_import, project_rename, settings, current_home, pytorch_direct, journey = scenarios
+    isolated, entry, project, project_editor, project_notebook, project_import, project_rename, settings, current_home, pytorch_direct, journey = scenarios
     assert isolated.pages == "ORCHESTRATE,WORKFLOW,ANALYSIS"
     assert isolated.runtime_isolation == "isolated"
     assert isolated.action_button_policy == "trial"
@@ -52,6 +53,12 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert project.runtime_isolation == "isolated"
     assert project.action_button_policy == "safe-click"
     assert project.action_timeout_seconds == 30.0
+    assert project_editor.pages == "PROJECT_EDITOR"
+    assert project_editor.apps_pages == "none"
+    assert project_editor.runtime_isolation == "isolated"
+    assert project_editor.action_button_policy == "safe-click"
+    assert project_editor.required_text == "Edit project files"
+    assert project_editor.forbidden_text == "Worker class,Source LOC,Environment Health"
     assert project_notebook.pages == "PROJECT"
     assert project_notebook.route_query == "start=notebook-import"
     assert project_notebook.apps_pages == "none"
@@ -982,6 +989,34 @@ def test_build_robot_command_covers_project_page(tmp_path) -> None:
     assert progress_path == tmp_path / "isolated-project-page.ndjson"
 
 
+def test_build_robot_command_covers_project_editor_page(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-project-editor-page"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "PROJECT_EDITOR"
+    assert argv[argv.index("--apps-pages") + 1] == "none"
+    assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
+    assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
+    assert argv[argv.index("--required-text") + 1] == "Edit project files"
+    assert argv[argv.index("--forbidden-text") + 1] == "Worker class,Source LOC,Environment Health"
+    assert argv[argv.index("--screenshot-dir") + 1] == str(
+        tmp_path / "screenshots" / "isolated-project-editor-page"
+    )
+    assert summary_path == tmp_path / "isolated-project-editor-page.json"
+    assert progress_path == tmp_path / "isolated-project-editor-page.ndjson"
+
+
 def test_build_robot_command_covers_project_notebook_import_deep_link(tmp_path) -> None:
     module = _load_module()
     scenario = module.DEFAULT_SCENARIOS["isolated-project-notebook-import"]
@@ -1493,6 +1528,7 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
         "isolated-core-pages",
         "isolated-entry-and-app-pages",
         "isolated-project-page",
+        "isolated-project-editor-page",
         "isolated-project-notebook-import",
         "isolated-project-import-sidebar",
         "isolated-project-rename-sidebar",
@@ -1502,11 +1538,11 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
         "current-home-orchestrate-journey",
     ]
     assert summary["success"] is True
-    assert summary["scenario_count"] == 10
-    assert summary["page_count"] == 20
-    assert summary["widget_count"] == 50
-    assert summary["interacted_count"] == 30
-    assert summary["probed_count"] == 20
+    assert summary["scenario_count"] == 11
+    assert summary["page_count"] == 22
+    assert summary["widget_count"] == 55
+    assert summary["interacted_count"] == 33
+    assert summary["probed_count"] == 22
     assert summary["failed_scenarios"] == []
     assert summary["failure_samples"] == []
 
