@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import builtins
 import importlib
 import json
@@ -169,6 +170,56 @@ def _load_classroom_payload() -> dict:
 def _load_app_surface_module():
     sys.modules.pop("tescia_diagnostic.app_surface", None)
     return importlib.import_module("tescia_diagnostic.app_surface")
+
+
+def _target_module_from_tescia_shim(path: Path) -> str:
+    module = ast.parse(path.read_text(encoding="utf-8"))
+    for node in module.body:
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "_TARGET_MODULE"
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        ):
+            return node.value.value
+    raise AssertionError(f"{path} does not declare _TARGET_MODULE")
+
+
+def test_tescia_diagnostic_modules_are_classified_or_entrypoints() -> None:
+    package_root = APP_SRC / "tescia_diagnostic"
+    direct_modules = sorted(package_root.glob("*.py"))
+
+    assert (package_root / "__init__.py").is_file()
+
+    for path in direct_modules:
+        if path.name == "__init__.py":
+            continue
+        target_module = _target_module_from_tescia_shim(path)
+        assert target_module.startswith("tescia_diagnostic.")
+        relative_target = Path(*target_module.split(".")[1:]).with_suffix(".py")
+        assert (package_root / relative_target).is_file(), (path, target_module)
+        text = path.read_text(encoding="utf-8")
+        assert "activate_compat_module" in text
+        assert "classified" in text
+        assert "package layout" in text
+
+
+def test_tescia_classified_modules_keep_bundled_resource_paths(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic.domain.classroom import (
+        default_case_bank_path,
+        default_classroom_payload_path,
+    )
+    from tescia_diagnostic.domain.curriculum import default_curriculum_path
+    from tescia_diagnostic.ui.app_surface import bundled_cases_path
+
+    assert bundled_cases_path() == SAMPLE_CASES
+    assert default_case_bank_path() == SAMPLE_CASES
+    assert default_classroom_payload_path() == SAMPLE_CLASSROOM
+    assert default_curriculum_path() == APP_SRC / "tescia_diagnostic" / "curriculum" / "math_program_2026.json"
 
 
 def test_tescia_args_form_renders_scoring_model_as_latex(monkeypatch, tmp_path) -> None:

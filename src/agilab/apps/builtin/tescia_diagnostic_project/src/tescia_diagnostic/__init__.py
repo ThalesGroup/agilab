@@ -1,6 +1,6 @@
 """Application surface for the TeSciA diagnostic demo."""
 
-from .app_args import (
+from .runtime.app_args import (
     TesciaDiagnosticArgs,
     TesciaDiagnosticArgsTD,
     dump_args,
@@ -8,7 +8,7 @@ from .app_args import (
     load_args,
     merge_args,
 )
-from .diagnostic import (
+from .domain.diagnostic import (
     CASE_SCHEMA,
     catalog_metadata,
     case_quality_score,
@@ -22,7 +22,7 @@ from .diagnostic import (
     summarize_report,
     validate_case_payload,
 )
-from .classroom import (
+from .domain.classroom import (
     CLASSROOM_RUN_REPORT_SCHEMA,
     CLASSROOM_SCHEMA,
     anonymized_student_ref,
@@ -42,7 +42,7 @@ from .classroom import (
     write_classroom_artifacts,
     write_classroom_partial_artifacts,
 )
-from .curriculum import (
+from .domain.curriculum import (
     CURRICULUM_SCHEMA,
     build_math_program_2026_coverage_report,
     case_curriculum_ids,
@@ -56,7 +56,7 @@ from .curriculum import (
     validate_case_curriculum_ids,
     validate_math_program_2026,
 )
-from .generator import (
+from .domain.generator import (
     DEFAULT_GPT_OSS_ENDPOINT,
     DEFAULT_GPT_OSS_MODEL,
     DEFAULT_OLLAMA_ENDPOINT,
@@ -67,12 +67,12 @@ from .generator import (
     generate_cases_with_engine,
     validate_generated_cases,
 )
-from .exports import (
+from .domain.exports import (
     diagnostic_report_to_markdown,
     write_correction_index,
     write_correction_sheet,
 )
-from .reduction import (
+from .runtime.reduction import (
     REDUCE_ARTIFACT_FILENAME_TEMPLATE,
     REDUCE_ARTIFACT_NAME,
     REDUCER_NAME,
@@ -82,7 +82,7 @@ from .reduction import (
     reduce_artifact_path,
     write_reduce_artifact,
 )
-from .tescia_diagnostic import TesciaDiagnostic, TesciaDiagnosticApp
+from .runtime.tescia_diagnostic import TesciaDiagnostic, TesciaDiagnosticApp
 
 __all__ = [
     "REDUCE_ARTIFACT_FILENAME_TEMPLATE",

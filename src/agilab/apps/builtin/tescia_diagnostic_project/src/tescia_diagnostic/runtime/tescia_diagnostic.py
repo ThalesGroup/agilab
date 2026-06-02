@@ -1,0 +1,206 @@
+"""Manager for the built-in TeSciA diagnostic project."""
+
+from __future__ import annotations
+
+import logging
+import shutil
+from pathlib import Path
+from typing import Any
+
+from pydantic import ValidationError
+
+from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
+
+from .app_args import (
+    ArgsOverrides,
+    TesciaDiagnosticArgs,
+    dump_args,
+    ensure_defaults,
+    load_args,
+    merge_args,
+)
+from ..domain.generator import DiagnosticCaseGenerationError, generate_case_file
+
+logger = logging.getLogger(__name__)
+
+_PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+
+
+class TesciaDiagnostic(BaseWorker):
+    """Manager that turns diagnostic challenges into repeatable app evidence."""
+
+    worker_vars: dict[str, Any] = {}
+
+    def __init__(
+        self,
+        env,
+        args: TesciaDiagnosticArgs | None = None,
+        _generate_case_file_fn=generate_case_file,
+        **kwargs: ArgsOverrides,
+    ) -> None:
+        self.env = env
+        self._ensure_managed_pc_share_dir(env)
+        self.verbose = int(kwargs.pop("verbose", getattr(env, "verbose", 0) or 0))
+
+        if args is None:
+            try:
+                args = TesciaDiagnosticArgs(**kwargs)
+            except ValidationError as exc:
+                raise ValueError(f"Invalid TeSciA diagnostic arguments: {exc}") from exc
+
+        self.args = ensure_defaults(args, env=env)
+        self.args = self._apply_managed_pc_paths(self.args)
+        self._generate_case_file_fn = _generate_case_file_fn
+        self.args.data_in = env.resolve_share_path(self.args.data_in)
+        self.args.data_out = env.resolve_share_path(self.args.data_out)
+        self.args.submission_inbox = env.resolve_share_path(self.args.submission_inbox)
+        self.data_out = self.args.data_out
+
+        self.args.data_in.mkdir(parents=True, exist_ok=True)
+        self.args.submission_inbox.mkdir(parents=True, exist_ok=True)
+        self._ensure_dataset(self.args.data_in)
+
+        if self.args.reset_target and self.data_out.exists():
+            shutil.rmtree(self.data_out, ignore_errors=True, onerror=WorkDispatcher._onerror)
+        self.data_out.mkdir(parents=True, exist_ok=True)
+        self.analysis_artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def analysis_artifact_dir(self) -> Path:
+        export_root = Path(getattr(self.env, "AGILAB_EXPORT_ABS", Path.home() / "export"))
+        return export_root / self.env.target / "tescia_diagnostic"
+
+    def _sample_dataset_source(self) -> Path:
+        return _PACKAGE_ROOT / "sample_data" / "tescia_diagnostic_cases.json"
+
+    def _classroom_dataset_source(self) -> Path:
+        return _PACKAGE_ROOT / "sample_data" / "tescia_classroom_submissions.json"
+
+    def _ensure_dataset(self, data_in: Path) -> None:
+        if self.args.case_source == "standalone_ai":
+            self._ensure_generated_dataset(data_in)
+            return
+        if self.args.case_source == "bundled_classroom":
+            sample = self._classroom_dataset_source()
+            if not sample.is_file():
+                raise FileNotFoundError(f"Bundled TeSciA classroom submissions missing: {sample}")
+            destination = data_in / sample.name
+            if not destination.is_file():
+                shutil.copy2(sample, destination)
+                logger.info("Seeded TeSciA classroom submissions at %s", destination)
+            return
+
+        existing = sorted(data_in.glob(self.args.files))
+        if existing:
+            return
+        sample = self._sample_dataset_source()
+        if not sample.is_file():
+            raise FileNotFoundError(f"Bundled TeSciA diagnostic cases missing: {sample}")
+        destination = data_in / sample.name
+        shutil.copy2(sample, destination)
+        logger.info("Seeded TeSciA diagnostic cases at %s", destination)
+
+    def _ensure_generated_dataset(self, data_in: Path) -> None:
+        destination = data_in / self.args.generated_cases_filename
+        if destination.is_file() and not self.args.regenerate_cases:
+            return
+        try:
+            self._generate_case_file_fn(
+                data_in,
+                filename=self.args.generated_cases_filename,
+                provider=self.args.ai_provider,
+                endpoint=self.args.ai_endpoint,
+                model=self.args.ai_model,
+                topic=self.args.ai_topic,
+                case_count=self.args.ai_case_count,
+                temperature=self.args.ai_temperature,
+                timeout_s=self.args.ai_timeout_s,
+            )
+        except DiagnosticCaseGenerationError as exc:
+            raise RuntimeError(
+                "Standalone AI case generation failed. Start the configured local "
+                "AI endpoint or switch TeSciA case source back to 'bundled'. "
+                f"Details: {exc}"
+            ) from exc
+        logger.info("Generated TeSciA diagnostic cases at %s", destination)
+
+    @classmethod
+    def from_toml(
+        cls,
+        env,
+        settings_path: str | Path = "app_settings.toml",
+        section: str = "args",
+        **overrides: ArgsOverrides,
+    ) -> "TesciaDiagnostic":
+        base = load_args(settings_path, section=section)
+        merged = ensure_defaults(merge_args(base, overrides or None), env=env)
+        return cls(env, args=merged)
+
+    def to_toml(
+        self,
+        settings_path: str | Path = "app_settings.toml",
+        section: str = "args",
+        create_missing: bool = True,
+    ) -> None:
+        dump_args(self.args, settings_path, section=section, create_missing=create_missing)
+
+    def as_dict(self) -> dict[str, Any]:
+        return self.args.model_dump(mode="json")
+
+    def build_distribution(self, workers):
+        file_pattern = (
+            self.args.generated_cases_filename
+            if self.args.case_source == "standalone_ai"
+            else self._classroom_dataset_source().name
+            if self.args.case_source == "bundled_classroom"
+            else self.args.files
+        )
+        inbox_files = (
+            sorted(self.args.submission_inbox.glob("*.json"))
+            if self.args.include_submission_inbox
+            else []
+        )
+        seeded_files = sorted(self.args.data_in.glob(file_pattern))
+        files = []
+        seen: set[Path] = set()
+        for path in [*inbox_files, *seeded_files]:
+            resolved = path.resolve()
+            if resolved not in seen:
+                files.append(path)
+                seen.add(resolved)
+        if self.args.nfile > 0:
+            files = files[: self.args.nfile]
+        if not files:
+            raise FileNotFoundError(
+                f"No diagnostic case file found in {self.args.data_in} with pattern {file_pattern!r}"
+            )
+
+        weights = [(str(path), max(int(path.stat().st_size // 1024), 1)) for path in files]
+        if len(weights) == 1:
+            worker_chunks = [[weights[0]]]
+        else:
+            worker_chunks = WorkDispatcher.make_chunks(
+                len(weights),
+                weights,
+                workers=workers,
+                verbose=self.verbose,
+                threshold=12,
+            )
+
+        work_plan = []
+        metadata = []
+        for chunk in worker_chunks:
+            file_batch = [file_path for file_path, _ in chunk]
+            total_size_kb = sum(size_kb for _, size_kb in chunk)
+            batch_label = Path(file_batch[0]).name if len(file_batch) == 1 else f"{len(file_batch)} files"
+            work_plan.append([file_batch])
+            metadata.append([{"diagnostic_file": batch_label, "size_kb": total_size_kb}])
+
+        return work_plan, metadata, "diagnostic_file", "size_kb", "KB"
+
+
+class TesciaDiagnosticApp(TesciaDiagnostic):
+    """Compatibility alias retaining the descriptive *App suffix."""
+
+
+__all__ = ["TesciaDiagnostic", "TesciaDiagnosticApp"]
