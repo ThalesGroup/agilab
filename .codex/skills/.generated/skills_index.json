@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-01T17:05:13Z",
+  "generated_at_utc": "2026-06-02T08:11:07Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -143,7 +143,7 @@
       "name": "agilab-testing",
       "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-30",
+      "updated": "2026-06-02",
       "path": ".codex/skills/agilab-testing/SKILL.md",
       "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- For non-trivial diffs, start with"
     },
