@@ -189,6 +189,7 @@ def test_flight_app_args_form_repairs_foreign_workspace_args(tmp_path: Path) -> 
                 "cluster_enabled = true",
                 "",
                 "[args]",
+                'data_out = "pytorch_playground/evidence"',
                 'dataset = "circles"',
                 "sample_count = 320",
                 "noise = 0.08",
@@ -227,6 +228,7 @@ def test_flight_app_args_form_repairs_foreign_workspace_args(tmp_path: Path) -> 
     assert persisted["cluster"]["cluster_enabled"] is True
     assert persisted["args"]["data_source"] == "file"
     assert persisted["args"]["data_in"] == "flight_telemetry/dataset"
+    assert persisted["args"]["data_out"] == "flight_telemetry/dataframe"
     assert "dataset" not in persisted["args"]
     assert "hidden_layers" not in persisted["args"]
 

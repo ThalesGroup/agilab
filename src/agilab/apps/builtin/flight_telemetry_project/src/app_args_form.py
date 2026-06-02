@@ -77,15 +77,10 @@ def _try_repair_foreign_args_payload(settings_path: Path) -> FlightArgs | None:
     if not unknown_keys:
         return None
 
-    known_payload = {
-        key: value for key, value in raw_payload.items() if key in field_names
-    }
     try:
-        repaired = apply_source_defaults(FlightArgs(**known_payload))
-    except Exception:
-        if known_payload:
-            return None
         repaired = apply_source_defaults(FlightArgs())
+    except Exception:
+        return None
 
     try:
         dump_args_to_toml(repaired, settings_path)
