@@ -316,6 +316,7 @@ Use these only after the local ``flight_telemetry_project`` proof works once.
 .. image:: https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-xl.svg
    :target: https://huggingface.co/spaces/jpmorard/agilab
    :alt: Open in Hugging Face Spaces
+   :height: 56px
 
 Self-serve public AGILAB demo hosted on Hugging Face Spaces.
 The dedicated docs page for this route is :doc:`agilab-demo`.
@@ -325,6 +326,7 @@ The dedicated docs page for this route is :doc:`agilab-demo`.
 .. image:: https://kaggle.com/static/images/open-in-kaggle.svg
    :target: https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb
    :alt: Open In Kaggle
+   :height: 56px
 
 Notebook-first proof for users who want the headless ``agi-core`` route before
 installing or operating the full AGILAB UI.
