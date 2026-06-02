@@ -38,6 +38,7 @@ pin_safe_action_extra_fields = generated_actions.pin_safe_action_extra_fields
 safe_action_contract_sha256 = generated_actions.safe_action_contract_sha256
 safe_action_catalog_options = generated_actions.safe_action_catalog_options
 safe_action_contract_stage_code = generated_actions.safe_action_contract_stage_code
+safe_action_template_code = generated_actions.safe_action_template_code
 stage_generation_extra_fields = generated_actions.stage_generation_extra_fields
 summarize_generated_actions = generated_actions.summarize_generated_actions
 validate_generated_action_contract = generated_actions.validate_generated_action_contract
@@ -218,6 +219,13 @@ def test_safe_action_catalog_exposes_supported_templates() -> None:
         "clip",
     }
     assert all(item["label"] and item["prompt"] for item in options)
+    filter_template = safe_action_template_code("filter_rows")
+    assert "AGILAB Safe Action template: Filter rows" in filter_template
+    assert 'column = "column_name"' in filter_template
+    assert "df = df[df[column] == value].copy()" in filter_template
+    assert "intentionally a no-op" not in filter_template
+    with pytest.raises(GeneratedActionError, match="unsupported safe action template"):
+        safe_action_template_code("raw_python")
 
 
 def test_parse_generated_action_contract_can_extract_json_codeblock() -> None:
