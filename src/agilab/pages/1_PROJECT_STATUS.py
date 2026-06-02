@@ -18,14 +18,19 @@ _PROJECT_EDITOR_PAGE_MODULE = "agilab_project_edit_page_shared"
 
 def _load_project_editor_page_module() -> ModuleType:
     """Load the editor page so PROJECT can reuse project operation handlers."""
-    cached = sys.modules.get(_PROJECT_EDITOR_PAGE_MODULE)
-    if isinstance(cached, ModuleType):
-        return cached
     module_path = Path(__file__).with_name("1_PROJECT.py")
+    source_mtime_ns = module_path.stat().st_mtime_ns
+    cached = sys.modules.get(_PROJECT_EDITOR_PAGE_MODULE)
+    if (
+        isinstance(cached, ModuleType)
+        and getattr(cached, "__agilab_source_mtime_ns__", None) == source_mtime_ns
+    ):
+        return cached
     spec = importlib.util.spec_from_file_location(_PROJECT_EDITOR_PAGE_MODULE, module_path)
     if spec is None or spec.loader is None:
         raise ModuleNotFoundError(f"Unable to load PROJECT editor page from {module_path}")
     module = importlib.util.module_from_spec(spec)
+    module.__agilab_source_mtime_ns__ = source_mtime_ns
     sys.modules[_PROJECT_EDITOR_PAGE_MODULE] = module
     spec.loader.exec_module(module)
     return module

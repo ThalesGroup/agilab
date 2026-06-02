@@ -1245,7 +1245,7 @@ def _render_installed_pypi_app_manager(env) -> None:
 
 
 def _render_pypi_app_install_action(env) -> None:
-    with st.sidebar.expander("Install from pypi.org", expanded=False):
+    with st.sidebar.expander("Install another version", expanded=False):
         catalog = _search_promoted_pypi_app_catalog("")
         catalog_options = ["", *catalog]
         catalog_choice = st.selectbox(
@@ -2598,7 +2598,8 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
 
 def render_project_dashboard(env) -> None:
     """Render PROJECT-owned dashboard panels for the active project."""
-    health = render_environment_health_panel(st, env, render_details=False)
+    with st.container(border=True):
+        health = render_environment_health_panel(st, env, render_details=False)
     with st.expander("Project metrics", expanded=False):
         _render_project_software_metrics(env)
     render_environment_details(st, health.details)
