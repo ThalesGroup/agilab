@@ -26,9 +26,6 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.02
 ### Changed
 
 - Published AGILAB `2026.06.02` to PyPI for `agi-env`, `agi-gui`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-apps`, and `agilab`.
-- Hardened PyPI release retention so the temporary confirmation URL Actions variable is cleared after cleanup.
-- Fixed `AgiEnv.reset()` so repeated source/UI sessions clear runtime class caches before reinitialization.
-- Grouped the README repo-guardrails and coverage badges, and restored the explicit wheel and agent API badge contracts.
 - Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
 - Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
