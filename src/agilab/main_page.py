@@ -1132,6 +1132,12 @@ def _navigation_pages() -> list[Any]:
         url_path="PROJECT_EDIT",
         visibility="hidden",
     )
+    project_status_legacy_page = st.Page(
+        _page_file_runner(pages_root / "1_PROJECT_STATUS.py"),
+        title="PROJECT",
+        url_path="PROJECT_STATUS",
+        visibility="hidden",
+    )
     orchestrate_page = st.Page(
         _page_file_runner(pages_root / "2_ORCHESTRATE.py"),
         title="ORCHESTRATE",
@@ -1164,6 +1170,7 @@ def _navigation_pages() -> list[Any]:
         settings_nav_page,
         project_page,
         project_edit_page,
+        project_status_legacy_page,
         orchestrate_page,
         workflow_page,
         analysis_page,
