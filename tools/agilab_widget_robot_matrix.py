@@ -191,6 +191,21 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
     ),
+    "isolated-project-editor-page": RobotScenario(
+        name="isolated-project-editor-page",
+        description=(
+            "Open the hidden PROJECT_EDITOR route for every built-in app and "
+            "assert the editor surface stays separate from PROJECT dashboard panels."
+        ),
+        pages="PROJECT_EDITOR",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="safe-click",
+        required_text="Edit project files",
+        forbidden_text="Worker class,Source LOC,Environment Health",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=300.0,
+    ),
     "isolated-project-notebook-import": RobotScenario(
         name="isolated-project-notebook-import",
         description=(
