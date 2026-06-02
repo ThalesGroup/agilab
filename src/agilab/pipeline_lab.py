@@ -80,6 +80,7 @@ GeneratedActionError = _generated_actions_module.GeneratedActionError
 pin_safe_action_extra_fields = _generated_actions_module.pin_safe_action_extra_fields
 safe_action_contract_sha256 = _generated_actions_module.safe_action_contract_sha256
 safe_action_contract_stage_code = _generated_actions_module.safe_action_contract_stage_code
+safe_action_catalog_options = _generated_actions_module.safe_action_catalog_options
 stage_generation_extra_fields = _generated_actions_module.stage_generation_extra_fields
 summarize_generated_actions = _generated_actions_module.summarize_generated_actions
 validate_generated_action_contract = _generated_actions_module.validate_generated_action_contract
@@ -90,6 +91,7 @@ GENERATION_MODE_LABELS = {
 }
 GENERATION_MODE_BY_LABEL = {label: mode for mode, label in GENERATION_MODE_LABELS.items()}
 PINNED_SAFE_ACTION_NEW = "Generate new Safe Action"
+SAFE_ACTION_TEMPLATE_PREFIX = "Template: "
 SNIPPET_EDITOR_HEIGHT = 420
 
 
@@ -113,14 +115,12 @@ def _safe_action_contract_payload(raw_contract: Any) -> dict[str, Any] | None:
         return None
 
 
-def _pinned_safe_actions_from_stages(stages: List[Mapping[str, Any]]) -> List[_PinnedSafeAction]:
-    pinned_actions: List[_PinnedSafeAction] = []
+def _existing_safe_actions_from_stages(stages: List[Mapping[str, Any]]) -> List[_PinnedSafeAction]:
+    existing_actions: List[_PinnedSafeAction] = []
     for stage_index, entry in enumerate(stages):
         if not isinstance(entry, Mapping):
             continue
         if entry.get(STAGE_GENERATION_MODE_FIELD) != GENERATION_MODE_SAFE_ACTIONS:
-            continue
-        if not bool(entry.get(STAGE_SAFE_ACTION_PINNED_FIELD)):
             continue
         contract = _safe_action_contract_payload(entry.get(STAGE_ACTION_CONTRACT_FIELD))
         if contract is None:
@@ -128,10 +128,11 @@ def _pinned_safe_actions_from_stages(stages: List[Mapping[str, Any]]) -> List[_P
         detail = summarize_generated_actions(contract)
         digest = str(entry.get(STAGE_ACTION_CONTRACT_SHA256_FIELD) or safe_action_contract_sha256(contract))
         suffix = f" ({digest[:8]})" if digest else ""
-        pinned_actions.append(
+        state = "pinned" if bool(entry.get(STAGE_SAFE_ACTION_PINNED_FIELD)) else "saved"
+        existing_actions.append(
             _PinnedSafeAction(
                 stage_index=stage_index,
-                label=f"Stage {stage_index + 1}: {detail}{suffix}",
+                label=f"Stage {stage_index + 1} [{state}]: {detail}{suffix}",
                 question=str(entry.get("Q") or detail),
                 detail=detail,
                 model=str(entry.get("M") or "pinned-safe-action"),
@@ -139,7 +140,7 @@ def _pinned_safe_actions_from_stages(stages: List[Mapping[str, Any]]) -> List[_P
                 code=safe_action_contract_stage_code(contract),
             )
         )
-    return pinned_actions
+    return existing_actions
 
 _pipeline_page_state_module = import_agilab_module(
     "agilab.pipeline_page_state",
@@ -3430,17 +3431,19 @@ def display_lab_tab(
         labels = list(GENERATION_MODE_LABELS.values())
         mode = existing_mode if existing_mode in GENERATION_MODE_LABELS else GENERATION_MODE_SAFE_ACTIONS
         default_label = GENERATION_MODE_LABELS[mode]
-        select_kwargs: Dict[str, Any] = {
-            "key": key,
-            "help": (
+        if st.session_state.get(key) not in labels:
+            st.session_state[key] = default_label
+        selected_label = compact_choice(
+            st,
+            "Generation mode",
+            labels,
+            key=key,
+            help=(
                 "Safe actions asks the model for a validated JSON action contract. "
                 "Python snippet is for advanced manual code generation."
             ),
-        }
-        if st.session_state.get(key) not in labels:
-            st.session_state.pop(key, None)
-            select_kwargs["index"] = labels.index(default_label)
-        selected_label = st.selectbox("Generation mode", labels, **select_kwargs)
+            inline_limit=4,
+        )
         selected_mode = GENERATION_MODE_BY_LABEL.get(str(selected_label), GENERATION_MODE_SAFE_ACTIONS)
         if selected_mode == GENERATION_MODE_SAFE_ACTIONS:
             st.caption("Safe actions: model JSON is validated, then AGILAB writes deterministic pandas code.")
@@ -3467,26 +3470,45 @@ def display_lab_tab(
         return loaded if isinstance(loaded, pd.DataFrame) else None
 
     def _render_pinned_safe_action_selectbox(key: str) -> _PinnedSafeAction | None:
-        if not pinned_safe_actions:
-            st.caption("No pinned Safe Actions yet. Pin a generated Safe Action stage to reuse it here.")
-            return None
-        options = [PINNED_SAFE_ACTION_NEW] + [action.label for action in pinned_safe_actions]
+        catalog_by_label = {
+            f"{SAFE_ACTION_TEMPLATE_PREFIX}{item['label']}": item
+            for item in safe_action_catalog_options()
+        }
+        options = [
+            PINNED_SAFE_ACTION_NEW,
+            *[action.label for action in existing_safe_actions],
+            *catalog_by_label,
+        ]
         select_kwargs: Dict[str, Any] = {
             "key": key,
             "help": (
-                "Reuse a pinned validated Safe Action contract from this workflow. "
-                "Raw Python snippets are not listed here."
+                "Reuse a saved validated Safe Action contract, or start from a built-in Safe Action template. "
+                "Raw Python snippets are excluded."
             ),
         }
         if st.session_state.get(key) not in options:
             st.session_state.pop(key, None)
             select_kwargs["index"] = 0
         selected = st.selectbox("Existing Safe Action", options, **select_kwargs)
-        for action in pinned_safe_actions:
+        for action in existing_safe_actions:
             if selected == action.label:
-                st.caption(f"Reusing pinned Safe Action from stage {action.stage_index + 1}.")
+                st.session_state.pop(f"{key}__template_prompt", None)
+                st.caption(f"Reusing existing Safe Action from stage {action.stage_index + 1}.")
                 return action
+        template = catalog_by_label.get(str(selected))
+        if template:
+            st.session_state[f"{key}__template_prompt"] = str(template.get("prompt") or "")
+            st.caption(f"{selected}. Edit the prompt below, then generate a validated Safe Action.")
+            return None
+        st.session_state.pop(f"{key}__template_prompt", None)
+        if not existing_safe_actions:
+            st.caption("No saved Safe Actions yet; choose a template or write a prompt.")
         return None
+
+    def _seed_safe_action_template_prompt(selection_key: str, prompt_key: str) -> None:
+        template_prompt = str(st.session_state.get(f"{selection_key}__template_prompt") or "").strip()
+        if template_prompt and not str(st.session_state.get(prompt_key) or "").strip():
+            st.session_state[prompt_key] = template_prompt
 
     def _answer_from_pinned_safe_action(action: _PinnedSafeAction, df_path: Path) -> List[Any]:
         return [
@@ -3552,7 +3574,7 @@ def display_lab_tab(
                 persisted_stages = [s for s in fallback_stages if _is_displayable_stage(s)]
         except (AttributeError, OSError, TypeError, tomllib.TOMLDecodeError):
             pass
-    pinned_safe_actions = _pinned_safe_actions_from_stages(persisted_stages)
+    existing_safe_actions = _existing_safe_actions_from_stages(persisted_stages)
     total_stages = len(persisted_stages)
     safe_prefix = index_page_str.replace("/", "_")
     total_stages_key = f"{safe_prefix}_total_stages"
@@ -3648,6 +3670,7 @@ def display_lab_tab(
                     if generation_mode == GENERATION_MODE_SAFE_ACTIONS
                     else None
                 )
+                _seed_safe_action_template_prompt(f"{safe_prefix}_safe_action_choice_first", new_q_key)
                 st.text_area(
                     "Ask code generator:",
                     key=new_q_key,
@@ -4017,6 +4040,7 @@ def display_lab_tab(
                 if generation_mode == GENERATION_MODE_SAFE_ACTIONS
                 else None
             )
+            _seed_safe_action_template_prompt(f"{safe_prefix}_safe_action_choice_{stage}", q_key)
             current_contract = _safe_action_contract_payload(entry.get(STAGE_ACTION_CONTRACT_FIELD))
             if current_contract is not None:
                 current_safe_action_pinned = bool(entry.get(STAGE_SAFE_ACTION_PINNED_FIELD))
@@ -4596,6 +4620,7 @@ def display_lab_tab(
                 if generation_mode == GENERATION_MODE_SAFE_ACTIONS
                 else None
             )
+            _seed_safe_action_template_prompt(f"{safe_prefix}_safe_action_choice_add", new_q_key)
             st.text_area(
                 "Ask code generator:",
                 key=new_q_key,

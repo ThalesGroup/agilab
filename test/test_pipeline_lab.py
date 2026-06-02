@@ -305,7 +305,8 @@ def _safe_action_stage(*, pinned: bool, question: str = "keep Paris rows") -> di
 
 def _safe_action_option_label(stage: dict[str, Any], *, stage_index: int = 0) -> str:
     digest = str(stage[pipeline_lab.STAGE_ACTION_CONTRACT_SHA256_FIELD])[:8]
-    return f"Stage {stage_index + 1}: Safe action contract: filter rows. ({digest})"
+    state = "pinned" if bool(stage[pipeline_lab.STAGE_SAFE_ACTION_PINNED_FIELD]) else "saved"
+    return f"Stage {stage_index + 1} [{state}]: Safe action contract: filter rows. ({digest})"
 
 
 def test_valid_runtime_path_rejects_non_runtime_roots(monkeypatch):
@@ -3419,6 +3420,25 @@ def test_display_lab_tab_empty_pipeline_renders_generator_form(monkeypatch, tmp_
     assert fake_st.session_state["demo_new_q"] == ""
 
 
+def test_display_lab_tab_empty_pipeline_populates_safe_action_templates(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit({"demo": [0, "", "", "", "", "", 0]})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
+    deps = _make_lab_deps()
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
+
+    safe_action_calls = [call for call in fake_st.selectbox_calls if call[0] == "Existing Safe Action"]
+    assert safe_action_calls
+    options = safe_action_calls[0][1]
+    assert pipeline_lab.PINNED_SAFE_ACTION_NEW in options
+    assert f"{pipeline_lab.SAFE_ACTION_TEMPLATE_PREFIX}Filter rows" in options
+    assert f"{pipeline_lab.SAFE_ACTION_TEMPLATE_PREFIX}Group and aggregate" in options
+
+
 def test_display_lab_tab_loads_selected_dataframe_without_index_inference(monkeypatch, tmp_path):
     calls: list[tuple[Path, bool | None]] = []
     df_path = tmp_path / "export.csv"
@@ -4525,8 +4545,8 @@ def test_display_lab_tab_existing_stages_warns_when_safe_action_generation_has_n
     assert ("warning", "The assistant did not return runnable stage code.") in fake_st.messages
 
 
-def test_display_lab_tab_lists_pinned_safe_actions_after_safe_mode(monkeypatch, tmp_path):
-    pinned_stage = _safe_action_stage(pinned=True)
+def test_display_lab_tab_lists_saved_safe_actions_after_safe_mode(monkeypatch, tmp_path):
+    safe_stage = _safe_action_stage(pinned=False)
     raw_stage = {
         "D": "",
         "Q": "raw python",
@@ -4534,7 +4554,7 @@ def test_display_lab_tab_lists_pinned_safe_actions_after_safe_mode(monkeypatch, 
         "C": "print('raw')",
         "E": "",
         pipeline_lab.STAGE_GENERATION_MODE_FIELD: pipeline_lab.GENERATION_MODE_PYTHON_SNIPPET,
-        pipeline_lab.STAGE_ACTION_CONTRACT_FIELD: pinned_stage[pipeline_lab.STAGE_ACTION_CONTRACT_FIELD],
+        pipeline_lab.STAGE_ACTION_CONTRACT_FIELD: safe_stage[pipeline_lab.STAGE_ACTION_CONTRACT_FIELD],
         pipeline_lab.STAGE_SAFE_ACTION_PINNED_FIELD: True,
     }
     fake_st = _FakeStreamlit(
@@ -4555,7 +4575,7 @@ def test_display_lab_tab_lists_pinned_safe_actions_after_safe_mode(monkeypatch, 
     monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
 
     deps = _make_lab_deps(
-        load_all_stages=lambda *_args, **_kwargs: [pinned_stage, raw_stage],
+        load_all_stages=lambda *_args, **_kwargs: [safe_stage, raw_stage],
         load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
@@ -4568,7 +4588,7 @@ def test_display_lab_tab_lists_pinned_safe_actions_after_safe_mode(monkeypatch, 
     assert safe_action_calls
     options = safe_action_calls[0][1]
     assert options[0] == pipeline_lab.PINNED_SAFE_ACTION_NEW
-    assert _safe_action_option_label(pinned_stage) in options
+    assert _safe_action_option_label(safe_stage) in options
     assert all("raw python" not in str(option) for option in options)
 
 
