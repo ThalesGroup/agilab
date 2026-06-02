@@ -61,6 +61,24 @@ def test_discover_builtin_projects_ignores_untracked_workspace_dirs(tmp_path: Pa
     assert module.discover_builtin_projects(tmp_path) == (tracked_project,)
 
 
+def test_load_module_supports_package_imports_without_preexisting_src_path(monkeypatch):
+    module = _load_module()
+    src_path = str((ROOT / "src").resolve())
+    monkeypatch.setattr(module.sys, "path", [path for path in sys.path if path != src_path])
+    for name in list(sys.modules):
+        if name == "agilab" or name.startswith("agilab."):
+            monkeypatch.delitem(sys.modules, name, raising=False)
+
+    loaded = module._load_module(
+        ROOT,
+        Path("src/agilab/pypi_app_packages.py"),
+        "agilab_app_contract_pypi_app_packages_plain_python_test",
+    )
+
+    assert loaded.PROMOTED_PYPI_APP_PACKAGES
+    assert src_path not in module.sys.path
+
+
 def test_app_contract_matrix_detects_promoted_catalog_drift():
     module = _load_module()
 

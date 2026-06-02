@@ -78,12 +78,23 @@ def _check(
 
 def _load_module(repo_root: Path, relative_path: Path, module_name: str):
     module_path = repo_root / relative_path
+    src_path = str((repo_root / "src").resolve())
+    inserted_src_path = src_path not in sys.path
+    if inserted_src_path:
+        sys.path.insert(0, src_path)
     spec = importlib.util.spec_from_file_location(module_name, module_path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Cannot load module: {module_path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if inserted_src_path:
+            try:
+                sys.path.remove(src_path)
+            except ValueError:
+                pass
     return module
 
 
