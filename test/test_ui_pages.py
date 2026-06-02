@@ -734,20 +734,29 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     assert 'title="PROJECT"' in source
     assert 'url_path="PROJECT"' in source
     project_block = source.split("project_page = st.Page(", 1)[1].split(
-        "project_status_page", 1
+        "project_edit_page", 1
     )[0]
-    project_status_block = source.split("project_status_page = st.Page(", 1)[1].split(
+    project_edit_block = source.split("project_edit_page = st.Page(", 1)[1].split(
+        "project_status_legacy_page", 1
+    )[0]
+    project_status_legacy_block = source.split("project_status_legacy_page = st.Page(", 1)[1].split(
         "orchestrate_page", 1
     )[0]
-    assert '_page_file_runner(pages_root / "1_PROJECT.py")' in project_block
-    assert '_page_file_runner(pages_root / "1_PROJECT_STATUS.py")' in project_status_block
-    assert 'title="PROJECT"' in project_status_block
-    assert 'url_path="PROJECT_STATUS"' in project_status_block
+    assert '_page_file_runner(pages_root / "1_PROJECT_STATUS.py")' in project_block
+    assert 'title="PROJECT"' in project_block
+    assert 'url_path="PROJECT"' in project_block
+    assert '_page_file_runner(pages_root / "1_PROJECT.py")' in project_edit_block
+    assert 'url_path="PROJECT_EDIT"' in project_edit_block
+    assert 'visibility="hidden"' in project_edit_block
+    assert '_page_file_runner(pages_root / "1_PROJECT_STATUS.py")' in project_status_legacy_block
+    assert 'url_path="PROJECT_STATUS"' in project_status_legacy_block
+    assert 'visibility="hidden"' in project_status_legacy_block
     assert 'visibility="hidden"' in source
     assert 'title="ORCHESTRATE"' in source
     assert 'title="WORKFLOW"' in source
     assert 'title="ANALYSIS"' in source
     assert 'target.columns([0.76, 0.24], vertical_alignment="bottom")' in selector_source
+    assert 'PROJECT_ROUTE_ID = "project_edit"' in selector_source
     assert 'PROJECT_PAGE_PATH = Path("pages/1_PROJECT.py")' in selector_source
     assert "switch_to_project_page(streamlit, active_app=selection)" in selector_source
     assert "switch_to_project_page(st, active_app=selected_lab)" not in pipeline_source
@@ -2973,14 +2982,67 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     assert "project_selectbox" in selectbox_keys
     assert "project_selectbox__edit" in [button.key for button in at.button]
     assert "project_selectbox__edit" not in [button.key for button in at.sidebar.button]
-    assert at.session_state["sidebar_selection"] == "Create"
-    sidebar_labels = "\n".join(str(widget.label) for widget in at.sidebar)
+    assert at.session_state["sidebar_selection"] == "Overview"
+    assert "templates" in at.session_state
+    assert "archives" in at.session_state
+    assert "clone_env_strategy" not in at.session_state
+    assert any(button.label == "Export" for button in at.sidebar.button)
+    sidebar_labels = "\n".join(str(getattr(widget, "label", "")) for widget in at.sidebar)
     assert "Project action" in sidebar_labels
+    assert "clone_dest" not in [ti.key for ti in at.sidebar.text_input]
     assert "project_filter" not in [ti.key for ti in at.sidebar.text_input]
 
 
-def test_create_page_exposes_environment_strategy(mock_ui_env):
-    at = _app_test("src/agilab/pages/1_PROJECT.py")
+def test_project_sidebar_support_normalizes_actions_and_rejects_unknown():
+    support = _import_agilab_module("agilab.project_sidebar_support")
+
+    assert support.normalize_project_sidebar_actions(
+        ["Overview", "Clone", "Create", "Edit", "Clone"]
+    ) == ("Overview", "Create", "Edit")
+
+    with pytest.raises(ValueError, match="Unsupported PROJECT sidebar action"):
+        support.normalize_project_sidebar_actions(["Overview", "Archive"])
+
+
+def test_project_sidebar_support_initializes_shared_session_defaults(tmp_path):
+    support = _import_agilab_module("agilab.project_sidebar_support")
+    env = SimpleNamespace(app="flight_telemetry_project")
+    fake_st = SimpleNamespace(session_state={"sidebar_selection": "Create"})
+
+    support.ensure_project_sidebar_session_defaults(
+        fake_st,
+        env,
+        ("Overview", "Create"),
+        get_templates=lambda: ["minimal_app_project"],
+        get_projects_zip=lambda: ["demo.zip"],
+    )
+
+    assert fake_st.session_state["env"] is env
+    assert fake_st.session_state["_env"] is env
+    assert fake_st.session_state["orchest_functions"] == ["build_distribution"]
+    assert fake_st.session_state["templates"] == ["minimal_app_project"]
+    assert fake_st.session_state["archives"] == ["-- Select a file --", "demo.zip"]
+    assert fake_st.session_state["export_message"] == ""
+    assert fake_st.session_state["project_imported"] is False
+    assert fake_st.session_state["project_created"] is False
+    assert fake_st.session_state["show_widgets"] == [True, False]
+    assert fake_st.session_state["pages"] == []
+    assert fake_st.session_state["switch_to_edit"] is False
+    assert fake_st.session_state["sidebar_selection"] == "Create"
+
+    fresh_st = SimpleNamespace(session_state={})
+    support.ensure_project_sidebar_session_defaults(
+        fresh_st,
+        env,
+        ("Overview", "Create"),
+        get_templates=list,
+        get_projects_zip=list,
+    )
+    assert fresh_st.session_state["sidebar_selection"] == "Overview"
+
+
+def test_project_status_create_action_exposes_environment_strategy(mock_ui_env):
+    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
@@ -3003,8 +3065,31 @@ def test_create_page_exposes_environment_strategy(mock_ui_env):
     assert "Safer for real development." not in sidebar_captions
 
 
-def test_project_page_notebook_import_query_opens_file_selector(mock_ui_env):
+def test_project_edit_page_is_edit_only(mock_ui_env):
     at = _app_test("src/agilab/pages/1_PROJECT.py")
+    env = AgiEnv(
+        apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
+    )
+    env.init_done = True
+    env.st_resources = (
+        Path(__file__).resolve().parents[1] / "src/agilab/resources"
+    ).resolve()
+    env.projects = ["flight_telemetry_project"]
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
+    at.session_state["env"] = env
+    at.session_state["sidebar_selection"] = "Create"
+
+    at.run()
+    assert not at.exception
+
+    assert at.session_state["sidebar_selection"] == "Edit"
+    assert "clone_env_strategy" not in at.session_state
+    assert "clone_dest" not in [ti.key for ti in at.sidebar.text_input]
+    assert not any(button.label == "Export" for button in at.sidebar.button)
+
+
+def test_project_status_notebook_import_query_opens_file_selector(mock_ui_env):
+    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
