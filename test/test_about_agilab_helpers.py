@@ -4287,10 +4287,10 @@ def test_main_page_sidebar_links_active_app_readme(tmp_path, monkeypatch):
     assert readme.resolve().as_uri() not in readme_url
     assert (
         readme_url
-        == "/PROJECT_EDIT?active_app=flight_telemetry_project&sidebar_selection=Edit&project_section=readme"
+        == "/PROJECT_EDITOR?active_app=flight_telemetry_project&sidebar_selection=Edit&project_section=readme"
     )
     parsed = urlparse(readme_url)
-    assert parsed.path == "/PROJECT_EDIT"
+    assert parsed.path == "/PROJECT_EDITOR"
     assert parse_qs(parsed.query) == {
         "active_app": ["flight_telemetry_project"],
         "sidebar_selection": ["Edit"],
@@ -4305,7 +4305,7 @@ def test_main_page_sidebar_links_active_app_readme(tmp_path, monkeypatch):
     assert readme_markup == [
         (
             f'<a href="{escaped_readme_url}" target="_self" '
-            'title="Open the active project README in PROJECT.">README</a>'
+            'title="Open the active project README in PROJECT editor.">README</a>'
         )
     ]
     assert not [body for kind, body in fake_st.events if kind == "sidebar.page_link"]
@@ -4348,7 +4348,7 @@ def test_main_page_sidebar_readme_button_fallback_switches_project(
             {
                 "label": "README",
                 "kwargs": {
-                    "help": "Open the active project README in PROJECT.",
+                    "help": "Open the active project README in PROJECT editor.",
                     "width": "stretch",
                 },
             },

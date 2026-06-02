@@ -70,6 +70,7 @@ def test_core_page_above_fold_expectations_track_current_layout() -> None:
         "PROJECT",
         "Flight Telemetry",
         "Install PyPI app",
+        "Worker class",
     )
     assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["ORCHESTRATE"] == (
         "ORCHESTRATE",

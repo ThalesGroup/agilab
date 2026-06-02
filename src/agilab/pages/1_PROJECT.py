@@ -126,7 +126,8 @@ _project_sidebar_support_module = import_agilab_module(
     fallback_path=Path(__file__).resolve().parents[1] / "project_sidebar_support.py",
     fallback_name="agilab_project_sidebar_support_fallback",
 )
-PROJECT_EDIT_ACTIONS = _project_sidebar_support_module.PROJECT_EDIT_ACTIONS
+PROJECT_EDITOR_ACTIONS = _project_sidebar_support_module.PROJECT_EDITOR_ACTIONS
+PROJECT_EDIT_ACTIONS = PROJECT_EDITOR_ACTIONS
 PROJECT_STATUS_ACTIONS = _project_sidebar_support_module.PROJECT_STATUS_ACTIONS
 _normalize_project_sidebar_actions = (
     _project_sidebar_support_module.normalize_project_sidebar_actions
@@ -2525,9 +2526,15 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
 # -------------------- Sidebar Handlers -------------------- #
 
 
+def render_project_dashboard(env) -> None:
+    """Render PROJECT-owned dashboard panels for the active project."""
+    render_environment_health_panel(st, env)
+    _render_project_software_metrics(env)
+
+
 def handle_project_selection():
     """
-    Handle the 'Select' tab in the sidebar for project selection.
+    Handle the edit-only project editor surface.
     Each section is presented inside an expander for easier navigation.
     """
     env = st.session_state["env"]
@@ -2537,8 +2544,6 @@ def handle_project_selection():
         st.warning("No projects available.")
         return
 
-    render_environment_health_panel(st, env)
-    _render_project_software_metrics(env)
     st.markdown("### Edit project files")
 
     # Keep all sections visible; each renderer handles its own absence checks.
@@ -2602,7 +2607,7 @@ def _render_sidebar_export_action(env) -> None:
 def render_project_sidebar(
     env,
     *,
-    actions=PROJECT_EDIT_ACTIONS,
+    actions=PROJECT_EDITOR_ACTIONS,
     render_edit_body: bool = True,
 ) -> str | None:
     """Render the reusable PROJECT sidebar and dispatch selected project action."""

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from agilab.project_sidebar_support import (
+    PROJECT_EDITOR_ACTIONS,
     PROJECT_STATUS_ACTIONS,
     ensure_project_sidebar_session_defaults,
     normalize_project_sidebar_actions,
@@ -12,6 +13,7 @@ from agilab.project_sidebar_support import (
 
 
 def test_normalize_project_sidebar_actions_aliases_clone_and_rejects_unknown() -> None:
+    assert PROJECT_EDITOR_ACTIONS[0] == "Edit"
     assert normalize_project_sidebar_actions(["Overview", "Clone", "Create", "Delete"]) == (
         "Overview",
         "Create",
