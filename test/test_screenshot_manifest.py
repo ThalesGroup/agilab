@@ -16,7 +16,7 @@ SOURCE_PACKAGE = str(SRC_ROOT / "agilab")
 if SOURCE_PACKAGE not in agilab.__path__:
     agilab.__path__.insert(0, SOURCE_PACKAGE)
 
-from agilab.screenshot_manifest import (
+from agilab.ui.screenshot_manifest import (
     SCHEMA,
     SCHEMA_VERSION,
     build_screenshot_record,

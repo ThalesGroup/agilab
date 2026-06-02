@@ -15,7 +15,7 @@ import agilab as _agilab_package  # noqa: E402
 if str(SRC_PACKAGE) not in _agilab_package.__path__:
     _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
 
-from agilab.app_template_registry import discover_app_templates  # noqa: E402
+from agilab.app_management.app_template_registry import discover_app_templates  # noqa: E402
 
 
 SINGLE_WORKER_PROJECTS = {

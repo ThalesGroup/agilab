@@ -17,7 +17,7 @@ else:  # pragma: no cover
     _AGI_ENV_IMPORT_ERROR = None
 
 try:
-    from agilab.page_docs import get_docs_menu_items
+    from agilab.ui.page_docs import get_docs_menu_items
 except (ImportError, ModuleNotFoundError, OSError):  # pragma: no cover - packaged page fallback
 
     def get_docs_menu_items(*, html_file: str | None = None) -> dict[str, str]:

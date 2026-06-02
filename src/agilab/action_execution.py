@@ -1,114 +1,15 @@
-"""Reusable action execution primitives for Streamlit workflow pages."""
+"""Compatibility shim for ``agilab.action_execution``.
+
+The implementation now lives in ``agilab.workflow.action_execution``. Keep this shim so existing
+imports continue to work while internal code migrates to the classified
+package layout.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
-from typing import Any, Literal
+from agilab.compat.module_shim import activate_compat_module as _activate_compat_module
 
-from agilab.runtime_failure_diagnostics import classify_runtime_failure
-
-ActionStatus = Literal["success", "warning", "error", "info"]
-
-
-@dataclass(frozen=True)
-class ActionResult:
-    """Structured outcome for a user-triggered workflow action."""
-
-    status: ActionStatus
-    title: str
-    detail: str | None = None
-    next_action: str | None = None
-    data: Mapping[str, Any] = field(default_factory=dict)
-
-    @classmethod
-    def success(
-        cls,
-        title: str,
-        *,
-        detail: str | None = None,
-        next_action: str | None = None,
-        data: Mapping[str, Any] | None = None,
-    ) -> "ActionResult":
-        return cls("success", title, detail=detail, next_action=next_action, data=data or {})
-
-    @classmethod
-    def warning(
-        cls,
-        title: str,
-        *,
-        detail: str | None = None,
-        next_action: str | None = None,
-        data: Mapping[str, Any] | None = None,
-    ) -> "ActionResult":
-        return cls("warning", title, detail=detail, next_action=next_action, data=data or {})
-
-    @classmethod
-    def error(
-        cls,
-        title: str,
-        *,
-        detail: str | None = None,
-        next_action: str | None = None,
-        data: Mapping[str, Any] | None = None,
-    ) -> "ActionResult":
-        return cls("error", title, detail=detail, next_action=next_action, data=data or {})
-
-    @classmethod
-    def info(
-        cls,
-        title: str,
-        *,
-        detail: str | None = None,
-        next_action: str | None = None,
-        data: Mapping[str, Any] | None = None,
-    ) -> "ActionResult":
-        return cls("info", title, detail=detail, next_action=next_action, data=data or {})
-
-
-@dataclass(frozen=True)
-class ActionSpec:
-    """User-facing metadata for a long-running page action."""
-
-    name: str
-    start_message: str
-    failure_title: str | None = None
-    failure_next_action: str | None = None
-
-
-def render_action_result(streamlit: Any, result: ActionResult) -> None:
-    """Render a structured action result through a Streamlit-compatible object."""
-
-    renderer = getattr(streamlit, result.status)
-    renderer(result.title)
-    if result.detail:
-        streamlit.info(result.detail)
-    if result.next_action:
-        streamlit.info(f"Next: {result.next_action}")
-
-
-def run_streamlit_action(
-    streamlit: Any,
-    spec: ActionSpec,
-    action: Callable[[], ActionResult],
-    *,
-    on_success: Callable[[ActionResult], Any] | None = None,
-) -> ActionResult:
-    """Run a Streamlit page action with consistent progress and result handling."""
-
-    try:
-        with streamlit.spinner(spec.start_message):
-            result = action()
-    except Exception as exc:
-        diagnostic = classify_runtime_failure(str(exc), phase=spec.name)
-        result = ActionResult.error(
-            spec.failure_title or (diagnostic.title if diagnostic else f"{spec.name} failed."),
-            detail=diagnostic.detail if diagnostic else str(exc),
-            next_action=spec.failure_next_action or (diagnostic.next_action if diagnostic else None),
-            data={"failure_category": diagnostic.category} if diagnostic else {},
-        )
-
-    render_action_result(streamlit, result)
-    if result.status == "success" and on_success is not None:
-        on_success(result)
-    return result
+_TARGET_MODULE = "agilab.workflow.action_execution"
+_module = _activate_compat_module(__name__, _TARGET_MODULE, legacy_name="agilab.action_execution")
+if _module is not None:
+    globals().update(_module.__dict__)

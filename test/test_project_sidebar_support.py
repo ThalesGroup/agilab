@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agilab.project_sidebar_support import (
+from agilab.projects.project_sidebar_support import (
     PROJECT_EDITOR_ACTIONS,
     PROJECT_STATUS_ACTIONS,
     ensure_project_sidebar_session_defaults,

@@ -21,7 +21,7 @@ from urllib.parse import urlencode
 from agi_env.agi_logger import AgiLogger
 
 try:
-    from agilab.ui_performance import (
+    from agilab.ui.ui_performance import (
         UI_TIMING_SESSION_KEY,
         UI_TIMING_TRACE_ENV_KEY,
         record_ui_timing_span,
@@ -48,7 +48,7 @@ except ModuleNotFoundError as exc:
     ui_timing_trace_enabled = _ui_performance_module.ui_timing_trace_enabled
 
 try:
-    from agilab.streamlit_theme_env import (
+    from agilab.ui.streamlit_theme_env import (
         apply_streamlit_theme_environment,
         packaged_streamlit_config_path,
     )

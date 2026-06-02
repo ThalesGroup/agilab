@@ -543,12 +543,12 @@ import os
 from pathlib import Path
 
 from agi_env import AgiEnv
-from agilab.notebook_export_support import (
+from agilab.notebooks.notebook_export_support import (
     build_notebook_export_context,
     notebook_export_manifest_path,
     verify_notebook_export_manifest,
 )
-from agilab.pipeline_editor import refresh_notebook_export
+from agilab.pipeline.pipeline_editor import refresh_notebook_export
 
 root = Path.cwd()
 marker = "NOTEBOOK_IMPORT_EXPORT_HANDOFF_SMOKE"

@@ -235,7 +235,7 @@ def _check_persisted_artifact_contract(repo_root: Path) -> dict[str, Any]:
 
 def _check_public_bind_and_secret_boundary(repo_root: Path) -> dict[str, Any]:
     required = {
-        "src/agilab/ui_public_bind_guard.py": [
+        "src/agilab/security/ui_public_bind_guard.py": [
             "AGILAB_PUBLIC_BIND_OK",
             "AGILAB_TLS_TERMINATED",
             "PublicBindPolicyError",

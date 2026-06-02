@@ -23,8 +23,8 @@ if _SOURCE_ROOT is not None:
     if source_path not in sys.path:
         sys.path.insert(0, source_path)
 
-from agilab.global_pipeline_execution_plan import build_execution_plan
-from agilab.global_pipeline_runner_state import dispatch_next_runnable, persist_runner_state
+from agilab.global_pipeline.global_pipeline_execution_plan import build_execution_plan
+from agilab.global_pipeline.global_pipeline_runner_state import dispatch_next_runnable, persist_runner_state
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
