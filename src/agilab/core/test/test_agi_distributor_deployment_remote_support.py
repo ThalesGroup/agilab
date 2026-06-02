@@ -140,6 +140,27 @@ def test_remote_command_helpers_quote_dynamic_arguments():
     assert deployment_remote_support._remote_tool("", "uv --quiet") == "uv --quiet"
 
 
+def test_sshfs_source_host_parses_common_sources():
+    assert (
+        deployment_remote_support._sshfs_source_host(
+            "agi@192.168.20.15:/home/agi/clustershare"
+        )
+        == "192.168.20.15"
+    )
+    assert (
+        deployment_remote_support._sshfs_source_host(
+            "sshfs#agi@worker.local:/home/agi/clustershare"
+        )
+        == "worker.local"
+    )
+    assert (
+        deployment_remote_support._sshfs_source_host(
+            "agi@[2001:db8::1]:/home/agi/clustershare"
+        )
+        == "2001:db8::1"
+    )
+
+
 def test_remote_environment_and_scheduler_port_edge_helpers(monkeypatch):
     assert deployment_remote_support._env_lookup(SimpleNamespace(FIRST="attr"), "FIRST") == "attr"
     assert (
@@ -653,6 +674,81 @@ async def test_prepare_remote_cluster_share_honors_custom_scheduler_ssh_port(tmp
     assert "SCHEDULER_SSH_PORT=2222" in mount_cmd
     assert 'ssh -p "$SCHEDULER_SSH_PORT"' in mount_cmd
     assert 'sshfs -p "$SCHEDULER_SSH_PORT"' in mount_cmd
+
+
+@pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_rejects_reverse_sshfs_loop(tmp_path, monkeypatch):
+    scheduler_share = tmp_path / "clustershare" / "agi"
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE=str(scheduler_share),
+        envars={},
+        home_abs=tmp_path,
+        user="agi",
+        verbose=0,
+    )
+    ssh_calls: list[str] = []
+
+    class _Agi:
+        _scheduler_ip = "192.168.20.141"
+
+        async def exec_ssh(self, _ip, cmd):
+            ssh_calls.append(cmd)
+            return "ok"
+
+    monkeypatch.setattr(
+        deployment_remote_support,
+        "_local_mount_record_for_path",
+        lambda _path: {
+            "TARGET": str(tmp_path / "clustershare"),
+            "SOURCE": "agi@192.168.20.15:/home/agi/clustershare",
+            "FSTYPE": "fuse.sshfs",
+        },
+    )
+
+    with pytest.raises(RuntimeError, match="SSHFS loop"):
+        await deployment_remote_support._prepare_remote_cluster_share(
+            _Agi(), "192.168.20.15", env, "clustershare/agi"
+        )
+
+    assert ssh_calls == []
+    assert not scheduler_share.exists()
+
+
+@pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_allows_unrelated_sshfs_mount(tmp_path, monkeypatch):
+    scheduler_share = tmp_path / "clustershare" / "agi"
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE=str(scheduler_share),
+        envars={},
+        home_abs=tmp_path,
+        user="agi",
+        verbose=0,
+    )
+    ssh_calls: list[str] = []
+
+    class _Agi:
+        _scheduler_ip = "192.168.20.141"
+
+        async def exec_ssh(self, _ip, cmd):
+            ssh_calls.append(cmd)
+            return "ok"
+
+    monkeypatch.setattr(
+        deployment_remote_support,
+        "_local_mount_record_for_path",
+        lambda _path: {
+            "TARGET": str(tmp_path / "clustershare"),
+            "SOURCE": "agi@192.168.20.99:/home/agi/clustershare",
+            "FSTYPE": "fuse.sshfs",
+        },
+    )
+
+    await deployment_remote_support._prepare_remote_cluster_share(
+        _Agi(), "192.168.20.15", env, "clustershare/agi"
+    )
+
+    assert scheduler_share.is_dir()
+    assert any("SCHEDULER_CLUSTER_SHARE" in cmd for cmd in ssh_calls)
 
 
 @pytest.mark.asyncio
