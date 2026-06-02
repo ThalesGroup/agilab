@@ -84,6 +84,7 @@ function Prompt-YesNo {
         [string]$Message,
         [switch]$DefaultYes
     )
+    if ($NonInteractiveMode) { return $DefaultYes.IsPresent }
     $suffix = if ($DefaultYes) { "[Y/n]" } else { "[y/N]" }
     while ($true) {
         $response = Read-Host "$Message $suffix"
@@ -163,7 +164,7 @@ function Set-PersistEnvVar {
         [Parameter(Mandatory)][string]$EnvFile
     )
 
-    $dir = Split-Path -LiteralPath $EnvFile -Parent
+    $dir = Split-Path -LiteralPath $EnvFile
     if ($dir) {
         Ensure-Directory $dir
     }
@@ -587,7 +588,12 @@ function Test-SymlinkPrivilege {
 
 function Select-PythonVersion {
     Write-Info "Choosing Python version..."
-    $requested = Read-Host "Enter Python major version [3.13]"
+    if ($NonInteractiveMode) {
+        $requested = if (-not [string]::IsNullOrWhiteSpace($env:AGI_PYTHON_VERSION)) { $env:AGI_PYTHON_VERSION } else { "3.13" }
+        Write-Info "Non-interactive mode; defaulting Python version to $requested"
+    } else {
+        $requested = Read-Host "Enter Python major version [3.13]"
+    }
     if ([string]::IsNullOrWhiteSpace($requested)) {
         $requested = "3.13"
     }
@@ -613,14 +619,19 @@ function Select-PythonVersion {
         }
     }
 
-    while ($true) {
-        $selection = Read-Host "Enter the number of the Python version you want to use (default: 1)"
-        if ([string]::IsNullOrWhiteSpace($selection)) { $selection = "1" }
-        if ($selection -as [int]) {
-            $index = [int]$selection
-            if ($index -ge 1 -and $index -le $pythonArray.Count) { break }
+    if ($NonInteractiveMode) {
+        $selection = "1"
+        Write-Info ("Non-interactive mode: selected first available Python: {0}" -f $pythonArray[0])
+    } else {
+        while ($true) {
+            $selection = Read-Host "Enter the number of the Python version you want to use (default: 1)"
+            if ([string]::IsNullOrWhiteSpace($selection)) { $selection = "1" }
+            if ($selection -as [int]) {
+                $index = [int]$selection
+                if ($index -ge 1 -and $index -le $pythonArray.Count) { break }
+            }
+            Write-Warn "Invalid selection. Please try again."
         }
-        Write-Warn "Invalid selection. Please try again."
     }
 
     $chosenPython = ($pythonArray[[int]$selection - 1] -split '\s+')[0]
@@ -920,6 +931,16 @@ function Invoke-AppPytest {
         return $true
     }
     $status = $true
+    # AppsRoot is <agilab>/apps/builtin; derive the agilab root to locate the
+    # editable core packages (mirrors CORE_EDITABLE_PACKAGES in install_apps.sh).
+    $agilabRoot = (Resolve-Path -LiteralPath (Join-Path $AppsRoot "..\..")).Path
+    $coreEditablePackages = @(
+        "--with-editable", (Join-Path $agilabRoot "core\agi-env"),
+        "--with-editable", (Join-Path $agilabRoot "lib\agi-gui"),
+        "--with-editable", (Join-Path $agilabRoot "core\agi-node"),
+        "--with-editable", (Join-Path $agilabRoot "core\agi-cluster"),
+        "--with-editable", (Join-Path $agilabRoot "core\agi-core")
+    )
     Push-Location $AppsRoot
     try {
         $apps = Get-ChildItem -Directory -Filter "*_project"
@@ -931,7 +952,9 @@ function Invoke-AppPytest {
             Write-Info ("[pytest] {0}" -f $app.Name)
             Push-Location $app.FullName
             try {
-                Invoke-UvPreview @("run", "--no-sync", "-p", $script:AgiPythonVersion, "--project", ".", "pytest") | Out-Host
+                $appPytestArgs = @("run", "-p", $script:AgiPythonVersion) + $coreEditablePackages + `
+                    @("--project", ".", "--with", "pytest", "--with", "pytest-cov", "pytest")
+                Invoke-UvPreview $appPytestArgs | Out-Host
                 $exitCode = $LASTEXITCODE
                 if ($exitCode -eq 0) {
                     Write-Success ("pytest succeeded for '{0}'." -f $app.Name)
@@ -998,6 +1021,7 @@ function Install-Apps {
         return $false
     }
     Write-Info "Installing Apps..."
+    Write-Info "RunPytest: $RunPytest"
     $agilabPublic = Join-Path $InstallPathFull "src\agilab"
     $env:APPS_DEST_BASE = Join-Path $agilabPublic "apps"
     $env:PAGES_DEST_BASE = Join-Path $agilabPublic "apps-pages"
@@ -1021,7 +1045,7 @@ function Install-Apps {
         Remove-Item Env:BUILTIN_APPS_OVERRIDE -ErrorAction SilentlyContinue
     }
     if ($RunPytest) {
-        $appsRoot = Join-Path $agilabPublic "apps"
+        $appsRoot = Join-Path $agilabPublic "apps/builtin"
         if (-not (Invoke-AppPytest -AppsRoot $appsRoot)) {
             return $false
         }
