@@ -1,23 +1,15 @@
-"""Optional UI dependency helpers for agi-env."""
+"""Compatibility shim for ``agi_env._optional_ui``.
+
+The implementation now lives in ``agi_env.ui._optional_ui``. Keep this shim so existing
+imports continue to work while internal code migrates to the classified
+package layout.
+"""
 
 from __future__ import annotations
 
-from types import ModuleType
-from typing import Callable
+from agi_env.compat.module_shim import activate_compat_module as _activate_compat_module
 
-
-UI_EXTRA_INSTALL_HINT = (
-    "agi-env UI helpers require Streamlit. Install the UI package with "
-    "`pip install agi-gui`."
-)
-
-
-def require_streamlit(importer: Callable[..., ModuleType] = __import__) -> ModuleType:
-    """Import Streamlit or raise an actionable optional-extra error."""
-
-    try:
-        return importer("streamlit")
-    except ModuleNotFoundError as exc:
-        if exc.name == "streamlit":
-            raise ModuleNotFoundError(UI_EXTRA_INSTALL_HINT) from exc
-        raise
+_TARGET_MODULE = "agi_env.ui._optional_ui"
+_module = _activate_compat_module(__name__, _TARGET_MODULE)
+if _module is not None:
+    globals().update(_module.__dict__)

@@ -1,69 +1,15 @@
+"""Compatibility shim for ``agi_cluster.agi_distributor.service_runtime_support``.
+
+The implementation now lives in ``agi_cluster.agi_distributor.service.service_runtime_support``. Keep this shim so existing
+imports continue to work while internal code migrates to the classified
+package layout.
+"""
+
 from __future__ import annotations
 
-from agi_cluster.agi_distributor.service_lifecycle_support import (
-    serve,
-    service_auto_restart_unhealthy,
-    service_recover,
-    service_restart_workers,
-    submit,
-    wrap_worker_chunk,
-)
-from agi_cluster.agi_distributor.service_state_support import (
-    init_service_queue,
-    reset_service_queue_state,
-    service_apply_queue_root,
-    service_apply_runtime_config,
-    service_cleanup_artifacts,
-    service_clear_state,
-    service_connected_workers,
-    service_finalize_response,
-    service_health_path,
-    service_health_payload,
-    service_heartbeat_timeout_value,
-    service_public_args,
-    service_queue_counts,
-    service_queue_paths,
-    service_read_heartbeat_payloads,
-    service_read_heartbeats,
-    service_read_state,
-    service_safe_worker_name,
-    service_state_path,
-    service_state_payload,
-    service_unhealthy_workers,
-    service_worker_health,
-    service_write_health_payload,
-    service_write_state,
-)
+from agi_cluster.agi_distributor.compat.module_shim import activate_compat_module as _activate_compat_module
 
-__all__ = [
-    "init_service_queue",
-    "reset_service_queue_state",
-    "serve",
-    "service_apply_queue_root",
-    "service_apply_runtime_config",
-    "service_auto_restart_unhealthy",
-    "service_cleanup_artifacts",
-    "service_clear_state",
-    "service_connected_workers",
-    "service_finalize_response",
-    "service_health_path",
-    "service_health_payload",
-    "service_heartbeat_timeout_value",
-    "service_public_args",
-    "service_queue_counts",
-    "service_queue_paths",
-    "service_read_heartbeat_payloads",
-    "service_read_heartbeats",
-    "service_read_state",
-    "service_recover",
-    "service_restart_workers",
-    "service_safe_worker_name",
-    "service_state_path",
-    "service_state_payload",
-    "service_unhealthy_workers",
-    "service_worker_health",
-    "service_write_health_payload",
-    "service_write_state",
-    "submit",
-    "wrap_worker_chunk",
-]
+_TARGET_MODULE = "agi_cluster.agi_distributor.service.service_runtime_support"
+_module = _activate_compat_module(__name__, _TARGET_MODULE)
+if _module is not None:
+    globals().update(_module.__dict__)

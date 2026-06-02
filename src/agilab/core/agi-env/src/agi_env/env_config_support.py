@@ -1,61 +1,15 @@
-"""Pure dotenv and environment-file helpers for AGILAB."""
+"""Compatibility shim for ``agi_env.env_config_support``.
+
+The implementation now lives in ``agi_env.runtime.env_config_support``. Keep this shim so existing
+imports continue to work while internal code migrates to the classified
+package layout.
+"""
 
 from __future__ import annotations
 
-import os
-from collections.abc import Mapping
-from pathlib import Path
+from agi_env.compat.module_shim import activate_compat_module as _activate_compat_module
 
-from dotenv import dotenv_values, set_key
-
-ENV_MAPPING_EXCEPTIONS = (AttributeError, TypeError)
-
-
-def _normalize_env_value(value: object) -> str | None:
-    if value is None:
-        return None
-    normalized = str(value).strip()
-    return normalized or None
-
-
-def clean_envar_value(
-    envars: Mapping[str, object] | None,
-    key: str,
-    *,
-    fallback_to_process: bool = False,
-) -> str | None:
-    """Return a stripped env value or ``None`` when unset/blank."""
-
-    raw = None
-    try:
-        raw = envars.get(key) if envars is not None else None
-    except ENV_MAPPING_EXCEPTIONS:
-        raw = None
-    value = _normalize_env_value(raw)
-    if value is not None:
-        return value
-    if fallback_to_process:
-        return _normalize_env_value(os.environ.get(key))
-    return None
-
-
-def load_dotenv_values(dotenv_path: Path, *, verbose: bool = False) -> dict[str, str]:
-    """Load dotenv values while treating blank assignments as unset."""
-
-    loaded = dotenv_values(dotenv_path=dotenv_path, verbose=verbose)
-    normalized: dict[str, str] = {}
-    for key, value in loaded.items():
-        if value is None:
-            continue
-        if isinstance(value, str) and not value.strip():
-            continue
-        normalized[str(key)] = value
-    return normalized
-
-
-def write_env_updates(env_file: Path, updates: dict[str, object]) -> None:
-    """Persist updates into a dotenv file without shell-style quoting."""
-
-    env_file.parent.mkdir(parents=True, exist_ok=True)
-    for key, value in updates.items():
-        set_key(str(env_file), key, str(value), quote_mode="never")
+_TARGET_MODULE = "agi_env.runtime.env_config_support"
+_module = _activate_compat_module(__name__, _TARGET_MODULE)
+if _module is not None:
+    globals().update(_module.__dict__)
