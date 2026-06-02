@@ -182,6 +182,11 @@ uv --preview-features extra-build-dependencies run python tools/workflow_parity.
   disposition in `tools/ui_robot_action_contract.py` and cover the behavior with
   focused helper/AppTest regressions. Examples include LAN discovery/cache
   controls and advisory planning actions such as `Build cluster plan`.
+- When a UI action keeps the same visible button label but changes semantics
+  behind a selector or multiselect, update the robot action disposition for the
+  exact visible label and add focused regressions for the selector state. Do not
+  rename robot dispositions to internal semantics such as `Update selected`
+  unless that is the actual button text users see.
 - SETTINGS or Streamlit system-menu changes:
   run settings page tests plus the settings matrix scenario.
 - Public demo or HF Space UI:

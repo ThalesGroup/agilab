@@ -83,10 +83,6 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
         "trial-only",
         "project rename is probed through PROJECT rename scenarios without mutating the project",
     ),
-    "Remove": (
-        "trial-only",
-        "removes an installed external app package only after explicit user confirmation",
-    ),
     "Run instant demo": (
         "trial-only",
         "runs page-local PyTorch training; focused playground tests cover state and evidence without making generic robots train",
@@ -114,10 +110,6 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
     "Undo last delete": (
         "trial-only",
         "stateful recovery action that appears only after selected delete-output flows",
-    ),
-    "Update": (
-        "trial-only",
-        "updates an installed external app package only after explicit user confirmation",
     ),
     "Update key": (
         "ignored",

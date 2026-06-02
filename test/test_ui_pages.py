@@ -110,7 +110,20 @@ def test_primary_pages_keep_homogeneous_support_field_order() -> None:
     assert 'st.expander("Installed", expanded=False)' in project_source
     assert "Installed agi-apps" not in project_source
     assert "Installed agi-app" not in project_source
-    assert '"Select one",' in project_source
+    assert '"Select one",' not in project_source
+    assert '"Select installed",' in project_source
+    assert "selected_packages = st.multiselect(" in project_source
+    assert '"Action",' in project_source
+    assert "selected_action = st.selectbox(" in project_source
+    assert '"Apply",' in project_source
+    assert "project_pypi_app_apply" in project_source
+    assert "update_col, remove_col" not in project_source
+    assert "def _batch_pypi_app_packages(" in project_source
+    assert '"Update",' in project_source
+    assert '"Remove",' in project_source
+    assert '"Update selected"' not in project_source
+    assert '"Remove selected"' not in project_source
+    assert '"Confirm removal"' in project_source
     assert "def _short_pypi_app_display_name(package: str) -> str:" in project_source
     assert '"Item": _short_pypi_app_display_name(app.package)' in project_source
     assert '"agi-app": app.package' not in project_source
@@ -192,6 +205,29 @@ def _load_project_page_module():
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def test_project_installed_pypi_app_batch_reports_empty_and_partial_failure():
+    module = _load_project_page_module()
+
+    empty = module._batch_pypi_app_packages([], "Update", lambda _package: None)
+    assert empty.status == "warning"
+    assert empty.data["packages"] == []
+
+    def _fake_action(package: str):
+        if package == "agi-app-bad":
+            return module.ActionResult.error("install failed", detail="solver rejected it")
+        return module.ActionResult.success("installed")
+
+    result = module._batch_pypi_app_packages(
+        ["agi-app-good", "agi-app-bad"], "Update", _fake_action
+    )
+
+    assert result.status == "error"
+    assert result.data["packages"] == ["agi-app-good", "agi-app-bad"]
+    assert result.data["failures"][0]["package"] == "agi-app-bad"
+    assert "good: success - installed" in str(result.detail)
+    assert "bad: error - install failed" in str(result.detail)
 
 
 class _SimpleColumn:
@@ -3123,6 +3159,11 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     assert "Export" not in sidebar_button_labels
     assert "Check" in sidebar_button_labels
     assert "Install" in sidebar_button_labels
+    assert "Apply" in sidebar_button_labels
+    assert "Update" not in sidebar_button_labels
+    assert "Remove" not in sidebar_button_labels
+    assert "Update selected" not in sidebar_button_labels
+    assert "Remove selected" not in sidebar_button_labels
     assert "Check agi-app" not in sidebar_button_labels
     assert "Install agi-app" not in sidebar_button_labels
     sidebar_checkbox_labels = [str(checkbox.label) for checkbox in at.sidebar.checkbox]

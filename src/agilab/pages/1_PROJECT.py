@@ -1123,6 +1123,51 @@ def _short_pypi_app_display_name(package: str) -> str:
     return str(package).removeprefix("agi-app-")
 
 
+def _batch_pypi_app_packages(packages: list[str], action_label: str, action_fn) -> ActionResult:
+    if not packages:
+        return ActionResult.warning(
+            f"No agi-app selected for {action_label.lower()}.",
+            next_action="Select one or more installed agi-apps first.",
+            data={"packages": []},
+        )
+
+    results = []
+    failures = []
+    detail_lines = []
+    for package in packages:
+        result = action_fn(package)
+        row = {
+            "package": package,
+            "status": result.status,
+            "title": result.title,
+        }
+        if result.detail:
+            row["detail"] = result.detail
+        if result.next_action:
+            row["next_action"] = result.next_action
+        results.append(row)
+        detail_lines.append(
+            f"{_short_pypi_app_display_name(package)}: {result.status} - {result.title}"
+        )
+        if result.status == "error":
+            failures.append(row)
+
+    data = {"packages": packages, "results": results, "failures": failures}
+    detail = "\n".join(detail_lines)
+    if failures:
+        return ActionResult.error(
+            f"{action_label} completed with {len(failures)} failure(s).",
+            detail=detail,
+            next_action="Review the failed agi-app rows and retry only those packages.",
+            data=data,
+        )
+    return ActionResult.success(
+        f"{action_label} completed for {len(results)} agi-app(s).",
+        detail=detail,
+        data=data,
+    )
+
+
 def _render_installed_pypi_app_manager(env) -> None:
     installed = _list_installed_pypi_apps()
     st.caption("Installed")
@@ -1141,53 +1186,60 @@ def _render_installed_pypi_app_manager(env) -> None:
     ]
     st.dataframe(rows, hide_index=True, width="stretch")
     package_options = sorted({app.package for app in installed}, key=str.lower)
-    selected_package = st.selectbox(
-        "Select one",
+    selected_packages = st.multiselect(
+        "Select installed",
         options=package_options,
-        key="project_pypi_app_installed_package",
+        key="project_pypi_app_installed_packages",
+        format_func=_short_pypi_app_display_name,
+        help="Choose one or more installed agi-apps to update or remove together.",
     )
-    confirmed = st.checkbox(
-        "Confirm agi-app management",
-        key="project_pypi_app_manage_confirmed",
-        help="Update or remove only agi-apps you intentionally installed into this AGILAB environment.",
+    selected_action = st.selectbox(
+        "Action",
+        options=("Update", "Remove"),
+        key="project_pypi_app_installed_action",
+        help="Choose what Apply does to the selected installed agi-apps.",
     )
-    update_col, remove_col = st.columns(2)
-    with update_col:
-        update_clicked = st.button(
-            "Update",
-            key="project_pypi_app_update",
-            disabled=not selected_package or not confirmed,
-            width="stretch",
+    removing = selected_action == "Remove"
+    confirm_removal = False
+    if removing:
+        confirm_removal = st.checkbox(
+            "Confirm removal",
+            key="project_pypi_app_manage_confirmed",
+            help="Required before removing selected agi-apps from this AGILAB environment.",
         )
-    with remove_col:
-        remove_clicked = st.button(
-            "Remove",
-            key="project_pypi_app_remove",
-            disabled=not selected_package or not confirmed,
-            width="stretch",
-        )
-    if update_clicked:
+    apply_clicked = st.button(
+        "Apply",
+        key="project_pypi_app_apply",
+        disabled=not selected_packages or (removing and not confirm_removal),
+        width="stretch",
+        type="primary",
+    )
+    if apply_clicked and selected_action == "Update":
         run_streamlit_action(
             st,
             ActionSpec(
-                name="Update agi-app",
-                start_message=f"Updating {selected_package}...",
+                name="Update",
+                start_message=f"Updating {len(selected_packages)} selected agi-app(s)...",
                 failure_title="agi-app update failed.",
                 failure_next_action="Check the agi-app and current Python environment.",
             ),
-            lambda: _install_pypi_app_package(selected_package),
+            lambda: _batch_pypi_app_packages(
+                list(selected_packages), "Update", _install_pypi_app_package
+            ),
             on_success=lambda _result: _refresh_projects_after_pypi_app_install(env),
         )
-    if remove_clicked:
+    if apply_clicked and selected_action == "Remove":
         run_streamlit_action(
             st,
             ActionSpec(
-                name="Remove agi-app",
-                start_message=f"Removing {selected_package}...",
+                name="Remove",
+                start_message=f"Removing {len(selected_packages)} selected agi-app(s)...",
                 failure_title="agi-app remove failed.",
                 failure_next_action="Check the agi-app and current Python environment.",
             ),
-            lambda: _remove_pypi_app_package(selected_package),
+            lambda: _batch_pypi_app_packages(
+                list(selected_packages), "Remove", _remove_pypi_app_package
+            ),
             on_success=lambda _result: _refresh_projects_after_pypi_app_install(env),
         )
 
