@@ -4592,6 +4592,102 @@ def test_display_lab_tab_lists_saved_safe_actions_after_safe_mode(monkeypatch, t
     assert all("raw python" not in str(option) for option in options)
 
 
+def test_display_lab_tab_selected_safe_action_populates_existing_code_editor(monkeypatch, tmp_path):
+    safe_stage = _safe_action_stage(pinned=True, question="keep Paris rows")
+    editable_stage = {
+        "D": "",
+        "Q": "old prompt",
+        "M": "model",
+        "C": "print('old')",
+        "E": "",
+        pipeline_lab.STAGE_GENERATION_MODE_FIELD: pipeline_lab.GENERATION_MODE_SAFE_ACTIONS,
+        pipeline_lab.STAGE_ACTION_CONTRACT_FIELD: None,
+        pipeline_lab.STAGE_SAFE_ACTION_PINNED_FIELD: False,
+    }
+    selected_label = _safe_action_option_label(safe_stage, stage_index=1)
+    editor_bodies = []
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0, 1],
+        },
+        selectboxes={"demo_safe_action_choice_0": selected_label},
+        multiselects={"demo_run_sequence_widget": [0, 1]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda body, **_kwargs: editor_bodies.append(str(body)) or None)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+
+    deps = _make_lab_deps(
+        load_all_stages=lambda *_args, **_kwargs: [editable_stage, safe_stage],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+    )
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
+
+    assert fake_st.session_state["demo_q_stage_0"] == "keep Paris rows"
+    assert fake_st.session_state["demo_code_stage_0"] == safe_stage["C"]
+    assert editor_bodies[0] == safe_stage["C"]
+
+
+def test_display_lab_tab_selected_safe_action_template_populates_existing_code_editor(monkeypatch, tmp_path):
+    editable_stage = {
+        "D": "",
+        "Q": "old prompt",
+        "M": "model",
+        "C": "print('old')",
+        "E": "",
+        pipeline_lab.STAGE_GENERATION_MODE_FIELD: pipeline_lab.GENERATION_MODE_SAFE_ACTIONS,
+        pipeline_lab.STAGE_ACTION_CONTRACT_FIELD: None,
+        pipeline_lab.STAGE_SAFE_ACTION_PINNED_FIELD: False,
+    }
+    selected_label = f"{pipeline_lab.SAFE_ACTION_TEMPLATE_PREFIX}Filter rows"
+    editor_bodies = []
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0],
+        },
+        selectboxes={"demo_safe_action_choice_0": selected_label},
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda body, **_kwargs: editor_bodies.append(str(body)) or None)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+
+    deps = _make_lab_deps(
+        load_all_stages=lambda *_args, **_kwargs: [editable_stage],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+    )
+    env = SimpleNamespace(active_app=tmp_path / "sb3_trainer_project", envars={}, app="sb3_trainer_project")
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "sb3_trainer_project", env, deps)
+
+    assert fake_st.session_state["demo_q_stage_0"] == "Filter rows using a column condition and keep only relevant observations."
+    assert "AGILAB Safe Action template: Filter rows" in fake_st.session_state["demo_code_stage_0"]
+    assert 'column = "column_name"' in fake_st.session_state["demo_code_stage_0"]
+    assert "df = df[df[column] == value].copy()" in fake_st.session_state["demo_code_stage_0"]
+    assert "intentionally a no-op" not in fake_st.session_state["demo_code_stage_0"]
+    assert editor_bodies[0] == fake_st.session_state["demo_code_stage_0"]
+
+
 def test_display_lab_tab_add_stage_reuses_selected_pinned_safe_action(monkeypatch, tmp_path):
     pinned_stage = _safe_action_stage(pinned=True)
     selected_label = _safe_action_option_label(pinned_stage)

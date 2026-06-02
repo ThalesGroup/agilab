@@ -156,6 +156,111 @@ def safe_action_catalog_options() -> tuple[dict[str, str], ...]:
     return tuple(dict(item) for item in SAFE_ACTION_CATALOG)
 
 
+def safe_action_template_code(action_name: str) -> str:
+    action = str(action_name or "").strip()
+    labels = {str(item["action"]): str(item["label"]) for item in SAFE_ACTION_CATALOG}
+    label = labels.get(action)
+    if label is None:
+        raise GeneratedActionError(f"unsupported safe action template: {action!r}")
+    template_body = {
+        "select_columns": (
+            'columns = ["column_a", "column_b"]\n'
+            "missing = [column for column in columns if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df[columns].copy()\n"
+        ),
+        "drop_columns": (
+            'columns = ["column_to_drop"]\n'
+            "missing = [column for column in columns if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df.drop(columns=columns).copy()\n"
+        ),
+        "rename_columns": (
+            'mapping = {"old_column": "new_column"}\n'
+            "missing = [column for column in mapping if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df.rename(columns=mapping).copy()\n"
+        ),
+        "filter_rows": (
+            'column = "column_name"\n'
+            'value = "value"\n'
+            "if column not in df.columns:\n"
+            '    raise KeyError(f"Unknown dataframe column: {column}")\n'
+            "df = df[df[column] == value].copy()\n"
+        ),
+        "derive_column": (
+            'input_column = "source_column"\n'
+            'output_column = "derived_column"\n'
+            "scale = 1.0\n"
+            "if input_column not in df.columns:\n"
+            '    raise KeyError(f"Unknown dataframe column: {input_column}")\n'
+            "df = df.copy()\n"
+            "df[output_column] = df[input_column] * scale\n"
+        ),
+        "fill_missing": (
+            'columns = ["column_name"]\n'
+            "fill_value = 0\n"
+            "missing = [column for column in columns if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df.copy()\n"
+            "df[columns] = df[columns].fillna(fill_value)\n"
+        ),
+        "drop_missing": (
+            'columns = ["column_name"]\n'
+            "missing = [column for column in columns if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df.dropna(subset=columns).copy()\n"
+        ),
+        "sort_rows": (
+            'columns = ["column_name"]\n'
+            "ascending = True\n"
+            "missing = [column for column in columns if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df.sort_values(by=columns, ascending=ascending).reset_index(drop=True)\n"
+        ),
+        "groupby_aggregate": (
+            'group_columns = ["group_column"]\n'
+            'aggregations = {"metric_column": "mean"}\n'
+            "required = [*group_columns, *aggregations.keys()]\n"
+            "missing = [column for column in required if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df.groupby(group_columns, dropna=False).agg(aggregations).reset_index()\n"
+        ),
+        "rolling_mean": (
+            'input_column = "metric_column"\n'
+            'output_column = "metric_rolling_mean"\n'
+            "window = 3\n"
+            "if input_column not in df.columns:\n"
+            '    raise KeyError(f"Unknown dataframe column: {input_column}")\n'
+            "df = df.copy()\n"
+            "df[output_column] = df[input_column].rolling(window=window, min_periods=1).mean()\n"
+        ),
+        "clip": (
+            'input_column = "metric_column"\n'
+            "output_column = input_column\n"
+            "lower = 0\n"
+            "upper = 1\n"
+            "if input_column not in df.columns:\n"
+            '    raise KeyError(f"Unknown dataframe column: {input_column}")\n'
+            "df = df.copy()\n"
+            "df[output_column] = df[input_column].clip(lower=lower, upper=upper)\n"
+        ),
+    }[action]
+    return (
+        f"# AGILAB Safe Action template: {label}.\n"
+        "# Replace placeholder column/value names or click Gen code to create a validated Safe Action contract.\n"
+        "# The final saved Safe Action should come from AGILAB's validated JSON contract.\n"
+        f"{template_body}"
+    )
+
+
 def build_generated_actions_prompt(question: str, df: pd.DataFrame | None = None) -> str:
     schema = dataframe_schema_for_prompt(df)
     schema_text = json.dumps(schema, ensure_ascii=False, indent=2)
