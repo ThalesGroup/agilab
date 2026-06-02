@@ -70,6 +70,7 @@ def main() -> None:
         actions=PROJECT_STATUS_ACTIONS,
         render_edit_body=False,
     )
+    project_editor_page.render_project_dashboard(env)
     render_project_status_page(st, env=env)
 
 

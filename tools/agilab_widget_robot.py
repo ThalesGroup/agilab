@@ -214,7 +214,7 @@ BROWSER_ISSUE_IGNORE_NEEDLES = (
 )
 PAGE_EXPECTED_TEXT = {
     "": ("Turn experiments", "First proof: built-in demo"),
-    "PROJECT": ("PROJECT", "Flight Telemetry", "Install PyPI app"),
+    "PROJECT": ("PROJECT", "Flight Telemetry", "Install PyPI app", "Worker class"),
     "PROJECT_EDITOR": ("PROJECT", "Flight Telemetry", "Edit project files"),
     "PROJECT_EDIT": ("PROJECT", "Flight Telemetry", "Edit project files"),
     "SETTINGS": ("SETTINGS", "Settings", "README"),
@@ -225,7 +225,7 @@ PAGE_EXPECTED_TEXT = {
 PAGE_MIN_WIDGETS = {"": 1, "PROJECT": 5, "PROJECT_EDITOR": 5, "PROJECT_EDIT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
 PAGE_ABOVE_FOLD_EXPECTED_LABELS = {
     "HOME": ("Turn experiments", "First proof: built-in demo"),
-    "PROJECT": ("PROJECT", "Flight Telemetry", "Install PyPI app"),
+    "PROJECT": ("PROJECT", "Flight Telemetry", "Install PyPI app", "Worker class"),
     "PROJECT_EDITOR": ("PROJECT", "Flight Telemetry", "Edit project files"),
     "PROJECT_EDIT": ("PROJECT", "Flight Telemetry", "Edit project files"),
     "SETTINGS": ("SETTINGS", "README"),

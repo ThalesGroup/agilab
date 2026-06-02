@@ -2235,19 +2235,19 @@ def test_edit_page_load(mock_ui_env):
     assert all(button.label != "Edit" for button in at.sidebar.button)
     assert all(button.label != "Export project" for button in at.sidebar.button)
     markdown_text = "\n".join(markdown_values)
-    assert "Worker class" in markdown_text
+    assert "Worker class" not in markdown_text
     assert "Source files" not in markdown_text
-    assert "Source LOC" in markdown_text
-    assert "Functions" in markdown_text
-    assert "Classes" in markdown_text
-    assert "Docs/config" in markdown_text
+    assert "Source LOC" not in markdown_text
+    assert "Functions" not in markdown_text
+    assert "Classes" not in markdown_text
+    assert "Docs/config" not in markdown_text
     assert "Environment Health" not in markdown_text
-    assert "Project path" in markdown_text
-    assert "Manager env" in markdown_text
-    assert "Worker env" in markdown_text
-    assert "Settings" in markdown_text
-    assert "Cluster share" in markdown_text
-    assert "API keys" in markdown_text
+    assert "Project path" not in markdown_text
+    assert "Manager env" not in markdown_text
+    assert "Worker env" not in markdown_text
+    assert "Settings" not in markdown_text
+    assert "Cluster share" not in markdown_text
+    assert "API keys" not in markdown_text
     assert "Project</div>" not in markdown_text
     assert "Project workspace" not in markdown_text
     assert "README" not in markdown_text
@@ -2283,6 +2283,7 @@ def test_project_sidebar_orders_active_project_before_actions():
     assert "### Active project" not in source
     assert "_render_sidebar_project_metric" not in source
     assert "workspace ready" not in source
+    assert "def render_project_dashboard(env)" in source
     assert "_render_project_software_metrics(env)" in source
     assert "_render_edit_project_metric" not in source
     assert "Choose what to do with the active project" not in source
@@ -2987,6 +2988,18 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     assert "archives" in at.session_state
     assert "clone_env_strategy" not in at.session_state
     assert any(button.label == "Export" for button in at.sidebar.button)
+    markdown_text = "\n".join(str(item.value) for item in at.markdown)
+    assert "Worker class" in markdown_text
+    assert "Source LOC" in markdown_text
+    assert "Functions" in markdown_text
+    assert "Classes" in markdown_text
+    assert "Docs/config" in markdown_text
+    assert "Project path" in markdown_text
+    assert "Manager env" in markdown_text
+    assert "Worker env" in markdown_text
+    assert "Settings" in markdown_text
+    assert "Cluster share" in markdown_text
+    assert "API keys" in markdown_text
     sidebar_labels = "\n".join(str(getattr(widget, "label", "")) for widget in at.sidebar)
     assert "Project action" in sidebar_labels
     assert "clone_dest" not in [ti.key for ti in at.sidebar.text_input]
