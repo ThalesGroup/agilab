@@ -881,7 +881,7 @@ def ask_gpt(
                 model_label,
                 "",
                 "Safe action generation failed: model returned an empty response.",
-                stage_generation_extra_fields(None, mode=mode),
+                stage_generation_extra_fields(None, mode=mode, df=df),
             ]
         try:
             contract = parse_generated_action_contract(result)
@@ -895,7 +895,7 @@ def ask_gpt(
                 model_label,
                 code,
                 detail,
-                stage_generation_extra_fields(contract, mode=mode),
+                stage_generation_extra_fields(contract, mode=mode, df=df),
             ]
         except GeneratedActionError as exc:
             detail = f"Safe action generation failed: {exc}"
@@ -906,7 +906,7 @@ def ask_gpt(
                 model_label,
                 "",
                 detail,
-                stage_generation_extra_fields(None, mode=mode),
+                stage_generation_extra_fields(None, mode=mode, df=df),
             ]
 
     original_question = question

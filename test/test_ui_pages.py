@@ -64,6 +64,123 @@ def _app_test(path: str, *, default_timeout: int = DEFAULT_APPTEST_TIMEOUT):
     return AppTest.from_file(path, default_timeout=default_timeout)
 
 
+def _assert_ordered_fragments(source: str, fragments: tuple[str, ...]) -> None:
+    positions = []
+    for fragment in fragments:
+        assert fragment in source, fragment
+        positions.append(source.index(fragment))
+    assert positions == sorted(positions), fragments
+
+
+def test_primary_pages_keep_homogeneous_support_field_order() -> None:
+    """Support fields should not jump above the page's primary content."""
+    analysis_source = Path("src/agilab/pages/4_ANALYSIS.py").read_text(
+        encoding="utf-8"
+    )
+    workflow_source = Path("src/agilab/pages/3_WORKFLOW.py").read_text(
+        encoding="utf-8"
+    )
+    project_source = Path("src/agilab/pages/1_PROJECT.py").read_text(
+        encoding="utf-8"
+    )
+    project_sidebar_source = Path("src/agilab/project_sidebar_support.py").read_text(
+        encoding="utf-8"
+    )
+    analysis_main = analysis_source[analysis_source.index("async def main():") :]
+    workflow_main_marker = (
+        "async def main" if "async def main" in workflow_source else "def main"
+    )
+    workflow_main = workflow_source[workflow_source.index(workflow_main_marker) :]
+    assert 'st.sidebar.expander("agi-app", expanded=False)' in project_source
+    assert '"Check",' in project_source
+    assert '"Install",' in project_source
+    assert '"Reviewed",' in project_source
+    assert "check_col, install_col = st.columns" in project_source
+    assert "review_row = st.container()" in project_source
+    assert "review_col" not in project_source
+    assert "project_pypi_app_reviewed_requirement" in project_source
+    assert "preflight_passed = preflight_status in" in project_source
+    assert "disabled=not requirement or not preflight_passed or not reviewed" in project_source
+    assert "agi-app from PyPI" not in project_source
+    assert "Catalog pypi.org" in project_source
+    assert "Catalog agi-app" not in project_source
+    assert "Check agi-app" not in project_source
+    assert "Install agi-app" not in project_source
+    assert "Reviewed agi-app" not in project_source
+    assert 'st.expander("Installed", expanded=False)' in project_source
+    assert "Installed agi-apps" not in project_source
+    assert "Installed agi-app" not in project_source
+    assert '"Select one",' not in project_source
+    assert '"Select installed",' in project_source
+    assert "selected_packages = st.multiselect(" in project_source
+    assert '"Action",' in project_source
+    assert "selected_action = st.selectbox(" in project_source
+    assert '"Apply",' in project_source
+    assert "project_pypi_app_apply" in project_source
+    assert "update_col, remove_col" not in project_source
+    assert 'with st.sidebar.expander(\n        "Quick actions"' in project_source
+    assert '"Project action"' not in project_source
+    assert '"None", *quick_actions' in project_source
+    assert "def _batch_pypi_app_packages(" in project_source
+    assert '"Update",' in project_source
+    assert '"Remove",' in project_source
+    assert '"Update selected"' not in project_source
+    assert '"Remove selected"' not in project_source
+    assert '"Confirm removal"' in project_source
+    assert "def _short_pypi_app_display_name(package: str) -> str:" in project_source
+    assert '"Item": _short_pypi_app_display_name(app.package)' in project_source
+    assert '"agi-app": app.package' not in project_source
+    _assert_ordered_fragments(
+        project_source,
+        (
+            "check_col, install_col = st.columns(2)",
+            "with install_col:",
+            "review_row = st.container()",
+            "with review_row:",
+            'st.checkbox(\n                "Reviewed",',
+        ),
+    )
+    assert "_render_sidebar_export_action" not in project_source
+    assert (
+        'PROJECT_EDITOR_ACTIONS = ("Edit", "Create", "Import", "Export", '
+        '"Rename", "Delete")'
+        in project_sidebar_source
+    )
+    assert (
+        'PROJECT_STATUS_ACTIONS = ("Overview", "Create", "Import", '
+        '"Export", "Rename", "Delete")'
+        in project_sidebar_source
+    )
+    assert 'elif sidebar_selection == "Export":' in project_source
+    assert "handle_export_project()" in project_source
+
+    _assert_ordered_fragments(
+        analysis_main,
+        (
+            "_render_analysis_workspace_overview(",
+            "render_project_evidence_drawer(",
+            'render_context_expander(st, page_label="ANALYSIS", env=env)',
+            'with st.expander("Choose analysis views", expanded=False):',
+            "_render_analysis_surface_guide(",
+        ),
+    )
+    _assert_ordered_fragments(
+        workflow_main,
+        (
+            "page()",
+            'render_context_expander(st, page_label="WORKFLOW", env=env)',
+        ),
+    )
+    project_sidebar = project_source[project_source.index("def render_project_sidebar(") :]
+    _assert_ordered_fragments(
+        project_sidebar,
+        (
+            "_render_active_project_sidebar(env)",
+            "_render_project_quick_actions(actions)",
+        ),
+    )
+
+
 def _create_mock_project_root(apps_dir: Path, project_name: str) -> Path:
     project_dir = apps_dir / project_name
     (project_dir / "src").mkdir(parents=True, exist_ok=True)
@@ -91,6 +208,29 @@ def _load_project_page_module():
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def test_project_installed_pypi_app_batch_reports_empty_and_partial_failure():
+    module = _load_project_page_module()
+
+    empty = module._batch_pypi_app_packages([], "Update", lambda _package: None)
+    assert empty.status == "warning"
+    assert empty.data["packages"] == []
+
+    def _fake_action(package: str):
+        if package == "agi-app-bad":
+            return module.ActionResult.error("install failed", detail="solver rejected it")
+        return module.ActionResult.success("installed")
+
+    result = module._batch_pypi_app_packages(
+        ["agi-app-good", "agi-app-bad"], "Update", _fake_action
+    )
+
+    assert result.status == "error"
+    assert result.data["packages"] == ["agi-app-good", "agi-app-bad"]
+    assert result.data["failures"][0]["package"] == "agi-app-bad"
+    assert "good: success - installed" in str(result.detail)
+    assert "bad: error - install failed" in str(result.detail)
 
 
 class _SimpleColumn:
@@ -428,7 +568,7 @@ def test_first_party_pages_configure_docs_menu_items() -> None:
         ),
         "src/agilab/pages/1_PROJECT_STATUS.py": (
             "render_page_chrome(",
-            "render_project_status_page(",
+            "render_project_dashboard(env)",
             'docs_html_file="edit-help.html"',
         ),
         "src/agilab/pages/2_ORCHESTRATE.py": (
@@ -734,21 +874,30 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     assert 'title="PROJECT"' in source
     assert 'url_path="PROJECT"' in source
     project_block = source.split("project_page = st.Page(", 1)[1].split(
-        "project_status_page", 1
+        "project_editor_page", 1
     )[0]
-    project_status_block = source.split("project_status_page = st.Page(", 1)[1].split(
+    project_editor_block = source.split("project_editor_page = st.Page(", 1)[1].split(
+        "project_status_legacy_page", 1
+    )[0]
+    project_status_legacy_block = source.split("project_status_legacy_page = st.Page(", 1)[1].split(
         "orchestrate_page", 1
     )[0]
-    assert '_page_file_runner(pages_root / "1_PROJECT.py")' in project_block
-    assert '_page_file_runner(pages_root / "1_PROJECT_STATUS.py")' in project_status_block
-    assert 'title="PROJECT"' in project_status_block
-    assert 'url_path="PROJECT_STATUS"' in project_status_block
+    assert '_page_file_runner(pages_root / "1_PROJECT_STATUS.py")' in project_block
+    assert 'title="PROJECT"' in project_block
+    assert 'url_path="PROJECT"' in project_block
+    assert '_page_file_runner(pages_root / "1_PROJECT.py")' in project_editor_block
+    assert 'url_path="PROJECT_EDITOR"' in project_editor_block
+    assert 'visibility="hidden"' in project_editor_block
+    assert '_page_file_runner(pages_root / "1_PROJECT_STATUS.py")' in project_status_legacy_block
+    assert 'url_path="PROJECT_STATUS"' in project_status_legacy_block
+    assert 'visibility="hidden"' in project_status_legacy_block
     assert 'visibility="hidden"' in source
     assert 'title="ORCHESTRATE"' in source
     assert 'title="WORKFLOW"' in source
     assert 'title="ANALYSIS"' in source
     assert 'target.columns([0.76, 0.24], vertical_alignment="bottom")' in selector_source
-    assert 'PROJECT_PAGE_PATH = Path("pages/1_PROJECT.py")' in selector_source
+    assert 'PROJECT_EDITOR_ROUTE_ID = "project_editor"' in selector_source
+    assert 'PROJECT_EDITOR_PAGE_PATH = Path("pages/1_PROJECT.py")' in selector_source
     assert "switch_to_project_page(streamlit, active_app=selection)" in selector_source
     assert "switch_to_project_page(st, active_app=selected_lab)" not in pipeline_source
     assert 'streamlit.switch_page(Path("pages/1_PROJECT.py"))' not in selector_source
@@ -1026,6 +1175,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert str(data_share) not in markdown_text
     expander_labels = [str(item.label) for item in at.expander]
     assert "Environment details" in expander_labels
+    assert expander_labels[-1] == "Environment details"
     assert "Evidence drawer" not in expander_labels
     assert "Install logs" not in expander_labels
     assert "Observe benchmark results" not in expander_labels
@@ -1635,6 +1785,8 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "Project</div>" not in markdown_text
     assert "Artifact formats" not in markdown_text
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "**Flight Telemetry**" in sidebar_markdown
+    assert "Flight Telemetry Project" not in sidebar_markdown
     assert "### Active project" not in sidebar_markdown
     assert all(
         text_input.key != "project_filter" for text_input in at.sidebar.text_input
@@ -1764,7 +1916,7 @@ def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
     assert "default_view" not in pages_payload
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "Views selected" in markdown_text
-    assert "2 linked to flight_telemetry_project" in markdown_text
+    assert "2 linked to Flight Telemetry" in markdown_text
     assert "agilab-header-value agilab-header-value--ready'>2/" in markdown_text
     assert "Available views" not in markdown_text
     assert "selected / available" not in markdown_text
@@ -1794,7 +1946,7 @@ def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
     ]
     reloaded_markdown = "\n".join(str(item.value) for item in reloaded.markdown)
     assert "Views selected" in reloaded_markdown
-    assert "1 linked to flight_telemetry_project" in reloaded_markdown
+    assert "1 linked to Flight Telemetry" in reloaded_markdown
     assert "agilab-header-value agilab-header-value--ready'>1/" in reloaded_markdown
     assert "Available views" not in reloaded_markdown
     reloaded_sidebar_markdown = "\n".join(
@@ -1825,7 +1977,7 @@ def test_explore_page_app_surface_back_keeps_single_app_ui_sidebar_view(mock_ui_
         "view_module = []\n"
         "\n"
         "[app_surface]\n"
-        "title = 'Demo Surface'\n"
+        "title = 'Flight Telemetry Project'\n"
         "entrypoint = 'demo/app_surface.py'\n"
     )
     (mock_ui_env["project_dir"] / "src" / "app_settings.toml").write_text(
@@ -1851,8 +2003,10 @@ def test_explore_page_app_surface_back_keeps_single_app_ui_sidebar_view(mock_ui_
     assert not at.exception
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "**Flight Telemetry**" in sidebar_markdown
+    assert "Flight Telemetry Project" not in sidebar_markdown
     assert "Project:" not in sidebar_markdown
-    assert ">Page</a>" in sidebar_markdown
+    assert ">Flight Telemetry</a>" in sidebar_markdown
     assert ">view_app_ui</a>" not in sidebar_markdown
     assert sidebar_markdown.count("current_page=view_app_ui") == 1
     assert "view_other" not in sidebar_markdown
@@ -1914,10 +2068,12 @@ def test_explore_page_app_surface_uses_standard_view_selection(mock_ui_env):
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "**Demo Surface**" in sidebar_markdown
+    assert "Demo Surface Project" not in sidebar_markdown
     assert "Project:" not in sidebar_markdown
     assert "surface:analysis" not in markdown_text
     assert "surface:controls" not in sidebar_markdown
-    assert ">Page</a>" in sidebar_markdown
+    assert ">Demo Surface</a>" in sidebar_markdown
     assert ">view_app_ui</a>" not in sidebar_markdown
     assert sidebar_markdown.count("current_page=view_app_ui") == 1
     assert "Choose analysis views" in [str(item.label) for item in at.expander]
@@ -1934,7 +2090,7 @@ def test_explore_page_app_surface_uses_standard_view_selection(mock_ui_env):
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     assert "Project:" not in sidebar_markdown
-    assert ">Page</a>" in sidebar_markdown
+    assert ">Demo Surface</a>" in sidebar_markdown
     assert ">view_app_ui</a>" not in sidebar_markdown
     assert "view_extra" in sidebar_markdown
     assert "current_page=" in sidebar_markdown
@@ -1971,7 +2127,7 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
     assert settings_payload["notebooks"]["selected"] == ["extra/demo.ipynb"]
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "Notebooks selected" in markdown_text
-    assert "1 linked to flight_telemetry_project" in markdown_text
+    assert "1 linked to Flight Telemetry" in markdown_text
     assert "agilab-header-value agilab-header-value--ready'>1/2</div>" in markdown_text
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     assert "### Notebooks" not in sidebar_markdown
@@ -1988,7 +2144,7 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
     assert reloaded.session_state[selection_key] == ["extra/demo.ipynb"]
     reloaded_markdown = "\n".join(str(item.value) for item in reloaded.markdown)
     assert "Notebooks selected" in reloaded_markdown
-    assert "1 linked to flight_telemetry_project" in reloaded_markdown
+    assert "1 linked to Flight Telemetry" in reloaded_markdown
     assert (
         "agilab-header-value agilab-header-value--ready'>1/2</div>" in reloaded_markdown
     )
@@ -2222,23 +2378,24 @@ def test_edit_page_load(mock_ui_env):
     assert all("Project workspace" not in value for value in markdown_values)
     assert all("Identity, editable files" not in str(item.value) for item in at.caption)
     assert any("Edit project files" in value for value in markdown_values)
-    assert any(button.label == "Export" for button in at.sidebar.button)
+    assert all(button.label != "Export" for button in at.sidebar.button)
     assert all(button.label != "Edit" for button in at.sidebar.button)
     assert all(button.label != "Export project" for button in at.sidebar.button)
     markdown_text = "\n".join(markdown_values)
-    assert "Worker class" in markdown_text
+    assert "Worker class" not in markdown_text
     assert "Source files" not in markdown_text
-    assert "Source LOC" in markdown_text
-    assert "Functions" in markdown_text
-    assert "Classes" in markdown_text
-    assert "Docs/config" in markdown_text
+    assert "Source LOC" not in markdown_text
+    assert "Source KLOC" not in markdown_text
+    assert "Functions" not in markdown_text
+    assert "Classes" not in markdown_text
+    assert "Docs/config" not in markdown_text
     assert "Environment Health" not in markdown_text
-    assert "Project path" in markdown_text
-    assert "Manager env" in markdown_text
-    assert "Worker env" in markdown_text
-    assert "Settings" in markdown_text
-    assert "Cluster share" in markdown_text
-    assert "API keys" in markdown_text
+    assert "Project path" not in markdown_text
+    assert "Manager env" not in markdown_text
+    assert "Worker env" not in markdown_text
+    assert "Settings" not in markdown_text
+    assert "Cluster share" not in markdown_text
+    assert "API keys" not in markdown_text
     assert "Project</div>" not in markdown_text
     assert "Project workspace" not in markdown_text
     assert "README" not in markdown_text
@@ -2263,18 +2420,22 @@ def test_edit_page_load(mock_ui_env):
 def test_project_sidebar_orders_active_project_before_actions():
     """The sidebar should start with selection controls before project actions."""
     source = Path("src/agilab/pages/1_PROJECT.py").read_text(encoding="utf-8")
-    page_body = source[source.index("def page():") :]
+    sidebar_body = source[source.index("def render_project_sidebar(") :]
 
-    active_project_index = page_body.index("_render_active_project_sidebar(env)")
-    export_index = page_body.index("_render_sidebar_export_action(env)")
-    action_index = page_body.index('"Project action"')
+    active_project_index = sidebar_body.index("_render_active_project_sidebar(env)")
+    action_index = sidebar_body.index("_render_project_quick_actions(actions)")
 
-    assert active_project_index < export_index < action_index
+    assert active_project_index < action_index
+    assert "_render_sidebar_export_action" not in sidebar_body
     assert "Project workflow" not in source
     assert "### Active project" not in source
     assert "_render_sidebar_project_metric" not in source
     assert "workspace ready" not in source
-    assert "_render_project_software_metrics(env)" in source
+    assert "def render_project_dashboard(env)" in source
+    dashboard_body = source[source.index("def render_project_dashboard(env)") :]
+    dashboard_body = dashboard_body.split("def handle_project_selection(", 1)[0]
+    assert 'st.expander("Project metrics", expanded=False)' in dashboard_body
+    assert "_render_project_software_metrics(env)" in dashboard_body
     assert "_render_edit_project_metric" not in source
     assert "Choose what to do with the active project" not in source
     assert "Actions below apply to this selected project" not in source
@@ -2284,11 +2445,11 @@ def test_project_sidebar_orders_active_project_before_actions():
     assert "render_page_chrome(" in source
     assert 'page_label="PROJECT"' in source
     assert 'docs_html_file="edit-help.html"' in source
-    assert '["Edit", "Create", "Import", "Rename", "Delete"]' in source
+    assert "PROJECT_EDITOR_ACTIONS" in source
     assert '["Edit", "Clone", "Import", "Rename", "Delete"]' not in source
     assert "_render_project_workspace_overview" not in source
     assert "Python package used by RUN/ORCHESTRATE" not in source
-    assert "Source LOC" in source
+    assert "Source KLOC" in source
     assert "Project Name (no suffix)" not in source
     assert "New Project Name (no suffix)" not in source
 
@@ -2943,8 +3104,25 @@ R = "runpy"
         assert "second prompt" in stored
 
 
-def test_project_status_page_owns_project_selectbox_and_edit_button(mock_ui_env):
-    """The visible PROJECT status page owns project selection and edit navigation."""
+def test_project_metrics_count_ui_pages_and_format_kloc(tmp_path):
+    project_page = _load_project_page_module()
+    project = tmp_path / "demo_project"
+    (project / "pages").mkdir(parents=True)
+    (project / "pages" / "1_PROJECT.py").write_text("import streamlit as st\n", encoding="utf-8")
+    (project / "pages" / "__init__.py").write_text("", encoding="utf-8")
+    package = project / "src" / "demo_project"
+    package.mkdir(parents=True)
+    (package / "app_surface.py").write_text("import streamlit as st\n", encoding="utf-8")
+    (package / "app_args_form.py").write_text("import streamlit as st\n", encoding="utf-8")
+    (package / "streamlit_app.py").write_text("import streamlit as st\n", encoding="utf-8")
+
+    assert project_page._project_ui_page_count(project) == 4
+    assert project_page._format_project_kloc(1540) == "1.5 KLOC"
+    assert project_page._format_project_kloc("bad") == "unknown"
+
+
+def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_actions(mock_ui_env):
+    """The visible PROJECT page keeps Edit and reuses PROJECT sidebar actions."""
     at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
@@ -2962,22 +3140,68 @@ def test_project_status_page_owns_project_selectbox_and_edit_button(mock_ui_env)
 
     main_selectboxes = list(at.selectbox)
     sidebar_selectboxes = list(at.sidebar.selectbox)
+    sidebar_selectbox_labels = [str(selectbox.label) for selectbox in sidebar_selectboxes]
+    assert "Catalog pypi.org" in sidebar_selectbox_labels
+    assert "Action" in sidebar_selectbox_labels
+    assert "Catalog agi-app" not in sidebar_selectbox_labels
     selectbox_keys = [sb.key for sb in main_selectboxes] + [
         sb.key for sb in sidebar_selectboxes
     ]
     assert selectbox_keys, (
-        "PROJECT status page should have a main project selectbox "
+        "PROJECT page should have a main project selectbox "
         f"(main={len(main_selectboxes)}, sidebar={len(sidebar_selectboxes)}, "
         f"errors={[e.value for e in at.error]})"
     )
     assert "project_selectbox" in selectbox_keys
     assert "project_selectbox__edit" in [button.key for button in at.button]
     assert "project_selectbox__edit" not in [button.key for button in at.sidebar.button]
+    assert at.session_state["sidebar_selection"] == "Overview"
+    assert "templates" in at.session_state
+    assert "archives" in at.session_state
+    assert "clone_env_strategy" not in at.session_state
+    sidebar_button_labels = [str(button.label) for button in at.sidebar.button]
+    assert "Export" not in sidebar_button_labels
+    assert "Check" in sidebar_button_labels
+    assert "Install" in sidebar_button_labels
+    assert "Apply" in sidebar_button_labels
+    assert "Update" not in sidebar_button_labels
+    assert "Remove" not in sidebar_button_labels
+    assert "Update selected" not in sidebar_button_labels
+    assert "Remove selected" not in sidebar_button_labels
+    assert "Check agi-app" not in sidebar_button_labels
+    assert "Install agi-app" not in sidebar_button_labels
+    sidebar_checkbox_labels = [str(checkbox.label) for checkbox in at.sidebar.checkbox]
+    assert "Reviewed" in sidebar_checkbox_labels
+    assert "Reviewed agi-app" not in sidebar_checkbox_labels
+    sidebar_expander_labels = [str(expander.label) for expander in at.sidebar.expander]
+    assert "agi-app" in sidebar_expander_labels
+    assert "agi-app from PyPI" not in sidebar_expander_labels
+    markdown_text = "\n".join(str(item.value) for item in at.markdown)
+    expander_labels = [str(item.label) for item in at.expander]
+    assert "Project metrics" in expander_labels
+    code_text = "\n".join(str(item.value) for item in at.code)
+    assert "Worker class" in code_text
+    assert "agilab-project-metric" not in markdown_text
+    assert "Source KLOC" in code_text
+    assert "Functions" in code_text
+    assert "Classes" in code_text
+    assert "Docs/config files" in code_text
+    assert "UI pages" in code_text
+    assert "Project path" in markdown_text
+    assert "Manager env" in markdown_text
+    assert "Worker env" in markdown_text
+    assert "Settings" in markdown_text
+    assert "Cluster share" in markdown_text
+    assert "API keys" in markdown_text
+    sidebar_labels = "\n".join(str(getattr(widget, "label", "")) for widget in at.sidebar)
+    assert "Quick actions" in sidebar_labels
+    assert "Project action" not in sidebar_labels
+    assert "clone_dest" not in [ti.key for ti in at.sidebar.text_input]
     assert "project_filter" not in [ti.key for ti in at.sidebar.text_input]
 
 
-def test_create_page_exposes_environment_strategy(mock_ui_env):
-    at = _app_test("src/agilab/pages/1_PROJECT.py")
+def test_project_status_create_action_exposes_environment_strategy(mock_ui_env):
+    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
@@ -3000,8 +3224,31 @@ def test_create_page_exposes_environment_strategy(mock_ui_env):
     assert "Safer for real development." not in sidebar_captions
 
 
-def test_project_page_notebook_import_query_opens_file_selector(mock_ui_env):
+def test_project_editor_page_is_edit_only(mock_ui_env):
     at = _app_test("src/agilab/pages/1_PROJECT.py")
+    env = AgiEnv(
+        apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
+    )
+    env.init_done = True
+    env.st_resources = (
+        Path(__file__).resolve().parents[1] / "src/agilab/resources"
+    ).resolve()
+    env.projects = ["flight_telemetry_project"]
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
+    at.session_state["env"] = env
+    at.session_state["sidebar_selection"] = "Create"
+
+    at.run()
+    assert not at.exception
+
+    assert at.session_state["sidebar_selection"] == "Edit"
+    assert "clone_env_strategy" not in at.session_state
+    assert "clone_dest" not in [ti.key for ti in at.sidebar.text_input]
+    assert not any(button.label == "Export" for button in at.sidebar.button)
+
+
+def test_project_status_notebook_import_query_opens_file_selector(mock_ui_env):
+    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
@@ -3062,7 +3309,7 @@ def test_project_page_notebook_import_query_opens_file_selector(mock_ui_env):
 
 def test_project_page_guided_sample_import_hides_manual_sidebar_controls(mock_ui_env):
     project_page = _load_project_page_module()
-    at = _app_test("src/agilab/pages/1_PROJECT.py")
+    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
@@ -3213,7 +3460,7 @@ def test_project_page_readme_query_opens_edit_section_once():
 
 
 def test_project_page_maps_legacy_clone_action_to_create(mock_ui_env):
-    at = _app_test("src/agilab/pages/1_PROJECT.py")
+    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )

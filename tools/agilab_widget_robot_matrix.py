@@ -191,6 +191,21 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
     ),
+    "isolated-project-editor-page": RobotScenario(
+        name="isolated-project-editor-page",
+        description=(
+            "Open the hidden PROJECT_EDITOR route for every built-in app and "
+            "assert the editor surface stays separate from PROJECT dashboard panels."
+        ),
+        pages="PROJECT_EDITOR",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="safe-click",
+        required_text="Edit project files",
+        forbidden_text="Worker class,Source LOC,Environment Health",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=300.0,
+    ),
     "isolated-project-notebook-import": RobotScenario(
         name="isolated-project-notebook-import",
         description=(
@@ -346,10 +361,10 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
     "isolated-mobile-core-pages": RobotScenario(
         name="isolated-mobile-core-pages",
         description=(
-            "Sweep PROJECT, ORCHESTRATE, and ANALYSIS through a mobile viewport "
+            "Sweep PROJECT, PROJECT_EDITOR, ORCHESTRATE, and ANALYSIS through a mobile viewport "
             "to catch responsive layout and overflow regressions."
         ),
-        pages="PROJECT,ORCHESTRATE,ANALYSIS",
+        pages="PROJECT,PROJECT_EDITOR,ORCHESTRATE,ANALYSIS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
@@ -365,7 +380,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
             "Sweep core pages with success screenshots and coarse render/widget "
             "budgets for release evidence."
         ),
-        pages="PROJECT,ORCHESTRATE,ANALYSIS",
+        pages="PROJECT,PROJECT_EDITOR,ORCHESTRATE,ANALYSIS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
@@ -383,7 +398,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
             "Open each core page in a fresh browser context to catch localStorage "
             "and session-state assumptions."
         ),
-        pages="PROJECT,ORCHESTRATE,ANALYSIS",
+        pages="PROJECT,PROJECT_EDITOR,ORCHESTRATE,ANALYSIS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
@@ -395,10 +410,10 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
     "isolated-keyboard-focus-core-pages": RobotScenario(
         name="isolated-keyboard-focus-core-pages",
         description=(
-            "Tab through HOME, PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS, and SETTINGS "
+            "Tab through HOME, PROJECT, PROJECT_EDITOR, ORCHESTRATE, WORKFLOW, ANALYSIS, and SETTINGS "
             "to catch focus traps and off-screen keyboard targets."
         ),
-        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        pages="HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
@@ -413,7 +428,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
             "Sweep core pages at desktop width and fail on obvious overflow, "
             "zero-size controls, or major visible control overlaps."
         ),
-        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        pages="HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
@@ -428,7 +443,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
             "Sweep core pages at mobile width and fail on obvious overflow, "
             "zero-size controls, or major visible control overlaps."
         ),
-        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        pages="HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
@@ -445,7 +460,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
             "Sweep core pages and fail on missing accessible names, broken ARIA "
             "references, heading-order jumps, missing main landmarks, or severe contrast risks."
         ),
-        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        pages="HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
@@ -460,7 +475,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
             "Sweep core pages with explicit console, pageerror, requestfailed, "
             "and HTTP error capture evidence."
         ),
-        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        pages="HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
@@ -475,7 +490,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
             "Smoke core pages in non-Chromium Playwright browsers with explicit "
             "browser console/network error evidence."
         ),
-        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        pages="HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
@@ -498,7 +513,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps="pytorch_playground_project",
         required_text="PyTorch Playground,Refresh evidence,Synced RUN snippet,Settings",
         forbidden_sidebar_text="Project:",
-        required_links="Page=>current_page=view_app_ui",
+        required_links="PyTorch Playground=>current_page=view_app_ui",
         required_action_labels="Refresh evidence",
         action_timeout_seconds=30.0,
         page_timeout_seconds=420.0,
@@ -511,7 +526,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
             "Sweep core pages and fail when expected page headings or primary "
             "controls are not visible above the initial viewport fold."
         ),
-        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        pages="HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
@@ -526,7 +541,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
             "Capture masked success screenshots for core pages so a separate "
             "visual-baseline report can compare them with committed docs baselines."
         ),
-        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        pages="HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",

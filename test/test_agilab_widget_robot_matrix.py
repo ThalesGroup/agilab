@@ -28,6 +28,7 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
         "isolated-core-pages",
         "isolated-entry-and-app-pages",
         "isolated-project-page",
+        "isolated-project-editor-page",
         "isolated-project-notebook-import",
         "isolated-project-import-sidebar",
         "isolated-project-rename-sidebar",
@@ -36,7 +37,7 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
         "current-home-pytorch-direct-run-readiness",
         "current-home-orchestrate-journey",
     ]
-    isolated, entry, project, project_notebook, project_import, project_rename, settings, current_home, pytorch_direct, journey = scenarios
+    isolated, entry, project, project_editor, project_notebook, project_import, project_rename, settings, current_home, pytorch_direct, journey = scenarios
     assert isolated.pages == "ORCHESTRATE,WORKFLOW,ANALYSIS"
     assert isolated.runtime_isolation == "isolated"
     assert isolated.action_button_policy == "trial"
@@ -52,6 +53,12 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert project.runtime_isolation == "isolated"
     assert project.action_button_policy == "safe-click"
     assert project.action_timeout_seconds == 30.0
+    assert project_editor.pages == "PROJECT_EDITOR"
+    assert project_editor.apps_pages == "none"
+    assert project_editor.runtime_isolation == "isolated"
+    assert project_editor.action_button_policy == "safe-click"
+    assert project_editor.required_text == "Edit project files"
+    assert project_editor.forbidden_text == "Worker class,Source LOC,Environment Health"
     assert project_notebook.pages == "PROJECT"
     assert project_notebook.route_query == "start=notebook-import"
     assert project_notebook.apps_pages == "none"
@@ -212,7 +219,7 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert pytorch_analysis.pages == "ANALYSIS"
     assert pytorch_analysis.required_text == "PyTorch Playground,Refresh evidence,Synced RUN snippet,Settings"
     assert pytorch_analysis.forbidden_sidebar_text == "Project:"
-    assert pytorch_analysis.required_links == "Page=>current_page=view_app_ui"
+    assert pytorch_analysis.required_links == "PyTorch Playground=>current_page=view_app_ui"
     assert pytorch_analysis.required_action_labels == "Refresh evidence"
     assert pytorch_analysis.browser_error_check is True
     assert above_fold.above_fold_check is True
@@ -399,7 +406,7 @@ def test_build_robot_command_enables_mobile_viewport(tmp_path) -> None:
 
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "PROJECT,ORCHESTRATE,ANALYSIS"
+    assert argv[argv.index("--pages") + 1] == "PROJECT,PROJECT_EDITOR,ORCHESTRATE,ANALYSIS"
     assert argv[argv.index("--viewport-width") + 1] == "390"
     assert argv[argv.index("--viewport-height") + 1] == "844"
     assert summary_path == tmp_path / "isolated-mobile-core-pages.json"
@@ -421,6 +428,7 @@ def test_build_robot_command_enables_release_evidence_controls(tmp_path) -> None
 
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
+    assert argv[argv.index("--pages") + 1] == "PROJECT,PROJECT_EDITOR,ORCHESTRATE,ANALYSIS"
     assert "--success-screenshot" in argv
     assert argv[argv.index("--max-first-render-seconds") + 1] == "90.0"
     assert argv[argv.index("--max-widgets-ready-seconds") + 1] == "30.0"
@@ -442,6 +450,7 @@ def test_build_robot_command_enables_fresh_browser_context(tmp_path) -> None:
 
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
+    assert argv[argv.index("--pages") + 1] == "PROJECT,PROJECT_EDITOR,ORCHESTRATE,ANALYSIS"
     assert "--fresh-browser-context-per-page" in argv
 
 
@@ -460,7 +469,7 @@ def test_build_robot_command_enables_keyboard_focus_check(tmp_path) -> None:
 
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
     assert "--keyboard-focus-check" in argv
 
 
@@ -499,7 +508,7 @@ def test_build_robot_command_enables_accessibility_check(tmp_path) -> None:
 
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
     assert "--accessibility-check" in argv
 
 
@@ -518,7 +527,7 @@ def test_build_robot_command_enables_browser_error_check(tmp_path) -> None:
 
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
     assert "--browser-error-check" in argv
 
 
@@ -542,7 +551,7 @@ def test_build_robot_command_covers_pytorch_playground_analysis_text(tmp_path) -
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--required-text") + 1] == "PyTorch Playground,Refresh evidence,Synced RUN snippet,Settings"
     assert argv[argv.index("--forbidden-sidebar-text") + 1] == "Project:"
-    assert argv[argv.index("--required-links") + 1] == "Page=>current_page=view_app_ui"
+    assert argv[argv.index("--required-links") + 1] == "PyTorch Playground=>current_page=view_app_ui"
     assert argv[argv.index("--required-action-labels") + 1] == "Refresh evidence"
     assert "--browser-error-check" in argv
     assert summary_path == tmp_path / "isolated-pytorch-playground-analysis.json"
@@ -564,7 +573,7 @@ def test_build_robot_command_enables_above_fold_check(tmp_path) -> None:
 
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
     assert "--above-fold-check" in argv
 
 
@@ -583,7 +592,7 @@ def test_build_robot_command_enables_visual_baseline_controls(tmp_path) -> None:
 
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
+    assert argv[argv.index("--pages") + 1] == "HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS"
     assert "--success-screenshot" in argv
     assert "--visual-mask-dynamic-regions" in argv
     assert "--above-fold-check" in argv
@@ -980,6 +989,34 @@ def test_build_robot_command_covers_project_page(tmp_path) -> None:
     )
     assert summary_path == tmp_path / "isolated-project-page.json"
     assert progress_path == tmp_path / "isolated-project-page.ndjson"
+
+
+def test_build_robot_command_covers_project_editor_page(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-project-editor-page"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "PROJECT_EDITOR"
+    assert argv[argv.index("--apps-pages") + 1] == "none"
+    assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
+    assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
+    assert argv[argv.index("--required-text") + 1] == "Edit project files"
+    assert argv[argv.index("--forbidden-text") + 1] == "Worker class,Source LOC,Environment Health"
+    assert argv[argv.index("--screenshot-dir") + 1] == str(
+        tmp_path / "screenshots" / "isolated-project-editor-page"
+    )
+    assert summary_path == tmp_path / "isolated-project-editor-page.json"
+    assert progress_path == tmp_path / "isolated-project-editor-page.ndjson"
 
 
 def test_build_robot_command_covers_project_notebook_import_deep_link(tmp_path) -> None:
@@ -1493,6 +1530,7 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
         "isolated-core-pages",
         "isolated-entry-and-app-pages",
         "isolated-project-page",
+        "isolated-project-editor-page",
         "isolated-project-notebook-import",
         "isolated-project-import-sidebar",
         "isolated-project-rename-sidebar",
@@ -1502,11 +1540,11 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
         "current-home-orchestrate-journey",
     ]
     assert summary["success"] is True
-    assert summary["scenario_count"] == 10
-    assert summary["page_count"] == 20
-    assert summary["widget_count"] == 50
-    assert summary["interacted_count"] == 30
-    assert summary["probed_count"] == 20
+    assert summary["scenario_count"] == 11
+    assert summary["page_count"] == 22
+    assert summary["widget_count"] == 55
+    assert summary["interacted_count"] == 33
+    assert summary["probed_count"] == 22
     assert summary["failed_scenarios"] == []
     assert summary["failure_samples"] == []
 
@@ -2121,3 +2159,70 @@ def test_main_json_and_text_outputs_use_matrix_results(monkeypatch, tmp_path, ca
     monkeypatch.setattr(module, "run_matrix", lambda *_args, **_kwargs: [_result(False)])
     assert module.main(["--scenario", "current-home-actions", "--output-dir", str(tmp_path)]) == 1
     assert "[FAIL] widget robot matrix" in capsys.readouterr().out
+
+
+def _value_after(argv: list[str], flag: str) -> str:
+    return argv[argv.index(flag) + 1]
+
+
+def test_build_robot_command_passes_analysis_contract_controls(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-pytorch-playground-analysis"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=90.0,
+        widget_timeout_seconds=3.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=True,
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert _value_after(argv, "--apps") == "pytorch_playground_project"
+    assert _value_after(argv, "--pages") == "ANALYSIS"
+    assert _value_after(argv, "--required-text") == "PyTorch Playground,Refresh evidence,Synced RUN snippet,Settings"
+    assert _value_after(argv, "--forbidden-sidebar-text") == "Project:"
+    assert _value_after(argv, "--required-links") == "PyTorch Playground=>current_page=view_app_ui"
+    assert _value_after(argv, "--required-action-labels") == "Refresh evidence"
+    assert "--browser-error-check" in argv
+    assert summary_path == tmp_path / "isolated-pytorch-playground-analysis.json"
+    assert progress_path == tmp_path / "isolated-pytorch-playground-analysis.ndjson"
+
+
+def test_build_robot_command_passes_visual_and_render_budget_controls(tmp_path) -> None:
+    module = _load_module()
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=90.0,
+        widget_timeout_seconds=3.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=True,
+    )
+
+    release_argv, _, _ = module.build_robot_command(
+        module.ALL_SCENARIOS["isolated-release-evidence"],
+        options=options,
+    )
+    visual_argv, _, _ = module.build_robot_command(
+        module.ALL_SCENARIOS["isolated-visual-baseline-core-pages"],
+        options=options,
+    )
+
+    assert "--success-screenshot" in release_argv
+    assert _value_after(release_argv, "--max-first-render-seconds") == "90.0"
+    assert _value_after(release_argv, "--max-widgets-ready-seconds") == "30.0"
+    assert _value_after(release_argv, "--max-action-settle-seconds") == "30.0"
+    assert _value_after(release_argv, "--screenshot-dir") == str(
+        tmp_path / "screenshots" / "isolated-release-evidence"
+    )
+    assert "--browser-error-check" in visual_argv
+    assert "--above-fold-check" in visual_argv
+    assert "--visual-mask-dynamic-regions" in visual_argv
+    assert "--success-screenshot" in visual_argv
+    assert _value_after(visual_argv, "--screenshot-dir") == str(
+        tmp_path / "screenshots" / "isolated-visual-baseline-core-pages"
+    )

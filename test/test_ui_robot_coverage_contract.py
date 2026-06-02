@@ -34,6 +34,13 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     for action in module.REQUIRED_HIGH_RISK_ACTIONS:
         assert payload["coverage"]["high_risk_actions"][action]
     assert payload["coverage"]["configured_apps_pages_scenarios"] == ["isolated-entry-and-app-pages"]
+    assert payload["coverage"]["editor_routes"] == {
+        "PROJECT_EDITOR": {
+            "forbidden_text": ["Environment Health", "Source LOC", "Worker class"],
+            "required_text": ["Edit project files"],
+            "scenarios": ["isolated-project-editor-page"],
+        }
+    }
     assert payload["coverage"]["public_demo_contract"]["ui_apps"] == [
         "flight_telemetry_project",
         "weather_forecast_project",
@@ -92,6 +99,7 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "hf-first-proof-app-pages-visual-smoke",
         "hf-first-proof-visual-smoke",
     ]
+    assert "isolated-project-editor-page" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
     assert "isolated-pytorch-playground-analysis" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
     assert payload["coverage"]["pytorch_analysis_robot"] == {
         "apps": ["pytorch_playground_project"],
@@ -99,7 +107,7 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "flags": ["browser_error_check"],
         "pages": ["ANALYSIS"],
         "required_actions": ["Refresh evidence"],
-        "required_links": ["Page=>current_page=view_app_ui"],
+        "required_links": ["PyTorch Playground=>current_page=view_app_ui"],
         "required_text": ["PyTorch Playground", "Refresh evidence", "Settings", "Synced RUN snippet"],
     }
     assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-visual-smoke"] == {
@@ -175,6 +183,12 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         apps_pages="configured",
         click_action_labels=",".join(module.REQUIRED_HIGH_RISK_ACTIONS),
     )
+    editor = scenario(
+        "isolated-project-editor-page",
+        pages="PROJECT_EDITOR",
+        required_text="Edit project files",
+        forbidden_text="Environment Health,Source LOC,Worker class",
+    )
     hf_visual = scenario(
         "hf-first-proof-visual-smoke",
         pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS",
@@ -206,7 +220,7 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
     )
     all_scenarios = {
         item.name: item
-        for item in (core_scenario, hf_visual, hf_app_pages, hf_install, pytorch)
+        for item in (core_scenario, editor, hf_visual, hf_app_pages, hf_install, pytorch)
     }
     widget_robot = SimpleNamespace(
         page_label=lambda page: str(page),
@@ -219,7 +233,7 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         ],
     )
     matrix = SimpleNamespace(
-        DEFAULT_SCENARIOS={"core-selected-actions": core_scenario},
+        DEFAULT_SCENARIOS={"core-selected-actions": core_scenario, "isolated-project-editor-page": editor},
         ALL_SCENARIOS=all_scenarios,
         OPT_IN_SCENARIOS={"isolated-pytorch-playground-analysis": pytorch},
     )
@@ -254,10 +268,12 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
             "ui-robot-matrix": [
                 SimpleNamespace(
                     argv=[
-                        "--scenario",
-                        "isolated-pytorch-playground-analysis",
-                        "--apps",
-                        ",".join(module.REQUIRED_DEMO_UI_APPS),
+                            "--scenario",
+                            "isolated-project-editor-page",
+                            "--scenario",
+                            "isolated-pytorch-playground-analysis",
+                            "--apps",
+                            ",".join(module.REQUIRED_DEMO_UI_APPS),
                     ]
                 )
             ],
@@ -309,7 +325,7 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
     module = _load_module()
     core_scenario = SimpleNamespace(
         name="core-selected-actions",
-        pages="HOME,PROJECT,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
+        pages="HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
         click_action_labels="INSTALL,CHECK distribute,Run -> Load -> Export",
     )
@@ -400,6 +416,7 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
     assert "hf-first-proof-app-pages-visual-smoke is missing from the robot matrix" in details
     assert "hf-first-proof-install is missing from the robot matrix" in details
     assert "isolated-pytorch-playground-analysis is missing from the robot matrix" in details
+    assert "ui-robot-matrix profile does not run isolated-project-editor-page" in details
     assert "ui-robot-matrix profile does not run isolated-pytorch-playground-analysis" in details
     assert any(
         detail.startswith("ui-robot-matrix profile is missing documented demo apps:")
@@ -606,6 +623,7 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
     assert "- core_page:" in rendered
     assert any("apps declare configured apps-pages" in detail for detail in details)
     assert "default robot matrix has no scenarios for --apps all" in details
+    assert "PROJECT_EDITOR is not covered by any default robot scenario" in details
     assert "'INSTALL' is not covered by a selected-action scenario" in details
     assert "hf-first-proof-install is missing required actions: install" in details
     assert (
@@ -621,10 +639,11 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
     assert "isolated-pytorch-playground-analysis is missing forbidden sidebar text probes: Project:" in details
     assert (
         "isolated-pytorch-playground-analysis is missing required link probes: "
-        "Page=>current_page=view_app_ui"
+        "PyTorch Playground=>current_page=view_app_ui"
     ) in details
     assert "isolated-pytorch-playground-analysis is missing required action probes: Refresh evidence" in details
     assert "isolated-pytorch-playground-analysis does not enable browser_error_check" in details
+    assert "ui-robot-matrix profile does not run isolated-project-editor-page" in details
     assert "ui-robot-matrix profile does not run isolated-pytorch-playground-analysis" in details
     assert any(
         detail.startswith("public proof scenarios are missing documented demo routes:")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
@@ -14,6 +15,9 @@ GENERATION_MODE_PYTHON_SNIPPET = "python_snippet"
 
 STAGE_GENERATION_MODE_FIELD = "generation_mode"
 STAGE_ACTION_CONTRACT_FIELD = "action_contract"
+STAGE_ACTION_CONTRACT_SHA256_FIELD = "action_contract_sha256"
+STAGE_DATAFRAME_SCHEMA_SHA256_FIELD = "dataframe_schema_sha256"
+STAGE_SAFE_ACTION_PINNED_FIELD = "safe_action_pinned"
 
 GENERATED_ACTIONS_SYSTEM_INSTRUCTIONS = """
 Return ONLY a JSON object. Do not return Python code or Markdown.
@@ -60,6 +64,63 @@ _ACTION_KEYS = {
     "rolling_mean": {"action", "input", "output", "window"},
     "clip": {"action", "input", "output", "lower", "upper"},
 }
+SAFE_ACTION_CATALOG = (
+    {
+        "action": "select_columns",
+        "label": "Select columns",
+        "prompt": "Select the dataframe columns needed for the next analysis step.",
+    },
+    {
+        "action": "drop_columns",
+        "label": "Drop columns",
+        "prompt": "Drop unnecessary dataframe columns while preserving the analysis target.",
+    },
+    {
+        "action": "rename_columns",
+        "label": "Rename columns",
+        "prompt": "Rename dataframe columns to clearer analysis-ready names.",
+    },
+    {
+        "action": "filter_rows",
+        "label": "Filter rows",
+        "prompt": "Filter rows using a column condition and keep only relevant observations.",
+    },
+    {
+        "action": "derive_column",
+        "label": "Derive column",
+        "prompt": "Create a derived dataframe column from an existing column.",
+    },
+    {
+        "action": "fill_missing",
+        "label": "Fill missing values",
+        "prompt": "Fill missing values in selected dataframe columns.",
+    },
+    {
+        "action": "drop_missing",
+        "label": "Drop missing rows",
+        "prompt": "Drop rows with missing values in the relevant dataframe columns.",
+    },
+    {
+        "action": "sort_rows",
+        "label": "Sort rows",
+        "prompt": "Sort dataframe rows by the columns that define the analysis order.",
+    },
+    {
+        "action": "groupby_aggregate",
+        "label": "Group and aggregate",
+        "prompt": "Group rows by one or more columns and compute aggregate metrics.",
+    },
+    {
+        "action": "rolling_mean",
+        "label": "Rolling mean",
+        "prompt": "Compute a rolling mean feature from an ordered numeric column.",
+    },
+    {
+        "action": "clip",
+        "label": "Clip values",
+        "prompt": "Clip numeric values to a safe lower and upper range.",
+    },
+)
 
 
 class GeneratedActionError(ValueError):
@@ -89,6 +150,115 @@ def dataframe_schema_for_prompt(df: pd.DataFrame | None, *, max_columns: int = 8
     for column in list(df.columns)[:max_columns]:
         rows.append({"name": str(column), "dtype": str(df[column].dtype)})
     return rows
+
+
+def safe_action_catalog_options() -> tuple[dict[str, str], ...]:
+    return tuple(dict(item) for item in SAFE_ACTION_CATALOG)
+
+
+def safe_action_template_code(action_name: str) -> str:
+    action = str(action_name or "").strip()
+    labels = {str(item["action"]): str(item["label"]) for item in SAFE_ACTION_CATALOG}
+    label = labels.get(action)
+    if label is None:
+        raise GeneratedActionError(f"unsupported safe action template: {action!r}")
+    template_body = {
+        "select_columns": (
+            'columns = ["column_a", "column_b"]\n'
+            "missing = [column for column in columns if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df[columns].copy()\n"
+        ),
+        "drop_columns": (
+            'columns = ["column_to_drop"]\n'
+            "missing = [column for column in columns if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df.drop(columns=columns).copy()\n"
+        ),
+        "rename_columns": (
+            'mapping = {"old_column": "new_column"}\n'
+            "missing = [column for column in mapping if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df.rename(columns=mapping).copy()\n"
+        ),
+        "filter_rows": (
+            'column = "column_name"\n'
+            'value = "value"\n'
+            "if column not in df.columns:\n"
+            '    raise KeyError(f"Unknown dataframe column: {column}")\n'
+            "df = df[df[column] == value].copy()\n"
+        ),
+        "derive_column": (
+            'input_column = "source_column"\n'
+            'output_column = "derived_column"\n'
+            "scale = 1.0\n"
+            "if input_column not in df.columns:\n"
+            '    raise KeyError(f"Unknown dataframe column: {input_column}")\n'
+            "df = df.copy()\n"
+            "df[output_column] = df[input_column] * scale\n"
+        ),
+        "fill_missing": (
+            'columns = ["column_name"]\n'
+            "fill_value = 0\n"
+            "missing = [column for column in columns if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df.copy()\n"
+            "df[columns] = df[columns].fillna(fill_value)\n"
+        ),
+        "drop_missing": (
+            'columns = ["column_name"]\n'
+            "missing = [column for column in columns if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df.dropna(subset=columns).copy()\n"
+        ),
+        "sort_rows": (
+            'columns = ["column_name"]\n'
+            "ascending = True\n"
+            "missing = [column for column in columns if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df.sort_values(by=columns, ascending=ascending).reset_index(drop=True)\n"
+        ),
+        "groupby_aggregate": (
+            'group_columns = ["group_column"]\n'
+            'aggregations = {"metric_column": "mean"}\n'
+            "required = [*group_columns, *aggregations.keys()]\n"
+            "missing = [column for column in required if column not in df.columns]\n"
+            "if missing:\n"
+            '    raise KeyError(f"Unknown dataframe column(s): {missing}")\n'
+            "df = df.groupby(group_columns, dropna=False).agg(aggregations).reset_index()\n"
+        ),
+        "rolling_mean": (
+            'input_column = "metric_column"\n'
+            'output_column = "metric_rolling_mean"\n'
+            "window = 3\n"
+            "if input_column not in df.columns:\n"
+            '    raise KeyError(f"Unknown dataframe column: {input_column}")\n'
+            "df = df.copy()\n"
+            "df[output_column] = df[input_column].rolling(window=window, min_periods=1).mean()\n"
+        ),
+        "clip": (
+            'input_column = "metric_column"\n'
+            "output_column = input_column\n"
+            "lower = 0\n"
+            "upper = 1\n"
+            "if input_column not in df.columns:\n"
+            '    raise KeyError(f"Unknown dataframe column: {input_column}")\n'
+            "df = df.copy()\n"
+            "df[output_column] = df[input_column].clip(lower=lower, upper=upper)\n"
+        ),
+    }[action]
+    return (
+        f"# AGILAB Safe Action template: {label}.\n"
+        "# Replace placeholder column/value names or click Gen code to create a validated Safe Action contract.\n"
+        "# The final saved Safe Action should come from AGILAB's validated JSON contract.\n"
+        f"{template_body}"
+    )
 
 
 def build_generated_actions_prompt(question: str, df: pd.DataFrame | None = None) -> str:
@@ -175,6 +345,29 @@ def generated_action_contract_to_python(contract: GeneratedActionContract | Mapp
     return "\n".join(lines).strip() + "\n"
 
 
+def safe_action_contract_stage_code(contract: GeneratedActionContract | Mapping[str, Any]) -> str:
+    return generated_action_contract_to_python(contract)
+
+
+def safe_action_contract_sha256(contract: GeneratedActionContract | Mapping[str, Any]) -> str:
+    if isinstance(contract, GeneratedActionContract):
+        payload = contract.to_payload()
+    else:
+        payload = validate_generated_action_contract(contract).to_payload()
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def dataframe_schema_sha256(df: pd.DataFrame | None) -> str:
+    canonical = json.dumps(
+        dataframe_schema_for_prompt(df),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def summarize_generated_actions(contract: GeneratedActionContract | Mapping[str, Any]) -> str:
     if isinstance(contract, Mapping):
         contract = validate_generated_action_contract(contract)
@@ -193,16 +386,41 @@ def stage_generation_extra_fields(
     contract: GeneratedActionContract | Mapping[str, Any] | None,
     *,
     mode: str,
+    df: pd.DataFrame | None = None,
+    pinned: bool = False,
 ) -> dict[str, Any]:
-    fields: dict[str, Any] = {STAGE_GENERATION_MODE_FIELD: mode}
+    fields: dict[str, Any] = {
+        STAGE_GENERATION_MODE_FIELD: mode,
+        STAGE_ACTION_CONTRACT_SHA256_FIELD: "",
+        STAGE_DATAFRAME_SCHEMA_SHA256_FIELD: dataframe_schema_sha256(df),
+        STAGE_SAFE_ACTION_PINNED_FIELD: False,
+    }
     if contract is None:
         fields[STAGE_ACTION_CONTRACT_FIELD] = None
         return fields
     if isinstance(contract, GeneratedActionContract):
-        fields[STAGE_ACTION_CONTRACT_FIELD] = contract.to_payload()
+        payload = validate_generated_action_contract(contract.to_payload(), df=df).to_payload()
     else:
-        fields[STAGE_ACTION_CONTRACT_FIELD] = validate_generated_action_contract(contract).to_payload()
+        payload = validate_generated_action_contract(contract, df=df).to_payload()
+    fields[STAGE_ACTION_CONTRACT_FIELD] = payload
+    fields[STAGE_ACTION_CONTRACT_SHA256_FIELD] = safe_action_contract_sha256(payload)
+    fields[STAGE_SAFE_ACTION_PINNED_FIELD] = bool(
+        pinned and mode == GENERATION_MODE_SAFE_ACTIONS
+    )
     return fields
+
+
+def pin_safe_action_extra_fields(
+    contract: GeneratedActionContract | Mapping[str, Any],
+    *,
+    df: pd.DataFrame | None = None,
+) -> dict[str, Any]:
+    return stage_generation_extra_fields(
+        contract,
+        mode=GENERATION_MODE_SAFE_ACTIONS,
+        df=df,
+        pinned=True,
+    )
 
 
 def _loads_json_contract(raw_text: str) -> Mapping[str, Any]:

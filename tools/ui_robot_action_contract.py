@@ -59,10 +59,6 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
         "trial-only",
         "destructive project-level delete action; focused tests cover confirmation behavior",
     ),
-    "Export": (
-        "trial-only",
-        "project export is not part of the first-proof selected-click path",
-    ),
     "Export promotion decision": (
         "trial-only",
         "apps-page export side effect is covered by page-specific tests and visual robots",
@@ -70,10 +66,6 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
     "Import": (
         "trial-only",
         "project import is probed through PROJECT import scenarios without firing archive import",
-    ),
-    "Install PyPI app": (
-        "trial-only",
-        "installs a reviewed external app package; helper tests cover command construction without mutating the environment",
     ),
     "Overwrite": (
         "ignored",
@@ -90,10 +82,6 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
     "Rename": (
         "trial-only",
         "project rename is probed through PROJECT rename scenarios without mutating the project",
-    ),
-    "Remove PyPI app": (
-        "trial-only",
-        "removes an installed external app package only after explicit user confirmation",
     ),
     "Run instant demo": (
         "trial-only",
@@ -122,10 +110,6 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
     "Undo last delete": (
         "trial-only",
         "stateful recovery action that appears only after selected delete-output flows",
-    ),
-    "Update PyPI app": (
-        "trial-only",
-        "updates an installed external app package only after explicit user confirmation",
     ),
     "Update key": (
         "ignored",

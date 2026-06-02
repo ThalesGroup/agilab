@@ -532,29 +532,44 @@ def build_environment_health(
     )
 
 
+def render_environment_health_cards(streamlit: Any, health: EnvironmentHealth) -> None:
+    for start in range(0, len(health.cards), 4):
+        row_cards = health.cards[start : start + 4]
+        columns = streamlit.columns(len(row_cards))
+        for column, card in zip(columns, row_cards):
+            with column:
+                render_health_card(streamlit, card)
+
+
 def render_environment_health_panel(
     streamlit: Any,
     env: Any,
     *,
     app_settings: Mapping[str, Any] | None = None,
     install_status: Mapping[str, Any] | None = None,
+    panel_label: str | None = None,
+    render_details: bool = True,
 ) -> EnvironmentHealth:
     health = build_environment_health(env, app_settings=app_settings, install_status=install_status)
-    expander_fn = getattr(streamlit, "expander", None)
-    if callable(expander_fn):
-        context = expander_fn("Environment Health", expanded=False)
-        render_fallback_title = False
+
+    def _render_body(*, render_fallback_title: bool = False) -> None:
+        if render_fallback_title and panel_label:
+            streamlit.markdown(f"### {panel_label}")
+        render_environment_health_cards(streamlit, health)
+
+    if panel_label:
+        expander_fn = getattr(streamlit, "expander", None)
+        if callable(expander_fn):
+            context = expander_fn(panel_label, expanded=False)
+            with context:
+                _render_body()
+        else:
+            context = streamlit.container(border=True)
+            with context:
+                _render_body(render_fallback_title=True)
     else:
-        context = streamlit.container(border=True)
-        render_fallback_title = True
-    with context:
-        if render_fallback_title:
-            streamlit.markdown("### Environment Health")
-        for start in range(0, len(health.cards), 4):
-            row_cards = health.cards[start : start + 4]
-            columns = streamlit.columns(len(row_cards))
-            for column, card in zip(columns, row_cards):
-                with column:
-                    render_health_card(streamlit, card)
-    render_environment_details(streamlit, health.details)
+        _render_body()
+
+    if render_details:
+        render_environment_details(streamlit, health.details)
     return health

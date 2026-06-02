@@ -21,6 +21,10 @@ PUBLIC_PROOF_SCENARIOS_PATH = REPO_ROOT / "tools" / "public_proof_scenarios.py"
 DEMOS_DOC_PATH = REPO_ROOT / "docs" / "source" / "demos.rst"
 SCHEMA = "agilab.ui_robot_coverage_contract.v1"
 REQUIRED_CORE_PAGES = ("HOME", "PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS", "SETTINGS")
+REQUIRED_EDITOR_ROUTES = ("PROJECT_EDITOR",)
+REQUIRED_EDITOR_ROUTE_TEXT = {"PROJECT_EDITOR": ("Edit project files",)}
+REQUIRED_EDITOR_ROUTE_FORBIDDEN_TEXT = {"PROJECT_EDITOR": ("Environment Health", "Source LOC", "Worker class")}
+REQUIRED_EDITOR_ROUTE_PROFILE_SCENARIOS = ("isolated-project-editor-page",)
 REQUIRED_HIGH_RISK_ACTIONS = ("INSTALL", "CHECK distribute", "Run -> Load -> Export")
 REQUIRED_HF_FIRST_PROOF_APPS = (
     "flight_telemetry_project",
@@ -33,7 +37,7 @@ REQUIRED_PYTORCH_ANALYSIS_SCENARIO = "isolated-pytorch-playground-analysis"
 REQUIRED_PYTORCH_ANALYSIS_APP = "pytorch_playground_project"
 REQUIRED_PYTORCH_ANALYSIS_TEXT = ("PyTorch Playground", "Refresh evidence", "Synced RUN snippet", "Settings")
 REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_SIDEBAR_TEXT = ("Project:",)
-REQUIRED_PYTORCH_ANALYSIS_LINKS = ("Page=>current_page=view_app_ui",)
+REQUIRED_PYTORCH_ANALYSIS_LINKS = ("PyTorch Playground=>current_page=view_app_ui",)
 REQUIRED_PYTORCH_ANALYSIS_ACTIONS = ("Refresh evidence",)
 REQUIRED_HF_ROBOT_SCENARIOS = {
     "hf-first-proof-visual-smoke": {
@@ -191,6 +195,46 @@ def evaluate_contract() -> dict[str, Any]:
     for page, scenarios in page_to_scenarios.items():
         if not scenarios:
             issues.append(CoverageIssue("core_page", f"{page} is not covered by any robot scenario"))
+
+    editor_route_to_scenarios: dict[str, list[str]] = {route: [] for route in REQUIRED_EDITOR_ROUTES}
+    editor_route_contract: dict[str, dict[str, list[str]]] = {}
+    for route in REQUIRED_EDITOR_ROUTES:
+        required_text: set[str] = set()
+        forbidden_text: set[str] = set()
+        for scenario in default_scenarios:
+            if route not in _scenario_pages(widget_robot, scenario):
+                continue
+            editor_route_to_scenarios[route].append(scenario.name)
+            required_text.update(_scenario_required_text(widget_robot, scenario))
+            forbidden_text.update(_scenario_forbidden_text(widget_robot, scenario))
+        editor_route_contract[route] = {
+            "scenarios": editor_route_to_scenarios[route],
+            "required_text": sorted(required_text),
+            "forbidden_text": sorted(forbidden_text),
+        }
+        if not editor_route_to_scenarios[route]:
+            issues.append(
+                CoverageIssue(
+                    "editor_route",
+                    f"{route} is not covered by any default robot scenario",
+                )
+            )
+        missing_required_text = sorted(set(REQUIRED_EDITOR_ROUTE_TEXT.get(route, ())) - required_text)
+        if missing_required_text:
+            issues.append(
+                CoverageIssue(
+                    "editor_route",
+                    f"{route} is missing required text probes: " + ", ".join(missing_required_text),
+                )
+            )
+        missing_forbidden_text = sorted(set(REQUIRED_EDITOR_ROUTE_FORBIDDEN_TEXT.get(route, ())) - forbidden_text)
+        if missing_forbidden_text:
+            issues.append(
+                CoverageIssue(
+                    "editor_route",
+                    f"{route} is missing forbidden dashboard text probes: " + ", ".join(missing_forbidden_text),
+                )
+            )
 
     configured_apps_pages: dict[str, list[str]] = {}
     for app in widget_robot.public_builtin_apps():
@@ -465,6 +509,15 @@ def evaluate_contract() -> dict[str, Any]:
                     f"{REQUIRED_PYTORCH_ANALYSIS_SCENARIO} does not enable browser_error_check",
                 )
             )
+    for editor_profile_scenario in REQUIRED_EDITOR_ROUTE_PROFILE_SCENARIOS:
+        if editor_profile_scenario not in ui_robot_matrix_profile_scenarios:
+            issues.append(
+                CoverageIssue(
+                    "editor_route",
+                    f"ui-robot-matrix profile does not run {editor_profile_scenario}",
+                )
+            )
+
     if REQUIRED_PYTORCH_ANALYSIS_SCENARIO not in ui_robot_matrix_profile_scenarios:
         issues.append(
             CoverageIssue(
@@ -532,6 +585,7 @@ def evaluate_contract() -> dict[str, Any]:
             "built_in_apps_covered_by": "ui-robot-matrix --apps all" if default_apps_all else "",
             "core_pages": page_to_scenarios,
             "configured_apps_pages": configured_apps_pages,
+            "editor_routes": editor_route_contract,
             "configured_apps_page_names": configured_apps_page_names,
             "configured_apps_pages_scenarios": configured_scenarios,
             "high_risk_actions": action_to_scenarios,
