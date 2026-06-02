@@ -24,12 +24,19 @@ GENERATED_ACTIONS_SCHEMA_VERSION = generated_actions.GENERATED_ACTIONS_SCHEMA_VE
 GENERATION_MODE_SAFE_ACTIONS = generated_actions.GENERATION_MODE_SAFE_ACTIONS
 GENERATION_MODE_PYTHON_SNIPPET = generated_actions.GENERATION_MODE_PYTHON_SNIPPET
 STAGE_ACTION_CONTRACT_FIELD = generated_actions.STAGE_ACTION_CONTRACT_FIELD
+STAGE_ACTION_CONTRACT_SHA256_FIELD = generated_actions.STAGE_ACTION_CONTRACT_SHA256_FIELD
+STAGE_DATAFRAME_SCHEMA_SHA256_FIELD = generated_actions.STAGE_DATAFRAME_SCHEMA_SHA256_FIELD
 STAGE_GENERATION_MODE_FIELD = generated_actions.STAGE_GENERATION_MODE_FIELD
+STAGE_SAFE_ACTION_PINNED_FIELD = generated_actions.STAGE_SAFE_ACTION_PINNED_FIELD
 GeneratedActionError = generated_actions.GeneratedActionError
 build_generated_actions_prompt = generated_actions.build_generated_actions_prompt
 generated_action_contract_to_python = generated_actions.generated_action_contract_to_python
 parse_generated_action_contract = generated_actions.parse_generated_action_contract
 dataframe_schema_for_prompt = generated_actions.dataframe_schema_for_prompt
+dataframe_schema_sha256 = generated_actions.dataframe_schema_sha256
+pin_safe_action_extra_fields = generated_actions.pin_safe_action_extra_fields
+safe_action_contract_sha256 = generated_actions.safe_action_contract_sha256
+safe_action_contract_stage_code = generated_actions.safe_action_contract_stage_code
 stage_generation_extra_fields = generated_actions.stage_generation_extra_fields
 summarize_generated_actions = generated_actions.summarize_generated_actions
 validate_generated_action_contract = generated_actions.validate_generated_action_contract
@@ -132,12 +139,16 @@ def test_generated_action_prompt_and_stage_metadata_are_explicit() -> None:
     assert fields[STAGE_GENERATION_MODE_FIELD] == GENERATION_MODE_SAFE_ACTIONS
     assert fields[STAGE_ACTION_CONTRACT_FIELD]["schema_version"] == GENERATED_ACTIONS_SCHEMA_VERSION
     assert fields[STAGE_ACTION_CONTRACT_FIELD]["actions"][0]["action"] == "filter_rows"
+    assert fields[STAGE_ACTION_CONTRACT_SHA256_FIELD] == safe_action_contract_sha256(contract)
+    assert fields[STAGE_DATAFRAME_SCHEMA_SHA256_FIELD] == dataframe_schema_sha256(None)
+    assert fields[STAGE_SAFE_ACTION_PINNED_FIELD] is False
 
     empty_fields = stage_generation_extra_fields(None, mode=GENERATION_MODE_PYTHON_SNIPPET)
-    assert empty_fields == {
-        STAGE_GENERATION_MODE_FIELD: GENERATION_MODE_PYTHON_SNIPPET,
-        STAGE_ACTION_CONTRACT_FIELD: None,
-    }
+    assert empty_fields[STAGE_GENERATION_MODE_FIELD] == GENERATION_MODE_PYTHON_SNIPPET
+    assert empty_fields[STAGE_ACTION_CONTRACT_FIELD] is None
+    assert empty_fields[STAGE_ACTION_CONTRACT_SHA256_FIELD] == ""
+    assert empty_fields[STAGE_DATAFRAME_SCHEMA_SHA256_FIELD] == dataframe_schema_sha256(None)
+    assert empty_fields[STAGE_SAFE_ACTION_PINNED_FIELD] is False
 
     mapping_fields = stage_generation_extra_fields(
         {
@@ -149,6 +160,38 @@ def test_generated_action_prompt_and_stage_metadata_are_explicit() -> None:
         mode=GENERATION_MODE_SAFE_ACTIONS,
     )
     assert mapping_fields[STAGE_ACTION_CONTRACT_FIELD]["notes"] == "nothing to do"
+
+
+def test_safe_action_pin_metadata_hashes_contract_and_schema() -> None:
+    df = pd.DataFrame({"station": ["Paris"], "temperature": [21.5]})
+    contract = validate_generated_action_contract(
+        {
+            "schema_version": GENERATED_ACTIONS_SCHEMA_VERSION,
+            "kind": GENERATED_ACTIONS_KIND,
+            "actions": [{"action": "filter_rows", "column": "station", "operator": "eq", "value": "Paris"}],
+            "notes": "keep Paris rows",
+        },
+        df=df,
+    )
+
+    fields = pin_safe_action_extra_fields(contract, df=df)
+
+    assert fields[STAGE_GENERATION_MODE_FIELD] == GENERATION_MODE_SAFE_ACTIONS
+    assert fields[STAGE_SAFE_ACTION_PINNED_FIELD] is True
+    assert fields[STAGE_ACTION_CONTRACT_SHA256_FIELD] == safe_action_contract_sha256(contract)
+    assert fields[STAGE_DATAFRAME_SCHEMA_SHA256_FIELD] == dataframe_schema_sha256(df)
+    assert safe_action_contract_stage_code(contract) == generated_action_contract_to_python(contract)
+
+
+def test_python_snippet_metadata_cannot_be_marked_as_pinned_safe_action() -> None:
+    fields = stage_generation_extra_fields(
+        None,
+        mode=GENERATION_MODE_PYTHON_SNIPPET,
+        pinned=True,
+    )
+
+    assert fields[STAGE_ACTION_CONTRACT_FIELD] is None
+    assert fields[STAGE_SAFE_ACTION_PINNED_FIELD] is False
 
 
 def test_dataframe_schema_for_prompt_returns_empty_for_invalid_payload() -> None:
