@@ -49,6 +49,24 @@ Use this skill when validating changes.
   Squash merges can make a branch look many commits ahead even when most content
   is already on `main`.
 
+## Built-in App Validation
+
+- Use `./dev builtin-app-tests` or
+  `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile builtin-app-tests`
+  when validating the built-in app pytest suites.
+- Treat root-environment pytest runs over `src/agilab/apps/builtin/*/test` as
+  suspect unless the root environment intentionally includes every app-local
+  dependency. The valid regression path enters each app project and runs pytest
+  through `uv --project .`.
+- Keep pytest collection in importlib mode for these app-local tests so nested
+  app directories are not collected as the repo package namespace.
+- Clear inherited `VIRTUAL_ENV` before invoking app-local `uv` commands. A
+  warning like `VIRTUAL_ENV=... does not match the project environment path`
+  means the shell's active root venv leaked into the app-local validation path.
+- When a built-in app test appears broken, first classify whether the failure is
+  a root-env false positive, an app manifest/dependency issue, or a real app
+  runtime regression. Fix and test the correct layer.
+
 ## Regression Hygiene
 
 - KPI/evidence tests:

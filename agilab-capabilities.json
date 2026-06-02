@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-02T14:46:03Z",
+  "generated_at_utc": "2026-06-02T17:14:12Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -861,13 +861,13 @@
       "name": "agilab-release-verification",
       "description": "Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks \"ready for release?\", \"release it\", \"all good?\", \"HF aligned?\", \"why badge failed?\", or any release/publication alignment check.",
       "path": ".claude/skills/agilab-release-verification/SKILL.md",
-      "updated": "2026-06-01"
+      "updated": "2026-06-02"
     },
     {
       "name": "agilab-runbook",
       "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
       "path": ".claude/skills/agilab-runbook/SKILL.md",
-      "updated": "2026-05-19"
+      "updated": "2026-06-02"
     },
     {
       "name": "agilab-security-review-patterns",
@@ -879,7 +879,7 @@
       "name": "agilab-streamlit-pages",
       "description": "Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).",
       "path": ".claude/skills/agilab-streamlit-pages/SKILL.md",
-      "updated": "2026-06-01"
+      "updated": "2026-06-02"
     },
     {
       "name": "agilab-testing",
@@ -982,19 +982,19 @@
     {
       "schema": "agilab.agent_compare.v1",
       "sources": [
-        "src/agilab/agent_run.py"
+        "src/agilab/agent_runtime/agent_run.py"
       ]
     },
     {
       "schema": "agilab.agent_config.v1",
       "sources": [
-        "src/agilab/agent_config.py"
+        "src/agilab/agent_runtime/agent_config.py"
       ]
     },
     {
       "schema": "agilab.agent_context.v1",
       "sources": [
-        "src/agilab/agent_run.py"
+        "src/agilab/agent_runtime/agent_run.py"
       ]
     },
     {
@@ -1025,7 +1025,7 @@
     {
       "schema": "agilab.agent_handoff.v1",
       "sources": [
-        "src/agilab/agent_run.py"
+        "src/agilab/agent_runtime/agent_run.py"
       ]
     },
     {
@@ -1040,19 +1040,19 @@
     {
       "schema": "agilab.agent_lineage.v1",
       "sources": [
-        "src/agilab/agent_run.py"
+        "src/agilab/agent_runtime/agent_run.py"
       ]
     },
     {
       "schema": "agilab.agent_next_actions.v1",
       "sources": [
-        "src/agilab/agent_run.py"
+        "src/agilab/agent_runtime/agent_run.py"
       ]
     },
     {
       "schema": "agilab.agent_provider_capability.v1",
       "sources": [
-        "src/agilab/agent_provider_capabilities.py"
+        "src/agilab/agent_runtime/agent_provider_capabilities.py"
       ]
     },
     {
@@ -1061,7 +1061,7 @@
         "README.md",
         "README.pypi.md",
         "docs/source/agent-workflows.rst",
-        "src/agilab/agent_run.py",
+        "src/agilab/agent_runtime/agent_run.py",
         "tools/agent_workflows.md",
         "tools/agilab_capabilities_manifest.py",
         "tools/controlled_pilot_readiness_report.py"
@@ -1070,7 +1070,7 @@
     {
       "schema": "agilab.agent_run_validation.v1",
       "sources": [
-        "src/agilab/agent_run.py"
+        "src/agilab/agent_runtime/agent_run.py"
       ]
     },
     {
@@ -1088,7 +1088,7 @@
     {
       "schema": "agilab.agent_tool_safety.v1",
       "sources": [
-        "src/agilab/agent_tool_safety.py"
+        "src/agilab/agent_runtime/agent_tool_safety.py"
       ]
     },
     {
@@ -1097,7 +1097,7 @@
         "README.md",
         "README.pypi.md",
         "docs/source/agent-workflows.rst",
-        "src/agilab/agent_trace.py",
+        "src/agilab/agent_runtime/agent_trace.py",
         "tools/agent_workflows.md",
         "tools/agilab_capabilities_manifest.py"
       ]
@@ -1149,19 +1149,19 @@
     {
       "schema": "agilab.app.data_quality_gate.contract.v1",
       "sources": [
-        "src/agilab/apps/builtin/data_quality_gate_project/src/data_quality_gate/core.py"
+        "src/agilab/apps/builtin/data_quality_gate_project/src/data_quality_gate/domain/core.py"
       ]
     },
     {
       "schema": "agilab.app.data_quality_gate.thresholds.v1",
       "sources": [
-        "src/agilab/apps/builtin/data_quality_gate_project/src/data_quality_gate/core.py"
+        "src/agilab/apps/builtin/data_quality_gate_project/src/data_quality_gate/domain/core.py"
       ]
     },
     {
       "schema": "agilab.app.data_quality_gate.v1",
       "sources": [
-        "src/agilab/apps/builtin/data_quality_gate_project/src/data_quality_gate/core.py"
+        "src/agilab/apps/builtin/data_quality_gate_project/src/data_quality_gate/domain/core.py"
       ]
     },
     {
@@ -1185,7 +1185,7 @@
     {
       "schema": "agilab.app_settings.v1",
       "sources": [
-        "src/agilab/core/agi-env/src/agi_env/app_settings_support.py",
+        "src/agilab/core/agi-env/src/agi_env/project/app_settings_support.py",
         "src/agilab/core/agi-env/test/test_app_args.py",
         "src/agilab/core/agi-env/test/test_app_settings_support.py",
         "tools/robustness_matrix.py"
@@ -1194,7 +1194,7 @@
     {
       "schema": "agilab.app_template_registry.v1",
       "sources": [
-        "src/agilab/app_template_registry.py"
+        "src/agilab/app_management/app_template_registry.py"
       ]
     },
     {
@@ -1245,7 +1245,7 @@
     {
       "schema": "agilab.capacity_model_manifest.v1",
       "sources": [
-        "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/runtime_misc_support.py",
+        "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/runtime/runtime_misc_support.py",
         "src/agilab/core/agi-env/src/agi_env/resources/.agilab/balancer_model.pkl.sha256.json",
         "tools/architecture_scorecard.py"
       ]
@@ -1253,14 +1253,14 @@
     {
       "schema": "agilab.ci_artifact_harvest.v1",
       "sources": [
-        "src/agilab/ci_artifact_harvest.py",
+        "src/agilab/ci/ci_artifact_harvest.py",
         "tools/kpi_evidence_bundle.py"
       ]
     },
     {
       "schema": "agilab.ci_provider_artifact_index.v1",
       "sources": [
-        "src/agilab/ci_provider_artifacts.py",
+        "src/agilab/ci/ci_provider_artifacts.py",
         "tools/kpi_evidence_bundle.py"
       ]
     },
@@ -1273,7 +1273,7 @@
     {
       "schema": "agilab.cluster_advisor.v1",
       "sources": [
-        "src/agilab/orchestrate_cluster.py"
+        "src/agilab/orchestrate/orchestrate_cluster.py"
       ]
     },
     {
@@ -1291,7 +1291,7 @@
     {
       "schema": "agilab.dag_contract_stage_result.v1",
       "sources": [
-        "src/agilab/dag_execution_adapters.py"
+        "src/agilab/dag/dag_execution_adapters.py"
       ]
     },
     {
@@ -1307,7 +1307,7 @@
       "schema": "agilab.data_connector_app_catalogs.v1",
       "sources": [
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/data_connector_app_catalogs.py",
+        "src/agilab/data_connectors/data_connector_app_catalogs.py",
         "tools/kpi_evidence_bundle.py"
       ]
     },
@@ -1315,7 +1315,7 @@
       "schema": "agilab.data_connector_facility.v1",
       "sources": [
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/data_connector_facility.py",
+        "src/agilab/data_connectors/data_connector_facility.py",
         "tools/kpi_evidence_bundle.py"
       ]
     },
@@ -1323,7 +1323,7 @@
       "schema": "agilab.data_connector_health.v1",
       "sources": [
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/data_connector_health.py",
+        "src/agilab/data_connectors/data_connector_health.py",
         "tools/kpi_evidence_bundle.py"
       ]
     },
@@ -1331,7 +1331,7 @@
       "schema": "agilab.data_connector_health_actions.v1",
       "sources": [
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/data_connector_health_actions.py",
+        "src/agilab/data_connectors/data_connector_health_actions.py",
         "tools/kpi_evidence_bundle.py"
       ]
     },
@@ -1339,7 +1339,7 @@
       "schema": "agilab.data_connector_live_endpoint_smoke.v1",
       "sources": [
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/data_connector_live_endpoint_smoke.py",
+        "src/agilab/data_connectors/data_connector_live_endpoint_smoke.py",
         "tools/kpi_evidence_bundle.py"
       ]
     },
@@ -1348,7 +1348,7 @@
       "sources": [
         "docs/source/roadmap/agilab-future-work.md",
         "src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py",
-        "src/agilab/data_connector_live_ui.py",
+        "src/agilab/data_connectors/data_connector_live_ui.py",
         "tools/kpi_evidence_bundle.py"
       ]
     },
@@ -1356,7 +1356,7 @@
       "schema": "agilab.data_connector_resolution.v1",
       "sources": [
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/data_connector_resolution.py",
+        "src/agilab/data_connectors/data_connector_resolution.py",
         "tools/kpi_evidence_bundle.py"
       ]
     },
@@ -1364,7 +1364,7 @@
       "schema": "agilab.data_connector_runtime_adapters.v1",
       "sources": [
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/data_connector_runtime_adapters.py",
+        "src/agilab/data_connectors/data_connector_runtime_adapters.py",
         "tools/kpi_evidence_bundle.py"
       ]
     },
@@ -1372,7 +1372,7 @@
       "schema": "agilab.data_connector_ui_preview.v1",
       "sources": [
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/data_connector_ui_preview.py",
+        "src/agilab/data_connectors/data_connector_ui_preview.py",
         "tools/kpi_evidence_bundle.py"
       ]
     },
@@ -1381,7 +1381,7 @@
       "sources": [
         "docs/source/features.rst",
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/data_connector_view_surface.py",
+        "src/agilab/data_connectors/data_connector_view_surface.py",
         "tools/data_connector_view_surface_report.py",
         "tools/kpi_evidence_bundle.py"
       ]
@@ -1395,7 +1395,7 @@
     {
       "schema": "agilab.default_adoption_gate.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
@@ -1407,25 +1407,25 @@
     {
       "schema": "agilab.distributed_dag_stage_submission.v1",
       "sources": [
-        "src/agilab/dag_distributed_submitter.py"
+        "src/agilab/dag/dag_distributed_submitter.py"
       ]
     },
     {
       "schema": "agilab.env_footprint.v1",
       "sources": [
-        "src/agilab/env_footprint.py"
+        "src/agilab/environment/env_footprint.py"
       ]
     },
     {
       "schema": "agilab.evidence_card.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
       "schema": "agilab.evidence_cards.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
@@ -1437,19 +1437,19 @@
     {
       "schema": "agilab.evidence_exports.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
       "schema": "agilab.evidence_graph.v1",
       "sources": [
-        "src/agilab/evidence_graph.py"
+        "src/agilab/evidence/evidence_graph.py"
       ]
     },
     {
       "schema": "agilab.evidence_verification.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
@@ -1558,106 +1558,106 @@
     {
       "schema": "agilab.global_pipeline_app_dispatch_smoke.v1",
       "sources": [
-        "src/agilab/global_pipeline_app_dispatch_smoke.py"
+        "src/agilab/global_pipeline/global_pipeline_app_dispatch_smoke.py"
       ]
     },
     {
       "schema": "agilab.global_pipeline_dag.v1",
       "sources": [
-        "src/agilab/global_pipeline_dag.py"
+        "src/agilab/global_pipeline/global_pipeline_dag.py"
       ]
     },
     {
       "schema": "agilab.global_pipeline_dependency_view.v1",
       "sources": [
-        "src/agilab/global_pipeline_dependency_view.py",
+        "src/agilab/global_pipeline/global_pipeline_dependency_view.py",
         "tools/global_pipeline_live_state_updates_report.py"
       ]
     },
     {
       "schema": "agilab.global_pipeline_dispatch_state.v1",
       "sources": [
-        "src/agilab/global_pipeline_dispatch_state.py",
+        "src/agilab/global_pipeline/global_pipeline_dispatch_state.py",
         "tools/global_pipeline_operator_state_report.py"
       ]
     },
     {
       "schema": "agilab.global_pipeline_execution_plan.v1",
       "sources": [
-        "src/agilab/global_pipeline_execution_plan.py"
+        "src/agilab/global_pipeline/global_pipeline_execution_plan.py"
       ]
     },
     {
       "schema": "agilab.global_pipeline_live_state_updates.v1",
       "sources": [
-        "src/agilab/global_pipeline_live_state_updates.py",
+        "src/agilab/global_pipeline/global_pipeline_live_state_updates.py",
         "tools/global_pipeline_operator_actions_report.py"
       ]
     },
     {
       "schema": "agilab.global_pipeline_operator_actions.v1",
       "sources": [
-        "src/agilab/global_pipeline_operator_actions.py",
+        "src/agilab/global_pipeline/global_pipeline_operator_actions.py",
         "tools/global_pipeline_operator_ui_report.py"
       ]
     },
     {
       "schema": "agilab.global_pipeline_operator_state.v1",
       "sources": [
-        "src/agilab/global_pipeline_operator_state.py",
+        "src/agilab/global_pipeline/global_pipeline_operator_state.py",
         "tools/global_pipeline_dependency_view_report.py"
       ]
     },
     {
       "schema": "agilab.global_pipeline_operator_ui.v1",
       "sources": [
-        "src/agilab/global_pipeline_operator_ui.py"
+        "src/agilab/global_pipeline/global_pipeline_operator_ui.py"
       ]
     },
     {
       "schema": "agilab.global_pipeline_runner_state.v1",
       "sources": [
-        "src/agilab/global_pipeline_runner_state.py",
-        "src/agilab/pipeline_lab.py",
+        "src/agilab/global_pipeline/global_pipeline_runner_state.py",
+        "src/agilab/pipeline/pipeline_lab.py",
         "tools/global_pipeline_dispatch_state_report.py"
       ]
     },
     {
       "schema": "agilab.kubernetes_job.v1",
       "sources": [
-        "src/agilab/kubernetes_job.py"
+        "src/agilab/cluster/kubernetes_job.py"
       ]
     },
     {
       "schema": "agilab.lab_stages.v1",
       "sources": [
-        "src/agilab/pipeline_stages.py",
-        "src/agilab/workflow_validation.py",
+        "src/agilab/pipeline/pipeline_stages.py",
+        "src/agilab/workflow/workflow_validation.py",
         "tools/agilab_widget_robot.py"
       ]
     },
     {
       "schema": "agilab.lab_stages_dag_preview.v1",
       "sources": [
-        "src/agilab/pipeline_lab.py"
+        "src/agilab/pipeline/pipeline_lab.py"
       ]
     },
     {
       "schema": "agilab.lightning_checkpoint_manifest.v1",
       "sources": [
-        "src/agilab/lightning_evidence.py"
+        "src/agilab/evidence/lightning_evidence.py"
       ]
     },
     {
       "schema": "agilab.lightning_evidence.v1",
       "sources": [
-        "src/agilab/lightning_evidence.py"
+        "src/agilab/evidence/lightning_evidence.py"
       ]
     },
     {
       "schema": "agilab.lightning_evidence_verification.v1",
       "sources": [
-        "src/agilab/lightning_evidence.py"
+        "src/agilab/evidence/lightning_evidence.py"
       ]
     },
     {
@@ -1687,13 +1687,13 @@
     {
       "schema": "agilab.metadata_entry.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
       "schema": "agilab.metadata_store.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
@@ -1722,84 +1722,105 @@
         "src/agilab/apps/builtin/multi_app_dag_project/dag_templates/flight_to_weather_multi_app_dag.json",
         "src/agilab/apps/builtin/multi_app_dag_project/src/multi_app_dag/preview_multi_app_dag.py",
         "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json",
+        "src/agilab/dag/multi_app_dag.py",
+        "src/agilab/dag/multi_app_dag_templates.py",
         "src/agilab/examples/inter_project_dag/preview_inter_project_dag.py",
-        "src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/project/flight_telemetry_project/dag_templates/flight_to_weather.json",
-        "src/agilab/multi_app_dag.py",
-        "src/agilab/multi_app_dag_templates.py"
+        "src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/project/flight_telemetry_project/dag_templates/flight_to_weather.json"
       ]
     },
     {
       "schema": "agilab.notebook_artifact_contract.v1",
       "sources": [
-        "src/agilab/notebook_pipeline_import.py"
+        "src/agilab/notebooks/notebook_pipeline_import.py"
       ]
     },
     {
       "schema": "agilab.notebook_export.stage_cell.v1",
       "sources": [
-        "src/agilab/notebook_export_support.py",
-        "src/agilab/notebook_pipeline_import.py"
+        "src/agilab/notebooks/notebook_export_support.py",
+        "src/agilab/notebooks/notebook_pipeline_import.py"
       ]
     },
     {
       "schema": "agilab.notebook_export.v1",
       "sources": [
-        "src/agilab/notebook_export_support.py",
-        "src/agilab/notebook_pipeline_import.py"
+        "src/agilab/notebooks/notebook_export_support.py",
+        "src/agilab/notebooks/notebook_pipeline_import.py"
       ]
     },
     {
       "schema": "agilab.notebook_export_handoff.v1",
       "sources": [
-        "src/agilab/notebook_export_support.py"
+        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/global_dag_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/meteo_forecast_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
     {
       "schema": "agilab.notebook_export_manifest.v1",
       "sources": [
-        "src/agilab/notebook_export_support.py"
+        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/global_dag_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/meteo_forecast_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
     {
       "schema": "agilab.notebook_export_portability.v1",
       "sources": [
-        "src/agilab/notebook_export_support.py"
+        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/global_dag_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/meteo_forecast_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
     {
       "schema": "agilab.notebook_import.v1",
       "sources": [
-        "src/agilab/notebook_pipeline_import.py"
+        "src/agilab/notebooks/notebook_pipeline_import.py"
       ]
     },
     {
       "schema": "agilab.notebook_import_contract.v1",
       "sources": [
-        "src/agilab/notebook_pipeline_import.py"
+        "src/agilab/notebooks/notebook_pipeline_import.py"
       ]
     },
     {
       "schema": "agilab.notebook_import_doctor.v1",
       "sources": [
-        "src/agilab/notebook_import_doctor.py"
+        "src/agilab/notebooks/notebook_import_doctor.py"
       ]
     },
     {
       "schema": "agilab.notebook_import_pipeline_view.v1",
       "sources": [
-        "src/agilab/notebook_pipeline_import.py"
+        "src/agilab/notebooks/notebook_pipeline_import.py"
       ]
     },
     {
       "schema": "agilab.notebook_import_preflight.v1",
       "sources": [
-        "src/agilab/notebook_pipeline_import.py"
+        "src/agilab/notebooks/notebook_pipeline_import.py"
       ]
     },
     {
       "schema": "agilab.notebook_import_view_plan.v1",
       "sources": [
-        "src/agilab/notebook_pipeline_import.py",
+        "src/agilab/notebooks/notebook_pipeline_import.py",
         "tools/notebook_import_preflight.py"
       ]
     },
@@ -1811,13 +1832,13 @@
         "src/agilab/apps/builtin/weather_forecast_project/notebook_import_views.toml",
         "src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/project/flight_telemetry_project/notebook_import_views.toml",
         "src/agilab/lib/agi-app-weather-forecast/src/agi_app_weather_forecast/project/weather_forecast_project/notebook_import_views.toml",
-        "src/agilab/notebook_pipeline_import.py"
+        "src/agilab/notebooks/notebook_pipeline_import.py"
       ]
     },
     {
       "schema": "agilab.notebook_pipeline_import.v1",
       "sources": [
-        "src/agilab/notebook_pipeline_import.py",
+        "src/agilab/notebooks/notebook_pipeline_import.py",
         "tools/kpi_evidence_bundle.py"
       ]
     },
@@ -1830,13 +1851,13 @@
     {
       "schema": "agilab.notebook_union_environment.v1",
       "sources": [
-        "src/agilab/notebook_union_environment.py"
+        "src/agilab/notebooks/notebook_union_environment.py"
       ]
     },
     {
       "schema": "agilab.openlineage_export.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
@@ -1848,19 +1869,19 @@
     {
       "schema": "agilab.otel_trace_export.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
       "schema": "agilab.page_bundle_registry.v1",
       "sources": [
-        "src/agilab/page_bundle_registry.py"
+        "src/agilab/ui/page_bundle_registry.py"
       ]
     },
     {
       "schema": "agilab.page_template_registry.v1",
       "sources": [
-        "src/agilab/page_bundle_registry.py"
+        "src/agilab/ui/page_bundle_registry.py"
       ]
     },
     {
@@ -1875,31 +1896,31 @@
     {
       "schema": "agilab.pipeline.lock.v1",
       "sources": [
-        "src/agilab/pipeline_run_controls.py"
+        "src/agilab/pipeline/pipeline_run_controls.py"
       ]
     },
     {
       "schema": "agilab.pipeline_recipe_memory.v1",
       "sources": [
-        "src/agilab/pipeline_recipe_memory.py"
+        "src/agilab/pipeline/pipeline_recipe_memory.py"
       ]
     },
     {
       "schema": "agilab.pipeline_stage_templates.v1",
       "sources": [
-        "src/agilab/pipeline_stage_templates.py"
+        "src/agilab/pipeline/pipeline_stage_templates.py"
       ]
     },
     {
       "schema": "agilab.policy.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
       "schema": "agilab.policy_report.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
@@ -1912,57 +1933,57 @@
       "schema": "agilab.promotion.decision.v1",
       "sources": [
         "src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py",
-        "src/agilab/ci_artifact_harvest.py"
+        "src/agilab/ci/ci_artifact_harvest.py"
       ]
     },
     {
       "schema": "agilab.promotion_decision.v1",
       "sources": [
-        "src/agilab/promotion_dossier.py"
+        "src/agilab/evidence/promotion_dossier.py"
       ]
     },
     {
       "schema": "agilab.promotion_dossier.v1",
       "sources": [
-        "src/agilab/promotion_dossier.py"
+        "src/agilab/evidence/promotion_dossier.py"
       ]
     },
     {
       "schema": "agilab.promotion_evidence_manifest.v1",
       "sources": [
-        "src/agilab/promotion_dossier.py"
+        "src/agilab/evidence/promotion_dossier.py"
       ]
     },
     {
       "schema": "agilab.proof_capsule.v1",
       "sources": [
-        "src/agilab/evidence_contract.py",
+        "src/agilab/evidence/evidence_contract.py",
         "tools/agilab_capabilities_manifest.py"
       ]
     },
     {
       "schema": "agilab.proof_capsule_signature.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
       "schema": "agilab.proof_capsule_trust_policy.v1",
       "sources": [
         "docs/source/proof-capsule.rst",
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
       "schema": "agilab.proof_capsule_verification.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
       "schema": "agilab.proof_pack.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
@@ -1970,7 +1991,7 @@
       "sources": [
         "docs/source/features.rst",
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/public_certification.py",
+        "src/agilab/evidence/public_certification.py",
         "tools/kpi_evidence_bundle.py",
         "tools/public_certification_profile_report.py"
       ]
@@ -2009,29 +2030,29 @@
     {
       "schema": "agilab.pytorch_playground.agi_web_payload.v1",
       "sources": [
-        "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/playground_ui.py",
-        "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/playground_ui.py"
+        "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/ui/playground_ui.py",
+        "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/ui/playground_ui.py"
       ]
     },
     {
       "schema": "agilab.pytorch_playground.dataframe.v1",
       "sources": [
-        "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/playground_ui.py",
-        "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/playground_ui.py"
+        "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/ui/playground_ui.py",
+        "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/ui/playground_ui.py"
       ]
     },
     {
       "schema": "agilab.pytorch_playground_config.v1",
       "sources": [
-        "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/core.py",
-        "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/core.py"
+        "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/domain/core.py",
+        "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/domain/core.py"
       ]
     },
     {
       "schema": "agilab.pytorch_playground_evidence.v1",
       "sources": [
-        "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/core.py",
-        "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/core.py"
+        "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/domain/core.py",
+        "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/domain/core.py"
       ]
     },
     {
@@ -2078,7 +2099,7 @@
     {
       "schema": "agilab.replay_plan.v1",
       "sources": [
-        "src/agilab/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py"
       ]
     },
     {
@@ -2086,7 +2107,7 @@
       "sources": [
         "docs/source/features.rst",
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/repository_knowledge.py",
+        "src/agilab/reports/repository_knowledge.py",
         "tools/kpi_evidence_bundle.py",
         "tools/repository_knowledge_report.py"
       ]
@@ -2094,7 +2115,7 @@
     {
       "schema": "agilab.repository_knowledge_record_cache.v1",
       "sources": [
-        "src/agilab/repository_knowledge.py"
+        "src/agilab/reports/repository_knowledge.py"
       ]
     },
     {
@@ -2109,7 +2130,7 @@
       "sources": [
         "docs/source/features.rst",
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/revision_traceability.py",
+        "src/agilab/evidence/revision_traceability.py",
         "tools/kpi_evidence_bundle.py",
         "tools/revision_traceability_report.py"
       ]
@@ -2124,7 +2145,7 @@
       "schema": "agilab.run_diff_evidence.v1",
       "sources": [
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/run_diff_evidence.py",
+        "src/agilab/evidence/run_diff_evidence.py",
         "tools/kpi_evidence_bundle.py"
       ]
     },
@@ -2132,19 +2153,19 @@
       "schema": "agilab.run_markdown_evidence.v1",
       "sources": [
         "docs/source/proof-capsule.rst",
-        "src/agilab/run_markdown_evidence.py"
+        "src/agilab/evidence/run_markdown_evidence.py"
       ]
     },
     {
       "schema": "agilab.run_storyboard.paths.v1",
       "sources": [
-        "src/agilab/run_storyboard.py"
+        "src/agilab/evidence/run_storyboard.py"
       ]
     },
     {
       "schema": "agilab.run_storyboard.v1",
       "sources": [
-        "src/agilab/run_storyboard.py"
+        "src/agilab/evidence/run_storyboard.py"
       ]
     },
     {
@@ -2165,13 +2186,13 @@
       "sources": [
         "docs/source/_static/agi-web-visual-baseline/screenshot_manifest.json",
         "docs/source/_static/page-shots/screenshot_manifest.json",
-        "src/agilab/screenshot_manifest.py"
+        "src/agilab/ui/screenshot_manifest.py"
       ]
     },
     {
       "schema": "agilab.security_check.v1",
       "sources": [
-        "src/agilab/security_check.py"
+        "src/agilab/security/security_check.py"
       ]
     },
     {
@@ -2184,7 +2205,7 @@
     {
       "schema": "agilab.service.operator_snapshot.v1",
       "sources": [
-        "src/agilab/orchestrate_services.py"
+        "src/agilab/orchestrate/orchestrate_services.py"
       ]
     },
     {
@@ -2209,7 +2230,7 @@
     {
       "schema": "agilab.snippet_registry.v1",
       "sources": [
-        "src/agilab/snippet_registry.py"
+        "src/agilab/workflow/snippet_registry.py"
       ]
     },
     {
@@ -2217,7 +2238,7 @@
       "sources": [
         "docs/source/features.rst",
         "docs/source/roadmap/agilab-future-work.md",
-        "src/agilab/supply_chain_attestation.py",
+        "src/agilab/evidence/supply_chain_attestation.py",
         "tools/kpi_evidence_bundle.py",
         "tools/supply_chain_attestation_report.py"
       ]
@@ -2225,24 +2246,24 @@
     {
       "schema": "agilab.template_contract.v1",
       "sources": [
-        "src/agilab/apps-pages/templates/analysis_page_template/agilab.template.toml",
-        "src/agilab/template_contracts.py"
+        "src/agilab/app_management/template_contracts.py",
+        "src/agilab/apps-pages/templates/analysis_page_template/agilab.template.toml"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.cases.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/app_surface.py",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/classroom.py",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/diagnostic.py",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/sample_data/tescia_diagnostic_cases.json"
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/classroom.py",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/diagnostic.py",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/sample_data/tescia_diagnostic_cases.json",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/ui/app_surface.py"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.classroom.v1",
       "sources": [
         "src/agilab/apps/builtin/tescia_diagnostic_project/src/app_args_form.py",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/classroom.py",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/classroom.py",
         "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/sample_data/tescia_classroom_submissions.json",
         "src/agilab/lib/agi-app-tescia-diagnostic/README.md"
       ]
@@ -2250,38 +2271,38 @@
     {
       "schema": "agilab.tescia_diagnostic.classroom_run_report.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/classroom.py"
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/classroom.py"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.math_program_coverage.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/curriculum.py",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/curriculum/math_program_2026.json"
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/curriculum/math_program_2026.json",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/curriculum.py"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.math_program_coverage_report.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/curriculum.py"
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/curriculum.py"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.report.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/diagnostic.py"
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/diagnostic.py"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.self_evaluation.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/diagnostic.py"
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/diagnostic.py"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.summary.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/diagnostic.py"
+        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/diagnostic.py"
       ]
     },
     {
@@ -2347,13 +2368,13 @@
       "schema": "agilab.untrusted_content_boundary.v1",
       "sources": [
         "docs/source/security-adoption.rst",
-        "src/agilab/untrusted_content_boundary.py"
+        "src/agilab/security/untrusted_content_boundary.py"
       ]
     },
     {
       "schema": "agilab.venv_link_report.v1",
       "sources": [
-        "src/agilab/venv_linker.py"
+        "src/agilab/environment/venv_linker.py"
       ]
     },
     {
@@ -2399,7 +2420,7 @@
       "sources": [
         "docs/source/capability-map.rst",
         "docs/source/features.rst",
-        "src/agilab/workflow_validation.py",
+        "src/agilab/workflow/workflow_validation.py",
         "tools/agilab_capabilities_manifest.py"
       ]
     },
@@ -2412,7 +2433,7 @@
     {
       "schema": "agilab.workflow_runtime_contract.v1",
       "sources": [
-        "src/agilab/workflow_runtime_contract.py"
+        "src/agilab/workflow/workflow_runtime_contract.py"
       ]
     },
     {

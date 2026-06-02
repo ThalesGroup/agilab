@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-05-19
+  updated: 2026-06-02
 ---
 
 # AGILab runbook (Agent Skill)
@@ -21,13 +21,15 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - **High-frequency shortcuts**: prefer `./dev <shortcut>` for repeated local validation loops. The
   top shortcuts are `impact` for impact validation, `bugfix` for impact plus a fast GA-selected
   regression run, `test` for targeted `pytest -q`, `regress` for GA-selected fast regression subsets,
-  `flow` for one or more workflow parity profiles, `badge` for the explicit release/pre-release
-  coverage-badge guard, and `docs` for docs mirror sync plus stamp verification. `impact` tells you
+  `builtin-app-tests` for app-local built-in app pytest suites, `flow` for one or more workflow
+  parity profiles, `badge` for the explicit release/pre-release coverage-badge guard, and `docs`
+  for docs mirror sync plus stamp verification. `impact` tells you
   what must be validated, `test` runs the narrow pytest slice, `bugfix` is the default low-load
   pre-push loop for normal code fixes, `regress` optimizes a likely regression subset from changed
-  files and optional JUnit timings, `flow` matches local GitHub workflow profiles, `badge` checks
-  badge freshness when intentionally requested, and `docs` keeps the public mirror aligned. Add
-  `--print-only` to inspect the expanded commands.
+  files and optional JUnit timings, `builtin-app-tests` runs each built-in app's tests inside that
+  app's own `uv --project .` environment with pytest importlib collection, `flow` matches local
+  GitHub workflow profiles, `badge` checks badge freshness when intentionally requested, and `docs`
+  keeps the public mirror aligned. Add `--print-only` to inspect the expanded commands.
 - **Run config parity**: after editing `.idea/runConfigurations/*.xml`, regenerate wrappers:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
 - **PyCharm source-root switching**: the JetBrains SDK named `uv (agilab)` is global and
@@ -158,6 +160,13 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   redundant fetch from `git pull` and avoids slow untracked scans. Group independent repo checks and
   fetches in parallel when the tooling allows it. If a checkout has tracked dirty paths, do not
   merge it until the dirty paths are reported and the update plan is adjusted.
+- **Dirty worktree cleanup**: when cleaning stale local worktrees, do not delete dirty worktrees
+  blindly. First inspect `git -C <worktree> status --short` and the branch relationship to
+  `origin/main`. If dirty changes are obsolete but still worth preserving, archive
+  `git -C <worktree> diff --binary` plus a status snapshot outside the repo before removal. Remove
+  only clean worktrees or dirty worktrees with an explicit archive path, then run `git worktree
+  prune`, delete stale branch refs that are already represented on `origin/main`, and realign local
+  `main` to `origin/main` when the old `main` worktree has been removed safely.
 
 ## Git footprint maintenance
 
