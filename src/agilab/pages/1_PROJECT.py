@@ -1315,7 +1315,7 @@ def _render_pypi_app_install_action(env) -> None:
         reviewed = bool(st.session_state.get(reviewed_key, False))
         with install_col:
             install_clicked = st.button(
-                "Install",
+                "Install agi-app",
                 key="project_pypi_app_install",
                 type="primary",
                 disabled=not requirement or not preflight_passed or not reviewed,
@@ -1332,7 +1332,7 @@ def _render_pypi_app_install_action(env) -> None:
             run_streamlit_action(
                 st,
                 ActionSpec(
-                    name="Install",
+                    name="Install agi-app",
                     start_message=f"Installing {requirement}...",
                     failure_title="agi-app install failed.",
                     failure_next_action="Check the agi-app name, Python version support, and PyPI availability.",

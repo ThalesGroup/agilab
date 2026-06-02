@@ -410,7 +410,7 @@ def test_find_rejected_pattern_flags_browser_connection_errors() -> None:
     module = _load_module()
 
     assert module._find_rejected_pattern("iframe refused to connect to 127.0.0.1")
-    assert module._find_rejected_pattern("❌ Install finished with errors. Check logs above.")
+    assert module._find_rejected_pattern("❌ Worker deployment finished with errors. Check logs above.")
     assert module._find_rejected_pattern("plain healthy page") is None
 
 
@@ -1311,7 +1311,7 @@ class _FakeBrowserPage:
         self.url = url
         self.visited.append(url)
         if "ORCHESTRATE" in url:
-            self.body_text = "ORCHESTRATE INSTALL EXECUTE"
+            self.body_text = "ORCHESTRATE Deploy workers EXECUTE"
         elif "ANALYSIS" in url and "current_page=" in url:
             self.body_text = "View: selected analysis view"
         elif "ANALYSIS" in url:

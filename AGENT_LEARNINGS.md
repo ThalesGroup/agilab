@@ -36,3 +36,11 @@ is not a scratchpad or task log.
   guard with useful output, classify whether the failure belongs to the current
   diff, a real repository contract, or polluted local filesystem state, then
   fix the right layer or document the exact unrelated failure before pushing.
+- When changing visible UI action labels, audit sibling pages for semantic
+  collisions before closing. The same visible button text must not mean
+  different operations across pages; use scoped labels and update page tests and
+  robot click-label coverage with the split.
+- Product-copy renames must not force stable API renames. For ORCHESTRATE,
+  explain that `Deploy workers` still calls `AGI.install` because it prepares
+  manager/worker runtime environments and reuses an already-ready local manager
+  environment instead of forcing a reinstall.

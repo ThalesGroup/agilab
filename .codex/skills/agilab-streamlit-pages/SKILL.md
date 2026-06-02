@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-01
+  updated: 2026-06-02
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -147,6 +147,15 @@ Use this skill when editing:
 - Keep shared page chrome minimal. Do not add global active-project labels,
   chips, or badges above page controls; the selected project belongs in the
   selector, the sidebar, or an explicitly opened context expander.
+- Before reusing or renaming a visible action label, compare its meaning across
+  PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS, SETTINGS, sidebars, and robot click
+  labels. Avoid same-label/different-contract collisions; scope labels by
+  object and layer, for example `Install agi-app` for package/catalog install
+  and `Deploy workers` for manager/worker environment deployment.
+- Preserve stable lower-level API names when product copy changes. In
+  ORCHESTRATE, `Deploy workers` can correctly call `AGI.install`: the API
+  prepares manager and worker runtime environments and reuses an already-ready
+  local manager environment rather than forcing a reinstall.
 - For visible-label cleanup, search every render path before closing the task:
   page files, `main_page.py`, `page_bootstrap.py`, `workflow_ui.py`,
   `page_project_selector.py`, lazy-import wrappers, CSS class names, and tests.

@@ -347,8 +347,8 @@ def _project_install_status(env: Any | None) -> tuple[str, str, str]:
     if manager_ready and (workerless or worker_ready):
         return "Ready", "manager and worker ready" if not workerless else "manager ready", "ready"
     if manager_exists or worker_exists:
-        return "Incomplete", "rerun INSTALL before EXECUTE", "incomplete"
-    return "Not installed", "run ORCHESTRATE -> INSTALL", "incomplete"
+        return "Incomplete", "rerun Deploy workers before EXECUTE", "incomplete"
+    return "Not installed", "run ORCHESTRATE -> Deploy workers", "incomplete"
 
 
 def _run_history(env: Any | None) -> tuple[str, str, str]:
@@ -385,7 +385,7 @@ def _project_next_action(
         return {
             "id": "project",
             "label": "Create or select project",
-            "detail": "Choose a project before installing, executing, or reviewing evidence.",
+            "detail": "Choose a project before deploying, executing, or reviewing evidence.",
             "url": _project_page_url("PROJECT", env),
             "type": "primary",
         }
@@ -400,8 +400,8 @@ def _project_next_action(
     if install_value != "Ready":
         return {
             "id": "install",
-            "label": "Install project",
-            "detail": "Prepare the manager and worker environments before execution.",
+            "label": "Deploy workers",
+            "detail": "Prepare runtime environments before execution; ORCHESTRATE uses AGI.install internally without forcing a local manager reinstall.",
             "url": _project_page_url("ORCHESTRATE", env),
             "type": "primary",
         }
@@ -459,7 +459,7 @@ def _project_cockpit_cards(page_label: str, env: Any | None) -> list[dict[str, s
         evidence_state = "incomplete"
     return [
         {
-            "label": "Install",
+            "label": "Deployment",
             "value": install_value,
             "caption": install_caption,
             "state": install_state,

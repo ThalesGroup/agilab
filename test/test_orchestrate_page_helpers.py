@@ -554,6 +554,10 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
     )
 
     assert 'APP = "demo_project"' in install_snippet
+    assert "# Deploy workers intentionally calls AGI.install." in install_snippet
+    assert "reuses an already-ready local manager environment" in install_snippet
+    assert "AGI.install(" in install_snippet
+    assert "AGI.deploy" not in install_snippet
     assert "modes_enabled=7" in install_snippet
     assert 'workers_data_path="/tmp/share"' in install_snippet
     assert "RunRequest(" in run_snippet
@@ -605,7 +609,7 @@ def test_orchestrate_notebook_document_exports_current_recipe():
     module = _load_orchestrate_module()
     env = SimpleNamespace(app="demo_project", target="demo")
     snippets = [
-        ("INSTALL", "print('install')\n"),
+        ("Deploy workers", "print('install')\n"),
         ("RUN", "print('run')"),
     ]
 
@@ -619,13 +623,17 @@ def test_orchestrate_notebook_document_exports_current_recipe():
     assert document["nbformat_minor"] == 5
     assert document["metadata"]["agilab"]["schema"] == "agilab.orchestrate_notebook.v1"
     assert document["metadata"]["agilab"]["app"] == "demo_project"
-    assert document["metadata"]["agilab"]["snippet_labels"] == ["INSTALL", "RUN"]
+    assert document["metadata"]["agilab"]["snippet_labels"] == ["Deploy workers", "RUN"]
     assert any(
         "Notebook import remains on the WORKFLOW page" in "".join(cell["source"])
         for cell in document["cells"]
     )
     assert any(
-        "INSTALL prepares environments and RUN executes" in "".join(cell["source"])
+        "Deploy workers prepares manager/worker environments and RUN executes" in "".join(cell["source"])
+        for cell in document["cells"]
+    )
+    assert any(
+        "Deploy workers uses the existing AGI.install API" in "".join(cell["source"])
         for cell in document["cells"]
     )
     code_cells = [cell for cell in document["cells"] if cell["cell_type"] == "code"]
@@ -642,7 +650,7 @@ def test_orchestrate_notebook_document_mentions_distribute_only_when_present():
     document = module._orchestrate_notebook_document(
         env,
         [
-            ("INSTALL", "print('install')"),
+            ("Deploy workers", "print('install')"),
             ("CHECK distribute", "print('check')"),
             ("RUN", "print('run')"),
         ],
@@ -672,7 +680,7 @@ def test_orchestrate_notebook_snippet_store_and_empty_render(monkeypatch):
     assert fake_st.expanders == [("Notebook", False)]
     assert fake_st.downloads == []
     assert fake_st.infos == [
-        "No orchestration snippets are available yet. Configure INSTALL or RUN first."
+        "No orchestration snippets are available yet. Configure Deploy workers or RUN first."
     ]
 
 
@@ -690,7 +698,7 @@ def test_orchestrate_notebook_empty_render_mentions_distribute_when_worker_exist
     module._render_orchestrate_notebook_expander(env)
 
     assert fake_st.infos == [
-        "No orchestration snippets are available yet. Configure INSTALL, CHECK distribute, or RUN first."
+        "No orchestration snippets are available yet. Configure Deploy workers, CHECK distribute, or RUN first."
     ]
 
 
@@ -714,14 +722,14 @@ def test_orchestrate_notebook_expander_downloads_available_snippets(monkeypatch)
     assert kwargs["key"] == "orchestrate:notebook_download:demo_project"
 
     payload = json.loads(kwargs["data"].decode("utf-8"))
-    assert payload["metadata"]["agilab"]["snippet_labels"] == ["INSTALL", "RUN"]
+    assert payload["metadata"]["agilab"]["snippet_labels"] == ["Deploy workers", "RUN"]
     code_sources = [
         "".join(cell["source"])
         for cell in payload["cells"]
         if cell["cell_type"] == "code"
     ]
     assert code_sources == ["print('install')\n", "print('run')\n"]
-    assert fake_st.captions[-1] == "Includes: INSTALL, RUN"
+    assert fake_st.captions[-1] == "Includes: Deploy workers, RUN"
 
 
 def test_orchestrate_page_support_distribution_plan_helpers():
@@ -1308,10 +1316,10 @@ def test_install_status_warning_skips_first_launch_missing_manager(tmp_path: Pat
 
     assert module._install_status_warning_message(install_status) is None
     label, caption = module._runtime_status_label(install_status)
-    assert label == "Needs INSTALL"
+    assert label == "Needs deployment"
     assert (
         caption
-        == "Manager environment has not been created yet. Run INSTALL before RUN."
+        == "Manager environment has not been created yet. Run Deploy workers before RUN."
     )
 
 
@@ -1331,7 +1339,7 @@ def test_install_status_warning_reports_existing_stale_environment():
     assert "Environment install is incomplete or stale" in warning
     assert "missing modules: agi_cluster" in warning
     label, caption = module._runtime_status_label(install_status)
-    assert label == "Needs INSTALL"
+    assert label == "Needs deployment"
     assert caption == "missing modules: agi_cluster"
 
 
@@ -1780,7 +1788,7 @@ async def test_check_distribution_action_reports_run_exception(tmp_path: Path):
 async def test_install_worker_action_reports_success(tmp_path: Path):
     module = _load_orchestrate_module()
     captured: dict[str, object] = {}
-    local_log = ["=== Install request ==="]
+    local_log = ["=== Deploy workers request ==="]
 
     async def _run_agi(cmd, log_callback=None, venv=None):
         captured["cmd"] = cmd
@@ -1798,17 +1806,17 @@ async def test_install_worker_action_reports_success(tmp_path: Path):
     )
 
     assert result.status == "success"
-    assert result.title == "Cluster installation completed."
+    assert result.title == "Worker deployment completed."
     assert captured == {"cmd": "install command", "venv": None}
     assert result.data["stdout"] == "None\nProcess finished"
     assert result.data["stderr"] == ""
     assert result.data["venv"] == tmp_path
     assert result.data["install_log"] == (
-        "=== Install request ===",
+        "=== Deploy workers request ===",
         "installing worker",
         "None",
         "Process finished",
-        "✅ Install complete.",
+        "✅ Worker deployment complete.",
     )
 
 
@@ -1830,9 +1838,9 @@ async def test_install_worker_action_reports_success_with_empty_output(tmp_path:
     )
 
     assert result.status == "success"
-    assert result.title == "Cluster installation completed."
+    assert result.title == "Worker deployment completed."
     assert result.detail is None
-    assert result.data["install_log"] == ("✅ Install complete.",)
+    assert result.data["install_log"] == ("✅ Worker deployment complete.",)
 
 
 @pytest.mark.asyncio
@@ -1853,7 +1861,7 @@ async def test_install_worker_action_allows_benign_returned_stderr(tmp_path: Pat
     )
 
     assert result.status == "success"
-    assert result.title == "Cluster installation completed."
+    assert result.title == "Worker deployment completed."
     assert result.detail is None
     assert (
         result.data["stderr"]
@@ -1861,7 +1869,7 @@ async def test_install_worker_action_allows_benign_returned_stderr(tmp_path: Pat
     )
     assert result.data["install_log"] == (
         "warning: package manager wrote a non-fatal warning to stderr",
-        "✅ Install complete.",
+        "✅ Worker deployment complete.",
     )
 
 
@@ -1883,11 +1891,11 @@ async def test_install_worker_action_reports_fatal_returned_stderr(tmp_path: Pat
     )
 
     assert result.status == "error"
-    assert result.title == "Cluster installation failed."
+    assert result.title == "Worker deployment failed."
     assert result.detail == "RuntimeError: Command failed with exit code 1"
     assert result.data["install_log"] == (
         "RuntimeError: Command failed with exit code 1",
-        "❌ Install finished with errors. Check logs above.",
+        "❌ Worker deployment finished with errors. Check logs above.",
     )
 
 
@@ -1914,7 +1922,7 @@ async def test_install_worker_action_allows_benign_worker_stderr_log(tmp_path: P
     )
 
     assert result.status == "success"
-    assert result.title == "Cluster installation completed."
+    assert result.title == "Worker deployment completed."
     assert result.detail is None
     assert result.data["stderr"] == ""
     assert result.data["install_log"] == (
@@ -1922,7 +1930,7 @@ async def test_install_worker_action_allows_benign_worker_stderr_log(tmp_path: P
         "Failed to update uv on 192.168.20.15 (skipping self update): "
         "Process exited with non-zero exit status 2",
         "done",
-        "✅ Install complete.",
+        "✅ Worker deployment complete.",
     )
 
 
@@ -1955,12 +1963,12 @@ async def test_install_worker_action_allows_recovered_local_uv_self_update_failu
     )
 
     assert result.status == "success"
-    assert result.title == "Cluster installation completed."
+    assert result.title == "Worker deployment completed."
     assert result.detail is None
     assert result.data["install_log"][-3:] == (
         "None",
         "Process finished",
-        "✅ Install complete.",
+        "✅ Worker deployment complete.",
     )
 
 
@@ -1985,7 +1993,7 @@ async def test_install_worker_action_reports_log_detected_failure(tmp_path: Path
 
     assert result.status == "error"
     assert result.detail == "Detected install failure in logs."
-    assert "rerun INSTALL" in str(result.next_action)
+    assert "rerun Deploy workers" in str(result.next_action)
 
 
 @pytest.mark.asyncio
@@ -2018,7 +2026,7 @@ async def test_install_worker_action_classifies_corrupted_dataset_archive(
         "or not a valid .7z dataset archive."
     )
     assert result.data["failure_category"] == "archive"
-    assert "rerun INSTALL" in str(result.next_action)
+    assert "rerun Deploy workers" in str(result.next_action)
     assert "not a 7z file" not in str((result.title, result.detail, result.next_action))
 
 
@@ -2043,7 +2051,7 @@ async def test_install_worker_action_reports_run_exception(tmp_path: Path):
     assert result.detail == "uv missing"
     assert result.data["install_log"] == (
         "ERROR: uv missing",
-        "❌ Install finished with errors. Check logs above.",
+        "❌ Worker deployment finished with errors. Check logs above.",
     )
 
 

@@ -25,7 +25,7 @@ REQUIRED_EDITOR_ROUTES = ("PROJECT_EDITOR",)
 REQUIRED_EDITOR_ROUTE_TEXT = {"PROJECT_EDITOR": ("Edit project files",)}
 REQUIRED_EDITOR_ROUTE_FORBIDDEN_TEXT = {"PROJECT_EDITOR": ("Environment Health", "Source LOC", "Worker class")}
 REQUIRED_EDITOR_ROUTE_PROFILE_SCENARIOS = ("isolated-project-editor-page",)
-REQUIRED_HIGH_RISK_ACTIONS = ("INSTALL", "CHECK distribute", "Run -> Load -> Export")
+REQUIRED_HIGH_RISK_ACTIONS = ("Deploy workers", "CHECK distribute", "Run -> Load -> Export")
 REQUIRED_HF_FIRST_PROOF_APPS = (
     "flight_telemetry_project",
     "pytorch_playground_project",
@@ -50,7 +50,7 @@ REQUIRED_HF_ROBOT_SCENARIOS = {
     },
     "hf-first-proof-install": {
         "pages": ("ORCHESTRATE",),
-        "actions": ("INSTALL",),
+        "actions": ("Deploy workers",),
     },
 }
 REQUIRED_DEMO_DOC_SNIPPETS = (

@@ -93,7 +93,7 @@ def test_primary_pages_keep_homogeneous_support_field_order() -> None:
     workflow_main = workflow_source[workflow_source.index(workflow_main_marker) :]
     assert 'st.sidebar.expander("Install from pypi.org", expanded=False)' in project_source
     assert '"Check",' in project_source
-    assert '"Install",' in project_source
+    assert '"Install agi-app",' in project_source
     assert '"Reviewed",' in project_source
     assert "check_col, install_col = st.columns" in project_source
     assert "review_row = st.container()" in project_source
@@ -105,7 +105,7 @@ def test_primary_pages_keep_homogeneous_support_field_order() -> None:
     assert "Catalog pypi.org" in project_source
     assert "Catalog agi-app" not in project_source
     assert "Check agi-app" not in project_source
-    assert "Install agi-app" not in project_source
+    assert "Install agi-app" in project_source
     assert "Reviewed agi-app" not in project_source
     assert 'st.expander("Installed", expanded=False)' in project_source
     assert "Installed agi-apps" not in project_source
@@ -1177,7 +1177,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert "Environment details" in expander_labels
     assert expander_labels[-1] == "Environment details"
     assert "Evidence drawer" not in expander_labels
-    assert "Install logs" not in expander_labels
+    assert "Deployment logs" not in expander_labels
     assert "Observe benchmark results" not in expander_labels
     assert all("Path: Prepare" not in label for label in expander_labels)
     assert "Resource summary" in markdown_text
@@ -1476,13 +1476,13 @@ def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui
         at.button(key="install_btn").click().run()
         assert not at.exception
         install_success_rendered = any(
-            "Cluster installation completed." in str(item.value) for item in at.success
+            "Worker deployment completed." in str(item.value) for item in at.success
         )
         install_failure_rendered = any(
-            "Cluster installation failed." in str(item.value) for item in at.error
+            "Worker deployment failed." in str(item.value) for item in at.error
         )
         install_log_rendered = any(
-            "✅ Install complete." in str(item.value) for item in at.code
+            "✅ Worker deployment complete." in str(item.value) for item in at.code
         )
         benign_warning_rendered = any(
             "Process exited with non-zero exit status 2" in str(item.value)
@@ -1504,6 +1504,16 @@ def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui
     assert install_failure_rendered is False
     assert install_log_rendered is True
     assert benign_warning_rendered is True
+    orchestrate_source = Path("src/agilab/pages/2_ORCHESTRATE.py").read_text(
+        encoding="utf-8"
+    )
+    orchestrate_support_source = Path(
+        "src/agilab/orchestrate/orchestrate_page_support.py"
+    ).read_text(encoding="utf-8")
+    assert "DEPLOY_WORKERS_AGI_INSTALL_RATIONALE" in orchestrate_source
+    assert "Deploy workers uses the existing AGI.install API" in orchestrate_support_source
+    assert "reuses it instead of" in orchestrate_support_source
+    assert "forcing a reinstall" in orchestrate_support_source
     assert any("run completed" in str(item.value) for item in at.code)
 
 
@@ -3162,14 +3172,14 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     sidebar_button_labels = [str(button.label) for button in at.sidebar.button]
     assert "Export" not in sidebar_button_labels
     assert "Check" in sidebar_button_labels
-    assert "Install" in sidebar_button_labels
+    assert "Install agi-app" in sidebar_button_labels
     assert "Apply" in sidebar_button_labels
     assert "Update" not in sidebar_button_labels
     assert "Remove" not in sidebar_button_labels
     assert "Update selected" not in sidebar_button_labels
     assert "Remove selected" not in sidebar_button_labels
     assert "Check agi-app" not in sidebar_button_labels
-    assert "Install agi-app" not in sidebar_button_labels
+    assert "Install" not in sidebar_button_labels
     sidebar_checkbox_labels = [str(checkbox.label) for checkbox in at.sidebar.checkbox]
     assert "Reviewed" in sidebar_checkbox_labels
     assert "Reviewed agi-app" not in sidebar_checkbox_labels

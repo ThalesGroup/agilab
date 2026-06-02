@@ -591,7 +591,7 @@ async def test_pending_run_action_reports_install_required_when_controls_hidden(
     )
 
     assert orchestrate_execute.PENDING_EXECUTE_ACTION_KEY not in fake_st.session_state
-    assert ("error", "RUN is not available yet. Run INSTALL first, then retry RUN.") in fake_st.messages
+    assert ("error", "RUN is not available yet. Run Deploy workers first, then retry RUN.") in fake_st.messages
 
 
 @pytest.mark.asyncio
@@ -1450,8 +1450,8 @@ async def test_render_execute_section_fatal_returned_stderr_blocks_combo_load(mo
 
     async def _run_agi(_cmd, log_callback=None, venv=None):
         if log_callback:
-            log_callback("No virtual environment found in /tmp/controller. Run INSTALL first.")
-        return "", "No virtual environment found in /tmp/controller. Run INSTALL first."
+            log_callback("No virtual environment found in /tmp/controller. Run Deploy workers first.")
+        return "", "No virtual environment found in /tmp/controller. Run Deploy workers first."
 
     env = SimpleNamespace(
         dataframe_path=tmp_path,
