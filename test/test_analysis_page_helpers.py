@@ -1470,6 +1470,36 @@ default = "streamlit"
     assert cfg["app_surface"]["entrypoint"] == "demo_surface/app.py"
 
 
+def test_view_app_ui_label_uses_declared_title_not_internal_route() -> None:
+    module = _load_analysis_module()
+    builtin_names = {"view_app_ui", "view_maps"}
+
+    assert (
+        module._view_label(
+            "view_app_ui",
+            builtin_names,
+            app_surface_cfg={
+                "title": "PyTorch Playground",
+                "entrypoint": "pytorch_playground/app_surface.py",
+            },
+        )
+        == "PyTorch Playground"
+    )
+    assert (
+        module._view_label(
+            "view_app_ui",
+            builtin_names,
+            app_ui_page_cfg={
+                "title": "Flight Telemetry Project",
+                "entrypoint": "demo/ui.py",
+            },
+        )
+        == "Flight Telemetry"
+    )
+    assert module._view_label("view_app_ui", builtin_names) == "App UI"
+    assert module._view_label("view_maps", builtin_names) == "view_maps"
+
+
 def test_analysis_page_state_handles_invalid_and_unresolved_defaults(tmp_path: Path):
     state_module = _load_analysis_state_module()
 

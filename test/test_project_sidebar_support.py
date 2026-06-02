@@ -14,14 +14,17 @@ from agilab.project_sidebar_support import (
 
 def test_normalize_project_sidebar_actions_aliases_clone_and_rejects_unknown() -> None:
     assert PROJECT_EDITOR_ACTIONS[0] == "Edit"
-    assert normalize_project_sidebar_actions(["Overview", "Clone", "Create", "Delete"]) == (
+    assert "Export" in PROJECT_EDITOR_ACTIONS
+    assert "Export" in PROJECT_STATUS_ACTIONS
+    assert normalize_project_sidebar_actions(["Overview", "Clone", "Export", "Delete"]) == (
         "Overview",
         "Create",
+        "Export",
         "Delete",
     )
 
     with pytest.raises(ValueError, match="Unsupported PROJECT sidebar action"):
-        normalize_project_sidebar_actions(["Overview", "Export"])
+        normalize_project_sidebar_actions(["Overview", "Launch"])
 
 
 def test_project_sidebar_session_defaults_cover_status_host_state() -> None:

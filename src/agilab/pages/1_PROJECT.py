@@ -1119,15 +1119,19 @@ def _render_pypi_metadata_summary(preflight_payload: dict[str, object] | None) -
         st.dataframe(rows, hide_index=True, width="stretch")
 
 
+def _short_pypi_app_display_name(package: str) -> str:
+    return str(package).removeprefix("agi-app-")
+
+
 def _render_installed_pypi_app_manager(env) -> None:
     installed = _list_installed_pypi_apps()
-    st.caption("Installed agi-apps")
+    st.caption("Installed")
     if not installed:
         st.info("No installed agi-apps were discovered.")
         return
     rows = [
         {
-            "agi-app": app.package,
+            "Item": _short_pypi_app_display_name(app.package),
             "Version": app.version,
             "Provider": app.provider,
             "Entry point": app.entry_point,
@@ -1138,7 +1142,7 @@ def _render_installed_pypi_app_manager(env) -> None:
     st.dataframe(rows, hide_index=True, width="stretch")
     package_options = sorted({app.package for app in installed}, key=str.lower)
     selected_package = st.selectbox(
-        "Installed agi-app",
+        "Select one",
         options=package_options,
         key="project_pypi_app_installed_package",
     )
@@ -1265,11 +1269,13 @@ def _render_pypi_app_install_action(env) -> None:
                 disabled=not requirement or not preflight_passed or not reviewed,
                 width="stretch",
             )
-        st.checkbox(
-            "Reviewed",
-            key=reviewed_key,
-            help="Only install agi-apps you trust to run as local code.",
-        )
+        review_row = st.container()
+        with review_row:
+            st.checkbox(
+                "Reviewed",
+                key=reviewed_key,
+                help="Only install agi-apps you trust to run as local code.",
+            )
         if install_clicked:
             run_streamlit_action(
                 st,
@@ -1284,7 +1290,7 @@ def _render_pypi_app_install_action(env) -> None:
                     env
                 ),
             )
-        with st.expander("Installed agi-apps", expanded=False):
+        with st.expander("Installed", expanded=False):
             _render_installed_pypi_app_manager(env)
 
 
@@ -2605,18 +2611,6 @@ def _render_active_project_sidebar(env) -> None:
     st.session_state["_env"] = env
 
 
-def _render_sidebar_export_action(env) -> None:
-    if not getattr(env, "app", None):
-        return
-    if st.sidebar.button(
-        "Export",
-        type="secondary",
-        width="stretch",
-        help=f"Export to {(env.export_apps / env.app).with_suffix('.zip')}",
-    ):
-        handle_export_project()
-
-
 def render_project_sidebar(
     env,
     *,
@@ -2643,7 +2637,6 @@ def render_project_sidebar(
 
     _render_active_project_sidebar(env)
     env = st.session_state["env"]
-    _render_sidebar_export_action(env)
 
     sidebar_selection = compact_choice(
         st.sidebar,
@@ -2657,7 +2650,7 @@ def render_project_sidebar(
 
     if sidebar_selection == "Overview":
         st.sidebar.info(
-            "Choose Create, Import, Rename, or Delete when you need to manage projects."
+            "Choose Create, Import, Export, Rename, or Delete when you need to manage projects."
         )
     elif sidebar_selection == "Edit":
         if render_edit_body:
@@ -2666,6 +2659,8 @@ def render_project_sidebar(
             st.sidebar.info("Use Edit to open file, configuration, runtime, and code editors.")
     elif sidebar_selection == "Create":
         handle_project_creation()
+    elif sidebar_selection == "Export":
+        handle_export_project()
     elif sidebar_selection == "Rename":
         handle_project_rename()
     elif sidebar_selection == "Delete":

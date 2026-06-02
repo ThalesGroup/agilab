@@ -2025,9 +2025,13 @@ def _view_label(
     builtin_names: set[str],
     *,
     app_surface_cfg: dict[str, Any] | None = None,
+    app_ui_page_cfg: dict[str, Any] | None = None,
 ) -> str:
-    if option_id == _APP_UI_PAGE_KEY and app_surface_cfg:
-        return "Page"
+    if option_id == _APP_UI_PAGE_KEY:
+        return _app_ui_view_label(
+            app_surface_cfg=app_surface_cfg,
+            app_ui_page_cfg=app_ui_page_cfg,
+        )
     if option_id in builtin_names:
         return option_id
     try:
@@ -2035,6 +2039,30 @@ def _view_label(
     except OSError:
         return option_id
     return f"{path.name} (custom)"
+
+
+def _app_ui_view_label(
+    *,
+    app_surface_cfg: dict[str, Any] | None = None,
+    app_ui_page_cfg: dict[str, Any] | None = None,
+) -> str:
+    surface_label = _analysis_app_surface_label(app_surface_cfg)
+    if surface_label:
+        return surface_label
+    if isinstance(app_ui_page_cfg, dict):
+        title = str(app_ui_page_cfg.get("title", "")).strip()
+        if title:
+            return _strip_analysis_project_suffix(title)
+    return "App UI"
+
+
+def _analysis_app_surface_label(app_surface_cfg: dict[str, Any] | None) -> str | None:
+    if not app_surface_cfg:
+        return None
+    title = app_surface_title(app_surface_cfg).strip()
+    if title and title != "App Surface":
+        return _strip_analysis_project_suffix(title)
+    return None
 
 
 def _resolve_view_path(
@@ -2332,10 +2360,9 @@ def _analysis_project_link_label(
     *,
     app_surface_cfg: dict[str, Any] | None = None,
 ) -> str:
-    if app_surface_cfg:
-        title = app_surface_title(app_surface_cfg).strip()
-        if title and title != "App Surface":
-            return _strip_analysis_project_suffix(title)
+    surface_label = _analysis_app_surface_label(app_surface_cfg)
+    if surface_label:
+        return surface_label
     return _short_analysis_project_label(project)
 
 
@@ -2385,6 +2412,7 @@ def _render_analysis_sidebar_view_launcher(
     resolved_pages: dict[str, Path],
     custom_view_lookup: dict[str, Path],
     app_surface_cfg: dict[str, Any] | None = None,
+    app_ui_page_cfg: dict[str, Any] | None = None,
 ) -> None:
     launch_options = list(dict.fromkeys(selected_views))
     if not launch_options:
@@ -2404,6 +2432,7 @@ def _render_analysis_sidebar_view_launcher(
             view_name,
             builtin_names,
             app_surface_cfg=app_surface_cfg,
+            app_ui_page_cfg=app_ui_page_cfg,
         )
         if view_path is None:
             missing_views.append(display_label)
@@ -2989,6 +3018,7 @@ async def main():
             resolved_pages=resolved_pages,
             custom_view_lookup=custom_view_lookup,
             app_surface_cfg=app_surface_config(active_app_path, cfg),
+            app_ui_page_cfg=pages_cfg.get(_APP_UI_PAGE_KEY),
         )
         _render_analysis_sidebar_notebook_launcher(
             project=project,
@@ -3064,6 +3094,7 @@ async def main():
                 option,
                 set(resolved_pages.keys()),
                 app_surface_cfg=app_surface_config(active_app_path, cfg),
+                app_ui_page_cfg=pages_cfg.get(_APP_UI_PAGE_KEY),
             ),
             help="Selected views are persisted in the active project's app settings.",
         )

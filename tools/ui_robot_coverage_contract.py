@@ -37,7 +37,7 @@ REQUIRED_PYTORCH_ANALYSIS_SCENARIO = "isolated-pytorch-playground-analysis"
 REQUIRED_PYTORCH_ANALYSIS_APP = "pytorch_playground_project"
 REQUIRED_PYTORCH_ANALYSIS_TEXT = ("PyTorch Playground", "Refresh evidence", "Synced RUN snippet", "Settings")
 REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_SIDEBAR_TEXT = ("Project:",)
-REQUIRED_PYTORCH_ANALYSIS_LINKS = ("Page=>current_page=view_app_ui",)
+REQUIRED_PYTORCH_ANALYSIS_LINKS = ("PyTorch Playground=>current_page=view_app_ui",)
 REQUIRED_PYTORCH_ANALYSIS_ACTIONS = ("Refresh evidence",)
 REQUIRED_HF_ROBOT_SCENARIOS = {
     "hf-first-proof-visual-smoke": {
