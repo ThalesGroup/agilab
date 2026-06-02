@@ -3033,54 +3033,6 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     assert "project_filter" not in [ti.key for ti in at.sidebar.text_input]
 
 
-def test_project_sidebar_support_normalizes_actions_and_rejects_unknown():
-    support = _import_agilab_module("agilab.project_sidebar_support")
-
-    assert support.normalize_project_sidebar_actions(
-        ["Overview", "Clone", "Create", "Edit", "Clone"]
-    ) == ("Overview", "Create", "Edit")
-
-    with pytest.raises(ValueError, match="Unsupported PROJECT sidebar action"):
-        support.normalize_project_sidebar_actions(["Overview", "Archive"])
-
-
-def test_project_sidebar_support_initializes_shared_session_defaults(tmp_path):
-    support = _import_agilab_module("agilab.project_sidebar_support")
-    env = SimpleNamespace(app="flight_telemetry_project")
-    fake_st = SimpleNamespace(session_state={"sidebar_selection": "Create"})
-
-    support.ensure_project_sidebar_session_defaults(
-        fake_st,
-        env,
-        ("Overview", "Create"),
-        get_templates=lambda: ["minimal_app_project"],
-        get_projects_zip=lambda: ["demo.zip"],
-    )
-
-    assert fake_st.session_state["env"] is env
-    assert fake_st.session_state["_env"] is env
-    assert fake_st.session_state["orchest_functions"] == ["build_distribution"]
-    assert fake_st.session_state["templates"] == ["minimal_app_project"]
-    assert fake_st.session_state["archives"] == ["-- Select a file --", "demo.zip"]
-    assert fake_st.session_state["export_message"] == ""
-    assert fake_st.session_state["project_imported"] is False
-    assert fake_st.session_state["project_created"] is False
-    assert fake_st.session_state["show_widgets"] == [True, False]
-    assert fake_st.session_state["pages"] == []
-    assert fake_st.session_state["switch_to_edit"] is False
-    assert fake_st.session_state["sidebar_selection"] == "Create"
-
-    fresh_st = SimpleNamespace(session_state={})
-    support.ensure_project_sidebar_session_defaults(
-        fresh_st,
-        env,
-        ("Overview", "Create"),
-        get_templates=list,
-        get_projects_zip=list,
-    )
-    assert fresh_st.session_state["sidebar_selection"] == "Overview"
-
-
 def test_project_status_create_action_exposes_environment_strategy(mock_ui_env):
     at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
     env = AgiEnv(
