@@ -381,14 +381,15 @@ For an external apps repository available on your machine::
 
 For a trusted app project published as a PyPI ``agi-app-*`` package, use either
 the web UI or the packaged CLI. In the UI, open ``PROJECT``, expand
-``Install PyPI app``, choose a promoted catalog package or enter an exact
-package requirement, run ``Check PyPI app``, review Python compatibility,
+``agi-app from PyPI``, choose a promoted catalog ``agi-app`` or enter an exact
+manual requirement, run ``Check agi-app``, review Python compatibility,
 wheel/sdist availability, entry-point metadata, hashes, and advertised
-provenance/signature status, then confirm and click ``Install PyPI app``.
+provenance/signature status, then confirm and click ``Install agi-app``.
 AGILAB installs the package into the current Python environment with
 ``uv pip install --python`` and discovers the project through the package's
-``agilab.apps`` entry point. The same expander lists installed PyPI app packages
-and can update or remove them after explicit confirmation.
+``agilab.apps`` entry point. The same expander includes an ``Installed``
+maintenance drawer that can update or remove installed apps after explicit
+confirmation.
 
 The CLI exposes the same management surface::
 

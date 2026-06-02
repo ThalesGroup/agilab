@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 WEB_ROBOT_PATH = REPO_ROOT / "tools/agilab_web_robot.py"
 DEFAULT_APPS_ROOT = REPO_ROOT / "src/agilab/apps/builtin"
 DEFAULT_APPS_PAGES_ROOT = REPO_ROOT / "src/agilab/apps-pages"
-DEFAULT_PAGES = ("", "PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS")
+DEFAULT_PAGES = ("", "PROJECT", "PROJECT_EDITOR", "ORCHESTRATE", "WORKFLOW", "ANALYSIS")
 DEFAULT_TIMEOUT_SECONDS = 90.0
 DEFAULT_WIDGET_TIMEOUT_SECONDS = 3.0
 DEFAULT_PAGE_TIMEOUT_SECONDS = 300.0
@@ -214,20 +214,24 @@ BROWSER_ISSUE_IGNORE_NEEDLES = (
 )
 PAGE_EXPECTED_TEXT = {
     "": ("Turn experiments", "First proof: built-in demo"),
-    "PROJECT": ("PROJECT", "Flight Telemetry", "Install PyPI app"),
+    "PROJECT": ("PROJECT", "Flight Telemetry", "agi-app", "Project path"),
+    "PROJECT_EDITOR": ("PROJECT", "Flight Telemetry", "Edit project files"),
+    "PROJECT_EDIT": ("PROJECT", "Flight Telemetry", "Edit project files"),
     "SETTINGS": ("SETTINGS", "Settings", "README"),
     "ORCHESTRATE": ("ORCHESTRATE", "Flight Telemetry", "Deploy"),
     "WORKFLOW": ("WORKFLOW", "Flight Telemetry", "Data source"),
-    "ANALYSIS": ("ANALYSIS", "Flight Telemetry Project", "view_maps"),
+    "ANALYSIS": ("ANALYSIS", "Flight Telemetry", "view_maps"),
 }
-PAGE_MIN_WIDGETS = {"": 1, "PROJECT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
+PAGE_MIN_WIDGETS = {"": 1, "PROJECT": 5, "PROJECT_EDITOR": 5, "PROJECT_EDIT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
 PAGE_ABOVE_FOLD_EXPECTED_LABELS = {
     "HOME": ("Turn experiments", "First proof: built-in demo"),
-    "PROJECT": ("PROJECT", "Flight Telemetry", "Install PyPI app"),
+    "PROJECT": ("PROJECT", "Flight Telemetry", "agi-app", "Project path"),
+    "PROJECT_EDITOR": ("PROJECT", "Flight Telemetry", "Edit project files"),
+    "PROJECT_EDIT": ("PROJECT", "Flight Telemetry", "Edit project files"),
     "SETTINGS": ("SETTINGS", "README"),
     "ORCHESTRATE": ("ORCHESTRATE", "Flight Telemetry", "Deploy"),
     "WORKFLOW": ("WORKFLOW", "Flight Telemetry", "Data source"),
-    "ANALYSIS": ("ANALYSIS", "Flight Telemetry Project", "view_maps"),
+    "ANALYSIS": ("ANALYSIS", "Flight Telemetry", "view_maps"),
 }
 
 WIDGET_COLLECTOR_JS = r"""

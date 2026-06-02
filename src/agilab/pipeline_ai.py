@@ -906,7 +906,7 @@ def ask_gpt(
                 model_label,
                 "",
                 detail,
-                stage_generation_extra_fields(None, mode=mode),
+                stage_generation_extra_fields(None, mode=mode, df=df),
             ]
 
     original_question = question

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import random
 import re
+import signal
 import shlex
 import socket
 import subprocess
@@ -101,28 +102,81 @@ def run(command, cwd=None, *, subprocess_module=subprocess, log_fn=None, sys_mod
         sys_module.exit(exc.returncode)
 
 
-def subproc(command, cwd, *, subprocess_module=subprocess, os_module=os, env=None):
-    """Execute a command in the background and return its stdout pipe."""
+def subproc(
+    command,
+    cwd,
+    *,
+    subprocess_module=subprocess,
+    os_module=os,
+    env=None,
+    stdout=None,
+    stderr=None,
+    start_new_session: bool = False,
+):
+    """Execute a command in the background.
+
+    Legacy callers receive the stdout pipe. Callers that pass explicit output
+    handling receive the process handle so they can diagnose or stop failures.
+    """
     process_env = dict(env) if env is not None else os_module.environ.copy()
-    return subprocess_module.Popen(
+    legacy_pipe_return = stdout is None and stderr is None and not start_new_session
+    popen_kwargs = {
+        "shell": False,
+        "cwd": os_module.path.abspath(cwd),
+        "stdout": subprocess.PIPE if stdout is None else stdout,
+        "stderr": subprocess.STDOUT if stderr is None else stderr,
+        "env": process_env,
+        "text": True,
+    }
+    if start_new_session:
+        popen_kwargs["start_new_session"] = True
+    process = subprocess_module.Popen(
         _command_argv(command, os_module=os_module),
-        shell=False,
-        cwd=os_module.path.abspath(cwd),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        env=process_env,
-        text=True,
-    ).stdout
+        **popen_kwargs,
+    )
+    return process.stdout if legacy_pipe_return else process
 
 
-def _launch_mlflow_server(subproc_fn, cmd: list[str], cwd) -> None:
+def _call_mlflow_subproc(subproc_fn, cmd: list[str], cwd, *, env, stdout):
+    kwargs: dict[str, object] = {
+        "env": env,
+        "stdout": stdout,
+        "stderr": subprocess.STDOUT,
+        "start_new_session": True,
+    }
+    while True:
+        try:
+            return subproc_fn(cmd, cwd, **kwargs)
+        except TypeError as exc:
+            message = str(exc)
+            removable = [name for name in ("start_new_session", "stdout", "stderr", "env") if name in kwargs and name in message]
+            if not removable:
+                raise
+            for name in removable:
+                kwargs.pop(name, None)
+
+
+def _launch_mlflow_server(subproc_fn, cmd: list[str], cwd, *, log_path: Path):
     env = mlflow_store.mlflow_subprocess_env()
-    try:
-        subproc_fn(cmd, cwd, env=env)
-    except TypeError as exc:
-        if "env" not in str(exc):
-            raise
-        subproc_fn(cmd, cwd)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as stream:
+        stream.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting MLflow server\n")
+        stream.write("Command: " + shlex.join(cmd) + "\n")
+        stream.flush()
+        return _call_mlflow_subproc(subproc_fn, cmd, cwd, env=env, stdout=stream)
+
+
+def _terminate_process_tree(process) -> None:
+    pid = getattr(process, "pid", None)
+    if pid is not None and hasattr(os, "killpg"):
+        try:
+            os.killpg(int(pid), signal.SIGTERM)
+            return
+        except (OSError, ProcessLookupError, PermissionError):
+            pass
+    terminate = getattr(process, "terminate", None)
+    if callable(terminate):
+        terminate()
 
 
 def is_port_in_use(target_port, *, socket_module=socket) -> bool:
@@ -209,16 +263,28 @@ def activate_mlflow(
             ],
             sys_executable=sys.executable,
         )
-        _launch_mlflow_server(subproc_fn, cmd, cwd)
+        log_path = tracking_dir / "mlflow-server.log"
+        process = _launch_mlflow_server(subproc_fn, cmd, cwd, log_path=log_path)
         if not wait_for_listen_port_fn(port):
             session_state["server_started"] = False
+            session_state["mlflow_autostart_disabled"] = True
+            session_state["mlflow_log_path"] = str(log_path)
             session_state.pop("mlflow_port", None)
-            streamlit.error(
-                "Failed to start the MLflow server: the process did not open its listening port."
+            _terminate_process_tree(process)
+            poll = getattr(process, "poll", None)
+            returncode = poll() if callable(poll) else None
+            status = (
+                f"Failed to start the MLflow server: the process did not open its listening port. "
+                f"Startup log: {log_path}"
             )
+            if returncode is not None:
+                status += f" Process exit code: {returncode}."
+            session_state["mlflow_status_message"] = status
+            streamlit.error(status)
             return False
         session_state["server_started"] = True
         session_state["mlflow_port"] = port
+        session_state["mlflow_log_path"] = str(log_path)
         return True
     except mlflow_store.MissingMlflowCliError as exc:
         session_state["server_started"] = False

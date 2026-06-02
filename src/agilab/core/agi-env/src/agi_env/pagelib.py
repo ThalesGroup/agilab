@@ -494,9 +494,9 @@ def render_logo(*_args, **_kwargs):
         st.sidebar.warning("Logo could not be loaded. Please check the logo path.")
 
 
-def subproc(command, cwd):
+def subproc(command, cwd, **kwargs):
     """Execute a command in the background."""
-    return _subproc_impl(command, cwd, subprocess_module=subprocess, os_module=os)
+    return _subproc_impl(command, cwd, subprocess_module=subprocess, os_module=os, **kwargs)
 
 
 def _wait_for_listen_port(port: int, *, timeout_sec: float = 15.0, poll_interval_sec: float = 0.1) -> bool:

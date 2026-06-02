@@ -205,6 +205,11 @@ Use this skill when editing:
 - Update focused page tests when changing visible labels, header cards, or sidebar
   structure. Grep old wording before closing the task so stale copy does not survive in
   tests, docs, or screenshots.
+- When replacing a single-item action with a batch action, keep button labels compact
+  unless the extra word is needed to prevent misuse. Put selection semantics in the
+  selector label/help text and assert the exact end-user button labels in focused page
+  tests so stale wording such as `Update selected` or `Remove selected` cannot survive
+  after a product copy decision.
 
 ## First-Proof Onboarding UX
 

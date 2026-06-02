@@ -81,7 +81,7 @@ def _active_app_readme_path(active_app: Path, apps_path: Path) -> Path | None:
 
 
 def _readme_route(app_name: str) -> str:
-    return f"/PROJECT?{urlencode({'active_app': app_name, 'sidebar_selection': 'Edit', 'project_section': 'readme'})}"
+    return f"/PROJECT_EDITOR?{urlencode({'active_app': app_name, 'sidebar_selection': 'Edit', 'project_section': 'readme'})}"
 
 
 def _readme_link_details(

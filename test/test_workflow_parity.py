@@ -425,6 +425,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
             "isolated-core-pages",
             "isolated-entry-and-app-pages",
             "isolated-project-page",
+            "isolated-project-editor-page",
             "isolated-project-notebook-import",
             "isolated-project-import-sidebar",
             "isolated-project-rename-sidebar",

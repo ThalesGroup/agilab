@@ -30,13 +30,15 @@ STAGE_GENERATION_MODE_FIELD = generated_actions.STAGE_GENERATION_MODE_FIELD
 STAGE_SAFE_ACTION_PINNED_FIELD = generated_actions.STAGE_SAFE_ACTION_PINNED_FIELD
 GeneratedActionError = generated_actions.GeneratedActionError
 build_generated_actions_prompt = generated_actions.build_generated_actions_prompt
-dataframe_schema_sha256 = generated_actions.dataframe_schema_sha256
 generated_action_contract_to_python = generated_actions.generated_action_contract_to_python
-pin_safe_action_extra_fields = generated_actions.pin_safe_action_extra_fields
 parse_generated_action_contract = generated_actions.parse_generated_action_contract
 dataframe_schema_for_prompt = generated_actions.dataframe_schema_for_prompt
+dataframe_schema_sha256 = generated_actions.dataframe_schema_sha256
+pin_safe_action_extra_fields = generated_actions.pin_safe_action_extra_fields
 safe_action_contract_sha256 = generated_actions.safe_action_contract_sha256
+safe_action_catalog_options = generated_actions.safe_action_catalog_options
 safe_action_contract_stage_code = generated_actions.safe_action_contract_stage_code
+safe_action_template_code = generated_actions.safe_action_template_code
 stage_generation_extra_fields = generated_actions.stage_generation_extra_fields
 summarize_generated_actions = generated_actions.summarize_generated_actions
 validate_generated_action_contract = generated_actions.validate_generated_action_contract
@@ -139,12 +141,16 @@ def test_generated_action_prompt_and_stage_metadata_are_explicit() -> None:
     assert fields[STAGE_GENERATION_MODE_FIELD] == GENERATION_MODE_SAFE_ACTIONS
     assert fields[STAGE_ACTION_CONTRACT_FIELD]["schema_version"] == GENERATED_ACTIONS_SCHEMA_VERSION
     assert fields[STAGE_ACTION_CONTRACT_FIELD]["actions"][0]["action"] == "filter_rows"
+    assert fields[STAGE_ACTION_CONTRACT_SHA256_FIELD] == safe_action_contract_sha256(contract)
+    assert fields[STAGE_DATAFRAME_SCHEMA_SHA256_FIELD] == dataframe_schema_sha256(None)
+    assert fields[STAGE_SAFE_ACTION_PINNED_FIELD] is False
 
     empty_fields = stage_generation_extra_fields(None, mode=GENERATION_MODE_PYTHON_SNIPPET)
     assert empty_fields[STAGE_GENERATION_MODE_FIELD] == GENERATION_MODE_PYTHON_SNIPPET
     assert empty_fields[STAGE_ACTION_CONTRACT_FIELD] is None
-    assert empty_fields[STAGE_SAFE_ACTION_PINNED_FIELD] is False
     assert empty_fields[STAGE_ACTION_CONTRACT_SHA256_FIELD] == ""
+    assert empty_fields[STAGE_DATAFRAME_SCHEMA_SHA256_FIELD] == dataframe_schema_sha256(None)
+    assert empty_fields[STAGE_SAFE_ACTION_PINNED_FIELD] is False
 
     mapping_fields = stage_generation_extra_fields(
         {
@@ -165,6 +171,7 @@ def test_safe_action_pin_metadata_hashes_contract_and_schema() -> None:
             "schema_version": GENERATED_ACTIONS_SCHEMA_VERSION,
             "kind": GENERATED_ACTIONS_KIND,
             "actions": [{"action": "filter_rows", "column": "station", "operator": "eq", "value": "Paris"}],
+            "notes": "keep Paris rows",
         },
         df=df,
     )
@@ -175,16 +182,18 @@ def test_safe_action_pin_metadata_hashes_contract_and_schema() -> None:
     assert fields[STAGE_SAFE_ACTION_PINNED_FIELD] is True
     assert fields[STAGE_ACTION_CONTRACT_SHA256_FIELD] == safe_action_contract_sha256(contract)
     assert fields[STAGE_DATAFRAME_SCHEMA_SHA256_FIELD] == dataframe_schema_sha256(df)
-    assert "not raw model Python" in safe_action_contract_stage_code(fields[STAGE_ACTION_CONTRACT_FIELD])
+    assert safe_action_contract_stage_code(contract) == generated_action_contract_to_python(contract)
 
 
 def test_python_snippet_metadata_cannot_be_marked_as_pinned_safe_action() -> None:
-    fields = stage_generation_extra_fields(None, mode=GENERATION_MODE_PYTHON_SNIPPET, pinned=True)
+    fields = stage_generation_extra_fields(
+        None,
+        mode=GENERATION_MODE_PYTHON_SNIPPET,
+        pinned=True,
+    )
 
-    assert fields[STAGE_GENERATION_MODE_FIELD] == GENERATION_MODE_PYTHON_SNIPPET
     assert fields[STAGE_ACTION_CONTRACT_FIELD] is None
     assert fields[STAGE_SAFE_ACTION_PINNED_FIELD] is False
-    assert fields[STAGE_ACTION_CONTRACT_SHA256_FIELD] == ""
 
 
 def test_safe_action_pin_revalidates_against_current_dataframe_schema() -> None:
@@ -219,6 +228,32 @@ def test_dataframe_schema_for_prompt_returns_empty_for_invalid_payload() -> None
     assert dataframe_schema_for_prompt(None) == []
     df = pd.DataFrame({"a": [1], "b": ["x"]})
     assert dataframe_schema_for_prompt(df, max_columns=1) == [{"name": "a", "dtype": "int64"}]
+
+
+def test_safe_action_catalog_exposes_supported_templates() -> None:
+    options = safe_action_catalog_options()
+
+    assert {item["action"] for item in options} == {
+        "select_columns",
+        "drop_columns",
+        "rename_columns",
+        "filter_rows",
+        "derive_column",
+        "fill_missing",
+        "drop_missing",
+        "sort_rows",
+        "groupby_aggregate",
+        "rolling_mean",
+        "clip",
+    }
+    assert all(item["label"] and item["prompt"] for item in options)
+    filter_template = safe_action_template_code("filter_rows")
+    assert "AGILAB Safe Action template: Filter rows" in filter_template
+    assert 'column = "column_name"' in filter_template
+    assert "df = df[df[column] == value].copy()" in filter_template
+    assert "intentionally a no-op" not in filter_template
+    with pytest.raises(GeneratedActionError, match="unsupported safe action template"):
+        safe_action_template_code("raw_python")
 
 
 def test_parse_generated_action_contract_can_extract_json_codeblock() -> None:

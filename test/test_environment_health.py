@@ -174,6 +174,7 @@ def test_environment_health_helper_edges_and_render_panel(tmp_path, monkeypatch)
         def __init__(self):
             self.markdown_calls: list[tuple[str, bool]] = []
             self.code_calls: list[str] = []
+            self.expander_labels: list[str] = []
 
         def container(self, *, border=False):
             assert border is True
@@ -183,8 +184,9 @@ def test_environment_health_helper_edges_and_render_panel(tmp_path, monkeypatch)
             return [FakeColumn(self) for _ in range(count)]
 
         def expander(self, label, *, expanded=False):
-            assert label in {"Environment Health", "Environment details"}
+            assert label == "Environment details"
             assert expanded is False
+            self.expander_labels.append(label)
             return FakeContext(self)
 
         def markdown(self, body, *, unsafe_allow_html=False):
@@ -219,6 +221,7 @@ def test_environment_health_helper_edges_and_render_panel(tmp_path, monkeypatch)
     assert len(health.cards) == 8
     assert any("agilab-header-card" in body for body, _unsafe in streamlit.markdown_calls)
     assert streamlit.code_calls
+    assert streamlit.expander_labels == ["Environment details"]
 
 
 def test_environment_health_resolvers_and_cluster_edges(tmp_path, monkeypatch):

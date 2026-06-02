@@ -59,6 +59,7 @@ UI_ROBOT_MATRIX_SHARDS = (
             "isolated-core-pages",
             "isolated-entry-and-app-pages",
             "isolated-project-page",
+            "isolated-project-editor-page",
             "isolated-project-notebook-import",
             "isolated-project-import-sidebar",
             "isolated-project-rename-sidebar",

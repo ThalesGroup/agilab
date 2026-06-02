@@ -178,6 +178,13 @@ def test_windows_installer_internet_check_uses_packaging_endpoints() -> None:
     assert "https://api.github.com/zen" in ps1_text
 
 
+def test_windows_root_installer_propagates_test_apps_to_app_installer() -> None:
+    ps1_text = INSTALL_PS1.read_text(encoding="utf-8")
+
+    assert '& ".\\install_apps.ps1" -TestApps:$RunPytest' in ps1_text
+    assert '& ".\\install_apps.ps1"\n' not in ps1_text
+
+
 def test_root_installer_default_share_dir_is_user_scoped() -> None:
     script_text = INSTALL_SH.read_text(encoding="utf-8")
     function_body = "\n".join(

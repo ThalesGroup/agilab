@@ -582,7 +582,7 @@ def _active_app_readme_path(env: Any | None) -> Path | None:
 
 
 def _sidebar_readme_url(env: Any | None, readme_path: Path) -> str:
-    return f"/PROJECT?{urlencode(_sidebar_readme_query_params(env, readme_path))}"
+    return f"/PROJECT_EDITOR?{urlencode(_sidebar_readme_query_params(env, readme_path))}"
 
 
 def _sidebar_readme_query_params(env: Any | None, readme_path: Path) -> dict[str, str]:
@@ -606,7 +606,7 @@ def _reset_project_readme_query_seed() -> None:
 def _sidebar_readme_link_markdown(env: Any | None, readme_path: Path) -> str:
     readme_url = html.escape(_sidebar_readme_url(env, readme_path), quote=True)
     return (
-        f'<a href="{readme_url}" target="_self" title="Open the active project README in PROJECT.">'
+        f'<a href="{readme_url}" target="_self" title="Open the active project README in PROJECT editor.">'
         "README"
         "</a>"
     )
@@ -629,7 +629,7 @@ def _render_sidebar_readme_link(env: Any | None, readme_path: Path) -> bool:
         _reset_project_readme_query_seed()
         if button_fn(
             "README",
-            help="Open the active project README in PROJECT.",
+            help="Open the active project README in PROJECT editor.",
             width="stretch",
         ):
             switch_page_fn(project_page, query_params=query_params)
@@ -642,7 +642,7 @@ def _render_sidebar_readme_link(env: Any | None, readme_path: Path) -> bool:
             project_page,
             label="README",
             query_params=query_params,
-            help="Open the active project README in PROJECT.",
+            help="Open the active project README in PROJECT editor.",
         )
         return True
 
@@ -1122,15 +1122,27 @@ def _navigation_pages() -> list[Any]:
         visibility="hidden",
     )
     project_page = st.Page(
-        _page_file_runner(pages_root / "1_PROJECT.py"),
-        title="PROJECT EDIT",
+        _page_file_runner(pages_root / "1_PROJECT_STATUS.py"),
+        title="PROJECT",
         url_path="PROJECT",
+    )
+    project_editor_page = st.Page(
+        _page_file_runner(pages_root / "1_PROJECT.py"),
+        title="PROJECT EDITOR",
+        url_path="PROJECT_EDITOR",
         visibility="hidden",
     )
-    project_status_page = st.Page(
+    project_edit_legacy_page = st.Page(
+        _page_file_runner(pages_root / "1_PROJECT.py"),
+        title="PROJECT EDITOR",
+        url_path="PROJECT_EDIT",
+        visibility="hidden",
+    )
+    project_status_legacy_page = st.Page(
         _page_file_runner(pages_root / "1_PROJECT_STATUS.py"),
         title="PROJECT",
         url_path="PROJECT_STATUS",
+        visibility="hidden",
     )
     orchestrate_page = st.Page(
         _page_file_runner(pages_root / "2_ORCHESTRATE.py"),
@@ -1152,7 +1164,9 @@ def _navigation_pages() -> list[Any]:
         {
             "settings": settings_nav_page,
             "project": project_page,
-            "project_status": project_status_page,
+            "project_status": project_page,
+            "project_editor": project_editor_page,
+            "project_edit": project_edit_legacy_page,
             "orchestrate": orchestrate_page,
             "workflow": workflow_page,
             "analysis": analysis_page,
@@ -1162,7 +1176,9 @@ def _navigation_pages() -> list[Any]:
         main_page,
         settings_nav_page,
         project_page,
-        project_status_page,
+        project_editor_page,
+        project_edit_legacy_page,
+        project_status_legacy_page,
         orchestrate_page,
         workflow_page,
         analysis_page,

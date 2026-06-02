@@ -76,15 +76,23 @@ STAGE_ACTION_CONTRACT_SHA256_FIELD = _generated_actions_module.STAGE_ACTION_CONT
 STAGE_DATAFRAME_SCHEMA_SHA256_FIELD = _generated_actions_module.STAGE_DATAFRAME_SCHEMA_SHA256_FIELD
 STAGE_GENERATION_MODE_FIELD = _generated_actions_module.STAGE_GENERATION_MODE_FIELD
 STAGE_SAFE_ACTION_PINNED_FIELD = _generated_actions_module.STAGE_SAFE_ACTION_PINNED_FIELD
+GeneratedActionError = _generated_actions_module.GeneratedActionError
 pin_safe_action_extra_fields = _generated_actions_module.pin_safe_action_extra_fields
+safe_action_contract_sha256 = _generated_actions_module.safe_action_contract_sha256
 safe_action_contract_stage_code = _generated_actions_module.safe_action_contract_stage_code
+safe_action_catalog_options = _generated_actions_module.safe_action_catalog_options
+safe_action_template_code = _generated_actions_module.safe_action_template_code
 stage_generation_extra_fields = _generated_actions_module.stage_generation_extra_fields
+summarize_generated_actions = _generated_actions_module.summarize_generated_actions
+validate_generated_action_contract = _generated_actions_module.validate_generated_action_contract
 
 GENERATION_MODE_LABELS = {
     GENERATION_MODE_SAFE_ACTIONS: "Safe actions",
     GENERATION_MODE_PYTHON_SNIPPET: "Python snippet (advanced)",
 }
 GENERATION_MODE_BY_LABEL = {label: mode for mode, label in GENERATION_MODE_LABELS.items()}
+PINNED_SAFE_ACTION_NEW = "Generate new Safe Action"
+SAFE_ACTION_TEMPLATE_PREFIX = "Template: "
 SNIPPET_EDITOR_HEIGHT = 420
 
 
@@ -101,11 +109,67 @@ def safe_action_pin_stage_update(
     contract = entry.get(STAGE_ACTION_CONTRACT_FIELD)
     if not isinstance(contract, Mapping):
         raise ValueError("Only stages with a validated Safe Action contract can be pinned.")
-    extra_fields = pin_safe_action_extra_fields(contract, df=dataframe, pinned=pinned)
+    extra_fields = (
+        pin_safe_action_extra_fields(contract, df=dataframe)
+        if pinned
+        else stage_generation_extra_fields(
+            contract,
+            mode=GENERATION_MODE_SAFE_ACTIONS,
+            df=dataframe,
+            pinned=False,
+        )
+    )
     if pinned:
         return safe_action_contract_stage_code(extra_fields[STAGE_ACTION_CONTRACT_FIELD]), extra_fields
     return code_current, extra_fields
 
+
+@dataclass(frozen=True)
+class _PinnedSafeAction:
+    stage_index: int
+    label: str
+    question: str
+    detail: str
+    model: str
+    contract: Mapping[str, Any]
+    code: str
+
+
+def _safe_action_contract_payload(raw_contract: Any) -> dict[str, Any] | None:
+    if not isinstance(raw_contract, Mapping):
+        return None
+    try:
+        return validate_generated_action_contract(raw_contract).to_payload()
+    except GeneratedActionError:
+        return None
+
+
+def _existing_safe_actions_from_stages(stages: List[Mapping[str, Any]]) -> List[_PinnedSafeAction]:
+    existing_actions: List[_PinnedSafeAction] = []
+    for stage_index, entry in enumerate(stages):
+        if not isinstance(entry, Mapping):
+            continue
+        if entry.get(STAGE_GENERATION_MODE_FIELD) != GENERATION_MODE_SAFE_ACTIONS:
+            continue
+        contract = _safe_action_contract_payload(entry.get(STAGE_ACTION_CONTRACT_FIELD))
+        if contract is None:
+            continue
+        detail = summarize_generated_actions(contract)
+        digest = str(entry.get(STAGE_ACTION_CONTRACT_SHA256_FIELD) or safe_action_contract_sha256(contract))
+        suffix = f" ({digest[:8]})" if digest else ""
+        state = "pinned" if bool(entry.get(STAGE_SAFE_ACTION_PINNED_FIELD)) else "saved"
+        existing_actions.append(
+            _PinnedSafeAction(
+                stage_index=stage_index,
+                label=f"Stage {stage_index + 1} [{state}]: {detail}{suffix}",
+                question=str(entry.get("Q") or detail),
+                detail=detail,
+                model=str(entry.get("M") or "pinned-safe-action"),
+                contract=contract,
+                code=safe_action_contract_stage_code(contract),
+            )
+        )
+    return existing_actions
 
 _pipeline_page_state_module = import_agilab_module(
     "agilab.pipeline_page_state",
@@ -3398,7 +3462,8 @@ def display_lab_tab(
         default_label = GENERATION_MODE_LABELS[mode]
         if st.session_state.get(key) not in labels:
             st.session_state[key] = default_label
-        selected_label = st.selectbox(
+        selected_label = compact_choice(
+            st,
             "Generation mode",
             labels,
             key=key,
@@ -3406,6 +3471,7 @@ def display_lab_tab(
                 "Safe actions asks the model for a validated JSON action contract. "
                 "Python snippet is for advanced manual code generation."
             ),
+            inline_limit=4,
         )
         selected_mode = GENERATION_MODE_BY_LABEL.get(str(selected_label), GENERATION_MODE_SAFE_ACTIONS)
         if selected_mode == GENERATION_MODE_SAFE_ACTIONS:
@@ -3413,6 +3479,127 @@ def display_lab_tab(
         else:
             st.caption("Advanced: raw model Python is saved for review; auto-fix requires an explicit sandbox acknowledgement.")
         return selected_mode
+
+    def _current_safe_action_dataframe() -> pd.DataFrame | None:
+        df: Any = st.session_state.get("loaded_df")
+        if isinstance(df, pd.DataFrame):
+            return df
+        df_file = st.session_state.get("df_file")
+        if not df_file:
+            return None
+        try:
+            loaded = load_df_cached(Path(df_file), with_index=False)
+        except TypeError:
+            try:
+                loaded = load_df_cached(Path(df_file))
+            except (OSError, RuntimeError, TypeError, ValueError):
+                return None
+        except (OSError, RuntimeError, ValueError):
+            return None
+        return loaded if isinstance(loaded, pd.DataFrame) else None
+
+    def _render_pinned_safe_action_selectbox(key: str) -> _PinnedSafeAction | None:
+        catalog_by_label = {
+            f"{SAFE_ACTION_TEMPLATE_PREFIX}{item['label']}": item
+            for item in safe_action_catalog_options()
+        }
+        options = [
+            PINNED_SAFE_ACTION_NEW,
+            *[action.label for action in existing_safe_actions],
+            *catalog_by_label,
+        ]
+        select_kwargs: Dict[str, Any] = {
+            "key": key,
+            "help": (
+                "Reuse a saved validated Safe Action contract, or start from a built-in Safe Action template. "
+                "Raw Python snippets are excluded."
+            ),
+        }
+        if st.session_state.get(key) not in options:
+            st.session_state.pop(key, None)
+            select_kwargs["index"] = 0
+        selected = st.selectbox("Existing Safe Action", options, **select_kwargs)
+        selected_text = str(selected)
+        last_selected_key = f"{key}__last_selected"
+        selection_changed = st.session_state.get(last_selected_key) != selected_text
+        st.session_state[last_selected_key] = selected_text
+        for action in existing_safe_actions:
+            if selected_text == action.label:
+                st.session_state.pop(f"{key}__template_prompt", None)
+                st.session_state[f"{key}__safe_action_code"] = action.code
+                st.session_state[f"{key}__safe_action_question"] = action.question
+                st.session_state[f"{key}__safe_action_changed"] = selection_changed
+                st.caption(f"Reusing existing Safe Action from stage {action.stage_index + 1}.")
+                return action
+        st.session_state.pop(f"{key}__safe_action_code", None)
+        st.session_state.pop(f"{key}__safe_action_question", None)
+        st.session_state[f"{key}__safe_action_changed"] = False
+        template = catalog_by_label.get(selected_text)
+        if template:
+            prompt = str(template.get("prompt") or "")
+            try:
+                template_code = safe_action_template_code(str(template.get("action") or ""))
+            except GeneratedActionError:
+                template_code = ""
+            st.session_state[f"{key}__template_prompt"] = prompt
+            st.session_state[f"{key}__safe_action_code"] = template_code
+            st.session_state[f"{key}__safe_action_question"] = prompt
+            st.session_state[f"{key}__safe_action_changed"] = selection_changed
+            st.caption(f"{selected}. Edit the prompt below, then generate a validated Safe Action.")
+            return None
+        st.session_state.pop(f"{key}__template_prompt", None)
+        if not existing_safe_actions:
+            st.caption("No saved Safe Actions yet; choose a template or write a prompt.")
+        return None
+
+    def _seed_safe_action_template_prompt(selection_key: str, prompt_key: str) -> None:
+        template_prompt = str(st.session_state.get(f"{selection_key}__template_prompt") or "").strip()
+        if template_prompt and not str(st.session_state.get(prompt_key) or "").strip():
+            st.session_state[prompt_key] = template_prompt
+
+    def _hydrate_selected_safe_action_editor(
+        selection_key: str,
+        *,
+        q_key: str,
+        code_val_key: str,
+        rev_key: str,
+    ) -> None:
+        if not st.session_state.get(f"{selection_key}__safe_action_changed"):
+            return
+        code = str(st.session_state.get(f"{selection_key}__safe_action_code") or "")
+        if not code.strip():
+            return
+        question = str(st.session_state.get(f"{selection_key}__safe_action_question") or "").strip()
+        if question:
+            st.session_state[q_key] = question
+        st.session_state[code_val_key] = code
+        st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
+        st.session_state[f"{selection_key}__safe_action_changed"] = False
+
+    def _answer_from_pinned_safe_action(action: _PinnedSafeAction, df_path: Path) -> List[Any]:
+        return [
+            df_path,
+            action.question,
+            action.model or "pinned-safe-action",
+            action.code,
+            action.detail,
+            pin_safe_action_extra_fields(action.contract, df=_current_safe_action_dataframe()),
+        ]
+
+    def _extra_fields_for_manual_stage_save(entry: Mapping[str, Any], code_current: str) -> Dict[str, Any]:
+        contract = _safe_action_contract_payload(entry.get(STAGE_ACTION_CONTRACT_FIELD))
+        if contract is not None and code_current.strip() == safe_action_contract_stage_code(contract).strip():
+            return stage_generation_extra_fields(
+                contract,
+                mode=GENERATION_MODE_SAFE_ACTIONS,
+                df=_current_safe_action_dataframe(),
+                pinned=bool(entry.get(STAGE_SAFE_ACTION_PINNED_FIELD)),
+            )
+        return stage_generation_extra_fields(
+            None,
+            mode=GENERATION_MODE_PYTHON_SNIPPET,
+            df=_current_safe_action_dataframe(),
+        )
 
     def _ask_stage_generator(prompt_text: str, df_path: Path, generation_mode: str) -> List[Any]:
         return ask_gpt(
@@ -3427,16 +3614,11 @@ def display_lab_tab(
     def _generation_extra_fields(answer: List[Any], generation_mode: str) -> Dict[str, Any]:
         if len(answer) > 5 and isinstance(answer[5], dict):
             return dict(answer[5])
-        return stage_generation_extra_fields(None, mode=generation_mode)
-
-    def _current_safe_action_dataframe() -> Any:
-        df_file = st.session_state.get("df_file")
-        if not df_file:
-            return None
-        try:
-            return load_df_cached(Path(df_file))
-        except Exception:
-            return None
+        return stage_generation_extra_fields(
+            None,
+            mode=generation_mode,
+            df=_current_safe_action_dataframe(),
+        )
 
     def _warn_generation_without_code(answer: List[Any]) -> None:
         detail = str(answer[4] if len(answer) > 4 else "").strip()
@@ -3458,6 +3640,7 @@ def display_lab_tab(
                 persisted_stages = [s for s in fallback_stages if _is_displayable_stage(s)]
         except (AttributeError, OSError, TypeError, tomllib.TOMLDecodeError):
             pass
+    existing_safe_actions = _existing_safe_actions_from_stages(persisted_stages)
     total_stages = len(persisted_stages)
     safe_prefix = index_page_str.replace("/", "_")
     total_stages_key = f"{safe_prefix}_total_stages"
@@ -3548,6 +3731,12 @@ def display_lab_tab(
             if stage_source == GENERATE_STAGE_SOURCE:
                 _render_assistant_engine_near_prompt()
                 generation_mode = _render_generation_mode_control(first_generation_mode_key)
+                selected_safe_action = (
+                    _render_pinned_safe_action_selectbox(f"{safe_prefix}_safe_action_choice_first")
+                    if generation_mode == GENERATION_MODE_SAFE_ACTIONS
+                    else None
+                )
+                _seed_safe_action_template_prompt(f"{safe_prefix}_safe_action_choice_first", new_q_key)
                 st.text_area(
                     "Ask code generator:",
                     key=new_q_key,
@@ -3564,41 +3753,46 @@ def display_lab_tab(
                     inline_limit=4,
                 )
                 selected_path = "" if selected_new_venv == venv_labels[0] else _valid_runtime_path(selected_new_venv)
+                generate_label = "Use Safe Action" if selected_safe_action else "Generate code"
                 run_new = action_button(
                     st,
-                    "Generate code",
+                    generate_label,
                     key=f"{safe_prefix}_add_first_stage_btn",
-                    kind="generate",
+                    kind="add" if selected_safe_action else "generate",
                 )
                 if run_new:
                     prompt_text = st.session_state.get(new_q_key, "").strip()
-                    if not prompt_text:
+                    if selected_safe_action:
+                        df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
+                        answer = _answer_from_pinned_safe_action(selected_safe_action, df_path)
+                    elif not prompt_text:
                         st.warning("Enter a prompt before generating code.")
+                        return
                     else:
                         df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
                         answer = _ask_stage_generator(prompt_text, df_path, generation_mode)
-                        if not str(answer[3] if len(answer) > 3 else "").strip():
-                            _warn_generation_without_code(answer)
-                            return
-                        venv_map = {0: selected_path} if selected_path else {}
-                        eng_map = {0: "agi.run" if selected_path else "runpy"}
-                        extra_fields = _generation_extra_fields(answer, generation_mode)
-                        expander_state_key = f"{safe_prefix}_expander_open"
-                        expander_state = st.session_state.setdefault(expander_state_key, {})
-                        expander_state[0] = True
-                        st.session_state[expander_state_key] = expander_state
-                        save_stage(
-                            module_path,
-                            answer,
-                            0,
-                            1,
-                            stages_file,
-                            venv_map=venv_map,
-                            engine_map=eng_map,
-                            extra_fields=extra_fields,
-                        )
-                        _bump_history_revision()
-                        st.rerun()
+                    if not str(answer[3] if len(answer) > 3 else "").strip():
+                        _warn_generation_without_code(answer)
+                        return
+                    venv_map = {0: selected_path} if selected_path else {}
+                    eng_map = {0: "agi.run" if selected_path else "runpy"}
+                    extra_fields = _generation_extra_fields(answer, generation_mode)
+                    expander_state_key = f"{safe_prefix}_expander_open"
+                    expander_state = st.session_state.setdefault(expander_state_key, {})
+                    expander_state[0] = True
+                    st.session_state[expander_state_key] = expander_state
+                    save_stage(
+                        module_path,
+                        answer,
+                        0,
+                        1,
+                        stages_file,
+                        venv_map=venv_map,
+                        engine_map=eng_map,
+                        extra_fields=extra_fields,
+                    )
+                    _bump_history_revision()
+                    st.rerun()
             else:
                 snippet_path = snippet_option_map.get(stage_source)
                 snippet_code = ""
@@ -3907,6 +4101,64 @@ def display_lab_tab(
                 generation_mode_key,
                 existing_mode=str(entry.get(STAGE_GENERATION_MODE_FIELD) or ""),
             )
+            selected_safe_action = (
+                _render_pinned_safe_action_selectbox(f"{safe_prefix}_safe_action_choice_{stage}")
+                if generation_mode == GENERATION_MODE_SAFE_ACTIONS
+                else None
+            )
+            _seed_safe_action_template_prompt(f"{safe_prefix}_safe_action_choice_{stage}", q_key)
+            _hydrate_selected_safe_action_editor(
+                f"{safe_prefix}_safe_action_choice_{stage}",
+                q_key=q_key,
+                code_val_key=code_val_key,
+                rev_key=rev_key,
+            )
+            current_contract = _safe_action_contract_payload(entry.get(STAGE_ACTION_CONTRACT_FIELD))
+            if current_contract is not None:
+                current_safe_action_pinned = bool(entry.get(STAGE_SAFE_ACTION_PINNED_FIELD))
+                current_safe_action_state = "Pinned" if current_safe_action_pinned else "Reusable"
+                st.caption(f"{current_safe_action_state} Safe Action: {summarize_generated_actions(current_contract)}")
+                pin_label = "Unpin Safe Action" if current_safe_action_pinned else "Pin Safe Action"
+                pin_kind = "remove" if current_safe_action_pinned else "add"
+                if action_button(
+                    st,
+                    pin_label,
+                    key=f"{safe_prefix}_{'unpin' if current_safe_action_pinned else 'pin'}_safe_action_{stage}",
+                    kind=pin_kind,
+                ):
+                    df = _current_safe_action_dataframe()
+                    code_to_save, extra_fields = safe_action_pin_stage_update(
+                        {
+                            STAGE_GENERATION_MODE_FIELD: GENERATION_MODE_SAFE_ACTIONS,
+                            STAGE_ACTION_CONTRACT_FIELD: current_contract,
+                        },
+                        code_current=str(entry.get("C") or safe_action_contract_stage_code(current_contract)),
+                        pinned=not current_safe_action_pinned,
+                        dataframe=df,
+                    )
+                    save_stage(
+                        module_path,
+                        [
+                            entry.get("D", ""),
+                            st.session_state.get(q_key, entry.get("Q", "")),
+                            entry.get("M", ""),
+                            code_to_save,
+                        ],
+                        stage,
+                        total_stages,
+                        stages_file,
+                        venv_map=selected_map,
+                        engine_map=engine_map,
+                        extra_fields=extra_fields,
+                    )
+                    st.session_state[pending_q_key] = st.session_state.get(q_key, entry.get("Q", ""))
+                    st.session_state[pending_c_key] = code_to_save
+                    st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
+                    _bump_history_revision()
+                    _rerun_fragment_or_app()
+                    return
+            elif generation_mode == GENERATION_MODE_PYTHON_SNIPPET:
+                st.caption("Raw Python snippets are not listed as reusable Safe Actions.")
             st.text_area(
                 "Ask code generator:",
                 key=q_key,
@@ -3990,76 +4242,6 @@ def display_lab_tab(
                     st.session_state.pop(ignore_blank_key, None)
             code_current = st.session_state.get(code_val_key, "")
 
-            action_contract = entry.get(STAGE_ACTION_CONTRACT_FIELD)
-            stage_mode = str(entry.get(STAGE_GENERATION_MODE_FIELD) or generation_mode or "")
-            pin_clicked = False
-            unpin_clicked = False
-            if stage_mode == GENERATION_MODE_SAFE_ACTIONS and isinstance(action_contract, Mapping):
-                contract_hash = str(entry.get(STAGE_ACTION_CONTRACT_SHA256_FIELD) or "").strip()
-                pinned = bool(entry.get(STAGE_SAFE_ACTION_PINNED_FIELD))
-                if pinned:
-                    st.caption(
-                        "Pinned Safe Action: validated contract replay is locked"
-                        + (f" ({contract_hash[:12]})" if contract_hash else "")
-                        + "."
-                    )
-                    unpin_clicked = action_button(
-                        st,
-                        "Unpin Safe Action",
-                        key=f"{safe_prefix}_unpin_safe_action_{stage}",
-                        kind="revert",
-                    )
-                else:
-                    st.caption("Safe Action contract available. Pin it to lock replay to the validated contract.")
-                    pin_clicked = action_button(
-                        st,
-                        "Pin Safe Action",
-                        key=f"{safe_prefix}_pin_safe_action_{stage}",
-                        kind="save",
-                    )
-            elif stage_mode == GENERATION_MODE_PYTHON_SNIPPET:
-                st.caption(
-                    "Python snippet (advanced): raw Python cannot be pinned as a Safe Action. "
-                    "Regenerate this stage in Safe actions mode first."
-                )
-
-            if pin_clicked or unpin_clicked:
-                if not isinstance(action_contract, Mapping):
-                    st.warning("Only stages with a validated Safe Action contract can be pinned.")
-                    return
-                try:
-                    pinned = bool(pin_clicked)
-                    code_to_save, extra_fields = safe_action_pin_stage_update(
-                        {
-                            STAGE_GENERATION_MODE_FIELD: GENERATION_MODE_SAFE_ACTIONS,
-                            STAGE_ACTION_CONTRACT_FIELD: action_contract,
-                        },
-                        code_current=code_current,
-                        pinned=pinned,
-                        dataframe=_current_safe_action_dataframe(),
-                    )
-                    save_stage(
-                        module_path,
-                        [entry.get("D", ""), st.session_state.get(q_key, ""), entry.get("M", ""), code_to_save],
-                        stage,
-                        total_stages,
-                        stages_file,
-                        venv_map=selected_map,
-                        engine_map=engine_map,
-                        extra_fields=extra_fields,
-                    )
-                    st.session_state[code_val_key] = code_to_save
-                    st.session_state[pending_c_key] = code_to_save
-                    st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
-                    expander_state[stage] = True
-                    st.session_state[expander_state_key] = expander_state
-                    _bump_history_revision()
-                    st.success("Pinned Safe Action contract." if pinned else "Safe Action pin removed.")
-                    _rerun_fragment_or_app()
-                except Exception as exc:
-                    st.warning(f"Unable to update Safe Action pin: {exc}")
-                return
-
             if revert_pressed:
                 undo_stack = st.session_state.get(undo_key, [])
                 if len(undo_stack) > 1:
@@ -4076,6 +4258,7 @@ def display_lab_tab(
                     stages_file,
                     venv_map=selected_map,
                     engine_map=engine_map,
+                    extra_fields=_extra_fields_for_manual_stage_save(entry, restored_c),
                 )
                 _bump_history_revision()
                 expander_state[stage] = True
@@ -4091,6 +4274,7 @@ def display_lab_tab(
                 st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
                 expander_state[stage] = True
                 st.session_state[expander_state_key] = expander_state
+                manual_extra_fields = _extra_fields_for_manual_stage_save(entry, code_current)
                 save_stage(
                     module_path,
                     [entry.get("D", ""), st.session_state.get(q_key, ""), entry.get("M", ""), code_current],
@@ -4099,6 +4283,7 @@ def display_lab_tab(
                     stages_file,
                     venv_map=selected_map,
                     engine_map=engine_map,
+                    extra_fields=manual_extra_fields,
                 )
                 _force_persist_stage(
                     module_path,
@@ -4111,6 +4296,7 @@ def display_lab_tab(
                         "C": code_current,
                         "E": normalize_runtime_path(selected_map.get(stage, "")),
                         "R": engine_map.get(stage, "") or ("agi.run" if selected_map.get(stage) else "runpy"),
+                        **manual_extra_fields,
                     },
                 )
                 st.session_state[pending_q_key] = st.session_state.get(q_key, "")
@@ -4153,6 +4339,7 @@ def display_lab_tab(
                 st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
                 expander_state[stage] = True
                 st.session_state[expander_state_key] = expander_state
+                manual_extra_fields = _extra_fields_for_manual_stage_save(entry, code_current)
                 save_stage(
                     module_path,
                     [entry.get("D", ""), st.session_state.get(q_key, ""), entry.get("M", ""), code_current],
@@ -4161,6 +4348,7 @@ def display_lab_tab(
                     stages_file,
                     venv_map=selected_map,
                     engine_map=engine_map,
+                    extra_fields=manual_extra_fields,
                 )
                 _force_persist_stage(
                     module_path,
@@ -4173,6 +4361,7 @@ def display_lab_tab(
                         "C": code_current,
                         "E": normalize_runtime_path(selected_map.get(stage, "")),
                         "R": engine_map.get(stage, "") or ("agi.run" if selected_map.get(stage) else "runpy"),
+                        **manual_extra_fields,
                     },
                 )
                 _bump_history_revision()
@@ -4354,13 +4543,20 @@ def display_lab_tab(
                     if st.session_state.get("df_file")
                     else Path()
                 )
-                answer = _ask_stage_generator(prompt_text, df_path, generation_mode)
+                answer = (
+                    _answer_from_pinned_safe_action(selected_safe_action, df_path)
+                    if selected_safe_action
+                    else _ask_stage_generator(prompt_text, df_path, generation_mode)
+                )
                 merged_code = None
                 code_txt = answer[3] if len(answer) > 3 else ""
                 detail_txt = (answer[4] or "").strip() if len(answer) > 4 else ""
                 if code_txt:
-                    summary_line = f"# {detail_txt}\n" if detail_txt else ""
-                    merged_code = f"{summary_line}{code_txt}"
+                    if generation_mode == GENERATION_MODE_SAFE_ACTIONS:
+                        merged_code = str(code_txt)
+                    else:
+                        summary_line = f"# {detail_txt}\n" if detail_txt else ""
+                        merged_code = f"{summary_line}{code_txt}"
                     if len(answer) > 3:
                         answer[3] = merged_code
                 elif generation_mode == GENERATION_MODE_SAFE_ACTIONS:
@@ -4489,6 +4685,12 @@ def display_lab_tab(
         if stage_source == GENERATE_STAGE_SOURCE:
             _render_assistant_engine_near_prompt()
             generation_mode = _render_generation_mode_control(add_generation_mode_key)
+            selected_safe_action = (
+                _render_pinned_safe_action_selectbox(f"{safe_prefix}_safe_action_choice_add")
+                if generation_mode == GENERATION_MODE_SAFE_ACTIONS
+                else None
+            )
+            _seed_safe_action_template_prompt(f"{safe_prefix}_safe_action_choice_add", new_q_key)
             st.text_area(
                 "Ask code generator:",
                 key=new_q_key,
@@ -4505,71 +4707,84 @@ def display_lab_tab(
                 inline_limit=4,
             )
             selected_path = "" if selected_new_venv == venv_labels[0] else _valid_runtime_path(selected_new_venv)
-            run_new = action_button(st, "Generate code", key=f"{safe_prefix}_add_stage_btn", kind="generate")
+            generate_label = "Use Safe Action" if selected_safe_action else "Generate code"
+            run_new = action_button(
+                st,
+                generate_label,
+                key=f"{safe_prefix}_add_stage_btn",
+                kind="add" if selected_safe_action else "generate",
+            )
             if run_new:
                 prompt_text = st.session_state.get(new_q_key, "").strip()
-                if prompt_text:
+                if selected_safe_action:
+                    df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
+                    answer = _answer_from_pinned_safe_action(selected_safe_action, df_path)
+                elif prompt_text:
                     df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
                     answer = _ask_stage_generator(prompt_text, df_path, generation_mode)
-                    merged_code = None
-                    code_txt = answer[3] if len(answer) > 3 else ""
-                    detail_txt = (answer[4] or "").strip() if len(answer) > 4 else ""
-                    if code_txt:
-                        summary_line = f"# {detail_txt}\n" if detail_txt else ""
-                        merged_code = f"{summary_line}{code_txt}"
-                        if len(answer) > 3:
-                            answer[3] = merged_code
-                    elif generation_mode == GENERATION_MODE_SAFE_ACTIONS:
-                        _warn_generation_without_code(answer)
-                        return
-
-                    if merged_code and generation_mode != GENERATION_MODE_SAFE_ACTIONS:
-                        fixed_code, fixed_model, fixed_detail = _maybe_autofix_generated_code(
-                            original_request=prompt_text,
-                            df_path=df_path,
-                            index_page=index_page_str,
-                            env=env,
-                            merged_code=str(merged_code),
-                            model_label=str(answer[2] if len(answer) > 2 else ""),
-                            detail=str(answer[4] if len(answer) > 4 else ""),
-                            load_df_cached=load_df_cached,
-                            push_run_log=_push_run_log,
-                            get_run_placeholder=_get_run_placeholder,
-                        )
-                        merged_code = fixed_code
-                        if len(answer) > 3:
-                            answer[3] = fixed_code
-                        if len(answer) > 2:
-                            answer[2] = fixed_model
-                        if len(answer) > 4:
-                            answer[4] = fixed_detail
-                    new_idx = len(persisted_stages)
-                    venv_map = selected_map.copy()
-                    engine_map_local = engine_map.copy()
-                    if selected_path:
-                        venv_map[new_idx] = selected_path
-                        engine_map_local[new_idx] = "agi.run"
-                    else:
-                        engine_map_local[new_idx] = "runpy"
-                    extra_fields = _generation_extra_fields(answer, generation_mode)
-                    save_stage(
-                        module_path,
-                        answer,
-                        new_idx,
-                        new_idx + 1,
-                        stages_file,
-                        venv_map=venv_map,
-                        engine_map=engine_map_local,
-                        extra_fields=extra_fields,
-                    )
-                    detail_store = st.session_state.setdefault(f"{index_page_str}__details", {})
-                    detail = answer[4] if len(answer) > 4 else ""
-                    if detail:
-                        detail_store[new_idx] = detail
-                    _bump_history_revision()
-                    st.rerun()
                 else:
                     st.warning("Enter a prompt before generating code.")
+                    return
+                merged_code = None
+                code_txt = answer[3] if len(answer) > 3 else ""
+                detail_txt = (answer[4] or "").strip() if len(answer) > 4 else ""
+                if code_txt:
+                    if generation_mode == GENERATION_MODE_SAFE_ACTIONS:
+                        merged_code = str(code_txt)
+                    else:
+                        summary_line = f"# {detail_txt}\n" if detail_txt else ""
+                        merged_code = f"{summary_line}{code_txt}"
+                    if len(answer) > 3:
+                        answer[3] = merged_code
+                elif generation_mode == GENERATION_MODE_SAFE_ACTIONS:
+                    _warn_generation_without_code(answer)
+                    return
+
+                if merged_code and generation_mode != GENERATION_MODE_SAFE_ACTIONS:
+                    fixed_code, fixed_model, fixed_detail = _maybe_autofix_generated_code(
+                        original_request=prompt_text,
+                        df_path=df_path,
+                        index_page=index_page_str,
+                        env=env,
+                        merged_code=str(merged_code),
+                        model_label=str(answer[2] if len(answer) > 2 else ""),
+                        detail=str(answer[4] if len(answer) > 4 else ""),
+                        load_df_cached=load_df_cached,
+                        push_run_log=_push_run_log,
+                        get_run_placeholder=_get_run_placeholder,
+                    )
+                    merged_code = fixed_code
+                    if len(answer) > 3:
+                        answer[3] = fixed_code
+                    if len(answer) > 2:
+                        answer[2] = fixed_model
+                    if len(answer) > 4:
+                        answer[4] = fixed_detail
+                new_idx = len(persisted_stages)
+                venv_map = selected_map.copy()
+                engine_map_local = engine_map.copy()
+                if selected_path:
+                    venv_map[new_idx] = selected_path
+                    engine_map_local[new_idx] = "agi.run"
+                else:
+                    engine_map_local[new_idx] = "runpy"
+                extra_fields = _generation_extra_fields(answer, generation_mode)
+                save_stage(
+                    module_path,
+                    answer,
+                    new_idx,
+                    new_idx + 1,
+                    stages_file,
+                    venv_map=venv_map,
+                    engine_map=engine_map_local,
+                    extra_fields=extra_fields,
+                )
+                detail_store = st.session_state.setdefault(f"{index_page_str}__details", {})
+                detail = answer[4] if len(answer) > 4 else ""
+                if detail:
+                    detail_store[new_idx] = detail
+                _bump_history_revision()
+                st.rerun()
         else:
             snippet_path = snippet_option_map.get(stage_source)
             snippet_code = ""
