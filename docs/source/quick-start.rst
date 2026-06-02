@@ -313,9 +313,9 @@ Use these only after the local ``flight_telemetry_project`` proof works once.
 
 **AGILAB demo**:
 
-.. image:: https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-xl.svg
+.. image:: _static/badges/open-in-huggingface-xl.svg
    :target: https://huggingface.co/spaces/jpmorard/agilab
-   :alt: Open in Hugging Face Spaces
+   :alt: Open in HuggingFace
    :height: 56px
 
 Self-serve public AGILAB demo hosted on Hugging Face Spaces.
