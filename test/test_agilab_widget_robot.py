@@ -1020,14 +1020,14 @@ def test_required_link_probe_matches_label_and_href_fragments() -> None:
         @staticmethod
         def get_by_role(role: str, name):
             assert role == "link"
-            assert getattr(name, "pattern", "Page") == "Page"
+            assert getattr(name, "pattern", "PyTorch Playground") == "PyTorch\\ Playground"
             return _LinkLocator()
 
     probe = module._required_link_probe(
         _Page(),
         app_name="pytorch_playground_project",
         display="ANALYSIS",
-        required_links=("Page=>current_page=view_app_ui;pytorch_playground_project",),
+        required_links=("PyTorch Playground=>current_page=view_app_ui;pytorch_playground_project",),
         timeout_ms=100,
     )
 
@@ -1068,7 +1068,7 @@ def test_required_link_probe_reports_missing_href_fragment() -> None:
         _Page(),
         app_name="pytorch_playground_project",
         display="ANALYSIS",
-        required_links=("Page=>current_page=view_app_ui",),
+        required_links=("PyTorch Playground=>current_page=view_app_ui",),
         timeout_ms=100,
     )
 

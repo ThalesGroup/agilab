@@ -194,7 +194,7 @@ def test_project_selector_edit_button_prefers_registered_navigation_page(monkeyp
     monkeypatch.setitem(
         sys.modules,
         "agilab.main_page",
-        SimpleNamespace(_NAVIGATION_PAGE_ROUTES={"project": route}),
+        SimpleNamespace(_NAVIGATION_PAGE_ROUTES={module.PROJECT_ROUTE_ID: route}),
     )
     monkeypatch.delattr(sys.modules["__main__"], "_NAVIGATION_PAGE_ROUTES", raising=False)
 
@@ -228,29 +228,29 @@ def test_registered_navigation_page_prefers_main_module_route(monkeypatch) -> No
     monkeypatch.setattr(
         sys.modules["__main__"],
         "_NAVIGATION_PAGE_ROUTES",
-        {"project": main_route},
+        {module.PROJECT_ROUTE_ID: main_route},
         raising=False,
     )
     monkeypatch.setitem(
         sys.modules,
         "agilab.main_page",
-        SimpleNamespace(_NAVIGATION_PAGE_ROUTES={"project": fallback_route}),
+        SimpleNamespace(_NAVIGATION_PAGE_ROUTES={module.PROJECT_ROUTE_ID: fallback_route}),
     )
 
-    assert module._registered_navigation_page("project") is main_route
+    assert module._registered_navigation_page(module.PROJECT_ROUTE_ID) is main_route
 
 
 def test_registered_navigation_page_ignores_missing_or_invalid_routes(monkeypatch) -> None:
     module = _load_module()
 
-    monkeypatch.setattr(sys.modules["__main__"], "_NAVIGATION_PAGE_ROUTES", ["project"], raising=False)
+    monkeypatch.setattr(sys.modules["__main__"], "_NAVIGATION_PAGE_ROUTES", [module.PROJECT_ROUTE_ID], raising=False)
     monkeypatch.setitem(
         sys.modules,
         "agilab.main_page",
-        SimpleNamespace(_NAVIGATION_PAGE_ROUTES={"project": None, "analysis": object()}),
+        SimpleNamespace(_NAVIGATION_PAGE_ROUTES={module.PROJECT_ROUTE_ID: None, "analysis": object()}),
     )
 
-    assert module._registered_navigation_page("project") is None
+    assert module._registered_navigation_page(module.PROJECT_ROUTE_ID) is None
 
 
 def test_switch_to_project_page_handles_missing_switch_page_without_side_effects() -> None:

@@ -66,10 +66,12 @@ def test_ui_robot_action_contract_passes_for_current_ui_surface() -> None:
     assert payload["schema"] == module.SCHEMA
     assert payload["success"] is True
     assert payload["issues"] == []
-    assert actions_by_label["INSTALL"]["disposition"] == "selected-click"
+    assert actions_by_label["Install"]["disposition"] == "selected-click"
     assert actions_by_label["Run -> Load -> Export"]["disposition"] == "selected-click"
     assert actions_by_label["Delete"]["disposition"] == "trial-only"
-    assert actions_by_label["Export"]["disposition"] == "trial-only"
+    assert "Export" not in actions_by_label
+    assert actions_by_label["Remove"]["disposition"] == "trial-only"
+    assert actions_by_label["Update"]["disposition"] == "trial-only"
     assert actions_by_label["Overwrite"]["disposition"] == "ignored"
     assert actions_by_label["Rebuild Universal Offline knowledge base"]["disposition"] == "ignored"
     assert actions_by_label["Reset"]["disposition"] == "trial-only"

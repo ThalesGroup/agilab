@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Callable, Iterable
 
-PROJECT_EDITOR_ACTIONS = ("Edit", "Create", "Import", "Rename", "Delete")
+PROJECT_EDITOR_ACTIONS = ("Edit", "Create", "Import", "Export", "Rename", "Delete")
 PROJECT_EDIT_ACTIONS = PROJECT_EDITOR_ACTIONS
-PROJECT_STATUS_ACTIONS = ("Overview", "Create", "Import", "Rename", "Delete")
+PROJECT_STATUS_ACTIONS = ("Overview", "Create", "Import", "Export", "Rename", "Delete")
 
 
 def normalize_project_sidebar_actions(actions: Iterable[Any]) -> tuple[str, ...]:

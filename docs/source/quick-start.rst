@@ -387,7 +387,7 @@ wheel/sdist availability, entry-point metadata, hashes, and advertised
 provenance/signature status, then confirm and click ``Install agi-app``.
 AGILAB installs the package into the current Python environment with
 ``uv pip install --python`` and discovers the project through the package's
-``agilab.apps`` entry point. The same expander includes an ``Installed agi-apps``
+``agilab.apps`` entry point. The same expander includes an ``Installed``
 maintenance drawer that can update or remove installed apps after explicit
 confirmation.
 

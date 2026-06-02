@@ -107,7 +107,7 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "flags": ["browser_error_check"],
         "pages": ["ANALYSIS"],
         "required_actions": ["Refresh evidence"],
-        "required_links": ["Page=>current_page=view_app_ui"],
+        "required_links": ["PyTorch Playground=>current_page=view_app_ui"],
         "required_text": ["PyTorch Playground", "Refresh evidence", "Settings", "Synced RUN snippet"],
     }
     assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-visual-smoke"] == {
@@ -639,7 +639,7 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
     assert "isolated-pytorch-playground-analysis is missing forbidden sidebar text probes: Project:" in details
     assert (
         "isolated-pytorch-playground-analysis is missing required link probes: "
-        "Page=>current_page=view_app_ui"
+        "PyTorch Playground=>current_page=view_app_ui"
     ) in details
     assert "isolated-pytorch-playground-analysis is missing required action probes: Refresh evidence" in details
     assert "isolated-pytorch-playground-analysis does not enable browser_error_check" in details

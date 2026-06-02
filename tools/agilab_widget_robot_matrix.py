@@ -513,7 +513,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps="pytorch_playground_project",
         required_text="PyTorch Playground,Refresh evidence,Synced RUN snippet,Settings",
         forbidden_sidebar_text="Project:",
-        required_links="Page=>current_page=view_app_ui",
+        required_links="PyTorch Playground=>current_page=view_app_ui",
         required_action_labels="Refresh evidence",
         action_timeout_seconds=30.0,
         page_timeout_seconds=420.0,
