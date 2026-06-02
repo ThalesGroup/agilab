@@ -424,14 +424,20 @@ def _valid_runtime_choices(raw_paths: List[Any]) -> List[str]:
 
 
 def _repo_root_for_multi_app_dag() -> Path:
+    module_path = Path(__file__).resolve()
+    fallback_root = module_path.parents[2]
+    for parent in module_path.parents:
+        if (parent / "pyproject.toml").is_file() and (parent / "src" / "agilab").is_dir():
+            fallback_root = parent
+            break
     candidates = [
         Path.cwd(),
-        Path(__file__).resolve().parents[2],
+        fallback_root,
     ]
     for candidate in candidates:
         if (candidate / "docs" / "source" / "data").is_dir():
             return candidate.resolve()
-    return Path(__file__).resolve().parents[2]
+    return fallback_root.resolve()
 
 
 def _global_runner_dag_path(env: AgiEnv, repo_root: Path) -> Path | None:

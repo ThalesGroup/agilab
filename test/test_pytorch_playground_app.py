@@ -6,6 +6,7 @@ import hashlib
 import importlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -79,6 +80,33 @@ def _target_module_from_pytorch_shim(path: Path) -> str:
     raise AssertionError(f"{path} is missing _TARGET_MODULE")
 
 
+def _assert_pytorch_legacy_module_identity(package_src: Path, modules: list[str]) -> None:
+    script = f"""
+import importlib
+
+modules = {modules!r}
+for name in modules:
+    module = importlib.import_module(name)
+    expected_package = name.rpartition(".")[0]
+    if module.__name__ != name or module.__package__ != expected_package:
+        raise AssertionError(
+            f"{{name}} exposed {{module.__name__}} / {{module.__package__}}"
+        )
+"""
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(package_src.resolve())
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path.cwd(),
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
 def test_pytorch_playground_modules_are_classified_or_entrypoints():
     for package_root in (
         PROJECT_SRC / "pytorch_playground",
@@ -98,6 +126,13 @@ def test_pytorch_playground_modules_are_classified_or_entrypoints():
             assert "activate_compat_module" in source
             assert "classified" in source
             assert "package layout" in source
+
+        legacy_modules = [
+            f"pytorch_playground.{path.stem}"
+            for path in sorted(package_root.glob("*.py"))
+            if path.name != "__init__.py"
+        ]
+        _assert_pytorch_legacy_module_identity(package_root.parent, legacy_modules)
 
 
 def test_playground_ui_import_prefers_package_when_streamlit_puts_script_dir_first(monkeypatch):
@@ -129,7 +164,11 @@ def test_playground_ui_import_prefers_package_when_streamlit_puts_script_dir_fir
     try:
         spec.loader.exec_module(module)
         assert sys.path[0] == str(project_src)
-        assert module._playground_core.__name__ == "pytorch_playground.domain.core"
+        assert module._playground_core.__name__ == "pytorch_playground.core"
+        assert (
+            module._playground_core._COMPAT_TARGET_MODULE.__name__
+            == "pytorch_playground.domain.core"
+        )
     finally:
         sys.modules.pop(spec.name, None)
         for name in list(sys.modules):

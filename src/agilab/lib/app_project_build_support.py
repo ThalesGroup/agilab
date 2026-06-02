@@ -99,7 +99,7 @@ _EXCLUDED_PAYLOAD_DIRS = {
     "test",
 }
 _EXCLUDED_PAYLOAD_FILES = {".DS_Store", ".gitignore", ".lock", "uv.lock"}
-_EXCLUDED_PAYLOAD_SUFFIXES = {".c", ".pyc", ".pyo", ".pyx", ".so"}
+_EXCLUDED_PAYLOAD_SUFFIXES = {".c", ".pid", ".pyc", ".pyo", ".pyx", ".so"}
 
 
 def repo_root() -> Path:
