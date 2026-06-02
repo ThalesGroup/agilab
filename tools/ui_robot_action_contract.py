@@ -67,6 +67,10 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
         "trial-only",
         "project import is probed through PROJECT import scenarios without firing archive import",
     ),
+    "Install agi-app": (
+        "ignored",
+        "installs user-selected PyPI code and requires explicit operator trust; package preflight tests cover validation",
+    ),
     "Overwrite": (
         "ignored",
         "conditional conflict-resolution action that only appears after an import conflict",

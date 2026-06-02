@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import importlib
 from pathlib import Path
 
 
@@ -76,3 +77,11 @@ def test_agi_distributor_modules_are_classified_or_entrypoints():
     )
 
     _assert_package_modules_are_classified(root, "agi_cluster.agi_distributor")
+
+
+def test_shared_core_compat_modules_preserve_legacy_module_identity():
+    assert importlib.import_module("agi_env.pagelib").__name__ == "agi_env.pagelib"
+    assert (
+        importlib.import_module("agi_cluster.agi_distributor.deployment_local_support").__name__
+        == "agi_cluster.agi_distributor.deployment_local_support"
+    )
