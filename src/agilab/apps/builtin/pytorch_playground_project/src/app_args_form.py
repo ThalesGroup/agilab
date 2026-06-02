@@ -564,7 +564,7 @@ def _build_synced_run_snippet(
     cluster = _cluster_settings()
     cluster_enabled = bool(cluster.get("cluster_enabled", False))
     try:
-        from agilab.orchestrate_page_support import build_run_snippet
+        from agilab.orchestrate.orchestrate_page_support import build_run_snippet
 
         return build_run_snippet(
             env=env,

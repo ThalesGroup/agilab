@@ -216,8 +216,8 @@ auth_ref = "env:AWS_PROFILE"
     )
     page_path.write_text(
         """
-from agilab.data_connector_ui_preview import build_data_connector_ui_preview
-from agilab.data_connector_live_ui import render_connector_live_ui
+from agilab.data_connectors.data_connector_ui_preview import build_data_connector_ui_preview
+from agilab.data_connectors.data_connector_live_ui import render_connector_live_ui
 
 release_decision_connector_live_ui = render_connector_live_ui(
     st,

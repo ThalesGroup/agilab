@@ -17,12 +17,12 @@ package_paths = getattr(package, "__path__", None)
 if package_paths is not None and str(SRC_ROOT / "agilab") not in list(package_paths):
     package_paths.append(str(SRC_ROOT / "agilab"))
 
-from agilab.ci_artifact_harvest import (
+from agilab.ci.ci_artifact_harvest import (
     build_ci_artifact_harvest,
     sample_ci_artifacts,
 )
 from agilab import ci_provider_artifacts as provider_artifacts
-from agilab.ci_provider_artifacts import (
+from agilab.ci.ci_provider_artifacts import (
     build_artifact_index_from_archives,
     build_gitlab_ci_artifact_index,
     build_github_actions_artifact_index,

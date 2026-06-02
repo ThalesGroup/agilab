@@ -15,7 +15,7 @@ import agilab as _agilab_package
 if str(SRC_PACKAGE) not in _agilab_package.__path__:
     _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
 
-from agilab.pipeline_stage_templates import (
+from agilab.pipeline.pipeline_stage_templates import (
     PIPELINE_STAGE_TEMPLATE_ID_KEY,
     PIPELINE_STAGE_TEMPLATE_SCHEMA,
     PIPELINE_STAGE_TEMPLATE_VERSION_KEY,

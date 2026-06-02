@@ -7,8 +7,10 @@ import types
 
 import pytest
 
-_IMPORT_GUARD_PATH = Path(__file__).resolve().parents[1] / "src" / "agilab" / "import_guard.py"
-_SRC_ROOT = _IMPORT_GUARD_PATH.parents[1]
+_IMPORT_GUARD_PATH = (
+    Path(__file__).resolve().parents[1] / "src" / "agilab" / "security" / "import_guard.py"
+)
+_SRC_ROOT = _IMPORT_GUARD_PATH.parents[2]
 if str(_SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(_SRC_ROOT))
 _IMPORT_GUARD_SPEC = importlib.util.spec_from_file_location("agilab_import_guard_test", _IMPORT_GUARD_PATH)

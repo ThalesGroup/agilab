@@ -1153,7 +1153,7 @@ def test_agent_run_human_rendering_and_allow_failure(tmp_path: Path, capsys) -> 
 def test_agent_run_read_helpers_reject_negative_limit(tmp_path):
     import pytest
 
-    from agilab.agent_run import (
+    from agilab.agent_runtime.agent_run import (
         agent_context_payload,
         find_agent_run_manifests,
         list_agent_runs,

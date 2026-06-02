@@ -20,7 +20,7 @@ from typing import Any, Callable, Mapping, Sequence
 from agilab import run_manifest
 
 try:
-    from agilab.secret_uri import redact_mapping, redact_text
+    from agilab.security.secret_uri import redact_mapping, redact_text
 except Exception:  # pragma: no cover - standalone fallback
 
     def redact_text(text: object) -> str:

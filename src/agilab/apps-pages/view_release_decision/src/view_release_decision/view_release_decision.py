@@ -50,17 +50,17 @@ from agi_pages.runtime import (
 )
 from agi_env import AgiEnv
 from agi_env.connector_registry import ConnectorPathRegistry, build_connector_path_registry
-from agilab.data_connector_facility import (
+from agilab.data_connectors.data_connector_facility import (
     DEFAULT_CONNECTORS_RELATIVE_PATH,
     load_connector_catalog,
 )
-from agilab.data_connector_live_ui import render_connector_live_ui
-from agilab.data_connector_resolution import (
+from agilab.data_connectors.data_connector_live_ui import render_connector_live_ui
+from agilab.data_connectors.data_connector_resolution import (
     DEFAULT_SETTINGS_RELATIVE_PATH,
     load_app_settings,
 )
-from agilab.data_connector_ui_preview import build_data_connector_ui_preview
-from agilab.ci_artifact_harvest import SCHEMA as CI_ARTIFACT_HARVEST_SCHEMA
+from agilab.data_connectors.data_connector_ui_preview import build_data_connector_ui_preview
+from agilab.ci.ci_artifact_harvest import SCHEMA as CI_ARTIFACT_HARVEST_SCHEMA
 from agi_node.reduction import ReduceArtifact
 
 LOWER_IS_BETTER_KEYWORDS = ("mae", "rmse", "mape", "loss", "error", "latency", "duration")

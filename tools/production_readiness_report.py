@@ -615,7 +615,7 @@ def _check_profile_supply_chain_gate(repo_root: Path) -> dict[str, Any]:
             "pip-audit",
             "cyclonedx-py",
         ],
-        "src/agilab/security_check.py": [
+        "src/agilab/security/security_check.py": [
             "supply_chain_artifacts",
             "tools/profile_supply_chain_scan.py --profile all --run",
         ],
@@ -695,7 +695,7 @@ def _check_shared_team_go_gate(repo_root: Path) -> dict[str, Any]:
 
 def _check_public_ui_bind_guard(repo_root: Path) -> dict[str, Any]:
     required = {
-        "src/agilab/ui_public_bind_guard.py": [
+        "src/agilab/security/ui_public_bind_guard.py": [
             "EXPOSED_UI_HOSTS",
             "PUBLIC_BIND_OK_ENV",
             "AGILAB_PUBLIC_BIND_OK",
@@ -710,7 +710,7 @@ def _check_public_ui_bind_guard(repo_root: Path) -> dict[str, Any]:
             "test_direct_streamlit_public_bind_is_allowed_with_controls",
             "AGILAB_TLS_TERMINATED",
         ],
-        "src/agilab/security_check.py": [
+        "src/agilab/security/security_check.py": [
             "ui_network_exposure",
             "AGILAB_PUBLIC_BIND_OK",
             "auth/TLS",
@@ -739,12 +739,12 @@ def _check_public_ui_bind_guard(repo_root: Path) -> dict[str, Any]:
 
 def _check_cluster_share_fail_fast(repo_root: Path) -> dict[str, Any]:
     required = {
-        "src/agilab/security_check.py": [
+        "src/agilab/security/security_check.py": [
             "cluster_share_isolation",
             "Cluster share is the same path as the local share.",
             "do not silently degrade to localshare",
         ],
-        "src/agilab/orchestrate_cluster.py": [
+        "src/agilab/orchestrate/orchestrate_cluster.py": [
             "Cluster mode needs `AGI_CLUSTER_SHARE`",
             "Fix the cluster share before enabling cluster mode",
         ],

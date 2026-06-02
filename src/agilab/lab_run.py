@@ -23,7 +23,7 @@ from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 try:  # Prefer package import when AGILAB is importable as a normal package.
-    from agilab.import_guard import import_agilab_module
+    from agilab.security.import_guard import import_agilab_module
 except ModuleNotFoundError:
     from import_guard import import_agilab_module
 

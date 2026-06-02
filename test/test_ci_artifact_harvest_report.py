@@ -16,7 +16,7 @@ package_paths = getattr(package, "__path__", None)
 if package_paths is not None and str(SRC_ROOT / "agilab") not in list(package_paths):
     package_paths.append(str(SRC_ROOT / "agilab"))
 
-from agilab.ci_provider_artifacts import (
+from agilab.ci.ci_provider_artifacts import (
     build_artifact_index_from_archives,
     write_artifact_index,
     write_sample_github_actions_archive,

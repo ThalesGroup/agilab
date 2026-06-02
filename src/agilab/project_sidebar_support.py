@@ -1,47 +1,15 @@
-"""Shared PROJECT sidebar action contracts and session defaults."""
+"""Compatibility shim for ``agilab.project_sidebar_support``.
+
+The implementation now lives in ``agilab.projects.project_sidebar_support``. Keep this shim so existing
+imports continue to work while internal code migrates to the classified
+package layout.
+"""
 
 from __future__ import annotations
 
-from typing import Any, Callable, Iterable
+from agilab.compat.module_shim import activate_compat_module as _activate_compat_module
 
-PROJECT_EDITOR_ACTIONS = ("Edit", "Create", "Import", "Export", "Rename", "Delete")
-PROJECT_EDIT_ACTIONS = PROJECT_EDITOR_ACTIONS
-PROJECT_STATUS_ACTIONS = ("Overview", "Create", "Import", "Export", "Rename", "Delete")
-
-
-def normalize_project_sidebar_actions(actions: Iterable[Any]) -> tuple[str, ...]:
-    """Return canonical PROJECT sidebar action names without duplicates."""
-    normalized: list[str] = []
-    aliases = {"Clone": "Create"}
-    allowed = set(PROJECT_EDITOR_ACTIONS) | {"Overview"}
-    for raw_action in actions:
-        action = aliases.get(str(raw_action or "").strip(), str(raw_action or "").strip())
-        if action not in allowed:
-            raise ValueError(f"Unsupported PROJECT sidebar action: {raw_action!r}")
-        if action not in normalized:
-            normalized.append(action)
-    return tuple(normalized)
-
-
-def ensure_project_sidebar_session_defaults(
-    streamlit: Any,
-    env: Any,
-    actions: tuple[str, ...],
-    *,
-    get_templates: Callable[[], list[str]],
-    get_projects_zip: Callable[[], list[str]],
-) -> None:
-    """Initialize state required by PROJECT sidebar handlers in any host page."""
-    streamlit.session_state.setdefault("env", env)
-    streamlit.session_state.setdefault("_env", env)
-    streamlit.session_state.setdefault("orchest_functions", ["build_distribution"])
-    streamlit.session_state.setdefault("templates", get_templates())
-    streamlit.session_state.setdefault("archives", ["-- Select a file --"] + get_projects_zip())
-    streamlit.session_state.setdefault("export_message", "")
-    streamlit.session_state.setdefault("project_imported", False)
-    streamlit.session_state.setdefault("project_created", False)
-    streamlit.session_state.setdefault("show_widgets", [True, False])
-    streamlit.session_state.setdefault("pages", [])
-    streamlit.session_state.setdefault("switch_to_edit", False)
-    if actions:
-        streamlit.session_state.setdefault("sidebar_selection", actions[0])
+_TARGET_MODULE = "agilab.projects.project_sidebar_support"
+_module = _activate_compat_module(__name__, _TARGET_MODULE, legacy_name="agilab.project_sidebar_support")
+if _module is not None:
+    globals().update(_module.__dict__)

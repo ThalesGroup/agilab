@@ -17,8 +17,8 @@ import agilab as _agilab_package
 if str(SRC_PACKAGE) not in _agilab_package.__path__:
     _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
 
-import agilab.page_bundle_registry as page_registry
-from agilab.page_bundle_registry import (
+import agilab.ui.page_bundle_registry as page_registry
+from agilab.ui.page_bundle_registry import (
     PAGE_BUNDLE_SCHEMA,
     PAGE_TEMPLATE_SCHEMA,
     PageBundleRegistry,
@@ -33,7 +33,7 @@ from agilab.page_bundle_registry import (
     discover_page_templates,
     resolve_page_bundles,
 )
-from agilab.template_contracts import (
+from agilab.app_management.template_contracts import (
     TEMPLATE_CONTRACT_SCHEMA,
     load_optional_template_contract,
     load_template_contract,

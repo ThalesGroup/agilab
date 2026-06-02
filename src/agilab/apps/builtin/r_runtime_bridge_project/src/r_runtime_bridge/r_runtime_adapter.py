@@ -21,7 +21,7 @@ _SECRET_KEY_RE = re.compile(
 )
 
 try:
-    from agilab.secret_uri import redact_text as _agilab_redact_text
+    from agilab.security.secret_uri import redact_text as _agilab_redact_text
 except (
     ImportError
 ):  # pragma: no cover - used only when running this app package standalone

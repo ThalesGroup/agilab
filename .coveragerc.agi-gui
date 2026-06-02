@@ -14,6 +14,7 @@ omit =
     src/agilab/test/**/*
     src/agilab/lib/agi-gui/test/*
     src/agilab/_tmp_import_guard_*.py
+    src/agilab/**/_tmp_import_guard_*.py
     src/agilab/agi_codex.py
     src/agilab/apps/__init__.py
     src/agilab/apps/install.py

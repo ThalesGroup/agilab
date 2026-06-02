@@ -1,12 +1,15 @@
+"""Compatibility shim for ``agilab.code_editor_support``.
+
+The implementation now lives in ``agilab.components.code_editor_support``. Keep this shim so existing
+imports continue to work while internal code migrates to the classified
+package layout.
+"""
+
 from __future__ import annotations
 
-from typing import Any
+from agilab.compat.module_shim import activate_compat_module as _activate_compat_module
 
-
-def normalize_custom_buttons(payload: Any) -> list[Any]:
-    """Return the list-shaped button config expected by ``code_editor``."""
-    if isinstance(payload, list):
-        return payload
-    if isinstance(payload, dict) and isinstance(payload.get("buttons"), list):
-        return payload["buttons"]
-    raise TypeError("custom_buttons payload must be a list or an object with a 'buttons' list")
+_TARGET_MODULE = "agilab.components.code_editor_support"
+_module = _activate_compat_module(__name__, _TARGET_MODULE, legacy_name="agilab.code_editor_support")
+if _module is not None:
+    globals().update(_module.__dict__)

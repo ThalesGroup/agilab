@@ -71,7 +71,7 @@ from agi_gui.pagelib import (
 from agi_gui.ux_widgets import compact_choice
 from pathspec import PathSpec
 from pathspec.gitignore import GitIgnoreSpec
-from agilab.code_editor_component import code_editor
+from agilab.components.code_editor_component import code_editor
 from agi_env import AgiEnv
 from agi_env.app_provider_registry import resolve_installed_app_project
 
@@ -1245,7 +1245,7 @@ def _render_installed_pypi_app_manager(env) -> None:
 
 
 def _render_pypi_app_install_action(env) -> None:
-    with st.sidebar.expander("agi-app", expanded=False):
+    with st.sidebar.expander("Install from pypi.org", expanded=False):
         catalog = _search_promoted_pypi_app_catalog("")
         catalog_options = ["", *catalog]
         catalog_choice = st.selectbox(
@@ -2729,6 +2729,7 @@ def render_project_sidebar(
     _render_active_project_sidebar(env)
     env = st.session_state["env"]
 
+    _render_pypi_app_install_action(env)
     sidebar_selection = _render_project_quick_actions(actions)
     st.session_state["sidebar_selection"] = sidebar_selection
 
@@ -2749,7 +2750,6 @@ def render_project_sidebar(
         handle_project_delete()
     elif sidebar_selection == "Import":
         handle_project_import()
-    _render_pypi_app_install_action(env)
     return sidebar_selection
 
 

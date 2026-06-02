@@ -9,9 +9,9 @@ from types import ModuleType
 
 import streamlit as st
 
-from agilab.page_bootstrap import ensure_page_env, render_page_chrome
-from agilab.page_project_selector import render_project_selector
-from agilab.project_sidebar_support import PROJECT_STATUS_ACTIONS
+from agilab.ui.page_bootstrap import ensure_page_env, render_page_chrome
+from agilab.ui.page_project_selector import render_project_selector
+from agilab.projects.project_sidebar_support import PROJECT_STATUS_ACTIONS
 
 _PROJECT_EDITOR_PAGE_MODULE = "agilab_project_edit_page_shared"
 

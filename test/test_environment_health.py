@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from agilab import environment_health
-from agilab.environment_health import build_environment_health, compact_path_caption
+from agilab.environment.environment_health import build_environment_health, compact_path_caption
 
 
 def _card_map(health):

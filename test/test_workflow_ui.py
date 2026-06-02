@@ -677,7 +677,10 @@ def test_workflow_ui_project_context_remaining_edges(monkeypatch, tmp_path) -> N
     assert workflow_ui._run_history(None) == ("0", "environment not loaded", "incomplete")
 
     def _blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "agilab.environment_health":
+        if name in {
+            "agilab.environment_health",
+            "agilab.environment.environment_health",
+        }:
             raise RuntimeError("blocked")
         return original_import(name, globals, locals, fromlist, level)
 

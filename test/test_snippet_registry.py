@@ -17,7 +17,7 @@ if str(SRC_PACKAGE) not in _agilab_package.__path__:
 
 from agilab import snippet_registry
 from agi_env.snippet_contract import snippet_contract_block
-from agilab.snippet_registry import (
+from agilab.workflow.snippet_registry import (
     SNIPPET_REGISTRY_SCHEMA,
     SnippetCandidateRegistry,
     SnippetCandidateSpec,

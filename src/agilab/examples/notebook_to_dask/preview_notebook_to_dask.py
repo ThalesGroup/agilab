@@ -19,7 +19,7 @@ if _agilab_pkg is not None:
     if package_path not in package_paths:
         _agilab_pkg.__path__ = [*package_paths, package_path]
 
-from agilab.notebook_pipeline_import import build_lab_stages_preview, build_notebook_pipeline_import
+from agilab.notebooks.notebook_pipeline_import import build_lab_stages_preview, build_notebook_pipeline_import
 
 
 EXAMPLE_DIR = Path(__file__).resolve().parent

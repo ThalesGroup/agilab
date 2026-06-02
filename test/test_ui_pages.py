@@ -83,7 +83,7 @@ def test_primary_pages_keep_homogeneous_support_field_order() -> None:
     project_source = Path("src/agilab/pages/1_PROJECT.py").read_text(
         encoding="utf-8"
     )
-    project_sidebar_source = Path("src/agilab/project_sidebar_support.py").read_text(
+    project_sidebar_source = Path("src/agilab/projects/project_sidebar_support.py").read_text(
         encoding="utf-8"
     )
     analysis_main = analysis_source[analysis_source.index("async def main():") :]
@@ -91,7 +91,7 @@ def test_primary_pages_keep_homogeneous_support_field_order() -> None:
         "async def main" if "async def main" in workflow_source else "def main"
     )
     workflow_main = workflow_source[workflow_source.index(workflow_main_marker) :]
-    assert 'st.sidebar.expander("agi-app", expanded=False)' in project_source
+    assert 'st.sidebar.expander("Install from pypi.org", expanded=False)' in project_source
     assert '"Check",' in project_source
     assert '"Install",' in project_source
     assert '"Reviewed",' in project_source
@@ -849,7 +849,7 @@ def test_agilab_main_page_shows_agilab_version(mock_ui_env):
 
 def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     source = Path("src/agilab/main_page.py").read_text(encoding="utf-8")
-    selector_source = Path("src/agilab/page_project_selector.py").read_text(
+    selector_source = Path("src/agilab/ui/page_project_selector.py").read_text(
         encoding="utf-8"
     )
     pipeline_source = Path("src/agilab/pages/3_WORKFLOW.py").read_text(encoding="utf-8")
@@ -2540,7 +2540,7 @@ def test_execute_page_workers_data_path(mock_ui_env):
 
 def test_execute_service_snippet_maps_runtime_health_settings():
     """Service snippet template must forward runtime heartbeat/cleanup settings."""
-    source = Path("src/agilab/orchestrate_services.py").read_text(encoding="utf-8")
+    source = Path("src/agilab/orchestrate/orchestrate_services.py").read_text(encoding="utf-8")
     assert "heartbeat_timeout={float(service_heartbeat_timeout)}" in source
     assert (
         "cleanup_done_ttl_sec={float(service_cleanup_done_ttl_hours) * 3600.0}"
@@ -3174,7 +3174,8 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     assert "Reviewed" in sidebar_checkbox_labels
     assert "Reviewed agi-app" not in sidebar_checkbox_labels
     sidebar_expander_labels = [str(expander.label) for expander in at.sidebar.expander]
-    assert "agi-app" in sidebar_expander_labels
+    assert "Install from pypi.org" in sidebar_expander_labels
+    assert sidebar_expander_labels.index("Install from pypi.org") < sidebar_expander_labels.index("Quick actions")
     assert "agi-app from PyPI" not in sidebar_expander_labels
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     expander_labels = [str(item.label) for item in at.expander]

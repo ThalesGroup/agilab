@@ -19,8 +19,8 @@ if _agilab_pkg is not None:
     if package_path not in package_paths:
         _agilab_pkg.__path__ = [*package_paths, package_path]
 
-from agilab.global_pipeline_execution_plan import build_execution_plan
-from agilab.global_pipeline_runner_state import dispatch_next_runnable, persist_runner_state
+from agilab.global_pipeline.global_pipeline_execution_plan import build_execution_plan
+from agilab.global_pipeline.global_pipeline_runner_state import dispatch_next_runnable, persist_runner_state
 
 
 DAG_PATH = (
