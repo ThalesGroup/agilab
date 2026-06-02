@@ -1,0 +1,25 @@
+<svg width="249" height="48" viewBox="0 0 249 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Open in HuggingFace</title>
+  <desc id="desc">Large launch badge linking to the AGILAB Hugging Face Space.</desc>
+  <defs>
+    <linearGradient id="badge-fill" x1="0" y1="0" x2="249" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF9E7"/>
+      <stop offset="1" stop-color="#FFE9A9"/>
+    </linearGradient>
+    <linearGradient id="face-fill" x1="18" y1="10" x2="47" y2="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFD76A"/>
+      <stop offset="1" stop-color="#FFB321"/>
+    </linearGradient>
+  </defs>
+  <path d="M0.75 24C0.75 11.16 11.17 0.75 24.02 0.75H224.98C237.83 0.75 248.25 11.16 248.25 24C248.25 36.84 237.83 47.25 224.98 47.25H24.02C11.17 47.25 0.75 36.84 0.75 24Z" fill="url(#badge-fill)" stroke="#EFE2B5" stroke-width="1.5"/>
+  <circle cx="32" cy="24" r="14" fill="url(#face-fill)"/>
+  <circle cx="26.5" cy="21" r="1.9" fill="#513A16"/>
+  <circle cx="37.5" cy="21" r="1.9" fill="#513A16"/>
+  <path d="M26 27.2C28.9 30.5 35.1 30.5 38 27.2" stroke="#513A16" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M18.6 15.8C16.7 13.8 13.5 13.9 11.8 16.2C10.1 18.5 10.8 21.6 13.3 22.7L19.1 25.3" fill="#FFD76A"/>
+  <path d="M45.4 15.8C47.3 13.8 50.5 13.9 52.2 16.2C53.9 18.5 53.2 21.6 50.7 22.7L44.9 25.3" fill="#FFD76A"/>
+  <text x="60" y="21" fill="#2C3236" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" letter-spacing="0.1">Open in</text>
+  <text x="60" y="35" fill="#2C3236" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="17" font-weight="700" letter-spacing="0.1">HuggingFace</text>
+  <path d="M210.5 15.5H224.5V29.5" stroke="#7A5A1B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M224.5 15.5L207.5 32.5" stroke="#7A5A1B" stroke-width="2.4" stroke-linecap="round"/>
+</svg>
