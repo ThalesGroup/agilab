@@ -1336,7 +1336,7 @@ def test_install_status_warning_reports_existing_stale_environment():
 
     warning = module._install_status_warning_message(install_status)
     assert warning is not None
-    assert "Environment install is incomplete or stale" in warning
+    assert "Environment deployment is incomplete or stale" in warning
     assert "missing modules: agi_cluster" in warning
     label, caption = module._runtime_status_label(install_status)
     assert label == "Needs deployment"
@@ -2026,7 +2026,7 @@ async def test_install_worker_action_classifies_corrupted_dataset_archive(
         "or not a valid .7z dataset archive."
     )
     assert result.data["failure_category"] == "archive"
-    assert "rerun Deploy workers" in str(result.next_action)
+    assert "rerun INSTALL" in str(result.next_action)
     assert "not a 7z file" not in str((result.title, result.detail, result.next_action))
 
 

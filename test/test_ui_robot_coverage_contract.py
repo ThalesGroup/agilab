@@ -123,7 +123,7 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "pages": [],
     }
     assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-install"] == {
-        "actions": ["install"],
+        "actions": ["deploy workers"],
         "apps_pages": [],
         "flags": [],
         "pages": ["ORCHESTRATE"],
@@ -625,7 +625,7 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
     assert "default robot matrix has no scenarios for --apps all" in details
     assert "PROJECT_EDITOR is not covered by any default robot scenario" in details
     assert "'Deploy workers' is not covered by a selected-action scenario" in details
-    assert "hf-first-proof-install is missing required actions: install" in details
+    assert "hf-first-proof-install is missing required actions: deploy workers" in details
     assert (
         "hf-first-proof-app-pages-visual-smoke is missing required apps-pages: "
         "view_forecast_analysis, view_release_decision"

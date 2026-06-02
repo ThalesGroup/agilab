@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .app_args import (
+from .runtime.app_args import (
     ArgsModel,
     ArgsOverrides,
     PytorchPlaygroundArgs,
@@ -13,14 +13,14 @@ from .app_args import (
     merge_args,
     to_playground_config,
 )
-from .reduction import PYTORCH_PLAYGROUND_REDUCE_CONTRACT
+from .runtime.reduction import PYTORCH_PLAYGROUND_REDUCE_CONTRACT
 
 _MANAGER_EXPORTS = {"PytorchPlayground", "PytorchPlaygroundApp"}
 
 
 def __getattr__(name: str):
     if name in _MANAGER_EXPORTS:
-        from .pytorch_playground import PytorchPlayground, PytorchPlaygroundApp
+        from .runtime.pytorch_playground import PytorchPlayground, PytorchPlaygroundApp
 
         exports = {
             "PytorchPlayground": PytorchPlayground,

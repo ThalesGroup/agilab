@@ -64,26 +64,28 @@ def test_compat_alias_exposes_source_module(monkeypatch) -> None:
 
 
 def test_compatibility_proxy_modules_import_from_agi_env() -> None:
-    proxy_names = [
-        "pagelib",
-        "pagelib_data_support",
-        "pagelib_execution_support",
-        "pagelib_navigation_support",
-        "pagelib_preview_support",
-        "pagelib_project_support",
-        "pagelib_resource_support",
-        "pagelib_runtime_support",
-        "pagelib_selection_support",
-        "pagelib_session_support",
-        "streamlit_args",
-        "ui_docs_support",
-        "ui_state_support",
-        "ui_support",
-    ]
+    proxy_targets = {
+        "pagelib": "agi_env.ui.pagelib",
+        "pagelib_data_support": "agi_env.ui.pagelib_data_support",
+        "pagelib_execution_support": "agi_env.ui.pagelib_execution_support",
+        "pagelib_navigation_support": "agi_env.ui.pagelib_navigation_support",
+        "pagelib_preview_support": "agi_env.ui.pagelib_preview_support",
+        "pagelib_project_support": "agi_env.ui.pagelib_project_support",
+        "pagelib_resource_support": "agi_env.ui.pagelib_resource_support",
+        "pagelib_runtime_support": "agi_env.ui.pagelib_runtime_support",
+        "pagelib_selection_support": "agi_env.ui.pagelib_selection_support",
+        "pagelib_session_support": "agi_env.ui.pagelib_session_support",
+        "streamlit_args": "agi_env.ui.streamlit_args",
+        "ui_docs_support": "agi_env.ui.ui_docs_support",
+        "ui_state_support": "agi_env.ui.ui_state_support",
+        "ui_support": "agi_env.ui.ui_support",
+    }
 
-    for proxy_name in proxy_names:
+    for proxy_name, source_name in proxy_targets.items():
         module = importlib.import_module(f"agi_gui.{proxy_name}")
-        assert module.__name__ == f"agi_env.{proxy_name}"
+        assert module.__name__ == source_name
+        assert sys.modules[f"agi_gui.{proxy_name}"] is module
+        assert sys.modules[f"agi_env.{proxy_name}"] is module
 
 
 def test_top_level_agi_gui_modules_are_entrypoints_or_compatibility_shims() -> None:
