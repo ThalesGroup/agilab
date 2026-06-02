@@ -56,15 +56,36 @@ def test_resolve_pages_accepts_all_csv_and_home_alias() -> None:
 def test_settings_page_has_stable_robot_expectations() -> None:
     module = _load_module()
 
-    assert module.PAGE_EXPECTED_TEXT["SETTINGS"] == (
-        "SETTINGS",
-        "Settings",
-        "Runtime diagnostics",
-        "Environment variables",
-    )
+    assert module.PAGE_EXPECTED_TEXT["SETTINGS"] == ("SETTINGS", "Settings", "README")
+    assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["SETTINGS"] == ("SETTINGS", "README")
     assert module.PAGE_EXPECTED_TEXT[""] == ("Turn experiments", "First proof: built-in demo")
     assert module.PAGE_MIN_WIDGETS["SETTINGS"] == 5
     assert module.PAGE_MIN_WIDGETS[""] == 1
+
+
+def test_core_page_above_fold_expectations_track_current_layout() -> None:
+    module = _load_module()
+
+    assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["PROJECT"] == (
+        "PROJECT",
+        "Flight Telemetry",
+        "Install PyPI app",
+    )
+    assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["ORCHESTRATE"] == (
+        "ORCHESTRATE",
+        "Flight Telemetry",
+        "Deploy",
+    )
+    assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["WORKFLOW"] == (
+        "WORKFLOW",
+        "Flight Telemetry",
+        "Data source",
+    )
+    assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["ANALYSIS"] == (
+        "ANALYSIS",
+        "Flight Telemetry Project",
+        "view_maps",
+    )
 
 
 def test_append_route_query_preserves_active_app_and_adds_deep_link() -> None:
@@ -760,15 +781,15 @@ def test_above_fold_probe_filters_targets_by_initial_fold() -> None:
                 "fold": 800,
                 "targets": [
                     {"label": "ORCHESTRATE", "inFold": True},
-                    {"label": "INSTALL", "inFold": True},
-                    {"label": "EXECUTE", "inFold": False},
+                    {"label": "Flight Telemetry", "inFold": True},
+                    {"label": "Deploy", "inFold": False},
                 ],
             }
 
     probe = module._above_fold_probe(_Page(), app_name="flight_telemetry_project", display="ORCHESTRATE")
 
     assert probe.status == "failed"
-    assert "EXECUTE" in probe.detail
+    assert "Deploy" in probe.detail
 
 
 def test_required_text_probe_reads_child_frames() -> None:
