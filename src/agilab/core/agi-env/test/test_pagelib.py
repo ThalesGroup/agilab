@@ -1615,7 +1615,7 @@ def test_subproc_uses_absolute_cwd_and_returns_stdout(monkeypatch, tmp_path):
         def __init__(self, stdout_value):
             self.stdout = stdout_value
 
-    def fake_popen(command, shell, cwd, stdout, stderr, text, env):
+    def fake_popen(command, shell, cwd, stdout, stderr, text, env, **kwargs):
         calls["command"] = command
         calls["shell"] = shell
         calls["cwd"] = cwd
@@ -1623,6 +1623,7 @@ def test_subproc_uses_absolute_cwd_and_returns_stdout(monkeypatch, tmp_path):
         calls["stderr"] = stderr
         calls["text"] = text
         calls["env"] = env
+        calls["kwargs"] = kwargs
         return FakeProcess("stream-output")
 
     monkeypatch.setattr(pagelib.subprocess, "Popen", fake_popen)
@@ -1637,6 +1638,25 @@ def test_subproc_uses_absolute_cwd_and_returns_stdout(monkeypatch, tmp_path):
     assert calls["stderr"] == subprocess.STDOUT
     assert isinstance(calls["env"], dict)
     assert calls["text"] is True
+    assert calls["kwargs"] == {}
+
+    explicit_stdout = object()
+    explicit_env = {"AGILAB_TEST": "1"}
+    process_value = pagelib.subproc(
+        ["python", "-m", "mlflow"],
+        tmp_path,
+        env=explicit_env,
+        stdout=explicit_stdout,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+    assert isinstance(process_value, FakeProcess)
+    assert calls["command"] == ["python", "-m", "mlflow"]
+    assert calls["stdout"] is explicit_stdout
+    assert calls["stderr"] == subprocess.DEVNULL
+    assert calls["env"] == explicit_env
+    assert calls["kwargs"] == {"start_new_session": True}
 
 
 @pytest.mark.skipif(
