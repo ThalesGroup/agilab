@@ -206,6 +206,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 CREATE_MODE_TEMPLATE = "Template clone"
 CREATE_MODE_NOTEBOOK = "From notebook"
+PROJECT_EDIT_ACTIONS = ("Edit", "Create", "Import", "Rename", "Delete")
+PROJECT_STATUS_ACTIONS = ("Create", "Import", "Rename", "Delete")
 PROJECT_NOTEBOOK_IMPORT_START = "notebook-import"
 PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY = "_project_notebook_import_query_seed_consumed"
 PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY = "_project_notebook_import_defaults"
@@ -2584,6 +2586,64 @@ def _render_sidebar_export_action(env) -> None:
         handle_export_project()
 
 
+def _normalize_project_sidebar_actions(actions) -> tuple[str, ...]:
+    normalized: list[str] = []
+    aliases = {"Clone": "Create"}
+    allowed = set(PROJECT_EDIT_ACTIONS)
+    for raw_action in actions:
+        action = aliases.get(str(raw_action or "").strip(), str(raw_action or "").strip())
+        if action not in allowed:
+            raise ValueError(f"Unsupported PROJECT sidebar action: {raw_action!r}")
+        if action not in normalized:
+            normalized.append(action)
+    return tuple(normalized)
+
+
+def render_project_sidebar(
+    env,
+    *,
+    actions=PROJECT_EDIT_ACTIONS,
+    render_edit_body: bool = True,
+) -> str | None:
+    """Render the reusable PROJECT sidebar and dispatch selected project action."""
+    actions = _normalize_project_sidebar_actions(actions)
+    if not actions:
+        return None
+
+    if st.session_state.get("sidebar_selection") == "Clone":
+        st.session_state["sidebar_selection"] = "Create"
+    if st.session_state.get("sidebar_selection") not in actions:
+        st.session_state["sidebar_selection"] = actions[0]
+
+    _render_active_project_sidebar(env)
+    env = st.session_state["env"]
+    _render_sidebar_export_action(env)
+
+    sidebar_selection = compact_choice(
+        st.sidebar,
+        "Project action",
+        actions,
+        key="sidebar_selection",
+        label_visibility="collapsed",
+        fallback="radio",
+    )
+
+    if sidebar_selection == "Edit":
+        if render_edit_body:
+            handle_project_selection()
+        else:
+            st.sidebar.info("Use Edit to open file, configuration, runtime, and code editors.")
+    elif sidebar_selection == "Create":
+        handle_project_creation()
+    elif sidebar_selection == "Rename":
+        handle_project_rename()
+    elif sidebar_selection == "Delete":
+        handle_project_delete()
+    elif sidebar_selection == "Import":
+        handle_project_import()
+    return sidebar_selection
+
+
 def _safe_display_path(value) -> str:
     if value in (None, ""):
         return "not configured"
@@ -4737,30 +4797,7 @@ def page():
     if not _consume_notebook_import_query_seed(st.session_state, st.query_params):
         _consume_project_section_query_seed(st.session_state, st.query_params)
 
-    _render_active_project_sidebar(env)
-    env = st.session_state["env"]
-    _render_sidebar_export_action(env)
-
-    # Sidebar: Project selection, creation, loading
-    sidebar_selection = compact_choice(
-        st.sidebar,
-        "Project action",
-        ["Edit", "Create", "Import", "Rename", "Delete"],
-        key="sidebar_selection",
-        label_visibility="collapsed",
-        fallback="radio",
-    )
-
-    if sidebar_selection == "Edit":
-        handle_project_selection()
-    elif sidebar_selection == "Create":
-        handle_project_creation()
-    elif sidebar_selection == "Rename":
-        handle_project_rename()
-    elif sidebar_selection == "Delete":
-        handle_project_delete()
-    elif sidebar_selection == "Import":
-        handle_project_import()
+    render_project_sidebar(env)
 
 
 # -------------------- Main Application Entry -------------------- #
