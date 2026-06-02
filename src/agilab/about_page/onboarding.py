@@ -938,7 +938,7 @@ def _render_first_proof_wizard_actions(
         st.caption(FIRST_PROOF_NOTEBOOK_LANE_LABEL)
         _first_proof_link_button(
             FIRST_PROOF_NOTEBOOK_BUTTON,
-            _first_proof_page_url("PROJECT_STATUS", _first_proof_notebook_query_params(env, state)),
+            _first_proof_page_url("PROJECT", _first_proof_notebook_query_params(env, state)),
             key="first_proof:wizard:sample_notebook",
             button_type="secondary",
         )

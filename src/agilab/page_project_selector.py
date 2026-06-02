@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 NAVIGATION_PAGE_ROUTES_ATTR = "_NAVIGATION_PAGE_ROUTES"
-PROJECT_ROUTE_ID = "project"
+PROJECT_ROUTE_ID = "project_edit"
 PROJECT_PAGE_PATH = Path("pages/1_PROJECT.py")
 MAIN_NAVIGATION_MODULES = ("__main__", "agilab.main_page")
 

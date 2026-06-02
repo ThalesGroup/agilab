@@ -659,7 +659,7 @@ def render_context_expander(
             _render_context_link(
                 streamlit,
                 label="Change project",
-                url=_project_page_url("PROJECT_STATUS", env),
+                url=_project_page_url("PROJECT", env),
                 key=f"{key_root}:change_project",
             )
         with link_columns[1]:

@@ -4815,12 +4815,10 @@ def page():
     for key, value in session_defaults.items():
         st.session_state.setdefault(key, value)
 
-    if st.session_state.get("sidebar_selection") == "Clone":
-        st.session_state["sidebar_selection"] = "Create"
-    if not _consume_notebook_import_query_seed(st.session_state, st.query_params):
-        _consume_project_section_query_seed(st.session_state, st.query_params)
+    st.session_state["sidebar_selection"] = "Edit"
+    _consume_project_section_query_seed(st.session_state, st.query_params)
 
-    render_project_sidebar(env, actions=("Edit",))
+    handle_project_selection()
 
 
 # -------------------- Main Application Entry -------------------- #

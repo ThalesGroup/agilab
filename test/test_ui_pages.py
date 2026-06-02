@@ -742,7 +742,7 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     assert '_page_file_runner(pages_root / "1_PROJECT.py")' in project_block
     assert '_page_file_runner(pages_root / "1_PROJECT_STATUS.py")' in project_status_block
     assert 'title="PROJECT"' in project_status_block
-    assert 'url_path="PROJECT_STATUS"' in project_status_block
+    assert 'url_path="PROJECT"' in project_status_block
     assert 'visibility="hidden"' in source
     assert 'title="ORCHESTRATE"' in source
     assert 'title="WORKFLOW"' in source
@@ -3028,6 +3028,7 @@ def test_project_edit_page_is_edit_only(mock_ui_env):
     assert at.session_state["sidebar_selection"] == "Edit"
     assert "clone_env_strategy" not in at.session_state
     assert "clone_dest" not in [ti.key for ti in at.sidebar.text_input]
+    assert not any(button.label == "Export" for button in at.sidebar.button)
 
 
 def test_project_status_notebook_import_query_opens_file_selector(mock_ui_env):

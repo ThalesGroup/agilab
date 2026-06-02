@@ -582,7 +582,7 @@ def _active_app_readme_path(env: Any | None) -> Path | None:
 
 
 def _sidebar_readme_url(env: Any | None, readme_path: Path) -> str:
-    return f"/PROJECT?{urlencode(_sidebar_readme_query_params(env, readme_path))}"
+    return f"/PROJECT_EDIT?{urlencode(_sidebar_readme_query_params(env, readme_path))}"
 
 
 def _sidebar_readme_query_params(env: Any | None, readme_path: Path) -> dict[str, str]:
@@ -1122,15 +1122,15 @@ def _navigation_pages() -> list[Any]:
         visibility="hidden",
     )
     project_page = st.Page(
-        _page_file_runner(pages_root / "1_PROJECT.py"),
-        title="PROJECT EDIT",
-        url_path="PROJECT",
-        visibility="hidden",
-    )
-    project_status_page = st.Page(
         _page_file_runner(pages_root / "1_PROJECT_STATUS.py"),
         title="PROJECT",
-        url_path="PROJECT_STATUS",
+        url_path="PROJECT",
+    )
+    project_edit_page = st.Page(
+        _page_file_runner(pages_root / "1_PROJECT.py"),
+        title="PROJECT EDIT",
+        url_path="PROJECT_EDIT",
+        visibility="hidden",
     )
     orchestrate_page = st.Page(
         _page_file_runner(pages_root / "2_ORCHESTRATE.py"),
@@ -1152,7 +1152,8 @@ def _navigation_pages() -> list[Any]:
         {
             "settings": settings_nav_page,
             "project": project_page,
-            "project_status": project_status_page,
+            "project_status": project_page,
+            "project_edit": project_edit_page,
             "orchestrate": orchestrate_page,
             "workflow": workflow_page,
             "analysis": analysis_page,
@@ -1162,7 +1163,7 @@ def _navigation_pages() -> list[Any]:
         main_page,
         settings_nav_page,
         project_page,
-        project_status_page,
+        project_edit_page,
         orchestrate_page,
         workflow_page,
         analysis_page,

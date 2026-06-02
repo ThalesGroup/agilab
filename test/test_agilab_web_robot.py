@@ -1289,7 +1289,7 @@ class _FakeBrowserPage:
         *,
         goto_error: Exception | None = None,
         link_error: Exception | None = None,
-        link_href: str | None = "/PROJECT_STATUS?active_app=flight&start=notebook-import&sample=agilab-first-proof",
+        link_href: str | None = "/PROJECT?active_app=flight&start=notebook-import&sample=agilab-first-proof",
         selector_error: Exception | None = None,
         url_error: Exception | None = None,
     ) -> None:
@@ -1335,7 +1335,7 @@ class _FakeBrowserPage:
     def wait_for_url(self, _pattern, *, timeout: float) -> None:
         if self.url_error is not None:
             raise self.url_error
-        self.url = "http://demo/PROJECT_STATUS?active_app=flight"
+        self.url = "http://demo/PROJECT?active_app=flight"
         self.body_text = "PROJECT AGILAB's included notebook is selected"
 
     def get_by_text(self, text: str, *, exact: bool = False):
