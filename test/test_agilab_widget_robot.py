@@ -774,7 +774,7 @@ def test_above_fold_result_probe_accepts_primary_targets() -> None:
         display="ORCHESTRATE",
         url="http://demo/ORCHESTRATE",
         expected_labels=("ORCHESTRATE", "Deploy workers", "EXECUTE"),
-        seen_labels=("ORCHESTRATE", "INSTALL action", "EXECUTE action"),
+        seen_labels=("ORCHESTRATE", "Deploy workers action", "EXECUTE action"),
         fold=900,
     )
 
@@ -3044,6 +3044,9 @@ def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     assert "install finished with errors" in module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
     assert "install finished with errors" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
     assert "install finished with errors" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
+    assert "worker deployment finished with errors" in module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
+    assert "worker deployment finished with errors" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
+    assert "worker deployment finished with errors" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
 
 
 def test_action_log_error_collectors_ignore_generic_failure_words() -> None:
@@ -3063,12 +3066,14 @@ def test_action_log_error_collectors_ignore_generic_failure_words() -> None:
             assert broad_needles.isdisjoint(values)
             assert "distribution build failed" in values
             assert "install finished with errors" in values
+            assert "worker deployment finished with errors" in values
 
 
 def test_action_log_feedback_collector_catches_install_finished_with_errors() -> None:
     module = _load_module()
 
     assert '"install finished with errors"' in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
+    assert '"worker deployment finished with errors"' in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
     assert '"finished with errors"' in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
     assert '"installation failed"' in module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
 

@@ -169,12 +169,12 @@ def _check_remote_execution_hardening(repo_root: Path) -> dict[str, Any]:
         ),
         fail_summary="remote execution command construction is not fully evidenced as quoted",
         required={
-            "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/runtime_distribution_support.py": [
+            "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/runtime/runtime_distribution_support.py": [
                 "_remote_dask_worker_command",
                 "shlex.quote",
                 "tcp://{scheduler}",
             ],
-            "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/deployment_remote_support.py": [
+            "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/deployment/deployment_remote_support.py": [
                 "_remote_arg",
                 "_remote_command",
                 "_remote_share_mount_command",
@@ -197,7 +197,7 @@ def _check_capacity_model_trust_boundary(repo_root: Path) -> dict[str, Any]:
         ),
         fail_summary="capacity predictor pickle trust boundary is incomplete",
         required={
-            "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/runtime_misc_support.py": [
+            "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/runtime/runtime_misc_support.py": [
                 "_capacity_model_trust_error",
                 "_capacity_model_manifest_error",
                 "write_capacity_model_manifest",
@@ -205,7 +205,7 @@ def _check_capacity_model_trust_boundary(repo_root: Path) -> dict[str, Any]:
                 "model file is world-writable",
                 "Refusing to load unverified capacity model",
             ],
-            "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/capacity_support.py": [
+            "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/runtime/capacity_support.py": [
                 "write_capacity_model_manifest",
             ],
             "src/agilab/core/agi-env/src/agi_env/resources/.agilab/balancer_model.pkl.sha256.json": [

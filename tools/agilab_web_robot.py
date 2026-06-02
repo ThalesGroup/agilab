@@ -98,6 +98,7 @@ DEFAULT_REJECT_PATTERNS = (
     "provided active app path does not exist",
     "failed to render view:",
     "install finished with errors",
+    "worker deployment finished with errors",
     "cluster installation failed",
 )
 ANALYSIS_VIEW_RELATIVE_PATHS = {

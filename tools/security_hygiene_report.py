@@ -20,8 +20,8 @@ PIP_AUDIT_COMMAND = "pip-audit --format json --output pip-audit.json"
 SBOM_COMMAND = "cyclonedx-py environment --output-format JSON --output-file sbom-cyclonedx.json"
 SERVICE_QUEUE_FILES = (
     "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/base_worker_service_support.py",
-    "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/service_lifecycle_support.py",
-    "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/service_state_support.py",
+    "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/service/service_lifecycle_support.py",
+    "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/service/service_state_support.py",
 )
 SCAN_EXCLUDED_PARTS = {
     ".git",
@@ -619,7 +619,7 @@ def _remote_installer_staging_check(repo_root: Path) -> dict[str, Any]:
     files = [
         "install.sh",
         "tools/install_enduser.sh",
-        "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/deployment_prepare_support.py",
+        "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/deployment/deployment_prepare_support.py",
     ]
     texts = {relative_path: _read_text(repo_root / relative_path) for relative_path in files}
     forbidden_tokens = [
@@ -677,7 +677,7 @@ def _installer_dry_run_profile_check(repo_root: Path) -> dict[str, Any]:
 
 
 def _central_command_runner_shell_gate_check(repo_root: Path) -> dict[str, Any]:
-    relative_path = "src/agilab/core/agi-env/src/agi_env/execution_support.py"
+    relative_path = "src/agilab/core/agi-env/src/agi_env/runtime/execution_support.py"
     text = _read_text(repo_root / relative_path)
     required_tokens = [
         "def _command_requires_shell",
