@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import shlex
+import subprocess
 import uuid
 from pathlib import Path, PurePosixPath
 from shlex import quote
@@ -42,6 +43,10 @@ _SSHFS_OPTIONS = (
 )
 _REMOTE_PATH_PREFIX = (
     'export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; '
+)
+_REVERSE_SSHFS_LOOP_HINT = (
+    "Unmount the local reverse SSHFS viewer mount or use a non-overlapping viewer "
+    "path such as ~/worker_clustershare before running cluster INSTALL/RUN."
 )
 
 
@@ -149,6 +154,89 @@ def _remote_share_unmount_snippet() -> str:
         "elif command -v fusermount >/dev/null 2>&1; then "
         'fusermount -u "$REMOTE_CLUSTER_SHARE" || true; '
         'else umount "$REMOTE_CLUSTER_SHARE" || true; fi'
+    )
+
+
+def _sshfs_source_host(source: str) -> str:
+    cleaned = str(source or "").strip()
+    if cleaned.startswith("sshfs#"):
+        cleaned = cleaned.split("#", 1)[1]
+    if not cleaned:
+        return ""
+
+    if cleaned.startswith("[") or "@[" in cleaned:
+        prefix = cleaned.rsplit("]:", 1)[0] + "]" if "]:" in cleaned else cleaned
+    elif ":" in cleaned:
+        prefix = cleaned.split(":", 1)[0]
+    else:
+        prefix = cleaned
+
+    host = prefix.rsplit("@", 1)[-1]
+    if host.startswith("[") and host.endswith("]"):
+        return host[1:-1]
+    return host
+
+
+def _local_mount_record_for_path(path: Path) -> dict[str, str] | None:
+    try:
+        completed = subprocess.run(
+            [
+                "findmnt",
+                "-T",
+                path.as_posix(),
+                "-n",
+                "-P",
+                "-o",
+                "TARGET,SOURCE,FSTYPE",
+            ],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+
+    line = completed.stdout.strip().splitlines()[0] if completed.stdout.strip() else ""
+    if not line:
+        return None
+
+    record: dict[str, str] = {}
+    try:
+        fields = shlex.split(line, posix=True)
+    except ValueError:
+        return None
+    for field in fields:
+        if "=" not in field:
+            continue
+        key, value = field.split("=", 1)
+        record[key] = value
+    return record or None
+
+
+def _reverse_sshfs_mount_problem(local_share: Path, worker_ip: str) -> str | None:
+    record = _local_mount_record_for_path(local_share)
+    if not record:
+        return None
+
+    fstype = record.get("FSTYPE", "")
+    if "sshfs" not in fstype.lower():
+        return None
+
+    source = record.get("SOURCE", "")
+    source_host = _sshfs_source_host(source)
+    if source_host != str(worker_ip or "").strip():
+        return None
+
+    target = record.get("TARGET", "")
+    return (
+        f"Refusing to mount AGI_CLUSTER_SHARE on remote worker {worker_ip}: "
+        f"scheduler share {local_share.as_posix()} is already inside SSHFS mount "
+        f"{target or '<unknown target>'} from the same worker ({source}). "
+        "Mounting the scheduler share back onto that worker would create an SSHFS loop. "
+        f"{_REVERSE_SSHFS_LOOP_HINT}"
     )
 
 
@@ -279,6 +367,9 @@ async def _prepare_remote_cluster_share(
         or remote_share
     )
     local_share = _resolve_local_share_path(local_share_raw, env)
+    reverse_mount_problem = _reverse_sshfs_mount_problem(local_share, ip)
+    if reverse_mount_problem:
+        raise RuntimeError(reverse_mount_problem)
     local_share.mkdir(parents=True, exist_ok=True)
 
     remote_share_setting = _home_relative_share_setting(remote_share, env)
