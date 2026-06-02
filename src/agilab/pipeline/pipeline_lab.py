@@ -96,6 +96,34 @@ SAFE_ACTION_TEMPLATE_PREFIX = "Template: "
 SNIPPET_EDITOR_HEIGHT = 420
 
 
+def safe_action_pin_stage_update(
+    entry: Mapping[str, Any],
+    *,
+    code_current: str,
+    pinned: bool,
+    dataframe: Any = None,
+) -> tuple[str, Dict[str, Any]]:
+    """Return canonical code and metadata for a Safe Action pin/unpin update."""
+    if str(entry.get(STAGE_GENERATION_MODE_FIELD) or "") != GENERATION_MODE_SAFE_ACTIONS:
+        raise ValueError("Only Safe Action stages can be pinned as Safe Actions.")
+    contract = entry.get(STAGE_ACTION_CONTRACT_FIELD)
+    if not isinstance(contract, Mapping):
+        raise ValueError("Only stages with a validated Safe Action contract can be pinned.")
+    extra_fields = (
+        pin_safe_action_extra_fields(contract, df=dataframe)
+        if pinned
+        else stage_generation_extra_fields(
+            contract,
+            mode=GENERATION_MODE_SAFE_ACTIONS,
+            df=dataframe,
+            pinned=False,
+        )
+    )
+    if pinned:
+        return safe_action_contract_stage_code(extra_fields[STAGE_ACTION_CONTRACT_FIELD]), extra_fields
+    return code_current, extra_fields
+
+
 @dataclass(frozen=True)
 class _PinnedSafeAction:
     stage_index: int

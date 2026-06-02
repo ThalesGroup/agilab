@@ -1006,7 +1006,7 @@ function Install-Apps {
         if ($AppFilter -and $AppFilter.Count -gt 0) {
             $env:BUILTIN_APPS_OVERRIDE = ($AppFilter -join ',')
         }
-        & ".\install_apps.ps1"
+        & ".\install_apps.ps1" -TestApps:$RunPytest
         if ($LASTEXITCODE -ne 0) {
             Write-Warn "install_apps.ps1 exited with code $LASTEXITCODE"
             return $false

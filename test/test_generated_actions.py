@@ -196,6 +196,34 @@ def test_python_snippet_metadata_cannot_be_marked_as_pinned_safe_action() -> Non
     assert fields[STAGE_SAFE_ACTION_PINNED_FIELD] is False
 
 
+def test_safe_action_pin_revalidates_against_current_dataframe_schema() -> None:
+    contract = {
+        "schema_version": GENERATED_ACTIONS_SCHEMA_VERSION,
+        "kind": GENERATED_ACTIONS_KIND,
+        "actions": [{"action": "select_columns", "columns": ["x"]}],
+    }
+
+    with pytest.raises(GeneratedActionError, match="unknown dataframe column"):
+        pin_safe_action_extra_fields(contract, df=pd.DataFrame({"renamed": [1]}))
+
+
+def test_safe_action_contract_hash_is_stable_for_equivalent_payloads() -> None:
+    payload = {
+        "schema_version": GENERATED_ACTIONS_SCHEMA_VERSION,
+        "kind": GENERATED_ACTIONS_KIND,
+        "notes": "",
+        "actions": [{"action": "select_columns", "columns": ["x"]}],
+    }
+    reordered = {
+        "actions": [{"columns": ["x"], "action": "select_columns"}],
+        "kind": GENERATED_ACTIONS_KIND,
+        "schema_version": GENERATED_ACTIONS_SCHEMA_VERSION,
+        "notes": "",
+    }
+
+    assert safe_action_contract_sha256(payload) == safe_action_contract_sha256(reordered)
+
+
 def test_dataframe_schema_for_prompt_returns_empty_for_invalid_payload() -> None:
     assert dataframe_schema_for_prompt(None) == []
     df = pd.DataFrame({"a": [1], "b": ["x"]})

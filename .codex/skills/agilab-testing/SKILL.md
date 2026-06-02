@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-30
+  updated: 2026-06-02
 ---
 
 # Testing Skill (AGILAB)
@@ -90,6 +90,19 @@ Use this skill when validating changes.
     changes. Required evidence is the full `src/agilab/core/agi-env/test`
     directory, the focused `test_agi_env.py` / surface-contract slice, Ruff on
     touched modules, and shared-core strict typing.
+- Extracted helper and public-wrapper regressions:
+  - When fixing behavior in an extracted support module, identify the public
+    entrypoint actually used by the product and cover that path too. A helper
+    test alone is not enough if wrappers can drop kwargs, change defaults, or
+    trigger compatibility fallbacks.
+  - For wrapper/support splits, assert the wrapper forwards every new contract
+    field or runtime option. Example: if `pagelib_runtime_support.activate_mlflow`
+    starts passing `env`, `stdout`, `stderr`, or `start_new_session`, add a
+    regression through `pagelib.activate_mlflow`/`pagelib.subproc`, not only a
+    direct `pagelib_runtime_support` unit test.
+  - Treat compatibility fallbacks that strip unsupported arguments as suspect:
+    add one regression proving the fallback is not hiding a product-path
+    downgrade.
 - Cluster/share regressions:
   - For live cluster validation, never assume a worker IP from memory or a prior
     run. Run the official no-cache LAN discovery first and use only a fresh
