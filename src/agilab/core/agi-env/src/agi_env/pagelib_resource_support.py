@@ -1,33 +1,15 @@
+"""Compatibility shim for ``agi_env.pagelib_resource_support``.
+
+The implementation now lives in ``agi_env.ui.pagelib_resource_support``. Keep this shim so existing
+imports continue to work while internal code migrates to the classified
+package layout.
+"""
+
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from typing import Any
+from agi_env.compat.module_shim import activate_compat_module as _activate_compat_module
 
-ABOUT_MENU_BRAND = ":blue[AGILAB&trade;]"
-ABOUT_MENU_TAGLINE = "Reproducible AI engineering, from project to proof."
-ABOUT_MENU_ORGANIZATION = "Thales SIX GTS France SAS"
-ABOUT_MENU_SUPPORT = "Support: open a GitHub issue"
-
-
-def load_json_resource(resources_root: Path, filename: str) -> dict[str, Any]:
-    with open(resources_root / filename, encoding="utf-8") as file:
-        payload = json.load(file)
-    if not isinstance(payload, dict):
-        raise TypeError(f"{filename} must contain a JSON object")
-    return payload
-
-
-def about_content_text() -> str:
-    return "\n\n".join(
-        [
-            ABOUT_MENU_BRAND,
-            ABOUT_MENU_TAGLINE,
-            ABOUT_MENU_ORGANIZATION,
-            ABOUT_MENU_SUPPORT,
-        ]
-    )
-
-
-def about_content_payload() -> dict[str, str]:
-    return {"About": about_content_text()}
+_TARGET_MODULE = "agi_env.ui.pagelib_resource_support"
+_module = _activate_compat_module(__name__, _TARGET_MODULE)
+if _module is not None:
+    globals().update(_module.__dict__)

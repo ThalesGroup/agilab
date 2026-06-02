@@ -1,31 +1,15 @@
-"""Dask runtime dependency helpers for generated worker environments."""
+"""Compatibility shim for ``agi_cluster.agi_distributor.deployment_dask_support``.
+
+The implementation now lives in ``agi_cluster.agi_distributor.deployment.deployment_dask_support``. Keep this shim so existing
+imports continue to work while internal code migrates to the classified
+package layout.
+"""
 
 from __future__ import annotations
 
-from pathlib import Path, PurePosixPath
-from shlex import quote
-from typing import Any
+from agi_cluster.agi_distributor.compat.module_shim import activate_compat_module as _activate_compat_module
 
-
-DASK_RUNTIME_SPEC = "dask[distributed]"
-
-
-def dask_mode_enabled(agi_cls: Any) -> bool:
-    mode = int(getattr(agi_cls, "_mode", 0) or 0)
-    dask_mode = int(getattr(agi_cls, "DASK_MODE", 0) or 0)
-    return bool(dask_mode and (mode & dask_mode))
-
-
-def dask_runtime_install_command(
-    uv: str,
-    project: Path | PurePosixPath | str,
-    *,
-    pyvers: str | None = None,
-    offline_flag: str = "",
-) -> str:
-    project_value = project.as_posix() if isinstance(project, (Path, PurePosixPath)) else str(project)
-    python_selector = f" -p {quote(pyvers)}" if pyvers else ""
-    return (
-        f"{uv} {offline_flag}--project {quote(project_value)} "
-        f"add{python_selector} {quote(DASK_RUNTIME_SPEC)}"
-    )
+_TARGET_MODULE = "agi_cluster.agi_distributor.deployment.deployment_dask_support"
+_module = _activate_compat_module(__name__, _TARGET_MODULE)
+if _module is not None:
+    globals().update(_module.__dict__)

@@ -1,21 +1,15 @@
-"""Shared default values for AGILab environment configuration."""
+"""Compatibility shim for ``agi_env.defaults``.
 
-import os
-from typing import Final
+The implementation now lives in ``agi_env.runtime.defaults``. Keep this shim so existing
+imports continue to work while internal code migrates to the classified
+package layout.
+"""
 
-# Baseline defaults – update in one place when the recommended model changes.
-DEFAULT_OPENAI_MODEL_NAME: Final[str] = "gpt-5.4-mini"
-DEFAULT_OPENAI_MODEL_ENVVAR: Final[str] = "AGILAB_DEFAULT_OPENAI_MODEL"
+from __future__ import annotations
 
+from agi_env.compat.module_shim import activate_compat_module as _activate_compat_module
 
-def get_default_openai_model() -> str:
-    """Return the default OpenAI model name, allowing an env override."""
-
-    return os.getenv(DEFAULT_OPENAI_MODEL_ENVVAR, DEFAULT_OPENAI_MODEL_NAME)
-
-
-__all__ = [
-    "DEFAULT_OPENAI_MODEL_NAME",
-    "DEFAULT_OPENAI_MODEL_ENVVAR",
-    "get_default_openai_model",
-]
+_TARGET_MODULE = "agi_env.runtime.defaults"
+_module = _activate_compat_module(__name__, _TARGET_MODULE)
+if _module is not None:
+    globals().update(_module.__dict__)

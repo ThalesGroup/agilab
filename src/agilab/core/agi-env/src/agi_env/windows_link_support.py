@@ -1,78 +1,15 @@
-"""Windows link and privilege helpers used by AGILAB environment setup."""
+"""Compatibility shim for ``agi_env.windows_link_support``.
+
+The implementation now lives in ``agi_env.runtime.windows_link_support``. Keep this shim so existing
+imports continue to work while internal code migrates to the classified
+package layout.
+"""
 
 from __future__ import annotations
 
-import ctypes as _ctypes
-import subprocess
-from ctypes import wintypes as _wintypes
-from pathlib import Path
-from typing import Any
+from agi_env.compat.module_shim import activate_compat_module as _activate_compat_module
 
-
-def has_admin_rights(*, ctypes_module: Any = _ctypes):
-    """Return whether the current Windows process has administrative rights."""
-
-    try:
-        return ctypes_module.windll.shell32.IsUserAnAdmin()
-    except (AttributeError, OSError, RuntimeError):
-        return False
-
-
-def create_junction_windows(
-    source: Path,
-    dest: Path,
-    *,
-    logger=None,
-    check_call=subprocess.check_call,
-) -> bool:
-    """Create a directory junction on Windows without requiring admin rights."""
-
-    try:
-        check_call(["cmd", "/c", "mklink", "/J", str(dest), str(source)])
-        if logger:
-            logger.info(f"Created junction: {dest} -> {source}")
-        return True
-    except (OSError, subprocess.CalledProcessError) as exc:
-        if logger:
-            logger.error(f"Failed to create junction. Error: {exc}")
-        return False
-
-
-def create_symlink_windows(
-    source: Path,
-    dest: Path,
-    *,
-    has_admin_rights_fn,
-    logger=None,
-    ctypes_module: Any = _ctypes,
-    wintypes_module: Any = _wintypes,
-) -> None:
-    """Create a Windows directory symbolic link when privileges allow it."""
-
-    create_symbolic_link = ctypes_module.windll.kernel32.CreateSymbolicLinkW
-    create_symbolic_link.restype = wintypes_module.BOOL
-    create_symbolic_link.argtypes = [
-        wintypes_module.LPCWSTR,
-        wintypes_module.LPCWSTR,
-        wintypes_module.DWORD,
-    ]
-
-    symbolic_link_flag_directory = 0x1
-
-    if not has_admin_rights_fn():
-        if logger:
-            logger.info(
-                "Creating symbolic links on Windows requires administrative privileges or Developer Mode enabled."
-            )
-        return
-
-    success = create_symbolic_link(str(dest), str(source), symbolic_link_flag_directory)
-    if success:
-        if logger:
-            logger.info(f"Created symbolic link for .venv: {dest} -> {source}")
-    else:
-        error_code = ctypes_module.GetLastError()
-        if logger:
-            logger.info(
-                f"Failed to create symbolic link for .venv. Error code: {error_code}"
-            )
+_TARGET_MODULE = "agi_env.runtime.windows_link_support"
+_module = _activate_compat_module(__name__, _TARGET_MODULE)
+if _module is not None:
+    globals().update(_module.__dict__)

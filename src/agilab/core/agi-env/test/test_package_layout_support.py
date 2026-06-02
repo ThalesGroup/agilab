@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 from agi_env.package_layout_support import (
     resolve_agilab_package_context,
+    resolve_agilab_source_root_from_module_file,
+    resolve_package_dir_from_module_file,
     resolve_package_layout,
     resolve_resource_root,
 )
@@ -106,3 +108,36 @@ def test_resolve_resource_root_prefers_existing_resources_dir(tmp_path):
     resources.mkdir(parents=True)
 
     assert resolve_resource_root(agilab_pck) == resources
+
+
+def test_resolve_package_dir_from_classified_module_file(tmp_path):
+    package_dir = tmp_path / "agi_env"
+    module_file = package_dir / "runtime" / "installation_support.py"
+    module_file.parent.mkdir(parents=True)
+    (package_dir / "__init__.py").write_text("", encoding="utf-8")
+    module_file.write_text("", encoding="utf-8")
+
+    assert resolve_package_dir_from_module_file(module_file, "agi_env") == package_dir
+
+
+def test_resolve_agilab_source_root_handles_classified_and_legacy_paths(tmp_path):
+    source_root = tmp_path / "src" / "agilab"
+    module_file = source_root / "core" / "agi-env" / "src" / "agi_env" / "runtime" / "agi_env.py"
+    module_file.parent.mkdir(parents=True)
+    (source_root / "core" / "agi-env").mkdir(parents=True, exist_ok=True)
+    (source_root / "apps").mkdir()
+    module_file.write_text("", encoding="utf-8")
+
+    assert resolve_agilab_source_root_from_module_file(module_file) == source_root
+
+    legacy_module = tmp_path / "one" / "two" / "three" / "four" / "agi_env.py"
+    legacy_module.parent.mkdir(parents=True)
+    legacy_module.write_text("", encoding="utf-8")
+
+    assert (
+        resolve_agilab_source_root_from_module_file(
+            legacy_module,
+            legacy_parent_index=4,
+        )
+        == tmp_path
+    )

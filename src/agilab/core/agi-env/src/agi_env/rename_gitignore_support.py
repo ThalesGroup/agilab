@@ -1,37 +1,15 @@
-"""Pure content-rename and gitignore helpers for AGILAB."""
+"""Compatibility shim for ``agi_env.rename_gitignore_support``.
+
+The implementation now lives in ``agi_env.project.rename_gitignore_support``. Keep this shim so existing
+imports continue to work while internal code migrates to the classified
+package layout.
+"""
 
 from __future__ import annotations
 
-import re
-from pathlib import Path
+from agi_env.compat.module_shim import activate_compat_module as _activate_compat_module
 
-from pathspec import PathSpec
-from pathspec.gitignore import GitIgnoreSpec
-
-
-def replace_text_content(txt: str, rename_map: dict) -> str:
-    """Replace whole-word content occurrences according to ``rename_map``."""
-
-    boundary = r"(?<![0-9A-Za-z_]){token}(?![0-9A-Za-z_])"
-    for old, new in sorted(rename_map.items(), key=lambda kv: len(kv[0]), reverse=True):
-        token = re.escape(old)
-        pattern = re.compile(boundary.format(token=token))
-        txt = pattern.sub(new, txt)
-    return txt
-
-
-def load_gitignore_spec(gitignore_path: Path) -> PathSpec:
-    """Load a gitignore file into a ``PathSpec``."""
-
-    lines = gitignore_path.read_text(encoding="utf-8").splitlines()
-    return GitIgnoreSpec.from_lines(lines)
-
-
-def is_relative_to(path: Path, other: Path) -> bool:
-    """Return ``True`` if ``path`` lies under ``other``."""
-
-    try:
-        path.relative_to(other)
-        return True
-    except ValueError:
-        return False
+_TARGET_MODULE = "agi_env.project.rename_gitignore_support"
+_module = _activate_compat_module(__name__, _TARGET_MODULE)
+if _module is not None:
+    globals().update(_module.__dict__)
