@@ -36,6 +36,7 @@ dataframe_schema_for_prompt = generated_actions.dataframe_schema_for_prompt
 dataframe_schema_sha256 = generated_actions.dataframe_schema_sha256
 pin_safe_action_extra_fields = generated_actions.pin_safe_action_extra_fields
 safe_action_contract_sha256 = generated_actions.safe_action_contract_sha256
+safe_action_catalog_options = generated_actions.safe_action_catalog_options
 safe_action_contract_stage_code = generated_actions.safe_action_contract_stage_code
 stage_generation_extra_fields = generated_actions.stage_generation_extra_fields
 summarize_generated_actions = generated_actions.summarize_generated_actions
@@ -198,6 +199,25 @@ def test_dataframe_schema_for_prompt_returns_empty_for_invalid_payload() -> None
     assert dataframe_schema_for_prompt(None) == []
     df = pd.DataFrame({"a": [1], "b": ["x"]})
     assert dataframe_schema_for_prompt(df, max_columns=1) == [{"name": "a", "dtype": "int64"}]
+
+
+def test_safe_action_catalog_exposes_supported_templates() -> None:
+    options = safe_action_catalog_options()
+
+    assert {item["action"] for item in options} == {
+        "select_columns",
+        "drop_columns",
+        "rename_columns",
+        "filter_rows",
+        "derive_column",
+        "fill_missing",
+        "drop_missing",
+        "sort_rows",
+        "groupby_aggregate",
+        "rolling_mean",
+        "clip",
+    }
+    assert all(item["label"] and item["prompt"] for item in options)
 
 
 def test_parse_generated_action_contract_can_extract_json_codeblock() -> None:

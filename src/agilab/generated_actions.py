@@ -64,6 +64,63 @@ _ACTION_KEYS = {
     "rolling_mean": {"action", "input", "output", "window"},
     "clip": {"action", "input", "output", "lower", "upper"},
 }
+SAFE_ACTION_CATALOG = (
+    {
+        "action": "select_columns",
+        "label": "Select columns",
+        "prompt": "Select the dataframe columns needed for the next analysis step.",
+    },
+    {
+        "action": "drop_columns",
+        "label": "Drop columns",
+        "prompt": "Drop unnecessary dataframe columns while preserving the analysis target.",
+    },
+    {
+        "action": "rename_columns",
+        "label": "Rename columns",
+        "prompt": "Rename dataframe columns to clearer analysis-ready names.",
+    },
+    {
+        "action": "filter_rows",
+        "label": "Filter rows",
+        "prompt": "Filter rows using a column condition and keep only relevant observations.",
+    },
+    {
+        "action": "derive_column",
+        "label": "Derive column",
+        "prompt": "Create a derived dataframe column from an existing column.",
+    },
+    {
+        "action": "fill_missing",
+        "label": "Fill missing values",
+        "prompt": "Fill missing values in selected dataframe columns.",
+    },
+    {
+        "action": "drop_missing",
+        "label": "Drop missing rows",
+        "prompt": "Drop rows with missing values in the relevant dataframe columns.",
+    },
+    {
+        "action": "sort_rows",
+        "label": "Sort rows",
+        "prompt": "Sort dataframe rows by the columns that define the analysis order.",
+    },
+    {
+        "action": "groupby_aggregate",
+        "label": "Group and aggregate",
+        "prompt": "Group rows by one or more columns and compute aggregate metrics.",
+    },
+    {
+        "action": "rolling_mean",
+        "label": "Rolling mean",
+        "prompt": "Compute a rolling mean feature from an ordered numeric column.",
+    },
+    {
+        "action": "clip",
+        "label": "Clip values",
+        "prompt": "Clip numeric values to a safe lower and upper range.",
+    },
+)
 
 
 class GeneratedActionError(ValueError):
@@ -93,6 +150,10 @@ def dataframe_schema_for_prompt(df: pd.DataFrame | None, *, max_columns: int = 8
     for column in list(df.columns)[:max_columns]:
         rows.append({"name": str(column), "dtype": str(df[column].dtype)})
     return rows
+
+
+def safe_action_catalog_options() -> tuple[dict[str, str], ...]:
+    return tuple(dict(item) for item in SAFE_ACTION_CATALOG)
 
 
 def build_generated_actions_prompt(question: str, df: pd.DataFrame | None = None) -> str:
