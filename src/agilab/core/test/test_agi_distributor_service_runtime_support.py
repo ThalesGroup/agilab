@@ -71,6 +71,11 @@ def test_service_runtime_support_reexports_service_helpers(monkeypatch):
     monkeypatch.setitem(sys.modules, "agi_cluster.agi_distributor", distributor_pkg)
     monkeypatch.setitem(sys.modules, "agi_cluster.agi_distributor.service_lifecycle_support", lifecycle_module)
     monkeypatch.setitem(sys.modules, "agi_cluster.agi_distributor.service_state_support", state_module)
+    monkeypatch.delitem(
+        sys.modules,
+        "agi_cluster.agi_distributor.service.service_runtime_support",
+        raising=False,
+    )
 
     spec = importlib.util.spec_from_file_location(
         "agi_cluster.agi_distributor.service_runtime_support",
