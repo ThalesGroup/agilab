@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+import tomllib
 from pathlib import Path
 
 
@@ -93,6 +94,25 @@ def test_app_contract_matrix_detects_promoted_catalog_drift():
     assert "agi-app-pytorch-playground" in failed[
         "promoted_pypi_app_catalog_matches_package_split"
     ]["details"]["missing_from_pypi_catalog"]
+
+
+def test_worker_projects_depend_on_cluster_cli_runtime() -> None:
+    missing_dependency: list[str] = []
+    missing_source: list[str] = []
+    for pyproject in sorted((ROOT / "src" / "agilab").rglob("*_worker/pyproject.toml")):
+        metadata = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        dependencies = tuple(metadata.get("project", {}).get("dependencies", ()))
+        if not any(dependency.startswith("agi-node") for dependency in dependencies):
+            continue
+        if not any(dependency.startswith("agi-cluster") for dependency in dependencies):
+            missing_dependency.append(pyproject.relative_to(ROOT).as_posix())
+        if pyproject.relative_to(ROOT).as_posix().startswith("src/agilab/apps/builtin/"):
+            sources = metadata.get("tool", {}).get("uv", {}).get("sources", {})
+            if "agi-cluster" not in sources:
+                missing_source.append(pyproject.relative_to(ROOT).as_posix())
+
+    assert missing_dependency == []
+    assert missing_source == []
 
 
 def test_app_contract_matrix_detects_page_bundle_provider_drift():
