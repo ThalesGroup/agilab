@@ -96,6 +96,34 @@ SAFE_ACTION_TEMPLATE_PREFIX = "Template: "
 SNIPPET_EDITOR_HEIGHT = 420
 
 
+def safe_action_pin_stage_update(
+    entry: Mapping[str, Any],
+    *,
+    code_current: str,
+    pinned: bool,
+    dataframe: Any = None,
+) -> tuple[str, Dict[str, Any]]:
+    """Return canonical code and metadata for a Safe Action pin/unpin update."""
+    if str(entry.get(STAGE_GENERATION_MODE_FIELD) or "") != GENERATION_MODE_SAFE_ACTIONS:
+        raise ValueError("Only Safe Action stages can be pinned as Safe Actions.")
+    contract = entry.get(STAGE_ACTION_CONTRACT_FIELD)
+    if not isinstance(contract, Mapping):
+        raise ValueError("Only stages with a validated Safe Action contract can be pinned.")
+    extra_fields = (
+        pin_safe_action_extra_fields(contract, df=dataframe)
+        if pinned
+        else stage_generation_extra_fields(
+            contract,
+            mode=GENERATION_MODE_SAFE_ACTIONS,
+            df=dataframe,
+            pinned=False,
+        )
+    )
+    if pinned:
+        return safe_action_contract_stage_code(extra_fields[STAGE_ACTION_CONTRACT_FIELD]), extra_fields
+    return code_current, extra_fields
+
+
 @dataclass(frozen=True)
 class _PinnedSafeAction:
     stage_index: int
@@ -4099,24 +4127,22 @@ def display_lab_tab(
                     kind=pin_kind,
                 ):
                     df = _current_safe_action_dataframe()
-                    extra_fields = (
-                        stage_generation_extra_fields(
-                            current_contract,
-                            mode=GENERATION_MODE_SAFE_ACTIONS,
-                            df=df,
-                            pinned=False,
-                        )
-                        if current_safe_action_pinned
-                        else pin_safe_action_extra_fields(current_contract, df=df)
+                    code_to_save, extra_fields = safe_action_pin_stage_update(
+                        {
+                            STAGE_GENERATION_MODE_FIELD: GENERATION_MODE_SAFE_ACTIONS,
+                            STAGE_ACTION_CONTRACT_FIELD: current_contract,
+                        },
+                        code_current=str(entry.get("C") or safe_action_contract_stage_code(current_contract)),
+                        pinned=not current_safe_action_pinned,
+                        dataframe=df,
                     )
-                    canonical_code = safe_action_contract_stage_code(current_contract)
                     save_stage(
                         module_path,
                         [
                             entry.get("D", ""),
                             st.session_state.get(q_key, entry.get("Q", "")),
                             entry.get("M", ""),
-                            canonical_code,
+                            code_to_save,
                         ],
                         stage,
                         total_stages,
@@ -4126,7 +4152,7 @@ def display_lab_tab(
                         extra_fields=extra_fields,
                     )
                     st.session_state[pending_q_key] = st.session_state.get(q_key, entry.get("Q", ""))
-                    st.session_state[pending_c_key] = canonical_code
+                    st.session_state[pending_c_key] = code_to_save
                     st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
                     _bump_history_revision()
                     _rerun_fragment_or_app()

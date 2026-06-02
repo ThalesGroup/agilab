@@ -399,9 +399,9 @@ def stage_generation_extra_fields(
         fields[STAGE_ACTION_CONTRACT_FIELD] = None
         return fields
     if isinstance(contract, GeneratedActionContract):
-        payload = contract.to_payload()
+        payload = validate_generated_action_contract(contract.to_payload(), df=df).to_payload()
     else:
-        payload = validate_generated_action_contract(contract).to_payload()
+        payload = validate_generated_action_contract(contract, df=df).to_payload()
     fields[STAGE_ACTION_CONTRACT_FIELD] = payload
     fields[STAGE_ACTION_CONTRACT_SHA256_FIELD] = safe_action_contract_sha256(payload)
     fields[STAGE_SAFE_ACTION_PINNED_FIELD] = bool(
