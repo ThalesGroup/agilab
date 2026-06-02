@@ -2599,6 +2599,23 @@ def _normalize_project_sidebar_actions(actions) -> tuple[str, ...]:
     return tuple(normalized)
 
 
+def _ensure_project_sidebar_session_defaults(env, actions: tuple[str, ...]) -> None:
+    """Initialize state required by PROJECT sidebar handlers in any host page."""
+    st.session_state.setdefault("env", env)
+    st.session_state.setdefault("_env", env)
+    st.session_state.setdefault("orchest_functions", ["build_distribution"])
+    st.session_state.setdefault("templates", get_templates())
+    st.session_state.setdefault("archives", ["-- Select a file --"] + get_projects_zip())
+    st.session_state.setdefault("export_message", "")
+    st.session_state.setdefault("project_imported", False)
+    st.session_state.setdefault("project_created", False)
+    st.session_state.setdefault("show_widgets", [True, False])
+    st.session_state.setdefault("pages", [])
+    st.session_state.setdefault("switch_to_edit", False)
+    if actions:
+        st.session_state.setdefault("sidebar_selection", actions[0])
+
+
 def render_project_sidebar(
     env,
     *,
@@ -2609,6 +2626,8 @@ def render_project_sidebar(
     actions = _normalize_project_sidebar_actions(actions)
     if not actions:
         return None
+
+    _ensure_project_sidebar_session_defaults(env, actions)
 
     if st.session_state.get("sidebar_selection") == "Clone":
         st.session_state["sidebar_selection"] = "Create"

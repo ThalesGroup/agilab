@@ -2974,6 +2974,8 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     assert "project_selectbox__edit" in [button.key for button in at.button]
     assert "project_selectbox__edit" not in [button.key for button in at.sidebar.button]
     assert at.session_state["sidebar_selection"] == "Create"
+    assert "templates" in at.session_state
+    assert "archives" in at.session_state
     sidebar_labels = "\n".join(str(widget.label) for widget in at.sidebar)
     assert "Project action" in sidebar_labels
     assert "project_filter" not in [ti.key for ti in at.sidebar.text_input]
