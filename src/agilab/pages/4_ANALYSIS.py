@@ -2213,7 +2213,7 @@ def _render_analysis_workspace_overview(
 ) -> None:
     artifact_summary = _scan_analysis_artifacts(_active_analysis_data_root(env))
     artifact_count = int(artifact_summary["count"])
-    project_label = str(
+    project_label = _short_analysis_project_label(
         getattr(env, "app", "") or getattr(env, "target", "") or "project"
     )
     selected_views = tuple(getattr(selection_state, "selected_views", ()) or ())
@@ -2335,8 +2335,22 @@ def _analysis_project_link_label(
     if app_surface_cfg:
         title = app_surface_title(app_surface_cfg).strip()
         if title and title != "App Surface":
-            return title
-    return project.replace("_", " ").title()
+            return _strip_analysis_project_suffix(title)
+    return _short_analysis_project_label(project)
+
+
+def _strip_analysis_project_suffix(label: object) -> str:
+    text = str(label or "").strip()
+    lowered = text.lower()
+    for suffix in ("_project", " project"):
+        if lowered.endswith(suffix):
+            return text[: -len(suffix)].strip()
+    return text
+
+
+def _short_analysis_project_label(project: object) -> str:
+    label = Path(_strip_analysis_project_suffix(project)).name
+    return label.replace("_", " ").title().replace("Pytorch", "PyTorch")
 
 
 def _render_analysis_project_sidebar_label(

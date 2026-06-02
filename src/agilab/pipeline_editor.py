@@ -839,6 +839,20 @@ def convert_paths_to_strings(obj: Any) -> Any:
         return str(obj)
     return obj
 
+
+def _drop_toml_none_values(obj: Any) -> Any:
+    """Recursively remove None values before writing TOML payloads."""
+    if isinstance(obj, dict):
+        return {
+            k: _drop_toml_none_values(v)
+            for k, v in obj.items()
+            if v is not None
+        }
+    if isinstance(obj, list):
+        return [_drop_toml_none_values(item) for item in obj if item is not None]
+    return obj
+
+
 def is_query_valid(query: Any) -> bool:
     """Check if a query is valid."""
     return isinstance(query, list) and bool(query[2])
@@ -1500,11 +1514,16 @@ def _force_persist_stage(
             stages[module_key].append({})
         current = stages[module_key][stage_idx]
         merged = dict(current) if isinstance(current, dict) else {}
-        merged.update(convert_paths_to_strings(entry))
-        stages[module_key][stage_idx] = merged
+        merged.update(_drop_toml_none_values(convert_paths_to_strings(entry)))
+        stages[module_key][stage_idx] = _drop_toml_none_values(merged)
         stages_file.parent.mkdir(parents=True, exist_ok=True)
         with open(stages_file, "wb") as f:
-            tomli_w.dump(convert_paths_to_strings(_prepare_lab_stages_for_write(stages)), f)
+            tomli_w.dump(
+                _drop_toml_none_values(
+                    convert_paths_to_strings(_prepare_lab_stages_for_write(stages))
+                ),
+                f,
+            )
     except (OSError, TypeError, ValueError, tomllib.TOMLDecodeError) as exc:
         logger.error(
             "Force persist failed for stage %s -> %s: %s",

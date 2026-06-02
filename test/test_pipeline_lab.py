@@ -3775,10 +3775,12 @@ def test_display_lab_tab_empty_pipeline_generates_first_stage_with_runtime(monke
 
     assert saved["venv_map"] == {0: str(runtime_root)}
     assert saved["engine_map"] == {0: "agi.run"}
-    assert saved["extra_fields"] == {
-        pipeline_lab.STAGE_GENERATION_MODE_FIELD: pipeline_lab.GENERATION_MODE_SAFE_ACTIONS,
-        pipeline_lab.STAGE_ACTION_CONTRACT_FIELD: None,
-    }
+    extra_fields = saved["extra_fields"]
+    assert extra_fields[pipeline_lab.STAGE_GENERATION_MODE_FIELD] == pipeline_lab.GENERATION_MODE_SAFE_ACTIONS
+    assert extra_fields[pipeline_lab.STAGE_ACTION_CONTRACT_FIELD] is None
+    assert extra_fields[pipeline_lab.STAGE_ACTION_CONTRACT_SHA256_FIELD] == ""
+    assert extra_fields[pipeline_lab.STAGE_SAFE_ACTION_PINNED_FIELD] is False
+    assert extra_fields[pipeline_lab.STAGE_DATAFRAME_SCHEMA_SHA256_FIELD]
     assert saved["bumped"] is True
     assert ("rerun", "called") in fake_st.messages
 

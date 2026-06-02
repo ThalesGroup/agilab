@@ -73,7 +73,13 @@ def test_core_page_above_fold_expectations_track_current_layout() -> None:
     assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["PROJECT"] == (
         "PROJECT",
         "Flight Telemetry",
-        "agi-app from PyPI",
+        "agi-app",
+        "Project path",
+    )
+    assert module.PAGE_EXPECTED_TEXT["PROJECT"] == (
+        "PROJECT",
+        "Flight Telemetry",
+        "agi-app",
         "Project path",
     )
     assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["ORCHESTRATE"] == (
@@ -88,7 +94,12 @@ def test_core_page_above_fold_expectations_track_current_layout() -> None:
     )
     assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["ANALYSIS"] == (
         "ANALYSIS",
-        "Flight Telemetry Project",
+        "Flight Telemetry",
+        "view_maps",
+    )
+    assert module.PAGE_EXPECTED_TEXT["ANALYSIS"] == (
+        "ANALYSIS",
+        "Flight Telemetry",
         "view_maps",
     )
 

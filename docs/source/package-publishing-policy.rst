@@ -124,7 +124,7 @@ virtual environments, compiled artifacts, locks, and generated build outputs
 excluded.
 
 End users can add a trusted promoted app package to an existing AGILAB
-environment from ``PROJECT`` through ``agi-app from PyPI`` or from the CLI with
+environment from ``PROJECT`` through ``agi-app`` or from the CLI with
 ``agilab app install``. Both routes accept one ``agi-app-*`` package
 requirement, use ``uv pip install --python`` against the current Python
 environment, and rely on the package's ``agilab.apps`` entry point for

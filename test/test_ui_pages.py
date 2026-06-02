@@ -64,6 +64,73 @@ def _app_test(path: str, *, default_timeout: int = DEFAULT_APPTEST_TIMEOUT):
     return AppTest.from_file(path, default_timeout=default_timeout)
 
 
+def _assert_ordered_fragments(source: str, fragments: tuple[str, ...]) -> None:
+    positions = []
+    for fragment in fragments:
+        assert fragment in source, fragment
+        positions.append(source.index(fragment))
+    assert positions == sorted(positions), fragments
+
+
+def test_primary_pages_keep_homogeneous_support_field_order() -> None:
+    """Support fields should not jump above the page's primary content."""
+    analysis_source = Path("src/agilab/pages/4_ANALYSIS.py").read_text(
+        encoding="utf-8"
+    )
+    workflow_source = Path("src/agilab/pages/3_WORKFLOW.py").read_text(
+        encoding="utf-8"
+    )
+    project_source = Path("src/agilab/pages/1_PROJECT.py").read_text(
+        encoding="utf-8"
+    )
+    analysis_main = analysis_source[analysis_source.index("async def main():") :]
+    workflow_main_marker = (
+        "async def main" if "async def main" in workflow_source else "def main"
+    )
+    workflow_main = workflow_source[workflow_source.index(workflow_main_marker) :]
+    assert 'st.sidebar.expander("agi-app", expanded=False)' in project_source
+    assert '"Check",' in project_source
+    assert '"Install",' in project_source
+    assert '"Reviewed",' in project_source
+    assert "check_col, install_col = st.columns" in project_source
+    assert "review_col" not in project_source
+    assert "project_pypi_app_reviewed_requirement" in project_source
+    assert "preflight_passed = preflight_status in" in project_source
+    assert "disabled=not requirement or not preflight_passed or not reviewed" in project_source
+    assert "agi-app from PyPI" not in project_source
+    assert "Catalog pypi.org" in project_source
+    assert "Catalog agi-app" not in project_source
+    assert "Check agi-app" not in project_source
+    assert "Install agi-app" not in project_source
+    assert "Reviewed agi-app" not in project_source
+
+    _assert_ordered_fragments(
+        analysis_main,
+        (
+            "_render_analysis_workspace_overview(",
+            "render_project_evidence_drawer(",
+            'render_context_expander(st, page_label="ANALYSIS", env=env)',
+            'with st.expander("Choose analysis views", expanded=False):',
+            "_render_analysis_surface_guide(",
+        ),
+    )
+    _assert_ordered_fragments(
+        workflow_main,
+        (
+            "page()",
+            'render_context_expander(st, page_label="WORKFLOW", env=env)',
+        ),
+    )
+    project_sidebar = project_source[project_source.index("def render_project_sidebar(") :]
+    _assert_ordered_fragments(
+        project_sidebar,
+        (
+            "_render_active_project_sidebar(env)",
+            '"Project action"',
+        ),
+    )
+
+
 def _create_mock_project_root(apps_dir: Path, project_name: str) -> Path:
     project_dir = apps_dir / project_name
     (project_dir / "src").mkdir(parents=True, exist_ok=True)
@@ -1645,6 +1712,8 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "Project</div>" not in markdown_text
     assert "Artifact formats" not in markdown_text
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "**Flight Telemetry**" in sidebar_markdown
+    assert "Flight Telemetry Project" not in sidebar_markdown
     assert "### Active project" not in sidebar_markdown
     assert all(
         text_input.key != "project_filter" for text_input in at.sidebar.text_input
@@ -1774,7 +1843,7 @@ def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
     assert "default_view" not in pages_payload
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "Views selected" in markdown_text
-    assert "2 linked to flight_telemetry_project" in markdown_text
+    assert "2 linked to Flight Telemetry" in markdown_text
     assert "agilab-header-value agilab-header-value--ready'>2/" in markdown_text
     assert "Available views" not in markdown_text
     assert "selected / available" not in markdown_text
@@ -1804,7 +1873,7 @@ def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
     ]
     reloaded_markdown = "\n".join(str(item.value) for item in reloaded.markdown)
     assert "Views selected" in reloaded_markdown
-    assert "1 linked to flight_telemetry_project" in reloaded_markdown
+    assert "1 linked to Flight Telemetry" in reloaded_markdown
     assert "agilab-header-value agilab-header-value--ready'>1/" in reloaded_markdown
     assert "Available views" not in reloaded_markdown
     reloaded_sidebar_markdown = "\n".join(
@@ -1835,7 +1904,7 @@ def test_explore_page_app_surface_back_keeps_single_app_ui_sidebar_view(mock_ui_
         "view_module = []\n"
         "\n"
         "[app_surface]\n"
-        "title = 'Demo Surface'\n"
+        "title = 'Flight Telemetry Project'\n"
         "entrypoint = 'demo/app_surface.py'\n"
     )
     (mock_ui_env["project_dir"] / "src" / "app_settings.toml").write_text(
@@ -1861,6 +1930,8 @@ def test_explore_page_app_surface_back_keeps_single_app_ui_sidebar_view(mock_ui_
     assert not at.exception
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "**Flight Telemetry**" in sidebar_markdown
+    assert "Flight Telemetry Project" not in sidebar_markdown
     assert "Project:" not in sidebar_markdown
     assert ">Page</a>" in sidebar_markdown
     assert ">view_app_ui</a>" not in sidebar_markdown
@@ -1924,6 +1995,8 @@ def test_explore_page_app_surface_uses_standard_view_selection(mock_ui_env):
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "**Demo Surface**" in sidebar_markdown
+    assert "Demo Surface Project" not in sidebar_markdown
     assert "Project:" not in sidebar_markdown
     assert "surface:analysis" not in markdown_text
     assert "surface:controls" not in sidebar_markdown
@@ -1981,7 +2054,7 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
     assert settings_payload["notebooks"]["selected"] == ["extra/demo.ipynb"]
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "Notebooks selected" in markdown_text
-    assert "1 linked to flight_telemetry_project" in markdown_text
+    assert "1 linked to Flight Telemetry" in markdown_text
     assert "agilab-header-value agilab-header-value--ready'>1/2</div>" in markdown_text
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     assert "### Notebooks" not in sidebar_markdown
@@ -1998,7 +2071,7 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
     assert reloaded.session_state[selection_key] == ["extra/demo.ipynb"]
     reloaded_markdown = "\n".join(str(item.value) for item in reloaded.markdown)
     assert "Notebooks selected" in reloaded_markdown
-    assert "1 linked to flight_telemetry_project" in reloaded_markdown
+    assert "1 linked to Flight Telemetry" in reloaded_markdown
     assert (
         "agilab-header-value agilab-header-value--ready'>1/2</div>" in reloaded_markdown
     )
@@ -2994,6 +3067,9 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
 
     main_selectboxes = list(at.selectbox)
     sidebar_selectboxes = list(at.sidebar.selectbox)
+    sidebar_selectbox_labels = [str(selectbox.label) for selectbox in sidebar_selectboxes]
+    assert "Catalog pypi.org" in sidebar_selectbox_labels
+    assert "Catalog agi-app" not in sidebar_selectbox_labels
     selectbox_keys = [sb.key for sb in main_selectboxes] + [
         sb.key for sb in sidebar_selectboxes
     ]
@@ -3010,6 +3086,17 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     assert "archives" in at.session_state
     assert "clone_env_strategy" not in at.session_state
     assert any(button.label == "Export" for button in at.sidebar.button)
+    sidebar_button_labels = [str(button.label) for button in at.sidebar.button]
+    assert "Check" in sidebar_button_labels
+    assert "Install" in sidebar_button_labels
+    assert "Check agi-app" not in sidebar_button_labels
+    assert "Install agi-app" not in sidebar_button_labels
+    sidebar_checkbox_labels = [str(checkbox.label) for checkbox in at.sidebar.checkbox]
+    assert "Reviewed" in sidebar_checkbox_labels
+    assert "Reviewed agi-app" not in sidebar_checkbox_labels
+    sidebar_expander_labels = [str(expander.label) for expander in at.sidebar.expander]
+    assert "agi-app" in sidebar_expander_labels
+    assert "agi-app from PyPI" not in sidebar_expander_labels
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     expander_labels = [str(item.label) for item in at.expander]
     assert "Project metrics" in expander_labels
