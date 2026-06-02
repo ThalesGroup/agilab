@@ -313,12 +313,21 @@ Use these only after the local ``flight_telemetry_project`` proof works once.
 
 **AGILAB demo**:
 
-.. image:: https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge
+.. image:: https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-md.svg
    :target: https://huggingface.co/spaces/jpmorard/agilab
-   :alt: AGILAB demo
+   :alt: Open in Hugging Face Spaces
 
 Self-serve public AGILAB demo hosted on Hugging Face Spaces.
 The dedicated docs page for this route is :doc:`agilab-demo`.
+
+**agi-core Kaggle notebook**:
+
+.. image:: https://kaggle.com/static/images/open-in-kaggle.svg
+   :target: https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb
+   :alt: Open In Kaggle
+
+Notebook-first proof for users who want the headless ``agi-core`` route before
+installing or operating the full AGILAB UI.
 
 **Published package route** (fastest install, less representative of the full product path)::
 
