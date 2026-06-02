@@ -323,7 +323,7 @@ The dedicated docs page for this route is :doc:`agilab-demo`.
 
 **agi-core Kaggle notebook**:
 
-.. image:: https://kaggle.com/static/images/open-in-kaggle.svg
+.. image:: _static/badges/open-in-kaggle-xl.svg
    :target: https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb
    :alt: Open In Kaggle
    :height: 56px

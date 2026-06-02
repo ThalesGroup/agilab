@@ -1,0 +1,22 @@
+<svg width="249" height="48" viewBox="0 0 249 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Open in Kaggle</title>
+  <desc id="desc">Large launch badge linking to a Kaggle notebook.</desc>
+  <defs>
+    <linearGradient id="badge-fill" x1="0" y1="0" x2="249" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F7FBFF"/>
+      <stop offset="1" stop-color="#EAF6FF"/>
+    </linearGradient>
+    <linearGradient id="icon-fill" x1="18" y1="12" x2="43" y2="37" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#20BEFF"/>
+      <stop offset="1" stop-color="#008ABC"/>
+    </linearGradient>
+  </defs>
+  <path d="M0.75 24C0.75 11.16 11.17 0.75 24.02 0.75H224.98C237.83 0.75 248.25 11.16 248.25 24C248.25 36.84 237.83 47.25 224.98 47.25H24.02C11.17 47.25 0.75 36.84 0.75 24Z" fill="url(#badge-fill)" stroke="#D7EAF7" stroke-width="1.5"/>
+  <path d="M31.1 12.25H35.72L28.94 20.82L36.36 35.75H31.92L26.04 24.02L23.42 27.24V35.75H19.36V12.25H23.42V22.02L31.1 12.25Z" fill="url(#icon-fill)"/>
+  <path d="M40.7 12.25H44.8V35.75H40.7V12.25Z" fill="url(#icon-fill)" opacity="0.24"/>
+  <text x="60" y="21" fill="#2C3236" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" letter-spacing="0.1">Open in</text>
+  <text x="60" y="35" fill="#2C3236" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="17" font-weight="700" letter-spacing="0.1">Kaggle</text>
+  <path d="M205 17.5H221.5V34H205V17.5Z" fill="#20BEFF" opacity="0.1"/>
+  <path d="M210.5 15.5H224.5V29.5" stroke="#20BEFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M224.5 15.5L207.5 32.5" stroke="#20BEFF" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

@@ -166,7 +166,7 @@ install.
 
 <p>
   <a href="https://huggingface.co/spaces/jpmorard/agilab"><img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-xl.svg" alt="Open in Hugging Face Spaces" height="56" /></a>
-  <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://kaggle.com/static/images/open-in-kaggle.svg" alt="Open In Kaggle" height="56" /></a>
+  <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/docs/source/_static/badges/open-in-kaggle-xl.svg" alt="Open In Kaggle" height="56" /></a>
 </p>
 
 ### Local PyPI Proof
