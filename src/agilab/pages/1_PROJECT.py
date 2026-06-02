@@ -4820,7 +4820,7 @@ def page():
     if not _consume_notebook_import_query_seed(st.session_state, st.query_params):
         _consume_project_section_query_seed(st.session_state, st.query_params)
 
-    render_project_sidebar(env)
+    render_project_sidebar(env, actions=("Edit",))
 
 
 # -------------------- Main Application Entry -------------------- #

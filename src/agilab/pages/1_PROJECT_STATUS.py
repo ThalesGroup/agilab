@@ -63,6 +63,7 @@ def main() -> None:
         show_edit_button=True,
     )
     project_edit_page = _load_project_edit_page_module()
+    project_edit_page._consume_notebook_import_query_seed(st.session_state, st.query_params)
     project_edit_page.render_project_sidebar(
         env,
         actions=project_edit_page.PROJECT_STATUS_ACTIONS,

@@ -5670,11 +5670,11 @@ def test_first_proof_page_urls_preserve_targeted_query_params():
     assert onboarding._first_proof_page_url("PROJECT") == "/PROJECT"
 
     project_url = onboarding._first_proof_page_url(
-        "PROJECT",
+        "PROJECT_STATUS",
         {"active_app": "flight telemetry", "start": "notebook-import"},
     )
     parsed_project_url = urlparse(project_url)
-    assert parsed_project_url.path == "/PROJECT"
+    assert parsed_project_url.path == "/PROJECT_STATUS"
     assert parse_qs(parsed_project_url.query) == {
         "active_app": ["flight telemetry"],
         "start": ["notebook-import"],

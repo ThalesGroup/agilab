@@ -2984,8 +2984,8 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     assert "project_filter" not in [ti.key for ti in at.sidebar.text_input]
 
 
-def test_create_page_exposes_environment_strategy(mock_ui_env):
-    at = _app_test("src/agilab/pages/1_PROJECT.py")
+def test_project_status_create_action_exposes_environment_strategy(mock_ui_env):
+    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
@@ -3008,8 +3008,30 @@ def test_create_page_exposes_environment_strategy(mock_ui_env):
     assert "Safer for real development." not in sidebar_captions
 
 
-def test_project_page_notebook_import_query_opens_file_selector(mock_ui_env):
+def test_project_edit_page_is_edit_only(mock_ui_env):
     at = _app_test("src/agilab/pages/1_PROJECT.py")
+    env = AgiEnv(
+        apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
+    )
+    env.init_done = True
+    env.st_resources = (
+        Path(__file__).resolve().parents[1] / "src/agilab/resources"
+    ).resolve()
+    env.projects = ["flight_telemetry_project"]
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
+    at.session_state["env"] = env
+    at.session_state["sidebar_selection"] = "Create"
+
+    at.run()
+    assert not at.exception
+
+    assert at.session_state["sidebar_selection"] == "Edit"
+    assert "clone_env_strategy" not in at.session_state
+    assert "clone_dest" not in [ti.key for ti in at.sidebar.text_input]
+
+
+def test_project_status_notebook_import_query_opens_file_selector(mock_ui_env):
+    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )

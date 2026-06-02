@@ -864,7 +864,7 @@ def _first_proof_handoff_bundle_caption(rows: List[Dict[str, str]]) -> str:
 
 
 def _first_proof_notebook_query_params(env: Any, state: Dict[str, Any]) -> Dict[str, str]:
-    """Return query params that open PROJECT on the notebook-import create path."""
+    """Return query params that open PROJECT_STATUS on the notebook-import create path."""
     query_params = dict(FIRST_PROOF_NOTEBOOK_QUERY_PARAMS)
     query_params[FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_KEY] = FIRST_PROOF_NOTEBOOK_SAMPLE_QUERY_VALUE
     active_app = str(state.get("active_app_name") or getattr(env, "app", "") or "").strip()
@@ -938,7 +938,7 @@ def _render_first_proof_wizard_actions(
         st.caption(FIRST_PROOF_NOTEBOOK_LANE_LABEL)
         _first_proof_link_button(
             FIRST_PROOF_NOTEBOOK_BUTTON,
-            _first_proof_page_url("PROJECT", _first_proof_notebook_query_params(env, state)),
+            _first_proof_page_url("PROJECT_STATUS", _first_proof_notebook_query_params(env, state)),
             key="first_proof:wizard:sample_notebook",
             button_type="secondary",
         )

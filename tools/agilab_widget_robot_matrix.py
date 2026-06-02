@@ -194,11 +194,11 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
     "isolated-project-notebook-import": RobotScenario(
         name="isolated-project-notebook-import",
         description=(
-            "Open the PROJECT notebook-import deep link for every built-in app "
+            "Open the PROJECT_STATUS notebook-import deep link for every built-in app "
             "and exercise its guarded upload/create controls without firing "
             "destructive project actions."
         ),
-        pages="PROJECT",
+        pages="PROJECT_STATUS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="safe-click",
@@ -209,11 +209,11 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
     "isolated-project-import-sidebar": RobotScenario(
         name="isolated-project-import-sidebar",
         description=(
-            "Select the PROJECT Import sidebar mode for every built-in app and "
+            "Select the PROJECT_STATUS Import sidebar mode for every built-in app and "
             "exercise the archive import controls without firing destructive "
             "project import callbacks."
         ),
-        pages="PROJECT",
+        pages="PROJECT_STATUS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="safe-click",
@@ -224,11 +224,11 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
     "isolated-project-rename-sidebar": RobotScenario(
         name="isolated-project-rename-sidebar",
         description=(
-            "Select the PROJECT Rename sidebar mode for every built-in app and "
+            "Select the PROJECT_STATUS Rename sidebar mode for every built-in app and "
             "exercise the rename controls without firing destructive project "
             "rename callbacks."
         ),
-        pages="PROJECT",
+        pages="PROJECT_STATUS",
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="safe-click",

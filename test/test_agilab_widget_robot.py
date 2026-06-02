@@ -50,7 +50,7 @@ def test_resolve_pages_accepts_all_csv_and_home_alias() -> None:
 
     assert module.resolve_pages("all") == list(module.DEFAULT_PAGES)
     assert module.resolve_pages("none") == []
-    assert module.resolve_pages("PROJECT, ANALYSIS") == ["PROJECT", "ANALYSIS"]
+    assert module.resolve_pages("PROJECT_STATUS, ANALYSIS") == ["PROJECT_STATUS", "ANALYSIS"]
 
 
 def test_settings_page_has_stable_robot_expectations() -> None:
@@ -66,7 +66,7 @@ def test_settings_page_has_stable_robot_expectations() -> None:
 def test_core_page_above_fold_expectations_track_current_layout() -> None:
     module = _load_module()
 
-    assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["PROJECT"] == (
+    assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["PROJECT_STATUS"] == (
         "PROJECT",
         "Flight Telemetry",
         "Install PyPI app",
@@ -92,11 +92,11 @@ def test_append_route_query_preserves_active_app_and_adds_deep_link() -> None:
     module = _load_module()
 
     url = module.append_route_query(
-        "http://127.0.0.1:8501/PROJECT?active_app=flight_telemetry_project",
+        "http://127.0.0.1:8501/PROJECT_STATUS?active_app=flight_telemetry_project",
         "start=notebook-import",
     )
 
-    assert url == "http://127.0.0.1:8501/PROJECT?active_app=flight_telemetry_project&start=notebook-import"
+    assert url == "http://127.0.0.1:8501/PROJECT_STATUS?active_app=flight_telemetry_project&start=notebook-import"
 
 
 def test_streamlit_health_failure_detail_includes_process_output() -> None:

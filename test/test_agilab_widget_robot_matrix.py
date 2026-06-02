@@ -52,17 +52,17 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert project.runtime_isolation == "isolated"
     assert project.action_button_policy == "safe-click"
     assert project.action_timeout_seconds == 30.0
-    assert project_notebook.pages == "PROJECT"
+    assert project_notebook.pages == "PROJECT_STATUS"
     assert project_notebook.route_query == "start=notebook-import"
     assert project_notebook.apps_pages == "none"
     assert project_notebook.runtime_isolation == "isolated"
     assert project_notebook.action_button_policy == "safe-click"
-    assert project_import.pages == "PROJECT"
+    assert project_import.pages == "PROJECT_STATUS"
     assert project_import.preselect_labels == "Import"
     assert project_import.apps_pages == "none"
     assert project_import.runtime_isolation == "isolated"
     assert project_import.action_button_policy == "safe-click"
-    assert project_rename.pages == "PROJECT"
+    assert project_rename.pages == "PROJECT_STATUS"
     assert project_rename.preselect_labels == "Rename"
     assert project_rename.apps_pages == "none"
     assert project_rename.runtime_isolation == "isolated"
@@ -376,7 +376,7 @@ def test_build_robot_command_enables_browser_history_check(tmp_path) -> None:
 
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "PROJECT"
+    assert argv[argv.index("--pages") + 1] == "PROJECT_STATUS"
     assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
     assert "--browser-history-check" in argv
     assert argv[argv.index("--screenshot-dir") + 1] == str(tmp_path / "screenshots" / "isolated-browser-history")
@@ -970,7 +970,7 @@ def test_build_robot_command_covers_project_page(tmp_path) -> None:
 
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "PROJECT"
+    assert argv[argv.index("--pages") + 1] == "PROJECT_STATUS"
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
     assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
@@ -997,7 +997,7 @@ def test_build_robot_command_covers_project_notebook_import_deep_link(tmp_path) 
 
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "PROJECT"
+    assert argv[argv.index("--pages") + 1] == "PROJECT_STATUS"
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
     assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
@@ -1024,7 +1024,7 @@ def test_build_robot_command_covers_project_import_sidebar(tmp_path) -> None:
 
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "PROJECT"
+    assert argv[argv.index("--pages") + 1] == "PROJECT_STATUS"
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
     assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
@@ -1051,7 +1051,7 @@ def test_build_robot_command_covers_project_rename_sidebar(tmp_path) -> None:
 
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
-    assert argv[argv.index("--pages") + 1] == "PROJECT"
+    assert argv[argv.index("--pages") + 1] == "PROJECT_STATUS"
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
     assert argv[argv.index("--action-button-policy") + 1] == "safe-click"

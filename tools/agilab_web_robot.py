@@ -714,9 +714,9 @@ def run_browser_robot(
                         for key, value in expected_query.items()
                         if parsed_query.get(key) != value
                     }
-                    if parsed_href.path != "/PROJECT" or missing_query:
+                    if parsed_href.path != "/PROJECT_STATUS" or missing_query:
                         raise RuntimeError(
-                            "Create from built-in notebook link does not target PROJECT sample import: "
+                            "Create from built-in notebook link does not target PROJECT_STATUS sample import: "
                             f"href={notebook_href!r} missing={missing_query!r}"
                         )
                     steps.append(
