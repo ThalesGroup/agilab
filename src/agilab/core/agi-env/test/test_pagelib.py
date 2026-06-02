@@ -2719,3 +2719,53 @@ def test_activate_gpt_oss_transformers_backend_retries_busy_port_and_keeps_activ
 
 def test_scan_dir_returns_empty_list_for_missing_path(tmp_path):
     assert pagelib.scan_dir(tmp_path / "missing") == []
+
+
+def test_activate_mlflow_public_wrapper_does_not_strip_launch_options(tmp_path, monkeypatch):
+    errors: list[str] = []
+    launched: list[dict[str, object]] = []
+    _patch_mlflow_cli(monkeypatch)
+
+    class FakeSessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    def _strict_subproc(command, cwd, *, env, stdout, stderr, start_new_session):
+        launched.append(
+            {
+                "command": command,
+                "cwd": cwd,
+                "env": env,
+                "stdout": stdout,
+                "stderr": stderr,
+                "start_new_session": start_new_session,
+            }
+        )
+        return SimpleNamespace(pid=999999999, poll=lambda: None, terminate=lambda: None)
+
+    fake_st = SimpleNamespace(session_state=FakeSessionState(), error=lambda message: errors.append(str(message)))
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    monkeypatch.setattr(pagelib, "_ensure_default_mlflow_experiment", lambda _tracking_dir: "sqlite:///tmp/mlflow.db")
+    monkeypatch.setattr(pagelib, "_resolve_mlflow_artifact_dir", lambda _tracking_dir: tmp_path / "artifacts")
+    monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
+    monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(pagelib, "_wait_for_listen_port", lambda _port: False)
+    monkeypatch.setattr(pagelib, "subproc", _strict_subproc)
+
+    started = pagelib.activate_mlflow(SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path))
+
+    assert started is False
+    assert len(launched) == 1
+    assert launched[0]["command"][:2] == ["mlflow", "server"]
+    assert launched[0]["env"]["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] == "python"
+    assert launched[0]["stdout"].name == str(tmp_path / ".mlflow" / "mlflow-server.log")
+    assert launched[0]["stderr"] == pagelib.subprocess.STDOUT
+    assert launched[0]["start_new_session"] is True
+    assert fake_st.session_state["mlflow_autostart_disabled"] is True
+    assert "mlflow-server.log" in fake_st.session_state["mlflow_status_message"]
