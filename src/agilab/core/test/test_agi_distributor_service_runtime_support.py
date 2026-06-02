@@ -17,7 +17,7 @@ def test_service_runtime_support_reexports_service_helpers(monkeypatch):
     agi_cluster_pkg = ModuleType("agi_cluster")
     agi_cluster_pkg.__path__ = []  # type: ignore[attr-defined]
     distributor_pkg = ModuleType("agi_cluster.agi_distributor")
-    distributor_pkg.__path__ = []  # type: ignore[attr-defined]
+    distributor_pkg.__path__ = [str(source_path.parent)]  # type: ignore[attr-defined]
 
     lifecycle_module = ModuleType("agi_cluster.agi_distributor.service_lifecycle_support")
     state_module = ModuleType("agi_cluster.agi_distributor.service_state_support")
