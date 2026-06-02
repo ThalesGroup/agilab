@@ -1082,6 +1082,33 @@ def test_installer_profile_contract_check_allows_missing_worker_copy() -> None:
     assert "--worker-copy" not in contract.argv
 
 
+def test_builtin_app_tests_profile_runs_app_local_runner() -> None:
+    module = _load_module()
+    args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
+
+    command = module._profile_commands(args)["builtin-app-tests"][0]
+
+    assert command.label == "built-in app tests"
+    assert command.argv == [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "python",
+        "tools/builtin_app_tests.py",
+    ]
+
+
+def test_builtin_app_tests_profile_is_accepted_by_parser(capsys) -> None:
+    module = _load_module()
+
+    assert module.main(["--profile", "builtin-app-tests", "--print-only", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["profiles"] == ["builtin-app-tests"]
+    assert payload["commands"]["builtin-app-tests"][0]["label"] == "built-in app tests"
+
+
 def test_prepare_command_removes_globbed_coverage_fragments(tmp_path, monkeypatch) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)

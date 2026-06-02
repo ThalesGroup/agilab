@@ -170,6 +170,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "badges",
             "skills",
             "installer",
+            "builtin-app-tests",
             "shared-core-typing",
             "ty-typing",
             "dependency-policy",
@@ -295,6 +296,7 @@ def _profile_descriptions() -> dict[str, str]:
         "badges": "Refresh component coverage badges from local coverage XML files.",
         "skills": "Validate and regenerate the repo Codex skill mirror outputs.",
         "installer": "Run local installer parity checks including shell syntax and contract checks.",
+        "builtin-app-tests": "Run built-in app tests inside each app's own uv project environment.",
         "shared-core-typing": "Run the curated temporary strict mypy release guard for shared core.",
         "ty-typing": "Run the forward shared-core strict ty type-check slice.",
         "dependency-policy": "Run dependency hygiene checks for runtime and release manifests.",
@@ -343,6 +345,7 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "badges": _badges_profile(args.components),
         "skills": _skills_profile(args.skills),
         "installer": _installer_profile(args.app_path, args.worker_copy),
+        "builtin-app-tests": _builtin_app_tests_profile(),
         "shared-core-typing": _shared_core_typing_profile(),
         "ty-typing": _shared_core_ty_typing_profile(),
         "dependency-policy": _dependency_policy_profile(),
@@ -1287,6 +1290,22 @@ def _installer_profile(app_path: str | None, worker_copy: str | None) -> list[Co
             argv.extend(["--worker-copy", worker_copy])
         commands.append(CommandSpec(label="installer contract check", argv=argv))
     return commands
+
+
+def _builtin_app_tests_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="built-in app tests",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/builtin_app_tests.py",
+            ],
+        )
+    ]
 
 
 def _shared_core_typing_profile() -> list[CommandSpec]:
@@ -2321,6 +2340,7 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
     opt_in_profiles = {
         "agi-node",
         "agi-cluster",
+        "builtin-app-tests",
         "release-proof",
         "security-adoption",
         "production-readiness",

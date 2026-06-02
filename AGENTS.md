@@ -29,7 +29,7 @@ Use this runbook whenever you:
   creating or checking a function + split rule + reducer contract before scaling code,
   `app-contracts` for
   built-in app/package/catalog/docs alignment, `audit` for local worktree/docs/release/PyPI
-  state,
+  state, `builtin-app-tests` for app-local built-in test execution,
   `flow` for one or more workflow parity profiles,
   `release` for local pre-tag release guards, `badge` for the explicit release/pre-release
   coverage-badge guard, `maintenance` for long-term extension/evidence/docs/package
@@ -48,6 +48,9 @@ Use this runbook whenever you:
   `app-contracts` checks built-in app structure, worker manifests, reducer contracts,
   promoted PyPI package metadata, app catalog entries, and public docs rows; it is also
   part of the release shortcut and targeted pre-push guards,
+  `builtin-app-tests` runs built-in app tests inside each app's own `uv --project .`
+  environment with pytest importlib mode, avoiding false root-environment dependency
+  failures for app-local packages,
   `audit` is the quick robustness check before handoff between machines,
   `flow` matches local GitHub workflow profiles, `release` starts with the strict AGILAB audit/review,
   then checks impact, generated PyPI release plan, trusted-publisher contract, Ruff availability,

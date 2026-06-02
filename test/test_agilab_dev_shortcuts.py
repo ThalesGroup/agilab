@@ -231,6 +231,21 @@ def test_app_contracts_shortcut_keeps_matrix_arguments():
     ]
 
 
+def test_builtin_app_tests_shortcut_runs_app_local_runner():
+    assert agilab_dev.planned_commands(["builtin-app-tests", "--app", "weather_forecast_project"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/builtin_app_tests.py",
+            "--app",
+            "weather_forecast_project",
+        ]
+    ]
+
+
 def test_maintenance_shortcut_runs_dashboard():
     assert agilab_dev.planned_commands(["maintenance", "--json"]) == [
         [

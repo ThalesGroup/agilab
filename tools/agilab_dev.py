@@ -77,6 +77,9 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command in {"app-contracts", "apps-contracts"}:
         return [_uv_python("tools/app_contract_matrix.py", *args)]
 
+    if command in {"builtin-app-tests", "built-in-app-tests"}:
+        return [_uv_python("tools/builtin_app_tests.py", *args)]
+
     if command in {"maintenance", "maintain"}:
         return [_uv_python("tools/maintenance_dashboard.py", *args)]
 
@@ -191,6 +194,7 @@ def _usage() -> str:
   ./dev [--print-only] robust [robustness_matrix args]
   ./dev [--print-only] parallel-stage [parallel_stage args]
   ./dev [--print-only] app-contracts [app_contract_matrix args]
+  ./dev [--print-only] builtin-app-tests [builtin_app_tests args]
   ./dev [--print-only] maintenance [maintenance_dashboard args]
   ./dev [--print-only] memory [maintenance_memory args]
   ./dev [--print-only] audit [agilab_audit args]
@@ -215,6 +219,7 @@ High-frequency mappings:
   robust    -> Run the P0 robustness matrix of fail-closed bad-state scenarios.
   parallel-stage -> Create or validate a function + split rule + reducer contract for parallel execution.
   app-contracts -> Check built-in app, PyPI package, app catalog, and public-doc alignment.
+  builtin-app-tests -> Run built-in app tests inside each app's own uv project environment.
   maintenance -> Report extension contracts, ADRs, docs drift, app/package contracts, evidence docs, release friction, TODO hotspots, generated artifacts, and coverage signals.
   memory    -> Check path-scoped maintenance memory notes for source drift.
   audit     -> Audit local AGILAB worktrees, release proof, docs mirror, PyPI projects, and latest release truth.
