@@ -923,7 +923,8 @@ if (-not [string]::IsNullOrEmpty($appsPagesRoot) -and (Test-Path -LiteralPath $a
         if (Test-PageSyncFresh $pagePath) {
             Write-Color GREEN ("[ok] '{0}' page environment already up to date." -f $page)
         } else {
-            $exit = Invoke-UvPreview @("sync", "--project", ".", "--preview-features", "python-upgrade")
+            Invoke-UvPreview @("sync", "--project", ".", "--preview-features", "python-upgrade") | Out-Host
+            $exit = $LASTEXITCODE
             if ($exit -ne 0) {
                 Write-Color RED ("Error during 'uv sync' for page '{0}'." -f $page)
                 $status = 1
@@ -955,44 +956,25 @@ if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRo
         $fullAppPath = Join-PathSafe $appsRoot $appDirName
         $fullAppPath = (Resolve-Path -LiteralPath $fullAppPath).Path
 
-        $installArgs = @("run")
+        # Pin the Python version like install_apps.sh so the app env matches
+        # the rest of the install instead of uv's default interpreter.
+        $installArgs = @("--preview-features", "extra-build-dependencies", "run")
         if ($AGI_PYTHON_VERSION) { $installArgs += @("-p", $AGI_PYTHON_VERSION) }
-
-        # Passage explicite des arguments
         $installArgs += @(
             "--project",
             "../core/agi-cluster",
             "python",
-            "install.py",
+            "./install.py",
             $fullAppPath
         )
 
         Write-Color BLUE ("DEBUG: Running command: uv " + ($installArgs -join " "))
-#         $installExit = Invoke-UvPreview $installArgs
-        uv --preview-features extra-build-dependencies run --project ../core/agi-cluster python ./install.py $fullAppPath
+        # Pipe to Out-Host so uv's output is displayed but not captured into the
+        # return value; $LASTEXITCODE then holds the real (integer) exit code.
+        Invoke-UvPreview $installArgs | Out-Host
         $installExit = $LASTEXITCODE
-        if ($installExit -eq 0) {
-            Write-Color GREEN ("{0} successfully installed." -f $appDirName)
-            if ($DoTestApps) {
-                Write-Color GREEN "Checking installation..."
-                if (Test-Path -LiteralPath $appDirName) {
-                    Push-Location $appDirName
-                    if (Test-Path -LiteralPath "app_test.py") {
-                        uv --preview-features extra-build-dependencies run --no-sync python app_test.py
-                        $testExit = $LASTEXITCODE
-                        if ($testExit -ne 0) {
-                            $status = 1
-                        }
-                    } else {
-                        Write-Color BLUE ("No app_test.py in {0}, skipping tests." -f $appDirName)
-                    }
-                    Pop-Location
-                } else {
-                    Write-Color YELLOW ("Warning: could not enter '{0}' to run tests." -f $appDirName)
-                }
-            }
-        } else {
-            Write-Color RED ("{0} installation failed with exit code {1}." -f $appDirName, $installExit)
+        if ($installExit -ne 0) {
+            Write-Color RED ("Error installing app '{0}' (exit code {1})." -f $app, $installExit)
             $status = 1
         }
     }
@@ -1006,6 +988,15 @@ if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRo
 if ($DoTestApps) {
     Write-Color BLUE "Running pytest for installed apps..."
     if (-not [string]::IsNullOrEmpty($appsRoot) -and (Test-Path -LiteralPath $appsRoot)) {
+        # Editable core packages so app tests can import the agi.* modules,
+        # mirroring CORE_EDITABLE_PACKAGES in install_apps.sh.
+        $coreEditablePackages = @(
+            "--with-editable", (Join-PathSafe $AGILAB_REPOSITORY "core/agi-env"),
+            "--with-editable", (Join-PathSafe $AGILAB_REPOSITORY "lib/agi-gui"),
+            "--with-editable", (Join-PathSafe $AGILAB_REPOSITORY "core/agi-node"),
+            "--with-editable", (Join-PathSafe $AGILAB_REPOSITORY "core/agi-cluster"),
+            "--with-editable", (Join-PathSafe $AGILAB_REPOSITORY "core/agi-core")
+        )
         Push-Location $appsRoot
         foreach ($app in $includedApps) {
             $appDirName = Resolve-AppDirectoryName -AppsRoot $appsRoot -AppName $app
@@ -1015,10 +1006,14 @@ if ($DoTestApps) {
             }
             Write-Color BLUE ("[pytest] {0}" -f $appDirName)
             Push-Location $appDirName
-            $pytestArgs = @("run", "--no-sync")
+            $pytestArgs = @("run")
             if ($AGI_PYTHON_VERSION) { $pytestArgs += @("-p", $AGI_PYTHON_VERSION) }
-            $pytestArgs += @("--project", ".", "pytest")
-            $pytestExit = Invoke-UvPreview @($pytestArgs)
+            $pytestArgs += $coreEditablePackages
+            # --with pytest/pytest-cov ensures pytest is available in the run
+            # environment; without it uv reports "program not found".
+            $pytestArgs += @("--project", ".", "--with", "pytest", "--with", "pytest-cov", "pytest")
+            Invoke-UvPreview @($pytestArgs) | Out-Host
+            $pytestExit = $LASTEXITCODE
             switch ($pytestExit) {
                 0 { Write-Color GREEN ("pytest succeeded for '{0}'." -f $appDirName) }
                 5 { Write-Color YELLOW ("No tests collected for '{0}'." -f $appDirName) }

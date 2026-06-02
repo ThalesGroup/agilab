@@ -99,6 +99,7 @@ DEFAULT_REJECT_PATTERNS = (
     "failed to render view:",
     "install finished with errors",
     "deployment finished with errors",
+    "worker deployment finished with errors",
     "cluster installation failed",
 )
 ANALYSIS_VIEW_RELATIVE_PATHS = {

@@ -41,7 +41,7 @@ function Set-PersistEnvVar {
         [Parameter(Mandatory)][string]$EnvFile
     )
 
-    $dir = Split-Path -LiteralPath $EnvFile -Parent
+    $dir = Split-Path -LiteralPath $EnvFile
     if ($dir) {
         Ensure-Dir $dir
     }
@@ -201,8 +201,8 @@ function Resolve-InstallRoot {
 
     $suffix = [System.IO.Path]::Combine("src", "agilab")
     if ($resolved.ToLower().EndsWith($suffix.ToLower())) {
-        $parent = Split-Path -LiteralPath $resolved -Parent
-        return Split-Path -LiteralPath $parent -Parent
+        $parent = Split-Path -LiteralPath $resolved
+        return Split-Path -LiteralPath $parent
     }
     return $resolved
 }
@@ -440,7 +440,7 @@ if ($Source -eq 'local') {
         $AgiInstallPath = $RepoSrcDir
     }
 
-    Ensure-Dir (Split-Path -LiteralPath $AgiPathFile -Parent)
+    Ensure-Dir (Split-Path -LiteralPath $AgiPathFile)
     Set-Content -LiteralPath $AgiPathFile -Value $AgiInstallPath -Encoding UTF8
 
     if ($AgiInstallPath -eq $RepoSrcDir) {

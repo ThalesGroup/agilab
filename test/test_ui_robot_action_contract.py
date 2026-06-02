@@ -67,11 +67,11 @@ def test_ui_robot_action_contract_passes_for_current_ui_surface() -> None:
     assert payload["success"] is True
     assert payload["issues"] == []
     assert actions_by_label["Deploy workers"]["disposition"] == "selected-click"
+    assert actions_by_label["Install agi-app"]["disposition"] == "ignored"
     assert actions_by_label["Run -> Load -> Export"]["disposition"] == "selected-click"
     assert actions_by_label["Delete"]["disposition"] == "trial-only"
     assert "Export" not in actions_by_label
     assert actions_by_label["Apply"]["disposition"] == "trial-only"
-    assert actions_by_label["Install agi-app"]["disposition"] == "trial-only"
     assert actions_by_label["Overwrite"]["disposition"] == "ignored"
     assert actions_by_label["Rebuild Universal Offline knowledge base"]["disposition"] == "ignored"
     assert actions_by_label["Reset"]["disposition"] == "trial-only"
