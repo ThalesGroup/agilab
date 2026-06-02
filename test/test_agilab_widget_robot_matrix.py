@@ -2121,3 +2121,70 @@ def test_main_json_and_text_outputs_use_matrix_results(monkeypatch, tmp_path, ca
     monkeypatch.setattr(module, "run_matrix", lambda *_args, **_kwargs: [_result(False)])
     assert module.main(["--scenario", "current-home-actions", "--output-dir", str(tmp_path)]) == 1
     assert "[FAIL] widget robot matrix" in capsys.readouterr().out
+
+
+def _value_after(argv: list[str], flag: str) -> str:
+    return argv[argv.index(flag) + 1]
+
+
+def test_build_robot_command_passes_analysis_contract_controls(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-pytorch-playground-analysis"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=90.0,
+        widget_timeout_seconds=3.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=True,
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert _value_after(argv, "--apps") == "pytorch_playground_project"
+    assert _value_after(argv, "--pages") == "ANALYSIS"
+    assert _value_after(argv, "--required-text") == "PyTorch Playground,Refresh evidence,Synced RUN snippet,Settings"
+    assert _value_after(argv, "--forbidden-sidebar-text") == "Project:"
+    assert _value_after(argv, "--required-links") == "Page=>current_page=view_app_ui"
+    assert _value_after(argv, "--required-action-labels") == "Refresh evidence"
+    assert "--browser-error-check" in argv
+    assert summary_path == tmp_path / "isolated-pytorch-playground-analysis.json"
+    assert progress_path == tmp_path / "isolated-pytorch-playground-analysis.ndjson"
+
+
+def test_build_robot_command_passes_visual_and_render_budget_controls(tmp_path) -> None:
+    module = _load_module()
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=90.0,
+        widget_timeout_seconds=3.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=True,
+    )
+
+    release_argv, _, _ = module.build_robot_command(
+        module.ALL_SCENARIOS["isolated-release-evidence"],
+        options=options,
+    )
+    visual_argv, _, _ = module.build_robot_command(
+        module.ALL_SCENARIOS["isolated-visual-baseline-core-pages"],
+        options=options,
+    )
+
+    assert "--success-screenshot" in release_argv
+    assert _value_after(release_argv, "--max-first-render-seconds") == "90.0"
+    assert _value_after(release_argv, "--max-widgets-ready-seconds") == "30.0"
+    assert _value_after(release_argv, "--max-action-settle-seconds") == "30.0"
+    assert _value_after(release_argv, "--screenshot-dir") == str(
+        tmp_path / "screenshots" / "isolated-release-evidence"
+    )
+    assert "--browser-error-check" in visual_argv
+    assert "--above-fold-check" in visual_argv
+    assert "--visual-mask-dynamic-regions" in visual_argv
+    assert "--success-screenshot" in visual_argv
+    assert _value_after(visual_argv, "--screenshot-dir") == str(
+        tmp_path / "screenshots" / "isolated-visual-baseline-core-pages"
+    )
