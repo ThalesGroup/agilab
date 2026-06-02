@@ -6175,3 +6175,54 @@ def test_safe_action_pin_stage_update_unpins_without_rewriting_code_and_rejects_
             code_current="print('raw')\n",
             pinned=True,
         )
+
+
+def test_safe_action_pin_stage_update_rejects_missing_contract():
+    with pytest.raises(ValueError, match="validated Safe Action contract"):
+        pipeline_lab.safe_action_pin_stage_update(
+            {pipeline_lab.STAGE_GENERATION_MODE_FIELD: pipeline_lab.GENERATION_MODE_SAFE_ACTIONS},
+            code_current="df = df.copy()\n",
+            pinned=True,
+        )
+
+
+def test_safe_action_pin_stage_update_revalidates_contract_against_dataframe_schema():
+    contract = {
+        "schema_version": 1,
+        "kind": "agilab.generated_dataframe_actions",
+        "actions": [{"action": "select_columns", "columns": ["missing"]}],
+    }
+    entry = {
+        pipeline_lab.STAGE_GENERATION_MODE_FIELD: pipeline_lab.GENERATION_MODE_SAFE_ACTIONS,
+        pipeline_lab.STAGE_ACTION_CONTRACT_FIELD: contract,
+    }
+
+    with pytest.raises(Exception, match="unknown dataframe column"):
+        pipeline_lab.safe_action_pin_stage_update(
+            entry,
+            code_current="df = df.copy()\n",
+            pinned=True,
+            dataframe=pipeline_lab.pd.DataFrame({"present": [1]}),
+        )
+
+
+def test_safe_action_pin_stage_update_records_schema_hash_for_valid_dataframe():
+    contract = {
+        "schema_version": 1,
+        "kind": "agilab.generated_dataframe_actions",
+        "actions": [{"action": "select_columns", "columns": ["x"]}],
+    }
+    entry = {
+        pipeline_lab.STAGE_GENERATION_MODE_FIELD: pipeline_lab.GENERATION_MODE_SAFE_ACTIONS,
+        pipeline_lab.STAGE_ACTION_CONTRACT_FIELD: contract,
+    }
+
+    _code, fields = pipeline_lab.safe_action_pin_stage_update(
+        entry,
+        code_current="df = df.copy()\n",
+        pinned=True,
+        dataframe=pipeline_lab.pd.DataFrame({"x": [1]}),
+    )
+
+    assert fields[pipeline_lab.STAGE_DATAFRAME_SCHEMA_SHA256_FIELD]
+    assert fields[pipeline_lab.STAGE_ACTION_CONTRACT_SHA256_FIELD]
