@@ -3,7 +3,7 @@ name: agilab-release-verification
 description: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-01
+  updated: 2026-06-02
 ---
 
 # AGILAB Release Verification
@@ -23,10 +23,23 @@ contract. Do not answer from memory.
 
 ```bash
 ./dev --print-only release
+uv --preview-features extra-build-dependencies run python tools/release_plan.py --check-workflow .github/workflows/pypi-publish.yaml --impact-base-ref <previous-tag>
+uv --preview-features extra-build-dependencies run python tools/release_plan.py --check-workflow .github/workflows/pypi-publish.yaml --impact-base-ref <previous-tag> --skip-existing-pypi
 uv --preview-features extra-build-dependencies run python tools/release_plan.py --check-workflow .github/workflows/pypi-publish.yaml
 uv --preview-features extra-build-dependencies run python tools/pypi_project_preflight.py
 rg -n "sync-hf-space|publish-release-assets|publish-dataset-release-assets|dataset_release_assets|pypi-release-retention|release-proof|HF_TOKEN|hf_space_release_sync" .github/workflows/pypi-publish.yaml tools README.md docs/source
 ```
+
+When answering "what needs to be published?" or "next release scope?", report
+the impacted package set first. Compute it from the previous release tag with
+`release_plan.py --impact-base-ref <previous-tag>`; this gives the direct
+package seeds plus exact-pin/bundle closure. Only after that, run the same plan
+with `--skip-existing-pypi` to say whether those exact package versions already
+exist on PyPI. Do not summarize a `to publish: 0` or
+`pypi_publish_selected=false` result as "nothing needs publishing"; that is an
+artifact-existence result, not the release intent. If all impacted versions
+already exist, say that the impacted package set exists on PyPI and distinguish
+between a normal version-bump release and an asset/proof repair run.
 
 State whether Hugging Face sync, release proof refresh, PyPI retention, GitHub
 code release assets, GitHub dataset release assets, and docs updates are

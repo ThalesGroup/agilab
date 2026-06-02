@@ -242,6 +242,9 @@ Use this runbook whenever you:
   selector maps changed paths to packages and adds only transitive bundle packages
   that exact-pin changed packages. Use the workflow `impact_base_ref` input for the
   same behavior in GitHub Actions; explicit `packages` or `roles` still override it.
+  When answering what needs to be published, report this impacted package set first.
+  Then run the same plan with `--skip-existing-pypi` to separate release scope from
+  artifact existence; do not summarize `to publish: 0` as "nothing needs publishing."
 - **Repository update command plan**: When the user asks to "update repos", "sync repos", or similar,
   first show the exact command plan as a fenced `bash` block with concrete `git -C <repo>` commands
   for each checkout. Use the fast path by default: `status --porcelain=v1 --untracked-files=no`,

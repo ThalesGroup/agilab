@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-02T08:11:07Z",
+  "generated_at_utc": "2026-06-02T17:14:16Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -111,7 +111,7 @@
       "name": "agilab-release-verification",
       "description": "Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks \"ready for release?\", \"release it\", \"all good?\", \"HF aligned?\", \"why badge failed?\", or any release/publication alignment check.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-01",
+      "updated": "2026-06-02",
       "path": ".codex/skills/agilab-release-verification/SKILL.md",
       "body_preview": "# AGILAB Release Verification\nUse this skill for release readiness, release execution checks, and post-release\nalignment. Its purpose is to prevent stale plans and false \"all good\" answers by\nchecking the current code, current workflows, and public surfaces before making"
     },
@@ -119,7 +119,7 @@
       "name": "agilab-runbook",
       "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-19",
+      "updated": "2026-06-02",
       "path": ".codex/skills/agilab-runbook/SKILL.md",
       "body_preview": "# AGILab runbook (Agent Skill)\nUse this skill when you need repo-specific \u201chow we do things\u201d guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.\n## AGILab working rules (repo policy)\n- **Use `uv` for all runs** so dependencies resolve in managed envs:"
     },
@@ -135,7 +135,7 @@
       "name": "agilab-streamlit-pages",
       "description": "Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-01",
+      "updated": "2026-06-02",
       "path": ".codex/skills/agilab-streamlit-pages/SKILL.md",
       "body_preview": "# Streamlit Pages Skill (AGILAB)\nUse this skill when editing:\n- `src/agilab/main_page.py`\n- `src/agilab/pages/*.py`"
     },
