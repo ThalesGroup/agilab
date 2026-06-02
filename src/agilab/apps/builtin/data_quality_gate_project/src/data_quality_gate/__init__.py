@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .app_args import (
+from .runtime.app_args import (
     ArgsModel,
     ArgsOverrides,
     DataQualityGateArgs,
@@ -16,7 +16,7 @@ from .app_args import (
     share_root_from_env,
     validate_relative_data_out,
 )
-from .core import (
+from .domain.core import (
     CONTRACT_COLUMNS,
     CONTRACT_SCHEMA,
     SCHEMA,
@@ -25,8 +25,8 @@ from .core import (
     build_data_quality_gate_artifacts,
     default_contract,
 )
-from .data_quality_gate import DataQualityGate, DataQualityGateApp
-from .reduction import DATA_QUALITY_GATE_REDUCE_CONTRACT
+from .runtime.data_quality_gate import DataQualityGate, DataQualityGateApp
+from .runtime.reduction import DATA_QUALITY_GATE_REDUCE_CONTRACT
 
 __all__ = [
     "ArgsModel",

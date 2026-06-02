@@ -85,3 +85,11 @@ def test_shared_core_compat_modules_preserve_legacy_module_identity():
         importlib.import_module("agi_cluster.agi_distributor.deployment_local_support").__name__
         == "agi_cluster.agi_distributor.deployment_local_support"
     )
+
+
+def test_data_quality_gate_modules_are_classified_or_entrypoints() -> None:
+    root = (
+        Path(__file__).resolve().parents[1]
+        / "src/agilab/apps/builtin/data_quality_gate_project/src/data_quality_gate"
+    )
+    _assert_package_modules_are_classified(root, "data_quality_gate")
