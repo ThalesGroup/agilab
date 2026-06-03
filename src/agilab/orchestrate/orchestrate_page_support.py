@@ -10,6 +10,15 @@ from typing import Any
 
 from agi_env.snippet_contract import snippet_contract_block
 
+try:
+    from packaging.markers import default_environment as _packaging_default_environment
+    from packaging.requirements import InvalidRequirement as _PackagingInvalidRequirement
+    from packaging.requirements import Requirement as _PackagingRequirement
+except ModuleNotFoundError:  # pragma: no cover - packaging is supplied by AGILAB's core stack.
+    _packaging_default_environment = None
+    _PackagingInvalidRequirement = ValueError
+    _PackagingRequirement = None
+
 
 RUN_MODE_LABELS: tuple[str, ...] = (
     "0: python",
@@ -1307,9 +1316,44 @@ def _project_distribution_name(project_path: Path | None) -> str | None:
     return _normalized_distribution_name(name) if isinstance(name, str) and name.strip() else None
 
 
-def _requirement_name_and_extras(requirement: str) -> tuple[str, str, set[str]] | None:
+_PYTHON_VERSION_PREFIX_PATTERN = re.compile(r"^(\d+)\.(\d+)(?:\.(\d+))?")
+
+
+def _python_full_version_from_venv_cfg(venv: Path) -> str | None:
+    try:
+        lines = (venv / "pyvenv.cfg").read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        key, separator, value = line.partition("=")
+        if not separator or key.strip().lower() != "version":
+            continue
+        match = _PYTHON_VERSION_PREFIX_PATTERN.match(value.strip())
+        if not match:
+            return None
+        major, minor, patch = match.groups()
+        return f"{major}.{minor}.{patch or '0'}"
+    return None
+
+
+def _marker_environment_for_venv(venv: Path | None) -> dict[str, str]:
+    if _packaging_default_environment is None:
+        return {}
+    environment = dict(_packaging_default_environment())
+    environment.setdefault("extra", "")
+    if venv is None:
+        return environment
+    full_version = _python_full_version_from_venv_cfg(venv)
+    if full_version:
+        version_parts = full_version.split(".")
+        environment["python_full_version"] = full_version
+        environment["python_version"] = ".".join(version_parts[:2])
+    return environment
+
+
+def _legacy_requirement_name_and_extras(requirement: str) -> tuple[str, str, set[str]] | None:
     requirement_part, _, marker = requirement.partition(";")
-    if "extra ==" in marker or "extra==" in marker:
+    if marker.strip():
         return None
     match = _REQUIREMENT_NAME_PATTERN.match(requirement_part)
     if not match:
@@ -1326,6 +1370,78 @@ def _requirement_name_and_extras(requirement: str) -> tuple[str, str, set[str]] 
     return raw_name, normalized, extras
 
 
+def _requirement_name_and_extras(
+    requirement: str,
+    *,
+    marker_environment: Mapping[str, str] | None = None,
+) -> tuple[str, str, set[str]] | None:
+    if _PackagingRequirement is None:
+        return _legacy_requirement_name_and_extras(requirement)
+    try:
+        parsed = _PackagingRequirement(requirement)
+    except _PackagingInvalidRequirement:
+        return None
+    if parsed.marker is not None:
+        environment = dict(marker_environment or _marker_environment_for_venv(None))
+        environment.setdefault("extra", "")
+        try:
+            if not parsed.marker.evaluate(environment=environment):
+                return None
+        except (KeyError, ValueError):
+            return None
+    normalized = _normalized_distribution_name(parsed.name)
+    if normalized.startswith("agi-") or normalized == "agilab":
+        return None
+    return parsed.name, normalized, {str(extra).lower() for extra in parsed.extras}
+
+
+def _module_name_from_record_path(path_text: str) -> str | None:
+    root = path_text.strip().split(",", 1)[0].replace("\\", "/").split("/", 1)[0]
+    if not root:
+        return None
+    if root.endswith((".dist-info", ".egg-info", ".data")):
+        return None
+    if root.endswith(".py"):
+        module = root[:-3]
+    elif root.endswith((".so", ".pyd", ".dylib")):
+        module = root.split(".", 1)[0]
+    elif "." in root:
+        return None
+    else:
+        module = root
+    return module if module.isidentifier() else None
+
+
+def _top_level_modules_from_metadata_dir(metadata_dir: Path) -> tuple[str, ...]:
+    modules: list[str] = []
+    try:
+        lines = (metadata_dir / "top_level.txt").read_text(
+            encoding="utf-8",
+            errors="replace",
+        ).splitlines()
+    except OSError:
+        lines = []
+    for line in lines:
+        module = line.strip()
+        if module and not module.startswith("#") and module.isidentifier():
+            modules.append(module)
+    if modules:
+        return tuple(dict.fromkeys(modules))
+
+    try:
+        record_lines = (metadata_dir / "RECORD").read_text(
+            encoding="utf-8",
+            errors="replace",
+        ).splitlines()
+    except OSError:
+        return ()
+    for line in record_lines:
+        module = _module_name_from_record_path(line)
+        if module:
+            modules.append(module)
+    return tuple(dict.fromkeys(modules))
+
+
 def _top_level_modules_from_distribution(
     site_packages: Sequence[Path],
     distribution_name: str,
@@ -1340,17 +1456,7 @@ def _top_level_modules_from_distribution(
         for metadata_file in metadata_files:
             if _metadata_distribution_name(metadata_file) != normalized:
                 continue
-            try:
-                lines = (metadata_file.parent / "top_level.txt").read_text(
-                    encoding="utf-8",
-                    errors="replace",
-                ).splitlines()
-            except OSError:
-                continue
-            for line in lines:
-                module = line.strip()
-                if module and not module.startswith("#"):
-                    modules.append(module)
+            modules.extend(_top_level_modules_from_metadata_dir(metadata_file.parent))
     return tuple(dict.fromkeys(modules))
 
 
@@ -1358,8 +1464,12 @@ def _dependency_modules_from_requirement(
     requirement: str,
     *,
     site_packages: Sequence[Path] = (),
+    marker_environment: Mapping[str, str] | None = None,
 ) -> tuple[str, ...]:
-    requirement_info = _requirement_name_and_extras(requirement)
+    requirement_info = _requirement_name_and_extras(
+        requirement,
+        marker_environment=marker_environment,
+    )
     if requirement_info is None:
         return ()
     raw_name, normalized, extras = requirement_info
@@ -1385,6 +1495,8 @@ def _metadata_distribution_name(metadata_file: Path) -> str | None:
 def _dependency_modules_from_metadata(
     site_packages: Sequence[Path],
     distribution_names: Sequence[str],
+    *,
+    marker_environment: Mapping[str, str] | None = None,
 ) -> tuple[str, ...]:
     wanted = {
         _normalized_distribution_name(name)
@@ -1418,6 +1530,7 @@ def _dependency_modules_from_metadata(
                     _dependency_modules_from_requirement(
                         line.partition(":")[2],
                         site_packages=site_packages,
+                        marker_environment=marker_environment,
                     )
                 )
     return tuple(dict.fromkeys(modules))
@@ -1427,6 +1540,7 @@ def _dependency_modules_from_pyproject(
     project_path: Path | None,
     *,
     site_packages: Sequence[Path] = (),
+    marker_environment: Mapping[str, str] | None = None,
 ) -> tuple[str, ...]:
     if project_path is None:
         return ()
@@ -1445,6 +1559,7 @@ def _dependency_modules_from_pyproject(
                 _dependency_modules_from_requirement(
                     dependency,
                     site_packages=site_packages,
+                    marker_environment=marker_environment,
                 )
             )
     return tuple(dict.fromkeys(modules))
@@ -1458,14 +1573,20 @@ def _required_modules_with_dependencies(
     dependency_projects: Sequence[Path] = (),
 ) -> tuple[str, ...]:
     site_packages = _venv_site_package_dirs(venv)
+    marker_environment = _marker_environment_for_venv(venv)
     dependency_modules: list[str] = list(
-        _dependency_modules_from_metadata(site_packages, distribution_names)
+        _dependency_modules_from_metadata(
+            site_packages,
+            distribution_names,
+            marker_environment=marker_environment,
+        )
     )
     for project_path in dependency_projects:
         dependency_modules.extend(
             _dependency_modules_from_pyproject(
                 project_path,
                 site_packages=site_packages,
+                marker_environment=marker_environment,
             )
         )
     return tuple(dict.fromkeys((*modules, *dependency_modules)))

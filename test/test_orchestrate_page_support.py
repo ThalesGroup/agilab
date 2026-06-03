@@ -72,7 +72,13 @@ def _seed_fake_venv_modules(venv: Path, *modules: str) -> Path:
     return site_packages
 
 
-def _seed_dist_info(site_packages: Path, distribution: str, *, top_level: str = "") -> None:
+def _seed_dist_info(
+    site_packages: Path,
+    distribution: str,
+    *,
+    top_level: str = "",
+    record: str = "",
+) -> None:
     dist_dir = site_packages / f"{distribution}-1.0.dist-info"
     dist_dir.mkdir(parents=True, exist_ok=True)
     (dist_dir / "METADATA").write_text(
@@ -81,6 +87,8 @@ def _seed_dist_info(site_packages: Path, distribution: str, *, top_level: str = 
     )
     if top_level:
         (dist_dir / "top_level.txt").write_text(top_level, encoding="utf-8")
+    if record:
+        (dist_dir / "RECORD").write_text(record, encoding="utf-8")
 
 
 def test_build_install_and_run_snippets_embed_expected_values():
@@ -1361,6 +1369,40 @@ def test_app_install_status_uses_installed_top_level_metadata_for_dependency_imp
     assert "sat_trajectory_project" not in status["worker_missing_modules"]
 
 
+def test_app_install_status_skips_marker_inactive_dependencies_for_target_venv(tmp_path: Path) -> None:
+    active_app = tmp_path / "py312_project"
+    worker_root = tmp_path / "wenv" / "py312_worker"
+    active_app.mkdir(parents=True)
+    worker_root.mkdir(parents=True)
+    dependency = "standard-imghdr>=3.13; python_version >= '3.13'"
+    (active_app / "pyproject.toml").write_text(
+        "[project]\n"
+        "name='py312-project'\n"
+        f"dependencies={[dependency]!r}\n",
+        encoding="utf-8",
+    )
+    (worker_root / "pyproject.toml").write_text(
+        "[project]\n"
+        "name='py312-project'\n"
+        f"dependencies={[dependency]!r}\n",
+        encoding="utf-8",
+    )
+    manager_venv = active_app / ".venv"
+    worker_venv = worker_root / ".venv"
+    _seed_fake_venv_modules(manager_venv, "agi_env", "agi_node", "agi_cluster")
+    _seed_fake_venv_modules(worker_venv, "agi_env", "agi_node")
+    for venv in (manager_venv, worker_venv):
+        (venv / "pyvenv.cfg").write_text("version = 3.12.11\n", encoding="utf-8")
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    status = orchestrate_page_support.app_install_status(env)
+
+    assert status["manager_ready"] is True
+    assert status["worker_ready"] is True
+    assert "imghdr" not in status["manager_missing_modules"]
+    assert "imghdr" not in status["worker_missing_modules"]
+
+
 def test_dependency_metadata_helpers_cover_error_edges(monkeypatch, tmp_path: Path) -> None:
     assert orchestrate_page_support._project_distribution_name(None) is None
     assert orchestrate_page_support._project_distribution_name(tmp_path / "missing_project") is None
@@ -1382,6 +1424,22 @@ def test_dependency_metadata_helpers_cover_error_edges(monkeypatch, tmp_path: Pa
         "dask",
         "distributed",
     )
+    py312_venv = tmp_path / "py312-venv"
+    py312_venv.mkdir()
+    (py312_venv / "pyvenv.cfg").write_text("version = 3.12.9\n", encoding="utf-8")
+    py312_environment = orchestrate_page_support._marker_environment_for_venv(py312_venv)
+    assert py312_environment["python_version"] == "3.12"
+    assert (
+        orchestrate_page_support._dependency_modules_from_requirement(
+            "legacy-cgi>=2; python_version >= '3.13'",
+            marker_environment=py312_environment,
+        )
+        == ()
+    )
+    assert orchestrate_page_support._dependency_modules_from_requirement(
+        "python-dotenv>=1; python_version < '3.13'",
+        marker_environment=py312_environment,
+    ) == ("dotenv",)
 
     site_packages = tmp_path / "site-packages"
     site_packages.mkdir()
@@ -1394,6 +1452,15 @@ def test_dependency_metadata_helpers_cover_error_edges(monkeypatch, tmp_path: Pa
     )
     assert orchestrate_page_support._dependency_modules_from_metadata([site_packages], []) == ()
     assert orchestrate_page_support._dependency_modules_from_metadata([site_packages], ["demo"]) == ("dotenv",)
+    _seed_dist_info(
+        site_packages,
+        "dash-extensions",
+        record="dash_extensions/__init__.py,,\ndash_extensions/enrich.py,,\ndash_extensions-1.0.dist-info/METADATA,,\n",
+    )
+    assert orchestrate_page_support._dependency_modules_from_requirement(
+        "dash-extensions>=1",
+        site_packages=(site_packages,),
+    ) == ("dash_extensions",)
 
     nameless = site_packages / "nameless-1.0.dist-info" / "METADATA"
     nameless.parent.mkdir()
