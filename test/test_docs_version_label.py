@@ -51,3 +51,16 @@ def test_docs_conf_skips_generated_root_project_workspaces() -> None:
         )
         is False
     )
+
+
+def test_docs_conf_ignores_installed_agilab_path_fallback() -> None:
+    conf = _load_conf_module()
+
+    installed_agilab = (
+        Path("/tmp/uv-cache/archive/lib/python3.14/site-packages/agilab")
+    )
+    source_agilab = Path("/tmp/agilab/src/agilab")
+
+    assert conf._is_site_packages_path(installed_agilab) is True
+    assert conf._should_use_agilab_path_fallback(installed_agilab) is False
+    assert conf._should_use_agilab_path_fallback(source_agilab) is True
