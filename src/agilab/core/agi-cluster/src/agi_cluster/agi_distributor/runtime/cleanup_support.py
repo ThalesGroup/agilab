@@ -123,7 +123,7 @@ async def kill_processes(
 
     last_res = None
     for cmd in cmds:
-        cwd = env.agi_cluster if ip == localhost else str(env.wenv_abs)
+        cwd = str(env.wenv_abs)
         if env.is_local(ip):
             if env.debug:
                 sys_module.argv = cmd.split("python ")[1].split(" ")

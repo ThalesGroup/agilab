@@ -282,6 +282,7 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
     assert copied
     assert local_runs
     assert any("cli.py' kill 999" in cmd for cmd, _cwd in local_runs)
+    assert all(cwd == str(wenv_abs) for _cmd, cwd in local_runs)
     assert remote_runs == [
         (
             "10.0.0.2",

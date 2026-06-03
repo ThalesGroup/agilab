@@ -409,6 +409,7 @@ def _core_install_commands(*, env: Any, uv: str, app_path_arg: str) -> list[str]
     core_packages = (
         ("agi-env", getattr(env, "agi_env", None)),
         ("agi-node", getattr(env, "agi_node", None)),
+        ("agi-cluster", getattr(env, "agi_cluster", None)),
     )
     if getattr(env, "is_source_env", False):
         editable_specs = [
@@ -432,7 +433,11 @@ def _core_install_commands(*, env: Any, uv: str, app_path_arg: str) -> list[str]
 def _build_run_overlay_args(env: Any) -> str:
     args = ["--with setuptools", "--with cython"]
     if getattr(env, "is_source_env", False):
-        for source_path in (getattr(env, "agi_env", None), getattr(env, "agi_node", None)):
+        for source_path in (
+            getattr(env, "agi_env", None),
+            getattr(env, "agi_node", None),
+            getattr(env, "agi_cluster", None),
+        ):
             if source_path:
                 args.append(f"--with-editable {quote(str(source_path))}")
     return " ".join(args)
