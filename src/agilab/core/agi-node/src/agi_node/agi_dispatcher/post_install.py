@@ -37,16 +37,17 @@ def _packaged_apps_path() -> Path | None:
         import agilab
     except ImportError:
         return None
-    return Path(agilab.__file__).resolve().parent / "apps"
+    package_file = getattr(agilab, "__file__", None)
+    if package_file is None:
+        return None
+    return Path(package_file).resolve().parent / "apps"
 
 
 def _resolve_post_install_manager_app(app_arg: Path) -> tuple[Path | None, str]:
     if app_arg.name.endswith("_project"):
         return app_arg.parent, app_arg.name
     if app_arg.name.endswith("_worker"):
-        project_name = app_arg.name.removesuffix("_worker") + "_project"
-        apps_path = _packaged_apps_path()
-        return apps_path, project_name
+        return None, app_arg.name
     return app_arg.parent, app_arg.name
 
 

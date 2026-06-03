@@ -584,9 +584,8 @@ def test_post_build_env_uses_parent_directory_and_name(monkeypatch, tmp_path):
     assert captured == {"apps_path": tmp_path, "app": "demo_project"}
 
 
-def test_post_build_env_worker_name_uses_packaged_apps_root(monkeypatch, tmp_path):
+def test_post_build_env_worker_name_uses_worker_environment(monkeypatch, tmp_path):
     captured = {}
-    packaged_apps = tmp_path / "site-packages" / "agilab" / "apps"
 
     class DummyEnv:
         def __init__(self, *, apps_path, app):
@@ -594,11 +593,17 @@ def test_post_build_env_worker_name_uses_packaged_apps_root(monkeypatch, tmp_pat
             captured["app"] = app
 
     monkeypatch.setattr(post_mod, "AgiEnv", DummyEnv)
-    monkeypatch.setattr(post_mod, "_packaged_apps_path", lambda: packaged_apps)
 
     post_mod._build_env(tmp_path / "wenv" / "demo_worker")
 
-    assert captured == {"apps_path": packaged_apps, "app": "demo_project"}
+    assert captured == {"apps_path": None, "app": "demo_worker"}
+
+
+def test_packaged_apps_path_tolerates_namespace_agilab_package(monkeypatch):
+    fake_agilab = SimpleNamespace(__file__=None)
+    monkeypatch.setitem(sys.modules, "agilab", fake_agilab)
+
+    assert post_mod._packaged_apps_path() is None
 
 
 def test_post_extract_archive_uses_py7zr_extractall(monkeypatch, tmp_path):
