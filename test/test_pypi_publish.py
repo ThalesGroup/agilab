@@ -420,10 +420,10 @@ def test_require_safe_pypi_release_rejects_skipping_release_preflight() -> None:
         raise AssertionError("require_safe_pypi_release() should reject skipping real release preflight")
 
 
-def test_public_post_release_policy_requires_documented_hotfix(monkeypatch) -> None:
+def test_public_post_release_policy_rejects_post_release_even_with_legacy_env(monkeypatch) -> None:
     module = _load_pypi_publish()
-    monkeypatch.delenv(module.ALLOW_PYPI_POST_RELEASE_ENV, raising=False)
-    monkeypatch.delenv(module.PYPI_POST_RELEASE_REASON_ENV, raising=False)
+    monkeypatch.setenv("AGILAB_ALLOW_PYPI_POST_RELEASE", "1")
+    monkeypatch.setenv("AGILAB_PYPI_POST_RELEASE_REASON", "critical provenance attestation repair")
 
     with pytest.raises(SystemExit) as excinfo:
         module.require_public_post_release_policy(
@@ -432,27 +432,16 @@ def test_public_post_release_policy_requires_documented_hotfix(monkeypatch) -> N
         )
 
     message = str(excinfo.value)
-    assert "critical hotfixes" in message
-    assert "release candidate or TestPyPI" in message
-    assert module.ALLOW_PYPI_POST_RELEASE_ENV in message
-    assert module.PYPI_POST_RELEASE_REASON_ENV in message
+    assert ".postN releases are forbidden" in message
+    assert "YYYY.MM.DD.N" in message
 
 
-def test_public_post_release_policy_allows_documented_hotfix(monkeypatch, capsys) -> None:
+def test_public_post_release_policy_accepts_same_day_hotfix_version() -> None:
     module = _load_pypi_publish()
-    monkeypatch.setenv(module.ALLOW_PYPI_POST_RELEASE_ENV, "1")
-    monkeypatch.setenv(module.PYPI_POST_RELEASE_REASON_ENV, "critical provenance attestation repair")
-
     module.require_public_post_release_policy(
         _base_cfg(module, repo="pypi", git_tag=True, git_commit_version=True, git_reset_on_failure=True),
-        {"agilab": "2026.05.18.post1"},
+        {"agilab": "2026.05.18.1"},
     )
-
-    assert "Allowing documented public PyPI post-release hotfix" in capsys.readouterr().out
-
-
-def test_public_post_release_policy_warns_only_for_dry_run(capsys) -> None:
-    module = _load_pypi_publish()
 
     module.require_public_post_release_policy(
         _base_cfg(module, repo="pypi", dry_run=True),

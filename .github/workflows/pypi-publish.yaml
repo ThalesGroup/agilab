@@ -15,14 +15,16 @@ on:
       impact_base_ref:
         description: "Optional git ref used to publish only changed packages plus exact-pin dependents. Ignored when packages or roles are set."
         required: false
-      allow_post_release:
-        description: "Allow committed .postN versions on public PyPI only for a critical hotfix. Prefer TestPyPI or rc versions before final release."
+      release_mode:
+        description: "Release intent: stable=YYYY.MM.DD, hotfix=YYYY.MM.DD.N, candidate=YYYY.MM.DDrcN, repair=no PyPI distributions."
         required: false
-        type: boolean
-        default: false
-      post_release_reason:
-        description: "Critical hotfix justification required when allow_post_release is true."
-        required: false
+        type: choice
+        default: stable
+        options:
+          - stable
+          - hotfix
+          - candidate
+          - repair
       include_existing_pypi:
         description: "Include package versions that already exist on PyPI to repair release assets. Default skips them."
         required: false
@@ -275,8 +277,7 @@ jobs:
           RELEASE_ROLES: ${{ github.event.inputs.roles || '' }}
           RELEASE_IMPACT_BASE_REF: ${{ github.event.inputs.impact_base_ref || '' }}
           INCLUDE_EXISTING_PYPI: ${{ github.event.inputs.include_existing_pypi || 'false' }}
-          ALLOW_POST_RELEASE: ${{ github.event.inputs.allow_post_release || 'false' }}
-          POST_RELEASE_REASON: ${{ github.event.inputs.post_release_reason || '' }}
+          RELEASE_MODE: ${{ github.event.inputs.release_mode || 'stable' }}
         run: |
           set -euxo pipefail
           args=(--repo-root . --github-step-summary "$GITHUB_STEP_SUMMARY")
@@ -292,9 +293,7 @@ jobs:
           if [ -n "${RELEASE_IMPACT_BASE_REF:-}" ] && [ -z "${RELEASE_PACKAGES:-}" ] && [ -z "${RELEASE_ROLES:-}" ]; then
             args+=(--impact-base-ref "$RELEASE_IMPACT_BASE_REF")
           fi
-          if [ "${ALLOW_POST_RELEASE:-false}" = "true" ]; then
-            args+=(--allow-post-release --post-release-reason "$POST_RELEASE_REASON")
-          fi
+          args+=(--release-mode "$RELEASE_MODE")
           python tools/pypi_release_version_policy.py "${args[@]}"
 
   publish-library-packages:

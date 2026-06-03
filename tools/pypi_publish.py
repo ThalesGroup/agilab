@@ -105,9 +105,7 @@ UPLOAD_COLLISION_DETECTED: bool = False
 UPLOAD_SUCCESS_COUNT: int = 0
 UPLOAD_SKIPPED_EXISTING_COUNT: int = 0
 ALLOW_LOCAL_PYPI_TWINE_ENV = "AGILAB_ALLOW_LOCAL_PYPI_TWINE"
-ALLOW_PYPI_POST_RELEASE_ENV = "AGILAB_ALLOW_PYPI_POST_RELEASE"
-PYPI_POST_RELEASE_REASON_ENV = "AGILAB_PYPI_POST_RELEASE_REASON"
-VERSION_PATTERN = r"\d+\.\d+\.\d+(?:(?:a|b|rc)\d+)?(?:\.post\d+)?"
+VERSION_PATTERN = r"\d+\.\d+\.\d+(?:\.\d+)?(?:(?:a|b|rc)\d+)?(?:\.post\d+)?"
 VERSION_RE = re.compile(rf"^{VERSION_PATTERN}$", re.IGNORECASE)
 
 
@@ -144,9 +142,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument(
         "--version",
         help=(
-            "Explicit version 'X.Y.Z[rcN][.postN]'. If omitted, base=UTC YYYY.MM.DD. "
+            "Explicit version 'X.Y.Z[.N][rcN][.postN]'. If omitted, base=UTC YYYY.MM.DD. "
             "Real PyPI refuses automatic .postN bumps when that version is already used; "
-            ".postN is reserved for documented critical hotfixes."
+            ".postN is forbidden on public PyPI. Use YYYY.MM.DD.N for same-day hotfixes."
         ),
     )
 
@@ -602,12 +600,8 @@ def is_post_release_version(version: str) -> bool:
         return bool(re.search(r"(?:^|[._-])post\d+\Z", version, flags=re.IGNORECASE))
 
 
-def _env_flag(name: str) -> bool:
-    return str(os.environ.get(name, "")).strip().lower() in {"1", "true", "yes", "on"}
-
-
 def require_public_post_release_policy(cfg: Cfg, package_versions: Dict[str, str]) -> None:
-    """Require an explicit critical-hotfix decision for public PyPI .postN releases."""
+    """Reject public PyPI .postN releases; use YYYY.MM.DD.N hotfix versions instead."""
 
     if cfg.repo != "pypi" or cfg.cleanup_only:
         return
@@ -620,23 +614,11 @@ def require_public_post_release_policy(cfg: Cfg, package_versions: Dict[str, str
         return
 
     formatted = ", ".join(f"{package}={version}" for package, version in post_versions.items())
-    reason = os.environ.get(PYPI_POST_RELEASE_REASON_ENV, "").strip()
-    if cfg.dry_run:
-        print(
-            "[policy] Public PyPI .postN release detected in dry-run. "
-            f"Publication would require {ALLOW_PYPI_POST_RELEASE_ENV}=1 and "
-            f"{PYPI_POST_RELEASE_REASON_ENV}: {formatted}"
-        )
-        return
-    if _env_flag(ALLOW_PYPI_POST_RELEASE_ENV) and reason:
-        print(f"[policy] Allowing documented public PyPI post-release hotfix: {reason}")
-        return
     raise SystemExit(
-        "ERROR: Public PyPI .postN releases are reserved for documented critical hotfixes. "
+        "ERROR: Public PyPI .postN releases are forbidden for new AGILAB publications. "
         f"Selected post-release versions: {formatted}. Use a release candidate or TestPyPI for "
-        "rehearsal, then publish a deliberate new date-based final release. "
-        f"Break-glass post-release publication requires {ALLOW_PYPI_POST_RELEASE_ENV}=1 and "
-        f"{PYPI_POST_RELEASE_REASON_ENV} with the hotfix justification."
+        "rehearsal, publish YYYY.MM.DD for a stable release, or publish YYYY.MM.DD.N "
+        "for a same-day hotfix."
     )
 
 

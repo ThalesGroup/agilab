@@ -22,43 +22,80 @@ def _load_policy():
     return module
 
 
-def test_release_version_policy_accepts_final_and_release_candidate_versions() -> None:
+def test_release_version_policy_accepts_stable_versions() -> None:
     policy = _load_policy()
 
     result = policy.validate_public_release_versions(
         {
             "agilab": "2026.05.18",
-            "agi-core": "2026.05.18rc1",
+            "agi-core": "2026.05.18",
         }
     )
 
-    assert "No selected public PyPI package uses a .postN" in result
+    assert "release_mode=stable accepted" in result
 
 
-def test_release_version_policy_rejects_public_post_release_without_hotfix_reason() -> None:
-    policy = _load_policy()
-
-    with pytest.raises(policy.ReleaseVersionPolicyError) as excinfo:
-        policy.validate_public_release_versions({"agilab": "2026.05.18.post1"})
-
-    message = str(excinfo.value)
-    assert "critical hotfixes" in message
-    assert "release candidate or TestPyPI" in message
-    assert "allow_post_release=true" in message
-    assert "post_release_reason" in message
-
-
-def test_release_version_policy_allows_documented_public_post_release() -> None:
+def test_release_version_policy_accepts_hotfix_versions() -> None:
     policy = _load_policy()
 
     result = policy.validate_public_release_versions(
-        {"agilab": "2026.05.18.post1"},
-        allow_post_release=True,
-        post_release_reason="critical package metadata repair",
+        {
+            "agilab": "2026.05.18.1",
+            "agi-core": "2026.05.18.1",
+        },
+        release_mode="hotfix",
     )
 
-    assert "Allowed documented critical hotfix post-release" in result
-    assert "critical package metadata repair" in result
+    assert "release_mode=hotfix accepted" in result
+
+
+def test_release_version_policy_accepts_candidate_versions() -> None:
+    policy = _load_policy()
+
+    result = policy.validate_public_release_versions(
+        {"agilab": "2026.05.18rc1"},
+        release_mode="candidate",
+    )
+
+    assert "release_mode=candidate accepted" in result
+
+
+def test_release_version_policy_rejects_public_post_release_even_with_hotfix_mode() -> None:
+    policy = _load_policy()
+
+    with pytest.raises(policy.ReleaseVersionPolicyError) as excinfo:
+        policy.validate_public_release_versions(
+            {"agilab": "2026.05.18.post1"},
+            release_mode="hotfix",
+        )
+
+    message = str(excinfo.value)
+    assert ".postN releases are forbidden" in message
+    assert "release_mode=hotfix with YYYY.MM.DD.N" in message
+
+
+def test_release_version_policy_rejects_stable_shape_in_hotfix_mode() -> None:
+    policy = _load_policy()
+
+    with pytest.raises(policy.ReleaseVersionPolicyError) as excinfo:
+        policy.validate_public_release_versions(
+            {"agilab": "2026.05.18"},
+            release_mode="hotfix",
+        )
+
+    assert "release_mode=hotfix rejected version shape" in str(excinfo.value)
+
+
+def test_release_version_policy_repair_mode_rejects_pypi_publications() -> None:
+    policy = _load_policy()
+
+    with pytest.raises(policy.ReleaseVersionPolicyError) as excinfo:
+        policy.validate_public_release_versions(
+            {"agilab": "2026.05.18"},
+            release_mode="repair",
+        )
+
+    assert "release_mode=repair must not publish PyPI package distributions" in str(excinfo.value)
 
 
 def test_selected_public_versions_reads_filtered_package_versions(tmp_path, monkeypatch) -> None:
