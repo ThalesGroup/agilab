@@ -96,10 +96,12 @@ _MANAGER_REQUIRED_SYMBOLS: tuple[tuple[str, str], ...] = (
     ("agi_cluster.agi_distributor", "StageRequest"),
 )
 _DEPENDENCY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
+    "legacy-cgi": ("cgi",),
     "pillow": ("PIL",),
     "python-dotenv": ("dotenv",),
     "pyyaml": ("yaml",),
     "scikit-learn": ("sklearn",),
+    "standard-imghdr": ("imghdr",),
 }
 _REQUIREMENT_NAME_PATTERN = re.compile(
     r"^\s*([A-Za-z0-9_.-]+)(?:\s*\[([A-Za-z0-9_,.\s-]+)\])?"
@@ -1240,6 +1242,11 @@ def _module_available_on_root(root: Path, module: str) -> bool:
     for suffix in (".py", ".so", ".pyd", ".dylib"):
         if (root / f"{module}{suffix}").exists():
             return True
+    try:
+        if any(root.glob(f"{module}.*.so")) or any(root.glob(f"{module}.*.pyd")):
+            return True
+    except OSError:
+        return False
     return False
 
 
@@ -1300,24 +1307,66 @@ def _project_distribution_name(project_path: Path | None) -> str | None:
     return _normalized_distribution_name(name) if isinstance(name, str) and name.strip() else None
 
 
-def _dependency_modules_from_requirement(requirement: str) -> tuple[str, ...]:
+def _requirement_name_and_extras(requirement: str) -> tuple[str, str, set[str]] | None:
     requirement_part, _, marker = requirement.partition(";")
     if "extra ==" in marker or "extra==" in marker:
-        return ()
+        return None
     match = _REQUIREMENT_NAME_PATTERN.match(requirement_part)
     if not match:
-        return ()
+        return None
     raw_name = match.group(1)
     normalized = _normalized_distribution_name(raw_name)
     if normalized.startswith("agi-") or normalized == "agilab":
-        return ()
-
-    modules = list(_DEPENDENCY_MODULE_ALIASES.get(normalized, (raw_name.replace("-", "_"),)))
+        return None
     extras = {
         item.strip().lower()
         for item in (match.group(2) or "").split(",")
         if item.strip()
     }
+    return raw_name, normalized, extras
+
+
+def _top_level_modules_from_distribution(
+    site_packages: Sequence[Path],
+    distribution_name: str,
+) -> tuple[str, ...]:
+    normalized = _normalized_distribution_name(distribution_name)
+    modules: list[str] = []
+    for site_package in site_packages:
+        try:
+            metadata_files = sorted(site_package.glob("*.dist-info/METADATA"))
+        except OSError:
+            continue
+        for metadata_file in metadata_files:
+            if _metadata_distribution_name(metadata_file) != normalized:
+                continue
+            try:
+                lines = (metadata_file.parent / "top_level.txt").read_text(
+                    encoding="utf-8",
+                    errors="replace",
+                ).splitlines()
+            except OSError:
+                continue
+            for line in lines:
+                module = line.strip()
+                if module and not module.startswith("#"):
+                    modules.append(module)
+    return tuple(dict.fromkeys(modules))
+
+
+def _dependency_modules_from_requirement(
+    requirement: str,
+    *,
+    site_packages: Sequence[Path] = (),
+) -> tuple[str, ...]:
+    requirement_info = _requirement_name_and_extras(requirement)
+    if requirement_info is None:
+        return ()
+    raw_name, normalized, extras = requirement_info
+
+    modules = list(_top_level_modules_from_distribution(site_packages, normalized))
+    if not modules:
+        modules = list(_DEPENDENCY_MODULE_ALIASES.get(normalized, (raw_name.replace("-", "_"),)))
     if normalized == "dask" and "distributed" in extras:
         modules.append("distributed")
     return tuple(dict.fromkeys(modules))
@@ -1366,12 +1415,19 @@ def _dependency_modules_from_metadata(
                 if not line.startswith("Requires-Dist:"):
                     continue
                 modules.extend(
-                    _dependency_modules_from_requirement(line.partition(":")[2])
+                    _dependency_modules_from_requirement(
+                        line.partition(":")[2],
+                        site_packages=site_packages,
+                    )
                 )
     return tuple(dict.fromkeys(modules))
 
 
-def _dependency_modules_from_pyproject(project_path: Path | None) -> tuple[str, ...]:
+def _dependency_modules_from_pyproject(
+    project_path: Path | None,
+    *,
+    site_packages: Sequence[Path] = (),
+) -> tuple[str, ...]:
     if project_path is None:
         return ()
     try:
@@ -1385,7 +1441,12 @@ def _dependency_modules_from_pyproject(project_path: Path | None) -> tuple[str, 
     modules: list[str] = []
     for dependency in dependencies:
         if isinstance(dependency, str):
-            modules.extend(_dependency_modules_from_requirement(dependency))
+            modules.extend(
+                _dependency_modules_from_requirement(
+                    dependency,
+                    site_packages=site_packages,
+                )
+            )
     return tuple(dict.fromkeys(modules))
 
 
@@ -1401,7 +1462,12 @@ def _required_modules_with_dependencies(
         _dependency_modules_from_metadata(site_packages, distribution_names)
     )
     for project_path in dependency_projects:
-        dependency_modules.extend(_dependency_modules_from_pyproject(project_path))
+        dependency_modules.extend(
+            _dependency_modules_from_pyproject(
+                project_path,
+                site_packages=site_packages,
+            )
+        )
     return tuple(dict.fromkeys((*modules, *dependency_modules)))
 
 

@@ -72,6 +72,17 @@ def _seed_fake_venv_modules(venv: Path, *modules: str) -> Path:
     return site_packages
 
 
+def _seed_dist_info(site_packages: Path, distribution: str, *, top_level: str = "") -> None:
+    dist_dir = site_packages / f"{distribution}-1.0.dist-info"
+    dist_dir.mkdir(parents=True, exist_ok=True)
+    (dist_dir / "METADATA").write_text(
+        f"Metadata-Version: 2.4\nName: {distribution}\n",
+        encoding="utf-8",
+    )
+    if top_level:
+        (dist_dir / "top_level.txt").write_text(top_level, encoding="utf-8")
+
+
 def test_build_install_and_run_snippets_embed_expected_values():
     env = SimpleNamespace(apps_path="/tmp/apps", app="demo_project", is_source_env=False)
 
@@ -1072,6 +1083,8 @@ def test_app_install_status_reports_missing_env_and_python(tmp_path: Path, monke
     (lib_root / "standalone.py").parent.mkdir(parents=True, exist_ok=True)
     (lib_root / "standalone.py").write_text("", encoding="utf-8")
     assert orchestrate_page_support._module_available_on_root(lib_root, "standalone") is True
+    (lib_root / "compiled.cpython-313-x86_64-linux-gnu.so").write_text("", encoding="utf-8")
+    assert orchestrate_page_support._module_available_on_root(lib_root, "compiled") is True
     assert orchestrate_page_support._drop_shadowed_best_node_non_rapids_rows(
         {
             "4:best-node": {"variant": "best-node", "node": "alpha"},
@@ -1283,6 +1296,69 @@ def test_app_install_status_uses_worker_project_dependencies(tmp_path: Path) -> 
     assert status["worker_ready"] is True
     assert "streamlit" not in status["worker_missing_modules"]
     assert "python_dotenv" not in status["worker_missing_modules"]
+
+
+def test_app_install_status_uses_installed_top_level_metadata_for_dependency_imports(tmp_path: Path) -> None:
+    active_app = tmp_path / "sb3_trainer_project"
+    worker_root = tmp_path / "wenv" / "sb3_trainer_worker"
+    active_app.mkdir(parents=True)
+    worker_root.mkdir(parents=True)
+    active_app_dependencies = [
+        "streamlit_code_editor>=0.1",
+        "legacy-cgi>=2",
+        "standard-imghdr>=3",
+        "sat_trajectory_project",
+    ]
+    (active_app / "pyproject.toml").write_text(
+        "[project]\n"
+        "name='sb3-trainer-project'\n"
+        f"dependencies={active_app_dependencies!r}\n",
+        encoding="utf-8",
+    )
+    (worker_root / "pyproject.toml").write_text(
+        "[project]\n"
+        "name='sb3-trainer-project'\n"
+        "dependencies=['sat_trajectory_project']\n",
+        encoding="utf-8",
+    )
+    manager_site = _seed_fake_venv_modules(
+        active_app / ".venv",
+        "agi_env",
+        "agi_node",
+        "agi_cluster",
+        "code_editor",
+        "cgi",
+        "imghdr",
+        "sat_trajectory",
+        "sat_trajectory_worker",
+    )
+    worker_site = _seed_fake_venv_modules(
+        worker_root / ".venv",
+        "agi_env",
+        "agi_node",
+        "sat_trajectory",
+        "sat_trajectory_worker",
+    )
+    for site in (manager_site, worker_site):
+        _seed_dist_info(
+            site,
+            "sat_trajectory_project",
+            top_level="sat_trajectory\nsat_trajectory_worker\n",
+        )
+    _seed_dist_info(manager_site, "streamlit_code_editor", top_level="code_editor\n")
+    _seed_dist_info(manager_site, "standard_imghdr", top_level="imghdr\n")
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    status = orchestrate_page_support.app_install_status(env)
+
+    assert orchestrate_page_support._dependency_modules_from_requirement("legacy-cgi>=2") == ("cgi",)
+    assert status["manager_ready"] is True
+    assert status["worker_ready"] is True
+    assert status["manager_missing_modules"] == ()
+    assert status["worker_missing_modules"] == ()
+    assert "streamlit_code_editor" not in status["manager_missing_modules"]
+    assert "standard_imghdr" not in status["manager_missing_modules"]
+    assert "sat_trajectory_project" not in status["worker_missing_modules"]
 
 
 def test_dependency_metadata_helpers_cover_error_edges(monkeypatch, tmp_path: Path) -> None:
