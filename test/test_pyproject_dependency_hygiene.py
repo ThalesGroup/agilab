@@ -82,6 +82,17 @@ def _has_upper_bound(requirement: Requirement) -> bool:
     return any(spec.operator in {"<", "<="} for spec in requirement.specifier)
 
 
+def _has_minimum_version(requirement: Requirement, minimum: str) -> bool:
+    minimum_version = tuple(int(part) for part in minimum.split("."))
+    for spec in requirement.specifier:
+        if spec.operator not in {">=", "~=", "=="}:
+            continue
+        version = tuple(int(part) for part in spec.version.split(".")[: len(minimum_version)])
+        if version >= minimum_version:
+            return True
+    return False
+
+
 def _is_internal_requirement(requirement: Requirement) -> bool:
     name = requirement.name.lower().replace("_", "-")
     return name == "agilab" or name.startswith("agi-")
@@ -298,7 +309,7 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
     assert _optional_dependency_names(pyproject, "agents") == {"openai"}
     assert _optional_dependency_names(pyproject, "core") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["core"])
     assert set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["examples"]) | {"jupyterlab", "matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "examples")
-    assert _optional_dependency_names(pyproject, "pages") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["pages"])
+    assert _optional_dependency_names(pyproject, "pages") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["pages"]) | {"starlette"}
     assert {"matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "viz")
     assert set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["ui"]) | {"streamlit", "networkx", "pandas", "tomli_w"} <= _optional_dependency_names(pyproject, "ui")
     assert {"mlflow"} <= _optional_dependency_names(pyproject, "mlflow") <= {
@@ -325,6 +336,30 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
                 violations.append(f"{extra_name}: {requirement} missing upper bound")
 
     assert violations == []
+
+
+def test_root_starlette_profiles_keep_supply_chain_safe_floor() -> None:
+    pyproject = REPO_ROOT / "pyproject.toml"
+
+    for extra_name in ("ui", "pages", "examples", "mlflow", "local-llm", "offline"):
+        requirements = {
+            requirement.name.lower().replace("_", "-"): requirement
+            for requirement in _optional_dependencies(pyproject, extra_name)
+        }
+        assert "starlette" in requirements
+        assert _has_minimum_version(requirements["starlette"], "1.0.1")
+        assert _has_upper_bound(requirements["starlette"])
+
+
+def test_agi_gui_keeps_starlette_supply_chain_safe_floor() -> None:
+    requirements = {
+        requirement.name.lower().replace("_", "-"): requirement
+        for requirement in _dependencies(REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml")
+    }
+
+    assert "starlette" in requirements
+    assert _has_minimum_version(requirements["starlette"], "1.0.1")
+    assert _has_upper_bound(requirements["starlette"])
 
 
 def test_builtin_app_manifests_depend_on_core_packages_not_core_internals() -> None:
