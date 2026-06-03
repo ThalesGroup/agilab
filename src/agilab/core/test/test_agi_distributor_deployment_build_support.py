@@ -511,7 +511,8 @@ async def test_build_lib_local_non_cython_uploads_egg(tmp_path):
     )
 
     assert (env.wenv_abs / env.worker_pyproject.name).exists()
-    assert any("pip install agi-env agi-node agi-cluster" in cmd for cmd, _ in commands)
+    assert any("pip install agi-env agi-node" in cmd for cmd, _ in commands)
+    assert not any("pip install agi-env agi-node agi-cluster" in cmd for cmd, _ in commands)
     assert any("bdist_egg" in cmd for cmd, _ in commands)
     assert str(egg_path) in uploads
 
@@ -651,14 +652,17 @@ async def test_build_lib_local_uses_editable_core_installs_in_source_env(monkeyp
         run_fn=_fake_run,
     )
 
-    assert any(
-        (
-            f'--offline --project "{env.active_app}" pip install --upgrade --no-deps '
-            f"-e '{env.agi_env}' -e '{env.agi_node}' -e '{env.agi_cluster}'"
-        )
-        in cmd
+    core_runtime_installs = [
+        cmd
         for cmd, _ in commands
+        if f'--offline --project "{env.active_app}" pip install --upgrade --no-deps'
+        in cmd
+    ]
+    assert any(
+        f"-e '{env.agi_env}'" in cmd and f"-e '{env.agi_node}'" in cmd
+        for cmd in core_runtime_installs
     )
+    assert not any(f"-e '{env.agi_cluster}'" in cmd for cmd in core_runtime_installs)
     assert any(
         _editable_overlay_arg(env.agi_env) in cmd
         and _editable_overlay_arg(env.agi_node) in cmd
@@ -701,14 +705,16 @@ async def test_build_lib_local_uses_uv_index_url_mirror_when_internet_disabled(
 
     assert commands
     assert not any("--offline" in cmd for cmd, _ in commands)
-    assert any(
-        (
-            f'--project "{env.active_app}" pip install --upgrade --no-deps '
-            f"-e '{env.agi_env}' -e '{env.agi_node}' -e '{env.agi_cluster}'"
-        )
-        in cmd
+    core_runtime_installs = [
+        cmd
         for cmd, _ in commands
+        if f'--project "{env.active_app}" pip install --upgrade --no-deps' in cmd
+    ]
+    assert any(
+        f"-e '{env.agi_env}'" in cmd and f"-e '{env.agi_node}'" in cmd
+        for cmd in core_runtime_installs
     )
+    assert not any(f"-e '{env.agi_cluster}'" in cmd for cmd in core_runtime_installs)
     assert any(
         _editable_overlay_arg(env.agi_env) in cmd
         and _editable_overlay_arg(env.agi_node) in cmd

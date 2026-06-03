@@ -1223,7 +1223,7 @@ def test_dataframe_preview_state_roundtrip_cleans_export_flags():
     assert restore_state["selected_cols"] == ["x"]
 
 
-def test_app_install_status_requires_manager_agi_cluster_import(tmp_path: Path) -> None:
+def test_app_install_status_does_not_require_manager_agi_cluster_import(tmp_path: Path) -> None:
     active_app = tmp_path / "mission_decision_project"
     worker_root = tmp_path / "wenv" / "mission_decision_worker"
     manager_venv = active_app / ".venv"
@@ -1234,10 +1234,10 @@ def test_app_install_status_requires_manager_agi_cluster_import(tmp_path: Path) 
 
     status = orchestrate_page_support.app_install_status(env)
 
-    assert status["manager_ready"] is False
+    assert status["manager_ready"] is True
     assert status["worker_ready"] is True
-    assert status["manager_missing_modules"] == ("agi_cluster",)
-    assert status["manager_problem"] == "missing modules: agi_cluster"
+    assert status["manager_missing_modules"] == ()
+    assert status["manager_problem"] == ""
 
 
 def test_app_install_status_rejects_manager_missing_core_dependency(tmp_path: Path) -> None:
@@ -1247,14 +1247,13 @@ def test_app_install_status_rejects_manager_missing_core_dependency(tmp_path: Pa
         active_app / ".venv",
         "agi_env",
         "agi_node",
-        "agi_cluster",
     )
     _seed_fake_venv_modules(worker_root / ".venv", "agi_env", "agi_node")
-    dist_info = manager_site / "agi_cluster-2026.5.25.dist-info"
+    dist_info = manager_site / "agi_node-2026.5.25.dist-info"
     dist_info.mkdir(parents=True, exist_ok=True)
     (dist_info / "METADATA").write_text(
         "Metadata-Version: 2.4\n"
-        "Name: agi-cluster\n"
+        "Name: agi-node\n"
         "Requires-Dist: humanize<5,>=4.10\n"
         "Requires-Dist: dask[distributed]<2027.0,>=2026.3\n",
         encoding="utf-8",
@@ -1290,7 +1289,6 @@ def test_app_install_status_uses_worker_project_dependencies(tmp_path: Path) -> 
         active_app / ".venv",
         "agi_env",
         "agi_node",
-        "agi_cluster",
         "dotenv",
         "streamlit",
     )
@@ -1333,7 +1331,6 @@ def test_app_install_status_uses_installed_top_level_metadata_for_dependency_imp
         active_app / ".venv",
         "agi_env",
         "agi_node",
-        "agi_cluster",
         "code_editor",
         "cgi",
         "imghdr",
@@ -1389,7 +1386,7 @@ def test_app_install_status_skips_marker_inactive_dependencies_for_target_venv(t
     )
     manager_venv = active_app / ".venv"
     worker_venv = worker_root / ".venv"
-    _seed_fake_venv_modules(manager_venv, "agi_env", "agi_node", "agi_cluster")
+    _seed_fake_venv_modules(manager_venv, "agi_env", "agi_node")
     _seed_fake_venv_modules(worker_venv, "agi_env", "agi_node")
     for venv in (manager_venv, worker_venv):
         (venv / "pyvenv.cfg").write_text("version = 3.12.11\n", encoding="utf-8")
@@ -1490,10 +1487,10 @@ def test_dependency_metadata_helpers_cover_error_edges(monkeypatch, tmp_path: Pa
     assert orchestrate_page_support._dependency_modules_from_metadata([site_packages], ["demo"]) == ()
 
 
-def test_app_install_status_rejects_stale_manager_missing_stage_request(tmp_path: Path) -> None:
+def test_app_install_status_ignores_absent_cluster_api_for_manager_runtime(tmp_path: Path) -> None:
     active_app = tmp_path / "weather_forecast_project"
     worker_root = tmp_path / "wenv" / "weather_forecast_worker"
-    manager_site = _seed_fake_venv_modules(active_app / ".venv", "agi_env", "agi_node", "agi_cluster")
+    manager_site = _seed_fake_venv_modules(active_app / ".venv", "agi_env", "agi_node")
     worker_site = _seed_fake_venv_modules(worker_root / ".venv", "agi_env", "agi_node")
     stale_distributor = manager_site / "agi_cluster" / "agi_distributor"
     stale_distributor.mkdir(parents=True, exist_ok=True)
@@ -1503,16 +1500,16 @@ def test_app_install_status_rejects_stale_manager_missing_stage_request(tmp_path
     status = orchestrate_page_support.app_install_status(env)
 
     assert worker_site.exists()
-    assert status["manager_ready"] is False
+    assert status["manager_ready"] is True
     assert status["worker_ready"] is True
-    assert status["manager_missing_symbols"] == ("agi_cluster.agi_distributor.StageRequest",)
-    assert status["manager_problem"] == "missing symbols: agi_cluster.agi_distributor.StageRequest"
+    assert status["manager_missing_symbols"] == ()
+    assert status["manager_problem"] == ""
 
 
 def test_app_install_status_detects_editable_pth_import_roots(tmp_path: Path) -> None:
     active_app = tmp_path / "mission_decision_project"
     worker_root = tmp_path / "wenv" / "mission_decision_worker"
-    manager_site = _seed_fake_venv_modules(active_app / ".venv", "agi_cluster")
+    manager_site = _seed_fake_venv_modules(active_app / ".venv")
     worker_site = _seed_fake_venv_modules(worker_root / ".venv")
     editable_core = tmp_path / "editable-core"
     for module in ("agi_env", "agi_node"):

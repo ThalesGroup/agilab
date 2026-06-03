@@ -899,7 +899,6 @@ async def deploy_local_worker(
             env_project,
             node_project,
             core_project,
-            cluster_project,
         ]
         dependency_info, worker_pyprojects = _gather_dependency_specs(
             projects_for_specs
@@ -1089,7 +1088,6 @@ async def deploy_local_worker(
             (env_project, "agi-env"),
             (node_project, "agi-node"),
             (core_project, "agi-core"),
-            (cluster_project, "agi-cluster"),
         )
         for project_path, package_name in install_targets:
             if project_path and project_path.exists():
@@ -1105,7 +1103,7 @@ async def deploy_local_worker(
                     app_path,
                     install_spec,
                     run_fn=run_fn,
-                    no_deps=package_name not in {"agi-env", "agi-node", "agi-cluster"},
+                    no_deps=package_name not in {"agi-env", "agi-node"},
                     install_cache_enabled=stage_cache_enabled,
                 )
 
@@ -1189,7 +1187,6 @@ async def deploy_local_worker(
                 for package_name, project_path in (
                     ("agi-env", getattr(env, "agi_env", None)),
                     ("agi-node", getattr(env, "agi_node", None)),
-                    ("agi-cluster", getattr(env, "agi_cluster", None)),
                 )
                 if isinstance(project_path, Path) and project_path.exists()
             ],
@@ -1210,10 +1207,6 @@ async def deploy_local_worker(
                 for package_name, spec in (
                     ("agi-env", _resolve_install_spec(env_project, "agi-env")),
                     ("agi-node", _resolve_install_spec(node_project, "agi-node")),
-                    (
-                        "agi-cluster",
-                        _resolve_install_spec(cluster_project, "agi-cluster"),
-                    ),
                 )
                 if spec
             ],
@@ -1313,7 +1306,6 @@ async def deploy_local_worker(
         worker_dependency_names = [
             "worker-add-agi-env",
             "worker-add-agi-node",
-            "worker-add-agi-cluster",
         ]
         worker_stage_inputs = _deploy_stage_project_inputs(wenv_abs, app_path)
         cmd_worker = (
@@ -1348,23 +1340,6 @@ async def deploy_local_worker(
                 dependencies=("worker-add-agi-env",),
             )
         )
-        cmd_worker = (
-            f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-cluster"
-        )
-        await deploy_plan.run(
-            _DeployPlanNode(
-                name="worker-add-agi-cluster",
-                cmd=cmd_worker,
-                cwd=wenv_abs,
-                inputs=worker_stage_inputs,
-                output_probe=lambda: _project_venv_matches(
-                    worker_venv_project,
-                    python_version=pyvers_worker,
-                ),
-                dependencies=("worker-add-agi-node",),
-            )
-        )
-
     if hw_rapids_capable:
         cmd_worker = (
             f"{worker_extra_indexes}{uv_worker} {offline_flag}{run_type} --python {pyvers_worker} "
@@ -1452,7 +1427,6 @@ async def deploy_local_worker(
             (env_project, "agi-env"),
             (node_project, "agi-node"),
             (core_project, "agi-core"),
-            (cluster_project, "agi-cluster"),
         )
         for project_path, package_name in install_targets:
             if project_path and project_path.exists():

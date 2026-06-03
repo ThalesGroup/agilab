@@ -409,7 +409,6 @@ def _core_install_commands(*, env: Any, uv: str, app_path_arg: str) -> list[str]
     core_packages = (
         ("agi-env", getattr(env, "agi_env", None)),
         ("agi-node", getattr(env, "agi_node", None)),
-        ("agi-cluster", getattr(env, "agi_cluster", None)),
     )
     if getattr(env, "is_source_env", False):
         editable_specs = [

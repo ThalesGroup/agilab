@@ -9,7 +9,6 @@ authors = [
 ]
 
 dependencies = [
-    "agi-cluster>=2026.05.25,<2027.0",
     "agi-env>=2026.05.25,<2027.0",
     "agi-node>=2026.05.25,<2027.0",
     "polars>=1.35,<2",

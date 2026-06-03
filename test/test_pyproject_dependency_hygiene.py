@@ -394,10 +394,12 @@ def test_builtin_app_manifests_depend_on_core_packages_not_core_internals() -> N
         deps = _dependency_names(pyproject)
 
         assert deps.isdisjoint(copied_core_internals), app_root.name
-        assert {"agi-env", "agi-node", "agi-cluster"} <= deps, app_root.name
+        assert {"agi-env", "agi-node"} <= deps, app_root.name
+        assert "agi-cluster" not in deps, app_root.name
 
         sources = data.get("tool", {}).get("uv", {}).get("sources", {})
-        for package in ("agi-env", "agi-node", "agi-cluster"):
+        assert "agi-cluster" not in sources, app_root.name
+        for package in ("agi-env", "agi-node"):
             raw_path = sources.get(package, {}).get("path")
             assert raw_path, f"{app_root.name}: missing local source for {package}"
             assert (app_root / raw_path).resolve(strict=False).exists()
@@ -415,8 +417,10 @@ def test_builtin_worker_manifests_have_resolvable_core_sources() -> None:
             continue
         core_worker_pyprojects.append(pyproject)
         assert {"agi-env", "agi-node"} <= deps, pyproject
+        assert "agi-cluster" not in deps, pyproject
 
         sources = data.get("tool", {}).get("uv", {}).get("sources", {})
+        assert "agi-cluster" not in sources, pyproject
         for package in ("agi-env", "agi-node"):
             raw_path = sources.get(package, {}).get("path")
             assert raw_path, f"{pyproject}: missing local source for {package}"
@@ -541,6 +545,21 @@ def test_shared_core_runtime_dependencies_are_not_copied_meta_stacks() -> None:
         "scikit-learn",
         "tomlkit",
     } <= _dependency_names(REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml")
+
+
+def test_promoted_app_packages_depend_on_runtime_pair_not_core_bundle() -> None:
+    package_pyprojects = sorted((REPO_ROOT / "src/agilab/lib").glob("agi-app-*/pyproject.toml"))
+    assert package_pyprojects
+
+    for pyproject in package_pyprojects:
+        deps = _dependency_names(pyproject)
+        sources = _load_pyproject(pyproject).get("tool", {}).get("uv", {}).get("sources", {})
+        assert {"agi-env", "agi-node"} <= deps, pyproject
+        assert "agi-core" not in deps, pyproject
+        assert "agi-cluster" not in deps, pyproject
+        assert {"agi-env", "agi-node"} <= set(sources), pyproject
+        assert "agi-core" not in sources, pyproject
+        assert "agi-cluster" not in sources, pyproject
 
 
 def test_agi_env_does_not_hardcode_upper_core_package_names() -> None:
