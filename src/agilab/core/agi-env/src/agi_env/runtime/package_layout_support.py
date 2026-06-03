@@ -103,7 +103,7 @@ def resolve_package_layout(
             node_pck=core_root / "agi-node/src/agi_node",
             core_pck=core_root / "agi-core/src/agi_core",
             cluster_pck=core_root / "agi-cluster/src/agi_cluster",
-            cli=core_root / "agi-cluster/src/agi_cluster/agi_distributor/cli.py",
+            cli=core_root / "agi-node/src/agi_node/agi_dispatcher/cli.py",
         )
 
     env_pck = resolve_package_dir_fn("agi_env", find_spec_fn=find_spec_fn, path_cls=path_cls)
@@ -119,10 +119,10 @@ def resolve_package_layout(
         cluster_pck = core_pck
 
     try:
-        cli_spec = find_spec_fn("agi_cluster.agi_distributor.cli")
+        cli_spec = find_spec_fn("agi_node.agi_dispatcher.cli")
     except ModuleNotFoundError:
         cli_spec = None
-    cli = path_cls(cli_spec.origin) if cli_spec and getattr(cli_spec, "origin", None) else cluster_pck / "agi_distributor/cli.py"  # ty: ignore[invalid-argument-type]
+    cli = path_cls(cli_spec.origin) if cli_spec and getattr(cli_spec, "origin", None) else node_pck / "agi_dispatcher/cli.py"  # ty: ignore[invalid-argument-type]
 
     return PackageLayout(
         agilab_pck=installed_package_dir,

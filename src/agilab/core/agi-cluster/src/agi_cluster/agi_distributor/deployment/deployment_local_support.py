@@ -18,6 +18,7 @@ import tomlkit
 from packaging.requirements import InvalidRequirement, Requirement
 
 from agi_cluster.agi_distributor import deployment_dask_support
+from agi_cluster.agi_distributor.api.worker_cli_support import resolve_worker_cli_path
 from agi_cluster.agi_distributor.deployment_editable_install_support import (
     EDITABLE_INSTALL_CACHE_SCHEMA as EDITABLE_INSTALL_CACHE_SCHEMA,
     EDITABLE_SHADOW_IMPORTS as EDITABLE_SHADOW_IMPORTS,
@@ -1662,7 +1663,7 @@ async def deploy_local_worker(
     cli = wenv_abs.parent / "cli.py"
     if not cli.exists():
         try:
-            shutil.copy(env.cluster_pck / "agi_distributor/cli.py", cli)
+            shutil.copy(resolve_worker_cli_path(env), cli)
         except FileNotFoundError as exc:
             log.error("Missing cli.py for local worker: %s", exc)
             raise

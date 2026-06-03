@@ -79,10 +79,11 @@ async def test_do_distrib_keeps_run_stages_out_of_constructor_and_injects_model_
     plan_path = tmp_path / "plan.json"
     cluster_src = tmp_path / "cluster" / "src"
     cluster_src.mkdir(parents=True)
+    sentinel_path = tmp_path / "already-on-path"
+    monkeypatch.setattr(dispatcher_module.sys, "path", [str(sentinel_path)], raising=False)
     env = SimpleNamespace(
         target="DemoWorkflow",
         target_class="DemoWorkflow",
-        agi_cluster=cluster_src.parent,
         app_src=tmp_path / "app",
         distribution_tree=plan_path,
     )
@@ -114,6 +115,8 @@ async def test_do_distrib_keeps_run_stages_out_of_constructor_and_injects_model_
     )
 
     assert constructor_args == [{"data_in": "network"}]
+    assert dispatcher_module.sys.path == [str(sentinel_path)]
+    assert str(cluster_src) not in dispatcher_module.sys.path
     assert loaded_workers == {"127.0.0.1": 1}
     assert work_plan == [["chunk"]]
     assert metadata == [{"meta": 1}]
@@ -122,12 +125,9 @@ async def test_do_distrib_keeps_run_stages_out_of_constructor_and_injects_model_
 @pytest.mark.asyncio
 async def test_do_distrib_rejects_run_stages_for_non_workflow_app(tmp_path, monkeypatch):
     plan_path = tmp_path / "plan.json"
-    cluster_src = tmp_path / "cluster" / "src"
-    cluster_src.mkdir(parents=True)
     env = SimpleNamespace(
         target="SimpleApp",
         target_class="SimpleApp",
-        agi_cluster=cluster_src.parent,
         app_src=tmp_path / "app",
         distribution_tree=plan_path,
     )
@@ -157,12 +157,9 @@ async def test_do_distrib_rejects_run_stages_for_non_workflow_app(tmp_path, monk
 @pytest.mark.asyncio
 async def test_do_distrib_builds_and_caches_plan(tmp_path, monkeypatch):
     plan_path = tmp_path / "plan.json"
-    cluster_src = tmp_path / "cluster" / "src"
-    cluster_src.mkdir(parents=True)
     env = SimpleNamespace(
         target="DemoWorker",
         target_class="DemoWorker",
-        agi_cluster=cluster_src.parent,
         app_src=tmp_path / "app",
         distribution_tree=plan_path,
     )
@@ -204,12 +201,9 @@ async def test_do_distrib_builds_and_caches_plan(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_do_distrib_preserves_multiple_worker_assignments(tmp_path, monkeypatch):
     plan_path = tmp_path / "plan.json"
-    cluster_src = tmp_path / "cluster" / "src"
-    cluster_src.mkdir(parents=True)
     env = SimpleNamespace(
         target="DemoWorker",
         target_class="DemoWorker",
-        agi_cluster=cluster_src.parent,
         app_src=tmp_path / "app",
         distribution_tree=plan_path,
     )
@@ -240,12 +234,9 @@ async def test_do_distrib_preserves_multiple_worker_assignments(tmp_path, monkey
 @pytest.mark.asyncio
 async def test_do_distrib_rebuilds_stale_cache_serializes_dates_and_skips_empty_chunks(tmp_path, monkeypatch):
     plan_path = tmp_path / "plan.json"
-    cluster_src = tmp_path / "cluster" / "src"
-    cluster_src.mkdir(parents=True)
     env = SimpleNamespace(
         target="DemoWorker",
         target_class="DemoWorker",
-        agi_cluster=cluster_src.parent,
         app_src=tmp_path / "app",
         distribution_tree=plan_path,
     )
@@ -309,12 +300,9 @@ async def test_do_distrib_rebuilds_stale_cache_serializes_dates_and_skips_empty_
 @pytest.mark.asyncio
 async def test_do_distrib_raises_when_module_cannot_be_loaded(tmp_path, monkeypatch):
     plan_path = tmp_path / "plan.json"
-    cluster_src = tmp_path / "cluster" / "src"
-    cluster_src.mkdir(parents=True)
     env = SimpleNamespace(
         target="MissingWorker",
         target_class="MissingWorker",
-        agi_cluster=cluster_src.parent,
         app_src=tmp_path / "app",
         distribution_tree=plan_path,
     )
@@ -328,12 +316,9 @@ async def test_do_distrib_raises_when_module_cannot_be_loaded(tmp_path, monkeypa
 @pytest.mark.asyncio
 async def test_do_distrib_raises_for_nonserializable_cache_payload(tmp_path, monkeypatch):
     plan_path = tmp_path / "plan.json"
-    cluster_src = tmp_path / "cluster" / "src"
-    cluster_src.mkdir(parents=True)
     env = SimpleNamespace(
         target="DemoWorker",
         target_class="DemoWorker",
-        agi_cluster=cluster_src.parent,
         app_src=tmp_path / "app",
         distribution_tree=plan_path,
     )

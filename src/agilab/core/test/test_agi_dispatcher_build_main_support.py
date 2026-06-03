@@ -28,14 +28,15 @@ def test_bootstrap_core_source_paths_prefers_repo_layout(tmp_path, monkeypatch):
     env_src = core_root / "agi-env" / "src"
     node_src = core_root / "agi-node" / "src"
     cluster_src = core_root / "agi-cluster" / "src"
-    for path in (env_src, node_src, cluster_src):
+    core_src = core_root / "agi-core" / "src"
+    for path in (env_src, node_src, cluster_src, core_src):
         path.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setattr(bootstrap_mod.sys, "path", [], raising=False)
     added = bootstrap_mod.bootstrap_core_source_paths(source_file=source_file)
 
-    assert added == (env_src, node_src, cluster_src)
-    assert bootstrap_mod.sys.path[:3] == [str(env_src), str(node_src), str(cluster_src)]
+    assert added == (env_src, node_src)
+    assert bootstrap_mod.sys.path == [str(env_src), str(node_src)]
 
 
 def test_bootstrap_source_root_handles_unresolvable_and_foreign_paths(monkeypatch, tmp_path):
@@ -115,8 +116,9 @@ def test_bootstrap_core_source_paths_moves_existing_editable_sources_before_site
     env_src = core_root / "agi-env" / "src"
     node_src = core_root / "agi-node" / "src"
     cluster_src = core_root / "agi-cluster" / "src"
+    core_src = core_root / "agi-core" / "src"
     site_packages = tmp_path / "app" / ".venv" / "lib" / "python3.13" / "site-packages"
-    for path in (env_src, node_src, cluster_src, site_packages):
+    for path in (env_src, node_src, cluster_src, core_src, site_packages):
         path.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setattr(
@@ -128,9 +130,10 @@ def test_bootstrap_core_source_paths_moves_existing_editable_sources_before_site
 
     added = bootstrap_mod.bootstrap_core_source_paths(source_file=source_file)
 
-    assert added == (env_src, node_src, cluster_src)
-    assert bootstrap_mod.sys.path[:3] == [str(env_src), str(node_src), str(cluster_src)]
-    assert bootstrap_mod.sys.path[3] == str(site_packages)
+    assert added == (env_src, node_src)
+    assert bootstrap_mod.sys.path[:2] == [str(env_src), str(node_src)]
+    assert bootstrap_mod.sys.path[2] == str(site_packages)
+    assert bootstrap_mod.sys.path[3] == str(cluster_src)
     assert bootstrap_mod.sys.path.count(str(env_src)) == 1
 
 

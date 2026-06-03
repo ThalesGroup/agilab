@@ -60,7 +60,7 @@ def resolve_node_source_path(
 
 
 def bootstrap_core_source_paths(*, source_file: str | Path | None = None) -> tuple[Path, ...]:
-    """Insert repo-local AGI core source roots into ``sys.path`` when available."""
+    """Insert repo-local ``agi-node`` source roots and declared source deps."""
     core_root = resolve_core_source_root(source_file=source_file)
     if core_root is None:
         return ()
@@ -68,8 +68,6 @@ def bootstrap_core_source_paths(*, source_file: str | Path | None = None) -> tup
     candidates = (
         core_root / "agi-env" / "src",
         core_root / "agi-node" / "src",
-        core_root / "agi-cluster" / "src",
-        core_root / "agi-core" / "src",
     )
     added: list[Path] = []
     for candidate in reversed(candidates):

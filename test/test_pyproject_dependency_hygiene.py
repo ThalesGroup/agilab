@@ -522,9 +522,12 @@ def test_shared_core_runtime_dependencies_are_not_copied_meta_stacks() -> None:
         deps = _dependency_names(REPO_ROOT / relative_path)
         assert deps.isdisjoint(stale_names), relative_path
 
-    assert {"agi-env", "cython", "humanize", "numpy", "pandas", "polars", "psutil"} <= _dependency_names(
-        REPO_ROOT / "src/agilab/core/agi-node/pyproject.toml"
-    )
+    node_pyproject = REPO_ROOT / "src/agilab/core/agi-node/pyproject.toml"
+    node_deps = _dependency_names(node_pyproject)
+    node_sources = _load_pyproject(node_pyproject).get("tool", {}).get("uv", {}).get("sources", {})
+    assert {"agi-env", "cython", "humanize", "numpy", "pandas", "polars", "psutil"} <= node_deps
+    assert "agi-cluster" not in node_deps
+    assert "agi-cluster" not in node_sources
     assert {
         "agi-env",
         "agi-node",

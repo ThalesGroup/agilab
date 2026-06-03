@@ -99,9 +99,6 @@ class WorkDispatcher:
         if run_stages:
             cache_args[RUN_STAGES_KEY] = run_stages
 
-        base_worker_dir = str(env.agi_cluster / "src")
-        if base_worker_dir not in sys.path:
-            sys.path.insert(0, base_worker_dir)
         target_module = await WorkDispatcher._load_module(
             env.target,
             env.target,

@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, List, Optional, TypeAlias, Union
 
 from agi_cluster.agi_distributor import runtime_misc_support
 from agi_cluster.agi_distributor import background_jobs_support
+from agi_cluster.agi_distributor.api.worker_cli_support import resolve_worker_cli_path
 from agi_cluster.agi_distributor.run_request_support import RunRequest
 
 
@@ -440,7 +441,7 @@ async def _prepare_scheduler_nodes(
             await agi_cls.send_file(
                 env,
                 ip,
-                env.cluster_pck / "agi_distributor/cli.py",
+                resolve_worker_cli_path(env),
                 cli_rel,
             )
             hw_rapids_capable = env.envars.get(ip, None)

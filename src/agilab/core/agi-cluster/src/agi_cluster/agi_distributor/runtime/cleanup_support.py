@@ -14,6 +14,7 @@ from typing import Any, Awaitable, Callable, Optional
 
 import psutil
 
+from agi_cluster.agi_distributor.api.worker_cli_support import resolve_worker_cli_path
 from agi_env import AgiEnv
 
 
@@ -114,7 +115,7 @@ async def kill_processes(
     kill_prefix = f"{cmd_prefix}{uv} run --no-sync python"
     if env.is_local(ip):
         if not cli_abs.exists():
-            copy_fn(env.cluster_pck / "agi_distributor/cli.py", cli_abs)
+            copy_fn(resolve_worker_cli_path(env), cli_abs)
         if force:
             exclude_arg = f" {current_pid}" if current_pid else ""
             cmds.append(f"{kill_prefix} '{cli_abs}' kill{exclude_arg}")

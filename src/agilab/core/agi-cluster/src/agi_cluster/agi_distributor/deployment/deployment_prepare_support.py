@@ -11,6 +11,7 @@ from typing import Any, Callable, Optional, Set, cast
 from asyncssh.process import ProcessError
 
 from agi_cluster.agi_distributor import cli as distributor_cli, deployment_remote_support
+from agi_cluster.agi_distributor.api.worker_cli_support import resolve_worker_cli_path
 from agi_env import AgiEnv
 
 
@@ -335,7 +336,7 @@ async def prepare_cluster_env(
                 else:
                     raise
 
-        await send_files_fn(env, ip, [env.cluster_pck / "agi_distributor/cli.py"], wenv_rel.parent)
+        await send_files_fn(env, ip, [resolve_worker_cli_path(env)], wenv_rel.parent)
 
         await kill_fn(ip, force=True)
         await clean_dirs_fn(ip)
