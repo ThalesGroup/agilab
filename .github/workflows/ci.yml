@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
 
       - name: Guard against committed docs/html artifacts
         run: |
@@ -43,6 +45,19 @@ jobs:
             echo "Please remove these symlinks or replace with real files." >&2
             exit 1
           fi
+
+      - name: Guard agi-core owner
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        env:
+          AGILAB_CORE_CHANGE_ACTOR: ${{ github.actor }}
+          AGILAB_CORE_CHANGE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          AGILAB_CORE_CHANGE_HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python tools/agi_core_change_guard.py \
+            --actor "$AGILAB_CORE_CHANGE_ACTOR" \
+            --base-ref "$AGILAB_CORE_CHANGE_BASE" \
+            --head-ref "$AGILAB_CORE_CHANGE_HEAD"
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -74,6 +89,7 @@ jobs:
             tools/release_status.py \
             tools/release_handoff.py \
             tools/release_handoff_guard.py \
+            tools/agi_core_change_guard.py \
             tools/app_contract_matrix.py \
             tools/ui_robot_evidence.py \
             tools/ui_robot_matrix_aggregate.py \

@@ -171,6 +171,11 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "tools/app_contract_matrix.py --output app-contract-matrix.json --quiet" in text
     assert "app-contract-matrix.json" in text
     assert "tools/ui_robot_matrix_aggregate.py" in text
+    assert "Guard agi-core owner" in text
+    assert "tools/agi_core_change_guard.py" in text
+    assert "AGILAB_CORE_CHANGE_ACTOR: ${{ github.actor }}" in text
+    assert "--base-ref \"$AGILAB_CORE_CHANGE_BASE\"" in text
+    assert "--head-ref \"$AGILAB_CORE_CHANGE_HEAD\"" in text
 
 
 def test_validation_workflows_cancel_superseded_branch_runs() -> None:

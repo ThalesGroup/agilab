@@ -21,6 +21,7 @@ def test_classify_source_only_change_skips_docs_and_release_proof_guards():
     assert not state.docs_changed
     assert not state.release_proof_changed
     assert not state.app_contracts_changed
+    assert not state.agi_core_protected_changed
 
 
 def test_classify_docs_source_change_runs_docs_guard_only():
@@ -53,6 +54,18 @@ def test_classify_app_contract_change_runs_app_contract_guard_only():
     assert not state.docs_changed
     assert not state.release_proof_changed
     assert state.app_contracts_changed
+    assert not state.agi_core_protected_changed
+
+
+def test_classify_agi_core_change_runs_owner_guard_only():
+    state = pre_push_changed_files.classify_changed_files(
+        ["src/agilab/core/agi-core/src/agi_core/runtime.py"]
+    )
+
+    assert not state.docs_changed
+    assert not state.release_proof_changed
+    assert not state.app_contracts_changed
+    assert state.agi_core_protected_changed
 
 
 def test_classify_public_app_catalog_change_runs_docs_and_app_contract_guards():
@@ -112,6 +125,7 @@ def test_render_shell_is_eval_friendly():
         "DOCS_CHANGED=1",
         "RELEASE_PROOF_CHANGED=1",
         "APP_CONTRACTS_CHANGED=0",
+        "AGI_CORE_PROTECTED_CHANGED=0",
         "MIXED_SCOPE=0",
         "SCOPE_COUNT=0",
         "SCOPE_LIMIT=2",

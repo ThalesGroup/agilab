@@ -15,6 +15,7 @@ guard_state="$(
 DOCS_CHANGED=1
 RELEASE_PROOF_CHANGED=1
 APP_CONTRACTS_CHANGED=1
+AGI_CORE_PROTECTED_CHANGED=1
 MIXED_SCOPE=0
 SCOPE_COUNT=0
 SCOPE_LIMIT=2
@@ -26,6 +27,7 @@ while IFS='=' read -r key value; do
     DOCS_CHANGED) DOCS_CHANGED="$value" ;;
     RELEASE_PROOF_CHANGED) RELEASE_PROOF_CHANGED="$value" ;;
     APP_CONTRACTS_CHANGED) APP_CONTRACTS_CHANGED="$value" ;;
+    AGI_CORE_PROTECTED_CHANGED) AGI_CORE_PROTECTED_CHANGED="$value" ;;
     MIXED_SCOPE) MIXED_SCOPE="$value" ;;
     SCOPE_COUNT) SCOPE_COUNT="$value" ;;
     SCOPE_LIMIT) SCOPE_LIMIT="$value" ;;
@@ -43,6 +45,18 @@ if [[ "${MIXED_SCOPE:-0}" == "1" && "${AGILAB_ALLOW_MIXED_SCOPE_PUSH:-}" != "1" 
   echo "[agilab pre-push] pushed changes span ${SCOPE_COUNT} non-infrastructure scopes; limit is ${SCOPE_LIMIT}." >&2
   echo "[agilab pre-push] Split the work, use ./dev task-worktree <branch-name>, or set AGILAB_ALLOW_MIXED_SCOPE_PUSH=1 with an explicit reason." >&2
   exit 1
+fi
+
+if [[ "${AGI_CORE_PROTECTED_CHANGED:-1}" == "1" ]]; then
+  agi_core_actor="${AGILAB_CORE_CHANGE_ACTOR:-${GITHUB_ACTOR:-}}"
+  if [[ -z "$agi_core_actor" ]]; then
+    agi_core_actor="$(git config --get github.user || true)"
+  fi
+  uv --preview-features extra-build-dependencies run python tools/agi_core_change_guard.py \
+    --actor "$agi_core_actor" \
+    --protected-changed
+else
+  echo "[agilab pre-push] protected agi-core paths unchanged; skipping owner guard." >&2
 fi
 
 if [[ "${DOCS_CHANGED:-1}" == "1" ]]; then
