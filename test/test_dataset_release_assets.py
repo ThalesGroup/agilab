@@ -73,9 +73,39 @@ def test_dataset_release_assets_writes_content_addressed_manifest_and_full_archi
     assert saved_manifest["datasets"][0]["path"] == "src/agilab/apps/builtin/demo_project/src/demo_worker/dataset.7z"
 
     with tarfile.open(archive_path, "r:gz") as tar:
+        tar_member = tar.getmember("src/agilab/apps/builtin/demo_project/src/demo_worker/dataset.7z")
+        assert tar_member.mtime == dataset_release_assets.ZIP_SAFE_MINIMUM_MTIME
         member = tar.extractfile("src/agilab/apps/builtin/demo_project/src/demo_worker/dataset.7z")
         assert member is not None
         assert member.read() == b"full dataset contents"
+    assert int.from_bytes(archive_path.read_bytes()[4:8], byteorder="little") == (
+        dataset_release_assets.ZIP_SAFE_MINIMUM_MTIME
+    )
+
+
+def test_dataset_release_assets_clamps_source_date_epoch_to_zip_safe_floor(tmp_path: Path, monkeypatch) -> None:
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+    repo.mkdir()
+    out.mkdir()
+    _git(repo, "init")
+
+    dataset = repo / "data" / "dataset.csv"
+    dataset.parent.mkdir(parents=True)
+    dataset.write_text("x\n1\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    records = dataset_release_assets.discover_dataset_records(repo)
+    archive_path = out / "datasets.tar.gz"
+
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "0")
+    dataset_release_assets.write_dataset_archive(repo, records, archive_path)
+
+    with tarfile.open(archive_path, "r:gz") as tar:
+        tar_member = tar.getmember("data/dataset.csv")
+        assert tar_member.mtime == dataset_release_assets.ZIP_SAFE_MINIMUM_MTIME
+    assert int.from_bytes(archive_path.read_bytes()[4:8], byteorder="little") == (
+        dataset_release_assets.ZIP_SAFE_MINIMUM_MTIME
+    )
 
 
 def test_dataset_release_assets_detects_lfs_pointer_files(tmp_path: Path) -> None:

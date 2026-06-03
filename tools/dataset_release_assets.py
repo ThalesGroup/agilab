@@ -15,6 +15,7 @@ from typing import Any
 
 
 SCHEMA = "agilab.dataset_release_assets.v1"
+ZIP_SAFE_MINIMUM_MTIME = 315532800  # 1980-01-01T00:00:00Z, the ZIP timestamp floor.
 DATASET_SUFFIXES = {".7z", ".csv", ".npz", ".parquet"}
 DATASET_DIR_PARTS = {"analysis_artifacts", "data", "dataset", "datasets", "sample_data"}
 DATASET_FILENAMES = {"dataset.7z"}
@@ -122,7 +123,20 @@ def write_manifest(manifest: dict[str, Any], path: Path) -> None:
     path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def release_asset_mtime() -> int:
+    """Return a reproducible timestamp that remains valid for ZIP-based installers."""
+
+    raw_epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    if raw_epoch:
+        try:
+            return max(int(raw_epoch), ZIP_SAFE_MINIMUM_MTIME)
+        except ValueError:
+            return ZIP_SAFE_MINIMUM_MTIME
+    return ZIP_SAFE_MINIMUM_MTIME
+
+
 def write_dataset_archive(repo_root: Path, records: list[dict[str, Any]], archive_path: Path) -> None:
+    archive_mtime = release_asset_mtime()
     tar_buffer = io.BytesIO()
     with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
         for record in records:
@@ -133,13 +147,13 @@ def write_dataset_archive(repo_root: Path, records: list[dict[str, Any]], archiv
             tar_info.gid = 0
             tar_info.uname = ""
             tar_info.gname = ""
-            tar_info.mtime = 0
+            tar_info.mtime = archive_mtime
             tar_info.mode = 0o644
             with absolute_path.open("rb") as handle:
                 tar.addfile(tar_info, handle)
 
     with archive_path.open("wb") as output:
-        with gzip.GzipFile(filename="", mode="wb", fileobj=output, mtime=0) as gzip_file:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=output, mtime=archive_mtime) as gzip_file:
             gzip_file.write(tar_buffer.getvalue())
 
 
