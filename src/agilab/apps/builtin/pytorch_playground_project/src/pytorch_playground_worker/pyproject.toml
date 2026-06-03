@@ -6,7 +6,6 @@ requires-python = ">=3.12"
 dependencies = [
     "agi-env>=2026.05.31",
     "agi-node>=2026.05.31",
-    "agi-cluster>=2026.05.31",
     "numpy>=2.2,<3",
     "pandas>=2.3.0,<4",
     "pydantic>=2.11,<2.13",
@@ -16,7 +15,6 @@ dependencies = [
 [tool.uv.sources]
 agi-env = { path = "../../../../../core/agi-env", editable = true }
 agi-node = { path = "../../../../../core/agi-node", editable = true }
-agi-cluster = { path = "../../../../../core/agi-cluster", editable = true }
 
 [build-system]
 requires = ["setuptools"]

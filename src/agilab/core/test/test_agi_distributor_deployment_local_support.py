@@ -2989,12 +2989,17 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     assert pth_content == expected_prefix
     assert agi_cls._install_done_local is True
     assert any(
+        f'add --editable "{env_project}" "{node_project}"' in cmd
+        and str(wenv_abs) in cmd
+        for cmd, _ in commands
+    )
+    assert not any(
         f'add --editable "{env_project}" "{node_project}" "{cluster_project}"' in cmd
         and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
     manager_python = _venv_python(app_path)
-    assert any(
+    assert not any(
         f'pip install --python "{manager_python}" --upgrade "{cluster_project}"' in cmd
         for cmd, _ in commands
     )
@@ -3134,7 +3139,7 @@ async def test_deploy_local_worker_install_type_zero_non_source_uses_distributio
         in cmd
         for cmd, _ in commands
     )
-    assert any(
+    assert not any(
         "agi-cluster @ git+https://example.invalid/repo.git@main#subdirectory=agi-cluster"
         in cmd
         for cmd, _ in commands
@@ -3955,12 +3960,15 @@ path = "../sat_trajectory_project"
         f'pip install --python "{manager_python}" --upgrade "{env_project}"',
         f'pip install --python "{manager_python}" --upgrade "{node_project}"',
         f'pip install --python "{manager_python}" --upgrade --no-deps "{core_project}"',
-        f'pip install --python "{manager_python}" --upgrade "{cluster_project}"',
     ]
     for expected in expected_manager_installs:
         assert any(expected in cmd for cmd, _ in commands), "\n".join(
             cmd for cmd, _ in commands
         )
+    assert not any(
+        f'pip install --python "{manager_python}" --upgrade "{cluster_project}"' in cmd
+        for cmd, _ in commands
+    )
     assert any(
         f'add --editable "{env_project}" "{node_project}"' in cmd
         and str(wenv_abs) in cmd

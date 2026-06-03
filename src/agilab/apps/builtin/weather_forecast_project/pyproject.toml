@@ -3,7 +3,7 @@ name = "weather_forecast_project"
 version = "2026.05.30.post1"
 description = "Built-in AGILab weather forecasting example migrated from notebooks"
 requires-python = ">=3.11"
-dependencies = ["agi-env>=2026.05.31", "agi-node>=2026.05.31", "agi-cluster>=2026.05.31", "pandas>=2.3.0,<4", "pydantic>=2.11,<2.13", "scikit-learn>=1.7.2,<2", "skforecast>=0.19,<0.20", "streamlit>=1.58,<2"]
+dependencies = ["agi-env>=2026.05.31", "agi-node>=2026.05.31", "pandas>=2.3.0,<4", "pydantic>=2.11,<2.13", "scikit-learn>=1.7.2,<2", "skforecast>=0.19,<0.20", "streamlit>=1.58,<2"]
 
 [tool.agilab]
 runtime_target = "weather_forecast"
@@ -11,7 +11,6 @@ runtime_target = "weather_forecast"
 [tool.uv.sources]
 agi-env = { path = "../../../core/agi-env", editable = true }
 agi-node = { path = "../../../core/agi-node", editable = true }
-agi-cluster = { path = "../../../core/agi-cluster", editable = true }
 
 [tool.setuptools.package-data]
 weather_forecast = ["sample_data/*.csv"]

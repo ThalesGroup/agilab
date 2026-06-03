@@ -7,7 +7,6 @@ requires-python = ">=3.12"
 dependencies = [
     "agi-env>=2026.05.31",
     "agi-node>=2026.05.31",
-    "agi-cluster>=2026.05.31",
     "agi-gui>=2026.05.31",
     "agi-web>=2026.05.31",
     "numpy>=2.2,<3",

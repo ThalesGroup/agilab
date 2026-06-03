@@ -53,6 +53,7 @@ PAYLOAD_EXCLUDED_DIRS = frozenset(
     }
 )
 PAYLOAD_EXCLUDED_FILES = frozenset({".DS_Store", ".gitignore", ".lock", "uv.lock"})
+PAYLOAD_EXCLUDED_FILE_PREFIXES = (".coverage",)
 PAYLOAD_EXCLUDED_SUFFIXES = frozenset({".c", ".pid", ".pyc", ".pyo", ".pyx", ".so"})
 
 
@@ -185,7 +186,11 @@ def _payload_file_index(root: Path) -> dict[str, bytes]:
             continue
         if not path.is_file():
             continue
-        if path.name in PAYLOAD_EXCLUDED_FILES or path.suffix in PAYLOAD_EXCLUDED_SUFFIXES:
+        if (
+            path.name in PAYLOAD_EXCLUDED_FILES
+            or path.name.startswith(PAYLOAD_EXCLUDED_FILE_PREFIXES)
+            or path.suffix in PAYLOAD_EXCLUDED_SUFFIXES
+        ):
             continue
         files[relative.as_posix()] = path.read_bytes()
     return files
@@ -469,7 +474,7 @@ def _project_checks(repo_root: Path, project_path: Path) -> list[Check]:
         project_data = pyproject.get("project", {})
         missing_core_deps = [
             package
-            for package in ("agi-env", "agi-node", "agi-cluster")
+            for package in ("agi-env", "agi-node")
             if not _has_dependency(manager_dependencies, package)
         ]
         checks.append(
@@ -479,7 +484,7 @@ def _project_checks(repo_root: Path, project_path: Path) -> list[Check]:
                 project_data.get("name") == project_name
                 and bool(project_data.get("version"))
                 and not missing_core_deps,
-                "manager pyproject declares the project name, version, and core dependencies",
+                "manager pyproject declares the project name, version, and app runtime dependencies",
                 evidence=(_relative(repo_root, pyproject_path),),
                 details={
                     "name": project_data.get("name"),

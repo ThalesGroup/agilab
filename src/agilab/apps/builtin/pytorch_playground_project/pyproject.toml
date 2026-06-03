@@ -7,7 +7,6 @@ requires-python = ">=3.12"
 dependencies = [
     "agi-env>=2026.05.31",
     "agi-node>=2026.05.31",
-    "agi-cluster>=2026.05.31",
     "agi-gui>=2026.05.31",
     "agi-web>=2026.05.31",
     "numpy>=2.2,<3",
@@ -29,7 +28,6 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 [tool.uv.sources]
 agi-env = { path = "../../../core/agi-env", editable = true }
 agi-node = { path = "../../../core/agi-node", editable = true }
-agi-cluster = { path = "../../../core/agi-cluster", editable = true }
 agi-gui = { path = "../../../lib/agi-gui", editable = true }
 agi-web = { path = "../../../lib/agi-web", editable = true }
 

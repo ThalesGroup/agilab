@@ -371,7 +371,8 @@ def test_app_templates_keep_runtime_contracts_explicit() -> None:
             assert {"agi-cluster", "agi-node"}.isdisjoint(dependencies), template.name
             assert not any(template.glob("src/*_worker")), template.name
         else:
-            assert {"agi-cluster", "agi-node"} <= dependencies, template.name
+            assert "agi-node" in dependencies, template.name
+            assert "agi-cluster" not in dependencies, template.name
         assert "filterwarnings" not in pyproject.get("tool", {}).get("mypy", {})
 
         cluster_settings = tomllib.loads((template / "src/app_settings.toml").read_text(encoding="utf-8"))["cluster"]

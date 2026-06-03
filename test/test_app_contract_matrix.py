@@ -96,23 +96,25 @@ def test_app_contract_matrix_detects_promoted_catalog_drift():
     ]["details"]["missing_from_pypi_catalog"]
 
 
-def test_worker_projects_depend_on_cluster_cli_runtime() -> None:
+def test_worker_projects_depend_on_node_cli_runtime_without_cluster_stack() -> None:
     missing_dependency: list[str] = []
-    missing_source: list[str] = []
+    unexpected_cluster_dependency: list[str] = []
+    unexpected_cluster_source: list[str] = []
     for pyproject in sorted((ROOT / "src" / "agilab").rglob("*_worker/pyproject.toml")):
         metadata = tomllib.loads(pyproject.read_text(encoding="utf-8"))
         dependencies = tuple(metadata.get("project", {}).get("dependencies", ()))
         if not any(dependency.startswith("agi-node") for dependency in dependencies):
-            continue
-        if not any(dependency.startswith("agi-cluster") for dependency in dependencies):
             missing_dependency.append(pyproject.relative_to(ROOT).as_posix())
+        if any(dependency.startswith("agi-cluster") for dependency in dependencies):
+            unexpected_cluster_dependency.append(pyproject.relative_to(ROOT).as_posix())
         if pyproject.relative_to(ROOT).as_posix().startswith("src/agilab/apps/builtin/"):
             sources = metadata.get("tool", {}).get("uv", {}).get("sources", {})
-            if "agi-cluster" not in sources:
-                missing_source.append(pyproject.relative_to(ROOT).as_posix())
+            if "agi-cluster" in sources:
+                unexpected_cluster_source.append(pyproject.relative_to(ROOT).as_posix())
 
     assert missing_dependency == []
-    assert missing_source == []
+    assert unexpected_cluster_dependency == []
+    assert unexpected_cluster_source == []
 
 
 def test_app_contract_matrix_detects_page_bundle_provider_drift():
@@ -220,6 +222,8 @@ def test_app_contract_matrix_detects_checked_in_payload_drift(tmp_path: Path, mo
             generated_project = target_root / project_name
             generated_project.mkdir(parents=True)
             (generated_project / "value.txt").write_text("new\n", encoding="utf-8")
+            (generated_project / ".coverage").write_text("generated coverage\n", encoding="utf-8")
+            (generated_project / ".coverage.worker").write_text("generated coverage\n", encoding="utf-8")
             return []
 
     def _fake_load_module(_repo_root: Path, relative_path: Path, _module_name: str):
@@ -237,6 +241,8 @@ def test_app_contract_matrix_detects_checked_in_payload_drift(tmp_path: Path, mo
 
     assert contract_errors == {}
     assert drift_errors["agi-app-demo"]["changed"] == ["value.txt"]
+    assert ".coverage" not in drift_errors["agi-app-demo"]["missing_from_embedded"]
+    assert ".coverage.worker" not in drift_errors["agi-app-demo"]["missing_from_embedded"]
 
 
 def test_app_contract_matrix_cli_writes_json_output(tmp_path: Path, capsys):

@@ -99,11 +99,9 @@ _INSTALL_LOG_NON_FATAL_LINE_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
     if tokens
 )
 
-_MANAGER_REQUIRED_MODULES: tuple[str, ...] = ("agi_env", "agi_node", "agi_cluster")
+_MANAGER_REQUIRED_MODULES: tuple[str, ...] = ("agi_env", "agi_node")
 _WORKER_REQUIRED_MODULES: tuple[str, ...] = ("agi_env", "agi_node")
-_MANAGER_REQUIRED_SYMBOLS: tuple[tuple[str, str], ...] = (
-    ("agi_cluster.agi_distributor", "StageRequest"),
-)
+_MANAGER_REQUIRED_SYMBOLS: tuple[tuple[str, str], ...] = ()
 _DEPENDENCY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
     "legacy-cgi": ("cgi",),
     "pillow": ("PIL",),
@@ -1662,7 +1660,6 @@ def app_install_status(env: Any) -> dict[str, Any]:
         for name in (
             "agi-env",
             "agi-node",
-            "agi-cluster",
             active_app_distribution,
         )
         if name
