@@ -323,23 +323,14 @@ be only an install-footprint optimization if measured adoption data ever
 justifies the added conditional paths.
 
 Release and adoption supply-chain evidence is explicit: Dependabot watches
-Python and GitHub Actions manifests, release workflows publish per-profile
+Python and GitHub Actions manifests, release tooling publishes per-profile
 `pip-audit` JSON and CycloneDX SBOM artifacts, and
 `tools/profile_supply_chain_scan.py` can regenerate the same profile evidence
-locally. PyPI publication uses Trusted Publishing/OIDC and the release workflow
-runs `tools/pypi_provenance_check.py` after upload so missing PyPI attestations
-fail before GitHub release assets are published. By default, the workflow omits
-selected PyPI projects whose current wheel/sdist artifacts already exist, so
-unchanged split packages do not enter upload, provenance, retention, or release
-asset jobs. For packages that still need publication, the workflow then attempts
-to prune older PyPI releases; missing current versions or remaining stale
-releases are hard failures. If PyPI asks for unrecognized login confirmation,
-the workflow waits on the temporary
-`PYPI_CONFIRM_LOGIN_URL` Actions variable instead of silently continuing. Release
-assets and Hugging Face sync only proceed after PyPI retention verifies that each
-selected project exposes only the current release. After release assets are
-published, the same workflow syncs the public Hugging Face Space, runs the
-hosted smoke test, and records the resulting Space commit in release proof.
+locally. Keep detailed package upload, trusted-publisher, reuse, retention, and
+hosted-demo sync rules in the
+[package publishing policy](https://thalesgroup.github.io/agilab/package-publishing-policy.html),
+where they belong as maintainer tooling rather than a development component.
+The README only summarizes the evidence boundary and links to release proof.
 
 ## Evidence Taxonomy
 
@@ -494,10 +485,9 @@ April-May 2026 records public-beta packaging hardening, provenance refreshes,
 and dependency-pin alignment across the split package set. It is kept visible
 for auditability, but it is not the target steady-state release rhythm; normal
 feature or behavior changes should advance to a deliberate new date-based
-release. The `pypi-publish` workflow now rejects committed public `.postN`
-versions unless a maintainer explicitly marks the dispatch as a critical hotfix
-and records the reason; release candidates or TestPyPI should be used before a
-final public release.
+release. Emergency public `.postN` versions are maintainer-gated and must be
+justified in release evidence; rehearsal builds should happen before final
+public release artifacts are cut.
 
 ## Source Checkout
 
