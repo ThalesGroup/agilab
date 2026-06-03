@@ -489,20 +489,32 @@ def _configure_package_layout(env, *, repo_agilab_dir: Path, agilab_pkg_dir: Pat
     )
     env.agilab_pck = package_layout.agilab_pck
     env.env_pck = package_layout.env_pck
-    env.node_pck = package_layout.node_pck
-    env.core_pck = package_layout.core_pck
-    env.cluster_pck = package_layout.cluster_pck
     env.cli = package_layout.cli
+    env.worker_pre_install = package_layout.worker_pre_install
+    env.worker_post_install = package_layout.worker_post_install
+    env.worker_post_install_module = package_layout.worker_post_install_module
+    env.worker_setup_app_module = package_layout.setup_app_module
+    env._runtime_package_specs = {
+        role: runtime_package.spec
+        for role, runtime_package in package_layout.runtime_packages.items()
+    }
+    env._runtime_package_projects = {
+        role: runtime_package.project_pck
+        for role, runtime_package in package_layout.runtime_packages.items()
+    }
+    env._runtime_package_pcks = {
+        role: runtime_package.package_pck
+        for role, runtime_package in package_layout.runtime_packages.items()
+    }
 
     resolve = env._resolve_package
     env.env_pck = resolve(env.env_pck)
-    env.node_pck = resolve(env.node_pck)
-    env.core_pck = resolve(env.core_pck)
-    env.cluster_pck = resolve(env.cluster_pck)
+    for role, package_pck in list(env._runtime_package_pcks.items()):
+        resolved_package = resolve(package_pck)
+        env._runtime_package_pcks[role] = resolved_package
+        setattr(env, f"{role}_pck", resolved_package)
+        setattr(env, f"agi_{role}", env._runtime_package_projects[role])
     env.agi_env = env.env_pck.parents[1]
-    env.agi_node = env.node_pck.parents[1]
-    env.agi_core = env.core_pck.parents[1]
-    env.agi_cluster = env.cluster_pck.parents[1]
     env.st_resources = resolve_resource_root(env.agilab_pck, path_cls=Path)
 
 
@@ -562,7 +574,7 @@ def _configure_credentials_and_project_state(env, *, env_cls, envars) -> None:
         env_cls.logger.info(f"Could not find any target project app in {env.agilab_pck / 'apps'}.")
 
     env.setup_app = env.active_app / "build.py"
-    env.setup_app_module = "agi_node.agi_dispatcher.build"
+    env.setup_app_module = getattr(env, "worker_setup_app_module", None) or "build"
     env._init_projects()
 
     env.scheduler_ip = envars.get("AGI_SCHEDULER_IP", "127.0.0.1")

@@ -330,9 +330,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     projects: list[str]
     user: str
     env_pck: Path
-    node_pck: Path
-    core_pck: Path
-    cluster_pck: Path
     agilab_pck: Path
     st_resources: Path
     agi_share_path: str | Path | None
@@ -442,9 +439,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def _collect_pythonpath_entries(self) -> list[str]:
         return build_pythonpath_entries(
             env_pck=self.env_pck,
-            node_pck=self.node_pck,
-            core_pck=self.core_pck,
-            cluster_pck=self.cluster_pck,
+            runtime_package_pcks=getattr(self, "_runtime_package_pcks", {}).values(),
             dist_abs=self.dist_abs,
             app_src=self.app_src,
             wenv_abs=self.wenv_abs,

@@ -32,6 +32,9 @@ keywords = [
 ]
 dependencies = ["agi-env==2026.06.02.post1", "agi-node==2026.06.02.post1", "agi-cluster==2026.06.02.post1"]
 
+[project.entry-points."agi_env.runtime_packages"]
+agi-core = "agi_core.agi_env_runtime:RUNTIME_PACKAGE_SPEC"
+
 [project.urls]
 Homepage = "https://github.com/ThalesGroup/agilab"
 Issues = "https://github.com/ThalesGroup/agilab/issues"

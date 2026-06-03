@@ -248,9 +248,9 @@ def configure_worker_runtime(
     env_obj.wenv_abs = home_abs / env_obj.wenv_rel
     ensure_dir_fn(env_obj.wenv_abs)
 
-    env_obj.pre_install = env_obj.node_pck / "agi_dispatcher/pre_install.py"
-    env_obj.post_install = env_obj.node_pck / "agi_dispatcher/post_install.py"
-    env_obj.post_install_rel = "agi_node.agi_dispatcher.post_install"
+    env_obj.pre_install = getattr(env_obj, "worker_pre_install", None)
+    env_obj.post_install = getattr(env_obj, "worker_post_install", None)
+    env_obj.post_install_rel = getattr(env_obj, "worker_post_install_module", None)
 
     env_obj.dist_abs = env_obj.wenv_abs / "dist"
     _append_sys_path(env_obj.dist_abs, normalize_path_fn=normalize_path_fn, sys_path=sys_path)

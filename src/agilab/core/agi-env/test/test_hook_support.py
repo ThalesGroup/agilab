@@ -8,6 +8,25 @@ import pytest
 import agi_env.hook_support as hook_support
 
 
+def _worker_spec():
+    return hook_support.RuntimePackageSpec(
+        role="worker",
+        project_dir="worker-project",
+        module_name="worker_package",
+        hook_package="worker_package.dispatcher",
+        hook_source_rel="src/worker_package/dispatcher",
+        hook_cache_name="worker_hooks",
+    )
+
+
+def _patch_worker_specs(monkeypatch):
+    monkeypatch.setattr(
+        hook_support,
+        "load_runtime_package_specs",
+        lambda **_kwargs: (_worker_spec(),),
+    )
+
+
 def test_select_hook_prefers_local_candidate_and_fallback(tmp_path: Path):
     local_hook = tmp_path / "pre_install.py"
     local_hook.write_text("print('local')\n", encoding="utf-8")
@@ -47,6 +66,7 @@ def test_select_hook_raises_when_no_candidate_found(tmp_path: Path):
 
 
 def test_resolve_worker_hook_prefers_installed_spec_location_and_resource_cache(tmp_path: Path, monkeypatch):
+    _patch_worker_specs(monkeypatch)
     installed_dir = tmp_path / "installed" / "agi_dispatcher"
     installed_dir.mkdir(parents=True)
     installed_hook = installed_dir / "pre_install.py"
@@ -80,11 +100,12 @@ def test_resolve_worker_hook_prefers_installed_spec_location_and_resource_cache(
         module_file=str(tmp_path / "sandbox" / "nested" / "agi_env.py"),
     )
 
-    assert resolved == cache_parent / "agi_node_hooks" / "post_install.py"
+    assert resolved == cache_parent / "worker_hooks" / "post_install.py"
     assert resolved.read_text(encoding="utf-8") == "print('resource')\n"
 
 
 def test_worker_hook_none_when_resource_missing(monkeypatch, tmp_path: Path):
+    _patch_worker_specs(monkeypatch)
     hook_support.resolve_worker_hook.cache_clear()
     monkeypatch.setattr(
         hook_support.importlib.util,
@@ -104,6 +125,7 @@ def test_worker_hook_none_when_resource_missing(monkeypatch, tmp_path: Path):
 
 
 def test_resolve_worker_hook_handles_repo_fallback_oserror_and_propagates_runtime_bug(tmp_path: Path, monkeypatch):
+    _patch_worker_specs(monkeypatch)
     hook_support.resolve_worker_hook.cache_clear()
     monkeypatch.setattr(hook_support.importlib.util, "find_spec", lambda _name: None)
     monkeypatch.setattr(
@@ -141,6 +163,7 @@ def test_resolve_worker_hook_handles_repo_fallback_oserror_and_propagates_runtim
 
 
 def test_resolve_worker_hook_handles_non_init_origin_and_missing_resource(tmp_path: Path, monkeypatch):
+    _patch_worker_specs(monkeypatch)
     hook_support.resolve_worker_hook.cache_clear()
     module_file = tmp_path / "one" / "two" / "three" / "four" / "agi_env.py"
     module_file.parent.mkdir(parents=True)
@@ -162,6 +185,7 @@ def test_resolve_worker_hook_handles_non_init_origin_and_missing_resource(tmp_pa
 
 
 def test_resolve_worker_hook_handles_missing_spec_origin(tmp_path: Path, monkeypatch):
+    _patch_worker_specs(monkeypatch)
     hook_support.resolve_worker_hook.cache_clear()
     module_file = tmp_path / "one" / "two" / "three" / "four" / "agi_env.py"
     module_file.parent.mkdir(parents=True)
@@ -180,11 +204,12 @@ def test_resolve_worker_hook_handles_missing_spec_origin(tmp_path: Path, monkeyp
 
 
 def test_resolve_worker_hook_uses_repo_package_fallback(tmp_path: Path, monkeypatch):
+    _patch_worker_specs(monkeypatch)
     hook_support.resolve_worker_hook.cache_clear()
     module_file = tmp_path / "one" / "two" / "three" / "four" / "agi_env.py"
     module_file.parent.mkdir(parents=True)
     module_file.write_text("", encoding="utf-8")
-    pkg_hook = tmp_path / "core" / "agi-node" / "agi_dispatcher" / "pre_install.py"
+    pkg_hook = tmp_path / "core" / "worker-project" / "src" / "worker_package" / "dispatcher" / "pre_install.py"
     pkg_hook.parent.mkdir(parents=True)
     pkg_hook.write_text("print('pkg')\n", encoding="utf-8")
 
@@ -194,13 +219,14 @@ def test_resolve_worker_hook_uses_repo_package_fallback(tmp_path: Path, monkeypa
 
 
 def test_resolve_worker_hook_handles_cached_resource_without_copy_and_missing_as_file(tmp_path: Path, monkeypatch):
+    _patch_worker_specs(monkeypatch)
     resource_root = tmp_path / "resources"
     resource_root.mkdir()
     resource_hook = resource_root / "post_install.py"
     resource_hook.write_text("print('resource')\n", encoding="utf-8")
     cache_parent = tmp_path / "cache-parent"
     cache_parent.mkdir()
-    cached = cache_parent / "agi_node_hooks" / "post_install.py"
+    cached = cache_parent / "worker_hooks" / "post_install.py"
     cached.parent.mkdir(parents=True)
     cached.write_text("print('cached')\n", encoding="utf-8")
 

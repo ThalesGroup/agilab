@@ -35,10 +35,9 @@ def test_apps_repository_root_and_pythonpath_helpers(tmp_path: Path, monkeypatch
 
     package_root = tmp_path / "pkg-root"
     env_pkg = package_root / "envpkg"
-    node_pkg = package_root / "nodepkg"
-    core_pkg = package_root / "corepkg"
-    cluster_pkg = package_root / "clusterpkg"
-    for pkg in (env_pkg, node_pkg, core_pkg, cluster_pkg):
+    worker_pkg = package_root / "workerpkg"
+    service_pkg = package_root / "servicepkg"
+    for pkg in (env_pkg, worker_pkg, service_pkg):
         (pkg / "__init__.py").parent.mkdir(parents=True, exist_ok=True)
         (pkg / "__init__.py").write_text("", encoding="utf-8")
     dist_abs = tmp_path / "dist"
@@ -50,9 +49,7 @@ def test_apps_repository_root_and_pythonpath_helpers(tmp_path: Path, monkeypatch
 
     entries = repository_support.collect_pythonpath_entries(
         env_pck=env_pkg,
-        node_pck=node_pkg,
-        core_pck=core_pkg,
-        cluster_pck=cluster_pkg,
+        runtime_package_pcks=(worker_pkg, service_pkg),
         dist_abs=dist_abs,
         app_src=app_src,
         wenv_abs=wenv_abs,
@@ -182,9 +179,7 @@ def test_collect_pythonpath_entries_handles_typeerror_in_import_root(tmp_path: P
 
     result = repository_support.collect_pythonpath_entries(
         env_pck=_Pkg(_BrokenImportRoot()),
-        node_pck=tmp_path / "nodepkg",
-        core_pck=tmp_path / "corepkg",
-        cluster_pck=tmp_path / "clusterpkg",
+        runtime_package_pcks=(tmp_path / "workerpkg",),
         dist_abs=tmp_path / "dist",
         app_src=tmp_path / "app_src",
         wenv_abs=tmp_path / "wenv",
@@ -203,17 +198,14 @@ def test_collect_pythonpath_entries_uses_parent_when_init_file_exists(tmp_path: 
     env_pck = package_parent / "childpkg"
     env_pck.mkdir()
 
-    node_pkg = tmp_path / "nodepkg"
-    core_pkg = tmp_path / "corepkg"
-    cluster_pkg = tmp_path / "clusterpkg"
-    for pkg in (node_pkg, core_pkg, cluster_pkg):
+    worker_pkg = tmp_path / "workerpkg"
+    service_pkg = tmp_path / "servicepkg"
+    for pkg in (worker_pkg, service_pkg):
         pkg.mkdir()
 
     entries = repository_support.collect_pythonpath_entries(
         env_pck=env_pck,
-        node_pck=node_pkg,
-        core_pck=core_pkg,
-        cluster_pck=cluster_pkg,
+        runtime_package_pcks=(worker_pkg, service_pkg),
         dist_abs=tmp_path / "dist",
         app_src=tmp_path / "app_src",
         wenv_abs=tmp_path / "wenv",
@@ -231,17 +223,14 @@ def test_collect_pythonpath_entries_keeps_src_layout_root_with_init_file(tmp_pat
     env_pck = src_root / "agi_env"
     env_pck.mkdir()
 
-    node_pck = tmp_path / "node" / "src" / "agi_node"
-    core_pck = tmp_path / "core" / "src" / "agi_core"
-    cluster_pck = tmp_path / "cluster" / "src" / "agi_cluster"
-    for pkg in (node_pck, core_pck, cluster_pck):
+    worker_pck = tmp_path / "worker" / "src" / "worker_package"
+    service_pck = tmp_path / "service" / "src" / "service_package"
+    for pkg in (worker_pck, service_pck):
         pkg.mkdir(parents=True)
 
     entries = repository_support.collect_pythonpath_entries(
         env_pck=env_pck,
-        node_pck=node_pck,
-        core_pck=core_pck,
-        cluster_pck=cluster_pck,
+        runtime_package_pcks=(worker_pck, service_pck),
         dist_abs=tmp_path / "dist",
         app_src=tmp_path / "app_src",
         wenv_abs=tmp_path / "wenv",
@@ -250,7 +239,7 @@ def test_collect_pythonpath_entries_keeps_src_layout_root_with_init_file(tmp_pat
     )
 
     assert entries[0] == str(src_root)
-    assert entries[1] == str(node_pck.parent)
+    assert entries[1] == str(worker_pck.parent)
 
 
 def test_configure_pythonpath_handles_empty_entries_and_preserves_existing_order():

@@ -5,6 +5,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from agi_env.package_layout_support import (
+    RuntimePackageSpec,
+    discover_source_runtime_package_specs,
+    load_runtime_package_specs,
     resolve_agilab_package_context,
     resolve_agilab_source_root_from_module_file,
     resolve_package_dir_from_module_file,
@@ -57,14 +60,20 @@ def test_resolve_package_layout_installed_falls_back_without_core_or_cluster(tmp
         installed_package_dir=site_pkg,
         resolve_package_dir_fn=_resolve,
         find_spec_fn=lambda name: None,
+        runtime_package_specs=(
+            RuntimePackageSpec(
+                role="worker",
+                project_dir="worker-project",
+                module_name="agi_node",
+                cli_rel="dispatcher/cli.py",
+            ),
+        ),
     )
 
     assert layout.agilab_pck == site_pkg
     assert layout.env_pck == agi_env_pkg
-    assert layout.node_pck == agi_node_pkg
-    assert layout.core_pck == agi_env_pkg.parent
-    assert layout.cluster_pck == layout.core_pck
-    assert layout.cli == layout.cluster_pck / "agi_distributor/cli.py"
+    assert layout.runtime_packages["worker"].package_pck == agi_node_pkg
+    assert layout.cli == agi_node_pkg / "dispatcher/cli.py"
 
 
 def test_resolve_package_layout_uses_default_find_spec_when_not_provided(tmp_path, monkeypatch):
@@ -96,10 +105,95 @@ def test_resolve_package_layout_uses_default_find_spec_when_not_provided(tmp_pat
         repo_agilab_dir=tmp_path / "repo",
         installed_package_dir=site_pkg,
         resolve_package_dir_fn=_resolve,
+        runtime_package_specs=(
+            RuntimePackageSpec(role="worker", project_dir="worker-project", module_name="agi_node"),
+        ),
     )
 
     assert layout.agilab_pck == site_pkg
-    assert calls == ["agi_cluster.agi_distributor.cli"]
+    assert calls == []
+
+
+def test_source_runtime_package_specs_are_package_owned(tmp_path):
+    repo_agilab_dir = tmp_path / "src" / "agilab"
+    manifest = repo_agilab_dir / "core" / "worker-project" / "src" / "worker_package" / "agi_env_runtime.py"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        "RUNTIME_PACKAGE_SPEC = {\n"
+        "    'role': 'worker',\n"
+        "    'project_dir': 'worker-project',\n"
+        "    'module_name': 'worker_package',\n"
+        "    'cli_rel': 'dispatcher/cli.py',\n"
+        "}\n",
+        encoding="utf-8",
+    )
+
+    specs = discover_source_runtime_package_specs(repo_agilab_dir)
+
+    assert specs == (
+        RuntimePackageSpec(
+            role="worker",
+            project_dir="worker-project",
+            module_name="worker_package",
+            cli_rel="dispatcher/cli.py",
+        ),
+    )
+
+
+def test_resolve_package_layout_uses_source_runtime_package_specs(tmp_path):
+    repo_agilab_dir = tmp_path / "src" / "agilab"
+    manifest = repo_agilab_dir / "core" / "worker-project" / "src" / "worker_package" / "agi_env_runtime.py"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        "RUNTIME_PACKAGE_SPEC = {\n"
+        "    'role': 'worker',\n"
+        "    'project_dir': 'worker-project',\n"
+        "    'module_name': 'worker_package',\n"
+        "    'cli_rel': 'dispatcher/cli.py',\n"
+        "    'worker_pre_install_rel': 'dispatcher/pre_install.py',\n"
+        "    'worker_post_install_module': 'worker_package.dispatcher.post_install',\n"
+        "}\n",
+        encoding="utf-8",
+    )
+
+    layout = resolve_package_layout(
+        is_source_env=True,
+        repo_agilab_dir=repo_agilab_dir,
+        installed_package_dir=tmp_path / "site-packages" / "agilab",
+        resolve_package_dir_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("unused")),
+        find_spec_fn=lambda name: None,
+    )
+
+    runtime_package = layout.runtime_packages["worker"]
+    assert runtime_package.package_pck == manifest.parent
+    assert runtime_package.project_pck == repo_agilab_dir / "core" / "worker-project"
+    assert layout.cli == manifest.parent / "dispatcher/cli.py"
+    assert layout.worker_pre_install == manifest.parent / "dispatcher/pre_install.py"
+    assert layout.worker_post_install_module == "worker_package.dispatcher.post_install"
+
+
+def test_load_runtime_package_specs_uses_entry_points():
+    class _EntryPoint:
+        def load(self):
+            return {
+                "role": "worker",
+                "project_dir": "worker-project",
+                "module_name": "worker_package",
+            }
+
+    specs = load_runtime_package_specs(
+        repo_agilab_dir=None,
+        include_source=False,
+        entry_points_fn=lambda group: [_EntryPoint()],
+    )
+
+    assert specs == (
+        RuntimePackageSpec(
+            role="worker",
+            project_dir="worker-project",
+            module_name="worker_package",
+        ),
+    )
 
 
 def test_resolve_resource_root_prefers_existing_resources_dir(tmp_path):

@@ -1064,7 +1064,10 @@ def test_init_installed_env_uses_package_fallbacks_and_explicit_apps_path(tmp_pa
 
     def _fake_spec(name):
         mapping = {
-            "agilab": SimpleNamespace(origin=str(agilab_pkg / "__init__.py")),
+            "agilab": SimpleNamespace(
+                origin=str(agilab_pkg / "__init__.py"),
+                submodule_search_locations=[str(agilab_pkg)],
+            ),
             "agi_env": SimpleNamespace(origin=str(agi_env_pkg / "__init__.py"), submodule_search_locations=[str(agi_env_pkg)]),
             "agi_node": SimpleNamespace(origin=str(agi_node_pkg / "__init__.py"), submodule_search_locations=[str(agi_node_pkg)]),
         }
@@ -1087,9 +1090,10 @@ def test_init_installed_env_uses_package_fallbacks_and_explicit_apps_path(tmp_pa
     assert env.is_worker_env is False
     assert env.apps_path == repo_apps
     assert env.apps_repository_root == repo_apps
-    assert env.core_pck == agi_env_pkg.parent
-    assert env.cluster_pck == env.core_pck
-    assert env.cli == env.cluster_pck / "agi_distributor/cli.py"
+    assert env.node_pck == agi_node_pkg.resolve()
+    assert env.cli == agi_node_pkg.resolve() / "agi_dispatcher/cli.py"
+    assert "core" not in env._runtime_package_pcks
+    assert "cluster" not in env._runtime_package_pcks
     assert env.active_app == app_root.resolve()
     assert env.skip_repo_links is False
 
@@ -1131,9 +1135,18 @@ def test_init_active_app_alias_falls_back_to_string_name_and_origin_only_package
 
     def _fake_spec(name):
         mapping = {
-            "agilab": SimpleNamespace(origin=str(agilab_pkg / "__init__.py")),
-            "agi_env": SimpleNamespace(origin=str(agi_env_pkg / "__init__.py")),
-            "agi_node": SimpleNamespace(origin=str(agi_node_pkg / "__init__.py")),
+            "agilab": SimpleNamespace(
+                origin=str(agilab_pkg / "__init__.py"),
+                submodule_search_locations=[str(agilab_pkg)],
+            ),
+            "agi_env": SimpleNamespace(
+                origin=str(agi_env_pkg / "__init__.py"),
+                submodule_search_locations=[str(agi_env_pkg)],
+            ),
+            "agi_node": SimpleNamespace(
+                origin=str(agi_node_pkg / "__init__.py"),
+                submodule_search_locations=[str(agi_node_pkg)],
+            ),
         }
         if name in {"agi_core", "agi_cluster", "agi_cluster.agi_distributor.cli"}:
             raise ModuleNotFoundError(name)
@@ -2885,9 +2898,10 @@ def test_apps_repository_root_wrapper_uses_repository_support(monkeypatch):
 def test_pythonpath_helper_wrappers_use_repository_support(monkeypatch, tmp_path: Path):
     env = object.__new__(AgiEnv)
     env.env_pck = tmp_path / "envpkg"
-    env.node_pck = tmp_path / "nodepkg"
-    env.core_pck = tmp_path / "corepkg"
-    env.cluster_pck = tmp_path / "clusterpkg"
+    env._runtime_package_pcks = {
+        "worker": tmp_path / "workerpkg",
+        "service": tmp_path / "servicepkg",
+    }
     env.dist_abs = tmp_path / "dist"
     env.app_src = tmp_path / "app_src"
     env.wenv_abs = tmp_path / "wenv"
@@ -2920,7 +2934,7 @@ def test_pythonpath_helper_wrappers_use_repository_support(monkeypatch, tmp_path
 
     assert entries == ["/tmp/alpha", "/tmp/beta"]
     assert captured["collect"]["env_pck"] == env.env_pck
-    assert captured["collect"]["node_pck"] == env.node_pck
+    assert list(captured["collect"]["runtime_package_pcks"]) == list(env._runtime_package_pcks.values())
     assert captured["collect"]["dedupe_paths_fn"] == env._dedupe_paths
     assert env._pythonpath_entries == entries
     assert captured["configure"]["entries"] == entries

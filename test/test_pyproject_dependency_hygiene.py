@@ -543,6 +543,37 @@ def test_shared_core_runtime_dependencies_are_not_copied_meta_stacks() -> None:
     } <= _dependency_names(REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml")
 
 
+def test_agi_env_does_not_hardcode_upper_core_package_names() -> None:
+    env_source = REPO_ROOT / "src/agilab/core/agi-env/src/agi_env"
+    allowed_policy_files = {
+        Path("source/snippet_contract.py"),
+    }
+    forbidden_tokens = (
+        "agi_node",
+        "agi_cluster",
+        "agi_core",
+        "agi-node",
+        "agi-cluster",
+        "agi-core",
+        "node_pck",
+        "cluster_pck",
+        "core_pck",
+        "agi_distributor",
+    )
+    violations: list[str] = []
+
+    for path in sorted(env_source.rglob("*.py")):
+        relative_path = path.relative_to(env_source)
+        if relative_path in allowed_policy_files:
+            continue
+        text = path.read_text(encoding="utf-8")
+        for token in forbidden_tokens:
+            if token in text:
+                violations.append(f"{relative_path}: {token}")
+
+    assert violations == []
+
+
 def test_agi_gui_uses_native_streamlit_dialogs_and_declares_only_used_ui_runtime() -> None:
     deps = _dependency_names(REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml")
 

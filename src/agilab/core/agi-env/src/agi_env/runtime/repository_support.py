@@ -80,9 +80,7 @@ def dedupe_existing_paths(paths: Iterable[object]) -> list[str]:
 def collect_pythonpath_entries(
     *,
     env_pck: Path,
-    node_pck: Path,
-    core_pck: Path,
-    cluster_pck: Path,
+    runtime_package_pcks: Iterable[Path],
     dist_abs: Path,
     app_src: Path,
     wenv_abs: Path,
@@ -104,9 +102,7 @@ def collect_pythonpath_entries(
 
     candidates = [
         import_root(env_pck.parent),
-        import_root(node_pck.parent),
-        import_root(core_pck.parent),
-        import_root(cluster_pck.parent),
+        *(import_root(package_pck.parent) for package_pck in runtime_package_pcks),
         dist_abs,
         app_src,
         wenv_abs / "src",

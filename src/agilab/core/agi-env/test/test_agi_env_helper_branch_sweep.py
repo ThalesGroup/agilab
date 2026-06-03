@@ -24,8 +24,8 @@ def _dummy_worker_env(tmp_path: Path, *, app_name: str = "demo_project") -> Simp
     active_app = tmp_path / "apps" / app_name
     (active_app / "src").mkdir(parents=True, exist_ok=True)
     agi_root = tmp_path / "site-packages" / "agilab"
-    node_pck = agi_root / "core" / "agi-node" / "src" / "agi_node"
-    node_pck.mkdir(parents=True, exist_ok=True)
+    worker_hooks = tmp_path / "worker-hooks"
+    worker_hooks.mkdir(parents=True, exist_ok=True)
     target = app_name.replace("_project", "").replace("_worker", "")
     target_worker = f"{target}_worker"
     worker_path = active_app / "src" / target_worker / f"{target_worker}.py"
@@ -34,7 +34,9 @@ def _dummy_worker_env(tmp_path: Path, *, app_name: str = "demo_project") -> Simp
         active_app=active_app,
         builtin_apps_path=None,
         agilab_pck=agi_root,
-        node_pck=node_pck,
+        worker_pre_install=worker_hooks / "pre_install.py",
+        worker_post_install=worker_hooks / "post_install.py",
+        worker_post_install_module="worker_package.dispatcher.post_install",
         is_worker_env=False,
         app_src=active_app / "src",
         uv="uv",
