@@ -1,7 +1,6 @@
 import getpass
 import logging
 import os
-import re
 import shutil
 import stat
 import subprocess
@@ -87,11 +86,11 @@ from agi_cluster.agi_distributor.deployment_stage_plan_support import (
 )
 from agi_cluster.agi_distributor.deployment_venv_support import (
     project_site_packages_dir as _project_site_packages_dir,
-    project_venv_cfg_version as _project_venv_cfg_version,
+    project_venv_cfg_version as _project_venv_cfg_version,  # noqa: F401
     project_venv_matches as _project_venv_matches,
     project_venv_python as _project_venv_python,
     project_venv_root as _project_venv_root,
-    python_version_tuple as _python_version_tuple,
+    python_version_tuple as _python_version_tuple,  # noqa: F401
 )
 from agi_cluster.agi_distributor.deployment_worker_venv_cache_support import (
     SHARED_WORKER_VENV_DIR_ENV as SHARED_WORKER_VENV_DIR_ENV,
@@ -489,6 +488,39 @@ def _manager_dependency_names(pyproject_file: Path) -> set[str]:
         return set()
     project = data.get("project", {})
     return _parse_dependency_names(project.get("dependencies"))
+
+
+def _local_uv_source_names(pyproject_file: Path) -> set[str]:
+    try:
+        data = tomlkit.parse(pyproject_file.read_text())
+    except PYPROJECT_PARSE_EXCEPTIONS:
+        return set()
+
+    sources = data.get("tool", {}).get("uv", {}).get("sources")
+    if not isinstance(sources, dict):
+        return set()
+
+    names: set[str] = set()
+    for name, meta in sources.items():
+        if not isinstance(meta, dict):
+            continue
+        path_value = meta.get("path")
+        if not isinstance(path_value, str) or not path_value.strip():
+            continue
+        source_path = Path(path_value).expanduser()
+        if not source_path.is_absolute():
+            source_path = pyproject_file.parent / source_path
+        if source_path.resolve(strict=False).exists():
+            names.add(str(name).lower())
+    return names
+
+
+def _filter_worker_core_add_specs(
+    pyproject_file: Path,
+    specs: list[tuple[str, str]],
+) -> list[str]:
+    local_source_names = _local_uv_source_names(pyproject_file)
+    return [spec for package_name, spec in specs if package_name not in local_source_names]
 
 
 def _manager_overlay_core_sources(
@@ -1146,8 +1178,21 @@ async def deploy_local_worker(
         )
 
     worker_core_add_specs: list[str] = []
+    worker_core_add_source_known = False
     if env.is_source_env:
-        worker_core_add_specs = [str(env.agi_env), str(env.agi_node)]
+        worker_core_add_source_known = True
+        worker_core_add_specs = _filter_worker_core_add_specs(
+            wenv_abs / "pyproject.toml",
+            [
+                (package_name, str(project_path))
+                for package_name, project_path in (
+                    ("agi-env", getattr(env, "agi_env", None)),
+                    ("agi-node", getattr(env, "agi_node", None)),
+                    ("agi-cluster", getattr(env, "agi_cluster", None)),
+                )
+                if isinstance(project_path, Path) and project_path.exists()
+            ],
+        )
     elif (
         (not env.is_worker_env)
         and env.install_type == 0
@@ -1156,14 +1201,22 @@ async def deploy_local_worker(
         and env_project.exists()
         and node_project.exists()
     ):
-        worker_core_add_specs = [
-            spec
-            for spec in (
-                _resolve_install_spec(env_project, "agi-env"),
-                _resolve_install_spec(node_project, "agi-node"),
-            )
-            if spec
-        ]
+        worker_core_add_source_known = True
+        worker_core_add_specs = _filter_worker_core_add_specs(
+            wenv_abs / "pyproject.toml",
+            [
+                (package_name, spec)
+                for package_name, spec in (
+                    ("agi-env", _resolve_install_spec(env_project, "agi-env")),
+                    ("agi-node", _resolve_install_spec(node_project, "agi-node")),
+                    (
+                        "agi-cluster",
+                        _resolve_install_spec(cluster_project, "agi-cluster"),
+                    ),
+                )
+                if spec
+            ],
+        )
 
     worker_venv_project = _shared_worker_venv_project(
         getattr(env, "envars", {}),
@@ -1253,8 +1306,14 @@ async def deploy_local_worker(
                 )
             )
             worker_dependency_names.append(stage_name)
+    elif worker_core_add_source_known:
+        worker_dependency_names = []
     else:
-        worker_dependency_names = ["worker-add-agi-env", "worker-add-agi-node"]
+        worker_dependency_names = [
+            "worker-add-agi-env",
+            "worker-add-agi-node",
+            "worker-add-agi-cluster",
+        ]
         worker_stage_inputs = _deploy_stage_project_inputs(wenv_abs, app_path)
         cmd_worker = (
             f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-env"
@@ -1286,6 +1345,22 @@ async def deploy_local_worker(
                     python_version=pyvers_worker,
                 ),
                 dependencies=("worker-add-agi-env",),
+            )
+        )
+        cmd_worker = (
+            f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-cluster"
+        )
+        await deploy_plan.run(
+            _DeployPlanNode(
+                name="worker-add-agi-cluster",
+                cmd=cmd_worker,
+                cwd=wenv_abs,
+                inputs=worker_stage_inputs,
+                output_probe=lambda: _project_venv_matches(
+                    worker_venv_project,
+                    python_version=pyvers_worker,
+                ),
+                dependencies=("worker-add-agi-node",),
             )
         )
 

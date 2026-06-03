@@ -1749,6 +1749,33 @@ def test_manager_dependency_names_returns_empty_for_missing_or_invalid_pyproject
     assert deployment_local_support._manager_dependency_names(invalid) == set()
 
 
+def test_filter_worker_core_add_specs_skips_existing_local_uv_sources(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    (tmp_path / "_uv_sources" / "agi-env").mkdir(parents=True)
+    (tmp_path / "_uv_sources" / "agi-cluster").mkdir(parents=True)
+    pyproject.write_text(
+        """
+[project]
+name = "worker"
+
+[tool.uv.sources]
+agi-env = { path = "_uv_sources/agi-env", editable = true }
+agi-node = { path = "_uv_sources/missing", editable = true }
+agi-cluster = { path = "_uv_sources/agi-cluster", editable = true }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    assert deployment_local_support._filter_worker_core_add_specs(
+        pyproject,
+        [
+            ("agi-env", "/repo/core/agi-env"),
+            ("agi-node", "/repo/core/agi-node"),
+            ("agi-cluster", "/repo/core/agi-cluster"),
+        ],
+    ) == ["/repo/core/agi-node"]
+
+
 def test_manager_overlay_core_sources_recovers_when_second_parse_fails(
     tmp_path, monkeypatch
 ):
@@ -2962,7 +2989,7 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     assert pth_content == expected_prefix
     assert agi_cls._install_done_local is True
     assert any(
-        f'add --editable "{env_project}" "{node_project}"' in cmd
+        f'add --editable "{env_project}" "{node_project}" "{cluster_project}"' in cmd
         and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
@@ -3104,6 +3131,11 @@ async def test_deploy_local_worker_install_type_zero_non_source_uses_distributio
     )
     assert any(
         "agi-node @ git+https://example.invalid/repo.git@main#subdirectory=agi-node"
+        in cmd
+        for cmd, _ in commands
+    )
+    assert any(
+        "agi-cluster @ git+https://example.invalid/repo.git@main#subdirectory=agi-cluster"
         in cmd
         for cmd, _ in commands
     )

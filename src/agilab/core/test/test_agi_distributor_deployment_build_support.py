@@ -222,6 +222,7 @@ def test_source_worker_build_overlay_includes_editable_core_projects(tmp_path):
         is_source_env=True,
         agi_env=tmp_path / "core" / "agi-env",
         agi_node=tmp_path / "core" / "agi-node",
+        agi_cluster=tmp_path / "core" / "agi-cluster",
     )
 
     overlay = deployment_build_support._build_run_overlay_args(env)
@@ -230,6 +231,7 @@ def test_source_worker_build_overlay_includes_editable_core_projects(tmp_path):
     assert "--with cython" in overlay
     assert _editable_overlay_arg(env.agi_env) in overlay
     assert _editable_overlay_arg(env.agi_node) in overlay
+    assert _editable_overlay_arg(env.agi_cluster) in overlay
 
 
 def test_worker_pyproject_source_missing_raises(tmp_path):
@@ -456,6 +458,8 @@ def _build_env(tmp_path: Path, *, base_worker_cls: str = "PandasWorker", free_th
     agi_env_path.mkdir(parents=True, exist_ok=True)
     agi_node_path = tmp_path / "agi-node"
     agi_node_path.mkdir(parents=True, exist_ok=True)
+    agi_cluster_path = tmp_path / "agi-cluster"
+    agi_cluster_path.mkdir(parents=True, exist_ok=True)
     return SimpleNamespace(
         wenv_abs=wenv_abs,
         base_worker_cls=base_worker_cls,
@@ -469,6 +473,7 @@ def _build_env(tmp_path: Path, *, base_worker_cls: str = "PandasWorker", free_th
         uvproject=uvproject,
         agi_env=agi_env_path,
         agi_node=agi_node_path,
+        agi_cluster=agi_cluster_path,
         is_source_env=False,
         verbose=0,
         pyvers_worker="3.13",
@@ -506,7 +511,7 @@ async def test_build_lib_local_non_cython_uploads_egg(tmp_path):
     )
 
     assert (env.wenv_abs / env.worker_pyproject.name).exists()
-    assert any("pip install agi-env agi-node" in cmd for cmd, _ in commands)
+    assert any("pip install agi-env agi-node agi-cluster" in cmd for cmd, _ in commands)
     assert any("bdist_egg" in cmd for cmd, _ in commands)
     assert str(egg_path) in uploads
 
@@ -649,13 +654,15 @@ async def test_build_lib_local_uses_editable_core_installs_in_source_env(monkeyp
     assert any(
         (
             f'--offline --project "{env.active_app}" pip install --upgrade --no-deps '
-            f"-e '{env.agi_env}' -e '{env.agi_node}'"
+            f"-e '{env.agi_env}' -e '{env.agi_node}' -e '{env.agi_cluster}'"
         )
         in cmd
         for cmd, _ in commands
     )
     assert any(
-        _editable_overlay_arg(env.agi_env) in cmd and _editable_overlay_arg(env.agi_node) in cmd
+        _editable_overlay_arg(env.agi_env) in cmd
+        and _editable_overlay_arg(env.agi_node) in cmd
+        and _editable_overlay_arg(env.agi_cluster) in cmd
         for cmd, _ in commands
     )
 
@@ -697,13 +704,15 @@ async def test_build_lib_local_uses_uv_index_url_mirror_when_internet_disabled(
     assert any(
         (
             f'--project "{env.active_app}" pip install --upgrade --no-deps '
-            f"-e '{env.agi_env}' -e '{env.agi_node}'"
+            f"-e '{env.agi_env}' -e '{env.agi_node}' -e '{env.agi_cluster}'"
         )
         in cmd
         for cmd, _ in commands
     )
     assert any(
-        _editable_overlay_arg(env.agi_env) in cmd and _editable_overlay_arg(env.agi_node) in cmd
+        _editable_overlay_arg(env.agi_env) in cmd
+        and _editable_overlay_arg(env.agi_node) in cmd
+        and _editable_overlay_arg(env.agi_cluster) in cmd
         for cmd, _ in commands
     )
 
