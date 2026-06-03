@@ -1,0 +1,25 @@
+[run]
+branch = true
+source =
+    src/agilab
+
+[report]
+omit =
+    src/agilab/main_page.py
+    src/agilab/lab_run.py
+    src/agilab/pages/*.py
+    src/agilab/core/*
+    src/agilab/core/**/*
+    src/agilab/test/*
+    src/agilab/test/**/*
+    src/agilab/lib/agi-gui/test/*
+    src/agilab/_tmp_import_guard_*.py
+    src/agilab/**/_tmp_import_guard_*.py
+    src/agilab/agi_codex.py
+    src/agilab/apps/__init__.py
+    src/agilab/apps/install.py
+    test/*
+    test/**/*
+    sitecustomize.py
+    __init__.py
+    src/__init__.py

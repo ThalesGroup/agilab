@@ -1,0 +1,112 @@
+/* Custom overrides for AGILab Sphinx docs. */
+
+.wy-side-nav-search .agilab-doc-version {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: 0.75rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+}
+
+.wy-side-nav-search .agilab-doc-build {
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  opacity: 0.82;
+}
+
+.rst-content div.figure.diagram-panel {
+  margin: 1.75rem auto 2rem;
+  padding: 1rem 1rem 0.9rem;
+  border: 1px solid #d8e3ef;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.rst-content div.figure.diagram-panel img {
+  display: block;
+  margin: 0 auto;
+  height: auto;
+}
+
+.rst-content img[src$=".svg"] {
+  display: block;
+  height: auto;
+}
+
+.rst-content div.figure.diagram-panel p.caption {
+  margin-top: 0.85rem;
+  color: #4c607b;
+  max-width: 80ch;
+}
+
+.rst-content div.figure.diagram-standard {
+  max-width: 1080px;
+}
+
+.rst-content div.figure.diagram-hero {
+  max-width: 1240px;
+}
+
+.rst-content div.figure.diagram-standard img,
+.rst-content div.figure.diagram-hero img {
+  width: 100%;
+  max-width: 100%;
+}
+
+.rst-content div.figure.diagram-wide,
+.rst-content div.figure.diagram-xl {
+  overflow-x: auto;
+  max-width: 1240px;
+}
+
+.rst-content div.figure.diagram-wide img {
+  width: auto;
+  max-width: none;
+  min-width: 1600px;
+}
+
+.rst-content div.figure.diagram-xl img {
+  width: auto;
+  max-width: none;
+  min-width: 2400px;
+}
+
+.rst-content table.agilab-components-table {
+  table-layout: fixed;
+}
+
+.rst-content table.agilab-components-table th,
+.rst-content table.agilab-components-table td {
+  vertical-align: middle;
+}
+
+.rst-content table.agilab-components-table td p,
+.rst-content table.agilab-components-table th p {
+  margin-bottom: 0;
+}
+
+@media (max-width: 900px) {
+  .rst-content div.figure.diagram-panel {
+    padding: 0.75rem 0.75rem 0.7rem;
+  }
+
+  .rst-content div.figure.diagram-wide img {
+    min-width: 1200px;
+  }
+
+  .rst-content div.figure.diagram-xl img {
+    min-width: 1700px;
+  }
+}

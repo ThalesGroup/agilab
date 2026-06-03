@@ -1,0 +1,108 @@
+# Simple workflow for deploying static content to GitHub Pages
+name: docs-publish
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/source/**'
+      - 'src/agilab/core/**'
+      - 'src/agilab/resources/help/**'
+      - 'tools/release_proof_report.py'
+      - '.github/workflows/docs-publish.yaml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  actions: read
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+      - name: Setup uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+      - name: Verify managed docs/source mirror stamp
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp --quiet
+          uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --check --check-github-runs --compact
+      - name: Install Graphviz
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y graphviz
+      - name: Build docs/html artifact from in-repo Sphinx source
+        run: |
+          set -euo pipefail
+          uv run \
+            --with sphinx \
+            --with sphinx-rtd-theme \
+            --with myst-parser \
+            --with linkify-it-py \
+            --with sphinx-pyreverse \
+            --with sphinx-autodoc-typehints \
+            --with sphinx-design \
+            --with sphinx-tabs \
+            python -m sphinx -b html docs/source docs/html
+          test -f docs/html/index.html
+      - name: Setup Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+      - name: Prepare docs/html for Pages
+        run: |
+          set -euo pipefail
+          if [ ! -d docs/html ] || [ -z "$(ls -A docs/html 2>/dev/null)" ]; then
+            echo "[docs] docs/html missing or empty; aborting publish to avoid stale content" >&2
+            exit 1
+          fi
+          # Ensure an index.html exists to keep Pages happy
+          if [ ! -f docs/html/index.html ]; then
+            # Try to pick a reasonable default if one exists
+            idx=$(ls docs/html/*index*.html 2>/dev/null | head -n1 || true)
+            if [ -n "$idx" ]; then
+              cp "$idx" docs/html/index.html
+            else
+              # Create a simple listing index if nothing obvious exists
+              {
+                echo '<html><body><h1>AGILab Documentation</h1><ul>'
+                for f in docs/html/*.html; do bn=$(basename "$f"); echo "<li><a href=\"$bn\">$bn</a></li>"; done
+                echo '</ul></body></html>'
+              } > docs/html/index.html
+            fi
+          fi
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        with:
+          path: 'docs/html'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5

@@ -1,0 +1,389 @@
+Execution Playground
+====================
+
+The built-in execution playground is the quickest way to show what AGILAB adds
+on top of a plain dataframe benchmark.
+
+Instead of only comparing libraries, AGILAB compares **execution models** on
+the same workload and keeps the whole orchestration path visible.
+
+What is included
+----------------
+
+Two built-in projects ship the same synthetic workload:
+
+- ``execution_pandas_project``
+- ``execution_polars_project``
+
+They both read the same generated CSV dataset under
+``execution_playground/dataset`` and produce grouped benchmark outputs.
+
+The difference is the worker path:
+
+- ``ExecutionPandasWorker`` extends ``PandasWorker``
+- ``ExecutionPolarsWorker`` extends ``PolarsWorker``
+
+That lets AGILAB expose not only timing differences, but also the execution
+style behind them.
+
+Where you see it in the UI
+--------------------------
+
+The two apps are run through the normal AGILAB pages. The benchmark value comes
+from the fact that the same UI flow can drive two different worker families
+without changing the orchestration path.
+
+.. figure:: _static/page-shots/orchestrate-page.png
+   :alt: ORCHESTRATE page showing deployment toggles and generated execution setup
+   :align: center
+   :class: page-shot
+
+   The benchmark setup uses the normal PROJECT -> ORCHESTRATE flow rather than
+   a separate one-off demo script.
+
+Why this example matters
+------------------------
+
+Many benchmark demos stop at:
+
+- pandas vs polars
+- local vs distributed
+- Python vs compiled
+
+AGILAB goes one step further:
+
+- same workload
+- same orchestration flow
+- same benchmark UI
+- different worker/runtime path
+
+This makes it easier to answer the practical question:
+
+**Did performance improve because of the library, or because of the execution model?**
+
+What the benchmark shows
+------------------------
+
+For this example, the public message is intentionally simple:
+
+- ``PandasWorker`` highlights a process-oriented worker path
+- ``PolarsWorker`` highlights an in-process threaded worker path
+
+The ``pool`` flag is AGILAB's external local fan-out. It does not mean the same
+runtime shape for every dataframe library:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 28 44
+
+   * - App
+     - AGILAB pool implementation
+     - Performance reading
+   * - ``execution_pandas_project``
+     - process-backed worker pool
+     - Pandas can benefit when independent file partitions are spread across
+       worker processes, especially for Python-bound or mixed Python/native
+       sections.
+   * - ``execution_polars_project``
+     - thread pool around Polars calls
+     - Polars already manages native parallelism inside the library. Adding an
+       external AGILAB pool can compete with that internal pool and may add
+       scheduling or memory-bandwidth overhead instead of improving throughput.
+
+The benchmark results in **ORCHESTRATE** then let you compare timings while the
+rest of AGILAB still shows:
+
+- install state
+- distribution plan
+- generated snippets
+- exported outputs
+
+Measured local benchmark
+------------------------
+
+The repository ships a reproducible benchmark helper:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/benchmark_execution_playground.py --repeats 3 --warmups 1 --worker-counts 1,2,4,8 --rows-per-file 100000 --compute-passes 32 --n-partitions 16
+
+The helper now resolves its built-in app paths from the script location, so it
+can be launched from any working directory inside or outside the repo root.
+
+Median results from a local run on macOS / Python ``3.13.9`` with ``16`` partitions,
+``100000`` rows per file, and ``32`` compute passes:
+
+These numbers are intentionally useful because the heavier mixed workload
+separates "more workers" from "better fit":
+
+- the pandas process-oriented path is only slightly ahead in local ``parallel`` mode at ``1`` worker (``1.772s``), then gets worse as worker count rises (``2.157s`` at ``8`` workers)
+- the polars threaded path improves at ``1-2`` workers (``1.520s``, ``1.436s``) and then converges back toward its steady state (``1.564s`` at ``8`` workers)
+- AGILAB therefore shows both *execution model* and *worker-count scaling* on
+  the same reproducible workload, including the point where an external pool no
+  longer helps because the library already owns the inner parallelism
+
+Raw benchmark artifacts are versioned under:
+
+- ``docs/source/data/execution_playground_benchmark.json``
+
+Typed Cython kernel proof
+-------------------------
+
+``execution_pandas_project`` is the reference worker app for an explicit
+Cython/C-speedup path. It uses ``kernel_mode = "typed_numeric"`` by default,
+enables Cython in its app settings, converts the scoring columns to contiguous
+``float64`` arrays, and runs the repeated score/checksum loop through a
+Cython-compatible typed function.
+
+That distinction matters: wrapping Pandas calls in Cython is not a useful proof
+of Cython acceleration, because Pandas is already executing compiled kernels.
+The typed kernel keeps the surrounding app realistic while giving Cython a
+numeric loop where fixed dtypes can remove Python object dispatch.
+
+The worker manifest declares Cython as a build requirement, so this app is the
+recommended starting point when you need to show how a normal AGILAB worker can
+carry a compiled hot path without moving the surrounding dataframe I/O and
+artifact contract out of Python.
+
+The kernel-only evidence helper compiles the actual worker source in a temporary
+Cython extension, then compares the same ``_typed_numeric_score_kernel`` through
+Python and Cython:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/benchmark_execution_pandas_cython_kernel.py --rows 100000 --compute-passes 32 --repeats 3 --warmups 1
+
+Latest local evidence on macOS / Python ``3.13.13``:
+
+.. csv-table:: Typed numeric kernel speedup for ``execution_pandas_project``
+   :file: data/execution_pandas_typed_kernel_benchmark.csv
+   :header-rows: 1
+   :widths: 14, 16, 16, 16, 18, 18, 18
+
+Read this as a kernel proof, not an end-to-end runtime promise. Full AGILAB runs
+still include CSV reads, dataframe grouping, result writes, worker startup, and
+optional Dask/process orchestration. The reducer records ``kernel_mode``,
+``kernel_runtime``, and ``dtype_contract`` so the output artifact makes that
+distinction explicit.
+
+The real-world companion is ``flight_telemetry_project``: it keeps Polars
+ingestion, output writing, pages, and reducer artifacts in Python, but moves the
+per-row haversine distance calculation into the same worker-only Cython pattern.
+Its reducer summary records ``speed_kernel_runtime``,
+``speed_dtype_contract``, and ``speed_kernel_checksum_m``.
+
+Optional Rust/PyO3 worker preview
+---------------------------------
+
+AGILAB can also host native Rust code behind a Python worker boundary, but this
+is deliberately an optional advanced lane rather than a base dependency.
+
+Use the packaged ``native_rust_worker`` preview when you want to show the
+architecture without requiring every AGILAB install to carry a Rust toolchain:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python src/agilab/examples/native_rust_worker/preview_native_rust_worker.py --output-dir /tmp/agilab-rust-worker
+
+The preview writes a small PyO3/maturin project, a Python worker wrapper, a
+sample payload, and ``native_rust_worker_evidence.json``. It does not compile
+Rust by default. The evidence records the Python reference checksum, generated
+file hashes, the build backend, and the intended AGILAB boundary:
+
+- orchestration, dataframe I/O, reducers, paths, and evidence stay in Python
+- only the measured typed hot kernel moves to Rust
+- the base AGILAB install remains unchanged
+
+Build the generated project only when you actually want to execute the native
+extension:
+
+.. code-block:: bash
+
+   cd /tmp/agilab-rust-worker/rust_worker
+   uv tool install maturin
+   maturin develop --release
+   python worker_wrapper.py --payload sample_payload.json --output native_result.json
+
+Read this as a worker-extension contract, not a migration strategy. Cython is
+still the first AGILAB-native acceleration path for typed Python kernels. Use
+Rust/PyO3 when ownership, safety, an existing Rust crate, or a long-lived native
+library justifies the extra wheel and toolchain complexity.
+
+2-node 16-mode matrix
+---------------------
+
+The repository also ships a second helper that benchmarks the full 16-mode
+matrix on 2 Macs over SSH:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/benchmark_execution_mode_matrix.py --remote-host <remote-macos-ip> --scheduler-host <local-macos-ip> --rows-per-file 100000 --compute-passes 32 --n-partitions 16 --repeats 2
+
+``--remote-host`` accepts either ``host`` or ``user@host``. For portable use,
+prefer ``user@host`` with the real login user of the remote worker. If you pass
+only a host or IP, the helper currently defaults to ``agi@<host>`` for both the
+SSH probe/setup steps and the dataset ``rsync`` step, so only rely on the bare
+host form when the remote account is actually named ``agi``.
+
+This run uses:
+
+- 1 local macOS ARM scheduler/worker
+- 1 remote macOS ARM worker over SSH
+- the same ``16`` partitions, ``100000`` rows per file, and ``32`` compute passes
+
+Mode families
+^^^^^^^^^^^^^
+
+The 16 modes split into 4 families:
+
+- ``0-3``: local CPU modes
+- ``4-7``: 2-node Dask modes
+- ``8-11``: local modes with the RAPIDS bit requested
+- ``12-15``: 2-node Dask modes with the RAPIDS bit requested
+
+The compact ``code`` column uses the order ``r d c p``:
+
+- ``r`` = RAPIDS requested
+- ``d`` = Dask / cluster topology
+- ``c`` = Cython requested
+- ``p`` = worker pool / local fan-out requested; the backend may be process-
+  or thread-based depending on the worker implementation
+
+In the versioned benchmark artifacts shipped with the repository, the ``r...``
+and ``rd...`` modes are still **CPU-only** because neither node exposed NVIDIA
+tooling on that capture. The helper still reports RAPIDS requests explicitly,
+and on other hardware it can mark local-only RAPIDS rows as GPU-accelerated
+even if the remote node stays CPU-only.
+
+How to read the matrix quickly
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1. Ignore rows ``8-15`` for performance interpretation in the versioned capture
+   below: they keep the RAPIDS bit visible, but they are still CPU-only there.
+2. Read the matrix by **families**, not by isolated rows:
+
+   - local Python/Cython baseline: ``0-2``
+   - local pool/fan-out family: ``1-3``
+   - 2-node Dask family: ``4-7``
+
+3. Compare each family back to mode ``0`` (``____``) to see whether the
+   execution model is buying you anything.
+
+.. figure:: diagrams/execution_mode_families.svg
+   :alt: Visual summary of execution mode families for execution_pandas_project and execution_polars_project
+   :align: center
+   :class: diagram-panel diagram-hero
+
+   Compact map of the 16 execution modes grouped by topology and runtime family.
+
+ORCHESTRATE table snapshot
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The tables below mirror the **ORCHESTRATE > Benchmark results** expander rather
+than a separate screenshot. The UI reads ``benchmark.json``, uses the run-mode
+keys as the row index, and displays the columns ``mode``, ``timing``,
+``nodes``, ``seconds``, ``order``, ``delta``, and ``delta (%)``. The ``nodes``
+column shows how many machines were used by the run; the extra ``topology``
+column below keeps the docs readable outside the app.
+
+.. csv-table:: Benchmark results snapshot for ``execution_pandas_project``
+   :file: data/execution_pandas_benchmark_results_snapshot.csv
+   :header-rows: 1
+   :widths: 8, 8, 24, 16, 12, 8, 12, 12, 32
+
+.. csv-table:: Benchmark results snapshot for ``execution_polars_project``
+   :file: data/execution_polars_benchmark_results_snapshot.csv
+   :header-rows: 1
+   :widths: 8, 8, 24, 16, 12, 8, 12, 12, 32
+
+.. _execution-pandas-project:
+
+execution_pandas_project
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use this app when you want the benchmark to read as a process-oriented baseline.
+
+- Worker family: ``ExecutionPandasWorker`` over ``PandasWorker``
+- Story to tell: how far a process-backed worker pool, Cython typed kernel,
+  and Dask path go on the same workload
+- What to inspect in AGILAB: install/distribution state in **ORCHESTRATE**, then
+  the benchmark table and exported artifacts for the ``_d__`` family
+- Practical reading: this app is the easiest way to show that "more workers"
+  does not automatically beat the local path unless the execution model fits
+
+.. csv-table:: 16-mode matrix for ``execution_pandas_project``
+   :file: data/execution_pandas_project_mode_matrix.csv
+   :header-rows: 1
+   :widths: 8, 28, 28, 12
+
+.. _execution-polars-project:
+
+execution_polars_project
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use this app when you want the benchmark to read as an in-process threaded path
+with a different scaling profile.
+
+- Worker family: ``ExecutionPolarsWorker`` over ``PolarsWorker``
+- Story to tell: the same workload can prefer a lighter in-process path over a
+  heavier process-oriented topology, because Polars already runs native
+  parallel work inside the library
+- What to inspect in AGILAB: the same **ORCHESTRATE > Benchmark results** table,
+  but with attention on the ``_d_p`` family and how it differs from the pandas app
+- Practical reading: this app is the clearest proof that AGILAB is benchmarking
+  execution models, not only dataframe libraries
+
+.. csv-table:: 16-mode matrix for ``execution_polars_project``
+   :file: data/execution_polars_project_mode_matrix.csv
+   :header-rows: 1
+   :widths: 8, 28, 28, 12
+
+.. rubric:: What the matrix adds
+
+This second benchmark makes three extra points visible:
+
+- the heavier scalar tail now separates the plain local Python/Cython family, the local pool family, and the 2-node Dask family much more clearly
+- the best mode is not the same for the two worker designs: ``_d__`` for ``execution_pandas_project`` and ``_d_p`` for ``execution_polars_project``
+- ``pool`` is not automatically better: it helps most when AGILAB's external
+  fan-out adds useful parallelism, and less when the dataframe library already
+  manages its own internal pool
+- a 2-node Dask topology can win for one execution model and not for another
+- requesting RAPIDS on hardware without NVIDIA tooling does not create a fake speedup: AGILAB still reports the run honestly as CPU-only
+- local-only RAPIDS rows and 2-node RAPIDS rows are reported independently, so GPU availability now follows the topology that actually ran
+
+Raw matrix artifacts are versioned under:
+
+- ``docs/source/data/execution_mode_matrix_benchmark.json``
+- ``docs/source/data/execution_mode_matrix_benchmark.csv``
+- ``docs/source/data/execution_pandas_benchmark_results_snapshot.csv``
+- ``docs/source/data/execution_polars_benchmark_results_snapshot.csv``
+- ``docs/source/data/execution_pandas_project_mode_matrix.csv``
+- ``docs/source/data/execution_polars_project_mode_matrix.csv``
+
+How to run it
+-------------
+
+1. Launch AGILAB:
+
+   .. code-block:: bash
+
+      uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
+
+2. In **PROJECT**, select ``src/agilab/apps/builtin/execution_pandas_project``.
+3. In **ORCHESTRATE**, run **INSTALL** once, then **EXECUTE**.
+4. Enable **Benchmark all modes** when you want AGILAB to compare execution paths.
+5. Repeat with ``src/agilab/apps/builtin/execution_polars_project``.
+6. Compare the benchmark table in **ORCHESTRATE > Benchmark results** and the generated outputs.
+
+What to look for
+----------------
+
+This example is useful when you want to demonstrate that AGILAB makes three
+things explicit:
+
+- the workload
+- the orchestration path
+- the execution model
+
+That is why this example is a better public teaser than a raw benchmark chart:
+it keeps the result, the runtime path, and the reproducible workflow together.

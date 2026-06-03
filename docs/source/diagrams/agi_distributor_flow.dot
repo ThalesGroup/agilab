@@ -1,0 +1,30 @@
+digraph AgiDistributorFlow {
+  rankdir=LR;
+  node [shape=box, style=filled, color="#0f172a", fillcolor="#e2e8f0", fontname="Helvetica", fontsize=11];
+  edge [color="#475569", penwidth=1.4];
+
+  AgiDistributor [label="AgiDistributor\n(orchestrator)", fillcolor="#c7d2fe", color="#312e81"];
+
+  subgraph cluster_node1 {
+    label="Node A";
+    style=rounded;
+    color="#d1d5db";
+    AgiDispatcher1 [label="AgiDispatcher\n(node controller)", fillcolor="#bfdbfe", color="#1d4ed8"];
+    AgiWorker1 [label="AgiWorker #1\n(work unit)"];
+    AgiWorker2 [label="AgiWorker #2\n(work unit)"];
+    AgiDispatcher1 -> AgiWorker1;
+    AgiDispatcher1 -> AgiWorker2;
+  }
+
+  subgraph cluster_node2 {
+    label="Node B";
+    style=rounded;
+    color="#d1d5db";
+    AgiDispatcher2 [label="AgiDispatcher\n(node controller)", fillcolor="#bfdbfe", color="#1d4ed8"];
+    AgiWorker3 [label="AgiWorker #3\n(work unit)"];
+    AgiDispatcher2 -> AgiWorker3;
+  }
+
+  AgiDistributor -> AgiDispatcher1 [label="work batches", fontsize=10];
+  AgiDistributor -> AgiDispatcher2 [label="work batches", fontsize=10];
+}

@@ -1,0 +1,477 @@
+agilab/
+__pycache__/ [excluded]
+apps/
+    builtin/
+        flight_telemetry_project/
+            .venv/ [excluded]
+            agilab/
+                core/
+                    agi-env/
+                        src/
+                            agi_env/
+                                resources/
+                                    .agilab/
+                                        [max depth reached]
+                                    mistral_offline/
+                                        [max depth reached]
+            Modules/ [excluded]
+            src/
+                __pycache__/ [excluded]
+                flight_telemetry/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    flight_telemetry.py
+                    flight_args.py
+                flight_telemetry_worker/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    dataset.7z
+                    flight_telemetry_worker.py
+                app_args_form.py
+                app_settings.toml
+                pre_prompt.json
+            test/
+            .coverage
+            .gitignore
+            classes_flight.dot
+            packages_flight.dot
+            pyproject.toml
+            README.md
+        minimal_app_project/
+            .venv/ [excluded]
+            agilab/
+                core/
+                    agi-env/
+                        src/
+                            agi_env/
+                                resources/
+                                    .agilab/
+                                        [max depth reached]
+                                    mistral_offline/
+                                        [max depth reached]
+            Modules/ [excluded]
+            src/
+                minimal_app/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    app_args.py
+                    minimal_app.py
+                    minimal_app_args.py
+                minimal_app_worker/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    minimal_app_worker.py
+                    minimal_app_worker.pyx
+                app_args_form.py
+                app_settings.toml
+                pre_prompt.json
+            test/
+            .coverage
+            .gitignore
+            pyproject.toml
+            README.md
+    templates/
+        dag_app_template/
+            src/
+                __pycache__/ [excluded]
+                dag_app/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    app_args.py
+                    dag_app.py
+                    dag_app_args.py
+                dag_app_worker/
+                    __pycache__/ [excluded]
+                app_args_form.py
+                app_settings.toml
+                pre_prompt.json
+            .gitignore
+            MANIFEST.in
+            pyproject.toml
+            README.md
+            uv_config.toml
+        fireducks_app_template/
+            src/
+                __pycache__/ [excluded]
+                fireducks_app/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    app_args.py
+                    fireducks_app.py
+                    fireducks_app_args.py
+                fireducks_app_worker/
+                    __pycache__/ [excluded]
+                app_args_form.py
+                app_settings.toml
+                pre_prompt.json
+            .gitignore
+            MANIFEST.in
+            pyproject.toml
+            README.md
+            uv_config.toml
+        pandas_app_template/
+            src/
+                __pycache__/ [excluded]
+                pandas_app/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    app_args.py
+                    pandas_app.py
+                    pandas_app_args.py
+                pandas_app_worker/
+                    __pycache__/ [excluded]
+                app_args_form.py
+                app_settings.toml
+                pre_prompt.json
+            .gitignore
+            MANIFEST.in
+            pyproject.toml
+            README.md
+            uv_config.toml
+        polars_app_template/
+            src/
+                __pycache__/ [excluded]
+                polars_app/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    app_args.py
+                    polars_app.py
+                    polars_app_args.py
+                polars_app_worker/
+                    __pycache__/ [excluded]
+                app_args_form.py
+                app_settings.toml
+                pre_prompt.json
+            .gitignore
+            MANIFEST.in
+            pyproject.toml
+            README.md
+            uv_config.toml
+    .gitignore
+    __init__.py
+    install.py
+    README.md
+apps-pages/
+    view_autoencoder_latentspace/
+        .venv/ [excluded]
+        src/
+            view_autoencoder_latentspace/
+                __init__.py
+                autoencoder_latentspace.py
+                view_autoencoder_latentspace.py
+        pyproject.toml
+    view_barycentric/
+        .venv/ [excluded]
+        src/
+            view_barycentric/
+                __init__.py
+                barycentric_graph.py
+                view_barycentric.py
+        __init__.py
+        pyproject.toml
+    view_maps/
+        .venv/ [excluded]
+        src/
+            view_maps/
+                __pycache__/ [excluded]
+                __init__.py
+                maps.py
+                view_maps.py
+        pyproject.toml
+    view_maps_3d/
+        .venv/ [excluded]
+        src/
+            view_maps_3d/
+                __pycache__/ [excluded]
+                __init__.py
+                maps_3d.py
+                view_maps_3d.py
+        pyproject.toml
+    view_maps_network/
+        .venv/ [excluded]
+        src/
+            view_maps_network/
+                __pycache__/ [excluded]
+                maps_network_graph.py
+                view_maps_network.py
+        pyproject.toml
+    .gitignore
+    __init__.py
+    README.md
+core/
+    __pycache__/ [excluded]
+    agi-cluster/
+        .venv/ [excluded]
+        __pycache__/ [excluded]
+        src/
+            agi_cluster/
+                agi_distributor/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    agi_distributor.py
+                    cli.py
+            __init__.py
+        .gitignore
+        __init__.py
+        build.py
+        LICENSE
+        MANIFEST.in
+        pyproject.toml
+        README.md
+        uv_config.toml
+    agi-core/
+        .venv/ [excluded]
+        src/
+            agi_core/
+                __pycache__/ [excluded]
+                __init__.py
+        LICENSE
+        pyproject.toml
+        README.md
+    agi-env/
+        .pytest_cache/ [excluded]
+        .venv/ [excluded]
+        __pycache__/ [excluded]
+        src/
+            __pycache__/ [excluded]
+            agi_env/
+                __pycache__/ [excluded]
+                _optional_ui.py
+                resources/
+                    .agilab/
+                        .env
+                        balancer_df.csv
+                        balancer_model.pkl
+                    mistral_offline/
+                        data/
+                            .gitignore
+                            .gitkeep
+                        README.md
+                __init__.py
+                agi_env.py
+                agi_logger.py
+                app_args.py
+                app_settings_support.py
+                bootstrap_support.py
+                connector_registry.py
+                content_renamer_support.py
+                credential_store_support.py
+                data_archive_support.py
+                defaults.py
+                env_config_support.py
+                execution_support.py
+                hook_support.py
+                installation_support.py
+                mlflow_store.py
+                package_layout_support.py
+                pagelib.py
+                pagelib_data_support.py
+                pagelib_execution_support.py
+                pagelib_navigation_support.py
+                pagelib_preview_support.py
+                pagelib_project_support.py
+                pagelib_resource_support.py
+                pagelib_runtime_support.py
+                pagelib_selection_support.py
+                pagelib_session_support.py
+                process_support.py
+                project_clone_support.py
+                rename_gitignore_support.py
+                repository_support.py
+                runtime_bootstrap_support.py
+                share_mount_support.py
+                share_runtime_support.py
+                snippet_contract.py
+                source_analysis_ast.py
+                source_analysis_support.py
+                streamlit_args.py
+                ui_docs_support.py
+                ui_state_support.py
+                ui_support.py
+                worker_runtime_support.py
+                worker_source_support.py
+            __init__.py
+            pyproject.toml
+        test/
+            __pycache__/ [excluded]
+            __init__.py
+            clean_csv.py
+            dummy_cmd.py
+            test_agi_env.py
+            test_agi_logger.py
+            test_app_args.py
+            test_app_settings_support.py
+            test_bootstrap_support.py
+            test_content_renamer_support.py
+            test_credential_store_support.py
+            test_data_archive_support.py
+            test_env_config_support.py
+            test_hook_support.py
+            test_installation_support.py
+            test_package_layout_support.py
+            test_pagelib.py
+            test_pagelib_data_support.py
+            test_pagelib_execution_support.py
+            test_pagelib_navigation_support.py
+            test_pagelib_preview_support.py
+            test_pagelib_project_support.py
+            test_pagelib_resource_support.py
+            test_pagelib_runtime_support.py
+            test_pagelib_session_support.py
+            test_process_support.py
+            test_project_clone_support.py
+            test_rename_gitignore_support.py
+            test_repository_support.py
+            test_runtime_bootstrap_support.py
+            test_share_runtime_support.py
+            test_source_analysis_ast.py
+            test_source_analysis_support.py
+            test_streamlit_args.py
+            test_ui_docs_support.py
+            test_ui_state_support.py
+            test_ui_support.py
+            test_worker_source_support.py
+        .gitignore
+        __init__.py
+        LICENSE
+        MANIFEST.in
+        pyproject.toml
+        README.md
+        uv_config.toml
+    agi-node/
+        .venv/ [excluded]
+        src/
+            agi_node/
+                __pycache__/ [excluded]
+                agi_dispatcher/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    agi_dispatcher.py
+                    base_worker.py
+                    build.py
+                    cython_type_preprocess.py
+                    post_install.py
+                    pre_install.py
+                dag_worker/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    dag_worker.py
+                fireducks_worker/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    fireducks_worker.py
+                pandas_worker/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    pandas_worker.py
+                polars_worker/
+                    __pycache__/ [excluded]
+                    __init__.py
+                    polars_worker.py
+                __init__.py
+                utils.py
+            __init__.py
+        __init__.py
+        LICENSE
+        MANIFEST.in
+        pyproject.toml
+        README.md
+        SECURITY.md
+        uv_config.toml
+    test/
+        __pycache__/ [excluded]
+        __init__.py
+        test_agi_core_smoke.py
+        test_agi_dispatcher_scripts.py
+        test_agi_distributor.py
+        test_agi_distributor_cli.py
+        test_base_worker.py
+        test_dag_worker.py
+        test_fireducks_worker.py
+        test_pandas_worker.py
+        test_polars_worker.py
+        test_utils.py
+        test_work_dispatcher.py
+    tools/
+        __init__.py
+        test_kill.py
+    .gitignore
+    __init__.py
+    gen_app_script.py
+    get_supported_python_versions.py
+    install.ps1
+    install.sh
+lib/
+    agi-gui/
+        src/
+            agi_gui/
+                __init__.py
+                _compat.py
+                pagelib.py
+                pagelib_data_support.py
+                pagelib_execution_support.py
+                pagelib_navigation_support.py
+                pagelib_preview_support.py
+                pagelib_project_support.py
+                pagelib_resource_support.py
+                pagelib_runtime_support.py
+                pagelib_selection_support.py
+                pagelib_session_support.py
+                streamlit_args.py
+                ui_docs_support.py
+                ui_state_support.py
+                ui_support.py
+        test/
+            test_agi_gui_package.py
+        LICENSE
+        pyproject.toml
+        README.md
+examples/
+    flight/
+        AGI_install_flight_telemetry.py
+        AGI_run_flight_telemetry.py
+    minimal_app/
+        AGI_install_minimal_app.py
+        AGI_run_minimal_app.py
+pages/
+    __pycache__/ [excluded]
+    1_PROJECT.py
+    2_ORCHESTRATE.py
+    3_WORKFLOW.py
+    4_ANALYSIS.py
+resources/
+    help/
+        __pycache__/ [excluded]
+        __init__.py
+        cluster-help.html
+        edit_help.html
+        execute_help.html
+        experiment_help.html
+        index.html
+        roadmap.html
+        views_help.html
+    __init__.py
+    agi_logo.png
+    agilab_logo.png
+    code_editor.scss
+    config.toml
+    custom_buttons.json
+    info_bar.json
+    theme.css
+test/
+    __pycache__/ [excluded]
+    __init__.py
+    test_model_returns_code.py
+    test_python_versions.py
+    test_streamlit.sh
+.gitignore
+__init__.py
+main_page.py
+agi_codex.py
+install_apps.ps1
+install_apps.sh
+lab_run.py
+LICENSE
+MANIFEST.in
+steps.toml
+uv_config.toml

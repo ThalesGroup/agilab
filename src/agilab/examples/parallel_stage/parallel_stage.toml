@@ -1,0 +1,21 @@
+# Generated example contract for AGILAB parallel-stage planning.
+# Contract: function + split rule + reducer = parallel AGILAB stage.
+schema = "agilab.parallel_stage.v1"
+name = "process_csv_files"
+function = "my_pipeline.process:process_file"
+split = "files"
+input = "data/*.csv"
+workers = "auto"
+partition_strategy = "file-chunks"
+target_partitions = 64
+min_partitions_per_worker = 2
+reducer = "concat-jsonl"
+backend = "local"
+output = "artifacts/parallel_outputs.jsonl"
+notes = "When file_count is lower than available cores, split large files into chunks. Cap workers only for unsplittable files."
+
+[next_steps]
+local_preview = "Run the function against one partition before scaling."
+workflow_stage = "Import this contract from a WORKFLOW stage or app run method."
+distributed_run = "Switch backend to dask only after local preview passes."
+evidence = "Write partition outputs and reducer output under the run manifest directory."

@@ -1,0 +1,756 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+UV_PREVIEW=(uv --preview-features extra-build-dependencies)
+
+# Colors for output
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+BLUE='\033[1;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+warn() {
+  echo -e "${YELLOW}[warn] $*" >&2
+}
+
+configure_uv_link_mode() {
+  local requested="${AGILAB_UV_LINK_MODE:-${UV_LINK_MODE:-hardlink}}"
+  case "$requested" in
+    clone|copy|hardlink|symlink) ;;
+    *)
+      echo -e "${RED}[error] Invalid uv link mode '${requested}'. Expected one of: clone, copy, hardlink, symlink.${NC}" >&2
+      exit 1
+      ;;
+  esac
+  export UV_LINK_MODE="$requested"
+  echo -e "${BLUE}[info] uv link mode: ${UV_LINK_MODE}${NC}"
+}
+
+configure_uv_link_mode
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+run_remote_shell_installer() {
+  local url="$1"
+  local label="$2"
+  local interpreter="${3:-sh}"
+  if [[ "${NO_REMOTE_INSTALLERS:-0}" == "1" ]]; then
+    warn "Remote shell installers are disabled (--no-remote-installers); refusing ${label} from ${url}."
+    return 1
+  fi
+  local safe_label
+  safe_label="$(printf '%s' "$label" | tr -cs 'A-Za-z0-9_.-' '_' | sed 's/^_//;s/_$//')"
+  local script_path
+  script_path="$(mktemp "${TMPDIR:-/tmp}/agilab-${safe_label:-installer}.XXXXXX.sh")" || return 1
+
+  echo -e "${BLUE}Downloading ${label} installer from ${url}...${NC}"
+  if ! curl --proto '=https' --tlsv1.2 -fsSL "$url" -o "$script_path"; then
+    rm -f "$script_path"
+    return 1
+  fi
+  chmod 700 "$script_path"
+  if ! "$interpreter" "$script_path"; then
+    rm -f "$script_path"
+    return 1
+  fi
+  rm -f "$script_path"
+}
+
+# -----------------------------
+# Config
+# -----------------------------
+AGI_SPACE="${HOME}/agi-space"
+mkdir -p "$AGI_SPACE"
+echo "Using AGI_SPACE: ${AGI_SPACE}"
+
+# This installer must target its own end-user virtual environment, even when
+# launched from a developer shell already inside another venv.
+unset VIRTUAL_ENV
+unset CONDA_PREFIX
+
+APPS_ROOT="${AGI_SPACE}/apps"
+mkdir -p "${APPS_ROOT}"
+
+[[ -d "${AGI_SPACE}" ]] || { echo "Error: Missing AGI_SPACE directory: ${AGI_SPACE}" >&2; exit 1; }
+VENV="${AGI_SPACE}/.venv"
+PACKAGES="agilab agi-env agi-node agi-cluster agi-core"
+SOURCE="local"     # local | pypi | testpypi
+VERSION=""         # optional, e.g. 1.2.3
+VERSION_ARG_SET=0
+AGI_PATH_FILE="$HOME/.local/share/agilab/.agilab-path"
+AGI_INSTALL_PATH=""
+AGI_INSTALL_ROOT=""
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_SRC_DIR="${REPO_ROOT}/src/agilab"
+ENV_FILE="$HOME/.agilab/.env"
+FORCE_REBUILD="${FORCE_REBUILD:-0}"  # NEW: Allow forcing rebuild
+SKIP_OFFLINE="${SKIP_OFFLINE:-0}"    # NEW: Skip offline deps for faster installs
+INSTALL_LOCAL_MODELS="${INSTALL_LOCAL_MODELS:-}"
+NO_REMOTE_INSTALLERS="${AGILAB_NO_REMOTE_INSTALLERS:-0}"
+DRY_RUN=0
+
+
+if [[ -f "$AGI_PATH_FILE" ]]; then
+    AGI_INSTALL_PATH="$(cat "$AGI_PATH_FILE")"
+    echo "agilab install path: $AGI_INSTALL_PATH"
+else
+    echo "No saved agilab install path found." >&2
+fi
+
+usage() {
+  local status="${1:-1}"
+  echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z] [--force-rebuild] [--dry-run] [--skip-offline] [--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini]"
+  echo ""
+  echo "Options:"
+  echo "  --source         Installation source (local, pypi, testpypi)"
+  echo "  --version        Specific version to install"
+  echo "  --force-rebuild  Force rebuild even if venv exists"
+  echo "  --dry-run        Print the end-user install plan without installing dependencies"
+  echo "  --skip-offline   Skip offline assistant (torch, transformers) for faster install"
+  echo "  --no-remote-installers  Refuse downloaded shell installers such as Ollama bootstrap scripts"
+  echo "  --install-local-models  Install requested Ollama models (gpt-oss, qwen, deepseek, qwen3, qwen3-coder, ministral, phi4-mini)"
+  exit "$status"
+}
+
+print_dry_run_plan() {
+  echo "AGILAB end-user installer dry-run plan"
+  echo "agi_space: ${AGI_SPACE}"
+  echo "apps_root: ${APPS_ROOT}"
+  echo "source: ${SOURCE}"
+  echo "version: ${VERSION:-<latest/resolved>}"
+  echo "force_rebuild: ${FORCE_REBUILD}"
+  echo "skip_offline: ${SKIP_OFFLINE}"
+  echo "local_models: ${INSTALL_LOCAL_MODELS:-<none>}"
+  echo "no_remote_installers: ${NO_REMOTE_INSTALLERS}"
+  echo "steps_would_run:"
+  echo "  - prepare ${AGI_SPACE}/.venv"
+  echo "  - install ${PACKAGES}"
+  echo "  - write AGILAB user environment"
+  if [[ "${SOURCE}" == "local" ]]; then
+    echo "  - install editable local packages from ${AGI_INSTALL_PATH:-${REPO_SRC_DIR}}"
+  fi
+  if (( ! SKIP_OFFLINE )); then
+    echo "  - install offline assistant extras unless disabled"
+  fi
+  if [[ -n "${INSTALL_LOCAL_MODELS}" ]]; then
+    echo "  - install requested local Ollama model families"
+  fi
+}
+
+normalize_local_model_name() {
+  local raw="${1:-}"
+  local normalized
+  normalized="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  case "$normalized" in
+    "") return 1 ;;
+    gpt-oss|gpt_oss|gptoss|gpt-oss:20b) echo "gpt-oss" ;;
+    qwen|qwen2.5|qwen2.5-coder|qwen2.5-coder:latest) echo "qwen" ;;
+    deepseek|deepseek-coder|deepseek-coder:latest) echo "deepseek" ;;
+    qwen3|qwen3-30b|qwen3-30b-a3b|qwen3:30b-a3b|qwen3:30b-a3b-instruct|qwen3:30b-a3b-instruct-2507-q4_k_m) echo "qwen3" ;;
+    qwen3-coder|qwen3-coder-30b|qwen3-coder-30b-a3b|qwen3-coder:30b|qwen3-coder:30b-a3b|qwen3-coder:30b-a3b-q4_k_m) echo "qwen3-coder" ;;
+    ministral|ministral3|ministral-3|ministral-3-14b|ministral-3:14b|ministral-3:14b-instruct|ministral-3:14b-instruct-2512-q4_k_m) echo "ministral" ;;
+    phi4-mini|phi-4-mini|phi4mini|phi4-mini:3.8b|phi4-mini:3.8b-q4_k_m) echo "phi4-mini" ;;
+    *)
+      warn "Ignoring unsupported local model '${raw}'. Supported values: gpt-oss, qwen, deepseek, qwen3, qwen3-coder, ministral, phi4-mini."
+      return 1
+      ;;
+  esac
+}
+
+confirm_privileged_action() {
+  local label="$1"
+  local answer="n"
+  if [[ -t 0 ]]; then
+    read -rp "Allow privileged action '${label}'? (y/N): " answer
+  elif [[ -e /dev/tty ]]; then
+    read -rp "Allow privileged action '${label}'? (y/N): " answer < /dev/tty
+  else
+    warn "No TTY available; skipping privileged action: ${label}."
+    return 1
+  fi
+  [[ "$answer" =~ ^[Yy]$ ]]
+}
+
+normalize_local_models_csv() {
+  local raw="${1:-}"
+  local -a ordered=()
+  local seen=" "
+  local item normalized
+  raw="${raw//;/,}"
+  for item in ${raw//,/ }; do
+    normalized="$(normalize_local_model_name "$item")" || continue
+    if [[ "$seen" != *" ${normalized} "* ]]; then
+      ordered+=("$normalized")
+      seen="${seen}${normalized} "
+    fi
+  done
+  if (( ${#ordered[@]} == 0 )); then
+    return 0
+  fi
+  printf '%s' "${ordered[*]}"
+}
+
+ollama_tag_for_family() {
+  local family="${1:-}"
+  case "$family" in
+    gpt-oss) echo "gpt-oss:20b" ;;
+    qwen) echo "qwen2.5-coder:latest" ;;
+    deepseek) echo "deepseek-coder:latest" ;;
+    qwen3) echo "qwen3:30b-a3b-instruct-2507-q4_K_M" ;;
+    qwen3-coder) echo "qwen3-coder:30b-a3b-q4_K_M" ;;
+    ministral) echo "ministral-3:14b-instruct-2512-q4_K_M" ;;
+    phi4-mini) echo "phi4-mini:3.8b-q4_K_M" ;;
+    *)
+      warn "No Ollama tag mapping defined for local model family '${family}'."
+      return 1
+      ;;
+  esac
+}
+
+provider_for_local_model_family() {
+  local family="${1:-}"
+  case "$family" in
+    gpt-oss) echo "ollama-gpt-oss" ;;
+    qwen) echo "ollama-qwen" ;;
+    deepseek) echo "ollama-deepseek" ;;
+    qwen3) echo "ollama-qwen3" ;;
+    qwen3-coder) echo "ollama-qwen3-coder" ;;
+    ministral) echo "ollama-ministral" ;;
+    phi4-mini) echo "ollama-phi4-mini" ;;
+    *)
+      warn "No WORKFLOW provider mapping defined for local model family '${family}'."
+      return 1
+      ;;
+  esac
+}
+
+ensure_ollama_runtime() {
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    if ! command -v ollama >/dev/null 2>&1; then
+      if command -v brew >/dev/null 2>&1; then
+        echo -e "${BLUE}Installing Ollama via Homebrew...${NC}"
+        brew install --cask ollama || warn "Failed to install Ollama via Homebrew. Install it manually from https://ollama.com."
+      else
+        warn "Homebrew not found; install Ollama manually from https://ollama.com."
+        return 1
+      fi
+    fi
+    if command -v brew >/dev/null 2>&1; then
+      brew services start ollama >/dev/null 2>&1 || true
+    fi
+  elif [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux"* ]]; then
+    if ! command -v ollama >/dev/null 2>&1; then
+      echo -e "${BLUE}Installing Ollama (Linux)...${NC}"
+      if run_remote_shell_installer "https://ollama.com/install.sh" "Ollama"; then
+        echo -e "${GREEN}Ollama installed.${NC}"
+      else
+        warn "Failed to install Ollama via script. Install manually from https://ollama.com."
+        return 1
+      fi
+    fi
+
+    if command -v systemctl >/dev/null 2>&1; then
+      if confirm_privileged_action "sudo systemctl enable --now ollama"; then
+        sudo systemctl enable --now ollama >/dev/null 2>&1 || true
+      else
+        warn "Skipping sudo systemctl setup for Ollama; start the service manually if needed."
+      fi
+    fi
+    if ! curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+      nohup ollama serve > "$HOME/log/ollama_serve.log" 2>&1 &
+      sleep 2
+    fi
+  else
+    warn "Automatic Ollama setup is available for macOS and Linux. Install Ollama and pull the requested models manually."
+    return 1
+  fi
+
+  if ! command -v ollama >/dev/null 2>&1; then
+    warn "Ollama is not available after setup."
+    return 1
+  fi
+  return 0
+}
+
+start_ollama_pull() {
+  local tag="$1"
+  local slug="$2"
+  mkdir -p "$HOME/log"
+  echo -e "${BLUE}Starting model download: ${tag} (running in background)...${NC}"
+  nohup ollama pull "$tag" > "$HOME/log/ollama_pull_${slug}.log" 2>&1 &
+  echo $! > "$HOME/log/ollama_pull_${slug}.pid"
+  echo -e "${GREEN}Pull started. Monitor: tail -f $HOME/log/ollama_pull_${slug}.log${NC}"
+}
+
+install_requested_local_models() {
+  local requested="${1:-}"
+  local family tag
+  [[ -n "$requested" ]] || return 0
+
+  echo -e "${BLUE}Installing requested local Ollama models...${NC}"
+  ensure_ollama_runtime || return 1
+  for family in $requested; do
+    tag="$(ollama_tag_for_family "$family")" || continue
+    start_ollama_pull "$tag" "$family"
+  done
+  persist_local_llm_selection "$requested"
+}
+
+persist_env_var() {
+  local key="$1"
+  local value="$2"
+  local env_file="$3"
+  python3 - "$env_file" "$key" "$value" <<'PY'
+import sys
+from pathlib import Path
+
+env_path = Path(sys.argv[1])
+key = sys.argv[2]
+value = sys.argv[3]
+
+if not env_path.parent.exists():
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+
+lines: list[str]
+if env_path.exists():
+    lines = env_path.read_text(encoding="utf-8").splitlines()
+else:
+    lines = []
+
+updated = False
+for idx, line in enumerate(lines):
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        continue
+    name, sep, _ = line.partition("=")
+    if sep and name.strip() == key:
+        lines[idx] = f"{key}={value}"
+        updated = True
+        break
+
+if not updated:
+    lines.append(f"{key}={value}")
+
+env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
+}
+
+persist_local_llm_env_for_family() {
+  local family="$1"
+  local env_file="$2"
+  local tag provider
+  tag="$(ollama_tag_for_family "$family")" || return 1
+  provider="$(provider_for_local_model_family "$family")" || return 1
+
+  persist_env_var "LAB_LLM_PROVIDER" "$provider" "$env_file"
+  persist_env_var "UOAIC_MODE" "ollama" "$env_file"
+  persist_env_var "UOAIC_OLLAMA_ENDPOINT" "http://127.0.0.1:11434" "$env_file"
+  persist_env_var "UOAIC_MODEL" "$tag" "$env_file"
+  persist_env_var "AGILAB_LLM_BASE_URL" "http://127.0.0.1:11434/v1" "$env_file"
+  persist_env_var "AGILAB_LLM_MODEL" "$tag" "$env_file"
+  persist_env_var "AGILAB_LLM_API_KEY" "EMPTY" "$env_file"
+}
+
+persist_local_llm_selection() {
+  local requested="${1:-}"
+  local first_family=""
+  local family
+  for family in $requested; do
+    first_family="$family"
+    break
+  done
+  [[ -n "$first_family" ]] || return 0
+
+  persist_local_llm_env_for_family "$first_family" "${ENV_FILE}"
+  echo -e "${GREEN}WORKFLOW local LLM defaults set to $(ollama_tag_for_family "$first_family") via Ollama.${NC}"
+}
+
+# -----------------------------
+# Args
+# -----------------------------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --source) SOURCE="$2"; shift 2 ;;
+    --version) VERSION="$2"; VERSION_ARG_SET=1; shift 2 ;;
+    --force-rebuild) FORCE_REBUILD=1; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --skip-offline) SKIP_OFFLINE=1; shift ;;
+    --no-remote-installers) NO_REMOTE_INSTALLERS=1; shift ;;
+    --install-local-models) INSTALL_LOCAL_MODELS="$2"; shift 2 ;;
+    --install-local-models=*) INSTALL_LOCAL_MODELS="${1#*=}"; shift ;;
+    --help|-h) usage 0 ;;
+    *) usage 1 ;;
+  esac
+done
+INSTALL_LOCAL_MODELS="$(normalize_local_models_csv "$INSTALL_LOCAL_MODELS")"
+
+if (( DRY_RUN )); then
+  print_dry_run_plan
+  exit 0
+fi
+
+if [[ "$SOURCE" == "local" ]]; then
+  if [[ -z "${AGI_INSTALL_PATH}" || ! -d "${AGI_INSTALL_PATH}" ]]; then
+    if [[ -d "${REPO_SRC_DIR}" ]]; then
+      AGI_INSTALL_PATH="${REPO_SRC_DIR}"
+      echo -e "${BLUE}[info] Local source auto-detected at ${AGI_INSTALL_PATH} ${NC}"
+    else
+      echo -e "${RED}Error: Unable to locate local source checkout (expected ${REPO_SRC_DIR}). ${NC}" >&2
+      exit 1
+    fi
+  elif [[ "${AGI_INSTALL_PATH}" == */wenv/* ]]; then
+    if [[ -d "${REPO_SRC_DIR}" ]]; then
+      echo -e "${YELLOW}[warn] Saved local install path (${AGI_INSTALL_PATH}) points to a worker environment; using ${REPO_SRC_DIR} instead. ${NC}"
+      AGI_INSTALL_PATH="${REPO_SRC_DIR}"
+    fi
+  fi
+
+  if [[ "${AGI_INSTALL_PATH}" != "${REPO_SRC_DIR}" && -d "${REPO_SRC_DIR}" ]]; then
+    echo -e "${BLUE}[info] Persisting local install path to ${REPO_SRC_DIR}${NC}"
+    AGI_INSTALL_PATH="${REPO_SRC_DIR}"
+  fi
+
+  mkdir -p "$(dirname "${AGI_PATH_FILE}")"
+  printf '%s\n' "${AGI_INSTALL_PATH}" > "${AGI_PATH_FILE}"
+
+  if [[ "${AGI_INSTALL_PATH}" == "${REPO_SRC_DIR}" ]]; then
+    AGI_INSTALL_ROOT="${REPO_ROOT}"
+  else
+    AGI_INSTALL_ROOT="${AGI_INSTALL_PATH%/src/agilab}"
+    if [[ -z "${AGI_INSTALL_ROOT}" || "${AGI_INSTALL_ROOT}" == "${AGI_INSTALL_PATH}" ]]; then
+      AGI_INSTALL_ROOT="${AGI_INSTALL_PATH}"
+    fi
+  fi
+fi
+
+persist_env_var "APPS_PATH" "${APPS_ROOT}" "${ENV_FILE}"
+persist_env_var "IS_SOURCE_ENV" "0" "${ENV_FILE}"
+
+verify_testpypi_versions() {
+  local show_script="${SCRIPT_DIR}/show_dependencies.py"
+  local python_bin="${VENV}/bin/python"
+  if [[ ! -x "${python_bin}" ]]; then
+    echo -e "${YELLOW}[warn] Skipping version verification; missing Python interpreter at ${python_bin} ${NC}" >&2
+    return 0
+  fi
+  if [[ ! -f "${show_script}" ]]; then
+    echo -e "${YELLOW}[warn] Skipping version verification; show_dependencies.py not found at ${show_script}" >&2
+    return 0
+  fi
+
+  local -a pkg_array
+  read -r -a pkg_array <<< "${PACKAGES}"
+
+  local force_version=""
+  if [[ "${VERSION_ARG_SET}" -eq 1 && -n "${VERSION}" ]]; then
+    force_version="${VERSION}"
+  fi
+
+  FORCE_TESTPYPI_VERSION="${force_version}" "${python_bin}" - "${show_script}" "${pkg_array[@]}" <<'PY'
+import json
+import os
+import pathlib
+import re
+import subprocess
+import sys
+
+show_script = pathlib.Path(sys.argv[1])
+packages = sys.argv[2:]
+force_version = os.environ.get("FORCE_TESTPYPI_VERSION")
+
+cmd = [sys.executable, str(show_script), "--repo", "testpypi"]
+if force_version:
+    cmd.extend(["--version", force_version])
+cmd.extend(packages)
+output = subprocess.check_output(cmd, text=True)
+pattern = re.compile(r'^(ag[\w-]+) \(([^)]+)\) dependencies:', re.MULTILINE)
+expected = {match.group(1).lower(): match.group(2) for match in pattern.finditer(output)}
+
+pip_cmd = [sys.executable, "-m", "pip", "list", "--format", "json"]
+installed_data = json.loads(subprocess.check_output(pip_cmd, text=True))
+installed = {pkg["name"].lower(): pkg["version"] for pkg in installed_data}
+
+mismatches = {}
+for name, exp_version in expected.items():
+    inst_version = installed.get(name)
+    if inst_version != exp_version:
+        mismatches[name] = (exp_version, inst_version)
+
+if mismatches:
+    print("[error] Version mismatch detected between TestPyPI metadata and installed packages:")
+    for name, (exp_version, inst_version) in sorted(mismatches.items()):
+        installed_label = inst_version if inst_version is not None else "missing"
+        print(f"  {name}: expected {exp_version}, installed {installed_label}")
+    sys.exit(1)
+
+print("[info] TestPyPI agi* package versions match metadata.")
+PY
+}
+
+echo -e "${BLUE}====================================${NC}"
+echo -e "${BLUE} MODE:           ${SOURCE}${NC}"
+echo -e "${BLUE} VERSION:        ${VERSION:-<latest>}${NC}"
+echo -e "${BLUE} FORCE REBUILD:  ${FORCE_REBUILD}${NC}"
+echo -e "${BLUE} SKIP OFFLINE:   ${SKIP_OFFLINE}${NC}"
+echo -e "${BLUE}====================================${NC}"
+
+# -----------------------------
+# AGI_SPACE / venv
+# -----------------------------
+pushd "$AGI_SPACE" >/dev/null
+
+# OPTIMIZATION 1: Only delete venv if forced or doesn't exist
+if [[ "${FORCE_REBUILD}" -eq 1 ]]; then
+  echo -e "${BLUE}[info] Force rebuild requested - removing existing venv and lock file${NC}"
+  rm -fr .venv uv.lock
+elif [[ ! -d .venv ]]; then
+  echo -e "${BLUE}[info] No existing venv found - creating new one${NC}"
+  rm -f uv.lock  # Remove stale lock file if venv is missing
+else
+  echo -e "${BLUE}[info] Using existing venv (use --force-rebuild to recreate)${NC}"
+fi
+
+if [ ! -f pyproject.toml ]; then
+    uv init --bare --no-workspace
+fi
+
+# OPTIMIZATION 2: Use uv sync which respects lock files
+${UV_PREVIEW[@]} sync
+
+# Ensure pip is available inside the venv for any tooling that shells out to python -m pip
+${UV_PREVIEW[@]} run python -m ensurepip --upgrade || true
+
+# -----------------------------
+# Installation modes
+# -----------------------------
+case "${SOURCE}" in
+  local)
+    if [[ -z "${AGI_INSTALL_ROOT:-}" ]]; then
+      if [[ "${AGI_INSTALL_PATH}" == "${REPO_SRC_DIR}" ]]; then
+        AGI_INSTALL_ROOT="${REPO_ROOT}"
+      else
+        AGI_INSTALL_ROOT="${AGI_INSTALL_PATH%/src/agilab}"
+        if [[ -z "${AGI_INSTALL_ROOT}" || "${AGI_INSTALL_ROOT}" == "${AGI_INSTALL_PATH}" ]]; then
+          AGI_INSTALL_ROOT="${AGI_INSTALL_PATH}"
+        fi
+      fi
+    fi
+
+    [[ -n "${AGI_INSTALL_ROOT}" && -d "${AGI_INSTALL_ROOT}" ]] || {
+      echo -e "${RED}Error: Missing or invalid install path for local source: ${AGI_INSTALL_PATH}${NC}" >&2
+      exit 1
+    }
+
+    [[ -n "${AGI_INSTALL_PATH:-}" && -d "${AGI_INSTALL_PATH}" ]] || { echo -e "${RED}Error: Missing or invalid install path: ${AGI_INSTALL_PATH}${NC}" >&2; exit 1; }
+
+    # OPTIMIZATION 3: Create lock file ONCE at repo root if it doesn't exist
+    pushd "${AGI_INSTALL_ROOT}" >/dev/null
+    if [[ ! -f "uv.lock" || "${FORCE_REBUILD}" -eq 1 ]]; then
+      echo -e "${BLUE}[info] Creating/updating lock file for local repo (one-time operation)...${NC}"
+      uv lock --quiet
+      echo -e "${BLUE}[info] Lock file created - future installs will be much faster!${NC}"
+    else
+      echo -e "${BLUE}[info] Using existing lock file from repo${NC}"
+    fi
+
+    # OPTIMIZATION 4: Build wheel only if needed
+    WHEEL_DIR="${AGI_INSTALL_ROOT}/dist"
+    NEEDS_BUILD=0
+    if [[ ! -d "${WHEEL_DIR}" ]] || [[ "${FORCE_REBUILD}" -eq 1 ]]; then
+      NEEDS_BUILD=1
+    else
+      # Check if any wheel exists
+      if ! ls "${WHEEL_DIR}"/*.whl >/dev/null 2>&1; then
+        NEEDS_BUILD=1
+      fi
+    fi
+
+    if [[ "${NEEDS_BUILD}" -eq 1 ]]; then
+      echo -e "${BLUE}[info] Building wheel from local source...${NC}"
+      uv build --wheel --no-build-logs --quiet
+    else
+      echo -e "${BLUE}[info] Using existing wheel (use --force-rebuild to recreate)${NC}"
+    fi
+    popd >/dev/null
+
+    # OPTIMIZATION 5: Install all packages in one command
+    echo -e "${BLUE}Installing packages from local source tree...${NC}"
+    INSTALL_PATHS=()
+    for pkg in ${PACKAGES}; do
+      if [[ -d "${AGI_INSTALL_PATH}/core/${pkg}" ]]; then
+        INSTALL_PATHS+=("${AGI_INSTALL_PATH}/core/${pkg}")
+      fi
+    done
+    INSTALL_PATHS+=("${AGI_INSTALL_ROOT}")
+
+    # Install all at once instead of one-by-one, including runtime dependencies.
+    if [[ ${#INSTALL_PATHS[@]} -gt 0 ]]; then
+      ${UV_PREVIEW[@]} pip install --upgrade --reinstall --refresh --no-cache "${INSTALL_PATHS[@]}"
+    fi
+    ;;
+
+  pypi)
+    echo -e "${BLUE}Installing from PyPI...${NC}"
+    if [[ -z "${VERSION}" ]]; then
+      ${UV_PREVIEW[@]} pip install --upgrade ${PACKAGES}
+    else
+      # shellcheck disable=SC2046
+      ${UV_PREVIEW[@]} pip install --upgrade $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
+    fi
+    ;;
+
+  testpypi)
+    INDEX_URL="https://test.pypi.org/simple"
+    EXTRA_INDEX_URL="https://pypi.org/simple"
+
+    ${UV_PREVIEW[@]} pip install packaging
+
+    resolve_common_latest() {
+      uv run python - "$@" <<'PY'
+import json, sys, urllib.request
+from packaging.version import Version
+
+pkgs = sys.argv[1:]
+
+def releases(pkg):
+    with urllib.request.urlopen(f"https://test.pypi.org/pypi/{pkg}/json") as r:
+        data = json.load(r)
+    return {v for v, files in data.get("releases", {}).items() if files}
+
+common = None
+for pkg in pkgs:
+    rs = releases(pkg)
+    common = rs if common is None else (common & rs)
+
+if not common:
+    print("", end="")
+    sys.exit(0)
+
+latest = str(sorted((Version(v) for v in common))[-1])
+print(latest, end="")
+PY
+    }
+
+    if [[ -z "${VERSION}" ]]; then
+      echo -e "${BLUE}Resolving newest *common* TestPyPI version across: ${PACKAGES}${NC}"
+      attempt=0
+      until [[ -n "${VERSION}" || ${attempt} -ge 10 ]]; do
+        VERSION="$(resolve_common_latest ${PACKAGES} || true)"
+        [[ -n "${VERSION}" ]] || { attempt=$((attempt+1)); sleep 3; }
+      done
+      [[ -n "${VERSION}" ]] || { echo -e "${RED}ERROR: Could not find a common version for all packages on TestPyPI after retries.${NC}" >&2; exit 1; }
+      echo -e "${BLUE}Using version ${VERSION} for all packages${NC}"
+    else
+      echo -e "${BLUE}Installing from TestPyPI (forced VERSION=${VERSION} for all)...${NC}"
+    fi
+
+    echo -e "${BLUE}Installing packages: ${PACKAGES} == ${VERSION}${NC}"
+    # pip 25 removed --index-strategy; rely on default resolver across indexes
+    ${UV_PREVIEW[@]} run python -m pip install \
+      --index "${INDEX_URL}" \
+      --extra-index-url "${EXTRA_INDEX_URL}" \
+      --upgrade --no-cache-dir \
+      $(for p in ${PACKAGES}; do printf "%s==%s " "${p}" "${VERSION}"; done)
+
+    if ! verify_testpypi_versions; then
+      if [[ -z "${AGI_INSTALL_RETRY:-}" ]]; then
+        echo -e "${YELLOW}[warn] Version mismatch detected; retrying install once...${NC}" >&2
+        if [[ "${VERSION_ARG_SET}" -eq 1 ]]; then
+          AGI_INSTALL_RETRY=1 exec "$0" --source "${SOURCE}" --version "${VERSION}"
+        else
+          AGI_INSTALL_RETRY=1 exec "$0" --source "${SOURCE}"
+        fi
+      else
+        echo -e "${RED}[error] TestPyPI package versions still do not match metadata after retry.${NC}" >&2
+        echo -e "${RED}        Resolve the mismatch (e.g. wait for all packages to publish ${VERSION}) and rerun.${NC}" >&2
+        exit 1
+      fi
+    fi
+    ;;
+
+  *)
+    usage
+    ;;
+esac
+
+# OPTIMIZATION 6: Make offline install optional and use UV instead of pip
+install_offline_assistant() {
+  if [[ "${SKIP_OFFLINE}" -eq 1 ]]; then
+    echo -e "${BLUE}[info] Skipping offline assistant installation (--skip-offline flag set)${NC}"
+    return
+  fi
+
+  local python_bin="${VENV}/bin/python"
+  if [[ ! -x "${python_bin}" ]]; then
+    warn "Skipping GPT-OSS install; missing interpreter at ${python_bin}"
+    return
+  fi
+
+  local pyver major minor _
+  pyver="$("${python_bin}" - <<'PY'
+import sys
+print(".".join(map(str, sys.version_info[:3])))
+PY
+)"
+
+  IFS='.' read -r major minor _ <<< "${pyver}"
+  if [[ -z "${major:-}" || -z "${minor:-}" ]]; then
+    warn "Could not determine Python version; skipping GPT-OSS install"
+    return
+  fi
+
+  if (( major > 3 || (major == 3 && minor >= 12) )); then
+    echo -e "${BLUE}Installing GPT-OSS offline assistant dependencies...${NC}"
+    echo -e "${BLUE}[info] This may take several minutes (downloading torch ~2GB, transformers, etc.)${NC}"
+    echo -e "${BLUE}[info] To skip this in the future, use --skip-offline flag${NC}"
+
+    # Use UV instead of pip for faster installation
+    if ${UV_PREVIEW[@]} pip install --upgrade "agilab[offline]" 2>&1 | tee /tmp/offline-install.log; then
+      echo "GPT-OSS offline assistant packages installed."
+    else
+      warn "Unable to install GPT-OSS automatically."
+      warn "Install log saved to /tmp/offline-install.log"
+      warn "Run 'uv pip install agilab[offline]' manually if needed."
+      return
+    fi
+
+    # Verify critical packages (but don't reinstall if already present)
+    local ensure_specs=("transformers>=4.57.0" "torch>=2.8.0" "accelerate>=0.34.2")
+    for spec in "${ensure_specs[@]}"; do
+      local pkg="${spec%%>=*}"
+      if ! "${python_bin}" -c "import ${pkg}" >/dev/null 2>&1; then
+        echo -e "${YELLOW}[warn] Package ${pkg} not importable after installation${NC}"
+        echo -e "${BLUE}[info] Try: uv pip install --upgrade '${spec}'${NC}"
+      fi
+    done
+  else
+    warn "Skipping GPT-OSS offline assistant (requires Python >=3.12; detected ${pyver})."
+  fi
+}
+
+install_offline_assistant
+if [[ -n "${INSTALL_LOCAL_MODELS}" ]]; then
+  install_requested_local_models "${INSTALL_LOCAL_MODELS}"
+fi
+popd >/dev/null
+
+# Some uv operations materialize helper folders inside the venv root when
+# installing from local sources. They are not required once the packages are
+# installed, so prune them to keep the environment tidy.
+for leftover in "${VENV}/agi_env" "${VENV}/agi-node" "${VENV}/agi-cluster" "${VENV}/agi-core"; do
+  if [[ -d "${leftover}" ]]; then
+    rm -rf "${leftover}"
+  fi
+done
+
+# -----------------------------
+# Show results
+# -----------------------------
+echo -e "${BLUE}====================================${NC}"
+echo -e "${BLUE}Installed packages in agi-space/.venv:${NC}"
+if ! "${VENV}/bin/python" -m pip list | grep -E '^(agilab|agi-)' ; then
+  echo "(No agi* packages detected.)"
+fi
+echo -e "${BLUE}====================================${NC}"
+echo ""
+echo -e "${GREEN}Installation complete!${NC}"

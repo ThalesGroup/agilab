@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 590" role="img" aria-labelledby="title desc">
+  <title id="title">AI Problematic</title>
+  <desc id="desc">Diagram showing how domain expertise and data science collaborate through an experiment loop to deliver deployable models.</desc>
+  <defs>
+    <style>
+      .bg{fill:#ffffff}
+      .title{font:700 28px/1.2 Arial, Helvetica, sans-serif; fill:#0f172a}
+      .h{font:700 16px/1.2 Arial, Helvetica, sans-serif; fill:#0f172a}
+      .t{font:400 14px/1.4 Arial, Helvetica, sans-serif; fill:#334155}
+      .muted{fill:#64748b}
+      .box{fill:#f8fafc;stroke:#cbd5e1;stroke-width:2}
+      .box-accent{fill:#eff6ff;stroke:#2563eb}
+      .chip{fill:#ffffff;stroke:#cbd5e1;stroke-width:2}
+      .arrow{stroke:#475569;stroke-width:2.4;fill:none;stroke-linecap:round;marker-end:url(#arrow)}
+    </style>
+    <marker id="arrow" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 8 4 L 0 8 z" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="960" height="590"/>
+  <text class="title" x="480" y="56" text-anchor="middle">From Problem to Deployed Model</text>
+  <text class="t muted" x="480" y="84" text-anchor="middle">A practical workflow: iterate quickly, then ship reproducibly.</text>
+
+  <rect class="box" x="70" y="120" rx="16" ry="16" width="330" height="170"/>
+  <text class="h" x="95" y="152">Domain expertise</text>
+  <text class="t" x="95" y="178">• Requirements &amp; KPIs</text>
+  <text class="t" x="95" y="200">• Constraints (safety, physics)</text>
+  <text class="t" x="95" y="222">• Scenarios &amp; edge cases</text>
+  <text class="t" x="95" y="244">• Acceptance criteria</text>
+
+  <rect class="box" x="560" y="120" rx="16" ry="16" width="330" height="170"/>
+  <text class="h" x="585" y="152">Data science</text>
+  <text class="t" x="585" y="178">• Data pipelines</text>
+  <text class="t" x="585" y="200">• Models (ML/RL/solvers)</text>
+  <text class="t" x="585" y="222">• Metrics &amp; validation</text>
+  <text class="t" x="585" y="244">• Uncertainty &amp; bias checks</text>
+
+  <rect class="box-accent" x="230" y="324" rx="16" ry="16" width="500" height="142"/>
+  <text class="h" x="250" y="358">Experiment loop</text>
+  <text class="t" x="250" y="384">Data → Training → Evaluation → Iterate</text>
+
+  <rect class="chip" x="260" y="398" rx="12" ry="12" width="120" height="42"/>
+  <text class="t" x="320" y="424" text-anchor="middle">Dataset</text>
+
+  <rect class="chip" x="420" y="398" rx="12" ry="12" width="120" height="42"/>
+  <text class="t" x="480" y="424" text-anchor="middle">Model</text>
+
+  <rect class="chip" x="580" y="398" rx="12" ry="12" width="120" height="42"/>
+  <text class="t" x="640" y="424" text-anchor="middle">Metrics</text>
+
+  <line class="arrow" x1="380" y1="419" x2="420" y2="419"/>
+  <line class="arrow" x1="540" y1="419" x2="580" y2="419"/>
+  <path class="arrow" d="M 640 398 C 690 384 692 452 640 440"/>
+
+  <rect class="box" x="230" y="490" rx="16" ry="16" width="500" height="66"/>
+  <text class="h" x="250" y="526">Deployment &amp; operations</text>
+  <text class="t" x="250" y="548">Versioned artifacts • repeatable runs • monitoring • audit trail</text>
+
+  <line class="arrow" x1="235" y1="290" x2="322" y2="324"/>
+  <line class="arrow" x1="725" y1="290" x2="638" y2="324"/>
+  <line class="arrow" x1="480" y1="466" x2="480" y2="490"/>
+</svg>

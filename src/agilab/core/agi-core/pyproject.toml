@@ -1,0 +1,407 @@
+[project]
+version = "2026.06.02.post1"
+name = "agi-core"
+description = "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Jean-Pierre Morard" }]
+maintainers = [{ name = "Jean-Pierre Morard" }]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+classifiers = [
+  "Intended Audience :: Developers",
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+]
+keywords = [
+  "python",
+  "ai-experimentation",
+  "machine-learning",
+  "reproducibility",
+  "mlops",
+  "workflow-orchestration",
+  "distributed-computing",
+  "distributed-execution",
+]
+dependencies = ["agi-env==2026.06.02.post1", "agi-node==2026.06.02.post1", "agi-cluster==2026.06.02.post1"]
+
+[project.urls]
+Homepage = "https://github.com/ThalesGroup/agilab"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Documentation = "https://thalesgroup.github.io/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[[tool.mypy.overrides]]
+module = "agi_core.*"
+disallow_untyped_defs = true
+disallow_any_generics = true
+warn_return_any = true
+warn_unused_ignores = true
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[tool.uv.sources.agi-env]
+    path = "../agi-env"
+    editable = true
+
+[tool.uv.sources.agi-cluster]
+    path = "../agi-cluster"
+    editable = true
+
+[tool.uv.sources.agi-node]
+    path = "../agi-node"
+    editable = true
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# Tell Hatch exactly what to ship (the tiny placeholder pkg).
+packages = ["src/agi_core"]
+
+[tool.hatch.build.targets.sdist]
+# Keep the sdist minimal, too.
+include = [
+  "/src/agi_core",
+  "/pyproject.toml",
+  "/README.md",
+  "/LICENSE*",
+]
+
+[tool.pytest.ini_options]
+# Where your tests live for this project
+testpaths = ["test"]
+
+# Prefer auto so async tests don't need @pytest.mark.asyncio
+asyncio_mode = "auto"
+
+# Quiet known third-party deprecations
+filterwarnings = [
+  "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+]

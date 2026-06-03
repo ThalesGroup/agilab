@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <rect width="1200" height="680" fill="#f7f3eb"/>
+  <rect x="58" y="128" width="318" height="336" rx="28" fill="#fffaf5" stroke="#dccabf" stroke-width="3"/>
+  <rect x="441" y="96" width="318" height="368" rx="28" fill="#f9f4ed" stroke="#dccabf" stroke-width="3"/>
+  <rect x="824" y="64" width="318" height="400" rx="28" fill="#efe2d1" stroke="#dccabf" stroke-width="3"/>
+  <text x="217" y="168" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos" font-weight="700">NIVEAU 1</text>
+  <text x="600" y="136" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos" font-weight="700">NIVEAU 2</text>
+  <text x="983" y="104" font-size="20" text-anchor="middle" fill="#5b6268" font-family="Aptos" font-weight="700">NIVEAU 3</text>
+  <text x="217" y="214" font-size="34" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">Chatbot</text>
+  <text x="217" y="254" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">répond au prompt</text>
+  <text x="108" y="312" font-size="23" fill="#5b6268" font-family="Aptos">• copier-coller manuel</text>
+  <text x="108" y="348" font-size="23" fill="#5b6268" font-family="Aptos">• tests lancés à la main</text>
+  <text x="108" y="384" font-size="23" fill="#5b6268" font-family="Aptos">• contexte souvent partiel</text>
+  <rect x="124" y="414" width="186" height="34" rx="17" fill="#fff1e6"/>
+  <text x="217" y="437" font-size="20" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">GAIN LIMITÉ</text>
+  <text x="600" y="182" font-size="34" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">Plugin IDE</text>
+  <text x="600" y="222" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">agit dans le fichier courant</text>
+  <text x="491" y="284" font-size="23" fill="#5b6268" font-family="Aptos">• édition plus rapide</text>
+  <text x="491" y="320" font-size="23" fill="#5b6268" font-family="Aptos">• meilleur contexte local</text>
+  <text x="491" y="356" font-size="23" fill="#5b6268" font-family="Aptos">• orchestration encore humaine</text>
+  <rect x="507" y="396" width="186" height="34" rx="17" fill="#fff1e6"/>
+  <text x="600" y="419" font-size="20" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">GAIN MOYEN</text>
+  <text x="983" y="150" font-size="34" text-anchor="middle" fill="#2d5c7a" font-family="Aptos" font-weight="700">Agent multi-skill</text>
+  <text x="983" y="190" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">enchaîne un vrai workflow</text>
+  <text x="874" y="254" font-size="23" fill="#5b6268" font-family="Aptos">• ouvre le bon contexte repo</text>
+  <text x="874" y="290" font-size="23" fill="#5b6268" font-family="Aptos">• lance scripts et tests</text>
+  <text x="874" y="326" font-size="23" fill="#5b6268" font-family="Aptos">• vérifie avant de conclure</text>
+  <text x="874" y="362" font-size="23" fill="#5b6268" font-family="Aptos">• capitalise les skills</text>
+  <rect x="890" y="398" width="186" height="34" rx="17" fill="#fff1e6"/>
+  <text x="983" y="421" font-size="20" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">GAIN FORT</text>
+  <path d="M224 540 C420 510, 736 470, 985 390" stroke="#b85724" stroke-width="11" fill="none" stroke-linecap="round"/>
+  <polygon points="967,380 1002,385 978,411" fill="#b85724"/>
+  <rect x="164" y="560" width="872" height="66" rx="24" fill="#fffaf5"/>
+  <text x="600" y="602" font-size="31" text-anchor="middle" fill="#b85724" font-family="Aptos" font-weight="700">Le vrai gain vient de l’orchestration retirée à l’humain.</text>
+</svg>

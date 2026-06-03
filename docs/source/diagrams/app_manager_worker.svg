@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="360" viewBox="0 0 1120 360" role="img" aria-labelledby="title desc">
+  <title id="title">AGILAB manager and worker runtime split</title>
+  <desc id="desc">Diagram showing an app manager building a WorkDispatcher plan, AGI.run choosing a local or distributed execution back-plane, and packaged workers writing artifacts and logs.</desc>
+  <defs>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #10223d; }
+      .title { font-size: 26px; font-weight: 700; }
+      .subtitle { font-size: 15px; fill: #586b83; }
+      .lane { font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; fill: #6c7f96; }
+      .card { stroke: #14233a; stroke-width: 2.2; rx: 18; ry: 18; }
+      .card-title { font-size: 20px; font-weight: 700; }
+      .body { font-size: 14px; fill: #334861; }
+      .note { font-size: 13px; fill: #586b83; }
+      .mini-title { font-size: 15px; font-weight: 700; }
+      .arrow { stroke: #17253e; stroke-width: 2.8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-soft { stroke: #58708b; stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-dasharray: 8 7; }
+    </style>
+    <marker id="arrowhead" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#17253e" />
+    </marker>
+    <marker id="arrowhead-soft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#58708b" />
+    </marker>
+  </defs>
+
+  <rect width="1120" height="360" fill="#f8fbff" rx="28" ry="28"/>
+
+  <g transform="translate(44,38)">
+    <text class="title" x="0" y="0">Manager / worker execution split</text>
+    <text class="subtitle" x="0" y="28">Current runtime contract: managers prepare typed work; AGI.run dispatches packaged worker runtimes and collects evidence.</text>
+  </g>
+
+  <g transform="translate(44,126)">
+    <text class="lane" x="0" y="-18">Manager runtime</text>
+    <rect class="card" width="210" height="118" fill="#dbeafe"/>
+    <text class="card-title" x="105" y="34" text-anchor="middle">App manager</text>
+    <text class="body" x="105" y="61" text-anchor="middle">validates args and</text>
+    <text class="body" x="105" y="81" text-anchor="middle">builds distribution</text>
+    <text class="note" x="105" y="101" text-anchor="middle">project src/&lt;app&gt;</text>
+  </g>
+
+  <g transform="translate(324,118)">
+    <text class="lane" x="0" y="-18">Run contract</text>
+    <rect class="card" width="238" height="134" fill="#ede9fe"/>
+    <text class="card-title" x="119" y="34" text-anchor="middle">AGI.run request</text>
+    <text class="body" x="119" y="62" text-anchor="middle">RunRequest + mode flags</text>
+    <text class="body" x="119" y="82" text-anchor="middle">WorkDispatcher manifest</text>
+    <text class="note" x="119" y="106" text-anchor="middle">install / distribute / execute</text>
+  </g>
+
+  <g transform="translate(632,118)">
+    <text class="lane" x="0" y="-18">Execution back-plane</text>
+    <rect class="card" width="210" height="134" fill="#dcfce7"/>
+    <text class="card-title" x="105" y="34" text-anchor="middle">agi_cluster</text>
+    <text class="body" x="105" y="62" text-anchor="middle">local, pool, or Dask</text>
+    <text class="body" x="105" y="82" text-anchor="middle">scheduler + balancing</text>
+    <text class="note" x="105" y="106" text-anchor="middle">same plan, chosen mode</text>
+  </g>
+
+  <g transform="translate(908,84)">
+    <text class="lane" x="0" y="-18">Worker runtime</text>
+    <rect class="card" width="168" height="74" fill="#ffedd5"/>
+    <text class="mini-title" x="84" y="28" text-anchor="middle">Worker #1</text>
+    <text class="body" x="84" y="49" text-anchor="middle">BaseWorker subclass</text>
+  </g>
+  <g transform="translate(908,182)">
+    <rect class="card" width="168" height="74" fill="#ffedd5"/>
+    <text class="mini-title" x="84" y="28" text-anchor="middle">Worker #2</text>
+    <text class="body" x="84" y="49" text-anchor="middle">BaseWorker subclass</text>
+  </g>
+  <g transform="translate(908,280)">
+    <rect class="card" width="168" height="52" fill="#fff7ed"/>
+    <text class="note" x="84" y="22" text-anchor="middle">packaged under</text>
+    <text class="note" x="84" y="40" text-anchor="middle">~/wenv/&lt;app&gt;_worker</text>
+  </g>
+
+  <path class="arrow" d="M254 185 C282 185 296 185 324 185" marker-end="url(#arrowhead)"/>
+  <path class="arrow" d="M562 185 C592 185 604 185 632 185" marker-end="url(#arrowhead)"/>
+  <path class="arrow" d="M842 168 C868 144 882 122 908 121" marker-end="url(#arrowhead)"/>
+  <path class="arrow" d="M842 202 C870 213 882 219 908 219" marker-end="url(#arrowhead)"/>
+  <path class="arrow-soft" d="M992 158 C992 170 992 171 992 182" marker-end="url(#arrowhead-soft)"/>
+  <path class="arrow-soft" d="M992 256 C992 268 992 269 992 280" marker-end="url(#arrowhead-soft)"/>
+
+  <text class="note" x="274" y="174">work plan</text>
+  <text class="note" x="578" y="174">dispatch</text>
+  <text class="note" x="856" y="128">tasks</text>
+  <text class="note" x="858" y="232">tasks</text>
+</svg>

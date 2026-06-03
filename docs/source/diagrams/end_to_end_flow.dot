@@ -1,0 +1,16 @@
+digraph EndToEndFlow {
+  rankdir=LR;
+  node [shape=box, style=filled, color="#0f172a", fillcolor="#e2e8f0", fontname="Helvetica", fontsize=11];
+  edge [color="#475569", penwidth=1.6];
+
+  Traj [label="1) Trajectories\n(air + space)", fillcolor="#bfdbfe", color="#1d4ed8"];
+  Link [label="2) Link budgets\n(attenuation + antenna)", fillcolor="#c7f9cc", color="#15803d"];
+  Topo [label="3) Topology/demands\n(network model)", fillcolor="#c7d2fe", color="#312e81"];
+  Engines [label="4) Decision engines\n(learning + optimization)", fillcolor="#fde68a", color="#ca8a04"];
+  Viz [label="5) Visual KPIs\n(maps / charts)", fillcolor="#fbcfe8", color="#be185d"];
+
+  Traj -> Link [label="tracks", fontsize=10];
+  Link -> Topo [label="capacities", fontsize=10];
+  Topo -> Engines [label="topology + demands", fontsize=10];
+  Engines -> Viz [label="allocations", fontsize=10];
+}

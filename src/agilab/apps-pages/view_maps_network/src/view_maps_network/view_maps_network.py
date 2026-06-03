@@ -1,0 +1,5221 @@
+# BSD 3-Clause License
+#
+# Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+# 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+import sys
+import argparse
+import importlib
+import os
+from pathlib import Path
+
+import streamlit as st
+import pandas as pd
+import pydeck as pdk
+import ast
+import networkx as nx
+import numpy as np
+import plotly.graph_objects as go
+import matplotlib.colors as mcolors
+import glob
+import json
+import re
+import tomllib
+from urllib.parse import quote, urlencode
+from agi_env.app_settings_support import prepare_app_settings_for_write
+try:
+    import tomli_w as _toml_writer  # type: ignore[import-not-found]
+
+    def _dump_toml(data: dict, handle) -> None:
+        _toml_writer.dump(data, handle)
+
+except ModuleNotFoundError:  # pragma: no cover - fallback for lightweight envs
+    try:
+        from tomlkit import dumps as _tomlkit_dumps
+
+        def _dump_toml(data: dict, handle) -> None:
+            handle.write(_tomlkit_dumps(data).encode("utf-8"))
+
+    except ImportError as _toml_exc:  # pragma: no cover - defensive guard
+        _tomlkit_dumps = None  # type: ignore
+
+        def _dump_toml(data: dict, handle, _exc: ImportError = _toml_exc) -> None:
+            raise RuntimeError(
+                "Writing settings requires the 'tomli-w' or 'tomlkit' package"
+            ) from _exc
+from streamlit.runtime.scriptrunner import RerunException
+from typing import Any, Optional
+from agi_env.agi_logger import AgiLogger
+
+try:
+    from edge_selection import CUSTOM_OPTION, NONE_OPTION, resolve_edges_picker_state
+except ModuleNotFoundError:
+    # Direct module loading in tests does not always seed this page directory on sys.path.
+    page_dir = Path(__file__).resolve().parent
+    page_dir_str = str(page_dir)
+    if page_dir_str not in sys.path:
+        sys.path.insert(0, page_dir_str)
+    from edge_selection import CUSTOM_OPTION, NONE_OPTION, resolve_edges_picker_state
+
+try:
+    from settings_support import (
+        coerce_str_list as _coerce_str_list,  # noqa: F401
+        first_nonempty_setting as _get_first_nonempty_setting,
+        get_view_maps_page_settings as _page_settings_from_app_settings,
+        setting_list as _get_setting_list,
+    )
+except ModuleNotFoundError:
+    page_dir = Path(__file__).resolve().parent
+    page_dir_str = str(page_dir)
+    if page_dir_str not in sys.path:
+        sys.path.insert(0, page_dir_str)
+    from settings_support import (
+        coerce_str_list as _coerce_str_list,  # noqa: F401
+        first_nonempty_setting as _get_first_nonempty_setting,
+        get_view_maps_page_settings as _page_settings_from_app_settings,
+        setting_list as _get_setting_list,
+    )
+
+logger = AgiLogger.get_logger(__name__)
+_TRAILING_EXPORT_TIMESTAMP_RE = re.compile(r"[_-]\d{4}-\d{2}-\d{2}(?:[_-]\d{2}-\d{2}-\d{2})?$")
+_HEATMAP_NUMBA_KERNEL: Any | None = None
+_HEATMAP_NUMBA_KERNEL_ATTEMPTED = False
+_MATPLOTLIB_IMPORT_ERROR: ModuleNotFoundError | None = None
+
+
+def _get_cmap(name: str, lut: int | None = None):
+    global _MATPLOTLIB_IMPORT_ERROR
+    try:
+        matplotlib = importlib.import_module("matplotlib")
+        registry = getattr(matplotlib, "colormaps", None)
+        if registry is not None:
+            cmap = registry.get_cmap(name)
+            return cmap.resampled(lut) if lut is not None and hasattr(cmap, "resampled") else cmap
+        cm = importlib.import_module("matplotlib.cm")
+        if lut is None:
+            return cm.get_cmap(name)
+        return cm.get_cmap(name, lut)
+    except ModuleNotFoundError as exc:
+        _MATPLOTLIB_IMPORT_ERROR = exc
+        raise RuntimeError(
+            "matplotlib unavailable: install the page bundle dependencies to enable color maps."
+        ) from exc
+
+
+def _ensure_repo_on_path() -> None:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "agilab"
+        if candidate.is_dir():
+            src_root = candidate.parent
+            repo_root = src_root.parent
+            for entry in (str(src_root), str(repo_root)):
+                if entry not in sys.path:
+                    sys.path.insert(0, entry)
+            break
+
+
+_ensure_repo_on_path()
+
+from agi_pages.runtime import render_streamlit_page_header, reset_scoped_session_state
+from agi_env import AgiEnv
+import agi_gui.pagelib as pagelib
+
+
+def _resolve_active_app() -> Path:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--active-app",
+        dest="active_app",
+        type=str,
+    )
+    args, _ = parser.parse_known_args()
+    active_app_value = args.active_app or os.environ.get("AGILAB_ACTIVE_APP")
+    if not active_app_value:
+        st.error("Missing --active-app argument.")
+        st.stop()
+    active_app_path = Path(active_app_value).expanduser()
+    if not active_app_path.exists():
+        st.error(f"Provided --active-app path not found: {active_app_path}")
+        st.stop()
+    return active_app_path
+
+
+def _analysis_return_url(app: str) -> str:
+    return f"/ANALYSIS?{urlencode({'active_app': app})}"
+
+
+def _active_app_context_from_env(env: Any) -> tuple[str, Path]:
+    app_name = str(getattr(env, "app", "") or getattr(env, "target", "") or "project")
+    active_app = getattr(env, "active_app", None)
+    if active_app:
+        return app_name, Path(active_app)
+    apps_path = getattr(env, "apps_path", None)
+    if apps_path:
+        return app_name, Path(apps_path) / app_name
+    return app_name, Path(app_name)
+
+
+APP_SCOPE_KEY = "view_maps_network:active_app_scope"
+APP_SCOPED_SESSION_KEY_PREFIXES = ("view_maps_network:",)
+APP_SCOPED_SESSION_DEFAULT_KEYS = (
+    "env",
+    "IS_SOURCE_ENV",
+    "IS_WORKER_ENV",
+    "apps_path",
+    "app",
+    "app_settings",
+    "project",
+    "projects",
+    "TABLE_MAX_ROWS",
+    "GUI_SAMPLING",
+    "base_dir_choice",
+    "input_datadir",
+    "datadir_rel",
+    "datadir_rel_select",
+    "datadir_rel_custom",
+    "datadir",
+    "file_ext_choice",
+    "csv_files",
+    "_prev_csv_files_rel",
+    "df_file",
+    "df_files",
+    "df_select_mode",
+    "df_file_regex",
+    "loaded_df",
+    "id_col",
+    "flight_id_col",
+    "time_col",
+    "df_cols",
+    "_prev_df_selection_sig",
+    "edges_file",
+    "edges_file_input",
+    "edges_file_choice",
+    "edges_file_custom",
+    "link_multiselect",
+    "show_map",
+    "show_graph",
+    "show_topology_links",
+    "show_terrain",
+    "show_trajectory_traces",
+    "show_cloud_heatmap",
+    "cloud_heatmap_sat_path",
+    "cloud_heatmap_ivdl_path",
+    "cloud_heatmap_stride",
+    "cloud_heatmap_min_weight",
+    "jitter_overlap",
+    "show_metrics",
+    "map_marker_style",
+    "allocations_file",
+    "alloc_path_input",
+    "allocations_file_choice",
+    "allocations_file_custom",
+    "baseline_allocations_file",
+    "baseline_alloc_path_input",
+    "baseline_alloc_file_choice",
+    "baseline_alloc_file_custom",
+    "traj_glob",
+    "traj_glob_input",
+    "traj_glob_choice",
+    "traj_glob_custom",
+    "layout_type_select",
+    "metric_type_select",
+    "selected_time",
+    "selected_time_idx",
+    "alloc_time_index",
+    "_alloc_time_index_qp",
+    "_alloc_pair_qp",
+    "alloc_demand_pair_focus",
+    "color_map",
+    "color_map_key",
+)
+
+
+def _reset_app_scoped_session_state(active_app_path: Path) -> bool:
+    """Clear Maps Network state that belongs to a specific active app."""
+
+    return reset_scoped_session_state(
+        st.session_state,
+        APP_SCOPE_KEY,
+        active_app_path,
+        keys=APP_SCOPED_SESSION_DEFAULT_KEYS,
+        prefixes=APP_SCOPED_SESSION_KEY_PREFIXES,
+    )
+
+
+def _render_app_page_context(app: str, active_app: Path) -> None:
+    columns = st.columns(2)
+    with columns[0]:
+        st.caption(f"`{app}`")
+    with columns[1]:
+        link_button = getattr(st, "link_button", None)
+        url = _analysis_return_url(app)
+        if callable(link_button):
+            link_button("Back to ANALYSIS", url, type="secondary", width="content")
+        else:
+            st.caption(f"Back to ANALYSIS: {url}")
+    with st.expander("Runtime context", expanded=False):
+        st.code(str(active_app), language="text")
+
+
+def _ensure_app_settings_loaded(env: AgiEnv) -> None:
+    if "app_settings" in st.session_state:
+        return
+    path = Path(env.app_settings_file)
+    if path.exists():
+        try:
+            with open(path, "rb") as handle:
+                st.session_state["app_settings"] = tomllib.load(handle)
+                return
+        except (OSError, tomllib.TOMLDecodeError):
+            pass
+    st.session_state["app_settings"] = {}
+
+
+def _sanitize_toml_payload(value: Any) -> Any:
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        return {
+            str(key): _sanitize_toml_payload(item)
+            for key, item in value.items()
+            if key is not None
+        }
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_toml_payload(item) for item in value]
+    if isinstance(value, set):
+        return [_sanitize_toml_payload(item) for item in sorted(value, key=str)]
+    if isinstance(value, Path):
+        return value.as_posix()
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
+def _persist_app_settings(env: AgiEnv) -> None:
+    settings = st.session_state.get("app_settings")
+    if not isinstance(settings, dict):
+        return
+    path = Path(env.app_settings_file)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "wb") as handle:
+            _dump_toml(
+                prepare_app_settings_for_write(_sanitize_toml_payload(settings), sanitize=False),
+                handle,
+            )
+    except (OSError, RuntimeError, ValueError) as exc:
+        logger.warning(f"Unable to persist app_settings to {path}: {exc}")
+
+
+def _get_view_maps_settings() -> dict:
+    app_settings = st.session_state.setdefault("app_settings", {})
+    vm_settings = app_settings.get("view_maps_network")
+    if not isinstance(vm_settings, dict):
+        vm_settings = {}
+        app_settings["view_maps_network"] = vm_settings
+    return vm_settings
+
+
+def _get_view_maps_page_settings() -> dict:
+    app_settings = st.session_state.setdefault("app_settings", {})
+    return _page_settings_from_app_settings(app_settings)
+
+
+def _read_query_param(key: str) -> Optional[str]:
+    value = st.query_params.get(key)
+    if isinstance(value, list):
+        return value[-1] if value else None
+    return value
+
+
+def _list_subdirectories(base: Path) -> list[str]:
+    try:
+        if base.exists():
+            return sorted(
+                [
+                    entry.name
+                    for entry in base.iterdir()
+                    if entry.is_dir() and not entry.name.startswith(".")
+                ]
+            )
+    except (OSError, RuntimeError) as exc:
+        st.sidebar.warning(f"Unable to list directories under {base}: {exc}")
+    return []
+
+
+render_streamlit_page_header(
+    st,
+    title=":world_map: Maps Network Graph",
+    logo_title="Cartography Visualization",
+)
+
+active_app_path = _resolve_active_app()
+app_scope_changed = _reset_app_scoped_session_state(active_app_path)
+if 'env' not in st.session_state or app_scope_changed:
+    app_name = active_app_path.name
+    env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=app_name, verbose=0)
+    env.init_done = True
+    st.session_state['env'] = env
+    st.session_state['IS_SOURCE_ENV'] = env.is_source_env
+    st.session_state['IS_WORKER_ENV'] = env.is_worker_env
+    st.session_state['apps_path'] = str(active_app_path.parent)
+    st.session_state['app'] = app_name
+else:
+    env = st.session_state['env']
+    app_name, active_app_path = _active_app_context_from_env(env)
+
+_ensure_app_settings_loaded(env)
+_render_app_page_context(app_name, active_app_path)
+
+if "TABLE_MAX_ROWS" not in st.session_state:
+    st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
+if "GUI_SAMPLING" not in st.session_state:
+    st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
+# Map imagery token must come from runtime env/secrets, never from source code.
+_mapbox_secret = ""
+try:
+    _mapbox_secret = st.secrets.get("MAPBOX_API_KEY", "")
+except Exception:
+    logger.debug("MAPBOX_API_KEY is not available from Streamlit secrets", exc_info=True)
+    _mapbox_secret = ""
+MAPBOX_API_KEY = os.getenv("MAPBOX_API_KEY", "").strip() or str(_mapbox_secret).strip()
+TERRAIN_IMAGE = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
+SURFACE_IMAGE = (
+    f"https://api.mapbox.com/v4/mapbox.satellite/{{z}}/{{x}}/{{y}}@4x.png?access_token={MAPBOX_API_KEY}"
+    if MAPBOX_API_KEY
+    else "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+)
+
+ELEVATION_DECODER = {
+    "rScaler": 256,
+    "gScaler": 1,
+    "bScaler": 1 / 256,
+    "offset": -32768,
+}
+
+terrain_layer = pdk.Layer(
+    "TerrainLayer",
+    elevation_decoder=ELEVATION_DECODER,
+    texture=SURFACE_IMAGE,
+    elevation_data=TERRAIN_IMAGE,
+    min_zoom=0,
+    max_zoom=23,
+    strategy="no-overlap",
+    opacity=0.3,
+    visible=True,
+)
+
+EARTH_RADIUS_M = 6_371_000.0
+DEFAULT_CLOUDMAP_SAT = ""
+DEFAULT_CLOUDMAP_IVDL = ""
+_CLOUD_HEATMAP_MAX_POINTS = 120_000
+_SAT_HEATMAP_COLOR_RANGE = [
+    [0, 0, 0, 0],
+    [0, 32, 96, 80],
+    [0, 92, 184, 120],
+    [0, 160, 255, 160],
+    [96, 220, 255, 190],
+    [220, 250, 255, 220],
+]
+_IVDL_HEATMAP_COLOR_RANGE = [
+    [0, 0, 0, 0],
+    [88, 20, 0, 80],
+    [150, 45, 0, 120],
+    [210, 82, 0, 160],
+    [245, 150, 45, 190],
+    [255, 218, 110, 220],
+]
+
+
+@st.cache_data(show_spinner=False)
+def _load_cloud_heatmap_points(
+    npz_path: str,
+    stride: int = 25,
+    min_weight: float = 0.0,
+    max_points: int = _CLOUD_HEATMAP_MAX_POINTS,
+) -> pd.DataFrame:
+    """Load a link_sim cloud map NPZ and convert sampled grid points to lat/lon."""
+    path = Path(npz_path).expanduser()
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    with np.load(path) as data:
+        if "heatmap" not in data.files:
+            raise ValueError(f"Missing 'heatmap' array in {path}")
+        required = ("x_min", "z_min", "step", "center")
+        missing = [key for key in required if key not in data.files]
+        if missing:
+            raise ValueError(f"Missing required key(s) {missing} in {path}")
+
+        heatmap = np.asarray(data["heatmap"], dtype=np.float32)
+        if heatmap.ndim != 2:
+            raise ValueError(f"Expected 2D heatmap in {path}, got shape={heatmap.shape}")
+        x_min = float(np.asarray(data["x_min"]).item())
+        z_min = float(np.asarray(data["z_min"]).item())
+        step = float(np.asarray(data["step"]).item())
+        center = np.asarray(data["center"], dtype=np.float64).reshape(-1)
+        if center.size < 2:
+            raise ValueError(f"Invalid center in {path}: {center}")
+        center_x = float(center[0])
+        center_z = float(center[1])
+
+    safe_stride = max(1, int(stride))
+    sampled = heatmap[::safe_stride, ::safe_stride]
+    mask = sampled > float(min_weight)
+    if not np.any(mask):
+        return pd.DataFrame(columns=["long", "lat", "weight"])
+
+    rows, cols = np.nonzero(mask)
+    weights = sampled[rows, cols].astype(np.float32)
+    abs_rows = rows.astype(np.int64) * safe_stride
+    abs_cols = cols.astype(np.int64) * safe_stride
+
+    x_world = center_x + x_min + abs_cols.astype(np.float64) * step
+    z_world = center_z + z_min + abs_rows.astype(np.float64) * step
+
+    lon = np.degrees(x_world / EARTH_RADIUS_M)
+    lat = np.degrees(z_world / EARTH_RADIUS_M)
+    valid = (
+        np.isfinite(lon)
+        & np.isfinite(lat)
+        & np.isfinite(weights)
+        & (lat >= -90.0)
+        & (lat <= 90.0)
+        & (lon >= -180.0)
+        & (lon <= 180.0)
+    )
+    if not np.any(valid):
+        return pd.DataFrame(columns=["long", "lat", "weight"])
+
+    lon = lon[valid]
+    lat = lat[valid]
+    weights = weights[valid]
+
+    if len(weights) > int(max_points):
+        keep_idx = np.argpartition(weights, -int(max_points))[-int(max_points):]
+        lon = lon[keep_idx]
+        lat = lat[keep_idx]
+        weights = weights[keep_idx]
+
+    return pd.DataFrame({"long": lon, "lat": lat, "weight": weights})
+
+
+@st.cache_data(show_spinner=False)
+def _load_cloud_heatmap_grid(npz_path: str) -> dict[str, Any]:
+    path = Path(npz_path).expanduser()
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    with np.load(path) as data:
+        if "heatmap" not in data.files:
+            raise ValueError(f"Missing 'heatmap' array in {path}")
+        required = ("x_min", "z_min", "step", "center")
+        missing = [key for key in required if key not in data.files]
+        if missing:
+            raise ValueError(f"Missing required key(s) {missing} in {path}")
+
+        heatmap = np.asarray(data["heatmap"], dtype=np.float32)
+        if heatmap.ndim != 2:
+            raise ValueError(f"Expected 2D heatmap in {path}, got shape={heatmap.shape}")
+        x_min = float(np.asarray(data["x_min"]).item())
+        z_min = float(np.asarray(data["z_min"]).item())
+        step = float(np.asarray(data["step"]).item())
+        center = np.asarray(data["center"], dtype=np.float64).reshape(-1)
+        if center.size < 2:
+            raise ValueError(f"Invalid center in {path}: {center}")
+        center_x = float(center[0])
+        center_z = float(center[1])
+
+    return {
+        "heatmap": heatmap,
+        "x_min": x_min,
+        "z_min": z_min,
+        "step": step,
+        "center_x": center_x,
+        "center_z": center_z,
+    }
+
+
+def _empty_heatmap_stats_arrays(size: int) -> dict[str, np.ndarray]:
+    nan_values = np.full(int(size), np.nan, dtype=np.float64)
+    return {
+        "raw_value": nan_values.copy(),
+        "proxy_value": nan_values.copy(),
+        "local_mean": nan_values.copy(),
+        "local_max": nan_values.copy(),
+    }
+
+
+def _coerce_float_array(values: Any) -> np.ndarray:
+    try:
+        return np.asarray(values, dtype=np.float64)
+    except (TypeError, ValueError, OverflowError):
+        return pd.to_numeric(pd.Series(values), errors="coerce").to_numpy(dtype=np.float64)
+
+
+def _cloud_heatmap_stats_kernel_py(
+    lat_values: np.ndarray,
+    lon_values: np.ndarray,
+    heatmap: np.ndarray,
+    x_min: float,
+    z_min: float,
+    step: float,
+    center_x: float,
+    center_z: float,
+    neighborhood_radius_cells: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    size = lat_values.shape[0]
+    raw_values = np.empty(size, dtype=np.float64)
+    proxy_values = np.empty(size, dtype=np.float64)
+    local_means = np.empty(size, dtype=np.float64)
+    local_maxes = np.empty(size, dtype=np.float64)
+    raw_values[:] = np.nan
+    proxy_values[:] = np.nan
+    local_means[:] = np.nan
+    local_maxes[:] = np.nan
+
+    if step == 0.0 or not np.isfinite(step):
+        return raw_values, proxy_values, local_means, local_maxes
+
+    radius = max(1, int(neighborhood_radius_cells))
+    n_rows = heatmap.shape[0]
+    n_cols = heatmap.shape[1]
+    x_origin = center_x + x_min
+    z_origin = center_z + z_min
+
+    for index in range(size):
+        lat_f = float(lat_values[index])
+        lon_f = float(lon_values[index])
+        if not np.isfinite(lat_f) or not np.isfinite(lon_f):
+            continue
+
+        x_world = float(EARTH_RADIUS_M * np.radians(lon_f))
+        z_world = float(EARTH_RADIUS_M * np.radians(lat_f))
+        col = int(round((x_world - x_origin) / step))
+        row = int(round((z_world - z_origin) / step))
+        if row < 0 or row >= n_rows or col < 0 or col >= n_cols:
+            continue
+
+        raw_values[index] = float(heatmap[row, col])
+        row0 = max(0, row - radius)
+        row1 = min(n_rows, row + radius + 1)
+        col0 = max(0, col - radius)
+        col1 = min(n_cols, col + radius + 1)
+
+        total = 0.0
+        count = 0
+        max_value = -np.inf
+        found = False
+        for row_index in range(row0, row1):
+            for col_index in range(col0, col1):
+                value = float(heatmap[row_index, col_index])
+                if np.isnan(value):
+                    continue
+                total += value
+                count += 1
+                if not found or value > max_value:
+                    max_value = value
+                    found = True
+
+        if count > 0:
+            local_means[index] = total / float(count)
+            local_maxes[index] = max_value
+            proxy_values[index] = max_value
+
+    return raw_values, proxy_values, local_means, local_maxes
+
+
+def _get_heatmap_numba_kernel() -> Any | None:
+    global _HEATMAP_NUMBA_KERNEL, _HEATMAP_NUMBA_KERNEL_ATTEMPTED
+
+    if _HEATMAP_NUMBA_KERNEL_ATTEMPTED:
+        return _HEATMAP_NUMBA_KERNEL
+
+    _HEATMAP_NUMBA_KERNEL_ATTEMPTED = True
+    try:
+        from numba import njit  # type: ignore[import-not-found]
+    except Exception:
+        _HEATMAP_NUMBA_KERNEL = None
+        return None
+
+    try:
+        # Streamlit and tests can import this page under dynamic module names.
+        # A disk cache may then reload invalid module references across runs.
+        _HEATMAP_NUMBA_KERNEL = njit(cache=False)(_cloud_heatmap_stats_kernel_py)
+    except Exception:
+        _HEATMAP_NUMBA_KERNEL = None
+    return _HEATMAP_NUMBA_KERNEL
+
+
+def _sample_cloud_heatmap_stats_batch(
+    npz_path: str,
+    lat_values: Any,
+    lon_values: Any,
+    neighborhood_radius_cells: int = 25,
+) -> dict[str, np.ndarray]:
+    global _HEATMAP_NUMBA_KERNEL
+
+    lat_array = _coerce_float_array(lat_values).reshape(-1)
+    lon_array = _coerce_float_array(lon_values).reshape(-1)
+    if lat_array.shape[0] != lon_array.shape[0]:
+        raise ValueError(
+            "Heatmap sampling requires matching latitude and longitude counts "
+            f"({lat_array.shape[0]} != {lon_array.shape[0]})"
+        )
+
+    if lat_array.size == 0:
+        return _empty_heatmap_stats_arrays(0)
+    if not (np.isfinite(lat_array).any() and np.isfinite(lon_array).any()):
+        return _empty_heatmap_stats_arrays(lat_array.size)
+
+    try:
+        grid = _load_cloud_heatmap_grid(npz_path)
+    except (FileNotFoundError, OSError, RuntimeError, ValueError):
+        return _empty_heatmap_stats_arrays(lat_array.size)
+
+    kernel_args = (
+        lat_array.astype(np.float64, copy=False),
+        lon_array.astype(np.float64, copy=False),
+        np.asarray(grid["heatmap"], dtype=np.float32),
+        float(grid["x_min"]),
+        float(grid["z_min"]),
+        float(grid["step"]),
+        float(grid["center_x"]),
+        float(grid["center_z"]),
+        max(1, int(neighborhood_radius_cells)),
+    )
+    kernel = _get_heatmap_numba_kernel()
+    if kernel is not None:
+        try:
+            raw_values, proxy_values, local_means, local_maxes = kernel(*kernel_args)
+            return {
+                "raw_value": np.asarray(raw_values, dtype=np.float64),
+                "proxy_value": np.asarray(proxy_values, dtype=np.float64),
+                "local_mean": np.asarray(local_means, dtype=np.float64),
+                "local_max": np.asarray(local_maxes, dtype=np.float64),
+            }
+        except Exception:
+            _HEATMAP_NUMBA_KERNEL = None
+
+    raw_values, proxy_values, local_means, local_maxes = _cloud_heatmap_stats_kernel_py(*kernel_args)
+    return {
+        "raw_value": raw_values,
+        "proxy_value": proxy_values,
+        "local_mean": local_means,
+        "local_max": local_maxes,
+    }
+
+
+def _sample_cloud_heatmap_stats(
+    npz_path: str,
+    lat: Any,
+    lon: Any,
+    neighborhood_radius_cells: int = 25,
+) -> dict[str, float]:
+    stats = _sample_cloud_heatmap_stats_batch(
+        npz_path,
+        [lat],
+        [lon],
+        neighborhood_radius_cells=neighborhood_radius_cells,
+    )
+    return {
+        "raw_value": float(stats["raw_value"][0]),
+        "proxy_value": float(stats["proxy_value"][0]),
+        "local_mean": float(stats["local_mean"][0]),
+        "local_max": float(stats["local_max"][0]),
+    }
+
+
+def _decision_time_samples(
+    alloc_df: pd.DataFrame,
+    baseline_df: pd.DataFrame,
+    time_index_values: list[int],
+) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    for time_index in time_index_values:
+        sample_time = np.nan
+        for df_in in (alloc_df, baseline_df):
+            time_col = "time_s" if "time_s" in df_in.columns else "t_now_s" if "t_now_s" in df_in.columns else None
+            if df_in.empty or "time_index" not in df_in.columns or time_col is None:
+                continue
+            time_series = pd.to_numeric(df_in["time_index"], errors="coerce")
+            match = time_series.eq(float(time_index))
+            if not match.any():
+                continue
+            t_series = pd.to_numeric(df_in.loc[match, time_col], errors="coerce").dropna()
+            if not t_series.empty:
+                sample_time = float(t_series.iloc[0])
+                break
+        if not np.isfinite(sample_time):
+            try:
+                sample_time = float(time_index)
+            except (TypeError, ValueError, OverflowError):
+                continue
+        rows.append({"time_index": int(time_index), "sample_time_s": sample_time})
+    return pd.DataFrame(rows)
+
+
+def _selected_nodes_heatmap_timeline(
+    trajectory_df: pd.DataFrame,
+    npz_path: str,
+    selected_nodes: set[str],
+    neighborhood_radius_cells: int = 25,
+    max_points_per_node: int = 1200,
+) -> pd.DataFrame:
+    if trajectory_df is None or trajectory_df.empty or not npz_path or not selected_nodes:
+        return pd.DataFrame()
+    if not {"id_col", "time_col", "lat", "long"} <= set(trajectory_df.columns):
+        return pd.DataFrame()
+
+    traj_df = trajectory_df.copy()
+    traj_df["id_col"] = traj_df["id_col"].astype(str)
+    traj_df = traj_df[traj_df["id_col"].isin(selected_nodes)].copy()
+    if traj_df.empty:
+        return pd.DataFrame()
+
+    traj_df["lat"] = pd.to_numeric(traj_df["lat"], errors="coerce")
+    traj_df["long"] = pd.to_numeric(traj_df["long"], errors="coerce")
+    traj_df = traj_df.dropna(subset=["time_col", "lat", "long"])
+    if traj_df.empty:
+        return pd.DataFrame()
+
+    sampled_groups: list[pd.DataFrame] = []
+    max_points = max(20, int(max_points_per_node))
+    for _, group in traj_df.groupby("id_col", sort=False):
+        try:
+            group = group.sort_values("time_col")
+        except (KeyError, TypeError, ValueError):
+            pass
+        if len(group) > max_points:
+            keep = np.linspace(0, len(group) - 1, max_points, dtype=int)
+            group = group.iloc[keep]
+        sampled_groups.append(group)
+    sampled_traj = pd.concat(sampled_groups, ignore_index=True)
+    stats = _sample_cloud_heatmap_stats_batch(
+        npz_path,
+        sampled_traj["lat"].to_numpy(dtype=np.float64, copy=False),
+        sampled_traj["long"].to_numpy(dtype=np.float64, copy=False),
+        neighborhood_radius_cells=neighborhood_radius_cells,
+    )
+    return pd.DataFrame(
+        {
+            "node_id": sampled_traj["id_col"].astype(str).to_numpy(),
+            "map_time": sampled_traj["time_col"].to_numpy(),
+            "heatmap_value": stats["proxy_value"],
+            "raw_heatmap_value": stats["raw_value"],
+            "local_mean": stats["local_mean"],
+            "local_max": stats["local_max"],
+            "lat": sampled_traj["lat"].to_numpy(dtype=np.float64, copy=False),
+            "long": sampled_traj["long"].to_numpy(dtype=np.float64, copy=False),
+        }
+    )
+
+
+def _downsample_heatmap_timeline(
+    timeline_df: pd.DataFrame,
+    step_s: int,
+) -> pd.DataFrame:
+    if timeline_df is None or timeline_df.empty or step_s <= 1 or "map_time" not in timeline_df.columns:
+        return timeline_df
+
+    sampled_groups: list[pd.DataFrame] = []
+    for _, group in timeline_df.groupby("node_id", sort=False):
+        group = group.sort_values("map_time").copy()
+        map_time = group["map_time"]
+        elapsed_s: pd.Series | None = None
+
+        if pd.api.types.is_datetime64_any_dtype(map_time):
+            dt = pd.to_datetime(map_time, errors="coerce")
+            if dt.notna().any():
+                elapsed_s = (dt - dt.iloc[0]).dt.total_seconds()
+        else:
+            numeric = pd.to_numeric(map_time, errors="coerce")
+            if numeric.notna().any():
+                elapsed_s = numeric - float(numeric.dropna().iloc[0])
+
+        if elapsed_s is None or elapsed_s.isna().all():
+            sampled_groups.append(group.iloc[::step_s].copy())
+            continue
+
+        buckets = np.floor(elapsed_s / float(step_s))
+        keep_mask = buckets.ne(buckets.shift(fill_value=-1))
+        sampled_groups.append(group.loc[keep_mask.fillna(False)].copy())
+
+    return pd.concat(sampled_groups, ignore_index=True)
+
+
+def _plot_selected_nodes_heatmap_timeline(
+    timeline_df: pd.DataFrame,
+    map_label: str,
+    decision_markers: pd.DataFrame | None = None,
+) -> go.Figure:
+    fig = go.Figure()
+    if timeline_df.empty:
+        fig.update_layout(height=240)
+        return fig
+
+    node_ids = timeline_df["node_id"].dropna().astype(str).drop_duplicates().tolist()
+    cmap = _get_cmap("tab10", max(1, len(node_ids)))
+    if len(node_ids) == 1:
+        title_text = f"{map_label} cloud intensity proxy at plane {node_ids[0]} over trajectory time"
+    elif len(node_ids) == 2:
+        title_text = f"{map_label} cloud intensity proxy at planes {node_ids[0]} and {node_ids[1]} over trajectory time"
+    else:
+        title_text = f"{map_label} cloud intensity proxy at selected planes over trajectory time"
+
+    for idx, node_id in enumerate(node_ids):
+        subset = timeline_df[timeline_df["node_id"].astype(str) == node_id].sort_values("map_time")
+        color = mcolors.rgb2hex(cmap(idx % max(1, len(node_ids))))
+        fig.add_trace(
+            go.Scatter(
+                x=subset["map_time"],
+                y=subset["heatmap_value"],
+                mode="lines+markers",
+                name=str(node_id),
+                line=dict(color=color, width=2),
+                marker=dict(color=color, size=8),
+                customdata=np.stack(
+                    [
+                        subset["raw_heatmap_value"].fillna(np.nan),
+                        subset["local_mean"].fillna(np.nan),
+                        subset["local_max"].fillna(np.nan),
+                        subset["lat"].fillna(np.nan),
+                        subset["long"].fillna(np.nan),
+                    ],
+                    axis=-1,
+                ),
+                hovertemplate=(
+                    "Plane: %{fullData.name}<br>"
+                    "Map time: %{x}<br>"
+                    "Proxy value: %{y}<br>"
+                    "Raw cell value: %{customdata[0]}<br>"
+                    "Local mean: %{customdata[1]}<br>"
+                    "Local max: %{customdata[2]}<br>"
+                    "Latitude: %{customdata[3]}<br>"
+                    "Longitude: %{customdata[4]}<extra></extra>"
+                ),
+                connectgaps=False,
+            )
+        )
+
+    fig.update_layout(
+        height=320,
+        margin=dict(l=10, r=10, t=35, b=10),
+        title_text=title_text,
+        legend_title_text="Plane",
+        xaxis_title="Time (s)",
+        yaxis_title="Cloud attenuation proxy",
+    )
+    return fig
+
+
+def _cloud_heatmap_layers() -> list[Any]:
+    if not bool(st.session_state.get("show_cloud_heatmap", False)):
+        return []
+
+    stride = int(st.session_state.get("cloud_heatmap_stride", 25) or 25)
+    min_weight = float(st.session_state.get("cloud_heatmap_min_weight", 0.0) or 0.0)
+    specs = (
+        ("SAT", str(st.session_state.get("cloud_heatmap_sat_path", "")).strip(), _SAT_HEATMAP_COLOR_RANGE),
+        ("IVDL", str(st.session_state.get("cloud_heatmap_ivdl_path", "")).strip(), _IVDL_HEATMAP_COLOR_RANGE),
+    )
+
+    layers: list[Any] = []
+    for label, path, color_range in specs:
+        if not path:
+            continue
+        try:
+            points = _load_cloud_heatmap_points(path, stride=stride, min_weight=min_weight)
+        except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+            st.sidebar.warning(f"{label} cloud map unavailable ({path}): {exc}")
+            continue
+        if points.empty:
+            continue
+        layers.append(
+            pdk.Layer(
+                "HeatmapLayer",
+                data=points,
+                get_position="[long,lat]",
+                get_weight="weight",
+                radius_pixels=45,
+                intensity=1.0,
+                threshold=0.03,
+                opacity=0.55,
+                aggregation="SUM",
+                color_range=color_range,
+            )
+        )
+    return layers
+
+
+def _trajectory_trace_layers(points_df: pd.DataFrame, color_lookup: dict[str, Any] | None = None) -> list[Any]:
+    if not bool(st.session_state.get("show_trajectory_traces", True)):
+        return []
+    if points_df is None or points_df.empty:
+        return []
+    if not {"id_col", "long", "lat"} <= set(points_df.columns):
+        return []
+
+    traj_df = points_df.copy()
+    traj_df["long"] = pd.to_numeric(traj_df["long"], errors="coerce")
+    traj_df["lat"] = pd.to_numeric(traj_df["lat"], errors="coerce")
+    traj_df = traj_df.dropna(subset=["id_col", "long", "lat"])
+    if traj_df.empty:
+        return []
+
+    if "time_col" in traj_df.columns:
+        try:
+            traj_df = traj_df.sort_values(["id_col", "time_col"])
+        except (KeyError, TypeError, ValueError):
+            traj_df = traj_df.sort_values(["id_col"])
+    else:
+        traj_df = traj_df.sort_values(["id_col"])
+
+    max_points_per_track = 600
+    path_rows: list[dict[str, Any]] = []
+    for node_id, group in traj_df.groupby("id_col", sort=False):
+        coords = group[["long", "lat"]].drop_duplicates().values.tolist()
+        if len(coords) < 2:
+            continue
+        if len(coords) > max_points_per_track:
+            keep = np.linspace(0, len(coords) - 1, max_points_per_track, dtype=int)
+            coords = [coords[idx] for idx in keep]
+        color = [90, 90, 90, 170]
+        if color_lookup is not None:
+            lookup_color = color_lookup.get(str(node_id))
+            if lookup_color is not None:
+                color = lookup_color
+        path_rows.append(
+            {
+                "id_col": str(node_id),
+                "path": [[float(lon), float(lat)] for lon, lat in coords],
+                "color": color,
+            }
+        )
+
+    if not path_rows:
+        return []
+
+    return [
+        pdk.Layer(
+            "PathLayer",
+            data=path_rows,
+            get_path="path",
+            get_color="color",
+            width_min_pixels=2,
+            get_width=2,
+            opacity=0.55,
+            pickable=False,
+        )
+    ]
+
+
+def _topology_link_layers(
+    selected_links: list[str],
+    df: pd.DataFrame,
+    current_positions: pd.DataFrame,
+    link_color_map: dict[str, Any],
+    allowed_edge_pairs: set[tuple[str, str]] | None = None,
+) -> list[Any]:
+    if not bool(st.session_state.get("show_topology_links", True)):
+        return []
+
+    layers: list[Any] = []
+    for idx, link_col in enumerate(selected_links):
+        edges_df = create_edges_geomap(
+            df,
+            link_col,
+            current_positions,
+            allowed_edge_pairs=allowed_edge_pairs,
+        )
+        if edges_df.empty:
+            continue
+        rgb_color = _color_to_rgb(link_color_map.get(link_col, link_colors_plotly.get(link_col, f"C{idx}")), idx=idx)
+        line_layer = pdk.Layer(
+            "LineLayer",
+            data=edges_df,
+            get_source_position="source",
+            get_target_position="target",
+            get_color=rgb_color,
+            get_width=1.5,
+            opacity=0.7,
+        )
+        text_layer = pdk.Layer(
+            "TextLayer",
+            data=edges_df,
+            get_position="midpoint",
+            get_text="label",
+            get_size=16,
+            get_color=rgb_color[:3],
+            get_alignment_baseline="'bottom'",
+            billboard=True,
+            get_angle=0,
+            get_text_anchor='"middle"',
+            pickable=False,
+        )
+        layers.extend([line_layer, text_layer])
+    return layers
+
+
+st.subheader("Network topology")
+
+def _svg_data_url(svg: str) -> str:
+    return "data:image/svg+xml;charset=utf-8," + quote(svg.strip())
+
+# IconLayer expects raster images; keep a small embedded PNG for reliability.
+_PLANE_ICON_URL = (
+    "data:image/png;base64,"
+    "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABE0lEQVR42u2YQQ6DMAwEMcqfmv+f6KvcQ0GqEJVIiGNDxkcOgZ2dQMQ0+c/iefN5YnzbV1X1tAADvNvfxssCDIjQvqcFGBClfS8LMCBS+x4WDG8AWyCa/r23AQZEbL+nBRgQtf1eFmBA5PZ7WIAB0du3tmC+2Z/e5uuKxYOp6stKKxF57y5lDwDdAlsDkZrQnoELgeQrAMK0bGmHPClwDRDZgj8x8Bkgsn6vhwvPSRAA30mWL5qWW8tq3dTwjbr/1Fgch/N678O1a8CkC2Gzo7n5z3MupVBSYavRJ5+B8gsm7YLfJWgzW9JDQ58GwzkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABglPkADvzdm7Xeo4UAAAAASUVORK5CYII="
+)
+
+link_colors_plotly = {
+    "satcom_link": "rgb(0, 200, 255)",
+    "optical_link": "rgb(0, 128, 0)",
+    "legacy_link": "rgb(128, 0, 128)",
+    "ivbl_link": "rgb(255, 69, 0)",
+}
+_DEFAULT_LINK_ORDER = ["satcom_link", "optical_link", "legacy_link", "ivbl_link"]
+_LINK_LABELS = {
+    "satcom_link": "SAT",
+    "optical_link": "OPT",
+    "legacy_link": "LEG",
+    "ivbl_link": "IVDL",
+}
+PAGE_KEY_PREFIX = "view_maps_network"
+
+
+def _vmn_key(name: str) -> str:
+    return f"{PAGE_KEY_PREFIX}:{name}"
+
+
+TIME_OPTIONS_KEY = _vmn_key("time_options")
+TIME_VALUE_KEY = _vmn_key("selected_time")
+TIME_INDEX_KEY = _vmn_key("selected_time_idx")
+TIME_PREV_BUTTON_KEY = _vmn_key("decrement_button")
+TIME_NEXT_BUTTON_KEY = _vmn_key("increment_button")
+DECISION_STEP_KEY = _vmn_key("alloc_time_index")
+SAT_HEATMAP_STEP_KEY = _vmn_key("sat_heatmap_plot_step_s")
+FLIGHT_FILTER_KEY = _vmn_key("selected_flights_filter")
+
+
+def _coerce_slider_value(options: list[Any], current: Any, *, prefer_last: bool = False) -> Any:
+    if not options:
+        return None
+    if current in options:
+        return current
+    default_value = options[-1] if prefer_last else options[0]
+    if current is None:
+        return default_value
+    # Preserve nearest numeric value when options change (e.g. filtered timelines).
+    try:
+        current_num = float(current)
+        numeric_options: list[tuple[float, Any]] = []
+        for value in options:
+            try:
+                numeric_options.append((float(value), value))
+            except (TypeError, ValueError, OverflowError):
+                numeric_options = []
+                break
+        if numeric_options:
+            _, nearest = min(numeric_options, key=lambda pair: abs(pair[0] - current_num))
+            return nearest
+    except (TypeError, ValueError, OverflowError):
+        logger.debug("Unable to coerce slider value %r as numeric", current, exc_info=True)
+    # Fallback for datetime-like values.
+    try:
+        current_dt = pd.to_datetime(current, errors="coerce")
+        if pd.notna(current_dt):
+            dated_options: list[tuple[pd.Timestamp, Any]] = []
+            for value in options:
+                value_dt = pd.to_datetime(value, errors="coerce")
+                if pd.isna(value_dt):
+                    dated_options = []
+                    break
+                dated_options.append((value_dt, value))
+            if dated_options:
+                _, nearest = min(
+                    dated_options,
+                    key=lambda pair: abs((pair[0] - current_dt).total_seconds()),
+                )
+                return nearest
+    except (TypeError, ValueError, OverflowError):
+        logger.debug("Unable to coerce slider value %r as datetime", current, exc_info=True)
+    return default_value
+
+def _label_for_link(column: str) -> str:
+    if column in _LINK_LABELS:
+        return _LINK_LABELS[column]
+    label = column
+    if label.endswith("_link"):
+        label = label[: -len("_link")]
+    return label.replace("_", " ").upper()
+
+def _candidate_edges_paths(bases: list[Path]) -> list[Path]:
+    seen = set()
+    candidates: list[Path] = []
+    known_relative = (
+        Path("pipeline/flows/topology.json"),
+        Path("pipeline/topology.gml"),
+        Path("pipeline/ilp_topology.gml"),
+        Path("pipeline/routing_edges.jsonl"),
+    )
+    patterns = (
+        # Common routing exports
+        "routing_edges.jsonl",
+        "routing_edges.ndjson",
+        "routing_edges.json",
+        "routing_edges.parquet",
+        # Generic edge exports
+        "edges.parquet",
+        "edges.json",
+        "edges.jsonl",
+        "edges.ndjson",
+        "edges.*.parquet",
+        "edges.*.json",
+        "edges.*.jsonl",
+        "edges.*.ndjson",
+        # Common topology exports (GML-format files often named .json)
+        "topology.json",
+        "topology.gml",
+        "ilp_topology.gml",
+    )
+    for base in bases:
+        if not base or not base.exists():
+            continue
+        # Fast path: check known default locations (avoids expensive globbing on large shares).
+        for rel in known_relative:
+            p = (base / rel).expanduser()
+            if p.exists() and p.is_file() and p not in seen:
+                if not any(part.startswith(".") for part in p.parts):
+                    seen.add(p)
+                    candidates.append(p)
+        for pattern in patterns:
+            for p in base.glob(f"**/{pattern}"):
+                if p in seen:
+                    continue
+                if any(part.startswith(".") for part in p.parts):
+                    continue
+                seen.add(p)
+                candidates.append(p)
+    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
+    return candidates
+
+def _quick_share_edges_paths(share_root: Path) -> list[Path]:
+    seen: set[Path] = set()
+    candidates: list[Path] = []
+    known_relative = (
+        Path("pipeline/flows/topology.json"),
+        Path("pipeline/topology.gml"),
+        Path("pipeline/ilp_topology.gml"),
+        Path("pipeline/routing_edges.jsonl"),
+        Path("pipeline/routing_edges.parquet"),
+        Path("pipeline/edges.parquet"),
+        Path("pipeline/edges.json"),
+        Path("pipeline/edges.jsonl"),
+        Path("pipeline/edges.ndjson"),
+        Path("pipeline/topology.json"),
+        Path("pipeline/ilp_topology.json"),
+    )
+    if not share_root.exists():
+        return []
+    roots = [share_root]
+    try:
+        roots.extend(
+            [
+                entry
+                for entry in sorted(share_root.iterdir())
+                if entry.is_dir() and not entry.name.startswith(".")
+            ]
+        )
+    except (OSError, RuntimeError):
+        logger.debug("Unable to enumerate edge candidate roots under %s", share_root, exc_info=True)
+        roots = [share_root]
+    for root in roots:
+        for rel in known_relative:
+            p = (root / rel).expanduser()
+            if p.exists() and p.is_file():
+                try:
+                    resolved = p.resolve(strict=False)
+                except (OSError, RuntimeError):
+                    logger.debug("Unable to resolve edge candidate %s", p, exc_info=True)
+                    resolved = p
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                candidates.append(p)
+    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
+    return candidates
+
+
+def _quick_share_traj_globs(share_root: Path) -> list[str]:
+    share_root = share_root.expanduser()
+    candidates = [
+        str(share_root / "*_trajectory" / "pipeline" / "*.parquet"),
+        str(share_root / "*_trajectory" / "pipeline" / "*.csv"),
+        str(share_root / "*trajectory*" / "pipeline" / "*.parquet"),
+        str(share_root / "*trajectory*" / "pipeline" / "*.csv"),
+    ]
+    return [c for c in candidates if glob.glob(str(Path(c).expanduser()))]
+
+
+def _candidate_files_from_globs(globs_list: list[str]) -> list[Path]:
+    seen: set[Path] = set()
+    candidates: list[Path] = []
+    for pattern in globs_list:
+        expanded = Path(pattern).expanduser()
+        for match in glob.glob(str(expanded), recursive=True):
+            path = Path(match).expanduser()
+            if not path.is_file():
+                continue
+            try:
+                resolved = path.resolve(strict=False)
+            except Exception:
+                resolved = path
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            candidates.append(path)
+    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
+    return candidates
+
+
+def _expand_glob_patterns(patterns: list[str], base_dirs: list[Path]) -> list[str]:
+    expanded: list[str] = []
+    seen: set[str] = set()
+    bases = [base.expanduser() for base in base_dirs if base]
+    for pattern in patterns:
+        raw = pattern.strip()
+        if not raw:
+            continue
+        path = Path(raw).expanduser()
+        candidates = [str(path)] if path.is_absolute() else [str(base / raw) for base in bases]
+        for candidate in candidates:
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            expanded.append(candidate)
+    return expanded
+
+
+def _resolve_declared_path(value: str, base_dirs: list[Path]) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    path = Path(raw).expanduser()
+    if path.is_absolute():
+        return str(path)
+    bases = [base.expanduser() for base in base_dirs if base]
+    for base in bases:
+        candidate = (base / raw).expanduser()
+        if candidate.exists():
+            return str(candidate)
+    return str((bases[0] / raw).expanduser()) if bases else raw
+
+
+def _choose_existing_declared_path(current_value: str, default_value: str, base_dirs: list[Path]) -> str:
+    for candidate in (current_value, default_value):
+        raw = (candidate or "").strip()
+        if not raw:
+            continue
+        resolved = _resolve_declared_path(raw, base_dirs)
+        try:
+            path = Path(resolved).expanduser()
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
+        if path.exists():
+            return str(path)
+
+    raw_current = (current_value or "").strip()
+    if raw_current:
+        return _resolve_declared_path(raw_current, base_dirs)
+
+    raw_default = (default_value or "").strip()
+    if raw_default:
+        return _resolve_declared_path(raw_default, base_dirs)
+    return ""
+
+
+def _resolve_edges_file_path(value: str, base_dirs: list[Path]) -> Path | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    resolved = _resolve_declared_path(raw, base_dirs)
+    try:
+        return Path(resolved).expanduser()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _candidate_cloudmap_paths(bases: list[Path], names: tuple[str, ...]) -> list[Path]:
+    seen: set[Path] = set()
+    candidates: list[Path] = []
+    relative_paths = tuple(
+        Path(prefix) / name
+        for name in names
+        for prefix in ("", "dataset", "pipeline")
+    )
+    for base in bases:
+        base = base.expanduser()
+        if not base.exists():
+            continue
+        roots = [base]
+        try:
+            roots.extend(
+                entry
+                for entry in sorted(base.iterdir())
+                if entry.is_dir() and not entry.name.startswith(".")
+            )
+        except (OSError, RuntimeError):
+            logger.debug("Unable to enumerate cloud map candidates under %s", base, exc_info=True)
+        for root in roots:
+            for rel in relative_paths:
+                candidate = (root / rel).expanduser()
+                if not candidate.exists() or not candidate.is_file():
+                    continue
+                try:
+                    resolved = candidate.resolve(strict=False)
+                except (OSError, RuntimeError):
+                    logger.debug("Unable to resolve cloud map candidate %s", candidate, exc_info=True)
+                    resolved = candidate
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                candidates.append(candidate)
+    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
+    return candidates
+
+
+def _allocation_search_roots(
+    *,
+    base_path: Path,
+    datadir_path: Path,
+    export_base: Path,
+    local_share_root: Path,
+    target_name: str,
+) -> tuple[Path, list[Path]]:
+    local_target_root = (local_share_root / str(target_name)).expanduser()
+    selected_target_root = (base_path / str(target_name)).expanduser()
+    preferred_target_root = (
+        selected_target_root
+        if selected_target_root.exists() or selected_target_root != local_target_root
+        else local_target_root
+    )
+
+    roots: list[Path] = []
+    seen: set[Path] = set()
+    for root in (
+        preferred_target_root,
+        local_target_root,
+        datadir_path,
+        export_base,
+    ):
+        for candidate in (root, root / "pipeline", root / "dataframe"):
+            try:
+                resolved = candidate.expanduser().resolve(strict=False)
+            except Exception:
+                resolved = candidate.expanduser()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            roots.append(candidate.expanduser())
+
+    return preferred_target_root, roots
+
+
+def _normalize_node_id_series(series: pd.Series) -> pd.Series:
+    """Normalize node IDs for consistent matching and drop invalid placeholders."""
+    raw = series.copy()
+    num = pd.to_numeric(raw, errors="coerce")
+    out = raw.astype("string").fillna("").astype(str).str.strip()
+    mask_int = num.notna() & np.isclose(num % 1, 0.0)
+    if mask_int.any():
+        out.loc[mask_int] = num.loc[mask_int].round().astype(int).astype(str)
+    invalid = out.str.lower().isin({"", "nan", "none", "nat", "<na>"})
+    out.loc[invalid] = ""
+    return out
+
+
+def _normalize_node_id_value(value: Any) -> str:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return ""
+    s = str(value).strip()
+    if not s or s.lower() in {"nan", "none", "nat", "<na>"}:
+        return ""
+    try:
+        num = float(s)
+        if np.isfinite(num) and np.isclose(num % 1, 0.0):
+            return str(int(round(num)))
+    except (TypeError, ValueError, OverflowError):
+        logger.debug("Node id %r is not an integer-like value", value, exc_info=True)
+    return s
+
+
+def _strip_export_suffix(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    text = _TRAILING_EXPORT_TIMESTAMP_RE.sub("", text)
+    return re.sub(r"[-_](trajectory|traj)$", "", text, flags=re.IGNORECASE)
+
+
+def _semantic_node_id_from_text(value: Any) -> str | None:
+    text = _strip_export_suffix(value)
+    if not text:
+        return None
+    digits = "".join(ch for ch in text if ch.isdigit())
+    if not digits:
+        return None
+    try:
+        return str(int(digits))
+    except ValueError:
+        return None
+
+
+def _preferred_node_id_from_row(row: pd.Series, *, source_path: str | None = None) -> str:
+    semantic_columns = (
+        "plane_label",
+        "sat_name",
+        "plane_type",
+        "name",
+        "callsign",
+        "call_sign",
+        "stable_flight_id",
+        "node_label",
+        "trajectory_label",
+    )
+    for col in semantic_columns:
+        if col not in row:
+            continue
+        semantic_id = _semantic_node_id_from_text(row.get(col))
+        if semantic_id:
+            return semantic_id
+
+    source_value = row.get("source_file") if "source_file" in row else source_path
+    if source_value not in (None, ""):
+        semantic_id = _semantic_node_id_from_text(Path(str(source_value)).stem)
+        if semantic_id:
+            return semantic_id
+
+    for col in ("plane_id", "trajectory_id", "node_id", "flight_id", "id_col", "id"):
+        if col not in row:
+            continue
+        normalized = _normalize_node_id_value(row.get(col))
+        if normalized:
+            return normalized
+    return ""
+
+
+def _candidate_node_ids(value: Any) -> list[str]:
+    base = _normalize_node_id_value(value)
+    if not base:
+        return []
+    candidates = [base]
+    semantic_id = _semantic_node_id_from_text(value)
+    if semantic_id:
+        candidates.append(semantic_id)
+    prefixes = ("plane_", "sat_", "uav_", "node_")
+    lowered = base.lower()
+    for prefix in prefixes:
+        if lowered.startswith(prefix):
+            stripped = _normalize_node_id_value(base[len(prefix) :])
+            if stripped:
+                candidates.append(stripped)
+            break
+    for prefix in prefixes:
+        candidates.append(prefix + base)
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for cand in candidates:
+        if cand and cand not in seen:
+            seen.add(cand)
+            deduped.append(cand)
+    return deduped
+
+
+def _resolve_node_id(value: Any, node_set: set[str]) -> str | None:
+    for cand in _candidate_node_ids(value):
+        if cand in node_set:
+            return cand
+    return None
+
+
+def _coerce_list_cell(value: Any) -> list[Any]:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, tuple):
+        return list(value)
+    if isinstance(value, str):
+        parsed = safe_literal_eval(value)
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, tuple):
+            return list(parsed)
+    return []
+
+
+def _allocation_visible_node_ids(*frames: pd.DataFrame) -> set[str]:
+    visible_nodes: set[str] = set()
+    for df_in in frames:
+        if df_in is None or df_in.empty:
+            continue
+        for col in ("source", "destination"):
+            if col in df_in.columns:
+                visible_nodes.update(node_id for node_id in _normalize_node_id_series(df_in[col]).tolist() if node_id)
+        if "path" not in df_in.columns:
+            continue
+        for raw_path in df_in["path"].tolist():
+            for hop in _coerce_list_cell(raw_path):
+                hop_items = _coerce_list_cell(hop)
+                node_values = hop_items[:2] if len(hop_items) >= 2 else [hop]
+                for node in node_values:
+                    node_id = _normalize_node_id_value(node)
+                    if node_id:
+                        visible_nodes.add(node_id)
+    return visible_nodes
+
+
+def _allocation_endpoint_roles(
+    *frames: pd.DataFrame,
+    focus_pair: tuple[int, int] | None = None,
+) -> dict[str, str]:
+    if focus_pair is not None:
+        src = _normalize_node_id_value(focus_pair[0])
+        dst = _normalize_node_id_value(focus_pair[1])
+        roles = {}
+        if src:
+            roles[src] = "src"
+        if dst:
+            roles[dst] = "dst"
+        return roles
+
+    pairs: set[tuple[str, str]] = set()
+    for df_in in frames:
+        if df_in is None or df_in.empty or not {"source", "destination"} <= set(df_in.columns):
+            continue
+        src_ids = _normalize_node_id_series(df_in["source"])
+        dst_ids = _normalize_node_id_series(df_in["destination"])
+        for src, dst in zip(src_ids.tolist(), dst_ids.tolist()):
+            if src and dst:
+                pairs.add((src, dst))
+    if len(pairs) != 1:
+        return {}
+    src, dst = next(iter(pairs))
+    roles = {src: "src"}
+    if dst != src:
+        roles[dst] = "dst"
+    return roles
+
+
+def _format_node_label(value: Any, node_roles: dict[str, str] | None = None) -> str:
+    node_id = _normalize_node_id_value(value)
+    if not node_id:
+        return ""
+    role = (node_roles or {}).get(node_id)
+    if role:
+        return f"{node_id} ({role})"
+    return node_id
+
+
+def _build_map_label_layers(
+    positions_df: pd.DataFrame,
+    *,
+    node_roles: dict[str, str] | None = None,
+    id_size: int = 12,
+    role_size: int = 14,
+) -> list[Any]:
+    if (
+        positions_df is None
+        or positions_df.empty
+        or not {"flight_id", "long", "lat"} <= set(positions_df.columns)
+    ):
+        return []
+
+    labels_df = positions_df.copy()
+    if "alt" not in labels_df.columns:
+        labels_df["alt"] = 0.0
+    labels_df["alt"] = pd.to_numeric(labels_df["alt"], errors="coerce").fillna(0.0)
+    labels_df["node_id_text"] = labels_df["flight_id"].apply(_normalize_node_id_value)
+    labels_df = labels_df[labels_df["node_id_text"].astype(str).str.strip().ne("")].copy()
+    if labels_df.empty:
+        return []
+
+    text_layers = [
+        pdk.Layer(
+            "TextLayer",
+            data=labels_df,
+            get_position="[long,lat,alt]",
+            get_text="node_id_text",
+            get_size=id_size + 1,
+            get_color=[255, 255, 255, 235],
+            get_alignment_baseline="'center'",
+            get_text_anchor='"middle"',
+            billboard=True,
+            pickable=False,
+            parameters={"depthTest": False},
+        ),
+    ]
+
+    role_df = labels_df.copy()
+    role_df["node_role"] = role_df["flight_id"].apply(
+        lambda value: (
+            str((node_roles or {}).get(_normalize_node_id_value(value), "")).upper()
+            if (node_roles or {}).get(_normalize_node_id_value(value), "")
+            else ""
+        )
+    )
+    role_df = role_df[role_df["node_role"].astype(str).str.strip().ne("")].copy()
+    if role_df.empty:
+        return text_layers
+
+    text_layers.extend(
+        [
+            pdk.Layer(
+                "TextLayer",
+                data=role_df,
+                get_position="[long,lat,alt]",
+                get_text="node_role",
+                get_size=role_size,
+                get_color=[214, 39, 40, 255],
+                get_alignment_baseline="'center'",
+                get_text_anchor='"start"',
+                get_pixel_offset="[16,0]",
+                billboard=True,
+                pickable=False,
+                parameters={"depthTest": False},
+            ),
+        ]
+    )
+    return text_layers
+
+
+def _coerce_numeric_float(value: Any) -> float | None:
+    try:
+        num = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not np.isfinite(num):
+        return None
+    return float(num)
+
+
+def _coerce_numeric_int(value: Any) -> int | None:
+    num = _coerce_numeric_float(value)
+    if num is None:
+        return None
+    return int(round(num))
+
+
+def _filter_allocation_rows_for_selected_nodes(
+    df_in: pd.DataFrame,
+    selected_nodes: set[str],
+    *,
+    sample_time: Any = None,
+    step_hint: Any = None,
+) -> pd.DataFrame:
+    if df_in.empty or not selected_nodes or not {"source", "destination"} <= set(df_in.columns):
+        return pd.DataFrame()
+
+    src_ids = _normalize_node_id_series(df_in["source"])
+    dst_ids = _normalize_node_id_series(df_in["destination"])
+    filtered = df_in.loc[src_ids.isin(selected_nodes) & dst_ids.isin(selected_nodes)].copy()
+    if filtered.empty:
+        return filtered
+
+    sample_time_num = _coerce_numeric_float(sample_time)
+    time_col = "time_s" if "time_s" in filtered.columns else "t_now_s" if "t_now_s" in filtered.columns else None
+    if sample_time_num is not None and time_col is not None:
+        t_series = pd.to_numeric(filtered[time_col], errors="coerce")
+        valid_times = sorted({float(v) for v in t_series.dropna().tolist()})
+        if valid_times:
+            nearest_time = min(valid_times, key=lambda value: abs(value - sample_time_num))
+            filtered = filtered.loc[t_series == nearest_time].copy()
+            if not filtered.empty:
+                return filtered
+
+    step_num = _coerce_numeric_int(step_hint)
+    if step_num is not None and "time_index" in filtered.columns:
+        step_series = pd.to_numeric(filtered["time_index"], errors="coerce")
+        valid_steps = sorted({int(round(float(v))) for v in step_series.dropna().tolist()})
+        if valid_steps:
+            nearest_step = min(valid_steps, key=lambda value: abs(value - step_num))
+            filtered = filtered.loc[step_series.round() == nearest_step].copy()
+
+    return filtered
+
+
+def _expanded_node_ids_from_allocations(
+    selected_nodes: set[str],
+    *,
+    sample_time: Any = None,
+    step_hint: Any = None,
+    allocation_paths: list[Path | None] | None = None,
+) -> set[str]:
+    visible_nodes = set(selected_nodes)
+    for path in allocation_paths or []:
+        if path is None or not path.exists():
+            continue
+        alloc_df = load_allocations(path)
+        if alloc_df.empty:
+            continue
+        step_df = _filter_allocation_rows_for_selected_nodes(
+            alloc_df,
+            selected_nodes,
+            sample_time=sample_time,
+            step_hint=step_hint,
+        )
+        visible_nodes.update(_allocation_visible_node_ids(step_df))
+    return visible_nodes
+
+
+def _endpoint_roles_from_allocations(
+    selected_nodes: set[str],
+    *,
+    sample_time: Any = None,
+    step_hint: Any = None,
+    allocation_paths: list[Path | None] | None = None,
+    focus_pair: tuple[int, int] | None = None,
+) -> dict[str, str]:
+    frames: list[pd.DataFrame] = []
+    for path in allocation_paths or []:
+        if path is None or not path.exists():
+            continue
+        alloc_df = load_allocations(path)
+        if alloc_df.empty:
+            continue
+        step_df = _filter_allocation_rows_for_selected_nodes(
+            alloc_df,
+            selected_nodes,
+            sample_time=sample_time,
+            step_hint=step_hint,
+        )
+        if not step_df.empty:
+            frames.append(step_df)
+    return _allocation_endpoint_roles(*frames, focus_pair=focus_pair)
+
+
+def _canonical_edge_pair(source: Any, target: Any) -> tuple[str, str] | None:
+    source_id = _normalize_node_id_value(source)
+    target_id = _normalize_node_id_value(target)
+    if not source_id or not target_id or source_id == target_id:
+        return None
+    return tuple(sorted((source_id, target_id)))
+
+
+def _allocation_routed_edge_pairs(
+    selected_nodes: set[str],
+    *,
+    sample_time: Any = None,
+    step_hint: Any = None,
+    allocation_paths: list[Path | None] | None = None,
+) -> set[tuple[str, str]] | None:
+    edge_pairs: set[tuple[str, str]] = set()
+    saw_allocation_source = False
+
+    for path in allocation_paths or []:
+        if path is None or not path.exists():
+            continue
+        saw_allocation_source = True
+        alloc_df = load_allocations(path)
+        if alloc_df.empty:
+            continue
+        step_df = _filter_allocation_rows_for_selected_nodes(
+            alloc_df,
+            selected_nodes,
+            sample_time=sample_time,
+            step_hint=step_hint,
+        )
+        if step_df.empty:
+            continue
+
+        for _, row in step_df.iterrows():
+            routed_value = row.get("routed")
+            if isinstance(routed_value, str) and routed_value.strip().lower() in {"false", "0", "no", "n", "off"}:
+                continue
+            if routed_value is False:
+                continue
+            if isinstance(routed_value, (int, float)) and not pd.isna(routed_value) and float(routed_value) == 0.0:
+                continue
+
+            path_edges = _coerce_list_cell(row.get("path"))
+            if path_edges:
+                for hop in path_edges:
+                    hop_list = _coerce_list_cell(hop)
+                    if len(hop_list) < 2:
+                        continue
+                    pair = _canonical_edge_pair(hop_list[0], hop_list[1])
+                    if pair is not None:
+                        edge_pairs.add(pair)
+                continue
+
+            bearer_values = _coerce_list_cell(row.get("bearers"))
+            has_bearer = bool(bearer_values)
+            if not has_bearer:
+                continue
+            pair = _canonical_edge_pair(row.get("source"), row.get("destination"))
+            if pair is not None:
+                edge_pairs.add(pair)
+
+    return edge_pairs if saw_allocation_source else None
+
+
+def _preview_edge_count(df: pd.DataFrame, col: str) -> int:
+    if col not in df.columns:
+        return 0
+    sample = None
+    try:
+        for v in df[col].head(50).tolist():
+            if v is None:
+                continue
+            if isinstance(v, float) and np.isnan(v):
+                continue
+            if isinstance(v, str) and not v.strip():
+                continue
+            sample = v
+            break
+    except Exception:
+        sample = None
+    if sample is None:
+        return 0
+    try:
+        return len(convert_to_tuples(sample))
+    except Exception:
+        return 0
+
+def _candidate_allocation_paths(bases: list[Path]) -> list[Path]:
+    seen = set()
+    candidates: list[Path] = []
+    known_relative = (
+        Path("pipeline/allocations_steps.parquet"),
+        Path("pipeline/allocations_steps.json"),
+        Path("pipeline/allocations_steps.jsonl"),
+        Path("pipeline/allocations_steps.csv"),
+        Path("dataframe/allocations_steps.parquet"),
+        Path("dataframe/allocations_steps.json"),
+        Path("dataframe/allocations_steps.jsonl"),
+        Path("dataframe/allocations_steps.csv"),
+    )
+    patterns = (
+        "allocations_steps.parquet",
+        "allocations_steps.json",
+        "allocations_steps.jsonl",
+        "allocations_steps.ndjson",
+        "allocations_steps.csv",
+        "allocations*.parquet",
+        "allocations*.json",
+        "allocations*.jsonl",
+        "allocations*.ndjson",
+        "allocations*.csv",
+        "*allocations*.parquet",
+        "*allocations*.json",
+        "*allocations*.jsonl",
+        "*allocations*.ndjson",
+        "*allocations*.csv",
+    )
+    for base in bases:
+        if not base or not base.exists():
+            continue
+        for rel in known_relative:
+            p = (base / rel).expanduser()
+            if p.exists() and p.is_file() and p not in seen:
+                if not any(part.startswith(".") for part in p.parts):
+                    seen.add(p)
+                    candidates.append(p)
+        for pattern in patterns:
+            for p in base.glob(f"**/{pattern}"):
+                if p in seen:
+                    continue
+                if any(part.startswith(".") for part in p.parts):
+                    continue
+                seen.add(p)
+                candidates.append(p)
+    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
+    return candidates
+
+def _is_baseline_alloc_path(path: Path) -> bool:
+    lowered = str(path).lower()
+    return ("baseline" in lowered) or ("ilp" in lowered) or ("stepper" in lowered)
+
+
+_RGB_LIKE_RE = re.compile(
+    r"^rgba?\(\s*(?P<r>[-+]?\d*\.?\d+)\s*,\s*(?P<g>[-+]?\d*\.?\d+)\s*,\s*(?P<b>[-+]?\d*\.?\d+)\s*(?:,\s*(?P<a>[-+]?\d*\.?\d+)\s*)?\)$",
+    flags=re.IGNORECASE,
+)
+
+
+def _parse_rgb_like(value: str) -> tuple[int, int, int, int] | None:
+    """Parse css/plotly rgb()/rgba() strings into 0-255 RGBA ints."""
+    if not isinstance(value, str):
+        return None
+    match = _RGB_LIKE_RE.match(value.strip())
+    if not match:
+        return None
+
+    def _to_255(component: str) -> int:
+        num = float(component)
+        if num <= 1.0:
+            num *= 255.0
+        return int(max(0, min(255, round(num))))
+
+    r = _to_255(match.group("r"))
+    g = _to_255(match.group("g"))
+    b = _to_255(match.group("b"))
+    a_raw = match.group("a")
+    if a_raw is None:
+        a = 255
+    else:
+        a_num = float(a_raw)
+        if a_num <= 1.0:
+            a = int(max(0, min(255, round(a_num * 255.0))))
+        else:
+            a = int(max(0, min(255, round(a_num))))
+    return r, g, b, a
+
+
+def _color_to_rgb(color_str: str, idx: int = 0) -> list[int]:
+    parsed = _parse_rgb_like(color_str)
+    if parsed is not None:
+        r, g, b, a = parsed
+        return [r, g, b, a]
+    try:
+        rgba = mcolors.to_rgba(color_str)
+        return [int(rgba[0] * 255), int(rgba[1] * 255), int(rgba[2] * 255), 255]
+    except Exception:
+        cmap = _get_cmap("tab10")
+        rgba = cmap(idx % cmap.N)
+        return [int(rgba[0] * 255), int(rgba[1] * 255), int(rgba[2] * 255), 255]
+
+
+def _to_plotly_color(color) -> str:
+    """Normalize user-supplied colors to Plotly-friendly rgb strings."""
+    if isinstance(color, (list, tuple)):
+        if len(color) >= 3:
+            r, g, b = (int(color[0]), int(color[1]), int(color[2]))
+            return f"rgb({r},{g},{b})"
+    if isinstance(color, str):
+        parsed = _parse_rgb_like(color)
+        if parsed is not None:
+            r, g, b, a = parsed
+            if a < 255:
+                return f"rgba({r},{g},{b},{a / 255.0:.3f})"
+            return f"rgb({r},{g},{b})"
+    try:
+        rgba = mcolors.to_rgba(color)
+        return f"rgb({int(rgba[0]*255)},{int(rgba[1]*255)},{int(rgba[2]*255)})"
+    except Exception:
+        return "#888"
+
+
+def _detect_link_columns(df: pd.DataFrame) -> list[str]:
+    skip = {"long", "lat", "alt", "longitude", "latitude", "altitude", "alt_m", "time_col", "id_col", "flight_id", "datetime"}
+    candidates: list[str] = []
+    for col in df.columns:
+        if col in skip:
+            continue
+        sample = df[col].dropna().head(8)
+        if sample.empty:
+            continue
+        looks_like_links = False
+        for val in sample:
+            if isinstance(val, (list, tuple)) and len(val) > 0:
+                looks_like_links = True
+                break
+            if isinstance(val, str) and any(ch in val for ch in ("(", "[", ",")):
+                looks_like_links = True
+                break
+        if looks_like_links:
+            candidates.append(col)
+    ordered = [c for c in _DEFAULT_LINK_ORDER if c in candidates]
+    remaining = [c for c in candidates if c not in ordered]
+    ordered.extend(sorted(remaining))
+    if not ordered:
+        ordered = _DEFAULT_LINK_ORDER.copy()
+    return ordered
+
+def hex_to_rgba(hex_color):
+    """Convert a hex color string (e.g. '#RRGGBB') into a deck.gl-compatible RGBA list."""
+    if not isinstance(hex_color, str):
+        return [136, 136, 136, 255]
+    cleaned = hex_color.strip()
+    if not cleaned:
+        return [136, 136, 136, 255]
+    cleaned = cleaned.lstrip("#")
+    try:
+        r, g, b = bytes.fromhex(cleaned[:6])
+    except Exception:
+        return [136, 136, 136, 255]
+    return [r, g, b, 255]
+
+
+def _position_lookup(
+    positions: pd.DataFrame,
+) -> tuple[dict[str, tuple[Any, Any, Any]], set[str]]:
+    if positions.empty or not {"flight_id", "long", "lat"} <= set(positions.columns):
+        return {}, set()
+    lookup: dict[str, tuple[Any, Any, Any]] = {}
+    for row in positions.itertuples(index=False):
+        try:
+            node_id = str(getattr(row, "flight_id"))
+        except AttributeError:
+            continue
+        if not node_id or node_id.lower() == "nan":
+            continue
+        if node_id in lookup:
+            continue
+        lookup[node_id] = (
+            getattr(row, "long", np.nan),
+            getattr(row, "lat", np.nan),
+            getattr(row, "alt", 0.0),
+        )
+    return lookup, set(lookup)
+
+
+def create_edges_geomap(df, link_column, current_positions, *, allowed_edge_pairs: set[tuple[str, str]] | None = None):
+    if link_column not in df.columns:
+        return pd.DataFrame()
+
+    def _parse_entry(val):
+        if val is None:
+            return None
+        try:
+            if isinstance(val, str):
+                return ast.literal_eval(val)
+            return val
+        except (ValueError, SyntaxError):
+            return None
+
+    parsed_links = df[link_column].map(_parse_entry)
+    link_edges = df.loc[parsed_links.notna() & df["flight_id"].notna(), ["flight_id"]].copy()
+    link_edges[link_column] = parsed_links.loc[link_edges.index]
+    edges_list = []
+    label_text = _label_for_link(link_column)
+    position_lookup, node_set = _position_lookup(current_positions)
+    for _, row in link_edges.iterrows():
+        links = row[link_column]
+        if links is not None:
+            if isinstance(links, tuple):
+                links = [links]
+            for source, target in links:
+                source_id = _resolve_node_id(source, node_set)
+                target_id = _resolve_node_id(target, node_set)
+                if not source_id or not target_id:
+                    continue
+                pair = _canonical_edge_pair(source_id, target_id)
+                if allowed_edge_pairs is not None and pair not in allowed_edge_pairs:
+                    continue
+                source_pos = position_lookup.get(source_id)
+                target_pos = position_lookup.get(target_id)
+                if source_pos is not None and target_pos is not None:
+                    mid_long = (source_pos[0] + target_pos[0]) / 2
+                    mid_lat = (source_pos[1] + target_pos[1]) / 2
+                    mid_alt = (source_pos[2] + target_pos[2]) / 2
+                    edges_list.append(
+                        {
+                            "source": list(source_pos),
+                            "target": list(target_pos),
+                            "label": label_text,
+                            "midpoint": [mid_long, mid_lat, mid_alt],
+                        }
+                    )
+    return pd.DataFrame(edges_list)
+
+def create_layers_geomap(
+    selected_links,
+    df,
+    current_positions,
+    link_color_map,
+    *,
+    marker_style: str = "Dots",
+    trajectory_df: pd.DataFrame | None = None,
+    node_roles: dict[str, str] | None = None,
+    show_node_labels: bool = False,
+    allowed_edge_pairs: set[tuple[str, str]] | None = None,
+):
+    required = ["flight_id", "long", "lat", "alt"]
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        st.warning(f"Missing required columns for map view: {missing}.")
+        return []
+
+    include_terrain = bool(st.session_state.get("show_terrain", True))
+    layers = [terrain_layer] if include_terrain else []
+    layers.extend(_cloud_heatmap_layers())
+    color_lookup = (
+        {
+            str(row["id_col"]): row["color"]
+            for _, row in current_positions[["id_col", "color"]].dropna(subset=["id_col"]).iterrows()
+        }
+        if {"id_col", "color"} <= set(current_positions.columns)
+        else {}
+    )
+    layers.extend(_trajectory_trace_layers(trajectory_df if trajectory_df is not None else df, color_lookup))
+    layers.extend(
+        _topology_link_layers(
+            selected_links,
+            df,
+            current_positions,
+            link_color_map,
+            allowed_edge_pairs=allowed_edge_pairs,
+        )
+    )
+
+    marker_style_norm = (marker_style or "Dots").strip().lower()
+    if marker_style_norm.startswith("plane"):
+        nodes_df = current_positions.copy()
+        angle_col = None
+        for candidate in ("bearing_deg", "bearing", "heading_deg", "heading", "yaw_deg", "yaw"):
+            if candidate in nodes_df.columns:
+                angle_col = candidate
+                break
+        if angle_col:
+            nodes_df["_angle"] = pd.to_numeric(nodes_df[angle_col], errors="coerce").fillna(0.0)
+            get_angle = "_angle"
+        else:
+            get_angle = 0
+        nodes_df["icon_data"] = [
+            {
+                "url": _PLANE_ICON_URL,
+                "width": 64,
+                "height": 64,
+                "anchorX": 32,
+                "anchorY": 32,
+                "mask": True,
+            }
+        ] * len(nodes_df)
+        nodes_layer = pdk.Layer(
+            "IconLayer",
+            data=nodes_df,
+            get_icon="icon_data",
+            get_position="[long,lat]",
+            get_color="color",
+            get_angle=get_angle,
+            get_size=22,
+            size_units="pixels",
+            size_scale=1,
+            billboard=True,
+            auto_highlight=True,
+            pickable=True,
+            parameters={"depthTest": False},
+        )
+    else:
+        nodes_layer = pdk.Layer(
+            "PointCloudLayer",
+            data=current_positions,
+            get_position="[long,lat,alt]",
+            get_color="color",
+            point_size=13,
+            elevation_scale=500,
+            auto_highlight=True,
+            opacity=1.0,
+            pickable=True,
+        )
+    layers.append(nodes_layer)
+    if show_node_labels and not current_positions.empty:
+        layers.extend(_build_map_label_layers(current_positions, node_roles=node_roles))
+    return layers
+
+def get_fixed_layout(df, layout="spring"):
+    G = nx.Graph()
+    nodes = df["flight_id"].unique()
+    G.add_nodes_from(nodes)
+    if layout == "bipartite":
+        pos = nx.bipartite_layout(G, nodes)
+    elif layout == "circular":
+        pos = nx.circular_layout(G)
+    elif layout == "planar":
+        pos = nx.planar_layout(G)
+    elif layout == "random":
+        pos = nx.random_layout(G)
+    elif layout == "rescale":
+        pos = nx.spring_layout(G)
+        pos = nx.rescale_layout_dict(pos)
+    elif layout == "shell":
+        pos = nx.shell_layout(G)
+    elif layout == "spring":
+        pos = nx.spring_layout(G, seed=43)
+    elif layout == "spiral":
+        pos = spiral_layout(G)
+    else:
+        raise ValueError("Unsupported layout type")
+    return pos
+
+def spiral_layout(G, scale=1.0, center=(0, 0), dim=2):
+    nodes = list(G.nodes())
+    pos = {}
+    num_nodes = len(nodes)
+    theta = np.linspace(0, 4 * np.pi, num_nodes)
+    r = np.linspace(0, 1, num_nodes) * scale
+    for i, node in enumerate(nodes):
+        x = r[i] * np.cos(theta[i]) + center[0]
+        y = r[i] * np.sin(theta[i]) + center[1]
+        pos[node] = (x, y)
+    return pos
+
+def convert_to_tuples(value):
+    if isinstance(value, str):
+        try:
+            list_of_tuples = ast.literal_eval(value)
+            if isinstance(list_of_tuples, list):
+                return [tuple(item) for item in list_of_tuples if isinstance(item, (list, tuple)) and len(item) == 2]
+            else:
+                st.warning(f"Expected a list but got: {list_of_tuples}")
+                return []
+        except (ValueError, SyntaxError) as e:
+            st.warning(f"Failed to parse tuples from string: {value}. Error: {e}")
+            return []
+    elif isinstance(value, tuple):
+        return [tuple(value)] if len(value) == 2 else []
+    elif isinstance(value, list):
+        return [tuple(item) for item in value if isinstance(item, (list, tuple)) and len(item) == 2]
+    else:
+        st.warning(f"Unexpected value type: {value}")
+        return []
+
+def parse_edges(column):
+    edges = []
+    for item in column:
+        tuples = convert_to_tuples(item)
+        for edge in tuples:
+            try:
+                u = str(edge[0])
+                v = str(edge[1])
+                edges.append((u, v))
+            except (IndexError, TypeError, ValueError, RuntimeError):
+                continue
+    return edges
+
+def filter_edges(df, edge_columns, allowed_edge_pairs: set[tuple[str, str]] | None = None):
+    filtered_edges = {}
+    for edge_type in edge_columns:
+        if edge_type not in df:
+            continue
+        edge_list = df[edge_type].dropna().tolist()
+        parsed_edges = parse_edges(edge_list)
+        if allowed_edge_pairs is not None:
+            parsed_edges = [
+                edge
+                for edge in parsed_edges
+                if (pair := _canonical_edge_pair(edge[0], edge[1])) is not None and pair in allowed_edge_pairs
+            ]
+        filtered_edges[edge_type] = parsed_edges
+    return filtered_edges
+
+# ----------------------------
+# Live allocations helpers
+# ----------------------------
+_ALLOC_STEP_CANDIDATES = ("time_index", "decision", "step", "time_idx")
+_ALLOC_TIME_CANDIDATES = ("time_s", "t_now_s", "time", "t")
+
+
+def _pick_ci_column(df: pd.DataFrame, candidates: tuple[str, ...]) -> Optional[str]:
+    if df.empty:
+        return None
+    lower_map = {str(c).lower(): str(c) for c in df.columns}
+    for key in candidates:
+        col = lower_map.get(key.lower())
+        if col is not None:
+            return col
+    return None
+
+
+def _parse_allocations_cell(value: Any) -> list[dict[str, Any]]:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return []
+    parsed: Any = value
+    if isinstance(parsed, str):
+        parsed = safe_literal_eval(parsed)
+    if isinstance(parsed, dict):
+        return [parsed]
+    if isinstance(parsed, tuple):
+        parsed = list(parsed)
+    if not isinstance(parsed, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for item in parsed:
+        obj = safe_literal_eval(item) if isinstance(item, str) else item
+        if isinstance(obj, dict):
+            rows.append(obj)
+    return rows
+
+
+def _coerce_alloc_time_index(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+    normalized = df.copy()
+    step_col = _pick_ci_column(normalized, _ALLOC_STEP_CANDIDATES)
+    if "time_index" not in normalized.columns and step_col is not None:
+        normalized["time_index"] = normalized[step_col]
+    if "time_index" not in normalized.columns:
+        normalized["time_index"] = 0
+
+    step_num = pd.to_numeric(normalized["time_index"], errors="coerce")
+    if step_num.notna().any():
+        if step_num.isna().any():
+            fallback = pd.Series(np.arange(len(normalized), dtype=float), index=normalized.index)
+            step_num = step_num.combine_first(fallback)
+        normalized["time_index"] = step_num.round().astype("Int64")
+    else:
+        normalized["time_index"] = pd.Series(np.arange(len(normalized)), index=normalized.index, dtype="Int64")
+    return normalized
+
+
+def _drop_index_levels_shadowing_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop named index levels that duplicate real column labels."""
+    if df.empty:
+        return df
+    index_names = [name for name in df.index.names if name is not None]
+    duplicated = [name for name in index_names if name in df.columns]
+    if not duplicated:
+        return df
+    return df.reset_index(level=duplicated, drop=True)
+
+
+def _normalize_allocations_frame(df_in: pd.DataFrame) -> pd.DataFrame:
+    if df_in.empty:
+        return df_in
+    df = df_in.copy()
+
+    src_col = _pick_ci_column(df, ("source", "src", "from"))
+    dst_col = _pick_ci_column(df, ("destination", "dst", "dest", "to", "target"))
+    if src_col is not None and src_col != "source":
+        df["source"] = df[src_col]
+    if dst_col is not None and dst_col != "destination":
+        df["destination"] = df[dst_col]
+
+    alloc_col = _pick_ci_column(df, ("allocations",))
+    if alloc_col is not None and ("source" not in df.columns or "destination" not in df.columns):
+        step_col = _pick_ci_column(df, _ALLOC_STEP_CANDIDATES)
+        t_col = _pick_ci_column(df, _ALLOC_TIME_CANDIDATES)
+        rows: list[dict[str, Any]] = []
+        for idx, row in df.iterrows():
+            step_value = row.get(step_col) if step_col is not None else idx
+            t_value = row.get(t_col) if t_col is not None else None
+            for alloc in _parse_allocations_cell(row.get(alloc_col)):
+                merged = dict(alloc)
+                merged.setdefault("time_index", step_value)
+                if t_value is not None:
+                    merged.setdefault("time_s", t_value)
+                    merged.setdefault("t_now_s", t_value)
+                rows.append(merged)
+        if rows:
+            df = pd.DataFrame(rows)
+
+    df = _coerce_alloc_time_index(df)
+
+    t_col = _pick_ci_column(df, _ALLOC_TIME_CANDIDATES)
+    if t_col is not None:
+        t_num = pd.to_numeric(df[t_col], errors="coerce")
+        if t_num.notna().any():
+            df["time_s"] = t_num
+            if "t_now_s" not in df.columns:
+                df["t_now_s"] = t_num
+    return df
+
+
+def load_allocations(path: Path) -> pd.DataFrame:
+    path = path.expanduser()
+    if not path.exists():
+        return pd.DataFrame()
+    if path.suffix.lower() == ".csv":
+        try:
+            return _normalize_allocations_frame(pd.read_csv(path))
+        except Exception:
+            return pd.DataFrame()
+    if path.suffix.lower() in {".parquet", ".pq", ".parq"}:
+        try:
+            return _normalize_allocations_frame(pd.read_parquet(path))
+        except Exception:
+            return pd.DataFrame()
+    try:
+        if path.suffix.lower() in {".jsonl", ".ndjson"}:
+            records: list[Any] = []
+            for line in path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                records.append(json.loads(line))
+            data: Any = records
+        else:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            return _normalize_allocations_frame(pd.DataFrame(data))
+        elif isinstance(data, dict):
+            return _normalize_allocations_frame(pd.DataFrame([data]))
+    except Exception:
+        return pd.DataFrame()
+    return pd.DataFrame()
+
+
+def _nearest_row(df: pd.DataFrame, t: float, time_col: str = "time_s") -> pd.DataFrame:
+    if df.empty or time_col not in df.columns:
+        return df
+    series = pd.to_numeric(df[time_col], errors="coerce")
+    if series.dropna().empty:
+        return df.iloc[0:0]
+    idx = (series - t).abs().idxmin()
+    return df.loc[[idx]]
+
+
+def _find_latest_allocations(base: Path, include: tuple[str, ...] = ()) -> Path | None:
+    """Locate the most recent allocations file under a given base."""
+    candidates: list[Path] = []
+    for pattern in (
+        "allocations*.parquet",
+        "allocations*.json",
+        "allocations*.jsonl",
+        "allocations*.ndjson",
+        "allocations*.csv",
+        "*allocations*.parquet",
+        "*allocations*.json",
+        "*allocations*.jsonl",
+        "*allocations*.ndjson",
+        "*allocations*.csv",
+        "allocations_steps.parquet",
+        "allocations_steps.csv",
+    ):
+        candidates.extend(base.rglob(pattern))
+    if not candidates:
+        return None
+    candidates = [p for p in candidates if p.is_file()]
+    if include:
+        lowered = [token.lower() for token in include if token]
+        if lowered:
+            candidates = [p for p in candidates if all(token in str(p).lower() for token in lowered)]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
+
+# ----------------------------
+# Optional edges loader (from synthetic topology export)
+# ----------------------------
+def load_edges_file(path: Path) -> dict[str, list[tuple[int, int]]]:
+    path = path.expanduser()
+    if not path.exists():
+        return {}
+    try:
+        if path.suffix.lower() in {".parquet", ".pq", ".parq"}:
+            df = pd.read_parquet(path)
+        else:
+            read_kwargs = {}
+            if path.suffix.lower() in {".jsonl", ".ndjson"}:
+                read_kwargs["lines"] = True
+            df = pd.read_json(path, **read_kwargs)
+    except Exception:
+        df = None
+    # Allow case-insensitive / synonym column names
+    if df is not None:
+        col_map = {c.lower(): c for c in df.columns}
+        source_col = col_map.get("source") or col_map.get("src") or col_map.get("from")
+        target_col = col_map.get("target") or col_map.get("dst") or col_map.get("to")
+        bearer_col = (
+            col_map.get("bearer")
+            or col_map.get("link_type")
+            or col_map.get("type")
+            or col_map.get("link")
+        )
+        if not (source_col and target_col and bearer_col):
+            df = None
+
+    if df is None:
+        # Fallback: some exporters write GML (graph [ ... ]) even when the extension is .json.
+        try:
+            graph = nx.read_gml(path)
+        except Exception:
+            return {}
+
+        edges_by_type: dict[str, list[tuple[int, int]]] = {}
+        for u, v, attrs in graph.edges(data=True):
+            bearer_raw = (
+                attrs.get("bearer")
+                or attrs.get("bearer_type")
+                or attrs.get("link_type")
+                or attrs.get("type")
+                or attrs.get("link")
+            )
+            bearer = str(bearer_raw or "").strip().lower()
+            if not bearer:
+                bearer = "link"
+            if "sat" in bearer:
+                key = "satcom_link"
+            elif "opt" in bearer:
+                key = "optical_link"
+            elif "legacy" in bearer or bearer == "leg":
+                key = "legacy_link"
+            elif "iv" in bearer:
+                key = "ivbl_link"
+            else:
+                key = bearer.replace(" ", "_")
+            edges_by_type.setdefault(key, []).append((str(u), str(v)))
+        return {k: v for k, v in edges_by_type.items() if v}
+
+    edges_by_type: dict[str, list[tuple[int, int]]] = {k: [] for k in _DEFAULT_LINK_ORDER}
+    for _, row in df.iterrows():
+        try:
+            u = str(row[source_col])  # type: ignore[index]
+            v = str(row[target_col])  # type: ignore[index]
+            bearer_raw = str(row[bearer_col]).strip()  # type: ignore[index]
+        except Exception:
+            logger.debug("Skipping malformed edge row in %s", path, exc_info=True)
+            continue
+        if not u or not v or not bearer_raw:
+            continue
+        bearer = bearer_raw.lower()
+        if "sat" in bearer:
+            key = "satcom_link"
+        elif "opt" in bearer:
+            key = "optical_link"
+        elif "legacy" in bearer:
+            key = "legacy_link"
+        elif "iv" in bearer:
+            key = "ivbl_link"
+        else:
+            key = bearer.replace(" ", "_")
+        key = key or "link"
+        edges_by_type.setdefault(key, []).append((u, v))
+    # Drop empty groups
+    return {k: v for k, v in edges_by_type.items() if v}
+
+def load_positions_at_time(traj_glob: str, t: float) -> pd.DataFrame:
+    records: list[dict[str, Any]] = []
+    patterns = [p.strip() for p in re.split(r"[,\n;]+", traj_glob or "") if p.strip()]
+    if not patterns:
+        return pd.DataFrame()
+
+    for pattern in patterns:
+        for fname in glob.glob(str(Path(pattern).expanduser())):
+            df = _load_traj_file(fname)
+            if df.empty:
+                continue
+            col_map = {c.lower(): c for c in df.columns}
+            time_col = (
+                col_map.get("time_s")
+                or col_map.get("t_now_s")
+                or col_map.get("time")
+                or col_map.get("t")
+                or col_map.get("time_index")
+            )
+            lat_col = col_map.get("latitude") or col_map.get("lat")
+            lon_col = col_map.get("longitude") or col_map.get("lon") or col_map.get("long")
+            alt_col = (
+                col_map.get("alt_m")
+                or col_map.get("altitude_m")
+                or col_map.get("altitude")
+                or col_map.get("alt")
+            )
+            if not (time_col and lat_col and lon_col):
+                continue
+            closest = _nearest_row(df, t, time_col=time_col)
+            if closest.empty:
+                continue
+            row = closest.iloc[0]
+
+            preferred_row = pd.Series(
+                {
+                    "plane_label": row.get(col_map.get("plane_label")) if col_map.get("plane_label") else None,
+                    "sat_name": row.get(col_map.get("sat_name")) if col_map.get("sat_name") else None,
+                    "plane_type": row.get(col_map.get("plane_type")) if col_map.get("plane_type") else None,
+                    "name": row.get(col_map.get("name")) if col_map.get("name") else None,
+                    "callsign": row.get(col_map.get("callsign")) if col_map.get("callsign") else None,
+                    "call_sign": row.get(col_map.get("call_sign")) if col_map.get("call_sign") else None,
+                    "stable_flight_id": row.get(col_map.get("stable_flight_id")) if col_map.get("stable_flight_id") else None,
+                    "node_label": row.get(col_map.get("node_label")) if col_map.get("node_label") else None,
+                    "trajectory_label": row.get(col_map.get("trajectory_label")) if col_map.get("trajectory_label") else None,
+                    "plane_id": row.get(col_map.get("plane_id")) if col_map.get("plane_id") else None,
+                    "trajectory_id": row.get(col_map.get("trajectory_id")) if col_map.get("trajectory_id") else None,
+                    "node_id": row.get(col_map.get("node_id")) if col_map.get("node_id") else None,
+                    "flight_id": row.get(col_map.get("flight_id")) if col_map.get("flight_id") else None,
+                    "id": row.get(col_map.get("id")) if col_map.get("id") else None,
+                    "source_file": fname,
+                }
+            )
+            flight_id = _preferred_node_id_from_row(preferred_row, source_path=fname)
+            if not flight_id:
+                flight_id = Path(fname).stem
+
+            records.append(
+                {
+                    "flight_id": str(flight_id),
+                    "time_s": row.get(time_col, t),
+                    "lat": row.get(lat_col),
+                    "long": row.get(lon_col),
+                    "alt": row.get(alt_col, 0.0) if alt_col else 0.0,
+                }
+            )
+    return pd.DataFrame(records)
+
+
+@st.cache_data(show_spinner=False)
+def _load_traj_file(path_str: str) -> pd.DataFrame:
+    p = Path(path_str).expanduser()
+    if not p.exists():
+        return pd.DataFrame()
+    if p.suffix.lower() in {".parquet", ".pq", ".parq"}:
+        try:
+            return pd.read_parquet(p)
+        except Exception:
+            return pd.DataFrame()
+    try:
+        return pd.read_csv(p, encoding="utf-8")
+    except UnicodeDecodeError:
+        try:
+            return pd.read_csv(p, encoding="latin-1")
+        except Exception:
+            return pd.DataFrame()
+    except Exception:
+        return pd.DataFrame()
+
+def build_allocation_layers(alloc_df: pd.DataFrame, positions: pd.DataFrame, *, color=None):
+    if alloc_df.empty or positions.empty:
+        return []
+    position_lookup, node_set = _position_lookup(positions)
+    if not position_lookup:
+        return []
+
+    def _lookup_position(node_id: Any) -> tuple[Any, Any, Any] | None:
+        resolved = _resolve_node_id(node_id, node_set)
+        return position_lookup.get(resolved) if resolved else None
+
+    def _as_list(value: Any) -> list[Any]:
+        if value is None or (isinstance(value, float) and np.isnan(value)):
+            return []
+        if isinstance(value, list):
+            return value
+        if isinstance(value, tuple):
+            return list(value)
+        if isinstance(value, str):
+            parsed = safe_literal_eval(value)
+            if isinstance(parsed, list):
+                return parsed
+            if isinstance(parsed, tuple):
+                return list(parsed)
+        return []
+
+    def _blend(rgb: list[int], tint: list[int] | None, *, alpha: float = 0.45) -> list[int]:
+        if tint is None:
+            return rgb
+        return [int(round((1 - alpha) * rgb[i] + alpha * tint[i])) for i in range(3)]
+
+    def _bearer_rgb(bearer: Any) -> list[int]:
+        b = str(bearer or "").strip().lower()
+        if "sat" in b:
+            return _blend([0, 120, 255], color)
+        if "iv" in b:
+            return _blend([255, 140, 0], color)
+        if "opt" in b:
+            return _blend([0, 180, 90], color)
+        if "legacy" in b:
+            return _blend([160, 160, 160], color)
+        if color is not None:
+            return color
+        return [200, 200, 200]
+
+    edges = []
+    for _, row in alloc_df.iterrows():
+        src = row.get("source")
+        dst = row.get("destination")
+        delivered = row.get("delivered_bandwidth", row.get("capacity_mbps", 0))
+        bandwidth = row.get("bandwidth", 0)
+        path_edges = _as_list(row.get("path"))
+        path_bearers = _as_list(row.get("bearers"))
+
+        if path_edges:
+            for i, hop in enumerate(path_edges):
+                hop_list = _as_list(hop)
+                if len(hop_list) < 2:
+                    continue
+                u = hop_list[0]
+                v = hop_list[1]
+                u_pos = _lookup_position(u)
+                v_pos = _lookup_position(v)
+                if u_pos is None or v_pos is None:
+                    continue
+                bearer = path_bearers[i] if i < len(path_bearers) else None
+                edges.append(
+                    {
+                        "source": list(u_pos),
+                        "target": list(v_pos),
+                        "bandwidth": bandwidth,
+                        "delivered": delivered,
+                        "bearer": bearer,
+                        "color": _bearer_rgb(bearer),
+                        "demand": f"{src}→{dst}",
+                    }
+                )
+        else:
+            src_pos = _lookup_position(src)
+            dst_pos = _lookup_position(dst)
+            if src_pos is None or dst_pos is None:
+                continue
+            edges.append(
+                {
+                    "source": list(src_pos),
+                    "target": list(dst_pos),
+                    "bandwidth": bandwidth,
+                    "delivered": delivered,
+                    "bearer": path_bearers[0] if path_bearers else None,
+                    "color": _bearer_rgb(path_bearers[0] if path_bearers else None),
+                    "demand": f"{src}→{dst}",
+                }
+            )
+
+    if not edges:
+        return []
+
+    edge_df = pd.DataFrame(edges)
+    width_norm = pd.to_numeric(edge_df["delivered"], errors="coerce").fillna(0)
+    if not width_norm.empty and width_norm.max() > 0:
+        edge_df["width"] = 2 + 8 * (width_norm / width_norm.max())
+    else:
+        edge_df["width"] = 2
+
+    return [
+        pdk.Layer(
+            "LineLayer",
+            data=edge_df,
+            get_source_position="source",
+            get_target_position="target",
+            get_color="color",
+            get_width="width",
+            opacity=0.85,
+            pickable=True,
+        )
+    ]
+
+def _bearer_path_label(cell: Any) -> str:
+    if cell is None or (isinstance(cell, float) and np.isnan(cell)):
+        return ""
+    if isinstance(cell, list):
+        return " → ".join(str(x) for x in cell if x is not None and str(x).strip())
+    if isinstance(cell, tuple):
+        return " → ".join(str(x) for x in cell if x is not None and str(x).strip())
+    if isinstance(cell, str):
+        parsed = safe_literal_eval(cell)
+        if isinstance(parsed, (list, tuple)):
+            return " → ".join(str(x) for x in parsed if x is not None and str(x).strip())
+        return cell.strip()
+    return str(cell).strip()
+
+
+def _bearer_tokens(cell: Any) -> list[str]:
+    if cell is None or (isinstance(cell, float) and np.isnan(cell)):
+        return []
+    parsed: Any = cell
+    if isinstance(parsed, str):
+        literal = safe_literal_eval(parsed)
+        if isinstance(literal, (list, tuple)):
+            parsed = literal
+        else:
+            parts = [part.strip() for part in re.split(r"\s*(?:->|→|\|)\s*", parsed) if part.strip()]
+            return parts if parts else ([parsed.strip()] if parsed.strip() else [])
+    if isinstance(parsed, tuple):
+        parsed = list(parsed)
+    if isinstance(parsed, list):
+        return [str(item).strip() for item in parsed if item is not None and str(item).strip()]
+    return [str(parsed).strip()] if str(parsed).strip() else []
+
+
+def _canonical_bearer_state(cell: Any, routed: bool) -> str:
+    if not routed:
+        return "Not routed"
+    tokens = _bearer_tokens(cell)
+    if not tokens:
+        return "Routed"
+    token = tokens[0].strip().lower()
+    if not token:  # pragma: no cover - _bearer_tokens() filters blank tokens already
+        return "Routed"
+    if "opt" in token:
+        return "OPT"
+    if "sat" in token:
+        return "SAT"
+    if "iv" in token:
+        return "IVDL"
+    if "legacy" in token or token == "leg":
+        return "Legacy"
+    return tokens[0].strip().upper()
+
+
+def _selected_node_bearer_timeline(
+    df_in: pd.DataFrame,
+    selected_nodes: set[str],
+    method_label: str,
+) -> pd.DataFrame:
+    if df_in.empty or not selected_nodes:
+        return pd.DataFrame()
+    if "time_index" not in df_in.columns or not {"source", "destination"} <= set(df_in.columns):
+        return pd.DataFrame()
+
+    src_ids = _normalize_node_id_series(df_in["source"]) if "source" in df_in.columns else pd.Series("", index=df_in.index)
+    dst_ids = _normalize_node_id_series(df_in["destination"]) if "destination" in df_in.columns else pd.Series("", index=df_in.index)
+    if "bearers" in df_in.columns:
+        bearer_raw_series = df_in["bearers"]
+    else:
+        bearer_raw_series = pd.Series("", index=df_in.index)
+    routed_series = (
+        df_in["routed"].fillna(False).astype(bool)
+        if "routed" in df_in.columns
+        else pd.Series(True, index=df_in.index)
+    )
+    time_series = pd.to_numeric(df_in["time_index"], errors="coerce")
+
+    rows: list[dict[str, Any]] = []
+    for idx in df_in.index:
+        time_val = time_series.get(idx)
+        if pd.isna(time_val):
+            continue
+        src = src_ids.get(idx, "")
+        dst = dst_ids.get(idx, "")
+        bearer_raw = bearer_raw_series.get(idx, "")
+        routed = bool(routed_series.get(idx, False))
+        label = _canonical_bearer_state(bearer_raw, routed)
+        if src in selected_nodes:
+            rows.append(
+                {
+                    "method": method_label,
+                    "node_id": src,
+                    "time_index": int(time_val),
+                    "bearer_path": label,
+                    "peer_id": dst,
+                }
+            )
+        if dst in selected_nodes and dst != src:
+            rows.append(
+                {
+                    "method": method_label,
+                    "node_id": dst,
+                    "time_index": int(time_val),
+                    "bearer_path": label,
+                    "peer_id": src,
+                }
+            )
+
+    if not rows:
+        return pd.DataFrame()
+
+    timeline = pd.DataFrame(rows)
+    grouped = (
+        timeline.groupby(["method", "node_id", "time_index"], as_index=False)
+        .agg(
+            bearer_path=("bearer_path", lambda vals: " | ".join(sorted({v for v in vals if v}))),
+            peers=("peer_id", lambda vals: ", ".join(sorted({str(v) for v in vals if v}))),
+        )
+    )
+    grouped["row_label"] = grouped["method"] + " | " + grouped["node_id"].astype(str)
+    return grouped.sort_values(["method", "node_id", "time_index"]).reset_index(drop=True)
+
+
+def _plot_selected_node_bearer_timeline(timeline_df: pd.DataFrame) -> go.Figure:
+    fig = go.Figure()
+    if timeline_df.empty:
+        fig.update_layout(height=220)
+        return fig
+
+    bearer_values = timeline_df["bearer_path"].fillna("").replace("", "unrouted").unique().tolist()
+    cmap = _get_cmap("tab20", max(1, len(bearer_values)))
+    color_map = {
+        bearer: ("#9e9e9e" if bearer == "unrouted" else mcolors.rgb2hex(cmap(i % max(1, len(bearer_values)))))
+        for i, bearer in enumerate(sorted(bearer_values))
+    }
+    ordered_rows = timeline_df["row_label"].drop_duplicates().tolist()
+
+    for bearer in sorted(bearer_values):
+        subset = timeline_df[timeline_df["bearer_path"] == bearer]
+        fig.add_trace(
+            go.Scatter(
+                x=subset["time_index"],
+                y=subset["row_label"],
+                mode="markers",
+                name=bearer,
+                marker=dict(size=11, color=color_map[bearer]),
+                customdata=np.stack(
+                    [
+                        subset["node_id"].astype(str),
+                        subset["method"].astype(str),
+                        subset["peers"].fillna("").astype(str),
+                    ],
+                    axis=-1,
+                ),
+                hovertemplate=(
+                    "Time: %{x}<br>"
+                    "Row: %{y}<br>"
+                    "Node: %{customdata[0]}<br>"
+                    "Method: %{customdata[1]}<br>"
+                    "Peers: %{customdata[2]}<br>"
+                    f"Bearer: {bearer}<extra></extra>"
+                ),
+            )
+        )
+
+    fig.update_layout(
+        height=max(280, 70 * len(ordered_rows)),
+        margin=dict(l=10, r=10, t=35, b=10),
+        legend_title_text="Bearer",
+        xaxis_title="Decision step",
+        yaxis_title="Selected node",
+        yaxis=dict(categoryorder="array", categoryarray=list(reversed(ordered_rows))),
+    )
+    return fig
+
+
+def _selected_pair_bearer_timeline(
+    df_in: pd.DataFrame,
+    selected_nodes: set[str],
+    method_label: str,
+    focus_pair: tuple[int, int] | None = None,
+) -> pd.DataFrame:
+    if df_in.empty:
+        return pd.DataFrame()
+    if "time_index" not in df_in.columns or not {"source", "destination"} <= set(df_in.columns):
+        return pd.DataFrame()
+
+    src_ids = _normalize_node_id_series(df_in["source"])
+    dst_ids = _normalize_node_id_series(df_in["destination"])
+    time_series = pd.to_numeric(df_in["time_index"], errors="coerce")
+    delivered_series = pd.to_numeric(df_in.get("delivered_bandwidth", np.nan), errors="coerce")
+    latency_series = pd.to_numeric(df_in.get("latency", np.nan), errors="coerce")
+    routed_series = (
+        df_in["routed"].fillna(False).astype(bool)
+        if "routed" in df_in.columns
+        else pd.Series(True, index=df_in.index)
+    )
+    if "bearers" in df_in.columns:
+        bearer_raw_series = df_in["bearers"]
+    else:
+        bearer_raw_series = pd.Series("", index=df_in.index)
+
+    focus_pair_norm: tuple[str, str] | None = None
+    if focus_pair is not None:
+        focus_pair_norm = (
+            _normalize_node_id_value(focus_pair[0]),
+            _normalize_node_id_value(focus_pair[1]),
+        )
+
+    rows: list[dict[str, Any]] = []
+    for idx in df_in.index:
+        time_val = time_series.get(idx)
+        if pd.isna(time_val):
+            continue
+        src = src_ids.get(idx, "")
+        dst = dst_ids.get(idx, "")
+        if not src or not dst:
+            continue
+        if focus_pair_norm is not None:
+            if (src, dst) != focus_pair_norm:
+                continue
+        else:
+            if len(selected_nodes) != 2 or src not in selected_nodes or dst not in selected_nodes:
+                continue
+
+        bearer_raw = bearer_raw_series.get(idx, "")
+        bearer_path = _bearer_path_label(bearer_raw)
+        routed = bool(routed_series.get(idx, False))
+        state = _canonical_bearer_state(bearer_raw, routed)
+        rows.append(
+            {
+                "method": method_label,
+                "pair_label": f"{src} → {dst}",
+                "time_index": int(time_val),
+                "bearer_state": state,
+                "bearer_path": bearer_path,
+                "routed": routed,
+                "delivered_bandwidth": delivered_series.get(idx, np.nan),
+                "latency": latency_series.get(idx, np.nan),
+            }
+        )
+
+    if not rows:
+        return pd.DataFrame()
+
+    timeline = pd.DataFrame(rows)
+    timeline = (
+        timeline.groupby(["method", "pair_label", "time_index"], as_index=False)
+        .agg(
+            bearer_state=("bearer_state", lambda vals: next((str(v) for v in vals if str(v).strip()), "Not routed")),
+            bearer_path=("bearer_path", lambda vals: " | ".join(sorted({str(v) for v in vals if str(v).strip()}))),
+            routed=("routed", "any"),
+            delivered_bandwidth=("delivered_bandwidth", "sum"),
+            latency=("latency", "mean"),
+        )
+    )
+    timeline["series_label"] = timeline["method"] + " | " + timeline["pair_label"]
+    return timeline.sort_values(["method", "pair_label", "time_index"]).reset_index(drop=True)
+
+
+def _plot_selected_pair_bearer_timeline(timeline_df: pd.DataFrame) -> go.Figure:
+    fig = go.Figure()
+    if timeline_df.empty:
+        fig.update_layout(height=240)
+        return fig
+
+    fixed_state_order = ["Not routed", "IVDL", "SAT", "OPT"]
+    raw_states = (
+        timeline_df["bearer_state"]
+        .fillna("Not routed")
+        .replace("", "Not routed")
+        .astype(str)
+        .tolist()
+    )
+    extra_states = sorted({state for state in raw_states if state not in fixed_state_order})
+    state_order = fixed_state_order + extra_states
+    state_to_y = {state: idx for idx, state in enumerate(state_order)}
+    series_labels = timeline_df["series_label"].drop_duplicates().tolist()
+    pair_labels = timeline_df["pair_label"].drop_duplicates().tolist()
+    if len(pair_labels) == 1:
+        title_text = f"Bearer switching for {pair_labels[0]} over decision steps"
+    elif pair_labels:
+        title_text = "Bearer switching for selected source-destination pairs"
+    method_colors = {"RL": "#1f77b4", "ILP": "#ff7f0e"}
+    dash_cycle = ["solid", "dash", "dot", "dashdot"]
+    pair_dash: dict[str, str] = {}
+    for idx, pair_label in enumerate(pair_labels):
+        pair_dash[pair_label] = dash_cycle[idx % len(dash_cycle)]
+
+    for series_label in series_labels:
+        subset = timeline_df[timeline_df["series_label"] == series_label].sort_values("time_index")
+        method = str(subset["method"].iloc[0])
+        pair_label = str(subset["pair_label"].iloc[0])
+        fig.add_trace(
+            go.Scatter(
+                x=subset["time_index"],
+                y=subset["bearer_state"].map(state_to_y),
+                mode="lines+markers",
+                line=dict(color=method_colors.get(method, "#666"), width=3, dash=pair_dash.get(pair_label, "solid"), shape="hv"),
+                marker=dict(size=9, color=method_colors.get(method, "#666")),
+                name=series_label,
+                customdata=np.stack(
+                    [
+                        subset["pair_label"].astype(str),
+                        subset["method"].astype(str),
+                        subset["bearer_state"].astype(str),
+                        subset.get("bearer_path", pd.Series("", index=subset.index)).fillna("").astype(str),
+                        subset["delivered_bandwidth"].fillna(np.nan),
+                        subset["latency"].fillna(np.nan),
+                        subset["routed"].astype(str),
+                    ],
+                    axis=-1,
+                ),
+                hovertemplate=(
+                    "Time: %{x}<br>"
+                    "Pair: %{customdata[0]}<br>"
+                    "Method: %{customdata[1]}<br>"
+                    "State: %{customdata[2]}<br>"
+                    "Path: %{customdata[3]}<br>"
+                    "Delivered bandwidth: %{customdata[4]}<br>"
+                    "Latency: %{customdata[5]}<br>"
+                    "Routed: %{customdata[6]}<extra></extra>"
+                ),
+            )
+        )
+
+    fig.update_layout(
+        height=max(280, 120 + 50 * len(series_labels)),
+        margin=dict(l=10, r=10, t=35, b=10),
+        title_text=title_text,
+        legend_title_text="Method / demand",
+        xaxis_title="Decision step",
+        yaxis_title="Bearer state",
+        yaxis=dict(
+            tickmode="array",
+            tickvals=list(range(len(state_order))),
+            ticktext=state_order,
+            range=[-0.1, max(0.1, len(state_order) - 0.9)],
+        ),
+    )
+    return fig
+
+def bezier_curve(x1, y1, x2, y2, control_points=20, offset=0.2):
+    t = np.linspace(0, 1, control_points)
+    x_mid = (x1 + x2) / 2
+    y_mid = (y1 + y2) / 2
+    x_control = x_mid + offset * (y2 - y1)
+    y_control = y_mid + offset * (x1 - x2)
+    x_bezier = (1 - t) ** 2 * x1 + 2 * (1 - t) * t * x_control + t ** 2 * x2
+    y_bezier = (1 - t) ** 2 * y1 + 2 * (1 - t) * t * y_control + t ** 2 * y2
+    return x_bezier, y_bezier
+
+def create_network_graph(
+    df,
+    pos,
+    show_nodes,
+    show_edges,
+    edge_types,
+    metric_type,
+    color_map=None,
+    symbol_map=None,
+    link_color_map=None,
+    node_roles: dict[str, str] | None = None,
+    show_node_labels: bool = False,
+    allowed_edge_pairs: set[tuple[str, str]] | None = None,
+):
+    G = nx.Graph()
+    G.add_nodes_from(pos.keys())
+    node_set = set(map(str, pos.keys()))
+    edges = filter_edges(df, edge_types, allowed_edge_pairs=allowed_edge_pairs)
+    for edge_type, tuples in edges.items():
+        for (u, v) in tuples:
+            uu = _resolve_node_id(u, node_set)
+            vv = _resolve_node_id(v, node_set)
+            if uu is None or vv is None or uu == vv:
+                continue
+            if uu in pos and vv in pos:
+                G.add_edge(uu, vv, type=edge_type, label=f"{uu}->{vv}")
+
+    edge_traces = []
+    metric_col = (metric_type or "").strip()
+    normalized_metrics: dict[str, list[float]] = {}
+    if metric_col and metric_col in df.columns:
+        metrics = extract_metrics(df, metric_col)
+        if metrics:
+            normalized_metrics = normalize_values(metrics)
+
+    for edge_type in edge_types:
+        link_index = 0
+        legend_added = False
+        label = _label_for_link(edge_type)
+        edge_color = _to_plotly_color((link_color_map or link_colors_plotly).get(edge_type, "#888"))
+        for u, v, data in G.edges(data=True):
+            if data.get("type") != edge_type:
+                continue
+            x0, y0 = pos[u]
+            x1, y1 = pos[v]
+            x_bezier, y_bezier = bezier_curve(x0, y0, x1, y1)
+            edge_x = list(x_bezier) + [None]
+            edge_y = list(y_bezier) + [None]
+            values = normalized_metrics.get(edge_type, [])
+            normalized_value = values[link_index] if link_index < len(values) else 5
+            link_index += 1
+            try:
+                edge_width = float(normalized_value)
+            except Exception:
+                edge_width = 5.0
+            edge_width = max(1.0, min(12.0, edge_width))
+            metric_label = metric_col if metric_col else "capacity"
+            hover_text = f"Link {u}->{v}<br>Type: {label}<br>Normalized {metric_label}: {normalized_value}"
+            edge_texts = [hover_text] * len(x_bezier) + [None]
+            edge_traces.append(
+                go.Scatter(
+                    x=edge_x,
+                    y=edge_y,
+                    line=dict(width=edge_width, color=edge_color),
+                    hoverinfo="text",
+                    text=edge_texts,
+                    mode="lines",
+                    name=label,
+                    showlegend=not legend_added,
+                    opacity=1.0,
+                )
+            )
+            legend_added = True
+
+    unique_nodes = list(G.nodes())
+    node_symbols: dict[Any, str] = {}
+    for node in unique_nodes:
+        base_symbol = None
+        if symbol_map:
+            base_symbol = symbol_map.get(node) or symbol_map.get(str(node))
+        node_symbols[node] = base_symbol if base_symbol else "circle"
+
+    if color_map:
+        node_colors = {}
+        for node in unique_nodes:
+            color = color_map.get(node, color_map.get(str(node)))
+            node_colors[node] = _to_plotly_color(color) if color else "#888"
+    else:
+        node_color_map = _get_cmap("tab20", len(unique_nodes))
+        node_colors = {node: mcolors.rgb2hex(node_color_map(i % 20)) for i, node in enumerate(unique_nodes)}
+
+    symbol_labels = {
+        "triangle-up": "Satellite",
+        "circle": "Aircraft",
+        "square": "HRC",
+        "diamond": "LRC",
+    }
+    used_symbols = sorted(set(node_symbols.values()), key=lambda s: str(s))
+    symbol_legend_traces = [
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(color="#444", size=15, symbol=symbol),
+            name=f"Type: {symbol_labels.get(symbol, symbol)}",
+            showlegend=True,
+        )
+        for symbol in used_symbols
+        if symbol in symbol_labels
+    ]
+    legend_traces = []
+    for node, color in node_colors.items():
+        legend_traces.append(go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(color=color, size=15, line=dict(width=0), symbol=node_symbols.get(node, "circle")),
+            name=f"Node: {node}",
+        ))
+    node_traces = []
+    role_annotations: list[dict[str, Any]] = []
+    if show_nodes:
+        symbols = [node_symbols[node] for node in G.nodes()]
+        node_traces = []
+        # Plot each symbol group separately to ensure Plotly applies symbols (workaround when mixing symbol + color arrays)
+        for symbol in sorted(set(symbols)):
+            group_nodes = [n for n in G.nodes() if node_symbols.get(n) == symbol]
+            group_node_ids = [_normalize_node_id_value(n) or str(n) for n in group_nodes]
+            group_role_labels = [(node_roles or {}).get(node_id, "") for node_id in group_node_ids]
+            hover_text = [
+                f"ID: {node_id}" + (f"<br>Role: {role}" if role else "")
+                for node_id, role in zip(group_node_ids, group_role_labels)
+            ]
+            node_traces.append(
+                go.Scatter(
+                    x=[pos[n][0] for n in group_nodes],
+                    y=[pos[n][1] for n in group_nodes],
+                    mode="markers",
+                    hoverinfo="text",
+                    marker_symbol=symbol,
+                    marker=dict(
+                        showscale=False,
+                        color=[node_colors[n] for n in group_nodes],
+                        size=30,
+                        line=dict(width=1, color="#333"),
+                    ),
+                    text=hover_text,
+                    name=f"Nodes ({symbol})",
+                    showlegend=False,
+                )
+            )
+            if show_node_labels:
+                node_traces.append(
+                    go.Scatter(
+                        x=[pos[n][0] for n in group_nodes],
+                        y=[pos[n][1] for n in group_nodes],
+                        mode="text",
+                        text=group_node_ids,
+                        textposition="middle center",
+                        textfont=dict(color="#ffffff", size=14),
+                        hoverinfo="skip",
+                        cliponaxis=False,
+                        showlegend=False,
+                    )
+                )
+                role_nodes = [
+                    (node, role)
+                    for node, role in zip(group_nodes, group_role_labels)
+                    if role
+                ]
+                if role_nodes:
+                    for node, role in role_nodes:
+                        role_annotations.append(
+                            dict(
+                                x=pos[node][0],
+                                y=pos[node][1],
+                                text=f"<b>{role}</b>",
+                                showarrow=False,
+                                xanchor="left",
+                                yanchor="middle",
+                                xshift=18,
+                                font=dict(color="#d62728", size=15),
+                                bgcolor="rgba(255,255,255,0.88)",
+                                bordercolor="rgba(214,39,40,0.55)",
+                                borderpad=2,
+                            )
+                        )
+    fig = go.Figure(
+        data=edge_traces + node_traces + symbol_legend_traces + legend_traces,
+        layout=go.Layout(
+            showlegend=True,
+            annotations=role_annotations,
+            legend=dict(x=1, y=1, traceorder="normal", font=dict(size=15)),
+            hovermode="closest",
+            autosize=True,
+            height=700,
+            margin=dict(b=90, l=5, r=5, t=0),
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, autorange=True, automargin=True),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, autorange=True, automargin=True),
+        ),
+    )
+    return fig
+
+def _shift_selected_time(delta: int) -> None:
+    """Adjust the current selected time by +/- 1 without mutating widget state mid-run."""
+    unique_timestamps = st.session_state.get(TIME_OPTIONS_KEY) or []
+    if not unique_timestamps:
+        return
+    current = st.session_state.get(TIME_VALUE_KEY)
+    try:
+        current_index = unique_timestamps.index(current)
+    except Exception:
+        current_index = len(unique_timestamps) - 1
+    new_index = max(0, min(current_index + int(delta), len(unique_timestamps) - 1))
+    st.session_state[TIME_INDEX_KEY] = new_index
+    st.session_state[TIME_VALUE_KEY] = unique_timestamps[new_index]
+
+
+def increment_time() -> None:
+    _shift_selected_time(+1)
+
+
+def decrement_time() -> None:
+    _shift_selected_time(-1)
+
+def safe_literal_eval(value):
+    try:
+        return ast.literal_eval(value)
+    except (ValueError, SyntaxError):
+        return value
+
+def extract_metrics(df: pd.DataFrame, metric_column: str) -> dict[str, list[float]]:
+    metrics: dict[str, list[float]] = {}
+    if metric_column not in df.columns:
+        return metrics
+
+    for cell in df[metric_column].tolist():
+        if cell is None or (isinstance(cell, float) and np.isnan(cell)):
+            continue
+        metric_dict: Any = cell
+        if isinstance(metric_dict, str):
+            parsed = safe_literal_eval(metric_dict)
+            if isinstance(parsed, dict):
+                metric_dict = parsed
+            else:
+                continue
+        if not isinstance(metric_dict, dict):
+            continue
+
+        for link_type, values in metric_dict.items():
+            if values is None or (isinstance(values, float) and np.isnan(values)):
+                continue
+            if isinstance(values, (list, tuple, set)):
+                cleaned: list[float] = []
+                for val in values:
+                    try:
+                        fval = float(val)
+                    except (TypeError, ValueError, OverflowError):
+                        continue
+                    if np.isfinite(fval):
+                        cleaned.append(fval)
+                if cleaned:
+                    metrics.setdefault(str(link_type), []).extend(cleaned)
+            else:
+                try:
+                    fval = float(values)
+                except (TypeError, ValueError, OverflowError):
+                    continue
+                if np.isfinite(fval):
+                    metrics.setdefault(str(link_type), []).append(fval)
+
+    return metrics
+
+def normalize_values(metrics, scale=10):
+    normalized = {}
+    all_values = [value for values in metrics.values() for value in values]
+    if not all_values:
+        return {k: [] for k in metrics.keys()}
+    max_value = max(all_values)
+    min_value = min(all_values)
+    scale_factor = scale / (max_value - min_value) if max_value != min_value else 1
+    for link_type, values in metrics.items():
+        normalized[link_type] = [(value - min_value) * scale_factor for value in values]
+    return normalized
+
+def page():
+    if "project" not in st.session_state:
+        st.session_state.project = env.target
+    if "projects" not in st.session_state:
+        st.session_state.projects = env.projects
+    vm_settings = _get_view_maps_settings()
+    page_vm_settings = _get_view_maps_page_settings()
+    setting_sources = [vm_settings, page_vm_settings]
+    base_seed = _get_first_nonempty_setting(setting_sources, "base_dir_choice", "dataset_base_choice")
+    input_seed = _get_first_nonempty_setting(setting_sources, "input_datadir", "dataset_custom_base")
+    rel_seed = _get_first_nonempty_setting(setting_sources, "datadir_rel", "dataset_subpath")
+    if base_seed and "base_dir_choice" not in st.session_state:
+        st.session_state["base_dir_choice"] = base_seed
+    if input_seed and "input_datadir" not in st.session_state:
+        st.session_state["input_datadir"] = input_seed
+    if rel_seed and "datadir_rel" not in st.session_state:
+        st.session_state["datadir_rel"] = rel_seed
+    for key in (
+        "file_ext_choice",
+        # flight/time columns are detected per file, so don't restore stale values
+        "link_multiselect",
+        "show_map",
+        "show_graph",
+        "show_topology_links",
+        "show_terrain",
+        "show_trajectory_traces",
+        "show_cloud_heatmap",
+        "cloud_heatmap_sat_path",
+        "cloud_heatmap_ivdl_path",
+        "cloud_heatmap_stride",
+        "cloud_heatmap_min_weight",
+        "jitter_overlap",
+        "show_metrics",
+        "map_marker_style",
+        "df_select_mode",
+        "df_file_regex",
+        "df_files",
+        "edges_file",
+        "allocations_file",
+        "baseline_allocations_file",
+        "traj_glob",
+        "layout_type_select",
+        "metric_type_select",
+    ):
+        if key in vm_settings and key not in st.session_state:
+            st.session_state[key] = vm_settings[key]
+    if SAT_HEATMAP_STEP_KEY not in st.session_state:
+        saved_heatmap_step = vm_settings.get("sat_heatmap_plot_step_s")
+        if saved_heatmap_step in {1, 60, 600}:
+            st.session_state[SAT_HEATMAP_STEP_KEY] = int(saved_heatmap_step)
+    if "df_file" in vm_settings and "df_file" not in st.session_state:
+        st.session_state["df_file"] = vm_settings["df_file"]
+    saved_flight_filter = vm_settings.get("selected_flights_filter")
+    if FLIGHT_FILTER_KEY not in st.session_state:
+        st.session_state[FLIGHT_FILTER_KEY] = saved_flight_filter if isinstance(saved_flight_filter, list) else []
+
+    qp_base = _read_query_param("base_dir_choice")
+    qp_input = _read_query_param("input_datadir")
+    qp_rel = _read_query_param("datadir_rel")
+    qp_edges = _read_query_param("edges_file")
+    if qp_edges is not None and qp_edges.strip():
+        st.session_state["edges_file"] = qp_edges.strip()
+    qp_alloc = _read_query_param("allocations_file")
+    if qp_alloc is not None and qp_alloc.strip():
+        st.session_state["allocations_file"] = qp_alloc.strip()
+    qp_baseline = _read_query_param("baseline_allocations_file")
+    if qp_baseline is not None and qp_baseline.strip():
+        st.session_state["baseline_allocations_file"] = qp_baseline.strip()
+    qp_traj = _read_query_param("traj_glob")
+    if qp_traj is not None and qp_traj.strip():
+        st.session_state["traj_glob"] = qp_traj.strip()
+    qp_alloc_time = _read_query_param("alloc_time_index")
+    if qp_alloc_time is not None and qp_alloc_time.strip():
+        st.session_state["_alloc_time_index_qp"] = qp_alloc_time.strip()
+    qp_alloc_pair = _read_query_param("alloc_pair")
+    if qp_alloc_pair is not None and qp_alloc_pair.strip():
+        st.session_state["_alloc_pair_qp"] = qp_alloc_pair.strip()
+
+    # Data directory + presets (base paths without app suffix)
+    export_base = env.AGILAB_EXPORT_ABS
+    share_base = env.share_root_path()
+    base_options = ["AGI_CLUSTER_SHARE", "AGILAB_EXPORT", "Custom"]
+    base_default = qp_base or st.session_state.get("base_dir_choice") or base_seed or "AGILAB_EXPORT"
+    if base_default not in base_options:
+        base_default = "AGILAB_EXPORT"
+    if st.session_state.get("base_dir_choice") not in base_options:
+        st.session_state["base_dir_choice"] = base_default
+    base_choice = st.sidebar.radio(
+        "Base directory",
+        base_options,
+        key="base_dir_choice",
+    )
+
+    base_path: Path
+    if base_choice == "AGI_CLUSTER_SHARE":  # pragma: no cover - simple UI radio passthrough
+        base_path = share_base
+    elif base_choice == "AGILAB_EXPORT":
+        base_path = export_base
+        base_path.mkdir(parents=True, exist_ok=True)
+    else:
+        custom_default = qp_input or st.session_state.get("input_datadir") or input_seed or str(export_base)
+        if not st.session_state.get("input_datadir"):  # pragma: no cover - first-run seed for interactive text input
+            st.session_state["input_datadir"] = custom_default
+        custom_val = st.sidebar.text_input(
+            "Custom data directory",
+            key="input_datadir",
+        )
+        base_path = Path(custom_val).expanduser()
+        if not base_path.exists():
+            st.sidebar.info(f"{base_path} does not exist. Adjust the path or create it before exploring data.")
+
+    rel_default = (
+        qp_rel
+        if qp_rel not in (None, "")
+        else st.session_state.get("datadir_rel") or rel_seed or ""
+    )
+    subdir_options = [""] + _list_subdirectories(base_path)
+    if rel_default and rel_default not in subdir_options:
+        subdir_options.append(rel_default)
+    if st.session_state.get("datadir_rel_select") not in subdir_options:
+        st.session_state["datadir_rel_select"] = rel_default if rel_default in subdir_options else ""
+    rel_subdir = st.sidebar.selectbox(
+        "Relative subdir",
+        options=subdir_options,
+        key="datadir_rel_select",
+        format_func=lambda v: v if v else "(root)",
+    )
+    if base_choice == "Custom":
+        custom_rel_default = rel_subdir if rel_subdir else rel_default
+        if "datadir_rel_custom" not in st.session_state:
+            st.session_state["datadir_rel_custom"] = custom_rel_default
+        rel_override = st.sidebar.text_input(
+            "Custom relative subdir",
+            key="datadir_rel_custom",
+        ).strip()
+        if rel_override:
+            rel_subdir = rel_override
+    else:
+        st.session_state.pop("datadir_rel_custom", None)
+    st.session_state["datadir_rel"] = rel_subdir
+
+    # Persist selection for reloads / share links
+    st.query_params["base_dir_choice"] = base_choice
+    st.query_params["input_datadir"] = st.session_state.get("input_datadir", "") if base_choice == "Custom" else ""
+    st.query_params["datadir_rel"] = rel_subdir
+
+    final_path = (base_path / rel_subdir).expanduser() if rel_subdir else base_path.expanduser()
+    if base_choice == "AGILAB_EXPORT":
+        final_path.mkdir(parents=True, exist_ok=True)
+    elif not final_path.exists():
+        st.sidebar.info(f"{final_path} does not exist yet.")
+    prev_datadir = Path(st.session_state.get("datadir", final_path)).expanduser()
+    if "datadir" not in st.session_state:
+        st.session_state.datadir = final_path
+    elif prev_datadir != final_path:
+        st.session_state.datadir = final_path
+        st.session_state.pop("df_file", None)
+        st.session_state.pop("csv_files", None)
+    with st.sidebar.expander("Resolved data path", expanded=False):
+        st.caption(str(final_path))
+
+    ext_options = ["csv", "parquet", "json", "all"]
+    ext_default = st.session_state.get("file_ext_choice", "all")
+    if ext_default not in ext_options:
+        ext_default = "all"
+    if st.session_state.get("file_ext_choice") not in ext_options:
+        st.session_state["file_ext_choice"] = ext_default
+    ext_choice = st.sidebar.selectbox(
+        "File type",
+        ext_options,
+        key="file_ext_choice",
+    )
+
+    # Persist sidebar selections for reuse
+    new_vm_settings = {
+        "base_dir_choice": st.session_state.get("base_dir_choice", "AGILAB_EXPORT"),
+        "input_datadir": st.session_state.get("input_datadir", ""),
+        "datadir_rel": st.session_state.get("datadir_rel", ""),
+        "file_ext_choice": st.session_state.get("file_ext_choice", "all"),
+        "id_col": st.session_state.get("id_col", st.session_state.get("flight_id_col", "")),
+        "time_col": st.session_state.get("time_col", ""),
+        "edges_file": st.session_state.get("edges_file", ""),
+        "allocations_file": st.session_state.get("allocations_file", ""),
+        "baseline_allocations_file": st.session_state.get("baseline_allocations_file", ""),
+        "traj_glob": st.session_state.get("traj_glob", ""),
+        "link_multiselect": st.session_state.get("link_multiselect", []),
+        "show_map": st.session_state.get("show_map", True),
+        "show_graph": st.session_state.get("show_graph", True),
+        "show_topology_links": st.session_state.get("show_topology_links", True),
+        "show_terrain": st.session_state.get("show_terrain", True),
+        "show_trajectory_traces": st.session_state.get("show_trajectory_traces", True),
+        "show_cloud_heatmap": st.session_state.get("show_cloud_heatmap", False),
+        "cloud_heatmap_sat_path": st.session_state.get("cloud_heatmap_sat_path", DEFAULT_CLOUDMAP_SAT),
+        "cloud_heatmap_ivdl_path": st.session_state.get("cloud_heatmap_ivdl_path", DEFAULT_CLOUDMAP_IVDL),
+        "cloud_heatmap_stride": int(st.session_state.get("cloud_heatmap_stride", 25)),
+        "cloud_heatmap_min_weight": float(st.session_state.get("cloud_heatmap_min_weight", 0.0)),
+        "sat_heatmap_plot_step_s": int(st.session_state.get(SAT_HEATMAP_STEP_KEY, 1)),
+        "jitter_overlap": st.session_state.get("jitter_overlap", False),
+        "show_metrics": st.session_state.get("show_metrics", False),
+        "map_marker_style": st.session_state.get("map_marker_style", "Plane icons"),
+        "df_file": st.session_state.get("df_file", ""),
+        "df_select_mode": st.session_state.get("df_select_mode", "Single file"),
+        "df_file_regex": st.session_state.get("df_file_regex", ""),
+        "df_files": st.session_state.get("df_files", []),
+        "layout_type_select": st.session_state.get("layout_type_select", "spring"),
+        "metric_type_select": st.session_state.get("metric_type_select", ""),
+    }
+    vm_mutated = False
+    for key, value in new_vm_settings.items():
+        if vm_settings.get(key) != value:
+            vm_settings[key] = value
+            vm_mutated = True
+    if vm_mutated:
+        _persist_app_settings(env)
+
+    datadir_path = Path(st.session_state.datadir).expanduser()
+    def _visible_only(paths):
+        visible = []
+        for path in paths:
+            rel_parts = path.relative_to(datadir_path).parts
+            if any(part.startswith(".") for part in rel_parts):
+                continue
+            visible.append(path)
+        return visible
+
+    if ext_choice == "all":
+        files = (
+            list(datadir_path.rglob("*.csv"))
+            + list(datadir_path.rglob("*.parquet"))
+            + list(datadir_path.rglob("*.json"))
+        )
+    else:
+        files = list(datadir_path.rglob(f"*.{ext_choice}"))
+    files = _visible_only(files)
+
+    if not files:
+        st.session_state.pop("csv_files", None)
+        st.session_state.pop("df_file", None)
+        st.session_state.pop("id_col", None)
+        st.session_state.pop("flight_id_col", None)
+        st.session_state.pop("time_col", None)
+        st.warning(f"No files found under {datadir_path} (filter: {ext_choice}). Please choose a directory with data or export from Execute.")
+        return
+
+    # datadir may have changed via fallback; refresh path base
+    datadir_path = Path(st.session_state.datadir).expanduser()
+    st.session_state.csv_files = files
+
+    csv_files_rel = sorted([Path(file).relative_to(datadir_path).as_posix() for file in st.session_state.csv_files])
+
+    prev_files_rel = st.session_state.get("_prev_csv_files_rel")
+    if prev_files_rel != csv_files_rel:
+        # Prune stale selections when the file list changes.
+        if st.session_state.get("df_file") not in csv_files_rel:
+            st.session_state.pop("df_file", None)
+        if isinstance(st.session_state.get("df_files"), list):
+            st.session_state["df_files"] = [
+                f for f in st.session_state["df_files"] if f in csv_files_rel
+            ]
+
+    df_mode_options = ["Single file", "Regex (multi)"]
+    if st.session_state.get("df_select_mode") not in df_mode_options:
+        st.session_state["df_select_mode"] = df_mode_options[0]
+    df_mode = st.sidebar.radio(
+        "DataFrame selection",
+        options=df_mode_options,
+        key="df_select_mode",
+    )
+
+    selected_files_rel: list[str] = []
+    if df_mode == "Regex (multi)":
+        if "df_file_regex" not in st.session_state:
+            st.session_state["df_file_regex"] = ""
+        regex_raw = st.sidebar.text_input(
+            "DataFrame filename regex",
+            key="df_file_regex",
+            help="Python regex applied to the relative file path. Leave empty to match all files.",
+        ).strip()
+        regex_ok = True
+        pattern = None
+        if regex_raw:
+            try:
+                pattern = re.compile(regex_raw)
+            except re.error as exc:
+                regex_ok = False
+                st.sidebar.error(f"Invalid regex: {exc}")
+        matching = (
+            [f for f in csv_files_rel if pattern.search(f)]
+            if (regex_ok and pattern is not None)
+            else (csv_files_rel if not regex_raw else [])
+        )
+        st.sidebar.caption(f"{len(matching)} / {len(csv_files_rel)} files match")
+        if st.sidebar.button(
+            f"Select all matching ({len(matching)})",
+            disabled=not matching,
+            key="df_regex_select_all",
+        ):
+            st.session_state["df_files"] = matching
+
+        df_files_seed: list[str] = []
+        current_df_files = st.session_state.get("df_files")
+        if isinstance(current_df_files, list):
+            df_files_seed = [f for f in current_df_files if f in csv_files_rel]
+        if not df_files_seed:
+            # Preserve the current single-file selection when switching modes.
+            seed = st.session_state.get("df_file")
+            if seed in csv_files_rel:
+                df_files_seed = [seed]
+            elif csv_files_rel:
+                df_files_seed = [csv_files_rel[0]]
+        st.session_state["df_files"] = df_files_seed
+
+        st.sidebar.multiselect(
+            label="DataFrames",
+            options=csv_files_rel,
+            key="df_files",
+        )
+        current_df_files = st.session_state.get("df_files")
+        if isinstance(current_df_files, list):
+            selected_files_rel = [f for f in current_df_files if f in csv_files_rel]
+        st.sidebar.caption(f"{len(selected_files_rel)} selected")
+        if selected_files_rel:
+            st.session_state["df_file"] = selected_files_rel[0]
+    else:
+        if csv_files_rel and st.session_state.get("df_file") not in csv_files_rel:
+            st.session_state["df_file"] = csv_files_rel[0]
+        st.sidebar.selectbox(
+            label="DataFrame",
+            options=csv_files_rel,
+            key="df_file",
+        )
+        if st.session_state.get("df_file"):
+            selected_files_rel = [st.session_state.get("df_file")]
+
+    selection_sig = (df_mode, tuple(selected_files_rel))
+    if st.session_state.get("_prev_df_selection_sig") != selection_sig:
+        st.session_state.pop("loaded_df", None)
+        st.session_state.pop("id_col", None)
+        st.session_state.pop("flight_id_col", None)
+        st.session_state.pop("time_col", None)
+        st.session_state["_prev_df_selection_sig"] = selection_sig
+    st.session_state["_prev_csv_files_rel"] = csv_files_rel
+
+    if not selected_files_rel:  # pragma: no cover - interactive empty-selection prompt
+        st.warning("Please select at least one dataset to proceed.")
+        return
+
+    df_paths_abs = [datadir_path / rel for rel in selected_files_rel]
+    try:
+        frames: list[pd.DataFrame] = []
+        load_errors: list[str] = []
+        for rel, abs_path in zip(selected_files_rel, df_paths_abs):
+            cache_buster = None
+            try:
+                cache_buster = abs_path.stat().st_mtime
+            except OSError:  # pragma: no cover - best-effort cache buster only
+                logger.debug("Unable to stat %s for dataframe cache busting", abs_path, exc_info=True)
+            try:
+                loaded = pagelib.load_df(abs_path, with_index=True, cache_buster=cache_buster)
+            except Exception as exc:
+                load_errors.append(f"{rel}: {exc}")
+                continue
+            if loaded is None:
+                load_errors.append(f"{rel}: returned None")
+                continue
+            if not isinstance(loaded, pd.DataFrame):
+                load_errors.append(f"{rel}: unexpected type {type(loaded)}")
+                continue
+            loaded = loaded.copy()
+            if "source_file" not in loaded.columns:
+                loaded.insert(0, "source_file", rel)
+            frames.append(loaded)
+
+        if load_errors:
+            st.sidebar.warning("Some selected files failed to load; continuing with the rest.")
+            with st.sidebar.expander("Load errors", expanded=False):
+                for err in load_errors[:50]:
+                    st.write(err)
+                if len(load_errors) > 50:  # pragma: no cover - overflow summary for large multi-select failures
+                    st.write(f"... ({len(load_errors) - 50} more)")
+
+        if not frames:
+            st.error("No selected dataframes could be loaded.")
+            return
+
+        st.session_state.loaded_df = frames[0] if len(frames) == 1 else pd.concat(frames, ignore_index=True)
+    except Exception as e:
+        st.error(f"Error loading data: {e}")
+        st.warning("The selected data file could not be loaded. Please select a valid file.")
+        return
+
+    df = _drop_index_levels_shadowing_columns(st.session_state.loaded_df)
+    st.session_state.loaded_df = df
+
+    # Normalize common geo/altitude columns early
+    rename_geo = {
+        "longitude": "long",
+        "lon": "long",
+        "latitude": "lat",
+        "alt_m": "alt",
+        "altitude": "alt",
+        "altitude_m": "alt",
+    }
+    for src, dest in rename_geo.items():
+        if src in df.columns and dest not in df.columns:
+            df[dest] = df[src]
+    for coord in ("long", "lat", "alt"):
+        if coord not in df.columns:
+            df[coord] = 0.0
+        df[coord] = pd.to_numeric(df[coord], errors="coerce").fillna(0.0)
+
+    # Migrate legacy state key
+    if "flight_id_col" in st.session_state and "id_col" not in st.session_state:  # pragma: no cover - legacy state migration
+        st.session_state["id_col"] = st.session_state.pop("flight_id_col")
+
+    st.sidebar.markdown("### Columns")
+    all_cols = list(df.columns)
+    # Internal metadata columns inserted by this page should not be used as ID/time defaults.
+    meta_cols = {"source_file", "__source__"}
+    col_options = [c for c in all_cols if c not in meta_cols] or all_cols
+    lower_map = {c.lower(): c for c in col_options}
+    # Ensure sensible defaults for ID and time columns (per-file detection)
+    id_pref = [
+        "flight_id",
+        "plane_id",
+        "id",
+        "node_id",
+        "vehicle_id",
+        "callsign",
+        "call_sign",
+        "track_id",
+    ]
+    time_pref = [
+        "datetime",
+        "timestamp",
+        "time",
+        "t",
+        "step",
+        "decision",
+        "time_index",
+        "time_idx",
+        "time_s",
+        "time_ms",
+        "time_us",
+        "date",
+    ]
+
+    def _pick_col(preferred: list[str], fallback_exclude: list[str]) -> str:
+        for key in preferred:
+            if key in col_options:
+                return key
+            if key.lower() in lower_map:
+                return lower_map[key.lower()]
+        # fallback to first column not excluded
+        exclude_lower = {v.lower() for v in fallback_exclude}
+        for c in col_options:
+            if c not in fallback_exclude and c.lower() not in exclude_lower:
+                return c
+        return col_options[0] if col_options else (all_cols[0] if all_cols else "")  # pragma: no cover - degenerate empty-column fallback
+
+    if st.session_state.get("id_col") not in col_options:
+        st.session_state["id_col"] = _pick_col(id_pref, time_pref)
+    if st.session_state.get("time_col") not in col_options:
+        st.session_state["time_col"] = _pick_col(time_pref, id_pref)
+
+    # With session state primed above, avoid passing index/defaults to prevent Streamlit warnings
+    flight_col = st.sidebar.selectbox(
+        "ID column",
+        options=col_options,
+        key="id_col",
+    )
+    time_col = st.sidebar.selectbox(
+        "Timestamp column",
+        options=col_options,
+        key="time_col",
+    )
+
+    # Ensure time column is usable; keep numeric durations as-is to avoid 1970 epoch.
+    if pd.api.types.is_datetime64_any_dtype(df[time_col]):
+        df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
+    elif pd.api.types.is_numeric_dtype(df[time_col]):
+        df[time_col] = pd.to_numeric(df[time_col], errors="coerce")
+    else:
+        # Some exports store step/time as strings ("0", "1", ...); prefer numeric when possible.
+        as_num = pd.to_numeric(df[time_col], errors="coerce")
+        if as_num.notna().any():
+            df[time_col] = as_num
+        else:
+            df[time_col] = pd.to_datetime(df[time_col], errors="coerce")  # pragma: no cover - string timestamp fallback
+    if df[time_col].isna().all():
+        # Allow static datasets (no timestamps) to render by falling back to a single synthetic step.
+        original_time_col = time_col
+        synthetic_time_col = "__static_time"
+        if synthetic_time_col not in df.columns:
+            df[synthetic_time_col] = 0
+        time_col = synthetic_time_col
+        st.sidebar.warning(
+            f"No valid timestamps found in '{original_time_col}'. "
+            f"Using synthetic '{synthetic_time_col}'=0 for a static snapshot."
+        )
+
+    df = df.sort_values(by=[flight_col, time_col])
+    # Normalize to standard column names for downstream helpers (keep aliases for backward helpers)
+    df_std = df.rename(columns={flight_col: "id_col", time_col: "time_col"}, errors="ignore")
+    preferred_ids = df_std.apply(
+        lambda row: _preferred_node_id_from_row(row),
+        axis=1,
+    )
+    id_norm = _normalize_node_id_series(preferred_ids)
+    invalid_ids = id_norm.eq("")
+    if invalid_ids.any():
+        dropped = int(invalid_ids.sum())
+        df = df.loc[~invalid_ids].copy()
+        df_std = df_std.loc[~invalid_ids].copy()
+        id_norm = id_norm.loc[~invalid_ids]
+        st.sidebar.warning(f"Dropped {dropped} rows with missing node IDs.")
+
+    df_std["id_col"] = id_norm
+    df_std["flight_id"] = id_norm
+    # Keep selected ID column consistent for downstream groupbys / set comparisons
+    df[flight_col] = id_norm
+    # Ensure base df has flight_id for downstream map/edge helpers
+    df["flight_id"] = id_norm
+    if "datetime" not in df_std.columns:
+        df_std["datetime"] = df_std["time_col"]
+    # Ensure geo columns present for downstream views
+    for src, dest in (("longitude", "long"), ("lon", "long"), ("latitude", "lat"), ("alt_m", "alt"), ("altitude", "alt"), ("altitude_m", "alt")):
+        if src in df_std.columns and dest not in df_std.columns:  # pragma: no cover - already normalized on base dataframe
+            df_std[dest] = df_std[src]
+    for coord in ("long", "lat", "alt"):
+        if coord not in df_std.columns:  # pragma: no cover - already normalized on base dataframe
+            df_std[coord] = 0.0
+        df_std[coord] = pd.to_numeric(df_std[coord], errors="coerce").fillna(0.0)
+    df_all = df.copy()
+    df_std_all = df_std.copy()
+
+    available_node_ids = sorted(df_std["id_col"].dropna().astype(str).unique().tolist())
+    current_filter = st.session_state.get(FLIGHT_FILTER_KEY, [])
+    if not isinstance(current_filter, list):  # pragma: no cover - legacy session-state normalization
+        current_filter = []
+    current_filter = [_normalize_node_id_value(item) for item in current_filter]
+    current_filter = [item for item in current_filter if item in available_node_ids]
+    if st.session_state.get(FLIGHT_FILTER_KEY) != current_filter:
+        st.session_state[FLIGHT_FILTER_KEY] = current_filter
+
+    selected_node_ids = st.sidebar.multiselect(
+        "Flights / nodes",
+        options=available_node_ids,
+        key=FLIGHT_FILTER_KEY,
+        help="Leave empty to show all flights/nodes from the selected dataset.",
+    )
+    selected_node_set = set(selected_node_ids)
+    shown_count = len(selected_node_ids) if selected_node_ids else len(available_node_ids)
+    st.sidebar.caption(f"{shown_count} / {len(available_node_ids)} flights shown")
+    if vm_settings.get("selected_flights_filter") != selected_node_ids:
+        vm_settings["selected_flights_filter"] = selected_node_ids
+        _persist_app_settings(env)
+
+    if selected_node_set:
+        df_std = df_std[df_std["id_col"].isin(selected_node_set)].copy()
+        df = df[df["flight_id"].astype(str).isin(selected_node_set)].copy()
+    st.sidebar.markdown("### Display options")
+    share_root = env.share_root_path()
+    default_edges_candidates = _candidate_edges_paths(
+        [
+            env.AGILAB_EXPORT_ABS,
+            Path(st.session_state.datadir),
+        ]
+    )
+    default_edges_candidates.extend(_quick_share_edges_paths(share_root))
+    default_edges_candidates = sorted(
+        {p.resolve(strict=False): p for p in default_edges_candidates}.values(),
+        key=lambda p: p.stat().st_mtime if p.exists() else 0.0,
+        reverse=True,
+    )
+    datadir_path = Path(st.session_state.datadir)
+    example_edges_candidates = [
+        datadir_path / "pipeline" / "edges.jsonl",
+        datadir_path / "pipeline" / "edges.parquet",
+        datadir_path / "pipeline" / "topology.json",
+    ]
+    example_edges_path = next(
+        (p for p in example_edges_candidates if p.exists()),
+        example_edges_candidates[0],
+    )
+    edges_placeholder = f"e.g. {example_edges_path}"
+
+    if "edges_file" not in st.session_state:
+        legacy_val = (st.session_state.get("edges_file_input") or "").strip()
+        if legacy_val:
+            st.session_state["edges_file"] = legacy_val
+
+    edges_prev = (st.session_state.get("edges_file") or "").strip()
+    edges_candidates = [str(p) for p in default_edges_candidates]
+    picker_state = resolve_edges_picker_state(
+        edges_prev,
+        edges_candidates,
+        current_choice=st.session_state.get("edges_file_choice"),
+        current_custom=st.session_state.get("edges_file_custom"),
+    )
+    st.session_state["edges_file_choice"] = picker_state.choice
+    if picker_state.custom_value and (
+        "edges_file_custom" not in st.session_state
+        or st.session_state.get("edges_file_choice") == CUSTOM_OPTION
+    ):
+        st.session_state["edges_file_custom"] = picker_state.custom_value
+
+    edges_choice = st.sidebar.selectbox(
+        "Edges file picker",
+        picker_state.picker_options,
+        key="edges_file_choice",
+        help="Pick a topology/edges export (GML/JSON/Parquet) that includes edge bearer/type information.",
+    )
+    if edges_choice == CUSTOM_OPTION:
+        edges_clean = (
+            st.sidebar.text_input(
+                "Custom edges file path",
+                placeholder=edges_placeholder,
+                key="edges_file_custom",
+            ).strip()
+        )
+    elif edges_choice == NONE_OPTION:
+        edges_clean = ""
+    else:  # pragma: no cover - picker values arrive as clean strings in page tests
+        edges_clean = edges_choice.strip()
+
+    if edges_clean == str(example_edges_path) and not Path(edges_clean).expanduser().exists():  # pragma: no cover - stale suggested example path
+        edges_clean = ""
+    if picker_state.recovered_from_missing and edges_prev and edges_clean and edges_clean != edges_prev:  # pragma: no cover - UI recovery hint
+        st.sidebar.info(
+            f"Recovered topology source from missing `{edges_prev}` to `{edges_clean}`."
+        )
+    st.session_state["edges_file"] = edges_clean
+    st.query_params["edges_file"] = edges_clean
+    edges_candidate_bases = [
+        share_root,
+        env.AGILAB_EXPORT_ABS,
+        datadir_path,
+        datadir_path.parent if datadir_path.parent != datadir_path else datadir_path,
+    ]
+    edges_path = _resolve_edges_file_path(edges_clean, edges_candidate_bases)
+    loaded_edges = {}
+    if edges_path and edges_path.exists():
+        loaded_edges = load_edges_file(edges_path)
+        if not loaded_edges:
+            st.sidebar.info(
+                "Edges file loaded but no valid 'source/target/bearer' rows were detected. "
+                "Ensure the file includes those columns."
+            )
+    if edges_clean and edges_path and not edges_path.exists():
+        st.sidebar.warning(f"Edges file not found: {edges_path}")
+
+    if vm_settings.get("edges_file") != edges_clean:
+        vm_settings["edges_file"] = edges_clean
+        _persist_app_settings(env)
+
+    link_options = _detect_link_columns(df_std)
+    if loaded_edges:
+        for col, edges in loaded_edges.items():
+            df_std[col] = [edges] * len(df_std)
+            df[col] = df_std[col]
+            df_std_all[col] = [edges] * len(df_std_all)
+            df_all[col] = df_std_all[col]
+            if col not in link_options:  # pragma: no cover - topology-only edge column augmentation
+                link_options.append(col)
+    link_options = list(dict.fromkeys(link_options))
+    link_color_map = {**link_colors_plotly}
+    for idx, col in enumerate(link_options):
+        link_color_map.setdefault(col, f"C{idx}")
+
+    present_defaults = [c for c in _DEFAULT_LINK_ORDER if c in link_options]
+    if loaded_edges:
+        present_defaults = [c for c in loaded_edges.keys() if c in link_options] or present_defaults
+    link_default = present_defaults if present_defaults else link_options[:4]
+
+    current_links = st.session_state.get("link_multiselect")
+    if isinstance(current_links, list):
+        current_links = [c for c in current_links if c in link_options]
+    else:
+        current_links = []
+    if current_links and loaded_edges:
+        has_edges = any(_preview_edge_count(df_std, c) > 0 for c in current_links)
+        if not has_edges and link_default:  # pragma: no cover - interactive stale-selection reset
+            current_links = link_default
+            st.sidebar.info("Reset link selection to detected topology edge types.")
+    if not current_links:
+        current_links = link_default
+    st.session_state["link_multiselect"] = current_links
+    selected_links = st.sidebar.multiselect(
+        "Link columns",
+        options=link_options,
+        key="link_multiselect",
+    )
+    st.session_state.setdefault("show_map", True)
+    st.session_state.setdefault("show_graph", True)
+    st.session_state.setdefault("show_topology_links", True)
+    st.session_state.setdefault("jitter_overlap", False)
+    st.session_state.setdefault("show_metrics", False)
+    show_map = st.sidebar.checkbox("Show map view", key="show_map")
+    show_graph = st.sidebar.checkbox("Show topology graph", key="show_graph")
+    jitter_overlap = st.sidebar.checkbox("Separate overlapping nodes", key="jitter_overlap")
+    show_metrics = st.sidebar.checkbox("Show metrics table", key="show_metrics")
+    marker_options = ["Dots", "Plane icons"]
+    if st.session_state.get("map_marker_style") not in marker_options:
+        st.session_state["map_marker_style"] = "Plane icons"
+    map_marker_style = st.sidebar.selectbox(
+        "Map markers",
+        options=marker_options,
+        key="map_marker_style",
+    )
+    cloudmap_candidate_bases = [
+        Path(st.session_state.datadir),
+        base_path,
+        env.AGILAB_EXPORT_ABS,
+        env.share_root_path(),
+    ]
+    sat_cloud_default = _get_first_nonempty_setting(
+        [page_vm_settings, vm_settings],
+        "cloud_heatmap_sat_path",
+        "cloudmap_sat_path",
+    )
+    sat_cloud_default = _resolve_declared_path(sat_cloud_default, cloudmap_candidate_bases)
+    if not sat_cloud_default:
+        sat_candidates = _candidate_cloudmap_paths(cloudmap_candidate_bases, ("CloudMapSat.npz",))
+        sat_cloud_default = str(sat_candidates[0]) if sat_candidates else DEFAULT_CLOUDMAP_SAT
+    ivdl_cloud_default = _get_first_nonempty_setting(
+        [page_vm_settings, vm_settings],
+        "cloud_heatmap_ivdl_path",
+        "cloudmap_ivdl_path",
+    )
+    ivdl_cloud_default = _resolve_declared_path(ivdl_cloud_default, cloudmap_candidate_bases)
+    if not ivdl_cloud_default:
+        ivdl_candidates = _candidate_cloudmap_paths(
+            cloudmap_candidate_bases,
+            ("CloudMapIvdl.npz", "CloudMapIvbl.npz"),
+        )
+        ivdl_cloud_default = str(ivdl_candidates[0]) if ivdl_candidates else DEFAULT_CLOUDMAP_IVDL
+    st.session_state.setdefault("show_terrain", True)
+    st.session_state.setdefault("show_trajectory_traces", True)
+    st.session_state.setdefault("show_cloud_heatmap", False)
+    st.session_state["cloud_heatmap_sat_path"] = _choose_existing_declared_path(
+        str(st.session_state.get("cloud_heatmap_sat_path", "")),
+        sat_cloud_default,
+        cloudmap_candidate_bases,
+    )
+    st.session_state["cloud_heatmap_ivdl_path"] = _choose_existing_declared_path(
+        str(st.session_state.get("cloud_heatmap_ivdl_path", "")),
+        ivdl_cloud_default,
+        cloudmap_candidate_bases,
+    )
+    st.session_state.setdefault("cloud_heatmap_stride", 25)
+    st.session_state.setdefault("cloud_heatmap_min_weight", 0.0)
+    st.session_state.setdefault(SAT_HEATMAP_STEP_KEY, 1)
+    st.sidebar.checkbox(
+        "Show topology links",
+        key="show_topology_links",
+        help="Toggle the pydeck layer that draws link lines and link-type labels.",
+    )
+    st.sidebar.checkbox(
+        "Show terrain overlay",
+        key="show_terrain",
+        help="Toggle satellite/terrain background tiles (Mapbox-based). Disable for a lighter view or if you see rendering errors.",
+    )
+    st.sidebar.checkbox(
+        "Show trajectory traces",
+        key="show_trajectory_traces",
+        help="Draw each node trajectory up to the selected time as a pydeck PathLayer.",
+    )
+    st.sidebar.checkbox(
+        "Show cloud heatmap overlay",
+        key="show_cloud_heatmap",
+        help="Overlay cloud attenuation heatmaps from NPZ files when available.",
+    )
+    st.sidebar.text_input("SAT cloud map (.npz)", key="cloud_heatmap_sat_path")
+    st.sidebar.text_input("IVDL cloud map (.npz)", key="cloud_heatmap_ivdl_path")
+    st.sidebar.slider(
+        "Cloud heatmap sampling stride",
+        min_value=5,
+        max_value=100,
+        step=5,
+        key="cloud_heatmap_stride",
+        help="Higher stride samples fewer cells (faster rendering).",
+    )
+    st.sidebar.slider(
+        "Cloud min intensity",
+        min_value=0.0,
+        max_value=1.0,
+        step=0.01,
+        key="cloud_heatmap_min_weight",
+        help="Filter low-intensity cloud cells before rendering.",
+    )
+
+    layout_options = ["bipartite", "circular", "planar", "random", "rescale", "shell", "spring", "spiral"]
+    if st.session_state.get("layout_type_select") not in layout_options:
+        st.session_state["layout_type_select"] = "spring"
+    layout_type = st.selectbox(
+        "Select Layout Type",
+        options=layout_options,
+        key="layout_type_select",
+    )
+
+    st.session_state.df_cols = df.columns.tolist()
+    metric_key = "metric_type_select"
+    metric_candidates: list[str] = []
+    for preferred in ("throughput", "bandwidth"):
+        if preferred in df.columns:
+            metric_candidates.append(preferred)
+            continue
+        lowered = preferred.lower()
+        for col in df.columns:
+            if col.lower() == lowered:
+                metric_candidates.append(col)
+                break
+
+    # Also include dict-like metric payloads produced by some workers.
+    for col in df.columns:
+        if col in metric_candidates:
+            continue
+        sample = df[col].dropna().head(15)
+        if sample.empty:
+            continue
+        first = sample.iloc[0]
+        if isinstance(first, dict):
+            metric_candidates.append(col)
+            continue
+        if isinstance(first, str):
+            parsed = safe_literal_eval(first)
+            if isinstance(parsed, dict):
+                metric_candidates.append(col)
+
+    metric_options = ["(none)"] + metric_candidates
+    if len(metric_options) <= 1:
+        selected_metric = ""
+        st.info("No edge-weight metrics detected.")
+    else:
+        if st.session_state.get(metric_key) not in metric_options:
+            st.session_state[metric_key] = "(none)"
+        selected_metric = st.selectbox(
+            "Edge width metric (optional)",
+            options=metric_options,
+            key=metric_key,
+            help="If present, uses per-link metrics (dict payload keyed by link type) to scale edge widths.",
+        )
+        if selected_metric == "(none)":
+            selected_metric = ""
+
+    # Ensure link columns exist to avoid KeyError
+    for col in link_options:
+        if col not in df:
+            df[col] = None
+        if col not in df_all:
+            df_all[col] = None
+        if col not in df_std:
+            df_std[col] = None
+        if col not in df_std_all:
+            df_std_all[col] = None
+
+    if jitter_overlap:
+        dup_mask = df_std.duplicated(subset=["long", "lat"], keep=False)
+        if dup_mask.any():
+            jitter_scale = max(1e-5, float(df_std[dup_mask]["lat"].std() or 0.0) * 0.01) or 1e-3
+            noise = np.random.default_rng(42).normal(loc=0.0, scale=jitter_scale, size=(dup_mask.sum(), 2))
+            df_std.loc[dup_mask, ["long", "lat"]] += noise
+
+    for col in ["bandwidth", "throughput"]:
+        if col in df:
+            df[col] = df[col].apply(safe_literal_eval)
+    # Normalization is done inside `create_network_graph` only when needed.
+
+    unique_timestamps = sorted(df[time_col].dropna().unique())
+    if not unique_timestamps:
+        st.error(f"No timestamps found in '{time_col}'.")
+        st.stop()
+    # Migrate legacy keys once, then keep namespaced keys as source of truth.
+    if TIME_VALUE_KEY not in st.session_state and "selected_time" in st.session_state:
+        st.session_state[TIME_VALUE_KEY] = st.session_state.get("selected_time")
+    if TIME_INDEX_KEY not in st.session_state and "selected_time_idx" in st.session_state:
+        st.session_state[TIME_INDEX_KEY] = st.session_state.get("selected_time_idx")
+
+    selected_time = _coerce_slider_value(
+        unique_timestamps,
+        st.session_state.get(TIME_VALUE_KEY),
+        prefer_last=True,
+    )
+    st.session_state[TIME_VALUE_KEY] = selected_time
+    st.session_state[TIME_INDEX_KEY] = unique_timestamps.index(selected_time)
+    # Keep legacy aliases for compatibility with older helper code.
+    st.session_state["selected_time"] = selected_time
+    st.session_state["selected_time_idx"] = st.session_state[TIME_INDEX_KEY]
+
+    # Time controls
+    st.session_state[TIME_OPTIONS_KEY] = unique_timestamps
+    single_time = len(unique_timestamps) <= 1
+    with st.container():
+        cola, colb, colc = st.columns([0.3, 7.5, 0.6])
+        with cola:
+            st.button("◁", key=TIME_PREV_BUTTON_KEY, on_click=decrement_time, disabled=single_time)
+        with colb:
+            if single_time:
+                selected_val = unique_timestamps[0]
+                st.session_state[TIME_VALUE_KEY] = selected_val
+                st.session_state[TIME_INDEX_KEY] = 0
+                st.session_state["selected_time"] = selected_val
+                st.session_state["selected_time_idx"] = 0
+                st.caption(f"Selected: {selected_val}")
+            else:
+                selected_val = st.select_slider(
+                    "Time",
+                    options=unique_timestamps,
+                    format_func=lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if hasattr(x, "strftime") else str(x),
+                    key=TIME_VALUE_KEY,
+                )
+                if selected_val in unique_timestamps:
+                    st.session_state[TIME_INDEX_KEY] = unique_timestamps.index(selected_val)
+                    st.session_state["selected_time_idx"] = st.session_state[TIME_INDEX_KEY]
+                    st.session_state["selected_time"] = selected_val
+                st.caption(f"Selected: {selected_val}")
+            idx_now = st.session_state.get(TIME_INDEX_KEY, len(unique_timestamps) - 1)
+            prog = idx_now / (len(unique_timestamps) - 1) if len(unique_timestamps) > 1 else 1.0
+            st.progress(prog)
+        with colc:
+            st.button("▷", key=TIME_NEXT_BUTTON_KEY, on_click=increment_time, disabled=single_time)
+
+    # Per-node latest position up to the selected time (avoid dropping sparse nodes); fall back to last known
+    selected_time = st.session_state.get(TIME_VALUE_KEY, unique_timestamps[-1])
+    display_df = df
+    display_df_std = df_std
+    upper_node_roles: dict[str, str] = {}
+    upper_allowed_edge_pairs: set[tuple[str, str]] | None = None
+    if selected_node_set:
+        alloc_step_hint = (
+            st.session_state.get(DECISION_STEP_KEY)
+            or st.session_state.get("alloc_time_index")
+            or st.session_state.get("_alloc_time_index_qp")
+        )
+        focus_pair_state = st.session_state.get("alloc_demand_pair_focus")
+        focus_pair_for_display: tuple[int, int] | None = None
+        if isinstance(focus_pair_state, (list, tuple)) and len(focus_pair_state) >= 2:
+            try:
+                candidate_pair = (int(focus_pair_state[0]), int(focus_pair_state[1]))
+            except Exception:
+                candidate_pair = None
+            if candidate_pair is not None:
+                focus_pair_norm = {
+                    _normalize_node_id_value(candidate_pair[0]),
+                    _normalize_node_id_value(candidate_pair[1]),
+                }
+                focus_pair_norm.discard("")
+                if not focus_pair_norm or focus_pair_norm == selected_node_set:
+                    focus_pair_for_display = candidate_pair
+        allocation_paths_for_display: list[Path | None] = []
+        for state_key in ("allocations_file", "baseline_allocations_file"):
+            raw_path = str(st.session_state.get(state_key, "") or "").strip()
+            if not raw_path:
+                allocation_paths_for_display.append(None)
+                continue
+            allocation_paths_for_display.append(Path(raw_path).expanduser())
+        display_node_set = _expanded_node_ids_from_allocations(
+            selected_node_set,
+            sample_time=selected_time,
+            step_hint=alloc_step_hint,
+            allocation_paths=allocation_paths_for_display,
+        )
+        if len(selected_node_set) == 2:
+            upper_allowed_edge_pairs = _allocation_routed_edge_pairs(
+                selected_node_set,
+                sample_time=selected_time,
+                step_hint=alloc_step_hint,
+                allocation_paths=allocation_paths_for_display,
+            )
+        upper_node_roles = _endpoint_roles_from_allocations(
+            selected_node_set,
+            sample_time=selected_time,
+            step_hint=alloc_step_hint,
+            allocation_paths=allocation_paths_for_display,
+            focus_pair=focus_pair_for_display,
+        )
+        if not upper_node_roles and len(selected_node_ids) == 2:
+            src_id = _normalize_node_id_value(selected_node_ids[0])
+            dst_id = _normalize_node_id_value(selected_node_ids[1])
+            if src_id:
+                upper_node_roles[src_id] = "src"
+            if dst_id:
+                upper_node_roles[dst_id] = "dst"
+        if display_node_set:
+            display_df = df_all[df_all["flight_id"].astype(str).isin(display_node_set)].copy()
+            display_df_std = df_std_all[df_std_all["id_col"].isin(display_node_set)].copy()
+
+    df_time_masked = display_df[display_df[time_col] <= selected_time]
+    idx_list = []
+    if not df_time_masked.empty:
+        idx_list.append(df_time_masked.groupby(flight_col)[time_col].idxmax())
+    missing_ids = set(display_df_std["id_col"].unique()) - set(df_time_masked[flight_col].unique())
+    if missing_ids:
+        fallback_idx = display_df[display_df[flight_col].isin(missing_ids)].groupby(flight_col)[time_col].idxmax()
+        if not fallback_idx.empty:
+            idx_list.append(fallback_idx)
+    idx = pd.concat(idx_list).unique()
+    df_positions = display_df.loc[idx].copy()
+    df_positions_std = df_positions.rename(columns={flight_col: "id_col", time_col: "time_col"}, errors="ignore")
+    df_positions_std["id_col"] = df_positions_std["id_col"].astype(str)
+    if "flight_id" not in df_positions_std.columns:  # pragma: no cover - already normalized on the base dataframe path
+        df_positions_std["flight_id"] = df_positions_std["id_col"]
+    else:
+        df_positions_std["flight_id"] = df_positions_std["flight_id"].astype(str)
+    if "datetime" not in df_positions_std.columns:
+        df_positions_std["datetime"] = df_positions_std["time_col"]
+    for src, dest in (("longitude", "long"), ("lon", "long"), ("latitude", "lat"), ("alt_m", "alt"), ("altitude", "alt"), ("altitude_m", "alt")):
+        if src in df_positions_std.columns and dest not in df_positions_std.columns:  # pragma: no cover - already normalized on the base dataframe path
+            df_positions_std[dest] = df_positions_std[src]
+    for coord in ("long", "lat", "alt"):
+        if coord not in df_positions_std.columns:  # pragma: no cover - already normalized on the base dataframe path
+            df_positions_std[coord] = 0.0
+        df_positions_std[coord] = pd.to_numeric(df_positions_std[coord], errors="coerce").fillna(0.0)
+    current_positions = df_positions_std.groupby("id_col").last().reset_index()
+    if "flight_id" not in current_positions.columns:  # pragma: no cover - already normalized on the grouped dataframe path
+        current_positions["flight_id"] = current_positions["id_col"]
+    current_positions["flight_id"] = current_positions["flight_id"].astype(str)
+
+    color_map_ids = tuple(available_node_ids)
+    color_map_sig = (flight_col, st.session_state.get("_prev_df_selection_sig"), color_map_ids)
+    if "color_map" not in st.session_state or st.session_state.get("color_map_key") != color_map_sig:
+        color_map = _get_cmap("tab20", max(1, len(color_map_ids)))
+        st.session_state.color_map = {
+            flight_id: mcolors.rgb2hex(color_map(i % 20))
+            for i, flight_id in enumerate(color_map_ids)
+        }
+        st.session_state.color_map_key = color_map_sig
+
+    color_series = current_positions["id_col"].map(st.session_state.color_map)
+    if hasattr(color_series, "fillna"):
+        color_series = color_series.fillna("#888")
+    current_positions["color"] = color_series.apply(hex_to_rgba)
+    trajectory_positions_std = display_df_std[display_df_std["time_col"] <= selected_time].copy()
+
+    # Optional split-screen links
+    base_params: dict[str, str] = {}
+    for k, v in st.query_params.items():
+        if isinstance(v, list):
+            if v:  # pragma: no cover - AppTest query params are scalar in this suite
+                base_params[k] = str(v[-1])
+        elif v is not None:
+            base_params[k] = str(v)
+    map_href = "?" + urlencode({**base_params, "view": "map"})
+    graph_href = "?" + urlencode({**base_params, "view": "graph"})
+    with st.expander("Open split-screen view", expanded=False):
+        st.caption("Open each route in a separate browser window when comparing map and graph views.")
+        st.markdown(
+            f"""
+            <div style="padding:4px 0;">
+              <a href="{map_href}" target="_blank">Open map view</a> |
+              <a href="{graph_href}" target="_blank">Open graph view</a>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # Layout containers based on toggles (side-by-side columns)
+    map_container = graph_container = None
+    qps = st.query_params
+    view_param = (qps.get("view", [""])[0] if isinstance(qps.get("view"), list) else qps.get("view", "")) or ""
+    view_param = view_param.lower()
+    if view_param == "map":  # pragma: no cover - dual-screen query-param path
+        show_map, show_graph = True, False
+    elif view_param == "graph":  # pragma: no cover - dual-screen query-param path
+        show_map, show_graph = False, True
+    if show_map and show_graph:
+        col1, col2 = st.columns([4, 4])
+        map_container, graph_container = col1, col2
+    elif show_map:  # pragma: no cover - single-pane map layout
+        map_container = st.container()
+    elif show_graph:
+        graph_container = st.container()
+
+    if show_map and map_container is not None:
+        with map_container:
+            layers = create_layers_geomap(
+                selected_links,
+                df_positions_std,
+                current_positions,
+                link_color_map,
+                marker_style=map_marker_style,
+                trajectory_df=trajectory_positions_std,
+                node_roles=upper_node_roles,
+                show_node_labels=bool(selected_node_set),
+                allowed_edge_pairs=upper_allowed_edge_pairs,
+            )
+            if not layers:  # pragma: no cover - empty-layer warning path
+                st.warning("Map view is unavailable: missing required columns/layers.")
+            else:
+                lat_center = float(pd.to_numeric(current_positions["lat"], errors="coerce").fillna(0.0).mean())
+                lon_center = float(pd.to_numeric(current_positions["long"], errors="coerce").fillna(0.0).mean())
+                view_state = pdk.ViewState(
+                    latitude=lat_center,
+                    longitude=lon_center,
+                    zoom=3,
+                    pitch=0,
+                    bearing=5,
+                    min_pitch=0,
+                    max_pitch=85,
+                )
+                r = pdk.Deck(
+                    layers=layers,
+                    initial_view_state=view_state,
+                    map_style=None,
+                    tooltip={
+                        "html": "<b>ID:</b> {id_col}<br>"
+                                "<b>Longitude:</b> {long}<br>"
+                                "<b>Latitude:</b> {lat}<br>"
+                                "<b>Altitude:</b> {alt}",
+                        "style": {
+                            "backgroundColor": "white",
+                            "color": "black",
+                            "fontSize": "12px",
+                            "borderRadius": "2px",
+                            "padding": "5px",
+                        },
+                    },
+                )
+                try:
+                    st.pydeck_chart(r)
+                except Exception as exc:  # pragma: no cover - UI renderer fallback
+                    st.error(f"Unable to render map view: {exc}")
+
+    if show_graph and graph_container is not None:
+        with graph_container:
+            st.caption(
+                "Symbol key: ▲ Satellite, ● Aircraft, ■ HRC, ◆ LRC "
+                "(driven by `type`/`node_type`/`nodeType`; fallback: high altitude or `sat` in ID)."
+            )
+            if not selected_links:  # pragma: no cover - explicit empty edge selection warning
+                st.warning("No link columns selected. Pick at least one under **Link columns** in the sidebar.")
+            else:
+                counts = {col: _preview_edge_count(df_positions_std, col) for col in selected_links}
+                if any(counts.values()):
+                    summary = ", ".join(f"{k}={v}" for k, v in counts.items() if v)
+                    st.caption(f"Edge counts (preview): {summary}")
+                else:
+                    st.warning(
+                        "No edges parsed from the selected link columns. "
+                        "Confirm the **Edges file picker** is set (or your dataframe includes edge columns)."
+                    )
+            try:
+                pos = get_fixed_layout(display_df_std, layout=layout_type)
+            except Exception as exc:  # pragma: no cover - layout fallback guard
+                st.warning(f"Layout '{layout_type}' failed; falling back to 'spring'. ({exc})")
+                pos = get_fixed_layout(display_df_std, layout="spring")
+            symbol_map: dict[Any, str] = {}
+            type_to_symbol = {
+                "sat": "triangle-up",
+                "satellite": "triangle-up",
+                "plane": "circle",
+                "ngf": "circle",
+                "hrc": "square",
+                "lrc": "diamond",
+            }
+            type_columns = ["type", "node_type", "nodeType"]
+            for _, row in df_positions_std.iterrows():
+                tval = ""
+                for col in type_columns:
+                    if col in row and pd.notna(row[col]):  # pragma: no cover - optional node-type metadata hint
+                        tval = str(row[col]).lower()
+                        break
+                symbol = type_to_symbol.get(tval)
+                if not symbol:
+                    alt_val = row.get("alt", 0)
+                    try:
+                        alt_f = float(alt_val)
+                    except Exception:  # pragma: no cover - malformed altitude fallback
+                        alt_f = 0.0
+                    if alt_f > 10000:  # pragma: no cover - high-altitude satellite heuristic
+                        symbol = "triangle-up"
+                if not symbol:
+                    nid = str(row.get("id_col", "")).lower()
+                    if "sat" in nid:  # pragma: no cover - ID-based satellite heuristic
+                        symbol = "triangle-up"
+                symbol_map[row["id_col"]] = symbol or "circle"
+            if not symbol_map:  # pragma: no cover - degenerate empty-layout fallback
+                for node in pos.keys():
+                    symbol_map[node] = "circle"
+            try:
+                fig = create_network_graph(
+                    df_positions_std,
+                    pos,
+                    show_nodes=True,
+                    show_edges=True,
+                    edge_types=selected_links,
+                    metric_type=selected_metric,
+                    color_map=st.session_state.get("color_map"),
+                    symbol_map=symbol_map,
+                    link_color_map=link_color_map,
+                    node_roles=upper_node_roles,
+                    show_node_labels=bool(selected_node_set),
+                    allowed_edge_pairs=upper_allowed_edge_pairs,
+                )
+                st.plotly_chart(fig, width="stretch")
+            except Exception as exc:  # pragma: no cover - graph renderer fallback
+                st.error(f"Unable to render topology graph: {exc}")
+
+    if show_metrics:
+        metric_cols = [c for c in [flight_col, time_col, "bearer_type", "throughput", "bandwidth"] if c in df_positions.columns]
+        if metric_cols:
+            st.markdown("### Metrics snapshot")
+            st.dataframe(df_positions[metric_cols].sort_values(flight_col), width="stretch")
+
+    # Live allocations overlay (optional)
+    st.markdown("### 📡 Live allocations")
+    share_root = env.share_root_path()
+    target_name = getattr(env, "share_target_name", env.target)
+    target_root, alloc_candidate_bases = _allocation_search_roots(
+        base_path=base_path,
+        datadir_path=datadir_path,
+        export_base=env.AGILAB_EXPORT_ABS,
+        local_share_root=share_root,
+        target_name=str(target_name),
+    )
+    declared_alloc_globs = _expand_glob_patterns(
+        _get_setting_list(
+            [vm_settings, page_vm_settings],
+            "default_allocation_globs",
+        ),
+        [target_root, datadir_path, base_path, env.AGILAB_EXPORT_ABS, share_root],
+    )
+    declared_baseline_globs = _expand_glob_patterns(
+        _get_setting_list(
+            [vm_settings, page_vm_settings],
+            "default_baseline_globs",
+        ),
+        [target_root, datadir_path, base_path, env.AGILAB_EXPORT_ABS, share_root],
+    )
+    alloc_candidates = _candidate_allocation_paths([p for p in alloc_candidate_bases if p.exists()])
+    alloc_candidates.extend(_candidate_files_from_globs(declared_alloc_globs + declared_baseline_globs))
+    alloc_candidates = sorted(
+        {p.resolve(strict=False): p for p in alloc_candidates if p.exists()}.values(),
+        key=lambda p: p.stat().st_mtime if p.exists() else 0.0,
+        reverse=True,
+    )
+    baseline_candidates = [p for p in alloc_candidates if _is_baseline_alloc_path(p)]
+    routing_candidates = [p for p in alloc_candidates if not _is_baseline_alloc_path(p)]
+    if not alloc_candidates:
+        st.info(
+            f"No allocation exports detected under {target_root} yet. "
+            "Generate a routing or baseline export, or point the pickers to an existing allocations_steps.{json,jsonl,ndjson,csv,parquet} file."
+        )
+    elif baseline_candidates and not routing_candidates:
+        st.info(
+            "Baseline allocations were detected, but no routing allocations are available yet. "
+            "Generate a routing-stage export or point the picker to an existing allocations_steps file."
+        )
+
+    if "allocations_file" not in st.session_state:
+        legacy_val = (st.session_state.get("alloc_path_input") or "").strip()
+        if legacy_val:
+            st.session_state["allocations_file"] = legacy_val
+    alloc_prev = (st.session_state.get("allocations_file") or "").strip()
+
+    alloc_placeholder = (
+        routing_candidates[0]
+        if routing_candidates
+        else target_root / "pipeline" / "allocations_steps.parquet"
+    )
+    alloc_options = ["(none)"] + [str(p) for p in routing_candidates] + ["(custom path…)"]
+    if st.session_state.get("allocations_file_choice") not in alloc_options:
+        if alloc_prev and alloc_prev in alloc_options:
+            st.session_state["allocations_file_choice"] = alloc_prev
+        elif alloc_prev:
+            st.session_state["allocations_file_choice"] = "(custom path…)"
+            if "allocations_file_custom" not in st.session_state:
+                st.session_state["allocations_file_custom"] = alloc_prev
+        else:
+            st.session_state["allocations_file_choice"] = (
+                str(routing_candidates[0]) if routing_candidates else "(none)"
+            )
+
+    alloc_choice = st.selectbox(
+        "Allocations file picker (routing/policy)",
+        options=alloc_options,
+        key="allocations_file_choice",
+        help="Per-step routing or policy allocations used for the live overlay.",
+    )
+    if alloc_choice == "(custom path…)":
+        alloc_clean = st.text_input(
+            "Custom allocations file path",
+            key="allocations_file_custom",
+            placeholder=f"e.g. {alloc_placeholder}",
+        ).strip()
+    elif alloc_choice == "(none)":
+        alloc_clean = ""
+    else:
+        alloc_clean = alloc_choice.strip()
+    st.session_state["allocations_file"] = alloc_clean
+    st.query_params["allocations_file"] = alloc_clean
+    alloc_path = alloc_clean
+    alloc_path_obj = Path(alloc_path).expanduser() if alloc_path else None
+    if alloc_path_obj is not None and alloc_path and not alloc_path_obj.exists():
+        st.info("Allocations file not found. Update the path or generate allocations.")
+
+    if "baseline_allocations_file" not in st.session_state:
+        legacy_val = (st.session_state.get("baseline_alloc_path_input") or "").strip()
+        if legacy_val:
+            st.session_state["baseline_allocations_file"] = legacy_val
+    baseline_prev = (st.session_state.get("baseline_allocations_file") or "").strip()
+
+    baseline_placeholder = (
+        baseline_candidates[0]
+        if baseline_candidates
+        else target_root / "pipeline" / "baseline_allocations_steps.json"
+    )
+    baseline_options = ["(none)"] + [str(p) for p in baseline_candidates] + ["(custom path…)"]
+    if st.session_state.get("baseline_alloc_file_choice") not in baseline_options:
+        if baseline_prev and baseline_prev in baseline_options:
+            st.session_state["baseline_alloc_file_choice"] = baseline_prev
+        elif baseline_prev:
+            st.session_state["baseline_alloc_file_choice"] = "(custom path…)"
+            if "baseline_alloc_file_custom" not in st.session_state:
+                st.session_state["baseline_alloc_file_custom"] = baseline_prev
+        else:
+            st.session_state["baseline_alloc_file_choice"] = (
+                str(baseline_candidates[0]) if baseline_candidates else "(none)"
+            )
+
+    baseline_choice = st.selectbox(
+        "Baseline allocations file picker",
+        options=baseline_options,
+        key="baseline_alloc_file_choice",
+        help="Per-step reference allocations used as a baseline overlay.",
+    )
+    if baseline_choice == "(custom path…)":
+        baseline_clean = st.text_input(
+            "Custom baseline allocations file path",
+            key="baseline_alloc_file_custom",
+            placeholder=f"e.g. {baseline_placeholder}",
+        ).strip()
+    elif baseline_choice == "(none)":
+        baseline_clean = ""
+    else:
+        baseline_clean = baseline_choice.strip()
+    st.session_state["baseline_allocations_file"] = baseline_clean
+    st.query_params["baseline_allocations_file"] = baseline_clean
+    baseline_path_input = baseline_clean
+    baseline_path_obj = Path(baseline_path_input).expanduser() if baseline_path_input else None
+    if baseline_path_obj is not None and baseline_path_input and not baseline_path_obj.exists():
+        st.info("Baseline allocations file not found. Update the path or generate a baseline.")
+    declared_traj_globs = _expand_glob_patterns(
+        _get_setting_list(
+            [vm_settings, page_vm_settings],
+            "default_traj_globs",
+            "trajectory_globs",
+        ),
+        [datadir_path, share_root, env.AGILAB_EXPORT_ABS],
+    )
+    traj_glob_candidates = [
+        str(datadir_path / "pipeline" / "*.parquet"),
+        str(datadir_path / "pipeline" / "*.csv"),
+        str(datadir_path / "dataframe" / "*.parquet"),
+        str(datadir_path / "dataframe" / "*.csv"),
+    ]
+    traj_glob_candidates.extend(declared_traj_globs)
+    traj_glob_candidates.extend(_quick_share_traj_globs(share_root))
+    traj_glob_candidates = list(dict.fromkeys([c for c in traj_glob_candidates if c]))
+    traj_glob_default = next(
+        (c for c in traj_glob_candidates if glob.glob(str(Path(c).expanduser()))),
+        str(datadir_path / "dataframe" / "*.parquet"),
+    )
+
+    if "traj_glob" not in st.session_state:
+        legacy_val = (st.session_state.get("traj_glob_input") or "").strip()
+        st.session_state["traj_glob"] = legacy_val or traj_glob_default
+
+    traj_prev = (st.session_state.get("traj_glob") or "").strip()
+    traj_candidates_existing = [
+        c for c in traj_glob_candidates if glob.glob(str(Path(c).expanduser()))
+    ]
+    traj_custom_label = "(custom glob…)"
+    traj_picker_options = ["(none)"] + traj_candidates_existing + [traj_custom_label]
+    if st.session_state.get("traj_glob_choice") not in traj_picker_options:
+        if traj_prev and traj_prev in traj_candidates_existing:
+            st.session_state["traj_glob_choice"] = traj_prev
+        elif traj_prev:
+            st.session_state["traj_glob_choice"] = traj_custom_label
+            if "traj_glob_custom" not in st.session_state:
+                st.session_state["traj_glob_custom"] = traj_prev
+        else:
+            st.session_state["traj_glob_choice"] = traj_glob_default if traj_candidates_existing else "(none)"
+
+    traj_choice = st.selectbox(
+        "Trajectory data picker (for map overlay)",
+        options=traj_picker_options,
+        key="traj_glob_choice",
+        help="Pick a trajectory glob for node positions. Use custom to provide one or more globs (comma/semicolon/newline separated).",
+    )
+    traj_placeholder = (
+        traj_candidates_existing[0]
+        if traj_candidates_existing
+        else str(share_root / "*_trajectory" / "pipeline" / "*.csv")
+    )
+    if traj_choice == traj_custom_label:
+        traj_clean = st.text_input(
+            "Custom trajectory glob(s)",
+            key="traj_glob_custom",
+            placeholder=f"e.g. {traj_placeholder}",
+        ).strip()
+    elif traj_choice == "(none)":
+        traj_clean = ""
+    else:
+        traj_clean = traj_choice.strip()
+
+    st.session_state["traj_glob"] = traj_clean
+    st.query_params["traj_glob"] = traj_clean
+    traj_glob_clean = traj_clean
+    if (
+        vm_settings.get("allocations_file") != alloc_clean
+        or vm_settings.get("baseline_allocations_file") != baseline_clean
+        or vm_settings.get("traj_glob") != traj_clean
+    ):
+        vm_settings["allocations_file"] = alloc_clean
+        vm_settings["baseline_allocations_file"] = baseline_clean
+        vm_settings["traj_glob"] = traj_clean
+        _persist_app_settings(env)
+    alloc_df = (
+        load_allocations(alloc_path_obj)
+        if alloc_path_obj is not None and alloc_path_obj.exists()
+        else pd.DataFrame()
+    )
+    baseline_df = (
+        load_allocations(baseline_path_obj)
+        if baseline_path_obj is not None and baseline_path_obj.exists()
+        else pd.DataFrame()
+    )
+
+    def _demand_pairs(df_in: pd.DataFrame) -> list[tuple[int, int]]:
+        if df_in.empty or not {"source", "destination"}.issubset(df_in.columns):
+            return []
+        src_series = pd.to_numeric(df_in["source"], errors="coerce")
+        dst_series = pd.to_numeric(df_in["destination"], errors="coerce")
+        pairs: set[tuple[int, int]] = set()
+        for src, dst in zip(src_series.tolist(), dst_series.tolist()):
+            if pd.isna(src) or pd.isna(dst):
+                continue
+            pairs.add((int(src), int(dst)))
+        return sorted(pairs)
+
+    def _filter_by_pair(df_in: pd.DataFrame, pair: tuple[int, int] | None) -> pd.DataFrame:
+        if df_in.empty or pair is None or not {"source", "destination"}.issubset(df_in.columns):
+            return df_in
+        src, dst = pair
+        src_series = pd.to_numeric(df_in["source"], errors="coerce")
+        dst_series = pd.to_numeric(df_in["destination"], errors="coerce")
+        return df_in[(src_series == src) & (dst_series == dst)]
+
+    all_pairs = sorted(set(_demand_pairs(alloc_df)) | set(_demand_pairs(baseline_df)))
+    selected_pair: tuple[int, int] | None = None
+    if all_pairs:
+        alloc_pair_qp = (st.session_state.pop("_alloc_pair_qp", "") or "").strip()
+        if alloc_pair_qp:
+            parts = [p for p in re.split(r"[,:\\-]+", alloc_pair_qp) if p.strip()]
+            if len(parts) >= 2:
+                try:
+                    qp_pair = (int(parts[0]), int(parts[1]))
+                except Exception:
+                    qp_pair = None
+                if qp_pair and qp_pair in all_pairs:
+                    st.session_state["alloc_demand_pair_focus"] = qp_pair
+
+        selected_pair = st.selectbox(
+            "Focus demand (optional)",
+            options=[None] + all_pairs,
+            format_func=lambda p: "All demands" if p is None else f"{p[0]} → {p[1]}",
+            key="alloc_demand_pair_focus",
+        )
+        st.query_params["alloc_pair"] = "" if selected_pair is None else f"{selected_pair[0]}-{selected_pair[1]}"
+
+    selected_nodes_pair: tuple[str, str] | None = None
+    if len(selected_node_set) == 2:
+        selected_nodes_pair = tuple(sorted(selected_node_set))
+    if selected_pair is not None and selected_nodes_pair is not None:
+        focus_pair_norm = (
+            _normalize_node_id_value(selected_pair[0]),
+            _normalize_node_id_value(selected_pair[1]),
+        )
+        if tuple(sorted(focus_pair_norm)) != selected_nodes_pair:
+            st.info(
+                "Ignoring Focus demand because it does not match the two selected flights/nodes."
+            )
+            selected_pair = None
+
+    def _filter_alloc_nodes(df_in: pd.DataFrame) -> pd.DataFrame:
+        if df_in.empty or not selected_node_set:
+            return df_in
+        keep_mask = pd.Series(True, index=df_in.index)
+        if "source" in df_in.columns:
+            keep_mask &= _normalize_node_id_series(df_in["source"]).isin(selected_node_set)
+        if "destination" in df_in.columns:
+            keep_mask &= _normalize_node_id_series(df_in["destination"]).isin(selected_node_set)
+        return df_in.loc[keep_mask].copy()
+
+    alloc_df_nodes = _filter_alloc_nodes(alloc_df)
+    baseline_df_nodes = _filter_alloc_nodes(baseline_df)
+    alloc_df_view = _filter_by_pair(alloc_df_nodes, selected_pair)
+    baseline_df_view = _filter_by_pair(baseline_df_nodes, selected_pair)
+
+    def _time_values(df_in: pd.DataFrame) -> list[int]:
+        if df_in.empty:
+            return []
+        if "time_index" not in df_in.columns:  # pragma: no cover - legacy/static allocation exports
+            return [0]
+        series = pd.to_numeric(df_in["time_index"], errors="coerce").dropna()
+        if series.empty:  # pragma: no cover - malformed allocation time indices
+            return [0]
+        return sorted({int(x) for x in series.tolist()})
+
+    def _display_alloc_source(path_obj: Path | None) -> str:
+        if path_obj is None:  # pragma: no cover - missing allocation source display
+            return "(none)"
+        return path_obj.name or str(path_obj)
+
+    times = sorted(set(_time_values(alloc_df_view)) | set(_time_values(baseline_df_view)))
+    if not times:
+        if selected_node_set:
+            st.info(
+                "No allocation rows found for the selected flights/nodes. "
+                "A topology link (for example OPT) only shows physical connectivity; it does not guarantee a routing demand exists between those two planes."
+            )
+            st.caption(
+                "Loaded allocation files: "
+                f"RL = `{_display_alloc_source(alloc_path_obj)}`, "
+                f"ILP = `{_display_alloc_source(baseline_path_obj)}`."
+            )
+        else:
+            st.info("No allocations found yet (routing or baseline).")
+    else:
+        alloc_time_qp = (st.session_state.pop("_alloc_time_index_qp", "") or "").strip()
+        if DECISION_STEP_KEY not in st.session_state and "alloc_time_index" in st.session_state:  # pragma: no cover - legacy key bridge
+            st.session_state[DECISION_STEP_KEY] = st.session_state.get("alloc_time_index")
+        # Only seed from query params before the widget key exists; afterward,
+        # user interaction in session_state is the source of truth.
+        if alloc_time_qp and DECISION_STEP_KEY not in st.session_state:
+            try:
+                qp_time = int(float(alloc_time_qp))
+            except Exception:
+                qp_time = None
+            if qp_time is not None:  # pragma: no cover - initial query-param seed only
+                st.session_state[DECISION_STEP_KEY] = qp_time
+        st.session_state[DECISION_STEP_KEY] = _coerce_slider_value(
+            times,
+            st.session_state.get(DECISION_STEP_KEY),
+            prefer_last=False,
+        )
+        # Keep legacy alias for compatibility with saved states.
+        st.session_state["alloc_time_index"] = st.session_state[DECISION_STEP_KEY]
+        if len(times) <= 1:
+            t_sel = times[0]
+            st.session_state[DECISION_STEP_KEY] = t_sel
+            st.session_state["alloc_time_index"] = t_sel
+            st.caption(f"Decision step: {t_sel}")
+        else:
+            t_sel = st.select_slider("Decision step", options=times, key=DECISION_STEP_KEY)
+            st.session_state["alloc_time_index"] = t_sel
+            st.session_state["alloc_time_index"] = t_sel
+        st.query_params["alloc_time_index"] = str(t_sel)
+        alloc_step = (
+            alloc_df_view[alloc_df_view["time_index"] == t_sel]
+            if (not alloc_df_view.empty and "time_index" in alloc_df_view.columns)
+            else pd.DataFrame()
+        )
+        baseline_step = (
+            baseline_df_view[baseline_df_view["time_index"] == t_sel]
+            if (not baseline_df_view.empty and "time_index" in baseline_df_view.columns)
+            else pd.DataFrame()
+        )
+        t_for_positions = float(t_sel)
+        for df_step in (alloc_step, baseline_step):
+            if df_step is None or df_step.empty:
+                continue
+            time_col = "time_s" if "time_s" in df_step.columns else "t_now_s" if "t_now_s" in df_step.columns else None
+            if time_col is None:
+                continue
+            t_series = pd.to_numeric(df_step[time_col], errors="coerce").dropna()
+            if not t_series.empty:
+                t_for_positions = float(t_series.iloc[0])
+                break
+        if not alloc_step.empty:
+            st.caption("Routing allocations at this timestep")
+            st.dataframe(alloc_step)
+        if not baseline_step.empty:
+            st.caption("Baseline (ILP) allocations at this timestep")
+            st.dataframe(baseline_step)
+        if alloc_step.empty and baseline_step.empty:  # pragma: no cover - empty selected-timestep overlay
+            st.info("No allocations rows found for the selected timestep.")
+            return
+
+        positions_live = load_positions_at_time(traj_glob_clean, t_for_positions) if traj_glob_clean else pd.DataFrame()
+        if selected_node_set and not positions_live.empty and "flight_id" in positions_live.columns:
+            live_visible_nodes = set(selected_node_set)
+            live_visible_nodes.update(_allocation_visible_node_ids(alloc_step, baseline_step))
+            live_mask = positions_live["flight_id"].apply(
+                lambda value: any(candidate in live_visible_nodes for candidate in _candidate_node_ids(value))
+            )
+            positions_live = positions_live.loc[live_mask].copy()
+
+        if selected_pair is not None:
+            with st.expander("Demand timeline (selected demand)", expanded=True):
+                if not alloc_df_view.empty and "time_index" in alloc_df_view.columns:
+                    timeline = alloc_df_view.sort_values("time_index").copy()
+                    if "bearers" in timeline.columns:
+                        timeline["bearer_path"] = timeline["bearers"].apply(_bearer_path_label)
+                    else:  # pragma: no cover - fallback when allocation export omits bearer paths
+                        timeline["bearer_path"] = ""
+                    cols = [c for c in ["time_index", "bearer_path", "routed", "delivered_bandwidth", "latency"] if c in timeline.columns]
+                    st.caption("Allocations timeline")
+                    st.dataframe(timeline[cols], width="stretch")
+                    sig = timeline["bearer_path"].fillna("")
+                    sig_prev = sig.shift(1).fillna("")
+                    changed = (sig != sig_prev) & sig.ne("") & sig_prev.ne("")
+                    if changed.any():
+                        switch_times = timeline.loc[changed, "time_index"].tolist()
+                        st.info(f"Bearer switch detected at time indices: {', '.join(map(str, switch_times))}")
+
+                if not baseline_df_view.empty and "time_index" in baseline_df_view.columns:
+                    base_tl = baseline_df_view.sort_values("time_index").copy()
+                    if "bearers" in base_tl.columns:
+                        base_tl["bearer_path"] = base_tl["bearers"].apply(_bearer_path_label)
+                    else:  # pragma: no cover - fallback when baseline export omits bearer paths
+                        base_tl["bearer_path"] = ""
+                    cols = [c for c in ["time_index", "bearer_path", "routed", "delivered_bandwidth", "latency"] if c in base_tl.columns]
+                    st.caption("Baseline timeline")
+                    st.dataframe(base_tl[cols], width="stretch")
+
+        if not alloc_step.empty and not baseline_step.empty:
+            try:
+                merged = alloc_step.merge(
+                    baseline_step,
+                    on=["source", "destination", "time_index"],
+                    how="outer",
+                    suffixes=("_rl", "_ilp"),
+                )
+                if not merged.empty:
+                    merged["delivered_delta"] = merged.get("delivered_bandwidth_rl", np.nan) - merged.get("delivered_bandwidth_ilp", np.nan)
+                    st.caption("RL vs ILP (delta delivered_bandwidth)")
+                    st.dataframe(merged[["source", "destination", "time_index", "delivered_bandwidth_rl", "delivered_bandwidth_ilp", "delivered_delta"]])
+            except Exception:
+                st.info("Unable to compute RL vs ILP diff; showing raw tables instead.")
+
+        layers_live: list[Any] = []
+        if not positions_live.empty:
+            endpoint_roles = _allocation_endpoint_roles(alloc_step, baseline_step, focus_pair=selected_pair)
+            if not endpoint_roles and len(selected_node_ids) == 2:
+                src_id = _normalize_node_id_value(selected_node_ids[0])  # pragma: no cover - pair-only role hint fallback
+                dst_id = _normalize_node_id_value(selected_node_ids[1])  # pragma: no cover - pair-only role hint fallback
+                if src_id:  # pragma: no cover - fallback role hint for pair-only selection
+                    endpoint_roles[src_id] = "src"
+                if dst_id:  # pragma: no cover - fallback role hint for pair-only selection
+                    endpoint_roles[dst_id] = "dst"
+            nodes_layer_live = pdk.Layer(
+                "PointCloudLayer",
+                data=positions_live,
+                get_position="[long,lat,alt]",
+                get_color=[0, 128, 255, 160],
+                point_size=12,
+                elevation_scale=500,
+                auto_highlight=True,
+                pickable=True,
+            )
+            layers_live.append(nodes_layer_live)
+            layers_live.extend(_build_map_label_layers(positions_live, node_roles=endpoint_roles))
+        if not alloc_step.empty:
+            layers_live.extend(build_allocation_layers(alloc_step, positions_live))
+        if not baseline_step.empty:
+            layers_live.extend(build_allocation_layers(baseline_step, positions_live, color=[0, 180, 255]))
+        if layers_live:
+            view_state_live = pdk.ViewState(
+                longitude=positions_live["long"].mean() if not positions_live.empty else 0,
+                latitude=positions_live["lat"].mean() if not positions_live.empty else 0,
+                zoom=3,
+                pitch=45,
+                bearing=0,
+            )
+            st.pydeck_chart(
+                pdk.Deck(
+                    map_style="mapbox://styles/mapbox/light-v9",
+                    initial_view_state=view_state_live,
+                    layers=layers_live,
+                )
+            )
+        else:
+            if not traj_glob_clean:
+                st.info("No live overlay: select trajectory data (or provide a custom trajectory glob).")
+            else:
+                patterns = [p.strip() for p in re.split(r"[,\n;]+", traj_glob_clean) if p.strip()]
+                matched = []
+                for pattern in patterns:
+                    matched.extend(glob.glob(str(Path(pattern).expanduser())))
+                if not matched:
+                    st.info(
+                        "No node positions found: trajectory glob matched 0 files. "
+                        f"Example: `{traj_placeholder}`"
+                    )
+                else:
+                    st.info(
+                        "No node positions found for this timestep. "
+                        "Ensure trajectory files include `time_s` (or `t_now_s`) and `latitude/longitude` (or `lat/long`)."
+                    )
+
+        if selected_pair is not None or len(selected_node_set) == 2:
+            bearer_frames: list[pd.DataFrame] = []
+            if not alloc_df_nodes.empty:
+                bearer_frames.append(_selected_pair_bearer_timeline(alloc_df_nodes, selected_node_set, "RL", focus_pair=selected_pair))
+            if not baseline_df_nodes.empty:
+                bearer_frames.append(_selected_pair_bearer_timeline(baseline_df_nodes, selected_node_set, "ILP", focus_pair=selected_pair))
+            bearer_frames = [frame for frame in bearer_frames if not frame.empty]
+            if bearer_frames:
+                bearer_timeline = pd.concat(bearer_frames, ignore_index=True)
+                st.plotly_chart(_plot_selected_pair_bearer_timeline(bearer_timeline), width="stretch")
+            else:  # pragma: no cover - empty bearer timeline informational fallback
+                st.info("No bearer selections found for the selected pair.")
+
+            heatmap_node_ids: set[str] = set()
+            if selected_pair is not None:
+                heatmap_node_ids = {
+                    _normalize_node_id_value(selected_pair[0]),
+                    _normalize_node_id_value(selected_pair[1]),
+                }
+                heatmap_node_ids.discard("")
+            elif selected_node_set:
+                heatmap_node_ids = set(selected_node_set)
+
+            sat_heatmap_path = str(st.session_state.get("cloud_heatmap_sat_path", "")).strip()
+            if not sat_heatmap_path:
+                st.info("No SAT cloud heatmap path configured for plane sampling.")
+            else:
+                heatmap_plot_step_s = st.selectbox(
+                    "SAT cloud plot step (s)",
+                    options=[1, 60, 600],
+                    key=SAT_HEATMAP_STEP_KEY,
+                    help="Downsample the SAT cloud timeline for a lighter render while keeping the full trajectory history.",
+                )
+                time_samples = _decision_time_samples(alloc_df_view, baseline_df_view, times)
+                proxy_radius_cells = max(3, int(st.session_state.get("cloud_heatmap_stride", 25) or 25))
+                try:
+                    heatmap_timeline = _selected_nodes_heatmap_timeline(
+                        df_std,
+                        sat_heatmap_path,
+                        heatmap_node_ids,
+                        neighborhood_radius_cells=proxy_radius_cells,
+                    )
+                except Exception as exc:  # pragma: no cover - sampled heatmap fallback
+                    st.info(f"Unable to sample SAT heatmap values: {exc}")
+                    heatmap_timeline = pd.DataFrame()
+                if not heatmap_timeline.empty and heatmap_timeline["heatmap_value"].notna().any():
+                    heatmap_timeline = _downsample_heatmap_timeline(  # pragma: no cover - page-level plot path mirrors unit-tested helpers
+                        heatmap_timeline,
+                        int(heatmap_plot_step_s),
+                    )
+                    st.plotly_chart(  # pragma: no cover - page-level plotting mirrors unit-tested timeline helper
+                        _plot_selected_nodes_heatmap_timeline(
+                            heatmap_timeline,
+                            "SAT",
+                            decision_markers=time_samples,
+                        ),
+                        width="stretch",
+                    )
+                else:
+                    st.info("No SAT cloud heatmap samples found for the selected planes.")
+        elif selected_node_set:
+            st.caption("Select exactly two flights/nodes, or use Focus demand, to plot bearer switching over decision steps.")
+        else:
+            st.caption("Select exactly two flights/nodes in the sidebar to plot bearer switching over decision steps.")
+
+def main():
+    try:
+        page()
+    except RerunException:
+        # propagate Streamlit reruns
+        raise
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
+        import traceback
+        st.caption("Full traceback")
+        st.code(traceback.format_exc(), language="text")
+
+def update_var(var_key, widget_key):
+    st.session_state[var_key] = st.session_state[widget_key]
+
+def update_datadir(var_key, widget_key):
+    if "df_file" in st.session_state:
+        del st.session_state["df_file"]
+    if "csv_files" in st.session_state:
+        del st.session_state["csv_files"]
+    update_var(var_key, widget_key)
+
+if __name__ == "__main__":
+    main()

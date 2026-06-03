@@ -1,0 +1,101 @@
+# BSD 3-Clause License
+#
+# [License Text Remains Unchanged]
+#
+# (Include the full BSD 3-Clause License text here)
+
+"""
+Fireducks worker implementation.
+
+The :class:`FireducksWorker` bridges AGILab's worker lifecycle with the
+`fireducks` dataframe engine.  It extends :class:`PandasWorker` so that existing
+pipelines can progressively adopt FireDucks without rewriting the surrounding
+infrastructure.  Results returned from ``work_pool`` or passed to ``work_done``
+may be native FireDucks objects, pandas DataFrames, or any object exposing a
+``to_pandas``/``to_df`` conversion method.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+import pandas as pd
+
+try:  # pragma: no cover - optional dependency
+    import fireducks  # noqa: F401  # ty: ignore[unresolved-import]
+    _HAS_FIREDUCKS = True
+except ImportError:  # pragma: no cover - optional dependency
+    fireducks = None
+    _HAS_FIREDUCKS = False
+
+from agi_node.agi_dispatcher import BaseWorker
+from agi_node.pandas_worker import PandasWorker
+
+logger = logging.getLogger(__name__)
+FIREDUCKS_CONVERSION_EXCEPTIONS = (TypeError, ValueError)
+
+
+class FireducksWorker(BaseWorker):
+    """Worker harness for FireDucks-backed dataframe workloads."""
+
+    def __init__(self, *args, **kwargs) -> None:  # pragma: no cover - thin wrapper
+        if not _HAS_FIREDUCKS:
+            logger.warning(
+                "fireducks is not installed; FireducksWorker will fall back to pandas operations."
+            )
+        super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def _ensure_pandas(df: Any) -> pd.DataFrame | None:
+        """Normalise FireDucks results to a pandas DataFrame."""
+        if df is None:
+            return None
+
+        # FireDucks objects typically expose ``to_pandas`` or ``to_df``.
+        for attr in ("to_pandas", "to_df", "df"):
+            if hasattr(df, attr):
+                candidate = getattr(df, attr)
+                try:
+                    if callable(candidate):
+                        converted = candidate()
+                    else:
+                        converted = candidate
+                    return FireducksWorker._ensure_pandas(converted)
+                except FIREDUCKS_CONVERSION_EXCEPTIONS as exc:
+                    logger.debug("Failed to convert using %s: %s", attr, exc)
+
+        if isinstance(df, pd.DataFrame):
+            return df
+
+        # Fallback: try constructing a DataFrame directly.
+        try:
+            return pd.DataFrame(df)
+        except FIREDUCKS_CONVERSION_EXCEPTIONS as exc:
+            raise TypeError(
+                "FireducksWorker expected a FireDucks or pandas DataFrame compatible object"
+            ) from exc
+
+    def work_pool(self, x: Any = None) -> pd.DataFrame:
+        """Execute a single task and return a pandas DataFrame."""
+        logger.info("fireducks.work_pool")
+        result = self._actual_work_pool(x)  # ty: ignore[unresolved-attribute]
+        df = self._ensure_pandas(result)
+        return df if df is not None else pd.DataFrame()
+
+    def work_done(self, df: Any = None) -> None:
+        """Normalise the dataframe before delegating to pandas-style handling."""
+        df_pd = self._ensure_pandas(df)
+        if df_pd is None:
+            df_pd = pd.DataFrame()
+        PandasWorker.work_done(self, df_pd)  # ty: ignore[invalid-argument-type]
+
+    # Reuse PandasWorker orchestration so FireducksWorker mirrors BaseWorker direct subclasses.
+    def works(self, workers_plan: Any, workers_plan_metadata: Any) -> float:  # type: ignore[override]
+        return PandasWorker.works(self, workers_plan, workers_plan_metadata)  # ty: ignore[invalid-argument-type]
+
+    def _exec_multi_process(self, workers_plan: Any, workers_plan_metadata: Any) -> None:
+        PandasWorker._exec_multi_process(self, workers_plan, workers_plan_metadata)  # ty: ignore[invalid-argument-type]
+
+    def _exec_mono_process(self, workers_plan: Any, workers_plan_metadata: Any) -> None:
+        PandasWorker._exec_mono_process(self, workers_plan, workers_plan_metadata)  # ty: ignore[invalid-argument-type]

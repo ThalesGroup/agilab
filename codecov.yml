@@ -1,0 +1,48 @@
+flags:
+  agi-gui:
+    # App-layer surface only: Streamlit pages, apps-pages bundles, and orchestration/pipeline helpers.
+    # The README "agilab" badge is the repo-wide aggregate; this flag isolates the GUI/app layer.
+    paths:
+      - src/agilab/pages
+      - src/agilab/apps-pages
+      - src/agilab/orchestrate_cluster.py
+      - src/agilab/orchestrate_distribution.py
+      - src/agilab/orchestrate_execute.py
+      - src/agilab/orchestrate_services.py
+      - src/agilab/orchestrate_support.py
+      - src/agilab/pipeline_ai.py
+      - src/agilab/pipeline_editor.py
+      - src/agilab/pipeline_lab.py
+      - src/agilab/pipeline_openai.py
+      - src/agilab/pipeline_runtime.py
+      - src/agilab/pipeline_sidebar.py
+      - src/agilab/pipeline_steps.py
+      - src/agilab/pipeline_views.py
+  agi-env:
+    paths:
+      - src/agilab/core/agi-env
+  agi-node:
+    paths:
+      - src/agilab/core/agi-node
+  agi-cluster:
+    paths:
+      - src/agilab/core/agi-cluster
+  agi-core:
+    # Umbrella core stack: env + node + cluster + the thin meta-package.
+    paths:
+      - src/agilab/core/agi-env
+      - src/agilab/core/agi-node
+      - src/agilab/core/agi-cluster
+      - src/agilab/core/agi-core
+ignore:
+  - "**/test/**"
+  - "**/tests/**"
+  - "**/sitecustomize.py"
+  - "src/agilab/main_page.py"
+  - "src/agilab/agi_codex.py"
+  - "src/agilab/apps/install.py"
+  - "src/agilab/lab_run.py"
+  - "src/agilab/apps/__init__.py"
+  - "src/agilab/core/agi-cluster/build.py"
+  - "src/agilab/core/gen_app_script.py"
+  - "src/agilab/core/tools/test_kill.py"

@@ -1,0 +1,796 @@
+import os
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from types import SimpleNamespace
+
+import pytest
+
+from agi_cluster.agi_distributor import uv_source_support
+
+
+def test_envar_truthy_handles_common_inputs_and_failures():
+    assert uv_source_support.envar_truthy({"A": True}, "A") is True
+    assert uv_source_support.envar_truthy({"A": 1}, "A") is True
+    assert uv_source_support.envar_truthy({"A": 1.0}, "A") is True
+    assert uv_source_support.envar_truthy({"A": " yes "}, "A") is True
+    assert uv_source_support.envar_truthy({"A": "ON"}, "A") is True
+    assert uv_source_support.envar_truthy({"A": None}, "A") is False
+    assert uv_source_support.envar_truthy({"A": 2}, "A") is False
+    assert uv_source_support.envar_truthy({"A": "off"}, "A") is False
+    assert uv_source_support.envar_truthy({"A": float("nan")}, "A") is False
+
+    class _BrokenEnv:
+        def get(self, _key):
+            raise RuntimeError("boom")
+
+    assert uv_source_support.envar_truthy(_BrokenEnv(), "A") is False
+
+
+def test_envar_truthy_propagates_unexpected_lookup_bug():
+    class _BrokenEnv:
+        def get(self, _key):
+            raise ValueError("unexpected lookup bug")
+
+    with pytest.raises(ValueError, match="unexpected lookup bug"):
+        uv_source_support.envar_truthy(_BrokenEnv(), "A")
+
+
+def test_ensure_optional_extras_noop_when_extras_empty(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    uv_source_support.ensure_optional_extras(pyproject, set())
+    assert pyproject.exists() is False
+
+
+def test_ensure_optional_extras_creates_and_updates_table(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """
+[project]
+name = "demo"
+optional-dependencies = []
+""".strip(),
+        encoding="utf-8",
+    )
+
+    uv_source_support.ensure_optional_extras(pyproject, {"polars-worker", " ", "dag-worker"})
+    content = pyproject.read_text(encoding="utf-8")
+    assert "[project.optional-dependencies]" in content
+    assert "polars-worker = []" in content
+    assert "dag-worker = []" in content
+
+
+def test_ensure_optional_extras_bootstraps_missing_pyproject(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+
+    uv_source_support.ensure_optional_extras(pyproject, {"agent-worker"})
+
+    content = pyproject.read_text(encoding="utf-8")
+    assert "[project.optional-dependencies]" in content
+    assert "agent-worker = []" in content
+
+
+def test_rewrite_uv_sources_paths_rewrites_invalid_entries_and_logs(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src" / "worker"
+    dst_dir = tmp_path / "dst" / "worker"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    dst_dir.mkdir(parents=True, exist_ok=True)
+
+    src_deps = src_dir.parent / "deps"
+    (src_deps / "foo").mkdir(parents=True, exist_ok=True)
+    (src_deps / "bar").mkdir(parents=True, exist_ok=True)
+    (dst_dir / "keep-bar").mkdir(parents=True, exist_ok=True)
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dst_pyproject = dst_dir / "pyproject.toml"
+
+    src_pyproject.write_text(
+        """
+[tool.uv.sources]
+foo = { path = "../deps/foo" }
+bar = { path = "../deps/bar" }
+missing = { path = "../deps/missing" }
+blank = { path = "" }
+non_dict = "value"
+""".strip(),
+        encoding="utf-8",
+    )
+    dst_pyproject.write_text(
+        """
+[tool.uv.sources]
+foo = { path = "../bad/foo" }
+bar = { path = "keep-bar" }
+missing = { path = "../bad/missing" }
+blank = { path = "../bad/blank" }
+non_dict = { path = "../bad/non_dict" }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    logs = []
+    monkeypatch.setattr(
+        uv_source_support.logger,
+        "info",
+        lambda *args, **kwargs: logs.append(args),
+    )
+
+    uv_source_support.rewrite_uv_sources_paths_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dst_pyproject,
+        log_rewrites=True,
+    )
+
+    content = dst_pyproject.read_text(encoding="utf-8")
+    # uv requires POSIX separators inside ``tool.uv.sources`` paths.
+    expected_rel_foo = os.path.relpath(
+        (src_deps / "foo").resolve(strict=False), start=dst_dir
+    ).replace("\\", "/")
+    assert f'foo = {{ path = "{expected_rel_foo}" }}' in content
+    assert 'bar = { path = "keep-bar" }' in content
+    assert 'missing = { path = "../bad/missing" }' in content
+    assert any("Rewrote uv source" in str(entry[0]) for entry in logs if entry)
+
+
+def test_rewrite_uv_sources_paths_ignores_missing_files(tmp_path):
+    src_pyproject = tmp_path / "missing-src.toml"
+    dst_pyproject = tmp_path / "missing-dst.toml"
+    uv_source_support.rewrite_uv_sources_paths_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dst_pyproject,
+    )
+    assert src_pyproject.exists() is False
+    assert dst_pyproject.exists() is False
+
+
+def test_stage_uv_sources_for_copied_pyproject_stages_sources(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src" / "worker"
+    dst_dir = tmp_path / "dst"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    dst_dir.mkdir(parents=True, exist_ok=True)
+
+    src_deps = src_dir.parent / "deps"
+    (src_deps / "foo").mkdir(parents=True, exist_ok=True)
+    (src_deps / "foo" / "pyproject.toml").write_text("[project]\nname='foo'\n", encoding="utf-8")
+    (src_deps / "foo" / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (src_deps / "foo" / ".venv").mkdir(parents=True, exist_ok=True)
+    (src_deps / "foo" / ".venv" / "skip.txt").write_text("x", encoding="utf-8")
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dst_pyproject = dst_dir / "pyproject.toml"
+    src_pyproject.write_text(
+        """
+[tool.uv.sources]
+foo = { path = "../deps/foo" }
+""".strip(),
+        encoding="utf-8",
+    )
+    dst_pyproject.write_text(
+        """
+[tool.uv.sources]
+foo = { path = "../bad/foo" }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    logs = []
+    monkeypatch.setattr(
+        uv_source_support.logger,
+        "info",
+        lambda *args, **kwargs: logs.append(args),
+    )
+
+    staged_entries = uv_source_support.stage_uv_sources_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dst_pyproject,
+        stage_root=dst_dir,
+        log_rewrites=True,
+    )
+
+    staged_root = dst_dir / "_uv_sources"
+    staged_dep = staged_root / "foo"
+    assert staged_entries == [staged_root]
+    assert staged_dep.exists()
+    assert (staged_dep / "module.py").exists()
+    assert not (staged_dep / ".venv").exists()
+    assert 'foo = { path = "_uv_sources/foo" }' in dst_pyproject.read_text(encoding="utf-8")
+    assert any("Staged uv source" in str(entry[0]) for entry in logs if entry)
+
+
+def test_stage_uv_sources_for_copied_pyproject_stages_nested_sources(tmp_path):
+    src_dir = tmp_path / "src" / "worker"
+    dst_dir = tmp_path / "dst"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    dst_dir.mkdir(parents=True, exist_ok=True)
+
+    deps_dir = src_dir.parent / "deps"
+    trainer_dir = deps_dir / "sb3_trainer_project"
+    sat_dir = deps_dir / "sat_trajectory_project"
+    trainer_dir.mkdir(parents=True, exist_ok=True)
+    sat_dir.mkdir(parents=True, exist_ok=True)
+
+    (trainer_dir / "pyproject.toml").write_text(
+        """
+[project]
+name = "sb3_trainer_project"
+
+[tool.uv.sources."sat-trajectory-project"]
+path = "../sat_trajectory_project"
+""".strip(),
+        encoding="utf-8",
+    )
+    (trainer_dir / "trainer.py").write_text("TRAINER = 1\n", encoding="utf-8")
+    (sat_dir / "pyproject.toml").write_text("[project]\nname='sat_trajectory_project'\n", encoding="utf-8")
+    (sat_dir / "sat.py").write_text("SAT = 1\n", encoding="utf-8")
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dst_pyproject = dst_dir / "pyproject.toml"
+    src_pyproject.write_text(
+        """
+[tool.uv.sources]
+sb3_trainer_project = { path = "../deps/sb3_trainer_project" }
+""".strip(),
+        encoding="utf-8",
+    )
+    dst_pyproject.write_text(
+        """
+[tool.uv.sources]
+sb3_trainer_project = { path = "../bad/sb3_trainer_project" }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    staged_entries = uv_source_support.stage_uv_sources_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dst_pyproject,
+        stage_root=dst_dir,
+    )
+
+    staged_root = dst_dir / "_uv_sources"
+    staged_trainer = staged_root / "sb3_trainer_project"
+    staged_sat = staged_root / "sat-trajectory-project"
+
+    assert staged_entries == [staged_root]
+    assert staged_trainer.exists()
+    assert staged_sat.exists()
+    assert 'sb3_trainer_project = { path = "_uv_sources/sb3_trainer_project" }' in dst_pyproject.read_text(encoding="utf-8")
+    assert 'path = "../sat-trajectory-project"' in (staged_trainer / "pyproject.toml").read_text(encoding="utf-8")
+
+
+def test_rewrite_uv_sources_paths_for_copied_pyproject_rewrites_invalid_paths_and_keeps_valid_ones(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src"
+    dest_dir = tmp_path / "dest"
+    src_dir.mkdir()
+    dest_dir.mkdir()
+
+    rel_dep = src_dir / "deps" / "foo"
+    rel_dep.mkdir(parents=True)
+    abs_dep = tmp_path / "abs-dep"
+    abs_dep.mkdir()
+    valid_dest = dest_dir / "vendored" / "baz"
+    valid_dest.mkdir(parents=True)
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dest_pyproject = dest_dir / "pyproject.toml"
+    # TOML literal strings ('...') keep Windows backslashes intact.
+    src_pyproject.write_text(
+        f"""
+[tool.uv.sources]
+foo = {{ path = "deps/foo" }}
+bar = {{ path = '{abs_dep}' }}
+baz = {{ path = "deps/foo" }}
+skip_meta = 3
+blank = {{ path = "" }}
+missing = {{ path = "deps/missing" }}
+""".strip(),
+        encoding="utf-8",
+    )
+    dest_pyproject.write_text(
+        """
+[tool.uv.sources]
+foo = { path = "../broken/foo" }
+bar = { path = "../broken/bar" }
+baz = { path = "vendored/baz" }
+skip_meta = { path = "../ignored" }
+blank = { path = "../ignored-blank" }
+missing = { path = "../ignored-missing" }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    logs = []
+    monkeypatch.setattr(uv_source_support.logger, "info", lambda *args, **kwargs: logs.append(args))
+
+    uv_source_support.rewrite_uv_sources_paths_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dest_pyproject,
+        log_rewrites=True,
+    )
+
+    content = dest_pyproject.read_text(encoding="utf-8")
+    # uv requires POSIX separators inside ``tool.uv.sources`` paths.
+    expected_rel_bar = os.path.relpath(abs_dep, start=dest_dir).replace("\\", "/")
+    assert 'foo = { path = "../src/deps/foo" }' in content
+    assert f'bar = {{ path = "{expected_rel_bar}" }}' in content
+    assert 'baz = { path = "vendored/baz" }' in content
+    assert 'blank = { path = "../ignored-blank" }' in content
+    assert 'missing = { path = "../ignored-missing" }' in content
+    assert any("Rewrote uv source" in str(entry[0]) for entry in logs if entry)
+
+
+def test_rewrite_uv_sources_paths_for_copied_pyproject_handles_missing_files_and_relpath_failures(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src"
+    dest_dir = tmp_path / "dest"
+    src_dir.mkdir()
+    dest_dir.mkdir()
+    dep = src_dir / "dep"
+    dep.mkdir()
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dest_pyproject = dest_dir / "pyproject.toml"
+    src_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "dep" }\nnot_a_table = "skip"\n', encoding="utf-8")
+    dest_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "../old" }\nnot_a_table = { path = "../unchanged" }\n', encoding="utf-8")
+
+    monkeypatch.setattr(uv_source_support.os.path, "relpath", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("boom")))
+
+    uv_source_support.rewrite_uv_sources_paths_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dest_pyproject,
+    )
+
+    expected_path = str(dep.resolve(strict=False)).replace("\\", "/")
+    assert f'foo = {{ path = "{expected_path}" }}' in dest_pyproject.read_text(encoding="utf-8")
+    uv_source_support.rewrite_uv_sources_paths_for_copied_pyproject(
+        src_pyproject=tmp_path / "missing-src.toml",
+        dest_pyproject=dest_pyproject,
+    )
+
+
+def test_rewrite_uv_sources_paths_for_copied_pyproject_propagates_unexpected_relpath_bug(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src"
+    dest_dir = tmp_path / "dest"
+    src_dir.mkdir()
+    dest_dir.mkdir()
+    dep = src_dir / "dep"
+    dep.mkdir()
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dest_pyproject = dest_dir / "pyproject.toml"
+    src_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "dep" }\n', encoding="utf-8")
+    dest_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "../old" }\n', encoding="utf-8")
+
+    monkeypatch.setattr(uv_source_support.os.path, "relpath", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("unexpected relpath bug")))
+
+    with pytest.raises(RuntimeError, match="unexpected relpath bug"):
+        uv_source_support.rewrite_uv_sources_paths_for_copied_pyproject(
+            src_pyproject=src_pyproject,
+            dest_pyproject=dest_pyproject,
+        )
+
+
+def test_stage_uv_sources_for_copied_pyproject_falls_back_when_relpath_fails(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src"
+    dst_dir = tmp_path / "dst"
+    src_dir.mkdir()
+    dst_dir.mkdir()
+    dep = src_dir / "dep"
+    dep.mkdir()
+    (dep / "pyproject.toml").write_text("[project]\nname='dep'\n", encoding="utf-8")
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dest_pyproject = dst_dir / "pyproject.toml"
+    src_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "dep" }\n', encoding="utf-8")
+    dest_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "../old" }\n', encoding="utf-8")
+
+    monkeypatch.setattr(uv_source_support.os.path, "relpath", lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("boom")))
+
+    staged_entries = uv_source_support.stage_uv_sources_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dest_pyproject,
+        stage_root=dst_dir,
+    )
+
+    staged_target = dst_dir / "_uv_sources" / "foo"
+    assert staged_entries == [dst_dir / "_uv_sources"]
+    expected_staged = str(staged_target).replace("\\", "/")
+    assert f'foo = {{ path = "{expected_staged}" }}' in dest_pyproject.read_text(encoding="utf-8")
+
+
+def test_stage_uv_sources_for_copied_pyproject_propagates_unexpected_relpath_bug(tmp_path, monkeypatch):
+    src_dir = tmp_path / "src"
+    dst_dir = tmp_path / "dst"
+    src_dir.mkdir()
+    dst_dir.mkdir()
+    dep = src_dir / "dep"
+    dep.mkdir()
+    (dep / "pyproject.toml").write_text("[project]\nname='dep'\n", encoding="utf-8")
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dest_pyproject = dst_dir / "pyproject.toml"
+    src_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "dep" }\n', encoding="utf-8")
+    dest_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "../old" }\n', encoding="utf-8")
+
+    monkeypatch.setattr(uv_source_support.os.path, "relpath", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("unexpected relpath bug")))
+
+    with pytest.raises(RuntimeError, match="unexpected relpath bug"):
+        uv_source_support.stage_uv_sources_for_copied_pyproject(
+            src_pyproject=src_pyproject,
+            dest_pyproject=dest_pyproject,
+            stage_root=dst_dir,
+        )
+
+
+def test_copy_uv_source_tree_replaces_existing_file_destination(tmp_path):
+    source = tmp_path / "source.py"
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    destination = tmp_path / "staged" / "source.py"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("old\n", encoding="utf-8")
+
+    uv_source_support.copy_uv_source_tree(source, destination)
+
+    assert destination.read_text(encoding="utf-8") == "VALUE = 1\n"
+
+
+def test_missing_uv_source_paths_reports_unresolved_entries(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    (tmp_path / "_uv_sources" / "ok").mkdir(parents=True, exist_ok=True)
+    pyproject.write_text(
+        """
+[tool.uv.sources]
+ok = { path = "_uv_sources/ok" }
+missing = { path = "_uv_sources/missing" }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    missing = uv_source_support.missing_uv_source_paths(pyproject)
+    assert missing == [("missing", "_uv_sources/missing")]
+
+
+def test_missing_uv_source_paths_and_validation_cover_edge_cases(tmp_path):
+    assert uv_source_support.missing_uv_source_paths(tmp_path / "missing.toml") == []
+
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """
+[tool.uv.sources]
+a = { path = "_uv_sources/a" }
+b = { path = "_uv_sources/b" }
+c = { path = "_uv_sources/c" }
+d = { path = "_uv_sources/d" }
+e = { path = "_uv_sources/e" }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match=r"\+1 more"):
+        uv_source_support.validate_worker_uv_sources(pyproject)
+
+
+def test_validate_worker_uv_sources_raises_actionable_error(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """
+[tool.uv.sources]
+ilp_worker = { path = "../../PycharmProjects/thales_agilab/apps/ilp_project/src/ilp_worker" }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="stale or incomplete"):
+        uv_source_support.validate_worker_uv_sources(pyproject)
+
+
+def test_staged_uv_sources_pth_content_relative_for_local_paths(tmp_path):
+    site_packages = tmp_path / "wenv" / ".venv" / "lib" / "python3.13" / "site-packages"
+    uv_sources = tmp_path / "wenv" / "_uv_sources"
+    content = uv_source_support.staged_uv_sources_pth_content(site_packages, uv_sources)
+    assert content == "../../../../_uv_sources\n"
+
+
+def test_staged_uv_sources_pth_content_relative_for_remote_posix_paths():
+    site_packages = PurePosixPath("wenv/.venv/lib/python3.13/site-packages")
+    uv_sources = PurePosixPath("wenv/_uv_sources")
+    content = uv_source_support.staged_uv_sources_pth_content(site_packages, uv_sources)
+    assert content == "../../../../_uv_sources\n"
+
+
+def test_worker_site_packages_dir_and_pth_writer_branches(tmp_path):
+    windows_path = uv_source_support.worker_site_packages_dir(Path("worker"), "3.13", windows=True)
+    free_threaded = uv_source_support.worker_site_packages_dir(Path("worker"), "3.13t")
+    assert windows_path == Path("worker/.venv/Lib/site-packages")
+    assert free_threaded == Path("worker/.venv/lib/python3.13t/site-packages")
+
+    site_packages = tmp_path / "worker" / ".venv" / "lib" / "python3.13" / "site-packages"
+    site_packages.mkdir(parents=True, exist_ok=True)
+    pth_path = site_packages / "agilab_uv_sources.pth"
+    pth_path.write_text("stale\n", encoding="utf-8")
+
+    assert uv_source_support.write_staged_uv_sources_pth(site_packages, tmp_path / "missing") is None
+    assert not pth_path.exists()
+
+    uv_sources = tmp_path / "worker" / "_uv_sources"
+    uv_sources.mkdir(parents=True, exist_ok=True)
+    written = uv_source_support.write_staged_uv_sources_pth(site_packages, uv_sources)
+    assert written == pth_path
+    assert pth_path.read_text(encoding="utf-8").endswith("_uv_sources\n")
+
+
+def test_iter_local_uv_source_paths_handles_missing_invalid_and_absolute_entries(tmp_path):
+    assert uv_source_support._iter_local_uv_source_paths(tmp_path / "missing.toml") == []
+
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text("[tool.uv]\nsources = []\n", encoding="utf-8")
+    assert uv_source_support._iter_local_uv_source_paths(pyproject) == []
+
+    abs_dep = tmp_path / "abs-dep"
+    abs_dep.mkdir()
+    # TOML literal strings ('...') keep Windows backslashes intact instead of
+    # treating them as escape sequences.
+    pyproject.write_text(
+        f"""
+[tool.uv.sources]
+bad = "value"
+blank = {{ path = "" }}
+abs = {{ path = '{abs_dep}' }}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    assert uv_source_support._iter_local_uv_source_paths(pyproject) == [
+        ("abs", abs_dep.resolve(strict=False))
+    ]
+
+
+def test_rewrite_uv_sources_paths_handles_non_table_sources_and_noop_rewrites(tmp_path):
+    src_pyproject = tmp_path / "src.toml"
+    dst_pyproject = tmp_path / "dst.toml"
+    src_pyproject.write_text("[tool.uv]\nsources = []\n", encoding="utf-8")
+    dst_pyproject.write_text("[tool.uv.sources]\nfoo = { path = \"../old\" }\n", encoding="utf-8")
+
+    uv_source_support.rewrite_uv_sources_paths_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dst_pyproject,
+    )
+
+    existing_abs = tmp_path / "existing"
+    existing_abs.mkdir()
+    src_dep = tmp_path / "dep"
+    src_dep.mkdir()
+    # TOML literal strings ('...') keep Windows backslashes intact.
+    src_pyproject.write_text(
+        f"""
+[tool.uv.sources]
+foo = {{ path = '{src_dep}' }}
+bar = {{ path = '{src_dep}' }}
+""".strip(),
+        encoding="utf-8",
+    )
+    dst_pyproject.write_text(
+        f"""
+[tool.uv.sources]
+foo = "skip"
+bar = {{ path = '{existing_abs}' }}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    before = dst_pyproject.read_text(encoding="utf-8")
+    uv_source_support.rewrite_uv_sources_paths_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dst_pyproject,
+    )
+    assert dst_pyproject.read_text(encoding="utf-8") == before
+
+
+def test_copy_uv_source_tree_covers_existing_dir_and_missing_unlink(monkeypatch, tmp_path):
+    src_dir = tmp_path / "srcdir"
+    src_dir.mkdir()
+    (src_dir / "payload.txt").write_text("payload", encoding="utf-8")
+    dest_dir = tmp_path / "destdir"
+    dest_dir.mkdir()
+    (dest_dir / "old.txt").write_text("old", encoding="utf-8")
+
+    uv_source_support.copy_uv_source_tree(src_dir, dest_dir)
+    assert (dest_dir / "payload.txt").read_text(encoding="utf-8") == "payload"
+
+    source_file = tmp_path / "source.py"
+    source_file.write_text("VALUE = 1\n", encoding="utf-8")
+    destination = tmp_path / "staged" / "source.py"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("old\n", encoding="utf-8")
+
+    original_unlink = Path.unlink
+
+    def _fake_unlink(self, *args, **kwargs):
+        if self == destination:
+            raise FileNotFoundError(self)
+        return original_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", _fake_unlink)
+    uv_source_support.copy_uv_source_tree(source_file, destination)
+    assert destination.read_text(encoding="utf-8") == "VALUE = 1\n"
+
+
+def test_stage_uv_source_dependency_handles_seen_parse_failures_and_logging(tmp_path, monkeypatch):
+    stage_root = tmp_path / "stage"
+    src_no_pyproject = tmp_path / "dep-no-pyproject"
+    src_no_pyproject.mkdir()
+
+    staged = uv_source_support._stage_uv_source_dependency(
+        name="dep-no-pyproject",
+        src_path=src_no_pyproject,
+        stage_root=stage_root,
+    )
+    assert staged == stage_root / "dep-no-pyproject"
+    assert staged.exists()
+
+    seen = {("dep-no-pyproject", str(src_no_pyproject.resolve(strict=False)))}
+    assert (
+        uv_source_support._stage_uv_source_dependency(
+            name="dep-no-pyproject",
+            src_path=src_no_pyproject,
+            stage_root=stage_root,
+            seen=seen,
+        )
+        == staged
+    )
+
+    src_bad_parse = tmp_path / "dep-bad-parse"
+    src_bad_parse.mkdir()
+    (src_bad_parse / "pyproject.toml").write_text("[project]\nname='bad'\n", encoding="utf-8")
+    original_parse = uv_source_support.tomlkit.parse
+
+    def _fake_parse(text):
+        if text == "[project]\nname='bad'\n":
+            raise FileNotFoundError("missing staged file")
+        return original_parse(text)
+
+    monkeypatch.setattr(uv_source_support.tomlkit, "parse", _fake_parse)
+    assert (
+        uv_source_support._stage_uv_source_dependency(
+            name="dep-bad-parse",
+            src_path=src_bad_parse,
+            stage_root=stage_root,
+        )
+        == stage_root / "dep-bad-parse"
+    )
+
+    src_parent = tmp_path / "parent"
+    nested = tmp_path / "nested"
+    src_parent.mkdir()
+    nested.mkdir()
+    (nested / "pyproject.toml").write_text("[project]\nname='nested'\n", encoding="utf-8")
+    (src_parent / "pyproject.toml").write_text(
+        """
+[tool.uv.sources]
+nested = { path = "../nested" }
+""".strip(),
+        encoding="utf-8",
+    )
+    logs = []
+    monkeypatch.setattr(
+        uv_source_support.os.path,
+        "relpath",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("boom")),
+    )
+    uv_source_support._stage_uv_source_dependency(
+        name="parent",
+        src_path=src_parent,
+        stage_root=stage_root,
+        log_rewrites=True,
+        log=SimpleNamespace(info=lambda *args: logs.append(args)),
+    )
+    assert any("Staged uv source" in entry[0] for entry in logs)
+
+
+def test_stage_uv_sources_for_copied_pyproject_handles_missing_and_non_dict_dest_entries(tmp_path):
+    assert uv_source_support.stage_uv_sources_for_copied_pyproject(
+        src_pyproject=tmp_path / "missing-src.toml",
+        dest_pyproject=tmp_path / "missing-dst.toml",
+        stage_root=tmp_path,
+    ) == []
+
+    src_dir = tmp_path / "src"
+    dest_dir = tmp_path / "dst"
+    src_dir.mkdir()
+    dest_dir.mkdir()
+    dep = src_dir / "dep"
+    dep.mkdir()
+    (dep / "pyproject.toml").write_text("[project]\nname='dep'\n", encoding="utf-8")
+
+    src_pyproject = src_dir / "pyproject.toml"
+    dest_pyproject = dest_dir / "pyproject.toml"
+    src_pyproject.write_text('[tool.uv.sources]\nfoo = { path = "dep" }\n', encoding="utf-8")
+    dest_pyproject.write_text('[tool.uv.sources]\nfoo = "skip"\n', encoding="utf-8")
+
+    assert uv_source_support.stage_uv_sources_for_copied_pyproject(
+        src_pyproject=src_pyproject,
+        dest_pyproject=dest_pyproject,
+        stage_root=dest_dir,
+    ) == []
+
+
+def test_missing_uv_source_paths_skips_blank_non_dict_and_absolute_existing_entries(tmp_path):
+    existing = tmp_path / "existing"
+    existing.mkdir()
+    pyproject = tmp_path / "pyproject.toml"
+    # TOML literal strings ('...') keep Windows backslashes intact.
+    pyproject.write_text(
+        f"""
+[tool.uv.sources]
+bad = "value"
+blank = {{ path = "" }}
+abs = {{ path = '{existing}' }}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    assert uv_source_support.missing_uv_source_paths(pyproject) == []
+
+
+def test_staged_uv_sources_pth_content_uses_local_relpath_branch(monkeypatch, tmp_path):
+    site_packages = tmp_path / "site-packages"
+    uv_sources = tmp_path / "_uv_sources"
+    monkeypatch.setattr(uv_source_support.os.path, "relpath", lambda *_args, **_kwargs: "REL")
+
+    assert uv_source_support.staged_uv_sources_pth_content(site_packages, uv_sources) == "REL\n"
+
+
+def test_staged_uv_sources_pth_content_uses_real_local_relpath(tmp_path):
+    site_packages = tmp_path / "venv" / "site-packages"
+    uv_sources = tmp_path / "venv" / "_uv_sources"
+
+    assert uv_source_support.staged_uv_sources_pth_content(site_packages, uv_sources) == "../_uv_sources\n"
+
+
+def test_staged_uv_sources_pth_content_uses_non_posix_relpath_branch(monkeypatch):
+    monkeypatch.setattr(uv_source_support.os.path, "relpath", lambda *_args, **_kwargs: "WINREL")
+
+    assert (
+        uv_source_support.staged_uv_sources_pth_content(
+            PureWindowsPath("C:/site-packages"),
+            PureWindowsPath("C:/uv-sources"),
+        )
+        == "WINREL\n"
+    )
+
+
+def test_stage_uv_source_dependency_skips_non_mapping_nested_meta(tmp_path, monkeypatch):
+    src_dep = tmp_path / "dep"
+    src_dep.mkdir(parents=True, exist_ok=True)
+    nested_dep = tmp_path / "nested"
+    nested_dep.mkdir(parents=True, exist_ok=True)
+    (nested_dep / "pyproject.toml").write_text("[project]\nname='nested'\n", encoding="utf-8")
+
+    (src_dep / "pyproject.toml").write_text(
+        """
+[project]
+name = "dep"
+[tool.uv.sources]
+nested = { path = "../nested" }
+""".strip(),
+        encoding="utf-8",
+    )
+    stage_root = tmp_path / "stage"
+    stage_root.mkdir(parents=True, exist_ok=True)
+
+    def _fake_copy(src_path, dest_path):
+        dest_path.mkdir(parents=True, exist_ok=True)
+        (dest_path / "pyproject.toml").write_text(
+            """
+[project]
+name = "dep"
+[tool.uv.sources]
+nested = "value"
+""".strip(),
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr(uv_source_support, "copy_uv_source_tree", _fake_copy)
+
+    staged = uv_source_support._stage_uv_source_dependency(
+        name="dep",
+        src_path=src_dep,
+        stage_root=stage_root,
+    )
+
+    assert staged == stage_root / "dep"

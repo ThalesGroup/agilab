@@ -1,0 +1,706 @@
+from __future__ import annotations
+
+import tomllib
+from pathlib import Path
+import sys
+
+from packaging.markers import default_environment
+from packaging.requirements import Requirement
+from packaging.specifiers import SpecifierSet
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = REPO_ROOT / "src"
+SRC_PACKAGE = SRC_ROOT / "agilab"
+TOOLS_ROOT = REPO_ROOT / "tools"
+sys.path.insert(0, str(SRC_ROOT))
+sys.path.insert(0, str(TOOLS_ROOT))
+
+import agilab as _agilab_package  # noqa: E402
+
+if str(SRC_PACKAGE) not in _agilab_package.__path__:
+    _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
+
+from agilab.app_management.app_template_registry import discover_app_templates  # noqa: E402
+from package_split_contract import PACKAGE_NAMES, ROOT_EXTRA_INTERNAL_REQUIREMENTS  # noqa: E402
+
+
+def _load_pyproject(path: Path) -> dict:
+    return tomllib.loads(path.read_text(encoding="utf-8"))
+
+
+def _dependency_names(path: Path) -> set[str]:
+    data = _load_pyproject(path)
+    dependencies = data.get("project", {}).get("dependencies", [])
+    return {Requirement(dependency).name.lower() for dependency in dependencies}
+
+
+def _dependencies(path: Path) -> list[Requirement]:
+    data = _load_pyproject(path)
+    return [Requirement(dependency) for dependency in data.get("project", {}).get("dependencies", [])]
+
+
+def _runtime_dependencies(path: Path) -> list[Requirement]:
+    data = _load_pyproject(path)
+    project = data.get("project", {})
+    dependencies = list(project.get("dependencies", []))
+    for optional_dependencies in project.get("optional-dependencies", {}).values():
+        dependencies.extend(optional_dependencies)
+    return [Requirement(dependency) for dependency in dependencies]
+
+
+def _payload_dependency_pyprojects() -> list[Path]:
+    pyprojects = [
+        *(REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/apps-pages/templates").glob("*/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/src/*_worker/pyproject.toml"),
+        *(template.pyproject_path for template in discover_app_templates(REPO_ROOT / "src/agilab/apps/templates")),
+        *(REPO_ROOT / "src/agilab/lib").glob("agi-app-*/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/lib").glob("agi-app-*/src/*/project/*_project/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/lib").glob("agi-app-*/src/*/project/*_project/src/*_worker/pyproject.toml"),
+    ]
+    return sorted({pyproject for pyproject in pyprojects if "build" not in pyproject.parts})
+
+
+def _optional_dependency_names(path: Path, extra: str) -> set[str]:
+    data = _load_pyproject(path)
+    dependencies = data.get("project", {}).get("optional-dependencies", {}).get(extra, [])
+    return {Requirement(dependency).name.lower() for dependency in dependencies}
+
+
+def _optional_dependencies(path: Path, extra: str) -> list[Requirement]:
+    data = _load_pyproject(path)
+    return [Requirement(dependency) for dependency in data.get("project", {}).get("optional-dependencies", {}).get(extra, [])]
+
+
+def _has_version_floor(requirement: Requirement) -> bool:
+    return any(spec.operator in {">=", "~=", "=="} for spec in requirement.specifier)
+
+
+def _has_upper_bound(requirement: Requirement) -> bool:
+    return any(spec.operator in {"<", "<="} for spec in requirement.specifier)
+
+
+def _has_minimum_version(requirement: Requirement, minimum: str) -> bool:
+    minimum_version = tuple(int(part) for part in minimum.split("."))
+    for spec in requirement.specifier:
+        if spec.operator not in {">=", "~=", "=="}:
+            continue
+        version = tuple(int(part) for part in spec.version.split(".")[: len(minimum_version)])
+        if version >= minimum_version:
+            return True
+    return False
+
+
+def _is_internal_requirement(requirement: Requirement) -> bool:
+    name = requirement.name.lower().replace("_", "-")
+    return name == "agilab" or name.startswith("agi-")
+
+
+def _requires_python_floor(requires_python: str) -> tuple[int, int] | None:
+    floor: tuple[int, int] | None = None
+    for specifier in SpecifierSet(requires_python):
+        if specifier.operator not in {">=", "~=", "=="}:
+            continue
+        version = tuple(int(part) for part in specifier.version.split(".")[:2])
+        if len(version) != 2:
+            continue
+        if floor is None or version > floor:
+            floor = version
+    return floor
+
+
+def _marker_excludes_python_below(requirement: Requirement, floor: tuple[int, int]) -> bool:
+    if requirement.marker is None:
+        return False
+    major, minor = floor
+    if minor == 0:
+        major -= 1
+        minor = 99
+    else:
+        minor -= 1
+    env = default_environment()
+    env["python_version"] = f"{major}.{minor}"
+    env["python_full_version"] = f"{major}.{minor}.99"
+    return not requirement.marker.evaluate(env)
+
+
+def _project_pyprojects() -> list[Path]:
+    ignored_parts = {".venv", "build", "dist", "__pycache__"}
+    return [
+        REPO_ROOT / "pyproject.toml",
+        *[
+            path
+            for path in sorted(SRC_PACKAGE.rglob("pyproject.toml"))
+            if not ignored_parts.intersection(path.relative_to(SRC_PACKAGE).parts)
+        ],
+    ]
+
+
+def test_root_requires_python_matches_published_classifiers() -> None:
+    project = _load_pyproject(REPO_ROOT / "pyproject.toml")["project"]
+    classifiers = set(project.get("classifiers", []))
+    requires_python = SpecifierSet(project["requires-python"])
+
+    assert "3.13" in requires_python
+    assert "3.14" not in requires_python
+    assert "Programming Language :: Python :: 3.14" not in classifiers
+
+
+def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
+    deps = _dependency_names(REPO_ROOT / "pyproject.toml")
+
+    app_or_example_owned = {
+        *{
+            package
+            for extra, packages in ROOT_EXTRA_INTERNAL_REQUIREMENTS.items()
+            if extra != "dependencies"
+            for package in packages
+        },
+        "asyncssh",
+        "fastparquet",
+        "geojson",
+        "geopy",
+        "humanize",
+        "jupyter-ai",
+        "jupyterlab",
+        "keras",
+        "matplotlib",
+        "mlflow",
+        "mlx",
+        "mlx-lm",
+        "noise",
+        "numba",
+        "networkx",
+        "openai",
+        "plotly",
+        "polars",
+        "pulp",
+        "py7zr",
+        "scipy",
+        "seaborn",
+        "sgp4",
+        "simpy",
+        "skforecast",
+        "streamlit",
+        "tomli",
+        "tomli_w",
+    }
+    assert deps.isdisjoint(app_or_example_owned)
+
+    # Bare installs keep only the CLI shell and tiny Python 3.13 stdlib shims.
+    # Runtime packages are opt-in through the `core`, `ui`, or `examples` extras.
+    assert "agi-core" not in deps
+
+
+def test_root_runtime_dependencies_have_explicit_version_policy() -> None:
+    pyproject = REPO_ROOT / "pyproject.toml"
+    internal_exact_pins: set[str] = set()
+    violations: list[str] = []
+
+    for requirement in _dependencies(pyproject):
+        name = requirement.name.lower()
+        if name in internal_exact_pins:
+            if not any(spec.operator == "==" for spec in requirement.specifier):
+                violations.append(f"{requirement}: internal package must be exactly pinned")
+            continue
+        if not _has_version_floor(requirement):
+            violations.append(f"{requirement}: missing lower bound or compatible version floor")
+        if not _has_upper_bound(requirement):
+            violations.append(f"{requirement}: missing upper bound")
+
+    assert violations == []
+
+
+def test_internal_dependencies_do_not_broaden_python_support() -> None:
+    projects_by_name: dict[str, tuple[Path, str]] = {}
+    for pyproject in _project_pyprojects():
+        data = _load_pyproject(pyproject)
+        project = data.get("project", {})
+        name = str(project.get("name", "")).lower().replace("_", "-")
+        if name:
+            projects_by_name[name] = (pyproject, str(project.get("requires-python", "")))
+
+    violations: list[str] = []
+    for pyproject in _project_pyprojects():
+        data = _load_pyproject(pyproject)
+        project = data.get("project", {})
+        project_name = str(project.get("name", pyproject)).lower().replace("_", "-")
+        project_floor = _requires_python_floor(str(project.get("requires-python", ""))) or (0, 0)
+        dependencies = [
+            *project.get("dependencies", []),
+            *[
+                dependency
+                for extra_dependencies in project.get("optional-dependencies", {}).values()
+                for dependency in extra_dependencies
+            ],
+        ]
+        for dependency in dependencies:
+            requirement = Requirement(dependency)
+            dependency_name = requirement.name.lower().replace("_", "-")
+            internal = projects_by_name.get(dependency_name)
+            if internal is None:
+                continue
+            _internal_pyproject, dependency_requires_python = internal
+            dependency_floor = _requires_python_floor(dependency_requires_python) or (0, 0)
+            if dependency_floor <= project_floor:
+                continue
+            if _marker_excludes_python_below(requirement, dependency_floor):
+                continue
+            violations.append(
+                f"{pyproject.relative_to(REPO_ROOT)}: {project_name} supports "
+                f"{project.get('requires-python')} but depends on {requirement} "
+                f"which requires {dependency_requires_python}"
+            )
+
+    assert violations == []
+
+
+def test_root_apple_silicon_dependencies_are_optional_and_platform_marked() -> None:
+    root_requirements = {requirement.name.lower(): requirement for requirement in _dependencies(REPO_ROOT / "pyproject.toml")}
+    assert {"mlx", "mlx-lm"}.isdisjoint(root_requirements)
+
+    requirements = {
+        requirement.name.lower(): requirement
+        for requirement in _optional_dependencies(REPO_ROOT / "pyproject.toml", "local-llm")
+    }
+
+    windows_env = default_environment()
+    windows_env.update(
+        {
+            "os_name": "nt",
+            "platform_machine": "AMD64",
+            "platform_system": "Windows",
+            "sys_platform": "win32",
+        }
+    )
+    linux_env = default_environment()
+    linux_env.update(
+        {
+            "os_name": "posix",
+            "platform_machine": "x86_64",
+            "platform_system": "Linux",
+            "sys_platform": "linux",
+        }
+    )
+    mac_arm_env = default_environment()
+    mac_arm_env.update(
+        {
+            "os_name": "posix",
+            "platform_machine": "arm64",
+            "platform_system": "Darwin",
+            "sys_platform": "darwin",
+        }
+    )
+
+    for name in ("mlx", "mlx-lm"):
+        requirement = requirements[name]
+        assert requirement.marker is not None
+        assert requirement.marker.evaluate(windows_env) is False
+        assert requirement.marker.evaluate(linux_env) is False
+        assert requirement.marker.evaluate(mac_arm_env) is True
+
+
+def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
+    pyproject = REPO_ROOT / "pyproject.toml"
+
+    assert _optional_dependency_names(pyproject, "ai") == {"openai"}
+    assert _optional_dependency_names(pyproject, "agents") == {"openai"}
+    assert _optional_dependency_names(pyproject, "core") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["core"])
+    assert set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["examples"]) | {"jupyterlab", "matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "examples")
+    assert _optional_dependency_names(pyproject, "pages") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["pages"]) | {"starlette"}
+    assert {"matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "viz")
+    assert set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["ui"]) | {"streamlit", "networkx", "pandas", "tomli_w"} <= _optional_dependency_names(pyproject, "ui")
+    assert {"mlflow"} <= _optional_dependency_names(pyproject, "mlflow") <= {
+        "mlflow",
+        "idna",
+        "starlette",
+    }
+    assert {"build", "pytest", "pytest-cov", "pip-audit", "cyclonedx-bom", "twine", "wheel"} <= _optional_dependency_names(
+        pyproject, "dev"
+    )
+    assert {"gpt-oss", "mlx", "mlx-lm", "transformers", "torch"} <= _optional_dependency_names(
+        pyproject, "local-llm"
+    )
+    assert _optional_dependency_names(pyproject, "offline") == _optional_dependency_names(pyproject, "local-llm")
+
+    optional_dependencies = _load_pyproject(pyproject).get("project", {}).get("optional-dependencies", {})
+    violations: list[str] = []
+    for extra_name, dependencies in optional_dependencies.items():
+        for dependency in dependencies:
+            requirement = Requirement(dependency)
+            if not _has_version_floor(requirement):
+                violations.append(f"{extra_name}: {requirement}")
+            if not _is_internal_requirement(requirement) and not _has_upper_bound(requirement):
+                violations.append(f"{extra_name}: {requirement} missing upper bound")
+
+    assert violations == []
+
+
+def test_root_starlette_profiles_keep_supply_chain_safe_floor() -> None:
+    pyproject = REPO_ROOT / "pyproject.toml"
+
+    for extra_name in ("ui", "pages", "examples", "mlflow", "local-llm", "offline"):
+        requirements = {
+            requirement.name.lower().replace("_", "-"): requirement
+            for requirement in _optional_dependencies(pyproject, extra_name)
+        }
+        assert "starlette" in requirements
+        assert _has_minimum_version(requirements["starlette"], "1.0.1")
+        assert _has_upper_bound(requirements["starlette"])
+
+
+def test_agi_gui_keeps_starlette_supply_chain_safe_floor() -> None:
+    requirements = {
+        requirement.name.lower().replace("_", "-"): requirement
+        for requirement in _dependencies(REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml")
+    }
+
+    assert "starlette" in requirements
+    assert _has_minimum_version(requirements["starlette"], "1.0.1")
+    assert _has_upper_bound(requirements["starlette"])
+
+
+def test_builtin_app_manifests_depend_on_core_packages_not_core_internals() -> None:
+    app_roots = sorted(
+        pyproject.parent
+        for pyproject in (REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/pyproject.toml")
+    )
+    assert app_roots
+
+    copied_core_internals = {
+        "astor",
+        "cython",
+        "dask",
+        "humanize",
+        "msgpack",
+        "numba",
+        "parso",
+        "pathspec",
+        "psutil",
+        "python-dotenv",
+        "scipy",
+        "setuptools",
+        "tomli",
+        "tomlkit",
+        "typing-inspection",
+        "wheel",
+    }
+
+    for app_root in app_roots:
+        pyproject = app_root / "pyproject.toml"
+        data = _load_pyproject(pyproject)
+        deps = _dependency_names(pyproject)
+
+        assert deps.isdisjoint(copied_core_internals), app_root.name
+        assert {"agi-env", "agi-node", "agi-cluster"} <= deps, app_root.name
+
+        sources = data.get("tool", {}).get("uv", {}).get("sources", {})
+        for package in ("agi-env", "agi-node", "agi-cluster"):
+            raw_path = sources.get(package, {}).get("path")
+            assert raw_path, f"{app_root.name}: missing local source for {package}"
+            assert (app_root / raw_path).resolve(strict=False).exists()
+
+
+def test_builtin_worker_manifests_have_resolvable_core_sources() -> None:
+    worker_pyprojects = sorted((REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/src/*_worker/pyproject.toml"))
+    assert worker_pyprojects
+    core_worker_pyprojects: list[Path] = []
+
+    for pyproject in worker_pyprojects:
+        data = _load_pyproject(pyproject)
+        deps = _dependency_names(pyproject)
+        if deps.isdisjoint({"agi-env", "agi-node"}):
+            continue
+        core_worker_pyprojects.append(pyproject)
+        assert {"agi-env", "agi-node"} <= deps, pyproject
+
+        sources = data.get("tool", {}).get("uv", {}).get("sources", {})
+        for package in ("agi-env", "agi-node"):
+            raw_path = sources.get(package, {}).get("path")
+            assert raw_path, f"{pyproject}: missing local source for {package}"
+            assert (pyproject.parent / raw_path).resolve(strict=False).exists(), f"{pyproject}: {package} -> {raw_path}"
+
+    assert core_worker_pyprojects
+
+
+def test_worker_manifests_do_not_depend_on_streamlit() -> None:
+    worker_pyprojects = sorted(
+        {
+            *(REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/src/*_worker/pyproject.toml"),
+            *(REPO_ROOT / "src/agilab/lib").glob("agi-app-*/src/*/project/*_project/src/*_worker/pyproject.toml"),
+        }
+    )
+    assert worker_pyprojects
+
+    violations = [
+        pyproject.relative_to(REPO_ROOT).as_posix()
+        for pyproject in worker_pyprojects
+        if "streamlit" in _dependency_names(pyproject)
+    ]
+
+    assert violations == []
+
+
+def test_streamlit_runtime_allows_validated_latest_1x() -> None:
+    """Streamlit runtime stays inside the currently validated latest 1.x window."""
+    pyprojects = [
+        REPO_ROOT / "pyproject.toml",
+        *(REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/apps-pages/templates").glob("*/pyproject.toml"),
+        *(REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/pyproject.toml"),
+        *(template.pyproject_path for template in discover_app_templates(REPO_ROOT / "src/agilab/apps/templates")),
+        REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml",
+        REPO_ROOT / "src/agilab/lib/agi-pages/pyproject.toml",
+        *(
+            REPO_ROOT / "src/agilab/lib"
+        ).glob("agi-app-*/src/*/project/*_project/pyproject.toml"),
+    ]
+    violations: list[str] = []
+
+    for pyproject in sorted(set(pyprojects)):
+        data = _load_pyproject(pyproject)
+        dependency_groups = [
+            data.get("project", {}).get("dependencies", []),
+            *data.get("project", {}).get("optional-dependencies", {}).values(),
+        ]
+        for dependency_group in dependency_groups:
+            for dependency in dependency_group:
+                requirement = Requirement(dependency)
+                if requirement.name.lower() != "streamlit":
+                    continue
+                specifier_text = str(requirement.specifier)
+                if ">=1.58" not in specifier_text or "<2" not in specifier_text:
+                    violations.append(f"{pyproject.relative_to(REPO_ROOT)}: {requirement}")
+
+    assert violations == []
+
+
+def test_shared_core_runtime_dependencies_are_not_copied_meta_stacks() -> None:
+    stale_by_manifest = {
+        "src/agilab/core/agi-env/pyproject.toml": {
+            "astor",
+            "humanize",
+            "numba",
+            "setuptools",
+        },
+        "src/agilab/core/agi-node/pyproject.toml": {
+            "dask",
+            "msgpack",
+            "numba",
+            "python-dotenv",
+            "scikit-learn",
+            "scipy",
+            "tomli",
+            "typing-inspection",
+            "wheel",
+        },
+        "src/agilab/core/agi-cluster/pyproject.toml": {
+            "astor",
+            "cython",
+            "jupyter",
+            "msgpack",
+            "mypy",
+            "numba",
+            "parso",
+            "pathspec",
+            "pydantic",
+            "py7zr",
+            "python-dotenv",
+            "requests",
+            "scipy",
+            "setuptools",
+            "tomli",
+            "typing-inspection",
+            "urllib3",
+            "wheel",
+        },
+    }
+
+    for relative_path, stale_names in stale_by_manifest.items():
+        deps = _dependency_names(REPO_ROOT / relative_path)
+        assert deps.isdisjoint(stale_names), relative_path
+
+    assert {"agi-env", "cython", "humanize", "numpy", "pandas", "polars", "psutil"} <= _dependency_names(
+        REPO_ROOT / "src/agilab/core/agi-node/pyproject.toml"
+    )
+    assert {
+        "agi-env",
+        "agi-node",
+        "asyncssh",
+        "dask",
+        "humanize",
+        "numpy",
+        "packaging",
+        "polars",
+        "psutil",
+        "scikit-learn",
+        "tomlkit",
+    } <= _dependency_names(REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml")
+
+
+def test_agi_gui_uses_native_streamlit_dialogs_and_declares_only_used_ui_runtime() -> None:
+    deps = _dependency_names(REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml")
+
+    assert {"agi-env", "streamlit", "streamlit_code_editor", "watchdog"} <= deps
+    assert deps.isdisjoint({"gitpython", "streamlit-modal", "streamlit_extras"})
+
+
+def test_app_pages_importing_agi_env_declare_runtime_pair() -> None:
+    violations: list[str] = []
+
+    for pyproject in sorted((REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml")):
+        source_dir = pyproject.parent / "src"
+        if not source_dir.exists():
+            continue
+        imports_agi_env = any(
+            "from agi_env" in path.read_text(encoding="utf-8", errors="ignore")
+            or "import agi_env" in path.read_text(encoding="utf-8", errors="ignore")
+            for path in sorted(source_dir.rglob("*.py"))
+        )
+        if not imports_agi_env:
+            continue
+
+        dependencies = _dependency_names(pyproject)
+        sources = set(_load_pyproject(pyproject).get("tool", {}).get("uv", {}).get("sources", {}))
+        missing_dependencies = {"agi-env", "agi-node"} - dependencies
+        missing_sources = {"agi-env", "agi-node"} - sources
+        if missing_dependencies or missing_sources:
+            relative = pyproject.relative_to(REPO_ROOT).as_posix()
+            violations.append(
+                f"{relative}: missing dependencies={sorted(missing_dependencies)} "
+                f"sources={sorted(missing_sources)}"
+            )
+
+    assert violations == []
+
+
+def test_app_templates_keep_dependency_lists_app_local() -> None:
+    templates = discover_app_templates(REPO_ROOT / "src/agilab/apps/templates").templates
+    assert templates
+
+    stale_template_deps = {
+        "cython",
+        "dask",
+        "geopy",
+        "humanize",
+        "ipython",
+        "numpy",
+        "parso",
+        "psutil",
+        "python-dotenv",
+        "requests",
+        "setuptools",
+    }
+
+    for template in templates:
+        deps = _dependency_names(template.pyproject_path)
+        assert deps.isdisjoint(stale_template_deps), template.name
+        assert {"pydantic", "streamlit"} <= deps, template.name
+
+
+def test_non_core_app_manifests_avoid_exact_pins_except_known_runtime_caps() -> None:
+    app_pyprojects = _payload_dependency_pyprojects()
+    allowed_exact_pins: dict[str, set[str]] = {}
+    internal_packages = {name.lower() for name in PACKAGE_NAMES}
+
+    violations: list[str] = []
+    for pyproject in sorted(app_pyprojects):
+        data = _load_pyproject(pyproject)
+        relative_path = pyproject.relative_to(REPO_ROOT).as_posix()
+        allowed = allowed_exact_pins.get(relative_path, set())
+        for dependency in data.get("project", {}).get("dependencies", []):
+            requirement = Requirement(dependency)
+            if requirement.name.lower() in allowed:
+                continue
+            if requirement.name.lower() in internal_packages:
+                continue
+            if any(spec.operator == "==" for spec in requirement.specifier):
+                violations.append(f"{relative_path}: {dependency}")
+
+    assert violations == []
+
+
+def test_app_page_payload_dependencies_have_bounded_runtime_windows() -> None:
+    violations: list[str] = []
+
+    for pyproject in _payload_dependency_pyprojects():
+        relative_path = pyproject.relative_to(REPO_ROOT).as_posix()
+        for requirement in _runtime_dependencies(pyproject):
+            if _is_internal_requirement(requirement):
+                continue
+            if not _has_version_floor(requirement):
+                violations.append(f"{relative_path}: {requirement} missing lower bound")
+            if not _has_upper_bound(requirement):
+                violations.append(f"{relative_path}: {requirement} missing upper bound")
+
+    assert violations == []
+
+
+def test_shared_core_third_party_dependencies_avoid_exact_runtime_pins() -> None:
+    pyprojects = [
+        REPO_ROOT / "src/agilab/core/agi-env/pyproject.toml",
+        REPO_ROOT / "src/agilab/core/agi-node/pyproject.toml",
+        REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml",
+    ]
+    internal_packages = {"agi-env", "agi-node", "agi-cluster"}
+
+    violations: list[str] = []
+    for pyproject in pyprojects:
+        relative_path = pyproject.relative_to(REPO_ROOT).as_posix()
+        for requirement in _dependencies(pyproject):
+            if requirement.name.lower() in internal_packages:
+                continue
+            if any(spec.operator == "==" for spec in requirement.specifier):
+                violations.append(f"{relative_path}: {requirement}")
+
+    assert violations == []
+
+
+def test_shared_core_third_party_dependencies_have_bounded_runtime_windows() -> None:
+    pyprojects = [
+        REPO_ROOT / "src/agilab/core/agi-env/pyproject.toml",
+        REPO_ROOT / "src/agilab/core/agi-node/pyproject.toml",
+        REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml",
+    ]
+
+    violations: list[str] = []
+    for pyproject in pyprojects:
+        relative_path = pyproject.relative_to(REPO_ROOT).as_posix()
+        for requirement in _dependencies(pyproject):
+            if _is_internal_requirement(requirement):
+                continue
+            if not _has_version_floor(requirement):
+                violations.append(f"{relative_path}: {requirement} missing lower bound")
+            if not _has_upper_bound(requirement):
+                violations.append(f"{relative_path}: {requirement} missing upper bound")
+
+    assert violations == []
+
+
+def test_stale_or_component_ui_dependencies_are_bounded() -> None:
+    checked = {
+        "src/agilab/lib/agi-gui/pyproject.toml": {"streamlit_code_editor", "watchdog"},
+        "src/agilab/apps-pages/view_barycentric/pyproject.toml": {"barviz", "scikit-learn", "sqlalchemy"},
+        "src/agilab/apps-pages/view_autoencoder_latentspace/pyproject.toml": {
+            "barviz",
+            "keras",
+            "scikit-learn",
+            "sqlalchemy",
+        },
+    }
+
+    violations: list[str] = []
+    for relative_path, requirement_names in checked.items():
+        requirements = {requirement.name.lower(): requirement for requirement in _dependencies(REPO_ROOT / relative_path)}
+        missing = requirement_names - set(requirements)
+        if missing:
+            violations.append(f"{relative_path}: missing expected dependencies {sorted(missing)}")
+            continue
+        for requirement_name in sorted(requirement_names):
+            requirement = requirements[requirement_name]
+            if not _has_version_floor(requirement) or not _has_upper_bound(requirement):
+                violations.append(f"{relative_path}: {requirement} must have lower and upper bounds")
+
+    assert violations == []

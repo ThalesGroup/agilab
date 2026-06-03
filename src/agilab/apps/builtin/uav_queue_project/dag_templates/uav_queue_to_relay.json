@@ -1,0 +1,90 @@
+{
+  "schema": "agilab.multi_app_dag.v1",
+  "dag_id": "uav-queue-to-relay-template",
+  "label": "UAV queue to relay",
+  "description": "App-owned DAG template that runs the UAV queue app first, then hands queue metrics to the relay queue app.",
+  "execution": {
+    "mode": "sequential_dependency_order",
+    "runner_status": "controlled_real_stage_execution",
+    "adapter": "uav_queue_to_relay_controlled",
+    "stage_bindings": {
+      "queue_baseline": "uav_queue_project.queue_baseline",
+      "relay_followup": "uav_relay_queue_project.relay_followup"
+    }
+  },
+  "nodes": [
+    {
+      "id": "queue_baseline",
+      "app": "uav_queue_project",
+      "execution": {
+        "entrypoint": "uav_queue_project.queue_baseline",
+        "params": {
+          "files": "*.json",
+          "nfile": 1,
+          "routing_policy": "shortest_path",
+          "sim_time_s": 30.0,
+          "sampling_interval_s": 0.5,
+          "source_rate_pps": 14.0,
+          "queue_weight": 2.5,
+          "random_seed": 2026
+        },
+        "stages": [],
+        "data_in": "uav_queue/scenarios",
+        "data_out": "uav_queue/results",
+        "reset_target": false
+      },
+      "purpose": "Run the base UAV queue scenario and produce queue summary metrics.",
+      "produces": [
+        {
+          "id": "queue_metrics",
+          "kind": "summary_metrics",
+          "path": "queue_analysis/uav_queue_summary_metrics.json"
+        }
+      ]
+    },
+    {
+      "id": "relay_followup",
+      "app": "uav_relay_queue_project",
+      "execution": {
+        "entrypoint": "uav_relay_queue_project.relay_followup",
+        "params": {
+          "files": "*.json",
+          "nfile": 1,
+          "routing_policy": "shortest_path",
+          "sim_time_s": 30.0,
+          "sampling_interval_s": 0.5,
+          "source_rate_pps": 14.0,
+          "queue_weight": 2.5,
+          "random_seed": 2026
+        },
+        "stages": [],
+        "data_in": "uav_relay_queue/scenarios",
+        "data_out": "uav_relay_queue/results",
+        "reset_target": false
+      },
+      "purpose": "Run the relay queue scenario using queue metrics as upstream context.",
+      "consumes": [
+        {
+          "id": "queue_metrics",
+          "kind": "summary_metrics",
+          "path": "queue_analysis/uav_queue_summary_metrics.json"
+        }
+      ],
+      "produces": [
+        {
+          "id": "relay_metrics",
+          "kind": "summary_metrics",
+          "path": "queue_analysis/uav_relay_queue_summary_metrics.json"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "queue_baseline",
+      "to": "relay_followup",
+      "artifact": "queue_metrics",
+      "handoff": "Use base queue summary metrics as the relay scenario context."
+    }
+  ]
+}

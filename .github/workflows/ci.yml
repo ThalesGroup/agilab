@@ -1,0 +1,282 @@
+name: repo-guardrails
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  local-only-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Guard against committed docs/html artifacts
+        run: |
+          set -euo pipefail
+          tracked="$(git ls-files docs/html | wc -l | tr -d ' ')"
+          if [ "${tracked}" != "0" ]; then
+            echo "docs/html artifacts must not be tracked in git."
+            git ls-files docs/html
+            exit 1
+          fi
+
+      - name: Fail if symlinks are present in repo
+        run: |
+          set -euo pipefail
+          symlinks="$(git ls-files -s | awk '$1 ~ /^120000/ {print $4}')"
+          if [ -n "$symlinks" ]; then
+            echo "Symlinks detected in repository (tracked files):" >&2
+            echo "$symlinks" >&2
+            echo "Please remove these symlinks or replace with real files." >&2
+            exit 1
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.10.7"
+
+      - name: Compile critical Python entrypoints
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            src/agilab/main_page.py \
+            src/agilab/first_proof_cli.py \
+            src/agilab/orchestrate_execute.py \
+            src/agilab/pipeline_openai.py \
+            tools/agilab_audit.py \
+            tools/agilab_web_robot.py \
+            tools/newcomer_first_proof.py \
+            tools/first_launch_robot.py \
+            tools/security_hygiene_report.py \
+            tools/install_release_proof_package.py \
+            tools/public_proof_scenarios.py \
+            tools/release_proof_report.py \
+            tools/pypi_project_preflight.py \
+            tools/release_status.py \
+            tools/release_handoff.py \
+            tools/release_handoff_guard.py \
+            tools/app_contract_matrix.py \
+            tools/ui_robot_evidence.py \
+            tools/ui_robot_matrix_aggregate.py \
+            tools/pypi_publish.py
+
+      - name: Validate release proof manifest
+        run: |
+          set -euo pipefail
+          python tools/release_proof_report.py --check --compact
+
+      - name: Validate release handoff freshness
+        run: |
+          set -euo pipefail
+          python tools/release_handoff_guard.py --compact
+
+      - name: Validate release proof GitHub run evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python tools/release_proof_report.py --check --check-github-runs --compact
+
+      - name: Validate first-proof command contract
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          python src/agilab/first_proof_cli.py --print-only --json
+
+      - name: Validate public proof scenarios
+        run: |
+          set -euo pipefail
+          python tools/public_proof_scenarios.py --compact
+
+      - name: Validate Ruff local tool availability
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run --extra dev ruff --version
+
+      - name: Validate app contract matrix
+        run: |
+          set -euo pipefail
+          python tools/app_contract_matrix.py --output app-contract-matrix.json --quiet
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("app-contract-matrix.json").read_text(encoding="utf-8"))
+          print(f"app contracts: {report['summary']['passed']}/{report['summary']['check_count']} passed")
+          PY
+
+      - name: Validate first-launch robot
+        env:
+          AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
+          OPENAI_API_KEY: "sk-test-first-launch-000000000000"
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run --extra ui python tools/first_launch_robot.py --json --output first-launch-robot.json
+
+      - name: Install Playwright browser for frontend smoke
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run --with playwright python -m playwright install --with-deps chromium
+
+      - name: Validate Streamlit frontend smoke
+        env:
+          AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
+          OPENAI_API_KEY: "sk-test-frontend-smoke-000000000000"
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run --extra ui --with playwright python tools/agilab_web_robot.py \
+            --frontend-smoke-only \
+            --timeout 45 \
+            --target-seconds 45 \
+            --json \
+            --screenshot-dir frontend-smoke-screenshots \
+            | tee frontend-smoke-robot.json
+
+      - name: Validate security hygiene report
+        run: |
+          set -euo pipefail
+          python tools/security_hygiene_report.py --output security-hygiene.json --compact
+
+      - name: Upload local proof artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: local-proof-artifacts
+          path: |
+            first-launch-robot.json
+            app-contract-matrix.json
+            frontend-smoke-robot.json
+            frontend-smoke-screenshots/**
+            security-hygiene.json
+          if-no-files-found: ignore
+
+      - name: Confirm extended test policy
+        run: |
+          echo "GitHub Actions CI runs repository guardrails plus a minimal first-proof command contract."
+          echo "Run local workflow parity profiles before push for full test coverage."
+
+  clean-public-install:
+    name: clean-public-install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Check release package is installable from PyPI
+        id: release-package
+        shell: bash
+        run: |
+          set -euo pipefail
+          if python tools/install_release_proof_package.py --check-installable-only; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "available=false" >> "$GITHUB_OUTPUT"
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" || "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "ERROR: release-proof package is not installable from PyPI during a strict ${GITHUB_EVENT_NAME} guardrail run." >&2
+            exit 1
+          fi
+          echo "::notice::Release-proof package is not installable from PyPI yet; skipping clean public install for this ${GITHUB_EVENT_NAME} run to avoid racing the tag publish workflow or stale split-package dependencies."
+
+      - name: Install released AGILAB package
+        if: steps.release-package.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python tools/install_release_proof_package.py --retries 20 --delay-seconds 15
+
+      - name: Validate clean package first proof
+        if: steps.release-package.outputs.available == 'true'
+        shell: bash
+        env:
+          AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
+          OPENAI_API_KEY: "sk-test-first-proof-000000000000"
+        run: |
+          set -euo pipefail
+          agilab first-proof --json --no-manifest --max-seconds 60 | tee first-proof.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          proof = json.loads(Path("first-proof.json").read_text(encoding="utf-8"))
+          if not proof.get("success"):
+              raise SystemExit("first-proof command failed")
+          if not proof.get("within_target"):
+              total = proof.get("total_duration_seconds")
+              target = proof.get("target_seconds")
+              raise SystemExit(f"first-proof exceeded runtime budget: {total}s > {target}s")
+          PY
+
+      - name: Upload first-proof artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: first-proof-${{ matrix.os }}
+          path: first-proof.json
+          if-no-files-found: ignore
+
+  public-demo-smoke:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Validate hosted Hugging Face demo
+        run: |
+          set -euo pipefail
+          python tools/hf_space_smoke.py --json --timeout 30 --target-seconds 30 | tee hf-space-smoke.json
+
+      - name: Attach hosted runtime proof to public scenarios
+        run: |
+          set -euo pipefail
+          python tools/public_proof_scenarios.py \
+            --hf-smoke-json hf-space-smoke.json \
+            --output public-proof-scenarios.json \
+            --compact
+
+      - name: Upload hosted proof artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: hosted-proof-artifacts
+          path: |
+            hf-space-smoke.json
+            public-proof-scenarios.json
+          if-no-files-found: ignore

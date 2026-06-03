@@ -1,0 +1,278 @@
+from __future__ import annotations
+
+import json
+import os
+import pwd
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _run_widget_robot(command: list[str]) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    browsers_path = _playwright_browsers_path()
+    if browsers_path:
+        env["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+    return subprocess.run(
+        command,
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+
+
+def _assert_widget_robot_success(completed: subprocess.CompletedProcess[str]) -> dict:
+    if "playwright install" in completed.stdout.lower():
+        pytest.skip("Playwright browser binaries are not installed; run `uv run --with playwright playwright install chromium`")
+    assert completed.returncode == 0, completed.stdout
+    payload = json.loads(completed.stdout)
+    assert payload["success"] is True
+    assert payload["failed_count"] == 0
+    assert payload["skipped_count"] == 0
+    assert payload["app_count"] >= 1
+    assert payload["page_count"] >= 1
+    assert payload["widget_count"] >= payload["interacted_count"]
+    assert payload["interacted_count"] > 0
+    return payload
+
+
+def _playwright_browsers_path() -> str | None:
+    configured = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+    if configured:
+        return configured
+    real_home = Path(pwd.getpwuid(os.getuid()).pw_dir)
+    candidates = [
+        real_home / "Library" / "Caches" / "ms-playwright",
+        real_home / ".cache" / "ms-playwright",
+        real_home / "AppData" / "Local" / "ms-playwright",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
+@pytest.mark.ui_robot
+def test_full_public_widget_robot_sweep() -> None:
+    """Opt-in pytest entrypoint for the browser widget robot.
+
+    Run with:
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    cd "$REPO_ROOT"
+    AGILAB_RUN_FULL_UI_ROBOT=1 uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot "$REPO_ROOT/test/test_agilab_widget_robot_full.py"
+
+    Set AGILAB_WIDGET_ROBOT_URL=https://huggingface.co/spaces/jpmorard/agilab to run the same robot against the public HF Space.
+    """
+
+    if os.environ.get("AGILAB_RUN_FULL_UI_ROBOT") != "1":
+        pytest.skip("set AGILAB_RUN_FULL_UI_ROBOT=1 to run the full Playwright widget sweep")
+
+    apps = os.environ.get("AGILAB_WIDGET_ROBOT_APPS", "all")
+    pages = os.environ.get("AGILAB_WIDGET_ROBOT_PAGES", "all")
+    apps_pages = os.environ.get("AGILAB_WIDGET_ROBOT_APPS_PAGES", "configured")
+    target_seconds = os.environ.get("AGILAB_WIDGET_ROBOT_TARGET_SECONDS", "1800")
+    timeout = os.environ.get("AGILAB_WIDGET_ROBOT_TIMEOUT", "90")
+    widget_timeout = os.environ.get("AGILAB_WIDGET_ROBOT_WIDGET_TIMEOUT", "3")
+    action_timeout = os.environ.get("AGILAB_WIDGET_ROBOT_ACTION_TIMEOUT", "30")
+    action_button_policy = os.environ.get("AGILAB_WIDGET_ROBOT_ACTION_BUTTON_POLICY", "trial")
+    click_action_labels = os.environ.get("AGILAB_WIDGET_ROBOT_CLICK_ACTION_LABELS", "")
+    preselect_labels = os.environ.get("AGILAB_WIDGET_ROBOT_PRESELECT_LABELS", "")
+    missing_selected_action_policy = os.environ.get("AGILAB_WIDGET_ROBOT_MISSING_SELECTED_ACTION_POLICY", "fail")
+    runtime_isolation = os.environ.get("AGILAB_WIDGET_ROBOT_RUNTIME_ISOLATION", "isolated")
+    url = os.environ.get("AGILAB_WIDGET_ROBOT_URL")
+    active_app = os.environ.get("AGILAB_WIDGET_ROBOT_ACTIVE_APP")
+    remote_app_root = os.environ.get("AGILAB_WIDGET_ROBOT_REMOTE_APP_ROOT")
+
+    command = [
+        sys.executable,
+        str(REPO_ROOT / "tools/agilab_widget_robot.py"),
+        "--apps",
+        apps,
+        "--pages",
+        pages,
+        "--apps-pages",
+        apps_pages,
+        "--json",
+        "--timeout",
+        timeout,
+        "--widget-timeout",
+        widget_timeout,
+        "--target-seconds",
+        target_seconds,
+        "--action-button-policy",
+        action_button_policy,
+        "--missing-selected-action-policy",
+        missing_selected_action_policy,
+        "--action-timeout",
+        action_timeout,
+        "--runtime-isolation",
+        runtime_isolation,
+        "--quiet-progress",
+    ]
+    if click_action_labels:
+        command.extend(["--click-action-labels", click_action_labels])
+    if preselect_labels:
+        command.extend(["--preselect-labels", preselect_labels])
+    if url:
+        command.extend(["--url", url])
+    if active_app:
+        command.extend(["--active-app", active_app])
+    if remote_app_root:
+        command.extend(["--remote-app-root", remote_app_root])
+
+    _assert_widget_robot_success(_run_widget_robot(command))
+
+
+@pytest.mark.ui_robot
+def test_full_public_orchestrate_widget_robot_sweep() -> None:
+    """Opt-in ORCHESTRATE sweep across every built-in app.
+
+    Run with:
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    cd "$REPO_ROOT"
+    AGILAB_RUN_ORCHESTRATE_UI_ROBOT=1 uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot "$REPO_ROOT/test/test_agilab_widget_robot_full.py"
+    """
+
+    if os.environ.get("AGILAB_RUN_ORCHESTRATE_UI_ROBOT") != "1":
+        pytest.skip("set AGILAB_RUN_ORCHESTRATE_UI_ROBOT=1 to run the ORCHESTRATE Playwright widget sweep")
+
+    apps = os.environ.get("AGILAB_WIDGET_ROBOT_APPS", "all")
+    target_seconds = os.environ.get("AGILAB_WIDGET_ROBOT_TARGET_SECONDS", "1800")
+    timeout = os.environ.get("AGILAB_WIDGET_ROBOT_TIMEOUT", "90")
+    widget_timeout = os.environ.get("AGILAB_WIDGET_ROBOT_WIDGET_TIMEOUT", "3")
+    action_timeout = os.environ.get("AGILAB_WIDGET_ROBOT_ACTION_TIMEOUT", "180")
+    action_button_policy = os.environ.get("AGILAB_WIDGET_ROBOT_ACTION_BUTTON_POLICY", "click-selected")
+    click_action_labels = os.environ.get("AGILAB_WIDGET_ROBOT_CLICK_ACTION_LABELS", "CHECK distribute,Run -> Load -> Export")
+    preselect_labels = os.environ.get("AGILAB_WIDGET_ROBOT_PRESELECT_LABELS", "Run now")
+    missing_selected_action_policy = os.environ.get("AGILAB_WIDGET_ROBOT_MISSING_SELECTED_ACTION_POLICY", "ignore-absent")
+    runtime_isolation = os.environ.get("AGILAB_WIDGET_ROBOT_RUNTIME_ISOLATION", "current-home")
+    url = os.environ.get("AGILAB_WIDGET_ROBOT_URL")
+    active_app = os.environ.get("AGILAB_WIDGET_ROBOT_ACTIVE_APP")
+    remote_app_root = os.environ.get("AGILAB_WIDGET_ROBOT_REMOTE_APP_ROOT")
+
+    command = [
+        sys.executable,
+        str(REPO_ROOT / "tools/agilab_widget_robot.py"),
+        "--apps",
+        apps,
+        "--pages",
+        "ORCHESTRATE",
+        "--apps-pages",
+        "none",
+        "--json",
+        "--timeout",
+        timeout,
+        "--widget-timeout",
+        widget_timeout,
+        "--target-seconds",
+        target_seconds,
+        "--action-button-policy",
+        action_button_policy,
+        "--missing-selected-action-policy",
+        missing_selected_action_policy,
+        "--action-timeout",
+        action_timeout,
+        "--runtime-isolation",
+        runtime_isolation,
+        "--quiet-progress",
+    ]
+    if click_action_labels:
+        command.extend(["--click-action-labels", click_action_labels])
+    if preselect_labels:
+        command.extend(["--preselect-labels", preselect_labels])
+    if url:
+        command.extend(["--url", url])
+    if active_app:
+        command.extend(["--active-app", active_app])
+    if remote_app_root:
+        command.extend(["--remote-app-root", remote_app_root])
+
+    payload = _assert_widget_robot_success(_run_widget_robot(command))
+    assert all(page["page"] == "ORCHESTRATE" for page in payload["pages"])
+    if apps == "all" and not url:
+        expected_apps = {
+            path.name
+            for path in (REPO_ROOT / "src/agilab/apps/builtin").glob("*_project")
+            if path.is_dir()
+        }
+        actual_apps = {page["app"] for page in payload["pages"]}
+        assert expected_apps <= actual_apps
+
+
+@pytest.mark.ui_robot
+def test_pytorch_playground_orchestrate_screenshot_robot(tmp_path: Path) -> None:
+    """Opt-in browser evidence for the PyTorch playground ORCHESTRATE page.
+
+    Run with:
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    cd "$REPO_ROOT"
+    AGILAB_RUN_PYTORCH_PLAYGROUND_UI_ROBOT=1 uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot "$REPO_ROOT/test/test_agilab_widget_robot_full.py::test_pytorch_playground_orchestrate_screenshot_robot"
+    """
+
+    if os.environ.get("AGILAB_RUN_PYTORCH_PLAYGROUND_UI_ROBOT") != "1":
+        pytest.skip("set AGILAB_RUN_PYTORCH_PLAYGROUND_UI_ROBOT=1 to run the PyTorch playground screenshot robot")
+
+    screenshot_dir = tmp_path / "screenshots"
+    json_output = tmp_path / "pytorch-playground-orchestrate.json"
+    progress_log = tmp_path / "pytorch-playground-orchestrate.ndjson"
+    command = [
+        sys.executable,
+        str(REPO_ROOT / "tools/agilab_widget_robot.py"),
+        "--apps",
+        "pytorch_playground_project",
+        "--pages",
+        "ORCHESTRATE",
+        "--apps-pages",
+        "none",
+        "--json",
+        "--json-output",
+        str(json_output),
+        "--progress-log",
+        str(progress_log),
+        "--screenshot-dir",
+        str(screenshot_dir),
+        "--interaction-mode",
+        "actionability",
+        "--action-button-policy",
+        "trial",
+        "--combination-mode",
+        "off",
+        "--runtime-isolation",
+        os.environ.get("AGILAB_PYTORCH_PLAYGROUND_ROBOT_RUNTIME_ISOLATION", "current-home"),
+        "--success-screenshot",
+        "--browser-error-check",
+        "--layout-integrity-check",
+        "--timeout",
+        os.environ.get("AGILAB_PYTORCH_PLAYGROUND_ROBOT_TIMEOUT", "60"),
+        "--widget-timeout",
+        os.environ.get("AGILAB_PYTORCH_PLAYGROUND_ROBOT_WIDGET_TIMEOUT", "5"),
+        "--target-seconds",
+        os.environ.get("AGILAB_PYTORCH_PLAYGROUND_ROBOT_TARGET_SECONDS", "180"),
+        "--quiet-progress",
+    ]
+
+    completed = _run_widget_robot(command)
+    if "playwright install" in completed.stdout.lower() or "no module named playwright" in completed.stdout.lower():
+        pytest.skip("Playwright is not installed; run `uv run --with playwright python -m playwright install chromium`")
+    assert completed.returncode == 0, completed.stdout
+    payload = json.loads(completed.stdout)
+    assert payload["success"] is True
+    assert payload["failed_count"] == 0
+    assert payload["page_count"] == 1
+    page = payload["pages"][0]
+    assert page["app"] == "pytorch_playground_project"
+    assert page["page"] == "ORCHESTRATE"
+    assert page["status"] == "passed"
+    assert page["widget_count"] >= 3
+    screenshots = sorted(screenshot_dir.rglob("*.png"))
+    assert screenshots
+    assert (screenshot_dir / "screenshot_manifest.json").is_file()
+    assert json.loads(json_output.read_text(encoding="utf-8"))["success"] is True

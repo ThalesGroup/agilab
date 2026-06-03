@@ -1,0 +1,1181 @@
+#!/usr/bin/env python3
+"""Emit AGILAB built-in app and PyPI app-package contract evidence."""
+
+from __future__ import annotations
+
+import argparse
+import ast
+from dataclasses import dataclass
+from datetime import datetime, timezone
+import importlib.util
+import json
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+import tomllib
+from typing import Any, Mapping, Sequence
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCHEMA = "agilab.app_contract_matrix.v1"
+BUILTIN_APPS_REL = Path("src/agilab/apps/builtin")
+APPS_PAGES_REL = Path("src/agilab/apps-pages")
+PUBLIC_APP_CATALOG_REL = Path("docs/source/public-app-catalog.rst")
+APPS_PAGES_CATALOG_REL = Path("docs/source/apps-pages.rst")
+AGI_APPS_CATALOG_REL = Path("src/agilab/lib/agi-apps/src/agi_apps/catalog.json")
+AGI_PAGES_PROVIDER_REL = Path("src/agilab/lib/agi-pages/src/agi_pages/__init__.py")
+APP_PROJECT_BUILD_SUPPORT_REL = Path("src/agilab/lib/app_project_build_support.py")
+REDUCER_EXEMPT_PROJECTS = frozenset({"minimal_app_project", "multi_app_dag_project"})
+OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS = frozenset(
+    {
+        "execution_pandas_project",
+        "execution_polars_project",
+        "flight_telemetry_project",
+        "minimal_app_project",
+        "pytorch_playground_project",
+    }
+)
+PAYLOAD_EXCLUDED_DIRS = frozenset(
+    {
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".venv",
+        "__pycache__",
+        "Modules",
+        "agilab",
+        "build",
+        "dist",
+        "notebooks",
+        "test",
+    }
+)
+PAYLOAD_EXCLUDED_FILES = frozenset({".DS_Store", ".gitignore", ".lock", "uv.lock"})
+PAYLOAD_EXCLUDED_SUFFIXES = frozenset({".c", ".pid", ".pyc", ".pyo", ".pyx", ".so"})
+
+
+@dataclass(frozen=True)
+class Check:
+    id: str
+    label: str
+    status: str
+    summary: str
+    evidence: tuple[str, ...] = ()
+    details: Mapping[str, Any] | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "label": self.label,
+            "status": self.status,
+            "summary": self.summary,
+            "evidence": list(self.evidence),
+            "details": dict(self.details or {}),
+        }
+
+
+def _check(
+    check_id: str,
+    label: str,
+    passed: bool,
+    summary: str,
+    *,
+    evidence: Sequence[str] = (),
+    details: Mapping[str, Any] | None = None,
+) -> Check:
+    return Check(
+        check_id,
+        label,
+        "pass" if passed else "fail",
+        summary,
+        tuple(evidence),
+        details,
+    )
+
+
+def _load_module(repo_root: Path, relative_path: Path, module_name: str):
+    module_path = repo_root / relative_path
+    src_path = str((repo_root / "src").resolve())
+    inserted_src_path = src_path not in sys.path
+    if inserted_src_path:
+        sys.path.insert(0, src_path)
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot load module: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if inserted_src_path:
+            try:
+                sys.path.remove(src_path)
+            except ValueError:
+                pass
+    return module
+
+
+def _read_toml(path: Path) -> dict[str, Any]:
+    with path.open("rb") as stream:
+        return tomllib.load(stream)
+
+
+def _relative(repo_root: Path, path: Path) -> str:
+    try:
+        return str(path.relative_to(repo_root))
+    except ValueError:
+        return str(path)
+
+
+def _dependencies(payload: Mapping[str, Any]) -> tuple[str, ...]:
+    raw = payload.get("project", {}).get("dependencies", [])
+    if not isinstance(raw, list):
+        return ()
+    return tuple(str(item) for item in raw)
+
+
+def _has_dependency(dependencies: Sequence[str], package: str) -> bool:
+    pattern = re.compile(
+        rf"^{re.escape(package)}(?:$|\s*(?:\[|==|~=|!=|<=|>=|<|>|;))",
+        re.IGNORECASE,
+    )
+    return any(pattern.match(item.strip()) for item in dependencies)
+
+
+def _literal_string_assignments(path: Path, names: set[str]) -> dict[str, str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    values: dict[str, str] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not isinstance(node.value, ast.Constant) or not isinstance(node.value.value, str):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id in names:
+                values[target.id] = node.value.value
+    return values
+
+
+def _payload_package_data(pyproject: Mapping[str, Any], package_import: str) -> tuple[str, ...]:
+    tool = pyproject.get("tool", {})
+    setuptools = tool.get("setuptools", {}) if isinstance(tool, dict) else {}
+    package_data = (
+        setuptools.get("package-data", {})
+        if isinstance(setuptools, dict)
+        else {}
+    )
+    raw = package_data.get(package_import, ()) if isinstance(package_data, dict) else ()
+    if not isinstance(raw, list):
+        return ()
+    return tuple(str(item) for item in raw)
+
+
+def _payload_file_index(root: Path) -> dict[str, bytes]:
+    """Return comparable generated-payload files below ``root``."""
+
+    if not root.is_dir():
+        return {}
+
+    files: dict[str, bytes] = {}
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root)
+        if any(part in PAYLOAD_EXCLUDED_DIRS or part.endswith(".egg-info") for part in relative.parts):
+            continue
+        if not path.is_file():
+            continue
+        if path.name in PAYLOAD_EXCLUDED_FILES or path.suffix in PAYLOAD_EXCLUDED_SUFFIXES:
+            continue
+        files[relative.as_posix()] = path.read_bytes()
+    return files
+
+
+def _generated_app_payload_index(build_support: Any, project_name: str) -> dict[str, bytes]:
+    with tempfile.TemporaryDirectory(prefix="agilab-app-payload-") as tmp_dir:
+        target_root = Path(tmp_dir) / "project"
+        build_support.copy_app_project_payload(project_name, target_root)
+        return _payload_file_index(target_root / project_name)
+
+
+def _app_payload_contract_errors(
+    repo_root: Path,
+    package_specs: Mapping[str, str],
+    package_to_project: Mapping[str, str],
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Return generated-payload hook errors and checked-in payload drift."""
+
+    try:
+        build_support = _load_module(
+            repo_root,
+            APP_PROJECT_BUILD_SUPPORT_REL,
+            "agilab_app_contract_build_support",
+        )
+        raw_specs = build_support.app_project_specs()
+        build_support_error = ""
+    except Exception as exc:
+        build_support = None
+        raw_specs = ()
+        build_support_error = str(exc)
+
+    build_specs = {
+        str(spec.get("distribution")): {
+            "project": str(spec.get("project")),
+            "package": str(spec.get("package")),
+        }
+        for spec in raw_specs
+        if isinstance(spec, dict)
+    }
+    contract_errors: dict[str, dict[str, Any]] = {}
+    drift_errors: dict[str, dict[str, Any]] = {}
+
+    if build_support_error:
+        return (
+            {
+                "*": {
+                    "build_support": str(APP_PROJECT_BUILD_SUPPORT_REL),
+                    "error": build_support_error,
+                }
+            },
+            {},
+        )
+
+    for package, package_path in sorted(package_specs.items()):
+        expected_project = package_to_project.get(package, "")
+        build_spec = build_specs.get(package)
+        package_root = repo_root / package_path
+        setup_py = package_root / "setup.py"
+        pyproject_path = package_root / "pyproject.toml"
+        package_import = build_spec.get("package", "") if build_spec else ""
+        errors: dict[str, Any] = {}
+
+        if build_spec is None:
+            errors["missing_build_support_spec"] = True
+        elif build_spec.get("project") != expected_project:
+            errors["build_support_project"] = build_spec.get("project")
+            errors["expected_project"] = expected_project
+
+        try:
+            setup_values = _literal_string_assignments(setup_py, {"APP_PROJECT", "PACKAGE_IMPORT"})
+        except Exception as exc:
+            setup_values = {}
+            errors["setup_py_error"] = str(exc)
+        if setup_values.get("APP_PROJECT") != expected_project:
+            errors["setup_app_project"] = setup_values.get("APP_PROJECT")
+        if package_import and setup_values.get("PACKAGE_IMPORT") != package_import:
+            errors["setup_package_import"] = setup_values.get("PACKAGE_IMPORT")
+            errors["expected_package_import"] = package_import
+
+        try:
+            pyproject = _read_toml(pyproject_path)
+            package_data = _payload_package_data(pyproject, package_import)
+        except Exception as exc:
+            package_data = ()
+            errors["pyproject_error"] = str(exc)
+        if "project/**/*" not in package_data:
+            errors["package_data"] = list(package_data)
+            errors["expected_package_data"] = "project/**/*"
+
+        if errors:
+            contract_errors[package] = {
+                "package_path": package_path,
+                "project": expected_project,
+                **errors,
+            }
+
+        if not build_support or not package_import or not expected_project:
+            continue
+        embedded_payload = package_root / "src" / package_import / "project" / expected_project
+        if not embedded_payload.exists():
+            continue
+        generated_files = _generated_app_payload_index(build_support, expected_project)
+        embedded_files = _payload_file_index(embedded_payload)
+        missing = sorted(set(generated_files) - set(embedded_files))
+        extra = sorted(set(embedded_files) - set(generated_files))
+        changed = sorted(
+            path
+            for path in set(generated_files) & set(embedded_files)
+            if generated_files[path] != embedded_files[path]
+        )
+        if missing or extra or changed:
+            drift_errors[package] = {
+                "embedded_payload": _relative(repo_root, embedded_payload),
+                "missing_from_embedded": missing,
+                "extra_in_embedded": extra,
+                "changed": changed,
+            }
+
+    missing_build_specs = sorted(set(package_specs) - set(build_specs))
+    extra_build_specs = sorted(set(build_specs) - set(package_specs))
+    if missing_build_specs or extra_build_specs:
+        contract_errors.setdefault(
+            "*",
+            {
+                "missing_build_support_distributions": missing_build_specs,
+                "extra_build_support_distributions": extra_build_specs,
+            },
+        )
+    return contract_errors, drift_errors
+
+
+def _tracked_builtin_project_names(repo_root: Path) -> set[str] | None:
+    """Return tracked built-in project directory names for git checkouts."""
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "ls-files",
+                "-z",
+                "--",
+                str(BUILTIN_APPS_REL),
+            ],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except (OSError, ValueError):
+        return None
+    if result.returncode != 0:
+        return None
+
+    names: set[str] = set()
+    prefix = BUILTIN_APPS_REL.as_posix()
+    for item in result.stdout.split("\0"):
+        if not item:
+            continue
+        path = Path(item)
+        parts = path.parts
+        if len(parts) <= len(BUILTIN_APPS_REL.parts):
+            continue
+        try:
+            rel = path.relative_to(prefix)
+        except ValueError:
+            continue
+        project_name = rel.parts[0]
+        if project_name.endswith("_project"):
+            names.add(project_name)
+    return names
+
+
+def _tracked_children(repo_root: Path, root_rel: Path) -> set[str] | None:
+    """Return tracked direct children below ``root_rel`` for git checkouts."""
+
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "ls-files",
+                "-z",
+                "--",
+                str(root_rel),
+            ],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except (OSError, ValueError):
+        return None
+    if result.returncode != 0:
+        return None
+
+    children: set[str] = set()
+    prefix = root_rel.as_posix()
+    for item in result.stdout.split("\0"):
+        if not item:
+            continue
+        path = Path(item)
+        try:
+            rel = path.relative_to(prefix)
+        except ValueError:
+            continue
+        if rel.parts:
+            children.add(rel.parts[0])
+    return children
+
+
+def discover_builtin_projects(repo_root: Path) -> tuple[Path, ...]:
+    builtin_root = repo_root / BUILTIN_APPS_REL
+    tracked_project_names = _tracked_builtin_project_names(repo_root)
+    if tracked_project_names is not None:
+        return tuple(
+            sorted(
+                builtin_root / name
+                for name in tracked_project_names
+                if (builtin_root / name).is_dir()
+            )
+        )
+    return tuple(
+        sorted(
+            path
+            for path in builtin_root.glob("*_project")
+            if path.is_dir() and (path / "pyproject.toml").is_file()
+        )
+    )
+
+
+def discover_page_bundle_projects(repo_root: Path) -> tuple[Path, ...]:
+    pages_root = repo_root / APPS_PAGES_REL
+    if not pages_root.is_dir():
+        return ()
+    return tuple(
+        sorted(
+            path
+            for path in pages_root.iterdir()
+            if path.is_dir() and (path / "pyproject.toml").is_file()
+        )
+    )
+
+
+def _project_slug(project_name: str) -> str:
+    return project_name[: -len("_project")] if project_name.endswith("_project") else project_name
+
+
+def _project_checks(repo_root: Path, project_path: Path) -> list[Check]:
+    project_name = project_path.name
+    slug = _project_slug(project_name)
+    pyproject_path = project_path / "pyproject.toml"
+    readme_path = project_path / "README.md"
+    app_settings_path = project_path / "src" / "app_settings.toml"
+    app_args_form_path = project_path / "src" / "app_args_form.py"
+    manager_module = project_path / "src" / slug
+    worker_module = project_path / "src" / f"{slug}_worker"
+    worker_pyproject = worker_module / "pyproject.toml"
+    lab_stages_path = project_path / "lab_stages.toml"
+    reduction_path = manager_module / "reduction.py"
+    checks: list[Check] = []
+
+    required_files = (pyproject_path, readme_path, app_settings_path, app_args_form_path)
+    missing_required = [_relative(repo_root, path) for path in required_files if not path.is_file()]
+    checks.append(
+        _check(
+            f"{project_name}:required_files",
+            f"{project_name} required files",
+            not missing_required,
+            "required app contract files are present",
+            evidence=tuple(_relative(repo_root, path) for path in required_files),
+            details={"missing": missing_required},
+        )
+    )
+
+    try:
+        pyproject = _read_toml(pyproject_path)
+        manager_dependencies = _dependencies(pyproject)
+        project_data = pyproject.get("project", {})
+        missing_core_deps = [
+            package
+            for package in ("agi-env", "agi-node", "agi-cluster")
+            if not _has_dependency(manager_dependencies, package)
+        ]
+        checks.append(
+            _check(
+                f"{project_name}:manager_pyproject",
+                f"{project_name} manager pyproject",
+                project_data.get("name") == project_name
+                and bool(project_data.get("version"))
+                and not missing_core_deps,
+                "manager pyproject declares the project name, version, and core dependencies",
+                evidence=(_relative(repo_root, pyproject_path),),
+                details={
+                    "name": project_data.get("name"),
+                    "version": project_data.get("version"),
+                    "missing_core_dependencies": missing_core_deps,
+                },
+            )
+        )
+    except Exception as exc:
+        checks.append(
+            _check(
+                f"{project_name}:manager_pyproject",
+                f"{project_name} manager pyproject",
+                False,
+                f"manager pyproject could not be parsed: {exc}",
+                evidence=(_relative(repo_root, pyproject_path),),
+            )
+        )
+
+    module_missing = [
+        _relative(repo_root, path)
+        for path in (manager_module / "__init__.py", worker_module / "__init__.py", worker_pyproject)
+        if not path.is_file()
+    ]
+    checks.append(
+        _check(
+            f"{project_name}:module_layout",
+            f"{project_name} module layout",
+            not module_missing,
+            "manager and worker modules are present",
+            evidence=(
+                _relative(repo_root, manager_module),
+                _relative(repo_root, worker_module),
+                _relative(repo_root, worker_pyproject),
+            ),
+            details={"missing": module_missing},
+        )
+    )
+
+    try:
+        worker_data = _read_toml(worker_pyproject)
+        worker_dependencies = _dependencies(worker_data)
+        uv_sources = worker_data.get("tool", {}).get("uv", {}).get("sources", {})
+        missing_worker_deps = [
+            package for package in ("agi-env", "agi-node") if not _has_dependency(worker_dependencies, package)
+        ]
+        source_paths = {
+            key: value.get("path") if isinstance(value, dict) else None
+            for key, value in uv_sources.items()
+            if key in {"agi-env", "agi-node"}
+        }
+        checks.append(
+            _check(
+                f"{project_name}:worker_pyproject",
+                f"{project_name} worker pyproject",
+                bool(worker_data.get("project", {}).get("name"))
+                and bool(worker_data.get("project", {}).get("version"))
+                and not missing_worker_deps
+                and source_paths
+                == {
+                    "agi-env": "../../../../../core/agi-env",
+                    "agi-node": "../../../../../core/agi-node",
+                },
+                "worker pyproject declares worker metadata, deps, and local source paths",
+                evidence=(_relative(repo_root, worker_pyproject),),
+                details={
+                    "name": worker_data.get("project", {}).get("name"),
+                    "version": worker_data.get("project", {}).get("version"),
+                    "missing_worker_dependencies": missing_worker_deps,
+                    "source_paths": source_paths,
+                },
+            )
+        )
+    except Exception as exc:
+        checks.append(
+            _check(
+                f"{project_name}:worker_pyproject",
+                f"{project_name} worker pyproject",
+                False,
+                f"worker pyproject could not be parsed: {exc}",
+                evidence=(_relative(repo_root, worker_pyproject),),
+            )
+        )
+
+    try:
+        settings = _read_toml(app_settings_path)
+        meta = settings.get("__meta__", {})
+        unsupported_version = False
+        if isinstance(meta, dict) and meta.get("version") not in (None, "", 1, "1"):
+            unsupported_version = True
+        checks.append(
+            _check(
+                f"{project_name}:app_settings",
+                f"{project_name} app settings",
+                not unsupported_version and isinstance(settings, dict),
+                "app_settings.toml is parseable and does not declare an unsupported schema",
+                evidence=(_relative(repo_root, app_settings_path),),
+                details={"meta": meta if isinstance(meta, dict) else {"invalid_meta": str(meta)}},
+            )
+        )
+    except Exception as exc:
+        checks.append(
+            _check(
+                f"{project_name}:app_settings",
+                f"{project_name} app settings",
+                False,
+                f"app_settings.toml could not be parsed: {exc}",
+                evidence=(_relative(repo_root, app_settings_path),),
+            )
+        )
+
+    readme_text = readme_path.read_text(encoding="utf-8", errors="ignore") if readme_path.is_file() else ""
+    checks.append(
+        _check(
+            f"{project_name}:readme",
+            f"{project_name} README",
+            project_name in readme_text and len(readme_text.split()) >= 40,
+            "README names the project and has enough adaptation context",
+            evidence=(_relative(repo_root, readme_path),),
+            details={"word_count": len(readme_text.split()), "mentions_project": project_name in readme_text},
+        )
+    )
+
+    if project_name in OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS:
+        lab_stage_ok = True
+        lab_stage_summary = "lab_stages.toml is optional for this app contract"
+        lab_stage_details: dict[str, Any] = {"required": False, "exists": lab_stages_path.is_file()}
+    else:
+        try:
+            lab_stages = _read_toml(lab_stages_path)
+            lab_stage_ok = bool(lab_stages)
+            lab_stage_summary = "lab_stages.toml is parseable"
+            lab_stage_details = {"required": True, "top_level_keys": sorted(lab_stages)}
+        except Exception as exc:
+            lab_stage_ok = False
+            lab_stage_summary = f"lab_stages.toml is required and could not be parsed: {exc}"
+            lab_stage_details = {"required": True, "exists": lab_stages_path.is_file()}
+    checks.append(
+        _check(
+            f"{project_name}:lab_stages",
+            f"{project_name} lab stages",
+            lab_stage_ok,
+            lab_stage_summary,
+            evidence=(_relative(repo_root, lab_stages_path),),
+            details=lab_stage_details,
+        )
+    )
+
+    reducer_required = project_name not in REDUCER_EXEMPT_PROJECTS
+    reducer_ok = reduction_path.is_file() or not reducer_required
+    checks.append(
+        _check(
+            f"{project_name}:reducer_contract",
+            f"{project_name} reducer contract",
+            reducer_ok,
+            "reducer contract is present or the app is explicitly template-only",
+            evidence=(_relative(repo_root, reduction_path),),
+            details={"required": reducer_required, "exemptions": sorted(REDUCER_EXEMPT_PROJECTS)},
+        )
+    )
+    return checks
+
+
+def _project_name_for_package(repo_root: Path, package_path: str) -> str:
+    package_root = repo_root / package_path
+    project_pyprojects = sorted(package_root.glob("src/*/project/*_project/pyproject.toml"))
+    if project_pyprojects:
+        return str(project_pyprojects[0].parent.name)
+    init_candidates = sorted(package_root.glob("src/*/__init__.py"))
+    project_name_re = re.compile(r"^PROJECT_NAME\s*=\s*[\"']([^\"']+)[\"']")
+    for init_path in init_candidates:
+        for line in init_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            match = project_name_re.match(line.strip())
+            if match:
+                return match.group(1)
+    return ""
+
+
+def _public_catalog_rows(repo_root: Path) -> dict[str, dict[str, str]]:
+    catalog_path = repo_root / PUBLIC_APP_CATALOG_REL
+    lines = catalog_path.read_text(encoding="utf-8").splitlines()
+    rows: dict[str, dict[str, str]] = {}
+    current: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("* - "):
+            if len(current) >= 4 and current[0] != "Project":
+                rows[current[0]] = {
+                    "package": current[1],
+                    "status": current[2],
+                    "use": " ".join(current[3:]),
+                }
+            current = [stripped.removeprefix("* - ").strip("`")]
+        elif stripped.startswith("- ") and current:
+            current.append(stripped.removeprefix("- ").strip("`"))
+        elif current and len(current) >= 4 and stripped and not stripped.startswith((".. ", ":")):
+            current[-1] = f"{current[-1]} {stripped}".strip()
+    if len(current) >= 4 and current[0] != "Project":
+        rows[current[0]] = {
+            "package": current[1],
+            "status": current[2],
+            "use": " ".join(current[3:]),
+        }
+    return rows
+
+
+def _apps_pages_catalog_rows(repo_root: Path) -> dict[str, dict[str, str]]:
+    catalog_path = repo_root / APPS_PAGES_CATALOG_REL
+    lines = catalog_path.read_text(encoding="utf-8").splitlines()
+    rows: dict[str, dict[str, str]] = {}
+    current: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("* - "):
+            if len(current) >= 4 and current[0] != "Module":
+                rows[current[0]] = {
+                    "package": current[1],
+                    "purpose": current[2],
+                    "status": " ".join(current[3:]),
+                }
+            current = [stripped.removeprefix("* - ").strip("`")]
+        elif stripped.startswith("- ") and current:
+            current.append(stripped.removeprefix("- ").strip("`"))
+        elif current and len(current) >= 4 and stripped and not stripped.startswith((".. ", ":")):
+            current[-1] = f"{current[-1]} {stripped}".strip()
+    if len(current) >= 4 and current[0] != "Module":
+        rows[current[0]] = {
+            "package": current[1],
+            "purpose": current[2],
+            "status": " ".join(current[3:]),
+        }
+    return rows
+
+
+def _catalog_distribution_rows(repo_root: Path) -> dict[str, dict[str, str]]:
+    payload = json.loads((repo_root / AGI_APPS_CATALOG_REL).read_text(encoding="utf-8"))
+    rows: dict[str, dict[str, str]] = {}
+    if isinstance(payload, list):
+        for row in payload:
+            if isinstance(row, dict) and isinstance(row.get("distribution"), str):
+                rows[row["distribution"]] = {key: str(value) for key, value in row.items()}
+    return rows
+
+
+def _literal_string_tuple_assignment(path: Path, name: str) -> tuple[str, ...]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+            continue
+        value = ast.literal_eval(node.value)
+        if isinstance(value, tuple) and all(isinstance(item, str) for item in value):
+            return value
+        raise RuntimeError(f"{path} assignment {name} is not a tuple of strings")
+    raise RuntimeError(f"{path} does not define {name}")
+
+
+def _agi_pages_public_modules(repo_root: Path) -> tuple[str, ...]:
+    return _literal_string_tuple_assignment(
+        repo_root / AGI_PAGES_PROVIDER_REL,
+        "PUBLIC_PAGE_MODULES",
+    )
+
+
+def _page_pyproject_contract_errors(
+    repo_root: Path,
+    package_to_module: Mapping[str, str],
+    package_specs: Mapping[str, str],
+) -> dict[str, dict[str, Any]]:
+    errors: dict[str, dict[str, Any]] = {}
+    for package, module in sorted(package_to_module.items()):
+        pyproject_path = repo_root / package_specs[package] / "pyproject.toml"
+        try:
+            pyproject = _read_toml(pyproject_path)
+        except Exception as exc:
+            errors[package] = {
+                "module": module,
+                "pyproject": _relative(repo_root, pyproject_path),
+                "error": str(exc),
+            }
+            continue
+        project = pyproject.get("project", {})
+        entry_points = project.get("entry-points", {})
+        agilab_pages = (
+            entry_points.get("agilab.pages", {})
+            if isinstance(entry_points, dict)
+            else {}
+        )
+        expected_entry_point = f"{module}:bundle_root"
+        mismatch: dict[str, Any] = {
+            "module": module,
+            "pyproject": _relative(repo_root, pyproject_path),
+        }
+        if project.get("name") != package:
+            mismatch["name"] = project.get("name")
+            mismatch["expected_name"] = package
+        if not project.get("version"):
+            mismatch["version"] = project.get("version")
+        if not isinstance(agilab_pages, dict) or agilab_pages.get(module) != expected_entry_point:
+            mismatch["entry_point"] = (
+                agilab_pages.get(module) if isinstance(agilab_pages, dict) else None
+            )
+            mismatch["expected_entry_point"] = expected_entry_point
+        if set(mismatch) != {"module", "pyproject"}:
+            errors[package] = mismatch
+    return errors
+
+
+def _status_includes_agi_pages(status: str) -> bool:
+    normalized = status.casefold()
+    return "included in" in normalized and "agi-pages" in normalized
+
+
+def _global_checks(
+    repo_root: Path,
+    *,
+    package_split_module: Any | None = None,
+    pypi_app_packages_module: Any | None = None,
+    pypi_promoted_packages: Sequence[str] | None = None,
+) -> list[Check]:
+    package_split = package_split_module or _load_module(
+        repo_root,
+        Path("tools/package_split_contract.py"),
+        "agilab_app_contract_package_split",
+    )
+    pypi_app_packages = pypi_app_packages_module or _load_module(
+        repo_root,
+        Path("src/agilab/pypi_app_packages.py"),
+        "agilab_app_contract_pypi_app_packages",
+    )
+    builtin_projects = {path.name for path in discover_builtin_projects(repo_root)}
+    source_page_modules = {path.name for path in discover_page_bundle_projects(repo_root)}
+    package_specs = dict(package_split.APP_PROJECT_PACKAGE_SPECS)
+    page_package_specs = dict(package_split.PAGE_BUNDLE_PACKAGE_SPECS)
+    promoted_package_names = set(package_split.PROMOTED_APP_PROJECT_PACKAGE_NAMES)
+    if pypi_promoted_packages is None:
+        pypi_promoted = set(pypi_app_packages.PROMOTED_PYPI_APP_PACKAGES)
+    else:
+        pypi_promoted = set(pypi_promoted_packages)
+    package_to_project = {
+        package: _project_name_for_package(repo_root, package_path)
+        for package, package_path in package_specs.items()
+    }
+    public_rows = _public_catalog_rows(repo_root)
+    agi_apps_rows = _catalog_distribution_rows(repo_root)
+
+    package_mapping_errors = {
+        package: {
+            "package_path": package_specs[package],
+            "project": project,
+            "builtin_exists": project in builtin_projects,
+        }
+        for package, project in sorted(package_to_project.items())
+        if not project or project not in builtin_projects
+    }
+    checks = [
+        _check(
+            "app_package_specs_point_to_builtin_projects",
+            "App package specs point to built-in projects",
+            not package_mapping_errors,
+            "package split app specs resolve to existing built-in projects",
+            evidence=("tools/package_split_contract.py", str(BUILTIN_APPS_REL)),
+            details={"errors": package_mapping_errors, "package_to_project": package_to_project},
+        )
+    ]
+    payload_contract_errors, payload_drift_errors = _app_payload_contract_errors(
+        repo_root,
+        package_specs,
+        package_to_project,
+    )
+    checks.append(
+        _check(
+            "app_packages_use_generated_payload_contract",
+            "App packages use generated built-in payload contract",
+            not payload_contract_errors,
+            "app package setup hooks and package-data declarations generate payloads from built-in app sources",
+            evidence=(
+                str(APP_PROJECT_BUILD_SUPPORT_REL),
+                "tools/package_split_contract.py",
+                "src/agilab/lib/agi-app-*/setup.py",
+            ),
+            details={"errors": payload_contract_errors},
+        )
+    )
+    checks.append(
+        _check(
+            "checked_in_app_payloads_match_generated_payloads",
+            "Checked-in app payloads match generated payloads",
+            not payload_drift_errors,
+            "any checked-in embedded app payloads match the generated built-in source payload",
+            evidence=(str(APP_PROJECT_BUILD_SUPPORT_REL), "src/agilab/lib/agi-app-*"),
+            details={"errors": payload_drift_errors},
+        )
+    )
+
+    page_package_to_module = {
+        package: Path(page_path).name for package, page_path in sorted(page_package_specs.items())
+    }
+    tracked_page_children = _tracked_children(repo_root, APPS_PAGES_REL)
+    if tracked_page_children is None:
+        tracked_page_children = {
+            path.name
+            for path in (repo_root / APPS_PAGES_REL).iterdir()
+            if path.is_file() or path.is_dir()
+        }
+    allowed_page_root_files = {"README.md", ".gitignore", "__init__.py"}
+    allowed_page_root_dirs = {"templates"}
+    invalid_page_children = sorted(
+        child
+        for child in tracked_page_children
+        if child not in allowed_page_root_files
+        and child not in allowed_page_root_dirs
+        and not child.startswith("view_")
+    )
+    unexpected_root_python = sorted(
+        child for child in tracked_page_children if child.endswith(".py") and child != "__init__.py"
+    )
+    checks.append(
+        _check(
+            "apps_pages_root_keeps_asset_bundle_shape",
+            "Apps-pages root keeps asset-bundle shape",
+            not invalid_page_children and not unexpected_root_python,
+            "apps-pages root only carries the provider, docs, templates, and view_* bundle projects",
+            evidence=(str(APPS_PAGES_REL), "tools/package_split_contract.py"),
+            details={
+                "invalid_children": invalid_page_children,
+                "unexpected_root_python": unexpected_root_python,
+            },
+        )
+    )
+    page_mapping_errors = {
+        package: {
+            "package_path": page_package_specs[package],
+            "module": module,
+            "source_exists": module in source_page_modules,
+            "pyproject_exists": (repo_root / page_package_specs[package] / "pyproject.toml").is_file(),
+        }
+        for package, module in page_package_to_module.items()
+        if module not in source_page_modules
+        or not (repo_root / page_package_specs[package] / "pyproject.toml").is_file()
+    }
+    checks.append(
+        _check(
+            "page_bundle_specs_point_to_source_bundles",
+            "Page-bundle package specs point to source bundles",
+            not page_mapping_errors,
+            "package split page specs resolve to checked-in apps-pages bundles",
+            evidence=("tools/package_split_contract.py", str(APPS_PAGES_REL)),
+            details={
+                "errors": page_mapping_errors,
+                "package_to_module": page_package_to_module,
+            },
+        )
+    )
+
+    page_pyproject_errors = _page_pyproject_contract_errors(
+        repo_root,
+        page_package_to_module,
+        page_package_specs,
+    )
+    checks.append(
+        _check(
+            "page_bundle_pyprojects_match_package_contract",
+            "Page-bundle pyprojects match package contract",
+            not page_pyproject_errors,
+            "page-bundle pyprojects expose the expected name, version, and entry point",
+            evidence=(str(APPS_PAGES_REL), "tools/package_split_contract.py"),
+            details={"errors": page_pyproject_errors},
+        )
+    )
+
+    page_catalog_rows = _apps_pages_catalog_rows(repo_root)
+    expected_page_catalog = {
+        module: package for package, module in page_package_to_module.items()
+    }
+    missing_page_rows = sorted(module for module in source_page_modules if module not in page_catalog_rows)
+    source_catalog_package_mismatches: dict[str, dict[str, Any]] = {}
+    for module in sorted(source_page_modules):
+        pyproject_path = repo_root / APPS_PAGES_REL / module / "pyproject.toml"
+        try:
+            expected_package = _read_toml(pyproject_path).get("project", {}).get("name")
+        except Exception as exc:
+            source_catalog_package_mismatches[module] = {"error": str(exc)}
+            continue
+        if page_catalog_rows.get(module, {}).get("package") != expected_package:
+            source_catalog_package_mismatches[module] = {
+                "expected_package": expected_package,
+                "catalog_package": page_catalog_rows.get(module, {}).get("package"),
+            }
+    page_package_mismatches = {
+        module: {
+            "expected_package": package,
+            "catalog_package": page_catalog_rows.get(module, {}).get("package"),
+        }
+        for module, package in sorted(expected_page_catalog.items())
+        if page_catalog_rows.get(module, {}).get("package") != package
+    }
+    included_rows_without_contract = {
+        module: {
+            "catalog_package": row.get("package"),
+            "status": row.get("status"),
+        }
+        for module, row in sorted(page_catalog_rows.items())
+        if _status_includes_agi_pages(row.get("status", ""))
+        and module not in expected_page_catalog
+    }
+    checks.append(
+        _check(
+            "apps_pages_catalog_matches_page_contract",
+            "Apps-pages docs catalog matches page contract",
+            not missing_page_rows
+            and not source_catalog_package_mismatches
+            and not page_package_mismatches
+            and not included_rows_without_contract,
+            "apps-pages docs list every source bundle and match package split status",
+            evidence=(str(APPS_PAGES_CATALOG_REL), "tools/package_split_contract.py"),
+            details={
+                "missing_source_rows": missing_page_rows,
+                "source_package_mismatches": source_catalog_package_mismatches,
+                "package_mismatches": page_package_mismatches,
+                "included_rows_without_package_contract": included_rows_without_contract,
+            },
+        )
+    )
+
+    try:
+        provider_modules = set(_agi_pages_public_modules(repo_root))
+        provider_error = ""
+    except Exception as exc:
+        provider_modules = set()
+        provider_error = str(exc)
+    expected_provider_modules = set(expected_page_catalog)
+    checks.append(
+        _check(
+            "agi_pages_provider_matches_page_bundle_contract",
+            "agi-pages provider matches page-bundle contract",
+            not provider_error and provider_modules == expected_provider_modules,
+            "agi-pages provider exposes exactly the lightweight page-bundle contract",
+            evidence=(str(AGI_PAGES_PROVIDER_REL), "tools/package_split_contract.py"),
+            details={
+                "error": provider_error,
+                "missing_from_provider": sorted(expected_provider_modules - provider_modules),
+                "extra_in_provider": sorted(provider_modules - expected_provider_modules),
+            },
+        )
+    )
+
+    checks.append(
+        _check(
+            "promoted_pypi_app_catalog_matches_package_split",
+            "Promoted PyPI app catalog matches package split",
+            promoted_package_names == pypi_promoted,
+            "install UI/search catalog exposes the same promoted app packages as the release contract",
+            evidence=("tools/package_split_contract.py", "src/agilab/pypi_app_packages.py"),
+            details={
+                "missing_from_pypi_catalog": sorted(promoted_package_names - pypi_promoted),
+                "extra_in_pypi_catalog": sorted(pypi_promoted - promoted_package_names),
+            },
+        )
+    )
+
+    catalog_missing = sorted(package for package in package_specs if package not in agi_apps_rows)
+    catalog_project_mismatch = {
+        package: {
+            "expected_project": package_to_project.get(package),
+            "catalog_project": agi_apps_rows.get(package, {}).get("project"),
+        }
+        for package in sorted(set(package_specs) - set(catalog_missing))
+        if agi_apps_rows.get(package, {}).get("project") != package_to_project.get(package)
+    }
+    checks.append(
+        _check(
+            "agi_apps_catalog_covers_app_packages",
+            "agi-apps catalog covers app packages",
+            not catalog_missing and not catalog_project_mismatch,
+            "agi-apps catalog maps each app distribution to the expected project",
+            evidence=(str(AGI_APPS_CATALOG_REL), "tools/package_split_contract.py"),
+            details={
+                "missing_distributions": catalog_missing,
+                "project_mismatches": catalog_project_mismatch,
+            },
+        )
+    )
+
+    expected_public_rows: dict[str, tuple[str, str]] = {}
+    for package, project in package_to_project.items():
+        status = "PyPI app package" if package in promoted_package_names else "Release artifact"
+        expected_public_rows[project] = (package, status)
+    for project in sorted(builtin_projects):
+        expected_public_rows.setdefault(project, ("None", "Source built-in"))
+    public_mismatches = {
+        project: {
+            "expected": {"package": package, "status": status},
+            "actual": {
+                "package": public_rows.get(project, {}).get("package"),
+                "status": public_rows.get(project, {}).get("status"),
+            },
+        }
+        for project, (package, status) in sorted(expected_public_rows.items())
+        if public_rows.get(project, {}).get("package") != package
+        or public_rows.get(project, {}).get("status") != status
+    }
+    checks.append(
+        _check(
+            "public_app_catalog_matches_package_contract",
+            "Public app catalog matches package contract",
+            not public_mismatches,
+            "public docs catalog lists every built-in app with the expected package/status",
+            evidence=(str(PUBLIC_APP_CATALOG_REL), "tools/package_split_contract.py"),
+            details={"mismatches": public_mismatches},
+        )
+    )
+    return checks
+
+
+def build_report(
+    *,
+    repo_root: Path = REPO_ROOT,
+    package_split_module: Any | None = None,
+    pypi_app_packages_module: Any | None = None,
+    pypi_promoted_packages: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    repo_root = repo_root.resolve()
+    project_paths = discover_builtin_projects(repo_root)
+    checks: list[Check] = []
+    checks.append(
+        _check(
+            "builtin_project_inventory",
+            "Built-in project inventory",
+            bool(project_paths) and len({path.name for path in project_paths}) == len(project_paths),
+            "built-in project directories are discoverable and unique",
+            evidence=(str(BUILTIN_APPS_REL),),
+            details={"projects": [path.name for path in project_paths]},
+        )
+    )
+    for project_path in project_paths:
+        checks.extend(_project_checks(repo_root, project_path))
+    checks.extend(
+        _global_checks(
+            repo_root,
+            package_split_module=package_split_module,
+            pypi_app_packages_module=pypi_app_packages_module,
+            pypi_promoted_packages=pypi_promoted_packages,
+        )
+    )
+    failed = [check for check in checks if check.status != "pass"]
+    project_failures: dict[str, list[str]] = {}
+    for check in failed:
+        if ":" in check.id:
+            project, _suffix = check.id.split(":", 1)
+            project_failures.setdefault(project, []).append(check.id)
+    return {
+        "report": "AGILAB app contract matrix",
+        "schema": SCHEMA,
+        "status": "pass" if not failed else "fail",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "summary": {
+            "project_count": len(project_paths),
+            "check_count": len(checks),
+            "passed": len(checks) - len(failed),
+            "failed": len(failed),
+            "failed_projects": project_failures,
+        },
+        "checks": [check.as_dict() for check in checks],
+    }
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Emit AGILAB built-in app and PyPI app-package contract evidence."
+    )
+    parser.add_argument("--output", type=Path, default=None, help="Optional JSON output path.")
+    parser.add_argument("--compact", action="store_true", help="Emit compact JSON.")
+    parser.add_argument("--json", action="store_true", help="Alias for --compact.")
+    parser.add_argument("--quiet", action="store_true", help="Do not print the JSON report to stdout.")
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _build_parser().parse_args(list(argv) if argv is not None else None)
+    report = build_report()
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    if args.quiet:
+        return 0 if report["status"] == "pass" else 1
+    if args.compact or args.json:
+        print(json.dumps(report, sort_keys=True, separators=(",", ":")))
+    else:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report["status"] == "pass" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

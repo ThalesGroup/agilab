@@ -1,0 +1,7 @@
+{
+  "algorithm": "sha256",
+  "digest_sha256": "b6b28816765f62dd174ff32cfeb1ace9a6c3bdc9bf99cd41bae3c109bc1f083d",
+  "model_file": "balancer_model.pkl",
+  "schema": "agilab.capacity_model_manifest.v1",
+  "size_bytes": 1942056
+}

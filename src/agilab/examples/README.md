@@ -1,0 +1,199 @@
+# AGILAB Packaged Examples
+
+These examples are small Python entry points for public AGILAB workflows. The
+app-specific `AGI_*.py` scripts are copied by the app installer into
+`~/log/execute/<app>/`; the read-only previews stay in the package or source
+checkout because they teach orchestration concepts without launching long-lived
+or multi-app work.
+
+## Learning Path
+
+Start with the examples in this order. Each step adds one concept while keeping
+the command shape stable.
+
+| Order | Example | App | Main lesson |
+|---:|---|---|---|
+| 1 | `flight_telemetry` | `flight_telemetry_project` | First proof: install one app, run one file, inspect map-ready output. |
+| 2 | `minimal_app` | `minimal_app_project` | Smallest worker template and execution smoke. |
+| 3 | `weather_forecast` | `weather_forecast_project` | Turn a notebook-style forecast into a reproducible app run. |
+| 4 | `notebook_quickstart` | notebook-first proof assets | Packaged notebooks for first-run, Colab, Kaggle, worker-path, benchmark, and data-DAG onboarding. |
+| 5 | `notebook_migrations/skforecast_meteo_fr` | `weather_forecast_project` | Packaged migration source: notebooks, artifacts, lab stages, and pipeline view. |
+| 6 | `notebook_to_dask` | notebook import -> Dask pipeline | Read-only migration preview: code cells, artifact contracts, and a Dask pipeline view. |
+| 7 | `parallel_stage` | function + split rule + reducer | Read-only parallelization preview: fewer files than cores, chunk partitions, worker capping, and reducer-first planning. |
+| 8 | `excel_workbook_proof` | spreadsheet bridge preview | Read-only Excel-shaped proof: workbook, Power Query-friendly CSVs, and evidence hashes. |
+| 9 | `sqlite_connector_proof` | database connector preview | Read-only SQLite proof: schema, parameterized query, CSV result, and evidence hashes. |
+| 10 | `voila_notebook_proof` | notebook dashboard bridge preview | Read-only notebook-dashboard proof: Voila-shaped notebook, widget-to-args hints, app-view plan, and evidence hashes. |
+| 11 | `sklearn_pipeline` | `sklearn_pipeline_project` | Classic ML app proof: deterministic dataset, fitted pipeline, predictions, model artifact, metrics, and hash manifest. |
+| 12 | `mission_decision` | `mission_decision_project` | Deterministic mission-data decision run with richer artifacts. |
+| 13 | `inter_project_dag` | `flight_telemetry_project` -> `weather_forecast_project` | Standalone compatibility preview for the app-owned multi-app DAG contract. |
+| 14 | `service_mode` | `minimal_app_project` | Read-only service lifecycle preview: start, status, health, stop. |
+| 15 | `mlflow_auto_tracking` | any pipeline app | Optional tracking preview: local evidence first, MLflow as the memory backend. |
+| 16 | `resilience_failure_injection` | UAV relay scenario contract | Read-only resilience preview: inject a relay failure, compare fixed/replanned/search/policy responses. |
+| 17 | `train_then_serve` | trained policy handoff contract | Read-only service handoff preview: model artifact, IO contract, prediction sample, and health gate. |
+| 18 | `native_rust_worker` | optional native worker preview | Read-only Rust/PyO3 skeleton: keep AGILAB orchestration in Python while moving only a typed hot kernel to Rust. |
+| 19 | `pytorch_playground_project` app surface | `pytorch_playground_project` | App-owned UI surface example: one runtime/evidence contract, selectable local Streamlit or hosted Hugging Face backend. |
+
+## Execution Map
+
+Use this table before choosing a command. The examples intentionally split real
+app execution from read-only contract previews.
+
+| Class | Examples | What actually runs | Primary output |
+|---|---|---|---|
+| Notebook route assets | `notebook_quickstart` | Jupyter notebooks for local, Colab, Kaggle, source, and PyPI `agi-core` first runs. | Notebook-visible `AgiEnv` / `RunRequest` proof, without installing a full AGILAB app helper. |
+| Installed `AGI_*.py` helpers | `flight_telemetry`, `minimal_app`, `weather_forecast`, `sklearn_pipeline`, `mission_decision` | Real `AGI.install` / `AGI.run` calls from `~/log/execute/<app>/` after the app installer seeds the scripts. | App artifacts in AGILAB share/export paths plus execution logs. |
+| Source/package read-only previews | `notebook_to_dask`, `parallel_stage`, `excel_workbook_proof`, `sqlite_connector_proof`, `voila_notebook_proof`, `inter_project_dag`, `service_mode`, `mlflow_auto_tracking`, `resilience_failure_injection`, `train_then_serve`, `native_rust_worker` | Deterministic Python preview scripts. They write local evidence and do not launch long-lived workers or hidden multi-app runs. | Preview JSON, CSV, workbook, SQLite database, notebook, dashboard-plan, or generated skeleton artifacts under `~/log/execute/<example>/` or the configured output path. |
+| Notebook migration assets | `notebook_migrations/skforecast_meteo_fr` | Packaged notebooks, artifacts, `lab_stages.toml`, and pipeline view used as migration source material. | Files to inspect or import; no service or cluster run is started by reading them. |
+| Built-in app-owned demo templates | `multi_app_dag_project` | Select the built-in project in WORKFLOW or let `inter_project_dag` read its DAG template. | App-owned contract files under `src/agilab/apps/builtin/multi_app_dag_project/`; no `src/agilab/examples/multi_app_dag_project` directory is expected. |
+| App-owned UI surface demo | `pytorch_playground_project` | `agilab app surface pytorch_playground_project --list`, then `--ui streamlit` or `--ui hf`. | The same app runtime, artifacts, and evidence contract opened through selectable UI backends. |
+
+Source-checkout commands use `uv --preview-features extra-build-dependencies run python ...`
+so dependencies resolve through the checkout environment. Commands under
+`~/log/execute/<app>/` are installed helper scripts and are normally run after
+AGILAB has initialized the target app environment.
+
+## Notebook Import Samples
+
+AGILAB also packages notebook-import versions of the executable examples. In a
+source checkout they live under `src/agilab/resources/notebook_import_samples/`
+except for the first-proof flight sample in `src/agilab/resources/`. Importing one
+of these notebooks from `PROJECT -> Create -> From notebook` clones the matching
+base app and names the result as an imported project:
+
+| Notebook sample | Base app | Imported project |
+|---|---|---|
+| `flight_telemetry_from_notebook.ipynb` | `flight_telemetry_project` | `flight_telemetry_from_notebook_project` |
+| `minimal_app_from_notebook.ipynb` | `minimal_app_project` | `minimal_app_from_notebook_project` |
+| `weather_forecast_from_notebook.ipynb` | `weather_forecast_project` | `weather_forecast_from_notebook_project` |
+| `mission_decision_from_notebook.ipynb` | `mission_decision_project` | `mission_decision_from_notebook_project` |
+
+These samples carry AGILAB import metadata, so the create form can preselect the
+right base project and every runnable cell is tagged with its manager/worker role.
+From an installed package, locate one with
+`python -c "from agilab.notebook_import_sample import sample_notebook_path; print(sample_notebook_path('weather_forecast'))"`.
+
+## What To Notice
+
+- `AGI_install_*.py` prepares the app environment and worker runtime.
+- `AGI_run_*.py` builds a `RunRequest` and calls `AGI.run`.
+- `notebook_quickstart` contains the notebook-first route for users who want
+  the smaller `agi-core` surface before the web UI or installed app helpers.
+- `multi_app_dag_project` owns the packaged multi-app DAG template under
+  `src/agilab/apps/builtin/multi_app_dag_project/dag_templates/`.
+- `inter_project_dag/preview_inter_project_dag.py` remains as the standalone
+  compatibility preview, but it reads the built-in `multi_app_dag_project` DAG
+  template by default.
+- `notebook_to_dask/preview_notebook_to_dask.py` shows how notebook cells become
+  `lab_stages.toml`, a Dask solution slice, and an artifact contract.
+- `parallel_stage/preview_parallel_stage.py` shows how to plan parallelism when
+  file count is lower than core count: split large files into chunk partitions,
+  cap workers only for unsplittable files, and keep the reducer contract visible.
+- `tools/notebook_import_preflight.py` gives the same notebook import path a
+  generic cleanup report plus artifact, pipeline-view, and app view-plan
+  sidecars before you turn a notebook into a project.
+- `excel_workbook_proof/preview_excel_workbook_proof.py` shows the low-friction
+  spreadsheet bridge: result workbook, Power Query-friendly CSV folder, and
+  JSON evidence hashes without an Office add-in.
+- `sqlite_connector_proof/preview_sqlite_connector_proof.py` shows the
+  database bridge: deterministic SQLite schema, parameterized read-only query,
+  CSV result, and JSON evidence hashes without a remote database or secrets.
+- `voila_notebook_proof/preview_voila_notebook_proof.py` shows the notebook
+  dashboard bridge: a Voila-shaped notebook, hide-code manifest,
+  widget-to-args migration hints, app-view plan, and JSON evidence hashes
+  without adding Voila to the base install.
+- `notebook_migrations/skforecast_meteo_fr` keeps the weather-forecast source
+  notebooks, exported artifacts, migrated `lab_stages.toml`, and conceptual
+  pipeline view in the packaged examples tree.
+- `notebook_quickstart` keeps notebook-first first-run, Colab, Kaggle,
+  worker-path, benchmark, and data-DAG notebooks together as importable learning
+  assets rather than seeded executable scripts.
+- `sklearn_pipeline/AGI_run_sklearn_pipeline.py` runs the classic ML app proof:
+  deterministic scikit-learn dataset, fitted pipeline, model artifact,
+  predictions, metrics, report, and hash manifest.
+- `service_mode/preview_service_mode.py` reads a `minimal_app_project` built-in
+  service template and explains persistent-worker operations without starting a
+  service.
+- `mlflow_auto_tracking/preview_mlflow_auto_tracking.py` reads a
+  `weather_forecast_project` built-in tracking template and shows the intended
+  tracker abstraction without creating a parallel AGILAB model registry.
+- `resilience_failure_injection/preview_resilience_failure_injection.py` reads
+  a `uav_queue_project` built-in scenario template and makes failure events
+  explicit before a real trainer or simulator run.
+- `train_then_serve/preview_train_then_serve.py` reads a
+  `uav_relay_queue_project` built-in service template and shows the handoff
+  from a trained policy artifact to a service contract.
+- `native_rust_worker/preview_native_rust_worker.py` writes a PyO3/maturin
+  skeleton for a worker-owned native hot kernel, plus evidence that keeps the
+  AGILAB boundary explicit: orchestration and artifacts stay in Python, the
+  measured CPU-bound kernel can move to Rust when the packaging cost is worth
+  it.
+- `pytorch_playground_project` demonstrates the reusable app-surface contract:
+  `app_settings.toml` declares the local Streamlit surface and hosted Hugging
+  Face surface, while the app package still owns the runtime, artifacts, and
+  evidence files.
+- `data_in` and `data_out` are share-root relative paths, so examples stay
+  portable across machines.
+- Run modes use named AGI constants instead of magic numbers, and keep Cython
+  off in packaged first-run examples so the demo is not tied to a compiled
+  extension for a specific Python ABI.
+- The examples are intentionally local-first: one scheduler, one worker, and
+  deterministic public inputs.
+
+## Typical Use
+
+```bash
+python ~/log/execute/flight_telemetry/AGI_install_flight_telemetry.py
+python ~/log/execute/flight_telemetry/AGI_run_flight_telemetry.py
+```
+
+## Validate The Examples
+
+From a source checkout, run the documentation and packaging guardrails that
+keep examples copy/paste-safe:
+
+```bash
+uv --preview-features extra-build-dependencies run python -m py_compile $(find src/agilab/examples -name '*.py' -print)
+uv --preview-features extra-build-dependencies run pytest -q test/test_app_installer_packaging.py::test_packaged_example_catalog_is_documented test/test_app_installer_packaging.py::test_packaged_example_readmes_teach_safe_adaptation test/test_app_installer_packaging.py::test_packaged_preview_example_scripts_are_compile_safe
+```
+
+## How To Read An Example
+
+1. Read the app README to understand the goal and expected output.
+2. Open the install script and identify the app name and enabled modes.
+3. Open the run script and find `RunRequest`.
+4. Change one parameter only, rerun, and compare the output directory.
+
+## When To Use These Scripts
+
+Run `agilab first-proof --json` when you want the shortest packaged product
+proof. Use `notebook_quickstart` when you want notebook-first onboarding
+material or the smaller `agi-core` route before any UI or app-helper run. Use
+the installed scripts when you want to inspect or adapt the generated
+programmatic calls. Select `multi_app_dag_project` in WORKFLOW when you want to
+understand how project-level app runs can be connected by explicit artifact
+contracts, and use `inter_project_dag` only when you need the standalone
+compatibility preview path. Use `notebook_to_dask` when you want to evaluate a notebook migration before
+creating an app or running Dask. Use `sklearn_pipeline` when you want a minimal
+classic ML app proof that writes predictions, metrics, a serialized model, and
+artifact hashes without any tracking backend. Use `parallel_stage` when you want
+to decide whether to chunk large files or cap workers before enabling pool or
+Dask execution. Use `service_mode` before enabling
+persistent workers for an already-working app. Use `mlflow_auto_tracking` when
+you want to show tracking as optional memory around AGILAB execution, not a
+competing experiment system. Use `resilience_failure_injection` when you want to
+explain fixed versus adaptive behavior on the same degraded scenario before
+training or serving a policy. Use `native_rust_worker` when you want to explain
+the advanced native-worker lane without adding Rust to the base install. Use
+`agilab app surface pytorch_playground_project --list` when you want to see how
+an app can expose more than one UI backend without changing its evidence
+contract. Use
+`excel_workbook_proof` when the stakeholder lives in
+Excel and needs to see workbook output plus refreshable CSV and evidence before
+they care about notebooks, DAGs, or clusters. Use `sqlite_connector_proof` when
+the stakeholder already works from SQL tables and needs a local database proof
+with schema, query, and result hashes before connecting to Postgres or a cloud
+warehouse. Use `voila_notebook_proof` when
+the stakeholder already has a notebook dashboard and needs to see how AGILAB
+adds app boundaries, replay, and evidence without replacing the notebook-first
+flow. Use `train_then_serve` when you want to explain what must be frozen after
+training before a policy becomes service-ready.

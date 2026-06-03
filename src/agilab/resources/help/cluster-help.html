@@ -1,0 +1,464 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cluster Help &mdash; AGILAB 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+      <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=8d563738"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Key Generation" href="key-generation.html" />
+    <link rel="prev" title="Cluster" href="cluster.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            AGILAB
+              <img src="_static/agi_logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="quick-start.html">Quick-Start</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#license">LICENSE</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#install-agilab">Install Agilab</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="quick-start.html#pre-requisite">Pre-Requisite:</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="quick-start.html#linux-and-macos">Linux and MacOS:</a></li>
+<li class="toctree-l4"><a class="reference internal" href="quick-start.html#windows">Windows:</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#agilab-execution">Agilab Execution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-start.html#support">Support</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#purpose"><strong>Purpose</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#target-audience"><strong>Target Audience</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#main-dependencies"><strong>Main Dependencies</strong></a></li>
+<li class="toctree-l2"><a class="reference internal" href="introduction.html#example-aircraft-telecommunication">Example: Aircraft Telecommunication</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="features.html">Features</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="features.html#agi-core">agi-core</a></li>
+<li class="toctree-l2"><a class="reference internal" href="features.html#agilab">agilab</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="reference internal" href="cluster.html">Cluster</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Cluster Help</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#principle">Principle</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="key-generation.html">Key Generation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#generate-the-keys">Generate the keys</a><ul class="simple">
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#loading-the-private-key-in-ssh-agent">Loading the private key in SSH Agent</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#load-the-private-key">Load the private key</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#verify-the-key-addition">Verify the key Addition</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#copy-the-public-key-to-the-server">Copy the public key to the server</a></li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#sshd-service">SSHD Service</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#check-the-configuration">Check the configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#restart-the-sshd-service">Restart the SSHD service</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#check-the-service-status">Check the service status:</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#permissions">Permissions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#on-windows">On Windows</a></li>
+<li class="toctree-l4"><a class="reference internal" href="key-generation.html#on-linux">On Linux</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="key-generation.html#useful-links">Useful links</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="agilab.html">AGILAB</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="edit_help.html">▶️ EDIT</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="edit_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="edit_help.html#main-content-area">Main Content Area</a></li>
+<li class="toctree-l3"><a class="reference internal" href="edit_help.html#support">Support</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="execute_help.html">▶️ EXECUTE</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="execute_help.html#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="execute_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="execute_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_help.html">▶️ EXPERIMENT</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="experiment_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="experiment_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="views_help.html">▶️ VIEW</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="views_help.html#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="views_help.html#sidebar">Sidebar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="views_help.html#main-content-area">Main Content Area</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="framework-api.html">Framework API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="agi-env.html">agi_env API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-env.html#usage-example">Usage Example</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#instanciation">Instanciation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="agi-env.html#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-env.html#agi_env.agi_env.AgiEnv"><code class="docutils literal notranslate"><span class="pre">AgiEnv</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="agi-managers.html">managers API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-managers.html#usage-example">Usage Example</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#installation">Installation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#update">Update</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#check-distribution">Check Distribution</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#run">Run</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="agi-managers.html#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#agi_cluster.agi_cluster.AGI"><code class="docutils literal notranslate"><span class="pre">AGI</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-managers.html#managers.agi_dispatcher.agi_dispatcher.WorkDispatcher"><code class="docutils literal notranslate"><span class="pre">WorkDispatcher</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="agi-workers.html">workers API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="agi-workers.html#workers-reference">Workers Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-agi-worker">workers.agi-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-agent-worker">workers.agent-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-dag-worker">workers.dag-worker</a></li>
+<li class="toctree-l4"><a class="reference internal" href="agi-workers.html#agi-core-workers-data-worker">workers.data-worker</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="my-code_project.html">Example1: My-Code_project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="my-code_project.html#manager-my-code">manager: my_code</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal App"><code class="docutils literal notranslate"><span class="pre">Minimal App</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal App.__init__"><code class="docutils literal notranslate"><span class="pre">Minimal App.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal App.args"><code class="docutils literal notranslate"><span class="pre">Minimal App.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal App.build_distribution"><code class="docutils literal notranslate"><span class="pre">Minimal App.build_distribution()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal App.convert_functions_to_names"><code class="docutils literal notranslate"><span class="pre">Minimal App.convert_functions_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal App.do_distrib"><code class="docutils literal notranslate"><span class="pre">Minimal App.do_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal App.normalize_path"><code class="docutils literal notranslate"><span class="pre">Minimal App.normalize_path()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal App.onerror"><code class="docutils literal notranslate"><span class="pre">Minimal App.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal App.verbose"><code class="docutils literal notranslate"><span class="pre">Minimal App.verbose</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.__init__"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.construct"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.copy"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.dict"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.dict()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.from_orm"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.from_orm()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.json"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_computed_fields"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_computed_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_config"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_config</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_construct"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_copy"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_dump"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_dump()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_dump_json"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_dump_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_extra"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_extra</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_fields"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_fields_set"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_fields_set</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_json_schema"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_json_schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_parametrized_name"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_parametrized_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_post_init"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_post_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_rebuild"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_rebuild()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_validate"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_validate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_validate_json"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_validate_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.model_validate_strings"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.model_validate_strings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.minimal_app_param1"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.minimal_app_param1</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.parse_file"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.parse_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.parse_obj"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.parse_obj()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.parse_raw"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.parse_raw()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.schema"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.schema_json"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.schema_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.update_forward_refs"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.update_forward_refs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code.my_code.Minimal AppArgs.validate"><code class="docutils literal notranslate"><span class="pre">Minimal AppArgs.validate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="my-code_project.html#worker-my-code-worker">worker: my_code_worker</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.algo_A"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.algo_A()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.algo_B"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.algo_B()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.algo_C"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.algo_C()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.algo_X"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.algo_X()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.algo_Y"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.algo_Y()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.algo_Z"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.algo_Z()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.build"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.do_works"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.exec"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.exec_mono_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.exec_multi_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.expand"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.join"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.logs"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.mode"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.new"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my-code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.normalize_path()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my_code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.onerror"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my_code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.run"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my_code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.share_path"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my_code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.start"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my_code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.stop"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my_code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.t0"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my_code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.topological_sort"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.topological_sort()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my_code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.verbose"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my_code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.worker"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my_code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.worker_id"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.worker_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="my_code_project.html#my_code_worker.my_code_worker.Minimal AppWorker.works"><code class="docutils literal notranslate"><span class="pre">Minimal AppWorker.works()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="flight_telemetry_project.html">Example2: flight_telemetry_project</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="flight_telemetry_project.html#manager-flight-telemetry">manager: flight_telemetry</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.__init__"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.args"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.build_distribution"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.build_distribution()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.convert_functions_to_names"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.convert_functions_to_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.data_out"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.data_out</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.do_distrib"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.do_distrib()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.extract_plane_from_file_name"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.extract_plane_from_file_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.get_data_from_files"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.get_data_from_files()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.get_data_from_hawk"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.get_data_from_hawk()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.get_partition_by_planes"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.get_partition_by_planes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.ivq_logs"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.ivq_logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.normalize_path"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.normalize_path()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.onerror"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_telemetry.FlightTelemetry.verbose"><code class="docutils literal notranslate"><span class="pre">FlightTelemetry.verbose</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs"><code class="docutils literal notranslate"><span class="pre">FlightArgs</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.__init__"><code class="docutils literal notranslate"><span class="pre">FlightArgs.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.check_date"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_date()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.check_date_order"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_date_order()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.check_valid_regex"><code class="docutils literal notranslate"><span class="pre">FlightArgs.check_valid_regex()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.construct"><code class="docutils literal notranslate"><span class="pre">FlightArgs.construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.copy"><code class="docutils literal notranslate"><span class="pre">FlightArgs.copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.data_source"><code class="docutils literal notranslate"><span class="pre">FlightArgs.data_source</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.datemax"><code class="docutils literal notranslate"><span class="pre">FlightArgs.datemax</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.datemin"><code class="docutils literal notranslate"><span class="pre">FlightArgs.datemin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.dict"><code class="docutils literal notranslate"><span class="pre">FlightArgs.dict()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.files"><code class="docutils literal notranslate"><span class="pre">FlightArgs.files</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.from_orm"><code class="docutils literal notranslate"><span class="pre">FlightArgs.from_orm()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_computed_fields"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_computed_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_config"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_config</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_construct"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_construct()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_copy"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_copy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_dump"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_dump()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_dump_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_dump_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_extra"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_extra</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_fields"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_fields</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_fields_set"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_fields_set</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_json_schema"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_json_schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_parametrized_name"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_parametrized_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_post_init"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_post_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_rebuild"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_rebuild()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_validate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_validate_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.model_validate_strings"><code class="docutils literal notranslate"><span class="pre">FlightArgs.model_validate_strings()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.nfile"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nfile</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.nread"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nread</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.nskip"><code class="docutils literal notranslate"><span class="pre">FlightArgs.nskip</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.output_format"><code class="docutils literal notranslate"><span class="pre">FlightArgs.output_format</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.parse_file"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.parse_obj"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_obj()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.parse_raw"><code class="docutils literal notranslate"><span class="pre">FlightArgs.parse_raw()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.path"><code class="docutils literal notranslate"><span class="pre">FlightArgs.path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.sampling_rate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.sampling_rate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.schema"><code class="docutils literal notranslate"><span class="pre">FlightArgs.schema()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.schema_json"><code class="docutils literal notranslate"><span class="pre">FlightArgs.schema_json()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.update_forward_refs"><code class="docutils literal notranslate"><span class="pre">FlightArgs.update_forward_refs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry.flight_args.FlightArgs.validate"><code class="docutils literal notranslate"><span class="pre">FlightArgs.validate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="flight_telemetry_project.html#worker-flight-telemetry-worker">worker: flight_telemetry_worker</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.build"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.build()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.calculate_speed"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.calculate_speed()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.cython_decorators"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.cython_decorators</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.dask_home"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.dask_home</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.do_works"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.do_works()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.exec"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.exec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.exec_mono_process"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.exec_mono_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.exec_multi_process"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.exec_multi_process()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.expand"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.expand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.expand_and_join"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.expand_and_join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.get_worker_info"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.get_worker_info()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.home_dir"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.home_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.is_managed_pc"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.is_managed_pc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.join"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.join()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.logs"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.logs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.mode"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.new"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.new()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.normalize_path"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.normalize_path()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.onerror"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.onerror()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.pool_init"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.pool_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.pool_vars"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.pool_vars</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.preprocess_df"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.preprocess_df()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.run"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.run()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.share_path"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.share_path</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.start"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.start()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.stop"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.stop()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.t0"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.t0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.verbose"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.verbose</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.work_done"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.work_done()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.work_init"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.work_init()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.work_pool"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.work_pool()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.worker"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.worker</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.worker_id"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.worker_id</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="flight_telemetry_project.html#flight_telemetry_worker.flight_telemetry_worker.FlightTelemetryWorker.works"><code class="docutils literal notranslate"><span class="pre">FlightTelemetryWorker.works()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="directory-structure.html">Project Files Structure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#a-prerequisite">A - Prerequisite:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#b-list-of-available-scripts">B- List of Available Scripts:</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#c-exemple-of-tests-sequence">C - Exemple of Tests Sequence:</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html#known-limitations-and-deprecations">Known Limitations and Deprecations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#uv-sync-failed">&lt;UV&gt; Sync Failed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#dask-debug-issue">&lt;DASK&gt; Debug Issue</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#pycharm-run-debug-configuration-is-broken">&lt;PYCHARM&gt; Run/Debug Configuration is Broken</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">Licences</a><ul class="simple">
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">AGILAB</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="cluster.html">Cluster</a></li>
+      <li class="breadcrumb-item active">Cluster Help</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/cluster-help.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="cluster-help">
+<h1>Cluster Help<a class="headerlink" href="#cluster-help" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>A cluster of computer is not mandatory to use agilab but it will enable to run your project at scale which is the
+foundation idea of agi-core.</p>
+</section>
+<section id="principle">
+<h2>Principle<a class="headerlink" href="#principle" title="Link to this heading"></a></h2>
+<p>a cluster is composed of computers identified by their IP v4 address that are generally name nodes. One of this node
+will play the role of scheduler and the others are workers matching the Dask[distributed] concept. Agilab will ask
+agi-core to install your project on each nodes. In order to proceed it requires each node to run a ssh server.
+The node on which agilab run will use ssh client to connect to each node. So that is why you need to generate keys
+from your Agillab node and then copy it to each nodes of your cluster.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="cluster.html" class="btn btn-neutral float-left" title="Cluster" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="key-generation.html" class="btn btn-neutral float-right" title="Key Generation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, THALES SIX GTS France SAS.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,10 @@
+[
+  {
+    "role": "system",
+    "content": "You are operating the Data Quality Gate AGILAB app. Keep guidance focused on reproducible data contracts, drift metrics, gate decisions, and evidence artifacts."
+  },
+  {
+    "role": "user",
+    "content": "Run one candidate data-quality gate, inspect gate_decision.json, then explain which drift or contract checks drove the decision."
+  }
+]

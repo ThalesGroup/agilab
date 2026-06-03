@@ -1,0 +1,134 @@
+schema = "agilab.extension_contracts.v1"
+
+[[extension_types]]
+id = "app"
+description = "A runnable AGILAB app project with manager code, optional worker code, settings, arguments, docs, and evidence outputs."
+required_metadata = [
+  "pyproject.toml",
+  "README.md",
+  "src/app_settings.toml",
+  "src/app_args_form.py",
+  "manager package",
+  "worker package or explicit workerless template rationale",
+]
+required_evidence = [
+  "run_manifest.json",
+  "app artifacts",
+  "reducer summary or explicit template exemption",
+  "public app catalog row when public",
+]
+guardrails = [
+  "tools/app_contract_matrix.py",
+  "tools/package_split_contract.py",
+  "test/test_app_contract_matrix.py",
+]
+maturity_labels = ["Live product path", "Local proof", "Contract proof", "Operator-triggered live check", "Roadmap boundary"]
+
+[[extension_types]]
+id = "page_bundle"
+description = "A reusable analysis or visualization page bundle with isolated dependencies and app-agnostic rendering contracts."
+required_metadata = [
+  "pyproject.toml",
+  "page entry point",
+  "provider/catalog registration",
+  "public docs row when public",
+]
+required_evidence = [
+  "page bundle discovery evidence",
+  "UI robot or static render contract",
+  "apps-pages documentation row",
+]
+guardrails = [
+  "tools/app_contract_matrix.py",
+  "test/test_apps_pages_docs.py",
+]
+maturity_labels = ["Live product path", "Local proof", "Contract proof", "Operator-triggered live check", "Roadmap boundary"]
+
+[[extension_types]]
+id = "notebook_bridge"
+description = "A notebook import/export route that preserves review context, runtime hints, stage order, and artifact references."
+required_metadata = [
+  "notebook source or packaged sample",
+  "manager/worker role metadata or explicit cell review flow",
+  "lab_stages.toml preview",
+  "export manifest",
+]
+required_evidence = [
+  "notebook import preflight",
+  "notebook round-trip report",
+  "exported supervisor notebook",
+]
+guardrails = [
+  "tools/notebook_import_preflight.py",
+  "tools/notebook_roundtrip_report.py",
+  "test/test_notebook_export_docs.py",
+]
+maturity_labels = ["Live product path", "Local proof", "Contract proof", "Operator-triggered live check", "Roadmap boundary"]
+
+[[extension_types]]
+id = "proof_evidence"
+description = "A proof, verifier, release, or promotion evidence surface that can be inspected without rerunning the workflow."
+required_metadata = [
+  "schema version",
+  "producer command",
+  "input manifest",
+  "artifact hash policy",
+  "claim boundary",
+]
+required_evidence = [
+  "plain JSON report",
+  "verifier result",
+  "human-readable summary when useful",
+  "release-proof link when public",
+]
+guardrails = [
+  "tools/release_proof_report.py",
+  "tools/maintenance_dashboard.py",
+  "test/test_evidence_claims_policy.py",
+]
+maturity_labels = ["Live product path", "Local proof", "Contract proof", "Operator-triggered live check", "Roadmap boundary"]
+
+[[extension_types]]
+id = "connector"
+description = "A data connector contract that references external data systems without embedding local paths or secrets in app code."
+required_metadata = [
+  "connector id",
+  "kind",
+  "credential reference",
+  "runtime adapter mapping",
+  "operator-trigger policy",
+]
+required_evidence = [
+  "facility report",
+  "resolution report",
+  "health plan or live probe result",
+  "runtime adapter report",
+]
+guardrails = [
+  "tools/data_connector_facility_report.py",
+  "tools/data_connector_resolution_report.py",
+  "tools/data_connector_runtime_adapters_report.py",
+]
+maturity_labels = ["Local proof", "Contract proof", "Emulator proof", "Operator-triggered live check", "Roadmap boundary"]
+
+[[extension_types]]
+id = "shared_core"
+description = "A change to reusable runtime, installer, worker, cluster, or generic support code that affects multiple apps or workflows."
+required_metadata = [
+  "blast-radius note",
+  "approval note",
+  "targeted regression plan",
+  "strict typing impact",
+]
+required_evidence = [
+  "impact validation",
+  "focused tests",
+  "shared-core typing profile when applicable",
+  "docs update when public behavior changes",
+]
+guardrails = [
+  "tools/impact_validate.py",
+  "tools/workflow_parity.py --profile shared-core-typing",
+  "AGENTS.md shared-core approval gate",
+]
+maturity_labels = ["Live product path", "Local proof", "Contract proof", "Operator-triggered live check", "Roadmap boundary"]

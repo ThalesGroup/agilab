@@ -1,0 +1,174 @@
+from __future__ import annotations
+
+import importlib
+import sys
+from contextlib import contextmanager
+from pathlib import Path
+
+
+SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+package_root = str(SRC_ROOT / "agilab")
+pkg = sys.modules.get("agilab")
+if pkg is not None and hasattr(pkg, "__path__"):
+    package_path = list(pkg.__path__)
+    if package_root not in package_path:
+        pkg.__path__ = [package_root, *package_path]
+importlib.invalidate_caches()
+
+action_execution = importlib.import_module("agilab.action_execution")
+
+
+def test_action_result_factories_normalize_optional_data():
+    for factory_name in ("success", "warning", "error", "info"):
+        factory = getattr(action_execution.ActionResult, factory_name)
+
+        result = factory(
+            "Action title",
+            detail="detail text",
+            next_action="retry later",
+            data={"job": "demo"},
+        )
+
+        assert result.status == factory_name
+        assert result.title == "Action title"
+        assert result.detail == "detail text"
+        assert result.next_action == "retry later"
+        assert result.data == {"job": "demo"}
+        assert factory("Minimal").data == {}
+
+
+class _FakeStreamlit:
+    def __init__(self):
+        self.messages: list[tuple[str, str]] = []
+        self.spinner_messages: list[str] = []
+
+    @contextmanager
+    def spinner(self, message: str):
+        self.spinner_messages.append(message)
+        yield
+
+    def success(self, message: str):
+        self.messages.append(("success", message))
+
+    def warning(self, message: str):
+        self.messages.append(("warning", message))
+
+    def error(self, message: str):
+        self.messages.append(("error", message))
+
+    def info(self, message: str):
+        self.messages.append(("info", message))
+
+
+def test_run_streamlit_action_renders_success_and_calls_callback():
+    fake_st = _FakeStreamlit()
+    callbacks: list[str] = []
+
+    result = action_execution.run_streamlit_action(
+        fake_st,
+        action_execution.ActionSpec(name="Demo", start_message="Working..."),
+        lambda: action_execution.ActionResult.success(
+            "Created.",
+            detail="Details",
+            next_action="Open it",
+            data={"name": "demo"},
+        ),
+        on_success=lambda action_result: callbacks.append(action_result.data["name"]),
+    )
+
+    assert result.status == "success"
+    assert fake_st.spinner_messages == ["Working..."]
+    assert fake_st.messages == [
+        ("success", "Created."),
+        ("info", "Details"),
+        ("info", "Next: Open it"),
+    ]
+    assert callbacks == ["demo"]
+
+
+def test_run_streamlit_action_converts_exceptions_to_action_errors():
+    fake_st = _FakeStreamlit()
+    callbacks: list[str] = []
+
+    def _raise():
+        raise RuntimeError("boom")
+
+    result = action_execution.run_streamlit_action(
+        fake_st,
+        action_execution.ActionSpec(
+            name="Demo",
+            start_message="Working...",
+            failure_title="Demo failed.",
+            failure_next_action="Retry later.",
+        ),
+        _raise,
+        on_success=lambda action_result: callbacks.append(action_result.title),
+    )
+
+    assert result.status == "error"
+    assert result.title == "Demo failed."
+    assert fake_st.messages == [
+        ("error", "Demo failed."),
+        ("info", "boom"),
+        ("info", "Next: Retry later."),
+    ]
+    assert callbacks == []
+
+
+def test_run_streamlit_action_classifies_archive_exceptions():
+    fake_st = _FakeStreamlit()
+
+    def _raise():
+        raise RuntimeError("Failed to extract '/tmp/dataset.7z': not a 7z file")
+
+    result = action_execution.run_streamlit_action(
+        fake_st,
+        action_execution.ActionSpec(
+            name="Import project",
+            start_message="Importing...",
+            failure_title="Project import failed.",
+        ),
+        _raise,
+    )
+
+    assert result.status == "error"
+    assert result.title == "Project import failed."
+    assert result.detail == (
+        "dataset.7z could not be extracted. The archive is missing, truncated, "
+        "or not a valid .7z dataset archive."
+    )
+    assert result.next_action is not None
+    assert result.data == {"failure_category": "archive"}
+    assert fake_st.messages[0] == ("error", "Project import failed.")
+    assert "not a 7z file" not in str(fake_st.messages)
+
+
+def test_render_action_result_supports_warning_outcomes():
+    fake_st = _FakeStreamlit()
+
+    action_execution.render_action_result(
+        fake_st,
+        action_execution.ActionResult.warning(
+            "Already exists.",
+            next_action="Pick another name.",
+        ),
+    )
+
+    assert fake_st.messages == [
+        ("warning", "Already exists."),
+        ("info", "Next: Pick another name."),
+    ]
+
+
+def test_render_action_result_supports_info_without_optional_messages():
+    fake_st = _FakeStreamlit()
+
+    result = action_execution.ActionResult.info("Nothing to do.")
+
+    action_execution.render_action_result(fake_st, result)
+
+    assert result.status == "info"
+    assert result.data == {}
+    assert fake_st.messages == [("info", "Nothing to do.")]

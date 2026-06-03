@@ -1,0 +1,564 @@
+[project]
+version = "2026.06.02.post1"
+name = "agilab"
+description = "AGILAB is a reproducible AI/ML workbench for engineering teams."
+requires-python = ">=3.11,<3.14"
+readme = "README.pypi.md"
+authors = [
+    { name = "Jean-Pierre Morard" }
+]
+maintainers = [{ name = "Jean-Pierre Morard" }]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+
+classifiers = [
+    "Intended Audience :: Developers",
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+]
+keywords = [
+    "python",
+    "data-science",
+    "machine-learning",
+    "ai",
+    "reproducible-research",
+    "cython",
+    "distributed-computing",
+    "jupyter-notebook",
+    "dask",
+    "reproducibility",
+    "rust",
+    "ai-agents",
+    "mlops",
+    "mlflow",
+    "experiment-tracking",
+    "workflow-orchestration",
+    "streamlit",
+    "ai-engineering",
+    "agentic-ai",
+    "free-threaded-python",
+]
+dependencies = ["legacy-cgi>=2.6.4,<3; python_version >= '3.13'", "standard-imghdr>=3.13.0,<4; python_version >= '3.13'"]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+[project.scripts]
+agilab = "agilab.lab_run:main"
+agilab-mcp = "agilab_mcp.server:main"
+
+[project.optional-dependencies]
+ai = ["openai>=2.32.0,<3"]
+core = ["agi-core==2026.06.02.post1"]
+ui = ["agi-apps==2026.06.02.post1", "agi-pages==2026.06.02.post1", "agi-gui==2026.06.02.post1", "agi-web==2026.06.01", "networkx>=3.6.1,<4", "pandas>=2.3.0,<4", "streamlit>=1.58,<2", "starlette>=1.0.1,<2", "tomli_w>=1.2.0,<2"]
+viz = ["matplotlib>=3.10.0,<4", "plotly>=6.7.0,<7"]
+mlflow = ["mlflow>=3.11.1,<4", "idna>=3.15,<4", "starlette>=1.0.1,<2"]
+bridges = ["duckdb>=1.4.0,<2"]
+notebook = ["ipykernel>=6.29.0,<8", "nbclient>=0.10.0,<1", "nbformat>=5.10.0,<6"]
+examples = ["agi-apps==2026.06.02.post1", "jupyterlab>=4.4.0,<5", "matplotlib>=3.10.0,<4", "plotly>=6.7.0,<7", "starlette>=1.0.1,<2"]
+pages = ["agi-pages==2026.06.02.post1", "starlette>=1.0.1,<2"]
+proof = ["cryptography>=46.0.0,<49"]
+agents = ["openai>=2.32.0,<3"]
+local-llm = ["accelerate>=0.34.2,<2; python_version >= '3.12'", "fastapi>=0.124.4,!=0.136.3,<1; python_version >= '3.12'", "gpt-oss>=0.0.8,<0.1; python_version >= '3.12'", "langchain-core>=1.3.3,<2; python_version >= '3.12'", "langsmith>=0.8.0,<1; python_version >= '3.12'", "mlx>=0.31.2,<0.32; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-lm>=0.31.3,<0.32; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-vlm>=0.5.0,<0.6; sys_platform == 'darwin' and platform_machine == 'arm64'", "requests>=2.32.0,<3; python_version >= '3.12'", "starlette>=1.0.1,<2; python_version >= '3.12'", "torch>=2.8.0,<3; python_version >= '3.12'", "transformers>=4.57.0,<6; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0,<0.2; python_version >= '3.12'"]
+offline = ["accelerate>=0.34.2,<2; python_version >= '3.12'", "fastapi>=0.124.4,!=0.136.3,<1; python_version >= '3.12'", "gpt-oss>=0.0.8,<0.1; python_version >= '3.12'", "langchain-core>=1.3.3,<2; python_version >= '3.12'", "langsmith>=0.8.0,<1; python_version >= '3.12'", "mlx>=0.31.2,<0.32; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-lm>=0.31.3,<0.32; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-vlm>=0.5.0,<0.6; sys_platform == 'darwin' and platform_machine == 'arm64'", "requests>=2.32.0,<3; python_version >= '3.12'", "starlette>=1.0.1,<2; python_version >= '3.12'", "torch>=2.8.0,<3; python_version >= '3.12'", "transformers>=4.57.0,<6; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0,<0.2; python_version >= '3.12'"]
+dev = ["build>=1.3.0,<2", "cyclonedx-bom>=7.2.1,<8", "pip-audit>=2.9.0,<3", "pytest>=9.0.0,<10", "pytest-asyncio>=1.3.0,<2", "pytest-cov>=7.0.0,<8", "ruff>=0.15.14,<1", "tomlkit>=0.13.0,<1", "twine>=6.2.0,<7", "wheel>=0.45.0,<1"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[dependency-groups]
+dev = [
+    "agi-core",
+    "build",
+    "geojson>=3.2.0",
+    "ipython",
+    "pip",
+    "pytest",
+    "pytest-cov",
+    "pytest-local-badge",
+    "pytest-asyncio",
+    "setuptools",
+    "simpy>=4.1,<5",
+    "twine",
+    "wheel",
+    "ydata-profiling",
+    "genbadge[coverage]",
+    "pypi-cleanup",
+]
+
+[tool.uv.extra-build-dependencies]
+htmlmin = ["legacy-cgi"]
+ydata-profiling = ["standard-imghdr"]
+
+[tool.uv.sources.agi-core]
+    path = "./src/agilab/core/agi-core"
+    editable = true
+
+[tool.uv.sources.agi-env]
+    path = "./src/agilab/core/agi-env"
+    editable = true
+
+[tool.uv.sources.agi-gui]
+    path = "./src/agilab/lib/agi-gui"
+    editable = true
+
+[tool.uv.sources.agi-web]
+    path = "./src/agilab/lib/agi-web"
+    editable = true
+
+[tool.uv.sources.agi-page-simplex-map]
+    path = "./src/agilab/apps-pages/view_barycentric"
+    editable = true
+
+[tool.uv.sources.agi-page-decision-evidence]
+    path = "./src/agilab/apps-pages/view_data_io_decision"
+    editable = true
+
+[tool.uv.sources.agi-page-timeseries-forecast]
+    path = "./src/agilab/apps-pages/view_forecast_analysis"
+    editable = true
+
+[tool.uv.sources.agi-page-inference-report]
+    path = "./src/agilab/apps-pages/view_inference_analysis"
+    editable = true
+
+[tool.uv.sources.agi-page-live-artifacts]
+    path = "./src/agilab/apps-pages/view_live_artifacts"
+    editable = true
+
+[tool.uv.sources.agi-page-geospatial-map]
+    path = "./src/agilab/apps-pages/view_maps"
+    editable = true
+
+[tool.uv.sources.agi-page-geospatial-3d]
+    path = "./src/agilab/apps-pages/view_maps_3d"
+    editable = true
+
+[tool.uv.sources.agi-page-network-map]
+    path = "./src/agilab/apps-pages/view_maps_network"
+    editable = true
+
+[tool.uv.sources.agi-page-routing-model-comparison]
+    path = "./src/agilab/apps-pages/view_routing_model_comparison"
+    editable = true
+
+[tool.uv.sources.agi-page-queue-health]
+    path = "./src/agilab/apps-pages/view_queue_resilience"
+    editable = true
+
+[tool.uv.sources.agi-page-relay-health]
+    path = "./src/agilab/apps-pages/view_relay_resilience"
+    editable = true
+
+[tool.uv.sources.agi-page-scenario-cockpit]
+    path = "./src/agilab/apps-pages/view_scenario_cockpit"
+    editable = true
+
+[tool.uv.sources.agi-page-promotion-gate]
+    path = "./src/agilab/apps-pages/view_release_decision"
+    editable = true
+
+[tool.uv.sources.agi-page-feature-attribution]
+    path = "./src/agilab/apps-pages/view_shap_explanation"
+    editable = true
+
+[tool.uv.sources.agi-page-app-ui]
+    path = "./src/agilab/apps-pages/view_app_ui"
+    editable = true
+
+[tool.uv.sources.agi-page-training-report]
+    path = "./src/agilab/apps-pages/view_training_analysis"
+    editable = true
+
+[tool.uv.sources.agi-apps]
+    path = "./src/agilab/lib/agi-apps"
+    editable = true
+
+[tool.uv.sources.agi-app-mission-decision]
+    path = "./src/agilab/lib/agi-app-mission-decision"
+    editable = true
+
+[tool.uv.sources.agi-app-pandas-execution]
+    path = "./src/agilab/lib/agi-app-pandas-execution"
+    editable = true
+
+[tool.uv.sources.agi-app-polars-execution]
+    path = "./src/agilab/lib/agi-app-polars-execution"
+    editable = true
+
+[tool.uv.sources.agi-app-flight-telemetry]
+    path = "./src/agilab/lib/agi-app-flight-telemetry"
+    editable = true
+
+[tool.uv.sources.agi-app-multi-dag]
+    path = "./src/agilab/lib/agi-app-multi-dag"
+    editable = true
+
+[tool.uv.sources.agi-app-weather-forecast]
+    path = "./src/agilab/lib/agi-app-weather-forecast"
+    editable = true
+
+[tool.uv.sources.agi-app-sklearn-pipeline]
+    path = "./src/agilab/lib/agi-app-sklearn-pipeline"
+    editable = true
+
+[tool.uv.sources.agi-app-data-quality-gate]
+    path = "./src/agilab/lib/agi-app-data-quality-gate"
+    editable = true
+
+[tool.uv.sources.agi-app-pytorch-playground]
+    path = "./src/agilab/lib/agi-app-pytorch-playground"
+    editable = true
+
+[tool.uv.sources.agi-app-tescia-diagnostic]
+    path = "./src/agilab/lib/agi-app-tescia-diagnostic"
+    editable = true
+
+[tool.uv.sources.agi-app-uav-queue]
+    path = "./src/agilab/lib/agi-app-uav-queue"
+    editable = true
+
+[tool.uv.sources.agi-app-uav-relay-queue]
+    path = "./src/agilab/lib/agi-app-uav-relay-queue"
+    editable = true
+
+[tool.uv.sources.agi-pages]
+    path = "./src/agilab/lib/agi-pages"
+    editable = true
+
+[tool.uv.sources.agi-node]
+    path = "./src/agilab/core/agi-node"
+    editable = true
+
+[tool.uv.sources.agi-cluster]
+    path = "./src/agilab/core/agi-cluster"
+    editable = true
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = false
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = [
+    "agilab",
+    "agilab.about_page*",
+    "agilab.resources*",
+    "agilab_mcp*",
+]
+exclude = [
+    "agilab.core*",
+    "agilab.test*",
+    "agilab.apps.*",
+    ".idea*",
+    "test*",
+    "build*",
+    ".venv*"
+]
+
+[tool.setuptools.package-data]
+agilab = [
+    "resources/*.*",
+    "resources/notebook_import_samples/*.ipynb",
+    "resources/help/*",
+    "pages/*.py",
+    "*.toml",
+    "*.ipynb",
+]
+
+[tool.setuptools.exclude-package-data]
+agilab = [
+    # Keep internal tests out of the distribution.
+    "test/*",
+]
+
+[tool.mypy]
+mypy_path = [
+    "stubs",
+]
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "agilab"
+format = "google"
+
+[tool.pytest.ini_options]
+# Let pytest discover tests from repo root
+testpaths = [
+  "test",
+  "src/agilab/core/test",
+  "src/agilab/core/agi-env/test",
+  "src/agilab/lib/agi-gui/test",
+  "src/agilab/lib/agi-web/test",
+]
+
+# Make the core packages importable when running pytest from the repo root
+pythonpath = [
+  "src",
+  "src/agilab/core/agi-env/src",
+  "src/agilab/lib/agi-gui/src",
+  "src/agilab/lib/agi-web/src",
+  "src/agilab/core/agi-node/src",
+  "src/agilab/core/agi-cluster/src",
+]
+
+# (merge everything you had inline here)
+asyncio_mode = "auto"
+markers = [
+  "integration: live/external integration checks (excluded from default CI suite)",
+  "release_proof: expensive release-proof gates that run only during release validation",
+  "ui_robot: browser-driven AGILAB UI robot checks (opt-in; launches Streamlit/Playwright)",
+]
+filterwarnings = [
+  "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+  "ignore:Theme names and color schemes are lowercase.*:DeprecationWarning:IPython\\.core\\.ultratb",
+  "ignore:'oneOf' deprecated - use 'one_of':Warning:matplotlib\\._fontconfig_pattern",
+  "ignore:'parseString' deprecated - use 'parse_string':Warning:matplotlib\\._fontconfig_pattern",
+  "ignore:'resetCache' deprecated - use 'reset_cache':Warning:matplotlib\\._fontconfig_pattern",
+  "ignore:'enablePackrat' deprecated - use 'enable_packrat':Warning:matplotlib\\._mathtext",
+]
+
+addopts = [
+  "--import-mode=importlib",
+  "--cov=agilab", "--cov=agi_core", "--cov=agi_env", "--cov=agi_gui", "--cov=agi_web", "--cov=agi_cluster", "--cov=agi_node", "--cov=src/agilab/apps-pages",
+  "--cov-report=term-missing:skip-covered"
+]
+
+[tool.coverage.run]
+branch = true
+source = ["agilab", "agi_core", "agi_env", "agi_gui", "agi_web", "agi_cluster", "agi_node", "src/agilab/apps-pages"]
+disable_warnings = ["module-not-imported"]
+
+[tool.coverage.report]
+omit = [
+    "src/agilab/main_page.py",
+    "src/agilab/lab_run.py",
+    "src/agilab/pages/*.py",
+]

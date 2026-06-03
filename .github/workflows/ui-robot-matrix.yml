@@ -1,0 +1,323 @@
+name: ui-robot-matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: "Built-in apps to sweep: all or comma-separated app names."
+        required: false
+        default: "all"
+      timeout:
+        description: "Per-widget timeout in seconds."
+        required: false
+        default: "90"
+      widget_timeout:
+        description: "Low-level widget action timeout in seconds."
+        required: false
+        default: "3"
+  schedule:
+    - cron: "43 2 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-robot-matrix-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ui-robot-matrix:
+    name: ui-robot-matrix (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: core
+            scenarios: >-
+              isolated-core-pages
+              isolated-entry-and-app-pages
+              isolated-project-page
+              isolated-project-editor-page
+              isolated-project-notebook-import
+              isolated-project-import-sidebar
+              isolated-project-rename-sidebar
+              isolated-settings-page
+          - shard: state
+            scenarios: >-
+              isolated-fresh-session-core-pages
+              isolated-browser-history
+          - shard: quality
+            scenarios: >-
+              isolated-browser-error-core-pages
+              isolated-pytorch-playground-analysis
+              isolated-above-fold-core-pages
+              isolated-keyboard-focus-core-pages
+              isolated-accessibility-core-pages
+          - shard: layout
+            scenarios: >-
+              isolated-layout-integrity-desktop
+              isolated-mobile-core-pages
+              isolated-layout-integrity-mobile
+    env:
+      AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
+      OPENAI_API_KEY: "sk-test-ui-robot-000000000000"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.10.7"
+
+      - name: Install Playwright browser
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run --with playwright python -m playwright install --with-deps chromium
+
+      - name: Run UI robot matrix shard
+        env:
+          INPUT_APPS: ${{ github.event.inputs.apps }}
+          INPUT_TIMEOUT: ${{ github.event.inputs.timeout }}
+          INPUT_WIDGET_TIMEOUT: ${{ github.event.inputs.widget_timeout }}
+          ROBOT_SCENARIOS: ${{ matrix.scenarios }}
+          ROBOT_SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          result_dir="test-results/ui-robot-matrix/${ROBOT_SHARD}"
+          screenshot_dir="screenshots/ui-robot-matrix/${ROBOT_SHARD}"
+          failure_bundle_dir="${result_dir}/failure-bundles"
+          failure_artifact_dir="${result_dir}/failure-artifacts"
+          mkdir -p \
+            "${failure_bundle_dir}" \
+            "${screenshot_dir}" \
+            "${failure_artifact_dir}/traces" \
+            "${failure_artifact_dir}/har" \
+            "${failure_artifact_dir}/video"
+          robot_apps="${INPUT_APPS:-all}"
+          robot_timeout="${INPUT_TIMEOUT:-90}"
+          robot_widget_timeout="${INPUT_WIDGET_TIMEOUT:-3}"
+          scenario_args=()
+          for scenario in ${ROBOT_SCENARIOS}; do
+            scenario_args+=(--scenario "${scenario}")
+          done
+          if [ "${#scenario_args[@]}" -eq 0 ]; then
+            echo "No UI robot scenarios configured for shard ${ROBOT_SHARD}" >&2
+            exit 2
+          fi
+          set +e
+          uv --preview-features extra-build-dependencies run --extra ai --with playwright python tools/agilab_widget_robot_matrix.py \
+            "${scenario_args[@]}" \
+            --apps "${robot_apps}" \
+            --timeout "${robot_timeout}" \
+            --widget-timeout "${robot_widget_timeout}" \
+            --json \
+            --quiet-progress \
+            --no-result-cache \
+            --output-dir "${result_dir}" \
+            --screenshot-dir "${screenshot_dir}" \
+            --failure-bundle-dir "${failure_bundle_dir}" \
+            --retry-failed-with-artifacts \
+            --retry-trace-dir "${failure_artifact_dir}/traces" \
+            --retry-har-dir "${failure_artifact_dir}/har" \
+            --retry-video-dir "${failure_artifact_dir}/video" \
+            | tee "${result_dir}/summary.json"
+          status="${PIPESTATUS[0]}"
+          set -e
+          echo "${status}" > "${result_dir}/exit-code.txt"
+          exit "${status}"
+
+      - name: Write UI robot trend report
+        if: always()
+        env:
+          ROBOT_SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          result_dir="test-results/ui-robot-matrix/${ROBOT_SHARD}"
+          set +e
+          uv --preview-features extra-build-dependencies run python tools/ui_robot_trend_report.py \
+            --glob "${result_dir}/*.ndjson" \
+            --max-total-seconds 2700 \
+            --max-mean-page-seconds 180 \
+            --strict \
+            --strict-budget \
+            --output "${result_dir}/trend-report.json" \
+            | tee "${result_dir}/trend-report.txt"
+          trend_status="${PIPESTATUS[0]}"
+          set -e
+          {
+            echo ""
+            echo "## UI robot trend (${ROBOT_SHARD})"
+            cat "${result_dir}/trend-report.txt"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "${trend_status}"
+
+      - name: Write UI robot shard manifest
+        if: always()
+        env:
+          RESULT_DIR: test-results/ui-robot-matrix/${{ matrix.shard }}
+          ROBOT_SHARD: ${{ matrix.shard }}
+          SCREENSHOT_DIR: screenshots/ui-robot-matrix/${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run python tools/ui_robot_matrix_aggregate.py \
+            --write-shard-manifest \
+            --result-dir "${RESULT_DIR}" \
+            --screenshot-dir "${SCREENSHOT_DIR}" \
+            --shard "${ROBOT_SHARD}" \
+            --compact
+
+      - name: Summarize UI robot matrix
+        if: always()
+        env:
+          RESULT_DIR: test-results/ui-robot-matrix/${{ matrix.shard }}
+          ROBOT_SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary_path = Path(os.environ["RESULT_DIR"]) / "summary.json"
+          summary_file = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          robot_shard = os.environ["ROBOT_SHARD"]
+
+          def cell(value: object, *, limit: int = 200) -> str:
+              text = str(value if value is not None else "")
+              return text.replace("\n", " ").replace("|", "\\|")[:limit]
+
+          lines = [f"## UI robot matrix ({robot_shard})"]
+          if not summary_path.is_file():
+              lines.append("")
+              lines.append("No JSON summary was produced. Check the uploaded progress log and screenshots.")
+          else:
+              try:
+                  summary = json.loads(summary_path.read_text(encoding="utf-8"))
+              except json.JSONDecodeError as exc:
+                  summary = {"success": False, "error": f"invalid JSON summary: {exc}"}
+
+              status = "PASS" if summary.get("success") is True else "FAIL"
+              lines.extend(
+                  [
+                      "",
+                      f"- Status: `{status}`",
+                      f"- Pages: `{summary.get('page_count', 0)}`",
+                      f"- Widgets: `{summary.get('widget_count', 0)}`",
+                      f"- Interacted: `{summary.get('interacted_count', 0)}`",
+                      f"- Probed: `{summary.get('probed_count', 0)}`",
+                      f"- Failed: `{summary.get('failed_count', 0)}`",
+                      "",
+                      "| Scenario | Status | Pages | Widgets | Interacted | Probed | Failed | Duration s |",
+                      "|---|---:|---:|---:|---:|---:|---:|---:|",
+                  ]
+              )
+              for scenario in summary.get("scenarios") or []:
+                  scenario_status = "PASS" if scenario.get("success") is True else "FAIL"
+                  lines.append(
+                      "| "
+                      + " | ".join(
+                          [
+                              cell(scenario.get("name")),
+                              scenario_status,
+                              cell(scenario.get("page_count", 0)),
+                              cell(scenario.get("widget_count", 0)),
+                              cell(scenario.get("interacted_count", 0)),
+                              cell(scenario.get("probed_count", 0)),
+                              cell(scenario.get("failed_count", 0)),
+                              cell(f"{float(scenario.get('duration_seconds') or 0):.1f}"),
+                          ]
+                      )
+                      + " |"
+                  )
+
+              samples = summary.get("failure_samples") or []
+              lines.append("")
+              lines.append("### Failure Samples")
+              if samples:
+                  for sample in samples[:20]:
+                      lines.append(
+                          "- "
+                          f"`{cell(sample.get('scenario'))}` "
+                          f"`{cell(sample.get('app'))}` "
+                          f"`{cell(sample.get('page'))}` "
+                          f"`{cell(sample.get('kind'))}` "
+                          f"`{cell(sample.get('label'))}`: "
+                          f"{cell(sample.get('detail'), limit=400)}"
+                      )
+              else:
+                  lines.append("No failure samples recorded.")
+
+          with summary_file.open("a", encoding="utf-8") as fh:
+              fh.write("\n".join(lines))
+              fh.write("\n")
+          PY
+
+      - name: Upload UI robot artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: ui-robot-matrix-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: |
+            test-results/ui-robot-matrix/${{ matrix.shard }}/**
+            screenshots/ui-robot-matrix/${{ matrix.shard }}/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+  aggregate-ui-robot-matrix:
+    name: ui-robot-matrix aggregate
+    runs-on: ubuntu-latest
+    needs: ui-robot-matrix
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.10.7"
+
+      - name: Download UI robot shard artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: ui-robot-matrix-*-${{ github.run_attempt }}
+          path: test-results/ui-robot-matrix-artifacts
+
+      - name: Aggregate UI robot matrix shards
+        run: |
+          set +e
+          mkdir -p test-results/ui-robot-matrix-aggregate
+          uv --preview-features extra-build-dependencies run python tools/ui_robot_matrix_aggregate.py \
+            --root test-results/ui-robot-matrix-artifacts \
+            --expected-shards core,state,quality,layout \
+            --output test-results/ui-robot-matrix-aggregate/aggregate.json \
+            --summary-markdown test-results/ui-robot-matrix-aggregate/summary.md \
+            | tee test-results/ui-robot-matrix-aggregate/aggregate.txt
+          aggregate_status="${PIPESTATUS[0]}"
+          set -e
+          cat test-results/ui-robot-matrix-aggregate/summary.md >> "$GITHUB_STEP_SUMMARY"
+          echo "${aggregate_status}" > test-results/ui-robot-matrix-aggregate/exit-code.txt
+          exit "${aggregate_status}"
+
+      - name: Upload UI robot aggregate artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: ui-robot-matrix-aggregate-${{ github.run_attempt }}
+          path: test-results/ui-robot-matrix-aggregate/**
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,57 @@
+name: Roadmap vote
+description: Submit one roadmap preference for AGILab future work.
+title: "[Roadmap vote] "
+labels:
+  - roadmap
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form to record one roadmap preference.
+        Votes are tracked as GitHub issues in this repository.
+
+  - type: dropdown
+    id: investment
+    attributes:
+      label: Preferred next AGILab investment
+      description: Select the single item that should be prioritized next.
+      options:
+        - Experiment Cockpit
+        - Evidence / Release View
+        - Scenario Playback View
+        - Elastic/OpenSearch + Grafana
+        - OpenSearch + OpenSearch Dashboards
+        - Postgres + Superset
+        - Connector framework hardening and external integrations
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why this should be next
+      description: State the operational, product, or engineering reason.
+      placeholder: This should be next because...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: value
+    attributes:
+      label: Expected value
+      description: Select the main value drivers.
+      options:
+        - label: Better daily usability
+        - label: Better evidence and release readiness
+        - label: Better observability and operations
+        - label: Better audit and traceability
+        - label: Better executive analytics
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints or dependencies
+      description: Optional blockers, dependencies, or prerequisites.
+      placeholder: Depends on...
+    validations:
+      required: false

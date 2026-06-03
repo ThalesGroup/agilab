@@ -1,0 +1,396 @@
+/* Shared “primary” styling applied across all Streamlit pages */
+
+:root {
+  --agilab-primary: #4A90E2;
+  --agilab-primary-soft: rgba(74, 144, 226, 0.15);
+  --agilab-primary-focus: rgba(74, 144, 226, 0.2);
+  --agilab-surface: #0a1f33;
+  --agilab-surface-alt: #142934;
+  --agilab-surface-warm: #2b2f1f;
+  --agilab-ink: #f7f2e8;
+  --agilab-muted: rgba(247, 242, 232, 0.66);
+  --agilab-line: rgba(247, 242, 232, 0.16);
+  --agilab-value-ready: #72d6b4;
+  --agilab-value-incomplete: #ffbe5e;
+  --agilab-value-neutral: rgba(247, 242, 232, 0.78);
+  --agilab-on-primary: #FFFFFF;
+  --agilab-neutral-border: rgba(0, 0, 0, 0.25);
+}
+
+div[data-testid="stVerticalBlock"]:has(> [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] .agilab-header-card) {
+  position: relative;
+  margin: 0.35rem 0 1.05rem;
+  gap: 1.15rem !important;
+  padding: clamp(1.25rem, 2.2vw, 1.85rem);
+  border: 1px solid rgba(247, 242, 232, 0.18) !important;
+  border-radius: 1.25rem !important;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 190, 94, 0.18), transparent 34%),
+    radial-gradient(circle at 100% 0%, rgba(114, 214, 180, 0.13), transparent 30%),
+    linear-gradient(135deg, rgba(8, 17, 31, 0.94), rgba(18, 43, 51, 0.86) 56%, rgba(38, 48, 25, 0.78));
+  box-shadow: 0 16px 44px rgba(7, 17, 31, 0.16), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+div[data-testid="stVerticalBlock"]:has(> [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] .agilab-header-card)::before {
+  content: "";
+  position: absolute;
+  inset: 0.95rem 1.12rem auto;
+  height: 1px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 210, 138, 0.72), rgba(114, 214, 180, 0.54), transparent);
+  pointer-events: none;
+}
+
+div[data-testid="stVerticalBlock"]:has(> [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] .agilab-header-card) [data-testid="stHorizontalBlock"] {
+  gap: 1.15rem;
+  align-items: stretch;
+}
+
+div[data-testid="stVerticalBlock"]:has(> [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] .agilab-header-card) [data-testid="stHorizontalBlock"] + [data-testid="stHorizontalBlock"] {
+  margin-top: 1.15rem;
+}
+
+div[data-testid="stVerticalBlock"]:has(> [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] .agilab-header-card) [data-testid="stColumn"],
+div[data-testid="stVerticalBlock"]:has(> [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] .agilab-header-card) [data-testid="column"],
+div[data-testid="stVerticalBlock"]:has(> [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] .agilab-header-card) [data-testid="stElementContainer"]:has(.agilab-header-card),
+div[data-testid="stVerticalBlock"]:has(> [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] .agilab-header-card) [data-testid="stMarkdown"],
+div[data-testid="stVerticalBlock"]:has(> [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] .agilab-header-card) [data-testid="stMarkdownContainer"] {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+div[data-testid="stVerticalBlock"]:has(> [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] .agilab-header-card) [data-testid="stMarkdownContainer"]:has(.agilab-header-card) {
+  margin-bottom: 0 !important;
+}
+
+.agilab-header-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(1.65rem, 1fr) auto;
+  align-content: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 6.65rem;
+  padding: 0.82rem 0.9rem 0.76rem 1rem;
+  border: 1px solid rgba(247, 242, 232, 0.16);
+  border-radius: 1rem;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.075), rgba(255,255,255,0.025)),
+    linear-gradient(135deg, rgba(16, 35, 52, 0.78), rgba(31, 44, 36, 0.58)),
+    rgba(247, 242, 232, 0.03);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.075), 0 10px 28px rgba(0,0,0,0.12);
+  overflow: hidden;
+}
+
+.agilab-header-card::before {
+  content: "";
+  position: absolute;
+  inset: 0.68rem auto 0.68rem 0.56rem;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--agilab-value-neutral);
+  opacity: 0.82;
+}
+
+.agilab-header-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -18% -42% auto;
+  width: 8.6rem;
+  height: 8.6rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.08), transparent 66%);
+  pointer-events: none;
+}
+
+.agilab-header-card--ready::before {
+  background: var(--agilab-value-ready);
+}
+
+.agilab-header-card--incomplete::before {
+  background: var(--agilab-value-incomplete);
+}
+
+.agilab-header-card--neutral::before {
+  background: var(--agilab-value-neutral);
+}
+
+.agilab-header-label {
+  position: relative;
+  z-index: 1;
+  color: rgba(247, 242, 232, 0.68);
+  font-size: 0.7rem;
+  font-weight: 820;
+  letter-spacing: 0.085em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.agilab-header-value {
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  margin-top: 0.22rem;
+  color: var(--agilab-ink);
+  font-size: clamp(1.18rem, 1.6vw, 1.42rem);
+  font-weight: 860;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.agilab-header-value--ready {
+  color: var(--agilab-value-ready) !important;
+}
+
+.agilab-header-value--incomplete {
+  color: var(--agilab-value-incomplete) !important;
+}
+
+.agilab-header-value--neutral {
+  color: var(--agilab-value-neutral) !important;
+}
+
+.agilab-header-caption {
+  position: relative;
+  z-index: 1;
+  align-self: end;
+  margin-top: 0.48rem;
+  color: rgba(247, 242, 232, 0.60);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .agilab-header-card {
+    min-height: 5.65rem;
+  }
+
+  div[data-testid="stVerticalBlock"]:has(> [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] .agilab-header-card) {
+    border-radius: 1rem !important;
+    padding: 1rem;
+  }
+}
+
+[data-testid="stButton"] button,
+[data-testid="stDownloadButton"] button,
+[data-testid="stFormSubmitButton"] button {
+  font-weight: 600;
+  color: var(--agilab-primary) !important;
+  background: transparent !important;
+  border: 1px solid var(--agilab-primary) !important;
+  white-space: nowrap;
+  border-radius: 6px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+[data-testid="stButton"] button:hover,
+[data-testid="stDownloadButton"] button:hover,
+[data-testid="stFormSubmitButton"] button:hover {
+  background: var(--agilab-primary) !important;
+  color: var(--agilab-on-primary) !important;
+}
+
+[data-testid="stTabs"] button {
+  color: var(--agilab-primary) !important;
+  font-weight: 600;
+}
+
+[data-testid="stButtonGroup"] button,
+[data-testid="stButtonGroup"] [role="radio"],
+[data-testid="stButtonGroup"] [role="checkbox"],
+[data-testid="stSegmentedControl"] [role="radio"],
+[data-testid="stPills"] [role="radio"] {
+  color: var(--agilab-primary) !important;
+  background: transparent !important;
+  border-color: var(--agilab-primary) !important;
+  box-shadow: none !important;
+}
+
+[data-testid="stButtonGroup"] button:hover,
+[data-testid="stButtonGroup"] [role="radio"]:hover,
+[data-testid="stButtonGroup"] [role="checkbox"]:hover,
+[data-testid="stSegmentedControl"] [role="radio"]:hover,
+[data-testid="stPills"] [role="radio"]:hover {
+  color: var(--agilab-primary) !important;
+  background: var(--agilab-primary-soft) !important;
+  border-color: var(--agilab-primary) !important;
+}
+
+[data-testid="stButtonGroup"] button[aria-checked="true"],
+[data-testid="stButtonGroup"] [role="radio"][aria-checked="true"],
+[data-testid="stButtonGroup"] [role="checkbox"][aria-checked="true"],
+[data-testid="stSegmentedControl"] [role="radio"][aria-checked="true"],
+[data-testid="stPills"] [role="radio"][aria-checked="true"],
+[data-testid="stButtonGroup"] label:has(input:checked),
+[data-testid="stSegmentedControl"] label:has(input:checked),
+[data-testid="stPills"] label:has(input:checked) {
+  color: var(--agilab-on-primary) !important;
+  background: var(--agilab-primary) !important;
+  border-color: var(--agilab-primary) !important;
+}
+
+[data-testid="stButtonGroup"] button *,
+[data-testid="stButtonGroup"] [role="radio"] *,
+[data-testid="stButtonGroup"] [role="checkbox"] *,
+[data-testid="stSegmentedControl"] [role="radio"] *,
+[data-testid="stPills"] [role="radio"] * {
+  color: inherit !important;
+  fill: currentColor !important;
+}
+
+[data-testid="stToggle"] label {
+  color: var(--agilab-primary) !important;
+}
+
+[data-testid="stToggle"] div[role="switch"] {
+  background-color: var(--agilab-primary-soft) !important;
+  border: 1px solid var(--agilab-primary) !important;
+}
+
+[data-testid="stToggle"] div[role="switch"][aria-checked="true"] {
+  background-color: var(--agilab-primary) !important;
+}
+
+[data-testid="stToggle"] div[role="switch"] span {
+  background-color: var(--agilab-on-primary) !important;
+}
+
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+  border-radius: 20px;
+  border: 1px solid var(--agilab-primary) !important;
+  box-shadow: none !important;
+}
+
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover {
+  border-color: var(--agilab-primary) !important;
+}
+
+[data-testid="stSelectbox"] div[data-baseweb="select"] span {
+  color: var(--agilab-primary) !important;
+}
+
+/* Multiselect: align borders and focus ring with primary color */
+[data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
+  border-radius: 20px !important;
+  border: 1px solid var(--agilab-primary) !important;
+  box-shadow: none !important;
+}
+
+[data-testid="stMultiSelect"] div[data-baseweb="select"] > div:focus-within {
+  border-color: var(--agilab-primary) !important;
+  box-shadow: 0 0 0 3px var(--agilab-primary-focus) !important;
+}
+
+[data-testid="stMultiSelect"] div[data-baseweb="select"] > div[aria-invalid="true" i] {
+  /* Neutralize BaseWeb invalid (red) border to our primary */
+  border-color: var(--agilab-primary) !important;
+  box-shadow: none !important;
+}
+
+[data-baseweb="tag"] {
+  background-color: transparent !important;
+  border: 1px solid var(--agilab-neutral-border) !important;
+  color: inherit !important;
+  box-shadow: none !important;
+}
+
+[data-baseweb="tag"] span[title] {
+  color: inherit !important;
+}
+
+[data-baseweb="tag"] svg[data-baseweb="icon"] {
+  color: inherit !important;
+  fill: currentColor !important;
+}
+
+/* Toggle accents */
+label[data-baseweb="checkbox"] {
+  color: var(--agilab-primary) !important;
+}
+
+label[data-baseweb="checkbox"] > div:first-child {
+  background-color: var(--agilab-primary-soft) !important;
+  border: 1px solid var(--agilab-primary) !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+label[data-baseweb="checkbox"] > div:first-child > div {
+  background-color: var(--agilab-on-primary) !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+}
+
+label[data-baseweb="checkbox"]:has(input[checked]) > div:first-child,
+label[data-baseweb="checkbox"]:has(input[aria-checked="true" i]) > div:first-child {
+  background-color: var(--agilab-primary) !important;
+  border: 1px solid var(--agilab-primary) !important;
+}
+
+label[data-baseweb="checkbox"]:has(input[checked]) > div:first-child > div,
+label[data-baseweb="checkbox"]:has(input[aria-checked="true" i]) > div:first-child > div {
+  background-color: var(--agilab-on-primary) !important;
+}
+
+/* Streamlit radio buttons */
+[data-testid="stRadio"] label[data-baseweb="radio"] {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
+  display: none !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"] input[type="radio"] {
+  appearance: auto !important;
+  -webkit-appearance: auto !important;
+  accent-color: var(--agilab-primary) !important;
+  width: 1rem !important;
+  height: 1rem !important;
+  margin: 0 !important;
+  position: static !important;
+}
+
+
+/* Streamlit radio buttons */
+[data-testid="stRadio"] label[data-baseweb="radio"] {
+  background-color: transparent !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
+  border: 2px solid var(--agilab-primary) !important;
+  background-color: var(--agilab-on-primary) !important;
+  box-shadow: none !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child > div {
+  background-color: var(--agilab-on-primary) !important;
+  box-shadow: none !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child,
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child {
+  border-color: var(--agilab-primary) !important;
+  background-color: var(--agilab-on-primary) !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[aria-checked="true" i]) > div:first-child {
+  border-color: var(--agilab-primary) !important;
+  background-color: var(--agilab-on-primary) !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child > div,
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child > div {
+  background-color: var(--agilab-primary) !important;
+}
+
+[data-testid="stRadio"] label[data-baseweb="radio"]:has(input[aria-checked="true" i]) > div:first-child > div {
+  background-color: var(--agilab-primary) !important;
+}

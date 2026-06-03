@@ -1,0 +1,271 @@
+{
+  "generated_at_utc": "2026-06-02T17:14:16Z",
+  "tool": "tools/codex_skills.py",
+  "count": 33,
+  "skills": [
+    {
+      "name": "advanced-svg-system-design",
+      "description": "Design SVG systems for advanced external projects. Use this skill when the user needs a reusable SVG visual language, multi-diagram consistency, export-safe assets for web/slides/docs, or an editable source-of-truth beyond simple cleanup of one existing figure.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": null,
+      "path": ".codex/skills/advanced-svg-system-design/SKILL.md",
+      "body_preview": "# Advanced SVG System Design\n## Overview\nUse this skill when a project needs more than SVG cleanup.\nFocus on building a durable diagram system: layout rules, reusable components,"
+    },
+    {
+      "name": "agilab-code-statistics",
+      "description": "Generate fast, reproducible AGILAB code statistics. Use when the user asks for code stats, LOC, file counts, language breakdowns, test/docs/source ratios, churn summaries, or a concise repository size/code footprint report without running builds.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-04-29",
+      "path": ".codex/skills/agilab-code-statistics/SKILL.md",
+      "body_preview": "# AGILAB Code Statistics\nUse this skill to answer code-statistics questions quickly and reproducibly.\nDefault to tracked files only, so ignored caches, virtualenvs, local datasets,\ngenerated docs output, and untracked scratch files do not distort the numbers."
+    },
+    {
+      "name": "agilab-deep-audit",
+      "description": "Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says \"review AGILAB\", \"audit AGILAB\", \"code review AGILAB\", \"deep review\", \"architecture review\", \"security review\", asks for a review document, or asks for comparison-quality critique rather than a quick fix.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-29",
+      "path": ".codex/skills/agilab-deep-audit/SKILL.md",
+      "body_preview": "# AGILAB Deep Audit Skill\nUse this skill when the user asks for an AGILAB audit or a review artifact. Do\nnot treat an audit request as a maintenance/fix request unless the user\nexplicitly asks to patch findings."
+    },
+    {
+      "name": "agilab-docs",
+      "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-06-01",
+      "path": ".codex/skills/agilab-docs/SKILL.md",
+      "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- Canonical editable docs source is `../thales_agilab/docs/source`."
+    },
+    {
+      "name": "agilab-evidence-contracts",
+      "description": "Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-06-01",
+      "path": ".codex/skills/agilab-evidence-contracts/SKILL.md",
+      "body_preview": "# AGILAB Evidence Contracts\nUse this skill when a change affects AGILAB's evidence-first value: proving that\nan experiment, app run, notebook migration, agent action, or release can be\nreviewed and replayed. The default stance is simple: a feature is not validated"
+    },
+    {
+      "name": "agilab-example-maturity",
+      "description": "Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-31",
+      "path": ".codex/skills/agilab-example-maturity/SKILL.md",
+      "body_preview": "# AGILAB Example Maturity\n## Goal\nRaise AGILAB packaged examples from internal smoke snippets to external-beta\nexamples: readable, deterministic, copy/paste safe, aligned with docs, and"
+    },
+    {
+      "name": "agilab-huggingface-spaces",
+      "description": "Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-30",
+      "path": ".codex/skills/agilab-huggingface-spaces/SKILL.md",
+      "body_preview": "# Hugging Face Spaces Skill (AGILAB)\nUse this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.\nThe current source of truth is the sibling apps/docs checkout, normally\n`../thales_agilab` relative to the public `agilab` checkout:"
+    },
+    {
+      "name": "agilab-installer",
+      "description": "Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-29",
+      "path": ".codex/skills/agilab-installer/SKILL.md",
+      "body_preview": "# AGILAB Installer Skill\nUse this skill when working on:\n- `install.sh` / `install.ps1` (root installer)\n- `src/agilab/install_apps.sh` / `src/agilab/install_apps.ps1` (apps/pages installer)"
+    },
+    {
+      "name": "agilab-intent-router",
+      "description": "Route terse AGILAB operator requests such as \"do it\", \"review AGILAB\", \"next move\", \"update repos\", \"merge it\", \"check again\", \"release\", and \"cluster validation\" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-31",
+      "path": ".codex/skills/agilab-intent-router/SKILL.md",
+      "body_preview": "# AGILAB Intent Router\nUse this skill first when a user request is short, ambiguous, or operational.\nThe goal is to classify the request before acting, so terse commands map to the\nright AGILAB workflow instead of defaulting to a shallow answer or wrong repo"
+    },
+    {
+      "name": "agilab-local-llm",
+      "description": "Guidance for using local LLM backends (Ollama/GPT-OSS) inside AGILAB with correctness-first prompts.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-09",
+      "path": ".codex/skills/agilab-local-llm/SKILL.md",
+      "body_preview": "# Local LLM Skill (AGILAB)\nUse this skill when working on local/offline engines or prompts.\n## Correctness-First Defaults\n- Prefer deterministic settings for code edits (lower temperature, explicit constraints)."
+    },
+    {
+      "name": "agilab-product-reels",
+      "description": "Build and refine short AGILAB product reels and technical demo videos with one-app storytelling, semantic guardrails, frame review, and YouTube packaging.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-07",
+      "path": ".codex/skills/agilab-product-reels/SKILL.md",
+      "body_preview": "# Product Reels Skill (AGILAB)\nUse this skill when the user wants a short AGILAB teaser, technical benchmark reel,\nlive-demo plan, or YouTube-ready demo package.\n## Pick The Right Demo Type"
+    },
+    {
+      "name": "agilab-prompt-eval-regression",
+      "description": "Design and maintain regression evaluations for AGILAB prompts, local/remote LLM flows, notebook import classification, generated-code routing, agent-skill behavior, and prompt-driven repair or analysis features. Use when a change touches prompt templates, model defaults, local LLM readiness, notebook-to-project import, code generation, or AI-assisted UX.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-30",
+      "path": ".codex/skills/agilab-prompt-eval-regression/SKILL.md",
+      "body_preview": "# AGILAB Prompt Eval Regression\nUse this skill when AGILAB behavior depends on a prompt, model response, or\nLLM-assisted classification. The goal is not to make tests depend on live model\nluck. The goal is to turn prompt-sensitive workflows into deterministic"
+    },
+    {
+      "name": "agilab-pypi-release-maintenance",
+      "description": "Guarded AGILAB PyPI release cleanup workflow. Use when an operator needs to inspect, prune, or delete old AGILAB PyPI package releases, especially after a noisy post-release or retention audit item.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-27",
+      "path": ".codex/skills/agilab-pypi-release-maintenance/SKILL.md",
+      "body_preview": "# AGILAB PyPI Release Maintenance\nUse this skill only for AGILAB PyPI release cleanup and retention work. PyPI\nrelease deletion is destructive and cannot be undone from the repository.\n## Scope"
+    },
+    {
+      "name": "agilab-release-verification",
+      "description": "Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks \"ready for release?\", \"release it\", \"all good?\", \"HF aligned?\", \"why badge failed?\", or any release/publication alignment check.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-06-02",
+      "path": ".codex/skills/agilab-release-verification/SKILL.md",
+      "body_preview": "# AGILAB Release Verification\nUse this skill for release readiness, release execution checks, and post-release\nalignment. Its purpose is to prevent stale plans and false \"all good\" answers by\nchecking the current code, current workflows, and public surfaces before making"
+    },
+    {
+      "name": "agilab-runbook",
+      "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-06-02",
+      "path": ".codex/skills/agilab-runbook/SKILL.md",
+      "body_preview": "# AGILab runbook (Agent Skill)\nUse this skill when you need repo-specific \u201chow we do things\u201d guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.\n## AGILab working rules (repo policy)\n- **Use `uv` for all runs** so dependencies resolve in managed envs:"
+    },
+    {
+      "name": "agilab-security-review-patterns",
+      "description": "Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-30",
+      "path": ".codex/skills/agilab-security-review-patterns/SKILL.md",
+      "body_preview": "# AGILAB Security Review Patterns\nUse this skill to review AGILAB changes through a security-hardening lens before\nmerge, release, or public documentation. It is a review workflow, not a pentest\nclaim. Keep findings tied to concrete files, commands, and user impact."
+    },
+    {
+      "name": "agilab-streamlit-pages",
+      "description": "Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-06-02",
+      "path": ".codex/skills/agilab-streamlit-pages/SKILL.md",
+      "body_preview": "# Streamlit Pages Skill (AGILAB)\nUse this skill when editing:\n- `src/agilab/main_page.py`\n- `src/agilab/pages/*.py`"
+    },
+    {
+      "name": "agilab-testing",
+      "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-06-02",
+      "path": ".codex/skills/agilab-testing/SKILL.md",
+      "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- For non-trivial diffs, start with"
+    },
+    {
+      "name": "agilab-ui-robot-validation",
+      "description": "Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-31",
+      "path": ".codex/skills/agilab-ui-robot-validation/SKILL.md",
+      "body_preview": "# AGILAB UI Robot Validation\nUse this skill when a change affects user-visible Streamlit behavior, page\nnavigation, sidebar actions, wizard links, notebook import/upload flows, UI\nscreenshots, or public demo evidence."
+    },
+    {
+      "name": "chat-export",
+      "description": "Export chat transcripts or conversation JSON into clean Markdown, JSON, or plain-text artifacts. Use this skill when a user wants a reusable export of a chat thread, needs a deterministic transcript cleanup, or wants a conversation converted into a file-oriented format for reports, prompts, docs, or downstream tooling.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": null,
+      "path": ".codex/skills/chat-export/SKILL.md",
+      "body_preview": "# Chat Export\n## Overview\nUse this skill to turn a chat transcript into a reusable artifact with stable structure.\nPrefer the bundled script for file-based exports and repeated transformations."
+    },
+    {
+      "name": "codex-session-learning",
+      "description": "Turn past Codex debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from prior sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-04-16",
+      "path": ".codex/skills/codex-session-learning/SKILL.md",
+      "body_preview": "# Codex Session Learning\nUse this skill to convert prior Codex work into explicit reusable assets.\nThe goal is not to pretend the agent has hidden long-term memory. The goal is to\nextract structured cases, reusable prompt patterns, and validation rules from"
+    },
+    {
+      "name": "docs-publish-github-pages",
+      "description": "Review, fix, and validate docs publishing workflows for GitHub Pages. Use this skill when a user needs a docs deploy workflow corrected, wants versioning behavior explained, needs publish triggers adjusted, or wants a Pages deployment flow verified end to end.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": null,
+      "path": ".codex/skills/docs-publish-github-pages/SKILL.md",
+      "body_preview": "# Docs Publish GitHub Pages\n## Overview\nUse this skill for GitHub Pages documentation pipelines.\nFocus on trigger logic, deploy behavior, version visibility, and what is actually published."
+    },
+    {
+      "name": "docx-figure-sync",
+      "description": "Replace or update embedded figures in DOCX reports while preserving placement, sizing, and nearby captions. Use this skill when a user wants a figure updated inside a Word document, wants SVG/PNG media replaced without rebuilding the whole document manually, or needs related PDF regeneration only when explicitly requested.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": null,
+      "path": ".codex/skills/docx-figure-sync/SKILL.md",
+      "body_preview": "# DOCX Figure Sync\n## Overview\nUse this skill for deterministic figure replacement inside existing DOCX reports.\nPrefer the surrounding document layout over ad hoc copy-paste."
+    },
+    {
+      "name": "notebook-to-agilab-project",
+      "description": "Migrate or maintain a small local notebook workflow inside an AGILAB project. Use this skill when a user wants notebooks turned into a reproducible AGILAB project, project-owned notebooks exposed under ANALYSIS, WORKFLOW notebook import, lab_stages.toml, artifact contracts, and a conceptual workflow view.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-21",
+      "path": ".codex/skills/notebook-to-agilab-project/SKILL.md",
+      "body_preview": "# Notebook To AGILAB Project\nUse this skill when the source material is a small set of local notebooks and the\ngoal is to turn them into an AGILAB-style workflow rather than keep a notebook-only\ndelivery."
+    },
+    {
+      "name": "pipeline-concept-view",
+      "description": "Add or refine a conceptual workflow view alongside a generated execution view without hard-coding app semantics into the generic UI. Use this skill when a user wants a pipeline_view.dot/json file, a conceptual architecture diagram, or a lab_stages.toml reviewed for clearer naming, IO flow, and semantic alignment with the WORKFLOW page.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": null,
+      "path": ".codex/skills/pipeline-concept-view/SKILL.md",
+      "body_preview": "# Workflow Concept View\n## Overview\nUse this skill to separate semantic architecture from execution mechanics.\nThe generic WORKFLOW page stays app-agnostic; the app contributes its own conceptual"
+    },
+    {
+      "name": "plan-before-code",
+      "description": "Plan before editing code. Use this skill for multi-step implementation, debugging, refactors, release work, or any coding task where sequencing, assumptions, or validation matter. It enforces a short plan first, validates assumptions before edits, and verifies results before close-out.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-06",
+      "path": ".codex/skills/plan-before-code/SKILL.md",
+      "body_preview": "# Plan Before Code\nUse this skill to force a planning pass before coding.\nThe goal is not paperwork. The goal is to improve sequencing, reduce avoidable edits,\nand catch bad assumptions before touching files."
+    },
+    {
+      "name": "repo-skill-maintenance",
+      "description": "Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-06",
+      "path": ".codex/skills/repo-skill-maintenance/SKILL.md",
+      "body_preview": "# Repo Skill Maintenance\nUse this skill when working on the shared skill trees in `agilab`.\nThe goal is to keep one canonical source for shared skills, keep the repo Codex\nmirror valid, and avoid the accidental bulk-sync regressions that can overwrite"
+    },
+    {
+      "name": "report-qa-docx",
+      "description": "Review DOCX reports for missing figures, stale wording, duplicate sections, caption drift, and local consistency issues. Use this skill when a user asks for a quality pass on a Word report, wants to compare exported versus source versions, or needs a review-driven cleanup checklist before delivery.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": null,
+      "path": ".codex/skills/report-qa-docx/SKILL.md",
+      "body_preview": "# Report QA DOCX\n## Overview\nUse this skill for a pragmatic QA pass on report-style DOCX files.\nFocus on structural defects, wording drift, and figure/caption consistency."
+    },
+    {
+      "name": "scientific-svg-figures",
+      "description": "Create or substantially refine publication-grade scientific and technical SVG figures for reports, slides, README/docs, and DOCX/PDF workflows. Use when the agent needs an editable SVG source of truth for architecture diagrams, methodology/training-loop figures, pipeline/workflow views, comparison grids, result-summary panels, timelines, or annotated system figures where deterministic layout, manual text wrapping, cross-medium readability, and export-safe geometry matter.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-04-15",
+      "path": ".codex/skills/scientific-svg-figures/SKILL.md",
+      "body_preview": "# Scientific SVG Figures\nUse this skill for technical figures that must explain a system, method, experiment, or result clearly at publication size.\nIf the request is only a tiny readability fix on one existing SVG, use `svg-diagram-tuning` instead. If the work is about a whole reusable visual language across many diagrams, use `advanced-svg-system-design`.\n## Quick Start"
+    },
+    {
+      "name": "slides",
+      "description": "Create and edit presentation slide decks (`.pptx`) with PptxGenJS, bundled layout helpers, and render/validation utilities. Use when tasks involve building a new PowerPoint deck, recreating slides from screenshots/PDFs/reference decks, modifying slide content while preserving editable output, adding charts/diagrams/visuals, or diagnosing layout issues such as overflow, overlaps, and font substitution.",
+      "license": "Apache-2.0 (see bundled LICENSE.txt)",
+      "updated": null,
+      "path": ".codex/skills/slides/SKILL.md",
+      "body_preview": "# Slides\n## Overview\nUse PptxGenJS for slide authoring. Do not use `python-pptx` for deck generation unless the task is inspection-only; keep editable output in JavaScript and deliver both the `.pptx` and the source `.js`.\nKeep work in a task-local directory. Only copy final artifacts to the requested destination after rendering and validation pass."
+    },
+    {
+      "name": "slides-docx-align",
+      "description": "Align a slide deck with a DOCX report while preserving each artifact\u2019s role. Use this skill when a user wants missing report figures inserted into slides, terminology synchronized across report and deck, or extra slides added without overwriting the current summary version.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": null,
+      "path": ".codex/skills/slides-docx-align/SKILL.md",
+      "body_preview": "# Slides DOCX Align\n## Overview\nUse this skill when a report and a slide deck have drifted apart.\nKeep the deck usable while making the report and slides say the same thing."
+    },
+    {
+      "name": "svg-diagram-tuning",
+      "description": "Refine SVG diagrams for readability in documents and slides. Use this skill when a user wants text resized, blocks widened, arrows rerouted, overlapping labels fixed, or an existing figure made easier to edit and export without redesigning it from scratch.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": null,
+      "path": ".codex/skills/svg-diagram-tuning/SKILL.md",
+      "body_preview": "# SVG Diagram Tuning\n## Overview\nUse this skill to improve an existing SVG diagram without changing its meaning.\nFocus on readability first: text, spacing, arrows, and visual hierarchy."
+    },
+    {
+      "name": "svg-diagrams",
+      "description": "Create or edit repo-native SVG diagrams, architecture sketches, and explanatory visuals. Use this when the agent must produce standalone SVG assets and text must stay inside boxes without overflow.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-04-09",
+      "path": ".codex/skills/svg-diagrams/SKILL.md",
+      "body_preview": "# SVG diagrams\nUse this skill when creating or editing standalone SVG assets in the repo.\n## Default workflow\n1. Start from a fixed `viewBox` and explicit box geometry."
+    }
+  ]
+}

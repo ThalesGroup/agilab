@@ -1,0 +1,287 @@
+---
+name: agilab-installer
+description: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.
+license: BSD-3-Clause (see repo LICENSE)
+metadata:
+  updated: 2026-05-29
+---
+
+# AGILAB Installer Skill
+
+Use this skill when working on:
+- `install.sh` / `install.ps1` (root installer)
+- `src/agilab/install_apps.sh` / `src/agilab/install_apps.ps1` (apps/pages installer)
+- `src/agilab/apps/install.py` (app install entry)
+- Data seeding / dataset archives / post-install hooks
+
+## Golden Rules
+
+- Use `uv --preview-features extra-build-dependencies …` for Python entrypoints.
+- Do not add silent fallbacks (detect missing capabilities and raise actionable errors).
+- Keep installs **idempotent**: rerunning should not wipe user data or re-download unnecessarily.
+- Before editing or validating installer-related diffs, run
+  `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --files install.sh src/agilab/install_apps.sh src/agilab/apps/install.py`
+  or point it at the actual changed install/deploy files. Use the output to confirm whether install
+  repros, shared-core approval, or extra artifact refreshes are required.
+- Treat installer/build/deploy changes as shared-core work. Before editing shared install plumbing,
+  `agi_dispatcher` install hooks, or generic cluster deployment code, get explicit user approval
+  and explain the expected cross-app impact first.
+
+## Common Commands
+
+- Full install with app tests (macOS/Linux):
+  - `./install.sh --non-interactive --cluster-ssh-credentials user:pass --apps-repository /path/to/apps-repo --install-apps --test-apps`
+- Full clean source validation from a new public clone:
+  - `cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/agilab/source_validate"; root="$cache_root/agilab_source_validate_clean_$(date +%Y%m%d_%H%M%S)"; sandbox_home="$root/sandbox_home"; mkdir -p "$sandbox_home"; HOME="$sandbox_home" git clone https://github.com/ThalesGroup/agilab.git "$sandbox_home/agilab"`
+  - `cd "$sandbox_home/agilab" && git lfs install --local && git lfs pull`
+  - `HOME="$sandbox_home" AGI_LOCAL_SHARE="$PWD/localshare" ./install.sh --non-interactive --agi-cluster-share "$PWD/clustershare" --install-apps builtin --test-root --test-core --test-apps --skip-offline`
+- Add core suites only when needed:
+  - macOS/Linux: `./install.sh --install-apps --test-apps --test-core`
+  - Windows: `.\install.ps1 -InstallApps -TestApps -TestCore`
+- Apps/pages install only:
+  - `cd src/agilab && ./install_apps.sh --test-apps`
+- PyPI app package management:
+  - Use the PROJECT page `Install PyPI app` flow or the CLI
+    `agilab app search/check/install/list/update/remove` for promoted public
+    `agi-app-*` packages.
+  - This installs into the active Python environment with `uv pip install --python`;
+    discovery is via `agilab.apps` entry points, not copied source directories.
+  - Keep `APPS_REPOSITORY` for source-checkout app repositories and symlinked local
+    app development; do not mix it with the PyPI app-package path.
+
+## Installer test switches
+
+- App tests stay opt-in via `--test-apps` / `-TestApps`.
+- Root core suites stay opt-in via `--test-core` / `-TestCore`.
+- Do not make core suites implicit in the default developer install path unless the user explicitly asks for that stricter gate.
+
+## Debugging Patterns
+
+- **Full source install validation**
+  - Use an isolated `HOME` under the new validation root. Do not rely on the
+    developer machine's `~/.agilab/.env`, `~/wenv`, `~/localshare`, or previous
+    install logs when proving a release candidate.
+  - Pass both `--agi-cluster-share "$PWD/clustershare"` and `AGI_LOCAL_SHARE="$PWD/localshare"`
+    in the clean clone so cluster/local share values are written before root,
+    core, app, and demo validation.
+  - Run `git lfs pull` before install validation whenever built-in apps depend
+    on LFS-backed archives, especially `flight_project` dataset seeding.
+  - If an early install attempt used the real user `HOME`, discard that result
+    as environment-polluted and rerun from a clean isolated `HOME` before
+    publishing or deploying.
+
+- **Windows install surface**
+  - Treat native Windows package installs and source-checkout installs as separate
+    surfaces. The released package CLI first-proof and clean public install matrix
+    should pass on Windows. The source checkout installer still has POSIX shell
+    paths, so use WSL2 for source-checkout validation unless the work explicitly
+    targets `install.ps1` or native Windows installer parity.
+  - When debugging Windows clone/app linking failures, check whether symlink
+    creation was denied before blaming app metadata. Project clones and
+    app-repository links may use directory junction fallback for directories; if
+    both symlink and junction creation fail, the operation should skip or fail
+    with a clear message rather than deleting the source environment.
+  - Do not add placeholder Windows share credentials to workers. Network-drive
+    mapping should run only when `AGILAB_WINDOWS_NET_USE_USER` and
+    `AGILAB_WINDOWS_NET_USE_PASSWORD` are configured; `AGILAB_WINDOWS_NET_USE_DRIVE`
+    can override the default drive letter. Missing credentials are a supported
+    skip path, not an install failure by themselves.
+
+- **PyPI app package installs**
+  - Preflight a promoted app package before installing it from the UI or CLI.
+    Check Python compatibility, wheel/sdist availability, advertised entry
+    points, hashes, and provenance/signature metadata when available.
+  - If a PyPI app install succeeds but the PROJECT page does not list the app,
+    inspect the installed package's `agilab.apps` entry points before adding
+    source-repository aliases.
+  - Treat local repository apps and PyPI app packages as different sources of
+    truth. Fix the app package metadata or publish target when the package is
+    stale; do not copy payloads into `src/agilab/apps` to paper over it.
+
+- **Source checkout still resolves end-user install paths**
+  - Symptom: after running from a source checkout, ORCHESTRATE or the first page reports
+    manager env paths under `$HOME/agi-space/apps/builtin/<app>/.venv` instead of the
+    active checkout's `src/agilab/apps/builtin/<app>/.venv`.
+  - Treat this as path-precedence or persisted-state drift, not as a missing-install problem.
+  - Check, in order:
+    - the launched script path and working directory
+    - PyCharm SDK binding for the active checkout
+    - `~/.local/share/agilab/.agilab-path`
+    - `~/.agilab/.env` keys such as `APPS_PATH`, `IS_SOURCE_ENV`, and share paths
+    - whether Streamlit retained a stale `st.session_state["env"]` from an earlier run
+  - Reproduce with a clean `HOME` and with a deliberately polluted fake `HOME`; a fix that
+    only works on the maintainer machine is not release-ready.
+  - Do not work around this by copying source apps into `$HOME/agi-space`. The source run
+    must realign the active apps root and manager env path before app actions execute.
+
+- **Installer env propagation order**
+  - If app tests fail because paths point to stale `~/.agilab/.env` values even
+    though the current install command passed `--agi-cluster-share` or `AGI_LOCAL_SHARE`,
+    inspect whether the installer writes env values before validation phases run.
+  - The env file must be updated before `--test-root`, `--test-core`, app
+    installs, and app tests. A late write can make validation exercise an old
+    share directory while the final env file looks correct.
+
+- **Cluster share setup with custom scheduler SSH or pre-mounted storage**
+  - If workers can SSH but cannot see scheduler-written sentinels, distinguish
+    three cases before changing app code:
+    - scheduler SSH is closed on port 22 but available on a custom managed port
+    - remote workers already have a site-managed pre-mounted share
+    - remote workers only have a writable local directory that is not shared
+  - For custom scheduler SSH, use `agilab doctor --cluster ... --scheduler-ssh-port <port>`
+    consistently for `--setup-share sshfs --apply`, `--share-check-only`, and full
+    cluster validation.
+  - For site-managed storage, use `--remote-cluster-share-premounted` and prove
+    the sentinel path is visible from every worker. A writable worker directory
+    without the scheduler sentinel is not a valid cluster share.
+  - Keep worker IP discovery fresh. If a remembered node reports `no-ssh-port`,
+    treat that node as stale and rerun no-cache LAN discovery instead of forcing
+    validation against it.
+
+- **Dependency resolver drift in generated worker environments**
+  - If post-install fails with an archive API error such as
+    `module 'py7zr' has no attribute 'SevenZipFile'`, compare the resolved
+    dependency surface against the committed app/core constraints before editing
+    extraction logic. Pin or constrain the dependency when a new package release
+    removed the API used by AGILAB.
+  - If runtime import fails with an apparently impossible import from an installed
+    package, inspect the generated worker venv for zero-byte or partial package
+    files and verify the package in a clean `uv --no-project --with ...` probe.
+    Clear the generated `~/wenv/<app>_worker/.venv` and refresh the lock when the
+    worker venv is polluted.
+  - When constraining a dependency for an installer regression, update every
+    relevant source of truth together: core package metadata, built-in app
+    metadata, promoted app metadata, templates when they carry the dependency,
+    and the lockfiles used by the failing install path.
+
+- **Empty list options under `set -u`**
+  - For root shell installers, treat empty comma/list options as a first-class
+    regression target. An empty value such as `--local-models ""` must not
+    expand an unbound array like `${ordered[*]}` under `set -u`.
+  - Add shell syntax checks and a unit regression around the option parser when
+    changing list-valued installer flags.
+
+- **A previous agent already diagnosed the failure**
+  - Do not just confirm the current diagnosis.
+  - Re-run the plain repro first to prove where the bug really begins:
+    - `uv sync --project <app>`
+    - or, for offline manager cases, `uv --offline sync --project <app>`
+  - Then assess the diagnostic itself:
+    - what part is solid
+    - what assumptions are still weak
+    - what coverage gap allowed the bug to survive
+    - whether the proposed fix is only the obvious fix or the better fix
+  - Prefer this one-query pattern when you want the strongest first answer:
+    - `Assess the diagnostic below and find the better fix. Keep the plain repro as the first discriminator. Identify the real root cause, regression chain, weak points in the current diagnosis, the better fix, why it is better than the obvious fix, and the regression plan.`
+  - In AGILAB install bugs, explicitly compare:
+    - app-local workaround
+    - shared-core installer fix
+    - diagnostic/preflight improvements such as `tools/install_contract_check.py`
+  - If the failure starts before worker build or runtime execution, treat that as installer-contract evidence, not app-runtime evidence.
+
+- **“Does not appear to be a Python project”**
+  - You are installing a directory without `pyproject.toml`/`setup.py`.
+  - Ensure the installer runs `uv pip install -e .` from the repo root.
+
+- **App install fails with missing worker/manager**
+  - Validate both manifests exist:
+    - manager: `.../<app>_project/pyproject.toml`
+    - worker:  `.../<app>_project/src/<app>_worker/pyproject.toml`
+
+- **Source app install pollutes the root AGILAB UI venv**
+  - Symptom: after installing a source app, the main Streamlit UI fails with
+    missing UI dependencies such as `pyarrow`, `streamlit`, or
+    `streamlit_code_editor`, while the app manager/worker venvs look unrelated.
+  - Treat this as installer isolation drift before adding UI dependencies to the
+    app. Check whether source-env install steps run `uv pip install` without
+    `--python <app>/.venv/bin/python`.
+  - Source app installs must target the app manager venv explicitly for manager
+    editable installs, and the worker venv explicitly for worker editable
+    installs. Do not let app install subprocesses mutate the repo root `.venv`
+    or ambient PyCharm/Streamlit environment.
+  - Reproduce with the real path:
+    `AGILAB_DISABLE_DEPLOY_STAGE_CACHE=1 uv --preview-features extra-build-dependencies run python src/agilab/apps/install.py <app-project-path> --verbose 1 --force-install`
+  - After the fix, verify both:
+    - root UI imports still work: `streamlit`, `code_editor`, `pyarrow`
+    - app readiness reports manager and worker ready through
+      `agilab.orchestrate_page_support.app_install_status`
+
+- **Plain `uv sync` works, AGILAB install still fails in worker phase**
+  - Treat this as a shared installer candidate before patching the app.
+  - `tools/impact_validate.py` should report this path as an install-contract gate; do not push until
+    both repro commands below are green.
+  - Compare:
+    - plain shell: `uv sync --project <app>`
+    - AGILAB path: `uv run python src/agilab/apps/install.py <app> --verbose 1`
+  - Run the contract checker against the copied worker project before changing app code:
+    - `uv --preview-features extra-build-dependencies run python tools/install_contract_check.py --app-path <app-project-path> --worker-copy ~/wenv/<app>_worker`
+  - Inspect the copied worker manifest:
+    - `~/wenv/<app>_worker/pyproject.toml`
+  - If the checker reports `shared-core-installer-issue`, treat that as a shared install-plumbing bug first.
+  - If that worker file gained a conflicting exact pin that is not present in the source app manifest, the usual causes are:
+    - nested `uv` subprocesses inheriting `UV_RUN_RECURSION_DEPTH`
+    - `_deploy_local_worker()` appending exact dependency pins into the worker copy
+    - local core packages (`agi-env`, `agi-node`) being added one by one instead of together as local paths
+    - missing `read_agilab_path()` causing a source checkout app to be treated like a generated install artifact
+  - If source-checkout worker builds fail while a packaged install path works, inspect the worker build
+    commands in `agi_cluster.agi_distributor.deployment_build_support` before changing app metadata.
+    Typical import failures here include `No module named 'setuptools'` from the build backend and
+    `No module named 'psutil'` from `agi_node` runtime imports during `agi_node.agi_dispatcher.build`.
+    Source-env build commands must keep the build-tool overlay (`--with setuptools --with cython`) and
+    add the local core projects as editable overlays (`--with-editable <agi-env>` and
+    `--with-editable <agi-node>`) so `uv run --no-sync` does not resolve stale index metadata while
+    building worker eggs or Cython extensions.
+    Do not paper over this by adding `setuptools`, `cython`, or `psutil` to every app manifest unless the
+    app itself imports them at runtime.
+  - After fixing source worker build command construction, validate at least one clean isolated failing app
+    install with an isolated `HOME`, then rerun the full failed-app slice or a full isolated installer
+    validation when multiple built-in apps failed.
+  - Typical symptom:
+    - manager install and worker build succeed
+    - failure appears later at `uv add agi-env` / `uv add agi-node` or worker `uv sync`
+    - the error mentions an unsatisfiable transitive dependency conflict from the copied worker project
+
+- **Worker manifest has unresolved local `uv` sources**
+  - Error shape: copied worker install reports unresolved local sources such as
+    `agi-env -> ../../../core/agi-env` or asks to rerun `AGI.install` because `_uv_sources`
+    is stale or incomplete.
+  - First check whether the source worker manifest path resolves from its own directory:
+    `python - <<'PY' ... (Path('<worker-pyproject>').parent / raw_path).resolve().exists() ... PY`
+  - For built-in apps, app-root manifests and nested worker manifests sit at different depths.
+    App-root `pyproject.toml` can use `../../../core/agi-env`, but
+    `src/<app>_worker/pyproject.toml` currently needs `../../../../../core/agi-env`
+    and `../../../../../core/agi-node` to resolve from the worker directory.
+  - Add or run dependency-hygiene coverage for this class before publishing:
+    `uv --preview-features extra-build-dependencies run pytest -q -o addopts= test/test_pyproject_dependency_hygiene.py`
+  - If the release publisher missed nested worker manifests, update `tools/pypi_publish.py`
+    so `builtin_app_pyprojects()` includes both `*_project/pyproject.toml` and
+    `*_project/src/*_worker/pyproject.toml`.
+
+- **Worker build fails because build tools are absent**
+  - Error shape: `agi_node.agi_dispatcher.build`, `bdist_egg`, or `build_ext`
+    fails in a manager/worker project even though the app runtime dependencies
+    are otherwise installed. Common messages are `No module named 'setuptools'`
+    or `No module named 'psutil'`.
+  - Check local and remote worker build commands before adding dependencies to
+    app manifests. Build-time overlays should be explicit on the `uv run`
+    command:
+    `uv --project <app-or-worker> run --no-sync --with setuptools --with cython ...`
+    Source-checkout builds must also overlay editable core projects:
+    `--with-editable <agi-env> --with-editable <agi-node>`.
+  - Cover both quiet and verbose command variants, and cover remote deploy
+    command construction. Good focused regressions live in
+    `src/agilab/core/test/test_agi_distributor_deployment_build_support.py` and
+    `src/agilab/core/test/test_agi_distributor_deployment_remote_support.py`.
+  - For this shared deploy/build class, run the focused core tests first, then
+    the broader `src/agilab/core/test` slice if the branch will be pushed.
+
+- **Dataset extraction wipes seeded files**
+  - Avoid mtime heuristics on extracted files; use a stamp file tied to the archive.
+  - Prefer linking to shared datasets rather than copying to each app.
+
+## Data Dependencies Between Apps
+
+Some apps depend on outputs of others (e.g. LinkSim needs satellite trajectories).
+Preferred approach:
+- Install/seed the producing app first.
+- Reuse outputs via symlink/junction into the dependent dataset folder to avoid duplication.

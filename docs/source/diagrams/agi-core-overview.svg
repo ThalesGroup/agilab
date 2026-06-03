@@ -1,0 +1,190 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="640" viewBox="0 0 1240 640" role="img" aria-labelledby="title desc">
+  <title id="title">AGI core orchestration</title>
+  <desc id="desc">Diagram showing web and CLI entrypoints feeding agi_core, then agi_env, agi_cluster, agi_node workers, and artifacts with a clear orchestration flow.</desc>
+  <defs>
+    <style>
+      text {
+        font-family: Arial, Helvetica, sans-serif;
+        fill: #0e223f;
+      }
+      .title {
+        font-size: 28px;
+        font-weight: 700;
+      }
+      .subtitle {
+        font-size: 16px;
+        fill: #536984;
+      }
+      .lane {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        fill: #70849c;
+      }
+      .card {
+        stroke: #0e223f;
+        stroke-width: 2.4;
+        rx: 22;
+        ry: 22;
+      }
+      .card-title {
+        font-size: 22px;
+        font-weight: 700;
+      }
+      .card-body {
+        font-size: 16px;
+      }
+      .card-note {
+        font-size: 14px;
+        fill: #4d617c;
+      }
+      .arrow {
+        stroke: #0e223f;
+        stroke-width: 3.2;
+        stroke-linecap: round;
+      }
+      .arrow-soft {
+        stroke: #627790;
+        stroke-width: 2.4;
+        stroke-linecap: round;
+        stroke-dasharray: 9 8;
+      }
+      .callout {
+        stroke: #d9e2ef;
+        stroke-width: 2;
+        rx: 18;
+        ry: 18;
+      }
+      .callout-title {
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .callout-body {
+        font-size: 14px;
+        fill: #4d617c;
+      }
+    </style>
+    <marker id="arrowhead-core" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0e223f" />
+    </marker>
+    <marker id="arrowhead-soft-core" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#627790" />
+    </marker>
+    <linearGradient id="core-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8fbff" />
+      <stop offset="100%" stop-color="#edf3fb" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1240" height="640" fill="url(#core-bg)" rx="34" ry="34" />
+
+  <g transform="translate(62,48)">
+    <text class="title" x="0" y="0">AGI core orchestration</text>
+    <text class="subtitle" x="0" y="30">How entry points feed agi_core, then environment resolution, cluster dispatch, worker execution, and artifacts.</text>
+  </g>
+
+  <g transform="translate(60,120)">
+    <text class="lane" x="0" y="30">Entry</text>
+    <text class="lane" x="0" y="214">Control</text>
+    <text class="lane" x="0" y="410">Execution</text>
+  </g>
+
+  <g transform="translate(150,108)">
+    <rect class="card" width="320" height="126" fill="#d9f0ff" />
+    <text class="card-title" x="160" y="34" text-anchor="middle">Web interface</text>
+    <text class="card-body" x="160" y="62" text-anchor="middle">agilab.py navigation pages</text>
+    <text class="card-note" x="160" y="86" text-anchor="middle">
+      <tspan x="160" dy="0">LANDING · SETTINGS · PROJECT</tspan>
+      <tspan x="160" dy="18">ORCHESTRATE · WORKFLOW · ANALYSIS</tspan>
+    </text>
+  </g>
+
+  <g transform="translate(150,252)">
+    <rect class="card" width="320" height="110" fill="#d9f0ff" />
+    <text class="card-title" x="160" y="34" text-anchor="middle">CLI and PyCharm</text>
+    <text class="card-body" x="160" y="60" text-anchor="middle">
+      <tspan x="160" dy="0">AGI_run scripts · run configs</tspan>
+      <tspan x="160" dy="20">uv launchers</tspan>
+    </text>
+  </g>
+
+  <g transform="translate(484,170)">
+    <rect class="card" width="308" height="154" fill="#e3dcff" />
+    <text class="card-title" x="154" y="38" text-anchor="middle">agi_core</text>
+    <text class="card-body" x="24" y="72">Resolve app and args; build run plans</text>
+    <text class="card-body" x="24" y="96">Drive lab_stages and telemetry</text>
+    <text class="card-note" x="24" y="128">
+      <tspan x="24" dy="0">Reusable widgets, services, history,</tspan>
+      <tspan x="24" dy="18">and orchestration helpers</tspan>
+    </text>
+  </g>
+
+  <g transform="translate(500,350)">
+    <rect class="card" width="296" height="104" fill="#ffe8ac" />
+    <text class="card-title" x="148" y="36" text-anchor="middle">agi_env</text>
+    <text class="card-body" x="24" y="62">
+      <tspan x="24" dy="0">Paths, configs, logging, credentials</tspan>
+      <tspan x="24" dy="20">and share roots</tspan>
+    </text>
+  </g>
+
+  <g transform="translate(864,150)">
+    <rect class="card" width="320" height="94" fill="#ffdbe2" />
+    <text class="card-title" x="160" y="34" text-anchor="middle">Artifacts and telemetry</text>
+    <text class="card-body" x="160" y="58" text-anchor="middle">
+      <tspan x="160" dy="0">Outputs, logs, history,</tspan>
+      <tspan x="160" dy="20">reports and exports</tspan>
+    </text>
+  </g>
+
+  <g transform="translate(864,284)">
+    <rect class="card" width="320" height="104" fill="#d6f6d8" />
+    <text class="card-title" x="160" y="34" text-anchor="middle">agi_cluster</text>
+    <text class="card-body" x="160" y="58" text-anchor="middle">
+      <tspan x="160" dy="0">AGI.distributor, scheduler, Dask</tspan>
+      <tspan x="160" dy="20">and balancing</tspan>
+    </text>
+  </g>
+
+  <g transform="translate(864,420)">
+    <rect class="card" width="320" height="126" fill="#ffe7a8" />
+    <text class="card-title" x="160" y="34" text-anchor="middle">agi_node workers</text>
+    <text class="card-body" x="160" y="58" text-anchor="middle">
+      <tspan x="160" dy="0">BaseWorker · DagWorker</tspan>
+      <tspan x="160" dy="20">PandasWorker · PolarsWorker</tspan>
+    </text>
+    <text class="card-note" x="160" y="92" text-anchor="middle">
+      <tspan x="160" dy="0">App-specific workers are</tspan>
+      <tspan x="160" dy="18">packaged under <tspan font-style="italic">~/wenv</tspan></tspan>
+    </text>
+  </g>
+
+  <g transform="translate(54,566)">
+    <rect class="callout" width="520" height="66" fill="#ffffff" />
+    <text class="callout-title" x="20" y="33">Reading guide</text>
+    <text class="callout-body" x="136" y="30">
+      <tspan x="136" dy="0">Inputs converge into agi_core, then flow through</tspan>
+      <tspan x="136" dy="18">environment setup to cluster and worker execution.</tspan>
+    </text>
+  </g>
+
+  <g transform="translate(610,570)">
+    <rect class="callout" width="348" height="66" fill="#ffffff" />
+    <line class="arrow" x1="18" y1="22" x2="72" y2="22" marker-end="url(#arrowhead-core)" />
+    <text class="callout-body" x="92" y="26">Primary execution flow</text>
+    <line class="arrow-soft" x1="18" y1="46" x2="72" y2="46" marker-end="url(#arrowhead-soft-core)" />
+    <text class="callout-body" x="92" y="42">
+      <tspan x="92" dy="0">Supporting output and</tspan>
+      <tspan x="92" dy="16">telemetry link</tspan>
+    </text>
+  </g>
+
+  <line class="arrow" x1="470" y1="166" x2="484" y2="210" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="470" y1="302" x2="484" y2="254" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="648" y1="312" x2="648" y2="350" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="792" y1="236" x2="864" y2="198" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="796" y1="396" x2="864" y2="331" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="1024" y1="388" x2="1024" y2="420" marker-end="url(#arrowhead-core)" />
+  <line class="arrow-soft" x1="792" y1="210" x2="864" y2="210" marker-end="url(#arrowhead-soft-core)" />
+</svg>

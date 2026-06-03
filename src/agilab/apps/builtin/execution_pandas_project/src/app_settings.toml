@@ -1,0 +1,42 @@
+[args]
+data_in = "execution_playground/dataset"
+data_out = "execution_pandas/results"
+files = "*.csv"
+nfile = 16
+n_partitions = 16
+rows_per_file = 100000
+n_groups = 32
+compute_passes = 32
+kernel_mode = "typed_numeric"
+output_format = "csv"
+seed = 42
+reset_target = false
+
+[cluster]
+verbose = 1
+cython = true
+pool = false
+rapids = false
+cluster_enabled = false
+scheduler = "127.0.0.1:8786"
+workers_data_path = ""
+
+[cluster.workers]
+"127.0.0.1" = 2
+
+[cluster.service_health]
+allow_idle = false
+max_unhealthy = 0
+max_restart_rate = 0.25
+
+[connector_catalog]
+path = "connectors/data_connectors.toml"
+
+[connector_refs]
+benchmark_sql = "execution_pandas_sql"
+operator_events = "execution_pandas_ops_opensearch"
+artifact_store = "execution_pandas_artifact_store"
+
+[legacy_paths]
+data_in = "execution_playground/dataset"
+data_out = "execution_pandas/results"

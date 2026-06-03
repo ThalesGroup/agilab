@@ -1,0 +1,387 @@
+---
+name: agilab-runbook
+description: Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).
+license: BSD-3-Clause (see repo LICENSE)
+metadata:
+  short-description: AGILab repo runbook
+  updated: 2026-06-02
+---
+
+# AGILab runbook (Agent Skill)
+
+Use this skill when you need repo-specific “how we do things” guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.
+
+## AGILab working rules (repo policy)
+
+- **Use `uv` for all runs** so dependencies resolve in managed envs:
+  - `uv --preview-features extra-build-dependencies run python …`
+  - `uv --preview-features extra-build-dependencies run --extra ui streamlit …`
+- **No repo `uvx`**: do not run `uvx agilab` from this checkout (it will run the published wheel and ignore local changes).
+- **Process ownership**: treat existing terminals, Codex CLI sessions, dev servers, and other long-running processes as user-owned unless this turn started them. Do not use broad termination commands such as `pkill`, `killall`, `pkill -f`, or port-based `kill` pipelines that can match unrelated sessions. Stop only verified PIDs or tool sessions created for the active task. Do not use Codex CLI control shortcuts such as `/stop`, Esc interruption, or terminal-close actions to manage background terminals unless the terminal/session was created by this active task and its identity is verified. A status banner that says a background terminal is running is not ownership proof. If a port is busy, choose another port or ask before stopping its owner; do not try to "pause" another Codex CLI session from here.
+- **High-frequency shortcuts**: prefer `./dev <shortcut>` for repeated local validation loops. The
+  top shortcuts are `impact` for impact validation, `bugfix` for impact plus a fast GA-selected
+  regression run, `test` for targeted `pytest -q`, `regress` for GA-selected fast regression subsets,
+  `builtin-app-tests` for app-local built-in app pytest suites, `flow` for one or more workflow
+  parity profiles, `badge` for the explicit release/pre-release coverage-badge guard, and `docs`
+  for docs mirror sync plus stamp verification. `impact` tells you
+  what must be validated, `test` runs the narrow pytest slice, `bugfix` is the default low-load
+  pre-push loop for normal code fixes, `regress` optimizes a likely regression subset from changed
+  files and optional JUnit timings, `builtin-app-tests` runs each built-in app's tests inside that
+  app's own `uv --project .` environment with pytest importlib collection, `flow` matches local
+  GitHub workflow profiles, `badge` checks badge freshness when intentionally requested, and `docs`
+  keeps the public mirror aligned. Add `--print-only` to inspect the expanded commands.
+- **Run config parity**: after editing `.idea/runConfigurations/*.xml`, regenerate wrappers:
+  - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
+- **PyCharm source-root switching**: the JetBrains SDK named `uv (agilab)` is global and
+  should point to one AGILAB source checkout at a time. To intentionally switch PyCharm
+  execution to another checkout, run from the target checkout:
+  - `uv sync`
+  - `AGILAB_PYCHARM_ALLOW_SDK_REBIND=1 uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py`
+  Do not rerun full `install.sh` just to switch PyCharm roots; use it only when installer
+  side effects are needed, such as app installation, `.agilab-path` updates, dataset
+  seeding, or install-time tests.
+- **Source/end-user path drift**: if a source Streamlit run shows end-user paths such as
+  `$HOME/agi-space/apps/builtin/<app>/.venv` in the ORCHESTRATE header, treat it as a
+  bootstrap/root-selection bug until proven otherwise. Check the active process root,
+  PyCharm SDK binding, `sys.path`, `~/.local/share/agilab/.agilab-path`, and persisted
+  `~/.agilab/.env` keys such as `APPS_PATH` and `IS_SOURCE_ENV`. Restart Streamlit after
+  fixing bootstrap code because `st.session_state["env"]` and `env.active_app` can retain
+  stale paths across reruns.
+- **Source Streamlit launches must be non-mutating by default**: if starting
+  `agilab run (dev)` prints `Uninstalled ...` or `Installed ...`, inspect both
+  the outer run-config command and any launcher-spawned inner `uv run` command.
+  The selected default app is not the cause; uv is reconciling the project
+  environment or the `ui` extra. Runtime launchers should preserve `UV_NO_SYNC`
+  and use `uv run --no-sync` for the inner Streamlit command. Do dependency
+  bootstrap explicitly with `uv sync --extra ui` or a clearly named sync flag
+  before launch, not silently during normal UI startup.
+- **PyPI app management**: promoted public apps can be managed through the PROJECT page
+  `Install PyPI app` flow or `agilab app search/check/install/list/update/remove`.
+  This route installs `agi-app-*` packages into the selected Python environment and
+  discovers apps from `agilab.apps` entry points. It is separate from `APPS_REPOSITORY`,
+  which remains the source-checkout route for editable app repositories.
+- **PyCharm module hygiene**: treat `.idea/modules/`, `.idea/modules.xml`, and
+  `.idea/pyProjectModel.xml` as local/generated IDE state. Tracked `.idea/modules/*.iml`
+  files should be removed from Git and regenerated by `pycharm/setup_pycharm.py`.
+  After setup, the aligned state is:
+  - no root-level `.idea/*.iml`
+  - no duplicate `.idea/**/*@*.iml` or `.idea/**/*#*.iml`
+  - `modules.xml` only references valid `$PROJECT_DIR$/.idea/modules/*.iml` files
+  - `.idea/modules/` exists locally but is ignored
+  If PyCharm is open and recreates duplicate module descriptors, do not kill user-owned
+  IDE/processes; rerun setup and remove only the stale root/numbered descriptors and
+  their `modules.xml` refs.
+- **Local-first validation**: do not jump to GitHub Actions when the same check can be run locally.
+  Reproduce with the narrowest local command first: targeted `pytest`, isolated coverage commands,
+  `py_compile`, Sphinx builds, or publish dry-runs. Reserve coverage badge generation for
+  release/pre-release validation or badge tooling changes. Use CI only for GitHub-only behavior such
+  as runner differences, OS/Python matrix coverage, permissions/secrets, or the final publish/deploy step.
+- **Current-code planning guardrail**: before answering "next move", "ready for release",
+  "release it", "sync HF", or any operational sequencing question, inspect the current
+  repo state and authoritative workflow/tooling files. For release sequencing, check
+  `./dev --print-only release`, `.github/workflows/pypi-publish.yaml`, and
+  `tools/release_plan.py` before saying whether PyPI, GitHub release assets,
+  Hugging Face sync, release proof, or docs updates are separate manual steps.
+  If the workflow already performs a step, state its condition instead of adding
+  a redundant manual follow-up.
+- **Impact triage first**: for non-trivial diffs, run
+  `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
+  before editing further or pushing. Use its output to decide:
+  - whether the change is app-local or shared-core
+  - which targeted tests are required
+  - whether installer repros are mandatory
+  - whether generated artifacts must be refreshed
+- **Diff-aware pre-push guards**: keep `git config core.hooksPath .githooks` enabled. The hook
+  uses `tools/pre_push_changed_files.py` to run docs mirror checks only for docs mirror inputs and
+  release-proof checks only for release-proof inputs. If classification fails, it runs all local
+  guards. Coverage badge freshness remains an explicit `./dev badge` or release/pre-release check.
+- **Public style badge alignment**: keep the code-style/style-guard signal in
+  `README.md` and `README.pypi.md` aligned with the actual repository guard. If
+  the public badge moves to a Ruff changed-files guard or another style tool,
+  update both README files, grep for stale `Black`, `black`, or `code%20style`
+  badge text, and avoid advertising a tool that is not wired into the local
+  validation path.
+- **Install-log startup check**: before launching flows after installer changes or a reported install
+  failure, inspect the latest installer log for errors. On macOS/Linux:
+  `dir="$HOME/log/install_logs"; f=$(ls -1t "$dir"/*.log 2>/dev/null | head -1); [ -n "$f" ] && echo "Log: $f" && grep -Eai "error|exception|traceback|failed|fatal|denied|missing|not found" "$f" | tail -n 25 || echo "No logs found."`
+  On Windows PowerShell:
+  `($d = "$HOME\log\install_logs"); $f = Get-ChildItem -LiteralPath $d -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($f) { Write-Host "Log:" $f.FullName; Select-String -LiteralPath $f.FullName -Pattern '(?i)(error|exception|traceback|failed|fatal|denied|missing|not found)' | Select-Object -Last 25 | ForEach-Object { $_.Line } } else { Write-Host "No logs found." }`
+- **Windows compatibility contract**: distinguish native Windows package support from source-checkout
+  convenience. The released package CLI first-proof and `repo-guardrails` clean install matrix are
+  expected to work on Windows. The source checkout installer still includes POSIX shell paths, so
+  prefer WSL2 for that path unless the task explicitly targets `install.ps1` or native Windows
+  parity. Do not remove the Windows classifier only because a source `install.sh` path needs WSL2.
+- **Windows process and path handling**: when touching Streamlit sidecars or app/page launch helpers,
+  prefer argv-list commands with `shell=False`; avoid POSIX-only `shlex.quote` strings for commands
+  that may run on Windows. For clone/app-repository links, allow Windows directory junction fallback
+  when symlink creation is denied, and treat missing link privileges as a recoverable condition
+  where possible.
+- **Windows network shares**: never hard-code placeholder `net use` credentials. `BaseWorker` should
+  attempt network-drive mapping only when `AGILAB_WINDOWS_NET_USE_USER` and
+  `AGILAB_WINDOWS_NET_USE_PASSWORD` are set, with `AGILAB_WINDOWS_NET_USE_DRIVE` optionally selecting
+  the drive letter. Missing credentials should skip mapping with an informational log.
+- **Clone policy**: in the PROJECT page, keep two clone classes explicit:
+  - temporary clones may share the source `.venv` by symlink for lightweight local experiments
+  - working clones should detach `.venv` and rerun `INSTALL` before `EXECUTE`
+  Do not treat a shared `.venv` clone as a durable environment, and do not leave renamed projects
+  with `.venv` symlinks pointing at the old project path.
+- **Shared core approval gate**: do not edit shared core technology without explicit user approval first.
+  This includes `src/agilab/core/agi-env`, `src/agilab/core/agi-node`, `src/agilab/core/agi-cluster`,
+  `src/agilab/core/agi-core`, shared installer/build/deploy code, and generic helpers reused across apps/pages.
+  Prefer app-local fixes first. If a core edit looks necessary, stop and explain the required files,
+  blast radius, and validation plan before making the change.
+- **Docs source of truth**: edit docs in the sibling repo
+  `../thales_agilab/docs/source` relative to the active AGILAB checkout.
+- **Generated docs in this repo**: treat `docs/html` (including `docs/html/_sources`)
+  as build output only. Do not hand-edit files in `docs/html`; always edit source
+  first and regenerate from `../thales_agilab/docs/source`.
+  - Canonical rebuild command:
+    `uv --preview-features extra-build-dependencies run --project ../thales_agilab --group sphinx python -m sphinx -b html ../thales_agilab/docs/source docs/html`
+- **Streamlit API**: do not add `st.experimental_rerun()`; use `st.rerun`.
+- **No silent fallbacks**: avoid runtime “auto-fallbacks” between API clients or parameter rewrites; fail fast with actionable errors.
+- **Generated WORKFLOW code**: keep safe-action contracts as the default assistant path for
+  dataframe transformations. The model should return versioned JSON, AGILAB validates it against
+  the dataframe schema, and AGILAB converts it into deterministic pandas code. Treat raw Python
+  generation as explicit advanced mode; reserve process/container/VM sandbox guidance for raw
+  Python execution, untrusted apps, or shared sensitive deployments, not the normal lightweight path.
+- **Worker artifact evidence**: do not create a new worker subclass just to record outputs.
+  `BaseWorker` exposes the shared artifact contract, so `DagWorker`, `PandasWorker`, `PolarsWorker`,
+  and app workers can call `record_artifact(...)`, `record_metric(...)`, and `write_manifest(...)`
+  to produce standard worker evidence without adding dataframe or UI dependencies.
+- **Skill placement guardrail**: repo-managed skills under `.claude/skills/` and `.codex/skills/`
+  must stay AGILAB-specific, cross-repo reusable for AGILAB work, or directly support this
+  repository’s workflows. Personal skills or skills for non-AGILAB domains belong in
+  `~/.codex/skills/` or the relevant private repo.
+- **Repository update requests**: when the user asks to "update repos", "sync repos", or similar,
+  first show the exact command plan before executing it. The plan should be a fenced `bash` block
+  with concrete `git -C <repo>` commands for each targeted checkout. Use the fast path by default:
+  `status --porcelain=v1 --untracked-files=no`, `fetch --prune`, `rev-list --left-right --count
+  HEAD...@{u}`, then `merge --ff-only @{u}` only for repos that are actually behind. This avoids a
+  redundant fetch from `git pull` and avoids slow untracked scans. Group independent repo checks and
+  fetches in parallel when the tooling allows it. If a checkout has tracked dirty paths, do not
+  merge it until the dirty paths are reported and the update plan is adjusted.
+- **External AGILAB core pointer merges**: when a private app or integration repository
+  points `.external/agilab` at a stale AGILAB core branch and GitHub reports that
+  the branch has no history in common with current `main`, do not force-merge or
+  preserve the stale branch by default. Fetch the public AGILAB remote, check
+  whether the intended fix already exists on `origin/main`, move the external
+  pointer to the current public `origin/main` when it does, rerun the full
+  private app-local validation against that pointer, then commit only the
+  pointer update in the integration repository. After the pointer commit is
+  pushed and validated, delete the stale unmergeable public branch.
+- **Dirty worktree cleanup**: when cleaning stale local worktrees, do not delete dirty worktrees
+  blindly. First inspect `git -C <worktree> status --short` and the branch relationship to
+  `origin/main`. If dirty changes are obsolete but still worth preserving, archive
+  `git -C <worktree> diff --binary` plus a status snapshot outside the repo before removal. Remove
+  only clean worktrees or dirty worktrees with an explicit archive path, then run `git worktree
+  prune`, delete stale branch refs that are already represented on `origin/main`, and realign local
+  `main` to `origin/main` when the old `main` worktree has been removed safely.
+
+## Git footprint maintenance
+
+- Distinguish clearly between:
+  - working-tree footprint (`.venv`, caches, build artifacts)
+  - local Git footprint (`.git/objects`, `.git/lfs`)
+  - remote repository history size
+- If the user asks to reduce `.git` only, do not touch `.venv`.
+- Measure before acting:
+  - `du -sh .git .git/objects .git/lfs`
+  - `git count-objects -vH`
+  - `git lfs prune --dry-run`
+- Prefer the safest local win first:
+  - run `git lfs prune` when the dry-run shows meaningful reclaimable space
+  - this reduces local `.git/lfs` without rewriting history
+- For actual history reduction:
+  - use `git filter-repo`, never ad hoc low-level object surgery
+  - work in an isolated `--mirror` clone, not in the main checkout
+  - create a backup bundle before rewriting: `git bundle create /tmp/<repo>-pre-rewrite.bundle --all`
+  - preserve any uncommitted local files outside the checkout before realigning branches
+  - rewrite only the intended refs/paths; avoid touching `gh-pages` or unrelated refs unless requested
+  - after force-pushing rewritten refs, realign the local checkout to the new `origin/*` history and run:
+    - `git reflog expire --expire=now --all`
+    - `git gc --prune=now`
+- Typical low-value history targets:
+  - generated `docs/html/**`
+  - `.idea/shelf/**`
+  - obsolete legacy paths or duplicated archives
+- Do not promise a smaller remote repository from local pruning alone. Local LFS prune and local GC only affect the clone on disk.
+
+## Common commands (from the runbook matrix)
+
+- Impact triage:
+  - `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
+- Impact triage for planned paths:
+  - `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/impact_validate.py --files src/agilab/orchestrate_execute.py test/test_orchestrate_execute.py`
+- Dev UI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py -- --openai-api-key "…" --apps-path src/agilab/apps`
+- Apps-pages smoke: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/smoke_preinit.py --active-app src/agilab/apps/builtin/flight_project --timeout 20`
+- Apps-pages regression (AppTest): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run pytest -q test/test_view_maps_network.py`
+- First-adoption handoff:
+  - run `agilab first-proof --json --with-ui` or the equivalent source command
+    to create `~/log/execute/flight_telemetry/run_manifest.json`
+  - run `agilab adoption-report` for the human checkpoint, or
+    `agilab adoption-report --json --strict` for automation
+  - treat `safe_to_expand=true` as permission to try the next demo/notebook lane,
+    not as production, shared-workstation, secrets, public-exposure, or cluster approval
+  - for team handoff, keep the manifest, exported `agi-core`
+    `notebooks/lab_stages.ipynb`, compatibility-report output, and redacted
+    strict security-check output together. The notebook handoff removes
+    dependence on the AGILAB UI/distributed-worker layer, but it still relies on
+    the stable core runtime and the exported project's dependencies.
+- PyPI app-package management:
+  - search: `agilab app search flight`
+  - preflight: `agilab app check agi-app-flight-telemetry --json`
+  - install: `agilab app install agi-app-flight-telemetry`
+  - inventory/update/remove: `agilab app list`, `agilab app update <package>`,
+    `agilab app remove <package>`
+- Publish dry-run (TestPyPI): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --verbose`
+- Publish to PyPI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo pypi --verbose --git-tag --git-commit-version --git-reset-on-failure`
+  - Real PyPI publishes now require the GitHub CLI (`gh`) because `tools/pypi_publish.py` creates or updates the matching GitHub Release after pushing the tag.
+  - Real PyPI does not auto-select `.postN` when the date version already
+    exists. Normal public releases should move to a deliberate new date-based
+    version or a release candidate/TestPyPI rehearsal first. Public `.postN`
+    releases are forbidden for new AGILAB publications; use `release_mode=hotfix`
+    with `YYYY.MM.DD.N` for a same-day public fix.
+  - On publish retries, the top-level `agilab` artifact may already exist while split runtime/app/page packages still need publication. Let the preflight/release plan decide what remains instead of checking only the root package.
+  - Add `--delete-former-github-release` only when the public release page should keep a single current GitHub Release. This deletes the previous GitHub Release entry after the new one is created, but keeps the previous git tag and PyPI files.
+  - Add `--delete-pypi-release <version>` only when a specific old PyPI version must be removed from the selected packages. This uses an exact `pypi-cleanup --version-regex` match, requires real PyPI web-login credentials in `[pypi_cleanup]`, and cannot use API tokens or trusted publishing credentials.
+  - PyPI "confirmed device" state is browser/account state, not a CLI or macOS-wide setting.
+    For web cleanup flows, log into `https://pypi.org/` from a normal browser profile on the
+    maintainer machine, keep PyPI cookies/site data, and add the Mac Touch ID/passkey under
+    PyPI account two-factor security-device settings if needed. Do not commit passwords,
+    recovery codes, cookies, browser profiles, or PyPI session material.
+
+## CI and badge checks
+
+- Prefer local reproduction before rerunning workflows:
+  - if a failing step has a local command equivalent, run that first and fix locally
+  - only rerun a workflow after the local equivalent is green or when the issue is GitHub-specific
+- If a workflow is `cancelled`, fetch and compare the cancelled run head SHA with current
+  `origin/main` before debugging. A newer push often supersedes coverage on `main`; follow
+  the current head's run instead of fixing a cancelled predecessor unless the same failure
+  reproduces on the latest head.
+- CI badge is pinned to `main`:
+  - `https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main`
+- When checking recent workflow state, prefer the GitHub Actions runs API:
+  - `uv --preview-features extra-build-dependencies run python - <<'PY' ... https://api.github.com/repos/ThalesGroup/agilab/actions/workflows/ci.yml/runs?per_page=10 ... PY`
+- Public job logs may not be directly retrievable without auth. Use the runs/jobs API first to identify the failing step, then reproduce that exact command locally.
+- For AGILAB specifically, the GitHub README now uses a static, versioned PyPI badge committed under `badges/`:
+  - `https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg`
+- The live PyPI page can still lag until a new package is actually published; do not infer package publication from the GitHub badge alone.
+- After a release, verify all four surfaces separately before trusting version state:
+  - PyPI JSON: `https://pypi.org/pypi/agilab/json`
+  - PyPI simple index: `https://pypi.org/simple/agilab/`
+  - GitHub Release: `gh release list --limit 5` and `gh release view <tag>`
+  - GitHub static badge: `https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg`
+  - If PyPI JSON is current but clean installs still resolve an old version, check
+    the Simple API and use `uv --refresh-package agilab` or a fresh cache before
+    declaring the publish broken.
+- Also verify the GitHub deployment environments, not only the workflow conclusion:
+  - the split-package publisher now publishes runtime components, UI components,
+    page bundles, app-project payloads, the `agi-pages` / `agi-apps` umbrellas,
+    and the top-level `agilab` package. Do not check only `pypi-agi-apps` or
+    `pypi-agi-pages`; a green umbrella publish can still hide a missing payload
+    such as `pypi-agi-app-flight-project`.
+  - the legacy `/deployments/pypi` page can stay red from older releases because
+    the current Trusted Publisher/OIDC claim intentionally no longer uses the
+    generic `pypi` GitHub environment
+  - derive the authoritative package/environment list from the release plan:
+    `uv --preview-features extra-build-dependencies run python tools/release_plan.py --check-workflow .github/workflows/pypi-publish.yaml`
+  - for a focused deployment-status check, query the environment names emitted by
+    the release plan instead of maintaining a separate hard-coded list
+  - before retiring a stale generic `pypi` deployment, confirm it has no rules,
+    secrets, or variables:
+    `gh api repos/ThalesGroup/agilab/environments/pypi`, `gh secret list --repo ThalesGroup/agilab --env pypi`, and `gh variable list --repo ThalesGroup/agilab --env pypi`
+  - if the generic `pypi` environment is only stale legacy status, mark its
+    latest failed deployment `inactive` and point the status at the successful
+    `pypi-publish` run; do not rewrite a genuinely failed deployment as
+    `success`
+- Verify the published wheel from outside the repo checkout so imports cannot resolve to local source:
+  - `cd /tmp && uv run --refresh-package agilab --no-project --with agilab==<version> python -c "import importlib.metadata as m; print(m.version('agilab'))"`
+  - `cd /tmp && uv --preview-features extra-build-dependencies run --refresh-package agilab --no-project --with 'agilab[examples]==<version>' python -m agilab.lab_run first-proof --json --max-seconds 60`
+  - Use `agilab[examples]` for packaged first-proof smoke; the base `agilab`
+    wheel is intentionally lean and may not install demo payload dependencies.
+- The public PyPI release workflow includes the `sync-hf-space` job after GitHub
+  release assets. It deploys the Hugging Face Space, runs the hosted smoke test,
+  and records the Space commit in release proof when
+  `needs.release-plan.outputs.pypi_publish_selected == 'true'` and
+  `needs.publish-release-assets.result == 'success'`. Do not add a separate
+  manual HF sync step to a release plan unless that job failed, was skipped by
+  selected package scope, or the user explicitly asks for an out-of-band Space
+  redeploy.
+- If the version changes, update the static badge and GitHub Release in the same commit series as the version bump so `main`, PyPI, the README, and release metadata stay aligned.
+
+## CI workflow lessons
+
+- The root `src/agilab/test` step is more stable when run from the source tree instead of the full project environment:
+  - `PYTHONPATH='src' COVERAGE_FILE=.coverage.agilab uv --preview-features extra-build-dependencies run --no-project --with pytest --with pytest-cov --with toml --with packaging python -m pytest ... --ignore=src/agilab/test/test_model_returns_code.py src/agilab/test`
+- The integration-only `src/agilab/test/test_model_returns_code.py` should be ignored in CI collection, not merely deselected by marker, because import-time behavior can still break collection.
+- Core package coverage steps are more reliable when each step uses an isolated no-project env with explicit editable core packages and test-only extras, instead of relying on the monorepo root env.
+- `agi-env` tests need:
+  - editable `./src/agilab/core/agi-env`
+  - editable `./src/agilab/core/agi-node`
+  - `sqlalchemy`
+- Shared core tests (`src/agilab/core/test`) need:
+  - editable `./src/agilab/core/agi-env`
+  - editable `./src/agilab/core/agi-node`
+  - editable `./src/agilab/core/agi-cluster`
+  - editable `./src/agilab/core/agi-core`
+  - `sqlalchemy`
+  - `pytest-asyncio`
+- Coverage combine/XML generation should use an isolated coverage toolchain too:
+  - `uv --preview-features extra-build-dependencies run --no-project --with coverage --with pytest-cov python -m coverage ...`
+- Internal package exact-pin tests must account for valid environment markers. If an app
+  package raises its Python floor, keep the umbrella dependency marker such as
+  `; python_version >= '3.13'` instead of downgrading the app or broadening unsupported
+  Python versions. Tests should parse requirements or compare the unmarked exact pin plus
+  marker validity, not raw strings only.
+
+## Troubleshooting reminders
+
+- Source run unexpectedly points to `$HOME/agi-space`:
+  - confirm the launched script path is the current checkout, not the packaged install
+  - confirm the PyCharm SDK was rebound to the intended checkout when switching roots
+  - inspect `~/.local/share/agilab/.agilab-path` and `~/.agilab/.env` before trusting UI headers
+  - reproduce with a cold Streamlit/AppTest session; a warm session can keep a stale `env`
+    object even after the source code is fixed
+- Missing import: check both manager and worker `pyproject.toml` scopes (`src/agilab/apps/<app>/pyproject.toml` and `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml`).
+- Installer pip issue: run `uv --preview-features extra-build-dependencies run python -m ensurepip --upgrade` once in the target venv.
+- Cluster inventory/status mismatch:
+  - Start with fresh discovery, not remembered LAN addresses:
+    `uv --preview-features extra-build-dependencies run --no-sync python tools/cluster_flight_validation.py --discover-lan --remote-user <user> --json --no-discovery-cache`.
+    Treat nodes with `status="no-ssh-port"` or missing ARP as stale candidates;
+    do not use them for validation until a fresh SSH probe succeeds.
+  - If the UI shows a worker as unreachable but `ssh <user>@<ip> 'echo ok'` works,
+    reproduce the exact non-interactive probe path used by AGILAB before changing UI
+    display code.
+  - Check remote PATH and required tools with SSH, not an interactive shell:
+    `ssh <user>@<ip> 'printf "path=%s\n" "$PATH"; command -v python3; command -v nvidia-smi || true; uname -a'`.
+  - Validate the same account can reach the scheduler and shared storage from the worker:
+    `ssh <user>@<ip> 'ssh -o BatchMode=yes <scheduler_user>@<scheduler_ip> hostname'`
+    and the configured cluster-share mount/read-write sentinel.
+  - Treat a display of "+ 1 worker unreachable" as an inventory/probe failure until the
+    exact probe command succeeds; a bare SSH success only proves authentication.
+- For a reinstalled cluster node, separate host-key repair from auth repair:
+  - rediscover the worker IP first; examples must use `<ip>` placeholders, not
+    LAN addresses remembered from an earlier session
+  - host key changed:
+    - `ssh-keygen -R <ip>`
+    - `ssh-keyscan -H -t ed25519 <ip> >> ~/.ssh/known_hosts`
+  - user key missing on remote:
+    - `ssh-copy-id agi@<ip>`
+    - or recreate `~/.ssh/authorized_keys` with `0700` / `0600` permissions
+- If cluster mode depends on shared storage, restore the node’s `.agilab/.env` and remount the share before blaming AGILAB:
+  - Linux node example:
+    - `worker_home="<worker-home>"`
+    - `AGI_CLUSTER_SHARE="$worker_home/clustershare"`
+    - `AGI_LOCAL_SHARE="$worker_home/localshare"`
+    - `sshfs <manager-user>@<manager-ip>:/path/to/manager/clustershare "$worker_home/clustershare"`
+- For macOS SSHFS workers:
+  - `command -v brew` can miss Intel Homebrew; check `/usr/local/Homebrew/bin/brew` before assuming Homebrew is absent.
+  - Prefer an interactive package install of FUSE-T SSHFS or macFUSE plus SSHFS; the package step may need an admin password.
+  - Confirm non-interactive SSH can find `sshfs`: `ssh <user>@<worker> 'command -v sshfs'`.
+  - If `sshfs` is under `/usr/local/bin` but not found over SSH, add `/usr/local/bin` in the remote user’s `~/.zshenv`.
+  - Validate reverse SSH too: `ssh <user>@<worker> 'ssh -o BatchMode=yes <manager_user>@<manager_ip> hostname'`.
+  - Fix worker-side `known_hosts` first, then add the worker public key to the manager account if reverse auth fails.
+- After a reinstall, validate both directions explicitly before rerunning installs:
+  - `ssh agi@<ip> 'echo ok'`
+  - `ssh agi@<ip> 'ssh -o BatchMode=yes agi@<scheduler_ip> hostname'`

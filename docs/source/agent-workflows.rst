@@ -1,0 +1,314 @@
+Agent Workflows
+===============
+
+This page is for developers and contributors working inside the AGILAB
+repository. It is not the newcomer path.
+
+If you are new to AGILAB, stay on :doc:`quick-start` first. Use this page only
+when you intentionally want a CLI coding-agent workflow against the repository
+itself.
+
+What "repo-ready" means
+-----------------------
+
+The repository already ships the configuration, wrappers, and conventions
+needed to work with these executable agent paths against the same repo contract:
+
+- Codex
+- Claude
+- Aider
+- OpenCode
+
+That does not mean the four tools behave identically. It means the repo now
+contains a prepared entry path for each of them instead of relying on ad hoc
+local setup.
+
+Continue can consume the same public catalog through ``AGENT_SKILLS.md`` and
+``llms.txt``, but AGILAB does not ship a Continue wrapper or project config yet.
+Agents and external tools can also consume ``agilab-capabilities.json`` from
+the repository root when they need a machine-readable inventory of shipped
+commands, pages, apps, packages, schemas, and catalog files. The paired
+``agilab-capabilities.schema.json`` file defines the manifest shape, and
+``python3 tools/agilab_capabilities_lint.py --check`` validates the schema
+contract plus cross-object discovery rules. The semantic rule metadata is
+declared in ``agilab-capability-rules.yml`` so categories, severities, and
+rationales are inspectable by humans and agents.
+The generated ``agenticweb.md`` file is the compact agentic-web front door for
+external discovery. It is generated from the capability manifest with
+``python3 tools/agenticweb_manifest.py --apply`` and checked with
+``python3 tools/agenticweb_manifest.py --check``.
+
+Root agent instructions are checked as their own contract::
+
+   python3 tools/agent_instruction_contract.py --check
+
+The output uses schema ``agilab.agent_instruction_contract.v1`` and verifies
+that ``AGENTS.md``, ``AGENT_CONVENTIONS.md``, ``AGENT_LEARNINGS.md``,
+``tools/agent_workflows.md``, this public page, ``agilab-capabilities.json``,
+and ``agenticweb.md`` still describe the same executable agent-facing contract.
+The report also includes a deterministic file evidence snapshot with line
+counts, heading counts, required marker coverage, and SHA-256 hashes for the
+checked runbook files. This guards the runbook and discovery layer only; it does
+not execute agents, generate instructions with an LLM, or replace skill quality,
+security, or
+capability-manifest checks.
+
+Shared repo contract
+--------------------
+
+Before a non-trivial change, start with::
+
+   uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged
+
+For fast local feedback before a larger parity profile, use the repo-owned
+genetic regression selector::
+
+   ./dev regress
+
+This runs ``tools/ga_regression_selector.py --staged --run``. It optimizes a
+small pytest subset from the changed files and available JUnit timings. Treat it
+as an accelerator for the first local loop, not as a replacement for the
+required gates reported by ``impact_validate.py``.
+
+Then follow the repo rules in:
+
+- ``AGENT_CONVENTIONS.md`` for the short local-agent contract
+- ``AGENT_LEARNINGS.md`` for reusable corrections after user, reviewer, or
+  validation feedback
+- ``AGENTS.md`` for the full AGILAB runbook and validation rules
+
+The main rule is simple: run the narrowest local proof first, then reproduce
+the real AGILAB path before broader validation.
+
+Use ``AGENT_LEARNINGS.md`` sparingly: add one concrete rule only when the
+correction is reusable and not already covered by the runbooks. Do not use it
+as a session transcript, brainstorming log, or replacement for code and tests.
+
+Skill catalog and security checks are local-first. Use ``./dev skills`` or the
+``skills`` workflow-parity profile; AGILAB no longer relies on a dedicated
+GitHub Actions workflow for this agent-skill scan.
+
+Context routing
+---------------
+
+When the task is ambiguous, route the prompt and changed files through the
+local context router before loading a large skill set::
+
+   python3 tools/agent_context_router.py \
+     --files docs/source/agent-workflows.rst src/agilab/agent_run.py \
+     --prompt "update agent evidence docs" \
+     --json
+
+The output uses schema ``agilab.agent_context_recommendation.v1``. It lists the
+baseline runbooks, matched rules, and recommended repo-managed skills from
+``agent-context-rules.json``. This is a contract proof for context selection
+only: it does not execute agents, run tests, or replace
+``tools/impact_validate.py``.
+
+Validate the rules with::
+
+   python3 tools/agent_context_router.py --check
+
+Agent run evidence
+------------------
+
+Use ``agilab agent-run`` when a coding-agent action should leave AGILAB
+evidence instead of only a tool-specific log::
+
+   agilab agent-run --agent codex --permission-level standard --label "Review current diff" --tag review --metadata branch=main -- codex review
+
+The command writes a redacted ``agilab.agent_run.v1`` manifest, local
+``stdout.txt`` / ``stderr.txt`` artifacts, and an append-only
+``agilab.agent_trace.v1`` event log under
+``~/log/agents/<agent>/<run-id>/``. Environment override values passed with
+``--env KEY=VALUE`` are redacted from the manifest. Command arguments are
+redacted by default and represented by an argv hash; pass
+``--include-command-args`` only when the prompt/arguments are safe to store.
+The stdout/stderr files stay local artifacts so tool output is not embedded in
+public JSON by default. Those output artifacts redact obvious secret
+assignments, supported secret refs, and common standalone API-token patterns by
+default. Pass ``--include-raw-output`` only for safe local diagnostics.
+
+Use ``--tag`` and ``--metadata KEY=VALUE`` for structured, non-secret context
+that other tools can query later. Read previous run evidence from the CLI::
+
+   agilab agent-run list --agent codex --json
+   agilab agent-run list --tag review --metadata branch=main --protocol-adapter mcp --capability evidence-review --json
+   agilab agent-run handoff ~/log/agents/codex/<run-id>
+   agilab agent-run next ~/log/agents/codex/<run-id> --json
+   agilab agent-run context --tag review --metadata branch=main --limit 5 --json
+   agilab agent-run lineage <run-id> --json
+   agilab agent-run compare ~/log/agents/codex/<failed-run> ~/log/agents/codex/<follow-up-run> --json
+   agilab agent-run validate ~/log/agents/codex/<run-id> --json
+
+or from Python::
+
+   from agilab.agent_run import list_agent_runs
+
+   runs = list_agent_runs(agent="codex", limit=5)
+
+Agent evidence contract
+-----------------------
+
+AGILAB keeps the agent evidence layer deliberately small and provider-neutral:
+
+- ``agent_run_manifest.json`` records command identity, redacted arguments,
+  environment metadata, metadata-only protocol labels, provider/model
+  capability metadata when configured, and pointers to local artifacts.
+- ``agent_trace_meta.json`` describes the trace directory.
+- ``agent_events.ndjson`` is an append-only typed event stream. Current event
+  types include ``session_start``, ``command_start``, ``tool_start``,
+  ``tool_output``, ``tool_done``, ``permission_request``,
+  ``permission_resolved``, ``compact``, ``rewind``, and ``session_end``.
+- ``tool-output/`` is reserved for large or structured tool payloads that
+  should stay out of public JSON.
+- The read side can produce redacted continuation cards, deterministic
+  next-action cards, filtered context packs, follow-up lineage graphs, and
+  pairwise run comparisons. It can also validate manifest structure, trace
+  sequence, and referenced artifact presence before another agent trusts the
+  evidence. These surfaces point to local artifacts but do not embed
+  stdout/stderr contents.
+
+The base package records protocol bridges as evidence labels only. Add
+``--protocol-adapter mcp`` or ``--capability app-as-tool`` when experimenting
+with agent protocol bridges without adding protocol-stack dependencies to the
+base runtime.
+
+The tool safety helpers expose the same control points for agent commands and
+future agent tools:
+
+- permission tiers: ``readonly``, ``safe``, ``standard``, and ``operator``;
+  actual command execution is a ``standard`` action, while destructive
+  executable names and obvious destructive shell, Python, Git, Docker,
+  Kubernetes, or package-manager command content are operator-gated
+- deterministic confirmation tokens for operator-gated/destructive actions
+- before/after hooks that can approve, deny, redact, audit, or replace a tool
+  result before it is written back into evidence
+
+The permission layer is an evidence and operator-confirmation guard. It is not a
+process sandbox; use OS/container isolation for untrusted commands.
+
+Agent configuration is layered from ``~/.agilab/agents/agents.json`` and then
+``.agilab/agents.json`` files from the project root to the current working
+directory. A minimal project-local file can stamp provider capability and
+permission context into future agent-run manifests::
+
+   {
+     "default": {"provider": "local-code"},
+     "permission": {"level": "standard"},
+     "providers": {
+       "local-code": {
+         "type": "ollama",
+         "model": "qwen2.5-coder:latest",
+         "capability": {"context_window": 32768}
+       }
+     }
+   }
+
+Use explicit CLI overrides when a run should carry a one-off provider or model
+label without changing project config::
+
+   agilab agent-run --provider openai --model gpt-5 --permission-level standard -- codex review
+
+Supported agent paths
+---------------------
+
+Codex and Claude
+^^^^^^^^^^^^^^^^
+
+- Repo-managed skills live under ``.codex/skills`` and ``.claude/skills``.
+- ``AGENTS.md`` remains the source of truth for repo policy, validation, and
+  launch rules.
+
+Aider
+^^^^^
+
+Use the wrapper from the repository root::
+
+   ./tools/aider_workflow.sh chat
+
+For a one-off task::
+
+   ./tools/aider_workflow.sh exec "Refactor only ... keeping behavior unchanged"
+
+What the repo already provides:
+
+- ``.aider.conf.yml`` for repo-local defaults
+- ``tools/aider_workflow.sh`` for the standard entry path
+- ``tools/aider_workflow.md`` for usage details
+
+Default local model path:
+
+- ``qwen-local`` -> ``ollama_chat/qwen2.5-coder:latest``
+
+Additional local aliases:
+
+- ``gpt-oss-local`` -> ``ollama_chat/gpt-oss:20b``
+- ``qwen3-local`` -> ``ollama_chat/qwen3:30b-a3b-instruct-2507-q4_K_M``
+- ``qwen3-coder-local`` -> ``ollama_chat/qwen3-coder:30b-a3b-q4_K_M``
+- ``ministral-local`` -> ``ollama_chat/ministral-3:14b-instruct-2512-q4_K_M``
+- ``phi4-mini-local`` -> ``ollama_chat/phi4-mini:3.8b-q4_K_M``
+
+OpenCode
+^^^^^^^^
+
+Use the wrapper from the repository root::
+
+   ./tools/opencode_workflow.sh chat
+
+For a one-off task::
+
+   ./tools/opencode_workflow.sh exec "Add a regression test for ..."
+
+What the repo already provides:
+
+- ``opencode.json`` for project configuration
+- ``.opencode/agents/`` for project-scoped agents
+- ``tools/opencode_workflow.sh`` for the standard entry path
+- ``tools/opencode_workflow.md`` for usage details
+
+Default local model path:
+
+- ``ollama/qwen2.5-coder:latest``
+
+Useful efficient local overrides include ``ollama/gpt-oss:20b``,
+``ollama/qwen3-coder:30b-a3b-q4_K_M``,
+``ollama/qwen3:30b-a3b-instruct-2507-q4_K_M``,
+``ollama/ministral-3:14b-instruct-2512-q4_K_M``, and
+``ollama/phi4-mini:3.8b-q4_K_M``.
+
+Local model prerequisite
+------------------------
+
+Aider and OpenCode in this repo are prepared for local Ollama-backed models.
+In practice this means:
+
+- keep a local Ollama server running
+- use the repo defaults or override them with the documented environment
+  variables
+
+The prepared local families are the same ones already documented elsewhere in
+AGILAB: ``gpt-oss``, ``qwen``, ``deepseek``, ``qwen3``, ``qwen3-coder``,
+``ministral``, and ``phi4-mini``. If a model is served through vLLM or another
+OpenAI-compatible gateway instead of Ollama, configure the AGILAB assistant
+with ``AGILAB_LLM_BASE_URL`` and ``AGILAB_LLM_MODEL``.
+
+Where to read the repo-local files
+----------------------------------
+
+The public docs page gives the high-level entry points. The operational details
+stay in the repository itself:
+
+- `AGENTS.md <https://github.com/ThalesGroup/agilab/blob/main/AGENTS.md>`_
+- `AGENT_CONVENTIONS.md <https://github.com/ThalesGroup/agilab/blob/main/AGENT_CONVENTIONS.md>`_
+- `tools/agent_workflows.md <https://github.com/ThalesGroup/agilab/blob/main/tools/agent_workflows.md>`_
+- `docs/CLI_FIRST_WORKFLOW.md <https://github.com/ThalesGroup/agilab/blob/main/docs/CLI_FIRST_WORKFLOW.md>`_
+- `tools/aider_workflow.md <https://github.com/ThalesGroup/agilab/blob/main/tools/aider_workflow.md>`_
+- `tools/opencode_workflow.md <https://github.com/ThalesGroup/agilab/blob/main/tools/opencode_workflow.md>`_
+
+When not to use this page
+-------------------------
+
+- If you are doing your first real AGILAB run, use :doc:`quick-start`.
+- If you want the notebook-first runtime path, use :doc:`notebook-quickstart`.
+- If you want a public demo route instead of repo work, use :doc:`demos`.

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680">
+  <rect width="1200" height="680" fill="#f7f3eb"/>
+  <path d="M600 110 L1080 560 H120 L600 110 Z" fill="#efe2d1"/>
+  <circle cx="300" cy="470" r="76" fill="#2d5c7a"/>
+  <text x="300" y="478" font-size="28" text-anchor="middle" fill="#fffaf5" font-family="Aptos" font-weight="700">IDE</text>
+  <circle cx="900" cy="470" r="76" fill="#b85724"/>
+  <text x="900" y="478" font-size="28" text-anchor="middle" fill="#fffaf5" font-family="Aptos" font-weight="700">CLI</text>
+  <text x="600" y="214" font-size="34" text-anchor="middle" fill="#212427" font-family="Aptos" font-weight="700">Choix simple</text>
+  <text x="600" y="256" font-size="24" text-anchor="middle" fill="#5b6268" font-family="Aptos">plus local et immédiat à gauche • plus agentique et structuré à droite</text>
+  <text x="300" y="600" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">questions locales</text>
+  <text x="300" y="632" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">édition rapide</text>
+  <text x="900" y="600" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">tâches longues</text>
+  <text x="900" y="632" font-size="22" text-anchor="middle" fill="#212427" font-family="Aptos">workflow complet</text>
+</svg>

@@ -1,0 +1,68 @@
+name: test-pypi-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional rehearsal version, for example 2026.05.12, 2026.05.12rc1, or v2026.05.12. TestPyPI may auto-create .postN retries."
+        required: false
+
+concurrency:
+  group: test-pypi-publish-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  publish-testpypi:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TWINE_USERNAME: __token__
+      TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv and twine
+        run: python -m pip install --upgrade --no-cache-dir uv twine
+
+      - name: Ensure TestPyPI token present
+        run: |
+          set -euo pipefail
+          if [ -z "${TWINE_PASSWORD:-}" ]; then
+            echo "ERROR: Missing TEST_PYPI_API_TOKEN or TEST_PYPI_SECRET" >&2
+            exit 2
+          fi
+          echo "Found TestPyPI token."
+
+      - name: Build and upload all TestPyPI packages with one unified version
+        env:
+          BASE_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          set -euxo pipefail
+          args=(
+            --repo testpypi
+            --dist both
+            --verbose
+            --git-reset-on-failure
+            --no-pypirc-check
+          )
+          if [ -n "${BASE_VERSION:-}" ]; then
+            base="${BASE_VERSION#refs/tags/}"
+            base="${base#v}"
+            args+=(--version "$base")
+          fi
+          uv --preview-features extra-build-dependencies run python tools/pypi_publish.py "${args[@]}"

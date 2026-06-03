@@ -1,0 +1,1005 @@
+# BSD 3-Clause License
+#
+# Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+# 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+import argparse
+import os
+from pathlib import Path
+import re
+import sys
+from urllib.parse import urlencode
+
+import pandas as pd
+from pandas.api.types import is_integer_dtype, is_numeric_dtype
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+import tomllib as _toml
+from agi_env.app_settings_support import prepare_app_settings_for_write
+
+try:
+    import tomli_w as _toml_writer  # type: ignore[import-not-found]
+
+    def _dump_toml_payload(data: dict, handle) -> None:
+        _toml_writer.dump(data, handle)
+
+except ModuleNotFoundError:  # pragma: no cover - fallback for lightweight envs
+    try:
+        from tomlkit import dumps as _tomlkit_dumps
+
+        def _dump_toml_payload(data: dict, handle) -> None:
+            handle.write(_tomlkit_dumps(data).encode("utf-8"))
+
+    except ImportError as _toml_exc:
+        _toml_import_error = _toml_exc
+
+        def _dump_toml_payload(data: dict, handle) -> None:
+            raise RuntimeError(
+                "Writing settings requires the 'tomli-w' or 'tomlkit' package"
+            ) from _toml_import_error
+
+
+def _ensure_repo_on_path() -> None:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "agilab"
+        if candidate.is_dir():
+            src_root = candidate.parent
+            repo_root = src_root.parent
+            for entry in (str(src_root), str(repo_root)):
+                if entry not in sys.path:
+                    sys.path.insert(0, entry)
+            break
+
+
+_ensure_repo_on_path()
+
+from agi_pages.runtime import render_streamlit_page_header, reset_scoped_session_state
+
+
+def _default_app() -> Path | None:
+    apps_path = Path(__file__).resolve().parents[4] / "apps"
+    if not apps_path.exists():
+        return None
+    for candidate in sorted(apps_path.iterdir()):
+        if (
+            candidate.is_dir()
+            and candidate.name.endswith("_project")
+            and not candidate.name.startswith(".")
+        ):
+            return candidate
+    return None
+
+
+from agi_env import AgiEnv
+from agi_gui.pagelib import find_files, load_df, update_datadir
+
+var = ["discrete", "continuous", "lat", "long"]
+
+
+def _analysis_return_url(app: str) -> str:
+    return f"/ANALYSIS?{urlencode({'active_app': app})}"
+
+
+def _render_app_page_context(app: str, active_app: Path) -> None:
+    columns = st.columns(2)
+    with columns[0]:
+        st.caption(f"`{app}`")
+    with columns[1]:
+        link_button = getattr(st, "link_button", None)
+        url = _analysis_return_url(app)
+        if callable(link_button):
+            link_button("Back to ANALYSIS", url, type="secondary", width="content")
+        else:
+            st.caption(f"Back to ANALYSIS: {url}")
+    with st.expander("Runtime context", expanded=False):
+        st.code(str(active_app), language="text")
+var_default = [0, None]
+DATASET_EXTENSIONS = (".csv", ".parquet", ".json")
+FILE_TYPE_OPTIONS = ("csv", "parquet", "json", "all")
+DF_SELECTION_MODES = ("Single file", "Multi-select", "Regex (multi)")
+PAGE_KEY_PREFIX = "view_maps"
+
+
+def _vm_key(name: str) -> str:
+    return f"{PAGE_KEY_PREFIX}:{name}"
+
+
+APP_SCOPE_KEY = _vm_key("active_app_scope")
+APP_SCOPED_SESSION_KEY_PREFIXES = (f"{PAGE_KEY_PREFIX}:", "_view_maps_")
+APP_SCOPED_SESSION_DEFAULT_KEYS = (
+    "env",
+    "IS_SOURCE_ENV",
+    "IS_WORKER_ENV",
+    "apps_path",
+    "app",
+    "project",
+    "projects",
+    "TABLE_MAX_ROWS",
+    "GUI_SAMPLING",
+    "datadir",
+    "datadir_str",
+    "dataset_files",
+    "file_ext_choice",
+    "df_select_mode",
+    "df_files_selected",
+    "df_file",
+    "df_file_regex",
+    "loaded_df",
+    "coltype",
+    "discrete",
+    "continuous",
+    "lat",
+    "long",
+)
+
+
+def _reset_app_scoped_session_state(active_app: Path) -> bool:
+    """Clear View Maps state that belongs to a specific active app."""
+
+    return reset_scoped_session_state(
+        st.session_state,
+        APP_SCOPE_KEY,
+        active_app,
+        keys=APP_SCOPED_SESSION_DEFAULT_KEYS,
+        prefixes=APP_SCOPED_SESSION_KEY_PREFIXES,
+    )
+
+
+def _discover_dataset_files(datadir: Path, ext_choice: str) -> list[Path]:
+    files: list[Path] = []
+    extensions = DATASET_EXTENSIONS if ext_choice == "all" else (f".{ext_choice}",)
+    for ext in extensions:
+        files.extend(find_files(datadir, ext=ext))
+    return files
+
+
+def _visible_dataset_files(datadir: Path, files: list[Path]) -> list[Path]:
+    visible_files: list[Path] = []
+    for file_path in files:
+        try:
+            parts = file_path.relative_to(datadir).parts
+        except (OSError, RuntimeError, ValueError):
+            parts = file_path.parts
+        if any(part.startswith(".") for part in parts):
+            continue
+        visible_files.append(file_path)
+    return visible_files
+
+render_streamlit_page_header(st, title=":world_map: Cartography Visualization", show_logo=False)
+
+
+def continuous():
+    """Set coltype to 'continuous'."""
+    st.session_state["coltype"] = "continuous"
+
+
+def discrete():
+    """Set coltype to 'discrete'."""
+    st.session_state["coltype"] = "discrete"
+
+  # Default to 'discrete'
+
+
+def downsample_df_deterministic(df: pd.DataFrame, ratio: int) -> pd.DataFrame:
+    """
+    Return a new DataFrame containing every `ratio`-th row from the original df.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The original DataFrame to down-sample.
+    ratio : int
+        Keep one row every `ratio` rows. E.g. ratio=20 → rows 0, 20, 40, …
+
+    Returns
+    -------
+    pd.DataFrame
+        The down-sampled DataFrame, re-indexed from 0.
+    """
+    if ratio <= 0:
+        raise ValueError("`ratio` must be a positive integer.")
+    # Ensure a clean integer index before slicing
+    df_reset = df.reset_index(drop=True)
+    # Take every ratio-th row
+    sampled = df_reset.iloc[::ratio].copy()
+    # Reset index for the result
+    return sampled.reset_index(drop=True)
+
+
+def _compute_zoom_from_span(span_deg: float) -> float:
+    """Approximate a map zoom level based on the largest lat/lon span."""
+    thresholds = [
+        (160, 1),
+        (80, 2),
+        (40, 3),
+        (20, 4),
+        (10, 5),
+        (5, 6),
+        (2.5, 7),
+        (1.2, 8),
+        (0.6, 9),
+        (0.3, 10),
+        (0.15, 11),
+        (0.075, 12),
+        (0.035, 13),
+        (0.018, 14),
+    ]
+    for threshold, zoom in thresholds:
+        if span_deg > threshold:
+            return zoom
+    return 15
+
+
+def _compute_viewport(df: pd.DataFrame, lat_col: str, lon_col: str) -> dict[str, float] | None:
+    """Return center/zoom settings that fit the current dataset."""
+    try:
+        latitudes = pd.to_numeric(df[lat_col], errors="coerce").dropna()
+        longitudes = pd.to_numeric(df[lon_col], errors="coerce").dropna()
+    except (KeyError, RuntimeError, ValueError):
+        return None
+    if latitudes.empty or longitudes.empty:
+        return None
+    lat_min, lat_max = latitudes.min(), latitudes.max()
+    lon_min, lon_max = longitudes.min(), longitudes.max()
+    center_lat = float((lat_min + lat_max) / 2)
+    center_lon = float((lon_min + lon_max) / 2)
+    span_lat = abs(lat_max - lat_min)
+    span_lon = abs(lon_max - lon_min)
+    span = max(span_lat, span_lon)
+    zoom = _compute_zoom_from_span(span if span > 0 else 0.01)
+    return {"center_lat": center_lat, "center_lon": center_lon, "default_zoom": zoom}
+
+
+def _load_map_defaults(env: AgiEnv) -> dict[str, float]:
+    """Read custom map settings from app_settings.toml when available."""
+
+    try:
+        with open(env.app_settings_file, "rb") as fh:
+            data = _toml.load(fh)
+    except FileNotFoundError:
+        data = {}
+    map_cfg = data.get("ui", {}).get(
+        "map",
+        {"center_lat": 0.0, "center_lon": 0.0, "default_zoom": 2.5},
+    )
+    return {
+        "center_lat": float(map_cfg.get("center_lat", 0.0)),
+        "center_lon": float(map_cfg.get("center_lon", 0.0)),
+        "default_zoom": float(map_cfg.get("default_zoom", 2.5)),
+    }
+
+
+def _load_view_maps_settings(env: AgiEnv) -> tuple[dict, dict]:
+    """Return the full TOML payload and the view_maps subsection."""
+    try:
+        with open(env.app_settings_file, "rb") as fh:
+            data = _toml.load(fh)
+    except FileNotFoundError:
+        data = {}
+    except (OSError, _toml.TOMLDecodeError):
+        data = {}
+    view_section = data.get("view_maps")
+    if not isinstance(view_section, dict):
+        view_section = {}
+    return data, view_section
+
+
+def _persist_view_maps_settings(env: AgiEnv, base_settings: dict, view_settings: dict) -> dict:
+    """Write the updated view_maps settings back to disk."""
+    payload = dict(base_settings) if isinstance(base_settings, dict) else {}
+    payload["view_maps"] = view_settings
+    try:
+        with open(env.app_settings_file, "wb") as fh:
+            _dump_toml_payload(prepare_app_settings_for_write(payload), fh)
+    except (OSError, RuntimeError):
+        pass
+    return payload
+
+
+def page(env):
+    """
+    Page function for displaying and interacting with data in a Streamlit app.
+
+    This function sets up the page layout and functionality for displaying and interacting with data in a Streamlit app.
+
+    It handles the following key tasks:
+    - Setting up default values for session state variables related to the project, help path, and available projects.
+    - Checking and validating the data directory path, and displaying appropriate messages if it is invalid or not found.
+    - Loading and displaying the selected data file in a DataFrame.
+    - Allowing users to select columns for visualizations and customization options like color sequence and scale.
+    - Generating and displaying interactive scatter maps based on selected columns for latitude, longitude, and coloring.
+
+    No specific Args are passed to this function as it directly interacts with and manipulates the page layout and user inputs in a Streamlit app.
+
+    Returns:
+        None
+
+    Raises:
+        None
+    """
+
+    if "project" not in st.session_state:
+        st.session_state["project"] = env.target
+
+    if "projects" not in st.session_state:
+        st.session_state["projects"] = env.projects
+
+    full_settings, view_settings = _load_view_maps_settings(env)
+    for k in (
+        "df_files_selected",
+        "df_select_mode",
+        "df_file_regex",
+        "file_ext_choice",
+        "discrete",
+        "continuous",
+        "lat",
+        "long",
+        "coltype",
+    ):
+        if k in view_settings and k not in st.session_state:
+            st.session_state[k] = view_settings[k]
+
+    map_defaults_key = f"_view_maps_map_defaults_{env.app}"
+
+    # Resolve the data directory for the currently selected app
+    default_datadir = Path(env.AGILAB_EXPORT_ABS) / env.target
+    last_target_key = "_view_maps_last_target"
+    last_target = st.session_state.get(last_target_key)
+
+    current = st.session_state.get("datadir")
+    if (
+        last_target != env.target
+        or current is None
+        or str(current).strip() == ""
+    ):
+        current = str(view_settings.get("datadir") or default_datadir)
+    st.session_state["datadir"] = str(current)
+
+    st.session_state["datadir_str"] = st.session_state["datadir"]
+    st.session_state[last_target_key] = env.target
+    if (
+        map_defaults_key not in st.session_state
+        or last_target != env.target
+    ):
+        st.session_state[map_defaults_key] = _load_map_defaults(env)
+    datadir = Path(st.session_state["datadir"])
+    datadir_changed = st.session_state.get("_view_maps_last_datadir") != str(datadir)
+    st.session_state["_view_maps_last_datadir"] = str(datadir)
+    if view_settings.get("datadir") != st.session_state["datadir"]:
+        view_settings["datadir"] = st.session_state["datadir"]
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
+    datadir_widget_key = _vm_key("input_datadir")
+    if st.session_state.get(datadir_widget_key) != st.session_state["datadir"]:
+        st.session_state[datadir_widget_key] = st.session_state["datadir"]
+    with st.sidebar.expander("Data source", expanded=False):
+        st.caption(f"Current data root: `{datadir.name or datadir}`")
+        st.text_input(
+            "Data directory path",
+            key=datadir_widget_key,
+            on_change=update_datadir,
+            args=("datadir", datadir_widget_key),
+        )
+
+    if not datadir.exists() or not datadir.is_dir():
+        st.sidebar.error("Directory not found.")
+        st.warning("A valid data directory is required to proceed.")
+        return  # Stop further processing
+
+    file_ext_key = _vm_key("file_ext_choice")
+    ext_default = str(view_settings.get("file_ext_choice", "all")).lower()
+    if ext_default not in FILE_TYPE_OPTIONS:
+        ext_default = "all"
+    if st.session_state.get(file_ext_key) not in FILE_TYPE_OPTIONS:
+        st.session_state[file_ext_key] = ext_default
+    ext_choice = st.sidebar.selectbox(
+        "File type",
+        FILE_TYPE_OPTIONS,
+        key=file_ext_key,
+    )
+    st.session_state["file_ext_choice"] = ext_choice
+
+    # Find dataset files in the data directory
+    dataset_key = "dataset_files"
+    legacy_key = "csv_files"
+    if dataset_key not in st.session_state and legacy_key in st.session_state:
+        st.session_state[dataset_key] = st.session_state.pop(legacy_key)
+
+    try:
+        dataset_files = _discover_dataset_files(datadir, ext_choice=ext_choice)
+    except NotADirectoryError as exc:
+        st.warning(str(exc))
+        dataset_files = []
+    dataset_files = _visible_dataset_files(datadir, dataset_files)
+
+    st.session_state[dataset_key] = dataset_files
+    if not st.session_state[dataset_key]:
+        st.warning(
+            f"No dataset found in {datadir} (filter: {ext_choice}). "
+            "Use the EXECUTE → EXPORT workflow to materialize CSV/Parquet/JSON outputs first."
+        )
+        st.stop()  # Stop further processing
+
+    # Prepare list of dataset files relative to the data directory
+    dataset_files_rel = sorted(
+        {
+            Path(file).relative_to(datadir).as_posix()
+            for file in st.session_state[dataset_key]
+        }
+    )
+
+    # Prefer the consolidated export file when present.
+    priority_files = [
+        candidate
+        for candidate in dataset_files_rel
+        if Path(candidate).name.lower() in {"export.csv", "export.parquet", "export.json"}
+    ]
+    settings_files = view_settings.get("df_files_selected") or []
+    if not settings_files:
+        legacy_setting = view_settings.get("df_file")
+        settings_files = [legacy_setting] if legacy_setting else []
+    if settings_files and all(item in dataset_files_rel for item in settings_files):
+        default_selection = settings_files
+    else:
+        default_selection = [priority_files[0]] if priority_files else (dataset_files_rel[:1] if dataset_files_rel else [])
+
+    selection_mode_key = _vm_key("df_select_mode")
+    mode_default = str(view_settings.get("df_select_mode", "Multi-select"))
+    if mode_default not in DF_SELECTION_MODES:
+        mode_default = "Multi-select"
+    if st.session_state.get(selection_mode_key) not in DF_SELECTION_MODES:
+        st.session_state[selection_mode_key] = mode_default
+    df_mode = st.sidebar.radio(
+        "Dataset selection",
+        options=DF_SELECTION_MODES,
+        key=selection_mode_key,
+    )
+    st.session_state["df_select_mode"] = df_mode
+
+    selection_key = _vm_key("df_files_selected")
+    if selection_key not in st.session_state:
+        legacy_selection = st.session_state.get("df_files_selected")
+        if isinstance(legacy_selection, list):
+            st.session_state[selection_key] = [item for item in legacy_selection if item in dataset_files_rel]
+        else:
+            st.session_state[selection_key] = []
+    current_selection = st.session_state.get(selection_key)
+    if not isinstance(current_selection, list):
+        current_selection = []
+    current_selection = [item for item in current_selection if item in dataset_files_rel]
+    if datadir_changed or (not current_selection and default_selection):
+        current_selection = default_selection
+    st.session_state[selection_key] = current_selection
+
+    single_file_key = _vm_key("df_file")
+    single_default = (
+        current_selection[0]
+        if current_selection
+        else (default_selection[0] if default_selection else "")
+    )
+    if st.session_state.get(single_file_key) not in dataset_files_rel:
+        st.session_state[single_file_key] = single_default
+
+    regex_key = _vm_key("df_file_regex")
+    if regex_key not in st.session_state:
+        st.session_state[regex_key] = str(view_settings.get("df_file_regex", ""))
+
+    selected_files: list[str] = []
+    if df_mode == "Single file":
+        st.sidebar.selectbox(
+            label="DataFrame",
+            options=dataset_files_rel,
+            key=single_file_key,
+        )
+        selected_single = st.session_state.get(single_file_key)
+        if selected_single:
+            selected_files = [selected_single]
+    elif df_mode == "Regex (multi)":
+        regex_raw = st.sidebar.text_input(
+            "DataFrame filename regex",
+            key=regex_key,
+            help="Python regex applied to the relative file path. Leave empty to match all files.",
+        ).strip()
+        regex_ok = True
+        pattern = None
+        if regex_raw:
+            try:
+                pattern = re.compile(regex_raw)
+            except re.error as exc:
+                regex_ok = False
+                st.sidebar.error(f"Invalid regex: {exc}")
+        matching = (
+            [item for item in dataset_files_rel if pattern.search(item)]
+            if (regex_ok and pattern is not None)
+            else (dataset_files_rel if not regex_raw else [])
+        )
+        st.sidebar.caption(f"{len(matching)} / {len(dataset_files_rel)} files match")
+        if st.sidebar.button(
+            f"Select all matching ({len(matching)})",
+            disabled=not matching,
+            key=_vm_key("df_regex_select_all"),
+        ):
+            st.session_state[selection_key] = matching
+        seeded = st.session_state.get(selection_key)
+        if not isinstance(seeded, list):
+            seeded = []
+        seeded = [item for item in seeded if item in dataset_files_rel]
+        if not seeded:
+            seeded = default_selection
+        st.session_state[selection_key] = seeded
+        st.sidebar.multiselect(
+            label="DataFrames",
+            options=dataset_files_rel,
+            key=selection_key,
+            help="Select one or more CSV/Parquet/JSON files (including split part files).",
+        )
+        selected_files = [item for item in st.session_state.get(selection_key, []) if item in dataset_files_rel]
+    else:
+        st.sidebar.multiselect(
+            label="DataFrames",
+            options=dataset_files_rel,
+            key=selection_key,
+            help="Select one or more CSV/Parquet/JSON files (including split part files).",
+        )
+        selected_files = [item for item in st.session_state.get(selection_key, []) if item in dataset_files_rel]
+
+    st.sidebar.caption(f"{len(selected_files)} selected")
+    if selected_files:
+        st.session_state[single_file_key] = selected_files[0]
+    st.session_state["df_files_selected"] = selected_files
+    st.session_state["df_file"] = selected_files[0] if selected_files else ""
+    st.session_state["df_file_regex"] = st.session_state.get(regex_key, "")
+    if not selected_files:
+        st.warning("Please select at least one dataset to proceed.")
+        return
+
+    # Load and concatenate selected DataFrames
+    dataframes: list[pd.DataFrame] = []
+    load_errors: list[str] = []
+    for rel_path in selected_files:
+        df_file_abs = datadir / rel_path
+        cache_buster = None
+        try:
+            cache_buster = df_file_abs.stat().st_mtime_ns
+        except FileNotFoundError:
+            cache_buster = None
+        try:
+            df_loaded = load_df(df_file_abs, with_index=True, cache_buster=cache_buster)
+        except Exception as exc:
+            load_errors.append(f"{rel_path}: {exc}")
+            continue
+        if not isinstance(df_loaded, pd.DataFrame):
+            load_errors.append(f"{rel_path}: unexpected type {type(df_loaded)}")
+            continue
+        df_loaded = df_loaded.copy()
+        df_loaded["__dataset__"] = rel_path
+        dataframes.append(df_loaded)
+
+    if load_errors:
+        st.sidebar.warning("Some selected files failed to load; continuing with the rest.")
+        with st.sidebar.expander("Load errors", expanded=False):
+            for err in load_errors[:50]:
+                st.write(err)
+            if len(load_errors) > 50:
+                st.write(f"... ({len(load_errors) - 50} more)")
+
+    if not dataframes:
+        st.error("No selected dataframes could be loaded.")
+        return
+
+    try:
+        combined_df = pd.concat(dataframes, ignore_index=True)
+    except Exception as e:
+        st.error(f"Error concatenating datasets: {e}")
+        return
+
+    st.session_state["loaded_df"] = combined_df
+
+    # Check if data is loaded and valid
+    if (
+            "loaded_df" not in st.session_state
+            or not isinstance(st.session_state.loaded_df, pd.DataFrame)
+            or not st.session_state.loaded_df.shape[1] > 0
+    ):
+        st.warning("The dataset is empty or could not be loaded. Please select a valid data file.")
+        return  # Stop further processing
+
+    # data filter to speed-up
+    c = st.columns(5)
+    sampling_key = _vm_key("sampling_ratio")
+    if sampling_key not in st.session_state:
+        st.session_state[sampling_key] = max(1, int(st.session_state.GUI_SAMPLING))
+    sampling_ratio = c[4].number_input(
+        "Sampling ratio",
+        min_value=1,
+        step=1,
+        key=sampling_key,
+    )
+    st.session_state.GUI_SAMPLING = int(sampling_ratio)
+    st.session_state.loaded_df = downsample_df_deterministic(st.session_state.loaded_df, sampling_ratio)
+    nrows = st.session_state.loaded_df.shape[0]
+    if nrows == 0:
+        st.warning("No points remain after sampling. Reduce the sampling ratio or choose another dataset.")
+        return
+    min_lines = 1 if nrows < 5 else 5
+
+    line_limit_key = _vm_key("table_max_rows")
+    try:
+        table_max_rows = int(st.session_state.TABLE_MAX_ROWS)
+    except Exception:
+        table_max_rows = nrows
+    default_line_limit = min(max(min_lines, table_max_rows), nrows)
+    if st.session_state.get(line_limit_key) is None:
+        st.session_state[line_limit_key] = default_line_limit
+    else:
+        try:
+            current_limit = int(st.session_state[line_limit_key])
+        except Exception:
+            current_limit = default_line_limit
+        st.session_state[line_limit_key] = min(max(min_lines, current_limit), nrows)
+    if nrows <= min_lines:
+        lines = nrows
+        st.session_state[line_limit_key] = nrows
+        st.caption(f"Showing all {nrows} available point{'s' if nrows != 1 else ''}.")
+    else:
+        lines = st.slider(
+            "Select the desired number of points:",
+            min_value=min_lines,
+            max_value=nrows,
+            key=line_limit_key,
+            step=1,
+        )
+    st.session_state.TABLE_MAX_ROWS = int(lines)
+    if lines >= 0:
+        st.session_state.loaded_df = st.session_state.loaded_df.iloc[:lines, :]
+
+    df = st.session_state.loaded_df
+
+    if "beam" in df.columns:
+        available_beams = sorted({str(val) for val in df["beam"].dropna().unique()})
+        selected_beams = st.sidebar.multiselect(
+            "Filter beams",
+            available_beams,
+            key=f"view_maps_beam_filter_{env.app}",
+        )
+        if selected_beams:
+            df = df[df["beam"].astype(str).isin(selected_beams)].copy()
+            st.session_state.loaded_df = df
+        beam_summary_cols = {"points": ("beam", "size")}
+        if "alt_m" in df.columns:
+            beam_summary_cols["mean_alt_m"] = ("alt_m", "mean")
+        if "sat" in df.columns:
+            beam_summary_cols["dominant_sat"] = (
+                "sat",
+                lambda series: series.mode().iat[0] if not series.mode().empty else None,
+            )
+        with st.expander("Beam coverage", expanded=False):
+            summary_df = (
+                df.groupby("beam")
+                .agg(**beam_summary_cols)
+                .reset_index()
+                .rename(columns={"beam": "beam_id"})
+                .sort_values(by="beam_id")
+            )
+            st.dataframe(summary_df, width="stretch")
+    else:
+        st.sidebar.write("")
+
+    sat_default = bool(view_settings.get("show_sat_overlay", True))
+    show_sat_overlay = st.sidebar.checkbox(
+        "Show satellite overlay",
+        value=sat_default,
+        key=f"view_maps_sat_overlay_{env.app}",
+    )
+    if view_settings.get("show_sat_overlay", True) != show_sat_overlay:
+        view_settings["show_sat_overlay"] = show_sat_overlay
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
+
+    # Select numeric columns
+    numeric_cols = st.session_state.loaded_df.select_dtypes(include=["number"]).columns.tolist()
+
+    # Define lists to store continuous and discrete numeric variables
+    continuous_cols = []
+    discrete_numeric_cols = []
+
+    # Define a threshold: if a numeric column has fewer unique values than this threshold,
+    # treat it as discrete. Adjust this value based on your needs.
+    # Threshold to classify numeric columns as discrete vs continuous
+    unique_default = int(view_settings.get("unique_threshold", 10))
+    unique_threshold = st.sidebar.number_input(
+        "Discrete threshold (unique values <)",
+        min_value=2,
+        max_value=100,
+        value=unique_default,
+        step=1,
+    )
+    if view_settings.get("unique_threshold", 10) != unique_threshold:
+        view_settings["unique_threshold"] = int(unique_threshold)
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
+
+    range_default = int(view_settings.get("range_threshold", 200))
+    range_threshold = st.sidebar.number_input(
+        "Integer discrete range (max-min <=)",
+        min_value=1,
+        max_value=10000,
+        value=range_default,
+        step=1,
+    )
+    if view_settings.get("range_threshold", 200) != range_threshold:
+        view_settings["range_threshold"] = int(range_threshold)
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
+
+    # Loop through numeric columns and classify them based on the unique value count.
+    for col in numeric_cols:
+        if df[col].nunique() < unique_threshold:
+            discrete_numeric_cols.append(col)
+        else:
+            continuous_cols.append(col)
+
+    # Get discrete variables from object type
+    discrete_object_cols = df.select_dtypes(include=["object"]).columns.tolist()
+
+    # Combine numeric discrete and object discrete variables
+    discrete_cols = discrete_numeric_cols + discrete_object_cols
+
+    # Re-classify integer columns with limited range as discrete to avoid sliders
+    for col in numeric_cols:
+        if not is_integer_dtype(df[col]):
+            continue
+        value_range = df[col].max() - df[col].min()
+        if pd.isna(value_range) or value_range > range_threshold:
+            continue
+        if col in continuous_cols:
+            continuous_cols.remove(col)
+        if col not in discrete_cols:
+            discrete_cols.append(col)
+    discreteseq = None
+    colorscale = None
+
+    # Identify numerical columns
+    for col in discrete_cols.copy():  # Use copy to avoid modifying the list during iteration
+        try:
+            pd.to_datetime(
+                st.session_state.loaded_df[col],
+                format="%Y-%m-%d %H:%M:%S",
+                errors="raise",
+            )
+            discrete_cols.remove(col)
+            continuous_cols.append(col)
+        except (ValueError, TypeError):
+            pass
+
+    for i, cols in enumerate([discrete_cols, continuous_cols]):
+        if cols:
+            colsn = (
+                pd.DataFrame(
+                    [
+                        {
+                            "Columns": col,
+                            "nbval": len(set(st.session_state.loaded_df[col])),
+                        }
+                        for col in cols
+                    ]
+                )
+                .sort_values(by="nbval", ascending=False)
+                .Columns.tolist()
+            )
+            if var[i] == "discrete" and "beam" in colsn:
+                colsn = ["beam"] + [col for col in colsn if col != "beam"]
+            on_change_function = None
+            if var[i] == "discrete":
+                on_change_function = discrete
+            elif var[i] == "continuous":
+                on_change_function = continuous
+            with c[i]:
+                st.selectbox(
+                    label=f"{var[i]}",
+                    options=colsn,
+                    index=var_default[i] if var_default[i] is not None and var_default[i] < len(colsn) else 0,
+                    key=var[i],
+                    on_change=on_change_function,
+                )
+                if var[i] == "discrete":
+                    discreteseqs = [
+                        "Plotly",
+                        "D3",
+                        "G10",
+                        "T10",
+                        "Alphabet",
+                        "Dark24",
+                        "Light24",
+                        "Set1",
+                        "Pastel1",
+                        "Dark2",
+                        "Set2",
+                        "Pastel2",
+                        "Set3",
+                    ]
+                    discreteseq = st.selectbox("Color Sequence", discreteseqs, index=0)
+                elif var[i] == "continuous":
+                    colorscales = px.colors.named_colorscales()
+                    colorscale = st.selectbox("Color Scale", colorscales, index=0)
+        else:
+            with c[i]:
+                st.warning(f"No columns available for {var[i]}.")
+                st.session_state[var[i]] = None
+
+    for i in range(2, 4):
+        colsn = st.session_state.loaded_df.filter(regex=var[i]).columns.tolist()
+        with c[i]:
+            if colsn:
+                st.selectbox(f"{var[i]}", colsn, index=0, key=var[i])
+            else:
+                st.warning(f"No columns matching '{var[i]}' found.")
+                st.session_state[var[i]] = None
+
+    map_cfg = st.session_state.get(map_defaults_key, {"center_lat": 0.0, "center_lon": 0.0, "default_zoom": 2.5})
+    lat_col = st.session_state.get("lat")
+    lon_col = st.session_state.get("long")
+    if lat_col and lon_col and lat_col in df.columns and lon_col in df.columns:
+        viewport = _compute_viewport(df, lat_col, lon_col)
+        if viewport:
+            map_cfg.update(viewport)
+
+    plot_df = st.session_state.loaded_df
+    color_column = st.session_state.get(st.session_state.get("coltype", ""), None)
+    if (
+        st.session_state.get("coltype") == "discrete"
+        and color_column
+        and color_column in plot_df.columns
+        and is_numeric_dtype(plot_df[color_column])
+    ):
+        plot_df = plot_df.copy()
+        plot_df[color_column] = plot_df[color_column].astype("Int64").astype(str)
+
+    if st.session_state.get("lat") and st.session_state.get("long"):
+        if st.session_state.get("coltype") and st.session_state.get(st.session_state["coltype"]):
+            color_kwargs = (
+                {
+                    "color_discrete_sequence": getattr(px.colors.qualitative, discreteseq),
+                    "color": st.session_state[st.session_state.coltype],
+                }
+                if discreteseq
+                else {
+                    "color_continuous_scale": colorscale,
+                    "color": st.session_state[st.session_state.coltype],
+                }
+                if colorscale
+                else {}
+            )
+            fig = px.scatter_map(
+                plot_df,
+                lat=st.session_state.lat,
+                lon=st.session_state.long,
+                zoom=map_cfg["default_zoom"],
+                center={"lat": map_cfg["center_lat"], "lon": map_cfg["center_lon"]},
+                **color_kwargs,
+            )
+
+            if (
+                show_sat_overlay
+                and {"sat_track_lat", "sat_track_long"} <= set(st.session_state.loaded_df.columns)
+            ):
+                sat_points = (
+                    st.session_state.loaded_df[["sat_track_lat", "sat_track_long", "sat"]]
+                    .dropna(subset=["sat_track_lat", "sat_track_long"])
+                    .drop_duplicates()
+                )
+                if not sat_points.empty:
+                    fig.add_trace(
+                        go.Scattermap(
+                            lat=sat_points["sat_track_lat"],
+                            lon=sat_points["sat_track_long"],
+                            mode="markers",
+                            marker=dict(size=10, color="#ffa600", symbol="triangle"),
+                            name="Satellite track",
+                            text=sat_points.get("sat"),
+                        )
+                    )
+
+            fig.update_layout(map_style="open-street-map")
+            fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
+
+            st.plotly_chart(fig, width="stretch", theme="streamlit")
+        else:
+            st.warning("Please select a valid column for coloring.")
+    else:
+        st.warning("Latitude and Longitude columns are required for the map.")
+
+    # Persist user selections for next reload
+    persist_keys = [
+        "file_ext_choice",
+        "df_select_mode",
+        "df_file_regex",
+        "df_file",
+        "df_files_selected",
+        "discrete",
+        "continuous",
+        "lat",
+        "long",
+        "coltype",
+    ]
+    mutated = False
+    for key in persist_keys:
+        val = st.session_state.get(key)
+        if val is None:
+            continue
+        if view_settings.get(key) != val:
+            view_settings[key] = val
+            mutated = True
+    if mutated:
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
+
+# -------------------- Main Application Entry -------------------- #
+def main():
+    """
+    Main function to run the application.
+    """
+
+    try:
+        parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
+        parser.add_argument(
+            "--active-app",
+            dest="active_app",
+            type=str,
+            help="Active app path (e.g. src/agilab/apps/builtin/flight_telemetry_project)",
+        )
+        args, _ = parser.parse_known_args()
+
+        active_app_value = args.active_app or os.environ.get("AGILAB_ACTIVE_APP")
+        if not active_app_value:
+            st.error("Error: missing --active-app argument.")
+            st.stop()
+
+        active_app = Path(active_app_value).expanduser()
+        if not active_app.exists():
+            st.error(f"Error: provided --active-app path not found: {active_app}")
+            sys.exit(1)
+
+        _reset_app_scoped_session_state(active_app)
+        if "coltype" not in st.session_state:
+            st.session_state["coltype"] = var[0]
+
+        # Derive the short app name (e.g., 'flight_telemetry_project')
+        app = active_app.name
+        st.session_state["apps_path"] = str(active_app.parent)
+        st.session_state["app"] = app
+
+        _render_app_page_context(app, active_app)
+        env = getattr(AgiEnv, "for_app", AgiEnv)(
+            apps_path=active_app.parent,
+            app=app,
+            verbose=1,
+        )
+        env.init_done = True
+        st.session_state['env'] = env
+        st.session_state["IS_SOURCE_ENV"] = env.is_source_env
+        st.session_state["IS_WORKER_ENV"] = env.is_worker_env
+
+        if "TABLE_MAX_ROWS" not in st.session_state:
+            st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
+        if "GUI_SAMPLING" not in st.session_state:
+            st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
+
+        page(env)
+
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
+        import traceback
+
+        st.caption("Full traceback")
+        st.code(traceback.format_exc(), language="text")
+
+
+# -------------------- Main Entry Point -------------------- #
+if __name__ == "__main__":
+    main()

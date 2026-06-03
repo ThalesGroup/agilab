@@ -1,0 +1,50 @@
+[project]
+name = "agi-page-promotion-gate"
+version = "2026.06.02.post1"
+description = "AGILAB page bundle for evidence-cockpit run review and promotion gates."
+readme = { text = "AGILAB page bundle for evidence-cockpit run review and promotion gates.", content-type = "text/markdown" }
+requires-python = ">=3.11"
+keywords = [
+    "agilab",
+    "thalesgroup",
+    "streamlit",
+    "analysis",
+    "page-bundle",
+    "reproducibility",
+]
+dependencies = [
+    "agi-pages>=2026.05.30.post1,<2027.0",
+    "agi-env>=2026.05.12.post3,<2027.0",
+    "agi-gui>=2026.05.12.post3,<2027.0",
+    "agi-node>=2026.05.12.post3,<2027.0",
+    "pandas>=2.3.0,<4",
+]
+
+[project.entry-points."agilab.pages"]
+view_release_decision = "view_release_decision:bundle_root"
+
+
+
+
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps-pages/view_release_decision"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+
+
+
+
+
+
+
+[tool.uv.sources]
+agi-pages = { path = "../../lib/agi-pages", editable = true }
+agi-gui = { path = "../../lib/agi-gui", editable = true }
+agi-env = { path = "../../core/agi-env", editable = true }
+agi-node = { path = "../../core/agi-node", editable = true }

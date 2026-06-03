@@ -1,0 +1,4 @@
+interface:
+  display_name: "Slides DOCX Align"
+  short_description: "Align slides with DOCX content"
+  default_prompt: "Use $slides-docx-align to align this slide deck with the report version."

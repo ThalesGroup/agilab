@@ -1,0 +1,4960 @@
+# BSD 3-Clause License
+#
+# Copyright (c) 2025, Jean-Pierre Morard, THALES SIX GTS France SAS
+# All rights reserved.
+# Co-author: Codex cli
+#
+# Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+# 3. Neither the name of Jean-Pierre Morard nor the names of its contributors, or THALES SIX GTS France SAS, may be used to endorse or promote products derived from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+import os
+import shutil
+import json
+import shlex
+import subprocess
+import time
+import zipfile
+import html
+import hashlib
+import tomllib
+from pathlib import Path
+import ast
+import re
+import importlib.util
+import sys
+from types import SimpleNamespace
+from typing import Any
+
+os.environ.setdefault(
+    "STREAMLIT_CONFIG_FILE",
+    str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"),
+)
+
+import streamlit as st
+from streamlit.errors import StreamlitAPIException
+import tomli_w
+
+_import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
+_import_guard_spec = importlib.util.spec_from_file_location(
+    "agilab_import_guard_local", _import_guard_path
+)
+if _import_guard_spec is None or _import_guard_spec.loader is None:
+    raise ModuleNotFoundError(
+        f"Unable to load import_guard.py from {_import_guard_path}"
+    )
+_import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
+_import_guard_spec.loader.exec_module(_import_guard_module)
+import_agilab_module = _import_guard_module.import_agilab_module
+
+_public_bind_guard_module = import_agilab_module(
+    "agilab.ui_public_bind_guard",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "ui_public_bind_guard.py",
+    fallback_name="agilab_ui_public_bind_guard_fallback",
+)
+_public_bind_guard_module.enforce_public_bind_policy_or_stop(st)
+
+from agi_gui.pagelib import (
+    background_services_enabled,
+    get_classes_name,
+    get_fcts_and_attrs_name,
+    get_templates,
+    get_projects_zip,
+    on_project_change,
+    activate_mlflow,
+)
+from agi_gui.ux_widgets import compact_choice
+from pathspec import PathSpec
+from pathspec.gitignore import GitIgnoreSpec
+from agilab.components.code_editor_component import code_editor
+from agi_env import AgiEnv
+from agi_env.app_provider_registry import resolve_installed_app_project
+
+_code_editor_support_module = import_agilab_module(
+    "agilab.code_editor_support",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "code_editor_support.py",
+    fallback_name="agilab_code_editor_support_fallback",
+)
+normalize_custom_buttons = _code_editor_support_module.normalize_custom_buttons
+
+_page_bootstrap_module = import_agilab_module(
+    "agilab.page_bootstrap",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_bootstrap.py",
+    fallback_name="agilab_page_bootstrap_fallback",
+)
+ensure_page_env = _page_bootstrap_module.ensure_page_env
+render_page_chrome = _page_bootstrap_module.render_page_chrome
+
+_pinned_expander_module = import_agilab_module(
+    "agilab.pinned_expander",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pinned_expander.py",
+    fallback_name="agilab_pinned_expander_fallback",
+)
+is_pinned_expander = _pinned_expander_module.is_pinned_expander
+remove_pinned_expander = _pinned_expander_module.remove_pinned_expander
+upsert_pinned_expander = _pinned_expander_module.upsert_pinned_expander
+
+_environment_health_module = import_agilab_module(
+    "agilab.environment_health",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "environment_health.py",
+    fallback_name="agilab_environment_health_fallback",
+)
+render_environment_health_panel = (
+    _environment_health_module.render_environment_health_panel
+)
+render_environment_details = _environment_health_module.render_environment_details
+
+_page_project_selector_module = import_agilab_module(
+    "agilab.page_project_selector",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_project_selector.py",
+    fallback_name="agilab_page_project_selector_fallback",
+)
+render_project_selector = _page_project_selector_module.render_project_selector
+
+_project_sidebar_support_module = import_agilab_module(
+    "agilab.project_sidebar_support",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "project_sidebar_support.py",
+    fallback_name="agilab_project_sidebar_support_fallback",
+)
+PROJECT_EDITOR_ACTIONS = _project_sidebar_support_module.PROJECT_EDITOR_ACTIONS
+PROJECT_EDIT_ACTIONS = PROJECT_EDITOR_ACTIONS
+PROJECT_STATUS_ACTIONS = _project_sidebar_support_module.PROJECT_STATUS_ACTIONS
+_normalize_project_sidebar_actions = (
+    _project_sidebar_support_module.normalize_project_sidebar_actions
+)
+_ensure_project_sidebar_session_defaults = (
+    _project_sidebar_support_module.ensure_project_sidebar_session_defaults
+)
+
+_action_execution_module = import_agilab_module(
+    "agilab.action_execution",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "action_execution.py",
+    fallback_name="agilab_action_execution_fallback",
+)
+ActionResult = _action_execution_module.ActionResult
+ActionSpec = _action_execution_module.ActionSpec
+render_action_result = _action_execution_module.render_action_result
+run_streamlit_action = _action_execution_module.run_streamlit_action
+
+_pypi_app_packages_module = import_agilab_module(
+    "agilab.pypi_app_packages",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pypi_app_packages.py",
+    fallback_name="agilab_pypi_app_packages_fallback",
+)
+PYPI_APP_INSTALL_TIMEOUT_SECONDS = (
+    _pypi_app_packages_module.PYPI_APP_INSTALL_TIMEOUT_SECONDS
+)
+_normalize_pypi_app_requirement = (
+    _pypi_app_packages_module.normalize_pypi_app_requirement
+)
+_pypi_app_install_command = _pypi_app_packages_module.pypi_app_install_command
+_pypi_app_uninstall_command = _pypi_app_packages_module.pypi_app_uninstall_command
+_pypi_app_package_name = _pypi_app_packages_module.pypi_app_package_name
+_preflight_pypi_app_install = _pypi_app_packages_module.preflight_pypi_app_install
+_run_pypi_app_install = _pypi_app_packages_module.run_pypi_app_install
+_run_pypi_app_uninstall = _pypi_app_packages_module.run_pypi_app_uninstall
+_list_installed_pypi_apps = _pypi_app_packages_module.list_installed_pypi_apps
+_search_promoted_pypi_app_catalog = (
+    _pypi_app_packages_module.search_promoted_pypi_app_catalog
+)
+
+_notebook_pipeline_import_module = import_agilab_module(
+    "agilab.notebook_pipeline_import",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "notebook_pipeline_import.py",
+    fallback_name="agilab_notebook_pipeline_import_fallback",
+)
+_build_lab_stages_preview = _notebook_pipeline_import_module.build_lab_stages_preview
+_build_notebook_import_contract = (
+    _notebook_pipeline_import_module.build_notebook_import_contract
+)
+_build_notebook_import_preflight = (
+    _notebook_pipeline_import_module.build_notebook_import_preflight
+)
+_build_notebook_pipeline_import = (
+    _notebook_pipeline_import_module.build_notebook_pipeline_import
+)
+_apply_notebook_runtime_roles = (
+    _notebook_pipeline_import_module.apply_notebook_runtime_roles
+)
+_extract_notebook_import_defaults = (
+    _notebook_pipeline_import_module.extract_notebook_import_defaults
+)
+_normalize_notebook_runtime_role = (
+    _notebook_pipeline_import_module.normalize_notebook_runtime_role
+)
+_notebook_import_sample_module = import_agilab_module(
+    "agilab.notebook_import_sample",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "notebook_import_sample.py",
+    fallback_name="agilab_notebook_import_sample_project_fallback",
+)
+_untrusted_content_boundary_module = import_agilab_module(
+    "agilab.untrusted_content_boundary",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "untrusted_content_boundary.py",
+    fallback_name="agilab_untrusted_content_boundary_project_fallback",
+)
+_pipeline_editor_module = import_agilab_module(
+    "agilab.pipeline_editor",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pipeline_editor.py",
+    fallback_name="agilab_pipeline_editor_project_fallback",
+)
+_write_notebook_import_preview = _pipeline_editor_module.write_notebook_import_preview
+_write_untrusted_content_manifest = (
+    _untrusted_content_boundary_module.write_untrusted_content_manifest
+)
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+CREATE_MODE_TEMPLATE = "Template clone"
+CREATE_MODE_NOTEBOOK = "From notebook"
+PROJECT_NOTEBOOK_IMPORT_START = "notebook-import"
+PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY = "_project_notebook_import_query_seed_consumed"
+PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY = "_project_notebook_import_defaults"
+PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY = (
+    "_project_notebook_import_defaults_signature"
+)
+PROJECT_NOTEBOOK_RUNTIME_ROLE_KEY_PREFIX = "_project_notebook_runtime_role"
+PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY = (
+    _notebook_import_sample_module.SAMPLE_NOTEBOOK_SESSION_KEY
+)
+PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY = "_project_notebook_import_sample_error"
+PROJECT_NOTEBOOK_SAMPLE_ID_KEY = "_project_notebook_import_sample_id"
+PROJECT_NOTEBOOK_SAMPLE_QUERY_KEY = "sample"
+PROJECT_NOTEBOOK_SAMPLE_QUERY_VALUE = "agilab-first-proof"
+PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS = (
+    "start",
+    "create_mode",
+    "sidebar_selection",
+    PROJECT_NOTEBOOK_SAMPLE_QUERY_KEY,
+)
+PROJECT_SECTION_QUERY_KEY = "project_section"
+PROJECT_SECTION_CONSUMED_KEY = "_project_section_query_seed_consumed"
+PROJECT_SECTION_SESSION_KEY = "_project_section_query_target"
+PROJECT_README_SECTION = "readme"
+PROJECT_README_SECTION_ALIASES = {
+    PROJECT_README_SECTION,
+    "docs",
+    "documentation",
+    "documentation-readme",
+    "documentation/readme",
+}
+NAVIGATION_PAGE_ROUTES_ATTR = "_NAVIGATION_PAGE_ROUTES"
+NOTEBOOK_PROJECT_DEFAULT_TEMPLATE = "pandas_app_template"
+NOTEBOOK_SOURCE_DIR = Path("notebooks") / "source"
+NOTEBOOK_STEPS_FILE = "lab_stages.toml"
+NOTEBOOK_RUNTIME_ROLE_LABELS = {
+    "": "Select runtime role",
+    "manager": "Manager (local runpy)",
+    "worker": "Worker (AGILAB worker)",
+}
+NOTEBOOK_RUNTIME_ROLE_BY_LABEL = {
+    label: role for role, label in NOTEBOOK_RUNTIME_ROLE_LABELS.items()
+}
+
+CLONE_ENV_STRATEGY_LABELS = {
+    "detach_venv": "Working clone (no shared .venv)",
+    "share_source_venv": "Temporary clone (share source .venv)",
+}
+
+CLONE_ENV_STRATEGY_CAPTIONS = {
+    "detach_venv": (
+        "Safer for real development. The clone is created without .venv, "
+        "so run INSTALL before EXECUTE."
+    ),
+    "share_source_venv": (
+        "Fast and lightweight. The clone keeps the source .venv by symlink, "
+        "so cleaning or deleting the source environment can break it."
+    ),
+}
+CLONE_ENV_STRATEGY_HELP = (
+    f"{CLONE_ENV_STRATEGY_LABELS['detach_venv']}: "
+    f"{CLONE_ENV_STRATEGY_CAPTIONS['detach_venv']}\n\n"
+    f"{CLONE_ENV_STRATEGY_LABELS['share_source_venv']}: "
+    f"{CLONE_ENV_STRATEGY_CAPTIONS['share_source_venv']}"
+)
+DELETE_RUNTIME_SESSION_KEYS_TO_CLEAR = (
+    "_last_execute_failed",
+    "_service_logs_expanded",
+    "_show_run_app",
+    "benchmark",
+    "dataframe_deleted",
+    "delete_data_main_confirm",
+    "delete_data_main_undo_payload",
+    "last_run_log_path",
+    "log_text",
+    "run_log_cache",
+    "service_health_cache",
+    "service_log_cache",
+    "service_snapshot_path_cache",
+    "service_status_cache",
+    "show_distribute",
+    "show_install",
+    "show_run",
+)
+DELETE_RUNTIME_SESSION_KEY_SUFFIXES = (
+    "__last_run_log_file",
+    "__last_run_status",
+)
+WORKFLOW_UI_SESSION_ROOT_KEYS = (
+    "agilab:workflow_ui_state",
+    "agilab:workflow_action_history",
+)
+EDITOR_PIN_RESPONSE = "editor_pin"
+EDITOR_UNPIN_RESPONSE = "editor_unpin"
+
+
+def _project_query_param_value(query_params, key: str) -> str:
+    """Return a scalar query parameter value from Streamlit's query-param API."""
+    raw_value = query_params.get(key, "")
+    if isinstance(raw_value, list):
+        raw_value = raw_value[0] if raw_value else ""
+    return str(raw_value or "").strip()
+
+
+def _query_params_as_dict(query_params) -> dict:
+    to_dict = getattr(query_params, "to_dict", None)
+    if callable(to_dict):
+        value = to_dict()
+        return dict(value or {})
+    return dict(query_params)
+
+
+def _remove_notebook_import_query_seed(query_params) -> bool:
+    """Remove one-shot notebook-import route parameters without touching app context."""
+    try:
+        current = _query_params_as_dict(query_params)
+        cleaned = {
+            key: value
+            for key, value in current.items()
+            if key not in PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS
+        }
+        if cleaned == current:
+            return False
+
+        from_dict = getattr(query_params, "from_dict", None)
+        if callable(from_dict):
+            from_dict(cleaned)
+            return True
+
+        changed = False
+        for key in PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS:
+            if key in query_params:
+                del query_params[key]
+                changed = True
+        return changed
+    except (
+        AttributeError,
+        KeyError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+        RecursionError,
+    ):
+        return False
+
+
+def _resolve_notebook_import_sample_query(sample_query: str) -> tuple[str, str]:
+    requested = str(sample_query or "").strip()
+    if not requested:
+        return "", ""
+    sample_id = (
+        _notebook_import_sample_module.SAMPLE_NOTEBOOK_DEFAULT_ID
+        if requested == PROJECT_NOTEBOOK_SAMPLE_QUERY_VALUE
+        else requested
+    )
+    try:
+        sample = _notebook_import_sample_module.get_sample_notebook(sample_id)
+    except KeyError as exc:
+        return "", str(exc)
+    return str(sample.sample_id), ""
+
+
+def _consume_notebook_import_query_seed(session_state, query_params) -> bool:
+    """Open PROJECT directly on the notebook file selector when requested by URL."""
+    start = _project_query_param_value(query_params, "start").lower()
+    requested_create_mode = _project_query_param_value(query_params, "create_mode")
+    requested_sidebar = _project_query_param_value(query_params, "sidebar_selection")
+    requested_sample = _project_query_param_value(
+        query_params,
+        PROJECT_NOTEBOOK_SAMPLE_QUERY_KEY,
+    )
+    notebook_requested = (
+        start in {PROJECT_NOTEBOOK_IMPORT_START, "notebook"}
+        or requested_create_mode == CREATE_MODE_NOTEBOOK
+        or (
+            requested_sidebar == "Create"
+            and requested_create_mode in {"", CREATE_MODE_NOTEBOOK}
+        )
+    )
+    sample_id, sample_error = _resolve_notebook_import_sample_query(requested_sample)
+    if not notebook_requested:
+        try:
+            if PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY in session_state:
+                del session_state[PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY]
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+            pass
+        return False
+
+    seed_signature = "|".join(
+        (start, requested_create_mode, requested_sidebar, requested_sample)
+    )
+    if session_state.get(PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY) == seed_signature:
+        return False
+
+    session_state["sidebar_selection"] = "Create"
+    session_state["create_mode"] = CREATE_MODE_NOTEBOOK
+    if sample_id:
+        session_state[PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] = True
+        session_state[PROJECT_NOTEBOOK_SAMPLE_ID_KEY] = sample_id
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+    elif requested_sample:
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
+        session_state[PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY] = sample_error
+    else:
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+    session_state[PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY] = seed_signature
+    return True
+
+
+def _consume_project_section_query_seed(session_state, query_params) -> bool:
+    """Open a PROJECT edit section once when linked from another page."""
+    requested_section = _project_query_param_value(
+        query_params, PROJECT_SECTION_QUERY_KEY
+    ).lower()
+    if requested_section not in PROJECT_README_SECTION_ALIASES:
+        try:
+            if PROJECT_SECTION_CONSUMED_KEY in session_state:
+                del session_state[PROJECT_SECTION_CONSUMED_KEY]
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+            pass
+        return False
+
+    seed_signature = requested_section
+    if session_state.get(PROJECT_SECTION_CONSUMED_KEY) == seed_signature:
+        return False
+
+    session_state["sidebar_selection"] = "Edit"
+    session_state[PROJECT_SECTION_SESSION_KEY] = PROJECT_README_SECTION
+    session_state[PROJECT_SECTION_CONSUMED_KEY] = seed_signature
+    return True
+
+
+# -------------------- Source Extractor Class -------------------- #
+
+
+class SourceExtractor(ast.NodeTransformer):
+    """
+    A class representing a Source Extractor using AST NodeTransformer for Python code manipulation.
+
+    Attributes:
+        target_name (str): Name of the function/method to replace.
+        class_name (str): Name of the class containing the target.
+        new_ast (ast.AST): New AST node to replace the target.
+        found (bool): Flag indicating if the target was found during traversal of the AST.
+    """
+
+    def __init__(self, target_name=None, class_name=None, new_ast=None):
+        """
+        Initializes the SourceExtractor.
+
+        Args:
+            target_name (str, optional): Name of the function/method to replace. Defaults to None.
+            class_name (str, optional): Name of the class containing the target. Defaults to None.
+            new_ast (ast.AST, optional): New AST node to replace the target. Defaults to None.
+        """
+        self.target_name = target_name
+        self.class_name = class_name
+        self.new_ast = new_ast
+        self.found = False
+
+    def visit_ClassDef(self, node):
+        """
+        Visit a ClassDef node in the AST.
+
+        Args:
+            node (ast.ClassDef): The ClassDef node to visit.
+
+        Returns:
+            ast.ClassDef: The visited ClassDef node.
+        """
+        if self.class_name and node.name == self.class_name:
+            self.generic_visit(node)
+        return node
+
+    def visit_FunctionDef(self, node):
+        """
+        Visit and potentially modify a FunctionDef node.
+
+        Args:
+            self: The object instance.
+            node (Node): The FunctionDef node to visit.
+
+        Returns:
+            Node: The original FunctionDef node if it does not match the target_name,
+            or the modified node if it matches and self.new_ast is set, otherwise returns the original node.
+
+        Raises:
+            None.
+        """
+        if self.target_name and node.name == self.target_name:
+            self.found = True
+            return self.new_ast if self.new_ast else node
+        return node
+
+    def visit_AsyncFunctionDef(self, node):
+        """
+        Visit an AsyncFunctionDef node in an abstract syntax tree (AST).
+
+        Args:
+            self: An instance of a class that visits AST nodes.
+            node: The AsyncFunctionDef node being visited.
+
+        Returns:
+            ast.AST: The original AsyncFunctionDef node unless a target name is found, in which case it returns a new AST node.
+        """
+        if self.target_name and node.name == self.target_name:
+            self.found = True
+            return self.new_ast if self.new_ast else node
+        return node
+
+    def visit_Assign(self, node):
+        """
+        Visit and modify an Assign node.
+
+        Args:
+            self: The instance of the class.
+            node: The Assign node to be visited.
+
+        Returns:
+            ast.AST: The modified Assign node.
+
+        Raises:
+            None.
+        """
+        if not self.class_name:
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == self.target_name:
+                    self.found = True
+                    return self.new_ast if self.new_ast else node
+        return node
+
+    def visit_AnnAssign(self, node):
+        """
+        Visit an assignment node and potentially replace its target if it matches a specific condition.
+
+        Args:
+            node (ast.AnnAssign): The assignment node to visit.
+
+        Returns:
+            ast.AnnAssign: The original node if the conditions are not met, or a potentially modified node.
+        """
+        if not self.class_name:
+            if isinstance(node.target, ast.Name) and node.target.id == self.target_name:
+                self.found = True
+                return self.new_ast if self.new_ast else node
+        return node
+
+
+# -------------------- File Processor -------------------- #
+
+
+def process_files(root, files, app_path, rename_map, spec):
+    """
+    Process and copy files, applying renaming and content replacements.
+
+    Args:
+        root (str): Root directory path.
+        files (list): List of filenames in the root directory.
+        app_path (Path): Path to the application directory.
+        rename_map (dict): Mapping of old names to new names for renaming.
+        spec (PathSpec): Compiled PathSpec object to filter files.
+    """
+    for file in files:
+        relative_file_path = Path(root).joinpath(file).relative_to(app_path)
+        if spec.match_file(str(relative_file_path)):
+            continue
+
+        new_path = Path(root) / file
+        for old, new in rename_map.items():
+            new_path = Path(str(new_path).replace(old, new))
+
+        if new_path.exists():
+            continue
+
+        try:
+            if relative_file_path.suffix == ".7z":
+                shutil.copy(Path(root) / file, new_path)
+            else:
+                content = (Path(root) / file).read_text()
+                for old, new in rename_map.items():
+                    content = content.replace(old, new)
+                new_path.write_text(content)
+        except (OSError, UnicodeDecodeError) as e:
+            st.warning(f"Error processing file '{file}': {e}")
+
+
+def replace_content(content, rename_map):
+    """
+    Replace occurrences of old names with new names in the content using exact word matching.
+
+    Args:
+        content (str): Original file content.
+        rename_map (dict): Mapping of old relative paths to new relative paths.
+
+    Returns:
+        str: Modified file content.
+    """
+    boundary = r"(?<![0-9A-Za-z_]){token}(?![0-9A-Za-z_])"
+    for old, new in sorted(rename_map.items(), key=lambda kv: len(kv[0]), reverse=True):
+        pattern = re.compile(boundary.format(token=re.escape(old)))
+        content = pattern.sub(new, content)
+    return content
+
+
+def _path_exists_or_symlink(path: Path) -> bool:
+    return path.exists() or path.is_symlink()
+
+
+def _remove_path_if_present(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink(missing_ok=True)
+    elif path.exists():
+        shutil.rmtree(path)
+
+
+def _read_python_source(path: Path) -> str:
+    return path.read_text()
+
+
+def _parse_python_file(path: Path) -> tuple[str, ast.AST]:
+    source_code = _read_python_source(path)
+    return source_code, ast.parse(source_code)
+
+
+def _ast_to_source(tree: ast.AST) -> str:
+    ast.fix_missing_locations(tree)
+    source = ast.unparse(tree)
+    return f"{source}\n" if source else ""
+
+
+def _extract_attributes_code(parsed_code: ast.AST, selected_class: str) -> str:
+    attributes_code = ""
+    for node in ast.walk(parsed_code):
+        if isinstance(node, ast.ClassDef) and node.name == selected_class:
+            for item in node.body:
+                if isinstance(item, (ast.Assign, ast.AnnAssign)):
+                    attributes_code += _ast_to_source(item)
+        elif (
+            isinstance(node, (ast.Assign, ast.AnnAssign))
+            and selected_class == "module-level"
+        ):
+            attributes_code += _ast_to_source(node)
+    return attributes_code
+
+
+def _extract_function_code(parsed_code: ast.AST, selected_item: str) -> str:
+    for node in ast.walk(parsed_code):
+        if isinstance(node, ast.FunctionDef) and node.name == selected_item:
+            return _ast_to_source(node)
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == selected_item:
+            return _ast_to_source(node)
+    return ""
+
+
+def _replace_attribute_nodes(
+    body: list[ast.stmt], new_attributes_ast: list[ast.stmt]
+) -> list[ast.stmt]:
+    kept_body = [
+        node for node in body if not isinstance(node, (ast.Assign, ast.AnnAssign))
+    ]
+    first_attribute_index = next(
+        (
+            index
+            for index, node in enumerate(body)
+            if isinstance(node, (ast.Assign, ast.AnnAssign))
+        ),
+        None,
+    )
+    if first_attribute_index is None:
+        return [*new_attributes_ast, *kept_body]
+
+    kept_before = [
+        node
+        for node in body[:first_attribute_index]
+        if not isinstance(node, (ast.Assign, ast.AnnAssign))
+    ]
+    kept_after = [
+        node
+        for node in body[first_attribute_index:]
+        if not isinstance(node, (ast.Assign, ast.AnnAssign))
+    ]
+    return [*kept_before, *new_attributes_ast, *kept_after]
+
+
+def _build_updated_attributes_source(
+    original_source: str, updated_attributes_code: str, selected_class: str
+) -> str:
+    parsed_original = ast.parse(original_source)
+    new_attributes_ast = ast.parse(updated_attributes_code).body
+    if selected_class == "module-level":
+        parsed_original.body = _replace_attribute_nodes(
+            parsed_original.body, new_attributes_ast
+        )
+        return _ast_to_source(parsed_original)
+
+    for node in parsed_original.body:
+        if isinstance(node, ast.ClassDef) and node.name == selected_class:
+            node.body = _replace_attribute_nodes(node.body, new_attributes_ast)
+            return _ast_to_source(parsed_original)
+
+    raise ValueError(f"Class '{selected_class}' not found.")
+
+
+def _build_updated_function_source(
+    original_source: str,
+    updated_function_code: str,
+    selected_item: str,
+    selected_class: str,
+) -> str:
+    parsed_original = ast.parse(original_source)
+    new_function_body = ast.parse(updated_function_code).body
+    if not new_function_body:
+        raise ValueError("Updated function/method code is empty.")
+    new_function_ast = new_function_body[0]
+    if not isinstance(new_function_ast, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        raise ValueError("Updated code must define a function or method.")
+    func_updater = SourceExtractor(
+        target_name=selected_item,
+        class_name=selected_class if selected_class != "module-level" else None,
+        new_ast=new_function_ast,
+    )
+    updated_ast = func_updater.visit(parsed_original)
+    if not func_updater.found:
+        raise ValueError(f"Function/Method '{selected_item}' not found.")
+    return _ast_to_source(updated_ast)
+
+
+def _write_python_source(path: Path, source_code: str) -> None:
+    path.write_text(source_code)
+
+
+def _save_code_editor_file_action(
+    file: Path, updated_text: str, lang: str
+) -> ActionResult:
+    path = Path(file)
+    if lang == "json":
+        try:
+            json.loads(updated_text)
+        except json.JSONDecodeError as exc:
+            return ActionResult.error(
+                f"Failed to save changes to '{path.name}'.",
+                detail=f"Invalid JSON format. {exc}",
+                next_action="Fix the JSON syntax and save again.",
+                data={"file": path},
+            )
+
+    try:
+        path.write_text(updated_text, encoding="utf-8")
+    except OSError as exc:
+        return ActionResult.error(
+            f"Failed to save changes to '{path.name}'.",
+            detail=str(exc),
+            next_action="Check filesystem permissions and retry.",
+            data={"file": path},
+        )
+
+    return ActionResult.success(
+        f"Changes saved to '{path.name}'.",
+        data={"file": path, "lang": lang},
+    )
+
+
+def _update_attributes_source_action(
+    path: Path,
+    updated_attributes_code: str,
+    selected_class: str,
+) -> ActionResult:
+    try:
+        original_source = _read_python_source(path)
+        updated_source = _build_updated_attributes_source(
+            original_source,
+            updated_attributes_code,
+            selected_class,
+        )
+        _write_python_source(path, updated_source)
+    except (OSError, UnicodeDecodeError, SyntaxError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            "Error updating attributes.",
+            detail=str(exc),
+            next_action="Fix the attributes snippet and save again.",
+            data={"file": path, "selected_class": selected_class},
+        )
+
+    return ActionResult.success(
+        "Attributes updated successfully.",
+        data={"file": path, "selected_class": selected_class},
+    )
+
+
+def _update_function_source_action(
+    path: Path,
+    updated_function_code: str,
+    selected_item: str,
+    selected_class: str,
+) -> ActionResult:
+    try:
+        original_source = _read_python_source(path)
+        updated_source = _build_updated_function_source(
+            original_source,
+            updated_function_code,
+            selected_item,
+            selected_class,
+        )
+        _write_python_source(path, updated_source)
+    except (OSError, UnicodeDecodeError, SyntaxError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Error updating function/method '{selected_item}'.",
+            detail=str(exc),
+            next_action="Fix the function snippet and save again.",
+            data={
+                "file": path,
+                "selected_item": selected_item,
+                "selected_class": selected_class,
+            },
+        )
+
+    return ActionResult.success(
+        f"Function/Method '{selected_item}' updated successfully.",
+        data={
+            "file": path,
+            "selected_item": selected_item,
+            "selected_class": selected_class,
+        },
+    )
+
+
+def _resolve_clone_source_project(env: AgiEnv, target_project: Path) -> Path:
+    source_project = target_project
+    templates_root = env.apps_path / "templates"
+    if not source_project.name.endswith("_project"):
+        candidate = source_project.with_name(source_project.name + "_project")
+        if (env.apps_path / candidate).exists() or (
+            templates_root / candidate
+        ).exists():
+            source_project = candidate
+
+    if (env.apps_path / source_project).exists() or (
+        templates_root / source_project
+    ).exists():
+        return source_project
+
+    if len(source_project.parts) == 1:
+        builtin_candidate = Path("builtin") / source_project
+        if (env.apps_path / builtin_candidate).exists():
+            return builtin_candidate
+
+    if len(source_project.parts) == 1:
+        active_app = getattr(env, "active_app", None)
+        if active_app is not None:
+            try:
+                active_app_path = Path(active_app).expanduser().resolve(strict=False)
+            except (OSError, RuntimeError, TypeError, ValueError):
+                active_app_path = None
+            if (
+                active_app_path is not None
+                and active_app_path.name == source_project.name
+            ):
+                if active_app_path.exists():
+                    return active_app_path
+
+        try:
+            installed_project = resolve_installed_app_project(source_project.name)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            installed_project = None
+        if installed_project is not None:
+            return installed_project
+
+    return source_project
+
+
+def _resolve_clone_source_root(env: AgiEnv, target_project: Path) -> Path:
+    source_project = _resolve_clone_source_project(env, target_project)
+    templates_root = env.apps_path / "templates"
+    source_root = env.apps_path / source_project
+    if not source_root.exists() and templates_root.exists():
+        source_root = templates_root / source_project
+    return source_root
+
+
+def _finalize_cloned_project_environment(
+    source_root: Path,
+    dest_root: Path,
+    strategy: str,
+) -> str | None:
+    dest_venv = dest_root / ".venv"
+    source_venv = source_root / ".venv"
+
+    if strategy == "detach_venv":
+        if _path_exists_or_symlink(dest_venv):
+            _remove_path_if_present(dest_venv)
+        return (
+            f"Project '{dest_root.name}' was created without sharing the source .venv. "
+            "Run INSTALL before EXECUTE."
+        )
+
+    if strategy == "share_source_venv":
+        if _path_exists_or_symlink(dest_venv):
+            if source_venv.exists():
+                return f"Project '{dest_root.name}' shares the source .venv for fast local iteration."
+            return f"Project '{dest_root.name}' shares the source .venv via symlink."
+        return (
+            f"Project '{dest_root.name}' was created without a .venv because the source project "
+            "did not expose one."
+        )
+
+    raise ValueError(f"Unknown clone environment strategy: {strategy}")
+
+
+def _install_pypi_app_package(
+    raw_requirement: str,
+    *,
+    runner=subprocess.run,
+    python_executable: str | None = None,
+    uv_executable: str | None = None,
+) -> ActionResult:
+    try:
+        requirement = _normalize_pypi_app_requirement(raw_requirement)
+    except ValueError as exc:
+        return ActionResult.warning(
+            "agi-app not installed.",
+            detail=str(exc),
+            next_action="Use an agi-app name such as agi-app-weather-forecast.",
+        )
+
+    completed = _run_pypi_app_install(
+        requirement,
+        runner=runner,
+        python_executable=python_executable,
+        uv_executable=uv_executable,
+    )
+    data = completed.as_dict()
+    if completed.status == "success":
+        return ActionResult.success(
+            "agi-app installed.",
+            detail=completed.output_tail or requirement,
+            next_action="Refresh PROJECT or restart AGILAB, then select the new project.",
+            data=data,
+        )
+    return ActionResult.error(
+        "agi-app install failed.",
+        detail=completed.output_tail or f"Command exited with {completed.returncode}.",
+        next_action="Check the agi-app name, Python version support, and PyPI availability.",
+        data=data,
+    )
+
+
+def _remove_pypi_app_package(
+    raw_requirement: str,
+    *,
+    runner=subprocess.run,
+    python_executable: str | None = None,
+    uv_executable: str | None = None,
+) -> ActionResult:
+    try:
+        package = _pypi_app_package_name(raw_requirement)
+    except ValueError as exc:
+        return ActionResult.warning(
+            "agi-app not removed.",
+            detail=str(exc),
+            next_action="Select an installed agi-app.",
+        )
+
+    completed = _run_pypi_app_uninstall(
+        package,
+        runner=runner,
+        python_executable=python_executable,
+        uv_executable=uv_executable,
+    )
+    data = completed.as_dict()
+    if completed.status == "success":
+        return ActionResult.success(
+            "agi-app removed.",
+            detail=completed.output_tail or package,
+            next_action="Refresh PROJECT or restart AGILAB.",
+            data=data,
+        )
+    return ActionResult.error(
+        "agi-app remove failed.",
+        detail=completed.output_tail or f"Command exited with {completed.returncode}.",
+        next_action="Check the agi-app name and current Python environment.",
+        data=data,
+    )
+
+
+def _preflight_pypi_app_package(raw_requirement: str) -> ActionResult:
+    try:
+        preflight = _preflight_pypi_app_install(raw_requirement)
+    except ValueError as exc:
+        return ActionResult.warning(
+            "agi-app preflight did not run.",
+            detail=str(exc),
+            next_action="Use an agi-app name such as agi-app-weather-forecast.",
+        )
+    data = preflight.as_dict()
+    metadata = preflight.metadata
+    checks = [f"{key}: {value}" for key, value in preflight.checks.items()]
+    detail_parts = [
+        f"agi-app: {preflight.package}",
+        f"Version: {metadata.version if metadata else 'unknown'}",
+        *checks,
+    ]
+    if metadata and metadata.package_url:
+        detail_parts.append(f"URL: {metadata.package_url}")
+    if metadata and metadata.publisher:
+        detail_parts.append(f"Publisher: {metadata.publisher}")
+    detail = "\n".join(detail_parts)
+    if preflight.status == "pass":
+        return ActionResult.success(
+            "agi-app preflight passed.",
+            detail=detail,
+            next_action="Review the metadata, then install if it matches the expected app.",
+            data=data,
+        )
+    return ActionResult.error(
+        "agi-app preflight failed.",
+        detail=detail,
+        next_action="Use another agi-app or wait for a compatible release.",
+        data=data,
+    )
+
+
+def _refresh_projects_after_pypi_app_install(env) -> bool:
+    try:
+        from agi_env.app_provider_registry import installed_app_project_paths
+
+        env.installed_app_project_paths = installed_app_project_paths()
+        apps_repository_root = getattr(env, "apps_repository_root", None)
+        env.projects = env.get_projects(
+            env.apps_path, env.builtin_apps_path, apps_repository_root
+        )
+        st.session_state["env"] = env
+        st.session_state["_env"] = env
+        return True
+    except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError):
+        return False
+
+
+def _render_pypi_metadata_summary(preflight_payload: dict[str, object] | None) -> None:
+    if not preflight_payload:
+        return
+    metadata = preflight_payload.get("metadata")
+    checks = preflight_payload.get("checks")
+    rows: list[dict[str, str]] = []
+    if isinstance(metadata, dict):
+        rows.extend(
+            [
+                {"Field": "agi-app", "Value": str(metadata.get("package") or "")},
+                {"Field": "Version", "Value": str(metadata.get("version") or "")},
+                {
+                    "Field": "Requires-Python",
+                    "Value": str(metadata.get("requires_python") or "<none>"),
+                },
+                {
+                    "Field": "Wheel",
+                    "Value": "yes" if metadata.get("wheel_available") else "no",
+                },
+                {
+                    "Field": "sdist",
+                    "Value": "yes" if metadata.get("sdist_available") else "no",
+                },
+                {
+                    "Field": "Provenance",
+                    "Value": "yes"
+                    if metadata.get("provenance_available")
+                    else "not advertised",
+                },
+                {
+                    "Field": "Signature",
+                    "Value": "yes"
+                    if metadata.get("signed_files")
+                    else "not advertised",
+                },
+                {
+                    "Field": "Entry point",
+                    "Value": ", ".join(metadata.get("entry_points") or ())
+                    or "not found",
+                },
+                {
+                    "Field": "Publisher",
+                    "Value": str(metadata.get("publisher") or "not advertised"),
+                },
+                {"Field": "PyPI", "Value": str(metadata.get("package_url") or "")},
+            ]
+        )
+    if isinstance(checks, dict):
+        rows.extend(
+            {"Field": f"Check: {key}", "Value": str(value)}
+            for key, value in checks.items()
+        )
+    if rows:
+        st.dataframe(rows, hide_index=True, width="stretch")
+
+
+def _short_pypi_app_display_name(package: str) -> str:
+    return str(package).removeprefix("agi-app-")
+
+
+def _batch_pypi_app_packages(packages: list[str], action_label: str, action_fn) -> ActionResult:
+    if not packages:
+        return ActionResult.warning(
+            f"No agi-app selected for {action_label.lower()}.",
+            next_action="Select one or more installed agi-apps first.",
+            data={"packages": []},
+        )
+
+    results = []
+    failures = []
+    detail_lines = []
+    for package in packages:
+        result = action_fn(package)
+        row = {
+            "package": package,
+            "status": result.status,
+            "title": result.title,
+        }
+        if result.detail:
+            row["detail"] = result.detail
+        if result.next_action:
+            row["next_action"] = result.next_action
+        results.append(row)
+        detail_lines.append(
+            f"{_short_pypi_app_display_name(package)}: {result.status} - {result.title}"
+        )
+        if result.status == "error":
+            failures.append(row)
+
+    data = {"packages": packages, "results": results, "failures": failures}
+    detail = "\n".join(detail_lines)
+    if failures:
+        return ActionResult.error(
+            f"{action_label} completed with {len(failures)} failure(s).",
+            detail=detail,
+            next_action="Review the failed agi-app rows and retry only those packages.",
+            data=data,
+        )
+    return ActionResult.success(
+        f"{action_label} completed for {len(results)} agi-app(s).",
+        detail=detail,
+        data=data,
+    )
+
+
+def _render_installed_pypi_app_manager(env) -> None:
+    installed = _list_installed_pypi_apps()
+    st.caption("Installed")
+    if not installed:
+        st.info("No installed agi-apps were discovered.")
+        return
+    rows = [
+        {
+            "Item": _short_pypi_app_display_name(app.package),
+            "Version": app.version,
+            "Provider": app.provider,
+            "Entry point": app.entry_point,
+            "Project": app.project_root,
+        }
+        for app in installed
+    ]
+    st.dataframe(rows, hide_index=True, width="stretch")
+    package_options = sorted({app.package for app in installed}, key=str.lower)
+    selected_packages = st.multiselect(
+        "Select installed",
+        options=package_options,
+        key="project_pypi_app_installed_packages",
+        format_func=_short_pypi_app_display_name,
+        help="Choose one or more installed agi-apps to update or remove together.",
+    )
+    selected_action = st.selectbox(
+        "Action",
+        options=("Update", "Remove"),
+        key="project_pypi_app_installed_action",
+        help="Choose what Apply does to the selected installed agi-apps.",
+    )
+    removing = selected_action == "Remove"
+    confirm_removal = False
+    if removing:
+        confirm_removal = st.checkbox(
+            "Confirm removal",
+            key="project_pypi_app_manage_confirmed",
+            help="Required before removing selected agi-apps from this AGILAB environment.",
+        )
+    apply_clicked = st.button(
+        "Apply",
+        key="project_pypi_app_apply",
+        disabled=not selected_packages or (removing and not confirm_removal),
+        width="stretch",
+        type="primary",
+    )
+    if apply_clicked and selected_action == "Update":
+        run_streamlit_action(
+            st,
+            ActionSpec(
+                name="Update",
+                start_message=f"Updating {len(selected_packages)} selected agi-app(s)...",
+                failure_title="agi-app update failed.",
+                failure_next_action="Check the agi-app and current Python environment.",
+            ),
+            lambda: _batch_pypi_app_packages(
+                list(selected_packages), "Update", _install_pypi_app_package
+            ),
+            on_success=lambda _result: _refresh_projects_after_pypi_app_install(env),
+        )
+    if apply_clicked and selected_action == "Remove":
+        run_streamlit_action(
+            st,
+            ActionSpec(
+                name="Remove",
+                start_message=f"Removing {len(selected_packages)} selected agi-app(s)...",
+                failure_title="agi-app remove failed.",
+                failure_next_action="Check the agi-app and current Python environment.",
+            ),
+            lambda: _batch_pypi_app_packages(
+                list(selected_packages), "Remove", _remove_pypi_app_package
+            ),
+            on_success=lambda _result: _refresh_projects_after_pypi_app_install(env),
+        )
+
+
+def _render_pypi_app_install_action(env) -> None:
+    with st.sidebar.expander("Install another version", expanded=False):
+        catalog = _search_promoted_pypi_app_catalog("")
+        catalog_options = ["", *catalog]
+        catalog_choice = st.selectbox(
+            "Catalog pypi.org",
+            options=catalog_options,
+            key="project_pypi_app_catalog_choice",
+        )
+        with st.expander("Manual requirement", expanded=False):
+            raw_requirement = st.text_input(
+                "Requirement",
+                key="project_pypi_app_requirement",
+                placeholder="agi-app-weather-forecast==x.y.z",
+                help="Advanced override for an agi-app requirement. Leave empty to use the catalog selection.",
+            )
+        selected_requirement = str(raw_requirement or "").strip() or catalog_choice
+        requirement = ""
+        if selected_requirement:
+            try:
+                requirement = _normalize_pypi_app_requirement(selected_requirement)
+                command = _pypi_app_install_command(requirement)
+                st.code(shlex.join(command), language="bash")
+            except ValueError as exc:
+                st.warning(str(exc))
+
+        preflight_key = "project_pypi_app_preflight_payload"
+        reviewed_key = "project_pypi_app_reviewed"
+        reviewed_requirement_key = "project_pypi_app_reviewed_requirement"
+        if st.session_state.get(reviewed_requirement_key) != requirement:
+            st.session_state[reviewed_requirement_key] = requirement
+            st.session_state[reviewed_key] = False
+            st.session_state.pop(preflight_key, None)
+
+        check_col, install_col = st.columns(2)
+        with check_col:
+            check_clicked = st.button(
+                "Check",
+                key="project_pypi_app_preflight",
+                disabled=not requirement,
+                width="stretch",
+            )
+        if check_clicked and requirement:
+            result = run_streamlit_action(
+                st,
+                ActionSpec(
+                    name="Check",
+                    start_message=f"Checking {requirement}...",
+                    failure_title="agi-app preflight failed.",
+                    failure_next_action="Check the agi-app name and PyPI availability.",
+                ),
+                lambda: _preflight_pypi_app_package(requirement),
+            )
+            st.session_state[preflight_key] = result.data
+
+        preflight_payload = st.session_state.get(preflight_key)
+        preflight_passed = False
+        if isinstance(preflight_payload, dict):
+            payload_requirement = str(preflight_payload.get("requirement") or "")
+            if payload_requirement != requirement:
+                preflight_payload = None
+            else:
+                preflight_status = str(preflight_payload.get("status") or "").lower()
+                preflight_passed = preflight_status in {"pass", "success"}
+        _render_pypi_metadata_summary(
+            preflight_payload if isinstance(preflight_payload, dict) else None
+        )
+
+        reviewed = bool(st.session_state.get(reviewed_key, False))
+        with install_col:
+            install_clicked = st.button(
+                "Install agi-app",
+                key="project_pypi_app_install",
+                type="primary",
+                disabled=not requirement or not preflight_passed or not reviewed,
+                width="stretch",
+            )
+        review_row = st.container()
+        with review_row:
+            st.checkbox(
+                "Reviewed",
+                key=reviewed_key,
+                help="Only install agi-apps you trust to run as local code.",
+            )
+        if install_clicked:
+            run_streamlit_action(
+                st,
+                ActionSpec(
+                    name="Install agi-app",
+                    start_message=f"Installing {requirement}...",
+                    failure_title="agi-app install failed.",
+                    failure_next_action="Check the agi-app name, Python version support, and PyPI availability.",
+                ),
+                lambda: _install_pypi_app_package(requirement),
+                on_success=lambda _result: _refresh_projects_after_pypi_app_install(
+                    env
+                ),
+            )
+        with st.expander("Installed", expanded=False):
+            _render_installed_pypi_app_manager(env)
+
+
+def _repair_cloned_builtin_core_source_paths(
+    env: AgiEnv,
+    source_root: Path,
+    dest_root: Path,
+) -> str | None:
+    """Rewrite local core uv source paths after cloning a builtin app to user apps."""
+    try:
+        source_root.relative_to(env.apps_path / "builtin")
+    except ValueError:
+        return None
+
+    core_root = env.apps_path.parent / "core"
+    repaired: list[Path] = []
+    for pyproject_path in sorted(dest_root.rglob("pyproject.toml")):
+        try:
+            data = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+
+        sources = data.get("tool", {}).get("uv", {}).get("sources", {})
+        if not isinstance(sources, dict):
+            continue
+
+        modified = False
+        for source in sources.values():
+            if not isinstance(source, dict):
+                continue
+            raw_path = source.get("path")
+            if not isinstance(raw_path, str):
+                continue
+            parts = Path(raw_path).parts
+            if "core" not in parts:
+                continue
+            core_index = parts.index("core")
+            core_suffix = Path(*parts[core_index + 1 :])
+            if not core_suffix.parts:
+                continue
+            source["path"] = os.path.relpath(
+                core_root / core_suffix, pyproject_path.parent
+            )
+            modified = True
+
+        if modified:
+            with pyproject_path.open("wb") as handle:
+                tomli_w.dump(data, handle)
+            repaired.append(pyproject_path.relative_to(dest_root))
+
+    if not repaired:
+        return None
+    return "Repaired local core source paths in " + ", ".join(
+        path.as_posix() for path in repaired
+    )
+
+
+def _repair_renamed_project_environment(
+    source_root: Path, dest_root: Path
+) -> str | None:
+    source_venv = source_root / ".venv"
+    dest_venv = dest_root / ".venv"
+
+    if not _path_exists_or_symlink(source_venv):
+        return None
+
+    if _path_exists_or_symlink(dest_venv):
+        _remove_path_if_present(dest_venv)
+
+    shutil.move(str(source_venv), str(dest_venv))
+    return f"Preserved the project .venv while renaming '{source_root.name}'."
+
+
+# -------------------- Gitignore Reader -------------------- #
+
+
+@st.cache_data
+def read_gitignore(gitignore_path):
+    """Return a :class:`PathSpec` built from ``gitignore_path``.
+
+    When the project does not ship a ``.gitignore`` we still want to allow
+    exports, so we fall back to an empty ignore list instead of raising.
+    """
+
+    try:
+        with open(gitignore_path, "r") as f:
+            patterns = f.read().splitlines()
+    except FileNotFoundError:
+        patterns = []
+
+    return GitIgnoreSpec.from_lines(patterns)
+
+
+_PROJECT_EDITOR_RESOURCE_FILES = (
+    "custom_buttons.json",
+    "info_bar.json",
+    "code_editor.scss",
+)
+
+
+def _project_editor_resource_fingerprint(
+    resources_path: str | Path,
+) -> tuple[tuple[str, int, int], ...]:
+    """Return a lightweight invalidation key for static PROJECT editor resources."""
+
+    resources_root = Path(resources_path)
+    fingerprints: list[tuple[str, int, int]] = []
+    for filename in _PROJECT_EDITOR_RESOURCE_FILES:
+        stat = (resources_root / filename).stat()
+        fingerprints.append((filename, stat.st_mtime_ns, stat.st_size))
+    return tuple(fingerprints)
+
+
+@st.cache_data(show_spinner=False)
+def _load_project_editor_resources(
+    resources_path: str,
+    resource_fingerprint: tuple[tuple[str, int, int], ...],
+) -> tuple[list[Any], Any, str]:
+    """Load static PROJECT editor resources once per file version."""
+
+    del resource_fingerprint
+    resources_root = Path(resources_path)
+    with (resources_root / "custom_buttons.json").open(encoding="utf-8") as f:
+        custom_buttons = normalize_custom_buttons(json.load(f))
+    with (resources_root / "info_bar.json").open(encoding="utf-8") as f:
+        info_bar = json.load(f)
+    css_text = (resources_root / "code_editor.scss").read_text(encoding="utf-8")
+    return custom_buttons, info_bar, css_text
+
+
+# -------------------- Project Cleaner -------------------- #
+
+
+def clean_project(project_path):
+    """
+    Clean a project directory by removing files and directories matching .gitignore patterns.
+
+    Args:
+        project_path (Path): Path to the project directory.
+    """
+    project_path = Path(project_path)
+    gitignore_path = project_path / ".gitignore"
+
+    spec = read_gitignore(gitignore_path)
+
+    for root, dirs, files in os.walk(project_path, topdown=False):
+        for file in files:
+            relative_file_path = Path(root).joinpath(file).relative_to(project_path)
+            if spec.match_file(str(relative_file_path)):
+                os.remove(Path(root) / file)
+        for dir_name in dirs:
+            relative_dir_path = Path(root).joinpath(dir_name).relative_to(project_path)
+            if spec.match_file(str(relative_dir_path)):
+                shutil.rmtree(Path(root) / dir_name, ignore_errors=True)
+
+
+def _safe_remove_path(candidate, label, errors):
+    """
+    Remove a file or directory, capturing failures in ``errors``.
+    """
+
+    if not candidate:
+        return
+    path = Path(candidate)
+    try:
+        exists = path.exists() or path.is_symlink()
+    except OSError as exc:
+        errors.append(f"{label}: {exc}")
+        return
+    if not exists:
+        return
+    try:
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        errors.append(f"{label}: {exc}")
+
+
+def _regex_replace(path, regex, replacement, label, errors):
+    if not path.exists():
+        return
+    try:
+        text = path.read_text()
+    except (OSError, UnicodeDecodeError) as exc:
+        errors.append(f"{label}: {exc}")
+        return
+    new_text = re.sub(regex, replacement, text)
+    if new_text == text:
+        return
+    try:
+        path.write_text(new_text)
+    except OSError as exc:
+        errors.append(f"{label}: {exc}")
+
+
+def _cleanup_run_configuration_artifacts(app_name, target_name, errors):
+    run_dir = PROJECT_ROOT / ".idea" / "runConfigurations"
+    if not run_dir.exists():
+        return
+
+    to_delete = set()
+    for pattern in {f"_{target_name}*.xml", f"_{app_name}*.xml"}:
+        to_delete.update(run_dir.glob(pattern))
+
+    for xml_path in run_dir.glob("*.xml"):
+        if xml_path in to_delete:
+            continue
+        if xml_path.name == "folders.xml":
+            continue
+        try:
+            text = xml_path.read_text()
+        except (OSError, UnicodeDecodeError) as exc:
+            errors.append(f"Read {xml_path.name}: {exc}")
+            continue
+        if app_name in text or target_name in text:
+            to_delete.add(xml_path)
+
+    for xml_path in to_delete:
+        try:
+            xml_path.unlink()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            errors.append(f"Remove {xml_path.name}: {exc}")
+
+    folders_xml = run_dir / "folders.xml"
+    _regex_replace(
+        folders_xml,
+        rf'\s*<folder name="{re.escape(app_name)}"\s*/>\s*',
+        "\n",
+        "Update run configuration folders",
+        errors,
+    )
+
+
+def _cleanup_module_artifacts(app_name, target_name, errors):
+    modules_dir = PROJECT_ROOT / ".idea" / "modules"
+    removed_files = set()
+    if modules_dir.exists():
+        for pattern in {f"{app_name}*.iml", f"{target_name}*.iml"}:
+            for module_file in modules_dir.glob(pattern):
+                removed_files.add(module_file.name)
+                _safe_remove_path(module_file, f"IDE module {module_file.name}", errors)
+
+    modules_xml = PROJECT_ROOT / ".idea" / "modules.xml"
+    if removed_files:
+        joined = "|".join(re.escape(name) for name in sorted(removed_files))
+        _regex_replace(
+            modules_xml,
+            rf'\s*<module\b[^>]*?(?:modules/(?:{joined}))"[^>]*/>\s*',
+            "\n",
+            "Update modules.xml",
+            errors,
+        )
+
+
+# -------------------- Project Export Handler -------------------- #
+
+
+def _export_project_action(env: AgiEnv) -> ActionResult:
+    input_dir = Path(env.active_app)
+    if not input_dir.exists():
+        return ActionResult.error(
+            f"Project '{env.app}' does not exist.",
+            next_action="Refresh the PROJECT page or select another project.",
+            data={"app": env.app, "input_dir": input_dir},
+        )
+
+    output_zip = (env.export_apps / env.app).with_suffix(".zip")
+    output_zip.parent.mkdir(parents=True, exist_ok=True)
+    gitignore_path = input_dir / ".gitignore"
+    detail = (
+        None if gitignore_path.exists() else "No .gitignore found; exported all files."
+    )
+    spec = read_gitignore(gitignore_path)
+
+    with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as out:
+        for root, _, files in os.walk(input_dir):
+            rel_root = os.path.relpath(root, input_dir)
+            if spec.match_file(rel_root):
+                continue
+            for file in files:
+                source_path = Path(root) / file
+                relative_file_path = os.path.relpath(source_path, input_dir)
+                if not spec.match_file(relative_file_path):
+                    out.write(source_path, relative_file_path)
+
+    app_zip = env.app + ".zip"
+    return ActionResult.success(
+        f"Project exported to {output_zip}",
+        detail=detail,
+        data={"app": env.app, "app_zip": app_zip, "output_zip": output_zip},
+    )
+
+
+def handle_export_project():
+    """
+    Handle the export of a project to a zip file.
+    """
+    env = st.session_state["env"]
+
+    def _remember_export(result):
+        app_zip = str(result.data["app_zip"])
+        archives = st.session_state.setdefault("archives", ["-- Select a file --"])
+        if app_zip not in archives:
+            archives.append(app_zip)
+        st.session_state["export_message"] = "Export completed."
+
+    run_streamlit_action(
+        st,
+        ActionSpec(
+            name="Export project",
+            start_message=f"Exporting project '{env.app}'...",
+            failure_title="Project export failed.",
+            failure_next_action="Check the project path, export directory, and filesystem permissions.",
+        ),
+        lambda: _export_project_action(env),
+        on_success=_remember_export,
+    )
+
+
+def _import_project_action(
+    env: AgiEnv,
+    *,
+    project_zip: str,
+    clean: bool = False,
+    overwrite: bool = False,
+) -> ActionResult:
+    selected_archive = str(project_zip).strip()
+    if not selected_archive or selected_archive == "-- Select a file --":
+        return ActionResult.error(
+            "Please select a project archive.",
+            next_action="Choose an exported project zip from the sidebar.",
+        )
+
+    zip_path = env.export_apps / selected_archive
+    if not zip_path.exists():
+        return ActionResult.error(
+            f"Project archive '{selected_archive}' does not exist.",
+            next_action=f"Check {env.export_apps} or export the project again.",
+            data={"project_zip": selected_archive, "zip_path": zip_path},
+        )
+
+    import_target = Path(selected_archive).stem
+    target_dir = env.apps_path / import_target
+    if target_dir.exists():
+        if not overwrite:
+            return ActionResult.warning(
+                f"Project '{import_target}' already exists.",
+                next_action="Confirm overwrite to replace the existing project.",
+                data={
+                    "project_zip": selected_archive,
+                    "import_target": import_target,
+                    "target_dir": target_dir,
+                },
+            )
+        try:
+            shutil.rmtree(target_dir)
+        except OSError as exc:
+            return ActionResult.error(
+                f"Project '{import_target}' is not removable.",
+                detail=str(exc),
+                next_action="Check filesystem permissions, then retry the import.",
+                data={
+                    "project_zip": selected_archive,
+                    "import_target": import_target,
+                    "target_dir": target_dir,
+                },
+            )
+
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(target_dir)
+        if clean:
+            clean_project(target_dir)
+    except (OSError, RuntimeError, ValueError, zipfile.BadZipFile) as exc:
+        return ActionResult.error(
+            f"Project archive '{selected_archive}' could not be imported.",
+            detail=str(exc),
+            next_action="Check that the archive is a valid exported project zip.",
+            data={
+                "project_zip": selected_archive,
+                "import_target": import_target,
+                "target_dir": target_dir,
+                "zip_path": zip_path,
+            },
+        )
+
+    if not target_dir.exists():
+        return ActionResult.error(
+            f"Error while importing '{import_target}'.",
+            next_action="Check archive contents and filesystem permissions.",
+            data={
+                "project_zip": selected_archive,
+                "import_target": import_target,
+                "target_dir": target_dir,
+            },
+        )
+
+    return ActionResult.success(
+        f"Project '{import_target}' successfully imported.",
+        data={
+            "project_zip": selected_archive,
+            "import_target": import_target,
+            "target_dir": target_dir,
+            "clean": clean,
+            "overwrite": overwrite,
+        },
+    )
+
+
+def import_project(project_zip, ignore=False):
+    """
+    Import a project from a zip archive.
+
+    Args:
+        ignore (bool, optional): Whether to clean the project after import. Defaults to False.
+    """
+    env = st.session_state["env"]
+    result = _import_project_action(
+        env,
+        project_zip=project_zip,
+        clean=ignore,
+        overwrite=True,
+    )
+    st.session_state["project_imported"] = result.status == "success"
+    return result
+
+    # -------------------- Project Cloner (Recursive with .venv Symlink) -------------------- #
+    def clone_directory(
+        self,
+        source_dir: Path,
+        dest_dir: Path,
+        rename_map: dict,
+        spec: PathSpec,
+        source_root: Path,
+    ):
+        """
+        Recursively copy + rename directories, files, and contents.
+        """
+        import ast
+
+        for item in source_dir.iterdir():
+            rel = item.relative_to(source_root).as_posix()
+            # skip .gitignore’d files
+            if spec.match_file(rel + ("/" if item.is_dir() else "")):
+                continue
+
+            # 1) Build a new relative path by applying map only to entire segments
+            parts = rel.split("/")
+            for i, seg in enumerate(parts):
+                for old, new in sorted(rename_map.items(), key=lambda kv: -len(kv[0])):
+                    if seg == old:
+                        parts[i] = new
+                        break
+            new_rel = "/".join(parts)
+            dst = dest_dir / new_rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+
+            # 2) Recurse / copy
+            if item.is_dir():
+                if item.name == ".venv":
+                    os.symlink(item, dst, target_is_directory=True)
+                else:
+                    self.clone_directory(item, dest_dir, rename_map, spec, source_root)
+
+            elif item.is_file():
+                suf = item.suffix.lower()
+
+                # Python → AST rename + whole‑word replace
+                if suf == ".py":
+                    src = item.read_text()
+                    try:
+                        tree = ast.parse(src)
+                        tree = ContentRenamer(rename_map).visit(tree)
+                        out = _ast_to_source(tree)
+                    except SyntaxError:
+                        out = src
+                    out = replace_content(out, rename_map)
+                    dst.write_text(out, encoding="utf-8")
+
+                # text files → whole‑word replace
+                elif suf in (".toml", ".md", ".txt", ".json", ".yaml", ".yml"):
+                    txt = item.read_text()
+                    txt = replace_content(txt, rename_map)
+                    dst.write_text(txt, encoding="utf-8")
+
+                # archives or binaries
+                else:
+                    shutil.copy2(item, dst)
+
+            elif item.is_symlink():
+                target = os.readlink(item)
+                os.symlink(target, dst, target_is_directory=item.is_dir())
+
+
+def clone_directory(
+    self,
+    source_dir: Path,
+    dest_dir: Path,
+    rename_map: dict,
+    spec: PathSpec,
+    source_root: Path,
+):
+    """
+    Recursively copy + rename directories, files, and contents.
+    """
+    for item in source_dir.iterdir():
+        rel = item.relative_to(source_root).as_posix()
+        # skip .gitignore’d files
+        if spec.match_file(rel + ("/" if item.is_dir() else "")):
+            continue
+
+        # 1) Build a new relative path by applying map only to entire segments
+        parts = rel.split("/")
+        for i, seg in enumerate(parts):
+            for old, new in sorted(rename_map.items(), key=lambda kv: -len(kv[0])):
+                if seg == old:
+                    parts[i] = new
+                    break
+        new_rel = "/".join(parts)
+
+        dst = dest_dir / new_rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+
+        # 2) Recurse / copy
+        if item.is_dir():
+            if item.name == ".venv":
+                os.symlink(item, dst, target_is_directory=True)
+            else:
+                self.clone_directory(item, dest_dir, rename_map, spec, source_root)
+
+        elif item.is_file():
+            suf = item.suffix.lower()
+
+            # First, if the **basename** matches an old→new, rename the file itself
+            base = item.stem
+            if base in rename_map:
+                dst = dst.with_name(rename_map[base] + item.suffix)
+
+            # Archives
+            if suf in (".7z", ".zip"):
+                shutil.copy2(item, dst)
+
+            # Python → AST rename + whole‑word replace
+            elif suf == ".py":
+                src = item.read_text(encoding="utf-8")
+                try:
+                    tree = ast.parse(src)
+                    renamer = ContentRenamer(rename_map)
+                    new_tree = renamer.visit(tree)
+                    out = _ast_to_source(new_tree)
+                except SyntaxError:
+                    out = src
+                out = replace_content(out, rename_map)
+                dst.write_text(out, encoding="utf-8")
+
+            # Text files → whole‑word replace
+            elif suf in (".toml", ".md", ".txt", ".json", ".yaml", ".yml"):
+                txt = item.read_text(encoding="utf-8")
+                txt = replace_content(txt, rename_map)
+                dst.write_text(txt, encoding="utf-8")
+
+            # Everything else
+            else:
+                shutil.copy2(item, dst)
+
+        elif item.is_symlink():
+            target = os.readlink(item)
+            os.symlink(target, dst, target_is_directory=item.is_dir())
+
+
+def _cleanup_rename(self, root: Path, rename_map: dict):
+    """
+    1) Rename any leftover file/dir basenames (including .py) that exactly match a key.
+    2) Rewrite text files for any straggler content references.
+    """
+    # Build simple name→new map (no slashes)
+    simple_map = {old: new for old, new in rename_map.items() if "/" not in old}
+    # Sort longest first
+    sorted_simple = sorted(simple_map.items(), key=lambda kv: len(kv[0]), reverse=True)
+
+    # -- phase 1: rename basenames bottom-up --
+    for path in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        old_name = path.name
+        # exact matches
+        for old, new in sorted_simple:
+            if old_name == old:
+                path.rename(path.with_name(new))
+                break
+            if old_name == f"{old}_worker" or old_name == f"{old}_project":
+                path.rename(path.with_name(old_name.replace(old, new, 1)))
+                break
+            if path.is_file() and old_name.startswith(old + "."):
+                # e.g. flight.py → truc.py
+                new_name = new + old_name[len(old) :]
+                path.rename(path.with_name(new_name))
+                break
+
+    # -- phase 2: rewrite any lingering references in text files --
+    exts = {".py", ".toml", ".md", ".json", ".yaml", ".yml", ".txt"}
+    for file in root.rglob("*"):
+        if not file.is_file() or file.suffix.lower() not in exts:
+            continue
+        txt = file.read_text(encoding="utf-8")
+        new_txt = replace_content(txt, rename_map)
+        if new_txt != txt:
+            file.write_text(new_txt, encoding="utf-8")
+
+
+import ast
+import streamlit as st
+
+
+class ContentRenamer(ast.NodeTransformer):
+    """
+    A class that renames identifiers in an abstract syntax tree (AST).
+
+    Attributes:
+        rename_map (dict): A mapping of old identifiers to new identifiers.
+    """
+
+    def __init__(self, rename_map):
+        """
+        Initialize the ContentRenamer with the rename_map.
+
+        Args:
+            rename_map (dict): Mapping of old names to new names.
+        """
+        self.rename_map = rename_map
+
+    def visit_Name(self, node):
+        # Rename variable and function names
+        """
+        Visit and potentially rename a Name node in the abstract syntax tree.
+
+        Args:
+            self: The current object instance.
+            node: The Name node in the abstract syntax tree.
+
+        Returns:
+            ast.Node: The modified Name node after potential renaming.
+
+        Note:
+            This function modifies the Name node in place.
+
+        Raises:
+            None
+        """
+        if node.id in self.rename_map:
+            st.write(f"Renaming Name: {node.id} ➔ {self.rename_map[node.id]}")
+            node.id = self.rename_map[node.id]
+        self.generic_visit(node)  # Ensure child nodes are visited
+        return node
+
+    def visit_Attribute(self, node):
+        # Rename attributes
+        """
+        Visit and potentially rename an attribute in a node.
+
+        Args:
+            node: A node representing an attribute.
+
+        Returns:
+            node: The visited node with potential attribute renamed.
+
+        Raises:
+            None.
+        """
+        if node.attr in self.rename_map:
+            st.write(f"Renaming Attribute: {node.attr} ➔ {self.rename_map[node.attr]}")
+            node.attr = self.rename_map[node.attr]
+        self.generic_visit(node)
+        return node
+
+    def visit_FunctionDef(self, node):
+        # Rename function names
+        """
+        Rename a function node based on a provided mapping.
+
+        Args:
+            node (ast.FunctionDef): The function node to be processed.
+
+        Returns:
+            ast.FunctionDef: The function node with potential name change.
+        """
+        if node.name in self.rename_map:
+            st.write(f"Renaming Function: {node.name} ➔ {self.rename_map[node.name]}")
+            node.name = self.rename_map[node.name]
+        self.generic_visit(node)
+        return node
+
+    def visit_ClassDef(self, node):
+        # Rename class names
+        """
+        Visit and potentially rename a ClassDef node.
+
+        Args:
+            node (ast.ClassDef): The ClassDef node to visit.
+
+        Returns:
+            ast.ClassDef: The potentially modified ClassDef node.
+        """
+        if node.name in self.rename_map:
+            st.write(f"Renaming Class: {node.name} ➔ {self.rename_map[node.name]}")
+            node.name = self.rename_map[node.name]
+        self.generic_visit(node)
+        return node
+
+    def visit_arg(self, node):
+        # Rename function argument names
+        """
+        Visit and potentially rename an argument node.
+
+        Args:
+            self: The instance of the class.
+            node: The argument node to visit and possibly rename.
+
+        Returns:
+            ast.AST: The modified argument node.
+
+        Notes:
+            Modifies the argument node in place if its name is found in the rename map.
+
+        Raises:
+            None.
+        """
+        if node.arg in self.rename_map:
+            st.write(f"Renaming Argument: {node.arg} ➔ {self.rename_map[node.arg]}")
+            node.arg = self.rename_map[node.arg]
+        self.generic_visit(node)
+        return node
+
+    def visit_Global(self, node):
+        # Rename global variable names
+        """
+        Visit and potentially rename global variables in the AST node.
+
+        Args:
+            self: The instance of the class that contains the renaming logic.
+            node: The AST node to visit and potentially rename global variables.
+
+        Returns:
+            AST node: The modified AST node with global variable names potentially renamed.
+        """
+        new_names = []
+        for name in node.names:
+            if name in self.rename_map:
+                st.write(f"Renaming Global Variable: {name} ➔ {self.rename_map[name]}")
+                new_names.append(self.rename_map[name])
+            else:
+                new_names.append(name)
+        node.names = new_names
+        self.generic_visit(node)
+        return node
+
+    def visit_nonlocal(self, node):
+        # Rename nonlocal variable names
+        """
+        Visit and potentially rename nonlocal variables in the AST node.
+
+        Args:
+            self: An instance of the class containing the visit_nonlocal method.
+            node: The AST node to visit and potentially modify.
+
+        Returns:
+            ast.AST: The modified AST node after visiting and potentially renaming nonlocal variables.
+        """
+        new_names = []
+        for name in node.names:
+            if name in self.rename_map:
+                st.write(
+                    f"Renaming Nonlocal Variable: {name} ➔ {self.rename_map[name]}"
+                )
+                new_names.append(self.rename_map[name])
+            else:
+                new_names.append(name)
+        node.names = new_names
+        self.generic_visit(node)
+        return node
+
+    def visit_Assign(self, node):
+        # Rename assigned variable names
+        """
+        Visit and process an assignment node.
+
+        Args:
+            self: The instance of the visitor class.
+            node: The assignment node to be visited.
+
+        Returns:
+            ast.Node: The visited assignment node.
+        """
+        self.generic_visit(node)
+        return node
+
+    def visit_AnnAssign(self, node):
+        # Rename annotated assignments
+        """
+        Visit and process an AnnAssign node in an abstract syntax tree.
+
+        Args:
+            self: The AST visitor object.
+            node: The AnnAssign node to be visited.
+
+        Returns:
+            AnnAssign: The visited AnnAssign node.
+        """
+        self.generic_visit(node)
+        return node
+
+    def visit_For(self, node):
+        # Rename loop variable names
+        """
+        Visit and potentially rename the target variable in a For loop node.
+
+        Args:
+            node (ast.For): The For loop node to visit.
+
+        Returns:
+            ast.For: The modified For loop node.
+
+        Note:
+            This function may modify the target variable in the For loop node if it exists in the rename map.
+        """
+        if isinstance(node.target, ast.Name) and node.target.id in self.rename_map:
+            st.write(
+                f"Renaming For Loop Variable: {node.target.id} ➔ {self.rename_map[node.target.id]}"
+            )
+            node.target.id = self.rename_map[node.target.id]
+        self.generic_visit(node)
+        return node
+
+    def visit_Import(self, node):
+        """
+        Rename imported modules in 'import module' statements.
+
+        Args:
+            node (ast.Import): The import node.
+        """
+        for alias in node.names:
+            original_name = alias.name
+            if original_name in self.rename_map:
+                st.write(
+                    f"Renaming Import Module: {original_name} ➔ {self.rename_map[original_name]}"
+                )
+                alias.name = self.rename_map[original_name]
+            else:
+                # Handle compound module names if necessary
+                for old, new in self.rename_map.items():
+                    if original_name.startswith(old):
+                        st.write(
+                            f"Renaming Import Module: {original_name} ➔ {original_name.replace(old, new, 1)}"
+                        )
+                        alias.name = original_name.replace(old, new, 1)
+                        break
+        self.generic_visit(node)
+        return node
+
+    def visit_ImportFrom(self, node):
+        """
+        Rename modules and imported names in 'from module import name' statements.
+
+        Args:
+            node (ast.ImportFrom): The import from node.
+        """
+        # Rename the module being imported from
+        if node.module in self.rename_map:
+            st.write(
+                f"Renaming ImportFrom Module: {node.module} ➔ {self.rename_map[node.module]}"
+            )
+            node.module = self.rename_map[node.module]
+        else:
+            for old, new in self.rename_map.items():
+                if node.module and node.module.startswith(old):
+                    new_module = node.module.replace(old, new, 1)
+                    st.write(
+                        f"Renaming ImportFrom Module: {node.module} ➔ {new_module}"
+                    )
+                    node.module = new_module
+                    break
+
+        # Rename the imported names
+        for alias in node.names:
+            if alias.name in self.rename_map:
+                st.write(
+                    f"Renaming Imported Name: {alias.name} ➔ {self.rename_map[alias.name]}"
+                )
+                alias.name = self.rename_map[alias.name]
+            else:
+                for old, new in self.rename_map.items():
+                    if alias.name.startswith(old):
+                        st.write(
+                            f"Renaming Imported Name: {alias.name} ➔ {alias.name.replace(old, new, 1)}"
+                        )
+                        alias.name = alias.name.replace(old, new, 1)
+                        break
+        self.generic_visit(node)
+        return node
+
+
+# -------------------- Code Editor Display -------------------- #
+
+
+def _project_editor_panel_id(
+    file: Path,
+    tab: str,
+    fct: str | None = None,
+    scope: str | None = None,
+) -> str:
+    path = Path(file).resolve()
+    scope_part = str(scope or "default")
+    fct_part = str(fct or "file")
+    return f"project-editor:{scope_part}:{path}:{tab}:{fct_part}"
+
+
+def _project_editor_pin_title(file: Path, fct: str | None = None) -> str:
+    path = Path(file)
+    parent = path.parent.name
+    title = f"{parent}/{path.name}" if parent else path.name
+    if fct:
+        title = f"{title}:{fct}"
+    return title
+
+
+def _project_editor_body_format(lang: str) -> str:
+    return "markdown" if str(lang).lower() in {"markdown", "md"} else "code"
+
+
+def _project_editor_toolbar_buttons(base_buttons, *, pinned: bool):
+    try:
+        buttons_payload = json.loads(json.dumps(base_buttons or []))
+    except (TypeError, ValueError):
+        buttons_payload = []
+    if isinstance(buttons_payload, dict):
+        toolbar_buttons = buttons_payload.get("buttons", [])
+        if not isinstance(toolbar_buttons, list):
+            toolbar_buttons = []
+    elif isinstance(buttons_payload, list):
+        toolbar_buttons = buttons_payload
+    else:
+        toolbar_buttons = []
+    response_type = EDITOR_UNPIN_RESPONSE if pinned else EDITOR_PIN_RESPONSE
+    pin_button = {
+        "name": "Unpin" if pinned else "Pin",
+        "feather": "Bookmark",
+        "hasText": True,
+        "alwaysOn": True,
+        "commands": [
+            "save-state",
+            [
+                "response",
+                response_type,
+            ],
+        ],
+        "style": {
+            "top": "-0.25rem",
+            "right": "6.8rem",
+            "backgroundColor": "#ffffff",
+            "borderColor": "#4A90E2",
+            "color": "#4A90E2",
+        },
+    }
+    insert_at = 1 if toolbar_buttons else 0
+    toolbar_buttons.insert(insert_at, pin_button)
+    return toolbar_buttons
+
+
+def _upsert_project_editor_pin(
+    file: Path,
+    body: str,
+    lang: str,
+    tab: str,
+    fct: str | None = None,
+    scope: str | None = None,
+) -> None:
+    path = Path(file)
+    upsert_pinned_expander(
+        st.session_state,
+        _project_editor_panel_id(path, tab, fct, scope),
+        title=_project_editor_pin_title(path, fct),
+        body=body,
+        body_format=_project_editor_body_format(lang),
+        language="" if _project_editor_body_format(lang) == "markdown" else lang,
+        source=str(path),
+        caption="Pinned editor content.",
+    )
+
+
+def _pin_project_editor(
+    file: Path,
+    body: str,
+    lang: str,
+    tab: str,
+    fct: str | None = None,
+    scope: str | None = None,
+) -> None:
+    _upsert_project_editor_pin(file, body, lang, tab, fct, scope=scope)
+    st.rerun()
+
+
+def _unpin_project_editor(
+    file: Path,
+    tab: str,
+    fct: str | None = None,
+    scope: str | None = None,
+) -> None:
+    remove_pinned_expander(
+        st.session_state,
+        _project_editor_panel_id(Path(file), tab, fct, scope),
+    )
+    st.rerun()
+
+
+def render_code_editor(
+    file,
+    code,
+    lang,
+    tab,
+    comp_props,
+    ace_props,
+    fct=None,
+    buttons=None,
+    scope: str | None = None,
+):
+    """
+    Display a code editor component with the given code.
+
+    Args:
+        file (Path): Path to the file being edited.
+        code (str): The code content to display in the editor.
+        lang (str): Programming language of the code (for syntax highlighting).
+        tab (str): Identifier for the tab in which the editor is placed.
+        comp_props (dict): Component properties for the code editor.
+        ace_props (dict): Ace editor properties.
+        fct (str, optional): Function/method name or 'attributes'. Defaults to None.
+
+    Returns:
+        dict or None: The response from the code_editor component, if any.
+    """
+    path = Path(file)
+    editor_scope = f"{scope}" if scope else str(tab)
+    class_state_key = f"selected_class_{editor_scope}"
+    target_class = st.session_state.get(class_state_key, "module-level")
+    if os.access(path, os.W_OK):
+        panel_id = _project_editor_panel_id(path, tab, fct, editor_scope)
+        pinned = is_pinned_expander(st.session_state, panel_id)
+        if pinned:
+            _upsert_project_editor_pin(path, code, lang, tab, fct, scope=editor_scope)
+        info_bar = json.loads(json.dumps(INFO_BAR))
+        info_bar["info"][0]["name"] = path.name
+        # Include a stable scope, file path, class name, tab and function/item name.
+        editor_key = f"{editor_scope}:{path}:{target_class}:{tab}:{fct}"
+        response = code_editor(
+            code,
+            height=min(30, len(code)),
+            theme="contrast",
+            buttons=_project_editor_toolbar_buttons(
+                buttons if buttons is not None else CUSTOM_BUTTONS,
+                pinned=pinned,
+            ),
+            lang=lang,
+            info=info_bar,
+            component_props=comp_props,
+            props=ace_props,
+            key=editor_key,
+        )
+        # Ensure response has the expected structure
+        if isinstance(response, dict):
+            response_type = response.get("type")
+            if response_type == EDITOR_PIN_RESPONSE:
+                _pin_project_editor(
+                    path, response.get("text", code), lang, tab, fct, scope=editor_scope
+                )
+            elif response_type == EDITOR_UNPIN_RESPONSE:
+                _unpin_project_editor(path, tab, fct, scope=editor_scope)
+            elif response_type == "save" and code != response.get("text", ""):
+                updated_text = response["text"]
+                if fct is not None:
+                    return response
+                result = _save_code_editor_file_action(path, updated_text, lang)
+                render_action_result(st, result)
+                if result.status == "success" and lang == "json":
+                    time.sleep(1)
+                    st.session_state.pop("app_settings", None)
+        return response
+    else:
+        # Case when the user doesn't have access to write to the file
+        st.write(f"### {file.name}")
+        st.code(code, lang)
+        return None  # No response
+
+
+# -------------------- Editing Handler -------------------- #
+
+
+def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
+    """
+    Handle the editing of functions/methods and attributes for a given module path.
+
+    Args:
+        path (Path): Path to the Python file.
+        key_prefix (str): Prefix for Streamlit keys to ensure uniqueness.
+        comp_props (dict): Component properties for the code editor.
+        ace_props (dict): Ace editor properties.
+    """
+
+    def update_selected_class():
+        """Callback to update selected class and reset selected item."""
+        st.session_state[class_state_key] = st.session_state[
+            f"{key_prefix}_class_select"
+        ]
+        st.session_state[item_state_key] = ""
+
+    def update_selected_item():
+        """Callback to update selected item."""
+        st.session_state[item_state_key] = st.session_state[f"{key_prefix}_item_select"]
+
+    if not path.exists():
+        st.warning(f"{path} not found.")
+        return
+
+    try:
+        classes = get_classes_name(path) + ["module-level"]
+    except (OSError, UnicodeDecodeError) as e:
+        st.error(f"Error retrieving classes: {e}")
+        return
+
+    # Initialize session_state variables for selected_class and selected_item if not present
+    class_state_key = f"selected_class_{key_prefix}"
+    item_state_key = f"selected_item_{key_prefix}"
+
+    if class_state_key not in st.session_state:
+        st.session_state[class_state_key] = classes[0] if classes else "module-level"
+    if item_state_key not in st.session_state:
+        st.session_state[item_state_key] = ""
+
+    selected_class = st.selectbox(
+        "Select a class:",
+        classes,
+        key=f"{key_prefix}_class_select",
+        index=(
+            classes.index(st.session_state[class_state_key])
+            if st.session_state[class_state_key] in classes
+            else 0
+        ),
+        on_change=update_selected_class,
+    )
+
+    # Get functions and attributes based on the selected class
+    try:
+        cls = selected_class if selected_class != "module-level" else None
+        # result = get_fcts_and_attrs_name(path, st.session_state[env.worker_path])
+        result = get_fcts_and_attrs_name(path, cls)
+        functions = result["functions"]
+        attributes = result["attributes"]
+    except (FileNotFoundError, OSError, SyntaxError, ValueError) as e:
+        st.error(f"Error retrieving functions and attributes: {e}")
+        return
+
+    # Combine functions and add 'Attributes' as a single item if there are any attributes
+    items = functions.copy()
+    if attributes:
+        items.append("Attributes")
+
+    # Ensure selected_item is set correctly
+    if st.session_state[item_state_key] not in items:
+        st.session_state[item_state_key] = items[0] if items else ""
+
+    selected_item = st.selectbox(
+        "Select a method or attribute:",
+        items,
+        key=f"{key_prefix}_item_select",
+        index=(
+            items.index(st.session_state[item_state_key])
+            if st.session_state[item_state_key] in items
+            else 0
+        ),
+        on_change=update_selected_item,
+    )
+
+    if selected_item:
+        if selected_item == "Attributes":
+            # Handle the case where 'Attributes' is selected using render_code_editor
+            try:
+                _, parsed_code = _parse_python_file(path)
+                attributes_code = _extract_attributes_code(
+                    parsed_code,
+                    st.session_state[class_state_key],
+                )
+            except (OSError, UnicodeDecodeError, SyntaxError, TypeError) as ve:
+                st.error(f"Error extracting attributes: {ve}")
+                return
+
+            # Display the attributes code using render_code_editor
+            response = render_code_editor(
+                path,
+                attributes_code,
+                "python",
+                "attributes",
+                comp_props,
+                ace_props,
+                fct="attributes",
+                scope=key_prefix,
+            )
+
+            # Check if a save action was triggered
+            if isinstance(response, dict) and response.get("type") == "save":
+                result = _update_attributes_source_action(
+                    path,
+                    response.get("text", attributes_code),
+                    st.session_state[class_state_key],
+                )
+                render_action_result(st, result)
+        else:
+            # Handle the selected method or function
+            try:
+                _, parsed_code = _parse_python_file(path)
+                function_code = _extract_function_code(parsed_code, selected_item)
+            except (OSError, UnicodeDecodeError, SyntaxError, TypeError) as ve:
+                st.error(f"Error extracting function/method: {ve}")
+                return
+
+            # Display the function/method code using render_code_editor
+            response = render_code_editor(
+                path,
+                function_code,
+                "python",
+                "function_method",
+                comp_props,
+                ace_props,
+                fct=selected_item,
+                scope=key_prefix,
+            )
+
+            # Check if a save action was triggered
+            if isinstance(response, dict) and response.get("type") == "save":
+                result = _update_function_source_action(
+                    path,
+                    response.get("text", function_code),
+                    selected_item,
+                    st.session_state[class_state_key],
+                )
+                render_action_result(st, result)
+
+
+# -------------------- Sidebar Handlers -------------------- #
+
+
+def render_project_dashboard(env) -> None:
+    """Render PROJECT-owned dashboard panels for the active project."""
+    with st.container(border=True):
+        health = render_environment_health_panel(st, env, render_details=False)
+    with st.expander("Project metrics", expanded=False):
+        _render_project_software_metrics(env)
+    render_environment_details(st, health.details)
+
+
+def handle_project_selection():
+    """
+    Handle the edit-only project editor surface.
+    Each section is presented inside an expander for easier navigation.
+    """
+    env = st.session_state["env"]
+    projects = env.projects
+
+    if not projects:
+        st.warning("No projects available.")
+        return
+
+    st.markdown("### Edit project files")
+
+    # Keep all sections visible; each renderer handles its own absence checks.
+    requested_section = str(
+        st.session_state.pop(PROJECT_SECTION_SESSION_KEY, "") or ""
+    ).lower()
+    sections = [
+        (PROJECT_README_SECTION, "Documentation / README", lambda: _render_readme(env)),
+        ("settings", "Configuration / app settings", lambda: _render_app_settings(env)),
+        (
+            "args-model",
+            "Configuration / arguments model",
+            lambda: _render_app_args_module(env),
+        ),
+        ("args-ui", "Configuration / arguments UI", lambda: _render_args_ui(env)),
+        (
+            "manager-env",
+            "Runtime / manager environment",
+            lambda: _render_python_env(env),
+        ),
+        (
+            "worker-env",
+            "Runtime / worker environment",
+            lambda: _render_worker_python_env(env),
+        ),
+        ("uv-overrides", "Runtime / uv overrides", lambda: _render_uv_env(env)),
+        ("export-filter", "Runtime / export filter", lambda: _render_gitignore(env)),
+        ("pre-prompt", "AI / pre-prompt", lambda: _render_pre_prompt(env)),
+        ("manager", "Code / manager", lambda: _render_manager(env)),
+        ("worker", "Code / worker", lambda: _render_worker(env)),
+    ]
+
+    for section_id, label, render_fn in sections:
+        icon = _expander_icon(label)
+        title = f"{icon} {label}" if icon else label
+        with st.expander(title, expanded=section_id == requested_section):
+            render_fn()
+
+
+def _render_active_project_sidebar(env) -> None:
+    projects = list(getattr(env, "projects", []) or [])
+    if not projects:
+        st.sidebar.info("No projects available.")
+    env = st.session_state["env"]
+    st.session_state["_env"] = env
+
+
+def _default_project_sidebar_action(actions: tuple[str, ...]) -> str:
+    if "Edit" in actions:
+        return "Edit"
+    if "Overview" in actions:
+        return "Overview"
+    return actions[0]
+
+
+def _render_project_quick_actions(actions: tuple[str, ...]) -> str:
+    quick_actions = tuple(action for action in actions if action not in {"Edit", "Overview"})
+    default_action = _default_project_sidebar_action(actions)
+    if not quick_actions:
+        return default_action
+
+    current_selection = st.session_state.get("sidebar_selection")
+    if current_selection not in actions:
+        current_selection = default_action
+    quick_options = ("None", *quick_actions)
+    quick_key = "project_sidebar_quick_action"
+    if st.session_state.get(quick_key) not in quick_options:
+        st.session_state[quick_key] = (
+            current_selection if current_selection in quick_actions else "None"
+        )
+
+    with st.sidebar.expander(
+        "Quick actions",
+        expanded=st.session_state.get(quick_key) in quick_actions,
+    ):
+        quick_choice = st.selectbox(
+            "Action",
+            options=quick_options,
+            key=quick_key,
+            help="Choose a project management action only when needed.",
+        )
+    if quick_choice in quick_actions:
+        return str(quick_choice)
+    return default_action
+
+
+def render_project_sidebar(
+    env,
+    *,
+    actions=PROJECT_EDITOR_ACTIONS,
+    render_edit_body: bool = True,
+) -> str | None:
+    """Render the reusable PROJECT sidebar and dispatch selected project action."""
+    actions = _normalize_project_sidebar_actions(actions)
+    if not actions:
+        return None
+
+    _ensure_project_sidebar_session_defaults(
+        st,
+        env,
+        actions,
+        get_templates=get_templates,
+        get_projects_zip=get_projects_zip,
+    )
+
+    if st.session_state.get("sidebar_selection") == "Clone":
+        st.session_state["sidebar_selection"] = "Create"
+    if st.session_state.get("sidebar_selection") not in actions:
+        st.session_state["sidebar_selection"] = actions[0]
+
+    _render_active_project_sidebar(env)
+    env = st.session_state["env"]
+
+    _render_pypi_app_install_action(env)
+    sidebar_selection = _render_project_quick_actions(actions)
+    st.session_state["sidebar_selection"] = sidebar_selection
+
+    if sidebar_selection == "Overview":
+        pass
+    elif sidebar_selection == "Edit":
+        if render_edit_body:
+            handle_project_selection()
+        else:
+            st.sidebar.info("Use Edit to open file, configuration, runtime, and code editors.")
+    elif sidebar_selection == "Create":
+        handle_project_creation()
+    elif sidebar_selection == "Export":
+        handle_export_project()
+    elif sidebar_selection == "Rename":
+        handle_project_rename()
+    elif sidebar_selection == "Delete":
+        handle_project_delete()
+    elif sidebar_selection == "Import":
+        handle_project_import()
+    return sidebar_selection
+
+
+def _safe_display_path(value) -> str:
+    if value in (None, ""):
+        return "not configured"
+    try:
+        return str(Path(value).expanduser())
+    except (TypeError, ValueError, RuntimeError):
+        return str(value)
+
+
+_INCOMPLETE_HEADER_VALUE_TOKENS = (
+    "incomplete",
+    "missing",
+    "not configured",
+    "not selected",
+    "not set",
+    "unknown",
+)
+
+
+def _header_value_state(value: str, caption: str = "") -> str:
+    normalized = f"{value or ''} {caption or ''}".strip().lower()
+    if not normalized:
+        return "incomplete"
+    if any(token in normalized for token in _INCOMPLETE_HEADER_VALUE_TOKENS):
+        return "incomplete"
+    return "ready"
+
+
+def _render_metric_card(container, label: str, value: str, caption: str) -> None:
+    state = _header_value_state(value, caption)
+    container.markdown(
+        (
+            f"<div class='agilab-header-card agilab-header-card--{state}'>"
+            f"<div class='agilab-header-label'>{html.escape(label)}</div>"
+            f"<div class='agilab-header-value agilab-header-value--{state}'>{html.escape(str(value))}</div>"
+            f"<div class='agilab-header-caption'>{html.escape(caption)}</div>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def _render_project_metric(label: str, value: str, caption: str) -> None:
+    _render_metric_card(st, label, value, caption)
+
+
+_SOFTWARE_METRIC_EXCLUDED_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "htmlcov",
+    "venv",
+}
+_SOFTWARE_METRIC_DOC_SUFFIXES = {".md", ".rst"}
+_SOFTWARE_METRIC_CONFIG_SUFFIXES = {".cfg", ".ini", ".json", ".toml", ".yaml", ".yml"}
+_SOFTWARE_METRIC_CONFIG_NAMES = {".env", ".gitignore", "Dockerfile"}
+
+
+def _iter_project_metric_files(project_root: Path):
+    try:
+        root = Path(project_root)
+    except TypeError:
+        return
+    if not root.exists():
+        return
+    for current_root, dirs, files in os.walk(root):
+        dirs[:] = sorted(
+            dirname
+            for dirname in dirs
+            if dirname not in _SOFTWARE_METRIC_EXCLUDED_DIRS
+            and not dirname.startswith(".")
+        )
+        for filename in sorted(files):
+            yield Path(current_root) / filename
+
+
+def _python_source_line_count(source: str) -> int:
+    return sum(
+        1
+        for line in source.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    )
+
+
+def _is_test_file(path: Path, project_root: Path) -> bool:
+    try:
+        rel = path.relative_to(project_root)
+    except ValueError:
+        rel = path
+    return path.name.startswith("test_") or "test" in rel.parts or "tests" in rel.parts
+
+
+def _project_metric_tokens(project_root: Path) -> tuple[str, ...]:
+    tokens = {project_root.name}
+    if project_root.name.endswith("_project"):
+        tokens.add(project_root.name.removesuffix("_project"))
+    if project_root.name == "flight_telemetry_project":
+        tokens.add("flight")
+    src_root = project_root / "src"
+    if src_root.exists():
+        for child in sorted(src_root.iterdir()):
+            if child.is_dir() and (child / "__init__.py").exists():
+                tokens.add(child.name)
+    return tuple(
+        sorted(token.lower().replace("-", "_") for token in tokens if len(token) >= 3)
+    )
+
+
+def _test_filename_matches_project_token(path: Path, tokens: tuple[str, ...]) -> bool:
+    stem_parts = path.stem.lower().replace("-", "_").split("_")
+    for token in tokens:
+        token_parts = token.split("_")
+        token_len = len(token_parts)
+        if any(
+            stem_parts[index : index + token_len] == token_parts
+            for index in range(len(stem_parts) - token_len + 1)
+        ):
+            return True
+    return False
+
+
+def _iter_repo_project_test_files(project_root: Path):
+    repo_root = Path(__file__).resolve().parents[3]
+    repo_tests = repo_root / "test"
+    if not repo_tests.exists():
+        return
+    try:
+        project_root.resolve().relative_to(repo_root.resolve())
+    except ValueError:
+        return
+    tokens = _project_metric_tokens(project_root)
+    if not tokens:
+        return
+    for path in sorted(repo_tests.glob("test_*.py")):
+        if _test_filename_matches_project_token(path, tokens):
+            yield path
+
+
+def _project_software_metric_summary(
+    project_root: Path | None,
+) -> dict[str, int] | None:
+    if project_root is None or not project_root.exists():
+        return None
+    summary = {
+        "source_files": 0,
+        "source_lines": 0,
+        "test_files": 0,
+        "functions": 0,
+        "classes": 0,
+        "docs_config": 0,
+    }
+    counted_tests: set[Path] = set()
+    for path in _iter_project_metric_files(project_root):
+        suffix = path.suffix.lower()
+        if suffix in _SOFTWARE_METRIC_DOC_SUFFIXES:
+            summary["docs_config"] += 1
+        if (
+            suffix in _SOFTWARE_METRIC_CONFIG_SUFFIXES
+            or path.name in _SOFTWARE_METRIC_CONFIG_NAMES
+        ):
+            summary["docs_config"] += 1
+        if suffix != ".py":
+            continue
+        is_test = _is_test_file(path, project_root)
+        if is_test:
+            summary["test_files"] += 1
+            counted_tests.add(path.resolve())
+        else:
+            summary["source_files"] += 1
+        try:
+            source = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if not is_test:
+            summary["source_lines"] += _python_source_line_count(source)
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            continue
+        summary["functions"] += sum(
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            for node in ast.walk(tree)
+        )
+        summary["classes"] += sum(
+            isinstance(node, ast.ClassDef) for node in ast.walk(tree)
+        )
+    for path in _iter_repo_project_test_files(project_root):
+        resolved = path.resolve()
+        if resolved in counted_tests:
+            continue
+        summary["test_files"] += 1
+        counted_tests.add(resolved)
+    return summary
+
+
+def _ast_base_name(node: ast.expr) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    if isinstance(node, ast.Subscript):
+        return _ast_base_name(node.value)
+    if isinstance(node, ast.Call):
+        return _ast_base_name(node.func)
+    return ""
+
+
+def _project_worker_class_summary(project_root: Path | None) -> tuple[str, str]:
+    candidate_roots = _project_metric_roots(project_root)
+    if not candidate_roots:
+        return "unknown", "project root missing"
+
+    discovered: list[tuple[str, str, Path]] = []
+    fallback_base_workers: list[tuple[str, str, Path]] = []
+    for root in candidate_roots:
+        for path in _iter_project_metric_files(root):
+            if path.suffix.lower() != ".py" or _is_test_file(path, root):
+                continue
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
+            except (OSError, SyntaxError):
+                continue
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ClassDef):
+                    continue
+                bases = [_ast_base_name(base) for base in node.bases]
+                worker_bases = [
+                    base
+                    for base in bases
+                    if base.endswith("Worker") and base != "BaseWorker"
+                ]
+                if node.name.endswith("Worker") or worker_bases:
+                    base_name = next(
+                        (base for base in worker_bases if base != node.name), None
+                    )
+                    discovered.append((base_name or "Worker", node.name, path))
+                elif "BaseWorker" in bases:
+                    fallback_base_workers.append(("BaseWorker", node.name, path))
+        if discovered:
+            break
+
+    if not discovered and fallback_base_workers:
+        discovered = fallback_base_workers
+    if not discovered:
+        return "unknown", "no worker class found"
+
+    discovered.sort(
+        key=lambda item: (0 if item[1].endswith("Worker") else 1, str(item[2]), item[1])
+    )
+    base_name, class_name, _path = discovered[0]
+    extra = len(discovered) - 1
+    caption = class_name if extra == 0 else f"{class_name} + {extra} more"
+    return base_name, caption
+
+
+def _project_metric_roots(project_root: Path | None) -> list[Path]:
+    if project_root is None:
+        return []
+    candidate_roots = [project_root] if project_root.exists() else []
+    builtin_root = project_root.parent / "builtin" / project_root.name
+    if builtin_root.exists() and builtin_root not in candidate_roots:
+        candidate_roots.append(builtin_root)
+    return candidate_roots
+
+
+def _project_ui_page_count(active_app: Path | None) -> int:
+    candidate_roots = _project_metric_roots(active_app)
+    ui_files: set[Path] = set()
+    for root in candidate_roots:
+        pages_dir = root / "pages"
+        if pages_dir.is_dir():
+            ui_files.update(
+                path
+                for path in sorted(pages_dir.glob("*.py"))
+                if path.name != "__init__.py"
+            )
+        src_dir = root / "src"
+        if src_dir.is_dir():
+            for pattern in ("**/app_surface.py", "**/app_args_form.py", "**/streamlit_app.py"):
+                ui_files.update(
+                    path
+                    for path in sorted(src_dir.glob(pattern))
+                    if path.name != "__init__.py"
+                )
+    return len(ui_files)
+
+
+def _format_project_kloc(source_lines: object) -> str:
+    try:
+        lines = int(source_lines)
+    except (TypeError, ValueError):
+        return "unknown"
+    return f"{lines / 1000:.1f} KLOC"
+
+
+def _render_project_software_metrics(env) -> None:
+    active_app = (
+        Path(getattr(env, "active_app", ""))
+        if getattr(env, "active_app", None)
+        else None
+    )
+    summary = _project_software_metric_summary(active_app)
+    if summary is None:
+        st.code(
+            f"Software metrics: missing ({_safe_display_path(active_app)})",
+            language="text",
+        )
+        return
+    worker_class, worker_caption = _project_worker_class_summary(active_app)
+    st.code(
+        "\n".join(
+            (
+                f"Worker class: {worker_class} ({worker_caption})",
+                f"Source KLOC: {_format_project_kloc(summary['source_lines'])}",
+                f"Tests: {summary['test_files']}",
+                f"Functions: {summary['functions']}",
+                f"Classes: {summary['classes']}",
+                f"Docs/config files: {summary['docs_config']}",
+                f"UI pages: {_project_ui_page_count(active_app)}",
+            )
+        ),
+        language="text",
+    )
+
+
+def _expander_icon(label: str) -> str:
+    """Return an emoji prefix based on the expander name."""
+    mapping = {
+        "README": "📘",
+        "PYTHON-ENV": "⚙️",
+        "PYTHON-ENV-EXTRA": "⚙️",
+        "PYTHON-ENV-WORKER": "⚙️",
+        "LOGS": "⚙️",
+        "PRE-PROMPT": "️⚙️",
+        "EXPORT-APP-FILTER": "⚙️",
+        "APP-SETTINGS": "🔧",
+        "APP-ARGS": "🔧",
+        "APP-ARGS-FORM": "🔧",
+        "MANAGER": "🐍",
+        "WORKER": "🐍",
+        "DOCUMENTATION": "📘",
+        "CONFIGURATION": "🔧",
+        "RUNTIME": "⚙️",
+        "AI": "⚙️",
+        "CODE": "🐍",
+    }
+    normalized = label.strip().upper().replace("‑", "-")
+    for key, icon in mapping.items():
+        if normalized.startswith(key):
+            return icon
+    return ""
+
+
+# helper functions
+
+
+def _render_python_env(env):
+    app_venv_file = env.active_app / "pyproject.toml"
+    if app_venv_file.exists():
+        app_venv = app_venv_file.read_text()
+        render_code_editor(
+            app_venv_file,
+            app_venv,
+            "toml",
+            "pyproject",
+            comp_props,
+            ace_props,
+            scope="pyproject-manager",
+        )
+    else:
+        st.warning("Manager pyproject.toml file not found.")
+
+
+def _render_worker_python_env(env):
+    worker_pyproject = getattr(env, "worker_pyproject", None)
+    manager_pyproject = env.active_app / "pyproject.toml"
+    if (
+        isinstance(worker_pyproject, Path)
+        and worker_pyproject.exists()
+        and worker_pyproject != manager_pyproject
+    ):
+        render_code_editor(
+            worker_pyproject,
+            worker_pyproject.read_text(),
+            "toml",
+            "worker-pyproject",
+            comp_props,
+            ace_props,
+            scope="pyproject-worker",
+        )
+    else:
+        st.warning("No worker-specific pyproject.toml is defined for this project.")
+
+
+def _render_uv_env(env):
+    app_venv_file = getattr(env, "uvproject", env.active_app / "uv_config.toml")
+    if app_venv_file.exists():
+        app_venv = app_venv_file.read_text()
+        if "-cu12" in app_venv:
+            st.session_state["rapids"] = True
+        render_code_editor(
+            app_venv_file,
+            app_venv,
+            "toml",
+            "uv",
+            comp_props,
+            ace_props,
+            scope="uv-config",
+        )
+    else:
+        st.warning("No uv_config.toml is defined for this project.")
+
+
+def _render_manager(env):
+    st.header("Edit Manager Module")
+    handle_editing(env.manager_path, "edit_tab_manager", comp_props, ace_props)
+
+
+def _render_worker(env):
+    st.header("Edit Worker Module")
+    handle_editing(env.worker_path, "edit_tab_worker", comp_props, ace_props)
+
+
+def _render_gitignore(env):
+    gitignore_file = env.gitignore_file
+    if gitignore_file.exists():
+        render_code_editor(
+            gitignore_file,
+            gitignore_file.read_text(),
+            "gitignore",
+            "git",
+            comp_props,
+            ace_props,
+            scope="gitignore",
+        )
+    else:
+        st.warning("Gitignore file not found.")
+
+
+def _render_app_settings(env):
+    app_settings_file = getattr(env, "app_settings_file", None)
+    if app_settings_file is None:
+        st.warning("App settings file is not configured for this project.")
+        return
+
+    try:
+        app_settings_file = env.resolve_user_app_settings_file(ensure_exists=True)
+    except (AttributeError, RuntimeError, OSError, TypeError, ValueError):
+        # Keep backward-compatible behavior: fall back to the existing path.
+        pass
+
+    if app_settings_file.exists():
+        env.app_settings_file = app_settings_file
+        render_code_editor(
+            app_settings_file,
+            app_settings_file.read_text(),
+            "toml",
+            "set",
+            comp_props,
+            ace_props,
+            scope="app-settings",
+        )
+    else:
+        st.warning("App settings file not found.")
+
+
+def _render_app_args_module(env):
+    target = env.target
+    if not target:
+        st.warning("Runtime module not resolved; argument helpers unavailable.")
+        return
+
+    module_name = f"{target}_args.py"
+    args_module_py = env.app_src / target / module_name
+    if args_module_py.exists():
+        render_code_editor(
+            args_module_py,
+            args_module_py.read_text(),
+            "python",
+            "st",
+            comp_props,
+            ace_props,
+            scope="app-args-module",
+        )
+    else:
+        st.warning(f"{module_name} file not found.")
+
+
+def _render_readme(env):
+    readme_file = env.active_app / "README.md"
+    if readme_file.exists():
+        readme_text = readme_file.read_text(encoding="utf-8")
+        render_code_editor(
+            readme_file,
+            readme_text,
+            "markdown",
+            "readme",
+            comp_props,
+            ace_props,
+            scope="readme",
+        )
+    else:
+        st.warning("README.md file not found.")
+
+
+def _render_args_ui(env):
+    app_args_form = env.app_args_form
+    if app_args_form.exists():
+        render_code_editor(
+            app_args_form,
+            app_args_form.read_text(),
+            "python",
+            "st",
+            comp_props,
+            ace_props,
+            scope="app-args-ui",
+        )
+    else:
+        st.warning("Args UI snippet file not found.")
+
+
+def _render_pre_prompt(env):
+    global comp_props, ace_props
+    candidates = [
+        env.app_src / "pre_prompt.json",
+        env.app_src / "app_arg_prompt.json",
+        env.app_src / "app_args_prompt.json",
+    ]
+    target = next((p for p in candidates if p.exists()), None)
+    if not target:
+        st.warning("No pre_prompt/app_arg prompt file found.")
+        return
+
+    with open(target, "r", encoding="utf-8") as f:
+        try:
+            pre_prompt_content = json.load(f)
+            pre_prompt_str = json.dumps(pre_prompt_content, indent=4)
+            language = "json"
+        except json.JSONDecodeError:
+            f.seek(0)
+            pre_prompt_str = f.read()
+            language = "markdown"
+
+    ace = {**ace_props, "language": language}
+
+    render_code_editor(
+        target,
+        pre_prompt_str,
+        language,
+        "st",
+        comp_props,
+        ace,
+        scope="pre-prompt",
+    )
+
+
+def _create_project_clone_action(
+    env: AgiEnv,
+    *,
+    clone_source: str | Path,
+    raw_project_name: str,
+    clone_env_strategy: str,
+) -> ActionResult:
+    raw = raw_project_name.strip()
+    if not raw:
+        return ActionResult.error("Project name must not be empty.")
+
+    new_name = normalize_project_name(raw)
+    if not new_name:
+        return ActionResult.error("Could not normalize project name.")
+
+    dest_root = env.apps_path / new_name
+    if dest_root.exists():
+        return ActionResult.warning(
+            f"Project '{new_name}' already exists.",
+            next_action="Choose another project name or remove the existing project first.",
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
+
+    clone_source_path = Path(clone_source)
+    resolved_clone_source_path = _resolve_clone_source_project(env, clone_source_path)
+    clone_source_root = _resolve_clone_source_root(env, resolved_clone_source_path)
+    try:
+        env.clone_project(resolved_clone_source_path, Path(new_name))
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{new_name}' could not be cloned.",
+            detail=str(exc),
+            next_action="Check the clone source, destination path, and filesystem permissions.",
+            data={
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "clone_source": clone_source_path,
+                "resolved_clone_source": resolved_clone_source_path,
+            },
+        )
+
+    if not dest_root.exists():
+        return ActionResult.error(
+            f"Error while creating '{new_name}'.",
+            next_action="Check the clone source, destination path, and filesystem permissions.",
+            data={
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "clone_source": clone_source_path,
+                "resolved_clone_source": resolved_clone_source_path,
+            },
+        )
+
+    try:
+        source_path_repair_message = _repair_cloned_builtin_core_source_paths(
+            env,
+            clone_source_root,
+            dest_root,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{new_name}' was created, but local source paths could not be repaired.",
+            detail=str(exc),
+            next_action="Inspect the cloned pyproject.toml files, then rerun INSTALL before EXECUTE.",
+            data={
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "clone_source": clone_source_path,
+                "resolved_clone_source": resolved_clone_source_path,
+            },
+        )
+
+    try:
+        status_message = _finalize_cloned_project_environment(
+            clone_source_root,
+            dest_root,
+            clone_env_strategy,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{new_name}' was created, but environment finalization failed.",
+            detail=str(exc),
+            next_action="Check the cloned .venv state, then rerun INSTALL before EXECUTE.",
+            data={
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "clone_source": clone_source_path,
+                "resolved_clone_source": resolved_clone_source_path,
+                "clone_env_strategy": clone_env_strategy,
+            },
+        )
+    return ActionResult.success(
+        f"Project '{new_name}' created.",
+        detail="\n\n".join(
+            part for part in (status_message, source_path_repair_message) if part
+        )
+        or None,
+        data={
+            "new_name": new_name,
+            "dest_root": dest_root,
+            "clone_source": clone_source_path,
+            "resolved_clone_source": resolved_clone_source_path,
+            "clone_env_strategy": clone_env_strategy,
+        },
+    )
+
+
+def _safe_uploaded_notebook_name(uploaded_notebook) -> str:
+    raw_name = str(getattr(uploaded_notebook, "name", "") or "source.ipynb")
+    name = Path(raw_name).name
+    if not name.lower().endswith(".ipynb"):
+        stem = Path(name).stem or "source"
+        name = f"{stem}.ipynb"
+    name = re.sub(r"[^0-9A-Za-z._-]+", "_", name).strip("._")
+    return name if name else "source.ipynb"
+
+
+def _read_uploaded_notebook_bytes(uploaded_notebook) -> bytes:
+    if uploaded_notebook is None:
+        raise ValueError("No notebook file was uploaded.")
+
+    getvalue = getattr(uploaded_notebook, "getvalue", None)
+    if callable(getvalue):
+        raw = getvalue()
+    else:
+        seek = getattr(uploaded_notebook, "seek", None)
+        if callable(seek):
+            try:
+                seek(0)
+            except (OSError, ValueError):
+                pass
+        raw = uploaded_notebook.read()
+        if callable(seek):
+            try:
+                seek(0)
+            except (OSError, ValueError):
+                pass
+
+    if isinstance(raw, bytes):
+        return raw
+    if isinstance(raw, str):
+        return raw.encode("utf-8")
+    if raw is None:
+        return b""
+    return bytes(raw)
+
+
+def _packaged_sample_notebook_upload(sample_id: str | None = None):
+    """Return the packaged sample as an upload-like object without touching file_uploader state."""
+    selected_sample_id = (
+        sample_id or _notebook_import_sample_module.SAMPLE_NOTEBOOK_DEFAULT_ID
+    )
+    sample = _notebook_import_sample_module.get_sample_notebook(selected_sample_id)
+    sample_bytes = _notebook_import_sample_module.read_sample_notebook_bytes(
+        sample.sample_id
+    )
+    return SimpleNamespace(
+        name=sample.download_name,
+        type=_notebook_import_sample_module.SAMPLE_NOTEBOOK_MIME,
+        agilab_source_kind="packaged_sample_notebook",
+        agilab_trust_status="packaged-sample",
+        getvalue=lambda sample_bytes=sample_bytes: sample_bytes,
+        read=lambda sample_bytes=sample_bytes: sample_bytes,
+    )
+
+
+def _active_notebook_import_source(session_state):
+    """Return the user upload, or the one-shot packaged sample selected by the wizard."""
+    uploaded_notebook = session_state.get("create_notebook_upload")
+    if uploaded_notebook is not None:
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+        return uploaded_notebook
+    if session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY):
+        try:
+            sample_id = str(
+                session_state.get(PROJECT_NOTEBOOK_SAMPLE_ID_KEY)
+                or _notebook_import_sample_module.SAMPLE_NOTEBOOK_DEFAULT_ID
+            )
+            session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+            return _packaged_sample_notebook_upload(sample_id)
+        except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+            session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
+            session_state[PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY] = str(exc)
+    return None
+
+
+def _uploaded_notebook_signature(uploaded_notebook, notebook_bytes: bytes) -> str:
+    name = str(getattr(uploaded_notebook, "name", "") or "uploaded.ipynb")
+    digest = hashlib.sha256(notebook_bytes).hexdigest()[:16]
+    return f"{name}:{len(notebook_bytes)}:{digest}"
+
+
+def _notebook_import_defaults_from_upload(uploaded_notebook) -> dict[str, str]:
+    if uploaded_notebook is None:
+        return {}
+    notebook_bytes = _read_uploaded_notebook_bytes(uploaded_notebook)
+    if not notebook_bytes.strip():
+        return {}
+    payload = json.loads(notebook_bytes.decode("utf-8"))
+    if not isinstance(payload, dict):
+        return {}
+    defaults = _extract_notebook_import_defaults(payload)
+    defaults["_signature"] = _uploaded_notebook_signature(
+        uploaded_notebook, notebook_bytes
+    )
+    return defaults
+
+
+def _apply_notebook_import_defaults_from_upload(
+    session_state,
+    uploaded_notebook,
+    template_options: list[str],
+) -> dict[str, str]:
+    """Apply notebook metadata as UI defaults without overwriting user edits."""
+    if uploaded_notebook is None:
+        session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY, None)
+        return {}
+
+    try:
+        defaults = _notebook_import_defaults_from_upload(uploaded_notebook)
+    except (
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+    ):
+        return {}
+
+    signature = str(defaults.get("_signature", "") or "")
+    if not signature:
+        return {}
+
+    previous_signature = str(
+        session_state.get(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY, "") or ""
+    )
+    previous_defaults = session_state.get(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY, {})
+    if not isinstance(previous_defaults, dict):
+        previous_defaults = {}
+    if signature == previous_signature:
+        return {
+            key: value for key, value in defaults.items() if not key.startswith("_")
+        }
+
+    visible_defaults = {
+        key: value for key, value in defaults.items() if not key.startswith("_")
+    }
+
+    previous_project_name = str(
+        previous_defaults.get("project_name_hint", "") or ""
+    ).strip()
+    if "project_name_hint" not in visible_defaults and previous_project_name:
+        current_project_name = str(session_state.get("clone_dest", "") or "").strip()
+        if current_project_name == previous_project_name:
+            session_state.pop("clone_dest", None)
+
+    previous_template = str(
+        previous_defaults.get("recommended_template", "") or ""
+    ).strip()
+    current_template = str(session_state.get("notebook_clone_src", "") or "").strip()
+    if previous_template and current_template == previous_template:
+        if "recommended_template" not in visible_defaults:
+            session_state.pop("notebook_clone_src", None)
+            current_template = ""
+    elif current_template and current_template not in template_options:
+        session_state.pop("notebook_clone_src", None)
+        current_template = ""
+
+    project_name_hint = str(defaults.get("project_name_hint", "") or "").strip()
+    if project_name_hint:
+        current_project_name = str(session_state.get("clone_dest", "") or "").strip()
+        if not current_project_name or current_project_name == previous_project_name:
+            session_state["clone_dest"] = project_name_hint
+
+    recommended_template = str(defaults.get("recommended_template", "") or "").strip()
+    if recommended_template in template_options:
+        current_template = str(
+            session_state.get("notebook_clone_src", "") or ""
+        ).strip()
+        if (
+            not current_template
+            or current_template == previous_template
+            or current_template not in template_options
+        ):
+            session_state["notebook_clone_src"] = recommended_template
+
+    session_state[PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY] = visible_defaults
+    session_state[PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY] = signature
+    return visible_defaults
+
+
+def _render_notebook_import_sample_actions(target, session_state) -> None:
+    """Render packaged notebook state without reselection UI."""
+    if session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY):
+        target.caption("Using AGILAB's included notebook; no local file is needed.")
+    elif session_state.get(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY):
+        target.caption(
+            f"Sample notebook unavailable: {session_state[PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY]}"
+        )
+
+
+def _is_guided_notebook_import(session_state, active_notebook_source) -> bool:
+    """Return true when PROJECT was opened from the ABOUT built-in notebook wizard."""
+    return (
+        bool(session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY))
+        and active_notebook_source is not None
+    )
+
+
+def _guided_notebook_import_values(
+    session_state,
+    notebook_defaults: dict[str, str],
+    *,
+    default_project: str,
+    default_template: str,
+    template_options: list[str],
+) -> tuple[str, str]:
+    """Resolve the fixed project/template values for the guided sample import."""
+    project_name = str(
+        notebook_defaults.get("project_name_hint")
+        or session_state.get("clone_dest")
+        or default_project
+    ).strip()
+    template_name = str(
+        notebook_defaults.get("recommended_template")
+        or session_state.get("notebook_clone_src")
+        or default_template
+    ).strip()
+    if template_name not in template_options:
+        template_name = default_template
+    session_state["clone_dest"] = project_name
+    session_state["notebook_clone_src"] = template_name
+    return project_name, template_name
+
+
+def _registered_navigation_page(route_id: str):
+    """Return a registered ``st.Page`` object from the active main navigation run."""
+    for module_name in ("__main__", "agilab.main_page"):
+        module = sys.modules.get(module_name)
+        routes = getattr(module, NAVIGATION_PAGE_ROUTES_ATTR, None)
+        if isinstance(routes, dict) and routes.get(route_id) is not None:
+            return routes[route_id]
+    return None
+
+
+def _switch_to_registered_navigation_page(
+    route_id: str,
+    label: str,
+    *,
+    query_params: dict[str, str] | None = None,
+) -> bool:
+    """Switch to a callable ``st.Page`` from ``st.navigation`` without legacy path crashes."""
+    switch_page = getattr(st, "switch_page", None)
+    page = _registered_navigation_page(route_id)
+    if not callable(switch_page) or page is None:
+        return False
+    try:
+        switch_page(page, query_params=query_params)
+    except StreamlitAPIException as exc:
+        st.session_state["project_navigation_warning"] = (
+            f"Project was created, but AGILAB could not open {label} automatically: {exc}"
+        )
+        return False
+    return True
+
+
+def _notebook_project_source_options(
+    env: AgiEnv, template_options: list[str]
+) -> list[str]:
+    """Return cloneable sources for notebook import: app projects first, then templates."""
+    options: list[str] = []
+
+    def is_available_app_source(value: object) -> bool:
+        name = str(value or "").strip()
+        if not name:
+            return False
+        try:
+            source_project = _resolve_clone_source_project(env, Path(name))
+            source_root = _resolve_clone_source_root(env, source_project)
+            return source_root.exists()
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            return False
+
+    def add(value: object, *, require_available: bool = False) -> None:
+        name = str(value or "").strip()
+        if (
+            name
+            and name not in options
+            and (not require_available or is_available_app_source(name))
+        ):
+            options.append(name)
+
+    add(getattr(env, "app", ""), require_available=True)
+    for project in getattr(env, "projects", []) or []:
+        add(project, require_available=True)
+    for template in template_options:
+        add(template)
+    return options
+
+
+def _decode_notebook_upload(uploaded_notebook) -> dict:
+    raw = uploaded_notebook.read()
+    if isinstance(raw, bytes):
+        text = raw.decode("utf-8")
+    else:
+        text = str(raw)
+    payload = json.loads(text)
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid notebook format: expected a JSON object.")
+    return payload
+
+
+def _build_project_notebook_import_preview(uploaded_notebook, module_dir: Path) -> dict:
+    notebook_content = _decode_notebook_upload(uploaded_notebook)
+    module = Path(module_dir).name or "notebook_import_project"
+    source_name = str(getattr(uploaded_notebook, "name", "") or "uploaded.ipynb")
+    notebook_import = _build_notebook_pipeline_import(
+        notebook=notebook_content,
+        source_notebook=source_name,
+    )
+    preflight = _build_notebook_import_preflight(notebook_import)
+    return {
+        "source_name": source_name,
+        "module": module,
+        "cell_count": int(
+            notebook_import.get("summary", {}).get("pipeline_stage_count", 0) or 0
+        ),
+        "toml_content": _build_lab_stages_preview(notebook_import, module_name=module),
+        "notebook_import": notebook_import,
+        "preflight": preflight,
+        "contract": _build_notebook_import_contract(
+            notebook_import,
+            preflight=preflight,
+            module_name=module,
+        ),
+    }
+
+
+def _project_notebook_stage_identity(stage: dict, index: int) -> str:
+    return str(stage.get("id", "") or f"cell-{index}")
+
+
+def _project_notebook_string_list(value, limit: int = 5) -> str:
+    if not isinstance(value, list):
+        return "none"
+    items = [str(item) for item in value if str(item)]
+    if not items:
+        return "none"
+    visible = items[:limit]
+    suffix = f", +{len(items) - limit} more" if len(items) > limit else ""
+    return ", ".join(visible) + suffix
+
+
+def _project_notebook_artifact_paths(stage: dict) -> list[str]:
+    references = stage.get("artifact_references", [])
+    if not isinstance(references, list):
+        return []
+    paths: list[str] = []
+    for reference in references:
+        if not isinstance(reference, dict):
+            continue
+        path = str(reference.get("path", "") or "")
+        if path:
+            paths.append(path)
+    return paths
+
+
+def _project_notebook_first_code_line(stage: dict) -> str:
+    source_lines = stage.get("source_lines", [])
+    if not isinstance(source_lines, list):
+        return ""
+    for line in source_lines:
+        text = str(line).strip()
+        if text:
+            return text[:96] + ("..." if len(text) > 96 else "")
+    return ""
+
+
+def _project_notebook_runtime_role_cell_hint(stage: dict, index: int) -> str:
+    source_cell_index = int(stage.get("source_cell_index", index) or index)
+    env_hints = stage.get("env_hints", [])
+    if not isinstance(env_hints, list):
+        env_hints = []
+    return (
+        f"Cell {source_cell_index}: {_project_notebook_first_code_line(stage) or 'code cell'}; "
+        f"artifacts: {_project_notebook_string_list(_project_notebook_artifact_paths(stage), limit=3)}; "
+        f"environment hints: {_project_notebook_string_list(env_hints, limit=4)}."
+    )
+
+
+def _project_notebook_import_stages(preview: dict) -> list[dict]:
+    notebook_import = preview.get("notebook_import", {})
+    if not isinstance(notebook_import, dict):
+        return []
+    stages = notebook_import.get("pipeline_stages", [])
+    return [stage for stage in stages if isinstance(stage, dict)]
+
+
+def _project_notebook_runtime_role_review_detail(preview: dict) -> str:
+    missing = [
+        _project_notebook_stage_identity(stage, index)
+        for index, stage in enumerate(_project_notebook_import_stages(preview), start=1)
+        if not _normalize_notebook_runtime_role(stage.get("runtime_role"))
+    ]
+    if not missing:
+        return ""
+    visible = ", ".join(missing[:8])
+    suffix = f", +{len(missing) - 8} more" if len(missing) > 8 else ""
+    return f"Select Manager or Worker for: {visible}{suffix}."
+
+
+def _project_notebook_import_preview_with_runtime_roles(
+    preview: dict, runtime_roles: dict | None
+) -> dict:
+    role_map = runtime_roles or {}
+    if not role_map:
+        return preview
+    notebook_import = preview.get("notebook_import", {})
+    if not isinstance(notebook_import, dict):
+        return preview
+
+    module = str(preview.get("module", "") or "notebook_import_project")
+    updated_import = _apply_notebook_runtime_roles(notebook_import, role_map)
+    preflight = _build_notebook_import_preflight(updated_import)
+    updated = dict(preview)
+    updated.update(
+        {
+            "notebook_import": updated_import,
+            "preflight": preflight,
+            "toml_content": _build_lab_stages_preview(
+                updated_import, module_name=module
+            ),
+            "contract": _build_notebook_import_contract(
+                updated_import,
+                preflight=preflight,
+                module_name=module,
+            ),
+        }
+    )
+    return updated
+
+
+def _project_notebook_preview_from_upload(
+    uploaded_notebook, project_name: str
+) -> tuple[dict | None, str]:
+    if uploaded_notebook is None:
+        return None, ""
+    try:
+        notebook_bytes = _read_uploaded_notebook_bytes(uploaded_notebook)
+        preview_upload = SimpleNamespace(
+            name=_safe_uploaded_notebook_name(uploaded_notebook),
+            type=getattr(uploaded_notebook, "type", "application/x-ipynb+json"),
+            read=lambda notebook_bytes=notebook_bytes: notebook_bytes,
+        )
+        module_name = normalize_project_name(project_name) or "notebook_import_project"
+        preview = _build_project_notebook_import_preview(
+            preview_upload, Path(module_name)
+        )
+        preview["source_signature"] = _uploaded_notebook_signature(
+            uploaded_notebook, notebook_bytes
+        )
+        return preview, ""
+    except (
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+    ) as exc:
+        return None, str(exc)
+
+
+def _render_project_notebook_runtime_role_review(
+    target, uploaded_notebook, project_name: str
+) -> tuple[dict, str]:
+    preview, error = _project_notebook_preview_from_upload(
+        uploaded_notebook, project_name
+    )
+    if preview is None:
+        if error:
+            target.caption(f"Notebook runtime review unavailable: {error}")
+        return {}, ""
+
+    preflight = preview.get("preflight", {})
+    if not isinstance(preflight, dict) or not preflight.get("safe_to_import"):
+        return {}, ""
+
+    stages = _project_notebook_import_stages(preview)
+    if not stages:
+        return {}, ""
+
+    detail_before_review = _project_notebook_runtime_role_review_detail(preview)
+    expander = target.expander(
+        "Notebook runtime roles", expanded=bool(detail_before_review)
+    )
+    expander.caption(
+        "Select Manager or Worker for every runnable cell before creating the project."
+    )
+
+    labels = list(NOTEBOOK_RUNTIME_ROLE_BY_LABEL)
+    source_signature = re.sub(
+        r"[^A-Za-z0-9_]+", "_", str(preview.get("source_signature", "") or "")
+    ).strip("_")
+    selected_roles: dict[str, str] = {}
+    for index, stage in enumerate(stages, start=1):
+        stage_id = _project_notebook_stage_identity(stage, index)
+        current_role = _normalize_notebook_runtime_role(stage.get("runtime_role"))
+        default_label = NOTEBOOK_RUNTIME_ROLE_LABELS.get(
+            current_role, NOTEBOOK_RUNTIME_ROLE_LABELS[""]
+        )
+        try:
+            default_index = labels.index(default_label)
+        except ValueError:
+            default_index = 0
+        selected_label = expander.selectbox(
+            f"Cell {int(stage.get('source_cell_index', index) or index)} runtime",
+            labels,
+            index=default_index,
+            key=f"{PROJECT_NOTEBOOK_RUNTIME_ROLE_KEY_PREFIX}_{source_signature}_{stage_id}",
+            help=(
+                "Manager runs locally with runpy. Worker persists the stage for "
+                "AGILAB worker execution with agi.run."
+            ),
+        )
+        expander.caption(_project_notebook_runtime_role_cell_hint(stage, index))
+        role = NOTEBOOK_RUNTIME_ROLE_BY_LABEL.get(str(selected_label), "")
+        if role:
+            selected_roles[stage_id] = role
+
+    reviewed_preview = _project_notebook_import_preview_with_runtime_roles(
+        preview, selected_roles
+    )
+    detail = _project_notebook_runtime_role_review_detail(reviewed_preview)
+    if detail:
+        expander.warning(f"Runtime review required: {detail}")
+    return selected_roles, detail
+
+
+def _write_project_notebook_import_preview(
+    preview: dict,
+    module_dir: Path,
+    stages_file: Path,
+) -> int:
+    module_dir = Path(module_dir)
+    stages_file = Path(stages_file)
+    return int(
+        _write_notebook_import_preview(
+            preview,
+            module_dir,
+            stages_file,
+            view_manifest_dir=module_dir,
+        )
+    )
+
+
+def _notebook_import_blocking_detail(preflight) -> str:
+    if not isinstance(preflight, dict):
+        return "Notebook preflight did not produce a valid report."
+    summary = preflight.get("summary", {})
+    risk_counts = preflight.get("risk_counts", {})
+    details = [
+        f"status={preflight.get('status', 'unknown')}",
+        f"stages={int(summary.get('pipeline_stage_count', 0) or 0)}",
+        f"errors={int(risk_counts.get('error', 0) or 0)}",
+        f"warnings={int(risk_counts.get('warning', 0) or 0)}",
+    ]
+    errors = preflight.get("risks", [])
+    first_error = next(
+        (
+            str(item.get("message", ""))
+            for item in errors
+            if isinstance(item, dict) and item.get("level") == "error"
+        ),
+        "",
+    )
+    if first_error:
+        details.append(first_error)
+    return "; ".join(details)
+
+
+def _notebook_project_detail(clone_detail, preflight, cell_count: int) -> str:
+    summary = preflight.get("summary", {}) if isinstance(preflight, dict) else {}
+    risk_counts = (
+        preflight.get("risk_counts", {}) if isinstance(preflight, dict) else {}
+    )
+    parts = [
+        f"Imported {cell_count} notebook code cell(s).",
+        (
+            f"Artifact contract: {int(summary.get('input_count', 0) or 0)} input(s), "
+            f"{int(summary.get('output_count', 0) or 0)} output(s), "
+            f"{int(summary.get('unknown_artifact_count', 0) or 0)} unknown."
+        ),
+    ]
+    warning_count = int(risk_counts.get("warning", 0) or 0)
+    if warning_count:
+        parts.append(f"Preflight warnings: {warning_count}.")
+    if clone_detail:
+        parts.append(str(clone_detail))
+    return " ".join(parts)
+
+
+def _cleanup_failed_notebook_project(dest_root: Path) -> tuple[bool, str]:
+    try:
+        if not dest_root.exists():
+            return True, ""
+        import shutil
+
+        shutil.rmtree(dest_root)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return (
+            False,
+            f"Incomplete project clone remains at {dest_root}: {exc}",
+        )
+    return True, f"Removed incomplete project clone at {dest_root}."
+
+
+def _create_project_from_notebook_action(
+    env: AgiEnv,
+    *,
+    template_source: str | Path,
+    raw_project_name: str,
+    uploaded_notebook,
+    clone_env_strategy: str,
+    runtime_roles: dict | None = None,
+) -> ActionResult:
+    raw = raw_project_name.strip()
+    if not raw:
+        return ActionResult.error("Project name must not be empty.")
+
+    new_name = normalize_project_name(raw)
+    if not new_name:
+        return ActionResult.error("Could not normalize project name.")
+
+    dest_root = env.apps_path / new_name
+    if dest_root.exists():
+        return ActionResult.warning(
+            f"Project '{new_name}' already exists.",
+            next_action="Choose another project name or remove the existing project first.",
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
+
+    try:
+        notebook_bytes = _read_uploaded_notebook_bytes(uploaded_notebook)
+    except (OSError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            "Notebook upload could not be read.",
+            detail=str(exc),
+            next_action="Upload a valid .ipynb file and retry.",
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
+    if not notebook_bytes.strip():
+        return ActionResult.error(
+            "Notebook upload is empty.",
+            next_action="Upload a valid .ipynb file and retry.",
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
+
+    notebook_name = _safe_uploaded_notebook_name(uploaded_notebook)
+    notebook_relative_path = NOTEBOOK_SOURCE_DIR / notebook_name
+    preview_upload = SimpleNamespace(
+        name=notebook_relative_path.as_posix(),
+        type=getattr(uploaded_notebook, "type", "application/x-ipynb+json"),
+        read=lambda: notebook_bytes,
+    )
+    try:
+        preview = _build_project_notebook_import_preview(preview_upload, dest_root)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        return ActionResult.error(
+            "Notebook import preview failed.",
+            detail=str(exc),
+            next_action="Check that the upload is a valid .ipynb notebook.",
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
+
+    preflight = preview.get("preflight", {})
+    if not isinstance(preflight, dict) or not preflight.get("safe_to_import"):
+        return ActionResult.error(
+            "Notebook cannot create a project yet.",
+            detail=_notebook_import_blocking_detail(preflight),
+            next_action="Fix the notebook import errors, then retry project creation.",
+            data={"new_name": new_name, "dest_root": dest_root, "preflight": preflight},
+        )
+    preview = _project_notebook_import_preview_with_runtime_roles(
+        preview, runtime_roles
+    )
+    role_detail = _project_notebook_runtime_role_review_detail(preview)
+    if role_detail:
+        return ActionResult.error(
+            "Notebook runtime role review is incomplete.",
+            detail=role_detail,
+            next_action="Select Manager or Worker for each notebook code cell, then retry project creation.",
+            data={"new_name": new_name, "dest_root": dest_root, "preflight": preflight},
+        )
+
+    clone_result = _create_project_clone_action(
+        env,
+        clone_source=template_source,
+        raw_project_name=new_name,
+        clone_env_strategy=clone_env_strategy,
+    )
+    if clone_result.status != "success":
+        return clone_result
+
+    notebook_path = dest_root / notebook_relative_path
+    notebook_boundary_manifest_path = notebook_path.with_name(
+        f"{notebook_path.name}.untrusted-content.json"
+    )
+    stages_file = dest_root / NOTEBOOK_STEPS_FILE
+    try:
+        notebook_path.parent.mkdir(parents=True, exist_ok=True)
+        notebook_path.write_bytes(notebook_bytes)
+        _write_untrusted_content_manifest(
+            notebook_boundary_manifest_path,
+            notebook_bytes,
+            source_kind=str(
+                getattr(uploaded_notebook, "agilab_source_kind", "uploaded_notebook")
+            ),
+            source_name=notebook_name,
+            mime_type=str(
+                getattr(uploaded_notebook, "type", "application/x-ipynb+json") or ""
+            ),
+            trust_status=str(
+                getattr(uploaded_notebook, "agilab_trust_status", "untrusted")
+            ),
+            metadata={
+                "project": new_name,
+                "source_notebook": notebook_relative_path.as_posix(),
+                "runtime_roles_reviewed": bool(runtime_roles),
+            },
+        )
+        cell_count = _write_project_notebook_import_preview(
+            preview, dest_root, stages_file
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        cleanup_ok, cleanup_detail = _cleanup_failed_notebook_project(dest_root)
+        detail = str(exc)
+        if cleanup_detail:
+            detail = f"{detail}\n\n{cleanup_detail}"
+        return ActionResult.error(
+            f"Project '{new_name}' was created, but notebook import failed.",
+            detail=detail,
+            next_action=(
+                "Fix the notebook import error, then retry project creation."
+                if cleanup_ok
+                else "Remove the incomplete project directory, then retry project creation."
+            ),
+            data={
+                **dict(clone_result.data),
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "source_notebook": notebook_relative_path.as_posix(),
+                "notebook_path": notebook_path,
+                "notebook_boundary_manifest": notebook_boundary_manifest_path,
+                "stages_file": stages_file,
+                "preflight": preflight,
+                "cleanup_ok": cleanup_ok,
+            },
+        )
+
+    return ActionResult.success(
+        f"Project '{new_name}' created from notebook.",
+        detail=_notebook_project_detail(clone_result.detail, preflight, cell_count),
+        next_action=(
+            "Project created. Open ORCHESTRATE, run INSTALL, then EXECUTE. Open WORKFLOW to inspect "
+            "the imported notebook stages."
+        ),
+        data={
+            **dict(clone_result.data),
+            "new_name": new_name,
+            "dest_root": dest_root,
+            "source_notebook": notebook_relative_path.as_posix(),
+            "notebook_path": notebook_path,
+            "notebook_boundary_manifest": notebook_boundary_manifest_path,
+            "stages_file": stages_file,
+            "notebook_import_cell_count": cell_count,
+            "notebook_import_preflight": preflight,
+            "notebook_import_contract": preview.get("contract", {}),
+        },
+    )
+
+
+def _rename_project_action(
+    env: AgiEnv,
+    *,
+    raw_project_name: str,
+) -> ActionResult:
+    current = env.app
+    raw = raw_project_name.strip()
+    if not raw:
+        return ActionResult.error("Project name must not be empty.")
+
+    new_name = normalize_project_name(raw)
+    if not new_name:
+        return ActionResult.error("Could not normalize project name.")
+
+    src_path = env.apps_path / current
+    dest_path = env.apps_path / new_name
+    if dest_path.exists():
+        return ActionResult.warning(
+            f"Project '{new_name}' already exists.",
+            next_action="Choose another project name or remove the existing project first.",
+            data={"current": current, "new_name": new_name, "dest_path": dest_path},
+        )
+
+    try:
+        env.clone_project(Path(current), Path(new_name))
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{current}' could not be cloned to '{new_name}'.",
+            detail=str(exc),
+            next_action="Check the source project, destination path, and filesystem permissions.",
+            data={
+                "current": current,
+                "new_name": new_name,
+                "src_path": src_path,
+                "dest_path": dest_path,
+            },
+        )
+
+    if not dest_path.exists():
+        return ActionResult.error(
+            f"Error: Project '{new_name}' not found after renaming.",
+            next_action="Check the source project, destination path, and filesystem permissions.",
+            data={"current": current, "new_name": new_name, "dest_path": dest_path},
+        )
+
+    details: list[str] = []
+    try:
+        renamed_venv_message = _repair_renamed_project_environment(src_path, dest_path)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{new_name}' was cloned, but environment preservation failed.",
+            detail=str(exc),
+            next_action=(
+                f"Inspect {src_path} and {dest_path}, then rerun INSTALL before EXECUTE."
+            ),
+            data={
+                "current": current,
+                "new_name": new_name,
+                "src_path": src_path,
+                "dest_path": dest_path,
+            },
+        )
+    if renamed_venv_message:
+        details.append(renamed_venv_message)
+    if src_path.exists():
+        try:
+            shutil.rmtree(src_path)
+        except OSError as exc:
+            details.append(
+                f"Project was renamed, but failed to remove {src_path}: {exc}"
+            )
+
+    return ActionResult.success(
+        f"Project renamed: '{current}' -> '{new_name}'",
+        detail="\n\n".join(details) or None,
+        next_action=(
+            f"Remove the old project directory manually: {src_path}"
+            if src_path.exists()
+            else None
+        ),
+        data={
+            "current": current,
+            "new_name": new_name,
+            "src_path": src_path,
+            "dest_path": dest_path,
+        },
+    )
+
+
+def _delete_project_action(
+    env: AgiEnv,
+    *,
+    confirmed: bool,
+) -> ActionResult:
+    app_name = env.app
+    if not confirmed:
+        return ActionResult.error(
+            "Please confirm that you want to delete the project.",
+            next_action="Tick the confirmation checkbox before deleting.",
+            data={"app": app_name},
+        )
+
+    project_path = Path(env.active_app)
+    if not project_path.exists():
+        return ActionResult.error(
+            f"Project '{app_name}' does not exist.",
+            next_action="Refresh the PROJECT page or select another project.",
+            data={"app": app_name, "project_path": project_path},
+        )
+
+    cleanup_errors: list[str] = []
+    target_name = env.target
+    _cleanup_run_configuration_artifacts(app_name, target_name, cleanup_errors)
+    _cleanup_module_artifacts(app_name, target_name, cleanup_errors)
+    _safe_remove_path(
+        env.wenv_abs,
+        f"worker environment for {target_name}",
+        cleanup_errors,
+    )
+    _safe_remove_path(
+        Path.home() / "log" / "execute" / target_name,
+        f"log/execute/{target_name}",
+        cleanup_errors,
+    )
+
+    data_root = None
+    if env.app_data_rel:
+        try:
+            data_root = Path(env.app_data_rel).expanduser()
+        except (RuntimeError, TypeError, ValueError):
+            data_root = None
+    if data_root and data_root.name == target_name:
+        _safe_remove_path(
+            data_root,
+            f"AGI share directory for {target_name}",
+            cleanup_errors,
+        )
+
+    _safe_remove_path(project_path, f"Project '{app_name}'", cleanup_errors)
+    if _path_exists_or_symlink(project_path):
+        detail = (
+            "\n".join(f"Cleanup issue: {message}" for message in cleanup_errors) or None
+        )
+        return ActionResult.error(
+            f"Project '{app_name}' could not be removed.",
+            detail=detail,
+            next_action=f"Remove {project_path} manually, then refresh the PROJECT page.",
+            data={
+                "app": app_name,
+                "project_path": project_path,
+                "cleanup_errors": tuple(cleanup_errors),
+            },
+        )
+
+    env.projects = [project for project in env.projects if project != app_name]
+    next_app = env.projects[0] if env.projects else None
+    detail = (
+        "\n".join(f"Cleanup issue: {message}" for message in cleanup_errors) or None
+    )
+    return ActionResult.success(
+        f"Project '{app_name}' has been deleted.",
+        detail=detail,
+        data={
+            "app": app_name,
+            "project_path": project_path,
+            "cleanup_errors": tuple(cleanup_errors),
+            "next_app": next_app,
+        },
+    )
+
+
+def _clear_deleted_project_runtime_state(session_state, deleted_project: str) -> None:
+    """Drop transient runtime UI state that can outlive a deleted project."""
+    deleted_token = str(deleted_project or "").strip()
+    for key in DELETE_RUNTIME_SESSION_KEYS_TO_CLEAR:
+        session_state.pop(key, None)
+
+    for key in list(session_state.keys()):
+        key_text = str(key)
+        if key_text.endswith(DELETE_RUNTIME_SESSION_KEY_SUFFIXES):
+            session_state.pop(key, None)
+
+    if not deleted_token:
+        return
+    for root_key in WORKFLOW_UI_SESSION_ROOT_KEYS:
+        root = session_state.get(root_key)
+        if not isinstance(root, dict):
+            continue
+        for scope in list(root.keys()):
+            if deleted_token in str(scope):
+                root.pop(scope, None)
+
+
+def _run_clearable_streamlit_action(
+    streamlit,
+    spec: ActionSpec,
+    action,
+    *,
+    on_success=None,
+) -> ActionResult:
+    """Run a page action and explicitly remove its spinner before rendering the result."""
+    spinner_slot = streamlit.empty()
+    try:
+        with spinner_slot:
+            with streamlit.spinner(spec.start_message):
+                result = action()
+    except Exception as exc:
+        result = ActionResult.error(
+            spec.failure_title or f"{spec.name} failed.",
+            detail=str(exc),
+            next_action=spec.failure_next_action,
+        )
+    finally:
+        spinner_slot.empty()
+
+    render_action_result(streamlit, result)
+    if result.status == "success" and on_success is not None:
+        on_success(result)
+    return result
+
+
+def handle_project_creation():
+    """
+    Handle the 'Create' tab in the sidebar for project creation.
+    """
+    st.header("Create project")
+    sample_import_requested = bool(
+        st.session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY)
+    )
+    if sample_import_requested:
+        st.session_state["create_mode"] = CREATE_MODE_NOTEBOOK
+        create_mode = CREATE_MODE_NOTEBOOK
+    else:
+        create_mode = compact_choice(
+            st.sidebar,
+            "Create mode",
+            [CREATE_MODE_TEMPLATE, CREATE_MODE_NOTEBOOK],
+            key="create_mode",
+            inline_limit=2,
+            fallback="radio",
+        )
+    env = st.session_state["env"]
+    guided_notebook_import = False
+    guided_project_name = ""
+    active_notebook_source = None
+
+    if create_mode == CREATE_MODE_NOTEBOOK:
+        st.caption(
+            "Start from a notebook. AGILAB clones a base project, imports the notebook steps, "
+            "then you can install and run the new project."
+        )
+        template_options = _notebook_project_source_options(
+            env,
+            list(st.session_state["templates"]),
+        )
+        active_notebook_source = _active_notebook_import_source(st.session_state)
+        notebook_defaults = _apply_notebook_import_defaults_from_upload(
+            st.session_state,
+            active_notebook_source,
+            template_options,
+        )
+        default_template = (
+            NOTEBOOK_PROJECT_DEFAULT_TEMPLATE
+            if NOTEBOOK_PROJECT_DEFAULT_TEMPLATE in template_options
+            else template_options[0]
+        )
+        guided_notebook_import = _is_guided_notebook_import(
+            st.session_state,
+            active_notebook_source,
+        )
+        if guided_notebook_import:
+            guided_project_name, guided_template_name = _guided_notebook_import_values(
+                st.session_state,
+                notebook_defaults,
+                default_project="flight-telemetry-from-notebook-project",
+                default_template=default_template,
+                template_options=template_options,
+            )
+            normalized_project_name = normalize_project_name(guided_project_name)
+            st.info(
+                "AGILAB's included notebook is selected. "
+                f"Click Create to build `{normalized_project_name}` from `{guided_template_name}`; "
+                "ORCHESTRATE opens next for INSTALL and EXECUTE."
+            )
+            st.sidebar.caption(f"Included notebook -> `{normalized_project_name}`.")
+        elif notebook_defaults:
+            default_project = notebook_defaults.get("project_name_hint", "")
+            default_template_hint = notebook_defaults.get("recommended_template", "")
+            if default_template_hint not in template_options:
+                default_template_hint = ""
+            if default_project and default_template_hint:
+                detail = f"`{default_project}` from `{default_template_hint}`"
+            elif default_project:
+                detail = f"`{default_project}`"
+            elif default_template_hint:
+                detail = f"a project from `{default_template_hint}`"
+            else:
+                detail = ""
+            if detail:
+                st.sidebar.caption(f"This notebook will create {detail}.")
+        if not guided_notebook_import:
+            compact_choice(
+                st.sidebar,
+                "Base project to clone",
+                template_options,
+                key="notebook_clone_src",
+                default=default_template,
+                inline_limit=5,
+            )
+            _render_notebook_import_sample_actions(st.sidebar, st.session_state)
+            st.sidebar.file_uploader(
+                "Upload your own notebook file",
+                type="ipynb",
+                key="create_notebook_upload",
+            )
+    else:
+        st.caption(
+            "Create a new project from an existing template. "
+            "Use a working clone for real development."
+        )
+        # choose a template (relative project name, e.g. "flight_telemetry_project")
+        compact_choice(
+            st.sidebar,
+            "Starting point",
+            [env.app] + st.session_state["templates"],
+            key="clone_src",
+            on_change=lambda: on_project_change(
+                st.session_state["clone_src"], switch_to_edit=True
+            ),
+            inline_limit=5,
+        )
+
+    env_strategy_target = st.sidebar
+    if guided_notebook_import:
+        st.session_state.setdefault("clone_env_strategy", "detach_venv")
+        env_strategy_target = st.sidebar.expander("Advanced", expanded=False)
+
+    clone_env_strategy = compact_choice(
+        env_strategy_target,
+        "Environment strategy",
+        list(CLONE_ENV_STRATEGY_LABELS),
+        key="clone_env_strategy",
+        default="detach_venv",
+        format_func=CLONE_ENV_STRATEGY_LABELS.get,
+        help=CLONE_ENV_STRATEGY_HELP,
+        fallback="radio",
+    )
+
+    if guided_notebook_import:
+        raw = guided_project_name.strip()
+    else:
+        raw = st.sidebar.text_input(
+            "New project base name",
+            key="clone_dest",
+            help="Enter the destination project name. AGILAB appends '_project' if it is missing.",
+        ).strip()
+
+    notebook_runtime_roles: dict[str, str] = {}
+    notebook_role_detail = ""
+    notebook_source_missing = (
+        create_mode == CREATE_MODE_NOTEBOOK and active_notebook_source is None
+    )
+    if create_mode == CREATE_MODE_NOTEBOOK and active_notebook_source is not None:
+        notebook_runtime_roles, notebook_role_detail = (
+            _render_project_notebook_runtime_role_review(
+                st.sidebar,
+                active_notebook_source,
+                raw,
+            )
+        )
+    elif notebook_source_missing:
+        st.sidebar.info("Upload a notebook before creating the project.")
+
+    create_clicked = st.sidebar.button(
+        "Create",
+        type="primary",
+        width="stretch",
+        disabled=create_mode == CREATE_MODE_NOTEBOOK
+        and (notebook_source_missing or bool(notebook_role_detail)),
+    )
+    if create_clicked:
+
+        def _activate_clone(result):
+            new_name = str(result.data["new_name"])
+            env.change_app(new_name)
+            st.session_state["switch_to_edit"] = True
+            time.sleep(1.5)
+            st.rerun()
+
+        def _activate_notebook_project(result):
+            new_name = str(result.data["new_name"])
+            env.change_app(new_name)
+            st.session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+            st.session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ID_KEY, None)
+            st.session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+            st.session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY, None)
+            st.session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY, None)
+            st.session_state["project_changed"] = True
+            st.session_state["_requested_lab_dir"] = new_name
+            st.query_params["active_app"] = new_name
+            st.query_params["lab_dir_selectbox"] = new_name
+            st.session_state["show_install"] = True
+            if _switch_to_registered_navigation_page(
+                "orchestrate",
+                "ORCHESTRATE",
+                query_params={"active_app": new_name, "lab_dir_selectbox": new_name},
+            ):
+                return
+            st.session_state["switch_to_edit"] = True
+            st.rerun()
+
+        if create_mode == CREATE_MODE_NOTEBOOK:
+            run_streamlit_action(
+                st,
+                ActionSpec(
+                    name="Create project from notebook",
+                    start_message=f"Creating project '{raw or '<empty>'}' from notebook...",
+                    failure_title="Notebook project creation failed.",
+                    failure_next_action=(
+                        "Check the notebook upload, template source, destination path, "
+                        "and filesystem permissions."
+                    ),
+                ),
+                lambda: _create_project_from_notebook_action(
+                    env,
+                    template_source=st.session_state.get(
+                        "notebook_clone_src",
+                        NOTEBOOK_PROJECT_DEFAULT_TEMPLATE,
+                    ),
+                    raw_project_name=raw,
+                    uploaded_notebook=_active_notebook_import_source(st.session_state),
+                    clone_env_strategy=clone_env_strategy,
+                    runtime_roles=notebook_runtime_roles,
+                ),
+                on_success=_activate_notebook_project,
+            )
+        else:
+            run_streamlit_action(
+                st,
+                ActionSpec(
+                    name="Create project",
+                    start_message=f"Creating project '{raw or '<empty>'}'...",
+                    failure_title="Project creation failed.",
+                    failure_next_action="Check the clone source, destination path, and filesystem permissions.",
+                ),
+                lambda: _create_project_clone_action(
+                    env,
+                    clone_source=st.session_state["clone_src"],
+                    raw_project_name=raw,
+                    clone_env_strategy=clone_env_strategy,
+                ),
+                on_success=_activate_clone,
+            )
+    else:
+        st.sidebar.info("Enter a project name and click 'Create'.")
+
+
+def normalize_project_name(raw: str) -> str:
+    """
+    Given a raw string, return a cleaned-up project name:
+      - strip whitespace
+      - replace spaces or illegal chars with underscore
+      - lowercase
+      - append '_project' if missing
+    """
+    name = raw.strip().lower()
+    # replace any non-alphanumeric/_ with underscore
+    name = re.sub(r"[^0-9a-z_]+", "_", name)
+    # collapse multiple underscores
+    name = re.sub(r"_+", "_", name).strip("_")
+    if not name:
+        return ""
+    return name if name.endswith("_project") else name + "_project"
+
+
+def handle_project_rename():
+    """
+    Handle the 'Rename' tab in the sidebar for renaming projects.
+    """
+    env = st.session_state["env"]
+    current = env.app
+    st.header("Project maintenance")
+    st.warning(
+        f"Rename moves the active project '{current}' and updates AGILAB to the new name."
+    )
+    st.sidebar.caption("Maintenance action: rename the active project.")
+
+    # — no on_change here —
+    raw = st.sidebar.text_input(
+        "Rename active project to",
+        key="clone_dest",
+        help="Enter the destination project name. AGILAB appends '_project' if it is missing.",
+    ).strip()
+
+    rename_clicked = st.sidebar.button("Rename", type="primary", width="stretch")
+    if rename_clicked:
+
+        def _activate_renamed_project(result):
+            new_name = str(result.data["new_name"])
+            env.change_app(new_name)
+            st.session_state["switch_to_edit"] = True
+            st.rerun()
+
+        run_streamlit_action(
+            st,
+            ActionSpec(
+                name="Rename project",
+                start_message=f"Renaming project '{current}'...",
+                failure_title="Project rename failed.",
+                failure_next_action="Check the destination name, source project, and filesystem permissions.",
+            ),
+            lambda: _rename_project_action(env, raw_project_name=raw),
+            on_success=_activate_renamed_project,
+        )
+    else:
+        st.sidebar.info("Enter a base name above and click Rename.")
+
+
+def handle_project_delete():
+    """
+    Handle the 'Delete' tab in the sidebar for deleting projects.
+    """
+    st.header("Danger zone")
+    env = st.session_state["env"]
+    st.warning(
+        f"Deleting '{env.app}' removes the project directory, worker environment, logs, and generated data when AGILAB owns them."
+    )
+    st.sidebar.caption("Danger zone: destructive project removal.")
+
+    # Confirmation checkbox
+    confirm_delete = st.checkbox(
+        f"I confirm that I want to delete {env.app}.",
+        key="confirm_delete",
+    )
+
+    # Delete button
+    delete_clicked = st.sidebar.button("Delete", type="primary", width="stretch")
+    if delete_clicked:
+
+        def _activate_after_delete(result):
+            deleted_project = str(result.data.get("app") or env.app)
+            _clear_deleted_project_runtime_state(st.session_state, deleted_project)
+            next_app = result.data.get("next_app")
+            if next_app:
+                on_project_change(str(next_app))
+            st.session_state.pop("env", None)
+            st.session_state.pop("templates", None)
+            st.session_state["switch_to_edit"] = True
+            st.rerun()
+
+        _run_clearable_streamlit_action(
+            st,
+            ActionSpec(
+                name="Delete project",
+                start_message=f"Deleting project '{env.app}'...",
+                failure_title="Project deletion failed.",
+                failure_next_action="Check filesystem permissions and project selection.",
+            ),
+            lambda: _delete_project_action(env, confirmed=confirm_delete),
+            on_success=_activate_after_delete,
+        )
+    else:
+        st.info("Select a project and confirm deletion to remove it.")
+
+
+def handle_project_import():
+    """
+    Handle the 'Import' tab in the sidebar for project loading.
+    """
+    env = st.session_state["env"]
+    st.header("Import project archive")
+    st.caption("Restore a project from a previously exported AGILAB archive.")
+    selected_archive = compact_choice(
+        st.sidebar,
+        "Archive to import",
+        st.session_state["archives"],
+        key="archive",
+        help="Select one of the previously exported projects to load it.",
+        inline_limit=5,
+    )
+    st.sidebar.caption(f"Export archive folder: {env.export_apps}")
+
+    if selected_archive == "-- Select a file --":
+        st.info("Please select a file from the sidebar to continue.")
+        # Optionally, you can disable other parts of the app here
+    else:
+        import_target = selected_archive.replace(".zip", "")
+        st.sidebar.caption(f"Will restore as project: {import_target}")
+        st.sidebar.checkbox(
+            "Clean",
+            key="clean_import",
+            help="This will remove all the .gitignore file from the project.",
+        )
+
+        target_dir = env.apps_path / import_target
+
+        def _activate_import(result):
+            imported_project = str(result.data["import_target"])
+            env.change_app(imported_project)
+            on_project_change(imported_project)
+            st.session_state["switch_to_edit"] = True
+            st.rerun()
+
+        def _run_import_action(*, overwrite: bool) -> None:
+            run_streamlit_action(
+                st,
+                ActionSpec(
+                    name="Import project",
+                    start_message=f"Importing project '{import_target}'...",
+                    failure_title="Project import failed.",
+                    failure_next_action="Check the archive, destination path, and filesystem permissions.",
+                ),
+                lambda: _import_project_action(
+                    env,
+                    project_zip=selected_archive,
+                    clean=st.session_state["clean_import"],
+                    overwrite=overwrite,
+                ),
+                on_success=_activate_import,
+            )
+
+        @st.dialog("Import project")
+        def _confirm_import_overwrite() -> None:
+            st.write(f"Project '{import_target}' already exists. Overwrite it?")
+            cols = st.columns(2)
+            if cols[0].button("Overwrite", type="primary", width="stretch"):
+                _run_import_action(overwrite=True)
+            if cols[1].button("Cancel", width="stretch"):
+                st.rerun()
+
+        import_clicked = st.sidebar.button("Import", type="primary", width="stretch")
+        if import_clicked:
+            if not target_dir.exists():
+                _run_import_action(overwrite=False)
+            else:
+                _confirm_import_overwrite()
+
+
+# -------------------- Streamlit Page Rendering -------------------- #
+
+
+def page():
+    """
+    Main function to render the Streamlit page.
+    """
+    global CUSTOM_BUTTONS, INFO_BAR, CSS_TEXT, comp_props, ace_props
+
+    env = ensure_page_env(st, __file__)
+    if env is None:
+        return
+    st.session_state["_env"] = env
+
+    env = st.session_state["_env"]
+    render_page_chrome(
+        st,
+        env=env,
+        page_label="PROJECT",
+        docs_html_file="edit-help.html",
+    )
+
+    if background_services_enabled() and not st.session_state.get("server_started"):
+        activate_mlflow(env)
+
+    # Check if we need to switch the sidebar tab to "Select"
+    if st.session_state.get("switch_to_edit", False):
+        st.session_state["sidebar_selection"] = "Edit"
+        st.session_state["switch_to_edit"] = False
+        st.rerun()  # Reset the flag  # Trigger rerun to apply the change
+
+    # Load .agi_resources
+
+    try:
+        CUSTOM_BUTTONS, INFO_BAR, CSS_TEXT = _load_project_editor_resources(
+            str(env.st_resources),
+            _project_editor_resource_fingerprint(env.st_resources),
+        )
+    except FileNotFoundError as e:
+        st.error(f"Resource file not found: {e}")
+        return
+    except json.JSONDecodeError as e:
+        st.error(f"Error decoding JSON resource: {e}")
+        return
+    except TypeError as e:
+        st.error(f"Invalid code editor resource: {e}")
+        return
+
+    comp_props = {
+        "css": CSS_TEXT,
+        "globalCSS": ":root {--streamlit-dark-background-color: #111827;}",
+    }
+    ace_props = {"style": {"borderRadius": "0px 0px 8px 8px"}}
+
+    # Initialize session state variables
+    session_defaults = {
+        "env": env,
+        "_env": env,
+        "orchest_functions": ["build_distribution"],
+        "templates": get_templates(),
+        "archives": ["-- Select a file --"] + get_projects_zip(),
+        "export_message": "",
+        "project_imported": False,
+        "project_created": False,
+        "show_widgets": [True, False],
+        "pages": [],
+        # Initialize the sidebar_selection with a default value if not set
+        "sidebar_selection": (
+            "Edit"
+            if "sidebar_selection" not in st.session_state
+            else st.session_state["sidebar_selection"]
+        ),
+        # Initialize the switch_to_edit flag
+        "switch_to_edit": (
+            False
+            if "switch_to_edit" not in st.session_state
+            else st.session_state["switch_to_edit"]
+        ),
+    }
+
+    for key, value in session_defaults.items():
+        st.session_state.setdefault(key, value)
+
+    st.session_state["sidebar_selection"] = "Edit"
+    _consume_project_section_query_seed(st.session_state, st.query_params)
+
+    handle_project_selection()
+
+
+# -------------------- Main Application Entry -------------------- #
+
+
+def main():
+    """
+    Main function to run the application.
+    """
+    try:
+        page()
+
+    except (
+        RuntimeError,
+        OSError,
+        TypeError,
+        ValueError,
+        AttributeError,
+        KeyError,
+    ) as e:
+        st.error(f"An error occurred: {e}")
+        import traceback
+
+        st.caption("Full traceback")
+        st.code(traceback.format_exc(), language="text")
+
+
+# -------------------- Main Entry Point -------------------- #
+
+if __name__ == "__main__":
+    main()

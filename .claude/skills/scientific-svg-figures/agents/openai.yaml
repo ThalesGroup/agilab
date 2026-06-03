@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scientific SVG Figures"
+  short_description: "Publication-grade technical SVG diagrams"
+  default_prompt: "Use $scientific-svg-figures to create or refine an editable scientific SVG figure for this report or slide."

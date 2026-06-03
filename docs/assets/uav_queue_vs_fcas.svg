@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="980" viewBox="0 0 1400 980" role="img" aria-labelledby="title desc">
+  <title id="title">uav_queue versus FCAS trainer_routing</title>
+  <desc id="desc">Side-by-side diagram showing the lightweight uav_queue relay-selection pipeline versus the full FCAS trainer_routing graph-routing pipeline.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f6f2; }
+      .panel-left { fill: #f2efe4; stroke: #9a8860; stroke-width: 2; }
+      .panel-right { fill: #e9f1ef; stroke: #517d73; stroke-width: 2; }
+      .title { font: 700 34px "DejaVu Sans", sans-serif; fill: #1f2a2a; }
+      .subtitle { font: 500 18px "DejaVu Sans", sans-serif; fill: #485555; }
+      .section-title { font: 700 22px "DejaVu Sans", sans-serif; fill: #1f2a2a; }
+      .box-title { font: 700 19px "DejaVu Sans", sans-serif; fill: #172020; }
+      .body { font: 16px "DejaVu Sans", sans-serif; fill: #213030; }
+      .small { font: 15px "DejaVu Sans", sans-serif; fill: #334545; }
+      .muted { font: 15px "DejaVu Sans", sans-serif; fill: #5b6a6a; }
+      .box-left { fill: #fffdf7; stroke: #9a8860; stroke-width: 1.8; rx: 18; ry: 18; }
+      .box-right { fill: #fbfffe; stroke: #517d73; stroke-width: 1.8; rx: 18; ry: 18; }
+      .compare { fill: #ffffff; stroke: #aab6b6; stroke-width: 1.5; rx: 16; ry: 16; }
+      .accent-left { fill: #9a8860; }
+      .accent-right { fill: #517d73; }
+      .arrow-left { stroke: #9a8860; stroke-width: 3; fill: none; marker-end: url(#arrowLeft); }
+      .arrow-right { stroke: #517d73; stroke-width: 3; fill: none; marker-end: url(#arrowRight); }
+      .divider { stroke: #c8cece; stroke-width: 2; stroke-dasharray: 8 10; }
+    </style>
+    <marker id="arrowLeft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#9a8860"/>
+    </marker>
+    <marker id="arrowRight" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#517d73"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1400" height="980"/>
+
+  <text class="title" x="700" y="58" text-anchor="middle">uav_queue vs FCAS trainer_routing</text>
+  <text class="subtitle" x="700" y="90" text-anchor="middle">Lightweight relay choice on the left, full time-varying graph routing on the right</text>
+
+  <rect class="panel-left" x="50" y="120" width="610" height="640" rx="28" ry="28"/>
+  <rect class="panel-right" x="740" y="120" width="610" height="640" rx="28" ry="28"/>
+
+  <text class="section-title" x="85" y="165">uav_queue</text>
+  <text class="muted" x="85" y="192">Compact PPO playground for quick relay-selection experiments</text>
+  <circle class="accent-left" cx="620" cy="160" r="12"/>
+
+  <text class="section-title" x="775" y="165">FCAS trainer_routing</text>
+  <text class="muted" x="775" y="192">Service-aware routing over a dynamic communication graph</text>
+  <circle class="accent-right" cx="1310" cy="160" r="12"/>
+
+  <rect class="box-left" x="85" y="225" width="540" height="112" rx="18" ry="18"/>
+  <text class="box-title" x="110" y="255">1. Inputs</text>
+  <text class="body" x="110" y="283">
+    <tspan x="110" dy="0">Scenario JSON with one source, one sink,</tspan>
+    <tspan x="110" dy="22">and a few relays.</tspan>
+  </text>
+  <text class="small" x="110" y="328">
+    <tspan x="110" dy="0">Fields like queue capacity, service rate,</tspan>
+    <tspan x="110" dy="20">background traffic, bias, and motion.</tspan>
+  </text>
+
+  <rect class="box-left" x="85" y="365" width="540" height="148" rx="18" ry="18"/>
+  <text class="box-title" x="110" y="395">2. State seen by PPO</text>
+  <text class="body" x="110" y="423">Flat vector:</text>
+  <text class="small" x="130" y="449">
+    <tspan x="130" dy="0">- time and source rate</tspan>
+    <tspan x="130" dy="22">- per relay: queue depth, service rate,</tspan>
+    <tspan x="130" dy="20">  background rate</tspan>
+    <tspan x="130" dy="22">- per relay: route latency and</tspan>
+    <tspan x="130" dy="20">  vertical-position summary</tspan>
+  </text>
+
+  <rect class="box-left" x="85" y="540" width="540" height="104" rx="18" ry="18"/>
+  <text class="box-title" x="110" y="570">3. Action</text>
+  <text class="body" x="110" y="598">
+    <tspan x="110" dy="0">Choose one relay among the</tspan>
+    <tspan x="110" dy="22">available candidates.</tspan>
+  </text>
+
+  <rect class="box-left" x="85" y="670" width="540" height="110" rx="18" ry="18"/>
+  <text class="box-title" x="110" y="700">4. Reward / result</text>
+  <text class="body" x="110" y="728">
+    <tspan x="110" dy="0">Balances delivered packets, drops,</tspan>
+    <tspan x="110" dy="22">queue buildup, and delay.</tspan>
+  </text>
+  <text class="small" x="110" y="773">
+    <tspan x="110" dy="0">Best when you want a fast,</tspan>
+    <tspan x="110" dy="20">interpretable RL benchmark.</tspan>
+  </text>
+
+  <path class="arrow-left" d="M 355 337 L 355 360"/>
+  <path class="arrow-left" d="M 355 513 L 355 535"/>
+  <path class="arrow-left" d="M 355 644 L 355 665"/>
+
+  <rect class="box-right" x="775" y="225" width="540" height="112" rx="18" ry="18"/>
+  <text class="box-title" x="800" y="255">1. Inputs</text>
+  <text class="body" x="800" y="283">
+    <tspan x="800" dy="0">NetworkSim demands, flight trajectories,</tspan>
+    <tspan x="800" dy="22">and satellite trajectories.</tspan>
+  </text>
+  <text class="small" x="800" y="328">
+    <tspan x="800" dy="0">LOS capacities, topology, service hints,</tspan>
+    <tspan x="800" dy="20">latency targets, and priorities.</tspan>
+  </text>
+
+  <rect class="box-right" x="775" y="365" width="540" height="176" rx="18" ry="18"/>
+  <text class="box-title" x="800" y="395">2. State seen by policy</text>
+  <text class="body" x="800" y="423">Graph-like observation:</text>
+  <text class="small" x="820" y="449">
+    <tspan x="820" dy="0">- per-demand features: bandwidth, priority,</tspan>
+    <tspan x="820" dy="20">  latency target</tspan>
+    <tspan x="820" dy="22">- per-demand features: last capacity</tspan>
+    <tspan x="820" dy="20">  and backlog</tspan>
+    <tspan x="820" dy="22">- per-edge features: capacity, latency, mask</tspan>
+    <tspan x="820" dy="22">- optional GNN embedding using</tspan>
+    <tspan x="820" dy="20">  edge_index and demand_pairs</tspan>
+  </text>
+
+  <rect class="box-right" x="775" y="568" width="540" height="126" rx="18" ry="18"/>
+  <text class="box-title" x="800" y="598">3. Action</text>
+  <text class="body" x="800" y="626">
+    <tspan x="800" dy="0">Control edge weights and influence routing</tspan>
+    <tspan x="800" dy="22">for many simultaneous demands.</tspan>
+  </text>
+  <text class="small" x="800" y="671">
+    <tspan x="800" dy="0">Candidate paths, contention scaling,</tspan>
+    <tspan x="800" dy="20">and predictive capacity forecast.</tspan>
+  </text>
+
+  <rect class="box-right" x="775" y="720" width="540" height="126" rx="18" ry="18"/>
+  <text class="box-title" x="800" y="750">4. Reward / result</text>
+  <text class="body" x="800" y="778">
+    <tspan x="800" dy="0">Priority-weighted delivered bandwidth</tspan>
+    <tspan x="800" dy="22">with latency and drop penalties.</tspan>
+  </text>
+  <text class="small" x="800" y="823">
+    <tspan x="800" dy="0">Closer to the real FCAS</tspan>
+    <tspan x="800" dy="20">decision-engine problem.</tspan>
+  </text>
+
+  <path class="arrow-right" d="M 1045 337 L 1045 360"/>
+  <path class="arrow-right" d="M 1045 541 L 1045 563"/>
+  <path class="arrow-right" d="M 1045 694 L 1045 715"/>
+
+  <line class="divider" x1="700" y1="135" x2="700" y2="855"/>
+
+  <rect class="compare" x="85" y="810" width="1230" height="135" rx="18" ry="18"/>
+  <text class="box-title" x="110" y="842">Quick reading</text>
+  <text class="body" x="110" y="870">
+    <tspan x="110" dy="0">`uav_queue` keeps queueing explicit and simple.</tspan>
+    <tspan x="110" dy="22">It is good for PPO smoke tests, reward shaping, and fast iteration.</tspan>
+  </text>
+  <text class="body" x="110" y="916">
+    <tspan x="110" dy="0">FCAS adds the missing graph structure:</tspan>
+    <tspan x="110" dy="22">multiple demands, dynamic links, service priorities, latency targets, contention, and predictive routing.</tspan>
+  </text>
+</svg>

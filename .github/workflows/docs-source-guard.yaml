@@ -1,0 +1,67 @@
+name: docs-source-guard
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/source/**"
+      - "docs/.docs_source_mirror_stamp.json"
+      - "tools/sync_docs_source.py"
+      - "tools/release_proof_report.py"
+      - "test/test_sync_docs_source.py"
+      - "test/test_release_proof_report.py"
+      - ".github/workflows/docs-source-guard.yaml"
+  pull_request:
+    paths:
+      - "docs/source/**"
+      - "docs/.docs_source_mirror_stamp.json"
+      - "tools/sync_docs_source.py"
+      - "tools/release_proof_report.py"
+      - "test/test_sync_docs_source.py"
+      - "test/test_release_proof_report.py"
+      - ".github/workflows/docs-source-guard.yaml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Verify managed docs/source mirror stamp
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp --quiet
+          uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --check --delete --quiet --skip-missing-source
+          uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --check --check-github-runs --compact
+
+      - name: Test docs/source guard tools
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run pytest -q -o addopts='' test/test_sync_docs_source.py test/test_release_proof_report.py

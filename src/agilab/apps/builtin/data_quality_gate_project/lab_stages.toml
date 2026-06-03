@@ -1,0 +1,30 @@
+[[stages]]
+id = "build_candidate_data"
+label = "Load or build baseline and candidate data"
+kind = "data"
+produces = ["baseline.csv", "candidate.csv", "input_sources.json"]
+M = "user CSV inputs when provided, otherwise deterministic seeded tabular generator"
+
+[[stages]]
+id = "validate_contract"
+label = "Validate data contract"
+kind = "validation"
+depends_on = ["build_candidate_data"]
+produces = ["data_contract.json", "baseline_profile.json", "candidate_profile.json"]
+M = "configurable schema, type, null, duplicate, and leakage checks"
+
+[[stages]]
+id = "measure_drift"
+label = "Measure drift"
+kind = "evidence"
+depends_on = ["validate_contract"]
+produces = ["drift_metrics.csv"]
+M = "PSI, KS statistic, mean shift, and category delta"
+
+[[stages]]
+id = "write_gate_decision"
+label = "Write gate decision"
+kind = "decision"
+depends_on = ["measure_drift"]
+produces = ["gate_decision.json", "decision_card.json", "data_quality_dashboard.html", "run_manifest.json", "data_quality_report.md"]
+M = "AGILAB data-quality evidence writer"

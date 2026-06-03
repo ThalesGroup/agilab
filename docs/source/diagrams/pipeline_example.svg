@@ -1,0 +1,185 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="700" viewBox="0 0 1280 700" role="img" aria-labelledby="title desc">
+  <title id="title">Pipeline example</title>
+  <desc id="desc">Example analysis pipeline where air trajectories, space trajectories, and environment maps feed a simulation stage, then learned and optimization decision engines, then visualisation and KPI reporting.</desc>
+  <defs>
+    <style>
+      text {
+        font-family: Arial, Helvetica, sans-serif;
+        fill: #122745;
+      }
+      .title {
+        font-size: 36px;
+        font-weight: 700;
+      }
+      .subtitle {
+        font-size: 19px;
+        fill: #556c8c;
+      }
+      .lane {
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        fill: #6a80a0;
+      }
+      .lane-rule {
+        stroke: #d7e2ef;
+        stroke-width: 2;
+      }
+      .card {
+        stroke: #122745;
+        stroke-width: 3;
+        rx: 28;
+        ry: 28;
+        filter: url(#shadow);
+      }
+      .card-title {
+        font-size: 22px;
+        font-weight: 700;
+      }
+      .card-body {
+        font-size: 17px;
+      }
+      .card-note {
+        font-size: 15px;
+        fill: #4a6080;
+      }
+      .label {
+        font-size: 14px;
+        fill: #607797;
+      }
+      .callout {
+        stroke: #cfdae8;
+        stroke-width: 2.4;
+        rx: 22;
+        ry: 22;
+        filter: url(#shadow-soft);
+      }
+      .callout-title {
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .callout-body {
+        font-size: 15px;
+        fill: #4a6080;
+      }
+      .arrow {
+        stroke: #122745;
+        stroke-width: 4;
+        stroke-linecap: round;
+      }
+      .arrow-soft {
+        stroke: #7a8faa;
+        stroke-width: 3;
+        stroke-linecap: round;
+        stroke-dasharray: 9 8;
+      }
+    </style>
+    <marker id="arrowhead-pipe" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#122745" />
+    </marker>
+    <marker id="arrowhead-pipe-soft" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7a8faa" />
+    </marker>
+    <linearGradient id="pipe-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbfdff" />
+      <stop offset="100%" stop-color="#eef4fb" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#90a5c1" flood-opacity="0.18" />
+    </filter>
+    <filter id="shadow-soft" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#90a5c1" flood-opacity="0.12" />
+    </filter>
+  </defs>
+
+  <rect width="1280" height="700" fill="url(#pipe-bg)" rx="38" ry="38" />
+
+  <rect x="120" y="110" width="322" height="394" fill="#eef6ff" rx="26" ry="26" />
+  <rect x="452" y="144" width="660" height="364" fill="#e7effb" rx="26" ry="26" />
+  <rect x="1082" y="228" width="170" height="196" fill="#fff1f7" rx="26" ry="26" />
+  <rect x="740" y="532" width="460" height="112" fill="#fff7ea" rx="26" ry="26" />
+
+  <g transform="translate(64,62)">
+    <text class="title" x="0" y="0">Pipeline example</text>
+    <text class="subtitle" x="0" y="38">Trajectory and environment inputs feed simulation, then learned and optimization baselines, then maps and KPI outputs.</text>
+  </g>
+
+  <text class="lane" x="148" y="136">Scenario inputs</text>
+  <text class="lane" x="480" y="180">Simulation and decisions</text>
+  <text class="lane" x="768" y="566">Analysis outputs</text>
+
+  <g transform="translate(138,146)">
+    <rect class="card" width="280" height="88" fill="#d6ecff" />
+    <text class="card-title" x="140" y="34" text-anchor="middle">Air trajectories</text>
+    <text class="card-body" x="140" y="62" text-anchor="middle">Air tracks</text>
+  </g>
+
+  <g transform="translate(138,274)">
+    <rect class="card" width="280" height="88" fill="#d6ecff" />
+    <text class="card-title" x="140" y="34" text-anchor="middle">Space trajectories</text>
+    <text class="card-body" x="140" y="62" text-anchor="middle">Space tracks</text>
+  </g>
+
+  <g transform="translate(138,402)">
+    <rect class="card" width="280" height="88" fill="#def6ff" />
+    <text class="card-title" x="140" y="34" text-anchor="middle">Environment maps</text>
+    <text class="card-body" x="140" y="56" text-anchor="middle">
+      <tspan x="140" dy="0">Weather and</tspan>
+      <tspan x="140" dy="20">attenuation layers</tspan>
+    </text>
+  </g>
+
+  <g transform="translate(470,260)">
+    <rect class="card" width="300" height="128" fill="#d8f6de" />
+    <text class="card-title" x="150" y="40" text-anchor="middle">Simulation</text>
+    <text class="card-body" x="150" y="72" text-anchor="middle">Link model and demand model</text>
+    <text class="card-note" x="150" y="98" text-anchor="middle">
+      <tspan x="150" dy="0">Shared state prepared for</tspan>
+      <tspan x="150" dy="18">downstream decisions</tspan>
+    </text>
+  </g>
+
+  <g transform="translate(788,176)">
+    <rect class="card" width="280" height="112" fill="#ffe3a1" />
+    <text class="card-title" x="140" y="40" text-anchor="middle">Learned decision engine</text>
+    <text class="card-body" x="140" y="74" text-anchor="middle">ML and RL allocation policies</text>
+  </g>
+
+  <g transform="translate(788,352)">
+    <rect class="card" width="280" height="112" fill="#ffe3a1" />
+    <text class="card-title" x="140" y="40" text-anchor="middle">Optimization baseline</text>
+    <text class="card-body" x="140" y="74" text-anchor="middle">ILP and MILP allocation reference</text>
+  </g>
+
+  <g transform="translate(1090,252)">
+    <rect class="card" width="150" height="148" fill="#ffd7ea" />
+    <text class="card-title" x="75" y="44" text-anchor="middle">Visualisation</text>
+    <text class="card-body" x="75" y="86" text-anchor="middle">Maps</text>
+    <text class="card-body" x="75" y="112" text-anchor="middle">Charts</text>
+  </g>
+
+  <g transform="translate(756,548)">
+    <rect class="callout" width="430" height="78" fill="#ffffff" />
+    <text class="callout-title" x="20" y="30">Decision output contract</text>
+    <text class="callout-body" x="20" y="50">
+      <tspan x="20" dy="0">Both engines emit allocations that feed the same</tspan>
+      <tspan x="20" dy="18">KPI and visual analysis layer.</tspan>
+    </text>
+  </g>
+
+  <line class="arrow" x1="418" y1="206" x2="470" y2="292" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="418" y1="318" x2="470" y2="318" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="418" y1="430" x2="470" y2="356" marker-end="url(#arrowhead-pipe)" />
+
+  <line class="arrow" x1="770" y1="292" x2="788" y2="260" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="770" y1="356" x2="788" y2="380" marker-end="url(#arrowhead-pipe)" />
+
+  <line class="arrow" x1="1068" y1="260" x2="1090" y2="280" marker-end="url(#arrowhead-pipe)" />
+  <line class="arrow" x1="1068" y1="380" x2="1090" y2="364" marker-end="url(#arrowhead-pipe)" />
+
+  <text class="label" x="1082" y="220">allocations</text>
+  <text class="label" x="1082" y="444">allocations</text>
+
+  <line class="arrow-soft" x1="1165" y1="400" x2="1165" y2="548" marker-end="url(#arrowhead-pipe-soft)" />
+</svg>

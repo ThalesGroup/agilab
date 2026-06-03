@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repo Skill Maintenance"
+  short_description: "Maintain shared repo skill trees safely"
+  default_prompt: "Use $repo-skill-maintenance to update or migrate shared repo skills without causing Claude/Codex drift."

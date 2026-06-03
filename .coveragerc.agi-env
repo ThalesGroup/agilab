@@ -1,0 +1,12 @@
+[run]
+branch = true
+source =
+    src/agilab/core/agi-env/src/agi_env
+omit =
+    src/agilab/core/agi-env/src/agi_env/pagelib.py
+
+[report]
+omit =
+    src/agilab/core/agi-env/src/agi_env/pagelib.py
+exclude_also =
+    _tb_kwargs\['theme_name'\] = 'NoColor'

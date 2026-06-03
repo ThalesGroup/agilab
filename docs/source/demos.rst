@@ -1,0 +1,282 @@
+Demos
+=====
+
+.. toctree::
+   :hidden:
+
+   demo_capture_script
+
+Use this page to choose a public AGILAB demo route. It is a router, not a
+quick-start guide.
+
+Choose a demo
+-------------
+
+.. image:: https://img.shields.io/badge/agi--core-demo-1D4ED8?style=for-the-badge
+   :target: https://thalesgroup.github.io/agilab/notebook-quickstart.html
+   :alt: agi-core demo
+
+.. image:: https://img.shields.io/badge/AGILAB-demo-0F766E?style=for-the-badge
+   :target: https://huggingface.co/spaces/jpmorard/agilab
+   :alt: AGILAB demo
+
+.. image:: https://img.shields.io/badge/notebook--migration-demo-7C3AED?style=for-the-badge
+   :target: https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html
+   :alt: notebook migration demo
+
+.. image:: https://img.shields.io/badge/advanced--proof-pack-B45309?style=for-the-badge
+   :target: https://thalesgroup.github.io/agilab/advanced-proof-pack.html
+   :alt: advanced proof pack
+
+What each route is for
+----------------------
+
+- **AGILAB demo**: use :doc:`agilab-demo` for the self-serve public Hugging Face
+  Spaces route for the AGILAB web UI. It publishes the lightweight
+  ``flight_telemetry_project`` and ``weather_forecast_project`` paths, so use it as the
+  public first proof for ``PROJECT`` -> ``ORCHESTRATE`` -> ``WORKFLOW`` ->
+  ``ANALYSIS``, including ``view_maps``, ``view_forecast_analysis``, and
+  ``view_release_decision``.
+- **agi-core demo**: notebook-first runtime path. Use this if you want the
+  smaller ``AgiEnv`` / ``AGI.run(...)`` surface before the web UI.
+- **Notebook migration demo**: use :doc:`notebook-migration-skforecast-meteo`
+  when you want the notebook-to-AGILAB story: source notebooks, migrated
+  ``lab_stages.toml``, ``pipeline_view.dot``, exported forecast artifacts, and
+  the hosted ``weather_forecast_project`` analysis route.
+- **PyTorch Playground**: use :doc:`pytorch-playground` when you want a
+  browser-visible neural-network lesson that goes beyond a classic playground:
+  live play/pause training, replayable lesson configs, PyTorch code handoff,
+  and an evidence ZIP from the same run.
+- **Advanced Proof Pack**: use :doc:`advanced-proof-pack` after the first demo
+  when you want the deeper packaged proof routes: ``mission_decision_project``,
+  the ``execution_pandas_project`` Cython worker speedup demo,
+  ``execution_polars_project``, the ``sqlite_connector_proof`` database
+  evidence preview, UAV queue
+  analysis with ``uav_relay_queue_project``, ``service_mode`` previews,
+  ``inter_project_dag`` previews, ``mlflow_auto_tracking`` previews,
+  ``resilience_failure_injection`` previews, ``train_then_serve`` previews,
+  :doc:`data-connectors`, and :doc:`release-proof`.
+- **Industrial optimization examples**: use
+  :doc:`industrial-optimization-examples` when your apps repository includes
+  ``sb3_trainer_project`` and you want the advanced SB3 routes: Active Mesh
+  Optimization, MLflow auto-tracking, multi-app DAGs, resilience/failure
+  injection, and train-then-serve contracts.
+- **Quick start**: the safest truthful first proof of the full product path.
+  Use :doc:`quick-start` if you want the recommended local run instead of a
+  public demo.
+
+Short demo routes
+-----------------
+
+Use these as narrow product demos. They are intentionally generic and should
+not depend on private apps or app-specific claims.
+
+Robot/proof coverage
+~~~~~~~~~~~~~~~~~~~~
+
+Every route on this page must be tied to one of the local validation contracts:
+
+- **UI robot**: browser-visible AGILAB routes are covered by
+  ``tools/ui_robot_coverage_contract.py --json``. The contract checks the local
+  all-built-in ``ui-robot-matrix`` profile, the hosted first-proof visual robot,
+  the hosted install robot, and the configured apps-pages used by
+  ``flight_telemetry_project``, ``weather_forecast_project``,
+  ``mission_decision_project``, ``execution_pandas_project``,
+  ``execution_polars_project``, ``uav_queue_project``, and
+  ``uav_relay_queue_project``.
+- **Static/CLI proof**: non-browser preview routes are covered by
+  ``tools/public_proof_scenarios.py --compact``. This includes the local package
+  proof, hosted weather proof, MLflow proof, distributed-worker health proof,
+  notebook migration proof, resilience failure-injection proof,
+  train-then-serve proof, and service-mode preview proof.
+
+The static scenario contract is available as JSON:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --compact
+   uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --first-proof-json first-proof.json --hf-smoke-json hf-space-smoke.json --output public-proof-scenarios.json
+
+**Local app proof**
+  Install the released examples profile or use the source checkout, then run the
+  public first proof:
+
+  .. code-block:: bash
+
+     python -m pip install "agilab[examples]"
+     python -m agilab.lab_run first-proof --json --max-seconds 60
+
+  Stop when the command exits successfully and writes ``run_manifest.json``.
+  This package route uses ``agi-apps`` as the public app umbrella and resolves
+  the built-in project from the matching per-app package. Install
+  ``agilab[ui]`` and rerun with ``--with-ui`` when you also want to boot the
+  packaged local pages and ``agi-pages`` analysis views.
+  The same route is available in the UI by following ``PROJECT`` ->
+  ``ORCHESTRATE`` -> ``ANALYSIS`` with ``flight_telemetry_project``.
+
+**PyTorch Playground teaching route**
+  Use :doc:`pytorch-playground` when the demo objective is visual ML learning
+  plus reproducible engineering handoff:
+
+  .. code-block:: bash
+
+     agilab app surface pytorch_playground_project --ui streamlit
+
+  Stop when the boundary-first panel is visible, press ``Run instant demo`` for
+  ``Instant wow: clean circles``, read the start/now replay, try the XOR lesson
+  card, and download the evidence ZIP. The useful proof is not the visual
+  boundary alone; it is the replay token, manifest, generated
+  PyTorch/Lightning snippets, and boundary snapshots attached to that lesson.
+
+**SQLite database proof**
+  Use the packaged ``sqlite_connector_proof`` preview when the demo objective is
+  reproducible database access without a remote database, Docker, or secrets:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python src/agilab/examples/sqlite_connector_proof/preview_sqlite_connector_proof.py --output-dir /tmp/agilab-sqlite-proof
+
+  Stop when ``sqlite_connector_proof.db``, ``promotion_candidates.csv``, and
+  ``database_evidence.json`` are visible. The evidence records the connector ID,
+  SQLite driver, read-only query mode, schema hash, query hash, row count,
+  result hash, and artifact hashes. This is the public first step before a
+  Postgres, warehouse, or cloud SQL connector.
+
+**Cython worker speedup demo**
+  Use :doc:`execution-playground` when the demo objective is performance
+  engineering rather than a domain story. Select ``execution_pandas_project``,
+  keep the default ``typed_numeric`` kernel and Cython setting, run
+  ``INSTALL`` then ``EXECUTE``, and inspect the reducer evidence for
+  ``kernel_mode``, ``kernel_runtime``, and ``dtype_contract``.
+  The versioned local kernel proof records ``0.620s`` Python vs ``0.002s``
+  Cython on 100,000 rows x 32 passes, with matching checksums and a ``306x``
+  hot-loop speedup.
+
+  For a short command-line proof of the compiled hot loop, run:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python tools/benchmark_execution_pandas_cython_kernel.py --rows 100000 --compute-passes 32 --repeats 3 --warmups 1
+
+  Stop when the Python and Cython checksums match and the report shows the
+  Cython runtime separately. This is a kernel-scoped speedup demo; full AGILAB
+  runs still include CSV reads, dataframe grouping, result writes, worker
+  startup, and optional Dask/process orchestration.
+
+  For the real-world version of the same pattern, run
+  ``flight_telemetry_project``. Its Polars ingestion and map/network analysis
+  stay in Python, while the haversine speed kernel records
+  ``speed_kernel_runtime``, ``speed_dtype_contract``, and checksum evidence in
+  the reducer summary.
+
+**Rust/PyO3 native-worker preview**
+  Use the packaged ``native_rust_worker`` preview when the demo objective is to
+  show AGILAB's native-worker extension boundary without adding Rust to the base
+  install:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python src/agilab/examples/native_rust_worker/preview_native_rust_worker.py --output-dir /tmp/agilab-rust-worker
+
+  Stop when ``native_rust_worker_evidence.json`` and the generated
+  ``rust_worker`` PyO3/maturin skeleton are visible. This is an advanced worker
+  extension preview: AGILAB orchestration and evidence stay in Python, only a
+  measured typed hot kernel moves to Rust, and compiling the generated extension
+  remains an explicit follow-up step.
+
+**Distributed worker route**
+  Use the same public app, then switch ORCHESTRATE from the local path to the
+  configured worker or SSH-host path. Keep the demo bounded: prove that worker
+  packaging is staged, service health gates report status, and outputs land
+  under the normal log directory.
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python tools/service_health_check.py --format json
+
+  Stop when the health gate is explicit. This is a worker/operator demo, not a
+  certification of every possible remote topology.
+
+**MLflow tracking route**
+  Start with the packaged preview when you want a short, deterministic proof:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python src/agilab/examples/mlflow_auto_tracking/preview_mlflow_auto_tracking.py --output-dir /tmp/mlflow_auto_tracking_preview
+
+  Add ``--with mlflow`` to the ``uv`` command when you want the same evidence
+  logged into a local MLflow store. The demo objective is to show that AGILAB
+  keeps setup, execution, artifacts, and visible results together while MLflow
+  remains the tracking system of record when it is used.
+
+  Stop when the pipeline artifacts and the MLflow run link point to the same
+  experiment evidence.
+
+**Resilience failure-injection route**
+  Use the packaged preview when the demo objective is strategy comparison under
+  a controlled degradation event:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python src/agilab/examples/resilience_failure_injection/preview_resilience_failure_injection.py --output /tmp/resilience_preview.json
+
+  Stop when the route ranking before failure, route ranking after failure, and
+  recommended fixed/replanned/search/policy response are visible in the same
+  JSON payload. The preview is deterministic and does not train a real policy.
+
+**Train-then-serve route**
+  Use the packaged preview when the demo objective is the handoff from
+  experiment evidence to a service-ready contract:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python src/agilab/examples/train_then_serve/preview_train_then_serve.py --output-dir /tmp/train_then_serve_preview
+
+  Stop when ``service_contract.json``, ``prediction_sample.json``, and
+  ``service_health.json`` are visible. The preview is deterministic and does
+  not start persistent workers.
+
+**Notebook migration route**
+  Use the packaged migration example when the demo objective is notebook
+  consolidation rather than execution speed:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python src/agilab/examples/notebook_to_dask/preview_notebook_to_dask.py --output /tmp/notebook_to_dask_preview.json
+
+  Then open :doc:`notebook-migration-skforecast-meteo` or switch the hosted UI
+  to ``weather_forecast_project`` and open ``view_forecast_analysis``. Stop when
+  the notebook source, migrated pipeline shape, exported artifacts, and reusable
+  analysis view are visible together.
+
+Demo naming
+-----------
+
+Keep the two public AGILAB demo lanes separate:
+
+- ``flight_telemetry_project`` is the default hosted/newcomer demo. It is a lightweight
+  data-generation path used to prove the core UI and local execution flow
+  quickly.
+- ``weather_forecast_project`` is the second hosted demo. It is a lightweight
+  notebook-migration path with source notebooks, forecast artifacts, and
+  release-decision views.
+- ``uav_relay_queue_project`` is the UAV Relay Queue RL demo. It is the
+  advanced domain scenario and should not be described as the default hosted
+  app.
+- ``mission_decision_project`` and the execution playground apps are advanced proof
+  routes. They are public built-in demos, but they should not replace
+  ``flight_telemetry_project`` as the default hosted/newcomer app.
+
+See also
+--------
+
+- :doc:`quick-start`
+- :doc:`release-proof`
+- :doc:`architecture-five-minutes`
+- :doc:`agilab-demo`
+- :doc:`notebook-quickstart`
+- :doc:`notebook-migration-skforecast-meteo`
+- :doc:`advanced-proof-pack`
+- :doc:`industrial-optimization-examples`
+- :doc:`newcomer-guide`
+- :doc:`compatibility-matrix`

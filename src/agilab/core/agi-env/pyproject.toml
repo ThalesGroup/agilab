@@ -1,0 +1,259 @@
+[project]
+version = "2026.06.02.post1"
+name = "agi-env"
+description = "Environment bootstrap package for AGILAB with virtualenv, path, and runtime helpers"
+requires-python = ">=3.11"
+readme = "README.md"
+authors = [
+    { name = "Jean-Pierre Morard" }
+]
+maintainers = [{ name = "Jean-Pierre Morard" }]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+
+classifiers = [
+    "Intended Audience :: Developers",
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+]
+
+keywords = [
+    "python",
+    "reproducibility",
+    "reproducible-research",
+    "workflow-orchestration",
+    "dependency-management",
+    "virtual-environments",
+    "environment-management",
+    "python-automation",
+    "free-threaded-python",
+]
+
+dependencies = [
+    "pathspec>=1.1,<2",
+    "psutil>=7,<8",
+    "py7zr>=1.1,<1.2",
+    "pydantic>=2.11,<2.14",
+    "python-dotenv>=1,<2",
+    "tomlkit>=0.13,<1",
+]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-env"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[[tool.mypy.overrides]]
+module = "agi_core.*"
+disallow_untyped_defs = true
+disallow_any_generics = true
+warn_return_any = true
+warn_unused_ignores = true
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "pytest-asyncio",
+    "licensecheck",
+    "pytest-cov",
+    "agi-gui"
+]
+
+[tool.uv.sources.agi-gui]
+    path = "../../lib/agi-gui"
+    editable = true
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-data]
+agi_env = [
+    "resources/**/*",
+    "resources/.agilab/*",
+    "resources/mistral_offline/data/.gitignore",
+    "resources/mistral_offline/data/.gitkeep",
+]
+
+[tool.mypy]
+mypy_path = ["stubs"]
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pyment]
+source_dir = "src"
+format = "google"
+
+[tool.pytest.ini_options]
+# Where your tests live for this project
+testpaths = ["test"]
+
+# Prefer auto so async tests don't need @pytest.mark.asyncio
+asyncio_mode = "auto"
+
+# Quiet known third-party deprecations
+filterwarnings = [
+  "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
+]

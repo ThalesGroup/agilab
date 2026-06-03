@@ -1,0 +1,263 @@
+{
+  "apps": {
+    "execution_pandas_project": {
+      "engine": "pandas",
+      "execution_model": "process",
+      "worker_counts": {
+        "1": {
+          "modes": {
+            "0": {
+              "active_workers": 1,
+              "label": "mono",
+              "max_seconds": 1.825414750004711,
+              "median_seconds": 1.8183565830040607,
+              "min_seconds": 1.8178663340004277,
+              "samples_seconds": [
+                1.825414750004711,
+                1.8183565830040607,
+                1.8178663340004277
+              ]
+            },
+            "4": {
+              "active_workers": 1,
+              "label": "parallel",
+              "max_seconds": 1.7938095409990638,
+              "median_seconds": 1.7720760839947616,
+              "min_seconds": 1.756583957998373,
+              "samples_seconds": [
+                1.756583957998373,
+                1.7720760839947616,
+                1.7938095409990638
+              ]
+            }
+          },
+          "parallel_speedup_vs_mono": 1.026116541737288
+        },
+        "2": {
+          "modes": {
+            "0": {
+              "active_workers": 2,
+              "label": "mono",
+              "max_seconds": 1.543680000002496,
+              "median_seconds": 1.5390872919961112,
+              "min_seconds": 1.5353637499938486,
+              "samples_seconds": [
+                1.543680000002496,
+                1.5390872919961112,
+                1.5353637499938486
+              ]
+            },
+            "4": {
+              "active_workers": 2,
+              "label": "parallel",
+              "max_seconds": 1.893377792002866,
+              "median_seconds": 1.892080249999708,
+              "min_seconds": 1.8772414589984692,
+              "samples_seconds": [
+                1.8772414589984692,
+                1.893377792002866,
+                1.892080249999708
+              ]
+            }
+          },
+          "parallel_speedup_vs_mono": 0.8134365822994816
+        },
+        "4": {
+          "modes": {
+            "0": {
+              "active_workers": 4,
+              "label": "mono",
+              "max_seconds": 1.537360666996392,
+              "median_seconds": 1.5365149999997811,
+              "min_seconds": 1.5322730409970973,
+              "samples_seconds": [
+                1.5322730409970973,
+                1.537360666996392,
+                1.5365149999997811
+              ]
+            },
+            "4": {
+              "active_workers": 4,
+              "label": "parallel",
+              "max_seconds": 2.077896208000311,
+              "median_seconds": 2.0565889999998035,
+              "min_seconds": 2.0545280410005944,
+              "samples_seconds": [
+                2.0565889999998035,
+                2.077896208000311,
+                2.0545280410005944
+              ]
+            }
+          },
+          "parallel_speedup_vs_mono": 0.74711816507816
+        },
+        "8": {
+          "modes": {
+            "0": {
+              "active_workers": 8,
+              "label": "mono",
+              "max_seconds": 1.5060786249960074,
+              "median_seconds": 1.4979382500023348,
+              "min_seconds": 1.4974205000035,
+              "samples_seconds": [
+                1.4979382500023348,
+                1.4974205000035,
+                1.5060786249960074
+              ]
+            },
+            "4": {
+              "active_workers": 8,
+              "label": "parallel",
+              "max_seconds": 2.16371729200182,
+              "median_seconds": 2.1574428330059163,
+              "min_seconds": 2.1448432500037597,
+              "samples_seconds": [
+                2.16371729200182,
+                2.1574428330059163,
+                2.1448432500037597
+              ]
+            }
+          },
+          "parallel_speedup_vs_mono": 0.6943119081006153
+        }
+      }
+    },
+    "execution_polars_project": {
+      "engine": "polars",
+      "execution_model": "threads",
+      "worker_counts": {
+        "1": {
+          "modes": {
+            "0": {
+              "active_workers": 1,
+              "label": "mono",
+              "max_seconds": 1.9959415410048678,
+              "median_seconds": 1.9937331670007552,
+              "min_seconds": 1.986705041003006,
+              "samples_seconds": [
+                1.986705041003006,
+                1.9937331670007552,
+                1.9959415410048678
+              ]
+            },
+            "4": {
+              "active_workers": 1,
+              "label": "parallel",
+              "max_seconds": 1.5386401249998016,
+              "median_seconds": 1.5204967909958214,
+              "min_seconds": 1.5159567089940538,
+              "samples_seconds": [
+                1.5386401249998016,
+                1.5204967909958214,
+                1.5159567089940538
+              ]
+            }
+          },
+          "parallel_speedup_vs_mono": 1.3112379972173414
+        },
+        "2": {
+          "modes": {
+            "0": {
+              "active_workers": 2,
+              "label": "mono",
+              "max_seconds": 1.6526060420001158,
+              "median_seconds": 1.646568666001258,
+              "min_seconds": 1.6423561659976258,
+              "samples_seconds": [
+                1.646568666001258,
+                1.6423561659976258,
+                1.6526060420001158
+              ]
+            },
+            "4": {
+              "active_workers": 2,
+              "label": "parallel",
+              "max_seconds": 1.4406737079989398,
+              "median_seconds": 1.4357430840027519,
+              "min_seconds": 1.4329995829975815,
+              "samples_seconds": [
+                1.4329995829975815,
+                1.4357430840027519,
+                1.4406737079989398
+              ]
+            }
+          },
+          "parallel_speedup_vs_mono": 1.1468407435477517
+        },
+        "4": {
+          "modes": {
+            "0": {
+              "active_workers": 4,
+              "label": "mono",
+              "max_seconds": 1.6256668330024695,
+              "median_seconds": 1.6220012080011657,
+              "min_seconds": 1.6108756660032668,
+              "samples_seconds": [
+                1.6220012080011657,
+                1.6256668330024695,
+                1.6108756660032668
+              ]
+            },
+            "4": {
+              "active_workers": 4,
+              "label": "parallel",
+              "max_seconds": 1.5460968330007745,
+              "median_seconds": 1.5167835829997784,
+              "min_seconds": 1.5162849589978578,
+              "samples_seconds": [
+                1.5460968330007745,
+                1.5167835829997784,
+                1.5162849589978578
+              ]
+            }
+          },
+          "parallel_speedup_vs_mono": 1.0693689107534352
+        },
+        "8": {
+          "modes": {
+            "0": {
+              "active_workers": 8,
+              "label": "mono",
+              "max_seconds": 1.6076521249997313,
+              "median_seconds": 1.5980977919971338,
+              "min_seconds": 1.5933312499983003,
+              "samples_seconds": [
+                1.6076521249997313,
+                1.5933312499983003,
+                1.5980977919971338
+              ]
+            },
+            "4": {
+              "active_workers": 8,
+              "label": "parallel",
+              "max_seconds": 1.5689568340021651,
+              "median_seconds": 1.5639492499976768,
+              "min_seconds": 1.5627171250016545,
+              "samples_seconds": [
+                1.5639492499976768,
+                1.5627171250016545,
+                1.5689568340021651
+              ]
+            }
+          },
+          "parallel_speedup_vs_mono": 1.0218348146523986
+        }
+      }
+    }
+  },
+  "environment": {
+    "compute_passes": 32,
+    "n_partitions": 16,
+    "platform": "darwin",
+    "python": "3.13.9",
+    "repeats": 3,
+    "rows_per_file": 100000,
+    "warmups": 1,
+    "worker_counts": [
+      1,
+      2,
+      4,
+      8
+    ]
+  }
+}

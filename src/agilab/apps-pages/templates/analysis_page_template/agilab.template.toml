@@ -1,0 +1,13 @@
+schema = "agilab.template_contract.v1"
+kind = "page"
+template_version = 1
+package_name_pattern = "view-{page_slug}"
+entrypoint = "src/view_demo/view_demo.py"
+
+[files]
+required = [
+    "README.md",
+    "pyproject.toml",
+    "src/view_demo/__init__.py",
+    "src/view_demo/view_demo.py",
+]

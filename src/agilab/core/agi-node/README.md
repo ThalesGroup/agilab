@@ -1,0 +1,30 @@
+# AGI-NODE
+
+[![PyPI version](https://img.shields.io/pypi/v/agi-node.svg?cacheSeconds=300)](https://pypi.org/project/agi-node/)
+[![Python versions](https://img.shields.io/pypi/pyversions/agi-node.svg)](https://pypi.org/project/agi-node/)
+[![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-node)](https://opensource.org/licenses/BSD-3-Clause)
+[![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
+[![Coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-node.svg)](https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-node)
+[![API docs](https://img.shields.io/badge/docs-agi--node-brightgreen.svg)](https://thalesgroup.github.io/agilab/agi-node.html)
+
+`agi-node` is the worker orchestration layer. It manages dispatch, packaging, execution isolation, and
+runtime integration for worker packages.
+
+## Quick install
+
+```bash
+pip install agi-node
+```
+
+## Key entry points
+
+- Worker packaging for local and remote execution
+- Runtime dispatch contracts used by `agi-cluster`
+- Utilities to validate and bootstrap worker environments
+
+
+## Repository
+
+- Source: https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-node
+- Docs: https://thalesgroup.github.io/agilab/agi-node.html
+- Issues: https://github.com/ThalesGroup/agilab/issues

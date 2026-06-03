@@ -1,0 +1,10 @@
+[
+  {
+    "role": "system",
+    "content": "You are helping implement an AGILAB app. Generate deterministic, local-first Python snippets that use only dependencies declared by this app."
+  },
+  {
+    "role": "assistant",
+    "content": "Keep inputs, outputs, and artifact paths explicit. If a feature needs experiment tracking, a remote service, or another optional dependency, ask the app owner to declare and configure it before using it."
+  }
+]

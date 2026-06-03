@@ -1,0 +1,930 @@
+from __future__ import annotations
+
+import json
+import logging
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from agi_cluster.agi_distributor import AGI, RunRequest, capacity_support, runtime_misc_support
+from agi_env import AgiEnv
+from agi_node.agi_dispatcher import BaseWorker
+
+_BUILTIN_APPS_PATH = (Path(__file__).resolve().parents[4] / "src/agilab/apps/builtin").resolve()
+
+
+def _minimal_app_env(*, verbose: int = 0) -> AgiEnv:
+    return AgiEnv(apps_path=_BUILTIN_APPS_PATH, app="minimal_app_project", verbose=verbose)
+
+
+@pytest.fixture(autouse=True)
+def _reset_agi_capacity_state():
+    fields = [
+        "_best_mode",
+        "_mode_auto",
+        "_dask_client",
+        "_dask_workers",
+        "_workers",
+        "_capacity_predictor",
+        "workers_info",
+        "_run_time",
+        "_capacity",
+        "_calibration_cache",
+        "env",
+        "target_path",
+        "_target",
+        "_args",
+        "_worker_args",
+        "_rapids_enabled",
+        "_mode",
+        "_capacity_data_file",
+        "_capacity_model_file",
+    ]
+    snapshot = {field: getattr(AGI, field, None) for field in fields}
+    try:
+        AGI._best_mode = {}
+        AGI._mode_auto = False
+        AGI._dask_client = None
+        AGI._dask_workers = []
+        AGI._workers = {}
+        AGI._capacity_predictor = None
+        AGI.workers_info = {}
+        AGI._run_time = []
+        AGI._capacity = {}
+        AGI._calibration_cache = {}
+        AGI.env = None
+        AGI.target_path = None
+        AGI._target = None
+        AGI._args = {}
+        AGI._worker_args = None
+        AGI._rapids_enabled = False
+        AGI._mode = 0
+        AGI._capacity_data_file = "capacity_data.csv"
+        AGI._capacity_model_file = "capacity_model.pkl"
+        yield
+    finally:
+        for field, value in snapshot.items():
+            setattr(AGI, field, value)
+
+
+def test_capacity_support_private_helper_edges(monkeypatch, tmp_path):
+    with pytest.raises(RuntimeError, match="Benchmark path is not configured"):
+        capacity_support._benchmark_path(SimpleNamespace(benchmark=None))
+    with pytest.raises(RuntimeError, match="Manager path is not configured"):
+        capacity_support._manager_path(SimpleNamespace(manager_path=str(tmp_path)))
+
+    assert capacity_support._worker_host("ssh://user@[fe80::1]:22") == "fe80::1"
+    assert capacity_support._worker_host("user@10.0.0.2:8787") == "10.0.0.2"
+    assert capacity_support._worker_host("") == ""
+    assert capacity_support._node_count(None) == 1
+    assert capacity_support._node_count({"user@10.0.0.2:8787": 1, "ssh://user@10.0.0.2": 1}) == 1
+
+    fake_agi = SimpleNamespace(_capacity={"user@10.0.0.3": 3.0, "user@10.0.0.2": 1.0})
+    assert capacity_support._best_single_node_host(fake_agi, {"fallback": 1}) == "10.0.0.3"
+    assert capacity_support._best_single_node_workers(SimpleNamespace(_capacity={}), {"user@10.0.0.4": 1}) == {
+        "10.0.0.4": 1
+    }
+    assert capacity_support._best_single_node_workers(SimpleNamespace(_capacity={}), {"": 1}) == {}
+
+    assert capacity_support._rapids_capability_value(True) is True
+    assert capacity_support._rapids_capability_value("off") is False
+    assert capacity_support._rapids_capability_value("unknown") is None
+
+    class _BrokenLocalEnv:
+        envars = {}
+
+        def is_local(self, _host):
+            raise RuntimeError("local check failed")
+
+    assert capacity_support._worker_rapids_capability(_BrokenLocalEnv(), "127.0.0.1") is None
+
+    env = SimpleNamespace(envars={"worker@10.0.0.5": "yes"}, hw_rapids_capable=False, is_local=lambda host: host == "localhost")
+    assert capacity_support._worker_rapids_capability(env, "10.0.0.5") is True
+    assert capacity_support._worker_rapids_capability(env, "localhost") is False
+    assert capacity_support._worker_rapids_capable(env, "10.0.0.5") is True
+
+    assert capacity_support._best_single_node_modes([0, 8], rapids_capable=True, rapids_mode_bit=8, prefer_requested_rapids=True) == [8]
+    assert capacity_support._best_single_node_modes([0, 1], rapids_capable=False, rapids_mode_bit=8) == [0, 1]
+
+    assert capacity_support._rapids_run_mode_bit(SimpleNamespace(_RAPIDS_SET="bad", _RAPIDS_RESET=0)) == 8
+    assert capacity_support._rapids_requested_for_best_node(
+        SimpleNamespace(_RAPIDS_SET=8, _RAPIDS_RESET=0),
+        [0],
+        8,
+    ) is True
+    assert capacity_support._auto_rapids_requires_best_node_capability(
+        SimpleNamespace(_RAPIDS_SET=8, _RAPIDS_RESET=0),
+        [0, 8],
+        8,
+    ) is True
+
+
+def test_capacity_cache_edges_and_invalid_ttl(monkeypatch):
+    monkeypatch.setenv(capacity_support.CALIBRATION_CACHE_TTL_SECONDS_ENV, "bad")
+    assert capacity_support._calibration_cache_ttl(SimpleNamespace(envars={})) == (
+        capacity_support.DEFAULT_CALIBRATION_CACHE_TTL_SECONDS
+    )
+    monkeypatch.delenv(capacity_support.CALIBRATION_CACHE_TTL_SECONDS_ENV)
+    assert (
+        capacity_support._calibration_cache_ttl(
+            SimpleNamespace(envars={capacity_support.CALIBRATION_CACHE_TTL_SECONDS_ENV: "-5"})
+        )
+        == 0.0
+    )
+
+    agi = SimpleNamespace(
+        env=SimpleNamespace(
+            envars={capacity_support.CALIBRATION_CACHE_TTL_SECONDS_ENV: "100"},
+            share="",
+            localshare="",
+            clustershare="",
+        ),
+        _workers={},
+        _dask_workers=[],
+        _capacity_predictor=None,
+        _calibration_cache=None,
+    )
+    assert capacity_support._restore_calibration_cache(agi, now=10.0) is False
+
+    signature = capacity_support._calibration_signature(agi)
+    invalid_caches = [
+        {},
+        {"signature": {"different": True}},
+        {"signature": signature},
+        {"signature": signature, "measured_at": "not-a-number"},
+        {"signature": signature, "measured_at": -200.0},
+        {"signature": signature, "measured_at": 1.0, "workers_info": [], "capacity": {}},
+        {"signature": signature, "measured_at": 1.0, "workers_info": {}, "capacity": []},
+    ]
+    for cache in invalid_caches:
+        agi._calibration_cache = cache
+        assert capacity_support._restore_calibration_cache(agi, now=10.0) is False
+
+    agi._calibration_cache = {
+        "signature": signature,
+        "measured_at": 9.0,
+        "workers_info": {"worker": {"label": 1.0}},
+        "capacity": {"worker": 1.0},
+    }
+    assert capacity_support._restore_calibration_cache(agi, now=10.0) is True
+    agi.workers_info["worker"]["label"] = 2.0
+    assert agi._calibration_cache["workers_info"]["worker"]["label"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_benchmark_rejects_unsupported_mode_type(tmp_path):
+    env = _minimal_app_env()
+    env.benchmark = tmp_path / "benchmark.json"
+
+    with pytest.raises(TypeError, match="Benchmark mode must be None"):
+        await capacity_support.benchmark(AGI, env, request=RunRequest(mode="fast"))
+
+
+@pytest.mark.asyncio
+async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
+    env = _minimal_app_env()
+    env.benchmark = tmp_path / "benchmark.json"
+    env.benchmark.write_text("stale", encoding="utf-8")
+
+    async def _fake_run(_env, request):
+        mode = request.mode
+        return f"mode{mode} {float(mode) + 1.0}"
+
+    async def _fake_bench_dask(_env, request, _modes, _mask, runs, **_kwargs):
+        assert request.workers == {"127.0.0.1": 1}
+        runs[4] = {
+            "variant": "cluster",
+            "nodes": 1,
+            "node": "cluster",
+            "mode": "mode4",
+            "timing": "4 seconds",
+            "seconds": 4.0,
+        }
+
+    monkeypatch.setattr(BaseWorker, "_is_cython_installed", staticmethod(lambda _env: True))
+    monkeypatch.setattr(AGI, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(AGI, "_benchmark_dask_modes", staticmethod(_fake_bench_dask))
+
+    payload = await capacity_support.benchmark(
+        AGI,
+        env,
+        request=RunRequest(scheduler="127.0.0.1", workers={"127.0.0.1": 1}, mode=[0, 1, 4]),
+    )
+    data = json.loads(payload)
+    assert set(data.keys()) == {"0", "1", "4"}
+    assert data["0"]["order"] == 1
+    assert data["1"]["order"] == 2
+    assert data["4"]["order"] == 3
+    assert data["0"]["nodes"] == 1
+    assert data["4"]["nodes"] == 1
+    assert data["0"]["variant"] == "local"
+    assert data["4"]["variant"] == "cluster"
+    assert AGI._best_mode[env.target]["mode"] == data["0"]["mode"]
+    assert env.benchmark.exists()
+    assert AGI._mode_auto is False
+
+
+@pytest.mark.asyncio
+async def test_benchmark_calls_install_when_cython_missing(monkeypatch, tmp_path):
+    env = _minimal_app_env()
+    env.benchmark = tmp_path / "benchmark.json"
+    called = {"install": 0}
+
+    async def _fake_install(*_args, **_kwargs):
+        called["install"] += 1
+        return None
+
+    async def _fake_run(_env, request):
+        return f"mode{request.mode} 1.0"
+
+    monkeypatch.setattr(BaseWorker, "_is_cython_installed", staticmethod(lambda _env: False))
+    monkeypatch.setattr(AGI, "install", staticmethod(_fake_install))
+    monkeypatch.setattr(AGI, "run", staticmethod(_fake_run))
+    monkeypatch.setattr(AGI, "_benchmark_dask_modes", staticmethod(lambda *_a, **_k: None))
+
+    payload = await capacity_support.benchmark(AGI, env, request=RunRequest(mode=[0]))
+    assert json.loads(payload)["0"]["mode"].startswith("mode")
+    assert called["install"] == 1
+
+
+@pytest.mark.asyncio
+async def test_benchmark_raises_on_invalid_run_format(monkeypatch, tmp_path):
+    env = _minimal_app_env()
+    env.benchmark = tmp_path / "benchmark.json"
+
+    async def _bad_run(*_args, **_kwargs):
+        return "invalid-format"
+
+    monkeypatch.setattr(BaseWorker, "_is_cython_installed", staticmethod(lambda _env: True))
+    monkeypatch.setattr(AGI, "run", staticmethod(_bad_run))
+    monkeypatch.setattr(AGI, "_benchmark_dask_modes", staticmethod(lambda *_a, **_k: None))
+
+    with pytest.raises(ValueError, match="Unexpected run format"):
+        await capacity_support.benchmark(AGI, env, request=RunRequest(mode=[0]))
+
+
+@pytest.mark.asyncio
+async def test_benchmark_raises_when_no_runs(monkeypatch, tmp_path):
+    env = _minimal_app_env()
+    env.benchmark = tmp_path / "benchmark.json"
+
+    async def _non_str_run(*_args, **_kwargs):
+        return {"status": "not-a-string"}
+
+    monkeypatch.setattr(BaseWorker, "_is_cython_installed", staticmethod(lambda _env: True))
+    monkeypatch.setattr(AGI, "run", staticmethod(_non_str_run))
+    monkeypatch.setattr(AGI, "_benchmark_dask_modes", staticmethod(lambda *_a, **_k: None))
+
+    with pytest.raises(RuntimeError, match="No ordered runs available"):
+        await capacity_support.benchmark(AGI, env, request=RunRequest(mode=[0]))
+
+
+@pytest.mark.asyncio
+async def test_benchmark_dask_modes_records_runs_and_stops(monkeypatch):
+    env = _minimal_app_env()
+    calls = {"start": 0, "stop": 0, "update": 0}
+    runs = {}
+    sequence = iter(["m4 2.0", "m5 1.0"])
+
+    async def _start(_scheduler):
+        calls["start"] += 1
+        return True
+
+    async def _stop():
+        calls["stop"] += 1
+
+    async def _distribute():
+        return next(sequence)
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(
+        AGI,
+        "_update_capacity",
+        staticmethod(lambda: calls.__setitem__("update", calls["update"] + 1)),
+    )
+
+    await capacity_support.benchmark_dask_modes(
+        AGI,
+        env,
+        request=RunRequest(scheduler="127.0.0.1", workers={"127.0.0.1": 1}),
+        mode_range=[4, 5],
+        rapids_mode_mask=AGI._RAPIDS_RESET,
+        runs=runs,
+    )
+    assert calls["start"] == 1
+    assert calls["stop"] == 1
+    assert calls["update"] == 2
+    assert runs[4]["seconds"] == 2.0
+    assert runs[5]["seconds"] == 1.0
+    assert runs[4]["nodes"] == 1
+
+
+@pytest.mark.asyncio
+async def test_benchmark_dask_modes_can_add_best_single_node_run(monkeypatch):
+    env = _minimal_app_env()
+    calls = {"start": 0, "stop": 0, "update": 0}
+    worker_snapshots: list[dict[str, int]] = []
+    runs = {}
+    sequence = iter(["m4-full 3.0", "m4-best 1.5"])
+
+    async def _start(_scheduler):
+        calls["start"] += 1
+        return True
+
+    async def _stop():
+        calls["stop"] += 1
+
+    async def _distribute():
+        worker_snapshots.append(dict(AGI._workers))
+        return next(sequence)
+
+    def _update_capacity():
+        calls["update"] += 1
+        AGI._capacity = {
+            "10.0.0.2:4100": 1.0,
+            "10.0.0.3:4200": 2.5,
+        }
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(_update_capacity))
+
+    await capacity_support.benchmark_dask_modes(
+        AGI,
+        env,
+        request=RunRequest(
+            scheduler="127.0.0.1",
+            workers={"10.0.0.2": 1, "10.0.0.3": 1},
+        ),
+        mode_range=[4],
+        rapids_mode_mask=AGI._RAPIDS_RESET,
+        runs=runs,
+        include_best_single_node=True,
+    )
+
+    assert calls == {"start": 1, "stop": 1, "update": 2}
+    assert worker_snapshots == [
+        {"10.0.0.2": 1, "10.0.0.3": 1},
+        {"10.0.0.3": 1},
+    ]
+    assert runs[4]["nodes"] == 2
+    assert runs[4]["variant"] == "cluster"
+    assert runs["4:best-node"]["nodes"] == 1
+    assert runs["4:best-node"]["variant"] == "best-node"
+    assert runs["4:best-node"]["node"] == "10.0.0.3"
+    assert runs["4:best-node"]["seconds"] == 1.5
+    assert AGI._workers == {"10.0.0.2": 1, "10.0.0.3": 1}
+
+
+@pytest.mark.asyncio
+async def test_benchmark_dask_modes_maps_best_rapids_node_modes(monkeypatch):
+    env = _minimal_app_env()
+    env.envars["10.0.0.3"] = "hw_rapids_capable"
+    worker_snapshots: list[dict[str, int]] = []
+    modes_seen: list[int] = []
+    runs = {}
+
+    async def _start(_scheduler):
+        return True
+
+    async def _stop():
+        return None
+
+    async def _distribute():
+        worker_snapshots.append(dict(AGI._workers))
+        modes_seen.append(int(AGI._mode))
+        return f"m{AGI._mode} {float(AGI._mode)}"
+
+    def _update_capacity():
+        AGI._capacity = {
+            "10.0.0.2:4100": 1.0,
+            "10.0.0.3:4200": 2.5,
+        }
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(_update_capacity))
+
+    await capacity_support.benchmark_dask_modes(
+        AGI,
+        env,
+        request=RunRequest(
+            scheduler="127.0.0.1",
+            workers={"10.0.0.2": 1, "10.0.0.3": 1},
+        ),
+        mode_range=[4, 5],
+        rapids_mode_mask=AGI._RAPIDS_RESET,
+        runs=runs,
+        include_best_single_node=True,
+    )
+
+    assert modes_seen == [4, 5, 12, 13]
+    assert worker_snapshots == [
+        {"10.0.0.2": 1, "10.0.0.3": 1},
+        {"10.0.0.2": 1, "10.0.0.3": 1},
+        {"10.0.0.3": 1},
+        {"10.0.0.3": 1},
+    ]
+    assert runs["12:best-node"]["node"] == "10.0.0.3"
+    assert runs["13:best-node"]["node"] == "10.0.0.3"
+    assert runs["12:best-node"]["mode"] == "m12"
+    assert runs["13:best-node"]["mode"] == "m13"
+    assert env.hw_rapids_capable is None
+    assert AGI._rapids_enabled is False
+
+
+@pytest.mark.asyncio
+async def test_benchmark_dask_modes_uses_fresh_class_rapids_capability(monkeypatch):
+    env = _minimal_app_env()
+    env.envars.pop("10.0.0.3", None)
+    monkeypatch.setattr(AgiEnv, "envars", {"10.0.0.3": "hw_rapids_capable"})
+    modes_seen: list[int] = []
+    runs = {}
+
+    async def _start(_scheduler):
+        return True
+
+    async def _stop():
+        return None
+
+    async def _distribute():
+        modes_seen.append(int(AGI._mode))
+        return f"m{AGI._mode} {float(AGI._mode)}"
+
+    def _update_capacity():
+        AGI._capacity = {
+            "10.0.0.2:4100": 1.0,
+            "10.0.0.3:4200": 2.5,
+        }
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(_update_capacity))
+
+    await capacity_support.benchmark_dask_modes(
+        AGI,
+        env,
+        request=RunRequest(
+            scheduler="127.0.0.1",
+            workers={"10.0.0.2": 1, "10.0.0.3": 1},
+        ),
+        mode_range=[4],
+        rapids_mode_mask=AGI._RAPIDS_SET,
+        runs=runs,
+        include_best_single_node=True,
+    )
+
+    assert modes_seen == [4, 12]
+    assert runs["12:best-node"]["node"] == "10.0.0.3"
+    assert runs["12:best-node"]["mode"] == "m12"
+
+
+@pytest.mark.asyncio
+async def test_benchmark_dask_modes_warns_when_best_rapids_capability_unknown(
+    monkeypatch,
+    caplog,
+):
+    env = _minimal_app_env()
+    unknown_best_host = "203.0.113.3"
+    env.envars.pop(unknown_best_host, None)
+    monkeypatch.delenv(unknown_best_host, raising=False)
+    monkeypatch.setattr(AgiEnv, "envars", {})
+    modes_seen: list[int] = []
+    runs = {}
+
+    async def _start(_scheduler):
+        return True
+
+    async def _stop():
+        return None
+
+    async def _distribute():
+        modes_seen.append(int(AGI._mode))
+        return f"m{AGI._mode} {float(AGI._mode)}"
+
+    def _update_capacity():
+        AGI._capacity = {
+            "203.0.113.2:4100": 1.0,
+            f"{unknown_best_host}:4200": 2.5,
+        }
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(_update_capacity))
+
+    caplog.set_level(logging.WARNING, logger=capacity_support.logger.name)
+    await capacity_support.benchmark_dask_modes(
+        AGI,
+        env,
+        request=RunRequest(
+            scheduler="127.0.0.1",
+            workers={"203.0.113.2": 1, unknown_best_host: 1},
+        ),
+        mode_range=[4],
+        rapids_mode_mask=AGI._RAPIDS_SET,
+        runs=runs,
+        include_best_single_node=True,
+    )
+
+    assert modes_seen == [4, 4]
+    assert runs["4:best-node"]["node"] == unknown_best_host
+    assert "capability for best node 203.0.113.3 is unknown" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_benchmark_dask_modes_deduplicates_requested_best_rapids_counterparts(monkeypatch):
+    env = _minimal_app_env()
+    unknown_best_host = "203.0.113.3"
+    monkeypatch.setattr(AgiEnv, "envars", {})
+    modes_seen: list[int] = []
+    runs = {}
+
+    async def _start(_scheduler):
+        return True
+
+    async def _stop():
+        return None
+
+    async def _distribute():
+        modes_seen.append(int(AGI._mode))
+        return f"m{AGI._mode} {float(AGI._mode)}"
+
+    def _update_capacity():
+        AGI._capacity = {
+            "203.0.113.2:4100": 1.0,
+            f"{unknown_best_host}:4200": 2.5,
+        }
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(_update_capacity))
+
+    await capacity_support.benchmark_dask_modes(
+        AGI,
+        env,
+        request=RunRequest(
+            scheduler="127.0.0.1",
+            workers={"203.0.113.2": 1, unknown_best_host: 1},
+        ),
+        mode_range=[4, 5, 6, 12, 13, 14],
+        rapids_mode_mask=AGI._RAPIDS_SET,
+        runs=runs,
+        include_best_single_node=True,
+    )
+
+    assert modes_seen == [4, 5, 6, 12, 13, 14, 12, 13, 14]
+    assert "4:best-node" not in runs
+    assert "5:best-node" not in runs
+    assert "6:best-node" not in runs
+    assert runs["12:best-node"]["mode"] == "m12"
+    assert runs["13:best-node"]["mode"] == "m13"
+    assert runs["14:best-node"]["mode"] == "m14"
+
+
+@pytest.mark.asyncio
+async def test_benchmark_dask_modes_stops_even_when_run_format_is_invalid(monkeypatch):
+    env = _minimal_app_env()
+    calls = {"stop": 0}
+
+    async def _start(_scheduler):
+        return True
+
+    async def _stop():
+        calls["stop"] += 1
+
+    async def _distribute():
+        return "bad-run"
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(lambda: None))
+
+    with pytest.raises(ValueError, match="Unexpected run format"):
+        await capacity_support.benchmark_dask_modes(
+            AGI,
+            env,
+            request=RunRequest(scheduler="127.0.0.1", workers={"127.0.0.1": 1}),
+            mode_range=[4],
+            rapids_mode_mask=AGI._RAPIDS_RESET,
+            runs={},
+        )
+    assert calls["stop"] == 1
+
+
+@pytest.mark.asyncio
+async def test_calibration_fallback_uses_worker_counts_when_no_worker_keys_exist():
+    class _Client:
+        def run(self, *_args, **_kwargs):
+            return {}
+
+        def gather(self, payload):
+            return payload
+
+    AGI._dask_client = _Client()
+    AGI._dask_workers = []
+    AGI._workers = {"10.0.0.1": 2}
+    AGI._capacity_predictor = SimpleNamespace(predict=lambda _x: [1.0])
+
+    await capacity_support.calibration(AGI)
+
+    assert AGI._capacity == {"10.0.0.1:0": 1.0, "10.0.0.1:1": 1.0}
+    assert AGI.workers_info == {"10.0.0.1:0": {"label": 1.0}, "10.0.0.1:1": {"label": 1.0}}
+
+
+@pytest.mark.asyncio
+async def test_calibration_computes_normalized_capacity():
+    class _Predictor:
+        def predict(self, _data):
+            return [4.0]
+
+    class _Client:
+        def run(self, *_args, **_kwargs):
+            return {
+                "tcp://127.0.0.1:8787": {
+                    "ram_total": [10.0],
+                    "ram_available": [5.0],
+                    "cpu_count": [4.0],
+                    "cpu_frequency": [2.5],
+                    "network_speed": [1.0],
+                }
+            }
+
+        def gather(self, payload):
+            return payload
+
+    AGI._dask_client = _Client()
+    AGI._dask_workers = ["127.0.0.1:8787"]
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._capacity_predictor = _Predictor()
+
+    await capacity_support.calibration(AGI)
+
+    assert AGI.workers_info["127.0.0.1:8787"]["label"] == 4.0
+    assert AGI._capacity["127.0.0.1:8787"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_calibration_reuses_fresh_topology_cache(monkeypatch):
+    class _Client:
+        def __init__(self):
+            self.run_calls = 0
+
+        def run(self, *_args, **_kwargs):
+            self.run_calls += 1
+            return {
+                "tcp://127.0.0.1:8787": {
+                    "ram_total": [10.0],
+                    "ram_available": [5.0],
+                    "cpu_count": [4.0],
+                    "cpu_frequency": [2.5],
+                    "network_speed": [1.0],
+                }
+            }
+
+        def gather(self, payload):
+            return payload
+
+    monkeypatch.setattr(capacity_support.time, "time", lambda: 100.0)
+    AGI.env = SimpleNamespace(envars={"AGILAB_CALIBRATION_CACHE_TTL_SECONDS": "300"})
+    AGI._dask_client = _Client()
+    AGI._dask_workers = ["127.0.0.1:8787"]
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._capacity_predictor = SimpleNamespace(predict=lambda _data: [4.0])
+
+    await capacity_support.calibration(AGI)
+    AGI._capacity = {}
+    AGI.workers_info = {}
+    await capacity_support.calibration(AGI)
+
+    assert AGI._dask_client.run_calls == 1
+    assert AGI._capacity == {"127.0.0.1:8787": 1.0}
+    assert AGI.workers_info["127.0.0.1:8787"]["label"] == 4.0
+
+
+@pytest.mark.asyncio
+async def test_calibration_cache_can_be_disabled(monkeypatch):
+    class _Client:
+        def __init__(self):
+            self.run_calls = 0
+
+        def run(self, *_args, **_kwargs):
+            self.run_calls += 1
+            return {}
+
+        def gather(self, payload):
+            return payload
+
+    monkeypatch.setattr(capacity_support.time, "time", lambda: 100.0)
+    AGI.env = SimpleNamespace(envars={"AGILAB_CALIBRATION_CACHE_TTL_SECONDS": "0"})
+    AGI._dask_client = _Client()
+    AGI._dask_workers = []
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._capacity_predictor = SimpleNamespace(predict=lambda _data: [1.0])
+
+    await capacity_support.calibration(AGI)
+    await capacity_support.calibration(AGI)
+
+    assert AGI._dask_client.run_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_calibration_fallback_when_predictor_has_no_data():
+    class _Client:
+        def run(self, *_args, **_kwargs):
+            return {}
+
+        def gather(self, payload):
+            return payload
+
+    AGI._dask_client = _Client()
+    AGI._dask_workers = ["127.0.0.1:8787"]
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._capacity_predictor = SimpleNamespace(predict=lambda _x: [1.0])
+
+    await capacity_support.calibration(AGI)
+
+    assert AGI._capacity["127.0.0.1:8787"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_calibration_fallback_uses_localhost_when_no_workers_exist():
+    class _Client:
+        def run(self, *_args, **_kwargs):
+            return {}
+
+        def gather(self, payload):
+            return payload
+
+    AGI._dask_client = _Client()
+    AGI._dask_workers = []
+    AGI._workers = {}
+    AGI._capacity_predictor = SimpleNamespace(predict=lambda _x: [1.0])
+
+    await capacity_support.calibration(AGI)
+
+    assert AGI._capacity == {"localhost:0": 1.0}
+    assert AGI.workers_info == {"localhost:0": {"label": 1.0}}
+
+
+def test_update_capacity_success_and_guard_paths(tmp_path, monkeypatch):
+    AGI._workers = {"127.0.0.1": 1}
+    AGI.workers_info = {
+        "127.0.0.1:8787": {
+            "nb_workers": 1,
+            "ram_total": 10.0,
+            "ram_available": 5.0,
+            "cpu_count": 4.0,
+            "cpu_frequency": 2.5,
+            "network_speed": 1.0,
+            "label": 1.0,
+        }
+    }
+    AGI._run_time = ["error-line"]
+    AGI._capacity_data_file = str(tmp_path / "capacity.csv")
+    AGI.env = SimpleNamespace(home_abs=str(tmp_path))
+    train_calls = {"count": 0}
+    monkeypatch.setattr(
+        AGI,
+        "_train_capacity",
+        staticmethod(lambda _path: train_calls.__setitem__("count", train_calls["count"] + 1)),
+    )
+
+    capacity_support.update_capacity(AGI)
+    assert train_calls["count"] == 0
+
+    AGI._run_time = [{"127.0.0.1:8787": 2.0}]
+    capacity_support.update_capacity(AGI)
+    assert train_calls["count"] == 1
+    assert Path(AGI._capacity_data_file).exists()
+
+    AGI.workers_info["127.0.0.1:8787"]["label"] = 0.0
+    AGI._run_time = [{"127.0.0.1:8787": 2.0}]
+    with pytest.raises(RuntimeError, match="workers BaseWorker.do_works failed"):
+        capacity_support.update_capacity(AGI)
+
+
+def test_update_capacity_adjusts_against_other_workers(tmp_path, monkeypatch):
+    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
+    AGI.workers_info = {
+        "127.0.0.1:8787": {
+            "nb_workers": 1,
+            "ram_total": 10.0,
+            "ram_available": 5.0,
+            "cpu_count": 4.0,
+            "cpu_frequency": 2.5,
+            "network_speed": 1.0,
+            "label": 1.0,
+        },
+        "10.0.0.2:8788": {
+            "nb_workers": 1,
+            "ram_total": 20.0,
+            "ram_available": 10.0,
+            "cpu_count": 8.0,
+            "cpu_frequency": 3.0,
+            "network_speed": 2.0,
+            "label": 2.0,
+        },
+    }
+    AGI._run_time = [
+        {"127.0.0.1:8787": 2.0},
+        {"10.0.0.2:8788": 1.0},
+    ]
+    AGI._capacity_data_file = str(tmp_path / "capacity.csv")
+    AGI.env = SimpleNamespace(home_abs=str(tmp_path))
+    train_calls = {"count": 0}
+    monkeypatch.setattr(
+        AGI,
+        "_train_capacity",
+        staticmethod(lambda _path: train_calls.__setitem__("count", train_calls["count"] + 1)),
+    )
+
+    capacity_support.update_capacity(AGI)
+
+    assert Path(AGI._capacity_data_file).exists()
+    assert train_calls["count"] == 1
+
+
+def test_update_capacity_writes_utf8_capacity_csv_for_polars(tmp_path, monkeypatch):
+    AGI._workers = {"127.0.0.1": 1}
+    AGI.workers_info = {
+        "127.0.0.1:8787": {
+            "nb_workers": 1,
+            "ram_total": 10.0,
+            "ram_available": 5.0,
+            "cpu_count": 4.0,
+            "cpu_frequency": 2.5,
+            "network_speed": 1.0,
+            "label": 1.0,
+        }
+    }
+    AGI._run_time = [{"127.0.0.1:8787": 2.0}]
+    AGI._capacity_data_file = str(tmp_path / "capacity.csv")
+    AGI.env = SimpleNamespace(home_abs=str(tmp_path))
+    monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda _path: None))
+    open_calls: list[dict[str, object]] = []
+    original_open = open
+
+    def _tracking_open(file, mode="r", *args, **kwargs):
+        if Path(file) == Path(AGI._capacity_data_file) and "a" in mode:
+            open_calls.append(
+                {
+                    "encoding": kwargs.get("encoding"),
+                    "newline": kwargs.get("newline"),
+                }
+            )
+        return original_open(file, mode, *args, **kwargs)
+
+    monkeypatch.setitem(
+        capacity_support.update_capacity.__globals__,
+        "open",
+        _tracking_open,
+    )
+
+    capacity_support.update_capacity(AGI)
+
+    assert open_calls == [{"encoding": "utf-8", "newline": ""}]
+
+
+def test_train_capacity_missing_and_success(tmp_path):
+    AGI._capacity_data_file = "capacity_data.csv"
+    AGI._capacity_model_file = "capacity_model.pkl"
+
+    with pytest.raises(FileNotFoundError):
+        capacity_support.train_capacity(AGI, tmp_path)
+
+    csv_path = tmp_path / AGI._capacity_data_file
+    rows = [
+        "nb_workers,ram_total,ram_available,cpu_count,cpu_frequency,network_speed,label",
+        "skip,skip,skip,skip,skip,skip,skip",
+        "skip,skip,skip,skip,skip,skip,skip",
+        "1,32,16,8,2.5,100,1.0",
+        "1,32,15,8,2.4,95,0.9",
+        "1,32,14,8,2.3,90,0.8",
+        "2,64,30,16,2.6,120,1.4",
+        "2,64,28,16,2.5,115,1.3",
+        "2,64,26,16,2.4,110,1.2",
+        "3,96,40,24,2.7,140,1.8",
+        "3,96,38,24,2.6,135,1.7",
+    ]
+    csv_path.write_text("\n".join(rows), encoding="utf-8")
+
+    capacity_support.train_capacity(AGI, tmp_path)
+
+    model_path = tmp_path / AGI._capacity_model_file
+    assert model_path.exists()
+    manifest_path = runtime_misc_support.capacity_model_manifest_path(model_path)
+    assert manifest_path.exists()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["schema"] == runtime_misc_support.CAPACITY_MODEL_MANIFEST_SCHEMA
+    assert manifest["model_file"] == model_path.name
+    assert manifest["algorithm"] == runtime_misc_support.CAPACITY_MODEL_HASH_ALGORITHM
+    assert hasattr(AGI._capacity_predictor, "predict")

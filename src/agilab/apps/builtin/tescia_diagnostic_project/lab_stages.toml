@@ -1,0 +1,23 @@
+[[steps]]
+D = "Load exercise cases"
+Q = "Read TeSciA-style diagnostic exercises from the shared input directory."
+M = "deterministic"
+C = "Load JSON cases, catalog metadata, and optional student answers."
+E = "case_id, title, symptom, proposed_diagnosis"
+R = "validated_cases"
+
+[[steps]]
+D = "Evaluate the answer"
+Q = "Compare symptoms, evidence, assumptions, candidate fixes, and learner choices."
+M = "deterministic"
+C = "Score exercise quality and self-evaluate submitted student answers."
+E = "validated_cases"
+R = "diagnostic_reports"
+
+[[steps]]
+D = "Export classroom feedback"
+Q = "Write scores, better-fix recommendations, correction sheets, and classroom progress artifacts."
+M = "deterministic"
+C = "Export JSON, CSV, feedback, classroom heatmaps, and reduce-contract summaries."
+E = "diagnostic_reports"
+R = "tescia_diagnostic/reports"

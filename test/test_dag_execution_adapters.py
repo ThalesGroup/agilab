@@ -1,0 +1,686 @@
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+import subprocess
+import sys
+
+import pytest
+
+
+def _ensure_agilab_package_path() -> None:
+    package_root = Path("src/agilab").resolve()
+    package_spec = importlib.util.spec_from_file_location(
+        "agilab",
+        package_root / "__init__.py",
+        submodule_search_locations=[str(package_root)],
+    )
+    package = sys.modules.get("agilab")
+    if package is None:
+        assert package_spec is not None and package_spec.loader is not None
+        package = importlib.util.module_from_spec(package_spec)
+        sys.modules["agilab"] = package
+        package_spec.loader.exec_module(package)
+        return
+
+    package_paths = list(getattr(package, "__path__", []) or [])
+    package_root_text = str(package_root)
+    if package_root_text not in package_paths:
+        package.__path__ = [package_root_text, *package_paths]
+    package.__spec__ = package_spec
+    package.__file__ = str(package_root / "__init__.py")
+    package.__package__ = "agilab"
+
+
+def _load_dag_execution_adapters():
+    _ensure_agilab_package_path()
+    module_path = Path("src/agilab/dag_execution_adapters.py")
+    spec = importlib.util.spec_from_file_location("agilab.dag_execution_adapters", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["agilab.dag_execution_adapters"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+dag_execution_adapters = _load_dag_execution_adapters()
+
+
+def test_adapter_registry_exposes_uav_queue_to_relay_adapter():
+    assert dag_execution_adapters.registered_execution_adapter_ids() == (
+        "controlled_contract_dag",
+        "uav_queue_to_relay_controlled",
+    )
+
+
+def test_adapter_dispatch_reports_unknown_adapter(tmp_path):
+    result = dag_execution_adapters.run_next_adapter_stage(
+        "missing-adapter",
+        {"units": []},
+        dag_execution_adapters.DagExecutionContext(repo_root=Path.cwd(), lab_dir=tmp_path),
+    )
+
+    assert not result.ok
+    assert result.state == {"units": []}
+    assert "No DAG execution adapter is registered" in result.message
+
+
+def test_ready_adapter_dispatch_reports_unknown_adapter(tmp_path):
+    result = dag_execution_adapters.run_ready_adapter_stages(
+        "missing-adapter",
+        {"units": []},
+        dag_execution_adapters.DagExecutionContext(repo_root=Path.cwd(), lab_dir=tmp_path),
+    )
+
+    assert not result.ok
+    assert "No DAG execution adapter is registered" in result.message
+
+
+def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path):
+    state = {
+        "created_at": "2026-05-07T00:00:00Z",
+        "units": [
+            {
+                "id": "extract_context",
+                "dispatch_status": "runnable",
+                "execution_contract": {
+                    "entrypoint": "alpha.extract_context",
+                    "params": {"scenario": "demo"},
+                    "stages": [{"name": "prepare", "args": {"n": 2}}],
+                    "data_in": "alpha/input",
+                    "data_out": "alpha/output",
+                    "reset_target": False,
+                },
+                "produces": [
+                    {
+                        "artifact": "context_artifact",
+                        "kind": "contract_artifact",
+                        "path": "context/context.json",
+                    }
+                ],
+            },
+            {
+                "id": "review_forecast",
+                "dispatch_status": "blocked",
+                "execution_contract": {"entrypoint": "beta.review_forecast"},
+                "artifact_dependencies": [{"artifact": "context_artifact", "from": "extract_context"}],
+                "produces": [
+                    {
+                        "artifact": "forecast_metrics",
+                        "kind": "summary_metrics",
+                        "path": "forecast/metrics.json",
+                    }
+                ],
+            },
+            {
+                "id": "publish_report",
+                "dispatch_status": "blocked",
+                "execution_contract": {"entrypoint": "gamma.publish_report"},
+                "artifact_dependencies": [{"artifact": "forecast_metrics", "from": "review_forecast"}],
+                "produces": [
+                    {
+                        "artifact": "report_summary",
+                        "kind": "summary_metrics",
+                        "path": "report/summary.json",
+                    }
+                ],
+            },
+        ],
+        "artifacts": [],
+        "events": [],
+        "summary": {},
+        "provenance": {"real_app_execution": False},
+    }
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+
+    first = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", state, context)
+    second = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", first.state, context)
+    third = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", second.state, context)
+
+    assert first.ok
+    assert first.executed_unit_id == "extract_context"
+    assert first.state["summary"]["available_artifact_ids"] == ["context_artifact"]
+    assert first.state["summary"]["controlled_executed_unit_ids"] == ["extract_context"]
+    assert first.state["provenance"]["real_app_execution"] is False
+    assert first.state["provenance"]["controlled_execution"] is True
+    assert first.state["units"][0]["execution_mode"] == "contract_adapter"
+    assert first.state["units"][1]["dispatch_status"] == "runnable"
+    context_artifact = tmp_path / ".agilab" / "multi_app_dag_real_runs" / "extract_context" / "context" / "context.json"
+    assert context_artifact.is_file()
+    assert second.ok
+    assert second.executed_unit_id == "review_forecast"
+    assert second.state["summary"]["available_artifact_ids"] == [
+        "context_artifact",
+        "forecast_metrics",
+    ]
+    assert second.state["units"][2]["dispatch_status"] == "runnable"
+    assert third.ok
+    assert third.executed_unit_id == "publish_report"
+    assert third.state["run_status"] == "completed"
+    assert third.state["summary"]["available_artifact_ids"] == [
+        "context_artifact",
+        "forecast_metrics",
+        "report_summary",
+    ]
+
+
+def test_controlled_contract_adapter_uses_entrypoint_runner(tmp_path):
+    calls: list[Path] = []
+
+    def _runner(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+        calls.append(run_root)
+        return {
+            "summary_metrics_path": "alpha/summary.json",
+            "summary_metrics": {"stage_completed": 1, "custom_runner": 1},
+        }
+
+    state = {
+        "created_at": "2026-05-07T00:00:00Z",
+        "units": [
+            {
+                "id": "extract_context",
+                "dispatch_status": "runnable",
+                "execution_contract": {
+                    "entrypoint": "alpha.extract_context",
+                    "params": {"scenario": "demo"},
+                    "stages": [{"name": "prepare", "args": {"n": 2}}],
+                    "data_in": "alpha/input",
+                    "data_out": "alpha/output",
+                    "reset_target": False,
+                },
+                "produces": [
+                    {
+                        "artifact": "context_artifact",
+                        "kind": "summary_metrics",
+                        "path": "context/context.json",
+                    }
+                ],
+            }
+        ],
+        "artifacts": [],
+        "events": [],
+        "summary": {},
+        "provenance": {"real_app_execution": False},
+    }
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        stage_run_fns={"alpha.extract_context": _runner},
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+
+    result = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", state, context)
+
+    assert result.ok
+    assert calls == [tmp_path / ".agilab" / "multi_app_dag_real_runs" / "extract_context"]
+    unit = result.state["units"][0]
+    assert unit["contract_execution"]["summary_metrics"]["custom_runner"] == 1
+    assert unit["contract_execution"]["execution_contract"]["params"] == {"scenario": "demo"}
+    assert unit["contract_execution"]["execution_contract"]["stages"] == [
+        {"name": "prepare", "args": {"n": 2}}
+    ]
+    assert unit["contract_execution"]["execution_contract"]["data_in"] == "alpha/input"
+
+
+def test_controlled_contract_adapter_runs_declared_command(tmp_path):
+    state = {
+        "created_at": "2026-05-07T00:00:00Z",
+        "units": [
+            {
+                "id": "extract_context",
+                "dispatch_status": "runnable",
+                "execution_contract": {
+                    "command": [
+                        sys.executable,
+                        "-c",
+                        "from pathlib import Path; "
+                        "Path('context').mkdir(); "
+                        "Path('context/context.json').write_text('{\"ok\": true}\\n')",
+                    ]
+                },
+                "produces": [
+                    {
+                        "artifact": "context_artifact",
+                        "kind": "contract_artifact",
+                        "path": "context/context.json",
+                    }
+                ],
+            }
+        ],
+        "artifacts": [],
+        "events": [],
+        "summary": {},
+        "provenance": {"real_app_execution": False},
+    }
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+
+    result = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", state, context)
+
+    assert result.ok
+    artifact_path = tmp_path / ".agilab" / "multi_app_dag_real_runs" / "extract_context" / "context" / "context.json"
+    assert artifact_path.read_text(encoding="utf-8") == '{"ok": true}\n'
+    assert result.state["units"][0]["contract_execution"]["command_returncode"] == 0
+
+
+def test_controlled_contract_adapter_rejects_stage_without_execution_contract(tmp_path):
+    state = {
+        "units": [
+            {
+                "id": "extract_context",
+                "dispatch_status": "runnable",
+                "produces": [{"artifact": "context_artifact", "path": "context/context.json"}],
+            }
+        ],
+        "artifacts": [],
+        "events": [],
+        "summary": {},
+    }
+
+    result = dag_execution_adapters.run_next_adapter_stage(
+        "controlled_contract_dag",
+        state,
+        dag_execution_adapters.DagExecutionContext(repo_root=Path.cwd(), lab_dir=tmp_path),
+    )
+
+    assert not result.ok
+    assert "must declare `execution.entrypoint` or `execution.command`" in result.message
+
+
+def test_uav_queue_adapter_reports_missing_required_stages(tmp_path):
+    result = dag_execution_adapters.run_next_adapter_stage(
+        "uav_queue_to_relay_controlled",
+        {"units": [{"id": "queue_baseline", "dispatch_status": "runnable"}]},
+        dag_execution_adapters.DagExecutionContext(repo_root=Path.cwd(), lab_dir=tmp_path),
+    )
+
+    assert not result.ok
+    assert "missing the expected queue or relay stage" in result.message
+
+
+def test_uav_queue_adapter_runs_blocked_relay_from_available_artifact(tmp_path):
+    relay_calls: list[dict[str, object]] = []
+    state = {
+        "created_at": "2026-05-07T00:00:00Z",
+        "units": [
+            {"id": "queue_baseline", "dispatch_status": "completed"},
+            {"id": "relay_followup", "dispatch_status": "blocked"},
+        ],
+        "artifacts": [
+            {
+                "artifact": "queue_metrics",
+                "path": "queue/from-artifact.json",
+                "status": "available",
+            }
+        ],
+        "events": [],
+        "summary": {},
+        "provenance": {},
+    }
+
+    def _relay_run(
+        *,
+        repo_root: Path,
+        run_root: Path,
+        queue_result: dict[str, object],
+    ) -> dict[str, object]:
+        relay_calls.append({"run_root": run_root, "queue_result": queue_result})
+        return {
+            "summary_metrics_path": "relay/summary.json",
+            "reduce_artifact_path": "relay/reduce.json",
+            "summary_metrics": {"packets_generated": 2, "packets_delivered": 2},
+        }
+
+    result = dag_execution_adapters.run_next_adapter_stage(
+        "uav_queue_to_relay_controlled",
+        state,
+        dag_execution_adapters.DagExecutionContext(
+            repo_root=Path.cwd(),
+            lab_dir=tmp_path,
+            run_relay_fn=_relay_run,
+            now_fn=lambda: "2026-05-07T00:00:00Z",
+        ),
+    )
+
+    assert result.ok
+    assert result.executed_unit_id == "relay_followup"
+    assert relay_calls == [
+        {
+            "run_root": tmp_path / ".agilab" / "multi_app_dag_real_runs" / "relay_followup",
+            "queue_result": {"summary_metrics_path": "queue/from-artifact.json"},
+        }
+    ]
+    assert result.state["run_status"] == "completed"
+    assert result.state["summary"]["real_executed_unit_ids"] == ["relay_followup"]
+
+
+def test_uav_queue_adapter_reports_no_ready_stage(tmp_path):
+    state = {
+        "units": [
+            {"id": "queue_baseline", "dispatch_status": "completed"},
+            {"id": "relay_followup", "dispatch_status": "blocked"},
+        ],
+        "artifacts": [],
+        "events": [],
+        "summary": {},
+    }
+
+    result = dag_execution_adapters.run_next_adapter_stage(
+        "uav_queue_to_relay_controlled",
+        state,
+        dag_execution_adapters.DagExecutionContext(repo_root=Path.cwd(), lab_dir=tmp_path),
+    )
+
+    assert not result.ok
+    assert result.message == "No controlled real DAG stage is ready to run."
+    assert result.state["summary"]["blocked_unit_ids"] == ["relay_followup"]
+
+
+def test_controlled_contract_adapter_reports_no_ready_stage(tmp_path):
+    state = {
+        "units": [
+            {
+                "id": "extract_context",
+                "dispatch_status": "completed",
+                "execution_contract": {"entrypoint": "alpha.extract_context"},
+                "produces": [{"artifact": "context_artifact", "path": "context/context.json"}],
+            }
+        ],
+        "artifacts": [],
+        "events": [],
+        "summary": {},
+    }
+
+    result = dag_execution_adapters.run_next_adapter_stage(
+        "controlled_contract_dag",
+        state,
+        dag_execution_adapters.DagExecutionContext(repo_root=Path.cwd(), lab_dir=tmp_path),
+    )
+
+    assert not result.ok
+    assert result.message == "No controlled contract DAG stage is ready to run."
+    assert result.state["run_status"] == "completed"
+
+
+def test_controlled_contract_adapter_records_command_failure(tmp_path):
+    state = {
+        "created_at": "2026-05-07T00:00:00Z",
+        "units": [
+            {
+                "id": "extract_context",
+                "dispatch_status": "runnable",
+                "execution_contract": {
+                    "command": f"{sys.executable} -c \"import sys; print('bad command'); sys.exit(3)\""
+                },
+                "produces": [{"artifact": "context_artifact", "path": "context/context.json"}],
+            }
+        ],
+        "artifacts": [],
+        "events": [],
+        "summary": {},
+    }
+
+    result = dag_execution_adapters.run_next_adapter_stage(
+        "controlled_contract_dag",
+        state,
+        dag_execution_adapters.DagExecutionContext(
+            repo_root=Path.cwd(),
+            lab_dir=tmp_path,
+            now_fn=lambda: "2026-05-07T00:00:00Z",
+        ),
+    )
+
+    assert not result.ok
+    assert "Controlled contract command failed (3): bad command" in result.message
+    unit = result.state["units"][0]
+    assert unit["dispatch_status"] == "failed"
+    assert unit["operator_ui"]["message"] == result.message
+    assert result.state["run_status"] == "failed"
+
+
+def test_controlled_contract_adapter_uses_unit_id_runner_before_entrypoint_runner(tmp_path):
+    calls: list[str] = []
+
+    def _unit_runner(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+        calls.append("unit")
+        return {
+            "summary_metrics_path": "unit/summary.json",
+            "summary_metrics": {"stage_completed": 1, "runner": "unit"},
+        }
+
+    def _entrypoint_runner(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+        calls.append("entrypoint")
+        return {
+            "summary_metrics_path": "entrypoint/summary.json",
+            "summary_metrics": {"stage_completed": 1, "runner": "entrypoint"},
+        }
+
+    state = {
+        "created_at": "2026-05-07T00:00:00Z",
+        "units": [
+            {
+                "id": "extract_context",
+                "dispatch_status": "runnable",
+                "execution_contract": {"entrypoint": "alpha.extract_context"},
+                "produces": [{"artifact": "context_artifact", "kind": "summary_metrics", "path": "context.json"}],
+            }
+        ],
+        "artifacts": [],
+        "events": [],
+        "summary": {},
+    }
+
+    result = dag_execution_adapters.run_next_adapter_stage(
+        "controlled_contract_dag",
+        state,
+        dag_execution_adapters.DagExecutionContext(
+            repo_root=Path.cwd(),
+            lab_dir=tmp_path,
+            stage_run_fns={
+                "extract_context": _unit_runner,
+                "alpha.extract_context": _entrypoint_runner,
+            },
+            now_fn=lambda: "2026-05-07T00:00:00Z",
+        ),
+    )
+
+    assert result.ok
+    assert calls == ["unit"]
+    assert result.state["units"][0]["contract_execution"]["summary_metrics"]["runner"] == "unit"
+
+
+def test_controlled_contract_adapter_sanitizes_unsafe_artifact_path(tmp_path):
+    state = {
+        "created_at": "2026-05-07T00:00:00Z",
+        "units": [
+            {
+                "id": "extract/context",
+                "dispatch_status": "runnable",
+                "execution_contract": {"entrypoint": "alpha.extract_context"},
+                "produces": [{"artifact": "context_artifact", "kind": "contract_artifact", "path": "../escape.json"}],
+            }
+        ],
+        "artifacts": [],
+        "events": [],
+        "summary": {},
+    }
+
+    result = dag_execution_adapters.run_next_adapter_stage(
+        "controlled_contract_dag",
+        state,
+        dag_execution_adapters.DagExecutionContext(
+            repo_root=Path.cwd(),
+            lab_dir=tmp_path,
+            now_fn=lambda: "2026-05-07T00:00:00Z",
+        ),
+    )
+
+    expected_path = tmp_path / ".agilab" / "multi_app_dag_real_runs" / "extract-context" / "context_artifact.json"
+    assert result.ok
+    assert expected_path.is_file()
+    assert result.state["units"][0]["produces"][0]["path"] == str(expected_path)
+    assert not (tmp_path / ".agilab" / "multi_app_dag_real_runs" / "escape.json").exists()
+
+
+def test_adapter_helpers_tolerate_nonstandard_state_shapes():
+    assert dag_execution_adapters.dag_units({"units": "not-a-list"}) == []
+    assert dag_execution_adapters.available_artifact_ids({"artifacts": "not-a-list"}) == set()
+    assert dag_execution_adapters._failed_stage_text([], {}) == "no stage"
+
+
+def test_contract_artifact_inference_and_contract_normalization_edges():
+    state = {
+        "units": [
+            {
+                "id": "source",
+                "produces": ["bad", {"artifact": "", "path": ""}],
+            },
+            {
+                "id": "downstream",
+                "artifact_dependencies": [
+                    "bad",
+                    {"from": "other", "artifact": "ignored"},
+                    {"from": "source", "artifact": ""},
+                    {"from": "source", "artifact": "source_metrics", "source_path": "source/metrics.json"},
+                ],
+            },
+        ]
+    }
+
+    assert dag_execution_adapters._primary_contract_artifact(state, state["units"][0]) == {
+        "artifact": "source_metrics",
+        "kind": "summary_metrics",
+        "path": "source/metrics.json",
+    }
+    assert dag_execution_adapters._primary_contract_artifact({"units": []}, {"id": "fallback"}) == {
+        "artifact": "fallback_contract_artifact",
+        "kind": "contract_artifact",
+        "path": "",
+    }
+    assert dag_execution_adapters._contract_artifact_kind("queue_reduce_summary", "") == "reduce_summary"
+    assert dag_execution_adapters._contract_artifact_kind("queue_metrics", "") == "summary_metrics"
+    assert dag_execution_adapters._contract_artifact_path(Path("/tmp/run"), artifact_id="artifact", declared_path="/abs/x") == (
+        Path("/tmp/run") / "artifact.json"
+    )
+    assert dag_execution_adapters._contract_command({"command": "python -m demo --flag"}) == [
+        "python",
+        "-m",
+        "demo",
+        "--flag",
+    ]
+    assert dag_execution_adapters._unit_execution_contract(
+        {
+            "execution_contract": {
+                "entrypoint": "demo.run",
+                "run_params": {"x": 1},
+                "rapids_enabled": 1,
+                "benchmark_best_single_node": "",
+            }
+        }
+    ) == {
+        "entrypoint": "demo.run",
+        "params": {"x": 1},
+        "rapids_enabled": True,
+        "benchmark_best_single_node": False,
+    }
+    with pytest.raises(ValueError, match="legacy 'steps'"):
+        dag_execution_adapters._unit_execution_contract({"execution_contract": {"entrypoint": "x", "steps": []}})
+    assert dag_execution_adapters._has_declared_contract_artifact("bad") is False
+    assert dag_execution_adapters._controlled_contract_unit_issue({"id": "", "produces": []}).startswith(
+        "Controlled contract stage `stage`"
+    )
+
+
+def test_run_ready_contract_batch_marks_invalid_runnable_stage_failure(tmp_path):
+    state = {
+        "units": [
+            {
+                "id": "bad_stage",
+                "dispatch_status": "runnable",
+                "execution_contract": {"entrypoint": "demo.run"},
+                "produces": [],
+            }
+        ],
+        "events": [],
+        "artifacts": [],
+    }
+
+    result = dag_execution_adapters.run_ready_adapter_stages(
+        "controlled_contract_dag",
+        state,
+        dag_execution_adapters.DagExecutionContext(
+            repo_root=Path.cwd(),
+            lab_dir=tmp_path,
+            now_fn=lambda: "2026-05-17T00:00:00Z",
+        ),
+    )
+
+    assert not result.ok
+    assert result.failed_unit_ids == ("bad_stage",)
+    assert result.state["units"][0]["dispatch_status"] == "failed"
+    assert "must declare at least one produced artifact" in result.message
+
+
+def test_run_contract_command_timeout_and_state_mutation_edges(monkeypatch, tmp_path):
+    def _raise_timeout(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired(cmd=["demo"], timeout=300)
+
+    monkeypatch.setattr(dag_execution_adapters.subprocess, "run", _raise_timeout)
+    with pytest.raises(RuntimeError, match="timed out"):
+        dag_execution_adapters._run_contract_command(["demo"], run_root=tmp_path)
+
+    state = {"events": "bad", "artifacts": "bad", "created_at": "created"}
+    events = dag_execution_adapters._events(state)
+    assert events == []
+    dag_execution_adapters._replace_artifact(state, {"artifact": ""})
+    assert state["artifacts"] == "bad"
+    dag_execution_adapters._replace_artifact(state, {"artifact": "alpha", "status": "available"})
+    assert state["artifacts"] == [{"artifact": "alpha", "status": "available"}]
+
+    unit = {
+        "id": "alpha",
+        "dispatch_status": "running",
+        "timestamps": [],
+        "produces": [
+            "bad",
+            {"artifact": "other", "path": "old.json"},
+        ],
+    }
+    dag_execution_adapters._mark_controlled_stage_execution(
+        state,
+        unit,
+        result={"summary_metrics": "bad", "summary_metrics_path": "alpha/summary.json"},
+        timestamp="2026-05-17T00:00:00Z",
+        artifact_id="alpha_metrics",
+        reduce_artifact_id=None,
+    )
+    assert unit["produces"][-1]["artifact"] == "alpha_metrics"
+    assert unit["produces"][0]["artifact"] == "other"
+
+
+def test_relay_queue_result_and_provenance_edge_paths():
+    state = {"units": [{"id": "relay_followup", "dispatch_status": "runnable"}], "artifacts": []}
+    dag_execution_adapters._unblock_relay_after_queue(state, timestamp="now")
+    assert state["units"][0]["dispatch_status"] == "runnable"
+    assert dag_execution_adapters._queue_result_for_relay({"units": [], "artifacts": []}) == {}
+
+    provenance_state = {
+        "provenance": {
+            "real_executed_unit_ids": "bad",
+            "controlled_executed_unit_ids": "bad",
+        }
+    }
+    dag_execution_adapters._update_real_execution_provenance(
+        provenance_state,
+        executed_unit_id="alpha",
+        timestamp="2026-05-17T00:00:00Z",
+    )
+    assert provenance_state["provenance"]["real_executed_unit_ids"] == ["alpha"]
+    assert provenance_state["provenance"]["controlled_executed_unit_ids"] == ["alpha"]

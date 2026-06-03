@@ -1,0 +1,149 @@
+coverage.xml
+.coverage
+.coverage-*
+.coverage.*
+coverage-*.xml
+# macOS files (match anywhere)
+.DS_Store
+.DS_store
+
+# Python virtual environments and build artifacts
+.venv/
+dist/
+build/
+.build*
+__pycache__/
+.mypy_cache/
+__pypackages__/
+._*
+
+# Miscellaneous files
+*.lock
+.uv-*
+*.pid
+
+# Egg files and binary distributions
+EGG*
+*.egg*
+*.so
+*.pyd
+*.whl
+
+# Specific src patterns (adjust if needed)
+src/*-info/
+src/*_worker_*/
+
+# Generated local source mirrors/duplicate roots
+Modules/
+src/agi_env/
+src/agi_node/
+src/agilab/apps/src/
+src/agilab/core/agi-node/src/agi_node/agi_dispatcher/src/
+
+# Generated root-level AGILAB app workspaces
+/*_project/
+
+# Pytest caches
+.pytest*
+test-results/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+htmlcov/
+pip-wheel-metadata/
+.ipynb_checkpoints/
+*.orig
+*.rej
+
+# JetBrains IDE settings
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries
+.idea/usage.statistics.xml
+.idea/dataSources.ids
+.idea/dataSources.local.xml
+.idea/sqlDataSources.xml
+.idea/dynamic.xml
+.idea/*.iml
+.idea/modules/
+.idea/modules.xml
+.idea/pyProjectModel.xml
+.idea/runConfigurations/_*.xml
+src/agilab/apps/*_project
+src/agilab/apps/builtin/*_project/src/app_args_form.py
+src/agilab/apps/builtin/*_project/src/app_settings.toml
+!src/agilab/apps/builtin/uav_queue_project/
+!src/agilab/apps/builtin/uav_queue_project/**
+!src/agilab/apps/builtin/uav_queue_project/src/app_args_form.py
+!src/agilab/apps/builtin/uav_queue_project/src/app_settings.toml
+
+# Codex CLI exported logs (generated)
+codex/codex_shell_history.tsv
+codex/codex_shell_command_stats.tsv
+codex/codex_shell_command_main_stats.tsv
+codex/codex_shell_summary.md
+codex/codex_shell_summary.tsv
+log/codex/*.log
+
+# Run-matrix dumps (generated)
+run_matrix_dump.txt
+run_matrix_parsed.tsv
+
+# Work-plan dumps (generated)
+distribution.json
+
+# Sphinx output (generated locally, not versioned)
+docs/html/
+
+apps/
+!maintenance/
+!maintenance/**
+!tools/run_configs/apps/
+!tools/run_configs/apps/**
+!src/agilab/apps/
+!src/agilab/apps/builtin/
+src/agilab/apps/builtin/*
+!src/agilab/apps/builtin/*/
+src/agilab/apps/builtin/*/*
+!src/agilab/apps/builtin/*/.gitignore
+!src/agilab/apps/builtin/*/README.md
+!src/agilab/apps/builtin/*/pyproject.toml
+!src/agilab/apps/builtin/*/uv_config.toml
+!src/agilab/apps/builtin/*/lab_steps.toml
+!src/agilab/apps/builtin/*/lab_stages.toml
+!src/agilab/apps/builtin/*/pipeline_view.dot
+!src/agilab/apps/builtin/*/notebook_export.toml
+!src/agilab/apps/builtin/*/notebook_import_views.toml
+!src/agilab/apps/builtin/*/expected/
+!src/agilab/apps/builtin/*/expected/**
+!src/agilab/apps/builtin/*/dag_templates/
+!src/agilab/apps/builtin/*/dag_templates/**
+!src/agilab/apps/builtin/*/scenario_templates/
+!src/agilab/apps/builtin/*/scenario_templates/**
+!src/agilab/apps/builtin/*/service_templates/
+!src/agilab/apps/builtin/*/service_templates/**
+!src/agilab/apps/builtin/*/tracking_templates/
+!src/agilab/apps/builtin/*/tracking_templates/**
+!src/agilab/apps/builtin/*/src/
+!src/agilab/apps/builtin/*/src/**
+src/agilab/apps/builtin/*/src/**/*.c
+src/agilab/apps/builtin/*/src/**/*.pyx
+!src/agilab/apps/builtin/*/test/
+!src/agilab/apps/builtin/*/test/**
+!src/agilab/apps/builtin/uav_queue_project/
+!src/agilab/apps/builtin/uav_queue_project/**
+!src/agilab/apps/builtin/uav_relay_queue_project/
+!src/agilab/apps/builtin/uav_relay_queue_project/**
+!src/agilab/apps/builtin/data_io_2026_project/
+!src/agilab/apps/builtin/data_io_2026_project/**
+_fcas_work
+.vscode/
+# Generated demo media: keep only lightweight upload metadata in Git.
+artifacts/demo_media/**
+!artifacts/demo_media/
+!artifacts/demo_media/flight/
+!artifacts/demo_media/flight/agilab_flight_youtube_pack.md
+exported_notebooks/
+src/agilab/apps/builtin/*/notebooks/lab_*.ipynb
+src/agilab/apps/builtin/*/notebooks/sitecustomize.py

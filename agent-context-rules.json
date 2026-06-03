@@ -1,0 +1,266 @@
+{
+  "schema": "agilab.agent_context_rules.v1",
+  "schema_version": 1,
+  "baseline": {
+    "runbooks": [
+      {
+        "path": "AGENT_CONVENTIONS.md",
+        "purpose": "Short repo contract for coding agents with small context windows."
+      },
+      {
+        "path": "AGENTS.md",
+        "purpose": "Full AGILAB runbook for risky or operational changes."
+      },
+      {
+        "path": "AGENT_SKILLS.md",
+        "purpose": "Reviewed repo-managed skill catalog."
+      }
+    ],
+    "skills": [
+      "plan-before-code",
+      "agilab-intent-router"
+    ]
+  },
+  "rules": [
+    {
+      "id": "docs-public-claims",
+      "label": "Documentation and public claims",
+      "paths": [
+        "README.md",
+        "README.pypi.md",
+        "SECURITY.md",
+        "docs/source/**",
+        "../thales_agilab/docs/source/**"
+      ],
+      "terms": [
+        "doc",
+        "documentation",
+        "readme",
+        "public claim",
+        "aligned"
+      ],
+      "skills": [
+        "agilab-docs",
+        "agilab-evidence-contracts"
+      ],
+      "reason": "Public wording and docs mirror changes need source-of-truth discipline and evidence-boundary checks."
+    },
+    {
+      "id": "release-publication",
+      "label": "Release and publication",
+      "paths": [
+        "CHANGELOG.md",
+        ".github/workflows/**",
+        "badges/**",
+        "tools/release_*.py",
+        "tools/pypi_*.py",
+        "tools/hf_*",
+        "tools/*release*"
+      ],
+      "terms": [
+        "release",
+        "pypi",
+        "trusted publisher",
+        "hugging face",
+        "hf sync",
+        "coverage badge"
+      ],
+      "skills": [
+        "agilab-release-verification",
+        "agilab-pypi-release-maintenance",
+        "agilab-evidence-contracts"
+      ],
+      "reason": "Release claims require current PyPI/GitHub/docs/Hugging Face evidence and changelog accuracy."
+    },
+    {
+      "id": "agent-skills",
+      "label": "Agent skills and catalogs",
+      "paths": [
+        "AGENTS.md",
+        "AGENT_CONVENTIONS.md",
+        "AGENT_SKILLS.md",
+        "llms.txt",
+        "llms-full.txt",
+        "agilab-capabilities.json",
+        "agilab-capability-rules.yml",
+        ".claude/skills/**",
+        ".codex/skills/**",
+        "tools/agent_*.py",
+        "tools/*skill*.py"
+      ],
+      "terms": [
+        "skill",
+        "agent",
+        "agents.md",
+        "codex",
+        "claude",
+        "opencode",
+        "aider"
+      ],
+      "skills": [
+        "repo-skill-maintenance",
+        "codex-session-learning",
+        "agilab-evidence-contracts"
+      ],
+      "reason": "Agent-facing instructions and catalogs need mirrored skills, generated indexes, and quality/security guards."
+    },
+    {
+      "id": "streamlit-ui",
+      "label": "Streamlit UI",
+      "paths": [
+        "src/agilab/main_page.py",
+        "src/agilab/pages/**",
+        "src/agilab/about_page/**",
+        "src/agilab/*page*.py",
+        "tools/agilab_widget_robot.py",
+        "test/test_*ui*.py",
+        "test/test_*page*.py"
+      ],
+      "terms": [
+        "streamlit",
+        "sidebar",
+        "button",
+        "wizard",
+        "page",
+        "ui robot"
+      ],
+      "skills": [
+        "agilab-streamlit-pages",
+        "agilab-ui-robot-validation",
+        "agilab-testing"
+      ],
+      "reason": "Streamlit state, navigation, and deep links need page-specific session-state and robot validation."
+    },
+    {
+      "id": "evidence-proof",
+      "label": "Evidence and proof contracts",
+      "paths": [
+        "src/agilab/*evidence*.py",
+        "src/agilab/*proof*.py",
+        "src/agilab/agent_run.py",
+        "src/agilab/run_markdown_evidence.py",
+        "src/agilab/untrusted_content_boundary.py",
+        "tools/*evidence*.py",
+        "tools/*proof*.py",
+        "test/test_*evidence*.py",
+        "test/test_*proof*.py"
+      ],
+      "terms": [
+        "evidence",
+        "proof",
+        "manifest",
+        "attestation",
+        "replay",
+        "run report"
+      ],
+      "skills": [
+        "agilab-evidence-contracts",
+        "agilab-testing"
+      ],
+      "reason": "Evidence producers need stable schemas, path contracts, verification commands, and drift tests."
+    },
+    {
+      "id": "notebook-import-export",
+      "label": "Notebook import and export",
+      "paths": [
+        "src/agilab/notebook_*.py",
+        "src/agilab/pages/3_WORKFLOW.py",
+        "src/agilab/apps/builtin/**/notebooks/**",
+        "test/test_*notebook*.py",
+        "docs/source/*notebook*"
+      ],
+      "terms": [
+        "notebook",
+        "ipynb",
+        "import notebook",
+        "export to notebook",
+        "lab_stages"
+      ],
+      "skills": [
+        "notebook-to-agilab-project",
+        "agilab-evidence-contracts",
+        "agilab-prompt-eval-regression"
+      ],
+      "reason": "Notebook flows need cell-role metadata, untrusted-content boundaries, and exit-path evidence."
+    },
+    {
+      "id": "apps-examples",
+      "label": "Apps and examples",
+      "paths": [
+        "src/agilab/apps/**",
+        "src/agilab/examples/**",
+        "test/test_*app*.py",
+        "test/test_*example*.py",
+        "tools/*app*.py"
+      ],
+      "terms": [
+        "app",
+        "example",
+        "demo",
+        "public app",
+        "pypi app"
+      ],
+      "skills": [
+        "agilab-example-maturity",
+        "agilab-testing",
+        "agilab-evidence-contracts"
+      ],
+      "reason": "App payloads need deterministic first-run behavior, clear README/docs, and app-contract validation."
+    },
+    {
+      "id": "installer-cluster",
+      "label": "Installer, worker, and cluster operations",
+      "paths": [
+        "install.sh",
+        "src/agilab/apps/install.py",
+        "tools/install_*.py",
+        "tools/*cluster*.py",
+        "src/agilab/core/agi-env/**",
+        "src/agilab/core/agi-node/**",
+        "src/agilab/core/agi-cluster/**",
+        "test/test_*install*.py",
+        "test/test_*cluster*.py"
+      ],
+      "terms": [
+        "install",
+        "cluster",
+        "worker",
+        "ssh",
+        "sshfs",
+        "shared core"
+      ],
+      "skills": [
+        "agilab-installer",
+        "agilab-security-review-patterns",
+        "agilab-testing"
+      ],
+      "reason": "Install and cluster changes need manifest comparison, fail-fast share checks, and explicit shared-core approval when core paths are touched."
+    },
+    {
+      "id": "frontend-visuals",
+      "label": "Frontend visuals and diagrams",
+      "paths": [
+        "src/agilab/resources/**",
+        "docs/source/diagrams/**",
+        "tools/*svg*.py",
+        "tools/*slide*.py",
+        "**/*.svg"
+      ],
+      "terms": [
+        "svg",
+        "diagram",
+        "figure",
+        "frontend",
+        "visual",
+        "canvas",
+        "webgl"
+      ],
+      "skills": [
+        "scientific-svg-figures",
+        "svg-diagram-tuning",
+        "advanced-svg-system-design"
+      ],
+      "reason": "Visual assets need reusable geometry, readable exports, and repo-native source-of-truth files."
+    }
+  ]
+}

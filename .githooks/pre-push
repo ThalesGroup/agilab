@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [[ "${AGILAB_SKIP_LOCAL_GUARDS:-}" == "1" ]]; then
+  echo "[agilab pre-push] AGILAB_SKIP_LOCAL_GUARDS=1; skipping local guards." >&2
+  exit 0
+fi
+
+cd "$ROOT_DIR"
+guard_state="$(
+  uv --preview-features extra-build-dependencies run python tools/pre_push_changed_files.py
+)"
+DOCS_CHANGED=1
+RELEASE_PROOF_CHANGED=1
+APP_CONTRACTS_CHANGED=1
+MIXED_SCOPE=0
+SCOPE_COUNT=0
+SCOPE_LIMIT=2
+DETECTION_FAILED=1
+CHANGED_COUNT=0
+DETECTION_ERROR="missing guard-state output"
+while IFS='=' read -r key value; do
+  case "$key" in
+    DOCS_CHANGED) DOCS_CHANGED="$value" ;;
+    RELEASE_PROOF_CHANGED) RELEASE_PROOF_CHANGED="$value" ;;
+    APP_CONTRACTS_CHANGED) APP_CONTRACTS_CHANGED="$value" ;;
+    MIXED_SCOPE) MIXED_SCOPE="$value" ;;
+    SCOPE_COUNT) SCOPE_COUNT="$value" ;;
+    SCOPE_LIMIT) SCOPE_LIMIT="$value" ;;
+    DETECTION_FAILED) DETECTION_FAILED="$value" ;;
+    CHANGED_COUNT) CHANGED_COUNT="$value" ;;
+    DETECTION_ERROR) DETECTION_ERROR="$value" ;;
+  esac
+done <<< "$guard_state"
+
+if [[ "${DETECTION_FAILED:-0}" == "1" ]]; then
+  echo "[agilab pre-push] changed-file detection failed; running all local guards. ${DETECTION_ERROR:-}" >&2
+fi
+
+if [[ "${MIXED_SCOPE:-0}" == "1" && "${AGILAB_ALLOW_MIXED_SCOPE_PUSH:-}" != "1" ]]; then
+  echo "[agilab pre-push] pushed changes span ${SCOPE_COUNT} non-infrastructure scopes; limit is ${SCOPE_LIMIT}." >&2
+  echo "[agilab pre-push] Split the work, use ./dev task-worktree <branch-name>, or set AGILAB_ALLOW_MIXED_SCOPE_PUSH=1 with an explicit reason." >&2
+  exit 1
+fi
+
+if [[ "${DOCS_CHANGED:-1}" == "1" ]]; then
+  uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
+    --verify-stamp \
+    --quiet
+  uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
+    --check \
+    --delete \
+    --quiet \
+    --skip-missing-source
+else
+  echo "[agilab pre-push] docs mirror inputs unchanged; skipping docs mirror guard." >&2
+fi
+
+if [[ "${RELEASE_PROOF_CHANGED:-1}" == "1" ]]; then
+  uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
+    --check \
+    --quiet
+else
+  echo "[agilab pre-push] release-proof inputs unchanged; skipping release-proof guard." >&2
+fi
+
+if [[ "${APP_CONTRACTS_CHANGED:-1}" == "1" ]]; then
+  uv --preview-features extra-build-dependencies run python tools/app_contract_matrix.py \
+    --output .pytest_cache/agilab/app-contract-matrix-pre-push.json \
+    --quiet
+else
+  echo "[agilab pre-push] app-contract inputs unchanged; skipping app-contract guard." >&2
+fi

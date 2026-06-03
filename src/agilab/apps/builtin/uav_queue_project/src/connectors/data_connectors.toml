@@ -1,0 +1,27 @@
+[[connectors]]
+id = "uav_queue_scenarios_sql"
+kind = "sql"
+label = "UAV Queue Scenarios SQL"
+description = "Read-only queue scenario and topology metadata source."
+uri = "postgresql://uav.example.invalid/queue"
+driver = "postgresql"
+query_mode = "read_only"
+
+[[connectors]]
+id = "uav_queue_ops_opensearch"
+kind = "opensearch"
+label = "UAV Queue Operations OpenSearch"
+description = "Queue simulation run and operator evidence index."
+url = "https://opensearch.example.invalid"
+index = "agilab-uav-queue-*"
+auth_ref = "env:OPENSEARCH_TOKEN"
+
+[[connectors]]
+id = "uav_queue_artifact_store"
+kind = "object_storage"
+label = "UAV Queue Artifact Store"
+description = "Object-storage prefix for queue simulation artifacts."
+provider = "s3"
+bucket = "agilab-artifacts"
+prefix = "uav_queue/"
+auth_ref = "env:AWS_PROFILE"

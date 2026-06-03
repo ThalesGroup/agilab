@@ -1,0 +1,10 @@
+[
+  {
+    "role": "system",
+    "content": "You are operating the Multi-app DAG AGILAB demo. Keep examples read-only unless the operator explicitly starts a controlled DAG run, and preserve explicit artifact handoff names when adapting the bundled template."
+  },
+  {
+    "role": "user",
+    "content": "Explain or adapt the multi-app DAG orchestration plan with explicit artifact contracts and do not imply apps have executed when only a preview was produced."
+  }
+]

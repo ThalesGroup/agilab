@@ -1,0 +1,1283 @@
+from __future__ import annotations
+
+import builtins
+import importlib.util
+import runpy
+import sys
+from collections import Counter
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import pandas as pd
+import pytest
+
+
+MODULE_PATH = Path(
+    "src/agilab/apps-pages/view_training_analysis/src/view_training_analysis/view_training_analysis.py"
+)
+
+
+def _load_module():
+    spec = importlib.util.spec_from_file_location("view_training_analysis_test_module", MODULE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class _StopCalled(RuntimeError):
+    pass
+
+
+def _stop() -> None:
+    raise _StopCalled()
+
+
+def _patch_page_header(monkeypatch, module) -> None:
+    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *_args, **_kwargs: None)
+
+
+def test_view_training_analysis_discovers_trainers_and_runs(tmp_path: Path) -> None:
+    module = _load_module()
+
+    trainer_a = tmp_path / "pipeline" / "trainer_a" / "tensorboard" / "run_1"
+    trainer_a.mkdir(parents=True)
+    (trainer_a / "events.out.tfevents.1").write_text("", encoding="utf-8")
+
+    trainer_b_root = tmp_path / "pipeline" / "trainer_b" / "tensorboard"
+    trainer_b_root.mkdir(parents=True)
+    (trainer_b_root / "events.out.tfevents.2").write_text("", encoding="utf-8")
+    trainer_b_run = trainer_b_root / "run_2"
+    trainer_b_run.mkdir()
+    (trainer_b_run / "events.out.tfevents.3").write_text("", encoding="utf-8")
+
+    trainer_roots = module._discover_tensorboard_roots(tmp_path / "pipeline")
+    assert trainer_roots == sorted(
+        [tmp_path / "pipeline" / "trainer_a", tmp_path / "pipeline" / "trainer_b"],
+        key=lambda path: path.as_posix(),
+    )
+
+    run_dirs = module._discover_run_directories(trainer_b_root)
+    assert run_dirs == [trainer_b_root.resolve(), trainer_b_run.resolve()]
+
+    artifact_root = tmp_path / "pipeline" / "pytorch_playground" / "data"
+    artifact_root.mkdir(parents=True)
+    (artifact_root / "training_history.csv").write_text(
+        "epoch,train_loss,validation_loss\n1,0.4,0.5\n",
+        encoding="utf-8",
+    )
+
+    assert module._discover_training_history_roots(tmp_path / "pipeline") == [
+        tmp_path / "pipeline" / "pytorch_playground"
+    ]
+    assert module._discover_training_roots(tmp_path / "pipeline") == sorted(
+        [
+            tmp_path / "pipeline" / "pytorch_playground",
+            tmp_path / "pipeline" / "trainer_a",
+            tmp_path / "pipeline" / "trainer_b",
+        ],
+        key=lambda path: path.as_posix(),
+    )
+
+
+def test_view_training_analysis_labels_runs_across_multiple_trainers(tmp_path: Path) -> None:
+    module = _load_module()
+
+    trainer_a_run = tmp_path / "pipeline" / "trainer_a" / "tensorboard" / "run_shared"
+    trainer_b_run = tmp_path / "pipeline" / "trainer_b" / "tensorboard" / "run_shared"
+    trainer_a_run.mkdir(parents=True)
+    trainer_b_run.mkdir(parents=True)
+    (trainer_a_run / "events.out.tfevents.1").write_text("", encoding="utf-8")
+    (trainer_b_run / "events.out.tfevents.2").write_text("", encoding="utf-8")
+
+    labeled_runs = module._discover_run_labels(
+        [tmp_path / "pipeline" / "trainer_a", tmp_path / "pipeline" / "trainer_b"],
+        tmp_path / "pipeline",
+    )
+
+    assert labeled_runs == {
+        "trainer_a/run_shared": trainer_a_run.resolve(),
+        "trainer_b/run_shared": trainer_b_run.resolve(),
+    }
+
+
+def test_view_training_analysis_prefers_initial_experiment_folder_in_run_labels(tmp_path: Path) -> None:
+    module = _load_module()
+
+    trainer_a_run = (
+        tmp_path
+        / "pipeline"
+        / "sb3_compare"
+        / "demand_mlp"
+        / "trainer_fcas_routing_ppo"
+        / "tensorboard"
+        / "fcas_routing_ppo_1"
+    )
+    trainer_b_run = (
+        tmp_path
+        / "pipeline"
+        / "sb3_compare"
+        / "edge_gnn"
+        / "trainer_fcas_routing_ppo_gnn"
+        / "tensorboard"
+        / "fcas_routing_ppo_gnn_2"
+    )
+    trainer_a_run.mkdir(parents=True)
+    trainer_b_run.mkdir(parents=True)
+    (trainer_a_run / "events.out.tfevents.1").write_text("", encoding="utf-8")
+    (trainer_b_run / "events.out.tfevents.2").write_text("", encoding="utf-8")
+
+    labeled_runs = module._discover_run_labels(
+        [
+            tmp_path / "pipeline" / "sb3_compare" / "demand_mlp" / "trainer_fcas_routing_ppo",
+            tmp_path / "pipeline" / "sb3_compare" / "edge_gnn" / "trainer_fcas_routing_ppo_gnn",
+        ],
+        tmp_path / "pipeline",
+    )
+
+    assert labeled_runs == {
+        "demand_mlp/fcas_routing_ppo_1": trainer_a_run.resolve(),
+        "edge_gnn/fcas_routing_ppo_gnn_2": trainer_b_run.resolve(),
+    }
+
+
+def test_view_training_analysis_expands_only_colliding_short_labels(tmp_path: Path) -> None:
+    module = _load_module()
+
+    trainer_a_run = (
+        tmp_path
+        / "pipeline"
+        / "sb3_compare"
+        / "edge_mlp"
+        / "trainer_fcas_routing_ppo"
+        / "tensorboard"
+        / "run_shared"
+    )
+    trainer_b_run = (
+        tmp_path
+        / "pipeline"
+        / "sb3_compare"
+        / "edge_mlp"
+        / "trainer_fcas_routing_ppo_gnn"
+        / "tensorboard"
+        / "run_shared"
+    )
+    trainer_a_run.mkdir(parents=True)
+    trainer_b_run.mkdir(parents=True)
+    (trainer_a_run / "events.out.tfevents.1").write_text("", encoding="utf-8")
+    (trainer_b_run / "events.out.tfevents.2").write_text("", encoding="utf-8")
+
+    labeled_runs = module._discover_run_labels(
+        [
+            tmp_path / "pipeline" / "sb3_compare" / "edge_mlp" / "trainer_fcas_routing_ppo",
+            tmp_path / "pipeline" / "sb3_compare" / "edge_mlp" / "trainer_fcas_routing_ppo_gnn",
+        ],
+        tmp_path / "pipeline",
+    )
+
+    assert labeled_runs == {
+        "edge_mlp/trainer_fcas_routing_ppo/run_shared": trainer_a_run.resolve(),
+        "edge_mlp/trainer_fcas_routing_ppo_gnn/run_shared": trainer_b_run.resolve(),
+    }
+
+
+def test_view_training_analysis_grid_shape_scales_with_selection_count() -> None:
+    module = _load_module()
+
+    assert module._grid_shape(1) == (1, 1)
+    assert module._grid_shape(4) == (2, 3)
+    assert module._grid_shape(5) == (2, 3)
+    assert module._grid_shape(10) == (4, 3)
+
+
+def test_view_training_analysis_helper_edges_cover_embedded_and_label_fallbacks(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    class IndexOnly:
+        def __getitem__(self, key: str) -> list[str]:
+            if key != "embed":
+                raise KeyError(key)
+            return [" true "]
+
+    class BrokenIndex:
+        def __getitem__(self, _key: str) -> str:
+            raise TypeError("bad query params")
+
+    assert module._query_param_value(IndexOnly(), "embed") == "true"
+    assert module._query_param_value(BrokenIndex(), "embed") == ""
+
+    export_root = tmp_path / "export"
+    (export_root / "flight_telemetry").mkdir(parents=True)
+    env = SimpleNamespace(
+        AGILAB_EXPORT_ABS=export_root,
+        target="flight_telemetry_project",
+        app="flight_telemetry_project",
+    )
+    assert (
+        module._embedded_default_data_subpath(
+            env,
+            "AGILAB_EXPORT",
+            "",
+            embed_mode=True,
+        )
+        == "flight_telemetry"
+    )
+    assert module._embedded_default_data_subpath(env, "Custom", "seed", embed_mode=True) == "seed"
+    assert module._shared_trainer_prefix_length({}) == 0
+
+    data_root = tmp_path / "runs"
+    trainer_a = data_root / "a" / "trainer"
+    trainer_b = data_root / "b" / "trainer"
+    for trainer in (trainer_a, trainer_b):
+        run_dir = trainer / "tensorboard" / "run_shared"
+        run_dir.mkdir(parents=True)
+        (run_dir / "events.out.tfevents.1").write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module,
+        "_initial_trainer_group_labels",
+        lambda roots, _data_root: {root: "shared" for root in roots},
+    )
+    labeled_runs = module._discover_run_labels([trainer_a, trainer_b], data_root)
+
+    assert labeled_runs == {
+        "a/trainer/run_shared": (trainer_a / "tensorboard" / "run_shared").resolve(),
+        "b/trainer/run_shared": (trainer_b / "tensorboard" / "run_shared").resolve(),
+    }
+
+    history_root = data_root / "history_only"
+    history_file = history_root / module.TRAINING_HISTORY_REL
+    history_file.parent.mkdir(parents=True)
+    history_file.write_text("epoch,loss\n", encoding="utf-8")
+
+    assert module._discover_run_labels([history_root], data_root) == {
+        "training_history": history_file.resolve()
+    }
+    assert module._load_training_history_frame(history_file).empty
+
+
+def test_view_training_analysis_builds_one_trace_per_run_and_metric() -> None:
+    module = _load_module()
+
+    scalar_df = pd.DataFrame(
+        [
+            {"tag": "rollout/ep_rew_mean", "step": 1, "value": 1.0, "run_label": "routing_2"},
+            {"tag": "rollout/ep_rew_mean", "step": 2, "value": 2.0, "run_label": "routing_2"},
+            {"tag": "rollout/ep_rew_mean", "step": 1, "value": 1.5, "run_label": "routing_12"},
+            {"tag": "rollout/ep_rew_mean", "step": 2, "value": 2.5, "run_label": "routing_12"},
+            {"tag": "rollout/ep_rew_mean", "step": 1, "value": 0.8, "run_label": "routing_20"},
+            {"tag": "rollout/ep_rew_mean", "step": 2, "value": 1.9, "run_label": "routing_20"},
+            {"tag": "train/approx_kl", "step": 1, "value": 0.1, "run_label": "routing_2"},
+            {"tag": "train/approx_kl", "step": 2, "value": 0.05, "run_label": "routing_2"},
+            {"tag": "train/approx_kl", "step": 1, "value": 0.08, "run_label": "routing_12"},
+            {"tag": "train/approx_kl", "step": 2, "value": 0.03, "run_label": "routing_12"},
+            {"tag": "train/approx_kl", "step": 1, "value": 0.12, "run_label": "routing_20"},
+            {"tag": "train/approx_kl", "step": 2, "value": 0.06, "run_label": "routing_20"},
+        ]
+    )
+    scalar_df["wall_time"] = scalar_df["step"].astype(float)
+    scalar_df["relative_time_s"] = scalar_df["step"].astype(float)
+    scalar_df["timestamp"] = pd.to_datetime(scalar_df["step"], unit="s")
+
+    fig = module._build_scalar_figure(
+        scalar_df,
+        ["rollout/ep_rew_mean", "train/approx_kl"],
+        "step",
+    )
+
+    assert len(fig.data) == 6
+    assert Counter(trace.name for trace in fig.data) == {
+        "routing_2": 2,
+        "routing_12": 2,
+        "routing_20": 2,
+    }
+    colors_by_run = {}
+    for trace in fig.data:
+        colors_by_run.setdefault(trace.name, set()).add(trace.line.color)
+    assert len(colors_by_run["routing_2"]) == 1
+    assert len(colors_by_run["routing_12"]) == 1
+    assert len(colors_by_run["routing_20"]) == 1
+    assert colors_by_run["routing_2"] != colors_by_run["routing_12"]
+    assert colors_by_run["routing_2"] != colors_by_run["routing_20"]
+    assert colors_by_run["routing_12"] != colors_by_run["routing_20"]
+
+    embedded_fig = module._build_scalar_figure(
+        scalar_df,
+        ["rollout/ep_rew_mean", "train/approx_kl"],
+        "step",
+        embed_mode=True,
+    )
+    assert embedded_fig.layout.autosize is True
+    assert embedded_fig.layout.height > fig.layout.height
+    assert embedded_fig.layout.legend.orientation == "h"
+
+
+def test_view_training_analysis_normalizes_page_settings_and_paths(tmp_path: Path) -> None:
+    module = _load_module()
+
+    assert module._coerce_str_list(" a; b\n a , c ") == ["a", "b", "c"]
+    assert module._get_first_nonempty_setting(
+        [{"unused": " "}, {"primary": "  "}, {"secondary": " chosen "}],
+        "primary",
+        "secondary",
+    ) == "chosen"
+
+    share_dir = tmp_path / "share"
+    export_dir = tmp_path / "export"
+    export_target = export_dir / "pytorch_playground"
+    export_target.mkdir(parents=True)
+    env = SimpleNamespace(
+        app="pytorch_playground_project",
+        target="pytorch_playground",
+        share_root_path=lambda: str(share_dir),
+        AGILAB_EXPORT_ABS=str(export_dir),
+    )
+    assert module._resolve_base_path(env, "AGI_CLUSTER_SHARE", "").resolve() == share_dir.resolve()
+    assert module._resolve_base_path(env, "AGILAB_EXPORT", "").resolve() == export_dir.resolve()
+    assert module._resolve_base_path(env, "CUSTOM", "~/custom-root") == Path("~/custom-root").expanduser()
+    assert module._query_param_value({"embed": ["true"]}, "embed") == "true"
+    assert module._is_embed_mode({"embed": "true"})
+    assert not module._is_embed_mode({"embed": "false"})
+    assert (
+        module._embedded_default_data_subpath(env, "AGILAB_EXPORT", "", embed_mode=True)
+        == "pytorch_playground"
+    )
+    assert module._embedded_default_data_subpath(env, "AGILAB_EXPORT", "manual", embed_mode=True) == "manual"
+    assert module._embedded_default_data_subpath(env, "AGILAB_EXPORT", "", embed_mode=False) == ""
+
+    assert module._relative_label(tmp_path / "base" / "child", tmp_path / "base") == "child"
+    assert module._relative_label(tmp_path / "outside", tmp_path / "base") == "outside"
+    assert module._default_selected_tags(["a", "b", "c"], ["x", "b"]) == ["b"]
+    assert module._default_selected_tags(["a", "b", "c", "d", "e"], []) == ["a", "b", "c", "d"]
+
+
+def test_view_training_analysis_loads_and_persists_app_settings(tmp_path: Path) -> None:
+    module = _load_module()
+    settings_path = tmp_path / "app_settings.toml"
+    env = SimpleNamespace(app_settings_file=settings_path)
+
+    module.st = SimpleNamespace(session_state={})
+    module._ensure_app_settings_loaded(env)
+    assert module.st.session_state["app_settings"] == {}
+
+    settings_path.write_text("[view_training_analysis]\ntrainer = \"alpha\"\n", encoding="utf-8")
+    module.st = SimpleNamespace(session_state={})
+    module._ensure_app_settings_loaded(env)
+    assert module.st.session_state["app_settings"]["view_training_analysis"]["trainer"] == "alpha"
+
+    module.st.session_state["app_settings"] = {"view_training_analysis": {"trainer": "beta"}}
+    module._persist_app_settings(env)
+    assert "view_training_analysis" in settings_path.read_text(encoding="utf-8")
+
+    module.st = SimpleNamespace(session_state={})
+    page_state = module._get_page_state()
+    page_state["trainer"] = "gamma"
+    assert module.st.session_state["app_settings"][module.PAGE_KEY]["trainer"] == "gamma"
+
+    module.st = SimpleNamespace(session_state={"app_settings": {"pages": {module.PAGE_KEY: {"tags": ["x"]}}}})
+    assert module._get_page_defaults() == {"tags": ["x"]}
+
+
+def test_view_training_analysis_repo_path_and_setting_helpers(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    repo_root = tmp_path / "repo"
+    src_root = repo_root / "src"
+    app_root = src_root / "agilab" / "apps-pages" / "view_training_analysis" / "src" / "view_training_analysis"
+    app_root.mkdir(parents=True)
+    module_path = app_root / "view_training_analysis.py"
+    module_path.write_text("# stub\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "__file__", str(module_path))
+    monkeypatch.setattr(sys, "path", [])
+    module._ensure_repo_on_path()
+
+    assert str(src_root) in sys.path
+    assert str(repo_root) in sys.path
+
+    module.st = SimpleNamespace(session_state={"app_settings": {"kept": True}})
+    module._ensure_app_settings_loaded(SimpleNamespace(app_settings_file=tmp_path / "missing.toml"))
+    assert module.st.session_state["app_settings"] == {"kept": True}
+
+    assert module._get_first_nonempty_setting(["bad", {"primary": " "}, {"secondary": "ok"}], "primary", "secondary") == "ok"
+
+
+def test_view_training_analysis_handles_tensorboard_helper_edge_cases(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    tensorboard_root = tmp_path / "tensorboard"
+    tensorboard_root.mkdir()
+    (tensorboard_root / "events.out.tfevents.1").write_text("", encoding="utf-8")
+    assert module._discover_tensorboard_roots(tensorboard_root) == [tmp_path.resolve()]
+    assert module._discover_run_directories(tmp_path / "missing") == []
+
+    original_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "tensorboard.backend.event_processing.event_accumulator":
+            raise ModuleNotFoundError("tensorboard missing")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    with pytest.raises(RuntimeError, match="TensorBoard support is not installed"):
+        module._load_event_accumulator()
+
+    class _EmptyAccumulator:
+        def __init__(self, run_dir_str):
+            self.run_dir_str = run_dir_str
+
+        def Reload(self):
+            return None
+
+        def Tags(self):
+            return {"scalars": []}
+
+    monkeypatch.setattr(module, "_load_event_accumulator", lambda: _EmptyAccumulator)
+    module._load_scalar_frame.clear()
+    assert module._load_scalar_frame(str(tmp_path)).empty
+
+
+def test_view_training_analysis_loads_training_history_csv_as_scalars(tmp_path: Path) -> None:
+    module = _load_module()
+
+    trainer_root = tmp_path / "export" / "pytorch_playground" / "pytorch_playground"
+    history_file = trainer_root / "data" / "training_history.csv"
+    history_file.parent.mkdir(parents=True)
+    history_file.write_text(
+        "epoch,train_loss,validation_loss,train_accuracy,note\n"
+        "1,0.8,0.9,0.55,warmup\n"
+        "2,0.4,0.5,0.75,better\n",
+        encoding="utf-8",
+    )
+
+    run_labels = module._discover_run_labels([trainer_root], tmp_path / "export")
+    assert run_labels == {"training_history": history_file.resolve()}
+
+    module._load_scalar_frame.clear()
+    scalar_df = module._load_scalar_frame(str(history_file))
+
+    assert scalar_df[["tag", "step", "value"]].to_dict("records") == [
+        {"tag": "train_accuracy", "step": 1, "value": 0.55},
+        {"tag": "train_accuracy", "step": 2, "value": 0.75},
+        {"tag": "train_loss", "step": 1, "value": 0.8},
+        {"tag": "train_loss", "step": 2, "value": 0.4},
+        {"tag": "validation_loss", "step": 1, "value": 0.9},
+        {"tag": "validation_loss", "step": 2, "value": 0.5},
+    ]
+    assert scalar_df["relative_time_s"].tolist() == [0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
+
+
+def test_view_training_analysis_training_history_csv_edge_cases(tmp_path: Path) -> None:
+    module = _load_module()
+
+    assert module._discover_training_history_roots(tmp_path / "missing") == []
+    assert module._initial_trainer_group_labels([], tmp_path) == {}
+
+    empty_history = tmp_path / "empty.csv"
+    empty_history.write_text("", encoding="utf-8")
+    assert module._load_training_history_frame(empty_history).empty
+
+    no_numeric_metrics = tmp_path / "no_numeric.csv"
+    no_numeric_metrics.write_text("epoch,note\n1,warmup\n2,done\n", encoding="utf-8")
+    assert module._load_training_history_frame(no_numeric_metrics).empty
+
+    step_history = tmp_path / "step_history.csv"
+    step_history.write_text(
+        "step,wall_time,loss,accuracy\n"
+        "1,100.0,0.9,0.4\n"
+        "bad,101.0,0.8,0.5\n"
+        "3,,0.7,not-a-number\n",
+        encoding="utf-8",
+    )
+    step_df = module._load_training_history_frame(step_history)
+    assert step_df[["tag", "step", "wall_time", "value"]].to_dict("records") == [
+        {"tag": "accuracy", "step": 1, "wall_time": 100.0, "value": 0.4},
+        {"tag": "loss", "step": 1, "wall_time": 100.0, "value": 0.9},
+        {"tag": "loss", "step": 3, "wall_time": 3.0, "value": 0.7},
+    ]
+    assert step_df["relative_time_s"].tolist() == [97.0, 97.0, 0.0]
+
+    inferred_step_history = tmp_path / "inferred_step_history.csv"
+    inferred_step_history.write_text("loss\n0.6\n0.5\n", encoding="utf-8")
+    inferred_df = module._load_training_history_frame(inferred_step_history)
+    assert inferred_df[["tag", "step", "wall_time", "value"]].to_dict("records") == [
+        {"tag": "loss", "step": 0, "wall_time": 0.0, "value": 0.6},
+        {"tag": "loss", "step": 1, "wall_time": 1.0, "value": 0.5},
+    ]
+
+
+def test_view_training_analysis_additional_helper_and_entrypoint_branches(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    assert module._event_files(tmp_path / "missing") == []
+    assert module._discover_tensorboard_roots(tmp_path / "missing") == []
+
+    fake_accumulator = object()
+    fake_event_module = SimpleNamespace(EventAccumulator=fake_accumulator)
+    fake_processing_module = SimpleNamespace(event_accumulator=fake_event_module)
+    fake_backend_module = SimpleNamespace(event_processing=fake_processing_module)
+    fake_tensorboard_module = SimpleNamespace(backend=fake_backend_module)
+    monkeypatch.setitem(sys.modules, "tensorboard", fake_tensorboard_module)
+    monkeypatch.setitem(sys.modules, "tensorboard.backend", fake_backend_module)
+    monkeypatch.setitem(sys.modules, "tensorboard.backend.event_processing", fake_processing_module)
+    monkeypatch.setitem(sys.modules, "tensorboard.backend.event_processing.event_accumulator", fake_event_module)
+    assert module._load_event_accumulator() is fake_accumulator
+
+    scalar_df = pd.DataFrame(
+        [
+            {
+                "tag": "metric",
+                "step": 1,
+                "value": 1.0,
+                "run_label": "run-a",
+                "wall_time": 1.0,
+                "relative_time_s": 1.0,
+                "timestamp": pd.Timestamp("2024-01-01"),
+            },
+            {
+                "tag": "metric",
+                "step": 2,
+                "value": 2.0,
+                "run_label": "run-b",
+                "wall_time": 2.0,
+                "relative_time_s": 2.0,
+                "timestamp": pd.Timestamp("2024-01-02"),
+            },
+        ]
+    )
+    fig = module._build_scalar_figure(scalar_df, ["metric"], "step")
+    assert len(fig.data) == 2
+
+    monkeypatch.setattr(
+        "streamlit.set_page_config",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("skip main")),
+    )
+    with pytest.raises(RuntimeError, match="skip main"):
+        runpy.run_path(str(MODULE_PATH), run_name="__main__")
+
+
+def test_view_training_analysis_event_helpers_and_scalar_frame(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    events_root = tmp_path / "events"
+    nested = events_root / "trainer" / "tensorboard" / "run_1"
+    nested.mkdir(parents=True)
+    event_b = nested / "events.out.tfevents.2"
+    event_a = nested / "events.out.tfevents.1"
+    event_a.write_text("", encoding="utf-8")
+    event_b.write_text("", encoding="utf-8")
+    assert module._event_files(events_root) == [event_a.resolve(), event_b.resolve()]
+
+    class _Event:
+        def __init__(self, step, wall_time, value):
+            self.step = step
+            self.wall_time = wall_time
+            self.value = value
+
+    class _Accumulator:
+        def __init__(self, run_dir_str):
+            self.run_dir_str = run_dir_str
+
+        def Reload(self):
+            return None
+
+        def Tags(self):
+            return {"scalars": ["metric/b", "metric/a"]}
+
+        def Scalars(self, tag):
+            if tag == "metric/a":
+                return [_Event(2, 12.0, 0.2), _Event(1, 10.0, 0.1)]
+            return [_Event(1, 11.0, 1.1)]
+
+    monkeypatch.setattr(module, "_load_event_accumulator", lambda: _Accumulator)
+    module._load_scalar_frame.clear()
+    df = module._load_scalar_frame(str(events_root))
+
+    assert df[["tag", "step", "value"]].to_dict("records") == [
+        {"tag": "metric/a", "step": 1, "value": 0.1},
+        {"tag": "metric/a", "step": 2, "value": 0.2},
+        {"tag": "metric/b", "step": 1, "value": 1.1},
+    ]
+    assert df["relative_time_s"].tolist() == [0.0, 2.0, 1.0]
+    assert str(df["timestamp"].iloc[0]) == "1970-01-01 00:00:10"
+
+
+def test_view_training_analysis_resolve_active_app(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    active_app = tmp_path / "apps" / "demo_project"
+    active_app.mkdir(parents=True)
+
+    with patch("sys.argv", [MODULE_PATH.name, "--active-app", str(active_app)]):
+        assert module._resolve_active_app() == active_app.resolve()
+
+
+def test_view_training_analysis_main_warns_when_data_root_missing(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    settings_path = tmp_path / "app_settings.toml"
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        share_root_path=lambda: str(tmp_path / "share"),
+        AGILAB_EXPORT_ABS=str(tmp_path / "export"),
+    )
+    warnings_seen: list[str] = []
+    captions: list[str] = []
+
+    sidebar = SimpleNamespace(
+        radio=lambda *args, **kwargs: "Custom",
+        text_input=lambda *args, **kwargs: str(tmp_path / "missing-root"),
+        caption=lambda value: captions.append(value),
+    )
+    module.st = SimpleNamespace(
+        session_state={
+            "env": env,
+            "base_dir_choice": "Custom",
+            "input_datadir": str(tmp_path / "missing-root"),
+            "datadir_rel": "",
+        },
+        sidebar=sidebar,
+        set_page_config=lambda **kwargs: None,
+        title=lambda *args, **kwargs: None,
+        caption=lambda value: captions.append(value),
+        warning=warnings_seen.append,
+        stop=_stop,
+    )
+    _patch_page_header(monkeypatch, module)
+
+    with pytest.raises(_StopCalled):
+        module.main()
+
+    assert any("Data root does not exist yet" in message for message in warnings_seen)
+    written = settings_path.read_text(encoding="utf-8")
+    assert "base_dir_choice = \"Custom\"" in written
+    assert "view_training_analysis" in written
+
+
+def test_view_training_analysis_main_bootstraps_env_when_missing(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    export_root = tmp_path / "export"
+    export_root.mkdir()
+    settings_path = tmp_path / "app_settings.toml"
+    active_app = tmp_path / "apps" / "trainer_project"
+    active_app.mkdir(parents=True)
+    warnings_seen: list[str] = []
+
+    class FakeEnv:
+        def __init__(self, apps_path, app, verbose):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.app_settings_file = settings_path
+            self.share_root_path = lambda: str(tmp_path / "share")
+            self.AGILAB_EXPORT_ABS = str(export_root)
+            self.init_done = False
+
+    module.st = SimpleNamespace(
+        session_state={},
+        sidebar=SimpleNamespace(
+            radio=lambda *args, **kwargs: "AGILAB_EXPORT",
+            text_input=lambda *args, **kwargs: "",
+            caption=lambda *args, **kwargs: None,
+            selectbox=lambda label, options, index=0, key=None, format_func=None: "step" if label == "X axis" else options[0],
+            multiselect=lambda *args, **kwargs: [],
+        ),
+        set_page_config=lambda **kwargs: None,
+        title=lambda *args, **kwargs: None,
+        caption=lambda *args, **kwargs: None,
+        warning=warnings_seen.append,
+        info=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+        subheader=lambda *args, **kwargs: None,
+        plotly_chart=lambda *args, **kwargs: None,
+        stop=_stop,
+    )
+    _patch_page_header(monkeypatch, module)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
+    monkeypatch.setattr(module, "AgiEnv", FakeEnv)
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [])
+
+    with pytest.raises(_StopCalled):
+        module.main()
+
+    assert module.st.session_state["env"].app == "trainer_project"
+    assert module.st.session_state["base_dir_choice"] == "AGI_CLUSTER_SHARE"
+    assert module.st.session_state["input_datadir"] == ""
+    assert module.st.session_state["datadir_rel"] == ""
+    assert module.st.session_state[module.X_AXIS_KEY] == "step"
+    assert any("No TensorBoard or training-history outputs found" in message for message in warnings_seen)
+
+
+def test_view_training_analysis_main_resets_state_when_active_app_changes(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    old_app = tmp_path / "apps" / "old_trainer_project"
+    new_app = tmp_path / "apps" / "new_trainer_project"
+    old_app.mkdir(parents=True)
+    new_app.mkdir(parents=True)
+    old_export = tmp_path / "old-export"
+    new_export = tmp_path / "new-export"
+    new_export.mkdir()
+    old_settings_path = tmp_path / "old_settings.toml"
+    new_settings_path = tmp_path / "new_settings.toml"
+    warnings_seen: list[str] = []
+
+    old_env = SimpleNamespace(
+        apps_path=old_app.parent,
+        app=old_app.name,
+        app_settings_file=old_settings_path,
+        share_root_path=lambda: str(tmp_path / "old-share"),
+        AGILAB_EXPORT_ABS=str(old_export),
+    )
+
+    class FakeEnv:
+        def __init__(self, apps_path, app, verbose):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.app_settings_file = new_settings_path
+            self.share_root_path = lambda: str(tmp_path / "new-share")
+            self.AGILAB_EXPORT_ABS = str(new_export)
+            self.init_done = False
+
+    module.st = SimpleNamespace(
+        session_state={
+            "env": old_env,
+            module.APP_SCOPE_KEY: str(old_app.resolve()),
+            "app_settings": {"view_training_analysis": {"datadir_rel": "stale"}},
+            "base_dir_choice": "Custom",
+            "input_datadir": str(old_export),
+            "datadir_rel": "stale",
+            module.TRAINERS_KEY: ["old-trainer"],
+            module.RUN_ROOTS_KEY: ["old-run"],
+            module.TAGS_KEY: ["old-tag"],
+            module.X_AXIS_KEY: "timestamp",
+        },
+        sidebar=SimpleNamespace(
+            radio=lambda *args, **kwargs: "AGILAB_EXPORT",
+            text_input=lambda *args, **kwargs: None,
+            caption=lambda *args, **kwargs: None,
+            selectbox=lambda label, options, index=0, key=None, format_func=None: options[index],
+            multiselect=lambda *args, **kwargs: [],
+        ),
+        set_page_config=lambda **kwargs: None,
+        title=lambda *args, **kwargs: None,
+        caption=lambda *args, **kwargs: None,
+        warning=warnings_seen.append,
+        info=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+        subheader=lambda *args, **kwargs: None,
+        plotly_chart=lambda *args, **kwargs: None,
+        stop=_stop,
+    )
+    _patch_page_header(monkeypatch, module)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: new_app)
+    monkeypatch.setattr(module, "AgiEnv", FakeEnv)
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [])
+
+    with pytest.raises(_StopCalled):
+        module.main()
+
+    assert module.st.session_state[module.APP_SCOPE_KEY] == str(new_app.resolve())
+    assert module.st.session_state["env"].app == "new_trainer_project"
+    assert module.st.session_state["env"].init_done is True
+    assert module.st.session_state["app_settings"] == {
+        "view_training_analysis": {
+            "base_dir_choice": "AGILAB_EXPORT",
+            "datadir_rel": "",
+            "input_datadir": "",
+            "x_axis": "step",
+        }
+    }
+    assert module.st.session_state["input_datadir"] == ""
+    assert module.st.session_state["datadir_rel"] == ""
+    assert module.st.session_state[module.X_AXIS_KEY] == "step"
+    assert module.TRAINERS_KEY not in module.st.session_state
+    assert module.RUN_ROOTS_KEY not in module.st.session_state
+    assert module.TAGS_KEY not in module.st.session_state
+    assert any("No TensorBoard or training-history outputs found" in message for message in warnings_seen)
+
+
+def test_view_training_analysis_main_plots_selected_metrics(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    export_root = tmp_path / "export"
+    export_root.mkdir()
+    data_root = export_root / "trainer_data"
+    data_root.mkdir()
+    settings_path = tmp_path / "app_settings.toml"
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        share_root_path=lambda: str(tmp_path / "share"),
+        AGILAB_EXPORT_ABS=str(export_root),
+    )
+    trainer_dir = data_root / "trainer_a"
+    run_a = trainer_dir / "tensorboard" / "run_a"
+    run_b = trainer_dir / "tensorboard" / "run_b"
+    plotted: list[tuple[object, str]] = []
+    subheaders: list[str] = []
+
+    def sidebar_selectbox(label, options, index=0, key=None, format_func=None):
+        if label == "X axis":
+            return "step"
+        return options[index]
+
+    def sidebar_multiselect(label, options, default=None, key=None):
+        if label == "Trainer outputs":
+            return [options[0]]
+        if label == "TensorBoard run folders":
+            return list(options)
+        if label == "TensorBoard variables":
+            return ["metric/a"]
+        return list(default or [])
+
+    module.st = SimpleNamespace(
+        session_state={
+            "env": env,
+            "base_dir_choice": "AGILAB_EXPORT",
+            "datadir_rel": "trainer_data",
+            "input_datadir": "",
+        },
+        sidebar=SimpleNamespace(
+            radio=lambda *args, **kwargs: "AGILAB_EXPORT",
+            text_input=lambda *args, **kwargs: "trainer_data",
+            caption=lambda *args, **kwargs: None,
+            selectbox=sidebar_selectbox,
+            multiselect=sidebar_multiselect,
+        ),
+        set_page_config=lambda **kwargs: None,
+        title=lambda *args, **kwargs: None,
+        caption=lambda *args, **kwargs: None,
+        warning=lambda *args, **kwargs: None,
+        info=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+        subheader=subheaders.append,
+        plotly_chart=lambda fig, width=None: plotted.append((fig, width)),
+        stop=_stop,
+    )
+    _patch_page_header(monkeypatch, module)
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [trainer_dir])
+    monkeypatch.setattr(module, "_discover_run_directories", lambda root: [run_a, run_b])
+
+    def fake_load_scalar_frame(run_dir_str: str) -> pd.DataFrame:
+        run_label = Path(run_dir_str).name
+        return pd.DataFrame(
+            {
+                "tag": ["metric/a", "metric/b"],
+                "step": [1, 2],
+                "wall_time": [10.0, 11.0],
+                "relative_time_s": [0.0, 1.0],
+                "timestamp": pd.to_datetime([10.0, 11.0], unit="s"),
+                "value": [1.0, 2.0],
+                "run_label": [run_label, run_label],
+            }
+        )
+
+    monkeypatch.setattr(module, "_load_scalar_frame", fake_load_scalar_frame)
+    monkeypatch.setattr(
+        module,
+        "_build_scalar_figure",
+        lambda df, tags, axis, **_kwargs: {"tags": tags, "axis": axis, "rows": len(df)},
+    )
+
+    module.main()
+
+    assert subheaders == ["Scalar plots"]
+    assert plotted == [({"tags": ["metric/a"], "axis": "step", "rows": 4}, "stretch")]
+    written = settings_path.read_text(encoding="utf-8")
+    assert "trainer_rel = \"trainer_a\"" in written
+    assert "trainer_rels = [" in written
+    assert "selected_tags = [" in written
+    assert "\"metric/a\"" in written
+
+
+def test_view_training_analysis_embedded_mode_autoscales_export_target(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    export_root = tmp_path / "export"
+    target_root = export_root / "pytorch_playground"
+    trainer_dir = target_root / "pytorch_playground"
+    run_file = trainer_dir / "data" / "training_history.csv"
+    run_file.parent.mkdir(parents=True)
+    settings_path = tmp_path / "app_settings.toml"
+    env = SimpleNamespace(
+        app="pytorch_playground_project",
+        target="pytorch_playground",
+        app_settings_file=settings_path,
+        share_root_path=lambda: str(tmp_path / "share"),
+        AGILAB_EXPORT_ABS=str(export_root),
+    )
+    page_configs: list[dict] = []
+    markdown_calls: list[tuple[str, bool]] = []
+    captions: list[str] = []
+    plotted: list[tuple[object, str]] = []
+    discovered_roots: list[Path] = []
+
+    def sidebar_selectbox(label, options, index=0, key=None, format_func=None):
+        if label == "X axis":
+            return "step"
+        return options[index]
+
+    def sidebar_multiselect(label, options, default=None, key=None):
+        if label == "Trainer outputs":
+            return list(options)
+        if label == "TensorBoard run folders":
+            return list(options)
+        if label == "TensorBoard variables":
+            return ["train_loss"]
+        return list(default or [])
+
+    module.st = SimpleNamespace(
+        query_params={"embed": "true", "active_app": "pytorch_playground_project"},
+        session_state={"env": env},
+        sidebar=SimpleNamespace(
+            radio=lambda *args, **kwargs: "AGILAB_EXPORT",
+            text_input=lambda *args, **kwargs: None,
+            caption=lambda *args, **kwargs: None,
+            selectbox=sidebar_selectbox,
+            multiselect=sidebar_multiselect,
+        ),
+        set_page_config=lambda **kwargs: page_configs.append(kwargs),
+        markdown=lambda body, unsafe_allow_html=False: markdown_calls.append((body, unsafe_allow_html)),
+        title=lambda *args, **kwargs: None,
+        caption=captions.append,
+        warning=lambda *args, **kwargs: None,
+        info=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+        subheader=lambda *args, **kwargs: None,
+        plotly_chart=lambda fig, width=None: plotted.append((fig, width)),
+        stop=_stop,
+    )
+    monkeypatch.setattr(
+        module,
+        "render_streamlit_page_header",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("header is hidden in embed mode")),
+    )
+
+    def fake_discover_training_roots(data_root: Path) -> list[Path]:
+        discovered_roots.append(data_root)
+        return [trainer_dir]
+
+    monkeypatch.setattr(module, "_discover_training_roots", fake_discover_training_roots)
+    monkeypatch.setattr(module, "_discover_run_labels", lambda trainers, data_root: {"training_history": run_file})
+    monkeypatch.setattr(
+        module,
+        "_load_scalar_frame",
+        lambda *_args, **_kwargs: pd.DataFrame(
+            {
+                "tag": ["train_loss", "train_loss"],
+                "step": [1, 2],
+                "wall_time": [10.0, 11.0],
+                "relative_time_s": [0.0, 1.0],
+                "timestamp": pd.to_datetime([10.0, 11.0], unit="s"),
+                "value": [0.8, 0.4],
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_build_scalar_figure",
+        lambda df, tags, axis, *, embed_mode=False: {
+            "tags": tags,
+            "axis": axis,
+            "rows": len(df),
+            "embed_mode": embed_mode,
+        },
+    )
+
+    module.main()
+
+    assert page_configs == [
+        {"page_title": "Training analysis", "layout": "wide", "initial_sidebar_state": "collapsed"}
+    ]
+    assert markdown_calls and markdown_calls[0][1] is True
+    assert captions == ["Training analysis"]
+    assert discovered_roots == [target_root.resolve()]
+    assert module.st.session_state["base_dir_choice"] == "AGILAB_EXPORT"
+    assert module.st.session_state["datadir_rel"] == "pytorch_playground"
+    assert plotted == [
+        (
+            {"tags": ["train_loss"], "axis": "step", "rows": 2, "embed_mode": True},
+            "stretch",
+        )
+    ]
+
+
+def test_view_training_analysis_handles_active_app_and_settings_error_paths(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    errors: list[str] = []
+    settings_path = tmp_path / "invalid.toml"
+    settings_path.write_text("[broken", encoding="utf-8")
+
+    module.st = SimpleNamespace(error=errors.append, stop=_stop, session_state={})
+    with patch("sys.argv", [MODULE_PATH.name, "--active-app", str(tmp_path / "missing-app")]):
+        with pytest.raises(_StopCalled):
+            module._resolve_active_app()
+
+    assert any("Provided --active-app path not found" in message for message in errors)
+
+    module.st = SimpleNamespace(session_state={})
+    module._ensure_app_settings_loaded(SimpleNamespace(app_settings_file=settings_path))
+    assert module.st.session_state["app_settings"] == {}
+
+    module.st = SimpleNamespace(session_state={"app_settings": "bad"})
+    module._persist_app_settings(SimpleNamespace(app_settings_file=tmp_path / "persist.toml"))
+    assert not (tmp_path / "persist.toml").exists()
+
+    module.st = SimpleNamespace(session_state={"app_settings": {"view_training_analysis": {}}})
+    monkeypatch.setattr(
+        module,
+        "_dump_toml",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("dump failed")),
+    )
+    module._persist_app_settings(SimpleNamespace(app_settings_file=tmp_path / "persist.toml"))
+
+    assert module._coerce_str_list(None) == []
+    assert module._coerce_str_list(("a", "b", "a")) == ["a", "b"]
+    assert module._coerce_str_list(3) == ["3"]
+
+
+def test_view_training_analysis_unexpected_settings_helper_errors_propagate(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text('trainer = "alpha"\n', encoding="utf-8")
+
+    module.st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(
+        module.tomllib,
+        "load",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad load")),
+    )
+    with pytest.raises(TypeError, match="bad load"):
+        module._ensure_app_settings_loaded(SimpleNamespace(app_settings_file=settings_path))
+
+    module.st = SimpleNamespace(session_state={"app_settings": {module.PAGE_KEY: {}}})
+    monkeypatch.setattr(
+        module,
+        "_dump_toml",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad dump")),
+    )
+    with pytest.raises(ValueError, match="bad dump"):
+        module._persist_app_settings(SimpleNamespace(app_settings_file=tmp_path / "persist.toml"))
+
+    monkeypatch.setattr(Path, "resolve", lambda self: (_ for _ in ()).throw(TypeError("bad path")))
+    with pytest.raises(TypeError, match="bad path"):
+        module._relative_label(tmp_path / "child", tmp_path)
+
+
+def test_view_training_analysis_main_warns_when_no_trainers_or_runs(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    export_root = tmp_path / "export"
+    export_root.mkdir()
+    data_root = export_root / "trainer_data"
+    data_root.mkdir()
+    settings_path = tmp_path / "app_settings.toml"
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        share_root_path=lambda: str(tmp_path / "share"),
+        AGILAB_EXPORT_ABS=str(export_root),
+    )
+    warnings_seen: list[str] = []
+
+    def _base_st() -> SimpleNamespace:
+        def sidebar_selectbox(label, options, index=0, key=None, format_func=None):
+            if label == "X axis":
+                return "step"
+            return options[index]
+
+        def sidebar_multiselect(label, options, default=None, key=None):
+            if label == "Trainer outputs":
+                return [options[0]] if options else []
+            return []
+
+        return SimpleNamespace(
+            session_state={
+                "env": env,
+                "base_dir_choice": "AGILAB_EXPORT",
+                "datadir_rel": "trainer_data",
+                "input_datadir": "",
+            },
+            sidebar=SimpleNamespace(
+                radio=lambda *args, **kwargs: "AGILAB_EXPORT",
+                text_input=lambda *args, **kwargs: "trainer_data",
+                caption=lambda *args, **kwargs: None,
+                selectbox=sidebar_selectbox,
+                multiselect=sidebar_multiselect,
+            ),
+            set_page_config=lambda **kwargs: None,
+            title=lambda *args, **kwargs: None,
+            caption=lambda *args, **kwargs: None,
+            warning=warnings_seen.append,
+            info=lambda *args, **kwargs: None,
+            error=lambda *args, **kwargs: None,
+            subheader=lambda *args, **kwargs: None,
+            plotly_chart=lambda *args, **kwargs: None,
+            stop=_stop,
+        )
+
+    _patch_page_header(monkeypatch, module)
+
+    module.st = _base_st()
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [])
+    with pytest.raises(_StopCalled):
+        module.main()
+    assert any("No TensorBoard or training-history outputs found" in message for message in warnings_seen)
+
+    warnings_seen.clear()
+    trainer_dir = data_root / "trainer_a"
+    trainer_dir.mkdir()
+    module.st = _base_st()
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [trainer_dir])
+    monkeypatch.setattr(module, "_discover_run_directories", lambda root: [])
+    with pytest.raises(_StopCalled):
+        module.main()
+    assert any("No TensorBoard run folders found" in message for message in warnings_seen)
+
+
+def test_view_training_analysis_main_warns_when_no_trainer_output_selected(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    export_root = tmp_path / "export"
+    export_root.mkdir()
+    data_root = export_root / "trainer_data"
+    data_root.mkdir()
+    trainer_dir = data_root / "trainer_a"
+    trainer_dir.mkdir()
+    env = SimpleNamespace(
+        app_settings_file=tmp_path / "app_settings.toml",
+        share_root_path=lambda: str(tmp_path / "share"),
+        AGILAB_EXPORT_ABS=str(export_root),
+    )
+    infos: list[str] = []
+
+    module.st = SimpleNamespace(
+        session_state={
+            "env": env,
+            "base_dir_choice": "AGILAB_EXPORT",
+            "datadir_rel": "trainer_data",
+            "input_datadir": "",
+        },
+        sidebar=SimpleNamespace(
+            radio=lambda *args, **kwargs: "AGILAB_EXPORT",
+            text_input=lambda *args, **kwargs: "trainer_data",
+            caption=lambda *args, **kwargs: None,
+            selectbox=lambda label, options, index=0, key=None, format_func=None: "step" if label == "X axis" else options[index],
+            multiselect=lambda *args, **kwargs: [],
+        ),
+        set_page_config=lambda **kwargs: None,
+        title=lambda *args, **kwargs: None,
+        caption=lambda *args, **kwargs: None,
+        warning=lambda *args, **kwargs: None,
+        info=infos.append,
+        error=lambda *args, **kwargs: None,
+        subheader=lambda *args, **kwargs: None,
+        plotly_chart=lambda *args, **kwargs: None,
+        stop=_stop,
+    )
+    _patch_page_header(monkeypatch, module)
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [trainer_dir])
+
+    with pytest.raises(_StopCalled):
+        module.main()
+
+    assert infos == ["Select at least one Trainer output in the sidebar."]
+
+
+def test_view_training_analysis_main_handles_selection_and_metric_edge_cases(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    export_root = tmp_path / "export"
+    export_root.mkdir()
+    data_root = export_root / "trainer_data"
+    data_root.mkdir()
+    settings_path = tmp_path / "app_settings.toml"
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        share_root_path=lambda: str(tmp_path / "share"),
+        AGILAB_EXPORT_ABS=str(export_root),
+    )
+    trainer_dir = data_root / "trainer_a"
+    run_a = trainer_dir / "tensorboard" / "run_a"
+    run_b = trainer_dir / "tensorboard" / "run_b"
+    infos: list[str] = []
+    errors: list[str] = []
+    warnings_seen: list[str] = []
+
+    def _base_st(run_selection, tag_selection) -> SimpleNamespace:
+        def sidebar_selectbox(label, options, index=0, key=None, format_func=None):
+            if label == "X axis":
+                return "step"
+            return options[index]
+
+        def sidebar_multiselect(label, options, default=None, key=None):
+            if label == "Trainer outputs":
+                return [options[0]] if options else []
+            if label == "TensorBoard run folders":
+                return run_selection
+            if label == "TensorBoard variables":
+                return tag_selection
+            return list(default or [])
+
+        return SimpleNamespace(
+            session_state={
+                "env": env,
+                "base_dir_choice": "AGILAB_EXPORT",
+                "datadir_rel": "trainer_data",
+                "input_datadir": "",
+            },
+            sidebar=SimpleNamespace(
+                radio=lambda *args, **kwargs: "AGILAB_EXPORT",
+                text_input=lambda *args, **kwargs: "trainer_data",
+                caption=lambda *args, **kwargs: None,
+                selectbox=sidebar_selectbox,
+                multiselect=sidebar_multiselect,
+            ),
+            set_page_config=lambda **kwargs: None,
+            title=lambda *args, **kwargs: None,
+            caption=lambda *args, **kwargs: None,
+            warning=warnings_seen.append,
+            info=infos.append,
+            error=errors.append,
+            subheader=lambda *args, **kwargs: None,
+            plotly_chart=lambda *args, **kwargs: None,
+            stop=_stop,
+        )
+
+    _patch_page_header(monkeypatch, module)
+    monkeypatch.setattr(module, "_discover_training_roots", lambda root: [trainer_dir])
+    monkeypatch.setattr(module, "_discover_run_directories", lambda root: [run_a, run_b])
+
+    module.st = _base_st([], [])
+    with pytest.raises(_StopCalled):
+        module.main()
+    assert any("Select at least one TensorBoard run folder" in message for message in infos)
+
+    infos.clear()
+    warnings_seen.clear()
+    module.st = _base_st(["run_a"], [])
+    monkeypatch.setattr(module, "_load_scalar_frame", lambda *_args, **_kwargs: pd.DataFrame())
+    with pytest.raises(_StopCalled):
+        module.main()
+    assert any("No scalar metrics were found" in message for message in warnings_seen)
+
+    infos.clear()
+    scalar_df = pd.DataFrame(
+        {
+            "tag": ["metric/a"],
+            "step": [1],
+            "wall_time": [10.0],
+            "relative_time_s": [0.0],
+            "timestamp": pd.to_datetime([10.0], unit="s"),
+            "value": [1.0],
+        }
+    )
+    module.st = _base_st(["run_a"], [])
+    monkeypatch.setattr(module, "_load_scalar_frame", lambda *_args, **_kwargs: scalar_df.copy())
+    module.main()
+    assert any("Select at least one TensorBoard variable" in message for message in infos)
+
+    infos.clear()
+    errors.clear()
+    module.st = _base_st(["run_a"], ["metric/a"])
+    monkeypatch.setattr(module, "_load_scalar_frame", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("tensorboard missing")))
+    with pytest.raises(_StopCalled):
+        module.main()
+    assert errors == ["tensorboard missing"]

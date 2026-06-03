@@ -1,0 +1,298 @@
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+SRC_ROOT = Path("src").resolve()
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+package = sys.modules.get("agilab")
+package_paths = getattr(package, "__path__", None)
+if package_paths is not None and str(SRC_ROOT / "agilab") not in list(package_paths):
+    package_paths.append(str(SRC_ROOT / "agilab"))
+
+from agilab.ci.ci_provider_artifacts import (
+    build_artifact_index_from_archives,
+    write_artifact_index,
+    write_sample_github_actions_archive,
+)
+
+
+REPORT_PATH = Path("tools/ci_artifact_harvest_report.py").resolve()
+CORE_PATH = Path("src/agilab/ci_artifact_harvest.py").resolve()
+
+
+def _load_module(path: Path, name: str):
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_ci_artifact_harvest_report_passes(tmp_path: Path) -> None:
+    module = _load_module(REPORT_PATH, "ci_artifact_harvest_report_test_module")
+
+    report = module.build_report(
+        repo_root=Path.cwd(),
+        output_path=tmp_path / "ci_artifact_harvest.json",
+    )
+
+    assert report["report"] == "CI artifact harvest report"
+    assert report["status"] == "pass"
+    assert report["summary"]["schema"] == "agilab.ci_artifact_harvest.v1"
+    assert report["summary"]["run_status"] == "harvest_ready"
+    assert report["summary"]["execution_mode"] == "ci_artifact_contract_only"
+    assert report["summary"]["release_status"] == "validated"
+    assert report["summary"]["artifact_count"] == 4
+    assert report["summary"]["required_artifact_count"] == 4
+    assert report["summary"]["loaded_artifact_count"] == 4
+    assert report["summary"]["missing_required_count"] == 0
+    assert report["summary"]["checksum_verified_count"] == 4
+    assert report["summary"]["checksum_mismatch_count"] == 0
+    assert report["summary"]["provenance_tagged_count"] == 4
+    assert report["summary"]["external_machine_evidence_count"] == 4
+    assert report["summary"]["live_ci_query_count"] == 0
+    assert report["summary"]["network_probe_count"] == 0
+    assert report["summary"]["command_execution_count"] == 0
+    assert report["summary"]["artifact_kinds"] == [
+        "compatibility_report",
+        "kpi_evidence_bundle",
+        "promotion_decision",
+        "run_manifest",
+    ]
+    assert report["summary"]["round_trip_ok"] is True
+    assert {check["id"] for check in report["checks"]} == {
+        "ci_artifact_harvest_schema",
+        "ci_artifact_harvest_required_artifacts",
+        "ci_artifact_harvest_checksums",
+        "ci_artifact_harvest_release_status",
+        "ci_artifact_harvest_external_machine_provenance",
+        "ci_artifact_harvest_no_live_ci",
+        "ci_artifact_harvest_persistence",
+        "ci_artifact_harvest_docs_reference",
+    }
+
+
+def test_ci_artifact_harvest_report_path_setup_handles_package_paths(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module(REPORT_PATH, "ci_artifact_harvest_path_setup_test_module")
+    repo_root = tmp_path / "repo"
+    src_root = repo_root / "src"
+    package_root = src_root / "agilab"
+    package_root.mkdir(parents=True)
+    monkeypatch.setattr(sys, "path", [entry for entry in sys.path if entry not in {str(repo_root), str(src_root)}])
+
+    list_package = SimpleNamespace(__path__=[])
+    monkeypatch.setitem(sys.modules, "agilab", list_package)
+    module._ensure_repo_on_path(repo_root)
+
+    assert sys.path[:2] == [str(repo_root), str(src_root)]
+    assert list_package.__path__ == [str(package_root)]
+
+    tuple_package = SimpleNamespace(__path__=())
+    monkeypatch.setitem(sys.modules, "agilab", tuple_package)
+    module._ensure_repo_on_path(repo_root)
+
+    assert tuple_package.__path__ == [str(package_root)]
+
+
+def test_ci_artifact_harvest_report_artifact_index_shapes(tmp_path: Path) -> None:
+    module = _load_module(REPORT_PATH, "ci_artifact_harvest_index_shapes_test_module")
+    list_index = tmp_path / "list-index.json"
+    list_index.write_text(json.dumps([{"kind": "run_manifest"}, "ignored"]), encoding="utf-8")
+    object_index = tmp_path / "object-index.json"
+    object_index.write_text(
+        json.dumps({"release_id": "release-123", "artifacts": [{"kind": "run_manifest"}, "ignored"]}),
+        encoding="utf-8",
+    )
+    bad_artifacts = tmp_path / "bad-artifacts.json"
+    bad_artifacts.write_text(json.dumps({"artifacts": {}}), encoding="utf-8")
+    bad_root = tmp_path / "bad-root.json"
+    bad_root.write_text(json.dumps("bad"), encoding="utf-8")
+
+    assert module._read_artifact_index(None) == (None, module.DEFAULT_RELEASE_ID)
+    assert module._read_artifact_index(list_index) == ([{"kind": "run_manifest"}], module.DEFAULT_RELEASE_ID)
+    assert module._read_artifact_index(object_index) == ([{"kind": "run_manifest"}], "release-123")
+    with pytest.raises(ValueError, match="artifacts list"):
+        module._read_artifact_index(bad_artifacts)
+    with pytest.raises(ValueError, match="JSON list or object"):
+        module._read_artifact_index(bad_root)
+
+
+def test_ci_artifact_harvest_report_docs_failure_and_temporary_output(tmp_path: Path) -> None:
+    module = _load_module(REPORT_PATH, "ci_artifact_harvest_docs_failure_test_module")
+    docs_check = module._docs_check(tmp_path / "missing-repo")
+
+    assert docs_check["status"] == "fail"
+    assert "error" in docs_check["details"]
+
+    report = module.build_report(repo_root=Path.cwd())
+
+    assert report["status"] == "pass"
+    assert report["summary"]["round_trip_ok"] is True
+
+
+def test_ci_artifact_harvest_persists_release_mapping(tmp_path: Path) -> None:
+    module = _load_module(REPORT_PATH, "ci_artifact_harvest_json_test_module")
+    output_path = tmp_path / "ci_artifact_harvest.json"
+
+    report = module.build_report(repo_root=Path.cwd(), output_path=output_path)
+
+    assert report["status"] == "pass"
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["schema"] == "agilab.ci_artifact_harvest.v1"
+    assert payload["run_status"] == "harvest_ready"
+    assert payload["execution_mode"] == "ci_artifact_contract_only"
+    assert payload["release"]["public_status"] == "validated"
+    assert payload["release"]["artifact_statuses"] == {
+        "run_manifest": "validated",
+        "kpi_evidence_bundle": "validated",
+        "compatibility_report": "validated",
+        "promotion_decision": "validated",
+    }
+    assert payload["release"]["missing_required_artifact_kinds"] == []
+    assert payload["release"]["failed_required_artifact_kinds"] == []
+    assert {artifact["attachment_status"] for artifact in payload["artifacts"]} == {
+        "provenance_tagged"
+    }
+    assert all(artifact["sha256_verified"] is True for artifact in payload["artifacts"])
+    assert payload["provenance"]["queries_ci_provider"] is False
+    assert payload["provenance"]["executes_network_probe"] is False
+    assert payload["provenance"]["executes_commands"] is False
+
+
+def test_ci_artifact_harvest_report_cli_modes(tmp_path: Path, capsys) -> None:
+    module = _load_module(REPORT_PATH, "ci_artifact_harvest_cli_test_module")
+    output_path = tmp_path / "ci_artifact_harvest.json"
+
+    assert module.main(["--output", str(output_path), "--compact"]) == 0
+    compact = capsys.readouterr().out
+    assert "\n" not in compact.strip()
+    assert json.loads(compact)["status"] == "pass"
+    assert output_path.is_file()
+
+    assert module.main([]) == 0
+    pretty = capsys.readouterr().out
+    assert "\n  " in pretty
+    assert json.loads(pretty)["status"] == "pass"
+
+
+def test_ci_artifact_harvest_report_accepts_provider_artifact_index(
+    tmp_path: Path,
+) -> None:
+    module = _load_module(REPORT_PATH, "ci_artifact_harvest_provider_index_test_module")
+    archive_path = write_sample_github_actions_archive(tmp_path / "public-evidence.zip")
+    artifact_index_path = tmp_path / "artifact_index.json"
+    write_artifact_index(
+        artifact_index_path,
+        build_artifact_index_from_archives(
+            [archive_path],
+            repository="ThalesGroup/agilab",
+            run_id="123456789",
+            workflow="public-evidence.yml",
+            run_attempt="1",
+            source_machine="github-actions:ubuntu-24.04",
+        ),
+    )
+
+    report = module.build_report(
+        repo_root=Path.cwd(),
+        output_path=tmp_path / "ci_artifact_harvest.json",
+        artifact_index_path=artifact_index_path,
+    )
+
+    assert report["status"] == "pass"
+    assert report["summary"]["artifact_count"] == 4
+    assert report["summary"]["release_status"] == "validated"
+    assert report["summary"]["external_machine_evidence_count"] == 4
+
+
+def test_ci_artifact_harvest_core_detects_missing_required_artifacts() -> None:
+    module = _load_module(CORE_PATH, "ci_artifact_harvest_core_test_module")
+
+    payload = module.build_ci_artifact_harvest(
+        [
+            {
+                "id": "run_manifest",
+                "kind": "run_manifest",
+                "path": "run_manifest.json",
+                "payload": {
+                    "kind": "agilab.run_manifest",
+                    "path_id": "source-checkout-first-proof",
+                    "status": "pass",
+                },
+                "source_machine": "github-actions:macos",
+                "workflow": "public-evidence.yml",
+                "run_attempt": "1",
+            }
+        ]
+    )
+
+    assert payload["run_status"] == "incomplete"
+    assert payload["summary"]["artifact_count"] == 1
+    assert payload["summary"]["missing_required_count"] == 3
+    assert payload["release"]["public_status"] == "missing_evidence"
+    assert payload["release"]["missing_required_artifact_kinds"] == [
+        "kpi_evidence_bundle",
+        "compatibility_report",
+        "promotion_decision",
+    ]
+
+
+def test_ci_artifact_harvest_core_reports_failed_payloads_and_bad_metadata() -> None:
+    module = _load_module(CORE_PATH, "ci_artifact_harvest_edge_test_module")
+
+    assert module._payload_status("run_manifest", {"status": "fail"}) == "failed"
+    assert module._payload_status("kpi_evidence_bundle", {"status": "pass", "summary": {"failed": 1}}) == "failed"
+    assert module._payload_status("compatibility_report", {"report": "Compatibility matrix report", "status": "fail"}) == "failed"
+    assert module._payload_status(
+        "promotion_decision",
+        {"schema": "agilab.promotion.decision.v1", "decision": "blocked", "gate_status": "fail"},
+    ) == "failed"
+    assert module._payload_status("extra", {"status": "pass"}) == "not_required"
+    assert module._payload_summary("extra", {"status": "custom"}) == {"status": "custom"}
+    assert module._payload_summary("kpi_evidence_bundle", {"status": "pass", "summary": "bad"})["failed"] is None
+
+    row = module._artifact_row(
+        {
+            "id": "bad",
+            "kind": "run_manifest",
+            "payload": "bad",
+            "sha256": "not-the-calculated-hash",
+        },
+        release_id="release",
+    )
+    mapping = module._status_mapping(
+        [
+            row,
+            {"kind": "kpi_evidence_bundle", "payload_status": "validated"},
+            {"kind": "compatibility_report", "payload_status": "validated"},
+            {"kind": "promotion_decision", "payload_status": "validated"},
+        ],
+        "release",
+    )
+    issues = module._issues([row], mapping)
+
+    assert mapping["public_status"] == "failed"
+    assert row["sha256_verified"] is False
+    assert row["payload_status"] == "failed"
+    assert {issue["message"] for issue in issues} == {
+        "artifact checksum does not match payload",
+        "required artifact payload is not validated",
+        "artifact is missing source-machine provenance",
+    }
+
+
+def test_ci_artifact_harvest_sample_builder() -> None:
+    module = _load_module(CORE_PATH, "ci_artifact_harvest_sample_test_module")
+
+    state = module.build_sample_ci_artifact_harvest()
+
+    assert state["run_status"] == "harvest_ready"
+    assert state["summary"]["artifact_count"] == 4

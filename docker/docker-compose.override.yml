@@ -1,0 +1,13 @@
+services:
+  agilab:
+    volumes:
+      - ../src:/app/src
+    develop:
+      watch:
+        - path: src/
+          action: sync
+          target: /app/src
+          ignore:
+            - "**/__pycache__/"
+            - "**/*.pyc"
+            - "**/.venv/"
