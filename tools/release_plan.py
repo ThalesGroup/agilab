@@ -614,13 +614,11 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "gh release create \"$DATASET_RELEASE_TAG\" dataset-release-assets/*": (
             "dataset release job must upload dataset assets to the dataset release"
         ),
-        "allow_post_release:": "workflow must require an explicit public .postN hotfix override",
-        "post_release_reason:": "workflow must capture the public .postN hotfix justification",
+        "release_mode:": "workflow must require explicit stable/hotfix/candidate/repair release intent",
         "tools/pypi_release_version_policy.py": (
             "workflow must validate public release cadence before publishing"
         ),
-        "--allow-post-release": "workflow must pass the explicit .postN override to the policy gate",
-        "POST_RELEASE_REASON": "workflow must pass the .postN hotfix justification to the policy gate",
+        "--release-mode": "workflow must pass explicit release intent to the policy gate",
         "pypi-release-retention:": "workflow must prune old PyPI releases after provenance passes",
         "tools/pypi_release_retention.py": "workflow must use the PyPI release retention tool",
         "--protect-versions-from-projects": (

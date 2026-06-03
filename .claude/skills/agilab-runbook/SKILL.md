@@ -238,9 +238,9 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - Real PyPI publishes now require the GitHub CLI (`gh`) because `tools/pypi_publish.py` creates or updates the matching GitHub Release after pushing the tag.
   - Real PyPI does not auto-select `.postN` when the date version already
     exists. Normal public releases should move to a deliberate new date-based
-    version or a release candidate/TestPyPI rehearsal first. Use `.postN` only
-    for a documented critical hotfix and pass the workflow's explicit
-    `allow_post_release` / reason controls.
+    version or a release candidate/TestPyPI rehearsal first. Public `.postN`
+    releases are forbidden for new AGILAB publications; use `release_mode=hotfix`
+    with `YYYY.MM.DD.N` for a same-day public fix.
   - On publish retries, the top-level `agilab` artifact may already exist while split runtime/app/page packages still need publication. Let the preflight/release plan decide what remains instead of checking only the root package.
   - Add `--delete-former-github-release` only when the public release page should keep a single current GitHub Release. This deletes the previous GitHub Release entry after the new one is created, but keeps the previous git tag and PyPI files.
   - Add `--delete-pypi-release <version>` only when a specific old PyPI version must be removed from the selected packages. This uses an exact `pypi-cleanup --version-regex` match, requires real PyPI web-login credentials in `[pypi_cleanup]`, and cannot use API tokens or trusted publishing credentials.

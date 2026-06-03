@@ -287,10 +287,10 @@ def test_package_publishing_policy_addresses_common_audit_misreads() -> None:
     assert "must not rewrite versions or dependency metadata during the upload job" in normalized_policy
     assert "dependency-policy hygiene, docs mirror\nintegrity, installer behavior" in policy
     assert "Real PyPI publication must not silently auto-create\n``.postN`` releases" in policy
-    assert "multiple same-day post releases should be treated as release\nprocess debt" in policy
+    assert "Public PyPI ``.postN`` releases are forbidden for new AGILAB\npublications" in policy
     assert "tools/pypi_release_version_policy.py" in policy
-    assert "``allow_post_release=true``" in policy
-    assert "``post_release_reason``" in policy
+    assert "``release_mode=hotfix``" in policy
+    assert "``YYYY.MM.DD.N``" in policy
     assert "release-candidate versions such as ``YYYY.MM.DDrc1``" in policy
     assert "disallow_untyped_defs = true" in policy
     assert "runs mypy with ``--strict``" in policy

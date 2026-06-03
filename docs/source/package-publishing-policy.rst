@@ -612,20 +612,20 @@ to a deliberate new version. Real PyPI publication must not silently auto-create
 ``.postN`` releases when a version collision is detected; the release tool is
 expected to stop and require an explicit version choice instead.
 
-``.postN`` releases are reserved for critical hotfixes to bounded packaging,
-publication, provenance, or evidence refreshes on an already published
-date-based version. The ``pypi-publish`` workflow enforces this with
-``tools/pypi_release_version_policy.py``: a selected public package version that
-contains ``.postN`` fails unless the workflow dispatch explicitly sets
-``allow_post_release=true`` and provides ``post_release_reason``. Tag-triggered
-releases cannot bypass that gate.
+Public PyPI ``.postN`` releases are forbidden for new AGILAB
+publications. The ``pypi-publish`` workflow enforces this with
+``tools/pypi_release_version_policy.py`` and an explicit ``release_mode``:
+``stable`` accepts ``YYYY.MM.DD``, ``hotfix`` accepts ``YYYY.MM.DD.N`` for a
+same-day public fix, ``candidate`` accepts ``YYYY.MM.DDrcN``, and ``repair`` is
+reserved for release-evidence repair flows that must not publish PyPI
+distributions.
 
 The dense April-May 2026 ``.postN`` history records public-beta hardening of the
 split package release pipeline and is kept visible for auditability. It is not
 the target steady-state release rhythm: normal feature or behavior changes
-should advance to a deliberate new date-based release, and
-multiple same-day post releases should be treated as release
-process debt. TestPyPI rehearsals are the exception: retry-oriented ``.postN``
+should advance to a deliberate new date-based release, and same-day public
+hotfixes should use ``release_mode=hotfix`` with ``YYYY.MM.DD.N`` instead of a
+post-release suffix. TestPyPI rehearsals are the exception: retry-oriented ``.postN``
 bumps are allowed there because TestPyPI is often reused during dry runs.
 Release-candidate versions such as
 ``YYYY.MM.DDrc1`` are also acceptable for rehearsal when a public pre-release is

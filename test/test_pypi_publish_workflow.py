@@ -120,8 +120,13 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "packages:" in text
     assert "roles:" in text
     assert "impact_base_ref:" in text
-    assert "allow_post_release:" in text
-    assert "post_release_reason:" in text
+    assert "release_mode:" in text
+    assert "stable" in text
+    assert "hotfix" in text
+    assert "candidate" in text
+    assert "repair" in text
+    assert "allow_post_release:" not in text
+    assert "post_release_reason:" not in text
     assert "include_existing_pypi:" in text
     assert "RELEASE_PACKAGES" in text
     assert "RELEASE_ROLES" in text
@@ -139,8 +144,9 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "tools/pypi_trusted_publisher_contract.py" in text
     assert "Validate public release cadence policy" in text
     assert "tools/pypi_release_version_policy.py" in text
-    assert "--allow-post-release" in text
-    assert "POST_RELEASE_REASON" in text
+    assert "--release-mode \"$RELEASE_MODE\"" in text
+    assert "--allow-post-release" not in text
+    assert "POST_RELEASE_REASON" not in text
     assert "--check-workflow .github/workflows/pypi-publish.yaml" in text
     assert "release-plan:" in text
     assert "Render release package plan" in text
