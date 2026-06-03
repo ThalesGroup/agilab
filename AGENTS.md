@@ -349,6 +349,11 @@ Use this runbook whenever you:
   - which shared files/modules need to change
   - the expected blast radius across apps/workflows
   - the test or regression plan you will use after approval
+- **agi-core owner gate**: Treat `src/agilab/core/agi-core/**` as owner-protected even after
+  shared-core approval. Only GitHub actor `jpmorard` may change this path. The local pre-push
+  hook and repo-guardrails CI run `tools/agi_core_change_guard.py`; agents should not stage or
+  push `agi-core` changes for any other actor. Use `AGILAB_CORE_CHANGE_ACTOR=jpmorard` only when
+  the real approving/publishing actor is jpmorard.
 - **No silent fallbacks**: Do not introduce automatic API client fallbacks
   (`chat.completions` ↔ `responses`, runtime parameter rewrites, etc.). Detect missing
   capabilities up-front and fail with a clear, actionable error.
