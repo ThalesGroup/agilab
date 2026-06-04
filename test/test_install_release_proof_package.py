@@ -56,6 +56,47 @@ def test_release_package_spec_includes_manifest_extras(tmp_path: Path) -> None:
     )
 
 
+def test_project_version_newer_than_manifest_detects_four_part_hotfix(tmp_path: Path) -> None:
+    module = _load_module()
+    manifest = tmp_path / "release_proof.toml"
+    manifest.write_text(
+        "[release]\n"
+        'package_name = "agilab"\n'
+        'package_version = "2026.06.04"\n',
+        encoding="utf-8",
+    )
+    project = tmp_path / "pyproject.toml"
+    project.write_text(
+        "[project]\n"
+        'name = "agilab"\n'
+        'version = "2026.06.04.1"\n',
+        encoding="utf-8",
+    )
+
+    assert module.project_version(project) == "2026.06.04.1"
+    assert module.project_version_newer_than_manifest(project, manifest)
+
+
+def test_project_version_newer_than_manifest_rejects_same_version(tmp_path: Path) -> None:
+    module = _load_module()
+    manifest = tmp_path / "release_proof.toml"
+    manifest.write_text(
+        "[release]\n"
+        'package_name = "agilab"\n'
+        'package_version = "2026.06.04"\n',
+        encoding="utf-8",
+    )
+    project = tmp_path / "pyproject.toml"
+    project.write_text(
+        "[project]\n"
+        'name = "agilab"\n'
+        'version = "2026.06.04"\n',
+        encoding="utf-8",
+    )
+
+    assert not module.project_version_newer_than_manifest(project, manifest)
+
+
 def test_current_release_proof_installs_public_example_payload() -> None:
     module = _load_module()
 

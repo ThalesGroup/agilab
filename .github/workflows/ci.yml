@@ -212,6 +212,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" != "schedule" && "${GITHUB_EVENT_NAME}" != "workflow_dispatch" ]] && \
+             python tools/install_release_proof_package.py --check-project-newer-than-manifest; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Checkout project version is newer than the public release-proof package; skipping clean public install until the release workflow publishes the new package."
+            exit 0
+          fi
           if python tools/install_release_proof_package.py --check-installable-only; then
             echo "available=true" >> "$GITHUB_OUTPUT"
             exit 0

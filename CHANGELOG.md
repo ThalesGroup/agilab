@@ -17,7 +17,15 @@ publication, or evidence refreshes on an already published date version.
 
 ## Unreleased
 
-No unreleased public changes.
+### Fixed
+
+- Prepared a root `agilab` packaging hotfix so the published console script includes
+  CLI-required subpackages such as `agilab.security`, while keeping app, core,
+  example, and split-library payloads out of the umbrella wheel.
+- Made clean public-install PR/push checks skip stale release-proof PyPI installs
+  when the checked-out project version is ahead of the public release proof; strict
+  scheduled and manual guardrail runs still fail closed on a broken published
+  release.
 
 ## [2026.06.04] - 2026-06-04
 
