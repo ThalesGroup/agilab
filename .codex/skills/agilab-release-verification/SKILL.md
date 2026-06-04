@@ -3,7 +3,7 @@ name: agilab-release-verification
 description: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-02
+  updated: 2026-06-04
 ---
 
 # AGILAB Release Verification
@@ -23,6 +23,14 @@ contract. Do not answer from memory.
 
 ```bash
 ./dev --print-only release
+uv --preview-features extra-build-dependencies run python - <<'PY'
+from pathlib import Path
+import yaml
+for path in sorted(Path(".github/workflows").glob("*.y*ml")):
+    with path.open() as stream:
+        yaml.safe_load(stream)
+print("workflow yaml ok")
+PY
 uv --preview-features extra-build-dependencies run python tools/release_plan.py --check-workflow .github/workflows/pypi-publish.yaml --impact-base-ref <previous-tag>
 uv --preview-features extra-build-dependencies run python tools/release_plan.py --check-workflow .github/workflows/pypi-publish.yaml --impact-base-ref <previous-tag> --skip-existing-pypi
 uv --preview-features extra-build-dependencies run python tools/release_plan.py --check-workflow .github/workflows/pypi-publish.yaml
@@ -49,6 +57,12 @@ already-complete PyPI artifacts. For datasets, inspect whether the workflow
 publishes a separate `datasets-<content-hash>` release or skips it because the
 same dataset payload already exists. If a workflow owns a step, give its
 condition instead of adding a duplicate manual step.
+
+When any `.github/workflows/*.yml` or `.github/workflows/*.yaml` file was
+edited, validate raw YAML parsing before relying on semantic workflow checks.
+`release_plan.py --check-workflow` verifies AGILAB's release contract, but it is
+not sufficient as a YAML syntax guard; malformed multiline shell arguments can
+still break GitHub Actions before jobs start.
 
 ## Release Readiness Gate
 
