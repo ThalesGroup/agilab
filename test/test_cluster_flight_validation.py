@@ -556,7 +556,10 @@ def test_share_setup_script_lines_print_sshfs_commands(tmp_path: Path):
     assert 'ssh -p "$SCHEDULER_SSH_PORT" -o BatchMode=yes -o ConnectTimeout=5 "$SCHEDULER_SSH_TARGET" true' in script
     assert 'sshfs -p "$SCHEDULER_SSH_PORT" "$SCHEDULER_CLUSTER_SHARE"' in script
     assert "Scheduler SSH is not reachable from the worker" in script
-    assert "agi@192.168.3.103:/System/Volumes/Data/home/agilab/clustershare/agilab-two-node" in script
+    expected_scheduler_share = (
+        f"agi@192.168.3.103:{cfv.local_cluster_share_root(plan).as_posix()}"
+    )
+    assert expected_scheduler_share in script
     assert "jpm@192.168.3.35" in script
     assert "-o reconnect" in script
     assert "-o ServerAliveInterval=15" in script
