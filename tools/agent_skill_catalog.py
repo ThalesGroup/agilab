@@ -15,7 +15,7 @@ DEFAULT_SKILLS_ROOT = REPO_ROOT / ".claude" / "skills"
 DEFAULT_MARKDOWN_OUT = REPO_ROOT / "AGENT_SKILLS.md"
 DEFAULT_LLMS_OUT = REPO_ROOT / "llms.txt"
 DEFAULT_LLMS_FULL_OUT = REPO_ROOT / "llms-full.txt"
-WORKS_WITH = ("Codex", "Claude Code", "Aider", "OpenCode")
+WORKS_WITH = ("Codex", "Claude Code", "Aider", "OpenCode", "Mistral Vibe")
 CATALOG_COMPATIBLE = ("Continue",)
 
 

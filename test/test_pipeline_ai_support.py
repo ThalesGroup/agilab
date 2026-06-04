@@ -172,6 +172,11 @@ def test_default_ollama_model_prefers_code_model_when_requested():
     pipeline_ai_support._ollama_available_models = _fake_available
     try:
         assert pipeline_ai_support._default_ollama_model("http://127.0.0.1:11434", prefer_code=True) == "codestral:latest"
+        pipeline_ai_support._ollama_available_models = lambda _endpoint: ["llama", "devstral:latest"]
+        assert (
+            pipeline_ai_support._default_ollama_model("http://127.0.0.1:11434", prefer_code=True)
+            == "devstral:latest"
+        )
         assert pipeline_ai_support._default_ollama_model(
             "http://127.0.0.1:11434",
             preferred="llama",
@@ -190,6 +195,7 @@ def test_default_ollama_family_model_and_matchers_cover_qwen_and_deepseek():
             "deepseek-coder:latest",
             "qwen3:30b-a3b-instruct-2507-q4_K_M",
             "qwen3-coder:30b-a3b-q4_K_M",
+            "devstral:latest",
             "ministral-3:14b-instruct-2512-q4_K_M",
             "phi4-mini:3.8b-q4_K_M",
         ]
@@ -212,6 +218,8 @@ def test_default_ollama_family_model_and_matchers_cover_qwen_and_deepseek():
         assert pipeline_ai_support.ollama_model_matches_family("deepseek-coder:latest", "deepseek") is True
         assert pipeline_ai_support.ollama_model_matches_family("qwen3:30b-a3b-instruct-2507-q4_K_M", "qwen3") is True
         assert pipeline_ai_support.ollama_model_matches_family("qwen3-coder:30b-a3b-q4_K_M", "qwen3-coder") is True
+        assert pipeline_ai_support.ollama_model_matches_family("devstral:latest", "devstral") is True
+        assert pipeline_ai_support.ollama_model_matches_family("devstral-small-2:24b", "devstral") is True
         assert pipeline_ai_support.ollama_model_matches_family("ministral-3:14b-instruct-2512-q4_K_M", "ministral") is True
         assert pipeline_ai_support.ollama_model_matches_family("phi4-mini:3.8b-q4_K_M", "phi4-mini") is True
         assert pipeline_ai_support.ollama_model_matches_family("codestral:latest", "qwen") is False
@@ -235,6 +243,10 @@ def test_default_ollama_family_model_returns_efficient_profile_defaults_when_mis
         assert (
             pipeline_ai_support.default_ollama_family_model("http://127.0.0.1:11434", family="qwen3-coder")
             == "qwen3-coder:30b-a3b-q4_K_M"
+        )
+        assert (
+            pipeline_ai_support.default_ollama_family_model("http://127.0.0.1:11434", family="devstral")
+            == "devstral:latest"
         )
         assert (
             pipeline_ai_support.default_ollama_family_model("http://127.0.0.1:11434", family="ministral")

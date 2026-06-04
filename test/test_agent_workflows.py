@@ -28,6 +28,7 @@ def test_aider_repo_config_exposes_local_aliases_and_repo_reads() -> None:
     assert "gpt-oss-local:ollama_chat/gpt-oss:20b" in cfg["alias"]
     assert "qwen3-local:ollama_chat/qwen3:30b-a3b-instruct-2507-q4_K_M" in cfg["alias"]
     assert "qwen3-coder-local:ollama_chat/qwen3-coder:30b-a3b-q4_K_M" in cfg["alias"]
+    assert "devstral-local:ollama_chat/devstral:latest" in cfg["alias"]
     assert "ministral-local:ollama_chat/ministral-3:14b-instruct-2512-q4_K_M" in cfg["alias"]
     assert "phi4-mini-local:ollama_chat/phi4-mini:3.8b-q4_K_M" in cfg["alias"]
     assert not any("mistral-local" in alias for alias in cfg["alias"])
@@ -56,11 +57,13 @@ def test_opencode_project_config_and_agents_use_agilab_defaults() -> None:
 def test_agent_workflow_wrappers_are_shell_valid_and_reference_repo_defaults() -> None:
     aider = REPO_ROOT / "tools" / "aider_workflow.sh"
     opencode = REPO_ROOT / "tools" / "opencode_workflow.sh"
+    vibe = REPO_ROOT / "tools" / "vibe_workflow.sh"
 
-    subprocess.run(["bash", "-n", str(aider), str(opencode)], check=True)
+    subprocess.run(["bash", "-n", str(aider), str(opencode), str(vibe)], check=True)
 
     aider_text = aider.read_text(encoding="utf-8")
     opencode_text = opencode.read_text(encoding="utf-8")
+    vibe_text = vibe.read_text(encoding="utf-8")
 
     assert ".aider.conf.yml" in aider_text
     assert "AGILAB_AIDER_MODEL" in aider_text
@@ -70,6 +73,10 @@ def test_agent_workflow_wrappers_are_shell_valid_and_reference_repo_defaults() -
     assert "AGILAB_OPENCODE_AGENT" in opencode_text
     assert "agilab-build" in opencode_text
     assert "agilab-review" in opencode_text
+
+    assert "AGILAB_VIBE_COMMAND" in vibe_text
+    assert 'vibe "<prompt>"' in vibe_text
+    assert "log/vibe" in vibe_text
 
 
 def test_agent_run_evidence_command_is_documented() -> None:
@@ -125,6 +132,7 @@ def test_agent_skill_badges_catalog_and_resource_preflight_are_documented() -> N
     assert "Changed repo-managed skills are scanned locally" in agent_workflows
     assert "portable skill structure" in agent_workflows
     assert "does not ship a Continue wrapper" in agent_workflows
+    assert "Mistral Vibe workflow" in agent_workflows
 
 
 def test_agent_skill_hardening_gaps_are_on_the_public_roadmap() -> None:

@@ -207,10 +207,11 @@ function Normalize-LocalModelName {
         '^(deepseek|deepseek-coder|deepseek-coder:latest)$' { return "deepseek" }
         '^(qwen3|qwen3-30b|qwen3-30b-a3b|qwen3:30b-a3b|qwen3:30b-a3b-instruct|qwen3:30b-a3b-instruct-2507-q4_k_m)$' { return "qwen3" }
         '^(qwen3-coder|qwen3-coder-30b|qwen3-coder-30b-a3b|qwen3-coder:30b|qwen3-coder:30b-a3b|qwen3-coder:30b-a3b-q4_k_m)$' { return "qwen3-coder" }
+        '^(devstral|devstral2|devstral-2|devstral-small|devstral-small2|devstral-small-2|devstral:24b|devstral:latest)$' { return "devstral" }
         '^(ministral|ministral3|ministral-3|ministral-3-14b|ministral-3:14b|ministral-3:14b-instruct|ministral-3:14b-instruct-2512-q4_k_m)$' { return "ministral" }
         '^(phi4-mini|phi-4-mini|phi4mini|phi4-mini:3\.8b|phi4-mini:3\.8b-q4_k_m)$' { return "phi4-mini" }
         default {
-            Write-Warn "Ignoring unsupported local model '$Raw'. Supported values: gpt-oss, qwen, deepseek, qwen3, qwen3-coder, ministral, phi4-mini."
+            Write-Warn "Ignoring unsupported local model '$Raw'. Supported values: gpt-oss, qwen, deepseek, qwen3, qwen3-coder, devstral, ministral, phi4-mini."
             return ""
         }
     }
@@ -238,6 +239,7 @@ function Get-OllamaTagForFamily {
         "deepseek" { return "deepseek-coder:latest" }
         "qwen3" { return "qwen3:30b-a3b-instruct-2507-q4_K_M" }
         "qwen3-coder" { return "qwen3-coder:30b-a3b-q4_K_M" }
+        "devstral" { return "devstral:latest" }
         "ministral" { return "ministral-3:14b-instruct-2512-q4_K_M" }
         "phi4-mini" { return "phi4-mini:3.8b-q4_K_M" }
         default { throw "No Ollama tag mapping defined for local model family '$Family'." }
@@ -252,6 +254,7 @@ function Get-WorkflowProviderForLocalModelFamily {
         "deepseek" { return "ollama-deepseek" }
         "qwen3" { return "ollama-qwen3" }
         "qwen3-coder" { return "ollama-qwen3-coder" }
+        "devstral" { return "ollama-devstral" }
         "ministral" { return "ollama-ministral" }
         "phi4-mini" { return "ollama-phi4-mini" }
         default { throw "No WORKFLOW provider mapping defined for local model family '$Family'." }
@@ -1213,7 +1216,7 @@ function Setup-OfflineModels {
         }
         Write-Warn "Automatic Ollama setup is not available on Windows. Install Ollama manually and pull the configured model(s): $($tags -join ', ')."
     } else {
-        Write-Warn "Automatic Ollama setup is not available on Windows. Install Ollama manually and pull models such as 'gpt-oss:20b', 'qwen3-coder:30b-a3b-q4_K_M', 'qwen3:30b-a3b-instruct-2507-q4_K_M', 'ministral-3:14b-instruct-2512-q4_K_M', or 'phi4-mini:3.8b-q4_K_M' if needed."
+        Write-Warn "Automatic Ollama setup is not available on Windows. Install Ollama manually and pull models such as 'gpt-oss:20b', 'qwen3-coder:30b-a3b-q4_K_M', 'qwen3:30b-a3b-instruct-2507-q4_K_M', 'devstral:latest', 'ministral-3:14b-instruct-2512-q4_K_M', or 'phi4-mini:3.8b-q4_K_M' if needed."
     }
 }
 

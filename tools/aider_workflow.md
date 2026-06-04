@@ -39,6 +39,7 @@ The repo ships:
 - `gpt-oss-local`
 - `qwen3-local`
 - `qwen3-coder-local`
+- `devstral-local`
 - `ministral-local`
 - `phi4-mini-local`
 
@@ -47,6 +48,7 @@ Override the default model with:
 ```bash
 AGILAB_AIDER_MODEL=deepseek-local ./tools/aider_workflow.sh chat
 AGILAB_AIDER_MODEL=qwen3-coder-local ./tools/aider_workflow.sh chat
+AGILAB_AIDER_MODEL=devstral-local ./tools/aider_workflow.sh chat
 ```
 
 ## Notes

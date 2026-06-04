@@ -405,6 +405,13 @@ def test_default_ollama_model_prefers_code_model_and_fallbacks(monkeypatch):
     monkeypatch.setattr(
         pipeline_ai,
         "_ollama_available_models",
+        lambda _endpoint: ["llama3:latest", "devstral:latest"],
+    )
+    assert pipeline_ai._default_ollama_model("http://ollama", prefer_code=True) == "devstral:latest"
+
+    monkeypatch.setattr(
+        pipeline_ai,
+        "_ollama_available_models",
         lambda _endpoint: ["llama3:latest", "preferred-model"],
     )
     assert (
@@ -1818,6 +1825,12 @@ def test_configure_assistant_engine_selects_power_efficient_local_profiles(monke
             pipeline_ai.OLLAMA_QWEN3_CODER_PROVIDER,
             "qwen3-coder",
             "qwen3-coder:30b-a3b-q4_K_M",
+        ),
+        (
+            "Devstral coding agent (local)",
+            pipeline_ai.OLLAMA_DEVSTRAL_PROVIDER,
+            "devstral",
+            "devstral:latest",
         ),
         (
             "Ministral 3 14B (local)",
@@ -3670,6 +3683,7 @@ def test_ask_gpt_routes_local_profiles_through_ollama(monkeypatch):
         pipeline_ai.OLLAMA_DEEPSEEK_PROVIDER,
         pipeline_ai.OLLAMA_QWEN3_PROVIDER,
         pipeline_ai.OLLAMA_QWEN3_CODER_PROVIDER,
+        pipeline_ai.OLLAMA_DEVSTRAL_PROVIDER,
         pipeline_ai.OLLAMA_MINISTRAL_PROVIDER,
         pipeline_ai.OLLAMA_PHI4_MINI_PROVIDER,
     ]

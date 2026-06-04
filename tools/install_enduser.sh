@@ -99,7 +99,7 @@ fi
 
 usage() {
   local status="${1:-1}"
-  echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z] [--force-rebuild] [--dry-run] [--skip-offline] [--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini]"
+  echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z] [--force-rebuild] [--dry-run] [--skip-offline] [--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,devstral,ministral,phi4-mini]"
   echo ""
   echo "Options:"
   echo "  --source         Installation source (local, pypi, testpypi)"
@@ -108,7 +108,7 @@ usage() {
   echo "  --dry-run        Print the end-user install plan without installing dependencies"
   echo "  --skip-offline   Skip offline assistant (torch, transformers) for faster install"
   echo "  --no-remote-installers  Refuse downloaded shell installers such as Ollama bootstrap scripts"
-  echo "  --install-local-models  Install requested Ollama models (gpt-oss, qwen, deepseek, qwen3, qwen3-coder, ministral, phi4-mini)"
+  echo "  --install-local-models  Install requested Ollama models (gpt-oss, qwen, deepseek, qwen3, qwen3-coder, devstral, ministral, phi4-mini)"
   exit "$status"
 }
 
@@ -148,10 +148,11 @@ normalize_local_model_name() {
     deepseek|deepseek-coder|deepseek-coder:latest) echo "deepseek" ;;
     qwen3|qwen3-30b|qwen3-30b-a3b|qwen3:30b-a3b|qwen3:30b-a3b-instruct|qwen3:30b-a3b-instruct-2507-q4_k_m) echo "qwen3" ;;
     qwen3-coder|qwen3-coder-30b|qwen3-coder-30b-a3b|qwen3-coder:30b|qwen3-coder:30b-a3b|qwen3-coder:30b-a3b-q4_k_m) echo "qwen3-coder" ;;
+    devstral|devstral2|devstral-2|devstral-small|devstral-small2|devstral-small-2|devstral:24b|devstral:latest) echo "devstral" ;;
     ministral|ministral3|ministral-3|ministral-3-14b|ministral-3:14b|ministral-3:14b-instruct|ministral-3:14b-instruct-2512-q4_k_m) echo "ministral" ;;
     phi4-mini|phi-4-mini|phi4mini|phi4-mini:3.8b|phi4-mini:3.8b-q4_k_m) echo "phi4-mini" ;;
     *)
-      warn "Ignoring unsupported local model '${raw}'. Supported values: gpt-oss, qwen, deepseek, qwen3, qwen3-coder, ministral, phi4-mini."
+      warn "Ignoring unsupported local model '${raw}'. Supported values: gpt-oss, qwen, deepseek, qwen3, qwen3-coder, devstral, ministral, phi4-mini."
       return 1
       ;;
   esac
@@ -198,6 +199,7 @@ ollama_tag_for_family() {
     deepseek) echo "deepseek-coder:latest" ;;
     qwen3) echo "qwen3:30b-a3b-instruct-2507-q4_K_M" ;;
     qwen3-coder) echo "qwen3-coder:30b-a3b-q4_K_M" ;;
+    devstral) echo "devstral:latest" ;;
     ministral) echo "ministral-3:14b-instruct-2512-q4_K_M" ;;
     phi4-mini) echo "phi4-mini:3.8b-q4_K_M" ;;
     *)
@@ -215,6 +217,7 @@ provider_for_local_model_family() {
     deepseek) echo "ollama-deepseek" ;;
     qwen3) echo "ollama-qwen3" ;;
     qwen3-coder) echo "ollama-qwen3-coder" ;;
+    devstral) echo "ollama-devstral" ;;
     ministral) echo "ollama-ministral" ;;
     phi4-mini) echo "ollama-phi4-mini" ;;
     *)
