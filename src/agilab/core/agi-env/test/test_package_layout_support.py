@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
+from agi_env import package_layout_support as pls
 from agi_env.package_layout_support import (
     RuntimePackageSpec,
     discover_source_runtime_package_specs,
@@ -235,3 +236,112 @@ def test_resolve_agilab_source_root_handles_classified_and_legacy_paths(tmp_path
         )
         == tmp_path
     )
+
+
+def test_resolve_agilab_source_root_returns_none_for_short_legacy_path(tmp_path):
+    module_file = tmp_path / "agi_env.py"
+    module_file.write_text("", encoding="utf-8")
+
+    assert resolve_agilab_source_root_from_module_file(module_file, legacy_parent_index=20) is None
+
+
+def test_entry_point_discovery_handles_legacy_metadata_api(monkeypatch):
+    class _LegacyEntryPoints:
+        def get(self, group, default):
+            assert group == pls.RUNTIME_PACKAGE_ENTRY_POINT_GROUP
+            assert default == ()
+            return ()
+
+    monkeypatch.setattr(pls.importlib_metadata, "entry_points", lambda: _LegacyEntryPoints())
+
+    assert load_runtime_package_specs(repo_agilab_dir=None, include_source=False) == ()
+
+
+def test_source_runtime_package_specs_skip_unloadable_manifest(tmp_path, monkeypatch):
+    repo_agilab_dir = tmp_path / "src" / "agilab"
+    manifest = repo_agilab_dir / "core" / "worker-project" / "src" / "worker_package" / "agi_env_runtime.py"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("RUNTIME_PACKAGE_SPEC = {}\n", encoding="utf-8")
+    monkeypatch.setattr(pls.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
+
+    assert discover_source_runtime_package_specs(repo_agilab_dir) == ()
+
+
+def test_runtime_package_spec_coercion_accepts_callable_object_and_none():
+    class _SpecObject:
+        role = "worker"
+        project_dir = "worker-project"
+        module_name = "worker_package"
+        order = 5
+
+    class _EntryPoint:
+        def __init__(self, raw_spec):
+            self._raw_spec = raw_spec
+
+        def load(self):
+            return self._raw_spec
+
+    specs = load_runtime_package_specs(
+        repo_agilab_dir=None,
+        include_source=False,
+        entry_points_fn=lambda _group: [
+            _EntryPoint(lambda: None),
+            _EntryPoint(RuntimePackageSpec(role="existing", project_dir="existing-project", module_name="existing_pkg")),
+            _EntryPoint(_SpecObject()),
+        ],
+    )
+
+    assert specs == (
+        RuntimePackageSpec(role="worker", project_dir="worker-project", module_name="worker_package", order=5),
+        RuntimePackageSpec(role="existing", project_dir="existing-project", module_name="existing_pkg"),
+    )
+
+
+def test_load_runtime_package_specs_skips_broken_entry_points():
+    class _BrokenEntryPoint:
+        def __init__(self, error):
+            self._error = error
+
+        def load(self):
+            raise self._error
+
+    class _ValidEntryPoint:
+        def load(self):
+            return {"role": "worker", "project_dir": "worker-project", "module_name": "worker_package"}
+
+    specs = load_runtime_package_specs(
+        repo_agilab_dir=None,
+        include_source=False,
+        entry_points_fn=lambda _group: [
+            _BrokenEntryPoint(AttributeError("broken")),
+            _BrokenEntryPoint(ImportError("broken")),
+            _BrokenEntryPoint(ModuleNotFoundError("broken")),
+            _ValidEntryPoint(),
+        ],
+    )
+
+    assert specs == (RuntimePackageSpec(role="worker", project_dir="worker-project", module_name="worker_package"),)
+
+
+def test_resolve_package_layout_skips_missing_installed_runtime_package(tmp_path):
+    site_pkg = tmp_path / "site-packages" / "agilab"
+    env_pkg = tmp_path / "site-packages" / "agi_env"
+    site_pkg.mkdir(parents=True)
+    env_pkg.mkdir(parents=True)
+
+    def _resolve(package, *, find_spec_fn=None, path_cls=Path):
+        if package == "agi_env":
+            return env_pkg
+        raise ModuleNotFoundError(package)
+
+    layout = resolve_package_layout(
+        is_source_env=False,
+        repo_agilab_dir=tmp_path / "repo",
+        installed_package_dir=site_pkg,
+        resolve_package_dir_fn=_resolve,
+        runtime_package_specs=(
+            RuntimePackageSpec(role="worker", project_dir="worker-project", module_name="missing_worker"),
+        ),
+    )
+
+    assert layout.runtime_packages == {}
