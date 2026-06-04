@@ -695,6 +695,7 @@ jobs:
       PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
       PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
       PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}
+      PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}
       PYPI_RETENTION_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}
     steps:
       - name: Checkout repository
@@ -713,6 +714,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euxo pipefail
+          test -n "${PYPI_CONFIRM_READER_TOKEN:-}" || {
+            echo "PYPI_CONFIRM_READER_TOKEN secret is required to read the temporary PyPI confirmation variable." >&2
+            exit 2
+          }
           args=(
             --repo pypi
             --repo-root .
@@ -725,7 +730,7 @@ jobs:
             --github-confirm-login-variable "PYPI_CONFIRM_LOGIN_URL"
             --github-confirm-login-timeout 1800
             --github-confirm-login-poll-delay 5
-            --github-token "$GITHUB_TOKEN"
+            --github-token "$PYPI_CONFIRM_READER_TOKEN"
           )
           for package in ${PYPI_RETENTION_PACKAGES}; do
             args+=(--package "$package")
