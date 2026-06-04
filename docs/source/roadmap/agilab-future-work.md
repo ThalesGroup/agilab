@@ -791,9 +791,26 @@ use this order after the P0-P2 professionalization gates are under control:
      exemptions because they have no concrete merge output yet
    - future apps/templates must opt in when they produce durable worker
      summaries
-5. **Intent-first operator mode**
-   - valuable, but it benefits from the cleaner evidence, compatibility, and
-     connector contracts above
+5. **Intent-first operator workbench**
+   - draw inspiration from Windows Terminal 1.0's product pattern: one stable
+     host for fragmented execution environments, with profiles, panes, a
+     command palette, preview/stable channels, and explicit launch contracts
+   - adapt the pattern to AGILab instead of copying terminal UI: profiles map
+     to local app, cluster app, notebook, evidence run, worker environment,
+     public demo, and release-proof contexts
+   - let operators open side-by-side panes for `PROJECT`, `ORCHESTRATE`,
+     compact logs, cluster state, evidence artifacts, and replay/proof status
+   - provide a global command palette for actions such as install app, deploy
+     workers, run proof, replay, open artifact, export capsule, and validate
+     release scope
+   - auto-discover useful profiles from apps, notebooks, datasets, workers,
+     recent runs, and release evidence, but keep every discovered action
+     reviewable before execution
+   - keep raw terminal/log behavior out of the default product surface: compact
+     signal-first diagnostics stay the default, while raw logs remain artifacts
+     for explicit debugging
+   - treat this as roadmap work until the profile schema, command registry,
+     pane layout state, and robot evidence exist
 6. **Elasticity and active mesh optimization**
    - keep the current public claim bounded: a compact Active Mesh Optimization
      teaching route exists, but it is centralized-policy evidence, not full
@@ -1698,6 +1715,9 @@ Use this rule of thumb:
   next need is portability, SQL/ELK/data-system access, and reliable artefact flow
 - choose **Pinned private-app validation** if the next need is CI/release
   reproducibility for non-public apps without publishing or vendoring their code
+- choose **Intent-first operator workbench** if the next need is a polished
+  profile-and-pane execution surface that brings apps, notebooks, cluster runs,
+  compact logs, and proof/replay actions into one operator workflow
 - choose **DeepWiki/Open-style repository knowledge layer** if the next need is
   faster codebase onboarding, architecture discovery, and repository Q&A without
   turning generated content into official docs
@@ -1735,6 +1755,8 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 - P5 pinned private-app validation for non-public app CI and release checks
 - Multi-app DAG orchestration productization, once the professional baseline is
   stable
+- Intent-first operator workbench, once profiles, command actions, compact logs,
+  and evidence surfaces are stable enough to share one operator shell
 - Data connector facility and connector-aware views, once first-run and
   evidence paths are predictable
 
@@ -1753,3 +1775,5 @@ successful run.
 - Grafana Elasticsearch datasource: <https://grafana.com/docs/grafana/latest/datasources/elasticsearch/>
 - Superset Elasticsearch support: <https://superset.apache.org/docs/databases/supported/elasticsearch/>
 - Metabase data sources: <https://www.metabase.com/data-sources/>
+- Windows Terminal 1.0 announcement: <https://devblogs.microsoft.com/commandline/windows-terminal-1-0/>
+- Windows Terminal overview: <https://learn.microsoft.com/windows/terminal/>
