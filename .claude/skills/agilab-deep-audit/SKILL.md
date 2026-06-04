@@ -3,7 +3,7 @@ name: agilab-deep-audit
 description: Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says "review AGILAB", "audit AGILAB", "code review AGILAB", "deep review", "architecture review", "security review", asks for a review document, or asks for comparison-quality critique rather than a quick fix.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-29
+  updated: 2026-06-04
 ---
 
 # AGILAB Deep Audit Skill
@@ -70,7 +70,11 @@ For a deep AGILAB audit, cover these surfaces unless the user narrows scope:
   session-state boundaries, and user-visible workflow paths.
 - Security posture: credential redaction, subprocess/shell usage, pickle or
   executable payload boundaries, external apps policy, public UI controls,
-  supply-chain/provenance, and MCP write/exec exposure.
+  supply-chain/provenance, and MCP write/exec exposure. Also check SSH host-key
+  verification and auth mode in cluster transport, remote command construction
+  (`exec_ssh` argv vs interpolated strings), connector SSRF (scheme allowlist,
+  metadata-range blocking, no credential forwarding), MCP read-tool path
+  containment, and `html.escape` on values rendered via `unsafe_allow_html`.
 - Cross-platform and tests: Windows/macOS/Linux claims, hermetic `HOME`
   behavior, singleton resets, path separators, process/signal assumptions, and
   CI workflow coverage.
@@ -88,7 +92,7 @@ git status --short --branch --untracked-files=no
 git log --oneline -5
 sed -n '1,220p' pyproject.toml
 find src/agilab/core -maxdepth 3 -name pyproject.toml -print
-rg -n "class AgiEnv|__new__|__init__|shell=True|pickle\\.load|eval\\(|exec\\(|subprocess|create_subprocess|AGILAB_PUBLIC_BIND|MCP|FastMCP|security-check|Path\\.home|except Exception|bare except|uv add|command -v sshfs" src/agilab tools test
+rg -n "class AgiEnv|__new__|__init__|shell=True|pickle\\.load|eval\\(|exec\\(|subprocess|create_subprocess|AGILAB_PUBLIC_BIND|MCP|FastMCP|security-check|Path\\.home|except Exception|bare except|uv add|command -v sshfs|known_hosts|StrictHostKeyChecking|asyncssh|sshpass|exec_ssh|urlopen|unsafe_allow_html|is_relative_to" src/agilab tools test
 ```
 
 Then read the specific files implicated by the hits. For full audits, useful
@@ -99,12 +103,13 @@ anchors are usually:
 - `src/agilab/core/agi-node/src/agi_node/agi_dispatcher/base_worker.py`
 - `src/agilab/core/agi-node/src/agi_node/agi_dispatcher/work_dispatcher.py`
 - `src/agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py`
-- `src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/agi_distributor.py`
-- `src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/deployment_local_support.py`
-- `src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/deployment_remote_support.py`
+- `src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/api/agi_distributor.py`
+- `src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/deployment/deployment_local_support.py`
+- `src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/deployment/deployment_remote_support.py`
+- `src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/runtime/transport_support.py` (SSH/SCP host-key, sshpass, `exec_ssh` remote commands)
 - `src/agilab/lab_run.py`
-- `src/agilab/ui_public_bind_guard.py`
-- `src/agilab/mcp/server.py` when MCP exists
+- `src/agilab/security/ui_public_bind_guard.py`
+- `src/agilab_mcp/server.py` when MCP exists (read-only evidence tools; check path containment in `src/agilab_mcp/manifest_tools.py`)
 - `test/conftest.py`, root tests, and `src/agilab/core/test`
 - `README.md`, `SECURITY.md`, `CHANGELOG.md`, and `docs/source/release-proof.rst`
 

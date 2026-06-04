@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-04T17:45:37Z",
+  "generated_at_utc": "2026-06-04T17:49:37Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -795,7 +795,7 @@
       "name": "agilab-deep-audit",
       "description": "Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says \"review AGILAB\", \"audit AGILAB\", \"code review AGILAB\", \"deep review\", \"architecture review\", \"security review\", asks for a review document, or asks for comparison-quality critique rather than a quick fix.",
       "path": ".claude/skills/agilab-deep-audit/SKILL.md",
-      "updated": "2026-05-29"
+      "updated": "2026-06-04"
     },
     {
       "name": "agilab-docs",
@@ -873,7 +873,7 @@
       "name": "agilab-security-review-patterns",
       "description": "Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.",
       "path": ".claude/skills/agilab-security-review-patterns/SKILL.md",
-      "updated": "2026-05-30"
+      "updated": "2026-06-04"
     },
     {
       "name": "agilab-streamlit-pages",

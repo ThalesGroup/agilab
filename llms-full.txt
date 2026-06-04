@@ -24,7 +24,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB Code Statistics Use this skill to answer code-statistics questions quickly and reproducibly. Default to tracked files only, so ignored caches, virtualenvs, local datasets, generated docs output, and untracked scratch files do not distort the numbers.
 - agilab-deep-audit: Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says "review AGILAB", "audit AGILAB", "code review AGILAB", "deep review", "architecture review", "security review", asks for a review document, or asks for comparison-quality critique rather than a quick fix. (.claude/skills/agilab-deep-audit/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-29
+  updated: 2026-06-04
   preview: # AGILAB Deep Audit Skill Use this skill when the user asks for an AGILAB audit or a review artifact. Do not treat an audit request as a maintenance/fix request unless the user explicitly asks to patch findings.
 - agilab-docs: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks). (.claude/skills/agilab-docs/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -76,7 +76,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILab runbook (Agent Skill) Use this skill when you need repo-specific “how we do things” guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases. ## AGILab working rules (repo policy) - **Use `uv` for all runs** so dependencies resolve in managed envs:
 - agilab-security-review-patterns: Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories. (.claude/skills/agilab-security-review-patterns/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-30
+  updated: 2026-06-04
   preview: # AGILAB Security Review Patterns Use this skill to review AGILAB changes through a security-hardening lens before merge, release, or public documentation. It is a review workflow, not a pentest claim. Keep findings tied to concrete files, commands, and user impact.
 - agilab-streamlit-pages: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX). (.claude/skills/agilab-streamlit-pages/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)

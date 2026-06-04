@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-04T05:51:32Z",
+  "generated_at_utc": "2026-06-04T17:50:40Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -23,7 +23,7 @@
       "name": "agilab-deep-audit",
       "description": "Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says \"review AGILAB\", \"audit AGILAB\", \"code review AGILAB\", \"deep review\", \"architecture review\", \"security review\", asks for a review document, or asks for comparison-quality critique rather than a quick fix.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-29",
+      "updated": "2026-06-04",
       "path": ".codex/skills/agilab-deep-audit/SKILL.md",
       "body_preview": "# AGILAB Deep Audit Skill\nUse this skill when the user asks for an AGILAB audit or a review artifact. Do\nnot treat an audit request as a maintenance/fix request unless the user\nexplicitly asks to patch findings."
     },
@@ -127,7 +127,7 @@
       "name": "agilab-security-review-patterns",
       "description": "Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-30",
+      "updated": "2026-06-04",
       "path": ".codex/skills/agilab-security-review-patterns/SKILL.md",
       "body_preview": "# AGILAB Security Review Patterns\nUse this skill to review AGILAB changes through a security-hardening lens before\nmerge, release, or public documentation. It is a review workflow, not a pentest\nclaim. Keep findings tied to concrete files, commands, and user impact."
     },
