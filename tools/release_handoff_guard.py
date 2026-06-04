@@ -13,7 +13,7 @@ from typing import Sequence
 ROOT = Path(__file__).resolve().parents[1]
 HANDOFF_DIR = ROOT / "tools" / "release_handoffs"
 PROOF_MANIFEST = ROOT / "docs" / "source" / "data" / "release_proof.toml"
-TAG_RE = re.compile(r"v\d{4}\.\d{2}\.\d{2}(?:-\d+)?")
+TAG_RE = re.compile(r"v\d{4}\.\d{2}\.\d{2}(?:(?:-|\.)\d+)?")
 
 
 def _tag_key(tag: str) -> tuple[int, int, int, int]:
@@ -22,7 +22,11 @@ def _tag_key(tag: str) -> tuple[int, int, int, int]:
     if "-" in body:
         body, raw_suffix = body.rsplit("-", 1)
         suffix = int(raw_suffix) if raw_suffix.isdigit() else 0
-    year, month, day = (int(part) for part in body.split("."))
+    parts = body.split(".")
+    if len(parts) == 4:
+        raw_suffix = parts.pop()
+        suffix = int(raw_suffix) if raw_suffix.isdigit() else 0
+    year, month, day = (int(part) for part in parts)
     return year, month, day, suffix
 
 
