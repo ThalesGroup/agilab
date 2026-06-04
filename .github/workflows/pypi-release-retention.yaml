@@ -12,7 +12,7 @@ on:
 
 permissions:
   contents: read
-  actions: read
+  actions: write
 
 jobs:
   retention:
@@ -22,7 +22,6 @@ jobs:
       PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
       PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
       PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}
-      PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -61,4 +60,4 @@ jobs:
             --github-confirm-login-variable "PYPI_CONFIRM_LOGIN_URL" \
             --github-confirm-login-timeout 1800 \
             --github-confirm-login-poll-delay 5 \
-            --github-token "${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}"
+            --github-token "$GITHUB_TOKEN"
