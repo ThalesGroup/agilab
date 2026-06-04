@@ -582,6 +582,57 @@ def test_release_shortcut_keeps_impact_arguments():
     ]
 
 
+def test_release_shortcut_routes_hotfix_options_to_release_policy():
+    commands = agilab_dev.planned_commands(
+        [
+            "release",
+            "--release-mode",
+            "hotfix",
+            "--impact-base-ref",
+            "v2026.06.04",
+            "--files",
+            "pyproject.toml",
+        ]
+    )
+
+    assert commands[1] == [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "python",
+        "tools/impact_validate.py",
+        "--files",
+        "pyproject.toml",
+    ]
+    assert commands[2] == [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "python",
+        "tools/release_plan.py",
+        "--check-workflow",
+        ".github/workflows/pypi-publish.yaml",
+        "--skip-existing-pypi",
+        "--impact-base-ref",
+        "v2026.06.04",
+    ]
+    assert commands[3] == [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "python",
+        "tools/pypi_release_version_policy.py",
+        "--skip-existing-pypi",
+        "--release-mode",
+        "hotfix",
+        "--impact-base-ref",
+        "v2026.06.04",
+    ]
+
+
 def test_badge_guard_shortcut_uses_changed_only_fresh_xml_defaults():
     assert agilab_dev.planned_commands(["badge"]) == [
         [
