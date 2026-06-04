@@ -37,6 +37,7 @@ def test_release_proof_manifest_renders_checked_in_page() -> None:
     assert {check["id"] for check in report["checks"]} >= {
         "pyproject_version",
         "pypi_badge_version",
+        "dataset_release_url",
         "changelog_release",
         "readme_release_proof_link",
         "ui_robot_evidence",
@@ -97,6 +98,9 @@ def test_release_proof_refresh_from_local_updates_manifest_and_page(
     assert refreshed["release"]["package_version"] == module._load_project_version(Path.cwd())
     assert refreshed["release"]["github_release_tag"] == "v2026.05.01-2"
     assert refreshed["release"]["github_release_url"].endswith("/releases/tag/v2026.05.01-2")
+    assert refreshed["release"]["dataset_release_tag"].startswith("datasets-")
+    assert refreshed["release"]["dataset_release_tag"] in refreshed["release"]["dataset_release_url"]
+    assert refreshed["release"]["dataset_count"] > 0
     assert refreshed["release"]["hf_space_commit"] == "test-hf-commit"
     assert (docs_source / "release-proof.rst").read_text(encoding="utf-8") == module.render_release_proof(
         refreshed

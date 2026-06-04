@@ -21,6 +21,8 @@ Current public release
      - ``agilab[examples]==2026.06.04.1`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
      - `v2026.06.04.1 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04.1>`__
+   * - Dataset release
+     - `datasets-2f602a17b4745f05 <https://github.com/ThalesGroup/agilab/releases/tag/datasets-2f602a17b4745f05>`__ for ``13`` tracked dataset files; manifest ``2f602a17b4745f05cf3b2612d720675b7063cabf90164326a25bc080b2396a0f``
    * - Hosted demo
      - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``e7e1456d3a6cafb50a623a87618b566c9afbf835``
    * - Public guardrails

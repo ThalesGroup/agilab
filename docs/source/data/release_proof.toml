@@ -30,6 +30,10 @@ github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.0
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
 hf_space_commit = "e7e1456d3a6cafb50a623a87618b566c9afbf835"
+dataset_release_tag = "datasets-2f602a17b4745f05"
+dataset_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/datasets-2f602a17b4745f05"
+dataset_manifest_sha256 = "2f602a17b4745f05cf3b2612d720675b7063cabf90164326a25bc080b2396a0f"
+dataset_count = 13
 
 [[ci_runs]]
 id = "release-guardrails"
