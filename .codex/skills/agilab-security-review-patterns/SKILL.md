@@ -41,6 +41,21 @@ claim. Keep findings tied to concrete files, commands, and user impact.
   CLI examples, exception text, or persisted app settings.
 - **Serialization and tasks**: reject unsafe legacy formats instead of loading
   them. Prefer JSON schemas and explicit validation.
+- **Pickle/model loading**: require a trusted root plus manifest/hash
+  verification before loading pickle-backed models or caches. A production caller
+  being safe is not enough when the helper default can be reused unsafely; make
+  missing trust context fail closed and add a regression for that default.
+- **Cluster SSH identity**: flag `known_hosts=None`,
+  `StrictHostKeyChecking=no`, `UserKnownHostsFile=/dev/null`, and any equivalent
+  host-key bypass in SSH/SCP/SSHFS paths. Controller-to-worker and
+  worker-to-scheduler SSH must verify a real `known_hosts` file by default.
+  TOFU/`accept-new` is acceptable only as an explicit lab-bootstrap mode with
+  documentation that fingerprints still need out-of-band verification.
+- **Remote shell composition**: when `exec_ssh`, AsyncSSH, SCP, SSHFS, or worker
+  deployment commands use shell strings, review every interpolated value. Paths,
+  Python versions, uv commands, scheduler addresses, share paths, and probe
+  outputs need quoting helpers or argument-vector APIs. Add regressions with
+  shell metacharacters for fixed command builders.
 - **Cluster shares**: cluster mode must require a usable shared path distinct
   from local-only paths; do not silently degrade to local execution.
 - **Installer changes**: compare source manifests with copied worker manifests
