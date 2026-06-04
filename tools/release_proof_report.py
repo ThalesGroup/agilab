@@ -507,6 +507,14 @@ def _github_run_is_success(row: Mapping[str, Any]) -> bool:
     )
 
 
+def _github_workflow_name_matches(expected: str, actual: str) -> bool:
+    return actual in {
+        expected,
+        f".github/workflows/{expected}.yaml",
+        f".github/workflows/{expected}.yml",
+    }
+
+
 def _github_created_at(value: str) -> datetime | None:
     if not value:
         return None
@@ -743,7 +751,7 @@ def _github_ci_runs_check(
         if created_at is not None:
             age_days = max((checked_at - created_at).total_seconds() / 86400, 0.0)
         run_failures: list[str] = []
-        if github_workflow != workflow:
+        if not _github_workflow_name_matches(workflow, github_workflow):
             run_failures.append(f"workflow mismatch: expected {workflow}, got {github_workflow}")
         if not _github_run_is_success(raw):
             run_failures.append(

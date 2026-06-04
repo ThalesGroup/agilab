@@ -223,6 +223,40 @@ def test_release_proof_github_run_check_detects_failed_or_stale_runs(monkeypatch
     assert "stale" in " ".join(check["details"]["failures"])
 
 
+def test_release_proof_github_run_check_accepts_workflow_file_fallback_name(monkeypatch) -> None:
+    module = _load_module()
+
+    def fake_gh_json(args):
+        assert args[:2] == ["run", "view"]
+        return {
+            "databaseId": args[2],
+            "workflowName": ".github/workflows/pypi-publish.yaml",
+            "headSha": "abc123",
+            "status": "completed",
+            "conclusion": "success",
+            "url": f"https://github.com/ThalesGroup/agilab/actions/runs/{args[2]}",
+            "createdAt": "2026-06-04T00:00:00Z",
+            "event": "workflow_dispatch",
+        }
+
+    monkeypatch.setattr(module, "_run_gh_json", fake_gh_json)
+
+    check = module._github_ci_runs_check(
+        [
+            {
+                "workflow": "pypi-publish",
+                "run_id": "42",
+                "url": "https://github.com/ThalesGroup/agilab/actions/runs/42",
+            }
+        ],
+        repo_root=Path.cwd(),
+        github_repo="ThalesGroup/agilab",
+        max_age_days=45,
+    )
+
+    assert check["status"] == "pass"
+
+
 def test_release_proof_ui_robot_evidence_check_validates_github_run(
     tmp_path: Path,
     monkeypatch,
