@@ -3,7 +3,7 @@ name: agilab-security-review-patterns
 description: Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-30
+  updated: 2026-06-04
 ---
 
 # AGILAB Security Review Patterns
@@ -45,19 +45,35 @@ claim. Keep findings tied to concrete files, commands, and user impact.
   verification before loading pickle-backed models or caches. A production caller
   being safe is not enough when the helper default can be reused unsafely; make
   missing trust context fail closed and add a regression for that default.
-- **Cluster SSH identity**: flag `known_hosts=None`,
-  `StrictHostKeyChecking=no`, `UserKnownHostsFile=/dev/null`, and any equivalent
-  host-key bypass in SSH/SCP/SSHFS paths. Controller-to-worker and
-  worker-to-scheduler SSH must verify a real `known_hosts` file by default.
-  TOFU/`accept-new` is acceptable only as an explicit lab-bootstrap mode with
-  documentation that fingerprints still need out-of-band verification.
-- **Remote shell composition**: when `exec_ssh`, AsyncSSH, SCP, SSHFS, or worker
-  deployment commands use shell strings, review every interpolated value. Paths,
-  Python versions, uv commands, scheduler addresses, share paths, and probe
-  outputs need quoting helpers or argument-vector APIs. Add regressions with
-  shell metacharacters for fixed command builders.
 - **Cluster shares**: cluster mode must require a usable shared path distinct
   from local-only paths; do not silently degrade to local execution.
+- **SSH host identity**: cluster transport must verify the remote host key.
+  Flag `known_hosts=None` (asyncssh), `StrictHostKeyChecking=no`, and
+  `UserKnownHostsFile=/dev/null` (scp/ssh) in
+  `agi_distributor/runtime/transport_support.py` and deployment helpers.
+  Disabled host-key checking plus password auth (`sshpass`/`SSHPASS`,
+  `asyncssh password=`) over LAN discovery is a MITM credential/data leak;
+  require a real `known_hosts` by default, prefer key auth, and make
+  TOFU/`accept-new` an explicit lab-bootstrap mode with documentation that
+  fingerprints still need out-of-band verification.
+- **Remote command construction**: remote shell commands (`exec_ssh`,
+  `conn.run`, scp/ssh argv) must be argument vectors or `shlex.quote`d. Flag
+  f-string interpolation of paths, versions, share settings, or a node's probe
+  output into a command string sent to another host. Add regressions with shell
+  metacharacters for fixed command builders.
+- **Connector SSRF**: outbound fetches (`urllib.request.urlopen`, `requests`,
+  `httpx`) on connector/config-supplied URLs must enforce an https scheme
+  allowlist, block link-local/metadata ranges (`169.254.0.0/16`, `::1`,
+  `file://`), and never forward credentials (Bearer tokens, basic auth) to a
+  non-allowlisted origin. An operator allow-list of connector IDs is necessary
+  but not sufficient; the URL itself still needs validation.
+- **MCP and file-read tools**: read-only tools must stay read-only and contain
+  caller-supplied paths to a configured root (`Path.resolve()` +
+  `is_relative_to(root)`). Flag tools that load an arbitrary `manifest_path`
+  with no containment, even when the manifest content is redacted.
+- **GUI dynamic HTML**: any value interpolated into `unsafe_allow_html=True`
+  markup or `components.html` must be `html.escape`d. Treat run names, file
+  paths, connector fields, and log content as untrusted in the rendered page.
 - **Installer changes**: compare source manifests with copied worker manifests
   before patching app dependencies. Treat manifest rewriting as shared install
   risk.
