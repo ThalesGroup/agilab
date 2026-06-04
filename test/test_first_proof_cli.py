@@ -11,6 +11,7 @@ import builtins
 from pathlib import Path
 
 import pytest
+from setuptools import find_packages
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -829,9 +830,18 @@ def test_flight_telemetry_project_package_data_includes_payload_for_execute() ->
 def test_package_discovery_includes_about_page_helpers() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
-    package_includes = set(pyproject["tool"]["setuptools"]["packages"]["find"]["include"])
+    finder = pyproject["tool"]["setuptools"]["packages"]["find"]
+    package_includes = set(finder["include"])
+    discovered = set(
+        find_packages(
+            where=str(ROOT / "src"),
+            include=finder["include"],
+            exclude=finder["exclude"],
+        )
+    )
 
-    assert "agilab.about_page*" in package_includes
+    assert "agilab.*" in package_includes
+    assert "agilab.about_page" in discovered
     for helper in ("bootstrap.py", "env_editor.py", "layout.py", "onboarding.py"):
         assert (ROOT / "src" / "agilab" / "about_page" / helper).is_file()
 

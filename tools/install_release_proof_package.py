@@ -18,6 +18,7 @@ import urllib.request
 
 
 DEFAULT_MANIFEST = Path("docs/source/data/release_proof.toml")
+DEFAULT_PROJECT = Path("pyproject.toml")
 
 
 def _release_package_spec(package_name: str, package_version: str, extras: Sequence[str]) -> str:
@@ -59,6 +60,34 @@ def _normalized_version_token(version: str) -> str:
         else:
             parts.append(part)
     return ".".join(parts)
+
+
+def _version_sort_key(version: str) -> tuple[tuple[int, int | str], ...]:
+    key: list[tuple[int, int | str]] = []
+    for part in _normalized_version_token(version).replace("-", ".").split("."):
+        if part.isdigit():
+            key.append((0, int(part)))
+        elif part.startswith("post") and part[4:].isdigit():
+            key.append((1, int(part[4:])))
+        else:
+            key.append((2, part))
+    return tuple(key)
+
+
+def project_version(project_path: Path) -> str:
+    """Return the root project version declared by ``pyproject.toml``."""
+    with project_path.open("rb") as stream:
+        pyproject = tomllib.load(stream)
+    version = str(pyproject.get("project", {}).get("version", "")).strip()
+    if not version:
+        raise ValueError(f"{project_path} must contain project.version")
+    return version
+
+
+def project_version_newer_than_manifest(project_path: Path, manifest_path: Path) -> bool:
+    """Return whether the checkout version is ahead of public release proof."""
+    _package_name, package_version, _package_spec = release_package_spec(manifest_path)
+    return _version_sort_key(project_version(project_path)) > _version_sort_key(package_version)
 
 
 def pypi_release_visible(
@@ -178,6 +207,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     )
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument("--project", type=Path, default=DEFAULT_PROJECT)
     parser.add_argument("--retries", type=int, default=20)
     parser.add_argument("--delay-seconds", type=float, default=15.0)
     parser.add_argument(
@@ -198,11 +228,39 @@ def main(argv: Sequence[str] | None = None) -> int:
             "split-package dependencies."
         ),
     )
+    parser.add_argument(
+        "--check-project-newer-than-manifest",
+        action="store_true",
+        help=(
+            "Exit 0 when pyproject.toml declares a version newer than the "
+            "release-proof manifest. CI uses this to skip stale public-package "
+            "checks during non-strict pre-release branches."
+        ),
+    )
     args = parser.parse_args(argv)
 
     package_name, package_version, package_spec = release_package_spec(args.manifest)
-    if args.check_available_only and args.check_installable_only:
-        parser.error("--check-available-only and --check-installable-only are mutually exclusive")
+    check_modes = [
+        args.check_available_only,
+        args.check_installable_only,
+        args.check_project_newer_than_manifest,
+    ]
+    if sum(bool(mode) for mode in check_modes) > 1:
+        parser.error(
+            "--check-available-only, --check-installable-only, and "
+            "--check-project-newer-than-manifest are mutually exclusive"
+        )
+    if args.check_project_newer_than_manifest:
+        if project_version_newer_than_manifest(args.project, args.manifest):
+            print(
+                f"[install] {args.project} version is newer than {args.manifest} release proof"
+            )
+            return 0
+        print(
+            f"[install] {args.project} version is not newer than {args.manifest} release proof",
+            file=sys.stderr,
+        )
+        return 1
     if args.check_available_only:
         if pypi_release_visible(package_name, package_version):
             print(f"[install] {package_name} {package_version} is visible on PyPI")

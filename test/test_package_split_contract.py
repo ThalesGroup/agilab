@@ -7,6 +7,7 @@ from pathlib import Path
 
 from packaging.requirements import Requirement
 import pytest
+from setuptools import find_packages
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -183,7 +184,7 @@ def test_root_extras_and_uv_sources_match_package_split_contract() -> None:
         requirement_names = _requirement_names(root_pyproject, extra)
         assert set(package_names) <= requirement_names, extra
 
-    assert _requirement_names(root_pyproject, "pages") == {"agi-pages"}
+    assert _requirement_names(root_pyproject, "pages") == {"agi-pages", "starlette"}
 
     sources = _load_toml(root_pyproject).get("tool", {}).get("uv", {}).get("sources", {})
     for package in LIBRARY_PACKAGE_CONTRACTS:
@@ -227,10 +228,16 @@ def test_root_wheel_excludes_local_artifacts_and_unbundled_sources() -> None:
     package_data = setuptools_config.get("package-data", {}).get("agilab", [])
 
     assert finder["where"] == ["src"]
+    assert set(finder["include"]) == {"agilab", "agilab.*", "agilab_mcp*"}
     assert {
         ".venv*",
+        "agilab.apps",
+        "agilab.apps-pages",
+        "agilab.apps-pages.*",
         "agilab.apps.*",
         "agilab.core*",
+        "agilab.examples*",
+        "agilab.lib*",
         "build*",
         "test*",
     } <= set(finder["exclude"])
@@ -242,6 +249,37 @@ def test_root_wheel_excludes_local_artifacts_and_unbundled_sources() -> None:
         "core/*",
         "coverage-*.xml",
     } & set(package_data)
+
+
+def test_root_wheel_package_discovery_keeps_cli_subpackages() -> None:
+    root_pyproject = REPO_ROOT / "pyproject.toml"
+    finder = _load_toml(root_pyproject)["tool"]["setuptools"]["packages"]["find"]
+    discovered = set(
+        find_packages(
+            where=str(REPO_ROOT / "src"),
+            include=finder["include"],
+            exclude=finder["exclude"],
+        )
+    )
+
+    assert {
+        "agilab.app_management",
+        "agilab.data_connectors",
+        "agilab.evidence",
+        "agilab.notebooks",
+        "agilab.pipeline",
+        "agilab.security",
+        "agilab.ui",
+    } <= discovered
+    assert not any(
+        package == "agilab.apps"
+        or package.startswith("agilab.apps-pages")
+        or package.startswith("agilab.apps.")
+        or package.startswith("agilab.core")
+        or package.startswith("agilab.examples")
+        or package.startswith("agilab.lib")
+        for package in discovered
+    )
 
 
 def test_workflow_and_docs_cover_the_same_package_split() -> None:
