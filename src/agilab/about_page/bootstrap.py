@@ -286,6 +286,14 @@ def normalize_active_app_input(env: Any, raw_value: Optional[str]) -> Path | Non
     except (TypeError, RuntimeError, ValueError):
         return None
 
+    def is_plain_app_name() -> bool:
+        return (
+            not provided.is_absolute()
+            and provided.parent == Path(".")
+            and "/" not in str(raw_value)
+            and "\\" not in str(raw_value)
+        )
+
     def add_root_candidate(root: Any, app_name: str) -> None:
         if not root or not app_name:
             return
@@ -331,13 +339,16 @@ def normalize_active_app_input(env: Any, raw_value: Optional[str]) -> Path | Non
     if provided.is_absolute():
         candidates.append(provided)
     else:
-        candidates.append((Path.cwd() / provided).resolve())
+        if not is_plain_app_name():
+            candidates.append((Path.cwd() / provided).resolve())
         add_root_candidate(getattr(env, "apps_path", None), str(provided))
         add_root_candidate(getattr(env, "apps_path", None), provided.name)
         add_root_candidate(getattr(env, "builtin_apps_path", None), str(provided))
         add_root_candidate(getattr(env, "builtin_apps_path", None), provided.name)
         add_root_candidate(getattr(env, "apps_repository_root", None), str(provided))
         add_root_candidate(getattr(env, "apps_repository_root", None), provided.name)
+        if is_plain_app_name():
+            candidates.append((Path.cwd() / provided).resolve())
 
     projects = getattr(env, "projects", set()) or set()
     if not provided.is_absolute():
@@ -432,8 +443,8 @@ def _active_app_path_matches(env: Any, target_path: Path) -> bool:
     return normalized_current == normalized_target
 
 
-def _rebootstrap_same_named_active_app(env: Any, target_path: Path, target_name: str, *, streamlit: Any) -> bool:
-    """Switch to the same project name under another root without using name-only change_app."""
+def _rebootstrap_active_app_path(env: Any, target_path: Path, target_name: str, *, streamlit: Any) -> bool:
+    """Switch to a resolved project path without using name-only change_app."""
     previous_init_done = getattr(env, "init_done", None)
     try:
         type(env).__init__(
@@ -441,6 +452,7 @@ def _rebootstrap_same_named_active_app(env: Any, target_path: Path, target_name:
             apps_path=target_path.parent,
             app=target_name,
             verbose=getattr(env, "verbose", None),
+            _agilab_reinitialize=True,
         )
         if previous_init_done is not None:
             env.init_done = previous_init_done
@@ -448,6 +460,16 @@ def _rebootstrap_same_named_active_app(env: Any, target_path: Path, target_name:
         streamlit.warning(_project_switch_failure_message(target_name, exc))
         return False
     return True
+
+
+def _rebootstrap_same_named_active_app(env: Any, target_path: Path, target_name: str, *, streamlit: Any) -> bool:
+    """Switch to the same project name under another root without using name-only change_app."""
+    return _rebootstrap_active_app_path(
+        env,
+        target_path,
+        target_name,
+        streamlit=streamlit,
+    )
 
 
 def apply_active_app_request(env: Any, request_value: Optional[str], *, streamlit: Any) -> bool:
@@ -461,12 +483,7 @@ def apply_active_app_request(env: Any, request_value: Optional[str], *, streamli
         if _active_app_path_matches(env, target_path):
             return False
         return _rebootstrap_same_named_active_app(env, target_path, target_name, streamlit=streamlit)
-    try:
-        env.change_app(target_path)
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        streamlit.warning(_project_switch_failure_message(target_name, exc))
-        return False
-    return True
+    return _rebootstrap_active_app_path(env, target_path, target_name, streamlit=streamlit)
 
 
 def sync_active_app_from_query(
@@ -774,7 +791,7 @@ def bootstrap_page_environment(
         pass
 
     saved_env = load_env_file_map(env_file_path)
-    openai_missing = persist_bootstrap_env(
+    persist_bootstrap_env(
         env,
         apps_path=apps_path,
         explicit_apps_path=bool(args.apps_path) or bool(preinit_updates),

@@ -1169,14 +1169,23 @@ def test_bootstrap_active_app_helpers_resolve_and_switch_project(tmp_path):
     warnings: list[str] = []
 
     class FakeEnv:
-        def __init__(self):
+        def __init__(
+            self,
+            *,
+            apps_path: Path = apps_path,
+            app: str = "default",
+            verbose: int | None = 1,
+            _agilab_reinitialize: bool = False,
+        ):
             self.apps_path = apps_path
-            self.app = "default"
+            self.app = app
+            self.verbose = verbose
+            self.active_app = apps_path / app
+            self.reinitialized = _agilab_reinitialize
             self.projects = {"flight_telemetry_project"}
 
         def change_app(self, path: Path) -> None:
-            assert path == project_path.resolve()
-            self.app = path.name
+            raise RuntimeError(f"path switch should not call change_app({path})")
 
     fake_st = SimpleNamespace(warning=warnings.append)
     env = FakeEnv()
@@ -1192,6 +1201,9 @@ def test_bootstrap_active_app_helpers_resolve_and_switch_project(tmp_path):
         is True
     )
     assert env.app == "flight_telemetry_project"
+    assert env.apps_path == apps_path
+    assert env.active_app == project_path
+    assert env.reinitialized is True
     assert warnings == []
 
 
@@ -1212,6 +1224,7 @@ def test_bootstrap_active_app_request_switches_same_name_when_root_changes(tmp_p
             apps_path: Path = old_root,
             app: str = "flight_telemetry_project",
             verbose: int | None = 1,
+            _agilab_reinitialize: bool = False,
         ):
             self.apps_path = apps_path
             self.app = app
@@ -1219,6 +1232,7 @@ def test_bootstrap_active_app_request_switches_same_name_when_root_changes(tmp_p
             self.active_app = apps_path / app
             self.projects = {"flight_telemetry_project"}
             self.init_done = True
+            self.reinitialized = _agilab_reinitialize
 
         def change_app(self, _path: Path) -> None:
             raise RuntimeError(
@@ -1235,6 +1249,54 @@ def test_bootstrap_active_app_request_switches_same_name_when_root_changes(tmp_p
     assert env.app == "flight_telemetry_project"
     assert env.apps_path == new_root
     assert env.active_app == new_project
+    assert env.init_done is True
+    assert env.reinitialized is True
+    assert warnings == []
+
+
+def test_bootstrap_active_app_request_preserves_absolute_external_root(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    source_root = tmp_path / "agilab" / "src" / "agilab" / "apps" / "builtin"
+    external_root = tmp_path / "thales_agilab" / "apps"
+    external_project = external_root / "sb3_trainer_project"
+    source_root.mkdir(parents=True)
+    external_project.mkdir(parents=True)
+    warnings: list[str] = []
+
+    class FakeEnv:
+        def __init__(
+            self,
+            *,
+            apps_path: Path = source_root,
+            app: str = "flight_telemetry_project",
+            verbose: int | None = 1,
+            _agilab_reinitialize: bool = False,
+        ):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.active_app = apps_path / app
+            self.projects = set()
+            self.init_done = True
+            self.reinitialized = _agilab_reinitialize
+
+        def change_app(self, path: Path) -> None:
+            raise RuntimeError(f"external path switch lost resolved root: {path}")
+
+    env = FakeEnv()
+
+    assert (
+        bootstrap.apply_active_app_request(
+            env,
+            str(external_project),
+            streamlit=SimpleNamespace(warning=warnings.append),
+        )
+        is True
+    )
+    assert env.app == "sb3_trainer_project"
+    assert env.apps_path == external_root
+    assert env.active_app == external_project
+    assert env.reinitialized is True
     assert env.init_done is True
     assert warnings == []
 
@@ -1266,6 +1328,32 @@ def test_bootstrap_normalize_active_app_input_finds_builtin_project_name(tmp_pat
     assert (
         bootstrap.normalize_active_app_input(env, "flight_telemetry_project")
         == active_app.resolve()
+    )
+
+
+def test_bootstrap_normalize_active_app_input_prefers_configured_root_over_polluted_cwd(
+    tmp_path,
+    monkeypatch,
+):
+    bootstrap = about_agilab._about_bootstrap
+    checkout = tmp_path / "agilab"
+    polluted_project = checkout / "sb3_trainer_project"
+    external_root = tmp_path / "thales_agilab" / "apps"
+    external_project = external_root / "sb3_trainer_project"
+    polluted_project.mkdir(parents=True)
+    external_project.mkdir(parents=True)
+    monkeypatch.chdir(checkout)
+
+    env = SimpleNamespace(
+        apps_path=external_root,
+        builtin_apps_path=None,
+        apps_repository_root=None,
+        projects=set(),
+    )
+
+    assert (
+        bootstrap.normalize_active_app_input(env, "sb3_trainer_project")
+        == external_project.resolve()
     )
 
 
@@ -2327,12 +2415,14 @@ def test_bootstrap_active_app_helpers_handle_empty_same_and_failed_switch(tmp_pa
     )
 
     class BrokenEnv(FakeEnv):
-        def __init__(self):
+        def __init__(self, *args, **kwargs):
+            if args or kwargs:
+                raise RuntimeError("cannot switch")
             super().__init__()
             self.app = "default"
 
         def change_app(self, _path: Path) -> None:
-            raise RuntimeError("cannot switch")
+            raise RuntimeError("should not switch with change_app")
 
     assert not bootstrap.apply_active_app_request(
         BrokenEnv(),
@@ -2342,15 +2432,17 @@ def test_bootstrap_active_app_helpers_handle_empty_same_and_failed_switch(tmp_pa
     assert any("cannot switch" in warning for warning in warnings)
 
     class InternalBrokenEnv(FakeEnv):
-        def __init__(self):
+        def __init__(self, *args, **kwargs):
+            if args or kwargs:
+                raise RuntimeError(
+                    "AgiEnv is already initialised with a different configuration; "
+                    "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
+                )
             super().__init__()
             self.app = "default"
 
         def change_app(self, _path: Path) -> None:
-            raise RuntimeError(
-                "AgiEnv is already initialised with a different configuration; "
-                "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
-            )
+            raise RuntimeError("should not switch with change_app")
 
     warnings.clear()
     assert not bootstrap.apply_active_app_request(
