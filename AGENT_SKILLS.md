@@ -7,7 +7,7 @@ The canonical shared source is `.claude/skills/`; `.codex/skills/` is the genera
 
 - Skills: 33 skills
 - Standard: Agent Skills style `SKILL.md` runbooks with front matter and self-contained references
-- Works with: Codex, Claude Code, Aider, OpenCode
+- Works with: Codex, Claude Code, Aider, OpenCode, Mistral Vibe
 - Catalog-compatible: Continue
 
 ## Security And Maintenance Contract

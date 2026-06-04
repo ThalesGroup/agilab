@@ -69,6 +69,7 @@ _pipeline_ai_support_module = import_agilab_module(
     fallback_name="agilab_pipeline_ai_support_fallback",
 )
 OLLAMA_DEEPSEEK_PROVIDER = _pipeline_ai_support_module.OLLAMA_DEEPSEEK_PROVIDER
+OLLAMA_DEVSTRAL_PROVIDER = _pipeline_ai_support_module.OLLAMA_DEVSTRAL_PROVIDER
 OLLAMA_GPT_OSS_PROVIDER = _pipeline_ai_support_module.OLLAMA_GPT_OSS_PROVIDER
 OLLAMA_LOCAL_PROVIDER_FAMILIES = _pipeline_ai_support_module.OLLAMA_LOCAL_PROVIDER_FAMILIES
 OLLAMA_MINISTRAL_PROVIDER = _pipeline_ai_support_module.OLLAMA_MINISTRAL_PROVIDER
@@ -119,6 +120,7 @@ def configure_assistant_engine(
         "DeepSeek (local)": OLLAMA_DEEPSEEK_PROVIDER,
         "Qwen3 30B-A3B (local)": OLLAMA_QWEN3_PROVIDER,
         "Qwen3-Coder 30B-A3B (local)": OLLAMA_QWEN3_CODER_PROVIDER,
+        "Devstral coding agent (local)": OLLAMA_DEVSTRAL_PROVIDER,
         "Ministral 3 14B (local)": OLLAMA_MINISTRAL_PROVIDER,
         "Phi-4-mini (local)": OLLAMA_PHI4_MINI_PROVIDER,
     }

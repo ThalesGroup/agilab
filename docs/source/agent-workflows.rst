@@ -18,8 +18,9 @@ needed to work with these executable agent paths against the same repo contract:
 - Claude
 - Aider
 - OpenCode
+- Mistral Vibe
 
-That does not mean the four tools behave identically. It means the repo now
+That does not mean the five tools behave identically. It means the repo now
 contains a prepared entry path for each of them instead of relying on ad hoc
 local setup.
 
@@ -246,6 +247,7 @@ Additional local aliases:
 - ``gpt-oss-local`` -> ``ollama_chat/gpt-oss:20b``
 - ``qwen3-local`` -> ``ollama_chat/qwen3:30b-a3b-instruct-2507-q4_K_M``
 - ``qwen3-coder-local`` -> ``ollama_chat/qwen3-coder:30b-a3b-q4_K_M``
+- ``devstral-local`` -> ``ollama_chat/devstral:latest``
 - ``ministral-local`` -> ``ollama_chat/ministral-3:14b-instruct-2512-q4_K_M``
 - ``phi4-mini-local`` -> ``ollama_chat/phi4-mini:3.8b-q4_K_M``
 
@@ -274,13 +276,37 @@ Default local model path:
 Useful efficient local overrides include ``ollama/gpt-oss:20b``,
 ``ollama/qwen3-coder:30b-a3b-q4_K_M``,
 ``ollama/qwen3:30b-a3b-instruct-2507-q4_K_M``,
+``ollama/devstral:latest``,
 ``ollama/ministral-3:14b-instruct-2512-q4_K_M``, and
 ``ollama/phi4-mini:3.8b-q4_K_M``.
+
+Mistral Vibe
+^^^^^^^^^^^^
+
+Use the wrapper from the repository root::
+
+   ./tools/vibe_workflow.sh chat
+
+For a one-off task::
+
+   ./tools/vibe_workflow.sh exec "Refactor only ... keeping behavior unchanged"
+
+What the repo already provides:
+
+- ``tools/vibe_workflow.sh`` for the standard entry path
+- ``tools/vibe_workflow.md`` for usage details
+
+Vibe provider and model selection stays in Vibe's own configuration. For local
+Devstral, serve the model behind an OpenAI-compatible endpoint and select the
+corresponding Vibe model alias. AGILAB's installer can separately prepare the
+Ollama ``devstral:latest`` family for WORKFLOW with
+``./install.sh --install-local-models devstral``.
 
 Local model prerequisite
 ------------------------
 
 Aider and OpenCode in this repo are prepared for local Ollama-backed models.
+Mistral Vibe can use its own local OpenAI-compatible provider configuration.
 In practice this means:
 
 - keep a local Ollama server running
@@ -289,9 +315,9 @@ In practice this means:
 
 The prepared local families are the same ones already documented elsewhere in
 AGILAB: ``gpt-oss``, ``qwen``, ``deepseek``, ``qwen3``, ``qwen3-coder``,
-``ministral``, and ``phi4-mini``. If a model is served through vLLM or another
-OpenAI-compatible gateway instead of Ollama, configure the AGILAB assistant
-with ``AGILAB_LLM_BASE_URL`` and ``AGILAB_LLM_MODEL``.
+``devstral``, ``ministral``, and ``phi4-mini``. If a model is served through
+vLLM or another OpenAI-compatible gateway instead of Ollama, configure the
+AGILAB assistant with ``AGILAB_LLM_BASE_URL`` and ``AGILAB_LLM_MODEL``.
 
 Where to read the repo-local files
 ----------------------------------
@@ -305,6 +331,7 @@ stay in the repository itself:
 - `docs/CLI_FIRST_WORKFLOW.md <https://github.com/ThalesGroup/agilab/blob/main/docs/CLI_FIRST_WORKFLOW.md>`_
 - `tools/aider_workflow.md <https://github.com/ThalesGroup/agilab/blob/main/tools/aider_workflow.md>`_
 - `tools/opencode_workflow.md <https://github.com/ThalesGroup/agilab/blob/main/tools/opencode_workflow.md>`_
+- `tools/vibe_workflow.md <https://github.com/ThalesGroup/agilab/blob/main/tools/vibe_workflow.md>`_
 
 When not to use this page
 -------------------------

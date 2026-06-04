@@ -55,7 +55,7 @@ def test_catalog_outputs_include_badge_contract_and_skill_entries(tmp_path: Path
     full = (tmp_path / "llms-full.txt").read_text(encoding="utf-8")
     assert "Skills: 1 skill" in markdown
     assert "Standard: Agent Skills style" in markdown
-    assert "Works with: Codex, Claude Code, Aider, OpenCode" in markdown
+    assert "Works with: Codex, Claude Code, Aider, OpenCode, Mistral Vibe" in markdown
     assert "Catalog-compatible: Continue" in markdown
     assert "tools/agent_skill_quality_guard.py" in markdown
     assert "tools/agilab_capabilities_manifest.py --apply" in markdown

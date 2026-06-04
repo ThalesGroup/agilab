@@ -1,11 +1,12 @@
 # Agent Workflows for AGILAB
 
-This repository is prepared for four executable agent paths, plus one catalog-compatible path:
+This repository is prepared for five executable agent paths, plus one catalog-compatible path:
 
 - **Claude**: repo skills under [`.claude/skills`](../.claude/skills/README.md)
 - **Codex**: repo skills under [`.codex/skills`](../.codex/skills/README.md) and the wrapper in [codex_workflow.sh](codex_workflow.sh)
 - **Aider**: repo config in [`.aider.conf.yml`](../.aider.conf.yml) and the wrapper in [aider_workflow.sh](aider_workflow.sh)
 - **OpenCode**: project config in [opencode.json](../opencode.json), agents under [`.opencode/agents`](../.opencode/agents), and the wrapper in [opencode_workflow.sh](opencode_workflow.sh)
+- **Mistral Vibe**: repo wrapper in [vibe_workflow.sh](vibe_workflow.sh), with model/provider selection kept in Vibe's own config
 - **Continue**: catalog-compatible through AGENT_SKILLS.md / `llms.txt`; AGILAB does not ship a Continue wrapper or project config yet
 
 The public agent surface is summarized in [AGENT_SKILLS.md](../AGENT_SKILLS.md)
@@ -41,7 +42,7 @@ The README badge contract is:
 
 - **Skills**: the reviewed skill count
 - **Standard**: Agent Skills style `SKILL.md` runbooks
-- **Works with**: Codex, Claude Code, Aider, and OpenCode
+- **Works with**: Codex, Claude Code, Aider, OpenCode, and Mistral Vibe
 
 Use the short repo contract in [AGENT_CONVENTIONS.md](../AGENT_CONVENTIONS.md)
 for local coding agents with smaller context windows. Use [AGENTS.md](../AGENTS.md)
@@ -214,3 +215,4 @@ Agent-run evidence now has a stable low-level contract:
 - [Codex workflow](codex_workflow.md)
 - [Aider workflow](aider_workflow.md)
 - [OpenCode workflow](opencode_workflow.md)
+- [Mistral Vibe workflow](vibe_workflow.md)

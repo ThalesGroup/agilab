@@ -90,8 +90,9 @@ rather than shown as one of the workflow pages.
    * - ``LAB_LLM_PROVIDER``
      - ``openai``
      - WORKFLOW assistant provider. Local Ollama families use values such as
-       ``ollama-gpt-oss``, ``ollama-qwen3-coder``, or ``ollama-phi4-mini``.
-       ``--install-local-models`` sets this to the first requested family.
+       ``ollama-gpt-oss``, ``ollama-qwen3-coder``, ``ollama-devstral``, or
+       ``ollama-phi4-mini``. ``--install-local-models`` sets this to the first
+       requested family.
    * - ``UOAIC_OLLAMA_ENDPOINT``
      - ``http://127.0.0.1:11434``
      - Ollama endpoint used by the WORKFLOW local assistant controls.
@@ -99,7 +100,7 @@ rather than shown as one of the workflow pages.
      - unset
      - Ollama model selected in WORKFLOW. The shell installers persist this
        when ``--install-local-models`` is used, for example ``gpt-oss:20b`` or
-       ``qwen3-coder:30b-a3b-q4_K_M``.
+       ``qwen3-coder:30b-a3b-q4_K_M`` or ``devstral:latest``.
    * - ``UOAIC_MODE``
      - ``ollama``
      - Local assistant mode. ``ollama`` uses direct local generation; ``rag``
