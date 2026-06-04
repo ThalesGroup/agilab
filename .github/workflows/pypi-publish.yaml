@@ -673,11 +673,10 @@ jobs:
             release_tag="v${release_tag}"
           fi
           if ! gh release view "$release_tag" >/dev/null 2>&1; then
+            notes=$'AGILAB release artifacts and supply-chain evidence.\n\nDataset payloads are published in separate datasets-* GitHub releases when present and linked from the release proof.'
             gh release create "$release_tag" \
               --title "AGILAB ${release_tag#v}" \
-              --notes "AGILAB release artifacts and supply-chain evidence.
-
-Dataset payloads are published in separate datasets-* GitHub releases when present and linked from the release proof."
+              --notes "$notes"
           fi
           gh release upload "$release_tag" github-release-assets/* --clobber
 

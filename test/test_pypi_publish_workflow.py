@@ -4,6 +4,8 @@ from pathlib import Path
 import re
 import sys
 
+import yaml
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
@@ -14,6 +16,10 @@ from package_split_contract import LIBRARY_PACKAGE_CONTRACTS, PACKAGE_NAMES, UMB
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/pypi-publish.yaml"
 TEST_PYPI_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/test-pypi-publish.yaml"
 PYPI_RELEASE_RETENTION_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/pypi-release-retention.yaml"
+
+
+def test_pypi_publish_workflow_is_valid_yaml() -> None:
+    assert yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
 
 
 def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None:
@@ -206,6 +212,14 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "PYPI_TOKEN" not in text
     assert "TWINE_PASSWORD" not in text
     assert "twine upload" not in text
+
+
+def test_pypi_publish_release_notes_point_to_dataset_releases_without_breaking_yaml() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "notes=$'AGILAB release artifacts and supply-chain evidence.\\n\\n" in text
+    assert "Dataset payloads are published in separate datasets-* GitHub releases" in text
+    assert '--notes "$notes"' in text
 
 
 def test_pypi_publish_reuses_unchanged_artifacts_without_rebuilding_or_republishing() -> None:
