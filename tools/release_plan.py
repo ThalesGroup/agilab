@@ -633,8 +633,8 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "PYPI_RELEASE_PRUNE_TOTP_SECRET": (
             "workflow must support non-interactive PyPI 2FA for release pruning"
         ),
-        "PYPI_CONFIRM_READER_TOKEN": (
-            "workflow must support PyPI unrecognized-login confirmation polling"
+        "--github-token \"$GITHUB_TOKEN\"": (
+            "workflow must use the scoped GitHub token for PyPI login confirmation polling"
         ),
         "--confirm-delete": "workflow must make destructive PyPI retention explicit",
         "--github-confirm-login-variable": (

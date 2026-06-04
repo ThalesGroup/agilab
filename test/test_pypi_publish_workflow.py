@@ -13,6 +13,7 @@ from package_split_contract import LIBRARY_PACKAGE_CONTRACTS, PACKAGE_NAMES, UMB
 
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/pypi-publish.yaml"
 TEST_PYPI_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/test-pypi-publish.yaml"
+PYPI_RELEASE_RETENTION_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/pypi-release-retention.yaml"
 
 
 def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None:
@@ -357,7 +358,6 @@ def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_asse
     assert "PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}" in text
     assert "PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}" in text
     assert "PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}" in text
-    assert "PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}" in text
     assert "PYPI_RETENTION_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}" in text
     assert "python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup requests" in text
     assert "tools/pypi_release_retention.py" in text
@@ -368,7 +368,8 @@ def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_asse
     assert "--github-confirm-login-variable \"PYPI_CONFIRM_LOGIN_URL\"" in text
     assert "--github-confirm-login-timeout 1800" in text
     assert "--github-confirm-login-poll-delay 5" in text
-    assert "--github-token \"${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}\"" in text
+    assert "--github-token \"$GITHUB_TOKEN\"" in text
+    assert "PYPI_CONFIRM_READER_TOKEN" not in retention_block
     assert "Clear temporary PyPI confirmation variable" in retention_block
     assert "if: ${{ always() }}" in retention_block
     assert "_cleanup_github_confirm_login_variable" in retention_block
@@ -379,6 +380,15 @@ def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_asse
     assert "needs.pypi-release-retention.result == 'success'" in text
     assert "needs.pypi-release-retention.result == 'skipped'" in text
     assert "      - pypi-release-retention" in text
+
+
+def test_dedicated_pypi_retention_workflow_can_read_confirmation_variable() -> None:
+    text = PYPI_RELEASE_RETENTION_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "permissions:\n  contents: read\n  actions: write" in text
+    assert "PYPI_CONFIRM_READER_TOKEN" not in text
+    assert "--github-confirm-login-variable \"PYPI_CONFIRM_LOGIN_URL\"" in text
+    assert "--github-token \"$GITHUB_TOKEN\"" in text
 
 
 def test_pypi_publish_repair_mode_skips_retention_without_blocking_release_assets() -> None:
