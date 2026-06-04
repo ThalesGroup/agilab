@@ -54,6 +54,53 @@ def _split_leading_values(args: Sequence[str], *, command_name: str) -> tuple[li
     return values, rest
 
 
+def _pop_option_value(args: Sequence[str], index: int, option: str) -> tuple[str, int]:
+    item = args[index]
+    if item.startswith(f"{option}="):
+        return item.split("=", 1)[1], index + 1
+    if index + 1 >= len(args):
+        raise SystemExit(f"{option}: value is required")
+    return args[index + 1], index + 2
+
+
+def _split_release_args(args: Sequence[str]) -> tuple[list[str], list[str], list[str], list[str]]:
+    """Split local release shortcut options from impact-validation options."""
+
+    impact_args: list[str] = []
+    release_plan_args: list[str] = []
+    release_policy_args: list[str] = []
+    preflight_args: list[str] = []
+    index = 0
+    while index < len(args):
+        item = args[index]
+        if item == "--release-mode" or item.startswith("--release-mode="):
+            value, index = _pop_option_value(args, index, "--release-mode")
+            release_policy_args.extend(["--release-mode", value])
+            continue
+        if item == "--impact-base-ref" or item.startswith("--impact-base-ref="):
+            value, index = _pop_option_value(args, index, "--impact-base-ref")
+            release_plan_args.extend(["--skip-existing-pypi", "--impact-base-ref", value])
+            release_policy_args.extend(["--impact-base-ref", value])
+            continue
+        if item == "--packages" or item.startswith("--packages="):
+            value, index = _pop_option_value(args, index, "--packages")
+            release_plan_args.extend(["--packages", value])
+            release_policy_args.extend(["--packages", value])
+            preflight_args.extend(["--package", value])
+            continue
+        if item == "--roles" or item.startswith("--roles="):
+            value, index = _pop_option_value(args, index, "--roles")
+            release_plan_args.extend(["--roles", value])
+            release_policy_args.extend(["--roles", value])
+            preflight_args.extend(["--role", value])
+            continue
+        impact_args.append(item)
+        index += 1
+    if not impact_args:
+        impact_args = ["--staged"]
+    return impact_args, release_plan_args, release_policy_args, preflight_args
+
+
 def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if not argv or argv[0] in {"help", "-h", "--help"}:
         return [["./dev", "help"]]
@@ -134,17 +181,18 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
         return [_uv_python("tools/workflow_parity.py", "--profile", "ty-typing", *args)]
 
     if command in {"release", "pre-release"}:
-        forwarded = args or ["--staged"]
+        impact_args, release_plan_args, release_policy_args, preflight_args = _split_release_args(args)
         return [
             _uv_python("tools/agilab_audit.py", "--strict"),
-            _uv_python("tools/impact_validate.py", *forwarded),
+            _uv_python("tools/impact_validate.py", *impact_args),
             _uv_python(
                 "tools/release_plan.py",
                 "--check-workflow",
                 ".github/workflows/pypi-publish.yaml",
+                *release_plan_args,
             ),
-            _uv_python("tools/pypi_release_version_policy.py", "--skip-existing-pypi"),
-            _uv_python("tools/pypi_project_preflight.py"),
+            _uv_python("tools/pypi_release_version_policy.py", "--skip-existing-pypi", *release_policy_args),
+            _uv_python("tools/pypi_project_preflight.py", *preflight_args),
             _uv_python(
                 "tools/pypi_trusted_publisher_contract.py",
                 "--check-workflow",
@@ -230,7 +278,7 @@ def _usage() -> str:
   ./dev [--print-only] audit-preflight
   ./dev [--print-only] flow|profile <profile> [profile...] [workflow args]
   ./dev [--print-only] typing [workflow-parity options]
-  ./dev [--print-only] release [impact_validate args]
+  ./dev [--print-only] release [--release-mode MODE] [--impact-base-ref REF] [impact_validate args]
   ./dev [--print-only] badge|guard [coverage_badge_guard args]
   ./dev [--print-only] docs
   ./dev [--print-only] clean [--apply]
@@ -255,7 +303,7 @@ High-frequency mappings:
   audit-preflight -> Print the mandatory architecture-foundation preflight for deep AGILAB audits.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
   typing    -> Run the forward shared-core ty typing profile. Mypy remains the curated temporary release guard under shared-core-typing.
-  release   -> Run local release guards: AGILAB audit/review, impact, generated PyPI plan, release cadence, PyPI project preflight, trusted publisher contract, Ruff availability, docs, dependency policy, typing, and badge freshness.
+  release   -> Run local release guards: AGILAB audit/review, impact, generated PyPI plan, release cadence, PyPI project preflight, trusted publisher contract, Ruff availability, docs, dependency policy, typing, and badge freshness. Pass --release-mode hotfix and --impact-base-ref <tag> for same-day hotfixes.
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
   clean     -> Dry-run cleanup of ignored local build/lib duplicate-source trees; pass --apply to remove them.
