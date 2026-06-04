@@ -158,6 +158,23 @@ def test_release_handoff_guard_requires_archiving_old_handoffs(tmp_path: Path) -
     ) == []
 
 
+def test_release_handoff_guard_accepts_dot_hotfix_release_tags(tmp_path: Path) -> None:
+    manifest = tmp_path / "release_proof.toml"
+    manifest.write_text(
+        "[release]\n"
+        'github_release_tag = "v2026.06.04.1"\n',
+        encoding="utf-8",
+    )
+    handoff = tmp_path / "v2026.06.04-handoff.md"
+    handoff.write_text("# AGILAB release handoff for v2026.06.04\n", encoding="utf-8")
+
+    assert release_handoff_guard.latest_release_tag(manifest) == "v2026.06.04.1"
+    assert release_handoff_guard.stale_handoffs(
+        handoff_dir=tmp_path,
+        latest_tag="v2026.06.04.1",
+    ) == [handoff]
+
+
 def test_pending_publisher_confirm_url_freshness_blocks_stale_variable() -> None:
     payload = pending_publisher.GitHubActionsVariable(
         value="https://pypi.org/account/confirm-login/?token=fresh",
