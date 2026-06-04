@@ -271,6 +271,22 @@ def render_release_proof(manifest: Mapping[str, Any]) -> str:
                 f"     - `{release['github_release_tag']} "
                 f"<{release['github_release_url']}>`__"
             ),
+        ]
+    )
+    dataset_release_tag = str(release.get("dataset_release_tag", "") or "")
+    dataset_release_url = str(release.get("dataset_release_url", "") or "")
+    if dataset_release_tag and dataset_release_url:
+        dataset_details = f"`{dataset_release_tag} <{dataset_release_url}>`__"
+        dataset_count = release.get("dataset_count")
+        dataset_manifest_sha256 = str(release.get("dataset_manifest_sha256", "") or "")
+        if dataset_count is not None and dataset_manifest_sha256:
+            dataset_details += (
+                f" for ``{dataset_count}`` tracked dataset files; "
+                f"manifest ``{dataset_manifest_sha256}``"
+            )
+        lines.extend(["   * - Dataset release", f"     - {dataset_details}"])
+    lines.extend(
+        [
             "   * - Hosted demo",
             (
                 f"     - `{release['hf_space_label']} <{release['hf_space_url']}>`__ "
@@ -425,6 +441,31 @@ def _github_repo_name(repo_root: Path) -> str | None:
     if not base_url.startswith(prefix):
         return None
     return base_url.removeprefix(prefix)
+
+
+def _dataset_release_evidence(repo_root: Path, *, code_release_tag: str) -> dict[str, Any] | None:
+    module_path = repo_root / "tools" / "dataset_release_assets.py"
+    if not module_path.exists():
+        return None
+    spec = importlib.util.spec_from_file_location("agilab_dataset_release_assets", module_path)
+    if not spec or not spec.loader:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    records = module.discover_dataset_records(repo_root)
+    if not records:
+        return None
+    manifest = module.build_manifest(records, code_release_tag)
+    base_url = _github_repo_base_url(repo_root)
+    dataset_release_tag = str(manifest["dataset_release_tag"])
+    return {
+        "dataset_release_tag": dataset_release_tag,
+        "dataset_release_url": (
+            f"{base_url}/releases/tag/{dataset_release_tag}" if base_url else ""
+        ),
+        "dataset_manifest_sha256": str(manifest["dataset_manifest_sha256"]),
+        "dataset_count": int(manifest["dataset_count"]),
+    }
 
 
 def _run_gh_json(args: Sequence[str]) -> Any:
@@ -619,6 +660,11 @@ def refresh_manifest_from_local(
 
     if hf_space_commit:
         release["hf_space_commit"] = hf_space_commit
+
+    code_release_tag = str(release.get("github_release_tag", "") or tag or "dev")
+    dataset_evidence = _dataset_release_evidence(repo_root, code_release_tag=code_release_tag)
+    if dataset_evidence:
+        release.update(dataset_evidence)
 
     return refreshed
 
@@ -863,6 +909,8 @@ def build_report(
     package_version = str(release["package_version"])
     github_release_url = str(release["github_release_url"])
     github_release_tag = str(release["github_release_tag"])
+    dataset_release_tag = str(release.get("dataset_release_tag", "") or "")
+    dataset_release_url = str(release.get("dataset_release_url", "") or "")
     checks: list[dict[str, Any]] = []
 
     project_version = _load_project_version(repo_root)
@@ -895,6 +943,18 @@ def build_report(
             details={"tag": github_release_tag, "url": github_release_url},
         )
     )
+    if dataset_release_tag or dataset_release_url:
+        checks.append(
+            _check_result(
+                "dataset_release_url",
+                bool(dataset_release_tag)
+                and bool(dataset_release_url)
+                and dataset_release_tag in dataset_release_url,
+                "manifest dataset release URL contains the dataset release tag",
+                evidence=[str(manifest_path)],
+                details={"tag": dataset_release_tag, "url": dataset_release_url},
+            )
+        )
     badge_path = repo_root / "badges" / "pypi-version-agilab.svg"
     badge_contains = _text_contains(badge_path, f"v{package_version}")
     checks.append(
@@ -981,6 +1041,8 @@ def build_report(
             "package_version": package_version,
             "github_release_tag": github_release_tag,
             "github_release_url": github_release_url,
+            "dataset_release_tag": dataset_release_tag,
+            "dataset_release_url": dataset_release_url,
             "hf_space_url": str(release["hf_space_url"]),
             "hf_space_commit": str(release["hf_space_commit"]),
         },
