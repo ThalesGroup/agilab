@@ -1644,7 +1644,9 @@ def test_display_log_helper_warns_on_warning_stderr_and_uses_stderr_path():
 
     assert warnings == ["Warnings occurred during cluster installation:"]
     assert errors == []
-    assert code_sink.calls[-1][0][0] == "normal output\nwarning: deprecated option"
+    assert "AGILAB compact log" in code_sink.calls[-1][0][0]
+    assert "warning: deprecated option" in code_sink.calls[-1][0][0]
+    assert code_sink.calls[-1][1]["language"] == "text"
 
 
 def test_display_log_helper_uses_cached_stdout_when_missing_and_shows_stderr_errors():
@@ -1668,7 +1670,54 @@ def test_display_log_helper_uses_cached_stdout_when_missing_and_shows_stderr_err
 
     assert warning_messages == []
     assert errors == ["Errors occurred during cluster installation:"]
-    assert code_sink.calls[-1][0][0] == "something failed"
+    assert "AGILAB compact log" in code_sink.calls[-1][0][0]
+    assert "something failed" in code_sink.calls[-1][0][0]
+    assert code_sink.calls[-1][1]["language"] == "text"
+
+
+def test_display_log_helper_keeps_large_stdout_stderr_as_compact_view():
+    errors: list[str] = []
+    warning_messages: list[str] = []
+    code_sink = _CaptureCodeSink()
+    stdout = "\n".join(
+        f"stdout progress DISPLAY_NOISE_{index:03d} " + ("x" * 80)
+        for index in range(180)
+    )
+    stderr = "\n".join(
+        [
+            "stderr progress before failure",
+            "Traceback (most recent call last):",
+            "ModuleNotFoundError: No module named 'cluster_worker'",
+            "stderr token=ghp_abcdefghijklmnopqrstuvwxyz123456",
+        ]
+    )
+
+    orchestrate_page_support.display_log(
+        stdout=stdout,
+        stderr=stderr,
+        session_state={"cluster_verbose": 1},
+        strip_ansi_fn=orchestrate_page_support.strip_ansi,
+        filter_warning_messages_fn=lambda text: text,
+        format_log_block_fn=lambda text: text,
+        warning_fn=lambda message: warning_messages.append(message),
+        error_fn=lambda message: errors.append(message),
+        code_fn=code_sink,
+        log_display_max_lines=250,
+        log_display_height=300,
+    )
+
+    rendered = code_sink.calls[-1][0][0]
+    assert errors == ["Errors occurred during cluster installation:"]
+    assert warning_messages == []
+    assert code_sink.calls[-1][1]["language"] == "text"
+    assert "AGILAB compact log" in rendered
+    assert "Traceback (most recent call last):" in rendered
+    assert "ModuleNotFoundError: No module named 'cluster_worker'" in rendered
+    assert "token=<redacted>" in rendered
+    assert "ghp_" not in rendered
+    assert "DISPLAY_NOISE_000" not in rendered
+    assert "omitted:" in rendered
+    assert len(rendered) < 2_000
 
 
 def test_capture_and_restore_dataframe_preview_state_round_trip():

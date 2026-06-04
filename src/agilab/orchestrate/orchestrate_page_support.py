@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from agi_env.snippet_contract import snippet_contract_block
+from agilab.environment.logging_utils import compact_log_view, render_compact_log_view
 
 try:
     from packaging.markers import default_environment as _packaging_default_environment
@@ -1087,25 +1088,41 @@ def display_log(
     clean_stderr = "\n".join(line for line in clean_stderr.splitlines() if line.strip())
 
     combined = "\n".join([clean_stdout, clean_stderr]).strip()
+    log_verbose = 1
+    try:
+        log_verbose = int(session_state.get("cluster_verbose", 1))
+    except (AttributeError, TypeError, ValueError):
+        log_verbose = 1
+
+    def _compact(text: str) -> str:
+        if not text.strip():
+            return "No logs available"
+        return render_compact_log_view(
+            compact_log_view(
+                text,
+                verbose=log_verbose,
+                debug_max_lines=log_display_max_lines,
+            )
+        )
 
     if "warning:" in combined.lower():
         warning_fn("Warnings occurred during cluster installation:")
         code_fn(
-            format_log_block_fn(combined),
-            language="python",
+            _compact(combined),
+            language="text",
             height=log_display_height,
         )
     elif clean_stderr:
         error_fn("Errors occurred during cluster installation:")
         code_fn(
-            format_log_block_fn(clean_stderr),
-            language="python",
+            _compact(clean_stderr),
+            language="text",
             height=log_display_height,
         )
     else:
         code_fn(
-            format_log_block_fn(clean_stdout) or "No logs available",
-            language="python",
+            _compact(clean_stdout),
+            language="text",
             height=log_display_height,
         )
 
