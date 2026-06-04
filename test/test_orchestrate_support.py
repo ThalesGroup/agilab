@@ -58,7 +58,7 @@ def test_prepare_app_settings_for_write_preserves_existing_supported_metadata(tm
     assert written == sanitized
 
 
-def test_write_app_settings_toml_normalizes_legacy_run_args_key(tmp_path):
+def test_write_app_settings_toml_preserves_app_owned_nested_args_key(tmp_path):
     settings_file = tmp_path / "app_settings.toml"
     payload = {
         "args": {
@@ -71,8 +71,10 @@ def test_write_app_settings_toml_normalizes_legacy_run_args_key(tmp_path):
     sanitized = orchestrate_support.write_app_settings_toml(settings_file, payload)
     written = tomllib.loads(settings_file.read_text(encoding="utf-8"))
 
-    assert "args" not in sanitized["args"]
-    assert sanitized["args"]["stages"] == [{"name": "fcas_routing_ppo_gnn", "args": {"seed": 42}}]
+    assert sanitized["args"]["args"] == [
+        {"name": "fcas_routing_ppo_gnn", "args": {"seed": 42}}
+    ]
+    assert "stages" not in sanitized["args"]
     assert written == sanitized
 
 

@@ -10,7 +10,8 @@ from typing import Any, Callable, Optional
 
 import tomli_w
 from agi_env.app_settings_support import (
-    prepare_app_settings_for_write,
+    app_settings_contract_error,
+    ensure_app_settings_metadata,
     sanitize_app_settings_for_toml,
 )
 
@@ -23,7 +24,13 @@ def sanitize_for_toml(obj: Any) -> Any:
 
 def write_app_settings_toml(settings_path: Path, payload: dict) -> dict:
     """Persist ``payload`` after converting it to a TOML-serializable object."""
-    sanitized = prepare_app_settings_for_write(payload)
+    sanitized = sanitize_app_settings_for_toml(payload)
+    if not isinstance(sanitized, dict):
+        raise ValueError("app_settings.toml payload must be a TOML table.")
+    error = app_settings_contract_error(sanitized)
+    if error:
+        raise ValueError(error)
+    sanitized = ensure_app_settings_metadata(sanitized)
     with open(settings_path, "wb") as file:
         tomli_w.dump(sanitized, file)
     return sanitized
