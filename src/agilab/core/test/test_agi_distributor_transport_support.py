@@ -67,6 +67,7 @@ async def test_send_file_remote_success_and_command_construction(monkeypatch, tm
         user="alice",
         password="secret",
         ssh_key_path=str(tmp_path / "id_rsa"),
+        envars={"AGILAB_CLUSTER_SSH_KNOWN_HOSTS": str(tmp_path / "known_hosts")},
     )
     calls = []
 
@@ -96,16 +97,66 @@ async def test_send_file_remote_success_and_command_construction(monkeypatch, tm
     flat = list(calls[0])
     assert flat[0] == ("scp" if os.name == "nt" else "sshpass")
     assert "scp" in flat
+    assert "StrictHostKeyChecking=yes" in flat
+    assert f"UserKnownHostsFile={tmp_path / 'known_hosts'}" in flat
+    assert "StrictHostKeyChecking=no" not in flat
+    assert "UserKnownHostsFile=/dev/null" not in flat
     assert "-i" in flat
     assert str(local_file) in flat
     assert "alice@10.0.0.9:/tmp/remote.bin" in flat
 
 
 @pytest.mark.asyncio
+async def test_send_file_remote_accept_new_host_key_policy_is_explicit(monkeypatch, tmp_path):
+    local_file = tmp_path / "src.bin"
+    local_file.write_text("x", encoding="utf-8")
+    env = SimpleNamespace(
+        user="alice",
+        password=None,
+        ssh_key_path=None,
+        envars={
+            "AGILAB_CLUSTER_SSH_HOST_KEY_POLICY": "accept-new",
+            "AGILAB_CLUSTER_SSH_KNOWN_HOSTS": str(tmp_path / "known_hosts"),
+        },
+    )
+    calls = []
+
+    class _Proc:
+        returncode = 0
+
+        async def communicate(self):
+            return b"ok", b""
+
+    async def _fake_subproc(*cmd, **_kwargs):
+        calls.append(cmd)
+        return _Proc()
+
+    monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False))
+    monkeypatch.setattr(transport_support.asyncio, "create_subprocess_exec", _fake_subproc)
+
+    await transport_support.send_file(
+        env=env,
+        ip="10.0.0.9",
+        local_path=local_file,
+        remote_path=Path("/tmp/remote.bin"),
+    )
+
+    flat = list(calls[0])
+    assert "StrictHostKeyChecking=accept-new" in flat
+    assert f"UserKnownHostsFile={tmp_path / 'known_hosts'}" in flat
+    assert "UserKnownHostsFile=/dev/null" not in flat
+
+
+@pytest.mark.asyncio
 async def test_send_file_remote_retries_with_password_auth_on_first_failure(monkeypatch, tmp_path):
     local_file = tmp_path / "src.bin"
     local_file.write_text("x", encoding="utf-8")
-    env = SimpleNamespace(user="alice", password="secret", ssh_key_path=None)
+    env = SimpleNamespace(
+        user="alice",
+        password="secret",
+        ssh_key_path=None,
+        envars={"AGILAB_CLUSTER_SSH_KNOWN_HOSTS": str(tmp_path / "known_hosts")},
+    )
     calls = []
     call_envs = []
     procs = [
@@ -136,6 +187,8 @@ async def test_send_file_remote_retries_with_password_auth_on_first_failure(monk
     assert ("-e" in calls[1]) is (os.name != "nt")
     assert "-p" not in calls[0]
     assert "-p" not in calls[1]
+    assert "StrictHostKeyChecking=yes" in calls[0]
+    assert f"UserKnownHostsFile={tmp_path / 'known_hosts'}" in calls[0]
     if os.name != "nt":
         assert call_envs[0]["SSHPASS"] == "secret"
         assert call_envs[1]["SSHPASS"] == "secret"
@@ -387,7 +440,12 @@ async def test_get_ssh_connection_sets_local_user_and_uses_key_override(monkeypa
     monkeypatch.setattr(transport_support.asyncssh, "connect", _fake_connect)
 
     agi_cls = SimpleNamespace(
-        env=SimpleNamespace(user=None, password=None, ssh_key_path=str(tmp_path / "id_ed25519")),
+        env=SimpleNamespace(
+            user=None,
+            password=None,
+            ssh_key_path=str(tmp_path / "id_ed25519"),
+            envars={"AGILAB_CLUSTER_SSH_KNOWN_HOSTS": str(tmp_path / "known_hosts")},
+        ),
         _ssh_connections={},
     )
 
@@ -396,23 +454,37 @@ async def test_get_ssh_connection_sets_local_user_and_uses_key_override(monkeypa
 
     assert agi_cls.env.user == "local-user"
     assert calls[0][1]["client_keys"] == [str((tmp_path / "id_ed25519").expanduser())]
+    assert calls[0][1]["known_hosts"] == str(tmp_path / "known_hosts")
+    assert calls[0][1]["known_hosts"] is not None
 
 
 @pytest.mark.asyncio
-async def test_get_ssh_connection_uses_password_auth_and_handles_generic_oserror(monkeypatch):
+async def test_get_ssh_connection_uses_password_auth_and_handles_generic_oserror(monkeypatch, tmp_path):
+    calls = []
+
     async def _fake_connect(*args, **kwargs):
+        calls.append((args, kwargs))
         return SimpleNamespace(is_closed=lambda: False)
 
     monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False))
     monkeypatch.setattr(transport_support.asyncssh, "connect", _fake_connect)
 
     agi_cls = SimpleNamespace(
-        env=SimpleNamespace(user="alice", password="secret", ssh_key_path=None),
+        env=SimpleNamespace(
+            user="alice",
+            password="secret",
+            ssh_key_path=None,
+            envars={"AGILAB_CLUSTER_SSH_KNOWN_HOSTS": str(tmp_path / "known_hosts")},
+        ),
         _ssh_connections={},
     )
 
     async with transport_support.get_ssh_connection(agi_cls, "10.0.0.7") as conn:
         assert conn is agi_cls._ssh_connections["10.0.0.7"]
+
+    assert calls[0][1]["password"] == "secret"
+    assert calls[0][1]["client_keys"] == []
+    assert calls[0][1]["known_hosts"] == str(tmp_path / "known_hosts")
 
     async def _raise_generic_oserror(_awaitable, timeout):
         _awaitable.close()
@@ -423,6 +495,44 @@ async def test_get_ssh_connection_uses_password_auth_and_handles_generic_oserror
     with pytest.raises(ConnectionError, match="disk glitch"):
         async with transport_support.get_ssh_connection(agi_cls, "10.0.0.8", timeout_sec=1):
             pass
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_connection_accept_new_policy_pins_known_host(monkeypatch, tmp_path):
+    calls = []
+    pinned = []
+
+    async def _fake_connect(*args, **kwargs):
+        calls.append((args, kwargs))
+        return SimpleNamespace(is_closed=lambda: False)
+
+    monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False))
+    monkeypatch.setattr(transport_support.asyncssh, "connect", _fake_connect)
+    monkeypatch.setattr(transport_support, "_known_host_entry_exists", lambda *_a, **_k: False)
+    monkeypatch.setattr(
+        transport_support,
+        "_append_known_host_from_scan",
+        lambda host, path, **_kwargs: pinned.append((host, path)) or True,
+    )
+
+    agi_cls = SimpleNamespace(
+        env=SimpleNamespace(
+            user="alice",
+            password=None,
+            ssh_key_path=None,
+            envars={
+                "AGILAB_CLUSTER_SSH_HOST_KEY_POLICY": "tofu",
+                "AGILAB_CLUSTER_SSH_KNOWN_HOSTS": str(tmp_path / "known_hosts"),
+            },
+        ),
+        _ssh_connections={},
+    )
+
+    async with transport_support.get_ssh_connection(agi_cls, "10.0.0.9") as conn:
+        assert conn is agi_cls._ssh_connections["10.0.0.9"]
+
+    assert pinned == [("10.0.0.9", tmp_path / "known_hosts")]
+    assert calls[0][1]["known_hosts"] == str(tmp_path / "known_hosts")
 
 
 @pytest.mark.asyncio

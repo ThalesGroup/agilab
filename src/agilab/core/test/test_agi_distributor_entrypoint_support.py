@@ -253,7 +253,10 @@ async def test_run_prepared_execution_calls_prepare_then_run_main(monkeypatch):
 
     process_error_type = RuntimeError
     format_exception_chain_fn = str
-    traceback_format_exc_fn = lambda: "tb"
+
+    def traceback_format_exc_fn():
+        return "tb"
+
     log = object()
 
     result = await entrypoint_support._run_prepared_execution(
@@ -353,7 +356,10 @@ async def test_dispatch_run_execution_switches_between_benchmark_and_prepared(
 
     process_error_type = RuntimeError
     format_exception_chain_fn = str
-    traceback_format_exc_fn = lambda: "tb"
+
+    def traceback_format_exc_fn():
+        return "tb"
+
     log = object()
 
     benchmark_result = await entrypoint_support._dispatch_run_execution(
@@ -1081,6 +1087,60 @@ async def test_launch_scheduler_process_remote_sends_pyproject_and_starts_async_
     assert calls["send"][0][1] == app_path / "pyproject.toml"
     assert calls["send"][0][2] == Path("worker") / "pyproject.toml"
     assert calls["tasks"][0][0] == "exec_ssh_async"
+
+
+@pytest.mark.asyncio
+async def test_launch_scheduler_process_remote_quotes_shell_arguments(monkeypatch, tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir()
+    (app_path / "pyproject.toml").write_text(
+        "[project]\nname='app'\n",
+        encoding="utf-8",
+    )
+
+    calls = {"exec": [], "send": [], "tasks": []}
+    AGI.env = SimpleNamespace(
+        active_app=app_path,
+        wenv_rel=Path("worker;touch pwn"),
+        wenv_abs=tmp_path / "worker",
+        uv="uv --quiet",
+        export_local_bin="",
+        app="demo",
+        is_local=lambda _ip: False,
+    )
+    AGI._scheduler_ip = "10.0.0.2"
+    AGI._scheduler_port = 8786
+
+    async def _fake_exec_ssh(ip, cmd):
+        calls["exec"].append((ip, cmd))
+
+    async def _fake_send(_env, ip, local_path, remote_path):
+        calls["send"].append((ip, local_path, remote_path))
+
+    monkeypatch.setattr(AGI, "_dask_env_prefix", staticmethod(lambda: "ENV=1 "))
+    monkeypatch.setattr(AGI, "exec_ssh", staticmethod(_fake_exec_ssh))
+    monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send))
+    monkeypatch.setattr(
+        AGI,
+        "exec_ssh_async",
+        staticmethod(lambda ip, cmd: ("exec_ssh_async", ip, cmd)),
+    )
+
+    async def _fake_sleep(_delay):
+        return None
+
+    await entrypoint_support._launch_scheduler_process(
+        AGI,
+        cmd_prefix='export PATH="$HOME/bin:$PATH"; ',
+        create_task_fn=lambda task: calls["tasks"].append(task),
+        sleep_fn=_fake_sleep,
+    )
+
+    mkdir_cmd = calls["exec"][0][1]
+    scheduler_cmd = calls["tasks"][0][2]
+    assert "worker;touch pwn" in mkdir_cmd
+    assert "--project 'worker;touch pwn'" in scheduler_cmd
+    assert "--project worker;touch pwn" not in scheduler_cmd
 
 
 @pytest.mark.asyncio

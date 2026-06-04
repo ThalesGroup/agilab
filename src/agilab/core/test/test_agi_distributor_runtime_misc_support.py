@@ -256,16 +256,25 @@ def test_format_exception_chain_handles_context_normalization_edges(monkeypatch)
     assert "fresh detail" in text
 
 
-def test_load_capacity_predictor_returns_loaded_value(tmp_path):
+def test_load_capacity_predictor_rejects_missing_trusted_root_by_default(tmp_path):
     model_path = tmp_path / "balancer_model.pkl"
     model_path.write_bytes(b"pickle-bytes")
+    calls = {"load": 0, "retrain": 0, "warnings": []}
+    log = SimpleNamespace(
+        warning=lambda message, path: calls["warnings"].append((message, path))
+    )
 
     loaded = runtime_misc_support.load_capacity_predictor(
         model_path,
-        load_fn=lambda stream: {"size": len(stream.read())},
+        load_fn=lambda _stream: calls.__setitem__("load", calls["load"] + 1),
+        retrain_fn=lambda: calls.__setitem__("retrain", calls["retrain"] + 1),
+        log=log,
     )
 
-    assert loaded == {"size": len(b"pickle-bytes")}
+    assert loaded is None
+    assert calls["load"] == 0
+    assert calls["retrain"] == 1
+    assert "without a trusted resource root" in calls["warnings"][0][0]
 
 
 def test_load_capacity_predictor_returns_signed_trusted_value(tmp_path):
@@ -390,8 +399,10 @@ def test_load_capacity_predictor_retrains_when_missing(tmp_path):
 
 
 def test_load_capacity_predictor_handles_legacy_module_error(tmp_path):
-    model_path = tmp_path / "balancer_model.pkl"
+    model_path = tmp_path / "resources" / "balancer_model.pkl"
+    model_path.parent.mkdir()
     model_path.write_bytes(b"pickle-bytes")
+    runtime_misc_support.write_capacity_model_manifest(model_path)
     calls = {"retrain": 0, "warnings": []}
     log = SimpleNamespace(
         warning=lambda message, path, exc: calls["warnings"].append(
@@ -406,6 +417,7 @@ def test_load_capacity_predictor_handles_legacy_module_error(tmp_path):
         ),
         retrain_fn=lambda: calls.__setitem__("retrain", calls["retrain"] + 1),
         log=log,
+        trusted_root=model_path.parent,
     )
 
     assert loaded is None

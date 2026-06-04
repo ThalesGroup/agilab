@@ -202,29 +202,38 @@ def load_capacity_predictor(
             retrain_fn()
         return None
 
-    if trusted_root is not None:
-        trust_error = _capacity_model_trust_error(path, trusted_root)
-        if trust_error is not None:
-            if log is not None:
-                log.warning(
-                    "Refusing to load untrusted capacity model from %s: %s",
-                    path,
-                    trust_error,
-                )
-            if retrain_fn is not None:
-                retrain_fn()
-            return None
-        manifest_error = _capacity_model_manifest_error(path)
-        if manifest_error is not None:
-            if log is not None:
-                log.warning(
-                    "Refusing to load unverified capacity model from %s: %s",
-                    path,
-                    manifest_error,
-                )
-            if retrain_fn is not None:
-                retrain_fn()
-            return None
+    if trusted_root is None:
+        if log is not None:
+            log.warning(
+                "Refusing to load capacity model from %s without a trusted resource root",
+                path,
+            )
+        if retrain_fn is not None:
+            retrain_fn()
+        return None
+
+    trust_error = _capacity_model_trust_error(path, trusted_root)
+    if trust_error is not None:
+        if log is not None:
+            log.warning(
+                "Refusing to load untrusted capacity model from %s: %s",
+                path,
+                trust_error,
+            )
+        if retrain_fn is not None:
+            retrain_fn()
+        return None
+    manifest_error = _capacity_model_manifest_error(path)
+    if manifest_error is not None:
+        if log is not None:
+            log.warning(
+                "Refusing to load unverified capacity model from %s: %s",
+                path,
+                manifest_error,
+            )
+        if retrain_fn is not None:
+            retrain_fn()
+        return None
 
     try:
         with open(path.resolve(strict=False), "rb") as stream:

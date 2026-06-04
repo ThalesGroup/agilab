@@ -438,6 +438,52 @@ async def test_prepare_cluster_env_legacy_intel_macos_selects_python_311(tmp_pat
 
 
 @pytest.mark.asyncio
+async def test_prepare_cluster_env_quotes_remote_uv_setup_arguments(tmp_path):
+    env = _build_cluster_env(tmp_path)
+    env.dist_rel = Path("wenv/dist;touch pwn")
+    env.pyvers_worker = "3.13;touch pwn"
+    env.uv = "uv --quiet"
+    agi_cls = _build_agi(env)
+    sent = []
+    remote_cmds = []
+
+    async def _fake_detect(_ip):
+        return 'export PATH="$HOME/.local/bin:$PATH"; '
+
+    async def _fake_exec(ip, cmd):
+        remote_cmds.append((ip, cmd))
+        if "--version" in cmd:
+            return "uv 0.6.0"
+        if "python find" in cmd:
+            raise RuntimeError("not found")
+        return "ok"
+
+    async def _noop(*_args, **_kwargs):
+        return None
+
+    await deployment_prepare_support.prepare_cluster_env(
+        agi_cls,
+        "127.0.0.1",
+        envar_truthy_fn=_truthy,
+        detect_export_cmd_fn=_fake_detect,
+        ensure_optional_extras_fn=lambda *_a, **_k: None,
+        stage_uv_sources_fn=lambda **_kwargs: [],
+        run_exec_ssh_fn=_fake_exec,
+        send_files_fn=_recording_send(sent),
+        kill_fn=_noop,
+        clean_dirs_fn=_noop,
+        set_env_var_fn=lambda key, value=None: env.envars.__setitem__(key, value),
+        log=mock.Mock(),
+    )
+
+    joined = "\n".join(cmd for _, cmd in remote_cmds)
+    assert "python install '3.13;touch pwn'" in joined
+    assert "python install 3.13;touch pwn" not in joined
+    assert "wenv/dist;touch pwn" in joined
+    assert "'3.13;touch pwn'" in joined
+
+
+@pytest.mark.asyncio
 async def test_prepare_cluster_env_stages_uv_source_payload(tmp_path):
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)

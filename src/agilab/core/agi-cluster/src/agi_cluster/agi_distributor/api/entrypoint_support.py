@@ -7,8 +7,9 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypeAlias, Union
 
-from agi_cluster.agi_distributor import runtime_misc_support
 from agi_cluster.agi_distributor import background_jobs_support
+from agi_cluster.agi_distributor import deployment_remote_support
+from agi_cluster.agi_distributor import runtime_misc_support
 from agi_cluster.agi_distributor.api.worker_cli_support import resolve_worker_cli_path
 from agi_cluster.agi_distributor.run_request_support import RunRequest
 
@@ -530,20 +531,43 @@ async def _launch_scheduler_process(
             log.info(result)
         return
 
-    remote_mkdir_cmd = (
-        f"{cmd_prefix}{env.uv} run --no-sync python -c "
-        f"\"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
+    remote_uv = deployment_remote_support._remote_tool(cmd_prefix, env.uv)
+    remote_mkdir_script = (
+        f"import os; os.makedirs({wenv_rel.as_posix()!r}, exist_ok=True)"
+    )
+    remote_mkdir_cmd = deployment_remote_support._remote_command(
+        remote_uv,
+        "run",
+        "--no-sync",
+        "python",
+        "-c",
+        remote_mkdir_script,
     )
     await agi_cls.exec_ssh(agi_cls._scheduler_ip, remote_mkdir_cmd)
 
     toml_wenv = wenv_rel / "pyproject.toml"
     await agi_cls.send_file(env, agi_cls._scheduler_ip, toml_local, toml_wenv)
 
-    remote_scheduler_cmd = (
-        f"{cmd_prefix}{dask_env}{env.uv} --project {wenv_rel} run --no-sync "
-        f"dask scheduler "
-        f"--port {agi_cls._scheduler_port} "
-        f"--host {agi_cls._scheduler_ip} --dashboard-address :0 --pid-file dask_scheduler.pid"
+    remote_scheduler_uv = deployment_remote_support._remote_tool(
+        f"{cmd_prefix}{dask_env}",
+        env.uv,
+    )
+    remote_scheduler_cmd = deployment_remote_support._remote_command(
+        remote_scheduler_uv,
+        "--project",
+        wenv_rel,
+        "run",
+        "--no-sync",
+        "dask",
+        "scheduler",
+        "--port",
+        agi_cls._scheduler_port,
+        "--host",
+        agi_cls._scheduler_ip,
+        "--dashboard-address",
+        ":0",
+        "--pid-file",
+        "dask_scheduler.pid",
     )
     create_task_fn(agi_cls.exec_ssh_async(agi_cls._scheduler_ip, remote_scheduler_cmd))
 

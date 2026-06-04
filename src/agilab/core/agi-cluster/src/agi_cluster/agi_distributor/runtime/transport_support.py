@@ -4,6 +4,7 @@ import getpass
 import logging
 import os
 import shutil
+import subprocess
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Iterable, List, Optional, cast
@@ -16,10 +17,184 @@ from agi_env import AgiEnv
 
 logger = logging.getLogger(__name__)
 
+_KNOWN_HOSTS_ENV_NAMES = (
+    "AGILAB_CLUSTER_SSH_KNOWN_HOSTS",
+    "AGILAB_CLUSTER_KNOWN_HOSTS",
+    "AGI_CLUSTER_SSH_KNOWN_HOSTS",
+    "AGI_CLUSTER_KNOWN_HOSTS",
+    "cluster_ssh_known_hosts",
+    "cluster_known_hosts",
+)
+_HOST_KEY_POLICY_ENV_NAMES = (
+    "AGILAB_CLUSTER_SSH_HOST_KEY_POLICY",
+    "AGILAB_CLUSTER_HOST_KEY_POLICY",
+    "AGI_CLUSTER_SSH_HOST_KEY_POLICY",
+    "AGI_CLUSTER_HOST_KEY_POLICY",
+    "AGILAB_CLUSTER_SSH_STRICT_HOST_KEY_CHECKING",
+    "cluster_ssh_host_key_policy",
+    "cluster_host_key_policy",
+)
+_STRICT_HOST_KEY_VALUES = {"1", "on", "strict", "true", "yes"}
+_TOFU_HOST_KEY_VALUES = {
+    "0",
+    "accept-new",
+    "false",
+    "learn",
+    "learn-and-pin",
+    "off",
+    "tofu",
+}
+
 
 def _is_local_ip(ip: str) -> bool:
     is_local = cast(Callable[[str], bool], AgiEnv.is_local)
     return is_local(ip)
+
+
+def _env_lookup(env: Any, *names: str) -> str | None:
+    for name in names:
+        value = getattr(env, name, None)
+        if value not in (None, ""):
+            return str(value)
+    envars = getattr(env, "envars", None)
+    if isinstance(envars, dict):
+        for name in names:
+            value = envars.get(name)
+            if value not in (None, ""):
+                return str(value)
+    for name in names:
+        value = os.environ.get(name)
+        if value not in (None, ""):
+            return str(value)
+    return None
+
+
+def _cluster_ssh_known_hosts_path(env: Any) -> Path:
+    configured = _env_lookup(env, *_KNOWN_HOSTS_ENV_NAMES)
+    if configured:
+        return Path(configured).expanduser()
+    return Path("~/.ssh/known_hosts").expanduser()
+
+
+def _cluster_ssh_host_key_policy(env: Any) -> str:
+    configured = _env_lookup(env, *_HOST_KEY_POLICY_ENV_NAMES)
+    if configured in (None, ""):
+        return "strict"
+
+    normalized = str(configured).strip().lower()
+    if normalized in _STRICT_HOST_KEY_VALUES:
+        return "strict"
+    if normalized in _TOFU_HOST_KEY_VALUES:
+        return "accept-new"
+    raise ValueError(
+        "Invalid cluster SSH host-key policy. Use 'strict' or 'accept-new'."
+    )
+
+
+def _scp_host_key_options(env: Any) -> list[str]:
+    policy = _cluster_ssh_host_key_policy(env)
+    strict_check = "accept-new" if policy == "accept-new" else "yes"
+    known_hosts = _cluster_ssh_known_hosts_path(env)
+    return [
+        "-o",
+        f"StrictHostKeyChecking={strict_check}",
+        "-o",
+        f"UserKnownHostsFile={known_hosts}",
+    ]
+
+
+def _known_hosts_query_host(host: str, port: int) -> str:
+    return f"[{host}]:{port}" if port != 22 else host
+
+
+def _known_host_entry_exists(host: str, known_hosts_path: Path, *, port: int = 22) -> bool:
+    if not known_hosts_path.exists():
+        return False
+    try:
+        result = subprocess.run(
+            [
+                "ssh-keygen",
+                "-F",
+                _known_hosts_query_host(host, port),
+                "-f",
+                str(known_hosts_path),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def _append_known_host_from_scan(
+    host: str,
+    known_hosts_path: Path,
+    *,
+    port: int = 22,
+    log: Any = logger,
+) -> bool:
+    known_hosts_path.parent.mkdir(parents=True, exist_ok=True)
+    if os.name != "nt":
+        try:
+            known_hosts_path.parent.chmod(0o700)
+        except OSError:
+            pass
+    try:
+        result = subprocess.run(
+            [
+                "ssh-keyscan",
+                "-H",
+                "-T",
+                "5",
+                "-p",
+                str(port),
+                "-t",
+                "ed25519,rsa,ecdsa",
+                host,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        log.warning("Could not learn SSH host key for %s: %s", host, exc)
+        return False
+
+    lines = [line for line in result.stdout.splitlines() if line.strip() and not line.startswith("#")]
+    if result.returncode != 0 or not lines:
+        detail = (result.stderr or "").strip() or "no host key returned"
+        log.warning("Could not learn SSH host key for %s: %s", host, detail)
+        return False
+
+    with known_hosts_path.open("a", encoding="utf-8") as stream:
+        for line in lines:
+            stream.write(f"{line}\n")
+    if os.name != "nt":
+        try:
+            known_hosts_path.chmod(0o600)
+        except OSError:
+            pass
+    return True
+
+
+def _prepare_known_hosts_for_policy(
+    host: str,
+    known_hosts_path: Path,
+    policy: str,
+    *,
+    log: Any = logger,
+) -> None:
+    if policy != "accept-new":
+        return
+    if _known_host_entry_exists(host, known_hosts_path):
+        return
+    learned = _append_known_host_from_scan(host, known_hosts_path, log=log)
+    if learned:
+        log.info("Pinned SSH host key for %s in %s", host, known_hosts_path)
 
 
 async def _run_scp_command(
@@ -138,13 +313,7 @@ async def send_file(
         auth_prefix = ["sshpass", "-e"]
         scp_env["SSHPASS"] = password
 
-    scp_cmd = [
-        "scp",
-        "-o",
-        "StrictHostKeyChecking=no",
-        "-o",
-        "UserKnownHostsFile=/dev/null",
-    ]
+    scp_cmd = ["scp", *_scp_host_key_options(env)]
     if local_path.is_dir():
         scp_cmd.append("-r")
     ssh_key_path = getattr(env, "ssh_key_path", None)
@@ -218,12 +387,21 @@ async def get_ssh_connection(
                 keys = discover_private_keys_fn(ssh_dir)
                 client_keys = keys if keys else None
 
+        host_key_policy = _cluster_ssh_host_key_policy(env)
+        known_hosts_path = _cluster_ssh_known_hosts_path(env)
+        _prepare_known_hosts_for_policy(
+            ip,
+            known_hosts_path,
+            host_key_policy,
+            log=log,
+        )
+
         conn = await asyncio.wait_for(
             asyncssh.connect(
                 ip,
                 username=env.user,
                 password=env.password,
-                known_hosts=None,
+                known_hosts=str(known_hosts_path),
                 client_keys=client_keys,
                 agent_path=agent_path,
             ),
