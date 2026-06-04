@@ -27,6 +27,16 @@ publication, or evidence refreshes on an already published date version.
   scheduled and manual guardrail runs still fail closed on a broken published
   release.
 
+## [2026.06.04.1] - 2026-06-04
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04.1
+
+### Changed
+
+- Published AGILAB `2026.06.04.1` to PyPI for `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
 ## [2026.06.04] - 2026-06-04
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
@@ -821,3 +831,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.06.01]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.01
 [2026.06.02]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.02
 [2026.06.04]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
+[2026.06.04.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04.1
