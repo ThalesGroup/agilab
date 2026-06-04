@@ -21,30 +21,11 @@ publication, or evidence refreshes on an already published date version.
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04.2
 
-### Added
+### Changed
 
-- Added Devstral and Mistral Vibe workflow support across local assistant setup,
-  installer guidance, and coding-agent documentation.
-- Added the operator workbench roadmap item.
-
-### Fixed
-
-- Compact cluster diagnostics now summarize token-heavy logs instead of forwarding
-  raw command output by default.
-- External app bootstrap roots are preserved during installation and worker setup.
-- Release workflow YAML validation now guards release handoff checks and accepts
-  hotfix release tags.
-- PyPI retention confirmation now uses the guarded confirmation-reader token path.
-- Release evidence now links the dataset release and records Hugging Face Space sync
-  state.
-
-- Prepared a root `agilab` packaging hotfix so the published console script includes
-  CLI-required subpackages such as `agilab.security`, while keeping app, core,
-  example, and split-library payloads out of the umbrella wheel.
-- Made clean public-install PR/push checks skip stale release-proof PyPI installs
-  when the checked-out project version is ahead of the public release proof; strict
-  scheduled and manual guardrail runs still fail closed on a broken published
-  release.
+- Published AGILAB `2026.06.04.2` to PyPI for `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.06.04.1] - 2026-06-04
 
