@@ -1,5 +1,5 @@
 [project]
-version = "2026.06.02.post1"
+version = "2026.06.04"
 name = "agi-core"
 description = "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together"
 readme = "README.md"
@@ -30,7 +30,7 @@ keywords = [
   "distributed-computing",
   "distributed-execution",
 ]
-dependencies = ["agi-env==2026.06.02.post1", "agi-node==2026.06.02.post1", "agi-cluster==2026.06.02.post1"]
+dependencies = ["agi-env==2026.06.04", "agi-node==2026.06.04", "agi-cluster==2026.06.04"]
 
 [project.entry-points."agi_env.runtime_packages"]
 agi-core = "agi_core.agi_env_runtime:RUNTIME_PACKAGE_SPEC"
@@ -42,6 +42,8 @@ Documentation = "https://thalesgroup.github.io/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+
 
 
 

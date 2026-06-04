@@ -436,19 +436,20 @@ def test_public_post_release_policy_rejects_post_release_even_with_legacy_env(mo
     assert "YYYY.MM.DD.N" in message
 
 
-def test_public_post_release_policy_accepts_same_day_hotfix_version() -> None:
+def test_public_post_release_policy_accepts_hotfix_and_rejects_dry_run_post_release() -> None:
     module = _load_pypi_publish()
     module.require_public_post_release_policy(
         _base_cfg(module, repo="pypi", git_tag=True, git_commit_version=True, git_reset_on_failure=True),
         {"agilab": "2026.05.18.1"},
     )
 
-    module.require_public_post_release_policy(
-        _base_cfg(module, repo="pypi", dry_run=True),
-        {"agilab": "2026.05.18.post1"},
-    )
+    with pytest.raises(SystemExit) as excinfo:
+        module.require_public_post_release_policy(
+            _base_cfg(module, repo="pypi", dry_run=True),
+            {"agilab": "2026.05.18.post1"},
+        )
 
-    assert "Publication would require" in capsys.readouterr().out
+    assert ".postN releases are forbidden" in str(excinfo.value)
 
 
 def test_release_preflight_profiles_only_for_real_pypi() -> None:
