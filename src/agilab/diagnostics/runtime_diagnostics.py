@@ -11,9 +11,9 @@ import tomllib
 GLOBAL_DIAGNOSTICS_ENV_KEY = "AGILAB_RUNTIME_DIAGNOSTICS_VERBOSE"
 DIAGNOSTICS_LEVELS: tuple[tuple[str, int, str], ...] = (
     ("Quiet", 0, "Show only essential progress and failures."),
-    ("Standard", 1, "Show normal progress, warnings, and concise failures."),
-    ("Detailed", 2, "Keep detailed runtime logs and filtered tracebacks."),
-    ("Debug", 3, "Keep full diagnostic output for troubleshooting."),
+    ("Standard", 1, "Show compact signal-first log summaries."),
+    ("Detailed", 2, "Add context windows around high-value log signals."),
+    ("Debug", 3, "Include full prompt-facing output only for small logs; otherwise point to raw artifacts."),
 )
 DIAGNOSTICS_OPTIONS: tuple[str, ...] = tuple(label for label, _verbose, _description in DIAGNOSTICS_LEVELS)
 DIAGNOSTICS_VERBOSE_BY_LABEL: dict[str, int] = {label: verbose for label, verbose, _description in DIAGNOSTICS_LEVELS}

@@ -147,6 +147,16 @@ Use this runbook whenever you:
   improve the error message, log context, status report, or validation output
   as part of the fix when practical. A good fix should make the next failure in
   the same area faster to classify without requiring source-code archaeology.
+- **Token-budgeted logging rule**: Treat raw stdout/stderr and long tracebacks
+  as artifacts, not default prompt/UI payloads. Default visible and agent-facing
+  logs to compact signal-first summaries: counts, bounded high-value lines,
+  latest relevant tail, and explicit omitted-line counts. Escalate to
+  context-window details or full log artifacts only when the user, PyCharm
+  debugging flow, or Codex diagnosis needs that detail. Keep the runtime
+  diagnostics levels aligned with this contract: Quiet is essential status,
+  Standard is compact signal summary, Detailed adds nearby context windows, and
+  Debug may point to raw artifacts or include full text only when the log is
+  already small enough for prompt-safe use.
 - **Dependency-bound validation rule**: When changing dependency caps or
   compatibility shims, validate the meaningful boundary versions when practical:
   the currently installed version, the new lower or upper bound, and an import

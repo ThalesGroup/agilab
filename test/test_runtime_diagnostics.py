@@ -40,6 +40,19 @@ def test_diagnostics_verbose_mapping_is_user_facing_and_bounded() -> None:
     assert runtime_diagnostics.diagnostics_widget_key("   ") == "runtime_diagnostics_level__default"
 
 
+def test_diagnostics_level_descriptions_preserve_token_budget_contract() -> None:
+    descriptions = {
+        label: description
+        for label, _verbose, description in runtime_diagnostics.DIAGNOSTICS_LEVELS
+    }
+
+    assert "essential" in descriptions["Quiet"].lower()
+    assert "compact signal-first" in descriptions["Standard"]
+    assert "context windows" in descriptions["Detailed"]
+    assert "small logs" in descriptions["Debug"]
+    assert "raw artifacts" in descriptions["Debug"]
+
+
 def test_global_diagnostics_verbose_prefers_project_agnostic_env() -> None:
     assert runtime_diagnostics.global_diagnostics_verbose(
         session_state={runtime_diagnostics.GLOBAL_DIAGNOSTICS_ENV_KEY: "3"},
