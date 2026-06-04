@@ -1012,7 +1012,10 @@ def test_orchestrate_page_support_log_filters_and_display_helpers():
     )
     assert warnings == []
     assert errors == ["Errors occurred during cluster installation:"]
-    assert code_sink.calls[-1][0][0] == "something failed"
+    rendered_log = code_sink.calls[-1][0][0]
+    assert "AGILAB compact log" in rendered_log
+    assert "something failed" in rendered_log
+    assert code_sink.calls[-1][1]["language"] == "text"
 
 
 def test_orchestrate_page_support_dataframe_state_helpers():
