@@ -130,6 +130,14 @@ organization's security requirements in mind. At minimum:
 - Treat AGILAB command execution as a trusted-operator boundary. Shared deployments should restrict
   project roots, environment variables, writable paths, and network access according to the team
   threat model.
+- Treat cluster worker SSH host identity as a deployment control. AGILAB's controller-to-worker
+  SSH and SCP paths verify host keys by default through a real ``known_hosts`` file. Seed
+  ``~/.ssh/known_hosts`` or set ``AGILAB_CLUSTER_SSH_KNOWN_HOSTS`` before cluster install/run.
+  ``AGILAB_CLUSTER_SSH_HOST_KEY_POLICY=accept-new`` is a lab-bootstrap TOFU mode, not a substitute
+  for out-of-band fingerprint verification. Prefer key-based SSH auth over passwords.
+- Treat worker app execution as trusted-code execution by design. A user who can submit or install
+  an AGILAB app can run code on the selected workers; use containers, VMs, dedicated OS users, or
+  scheduler-level isolation before accepting untrusted apps or multi-tenant submissions.
 - Run ``agilab security-check --profile shared --json`` before shared adoption reviews. The default
   ``local`` profile stays advisory for single-operator experiments; ``shared``, ``cluster``, and
   ``public-ui`` promote deployment-boundary issues to failures so ``--strict`` can be used as a real

@@ -2,7 +2,6 @@ import logging
 import os
 import shlex
 import shutil
-import socket
 from ipaddress import ip_address as is_ip
 from pathlib import Path
 from tempfile import mkdtemp
@@ -54,7 +53,10 @@ async def _remote_uv_python_available(
     remote_command_failures: tuple[type[BaseException], ...],
 ) -> bool:
     try:
-        await run_exec_ssh_fn(ip, f"{uv} python find {pyvers}")
+        await run_exec_ssh_fn(
+            ip,
+            deployment_remote_support._remote_command(uv, "python", "find", pyvers),
+        )
     except remote_command_failures:
         return False
     return True
@@ -83,6 +85,12 @@ def _staged_uv_powershell_install_command() -> str:
         "Remove-Item -Force $p"
         '"'
     )
+
+
+def _remote_python_makedirs_command(uv: str, path: Path) -> str:
+    remote_path = path.as_posix()
+    script = f"import os; os.makedirs({remote_path!r}, exist_ok=True)"
+    return deployment_remote_support._remote_command(uv, "run", "python", "-c", script)
 
 
 async def uninstall_modules(agi_cls: Any, env: AgiEnv, *, run_fn: Callable[..., Any] = AgiEnv.run, log: Any = logger) -> None:
@@ -215,7 +223,6 @@ async def prepare_cluster_env(
     log: Any = logger,
 ) -> None:
     list_ip = set(list(agi_cls._workers) + [agi_cls._get_scheduler(scheduler_addr)[0]])
-    localhost_ip = socket.gethostbyname("localhost")
     env = agi_cls.env
     dist_rel = env.dist_rel
     wenv_rel = env.wenv_rel
@@ -275,15 +282,16 @@ async def prepare_cluster_env(
         if cmd_prefix is None:
             cmd_prefix = await detect_export_cmd_fn(ip)
             set_env_var_fn(f"{ip}_CMD_PREFIX", cmd_prefix)
-        uv_is_installed = True
-
         agi_internet_on = 1 if envar_truthy_fn(env.envars, "AGI_INTERNET_ON") else 0
+        uv_probe = deployment_remote_support._remote_tool(cmd_prefix, env.uv)
         try:
-            await run_exec_ssh_fn(ip, f"{cmd_prefix}{env.uv} --version")
+            await run_exec_ssh_fn(
+                ip,
+                deployment_remote_support._remote_command(uv_probe, "--version"),
+            )
         except ConnectionError:
             raise
         except remote_command_failures:
-            uv_is_installed = False
             if agi_internet_on == 0:
                 log.error("Uv binary is not installed, please install it manually on the workers.")
                 raise EnvironmentError("Uv binary is not installed, please install it manually on the workers.")
@@ -293,26 +301,26 @@ async def prepare_cluster_env(
                     ip,
                     _staged_uv_powershell_install_command(),
                 )
-                uv_is_installed = True
             except ConnectionError:
                 raise
             except remote_command_failures:
-                uv_is_installed = False
                 await run_exec_ssh_fn(ip, _staged_uv_install_command())
-                uv_is_installed = True
 
         if agi_internet_on == 1 and _uv_self_update_enabled(env.envars, envar_truthy_fn):
             try:
-                await run_exec_ssh_fn(ip, f"{cmd_prefix}{env.uv} self update")
+                await run_exec_ssh_fn(
+                    ip,
+                    deployment_remote_support._remote_command(uv_probe, "self", "update"),
+                )
             except remote_command_failures as exc:
                 log.warning("Failed to update uv on %s (skipping self update): %s", ip, exc)
         elif agi_internet_on != 1:
             log.warning("You appears to be on a local network. Please be sure to have uv latest release.")
 
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
-        uv = cmd_prefix + env.uv
+        uv = deployment_remote_support._remote_tool(cmd_prefix, env.uv)
 
-        cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel.parents[1]}', exist_ok=True)\""
+        cmd = _remote_python_makedirs_command(uv, dist_rel.parents[1])
         await run_exec_ssh_fn(ip, cmd)
 
         if await _remote_uv_python_available(
@@ -325,7 +333,15 @@ async def prepare_cluster_env(
             log.info("[%s] Python interpreter '%s' is already available to uv; skipping install.", ip, pyvers_worker)
         else:
             try:
-                await run_exec_ssh_fn(ip, f"{uv} python install {pyvers_worker}")
+                await run_exec_ssh_fn(
+                    ip,
+                    deployment_remote_support._remote_command(
+                        uv,
+                        "python",
+                        "install",
+                        pyvers_worker,
+                    ),
+                )
             except process_error_type as exc:
                 if "No download found for request" in str(exc):
                     log.warning(
@@ -341,7 +357,7 @@ async def prepare_cluster_env(
         await kill_fn(ip, force=True)
         await clean_dirs_fn(ip)
 
-        cmd = f"{uv} run python -c \"import os; os.makedirs('{dist_rel}', exist_ok=True)\""
+        cmd = _remote_python_makedirs_command(uv, dist_rel)
         await run_exec_ssh_fn(ip, cmd)
 
         files_to_send: list[Path] = []

@@ -95,6 +95,17 @@ is classified by SSH BatchMode auth, operating system, ``python3``, ``uv``,
 ``sshfs``, and reverse SSH back to the scheduler when ``--scheduler`` is
 provided.
 
+Discovery is not a trust decision. Before running ``INSTALL`` or sending files
+to a remote worker, verify each worker host-key fingerprint out of band and pin
+it in the manager user's SSH ``known_hosts`` file. Controller-to-worker SSH and
+SCP default to strict host-key verification using ``~/.ssh/known_hosts``. To use
+a separate file, set ``AGILAB_CLUSTER_SSH_KNOWN_HOSTS=/path/to/known_hosts``.
+For controlled lab bootstrap only, ``AGILAB_CLUSTER_SSH_HOST_KEY_POLICY=accept-new``
+learns an unseen host key into that file on first use; use it only on a trusted
+network after confirming the machine identity. Prefer key-based auth. Password
+auth works, but a wrong or unpinned host-key setup can expose the password to an
+impersonating host.
+
 Windows managers can run discovery when the OpenSSH client is installed; AGILAB
 parses Windows ``ipconfig`` and ``arp -a`` output to find local LAN candidates.
 Windows remote workers are not covered by this cluster proof yet. Worker
@@ -291,6 +302,10 @@ worker:
    $workerHost = "<worker-host>"
    New-Item -ItemType Directory -Force "$HOME\.ssh" | Out-Null
    ssh-keyscan -H -t ed25519,rsa,ecdsa $workerHost | Out-File -Append -Encoding ascii "$HOME\.ssh\known_hosts"
+
+If you keep cluster host keys outside the default OpenSSH file, set
+``AGILAB_CLUSTER_SSH_KNOWN_HOSTS`` to that file before running AGILAB from
+PowerShell.
 
 Windows as a remote cluster worker is a separate support target and is not
 covered by the automatic SSHFS setup today. The generated remote setup commands
