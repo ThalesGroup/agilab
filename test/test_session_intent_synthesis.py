@@ -127,7 +127,12 @@ def test_session_rule_proposals_detect_candidates_and_existing_rules(tmp_path: P
                 "payload": {
                     "type": "message",
                     "role": "user",
-                    "content": [{"type": "input_text", "text": "do it + next move is cheaper"}],
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "do it; validate; push if clean; merge it; then next move",
+                        }
+                    ],
                 },
             },
             {
@@ -135,7 +140,12 @@ def test_session_rule_proposals_detect_candidates_and_existing_rules(tmp_path: P
                 "payload": {
                     "type": "message",
                     "role": "user",
-                    "content": [{"type": "input_text", "text": "do it + next move is cheaper"}],
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "do it; validate; push if clean; merge it; then next move",
+                        }
+                    ],
                 },
             },
             {
@@ -154,8 +164,8 @@ def test_session_rule_proposals_detect_candidates_and_existing_rules(tmp_path: P
         memory_paths=[],
         rule_surface_texts={
             "AGENT_LEARNINGS.md": (
-                "When the user combines execution and follow-up planning in one message, "
-                "treat it as an ordered single turn."
+                "When the user combines execution, validation, publish, merge, and "
+                "follow-up planning in one message, treat it as an ordered single turn."
             )
         },
         min_observations=1,
@@ -164,7 +174,9 @@ def test_session_rule_proposals_detect_candidates_and_existing_rules(tmp_path: P
     by_id = {proposal["id"]: proposal for proposal in payload["proposals"]}
     assert by_id["combined_execution_followup"]["status"] == "already-covered"
     assert by_id["combined_execution_followup"]["observations"] == 2
-    assert by_id["combined_execution_followup"]["redacted_examples"] == ["do it + next move is cheaper"]
+    assert by_id["combined_execution_followup"]["redacted_examples"] == [
+        "do it; validate; push if clean; merge it; then next move"
+    ]
     assert by_id["combined_execution_followup"]["duplicate_paths"] == ["AGENT_LEARNINGS.md"]
     assert by_id["explicit_rule_request"]["status"] == "candidate"
     assert "<redacted>" in json.dumps(by_id["explicit_rule_request"])

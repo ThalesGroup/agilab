@@ -44,7 +44,9 @@ is not a scratchpad or task log.
   explain that `Deploy workers` still calls `AGI.install` because it prepares
   manager/worker runtime environments and reuses an already-ready local manager
   environment instead of forcing a reinstall.
-- When the user combines execution and follow-up planning in one message, such
-  as `do it; then next move`, treat it as an ordered single turn. Execute,
-  validate, report the result, and provide the next recommendation without
-  requiring a second user round trip unless a real blocker needs input.
+- When the user combines execution, validation, publish, merge, and follow-up
+  planning in one message, such as `do it; validate; push if clean; merge it;
+  then next move`, treat it as an ordered single turn. Execute each explicit
+  step after its safety gate, report the result, and provide the next
+  recommendation without requiring a second user round trip unless a real
+  blocker needs input.
