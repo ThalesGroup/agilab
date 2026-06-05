@@ -22,8 +22,10 @@ from pytorch_playground.core import (
     _empty_loss_landscape,
     _json_bytes,
     _loss_landscape,
+    _loss_landscape_from_trained,
     _loss_landscape_summary,
     _train_playground,
+    _train_playground_core,
 )
 from pytorch_playground.reduction import write_reduce_artifact
 
@@ -131,11 +133,19 @@ class PytorchPlaygroundWorker(PandasWorker):
     def work_pool(self, _work_item):
         args = self._current_args()
         config = to_playground_config(args)
-        result = _train_playground(config)
+        result, model, loss_fn, training_data = _train_playground_core(config)
         loss_landscape = _empty_loss_landscape()
-        if args.compute_loss_landscape and result.get("status") == "ok":
-            landscape_result = _loss_landscape(
+        if (
+            args.compute_loss_landscape
+            and result.get("status") == "ok"
+            and model is not None
+        ):
+            # Reuse the model trained above; do not retrain from scratch.
+            landscape_result = _loss_landscape_from_trained(
                 config,
+                model,
+                loss_fn,
+                training_data,
                 resolution=args.landscape_resolution,
                 span=args.landscape_span,
             )

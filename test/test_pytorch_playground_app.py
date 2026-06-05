@@ -4159,13 +4159,13 @@ def test_pytorch_playground_worker_helper_and_dispatch_edges(
     )
     monkeypatch.setattr(
         worker_module,
-        "_train_playground",
-        lambda _config: {"status": "ok", "summary": {"backend": "fake"}},
+        "_train_playground_core",
+        lambda _config: ({"status": "ok", "summary": {"backend": "fake"}}, object(), object(), {}),
     )
     monkeypatch.setattr(
         worker_module,
-        "_loss_landscape",
-        lambda _config, **_kwargs: {
+        "_loss_landscape_from_trained",
+        lambda _config, _model, _loss_fn, _training_data, **_kwargs: {
             "loss_landscape": landscape,
             "landscape_summary": {"status": "ok", "points": 1},
         },

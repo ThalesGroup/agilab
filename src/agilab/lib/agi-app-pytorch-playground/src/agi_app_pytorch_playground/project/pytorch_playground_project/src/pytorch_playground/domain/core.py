@@ -888,23 +888,34 @@ def _live_training_result(state: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _train_playground(config: PlaygroundConfig) -> dict[str, Any]:
+    return _train_playground_core(config)[0]
+
+
+def _train_playground_core(
+    config: PlaygroundConfig,
+) -> tuple[dict[str, Any], Any, Any, Mapping[str, Any] | None]:
     if torch is None or nn is None:
         samples = _make_dataset(config)
-        return {
-            "status": "missing_torch",
-            "detail": "Install the app dependencies to enable PyTorch training.",
-            "samples": samples,
-            "history": pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
-            "grid": pd.DataFrame(columns=["x1", "x2", "probability"]),
-            "boundary_snapshots": _empty_boundary_snapshots(),
-            "network_layers": _empty_network_layers(),
-            "activation_maps": _empty_activation_maps(),
-            "summary": {
-                "backend": "missing",
-                "samples": int(len(samples)),
-                "features": int(len(config.feature_names)),
+        return (
+            {
+                "status": "missing_torch",
+                "detail": "Install the app dependencies to enable PyTorch training.",
+                "samples": samples,
+                "history": pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
+                "grid": pd.DataFrame(columns=["x1", "x2", "probability"]),
+                "boundary_snapshots": _empty_boundary_snapshots(),
+                "network_layers": _empty_network_layers(),
+                "activation_maps": _empty_activation_maps(),
+                "summary": {
+                    "backend": "missing",
+                    "samples": int(len(samples)),
+                    "features": int(len(config.feature_names)),
+                },
             },
-        }
+            None,
+            None,
+            None,
+        )
 
     torch.manual_seed(config.seed)
     training_data = _prepare_training_data(config)
@@ -912,13 +923,13 @@ def _train_playground(config: PlaygroundConfig) -> dict[str, Any]:
     features = training_data["features"]
     mean = training_data["mean"]
     std = training_data["std"]
-    model, _loss_fn, history, snapshot_states = _fit_model(config, training_data)
+    model, loss_fn, history, snapshot_states = _fit_model(config, training_data)
     grid = _decision_grid(model, config, mean, std)
     boundary_snapshots = _boundary_snapshots(model, config, mean, std, snapshot_states)
     network_layers = _network_layers(model)
     activation_maps = _hidden_activation_maps(model, config, mean, std)
     final = history.iloc[-1].to_dict() if not history.empty else {}
-    return {
+    result = {
         "status": "ok",
         "detail": "",
         "samples": samples,
@@ -939,7 +950,7 @@ def _train_playground(config: PlaygroundConfig) -> dict[str, Any]:
             "validation_loss": float(final.get("validation_loss", 0.0)),
         },
     }
-
+    return result, model, loss_fn, training_data
 
 def _append_history_row(
     rows: list[dict[str, float | int]],
@@ -1077,6 +1088,20 @@ def _loss_landscape(config: PlaygroundConfig, *, resolution: int = 21, span: flo
     torch.manual_seed(config.seed)
     training_data = _prepare_training_data(config)
     model, loss_fn, _history, _snapshot_states = _fit_model(config, training_data)
+    return _loss_landscape_from_trained(
+        config, model, loss_fn, training_data, resolution=resolution, span=span
+    )
+
+
+def _loss_landscape_from_trained(
+    config: PlaygroundConfig,
+    model,
+    loss_fn,
+    training_data: Mapping[str, Any],
+    *,
+    resolution: int = 21,
+    span: float = 0.75,
+) -> dict[str, Any]:
     center = _model_state_vector(model)
     first_direction, second_direction = _landscape_directions(center, config.seed)
     resolution = _normalized_landscape_resolution(resolution)
