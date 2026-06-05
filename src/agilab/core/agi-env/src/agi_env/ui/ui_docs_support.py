@@ -7,7 +7,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from agi_env.package_layout_support import resolve_package_dir_from_module_file
+from agi_env.runtime.package_layout_support import resolve_package_dir_from_module_file
 
 
 ONLINE_DOCS_INDEX = "https://thalesgroup.github.io/agilab/index.html"

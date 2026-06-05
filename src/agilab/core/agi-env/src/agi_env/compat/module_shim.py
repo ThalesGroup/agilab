@@ -6,6 +6,7 @@ import importlib
 import importlib.util
 import runpy
 import sys
+from pathlib import Path
 from types import ModuleType
 
 
@@ -59,7 +60,7 @@ def _execute_target_in_current_module(current_name: str, target_name: str) -> Mo
     current_module.__dict__["__file__"] = spec.origin
     current_module.__dict__["__package__"] = target_package
     source = compile(
-        open(spec.origin, encoding="utf-8").read(),
+        Path(spec.origin).read_text(encoding="utf-8"),
         spec.origin,
         "exec",
     )

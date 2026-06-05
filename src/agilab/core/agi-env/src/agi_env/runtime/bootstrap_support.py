@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Sequence
 
-from agi_env.app_provider_registry import resolve_app_runtime_target, resolve_installed_app_project
+from agi_env.project.app_provider_registry import resolve_app_runtime_target, resolve_installed_app_project
 
 
 @dataclass(frozen=True)

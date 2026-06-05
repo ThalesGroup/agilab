@@ -63,7 +63,7 @@ from .ui_support import (
     store_last_active_app,
     with_anchor as _with_anchor,
 )
-from agi_env.source_analysis_support import (
+from agi_env.source.source_analysis_support import (
     get_class_methods as extract_class_methods,
     get_classes_name as extract_class_names,
     get_functions_and_attributes,

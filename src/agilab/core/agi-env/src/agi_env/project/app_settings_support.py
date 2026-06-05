@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 from typing import Any, Callable
 
-from agi_env.env_config_support import clean_envar_value
+from agi_env.runtime.env_config_support import clean_envar_value
 
 APP_SETTINGS_META_KEY = "__meta__"
 APP_SETTINGS_SCHEMA = "agilab.app_settings.v1"

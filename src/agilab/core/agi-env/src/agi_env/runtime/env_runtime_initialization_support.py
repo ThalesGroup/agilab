@@ -3,10 +3,10 @@
 from pathlib import Path
 from typing import Callable, Mapping, MutableMapping
 
-from agi_env.connector_registry import resolve_connector_root
-from agi_env.credential_store_support import read_cluster_credentials
-from agi_env.defaults import get_default_openai_model
-from agi_env.env_config_support import clean_envar_value
+from agi_env.integrations.connector_registry import resolve_connector_root
+from agi_env.integrations.credential_store_support import read_cluster_credentials
+from agi_env.runtime.defaults import get_default_openai_model
+from agi_env.runtime.env_config_support import clean_envar_value
 
 
 def initialize_app_runtime(

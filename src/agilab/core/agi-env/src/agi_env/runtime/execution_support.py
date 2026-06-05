@@ -13,8 +13,8 @@ import traceback
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from agi_env.agi_logger import AgiLogger
-from agi_env.process_support import (
+from agi_env.runtime.agi_logger import AgiLogger
+from agi_env.runtime.process_support import (
     apply_inline_path_export,
     build_subprocess_env,
     command_failure_hint,

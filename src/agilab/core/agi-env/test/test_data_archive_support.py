@@ -65,6 +65,48 @@ def test_unzip_data_raises_runtime_error_on_extract_failure(tmp_path: Path):
         )
 
 
+def test_unzip_data_rejects_archive_member_path_traversal(tmp_path: Path):
+    archive = tmp_path / "demo.7z"
+    archive.write_bytes(b"7z")
+    logger = mock.Mock()
+    extracted = False
+
+    class _UnsafeSevenZip:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def getnames(self):
+            return ["dataset/good.csv", "../evil.txt"]
+
+        def extractall(self, path):
+            nonlocal extracted
+            extracted = True
+
+    with pytest.raises(RuntimeError, match="Unsafe archive member path"):
+        unzip_data(
+            archive,
+            extract_to="dataset/demo",
+            app_data_rel="demo",
+            agi_share_path_abs=tmp_path / "share",
+            user=Path.home().name,
+            home_abs=Path.home(),
+            verbose=0,
+            logger=logger,
+            force_extract=True,
+            ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+            sevenzip_file_cls=_UnsafeSevenZip,
+            rmtree_fn=lambda *_a, **_k: None,
+        )
+
+    assert extracted is False
+
+
 def test_py7zr_archive_error_resolution_handles_missing_package_exceptions_attr():
     class _ArchiveError(Exception):
         pass
