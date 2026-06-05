@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-05T22:32:51Z",
+  "generated_at_utc": "2026-06-05T22:41:43Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 15,
     "agent_skill_count": 33,
-    "evidence_schema_count": 217,
+    "evidence_schema_count": 218,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -903,7 +903,7 @@
       "name": "codex-session-learning",
       "description": "Turn past Codex debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from prior sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.",
       "path": ".claude/skills/codex-session-learning/SKILL.md",
-      "updated": "2026-04-16"
+      "updated": "2026-06-06"
     },
     {
       "name": "docs-publish-github-pages",
@@ -2207,6 +2207,12 @@
     },
     {
       "schema": "agilab.session_intent_synthesis.v1",
+      "sources": [
+        "tools/session_intent_synthesis.py"
+      ]
+    },
+    {
+      "schema": "agilab.session_rule_proposals.v1",
       "sources": [
         "tools/session_intent_synthesis.py"
       ]

@@ -95,7 +95,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # Chat Export ## Overview Use this skill to turn a chat transcript into a reusable artifact with stable structure. Prefer the bundled script for file-based exports and repeated transformations.
 - codex-session-learning: Turn past Codex debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from prior sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory. (.claude/skills/codex-session-learning/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-04-16
+  updated: 2026-06-06
   preview: # Codex Session Learning Use this skill to convert prior Codex work into explicit reusable assets. The goal is not to pretend the agent has hidden long-term memory. The goal is to extract structured cases, reusable prompt patterns, and validation rules from
 - docs-publish-github-pages: Review, fix, and validate docs publishing workflows for GitHub Pages. Use this skill when a user needs a docs deploy workflow corrected, wants versioning behavior explained, needs publish triggers adjusted, or wants a Pages deployment flow verified end to end. (.claude/skills/docs-publish-github-pages/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
