@@ -319,15 +319,26 @@ def build_classroom_intervention_plan(
     """Return deterministic teacher actions for a live classroom run."""
 
     normalized_rows = [_normalize_progress_row(row) for row in rows]
-    student_rows = _aggregate_student_rows(normalized_rows)
-    curriculum_rows = sorted(
-        _aggregate_rows(normalized_rows, key="curriculum_ids"),
-        key=lambda row: (float(row["average_score"]), -int(row["needs_attention_count"]), str(row["curriculum_ids"])),
+    return _intervention_actions_from_aggregates(
+        student_rows=_aggregate_student_rows(normalized_rows),
+        curriculum_rows=_aggregate_rows(normalized_rows, key="curriculum_ids"),
+        exercise_rows=_aggregate_rows(normalized_rows, key="exercise_id"),
+        max_rows=max_rows,
     )
-    exercise_rows = sorted(
-        _aggregate_rows(normalized_rows, key="exercise_id"),
-        key=lambda row: (float(row["average_score"]), -int(row["needs_attention_count"]), str(row["exercise_id"])),
-    )
+
+
+def _intervention_actions_from_aggregates(
+    *,
+    student_rows: Sequence[Mapping[str, Any]],
+    curriculum_rows: Sequence[Mapping[str, Any]],
+    exercise_rows: Sequence[Mapping[str, Any]],
+    max_rows: int = 12,
+) -> list[dict[str, Any]]:
+    """Build teacher actions from already-aggregated classroom rows.
+
+    The final result is fully re-sorted below, so the order of the aggregate
+    inputs does not affect the output.
+    """
 
     actions: list[dict[str, Any]] = []
     for row in student_rows:
@@ -444,7 +455,13 @@ def build_classroom_run_report_from_rows(rows: Sequence[Mapping[str, Any]]) -> d
     ]
     needs_attention = [row for row in rows if bool(row["needs_attention"])]
     student_rows = _aggregate_student_rows(rows)
-    intervention_rows = build_classroom_intervention_plan(rows)
+    case_rows = _aggregate_rows(rows, key="exercise_id")
+    curriculum_rows = _aggregate_rows(rows, key="curriculum_ids")
+    intervention_rows = _intervention_actions_from_aggregates(
+        student_rows=student_rows,
+        curriculum_rows=curriculum_rows,
+        exercise_rows=case_rows,
+    )
     unique_students = sorted({str(row["student_ref"]) for row in rows if row["student_ref"]})
     class_ids = sorted({str(row["class_id"]) for row in rows if row["class_id"]})
     session_ids = sorted({str(row["session_id"]) for row in rows if row["session_id"]})
@@ -462,8 +479,8 @@ def build_classroom_run_report_from_rows(rows: Sequence[Mapping[str, Any]]) -> d
         "heatmap_rows": heatmap_rows,
         "needs_attention_rows": needs_attention,
         "student_rows": student_rows,
-        "case_rows": _aggregate_rows(rows, key="exercise_id"),
-        "curriculum_rows": _aggregate_rows(rows, key="curriculum_ids"),
+        "case_rows": case_rows,
+        "curriculum_rows": curriculum_rows,
         "intervention_rows": intervention_rows,
         "live_status": {
             "status": "attention_needed" if needs_attention else "on_track",

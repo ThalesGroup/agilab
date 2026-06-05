@@ -156,19 +156,36 @@ class TesciaDiagnosticWorker(PandasWorker):
             )
         return pd.DataFrame(rows)
 
-    def _write_artifact_bundle(self, root: Path, df: pd.DataFrame) -> None:
-        root.mkdir(parents=True, exist_ok=True)
-        summaries: list[dict[str, Any]] = []
-        reports: list[dict[str, Any]] = []
-        correction_paths: list[Path] = []
+    @staticmethod
+    def _materialize_rows(df: pd.DataFrame) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+        """Parse each DataFrame row once into a (report, summary) pair.
+
+        Done once and reused across every artifact bundle so the report JSON is
+        not re-parsed per output directory.
+        """
+
+        materialized: list[tuple[dict[str, Any], dict[str, Any]]] = []
         for _, row in df.iterrows():
             report = json.loads(str(row["report_json"]))
-            reports.append(report)
             summary = {
                 key: row[key].item() if hasattr(row[key], "item") else row[key]
                 for key in row.index
                 if key != "report_json"
             }
+            materialized.append((report, summary))
+        return materialized
+
+    def _write_artifact_bundle(
+        self,
+        root: Path,
+        materialized: list[tuple[dict[str, Any], dict[str, Any]]],
+    ) -> None:
+        root.mkdir(parents=True, exist_ok=True)
+        summaries: list[dict[str, Any]] = []
+        reports: list[dict[str, Any]] = []
+        correction_paths: list[Path] = []
+        for report, summary in materialized:
+            reports.append(report)
             summaries.append(summary)
             stem = _sanitize_slug(str(summary["case_id"]))
             run_root = root / stem
@@ -208,8 +225,9 @@ class TesciaDiagnosticWorker(PandasWorker):
     def work_done(self, df: pd.DataFrame | None = None) -> None:
         if df is None or df.empty:
             return
-        self._write_artifact_bundle(Path(self.data_out), df)
-        self._write_artifact_bundle(self.artifact_dir, df)
+        materialized = self._materialize_rows(df)
+        self._write_artifact_bundle(Path(self.data_out), materialized)
+        self._write_artifact_bundle(self.artifact_dir, materialized)
         logger.info("wrote TeSciA diagnostic artifacts for %s cases", len(df))
 
 
