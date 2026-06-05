@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-02
+  updated: 2026-06-06
 ---
 
 # Testing Skill (AGILAB)
@@ -33,6 +33,18 @@ Use this skill when validating changes.
 - When multiple AGILAB skills are active in the same turn, build one validation
   plan from the final changed-file set instead of running each skill's checks
   independently.
+- Prefer the default compact `./dev <shortcut>` output for agent-facing
+  validation. It writes the full stdout/stderr stream to ignored
+  `reports/dev-logs/` artifacts and prints only a bounded signal summary, which
+  keeps prompt context focused without losing evidence.
+- Use `--raw-output` or `AGILAB_DEV_OUTPUT=raw` only when a human debugging
+  session, wrapper, or downstream tool must consume the live raw stream or raw
+  JSON. For normal diagnosis, inspect the cited `reports/dev-logs/...` artifact
+  instead of pasting full logs into the prompt.
+- If the compact summary says lines were omitted, treat that as a pointer to
+  the log artifact, not as proof that no root cause exists. Expand bounded
+  context with `--summary-lines N` or `AGILAB_DEV_SUMMARY_LINES=N` before
+  escalating to raw output.
 - Run `tools/impact_validate.py` once per stable diff. Reuse its output if no
   files changed since the previous run; rerun only after edits that alter the
   impact surface.
