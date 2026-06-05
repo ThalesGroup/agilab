@@ -616,19 +616,29 @@ def test_tescia_data_scientist_2026_cases_are_scored_and_current(monkeypatch) ->
 
     from tescia_diagnostic import diagnose_case
 
+    expected_fixes = {
+        "data_scientist_2026_python_pandas_modernization": "replace_legacy_python_pandas_items",
+        "data_scientist_2026_model_evaluation_leakage": "pipeline_cv_metric_threshold_gate",
+        "data_scientist_2026_scaling_feature_pipeline": "profile_partition_then_select_engine",
+        "data_scientist_2026_genai_rag_governance": "add_rag_eval_and_risk_gates",
+        "data_scientist_2026_inference_optimization": "benchmark_compression_with_runtime_gates",
+        "data_scientist_2026_retrieval_layer_design": "build_retrieval_layer_eval_first",
+        "data_scientist_2026_agent_memory_schema": "schema_versioned_memory_with_eval",
+        "data_scientist_2026_llm_evaluation_methods": "layered_llm_eval_with_calibrated_judge",
+        "data_scientist_2026_conformal_drift_uncertainty": "calibrate_conformal_and_monitor_shift",
+        "data_scientist_2026_token_inference_cost_stack": (
+            "measure_cache_prune_and_decode_with_quality_gate"
+        ),
+        "data_scientist_2026_data_centric_limited_labels": "audit_labels_then_select_data_strategy",
+        "data_scientist_2026_open_weight_llm_architecture_review": "architecture_workload_review_gate",
+    }
     cases = {
         str(case["case_id"]): case
         for case in _load_cases()
         if str(case["case_id"]).startswith("data_scientist_2026_")
     }
 
-    assert set(cases) == {
-        "data_scientist_2026_python_pandas_modernization",
-        "data_scientist_2026_model_evaluation_leakage",
-        "data_scientist_2026_scaling_feature_pipeline",
-        "data_scientist_2026_genai_rag_governance",
-        "data_scientist_2026_inference_optimization",
-    }
+    assert set(cases) == set(expected_fixes)
     assert {case["learner_level"] for case in cases.values()} == {"data-scientist candidate"}
     assert all("data-science-2026" in case["topic_tags"] for case in cases.values())
     assert "pandas.concat" in cases["data_scientist_2026_python_pandas_modernization"]["root_cause"]
@@ -637,23 +647,25 @@ def test_tescia_data_scientist_2026_cases_are_scored_and_current(monkeypatch) ->
     assert "Ray Data" in cases["data_scientist_2026_scaling_feature_pipeline"]["root_cause"]
     assert "prompt-injection" in cases["data_scientist_2026_genai_rag_governance"]["root_cause"]
     assert "quantization" in cases["data_scientist_2026_inference_optimization"]["root_cause"]
+    assert "reranking" in cases["data_scientist_2026_retrieval_layer_design"]["root_cause"]
+    assert "Graph RAG" in cases["data_scientist_2026_retrieval_layer_design"]["root_cause"]
+    assert "episodic, semantic, procedural" in cases["data_scientist_2026_agent_memory_schema"]["root_cause"]
+    assert "calibrated LLM judges" in cases["data_scientist_2026_llm_evaluation_methods"]["root_cause"]
+    assert "conformal prediction coverage" in cases[
+        "data_scientist_2026_conformal_drift_uncertainty"
+    ]["root_cause"]
+    assert "prompt caching" in cases["data_scientist_2026_token_inference_cost_stack"]["root_cause"]
+    assert "speculative decoding" in cases["data_scientist_2026_token_inference_cost_stack"]["root_cause"]
+    assert "self-supervised pretraining" in cases[
+        "data_scientist_2026_data_centric_limited_labels"
+    ]["root_cause"]
+    assert "KV-cache" in cases["data_scientist_2026_open_weight_llm_architecture_review"]["root_cause"]
 
     reports = {case_id: diagnose_case(case) for case_id, case in cases.items()}
-    assert reports["data_scientist_2026_python_pandas_modernization"]["selected_fix"]["id"] == (
-        "replace_legacy_python_pandas_items"
-    )
-    assert reports["data_scientist_2026_model_evaluation_leakage"]["selected_fix"]["id"] == (
-        "pipeline_cv_metric_threshold_gate"
-    )
-    assert reports["data_scientist_2026_scaling_feature_pipeline"]["selected_fix"]["id"] == (
-        "profile_partition_then_select_engine"
-    )
-    assert reports["data_scientist_2026_genai_rag_governance"]["selected_fix"]["id"] == (
-        "add_rag_eval_and_risk_gates"
-    )
-    assert reports["data_scientist_2026_inference_optimization"]["selected_fix"]["id"] == (
-        "benchmark_compression_with_runtime_gates"
-    )
+    assert {
+        case_id: report["selected_fix"]["id"]
+        for case_id, report in reports.items()
+    } == expected_fixes
     assert all(report["self_evaluation"]["score_band"] == "excellent" for report in reports.values())
 
 
@@ -946,6 +958,13 @@ def test_tescia_app_surface_catalog_answer_and_authoring_helpers(monkeypatch) ->
         "data_scientist_2026_scaling_feature_pipeline",
         "data_scientist_2026_genai_rag_governance",
         "data_scientist_2026_inference_optimization",
+        "data_scientist_2026_retrieval_layer_design",
+        "data_scientist_2026_agent_memory_schema",
+        "data_scientist_2026_llm_evaluation_methods",
+        "data_scientist_2026_conformal_drift_uncertainty",
+        "data_scientist_2026_token_inference_cost_stack",
+        "data_scientist_2026_data_centric_limited_labels",
+        "data_scientist_2026_open_weight_llm_architecture_review",
     }
 
     answer = module.build_student_answer(

@@ -8,10 +8,12 @@ workflow.
 
 Use this app to convert support/debugging reasoning into structured evidence:
 symptoms, assumptions, root cause, stronger fix, regression plan, student score,
-and classroom intervention signals. The bundled catalog also includes a 2026
-data-scientist interview evaluation inspired by the legacy QCM format: modern
-Python/pandas practice, leakage-free model evaluation, scaling choices, RAG
-governance, and inference optimization.
+and classroom intervention signals. The bundled catalog also includes a 12-case
+2026 data-scientist interview evaluation inspired by the legacy QCM format and
+current AI-engineering interview practice: modern Python/pandas workflows,
+leakage-free model evaluation, scaling choices, RAG retrieval design, agent
+memory, LLM evaluation, uncertainty and drift, data-centric limited-label
+strategy, open-weight model review, and inference or token-cost optimization.
 
 ## What You Learn
 
@@ -21,8 +23,9 @@ governance, and inference optimization.
 - How student answers produce `student_score`, feedback, and correction sheets.
 - How classroom batches can be split into worker-friendly independent rows.
 - How curriculum coverage is audited from explicit metadata.
-- How a data-scientist interview bank can be refreshed without relying on
-  outdated library APIs or unverified model claims.
+- How a data-scientist interview bank can be refreshed as compact
+  one-concept, one-trap, one-proof scenarios without relying on outdated
+  library APIs or unverified model claims.
 
 ## Run In AGILAB
 

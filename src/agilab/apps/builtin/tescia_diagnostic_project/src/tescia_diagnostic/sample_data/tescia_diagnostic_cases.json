@@ -1553,6 +1553,726 @@
         ],
         "confidence": 0.88
       }
+    },
+    {
+      "case_id": "data_scientist_2026_retrieval_layer_design",
+      "title": "Design the retrieval layer before adding agents",
+      "difficulty": "advanced",
+      "topic_tags": [
+        "data-science-2026",
+        "rag",
+        "retrieval",
+        "vector-search",
+        "reranking",
+        "graph-rag"
+      ],
+      "estimated_minutes": 40,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A support assistant returns plausible but poorly grounded answers. Decide whether to move to Graph RAG, agentic RAG, or a measured retrieval-layer redesign.",
+      "symptom": "The current system chunks PDFs by fixed character count, retrieves top-4 dense vectors with no metadata filters, no reranker, no permission boundary, and no golden set, then the candidate proposes adding an agent planner as the first fix.",
+      "proposed_diagnosis": "The RAG pipeline is too simple; moving to agentic Graph RAG should solve the retrieval failures.",
+      "root_cause": "The weak point is the unmeasured retrieval layer, not the absence of agents; a current answer should evaluate chunking, metadata filters, hybrid or vector retrieval, reranking, context assembly, permission checks, and top-k recall before escalating to Graph RAG or agentic RAG for genuine multi-hop, relationship-heavy, or tool-use workflows.",
+      "plain_repro": "Run a retrieval golden set with expected document ids and answer spans, compare fixed chunks versus structure-aware chunks, test metadata filters, add a reranker, and measure recall, precision, latency, and context-token budget before adding an agent loop.",
+      "weak_assumptions": [
+        "Agentic RAG fixes poor retrieval evidence automatically.",
+        "Graph RAG is always better than dense retrieval for enterprise documents.",
+        "Top-k vector similarity is enough without filters, reranking, or permission checks."
+      ],
+      "evidence": [
+        {
+          "id": "no_retrieval_golden_set",
+          "description": "There is no question set mapped to expected documents, spans, or negative cases.",
+          "confidence": 0.94,
+          "relevance": 0.96
+        },
+        {
+          "id": "chunking_strategy_unmeasured",
+          "description": "Fixed-size chunks were chosen without comparing structure-aware chunks, overlap, or parent-document context.",
+          "confidence": 0.9,
+          "relevance": 0.88
+        },
+        {
+          "id": "missing_filters_and_reranker",
+          "description": "The retrieval path ignores metadata filters, access-control constraints, and candidate reranking.",
+          "confidence": 0.91,
+          "relevance": 0.93
+        },
+        {
+          "id": "context_budget_unbounded",
+          "description": "Retrieved context is not tracked against token budget, latency, or answer quality.",
+          "confidence": 0.86,
+          "relevance": 0.82
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "build_retrieval_layer_eval_first",
+          "summary": "Instrument the retrieval layer with goldens, chunking variants, filters, reranking, access checks, context budgeting, and escalation criteria for graph or agentic routing.",
+          "expected_impact": 0.94,
+          "blast_radius": 0.35,
+          "reversibility": 0.84
+        },
+        {
+          "id": "jump_to_agentic_graph_rag",
+          "summary": "Replace the current pipeline with an agentic Graph RAG stack before measuring the retrieval failure mode.",
+          "expected_impact": 0.45,
+          "blast_radius": 0.82,
+          "reversibility": 0.42
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "retrieval_goldens_topk_gate",
+          "description": "Assert expected documents and spans appear in top-k results across a versioned golden set.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "filter_reranker_context_budget_gate",
+          "description": "Verify metadata filters, permission checks, reranking, and context-token budgets are recorded for each retrieval run.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "agentic_escalation_decision_record",
+          "description": "Require a decision record that states when graph traversal or agent planning is justified.",
+          "automated": false,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The proposed agent layer is premature because retrieval quality has not been measured.",
+        "root_cause": "The weak point is the unmeasured retrieval layer, not the absence of agents; a current answer should evaluate chunking, metadata filters, hybrid or vector retrieval, reranking, context assembly, permission checks, and top-k recall before escalating to Graph RAG or agentic RAG for genuine multi-hop, relationship-heavy, or tool-use workflows.",
+        "evidence_ids": [
+          "no_retrieval_golden_set",
+          "chunking_strategy_unmeasured",
+          "missing_filters_and_reranker"
+        ],
+        "selected_fix_id": "build_retrieval_layer_eval_first",
+        "regression_test_ids": [
+          "retrieval_goldens_topk_gate",
+          "filter_reranker_context_budget_gate",
+          "agentic_escalation_decision_record"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "data_scientist_2026_agent_memory_schema",
+      "title": "Make agent memory useful instead of noisy",
+      "difficulty": "advanced",
+      "topic_tags": [
+        "data-science-2026",
+        "agent",
+        "memory",
+        "schema",
+        "llmops",
+        "privacy"
+      ],
+      "estimated_minutes": 35,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "An AI agent keeps forgetting project decisions and sometimes leaks obsolete context. Design the evidence-backed memory fix.",
+      "symptom": "The proposed implementation embeds every chat message into a single vector collection, has no memory schema, no namespace per project, no retention policy, no source provenance, and no recall or stale-memory evaluation.",
+      "proposed_diagnosis": "The agent needs more memory; storing every message in vectors is the safest default.",
+      "root_cause": "Agent memory quality is governed by schema, provenance, retention, retrieval policy, and evaluation; a production-grade answer should separate episodic, semantic, procedural, and user preference memories, version the schema, namespace by project, redact private data, expire stale entries, and measure memory precision, recall, and harm.",
+      "plain_repro": "Replay tasks that require a previous decision, a stale decision that must be ignored, and a private value that must not be recalled; compare raw transcript embedding against a schema-versioned memory store with retrieval and retention gates.",
+      "weak_assumptions": [
+        "More remembered text always improves an agent.",
+        "A vector database is a complete memory architecture.",
+        "Privacy, expiry, and provenance can be handled after the agent is useful."
+      ],
+      "evidence": [
+        {
+          "id": "unstructured_transcript_dump",
+          "description": "All messages are embedded without typed memory records or source references.",
+          "confidence": 0.93,
+          "relevance": 0.94
+        },
+        {
+          "id": "no_namespace_or_retention",
+          "description": "Project boundaries, user boundaries, expiry, and stale-memory invalidation are missing.",
+          "confidence": 0.9,
+          "relevance": 0.92
+        },
+        {
+          "id": "privacy_recall_gap",
+          "description": "No test prevents sensitive values from being stored or recalled in future prompts.",
+          "confidence": 0.88,
+          "relevance": 0.9
+        },
+        {
+          "id": "memory_eval_absent",
+          "description": "There are no tasks measuring useful recall, harmful recall, or stale-memory suppression.",
+          "confidence": 0.91,
+          "relevance": 0.93
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "schema_versioned_memory_with_eval",
+          "summary": "Create typed, versioned, namespaced memory records with provenance, retention, privacy redaction, and replay tests for useful and harmful recall.",
+          "expected_impact": 0.92,
+          "blast_radius": 0.38,
+          "reversibility": 0.8
+        },
+        {
+          "id": "embed_all_messages",
+          "summary": "Embed all messages in one collection and rely on semantic search to find the useful memories.",
+          "expected_impact": 0.31,
+          "blast_radius": 0.74,
+          "reversibility": 0.48
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "typed_memory_schema_validation",
+          "description": "Reject memory records without type, namespace, source, created-at, expiry, and redaction status.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "useful_vs_harmful_recall_replay",
+          "description": "Replay tasks that require a correct memory and tasks that must suppress stale or private memory.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "memory_precision_recall_report",
+          "description": "Export memory precision, recall, stale-hit rate, and privacy-hit rate for a fixed evaluation set.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The agent does not need unbounded memory; it needs a governed memory contract.",
+        "root_cause": "Agent memory quality is governed by schema, provenance, retention, retrieval policy, and evaluation; a production-grade answer should separate episodic, semantic, procedural, and user preference memories, version the schema, namespace by project, redact private data, expire stale entries, and measure memory precision, recall, and harm.",
+        "evidence_ids": [
+          "unstructured_transcript_dump",
+          "no_namespace_or_retention",
+          "memory_eval_absent"
+        ],
+        "selected_fix_id": "schema_versioned_memory_with_eval",
+        "regression_test_ids": [
+          "typed_memory_schema_validation",
+          "useful_vs_harmful_recall_replay",
+          "memory_precision_recall_report"
+        ],
+        "confidence": 0.89
+      }
+    },
+    {
+      "case_id": "data_scientist_2026_llm_evaluation_methods",
+      "title": "Evaluate generated answers beyond a leaderboard score",
+      "difficulty": "advanced",
+      "topic_tags": [
+        "data-science-2026",
+        "llm",
+        "evaluation",
+        "benchmark",
+        "verifier",
+        "llm-judge"
+      ],
+      "estimated_minutes": 40,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A candidate selects a model because it leads a public benchmark. Build the evaluation plan for a domain assistant that writes analyst summaries.",
+      "symptom": "The answer cites one leaderboard, has no domain golden set, no verifier checks for structured claims, no calibrated LLM judge, no human spot-check policy, and no regression taxonomy.",
+      "proposed_diagnosis": "The best public benchmark model should be chosen because benchmarks summarize model quality objectively.",
+      "root_cause": "Public benchmarks are useful but insufficient for a task-specific generative system; a current answer should combine task goldens, multiple-choice or benchmark context, deterministic verifiers, calibrated LLM judges, human review on ambiguous cases, confidence intervals, and a failure taxonomy that feeds regression tests.",
+      "plain_repro": "Run the candidate models on a versioned analyst-summary golden set, verify required facts and forbidden claims with deterministic checks, calibrate judge agreement against human labels, and report confidence intervals and failure categories.",
+      "weak_assumptions": [
+        "A public leaderboard is a deployment evaluation.",
+        "An LLM judge is objective without calibration against human labels.",
+        "Generated text can be accepted without deterministic checks for required facts."
+      ],
+      "evidence": [
+        {
+          "id": "leaderboard_only_selection",
+          "description": "Model choice is justified by one public benchmark with no local task evidence.",
+          "confidence": 0.92,
+          "relevance": 0.91
+        },
+        {
+          "id": "no_domain_goldens",
+          "description": "There is no versioned set of representative summaries, edge cases, or expected factual constraints.",
+          "confidence": 0.93,
+          "relevance": 0.95
+        },
+        {
+          "id": "judge_not_calibrated",
+          "description": "The proposed judge score is not compared with human labels or deterministic verifier outcomes.",
+          "confidence": 0.89,
+          "relevance": 0.9
+        },
+        {
+          "id": "no_uncertainty_or_taxonomy",
+          "description": "The report lacks confidence intervals, error categories, and regression-test routing.",
+          "confidence": 0.86,
+          "relevance": 0.84
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "layered_llm_eval_with_calibrated_judge",
+          "summary": "Build a layered evaluation with task goldens, deterministic verifiers, calibrated LLM judges, human review policy, confidence intervals, and a regression taxonomy.",
+          "expected_impact": 0.93,
+          "blast_radius": 0.36,
+          "reversibility": 0.82
+        },
+        {
+          "id": "use_best_leaderboard_model",
+          "summary": "Use the current leaderboard winner and monitor user feedback after launch.",
+          "expected_impact": 0.38,
+          "blast_radius": 0.65,
+          "reversibility": 0.57
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "domain_golden_eval_required",
+          "description": "Fail model promotion when a versioned task-specific golden set is missing.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "verifier_and_judge_agreement_gate",
+          "description": "Compare deterministic verifier results and judge ratings against sampled human labels.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "failure_taxonomy_regression_export",
+          "description": "Export hallucination, omission, formatting, safety, and retrieval failure classes for regression tracking.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "Leaderboard performance is only context; it does not prove domain assistant quality.",
+        "root_cause": "Public benchmarks are useful but insufficient for a task-specific generative system; a current answer should combine task goldens, multiple-choice or benchmark context, deterministic verifiers, calibrated LLM judges, human review on ambiguous cases, confidence intervals, and a failure taxonomy that feeds regression tests.",
+        "evidence_ids": [
+          "leaderboard_only_selection",
+          "no_domain_goldens",
+          "judge_not_calibrated"
+        ],
+        "selected_fix_id": "layered_llm_eval_with_calibrated_judge",
+        "regression_test_ids": [
+          "domain_golden_eval_required",
+          "verifier_and_judge_agreement_gate",
+          "failure_taxonomy_regression_export"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "data_scientist_2026_conformal_drift_uncertainty",
+      "title": "Handle uncertainty and drift in production predictions",
+      "difficulty": "advanced",
+      "topic_tags": [
+        "data-science-2026",
+        "conformal-prediction",
+        "confidence-intervals",
+        "distribution-shift",
+        "monitoring"
+      ],
+      "estimated_minutes": 35,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A demand-forecasting model looks strong in cross-validation but fails on a new region. Diagnose the uncertainty and distribution-shift gap.",
+      "symptom": "The candidate reports mean cross-validation error and a bootstrap confidence interval, then promises the same reliability in a new region without a calibration set, conformal coverage check, covariate-shift monitor, or retraining policy.",
+      "proposed_diagnosis": "The model is reliable because the average validation score and confidence interval are acceptable.",
+      "root_cause": "The answer confuses average predictive performance with calibrated uncertainty under deployment shift; a current plan should keep a representative calibration set, report conformal prediction coverage where exchangeability is plausible, monitor covariate and label drift, compare train-test discordance, and define recalibration or retraining triggers.",
+      "plain_repro": "Split data by time and region, compute conformal interval coverage on a held-out calibration and deployment-like slice, then track feature drift, label drift when labels arrive, and coverage degradation after rollout.",
+      "weak_assumptions": [
+        "A confidence interval on average error gives each prediction a valid uncertainty set.",
+        "Cross-validation performance transfers unchanged to a new region.",
+        "Drift monitoring can wait until users complain."
+      ],
+      "evidence": [
+        {
+          "id": "train_test_region_discordance",
+          "description": "The deployment region has different feature distributions and seasonality from the training regions.",
+          "confidence": 0.9,
+          "relevance": 0.94
+        },
+        {
+          "id": "no_calibration_coverage_check",
+          "description": "Prediction intervals are reported without empirical coverage on a held-out calibration or deployment-like slice.",
+          "confidence": 0.91,
+          "relevance": 0.93
+        },
+        {
+          "id": "average_metric_only",
+          "description": "The report hides regional failure behind an aggregate mean error.",
+          "confidence": 0.88,
+          "relevance": 0.88
+        },
+        {
+          "id": "no_recalibration_trigger",
+          "description": "There is no policy for recalibration, retraining, or rollback when drift and coverage degrade.",
+          "confidence": 0.86,
+          "relevance": 0.86
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "calibrate_conformal_and_monitor_shift",
+          "summary": "Use deployment-like validation, conformal coverage checks, segment-level metrics, drift monitors, and explicit recalibration or retraining triggers.",
+          "expected_impact": 0.91,
+          "blast_radius": 0.34,
+          "reversibility": 0.82
+        },
+        {
+          "id": "quote_cv_score_only",
+          "summary": "Ship with the cross-validation score and a confidence interval on the mean validation error.",
+          "expected_impact": 0.33,
+          "blast_radius": 0.61,
+          "reversibility": 0.55
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "segment_coverage_report",
+          "description": "Assert interval coverage and error are reported by region, time slice, and important segments.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "drift_monitor_thresholds",
+          "description": "Simulate feature and label drift and assert alert thresholds are recorded.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "recalibration_policy_replay",
+          "description": "Replay a degraded-coverage period and verify the recalibration or retraining trigger fires.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The validation summary does not prove prediction reliability under regional shift.",
+        "root_cause": "The answer confuses average predictive performance with calibrated uncertainty under deployment shift; a current plan should keep a representative calibration set, report conformal prediction coverage where exchangeability is plausible, monitor covariate and label drift, compare train-test discordance, and define recalibration or retraining triggers.",
+        "evidence_ids": [
+          "train_test_region_discordance",
+          "no_calibration_coverage_check",
+          "no_recalibration_trigger"
+        ],
+        "selected_fix_id": "calibrate_conformal_and_monitor_shift",
+        "regression_test_ids": [
+          "segment_coverage_report",
+          "drift_monitor_thresholds",
+          "recalibration_policy_replay"
+        ],
+        "confidence": 0.88
+      }
+    },
+    {
+      "case_id": "data_scientist_2026_token_inference_cost_stack",
+      "title": "Reduce LLM serving cost with measured quality gates",
+      "difficulty": "advanced",
+      "topic_tags": [
+        "data-science-2026",
+        "llmops",
+        "token-efficiency",
+        "prompt-caching",
+        "speculative-decoding",
+        "paged-attention"
+      ],
+      "estimated_minutes": 35,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "An LLM summarization workflow is too expensive. Choose the stronger cost-saving plan without degrading task quality.",
+      "symptom": "The candidate recommends switching to the smallest model immediately. The trace shows repeated static instructions, duplicated retrieved context, no prompt-cache accounting, no batching or paged-attention consideration, no speculative-decoding compatibility check, and no quality regression set.",
+      "proposed_diagnosis": "The only reliable way to reduce LLM cost is to use a smaller model.",
+      "root_cause": "LLM cost needs a measured stack, not a single model swap; a current answer should baseline tokens, latency, cache hit rate, and quality, then test static-prefix prompt caching, retrieval/context pruning, batching or paged attention, quantization or distillation, and speculative decoding when the serving stack supports it, with task-quality and safety gates.",
+      "plain_repro": "Replay the summarization golden set while recording input tokens, output tokens, cacheable prefix length, cache hit rate, latency percentiles, throughput, and quality before and after prompt caching, context pruning, batching, and decoding changes.",
+      "weak_assumptions": [
+        "A smaller model is always cheaper after quality retries and longer prompts.",
+        "Prompt tokens are fixed cost even when a static prefix can be cached.",
+        "Serving optimizations can be accepted without a task-quality regression suite."
+      ],
+      "evidence": [
+        {
+          "id": "no_cost_quality_baseline",
+          "description": "The workflow has no baseline for tokens, latency, cacheability, retries, or output quality.",
+          "confidence": 0.93,
+          "relevance": 0.95
+        },
+        {
+          "id": "static_prefix_repeated",
+          "description": "A long system and instruction prefix is repeated across requests and could be cacheable.",
+          "confidence": 0.9,
+          "relevance": 0.89
+        },
+        {
+          "id": "retrieved_context_duplicated",
+          "description": "Retrieved chunks contain duplicate sections that consume context without adding evidence.",
+          "confidence": 0.88,
+          "relevance": 0.88
+        },
+        {
+          "id": "serving_stack_not_checked",
+          "description": "The answer does not check whether batching, paged attention, quantization, distillation, or speculative decoding are supported by the selected runtime.",
+          "confidence": 0.86,
+          "relevance": 0.84
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "measure_cache_prune_and_decode_with_quality_gate",
+          "summary": "Baseline cost and quality, then test prompt caching, context pruning, batching, runtime optimization, and speculative decoding only behind quality and safety gates.",
+          "expected_impact": 0.92,
+          "blast_radius": 0.33,
+          "reversibility": 0.84
+        },
+        {
+          "id": "switch_to_smallest_model",
+          "summary": "Switch to the smallest available model and accept any quality change if the bill is lower.",
+          "expected_impact": 0.36,
+          "blast_radius": 0.66,
+          "reversibility": 0.58
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "token_cost_quality_dashboard",
+          "description": "Export per-run token counts, cache hit rate, latency, retries, cost estimate, and quality metrics.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "context_dedup_pruning_replay",
+          "description": "Replay a golden set with context deduplication and pruning, asserting citations and quality remain stable.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "serving_optimization_compatibility_gate",
+          "description": "Fail optimization claims when runtime support for caching, batching, paged attention, quantization, or speculative decoding is not recorded.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The cost plan skips measurement and may trade away quality unnecessarily.",
+        "root_cause": "LLM cost needs a measured stack, not a single model swap; a current answer should baseline tokens, latency, cache hit rate, and quality, then test static-prefix prompt caching, retrieval/context pruning, batching or paged attention, quantization or distillation, and speculative decoding when the serving stack supports it, with task-quality and safety gates.",
+        "evidence_ids": [
+          "no_cost_quality_baseline",
+          "static_prefix_repeated",
+          "retrieved_context_duplicated"
+        ],
+        "selected_fix_id": "measure_cache_prune_and_decode_with_quality_gate",
+        "regression_test_ids": [
+          "token_cost_quality_dashboard",
+          "context_dedup_pruning_replay",
+          "serving_optimization_compatibility_gate"
+        ],
+        "confidence": 0.89
+      }
+    },
+    {
+      "case_id": "data_scientist_2026_data_centric_limited_labels",
+      "title": "Improve a limited-label model with data-centric evidence",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "data-science-2026",
+        "data-centric-ai",
+        "limited-labels",
+        "active-learning",
+        "self-supervised-learning",
+        "label-quality"
+      ],
+      "estimated_minutes": 35,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A vision classifier has few labels and unstable validation scores. Decide whether to collect data, change labels, use self-supervision, or train a larger model.",
+      "symptom": "The candidate proposes a larger transformer and more epochs, but the dataset has duplicate images, label disagreement, underrepresented classes, no confidence intervals on validation scores, and no active-learning or self-supervised baseline.",
+      "proposed_diagnosis": "The model underfits because it is not large enough for modern computer vision.",
+      "root_cause": "Limited-label performance is often data and evidence limited before it is model-size limited; a current answer should audit label quality and duplicates, inspect segment errors, report uncertainty, compare augmentation, active learning, weak or self-supervised pretraining, and only then justify a larger architecture.",
+      "plain_repro": "Run duplicate detection, label-agreement audit, segment-level error analysis, confidence intervals across resampling folds, and compare a small transfer-learning baseline with augmentation, active-learning selection, and self-supervised pretraining.",
+      "weak_assumptions": [
+        "A larger model is the default answer when labeled data is scarce.",
+        "Validation accuracy is stable enough without uncertainty estimates.",
+        "Label quality and class coverage are separate from model evaluation."
+      ],
+      "evidence": [
+        {
+          "id": "label_disagreement_detected",
+          "description": "Manual review shows conflicting labels for visually similar or duplicate images.",
+          "confidence": 0.9,
+          "relevance": 0.92
+        },
+        {
+          "id": "minority_segments_underrepresented",
+          "description": "Two deployment-relevant classes have too few labeled examples to estimate performance reliably.",
+          "confidence": 0.88,
+          "relevance": 0.9
+        },
+        {
+          "id": "validation_uncertainty_missing",
+          "description": "The report gives one validation score with no confidence interval or fold-level variance.",
+          "confidence": 0.87,
+          "relevance": 0.86
+        },
+        {
+          "id": "no_data_strategy_baseline",
+          "description": "No augmentation, active-learning, weak-supervision, or self-supervised baseline is compared.",
+          "confidence": 0.89,
+          "relevance": 0.88
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "audit_labels_then_select_data_strategy",
+          "summary": "Audit label quality, duplicates, segment coverage, and uncertainty, then compare augmentation, active learning, weak supervision, self-supervised pretraining, and architecture changes.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.32,
+          "reversibility": 0.83
+        },
+        {
+          "id": "train_larger_transformer_first",
+          "summary": "Train a larger transformer for more epochs before spending time on label and data-quality checks.",
+          "expected_impact": 0.41,
+          "blast_radius": 0.69,
+          "reversibility": 0.52
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "label_quality_audit_required",
+          "description": "Fail the case when duplicate detection, label agreement, and class-coverage artifacts are missing.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "limited_label_uncertainty_report",
+          "description": "Require confidence intervals or fold-level variance for limited-label validation scores.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "data_strategy_ablation_matrix",
+          "description": "Compare baseline, augmentation, active-learning selection, and self-supervised or transfer-learning paths before accepting a bigger model.",
+          "automated": false,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The evidence points to label and coverage limits before architecture limits.",
+        "root_cause": "Limited-label performance is often data and evidence limited before it is model-size limited; a current answer should audit label quality and duplicates, inspect segment errors, report uncertainty, compare augmentation, active learning, weak or self-supervised pretraining, and only then justify a larger architecture.",
+        "evidence_ids": [
+          "label_disagreement_detected",
+          "minority_segments_underrepresented",
+          "no_data_strategy_baseline"
+        ],
+        "selected_fix_id": "audit_labels_then_select_data_strategy",
+        "regression_test_ids": [
+          "label_quality_audit_required",
+          "limited_label_uncertainty_report",
+          "data_strategy_ablation_matrix"
+        ],
+        "confidence": 0.87
+      }
+    },
+    {
+      "case_id": "data_scientist_2026_open_weight_llm_architecture_review",
+      "title": "Review an open-weight LLM release like an engineer",
+      "difficulty": "advanced",
+      "topic_tags": [
+        "data-science-2026",
+        "llm",
+        "transformers",
+        "attention",
+        "long-context",
+        "open-weight-models"
+      ],
+      "estimated_minutes": 35,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A team wants to replace its current model after reading an impressive open-weight LLM release note. Decide what a serious review must check before migration.",
+      "symptom": "The candidate compares only headline benchmark scores and context-window length. The release note also changes attention design, KV-cache behavior, tokenizer, license terms, reasoning mode, quantized checkpoints, and serving memory requirements.",
+      "proposed_diagnosis": "The new model should be adopted because it has a larger context window and better public benchmark scores.",
+      "root_cause": "A serious open-weight LLM review must connect architecture details to workload evidence; the answer should inspect attention and KV-cache tradeoffs, tokenizer and prompt compatibility, license and data-use constraints, quantization support, reasoning-mode latency, domain eval results, safety behavior, and target serving memory before migration.",
+      "plain_repro": "Run the current and candidate models on the same domain prompts, long-context retrieval cases, safety probes, and latency-memory benchmarks, then compare tokenizer effects, KV-cache memory, output quality, cost, and license constraints.",
+      "weak_assumptions": [
+        "A larger context window guarantees better long-context answers.",
+        "Attention architecture changes do not affect serving memory and latency.",
+        "Public benchmark gains transfer automatically to the target workload."
+      ],
+      "evidence": [
+        {
+          "id": "architecture_delta_unreviewed",
+          "description": "The decision ignores attention, KV-cache, tokenizer, reasoning-mode, and quantization changes.",
+          "confidence": 0.91,
+          "relevance": 0.92
+        },
+        {
+          "id": "domain_eval_missing",
+          "description": "No local benchmark covers the team's prompts, retrieval cases, or safety constraints.",
+          "confidence": 0.92,
+          "relevance": 0.94
+        },
+        {
+          "id": "serving_memory_not_measured",
+          "description": "The candidate model has not been profiled for target hardware memory, latency, and throughput.",
+          "confidence": 0.89,
+          "relevance": 0.9
+        },
+        {
+          "id": "license_constraints_unchecked",
+          "description": "The migration plan does not record whether license and data-use terms fit the product context.",
+          "confidence": 0.86,
+          "relevance": 0.84
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "architecture_workload_review_gate",
+          "summary": "Gate model migration on architecture delta review, workload-specific evals, safety probes, license review, quantization support, and serving memory-latency benchmarks.",
+          "expected_impact": 0.91,
+          "blast_radius": 0.37,
+          "reversibility": 0.81
+        },
+        {
+          "id": "adopt_highest_benchmark_context_model",
+          "summary": "Adopt the model with the strongest public benchmark and largest context window.",
+          "expected_impact": 0.4,
+          "blast_radius": 0.7,
+          "reversibility": 0.54
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "domain_long_context_eval",
+          "description": "Run a fixed domain and long-context prompt suite before and after the model swap.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "kv_cache_memory_latency_profile",
+          "description": "Record memory, throughput, and latency under representative context lengths and batch sizes.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "license_and_safety_gate",
+          "description": "Require recorded license compatibility and safety-probe results before promotion.",
+          "automated": false,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The migration decision lacks workload evidence and architecture-risk review.",
+        "root_cause": "A serious open-weight LLM review must connect architecture details to workload evidence; the answer should inspect attention and KV-cache tradeoffs, tokenizer and prompt compatibility, license and data-use constraints, quantization support, reasoning-mode latency, domain eval results, safety behavior, and target serving memory before migration.",
+        "evidence_ids": [
+          "architecture_delta_unreviewed",
+          "domain_eval_missing",
+          "serving_memory_not_measured"
+        ],
+        "selected_fix_id": "architecture_workload_review_gate",
+        "regression_test_ids": [
+          "domain_long_context_eval",
+          "kv_cache_memory_latency_profile",
+          "license_and_safety_gate"
+        ],
+        "confidence": 0.88
+      }
     }
   ]
 }
