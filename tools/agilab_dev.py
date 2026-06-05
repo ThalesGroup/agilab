@@ -6,12 +6,32 @@ from __future__ import annotations
 import shlex
 import subprocess
 import sys
+import os
+from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
 from typing import Sequence
 
 
 ROOT = Path(__file__).resolve().parents[1]
 UV_RUN = ("uv", "--preview-features", "extra-build-dependencies", "run")
+DEV_LOG_DIR = ROOT / "reports" / "dev-logs"
+DEFAULT_SUMMARY_LINES = 40
+SIGNAL_WORDS = (
+    "error",
+    "failed",
+    "failure",
+    "traceback",
+    "exception",
+    "fatal",
+    "panic",
+    "denied",
+    "missing",
+    "not found",
+    "timeout",
+    "warning",
+    "assert",
+)
 DEFAULT_LINT_TARGETS = (
     "src/agilab/security",
     "src/agilab/evidence",
@@ -99,6 +119,133 @@ def _split_release_args(args: Sequence[str]) -> tuple[list[str], list[str], list
     if not impact_args:
         impact_args = ["--staged"]
     return impact_args, release_plan_args, release_policy_args, preflight_args
+
+
+def _parse_positive_int(value: str, *, option: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise SystemExit(f"{option}: value must be an integer") from exc
+    if parsed <= 0:
+        raise SystemExit(f"{option}: value must be greater than zero")
+    return parsed
+
+
+def _pop_global_option(args: list[str], option: str) -> str:
+    for index, item in enumerate(args):
+        if item == option:
+            if index + 1 >= len(args):
+                raise SystemExit(f"{option}: value is required")
+            value = args[index + 1]
+            del args[index : index + 2]
+            return value
+        if item.startswith(f"{option}="):
+            args.pop(index)
+            return item.split("=", 1)[1]
+    raise SystemExit(f"{option}: value is required")
+
+
+def _is_signal_line(line: str) -> bool:
+    lower = line.lower()
+    if any(word in lower for word in SIGNAL_WORDS):
+        return True
+    stripped = line.lstrip()
+    return stripped.startswith(("E   ", "E\t", "FAILED ", "ERROR "))
+
+
+def _dedupe_keep_order(lines: Sequence[str]) -> list[str]:
+    seen: set[str] = set()
+    kept: list[str] = []
+    for line in lines:
+        if line in seen:
+            continue
+        seen.add(line)
+        kept.append(line)
+    return kept
+
+
+def _compact_log_path(command: Sequence[str], output: str) -> Path:
+    DEV_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    family = Path(command[0]).name if command else "command"
+    digest = sha256(("\0".join(command) + "\n" + output).encode("utf-8", "replace")).hexdigest()[:12]
+    return DEV_LOG_DIR / f"{timestamp}-{family}-{digest}.log"
+
+
+def _write_compact_log(command: Sequence[str], output: str) -> Path:
+    path = _compact_log_path(command, output)
+    path.write_text(output, encoding="utf-8", errors="replace")
+    return path
+
+
+def _summary_lines(output: str, *, max_lines: int, returncode: int) -> tuple[list[str], int, int]:
+    lines = output.splitlines()
+    if not lines:
+        return [], 0, 0
+    signals = [(index + 1, line) for index, line in enumerate(lines) if _is_signal_line(line)]
+    signal_budget = max(1, max_lines * 3 // 4)
+    tail_budget = max(1, max_lines - min(len(signals), signal_budget))
+
+    selected: list[str] = []
+    if len(signals) > signal_budget and signal_budget > 1:
+        signal_sample = [signals[0], *signals[-(signal_budget - 1) :]]
+    else:
+        signal_sample = signals[-signal_budget:]
+    for line_number, line in signal_sample:
+        selected.append(f"{line_number}: {line}")
+
+    if returncode != 0 or not selected:
+        tail = [line for line in lines[-tail_budget:] if line.strip()]
+        if tail:
+            if selected:
+                selected.append("-- tail --")
+            selected.extend(tail)
+
+    selected = _dedupe_keep_order(selected)[:max_lines]
+    omitted = max(len(lines) - len(selected), 0)
+    return selected, len(signals), omitted
+
+
+def _print_compact_result(
+    command: Sequence[str],
+    *,
+    returncode: int,
+    output: str,
+    max_lines: int,
+) -> None:
+    log_path = _write_compact_log(command, output)
+    lines = output.splitlines()
+    selected, signal_count, omitted = _summary_lines(output, max_lines=max_lines, returncode=returncode)
+    rel_log = log_path.relative_to(ROOT) if log_path.is_relative_to(ROOT) else log_path
+    status = "ok" if returncode == 0 else "failed"
+    print(
+        f"./dev compact-output: {status} exit={returncode} lines={len(lines)} "
+        f"signals={signal_count} omitted={omitted} log={rel_log}",
+        file=sys.stderr,
+        flush=True,
+    )
+    for line in selected:
+        print(line, file=sys.stderr)
+    if omitted > 0:
+        print(f"... omitted {omitted} line(s); inspect {rel_log} for full output", file=sys.stderr)
+
+
+def _run_compact(command: Sequence[str], *, max_lines: int) -> int:
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        errors="replace",
+    )
+    _print_compact_result(
+        command,
+        returncode=completed.returncode,
+        output=completed.stdout or "",
+        max_lines=max_lines,
+    )
+    return completed.returncode
 
 
 def planned_commands(argv: Sequence[str]) -> list[list[str]]:
@@ -262,29 +409,34 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
 
 def _usage() -> str:
     return """Usage:
-  ./dev [--print-only] impact [impact_validate args]
-  ./dev [--print-only] bugfix [changed-file args]
-  ./dev [--print-only] test [pytest args]
-  ./dev [--print-only] lint|ruff [ruff args]
-  ./dev [--print-only] regress [ga_regression_selector args]
-  ./dev [--print-only] robust [robustness_matrix args]
-  ./dev [--print-only] parallel-stage [parallel_stage args]
-  ./dev [--print-only] app-contracts [app_contract_matrix args]
-  ./dev [--print-only] builtin-app-tests [builtin_app_tests args]
-  ./dev [--print-only] maintenance [maintenance_dashboard args]
-  ./dev [--print-only] memory [maintenance_memory args]
-  ./dev [--print-only] audit [agilab_audit args]
-  ./dev [--print-only] audit-quality [audit_quality_evaluator args|audit.md]
-  ./dev [--print-only] audit-preflight
-  ./dev [--print-only] flow|profile <profile> [profile...] [workflow args]
-  ./dev [--print-only] typing [workflow-parity options]
-  ./dev [--print-only] release [--release-mode MODE] [--impact-base-ref REF] [impact_validate args]
-  ./dev [--print-only] badge|guard [coverage_badge_guard args]
-  ./dev [--print-only] docs
-  ./dev [--print-only] clean [--apply]
-  ./dev [--print-only] scope [worktree_scope_guard args]
-  ./dev [--print-only] task-worktree <branch> [task_worktree args]
-  ./dev [--print-only] skills <skill> [skill...]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] impact [impact_validate args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] bugfix [changed-file args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] test [pytest args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] lint|ruff [ruff args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] regress [ga_regression_selector args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] robust [robustness_matrix args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] parallel-stage [parallel_stage args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] app-contracts [app_contract_matrix args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] builtin-app-tests [builtin_app_tests args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] maintenance [maintenance_dashboard args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] memory [maintenance_memory args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] audit [agilab_audit args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] audit-quality [audit_quality_evaluator args|audit.md]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] audit-preflight
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] flow|profile <profile> [profile...] [workflow args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] typing [workflow-parity options]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] release [--release-mode MODE] [--impact-base-ref REF] [impact_validate args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] badge|guard [coverage_badge_guard args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] docs
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] clean [--apply]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] scope [worktree_scope_guard args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] task-worktree <branch> [task_worktree args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] skills <skill> [skill...]
+
+Output:
+  Default execution captures stdout/stderr, writes the full stream under reports/dev-logs/,
+  and prints a bounded signal summary to stderr. Use --raw-output, or set
+  AGILAB_DEV_OUTPUT=raw, for the old streaming behavior.
 
 High-frequency mappings:
   impact    -> Analyze changed files and list the required local validations; defaults to --staged.
@@ -316,9 +468,25 @@ High-frequency mappings:
 def main(argv: Sequence[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     print_only = False
+    raw_output = os.environ.get("AGILAB_DEV_OUTPUT", "").strip().lower() == "raw"
+    summary_lines = _parse_positive_int(
+        os.environ.get("AGILAB_DEV_SUMMARY_LINES", str(DEFAULT_SUMMARY_LINES)),
+        option="AGILAB_DEV_SUMMARY_LINES",
+    )
     if "--print-only" in args:
         print_only = True
         args = [item for item in args if item != "--print-only"]
+    if "--raw-output" in args:
+        raw_output = True
+        args = [item for item in args if item != "--raw-output"]
+    if "--compact-output" in args:
+        raw_output = False
+        args = [item for item in args if item != "--compact-output"]
+    if "--summary-lines" in args or any(item.startswith("--summary-lines=") for item in args):
+        summary_lines = _parse_positive_int(
+            _pop_global_option(args, "--summary-lines"),
+            option="--summary-lines",
+        )
 
     if not args or args[0] in {"help", "-h", "--help"}:
         print(_usage())
@@ -330,9 +498,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(shlex.join(command), file=output, flush=True)
         if print_only:
             continue
-        completed = subprocess.run(command, cwd=ROOT)
-        if completed.returncode:
-            return completed.returncode
+        if raw_output:
+            completed = subprocess.run(command, cwd=ROOT)
+            if completed.returncode:
+                return completed.returncode
+        else:
+            returncode = _run_compact(command, max_lines=summary_lines)
+            if returncode:
+                return returncode
     return 0
 
 
