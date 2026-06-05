@@ -338,10 +338,17 @@ Use this runbook whenever you:
   `data_out` from `data_in` when the stored value is actually missing. Do not silently replace
   an explicit saved value with a recomputed default on render; if a field is intentionally derived,
   make that dependency explicit in the UI instead of presenting it as a normal independent input.
-- **Bug-class sweep**: When fixing a bug, check whether the same class of bug exists elsewhere in
-  the codebase, especially in sibling apps, mirrored forms, shared helpers, or duplicated logic.
-  If it does, either fix the related instances in the same change or clearly document why they are
-  being left out.
+- **Bug-class sweep**: When fixing a bug, first classify the failure class
+  before deciding the sweep scope: app-local contract, shared UI/helper logic,
+  dependency metadata, installer/deploy plumbing, environment pollution, or
+  duplicated form/workflow code. Then inspect only the sibling apps, mirrored
+  forms, shared helpers, manifests, or generated artifacts that can plausibly
+  share that class of failure. Do not turn a one-app bug into an unbounded
+  repository audit, and do not stop at the first symptom when the root cause is
+  shared. If related instances exist, fix them in the same change or clearly
+  document why they are intentionally left out. Put the regression at the layer
+  where the class lives, and summarize the sweep target and result in the
+  close-out.
 - **User-facing rename sweep**: When changing a visible app/page/demo name, title, or major label,
   update the paired tests, README/docs text, and capture scripts in the same change. Grep for both
   the old and new wording before closing the task. When a page title is asserted by tests, prefer a
@@ -371,9 +378,17 @@ Use this runbook whenever you:
   `~/agi-space/.venv` and uses `uv --preview-features extra-build-dependencies pip` afterwards. If an install reports
   `No module named pip`, rerun the latest installer or execute
   `uv --preview-features extra-build-dependencies run python -m ensurepip --upgrade` once in `~/agi-space`.
-- **Missing dependency triage**: Whenever an app run fails because a module cannot be imported, check *both*
-  `src/agilab/apps/<app>/pyproject.toml` (manager environment) and
-  `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml` to confirm the dependency is declared in the correct scope.
+- **Missing dependency triage**: Whenever an app run fails because a module
+  cannot be imported, check *both* `src/agilab/apps/<app>/pyproject.toml`
+  (manager environment) and
+  `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml` to confirm the
+  dependency is declared in the correct scope. If the symptom is a readiness
+  warning rather than a Python traceback, first verify whether the reported
+  module is a real runtime import: inspect the declaring requirement, package
+  metadata such as `top_level.txt` / `RECORD`, and a direct import in the
+  target manager or worker venv. Do not tell users to install typing-only
+  packages, placeholder metadata modules such as `__dummy__`, or other probe
+  artifacts; fix the readiness probe or its dependency mapping instead.
 - **Installer solver drift triage**: If `uv sync --project <app>` succeeds in a plain shell but the AGILAB install path
   fails later in worker deployment with an unsatisfiable dependency conflict, inspect the copied worker manifest under
   `~/wenv/<app>_worker/pyproject.toml` before patching the app. This usually means shared install plumbing rewrote the
