@@ -128,6 +128,8 @@ This section summarizes every page bundle shipped under
 ``src/agilab/apps-pages``. Use :doc:`explore-help` to discover, configure, and
 launch them from the UI.
 
+For a visual first pass, open the curated :doc:`apps-pages-gallery`.
+
 ``agi-pages`` is the provider/umbrella package for the default lightweight page
 set. Heavier teaching or framework-specific pages can still be shipped as
 standalone ``agi-page-*`` packages or source-checkout bundles without being

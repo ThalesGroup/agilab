@@ -37,6 +37,7 @@ def test_app_contract_matrix_passes_current_repo():
     assert "checked_in_app_payloads_match_generated_payloads" in check_ids
     assert "apps_pages_root_keeps_asset_bundle_shape" in check_ids
     assert "apps_pages_catalog_matches_page_contract" in check_ids
+    assert "apps_pages_quality_bar" in check_ids
     assert "agi_pages_provider_matches_page_bundle_contract" in check_ids
     assert "promoted_pypi_app_catalog_matches_package_split" in check_ids
     assert "public_app_catalog_matches_package_contract" in check_ids

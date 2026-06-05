@@ -1,5 +1,10 @@
 # view_scenario_cockpit
 
+![view_scenario_cockpit preview](../../../../docs/source/_static/apps-pages-gallery/view_scenario_cockpit.svg)
+
+Package: `agi-page-scenario-cockpit`
+
+
 Streamlit evidence cockpit for comparing exported scenario runs and packaging the
 selected baseline/candidate decision as JSON.
 

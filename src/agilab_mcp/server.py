@@ -288,6 +288,12 @@ def handle_jsonrpc(payload: Mapping[str, Any]) -> dict[str, Any] | None:
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {}},
                     "serverInfo": {"name": "agilab-mcp", "version": "0.1.0"},
+                    "instructions": (
+                        "Call agent_quickstart first to orient (read-only): it returns "
+                        "the safety boundary, a recommended workflow, the live tool "
+                        "list, and a condensed capability overview without reading the "
+                        "full capabilities manifest."
+                    ),
                 },
             )
         if method == "tools/list":

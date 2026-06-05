@@ -24,6 +24,8 @@ BUILTIN_APPS_REL = Path("src/agilab/apps/builtin")
 APPS_PAGES_REL = Path("src/agilab/apps-pages")
 PUBLIC_APP_CATALOG_REL = Path("docs/source/public-app-catalog.rst")
 APPS_PAGES_CATALOG_REL = Path("docs/source/apps-pages.rst")
+APPS_PAGES_GALLERY_REL = Path("docs/source/apps-pages-gallery.rst")
+APPS_PAGES_GALLERY_ASSETS_REL = Path("docs/source/_static/apps-pages-gallery")
 AGI_APPS_CATALOG_REL = Path("src/agilab/lib/agi-apps/src/agi_apps/catalog.json")
 AGI_PAGES_PROVIDER_REL = Path("src/agilab/lib/agi-pages/src/agi_pages/__init__.py")
 APP_PROJECT_BUILD_SUPPORT_REL = Path("src/agilab/lib/app_project_build_support.py")
@@ -799,6 +801,52 @@ def _status_includes_agi_pages(status: str) -> bool:
     return "included in" in normalized and "agi-pages" in normalized
 
 
+def _page_quality_contract_errors(repo_root: Path, page_modules: set[str]) -> dict[str, dict[str, Any]]:
+    gallery_path = repo_root / APPS_PAGES_GALLERY_REL
+    gallery_text = gallery_path.read_text(encoding="utf-8") if gallery_path.is_file() else ""
+    root_readme_path = repo_root / APPS_PAGES_REL / "README.md"
+    root_readme = root_readme_path.read_text(encoding="utf-8") if root_readme_path.is_file() else ""
+    test_files = sorted((repo_root / "test").rglob("test*.py"))
+    test_texts = {
+        _relative(repo_root, path): path.read_text(encoding="utf-8", errors="ignore")
+        for path in test_files
+    }
+
+    errors: dict[str, dict[str, Any]] = {}
+    for module in sorted(page_modules):
+        page_root = repo_root / APPS_PAGES_REL / module
+        readme_path = page_root / "README.md"
+        preview_path = repo_root / APPS_PAGES_GALLERY_ASSETS_REL / f"{module}.svg"
+        source_root = page_root / "src" / module
+        source_files = sorted(source_root.glob("*.py")) if source_root.is_dir() else []
+        direct_tests = sorted(
+            rel_path for rel_path, text in test_texts.items() if module in text
+        )
+        readme_text = readme_path.read_text(encoding="utf-8") if readme_path.is_file() else ""
+        source_text = "\n".join(
+            path.read_text(encoding="utf-8", errors="ignore") for path in source_files
+        )
+        module_errors: dict[str, Any] = {}
+        if not readme_path.is_file():
+            module_errors["readme"] = _relative(repo_root, readme_path)
+        elif f"apps-pages-gallery/{module}.svg" not in readme_text:
+            module_errors["readme_preview_link"] = _relative(repo_root, readme_path)
+        if not preview_path.is_file():
+            module_errors["preview"] = _relative(repo_root, preview_path)
+        if f"_static/apps-pages-gallery/{module}.svg" not in gallery_text or f"**{module}**" not in gallery_text:
+            module_errors["gallery"] = _relative(repo_root, gallery_path)
+        if f"apps-pages-gallery/{module}.svg" not in root_readme:
+            module_errors["root_gallery"] = _relative(repo_root, root_readme_path)
+        if not direct_tests:
+            module_errors["tests"] = "no test file references this page module"
+        if "agi_pages.runtime" not in source_text:
+            module_errors["shared_page_chrome"] = _relative(repo_root, source_root)
+        if module_errors:
+            module_errors["direct_tests"] = direct_tests
+            errors[module] = module_errors
+    return errors
+
+
 def _global_checks(
     repo_root: Path,
     *,
@@ -1008,6 +1056,23 @@ def _global_checks(
                 "package_mismatches": page_package_mismatches,
                 "included_rows_without_package_contract": included_rows_without_contract,
             },
+        )
+    )
+
+    page_quality_errors = _page_quality_contract_errors(repo_root, source_page_modules)
+    checks.append(
+        _check(
+            "apps_pages_quality_bar",
+            "Apps-pages quality bar",
+            not page_quality_errors,
+            "every page bundle has a README, preview asset, gallery entry, direct tests, and shared page chrome",
+            evidence=(
+                str(APPS_PAGES_REL),
+                str(APPS_PAGES_GALLERY_REL),
+                str(APPS_PAGES_GALLERY_ASSETS_REL),
+                "test",
+            ),
+            details={"errors": page_quality_errors},
         )
     )
 

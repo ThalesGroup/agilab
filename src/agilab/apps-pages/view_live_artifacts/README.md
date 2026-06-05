@@ -1,5 +1,10 @@
 # view_live_artifacts
 
+![view_live_artifacts preview](../../../../docs/source/_static/apps-pages-gallery/view_live_artifacts.svg)
+
+Package: `agi-page-live-artifacts`
+
+
 `view_live_artifacts` is an app-agnostic AGILAB analysis page for watching an
 active app's exported evidence while a run is still producing files.
 

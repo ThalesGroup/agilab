@@ -1,5 +1,10 @@
 # SHAP Explanation View
 
+![view_shap_explanation preview](../../../../docs/source/_static/apps-pages-gallery/view_shap_explanation.svg)
+
+Package: `agi-page-feature-attribution`
+
+
 `view_shap_explanation` displays local feature-attribution evidence exported by
 SHAPKit, `shap`, or another compatible explainer.
 

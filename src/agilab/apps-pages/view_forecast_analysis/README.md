@@ -1,5 +1,10 @@
 # view_forecast_analysis
 
+![view_forecast_analysis preview](../../../../docs/source/_static/apps-pages-gallery/view_forecast_analysis.svg)
+
+Package: `agi-page-timeseries-forecast`
+
+
 Reusable Streamlit analysis page for forecast-style artifacts.
 
 ## Expected Inputs
