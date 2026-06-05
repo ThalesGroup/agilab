@@ -15,9 +15,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from agilab import agent_run, bridge_cli, run_manifest
-import agilab_mcp
-from agilab_mcp import manifest_tools, server as mcp_server
+from agilab import agent_run, bridge_cli, run_manifest  # noqa: E402
+import agilab_mcp  # noqa: E402
+from agilab_mcp import manifest_tools, server as mcp_server  # noqa: E402
 
 
 def _write_manifest(
@@ -1182,3 +1182,168 @@ def test_agent_quickstart_degrades_without_manifest() -> None:
     assert payload["recommended_workflow"]
     assert payload["read_only_boundary"]["shell_enabled"] is False
     assert "note" in payload
+
+
+def test_manifest_tools_reject_invalid_limits_and_manifest_shapes(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="limit must be >= 0"):
+        manifest_tools.list_agent_runs(log_root=tmp_path, limit=-1)
+    with pytest.raises(ValueError, match="limit must be >= 0"):
+        manifest_tools.agent_context(log_root=tmp_path, limit=-1)
+
+    manifest = tmp_path / "run_manifest.json"
+    manifest.write_text("[]", encoding="utf-8")
+    with pytest.raises(ValueError, match="Manifest must be a JSON object"):
+        manifest_tools.read_manifest(manifest)
+
+    manifest.write_text('{"status": "pass"}', encoding="utf-8")
+    payload = manifest_tools.read_manifest(manifest)
+    assert payload["manifest"]["status"] == "pass"
+
+
+def test_agent_quickstart_discovers_manifest_from_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = tmp_path / "agilab-capabilities.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "boundary": {"proves": "env-discovered capability index"},
+                "cli_commands": [],
+                "streamlit_pages": [],
+                "packages": [],
+                "public_apps": [],
+                "agent_skills": [],
+                "evidence_schemas": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AGILAB_CAPABILITIES_MANIFEST", str(manifest))
+
+    payload = manifest_tools.agent_quickstart()
+
+    assert payload["capabilities_manifest"] == str(manifest.resolve())
+    assert payload["what_is_agilab"] == "env-discovered capability index"
+
+
+def test_agent_quickstart_degrades_when_auto_discovery_finds_no_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module_path = tmp_path / "isolated_pkg" / "manifest_tools.py"
+    module_path.parent.mkdir()
+    module_path.write_text("# test module marker\n", encoding="utf-8")
+    cwd = tmp_path / "empty-cwd"
+    cwd.mkdir()
+    monkeypatch.delenv("AGILAB_CAPABILITIES_MANIFEST", raising=False)
+    monkeypatch.setattr(manifest_tools, "__file__", str(module_path))
+    monkeypatch.chdir(cwd)
+
+    payload = manifest_tools.agent_quickstart()
+
+    assert payload["capabilities_manifest"] is None
+    assert "Capabilities manifest not found" in payload["note"]
+
+
+def test_agent_quickstart_reports_bad_manifest_content(tmp_path: Path) -> None:
+    bad_json = tmp_path / "bad.json"
+    bad_json.write_text("{", encoding="utf-8")
+    unreadable = manifest_tools.agent_quickstart(capabilities_path=bad_json)
+    assert unreadable["capabilities_manifest"] is None
+    assert "Capabilities manifest unreadable" in unreadable["note"]
+
+    non_object = tmp_path / "array.json"
+    non_object.write_text("[]", encoding="utf-8")
+    wrong_shape = manifest_tools.agent_quickstart(capabilities_path=non_object)
+    assert wrong_shape["capabilities_manifest"] is None
+    assert wrong_shape["note"] == "Capabilities manifest is not a JSON object."
+
+
+def test_mcp_jsonrpc_error_paths_are_structured() -> None:
+    bad_params = mcp_server.handle_jsonrpc(
+        {"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": ["bad"]}
+    )
+    assert bad_params is not None
+    assert bad_params["error"]["code"] == -32000
+    assert "tools/call params must be an object" in bad_params["error"]["message"]
+
+    unknown_method = mcp_server.handle_jsonrpc(
+        {"jsonrpc": "2.0", "id": 11, "method": "unknown/method"}
+    )
+    assert unknown_method is not None
+    assert "Unsupported method: unknown/method" in unknown_method["error"]["message"]
+
+    unknown_tool = mcp_server.handle_jsonrpc(
+        {
+            "jsonrpc": "2.0",
+            "id": 12,
+            "method": "tools/call",
+            "params": {"name": "no_such_tool", "arguments": {}},
+        }
+    )
+    assert unknown_tool is not None
+    assert "Unknown AGILAB MCP tool: no_such_tool" in unknown_tool["error"]["message"]
+
+    assert (
+        mcp_server.handle_jsonrpc(
+            {"jsonrpc": "2.0", "id": 13, "method": "notifications/initialized"}
+        )
+        is None
+    )
+
+
+def test_mcp_stdio_skips_blank_lines_and_reports_invalid_requests() -> None:
+    import io
+
+    stdout = io.StringIO()
+    stdin = io.StringIO(
+        "\n"
+        "[]\n"
+        '{"jsonrpc":"2.0","method":"notifications/initialized"}\n'
+        '{"jsonrpc":"2.0","id":14,"method":"initialize"}\n'
+    )
+
+    assert mcp_server.serve_stdio(stdin=stdin, stdout=stdout) == 0
+    responses = [json.loads(line) for line in stdout.getvalue().splitlines()]
+
+    assert len(responses) == 2
+    assert responses[0]["error"]["code"] == -32600
+    assert responses[1]["id"] == 14
+    assert responses[1]["result"]["serverInfo"]["name"] == "agilab-mcp"
+
+
+def test_mcp_server_main_cli_modes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert mcp_server.main(["serve", "--json"]) == 0
+    serve_payload = json.loads(capsys.readouterr().out)
+    assert serve_payload["schema"] == "agilab.mcp.server.v1"
+
+    assert mcp_server.main(["list-tools", "--json"]) == 0
+    tools_payload = json.loads(capsys.readouterr().out)
+    assert tools_payload["tools"][0]["name"] == "agent_quickstart"
+
+    assert mcp_server.main(["list-tools"]) == 0
+    assert json.loads(capsys.readouterr().out)["tools"]
+
+    arguments = json.dumps({"max_items": 1})
+    assert mcp_server.main(["call-tool", "agent_quickstart", "--arguments", arguments]) == 0
+    quickstart_payload = json.loads(capsys.readouterr().out)
+    assert quickstart_payload["mcp_tools"][0]["name"] == "agent_quickstart"
+
+    assert (
+        mcp_server.main(
+            ["call-tool", "agent_quickstart", "--arguments", arguments, "--json"]
+        )
+        == 0
+    )
+    assert json.loads(capsys.readouterr().out)["tool"] == "agilab"
+
+    monkeypatch.setattr(mcp_server, "serve_stdio", lambda: 23)
+    assert mcp_server.main(["serve"]) == 23
+
+    parser = SimpleNamespace(
+        parse_args=lambda argv: SimpleNamespace(command="unsupported")
+    )
+    monkeypatch.setattr(mcp_server, "_build_parser", lambda: parser)
+    with pytest.raises(SystemExit, match="Unsupported command: unsupported"):
+        mcp_server.main(["unsupported"])
