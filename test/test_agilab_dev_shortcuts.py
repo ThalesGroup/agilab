@@ -377,17 +377,23 @@ def test_audit_preflight_shortcut_prints_architecture_preflight():
     ]
 
 
-def test_main_keeps_machine_readable_shortcut_stdout_clean(capsys, monkeypatch):
+def test_main_keeps_machine_readable_shortcut_stdout_clean(capsys, monkeypatch, tmp_path):
     calls = []
 
     class Completed:
         returncode = 0
+        stdout = "ok\n"
 
-    def fake_run(command, *, cwd):
+    def fake_run(command, *, cwd, stdout, stderr, text, errors):
         calls.append((command, cwd))
+        assert stdout is agilab_dev.subprocess.PIPE
+        assert stderr is agilab_dev.subprocess.STDOUT
+        assert text is True
+        assert errors == "replace"
         return Completed()
 
     monkeypatch.setattr(agilab_dev.subprocess, "run", fake_run)
+    monkeypatch.setattr(agilab_dev, "DEV_LOG_DIR", tmp_path)
 
     exit_code = agilab_dev.main(["regress", "--files", "src/agilab/pipeline_ai.py", "--json"])
 
@@ -395,6 +401,8 @@ def test_main_keeps_machine_readable_shortcut_stdout_clean(capsys, monkeypatch):
     assert exit_code == 0
     assert captured.out == ""
     assert "tools/ga_regression_selector.py" in captured.err
+    assert "./dev compact-output: ok exit=0" in captured.err
+    assert f"log={tmp_path}" in captured.err
     assert calls == [
         (
             [
@@ -407,6 +415,75 @@ def test_main_keeps_machine_readable_shortcut_stdout_clean(capsys, monkeypatch):
                 "--files",
                 "src/agilab/pipeline_ai.py",
                 "--json",
+            ],
+            agilab_dev.ROOT,
+        )
+    ]
+
+
+def test_main_compact_output_prints_signal_summary_and_writes_full_log(capsys, monkeypatch, tmp_path):
+    class Completed:
+        returncode = 1
+        stdout = "\n".join(
+            [
+                "collecting tests",
+                "line that should stay only in the artifact",
+                "ERROR first failure",
+                "Traceback (most recent call last)",
+                "FAILED test_demo.py::test_demo",
+                "short tail",
+            ]
+        )
+
+    def fake_run(command, *, cwd, stdout, stderr, text, errors):
+        return Completed()
+
+    monkeypatch.setattr(agilab_dev.subprocess, "run", fake_run)
+    monkeypatch.setattr(agilab_dev, "DEV_LOG_DIR", tmp_path)
+
+    exit_code = agilab_dev.main(["--summary-lines", "3", "test", "test_demo.py"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.out == ""
+    assert "ERROR first failure" in captured.err
+    assert "FAILED test_demo.py::test_demo" in captured.err
+    assert "omitted" in captured.err
+    logs = list(tmp_path.glob("*.log"))
+    assert len(logs) == 1
+    assert "line that should stay only in the artifact" in logs[0].read_text(encoding="utf-8")
+
+
+def test_main_raw_output_keeps_streaming_subprocess_call(capsys, monkeypatch):
+    calls = []
+
+    class Completed:
+        returncode = 0
+
+    def fake_run(command, *, cwd):
+        calls.append((command, cwd))
+        return Completed()
+
+    monkeypatch.setattr(agilab_dev.subprocess, "run", fake_run)
+
+    exit_code = agilab_dev.main(["--raw-output", "regress"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.out == ""
+    assert "tools/ga_regression_selector.py --staged --run" in captured.err
+    assert "./dev compact-output" not in captured.err
+    assert calls == [
+        (
+            [
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/ga_regression_selector.py",
+                "--staged",
+                "--run",
             ],
             agilab_dev.ROOT,
         )

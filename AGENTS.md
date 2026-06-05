@@ -67,7 +67,13 @@ Use this runbook whenever you:
   scopes are mixed, `task-worktree` creates a sibling checkout for one isolated
   branch, and `clean` dry-runs removal of ignored local build/lib duplicates
   plus ignored local artifact directories under `src/agilab` unless `--apply`
-  is passed. Use `--print-only` to audit the expanded commands.
+  is passed. Use `--print-only` to audit the expanded commands. By default,
+  `./dev` captures stdout/stderr, writes the full stream to ignored
+  `reports/dev-logs/`, and prints a bounded signal summary to stderr so agent
+  turns do not ingest full validation logs. Use `--raw-output` or
+  `AGILAB_DEV_OUTPUT=raw` only when a human or downstream tool needs the old
+  streaming output; use `--summary-lines N` or `AGILAB_DEV_SUMMARY_LINES=N` to
+  adjust the compact signal budget.
 - **Upgrade packaged tools first**: Before launching the published CLI with `uvx
   agilab`, run `uv --preview-features extra-build-dependencies tool install --upgrade agilab` to install or pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching

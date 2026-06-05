@@ -3,7 +3,7 @@ name: agilab-intent-router
 description: Route terse AGILAB operator requests such as "do it", "review AGILAB", "next move", "update repos", "merge it", "check again", "release", and "cluster validation" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-31
+  updated: 2026-06-06
 ---
 
 # AGILAB Intent Router
@@ -46,6 +46,11 @@ constraint   ::= "only agilab" | "no tests" | "from current repo" | "from anothe
 8. If the previous turn established scope, `do it`, `go on`, and `check again`
    inherit that scope; otherwise inspect current repo state and ask only if
    action would be risky.
+9. If one user message combines an execution command with a follow-up planning
+   request, for example `do it; then next move`, treat it as a single ordered
+   turn: execute, validate, report the result, then give the next recommendation.
+   This avoids an extra prompt round trip while preserving current-state
+   inspection before the recommendation.
 
 ## Session-Derived Routes
 
@@ -75,6 +80,10 @@ Route these patterns before choosing tools:
   the user names them. Show concrete `git -C` commands before execution.
 - For `do it` after a proposal, execute the proposed action if repo state is
   safe. If state changed unexpectedly, report the changed branch/files first.
+- For combined commands such as `do it; validate; push if clean; then suggest
+  next move`, complete the ordered chain in one response when safe. Do not ask
+  for a second `next move` turn unless a blocker or risky ambiguity requires
+  user input.
 - For `check again`, verify the authoritative source for the prior claim:
   current repo state, workflow status, docs mirror, PyPI/GitHub release, or
   cluster discovery as appropriate.

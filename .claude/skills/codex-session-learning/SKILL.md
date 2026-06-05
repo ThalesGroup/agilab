@@ -3,7 +3,7 @@ name: codex-session-learning
 description: Turn past Codex debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from prior sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-16
+  updated: 2026-06-06
 ---
 
 # Codex Session Learning
@@ -84,6 +84,28 @@ Then feed those results into a future prompt as explicit guidance.
 - `prompt_template.md`
 - `validation_rules.md`
 - `next_prompt.md`
+- `session_rule_proposals.json` and `session_rule_proposals.md` when mining
+  repeated corrections into reviewable agent-rule candidates
+
+## Rule Proposal Automation
+
+Use the synthesis tool with `--propose-rules` when the learning target is
+recurring operator corrections, prompt round-trip reduction, missed-path
+checklists, or guardrail friction:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/session_intent_synthesis.py \
+  --sessions-root "$HOME/.codex/sessions" \
+  --memory-root "$HOME/.codex/memories/rollout_summaries" \
+  --output test-results/session_intents.json \
+  --propose-rules \
+  --rule-output test-results/session_rule_proposals.json \
+  --rule-markdown-output test-results/session_rule_proposals.md
+```
+
+Treat proposals as review inputs, not automatic edits. Check each candidate
+against existing `AGENT_LEARNINGS.md`, `AGENTS.md`, and repo skills, then update
+the narrowest durable rule surface manually.
 
 ## Prompt-building pattern
 

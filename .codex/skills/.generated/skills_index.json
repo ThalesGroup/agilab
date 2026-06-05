@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-04T17:50:40Z",
+  "generated_at_utc": "2026-06-05T22:41:51Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -71,7 +71,7 @@
       "name": "agilab-intent-router",
       "description": "Route terse AGILAB operator requests such as \"do it\", \"review AGILAB\", \"next move\", \"update repos\", \"merge it\", \"check again\", \"release\", and \"cluster validation\" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-31",
+      "updated": "2026-06-06",
       "path": ".codex/skills/agilab-intent-router/SKILL.md",
       "body_preview": "# AGILAB Intent Router\nUse this skill first when a user request is short, ambiguous, or operational.\nThe goal is to classify the request before acting, so terse commands map to the\nright AGILAB workflow instead of defaulting to a shallow answer or wrong repo"
     },
@@ -143,7 +143,7 @@
       "name": "agilab-testing",
       "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-02",
+      "updated": "2026-06-06",
       "path": ".codex/skills/agilab-testing/SKILL.md",
       "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- For non-trivial diffs, start with"
     },
@@ -167,7 +167,7 @@
       "name": "codex-session-learning",
       "description": "Turn past Codex debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from prior sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-16",
+      "updated": "2026-06-06",
       "path": ".codex/skills/codex-session-learning/SKILL.md",
       "body_preview": "# Codex Session Learning\nUse this skill to convert prior Codex work into explicit reusable assets.\nThe goal is not to pretend the agent has hidden long-term memory. The goal is to\nextract structured cases, reusable prompt patterns, and validation rules from"
     },
