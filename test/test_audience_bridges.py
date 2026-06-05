@@ -1101,3 +1101,69 @@ def test_mcp_jsonrpc_notifications_are_silent():
     assert handle_jsonrpc(
         {"jsonrpc": "2.0", "method": "unsupported/notification"}
     ) is None
+
+
+def test_mcp_tool_registry_and_descriptors_stay_in_parity() -> None:
+    """Every callable tool is advertised by tools/list, and vice versa.
+
+    Guards the agentic interface against a tool being registered without a
+    descriptor (invisible to agents) or advertised without an implementation
+    (tools/call would fail).
+    """
+    registered = set(mcp_server.TOOLS)
+    descriptors = [d["name"] for d in mcp_server.tool_descriptors()]
+    assert len(descriptors) == len(set(descriptors)), "duplicate tool descriptors"
+    assert set(descriptors) == registered
+    for descriptor in mcp_server.tool_descriptors():
+        assert descriptor.get("description")
+        assert descriptor.get("inputSchema", {}).get("type") == "object"
+
+
+def test_agent_quickstart_returns_bounded_curated_front_door() -> None:
+    """agent_quickstart gives a fresh agent a bounded 'start here' in one call."""
+    payload = mcp_server.call_tool("agent_quickstart", {})
+    # Always present, even without the capabilities manifest.
+    assert payload["read_only_boundary"]["local_files_only"] is True
+    assert payload["recommended_workflow"], "workflow guidance must be non-empty"
+    # The live MCP tool list is injected so the agent needs no second call.
+    advertised = {d["name"] for d in mcp_server.tool_descriptors()}
+    assert {t["name"] for t in payload["mcp_tools"]} == advertised
+    # quickstart leads tools/list so it is the first thing an agent sees.
+    assert mcp_server.tool_descriptors()[0]["name"] == "agent_quickstart"
+
+
+def test_agent_quickstart_bounds_manifest_lists(tmp_path) -> None:
+    """When the capabilities manifest is large, lists are capped and big sets
+    are summarized as counts rather than inlined."""
+    manifest = {
+        "boundary": {"proves": "discoverable surfaces"},
+        "cli_commands": [
+            {"command": f"cmd{i}", "kind": "k", "maturity": "m", "description": "d"}
+            for i in range(50)
+        ],
+        "public_apps": [{"project": f"app{i}"} for i in range(50)],
+        "agent_skills": [{"name": f"skill{i}"} for i in range(50)],
+        "evidence_schemas": [{"id": i} for i in range(214)],
+        "packages": [],
+        "streamlit_pages": [],
+        "docs": [],
+    }
+    path = tmp_path / "agilab-capabilities.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    payload = manifest_tools.agent_quickstart(capabilities_path=str(path), max_items=5)
+    assert payload["capabilities_manifest"] == str(path)
+    assert len(payload["cli_commands"]) == 5
+    assert len(payload["public_apps"]) == 5
+    assert payload["counts"]["cli_commands"] == 50
+    assert payload["counts"]["evidence_schemas"] == 214  # count, never inlined
+    assert "evidence_schemas" not in payload  # the 214-item list is not returned
+
+
+def test_agent_quickstart_degrades_without_manifest() -> None:
+    """Missing manifest still yields a safe, useful front door."""
+    payload = manifest_tools.agent_quickstart(capabilities_path="/nonexistent/x.json")
+    assert payload["capabilities_manifest"] is None
+    assert payload["recommended_workflow"]
+    assert payload["read_only_boundary"]["shell_enabled"] is False
+    assert "note" in payload

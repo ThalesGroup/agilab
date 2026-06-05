@@ -12,7 +12,23 @@ from agilab_mcp import manifest_tools
 
 ToolFn = Callable[..., dict[str, Any]]
 
+
+def _agent_quickstart(**kwargs: Any) -> dict[str, Any]:
+    """Curated 'start here' front door for agents.
+
+    Combines the manifest-sourced overview with the live MCP tool list so a
+    fresh agent gets everything it needs to orient from a single call.
+    """
+    overview = manifest_tools.agent_quickstart(**kwargs)
+    overview["mcp_tools"] = [
+        {"name": descriptor["name"], "description": descriptor["description"]}
+        for descriptor in tool_descriptors()
+    ]
+    return overview
+
+
 TOOLS: dict[str, ToolFn] = {
+    "agent_quickstart": _agent_quickstart,
     "list_projects": manifest_tools.list_projects,
     "list_runs": manifest_tools.list_runs,
     "list_agent_runs": manifest_tools.list_agent_runs,
@@ -33,6 +49,22 @@ TOOLS: dict[str, ToolFn] = {
 
 def tool_descriptors() -> list[dict[str, Any]]:
     return [
+        {
+            "name": "agent_quickstart",
+            "description": (
+                "Curated 'start here' for agents: read-only boundary, recommended "
+                "workflow, the live MCP tool list, and a condensed CLI/apps/skills "
+                "overview with counts — without reading the full capabilities manifest."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "capabilities_path": {"type": "string"},
+                    "max_items": {"type": "integer"},
+                },
+                "required": [],
+            },
+        },
         {
             "name": "list_projects",
             "description": "List AGILAB project directories under an apps root.",
