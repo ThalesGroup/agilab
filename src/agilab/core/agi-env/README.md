@@ -28,6 +28,14 @@ pip install agi-gui
 - Resolve workspace paths consistently across local and shared installs.
 - Centralize small utilities used by managers and worker packaging.
 
+## Compatibility modules
+
+Top-level modules such as `agi_env.agi_env`, `agi_env.pagelib`, and
+`agi_env.data_archive_support` are compatibility shims for existing external
+imports. New internal code should import the classified implementation modules
+under `agi_env.runtime`, `agi_env.project`, `agi_env.ui`, `agi_env.shares`,
+`agi_env.source`, or `agi_env.integrations`.
+
 ## Repository
 
 - Source: https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-env

@@ -10,7 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
-from agi_env.package_layout_support import (
+from agi_env.runtime.package_layout_support import (
     RuntimePackageSpec,
     load_runtime_package_specs,
     resolve_agilab_source_root_from_module_file,

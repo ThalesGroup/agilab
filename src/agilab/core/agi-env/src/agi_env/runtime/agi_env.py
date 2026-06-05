@@ -49,58 +49,58 @@ import ctypes
 from ctypes import wintypes
 import importlib.util
 from threading import RLock
-from agi_env.app_settings_support import (
+from agi_env.project.app_settings_support import (
     app_settings_aliases,
     app_settings_source_roots,
     candidate_app_settings_path,
     find_source_app_settings_file,
     resolve_user_app_settings_file,
 )
-from agi_env.env_config_support import (
+from agi_env.runtime.env_config_support import (
     load_dotenv_values as _load_dotenv_values,
     write_env_updates,
 )
-from agi_env.agi_env_app_switch_support import change_app as _agi_env_change_app
-from agi_env.agi_env_execution_methods import (
+from agi_env.runtime.agi_env_app_switch_support import change_app as _agi_env_change_app
+from agi_env.runtime.agi_env_execution_methods import (
     run as _agi_env_run,
     run_agi as _agi_env_run_agi,
     run_async as _agi_env_run_async,
     run_bg as _agi_env_run_bg,
 )
-from agi_env.agi_env_instance_initialization import initialize_agi_env_instance
-from agi_env.agi_env_meta_support import AgiEnvMeta as _AgiEnvMeta
-from agi_env.env_runtime_initialization_support import initialize_app_runtime
-from agi_env.hook_support import resolve_worker_hook, select_hook
-from agi_env.host_runtime_support import (
+from agi_env.runtime.agi_env_instance_initialization import initialize_agi_env_instance
+from agi_env.runtime.agi_env_meta_support import AgiEnvMeta as _AgiEnvMeta
+from agi_env.runtime.env_runtime_initialization_support import initialize_app_runtime
+from agi_env.runtime.hook_support import resolve_worker_hook, select_hook
+from agi_env.runtime.host_runtime_support import (
     check_internet_connectivity,
     create_symlink as _create_symlink,
     is_local_ip,
 )
-from agi_env.installation_support import (
+from agi_env.runtime.installation_support import (
     installation_marker_path,
     locate_agilab_installation_path,
     read_agilab_installation_marker,
 )
-from agi_env.runtime_bootstrap_support import parse_int_env_value
-from agi_env.worker_runtime_support import configure_worker_runtime
-from agi_env.windows_link_support import (
+from agi_env.runtime.runtime_bootstrap_support import parse_int_env_value
+from agi_env.runtime.worker_runtime_support import configure_worker_runtime
+from agi_env.runtime.windows_link_support import (
     create_junction_windows as _create_junction_windows,
     create_symlink_windows as _create_symlink_windows,
     has_admin_rights as _has_admin_rights,
 )
-from agi_env.process_support import (
+from agi_env.runtime.process_support import (
     build_subprocess_env,
     fix_windows_drive as _fix_windows_drive,
     normalize_path,
 )
-from agi_env.repository_support import (
+from agi_env.runtime.repository_support import (
     collect_pythonpath_entries as build_pythonpath_entries,
     configure_pythonpath as apply_pythonpath_entries,
     dedupe_existing_paths,
     get_apps_repository_root as resolve_apps_repository_root,
     resolve_package_root,
 )
-from agi_env.share_runtime_support import (
+from agi_env.shares.share_runtime_support import (
     is_valid_ip as is_valid_ipv4_address,
     mode_to_int,
     mode_to_str,
@@ -108,36 +108,36 @@ from agi_env.share_runtime_support import (
     share_target_name,
     python_supports_free_threading,
 )
-from agi_env.rename_gitignore_support import (
+from agi_env.project.rename_gitignore_support import (
     is_relative_to as is_path_relative_to,
     load_gitignore_spec,
     replace_text_content,
 )
-from agi_env.content_renamer_support import ContentRenamer as BaseContentRenamer
-from agi_env.bootstrap_support import coerce_active_app_request
-from agi_env.source_analysis_support import (
+from agi_env.project.content_renamer_support import ContentRenamer as BaseContentRenamer
+from agi_env.runtime.bootstrap_support import coerce_active_app_request
+from agi_env.source.source_analysis_support import (
     extract_base_info as extract_ast_base_info,
     get_full_attribute_name as build_full_attribute_name,
     get_import_mapping as build_import_mapping,
 )
-from agi_env.project_initialization_support import (
+from agi_env.project.project_initialization_support import (
     copy_file_if_missing,
     discover_projects,
     initialize_app_files,
     initialize_resources,
 )
-from agi_env.worker_source_support import (
+from agi_env.project.worker_source_support import (
     get_base_classes as discover_base_classes,
     get_base_worker_cls as discover_base_worker_cls,
 )
-from agi_env.project_clone_support import (
+from agi_env.project.project_clone_support import (
     cleanup_rename as cleanup_project_rename,
     clone_directory as clone_project_directory,
     clone_project as clone_app_project,
     copy_existing_projects as copy_missing_projects,
     create_rename_map as build_clone_rename_map,
 )
-from agi_env.data_archive_support import unzip_data as extract_dataset_archive
+from agi_env.project.data_archive_support import unzip_data as extract_dataset_archive
 try:
     import pwd
 except ImportError:  # Windows
@@ -163,7 +163,7 @@ if FormattedTB is not None:
 
     sys.excepthook = FormattedTB(**_tb_kwargs)
 
-from agi_env.agi_logger import AgiLogger
+from agi_env.runtime.agi_logger import AgiLogger
 
 logger = AgiLogger.get_logger(__name__)
 _LOGGING_MODULE = logging

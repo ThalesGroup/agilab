@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Callable
 
-from agi_env.source_analysis_support import extract_base_info, get_import_mapping
+from agi_env.source.source_analysis_support import extract_base_info, get_import_mapping
 
 
 def get_base_classes(

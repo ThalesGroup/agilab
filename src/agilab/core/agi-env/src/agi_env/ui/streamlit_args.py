@@ -9,8 +9,8 @@ from typing import Any, Callable, Literal, get_args, get_origin
 from pydantic import BaseModel, ValidationError
 from annotated_types import Ge, Le, MultipleOf
 
-from agi_env._optional_ui import require_streamlit
-from agi_env.app_args import prefer_persisted_value
+from agi_env.ui._optional_ui import require_streamlit
+from agi_env.project.app_args import prefer_persisted_value
 
 st = require_streamlit()
 
@@ -54,7 +54,7 @@ def load_args_state(
 def diagnose_data_directory(directory: Path) -> str | None:
     """Proxy to the pagelib diagnosis helper without importing Streamlit UI code eagerly."""
 
-    from agi_env.pagelib import diagnose_data_directory as _diagnose_data_directory
+    from agi_env.ui.pagelib import diagnose_data_directory as _diagnose_data_directory
 
     return _diagnose_data_directory(directory)
 

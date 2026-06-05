@@ -158,7 +158,7 @@ def test_diagnose_data_directory_uses_lazy_pagelib_import(tmp_path, monkeypatch)
     fake_module = SimpleNamespace(
         diagnose_data_directory=lambda directory: f"diagnosed:{Path(directory).name}"
     )
-    monkeypatch.setitem(sys.modules, "agi_env.pagelib", fake_module)
+    monkeypatch.setitem(sys.modules, "agi_env.ui.pagelib", fake_module)
 
     assert streamlit_args.diagnose_data_directory(target) == "diagnosed:dataset"
 

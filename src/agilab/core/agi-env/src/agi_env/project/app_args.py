@@ -10,11 +10,10 @@ import tomllib
 
 from pydantic import BaseModel, ValidationError
 
-from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_env.project.app_settings_support import prepare_app_settings_for_write
+from agi_env.runtime.agi_logger import AgiLogger
 
 TModel = TypeVar("TModel", bound=BaseModel)
-
-from agi_env.agi_logger import AgiLogger
 
 logger = AgiLogger.get_logger(__name__)
 

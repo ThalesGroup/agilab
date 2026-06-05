@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 import os
 import traceback
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Callable
 
 import py7zr
@@ -150,6 +150,39 @@ def _archive_size_mb(archive_path: Path) -> float | None:
         return None
 
 
+def _archive_member_names(archive: Any) -> list[str] | None:
+    getnames = getattr(archive, "getnames", None)
+    if not callable(getnames):
+        return None
+    return [str(name) for name in getnames()]
+
+
+def _archive_member_target(dest: Path, member_name: str) -> Path:
+    normalized = member_name.replace("\\", "/")
+    member_path = PurePosixPath(normalized)
+    return (dest / Path(*member_path.parts)).resolve()
+
+
+def _validate_archive_members_stay_within_dest(archive: Any, dest: Path) -> None:
+    """Reject archive entries that would escape ``dest`` before extraction."""
+
+    member_names = _archive_member_names(archive)
+    if member_names is None:
+        # Production py7zr exposes getnames(); this compatibility branch keeps
+        # lightweight test doubles working while real archives are preflighted.
+        return
+
+    resolved_dest = dest.resolve()
+    for member_name in member_names:
+        posix_member = PurePosixPath(member_name.replace("\\", "/"))
+        windows_member = PureWindowsPath(member_name)
+        if posix_member.is_absolute() or windows_member.is_absolute() or windows_member.drive:
+            raise RuntimeError(f"Unsafe archive member path in '{member_name}'")
+        target = _archive_member_target(resolved_dest, member_name)
+        if not target.is_relative_to(resolved_dest):
+            raise RuntimeError(f"Unsafe archive member path in '{member_name}'")
+
+
 def _write_dataset_stamp(archive_path: Path, stamp_path: Path) -> None:
     try:
         stamp_path.write_text(str(archive_path), encoding="utf-8")
@@ -272,6 +305,7 @@ def unzip_data(
                     f"Starting dataset extraction: {archive_path}{size_hint} -> {dataset} "
                     "(this can take a moment; please wait)."
                 )
+            _validate_archive_members_stay_within_dest(archive, dest)
             archive.extractall(path=dest)
         if verbose > 1:
             logger.info(f"Extracted '{archive_path}' to '{dest}'.")

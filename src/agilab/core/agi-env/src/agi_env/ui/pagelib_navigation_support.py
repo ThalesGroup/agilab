@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, MutableMapping, Sequence
 
-from agi_env.app_provider_registry import app_name_aliases
+from agi_env.project.app_provider_registry import app_name_aliases
 
 
 SessionStateLike = MutableMapping[str, Any]

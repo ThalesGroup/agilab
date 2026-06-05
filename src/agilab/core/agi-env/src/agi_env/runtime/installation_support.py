@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Callable
 
-from agi_env.package_layout_support import (
+from agi_env.runtime.package_layout_support import (
     resolve_agilab_source_root_from_module_file,
     resolve_package_dir_from_module_file,
 )

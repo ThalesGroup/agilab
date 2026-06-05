@@ -10,9 +10,9 @@ import sys
 from pathlib import Path
 from typing import Callable
 
-from agi_env.agi_logger import AgiLogger
-from agi_env.app_provider_registry import installed_app_project_paths, resolve_app_runtime_target
-from agi_env.bootstrap_support import (
+from agi_env.runtime.agi_logger import AgiLogger
+from agi_env.project.app_provider_registry import installed_app_project_paths, resolve_app_runtime_target
+from agi_env.runtime.bootstrap_support import (
     can_link_repo_apps,
     resolve_active_app_selection,
     resolve_builtin_apps_path,
@@ -21,20 +21,20 @@ from agi_env.bootstrap_support import (
     resolve_package_dir,
     resolve_requested_apps_path,
 )
-from agi_env.env_config_support import clean_envar_value
-from agi_env.package_layout_support import (
+from agi_env.runtime.env_config_support import clean_envar_value
+from agi_env.runtime.package_layout_support import (
     resolve_agilab_package_context,
     resolve_agilab_source_root_from_module_file,
     resolve_package_dir_from_module_file,
     resolve_package_layout,
     resolve_resource_root,
 )
-from agi_env.runtime_bootstrap_support import (
+from agi_env.runtime.runtime_bootstrap_support import (
     parse_int_env_value,
     resolve_share_runtime_config,
     sync_repository_apps,
 )
-from agi_env.share_mount_support import (
+from agi_env.shares.share_mount_support import (
     cluster_enabled_from_settings as resolve_cluster_enabled_from_settings,
     resolve_share_path as resolve_runtime_share_path,
 )

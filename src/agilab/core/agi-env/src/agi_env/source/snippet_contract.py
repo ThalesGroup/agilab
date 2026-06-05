@@ -52,7 +52,7 @@ def snippet_contract_lines(
         lines.append(f"# generator: {generator}")
     lines.extend(
         [
-            "from agi_env.snippet_contract import require_supported_snippet_api",
+            "from agi_env.source.snippet_contract import require_supported_snippet_api",
             "",
             f'{SNIPPET_API_NAME} = "{CURRENT_SNIPPET_API}"',
             f"require_supported_snippet_api({SNIPPET_API_NAME})",
