@@ -73,6 +73,73 @@ def test_recommend_context_matches_release_prompt_without_files() -> None:
     assert "agilab-pypi-release-maintenance" in skill_names
 
 
+def test_recommend_context_can_emit_tokki_profile_packs() -> None:
+    payload = agent_context_router.recommend_context(
+        files=[
+            "src/agilab/pages/4_ANALYSIS.py",
+            "src/agilab/notebooks/notebook_export_support.py",
+        ],
+        prompt="fix notebook sync in the analysis page",
+        skills=_skill_index(),
+        profile="tokki",
+    )
+
+    profile = payload["context_profile"]
+
+    assert profile["id"] == "tokki"
+    assert profile["estimated_token_budget"] <= profile["max_total_tokens"]
+    assert profile["baseline_files"] == [
+        "AGENT_CONVENTIONS.md",
+        "agent-context-rules.json",
+        "tools/impact_validate.py",
+    ]
+    pack_ids = [pack["rule_id"] for pack in profile["matched_packs"]]
+    assert "streamlit-ui" in pack_ids
+    assert "notebook-import-export" in pack_ids
+    notebook_pack = next(pack for pack in profile["matched_packs"] if pack["rule_id"] == "notebook-import-export")
+    assert "test/test_pipeline_editor.py" in notebook_pack["files"]
+
+
+def test_recommend_context_routes_tokki_prompt_to_context_profile_pack() -> None:
+    payload = agent_context_router.recommend_context(
+        prompt="make AGILAB tokki friendly with token saving context packs",
+        skills=_skill_index(),
+        profile="tokki",
+    )
+
+    matched_ids = [rule["id"] for rule in payload["matched_rules"]]
+    profile_pack_ids = [pack["rule_id"] for pack in payload["context_profile"]["matched_packs"]]
+
+    assert "agent-skills" in matched_ids
+    assert "agent-skills" in profile_pack_ids
+
+
+def test_cli_text_output_reports_tokki_profile(capsys) -> None:
+    rc = agent_context_router.main(
+        [
+            "--files",
+            "src/agilab/pages/4_ANALYSIS.py",
+            "--prompt",
+            "fix Streamlit sidebar state",
+            "--profile",
+            "tokki",
+        ]
+    )
+
+    assert rc == 0
+    output = capsys.readouterr().out
+    assert "Context profile: tokki" in output
+    assert "streamlit-ui" in output
+
+
+def test_cli_reports_unknown_context_profile(capsys) -> None:
+    rc = agent_context_router.main(["--profile", "missing"])
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "unknown context profile: missing" in captured.err
+
+
 def test_validate_rules_reports_unknown_skill() -> None:
     rules = {
         "schema": "agilab.agent_context_rules.v1",
