@@ -116,6 +116,14 @@ _REQUIREMENT_NAME_PATTERN = re.compile(
 )
 
 
+def _is_typing_only_distribution(normalized_name: str) -> bool:
+    return normalized_name.endswith("-stubs") or normalized_name.startswith("types-")
+
+
+def _is_placeholder_top_level_module(module: str) -> bool:
+    return module.startswith("__") and module.endswith("__")
+
+
 def _python_string(value: Any) -> str:
     return json.dumps(str(value))
 
@@ -1438,7 +1446,12 @@ def _top_level_modules_from_metadata_dir(metadata_dir: Path) -> tuple[str, ...]:
         lines = []
     for line in lines:
         module = line.strip()
-        if module and not module.startswith("#") and module.isidentifier():
+        if (
+            module
+            and not module.startswith("#")
+            and module.isidentifier()
+            and not _is_placeholder_top_level_module(module)
+        ):
             modules.append(module)
     if modules:
         return tuple(dict.fromkeys(modules))
@@ -1488,6 +1501,8 @@ def _dependency_modules_from_requirement(
     if requirement_info is None:
         return ()
     raw_name, normalized, extras = requirement_info
+    if _is_typing_only_distribution(normalized):
+        return ()
 
     modules = list(_top_level_modules_from_distribution(site_packages, normalized))
     if not modules:

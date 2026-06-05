@@ -1276,7 +1276,7 @@ def test_app_install_status_uses_worker_project_dependencies(tmp_path: Path) -> 
     (active_app / "pyproject.toml").write_text(
         "[project]\n"
         "name='flight-telemetry-project'\n"
-        "dependencies=['python-dotenv>=1', 'streamlit>=1']\n",
+        "dependencies=['python-dotenv>=1', 'streamlit>=1', 'pandas-stubs>=2', 'types-requests>=2']\n",
         encoding="utf-8",
     )
     (worker_root / "pyproject.toml").write_text(
@@ -1298,10 +1298,14 @@ def test_app_install_status_uses_worker_project_dependencies(tmp_path: Path) -> 
     status = orchestrate_page_support.app_install_status(env)
 
     assert orchestrate_page_support._dependency_modules_from_requirement("python-dotenv>=1") == ("dotenv",)
+    assert orchestrate_page_support._dependency_modules_from_requirement("pandas-stubs>=2") == ()
+    assert orchestrate_page_support._dependency_modules_from_requirement("types-requests>=2") == ()
     assert status["manager_ready"] is True
     assert status["worker_ready"] is True
     assert "streamlit" not in status["worker_missing_modules"]
     assert "python_dotenv" not in status["worker_missing_modules"]
+    assert "pandas_stubs" not in status["manager_missing_modules"]
+    assert "types_requests" not in status["manager_missing_modules"]
 
 
 def test_app_install_status_uses_installed_top_level_metadata_for_dependency_imports(tmp_path: Path) -> None:
@@ -1417,6 +1421,8 @@ def test_dependency_metadata_helpers_cover_error_edges(monkeypatch, tmp_path: Pa
     assert orchestrate_page_support._dependency_modules_from_requirement("!!! not a requirement") == ()
     assert orchestrate_page_support._dependency_modules_from_requirement("requests; extra == 'dev'") == ()
     assert orchestrate_page_support._dependency_modules_from_requirement("agilab>=1") == ()
+    assert orchestrate_page_support._dependency_modules_from_requirement("pandas-stubs") == ()
+    assert orchestrate_page_support._dependency_modules_from_requirement("types-requests") == ()
     assert orchestrate_page_support._dependency_modules_from_requirement("dask[distributed]>=2026") == (
         "dask",
         "distributed",
@@ -1458,6 +1464,16 @@ def test_dependency_metadata_helpers_cover_error_edges(monkeypatch, tmp_path: Pa
         "dash-extensions>=1",
         site_packages=(site_packages,),
     ) == ("dash_extensions",)
+    _seed_dist_info(
+        site_packages,
+        "pyarrow",
+        top_level="__dummy__\n",
+        record="pyarrow/__init__.py,,\npyarrow-23.0.1.dist-info/METADATA,,\n",
+    )
+    assert orchestrate_page_support._dependency_modules_from_requirement(
+        "pyarrow>=23",
+        site_packages=(site_packages,),
+    ) == ("pyarrow",)
 
     nameless = site_packages / "nameless-1.0.dist-info" / "METADATA"
     nameless.parent.mkdir()
