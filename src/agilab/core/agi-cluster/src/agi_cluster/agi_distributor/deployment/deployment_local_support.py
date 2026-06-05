@@ -1,6 +1,7 @@
 import getpass
 import logging
 import os
+import shlex
 import shutil
 import stat
 import subprocess
@@ -114,6 +115,16 @@ DEPENDENCY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
     "pyyaml": ("yaml",),
     "scikit-learn": ("sklearn",),
 }
+
+
+def _shell_arg(value: Any) -> str:
+    if isinstance(value, Path):
+        return shlex.quote(value.as_posix())
+    return shlex.quote(str(value))
+
+
+def _shell_words(value: Any) -> str:
+    return " ".join(shlex.quote(part) for part in shlex.split(str(value), posix=True))
 
 
 def _latest_glob_match(root: Path, pattern: str) -> Path | None:
@@ -1608,9 +1619,9 @@ async def deploy_local_worker(
 
     post_install_cmd = (
         f"{_local_worker_post_install_env_prefix(agi_cls)}"
-        f'{uv_worker} run --no-sync --project "{wenv_abs}" '
-        f"--python {pyvers_worker} python -m {env.post_install_rel} "
-        f'"{env.active_app}"'
+        f"{_shell_words(uv_worker)} run --no-sync --project {_shell_arg(wenv_abs)} "
+        f"--python {_shell_arg(pyvers_worker)} python -m {_shell_arg(env.post_install_rel)} "
+        f"{_shell_arg(env.active_app)}"
     )
 
     started_at = time.perf_counter()

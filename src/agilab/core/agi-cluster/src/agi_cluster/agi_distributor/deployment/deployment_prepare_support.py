@@ -38,7 +38,7 @@ async def _local_uv_python_available(
     run_fn: Callable[..., Any],
 ) -> bool:
     try:
-        await run_fn(f"{uv} python find {pyvers}", cwd)
+        await run_fn(f"{uv} python find {shlex.quote(str(pyvers))}", cwd)
     except RuntimeError:
         return False
     return True
@@ -95,7 +95,7 @@ def _remote_python_makedirs_command(uv: str, path: Path) -> str:
 
 async def uninstall_modules(agi_cls: Any, env: AgiEnv, *, run_fn: Callable[..., Any] = AgiEnv.run, log: Any = logger) -> None:
     for module in agi_cls._module_to_clean:
-        cmd = f"{env.uv} pip uninstall {module} -y"
+        cmd = f"{env.uv} pip uninstall {shlex.quote(str(module))} -y"
         log.info(f"Executing: {cmd}")
         await run_fn(cmd, agi_cls.env.agi_env)
     agi_cls._module_to_clean.clear()
@@ -184,7 +184,7 @@ async def prepare_local_env(
             log.info("Python interpreter '%s' is already available to uv; skipping install.", pyvers)
         else:
             try:
-                await run_fn(f"{uv} python install {pyvers}", wenv_abs.parent)
+                await run_fn(f"{uv} python install {shlex.quote(str(pyvers))}", wenv_abs.parent)
             except RuntimeError as exc:
                 if "No download found for request" in str(exc):
                     log.warning(

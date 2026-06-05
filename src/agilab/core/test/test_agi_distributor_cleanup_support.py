@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -220,7 +221,7 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
     env = SimpleNamespace(
         uv="uv",
         wenv_abs=wenv_abs,
-        wenv_rel=Path("wenv/demo_worker"),
+        wenv_rel=Path("w env's/demo worker"),
         envars={},
         cluster_pck=cluster_pck,
         agi_cluster=str(tmp_path / "cluster-runtime"),
@@ -281,14 +282,19 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
 
     assert copied
     assert local_runs
-    assert any("cli.py' kill 999" in cmd for cmd, _cwd in local_runs)
+    local_argv = shlex.split(local_runs[0][0].split("python ", 1)[1], posix=True)
+    assert local_argv == [(wenv_parent / "cli.py").as_posix(), "kill", "999"]
     assert all(cwd == str(wenv_abs) for _cmd, cwd in local_runs)
-    assert remote_runs == [
-        (
-            "10.0.0.2",
-            'export PATH="$HOME/.local/bin:$PATH";uv run --no-sync python '
-            "'wenv/cli.py' kill",
-        )
+    assert len(remote_runs) == 1
+    assert remote_runs[0][0] == "10.0.0.2"
+    remote_argv = shlex.split(remote_runs[0][1].split(";", 1)[1], posix=True)
+    assert remote_argv == [
+        "uv",
+        "run",
+        "--no-sync",
+        "python",
+        "w env's/cli.py",
+        "kill",
     ]
     assert detected == ["10.0.0.2"]
     assert env.envars["10.0.0.2_CMD_PREFIX"] == 'export PATH="$HOME/.local/bin:$PATH";'
@@ -300,7 +306,7 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
 
 @pytest.mark.asyncio
 async def test_kill_processes_local_debug_uses_run_path_and_skips_current_pid(tmp_path):
-    wenv_parent = tmp_path / "wenv"
+    wenv_parent = tmp_path / "w env's"
     wenv_abs = wenv_parent / "demo_worker"
     wenv_abs.mkdir(parents=True)
     cluster_pck = tmp_path / "cluster"
@@ -334,7 +340,7 @@ async def test_kill_processes_local_debug_uses_run_path_and_skips_current_pid(tm
     )
 
     assert current_pid_file.exists()
-    assert run_path_calls == [(f"'{wenv_parent / 'cli.py'}'", "__main__")]
+    assert run_path_calls == [((wenv_parent / "cli.py").as_posix(), "__main__")]
 
 
 def test_clean_dirs_local_kills_dask_processes_and_ignores_errors(tmp_path):
@@ -408,7 +414,7 @@ async def test_clean_dirs_removes_local_wenv_and_execs_remote(tmp_path):
     env = SimpleNamespace(
         uv="/usr/bin/uv",
         wenv_abs=wenv_abs,
-        wenv_rel=Path("wenv"),
+        wenv_rel=Path("w env's"),
         python_version="3.13",
         envars={"10.0.0.9_CMD_PREFIX": "source /env && "},
     )
@@ -433,4 +439,15 @@ async def test_clean_dirs_removes_local_wenv_and_execs_remote(tmp_path):
     assert removed == [str(wenv_abs)]
     assert made_dirs == [(wenv_abs / "src", True)]
     assert ssh_calls
-    assert "clean wenv" in ssh_calls[0][1]
+    argv = shlex.split(ssh_calls[0][1].split("&& ", 1)[1], posix=True)
+    assert argv == [
+        "/usr/bin/uv",
+        "run",
+        "--no-sync",
+        "-p",
+        "3.13",
+        "python",
+        "cli.py",
+        "clean",
+        "w env's",
+    ]
