@@ -190,6 +190,8 @@ capabilities:
       cache: true
       execute: false
     transport: "stdio"
+    entrypoint: "agent_quickstart"
+    instructions: "Call agent_quickstart first. It is read-only and returns the safety boundary, recommended workflow, live tool list, and compact capability overview."
   - kind: "api"
     id: "agent-run-evidence"
     description: "Wrap coding-agent actions with redacted manifests, traces, and local artifact pointers."

@@ -5,6 +5,10 @@ scripts that let GPT-5 Codex and human operators work from the same playbook. Th
 document mirrors the Spec Kit style guide so every agent—manual or autonomous—follows
 consistent launch, validation, and troubleshooting steps.
 
+> **Agent MCP start here**: When using `agilab-mcp`, call `agent_quickstart`
+> first. It is read-only and returns the safety boundary, recommended workflow,
+> live tool list, and compact capability overview.
+
 Use this runbook whenever you:
 - Launch Streamlit or CLI flows from PyCharm run configurations.
 - Regenerate agent/CLI wrappers after editing `.idea/runConfigurations`.
