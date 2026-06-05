@@ -57,6 +57,8 @@ def test_agenticweb_manifest_builds_compact_discovery_from_capabilities(tmp_path
     by_id = {item["id"]: item for item in payload["capabilities"]}
     assert by_id["capability-manifest"]["kind"] == "data"
     assert by_id["read-only-evidence"]["kind"] == "mcp"
+    assert by_id["read-only-evidence"]["entrypoint"] == "agent_quickstart"
+    assert "Call agent_quickstart first" in by_id["read-only-evidence"]["instructions"]
     assert by_id["streamlit-demo"]["kind"] == "ui"
     assert by_id["first-proof-cli"]["permissions"]["execute"] is True
     assert by_id["capability-map"]["permissions"]["train"] is False
@@ -75,6 +77,7 @@ def test_agenticweb_manifest_render_and_check(tmp_path: Path) -> None:
     assert module.check_output(output_path, manifest_path) is True
     text = output_path.read_text(encoding="utf-8")
     assert text.startswith("---\nagenticweb: \"1\"")
+    assert "agent_quickstart" in text
     assert "agilab-capabilities.json" in text
     assert "python3 tools/agenticweb_manifest.py --check" in text
 

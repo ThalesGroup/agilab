@@ -282,6 +282,12 @@ def build_discovery(manifest_path: Path = DEFAULT_CAPABILITIES) -> dict[str, Any
                 description="Read-only MCP bridge for AGILAB run and agent-run evidence.",
                 url="mcp://agilab/read-only-evidence",
                 transport="stdio",
+                entrypoint="agent_quickstart",
+                instructions=(
+                    "Call agent_quickstart first to orient: it returns the read-only "
+                    "safety boundary, recommended workflow, live tool list, and a "
+                    "condensed capability overview."
+                ),
                 auth_required=False,
                 permissions=_permissions(executable=False),
             ),

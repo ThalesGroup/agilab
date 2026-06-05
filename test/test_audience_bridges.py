@@ -1103,6 +1103,21 @@ def test_mcp_jsonrpc_notifications_are_silent():
     ) is None
 
 
+def test_mcp_initialize_advertises_agent_quickstart_entrypoint() -> None:
+    response = mcp_server.handle_jsonrpc(
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize"}
+    )
+
+    assert response is not None
+    result = response["result"]
+    assert result["capabilities"]["tools"] == {}
+    assert result["serverInfo"]["name"] == "agilab-mcp"
+    instructions = result["instructions"]
+    assert "Call agent_quickstart first" in instructions
+    assert "read-only" in instructions
+    assert "full capabilities manifest" in instructions
+
+
 def test_mcp_tool_registry_and_descriptors_stay_in_parity() -> None:
     """Every callable tool is advertised by tools/list, and vice versa.
 
