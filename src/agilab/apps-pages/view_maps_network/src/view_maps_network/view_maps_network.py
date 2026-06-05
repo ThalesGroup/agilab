@@ -84,6 +84,144 @@ except ModuleNotFoundError:
         setting_list as _get_setting_list,
     )
 
+try:
+    from allocation_support import (
+        _coerce_alloc_time_index,
+        _drop_index_levels_shadowing_columns,
+        _nearest_row,
+        _normalize_allocations_frame,
+        _parse_allocations_cell,
+        _pick_ci_column,
+        load_allocations,
+        safe_literal_eval,
+    )
+    from node_support import (
+        _allocation_endpoint_roles,
+        _allocation_visible_node_ids,
+        _candidate_node_ids,
+        _canonical_edge_pair,
+        _coerce_list_cell,
+        _coerce_numeric_float,
+        _coerce_numeric_int,
+        _filter_allocation_rows_for_selected_nodes,
+        _format_node_label,
+        _normalize_node_id_series,
+        _normalize_node_id_value,
+        _preferred_node_id_from_row,
+        _resolve_node_id,
+        _semantic_node_id_from_text,
+        _strip_export_suffix,
+    )
+    from path_support import (
+        _allocation_search_roots,
+        _candidate_allocation_paths,
+        _candidate_cloudmap_paths,
+        _candidate_edges_paths,
+        _candidate_files_from_globs,
+        _choose_existing_declared_path,
+        _expand_glob_patterns,
+        _find_latest_allocations,
+        _is_baseline_alloc_path,
+        _quick_share_edges_paths,
+        _quick_share_traj_globs,
+        _resolve_declared_path,
+        _resolve_edges_file_path,
+    )
+except ModuleNotFoundError:
+    page_dir = Path(__file__).resolve().parent
+    page_dir_str = str(page_dir)
+    if page_dir_str not in sys.path:
+        sys.path.insert(0, page_dir_str)
+    from allocation_support import (
+        _coerce_alloc_time_index,
+        _drop_index_levels_shadowing_columns,
+        _nearest_row,
+        _normalize_allocations_frame,
+        _parse_allocations_cell,
+        _pick_ci_column,
+        load_allocations,
+        safe_literal_eval,
+    )
+    from node_support import (
+        _allocation_endpoint_roles,
+        _allocation_visible_node_ids,
+        _candidate_node_ids,
+        _canonical_edge_pair,
+        _coerce_list_cell,
+        _coerce_numeric_float,
+        _coerce_numeric_int,
+        _filter_allocation_rows_for_selected_nodes,
+        _format_node_label,
+        _normalize_node_id_series,
+        _normalize_node_id_value,
+        _preferred_node_id_from_row,
+        _resolve_node_id,
+        _semantic_node_id_from_text,
+        _strip_export_suffix,
+    )
+    from path_support import (
+        _allocation_search_roots,
+        _candidate_allocation_paths,
+        _candidate_cloudmap_paths,
+        _candidate_edges_paths,
+        _candidate_files_from_globs,
+        _choose_existing_declared_path,
+        _expand_glob_patterns,
+        _find_latest_allocations,
+        _is_baseline_alloc_path,
+        _quick_share_edges_paths,
+        _quick_share_traj_globs,
+        _resolve_declared_path,
+        _resolve_edges_file_path,
+    )
+
+def _semantic_node_id_from_text(value: Any) -> str | None:
+    text = _strip_export_suffix(value)
+    if not text:
+        return None
+    digits = "".join(ch for ch in text if ch.isdigit())
+    if not digits:
+        return None
+    try:
+        return str(int(digits))
+    except ValueError:
+        return None
+
+
+def _choose_existing_declared_path(current_value: str, default_value: str, base_dirs: list[Path]) -> str:
+    for candidate in (current_value, default_value):
+        raw = (candidate or "").strip()
+        if not raw:
+            continue
+        resolved = _resolve_declared_path(raw, base_dirs)
+        try:
+            path = Path(resolved).expanduser()
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
+        if path.exists():
+            return str(path)
+
+    raw_current = (current_value or "").strip()
+    if raw_current:
+        return _resolve_declared_path(raw_current, base_dirs)
+
+    raw_default = (default_value or "").strip()
+    if raw_default:
+        return _resolve_declared_path(raw_default, base_dirs)
+    return ""
+
+
+def _resolve_edges_file_path(value: str, base_dirs: list[Path]) -> Path | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    resolved = _resolve_declared_path(raw, base_dirs)
+    try:
+        return Path(resolved).expanduser()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
 logger = AgiLogger.get_logger(__name__)
 _TRAILING_EXPORT_TIMESTAMP_RE = re.compile(r"[_-]\d{4}-\d{2}-\d{2}(?:[_-]\d{2}-\d{2}-\d{2})?$")
 _HEATMAP_NUMBA_KERNEL: Any | None = None
@@ -1159,474 +1297,6 @@ def _label_for_link(column: str) -> str:
         label = label[: -len("_link")]
     return label.replace("_", " ").upper()
 
-def _candidate_edges_paths(bases: list[Path]) -> list[Path]:
-    seen = set()
-    candidates: list[Path] = []
-    known_relative = (
-        Path("pipeline/flows/topology.json"),
-        Path("pipeline/topology.gml"),
-        Path("pipeline/ilp_topology.gml"),
-        Path("pipeline/routing_edges.jsonl"),
-    )
-    patterns = (
-        # Common routing exports
-        "routing_edges.jsonl",
-        "routing_edges.ndjson",
-        "routing_edges.json",
-        "routing_edges.parquet",
-        # Generic edge exports
-        "edges.parquet",
-        "edges.json",
-        "edges.jsonl",
-        "edges.ndjson",
-        "edges.*.parquet",
-        "edges.*.json",
-        "edges.*.jsonl",
-        "edges.*.ndjson",
-        # Common topology exports (GML-format files often named .json)
-        "topology.json",
-        "topology.gml",
-        "ilp_topology.gml",
-    )
-    for base in bases:
-        if not base or not base.exists():
-            continue
-        # Fast path: check known default locations (avoids expensive globbing on large shares).
-        for rel in known_relative:
-            p = (base / rel).expanduser()
-            if p.exists() and p.is_file() and p not in seen:
-                if not any(part.startswith(".") for part in p.parts):
-                    seen.add(p)
-                    candidates.append(p)
-        for pattern in patterns:
-            for p in base.glob(f"**/{pattern}"):
-                if p in seen:
-                    continue
-                if any(part.startswith(".") for part in p.parts):
-                    continue
-                seen.add(p)
-                candidates.append(p)
-    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
-    return candidates
-
-def _quick_share_edges_paths(share_root: Path) -> list[Path]:
-    seen: set[Path] = set()
-    candidates: list[Path] = []
-    known_relative = (
-        Path("pipeline/flows/topology.json"),
-        Path("pipeline/topology.gml"),
-        Path("pipeline/ilp_topology.gml"),
-        Path("pipeline/routing_edges.jsonl"),
-        Path("pipeline/routing_edges.parquet"),
-        Path("pipeline/edges.parquet"),
-        Path("pipeline/edges.json"),
-        Path("pipeline/edges.jsonl"),
-        Path("pipeline/edges.ndjson"),
-        Path("pipeline/topology.json"),
-        Path("pipeline/ilp_topology.json"),
-    )
-    if not share_root.exists():
-        return []
-    roots = [share_root]
-    try:
-        roots.extend(
-            [
-                entry
-                for entry in sorted(share_root.iterdir())
-                if entry.is_dir() and not entry.name.startswith(".")
-            ]
-        )
-    except (OSError, RuntimeError):
-        logger.debug("Unable to enumerate edge candidate roots under %s", share_root, exc_info=True)
-        roots = [share_root]
-    for root in roots:
-        for rel in known_relative:
-            p = (root / rel).expanduser()
-            if p.exists() and p.is_file():
-                try:
-                    resolved = p.resolve(strict=False)
-                except (OSError, RuntimeError):
-                    logger.debug("Unable to resolve edge candidate %s", p, exc_info=True)
-                    resolved = p
-                if resolved in seen:
-                    continue
-                seen.add(resolved)
-                candidates.append(p)
-    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
-    return candidates
-
-
-def _quick_share_traj_globs(share_root: Path) -> list[str]:
-    share_root = share_root.expanduser()
-    candidates = [
-        str(share_root / "*_trajectory" / "pipeline" / "*.parquet"),
-        str(share_root / "*_trajectory" / "pipeline" / "*.csv"),
-        str(share_root / "*trajectory*" / "pipeline" / "*.parquet"),
-        str(share_root / "*trajectory*" / "pipeline" / "*.csv"),
-    ]
-    return [c for c in candidates if glob.glob(str(Path(c).expanduser()))]
-
-
-def _candidate_files_from_globs(globs_list: list[str]) -> list[Path]:
-    seen: set[Path] = set()
-    candidates: list[Path] = []
-    for pattern in globs_list:
-        expanded = Path(pattern).expanduser()
-        for match in glob.glob(str(expanded), recursive=True):
-            path = Path(match).expanduser()
-            if not path.is_file():
-                continue
-            try:
-                resolved = path.resolve(strict=False)
-            except Exception:
-                resolved = path
-            if resolved in seen:
-                continue
-            seen.add(resolved)
-            candidates.append(path)
-    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
-    return candidates
-
-
-def _expand_glob_patterns(patterns: list[str], base_dirs: list[Path]) -> list[str]:
-    expanded: list[str] = []
-    seen: set[str] = set()
-    bases = [base.expanduser() for base in base_dirs if base]
-    for pattern in patterns:
-        raw = pattern.strip()
-        if not raw:
-            continue
-        path = Path(raw).expanduser()
-        candidates = [str(path)] if path.is_absolute() else [str(base / raw) for base in bases]
-        for candidate in candidates:
-            if candidate in seen:
-                continue
-            seen.add(candidate)
-            expanded.append(candidate)
-    return expanded
-
-
-def _resolve_declared_path(value: str, base_dirs: list[Path]) -> str:
-    raw = (value or "").strip()
-    if not raw:
-        return ""
-    path = Path(raw).expanduser()
-    if path.is_absolute():
-        return str(path)
-    bases = [base.expanduser() for base in base_dirs if base]
-    for base in bases:
-        candidate = (base / raw).expanduser()
-        if candidate.exists():
-            return str(candidate)
-    return str((bases[0] / raw).expanduser()) if bases else raw
-
-
-def _choose_existing_declared_path(current_value: str, default_value: str, base_dirs: list[Path]) -> str:
-    for candidate in (current_value, default_value):
-        raw = (candidate or "").strip()
-        if not raw:
-            continue
-        resolved = _resolve_declared_path(raw, base_dirs)
-        try:
-            path = Path(resolved).expanduser()
-        except (OSError, RuntimeError, TypeError, ValueError):
-            continue
-        if path.exists():
-            return str(path)
-
-    raw_current = (current_value or "").strip()
-    if raw_current:
-        return _resolve_declared_path(raw_current, base_dirs)
-
-    raw_default = (default_value or "").strip()
-    if raw_default:
-        return _resolve_declared_path(raw_default, base_dirs)
-    return ""
-
-
-def _resolve_edges_file_path(value: str, base_dirs: list[Path]) -> Path | None:
-    raw = (value or "").strip()
-    if not raw:
-        return None
-    resolved = _resolve_declared_path(raw, base_dirs)
-    try:
-        return Path(resolved).expanduser()
-    except (OSError, RuntimeError, TypeError, ValueError):
-        return None
-
-
-def _candidate_cloudmap_paths(bases: list[Path], names: tuple[str, ...]) -> list[Path]:
-    seen: set[Path] = set()
-    candidates: list[Path] = []
-    relative_paths = tuple(
-        Path(prefix) / name
-        for name in names
-        for prefix in ("", "dataset", "pipeline")
-    )
-    for base in bases:
-        base = base.expanduser()
-        if not base.exists():
-            continue
-        roots = [base]
-        try:
-            roots.extend(
-                entry
-                for entry in sorted(base.iterdir())
-                if entry.is_dir() and not entry.name.startswith(".")
-            )
-        except (OSError, RuntimeError):
-            logger.debug("Unable to enumerate cloud map candidates under %s", base, exc_info=True)
-        for root in roots:
-            for rel in relative_paths:
-                candidate = (root / rel).expanduser()
-                if not candidate.exists() or not candidate.is_file():
-                    continue
-                try:
-                    resolved = candidate.resolve(strict=False)
-                except (OSError, RuntimeError):
-                    logger.debug("Unable to resolve cloud map candidate %s", candidate, exc_info=True)
-                    resolved = candidate
-                if resolved in seen:
-                    continue
-                seen.add(resolved)
-                candidates.append(candidate)
-    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
-    return candidates
-
-
-def _allocation_search_roots(
-    *,
-    base_path: Path,
-    datadir_path: Path,
-    export_base: Path,
-    local_share_root: Path,
-    target_name: str,
-) -> tuple[Path, list[Path]]:
-    local_target_root = (local_share_root / str(target_name)).expanduser()
-    selected_target_root = (base_path / str(target_name)).expanduser()
-    preferred_target_root = (
-        selected_target_root
-        if selected_target_root.exists() or selected_target_root != local_target_root
-        else local_target_root
-    )
-
-    roots: list[Path] = []
-    seen: set[Path] = set()
-    for root in (
-        preferred_target_root,
-        local_target_root,
-        datadir_path,
-        export_base,
-    ):
-        for candidate in (root, root / "pipeline", root / "dataframe"):
-            try:
-                resolved = candidate.expanduser().resolve(strict=False)
-            except Exception:
-                resolved = candidate.expanduser()
-            if resolved in seen:
-                continue
-            seen.add(resolved)
-            roots.append(candidate.expanduser())
-
-    return preferred_target_root, roots
-
-
-def _normalize_node_id_series(series: pd.Series) -> pd.Series:
-    """Normalize node IDs for consistent matching and drop invalid placeholders."""
-    raw = series.copy()
-    num = pd.to_numeric(raw, errors="coerce")
-    out = raw.astype("string").fillna("").astype(str).str.strip()
-    mask_int = num.notna() & np.isclose(num % 1, 0.0)
-    if mask_int.any():
-        out.loc[mask_int] = num.loc[mask_int].round().astype(int).astype(str)
-    invalid = out.str.lower().isin({"", "nan", "none", "nat", "<na>"})
-    out.loc[invalid] = ""
-    return out
-
-
-def _normalize_node_id_value(value: Any) -> str:
-    if value is None or (isinstance(value, float) and np.isnan(value)):
-        return ""
-    s = str(value).strip()
-    if not s or s.lower() in {"nan", "none", "nat", "<na>"}:
-        return ""
-    try:
-        num = float(s)
-        if np.isfinite(num) and np.isclose(num % 1, 0.0):
-            return str(int(round(num)))
-    except (TypeError, ValueError, OverflowError):
-        logger.debug("Node id %r is not an integer-like value", value, exc_info=True)
-    return s
-
-
-def _strip_export_suffix(value: Any) -> str:
-    text = str(value or "").strip()
-    if not text:
-        return ""
-    text = _TRAILING_EXPORT_TIMESTAMP_RE.sub("", text)
-    return re.sub(r"[-_](trajectory|traj)$", "", text, flags=re.IGNORECASE)
-
-
-def _semantic_node_id_from_text(value: Any) -> str | None:
-    text = _strip_export_suffix(value)
-    if not text:
-        return None
-    digits = "".join(ch for ch in text if ch.isdigit())
-    if not digits:
-        return None
-    try:
-        return str(int(digits))
-    except ValueError:
-        return None
-
-
-def _preferred_node_id_from_row(row: pd.Series, *, source_path: str | None = None) -> str:
-    semantic_columns = (
-        "plane_label",
-        "sat_name",
-        "plane_type",
-        "name",
-        "callsign",
-        "call_sign",
-        "stable_flight_id",
-        "node_label",
-        "trajectory_label",
-    )
-    for col in semantic_columns:
-        if col not in row:
-            continue
-        semantic_id = _semantic_node_id_from_text(row.get(col))
-        if semantic_id:
-            return semantic_id
-
-    source_value = row.get("source_file") if "source_file" in row else source_path
-    if source_value not in (None, ""):
-        semantic_id = _semantic_node_id_from_text(Path(str(source_value)).stem)
-        if semantic_id:
-            return semantic_id
-
-    for col in ("plane_id", "trajectory_id", "node_id", "flight_id", "id_col", "id"):
-        if col not in row:
-            continue
-        normalized = _normalize_node_id_value(row.get(col))
-        if normalized:
-            return normalized
-    return ""
-
-
-def _candidate_node_ids(value: Any) -> list[str]:
-    base = _normalize_node_id_value(value)
-    if not base:
-        return []
-    candidates = [base]
-    semantic_id = _semantic_node_id_from_text(value)
-    if semantic_id:
-        candidates.append(semantic_id)
-    prefixes = ("plane_", "sat_", "uav_", "node_")
-    lowered = base.lower()
-    for prefix in prefixes:
-        if lowered.startswith(prefix):
-            stripped = _normalize_node_id_value(base[len(prefix) :])
-            if stripped:
-                candidates.append(stripped)
-            break
-    for prefix in prefixes:
-        candidates.append(prefix + base)
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for cand in candidates:
-        if cand and cand not in seen:
-            seen.add(cand)
-            deduped.append(cand)
-    return deduped
-
-
-def _resolve_node_id(value: Any, node_set: set[str]) -> str | None:
-    for cand in _candidate_node_ids(value):
-        if cand in node_set:
-            return cand
-    return None
-
-
-def _coerce_list_cell(value: Any) -> list[Any]:
-    if value is None or (isinstance(value, float) and np.isnan(value)):
-        return []
-    if isinstance(value, list):
-        return value
-    if isinstance(value, tuple):
-        return list(value)
-    if isinstance(value, str):
-        parsed = safe_literal_eval(value)
-        if isinstance(parsed, list):
-            return parsed
-        if isinstance(parsed, tuple):
-            return list(parsed)
-    return []
-
-
-def _allocation_visible_node_ids(*frames: pd.DataFrame) -> set[str]:
-    visible_nodes: set[str] = set()
-    for df_in in frames:
-        if df_in is None or df_in.empty:
-            continue
-        for col in ("source", "destination"):
-            if col in df_in.columns:
-                visible_nodes.update(node_id for node_id in _normalize_node_id_series(df_in[col]).tolist() if node_id)
-        if "path" not in df_in.columns:
-            continue
-        for raw_path in df_in["path"].tolist():
-            for hop in _coerce_list_cell(raw_path):
-                hop_items = _coerce_list_cell(hop)
-                node_values = hop_items[:2] if len(hop_items) >= 2 else [hop]
-                for node in node_values:
-                    node_id = _normalize_node_id_value(node)
-                    if node_id:
-                        visible_nodes.add(node_id)
-    return visible_nodes
-
-
-def _allocation_endpoint_roles(
-    *frames: pd.DataFrame,
-    focus_pair: tuple[int, int] | None = None,
-) -> dict[str, str]:
-    if focus_pair is not None:
-        src = _normalize_node_id_value(focus_pair[0])
-        dst = _normalize_node_id_value(focus_pair[1])
-        roles = {}
-        if src:
-            roles[src] = "src"
-        if dst:
-            roles[dst] = "dst"
-        return roles
-
-    pairs: set[tuple[str, str]] = set()
-    for df_in in frames:
-        if df_in is None or df_in.empty or not {"source", "destination"} <= set(df_in.columns):
-            continue
-        src_ids = _normalize_node_id_series(df_in["source"])
-        dst_ids = _normalize_node_id_series(df_in["destination"])
-        for src, dst in zip(src_ids.tolist(), dst_ids.tolist()):
-            if src and dst:
-                pairs.add((src, dst))
-    if len(pairs) != 1:
-        return {}
-    src, dst = next(iter(pairs))
-    roles = {src: "src"}
-    if dst != src:
-        roles[dst] = "dst"
-    return roles
-
-
-def _format_node_label(value: Any, node_roles: dict[str, str] | None = None) -> str:
-    node_id = _normalize_node_id_value(value)
-    if not node_id:
-        return ""
-    role = (node_roles or {}).get(node_id)
-    if role:
-        return f"{node_id} ({role})"
-    return node_id
-
-
 def _build_map_label_layers(
     positions_df: pd.DataFrame,
     *,
@@ -1699,61 +1369,6 @@ def _build_map_label_layers(
     return text_layers
 
 
-def _coerce_numeric_float(value: Any) -> float | None:
-    try:
-        num = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return None
-    if not np.isfinite(num):
-        return None
-    return float(num)
-
-
-def _coerce_numeric_int(value: Any) -> int | None:
-    num = _coerce_numeric_float(value)
-    if num is None:
-        return None
-    return int(round(num))
-
-
-def _filter_allocation_rows_for_selected_nodes(
-    df_in: pd.DataFrame,
-    selected_nodes: set[str],
-    *,
-    sample_time: Any = None,
-    step_hint: Any = None,
-) -> pd.DataFrame:
-    if df_in.empty or not selected_nodes or not {"source", "destination"} <= set(df_in.columns):
-        return pd.DataFrame()
-
-    src_ids = _normalize_node_id_series(df_in["source"])
-    dst_ids = _normalize_node_id_series(df_in["destination"])
-    filtered = df_in.loc[src_ids.isin(selected_nodes) & dst_ids.isin(selected_nodes)].copy()
-    if filtered.empty:
-        return filtered
-
-    sample_time_num = _coerce_numeric_float(sample_time)
-    time_col = "time_s" if "time_s" in filtered.columns else "t_now_s" if "t_now_s" in filtered.columns else None
-    if sample_time_num is not None and time_col is not None:
-        t_series = pd.to_numeric(filtered[time_col], errors="coerce")
-        valid_times = sorted({float(v) for v in t_series.dropna().tolist()})
-        if valid_times:
-            nearest_time = min(valid_times, key=lambda value: abs(value - sample_time_num))
-            filtered = filtered.loc[t_series == nearest_time].copy()
-            if not filtered.empty:
-                return filtered
-
-    step_num = _coerce_numeric_int(step_hint)
-    if step_num is not None and "time_index" in filtered.columns:
-        step_series = pd.to_numeric(filtered["time_index"], errors="coerce")
-        valid_steps = sorted({int(round(float(v))) for v in step_series.dropna().tolist()})
-        if valid_steps:
-            nearest_step = min(valid_steps, key=lambda value: abs(value - step_num))
-            filtered = filtered.loc[step_series.round() == nearest_step].copy()
-
-    return filtered
-
-
 def _expanded_node_ids_from_allocations(
     selected_nodes: set[str],
     *,
@@ -1802,14 +1417,6 @@ def _endpoint_roles_from_allocations(
         if not step_df.empty:
             frames.append(step_df)
     return _allocation_endpoint_roles(*frames, focus_pair=focus_pair)
-
-
-def _canonical_edge_pair(source: Any, target: Any) -> tuple[str, str] | None:
-    source_id = _normalize_node_id_value(source)
-    target_id = _normalize_node_id_value(target)
-    if not source_id or not target_id or source_id == target_id:
-        return None
-    return tuple(sorted((source_id, target_id)))
 
 
 def _allocation_routed_edge_pairs(
@@ -1891,61 +1498,6 @@ def _preview_edge_count(df: pd.DataFrame, col: str) -> int:
         return len(convert_to_tuples(sample))
     except Exception:
         return 0
-
-def _candidate_allocation_paths(bases: list[Path]) -> list[Path]:
-    seen = set()
-    candidates: list[Path] = []
-    known_relative = (
-        Path("pipeline/allocations_steps.parquet"),
-        Path("pipeline/allocations_steps.json"),
-        Path("pipeline/allocations_steps.jsonl"),
-        Path("pipeline/allocations_steps.csv"),
-        Path("dataframe/allocations_steps.parquet"),
-        Path("dataframe/allocations_steps.json"),
-        Path("dataframe/allocations_steps.jsonl"),
-        Path("dataframe/allocations_steps.csv"),
-    )
-    patterns = (
-        "allocations_steps.parquet",
-        "allocations_steps.json",
-        "allocations_steps.jsonl",
-        "allocations_steps.ndjson",
-        "allocations_steps.csv",
-        "allocations*.parquet",
-        "allocations*.json",
-        "allocations*.jsonl",
-        "allocations*.ndjson",
-        "allocations*.csv",
-        "*allocations*.parquet",
-        "*allocations*.json",
-        "*allocations*.jsonl",
-        "*allocations*.ndjson",
-        "*allocations*.csv",
-    )
-    for base in bases:
-        if not base or not base.exists():
-            continue
-        for rel in known_relative:
-            p = (base / rel).expanduser()
-            if p.exists() and p.is_file() and p not in seen:
-                if not any(part.startswith(".") for part in p.parts):
-                    seen.add(p)
-                    candidates.append(p)
-        for pattern in patterns:
-            for p in base.glob(f"**/{pattern}"):
-                if p in seen:
-                    continue
-                if any(part.startswith(".") for part in p.parts):
-                    continue
-                seen.add(p)
-                candidates.append(p)
-    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0.0, reverse=True)
-    return candidates
-
-def _is_baseline_alloc_path(path: Path) -> bool:
-    lowered = str(path).lower()
-    return ("baseline" in lowered) or ("ilp" in lowered) or ("stepper" in lowered)
-
 
 _RGB_LIKE_RE = re.compile(
     r"^rgba?\(\s*(?P<r>[-+]?\d*\.?\d+)\s*,\s*(?P<g>[-+]?\d*\.?\d+)\s*,\s*(?P<b>[-+]?\d*\.?\d+)\s*(?:,\s*(?P<a>[-+]?\d*\.?\d+)\s*)?\)$",
@@ -2312,189 +1864,6 @@ def filter_edges(df, edge_columns, allowed_edge_pairs: set[tuple[str, str]] | No
 
 # ----------------------------
 # Live allocations helpers
-# ----------------------------
-_ALLOC_STEP_CANDIDATES = ("time_index", "decision", "step", "time_idx")
-_ALLOC_TIME_CANDIDATES = ("time_s", "t_now_s", "time", "t")
-
-
-def _pick_ci_column(df: pd.DataFrame, candidates: tuple[str, ...]) -> Optional[str]:
-    if df.empty:
-        return None
-    lower_map = {str(c).lower(): str(c) for c in df.columns}
-    for key in candidates:
-        col = lower_map.get(key.lower())
-        if col is not None:
-            return col
-    return None
-
-
-def _parse_allocations_cell(value: Any) -> list[dict[str, Any]]:
-    if value is None or (isinstance(value, float) and np.isnan(value)):
-        return []
-    parsed: Any = value
-    if isinstance(parsed, str):
-        parsed = safe_literal_eval(parsed)
-    if isinstance(parsed, dict):
-        return [parsed]
-    if isinstance(parsed, tuple):
-        parsed = list(parsed)
-    if not isinstance(parsed, list):
-        return []
-    rows: list[dict[str, Any]] = []
-    for item in parsed:
-        obj = safe_literal_eval(item) if isinstance(item, str) else item
-        if isinstance(obj, dict):
-            rows.append(obj)
-    return rows
-
-
-def _coerce_alloc_time_index(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return df
-    normalized = df.copy()
-    step_col = _pick_ci_column(normalized, _ALLOC_STEP_CANDIDATES)
-    if "time_index" not in normalized.columns and step_col is not None:
-        normalized["time_index"] = normalized[step_col]
-    if "time_index" not in normalized.columns:
-        normalized["time_index"] = 0
-
-    step_num = pd.to_numeric(normalized["time_index"], errors="coerce")
-    if step_num.notna().any():
-        if step_num.isna().any():
-            fallback = pd.Series(np.arange(len(normalized), dtype=float), index=normalized.index)
-            step_num = step_num.combine_first(fallback)
-        normalized["time_index"] = step_num.round().astype("Int64")
-    else:
-        normalized["time_index"] = pd.Series(np.arange(len(normalized)), index=normalized.index, dtype="Int64")
-    return normalized
-
-
-def _drop_index_levels_shadowing_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Drop named index levels that duplicate real column labels."""
-    if df.empty:
-        return df
-    index_names = [name for name in df.index.names if name is not None]
-    duplicated = [name for name in index_names if name in df.columns]
-    if not duplicated:
-        return df
-    return df.reset_index(level=duplicated, drop=True)
-
-
-def _normalize_allocations_frame(df_in: pd.DataFrame) -> pd.DataFrame:
-    if df_in.empty:
-        return df_in
-    df = df_in.copy()
-
-    src_col = _pick_ci_column(df, ("source", "src", "from"))
-    dst_col = _pick_ci_column(df, ("destination", "dst", "dest", "to", "target"))
-    if src_col is not None and src_col != "source":
-        df["source"] = df[src_col]
-    if dst_col is not None and dst_col != "destination":
-        df["destination"] = df[dst_col]
-
-    alloc_col = _pick_ci_column(df, ("allocations",))
-    if alloc_col is not None and ("source" not in df.columns or "destination" not in df.columns):
-        step_col = _pick_ci_column(df, _ALLOC_STEP_CANDIDATES)
-        t_col = _pick_ci_column(df, _ALLOC_TIME_CANDIDATES)
-        rows: list[dict[str, Any]] = []
-        for idx, row in df.iterrows():
-            step_value = row.get(step_col) if step_col is not None else idx
-            t_value = row.get(t_col) if t_col is not None else None
-            for alloc in _parse_allocations_cell(row.get(alloc_col)):
-                merged = dict(alloc)
-                merged.setdefault("time_index", step_value)
-                if t_value is not None:
-                    merged.setdefault("time_s", t_value)
-                    merged.setdefault("t_now_s", t_value)
-                rows.append(merged)
-        if rows:
-            df = pd.DataFrame(rows)
-
-    df = _coerce_alloc_time_index(df)
-
-    t_col = _pick_ci_column(df, _ALLOC_TIME_CANDIDATES)
-    if t_col is not None:
-        t_num = pd.to_numeric(df[t_col], errors="coerce")
-        if t_num.notna().any():
-            df["time_s"] = t_num
-            if "t_now_s" not in df.columns:
-                df["t_now_s"] = t_num
-    return df
-
-
-def load_allocations(path: Path) -> pd.DataFrame:
-    path = path.expanduser()
-    if not path.exists():
-        return pd.DataFrame()
-    if path.suffix.lower() == ".csv":
-        try:
-            return _normalize_allocations_frame(pd.read_csv(path))
-        except Exception:
-            return pd.DataFrame()
-    if path.suffix.lower() in {".parquet", ".pq", ".parq"}:
-        try:
-            return _normalize_allocations_frame(pd.read_parquet(path))
-        except Exception:
-            return pd.DataFrame()
-    try:
-        if path.suffix.lower() in {".jsonl", ".ndjson"}:
-            records: list[Any] = []
-            for line in path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                records.append(json.loads(line))
-            data: Any = records
-        else:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        if isinstance(data, list):
-            return _normalize_allocations_frame(pd.DataFrame(data))
-        elif isinstance(data, dict):
-            return _normalize_allocations_frame(pd.DataFrame([data]))
-    except Exception:
-        return pd.DataFrame()
-    return pd.DataFrame()
-
-
-def _nearest_row(df: pd.DataFrame, t: float, time_col: str = "time_s") -> pd.DataFrame:
-    if df.empty or time_col not in df.columns:
-        return df
-    series = pd.to_numeric(df[time_col], errors="coerce")
-    if series.dropna().empty:
-        return df.iloc[0:0]
-    idx = (series - t).abs().idxmin()
-    return df.loc[[idx]]
-
-
-def _find_latest_allocations(base: Path, include: tuple[str, ...] = ()) -> Path | None:
-    """Locate the most recent allocations file under a given base."""
-    candidates: list[Path] = []
-    for pattern in (
-        "allocations*.parquet",
-        "allocations*.json",
-        "allocations*.jsonl",
-        "allocations*.ndjson",
-        "allocations*.csv",
-        "*allocations*.parquet",
-        "*allocations*.json",
-        "*allocations*.jsonl",
-        "*allocations*.ndjson",
-        "*allocations*.csv",
-        "allocations_steps.parquet",
-        "allocations_steps.csv",
-    ):
-        candidates.extend(base.rglob(pattern))
-    if not candidates:
-        return None
-    candidates = [p for p in candidates if p.is_file()]
-    if include:
-        lowered = [token.lower() for token in include if token]
-        if lowered:
-            candidates = [p for p in candidates if all(token in str(p).lower() for token in lowered)]
-    if not candidates:
-        return None
-    return max(candidates, key=lambda p: p.stat().st_mtime)
-
 # ----------------------------
 # Optional edges loader (from synthetic topology export)
 # ----------------------------
@@ -3366,12 +2735,6 @@ def increment_time() -> None:
 
 def decrement_time() -> None:
     _shift_selected_time(-1)
-
-def safe_literal_eval(value):
-    try:
-        return ast.literal_eval(value)
-    except (ValueError, SyntaxError):
-        return value
 
 def extract_metrics(df: pd.DataFrame, metric_column: str) -> dict[str, list[float]]:
     metrics: dict[str, list[float]] = {}

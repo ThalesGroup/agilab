@@ -1,5 +1,10 @@
 # view_release_decision
 
+![view_release_decision preview](../../../../docs/source/_static/apps-pages-gallery/view_release_decision.svg)
+
+Package: `agi-page-promotion-gate`
+
+
 Reusable Streamlit evidence cockpit for baseline-vs-candidate run review and
 promotion decisions.
 

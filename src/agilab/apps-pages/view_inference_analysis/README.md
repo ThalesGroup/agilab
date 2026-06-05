@@ -1,5 +1,10 @@
 # view_inference_analysis
 
+![view_inference_analysis preview](../../../../docs/source/_static/apps-pages-gallery/view_inference_analysis.svg)
+
+Package: `agi-page-inference-report`
+
+
 Reusable AGILAB ANALYSIS page for comparing metrics exported in
 `allocations_steps` artifacts across multiple folders.
 

@@ -1,5 +1,10 @@
 # Decision Evidence View
 
+![view_data_io_decision preview](../../../../docs/source/_static/apps-pages-gallery/view_data_io_decision.svg)
+
+Package: `agi-page-decision-evidence`
+
+
 Streamlit analysis page for generic decision-evidence exports.
 
 Use this page after running a compatible producer such as `mission_decision_project` from AGILAB:

@@ -1,5 +1,10 @@
 # view_queue_resilience
 
+![view_queue_resilience preview](../../../../docs/source/_static/apps-pages-gallery/view_queue_resilience.svg)
+
+Package: `agi-page-queue-health`
+
+
 Streamlit analysis page for queue telemetry exported by any app that writes the
 AGILAB queue-analysis artifact contract.
 

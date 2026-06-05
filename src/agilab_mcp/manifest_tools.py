@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -275,3 +276,132 @@ def export_quarto_report(
     return bridge_cli.export_quarto_report(
         Path(manifest_path), Path(output_path), render=False
     )
+
+
+_CAPABILITIES_FILENAME = "agilab-capabilities.json"
+
+# Deterministic "start here" workflow for a fresh agent. Ordered cheapest /
+# safest first so an agent orients before acting.
+_QUICKSTART_WORKFLOW = (
+    "agent_context — build a safe, redacted context pack from prior agent-run evidence before acting.",
+    "list_agent_runs — discover recent runs; read_agent_run / summarize_agent_run to inspect one.",
+    "agent_handoff — get a compact continuation card; agent_next_actions for deterministic next steps.",
+    "list_projects / list_runs — enumerate apps and run manifests on disk.",
+    "read_manifest / summarize_run / list_artifacts — inspect a specific run's evidence.",
+)
+
+
+def _capabilities_manifest_path(explicit: str | Path | None = None) -> Path | None:
+    """Resolve the capabilities manifest.
+
+    An explicit path wins or fails (no silent fallback to a different manifest).
+    Otherwise auto-discover via env var, repo root, then cwd.
+    """
+    if explicit is not None:
+        candidate = Path(explicit).expanduser()
+        return candidate.resolve() if candidate.is_file() else None
+    candidates: list[Path] = []
+    env_value = os.environ.get("AGILAB_CAPABILITIES_MANIFEST")
+    if env_value:
+        candidates.append(Path(env_value).expanduser())
+    for parent in Path(__file__).resolve().parents:
+        candidates.append(parent / _CAPABILITIES_FILENAME)
+    candidates.append(Path.cwd() / _CAPABILITIES_FILENAME)
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+    return None
+
+
+def agent_quickstart(
+    capabilities_path: str | Path | None = None,
+    max_items: int = 20,
+) -> dict[str, Any]:
+    """Return a bounded 'start here' overview for a fresh agent.
+
+    Condenses the capabilities manifest (boundary, CLI commands, app/skill
+    names, counts) plus a recommended workflow so an agent can orient without
+    reading the full multi-thousand-line manifest. Degrades gracefully when the
+    manifest is absent — the safety boundary, workflow, and pointers always
+    return. (The server layer also injects the live MCP tool list.)
+    """
+    limit = max(1, int(max_items))
+    overview: dict[str, Any] = {
+        "tool": "agilab",
+        "read_only_boundary": {
+            "local_files_only": True,
+            "execution_tools_enabled": False,
+            "shell_enabled": False,
+        },
+        "recommended_workflow": list(_QUICKSTART_WORKFLOW),
+    }
+
+    path = _capabilities_manifest_path(capabilities_path)
+    if path is None:
+        overview["capabilities_manifest"] = None
+        overview["note"] = (
+            "Capabilities manifest not found; set AGILAB_CAPABILITIES_MANIFEST or "
+            "run from the repo root. Use tools/list for full MCP tool schemas."
+        )
+        return overview
+
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        overview["capabilities_manifest"] = None
+        overview["note"] = f"Capabilities manifest unreadable: {exc}"
+        return overview
+    if not isinstance(manifest, Mapping):
+        overview["capabilities_manifest"] = None
+        overview["note"] = "Capabilities manifest is not a JSON object."
+        return overview
+
+    def _items(key: str) -> list[Any]:
+        value = manifest.get(key)
+        return value if isinstance(value, list) else []
+
+    boundary = manifest.get("boundary")
+    overview["capabilities_manifest"] = str(path)
+    overview["what_is_agilab"] = (
+        boundary.get("proves") if isinstance(boundary, Mapping) else None
+    )
+    overview["cli_commands"] = [
+        {
+            "command": item.get("command"),
+            "kind": item.get("kind"),
+            "maturity": item.get("maturity"),
+            "description": item.get("description"),
+        }
+        for item in _items("cli_commands")[:limit]
+        if isinstance(item, Mapping)
+    ]
+    overview["public_apps"] = [
+        item.get("project")
+        for item in _items("public_apps")[:limit]
+        if isinstance(item, Mapping) and item.get("project")
+    ]
+    overview["agent_skills"] = [
+        item.get("name")
+        for item in _items("agent_skills")[:limit]
+        if isinstance(item, Mapping) and item.get("name")
+    ]
+    overview["docs"] = [
+        {"title": item.get("title"), "path": item.get("path")}
+        for item in _items("docs")[:limit]
+        if isinstance(item, Mapping)
+    ]
+    overview["counts"] = {
+        key: len(_items(key))
+        for key in (
+            "cli_commands",
+            "streamlit_pages",
+            "packages",
+            "public_apps",
+            "agent_skills",
+            "evidence_schemas",
+        )
+    }
+    overview["full_manifest_hint"] = (
+        f"Read {path.name} for full detail (evidence_schemas, packages, schemas)."
+    )
+    return overview

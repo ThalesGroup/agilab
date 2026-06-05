@@ -107,6 +107,7 @@ references, and example projects.
    WORKFLOW page <experiment-help>
    ANALYSIS page <explore-help>
    Page bundles <apps-pages>
+   Page bundle gallery <apps-pages-gallery>
    Portable web components <agi-web>
 
 .. toctree::

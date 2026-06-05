@@ -11,6 +11,22 @@ app-agnostic analysis page. The generic `view_app_ui` bridge lets ANALYSIS
 display the app-owned playground UI without moving training logic into
 apps-pages.
 
+## Gallery
+
+Every shipped view bundle has a local README, a source-controlled preview, direct tests, and shared AGILAB page chrome.
+
+| View | View |
+|---|---|
+| [![view_app_ui preview](../../../docs/source/_static/apps-pages-gallery/view_app_ui.svg)](view_app_ui)<br>**view_app_ui**<br>Launches app-owned interactive Streamlit surfaces from ANALYSIS. | [![view_autoencoder_latentspace preview](../../../docs/source/_static/apps-pages-gallery/view_autoencoder_latentspace.svg)](view_autoencoder_latentspace)<br>**view_autoencoder_latentspace**<br>Explores TensorFlow/Keras latent projections and reconstruction behavior. |
+| [![view_barycentric preview](../../../docs/source/_static/apps-pages-gallery/view_barycentric.svg)](view_barycentric)<br>**view_barycentric**<br>Plots proportion-style KPI features on a barycentric/simplex surface. | [![view_data_io_decision preview](../../../docs/source/_static/apps-pages-gallery/view_data_io_decision.svg)](view_data_io_decision)<br>**view_data_io_decision**<br>Reviews data-ingestion and strategy-selection evidence. |
+| [![view_forecast_analysis preview](../../../docs/source/_static/apps-pages-gallery/view_forecast_analysis.svg)](view_forecast_analysis)<br>**view_forecast_analysis**<br>Reviews forecast metrics and prediction tables for time-series workflows. | [![view_inference_analysis preview](../../../docs/source/_static/apps-pages-gallery/view_inference_analysis.svg)](view_inference_analysis)<br>**view_inference_analysis**<br>Compares allocation and inference-result metrics across exported runs. |
+| [![view_live_artifacts preview](../../../docs/source/_static/apps-pages-gallery/view_live_artifacts.svg)](view_live_artifacts)<br>**view_live_artifacts**<br>Watches exported evidence, manifests, logs, text, CSVs, and images while a run is active. | [![view_maps preview](../../../docs/source/_static/apps-pages-gallery/view_maps.svg)](view_maps)<br>**view_maps**<br>Explores geolocated datasets with map, sampling, palette, and basemap controls. |
+| [![view_maps_3d preview](../../../docs/source/_static/apps-pages-gallery/view_maps_3d.svg)](view_maps_3d)<br>**view_maps_3d**<br>Shows geospatial data in Deck.gl with extrusion, color, and overlay controls. | [![view_maps_network preview](../../../docs/source/_static/apps-pages-gallery/view_maps_network.svg)](view_maps_network)<br>**view_maps_network**<br>Synchronizes topology, routes, allocations, trajectories, and geographic views. |
+| [![view_queue_resilience preview](../../../docs/source/_static/apps-pages-gallery/view_queue_resilience.svg)](view_queue_resilience)<br>**view_queue_resilience**<br>Reviews queue occupancy, packet events, routing summaries, and run metadata. | [![view_relay_resilience preview](../../../docs/source/_static/apps-pages-gallery/view_relay_resilience.svg)](view_relay_resilience)<br>**view_relay_resilience**<br>Compares relay queue health, route usage, and exported node motion traces. |
+| [![view_release_decision preview](../../../docs/source/_static/apps-pages-gallery/view_release_decision.svg)](view_release_decision)<br>**view_release_decision**<br>Builds an evidence cockpit for candidate/baseline review and promotion gates. | [![view_routing_model_comparison preview](../../../docs/source/_static/apps-pages-gallery/view_routing_model_comparison.svg)](view_routing_model_comparison)<br>**view_routing_model_comparison**<br>Compares baseline and candidate routing allocation decisions. |
+| [![view_scenario_cockpit preview](../../../docs/source/_static/apps-pages-gallery/view_scenario_cockpit.svg)](view_scenario_cockpit)<br>**view_scenario_cockpit**<br>Packages baseline/candidate scenario evidence and promotion-gate deltas. | [![view_shap_explanation preview](../../../docs/source/_static/apps-pages-gallery/view_shap_explanation.svg)](view_shap_explanation)<br>**view_shap_explanation**<br>Displays local feature-attribution evidence without depending on a specific explainer runtime. |
+| [![view_training_analysis preview](../../../docs/source/_static/apps-pages-gallery/view_training_analysis.svg)](view_training_analysis)<br>**view_training_analysis**<br>Browses scalar training runs from TensorBoard logs or AGILAB training-history CSVs. |  |
+
 Quick start (dev checkout):
 
 - view_maps
