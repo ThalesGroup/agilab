@@ -6,6 +6,7 @@ import importlib
 import importlib.util
 import runpy
 import sys
+from pathlib import Path
 from types import ModuleType
 
 _CLASSIFICATION_SEGMENTS = {"domain", "runtime", "ui"}
@@ -60,8 +61,9 @@ def _execute_target_in_current_module(current_name: str, target_name: str) -> Mo
     target_package = target_name.rpartition(".")[0]
     current_module.__dict__["__file__"] = spec.origin
     current_module.__dict__["__package__"] = target_package
+    source_text = Path(spec.origin).read_text(encoding="utf-8")
     source = compile(
-        open(spec.origin, encoding="utf-8").read(),
+        source_text,
         spec.origin,
         "exec",
     )

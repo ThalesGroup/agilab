@@ -27,7 +27,7 @@ try:
         ACTIVATIONS,
         DATASETS,
         DEFAULT_FEATURES,
-        FEATURES,
+        FEATURES,  # noqa: F401 - re-exported through the legacy pytorch_playground.core shim.
         OPTIMIZERS,
         REGULARIZATIONS,
         coerce_feature_names as _coerce_feature_names,
@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover - direct script execution fallback
         ACTIVATIONS,
         DATASETS,
         DEFAULT_FEATURES,
-        FEATURES,
+        FEATURES,  # noqa: F401 - re-exported through the legacy pytorch_playground.core shim.
         OPTIMIZERS,
         REGULARIZATIONS,
         coerce_feature_names as _coerce_feature_names,
@@ -1086,6 +1086,8 @@ def _loss_landscape(config: PlaygroundConfig, *, resolution: int = 21, span: flo
 
     try:
         model.eval()
+        # The landscape is intentionally a cross-entropy surface around the trained weights.
+        # L2 effects are already in the optimizer path; L1 is not re-added here.
         with torch.no_grad():
             for alpha in axis:
                 for beta in axis:
