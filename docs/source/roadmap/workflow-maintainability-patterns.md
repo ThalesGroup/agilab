@@ -62,11 +62,12 @@ The Pipeline-first slice is now the reference implementation:
 
 - Compatibility Shim Budget: tracked. The release tree currently carries a
   measured compatibility-shim baseline, enforced by
-  `tools/compat_shim_inventory.py` and the focused regression in
-  `test/test_compat_shim_inventory.py`. The rule is no silent growth: future
-  migration work should lower the cap as legacy imports are retired, while
-  release-safe changes must not delete public forwarding modules without a
-  dedicated deprecation plan.
+  `tools/compat_shim_inventory.py`, `python tools/local_quality.py --profile quick`,
+  and the focused regression in `apps/test/test_compat_shim_inventory.py`.
+  The current cap is explicit rather than aspirational: no silent growth.
+  Future migration work should lower the cap as legacy imports are retired,
+  while release-safe changes must not delete public forwarding modules without
+  a dedicated deprecation plan.
 - Page State / ViewModel: partially done. Pipeline has a typed
   `PipelinePageState` / ViewModel for visible stages, selected lab, stale
   snippets, lock/run status, logs, and available actions. Orchestrate service
