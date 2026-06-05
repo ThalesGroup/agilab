@@ -90,6 +90,37 @@ Validate the rule file with:
 python tools/agent_context_router.py --check
 ```
 
+## Demo an agentic workflow
+
+For a live demo, run the provider-neutral AGILAB workflow helper from the
+repository root:
+
+```bash
+tools/demo_agentic_agilab_workflow.sh --agent codex
+```
+
+The demo is intentionally local-first. It does not need to call a hosted LLM to
+prove the workflow. It shows an agentic coding use case where an agent first
+captures the repo scope, routes the task through AGILAB's context router,
+computes the impact-validation plan, records the validation as an
+`agilab.agent_run.v1` evidence manifest, then renders handoff, next-action,
+validation, and context cards that another agent can consume.
+
+Use a custom prompt or agent label when presenting another path:
+
+```bash
+tools/demo_agentic_agilab_workflow.sh \
+  --agent claude \
+  --prompt "review the current app changes and route the proof"
+```
+
+Generated evidence is written under
+`artifacts/demo_media/agentic-workflow/evidence/`, which is ignored by Git.
+The command uses staged, unstaged, and untracked working-tree changes when
+there are local changes; if the tree is clean, it falls back to the diff
+against `origin/main` for impact validation and uses the agent workflow docs as
+the context-routing example.
+
 ## Skill quality and security scans
 
 Changed repo-managed skills are scanned locally. Run the local check before
