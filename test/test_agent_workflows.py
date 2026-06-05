@@ -58,12 +58,14 @@ def test_agent_workflow_wrappers_are_shell_valid_and_reference_repo_defaults() -
     aider = REPO_ROOT / "tools" / "aider_workflow.sh"
     opencode = REPO_ROOT / "tools" / "opencode_workflow.sh"
     vibe = REPO_ROOT / "tools" / "vibe_workflow.sh"
+    demo = REPO_ROOT / "tools" / "demo_agentic_agilab_workflow.sh"
 
-    subprocess.run(["bash", "-n", str(aider), str(opencode), str(vibe)], check=True)
+    subprocess.run(["bash", "-n", str(aider), str(opencode), str(vibe), str(demo)], check=True)
 
     aider_text = aider.read_text(encoding="utf-8")
     opencode_text = opencode.read_text(encoding="utf-8")
     vibe_text = vibe.read_text(encoding="utf-8")
+    demo_text = demo.read_text(encoding="utf-8")
 
     assert ".aider.conf.yml" in aider_text
     assert "AGILAB_AIDER_MODEL" in aider_text
@@ -77,6 +79,11 @@ def test_agent_workflow_wrappers_are_shell_valid_and_reference_repo_defaults() -
     assert "AGILAB_VIBE_COMMAND" in vibe_text
     assert 'vibe "<prompt>"' in vibe_text
     assert "log/vibe" in vibe_text
+
+    assert "agent_context_router.py" in demo_text
+    assert "impact_validate.py" in demo_text
+    assert "agilab agent-run" in demo_text
+    assert "agentic-workflow" in demo_text
 
 
 def test_agent_run_evidence_command_is_documented() -> None:
@@ -99,6 +106,12 @@ def test_agent_run_evidence_command_is_documented() -> None:
     assert "agent_events.ndjson" in agent_workflows
     assert "permission tiers" in agent_workflows
     assert "agilab.agent_run.trace_agent_run()" in readme
+
+    for text in (agent_workflows, public_docs):
+        assert "tools/demo_agentic_agilab_workflow.sh --agent codex" in text
+        assert "artifacts/demo_media/agentic-workflow/evidence/" in text
+        normalized = re.sub(r"\s+", " ", text)
+        assert "handoff, next-action, validation, and context cards" in normalized
 
 
 def test_agent_skill_badges_catalog_and_resource_preflight_are_documented() -> None:
