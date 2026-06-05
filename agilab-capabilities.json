@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-05T22:23:45Z",
+  "generated_at_utc": "2026-06-05T22:32:51Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -831,7 +831,7 @@
       "name": "agilab-intent-router",
       "description": "Route terse AGILAB operator requests such as \"do it\", \"review AGILAB\", \"next move\", \"update repos\", \"merge it\", \"check again\", \"release\", and \"cluster validation\" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.",
       "path": ".claude/skills/agilab-intent-router/SKILL.md",
-      "updated": "2026-05-31"
+      "updated": "2026-06-06"
     },
     {
       "name": "agilab-local-llm",
