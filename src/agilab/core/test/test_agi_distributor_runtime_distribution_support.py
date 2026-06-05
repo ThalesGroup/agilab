@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 from pathlib import Path
 from types import SimpleNamespace
 from zipfile import ZipFile
@@ -599,7 +600,7 @@ async def test_stop_propagates_unexpected_programmer_bug(monkeypatch, phase):
 
 @pytest.mark.asyncio
 async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monkeypatch):
-    wenv_abs = tmp_path / "worker_env"
+    wenv_abs = tmp_path / "worker env's"
     (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
 
     AGI._mode = AGI.DASK_MODE
@@ -671,16 +672,25 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
     )
 
     assert script_result == "line-2"
-    assert "uv-worker run --preview-features python-upgrade --no-sync" in calls["run_async"][0][0]
-    assert "--python 3.13 python -c" in calls["run_async"][0][0]
-    assert "from agi_env import AgiEnv" in calls["run_async"][0][0]
-    assert "AgiEnv(apps_path=Path('/tmp/apps'), app='demo_project', verbose=2)" in calls["run_async"][0][0]
-    assert "BaseWorker._new(env=env" in calls["run_async"][0][0]
-    assert "args={'startup': 1}" in calls["run_async"][0][0]
-    assert "BaseWorker._run(env=env" in calls["run_async"][0][0]
-    assert "args={'sample': 1}" in calls["run_async"][0][0]
-    assert "import asyncio" in calls["run_async"][0][0]
-    assert "if __name__ == '__main__':" in calls["run_async"][0][0]
+    argv = shlex.split(calls["run_async"][0][0], posix=True)
+    script = argv[argv.index("-c") + 1]
+    assert argv[:5] == [
+        "uv-worker",
+        "run",
+        "--preview-features",
+        "python-upgrade",
+        "--no-sync",
+    ]
+    assert argv[argv.index("--project") + 1] == str(wenv_abs)
+    assert argv[argv.index("--python") + 1] == "3.13"
+    assert "from agi_env import AgiEnv" in script
+    assert "AgiEnv(apps_path=Path('/tmp/apps'), app='demo_project', verbose=2)" in script
+    assert "BaseWorker._new(env=env" in script
+    assert "args={'startup': 1}" in script
+    assert "BaseWorker._run(env=env" in script
+    assert "args={'sample': 1}" in script
+    assert "import asyncio" in script
+    assert "if __name__ == '__main__':" in script
 
     calls["run_async"].clear()
     builtin_apps = Path("/tmp/repo/src/agilab/apps/builtin")
@@ -705,10 +715,12 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
         run_async_fn=_fake_run_async,
     )
 
+    argv = shlex.split(calls["run_async"][0][0], posix=True)
+    script = argv[argv.index("-c") + 1]
     assert (
         "AgiEnv(apps_path=Path('/tmp/repo/src/agilab/apps/builtin'), "
         "app='flight_telemetry_project', verbose=2)"
-    ) in calls["run_async"][0][0]
+    ) in script
 
 
 @pytest.mark.asyncio

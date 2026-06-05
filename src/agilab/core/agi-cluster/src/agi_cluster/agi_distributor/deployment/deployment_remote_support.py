@@ -574,6 +574,7 @@ async def deploy_remote_worker(
     wenv_rel = env.wenv_rel
     dist_abs = env.dist_abs
     pyvers = env.pyvers_worker
+    # Operator-managed shell prefix; trusted input prepended verbatim.
     cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
     uv = _remote_tool(cmd_prefix, env.uv_worker)
 

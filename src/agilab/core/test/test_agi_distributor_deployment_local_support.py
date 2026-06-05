@@ -3,6 +3,7 @@ from __future__ import annotations
 import getpass
 import json
 import os
+import shlex
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -2486,7 +2487,8 @@ async def test_deploy_local_worker_non_source_flow(tmp_path):
         for cmd, _ in commands
     )
     assert any(
-        f'"{app_path}"' in cmd and "demo.post_install" in cmd for cmd, _ in commands
+        shlex.quote(app_path.as_posix()) in cmd and "demo.post_install" in cmd
+        for cmd, _ in commands
     )
     assert any("threaded" in cmd for cmd, _ in commands)
 

@@ -1865,11 +1865,22 @@ def test_cythonize_worker_extension_passes_quiet_directives_and_cache(tmp_path):
     ]
 
 
-def test_build_remove_decorators_command_quotes_worker_path():
-    command = build_mod._build_remove_decorators_command("workers/demo worker.py")
+def test_build_remove_decorators_command_keeps_worker_path_as_argv():
+    command = build_mod._build_remove_decorators_command("workers/demo worker'$.py")
 
     assert "remove_decorators" in command
-    assert '--worker_path "workers/demo worker.py"' in command
+    assert command == [
+        "uv",
+        "-q",
+        "run",
+        "python",
+        "-m",
+        "agi_node.agi_dispatcher.pre_install",
+        "remove_decorators",
+        "--worker_path",
+        "workers/demo worker'$.py",
+        "--verbose",
+    ]
 
 
 def test_postprocess_bdist_egg_output_unpacks_and_cleans_links(tmp_path):
@@ -1887,7 +1898,7 @@ def test_postprocess_bdist_egg_output_unpacks_and_cleans_links(tmp_path):
     env = SimpleNamespace(worker_path="workers/demo_worker.py")
     links_created = [tmp_path / "src" / "demo_worker" / "module_link"]
     cleanup_calls = []
-    os_calls = []
+    subprocess_calls = []
     log_lines = []
 
     build_mod._postprocess_bdist_egg_output(
@@ -1895,13 +1906,16 @@ def test_postprocess_bdist_egg_output_unpacks_and_cleans_links(tmp_path):
         out_dir=out_dir,
         links_created=links_created,
         cleanup_links_fn=lambda links: cleanup_calls.append(list(links)),
-        os_system_fn=lambda cmd: os_calls.append(cmd) or 0,
+        subprocess_run_fn=lambda cmd, check=False: subprocess_calls.append((cmd, check)),
         log=SimpleNamespace(info=lambda message: log_lines.append(message)),
     )
 
     assert (out_dir / "src" / "demo_worker" / "__init__.py").exists()
     assert any("mkdir" in line for line in log_lines)
-    assert os_calls and "remove_decorators" in os_calls[0]
+    assert subprocess_calls
+    assert subprocess_calls[0][0][6] == "remove_decorators"
+    assert subprocess_calls[0][0][8] == "workers/demo_worker.py"
+    assert subprocess_calls[0][1] is True
     assert cleanup_calls == [links_created]
 
 
@@ -3643,8 +3657,12 @@ def test_build_main_bdist_egg_unpacks_and_cleans_links(tmp_path, monkeypatch):
 
     cleanup_calls = []
     monkeypatch.setattr(build_mod, "cleanup_links", lambda links: cleanup_calls.append(list(links)))
-    os_calls = []
-    monkeypatch.setattr(build_mod.os, "system", lambda cmd: os_calls.append(cmd) or 0)
+    subprocess_calls = []
+    monkeypatch.setattr(
+        build_mod.subprocess,
+        "run",
+        lambda cmd, check=False: subprocess_calls.append((cmd, check)),
+    )
 
     build_mod.main(
         [
@@ -3663,7 +3681,8 @@ def test_build_main_bdist_egg_unpacks_and_cleans_links(tmp_path, monkeypatch):
     assert Path(DummyAgiEnv.init_args["active_app"]) == app_dir
     extracted = out_dir / "src" / "demo_worker" / "__init__.py"
     assert extracted.exists()
-    assert os_calls and "remove_decorators" in os_calls[0]
+    assert subprocess_calls and subprocess_calls[0][0][6] == "remove_decorators"
+    assert subprocess_calls[0][1] is True
     assert cleanup_calls and cleanup_calls[0] == links_created
 
 

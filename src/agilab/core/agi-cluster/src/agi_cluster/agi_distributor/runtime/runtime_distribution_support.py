@@ -81,6 +81,10 @@ def _remote_path(value: Path | str) -> str:
     return shlex.quote(str(value))
 
 
+def _remote_words(value: Any) -> str:
+    return " ".join(shlex.quote(part) for part in shlex.split(str(value), posix=True))
+
+
 def _remote_dask_worker_command(
     *,
     cmd_prefix: str,
@@ -317,7 +321,7 @@ async def run_local(
     else:
         uv_worker = getattr(env, "uv_worker", env.uv)
         pyvers_worker = getattr(env, "pyvers_worker", None)
-        python_selector = f" --python {pyvers_worker}" if pyvers_worker else ""
+        python_selector = f" --python {_remote_path(str(pyvers_worker))}" if pyvers_worker else ""
         manager_apps_path = _manager_apps_path(env)
         manager_app = _manager_app_name(env)
         # Use POSIX-style separators so the embedded ``Path(...)`` literal stays
@@ -329,20 +333,25 @@ async def run_local(
         )
         manager_app_expr = repr(manager_app)
         worker_args = _worker_startup_args(agi_cls)
+        worker_script = "\n".join(
+            [
+                "from pathlib import Path",
+                "from agi_env import AgiEnv",
+                "from agi_node.agi_dispatcher import  BaseWorker",
+                "import asyncio",
+                "async def main():",
+                f"  env = AgiEnv(apps_path={manager_apps_expr}, app={manager_app_expr}, verbose={env.verbose})",
+                f"  BaseWorker._new(env=env, mode={agi_cls._mode}, verbose={env.verbose}, args={worker_args})",
+                f"  res = await BaseWorker._run(env=env, mode={agi_cls._mode}, workers={agi_cls._workers}, args={agi_cls._args})",
+                "  print(res)",
+                "if __name__ == '__main__':",
+                "  asyncio.run(main())",
+            ]
+        )
         cmd = (
-            f"{uv_worker} run --preview-features python-upgrade --no-sync --project {env.wenv_abs}"
-            f"{python_selector} python -c \""
-            f"from pathlib import Path\n"
-            f"from agi_env import AgiEnv\n"
-            f"from agi_node.agi_dispatcher import  BaseWorker\n"
-            f"import asyncio\n"
-            f"async def main():\n"
-            f"  env = AgiEnv(apps_path={manager_apps_expr}, app={manager_app_expr}, verbose={env.verbose})\n"
-            f"  BaseWorker._new(env=env, mode={agi_cls._mode}, verbose={env.verbose}, args={worker_args})\n"
-            f"  res = await BaseWorker._run(env=env, mode={agi_cls._mode}, workers={agi_cls._workers}, args={agi_cls._args})\n"
-            f"  print(res)\n"
-            f"if __name__ == '__main__':\n"
-            f"  asyncio.run(main())\""
+            f"{_remote_words(uv_worker)} run --preview-features python-upgrade --no-sync "
+            f"--project {_remote_path(env.wenv_abs)}"
+            f"{python_selector} python -c {shlex.quote(worker_script)}"
         )
         res = await run_async_fn(cmd, env.wenv_abs)
 

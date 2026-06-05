@@ -3,6 +3,7 @@ import getpass
 import logging
 import os
 import runpy
+import shlex
 import shutil
 import socket
 import stat
@@ -21,6 +22,16 @@ from agi_env import AgiEnv
 logger = logging.getLogger(__name__)
 REMOVE_DIR_RETRY_EXCEPTIONS = (OSError, shutil.Error)
 CMD_PREFIX_LOOKUP_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
+
+
+def _remote_arg(value: Any) -> str:
+    if isinstance(value, Path):
+        return shlex.quote(value.as_posix())
+    return shlex.quote(str(value))
+
+
+def _remote_words(value: Any) -> str:
+    return " ".join(shlex.quote(part) for part in shlex.split(str(value), posix=True))
 
 
 async def _remote_cmd_prefix(
@@ -112,22 +123,22 @@ async def kill_processes(
         ip,
         detect_export_cmd_fn=detect_export_cmd_fn,
     )
-    kill_prefix = f"{cmd_prefix}{uv} run --no-sync python"
+    kill_prefix = f"{cmd_prefix}{_remote_words(uv)} run --no-sync python"
     if env.is_local(ip):
         if not cli_abs.exists():
             copy_fn(resolve_worker_cli_path(env), cli_abs)
         if force:
-            exclude_arg = f" {current_pid}" if current_pid else ""
-            cmds.append(f"{kill_prefix} '{cli_abs}' kill{exclude_arg}")
+            exclude_arg = f" {_remote_arg(current_pid)}" if current_pid else ""
+            cmds.append(f"{kill_prefix} {_remote_arg(cli_abs)} kill{exclude_arg}")
     elif force:
-        cmds.append(f"{kill_prefix} '{cli_rel.as_posix()}' kill")
+        cmds.append(f"{kill_prefix} {_remote_arg(cli_rel)} kill")
 
     last_res = None
     for cmd in cmds:
         cwd = str(env.wenv_abs)
         if env.is_local(ip):
             if env.debug:
-                sys_module.argv = cmd.split("python ")[1].split(" ")
+                sys_module.argv = shlex.split(cmd.split("python ", 1)[1], posix=True)
                 run_path_fn(sys_module.argv[0], run_name="__main__")
             else:
                 await run_fn(cmd, cwd)
@@ -226,5 +237,9 @@ async def clean_dirs(
     cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
     wenv = env.wenv_rel
     cli = wenv.parent / "cli.py"
-    cmd = f"{cmd_prefix}{uv} run --no-sync -p {env.python_version} python {cli.as_posix()} clean {wenv}"
+    cmd = (
+        f"{cmd_prefix}{_remote_words(uv)} run --no-sync "
+        f"-p {_remote_arg(env.python_version)} python "
+        f"{_remote_arg(cli)} clean {_remote_arg(wenv)}"
+    )
     await agi_cls.exec_ssh(ip, cmd)

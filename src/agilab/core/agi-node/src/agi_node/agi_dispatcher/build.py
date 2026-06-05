@@ -8,6 +8,7 @@ import sys
 import os
 import shutil
 import re
+import shlex
 import stat
 from pathlib import Path
 from zipfile import ZipFile
@@ -34,7 +35,6 @@ def _inject_shared_site_packages(*, source_file: str | Path = __file__) -> None:
 _inject_shared_site_packages()
 
 from agi_env import AgiEnv
-from agi_env import AgiLogger
 import warnings
 warnings.filterwarnings("ignore", category=SetuptoolsDeprecationWarning)
 
@@ -440,11 +440,19 @@ def _purge_top_level_ui_build_artifacts(app_root: Path, *, log: logging.Logger |
     return removed
 
 
-def _build_remove_decorators_command(worker_path: str) -> str:
-    return (
-        "uv -q run python -m agi_node.agi_dispatcher.pre_install remove_decorators "
-        f'--worker_path "{worker_path}" --verbose'
-    )
+def _build_remove_decorators_command(worker_path: str) -> list[str]:
+    return [
+        "uv",
+        "-q",
+        "run",
+        "python",
+        "-m",
+        "agi_node.agi_dispatcher.pre_install",
+        "remove_decorators",
+        "--worker_path",
+        worker_path,
+        "--verbose",
+    ]
 
 
 def _postprocess_bdist_egg_output(
@@ -453,14 +461,14 @@ def _postprocess_bdist_egg_output(
     out_dir: Path,
     links_created: list[Path],
     cleanup_links_fn=None,
-    os_system_fn=None,
+    subprocess_run_fn=None,
     zip_cls=None,
     log: logging.Logger | None = None,
 ) -> None:
     if cleanup_links_fn is None:
         cleanup_links_fn = cleanup_links
-    if os_system_fn is None:
-        os_system_fn = os.system  # ty: ignore[deprecated]
+    if subprocess_run_fn is None:
+        subprocess_run_fn = subprocess.run
     if zip_cls is None:
         zip_cls = ZipFile
     log = _runtime_logger(log)
@@ -468,8 +476,8 @@ def _postprocess_bdist_egg_output(
     _unpack_worker_eggs(dist_dir=out_dir / "dist", dest_src=dest_src, zip_cls=zip_cls, log=log)
 
     cmd = _build_remove_decorators_command(env.worker_path)
-    log.info(f"Stripping decorators via:\n  {cmd}")
-    os_system_fn(cmd)
+    log.info(f"Stripping decorators via:\n  {shlex.join(cmd)}")
+    subprocess_run_fn(cmd, check=True)
 
     if links_created:
         cleanup_links_fn(links_created)
