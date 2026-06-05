@@ -1057,6 +1057,502 @@
         ],
         "confidence": 0.88
       }
+    },
+    {
+      "case_id": "data_scientist_2026_python_pandas_modernization",
+      "title": "Modernize a legacy Python and pandas interview answer",
+      "difficulty": "intro",
+      "topic_tags": [
+        "data-science-2026",
+        "python",
+        "pandas",
+        "notebook",
+        "interview"
+      ],
+      "estimated_minutes": 25,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "Review a legacy data-scientist QCM answer key. Identify the outdated Python and pandas claims, select the evidence-backed correction, and define regression checks for the refreshed interview bank.",
+      "symptom": "A candidate answer key still says venv is for sharing one environment across projects, pyenv is for one virtual environment per project, DataFrame.append is acceptable, and ordinary equality joins are enough for timestamp-aligned sensor data.",
+      "proposed_diagnosis": "The answer key only needs spelling cleanup because the Python fundamentals are still correct.",
+      "root_cause": "The legacy key mixes durable Python fundamentals with outdated tooling guidance; a 2026 data-scientist evaluation should require isolated virtual environments, separate Python-version management, pandas.concat instead of removed DataFrame.append, and merge_asof for nearest-key time joins on sorted data.",
+      "plain_repro": "Run the legacy pandas append snippet under pandas 2+ and review a time-series join where samples and labels have nearest timestamps instead of identical timestamps.",
+      "weak_assumptions": [
+        "Old pandas idioms remain acceptable if they were once common.",
+        "Environment isolation and Python-version selection are the same concept.",
+        "All tabular joins are equality joins even when the key is time."
+      ],
+      "evidence": [
+        {
+          "id": "pandas_append_removed",
+          "description": "pandas 2 removed Series.append and DataFrame.append; concat is the maintained replacement.",
+          "confidence": 0.96,
+          "relevance": 0.95
+        },
+        {
+          "id": "asof_time_join_required",
+          "description": "Timestamp-aligned telemetry and label data often need nearest-key joins with sorted inputs rather than exact equality joins.",
+          "confidence": 0.9,
+          "relevance": 0.88
+        },
+        {
+          "id": "environment_boundary_mislabeled",
+          "description": "venv isolates project dependencies while pyenv-style tooling selects Python interpreter versions.",
+          "confidence": 0.88,
+          "relevance": 0.82
+        },
+        {
+          "id": "reentrant_notebook_helper_risk",
+          "description": "Notebook helper functions that mutate module globals are not safe when reused in parallel scoring or worker execution.",
+          "confidence": 0.86,
+          "relevance": 0.8
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "replace_legacy_python_pandas_items",
+          "summary": "Refresh the answer key with current Python environment boundaries, pandas 2+ APIs, explicit time-join guidance, and reentrant helper expectations.",
+          "expected_impact": 0.91,
+          "blast_radius": 0.22,
+          "reversibility": 0.88
+        },
+        {
+          "id": "keep_legacy_items_with_notes",
+          "summary": "Keep the legacy answers and add a generic warning that some library APIs may have changed.",
+          "expected_impact": 0.39,
+          "blast_radius": 0.34,
+          "reversibility": 0.75
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "pandas_append_rejected",
+          "description": "Assert the refreshed bank no longer recommends DataFrame.append and names pandas.concat.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "time_join_asof_case_present",
+          "description": "Assert timestamp-join prompts mention merge_asof or an equivalent nearest-key sorted join.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "environment_terms_distinguished",
+          "description": "Assert the environment section separates virtual environments from Python-version management.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The old QCM has valid Python fundamentals but the tooling guidance is now stale.",
+        "root_cause": "The legacy key mixes durable Python fundamentals with outdated tooling guidance; a 2026 data-scientist evaluation should require isolated virtual environments, separate Python-version management, pandas.concat instead of removed DataFrame.append, and merge_asof for nearest-key time joins on sorted data.",
+        "evidence_ids": [
+          "pandas_append_removed",
+          "asof_time_join_required"
+        ],
+        "selected_fix_id": "replace_legacy_python_pandas_items",
+        "regression_test_ids": [
+          "pandas_append_rejected",
+          "time_join_asof_case_present",
+          "environment_terms_distinguished"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "data_scientist_2026_model_evaluation_leakage",
+      "title": "Evaluate an imbalanced model without leakage",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "data-science-2026",
+        "machine-learning",
+        "model-evaluation",
+        "data-leakage",
+        "imbalanced-data"
+      ],
+      "estimated_minutes": 35,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A fraud classifier reports 98 percent accuracy on a two percent positive class. Diagnose the weak evaluation, pick the safer fix, and choose regression checks.",
+      "symptom": "The notebook fits imputation, scaling, PCA, and synthetic oversampling before the train-test split, then selects the model by accuracy on a heavily imbalanced target.",
+      "proposed_diagnosis": "The score is high enough because accuracy is intuitive and easy to explain.",
+      "root_cause": "The evaluation leaks test-set information through preprocessing and resampling, and accuracy hides minority-class failure; the pipeline should fit every learned transform inside cross-validation and report task-aligned metrics such as precision, recall, F1, PR-AUC, ROC-AUC, calibration, and threshold tradeoffs.",
+      "plain_repro": "Run the notebook with a Pipeline that fits preprocessing only on training folds, compare accuracy with PR-AUC and recall at the required precision floor, and inspect whether test data is ever passed to fit.",
+      "weak_assumptions": [
+        "A high accuracy proves a classifier is useful on rare positives.",
+        "Preprocessing is harmless if labels are not passed explicitly.",
+        "The model threshold can be chosen after looking at test performance."
+      ],
+      "evidence": [
+        {
+          "id": "fit_before_split",
+          "description": "The scaler, PCA, and sampler are fit before train-test separation.",
+          "confidence": 0.94,
+          "relevance": 0.96
+        },
+        {
+          "id": "rare_positive_base_rate",
+          "description": "Only two percent of rows are positive, so a naive negative classifier can look accurate.",
+          "confidence": 0.92,
+          "relevance": 0.94
+        },
+        {
+          "id": "business_costs_asymmetric",
+          "description": "False negatives and false positives have different operational costs and require an explicit threshold policy.",
+          "confidence": 0.87,
+          "relevance": 0.86
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "pipeline_cv_metric_threshold_gate",
+          "summary": "Move learned preprocessing and resampling into a Pipeline, use stratified cross-validation, and gate the model on minority-class and calibrated-threshold metrics.",
+          "expected_impact": 0.93,
+          "blast_radius": 0.3,
+          "reversibility": 0.84
+        },
+        {
+          "id": "maximize_accuracy_only",
+          "summary": "Keep the preprocessing order and optimize accuracy because it is easy to communicate.",
+          "expected_impact": 0.28,
+          "blast_radius": 0.62,
+          "reversibility": 0.62
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "no_fit_on_test_data",
+          "description": "Static or notebook-level check that StandardScaler, imputers, PCA, and samplers are fit only inside training folds.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "imbalanced_metric_suite",
+          "description": "Assert the model report includes PR-AUC or average precision, recall, precision, F1, ROC-AUC, and a confusion matrix.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "threshold_policy_replay",
+          "description": "Replay the selected threshold on a holdout set and record the precision-recall tradeoff.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The high accuracy is misleading because the workflow leaks information and ignores the rare positive class.",
+        "root_cause": "The evaluation leaks test-set information through preprocessing and resampling, and accuracy hides minority-class failure; the pipeline should fit every learned transform inside cross-validation and report task-aligned metrics such as precision, recall, F1, PR-AUC, ROC-AUC, calibration, and threshold tradeoffs.",
+        "evidence_ids": [
+          "fit_before_split",
+          "rare_positive_base_rate"
+        ],
+        "selected_fix_id": "pipeline_cv_metric_threshold_gate",
+        "regression_test_ids": [
+          "no_fit_on_test_data",
+          "imbalanced_metric_suite",
+          "threshold_policy_replay"
+        ],
+        "confidence": 0.91
+      }
+    },
+    {
+      "case_id": "data_scientist_2026_scaling_feature_pipeline",
+      "title": "Choose the right scaling path for a feature pipeline",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "data-science-2026",
+        "big-data",
+        "dask",
+        "ray",
+        "feature-engineering"
+      ],
+      "estimated_minutes": 30,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A feature pipeline is slow and close to memory limits. Decide whether to optimize locally, use Dask, use Ray Data, or move to a heavier cluster path.",
+      "symptom": "A candidate proposes Spark immediately for a 60 GB CSV feature job without profiling, converting to Parquet, choosing partition sizes, or checking vectorized pandas and NumPy alternatives.",
+      "proposed_diagnosis": "Any dataset larger than memory should immediately move to a cluster framework.",
+      "root_cause": "The scaling diagnosis skips cheaper discriminators; the current pipeline needs profiling, columnar storage, partition and memory sizing, vectorized or compiled local baselines, then Dask for pandas-like out-of-core tabular work or Ray Data when the workload is an AI batch-inference or training ingest pipeline.",
+      "plain_repro": "Profile peak memory and wall time on one representative partition, convert the CSV sample to Parquet, and compare local vectorized pandas, Dask DataFrame, and Ray Data batch execution on the same feature contract.",
+      "weak_assumptions": [
+        "Big data is defined only by raw file size.",
+        "A cluster framework fixes inefficient algorithms and poor file formats.",
+        "Dask, Ray Data, and Spark have the same best use case."
+      ],
+      "evidence": [
+        {
+          "id": "no_profile_or_baseline",
+          "description": "No local baseline, memory profile, or algorithmic hotspot report is attached.",
+          "confidence": 0.9,
+          "relevance": 0.92
+        },
+        {
+          "id": "csv_io_bottleneck",
+          "description": "Most time is spent scanning wide CSV input that can be converted to columnar storage.",
+          "confidence": 0.86,
+          "relevance": 0.84
+        },
+        {
+          "id": "ai_batch_inference_stage",
+          "description": "The downstream stage performs GPU batch inference and needs streaming batches to keep accelerators busy.",
+          "confidence": 0.82,
+          "relevance": 0.8
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "profile_partition_then_select_engine",
+          "summary": "Create a measured baseline, convert to efficient columnar storage, size partitions, and choose Dask or Ray Data only when the measured workload matches their strengths.",
+          "expected_impact": 0.89,
+          "blast_radius": 0.28,
+          "reversibility": 0.86
+        },
+        {
+          "id": "rewrite_in_cluster_framework_first",
+          "summary": "Start by rewriting the pipeline in a cluster framework before profiling or changing storage format.",
+          "expected_impact": 0.42,
+          "blast_radius": 0.76,
+          "reversibility": 0.45
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "baseline_profile_artifact",
+          "description": "Require memory, I/O, and wall-time baseline artifacts before engine migration is accepted.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "parquet_partition_smoke",
+          "description": "Verify the feature contract on a partitioned Parquet sample before distributed execution.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "engine_choice_decision_record",
+          "description": "Require a decision row that states why local pandas, Dask, Ray Data, or Spark was selected.",
+          "automated": false,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The framework choice is premature because the workload has not been profiled.",
+        "root_cause": "The scaling diagnosis skips cheaper discriminators; the current pipeline needs profiling, columnar storage, partition and memory sizing, vectorized or compiled local baselines, then Dask for pandas-like out-of-core tabular work or Ray Data when the workload is an AI batch-inference or training ingest pipeline.",
+        "evidence_ids": [
+          "no_profile_or_baseline",
+          "csv_io_bottleneck"
+        ],
+        "selected_fix_id": "profile_partition_then_select_engine",
+        "regression_test_ids": [
+          "baseline_profile_artifact",
+          "parquet_partition_smoke",
+          "engine_choice_decision_record"
+        ],
+        "confidence": 0.86
+      }
+    },
+    {
+      "case_id": "data_scientist_2026_genai_rag_governance",
+      "title": "Evaluate a RAG assistant with evidence and risk gates",
+      "difficulty": "advanced",
+      "topic_tags": [
+        "data-science-2026",
+        "genai",
+        "rag",
+        "evaluation",
+        "governance"
+      ],
+      "estimated_minutes": 40,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A team wants to ship a RAG assistant after a good manual demo. Build the evidence-backed evaluation and risk plan expected from a current data-scientist interview.",
+      "symptom": "The proposed chatbot over internal documents has one happy-path demo, no retrieval goldens, no citation checks, no privacy tests, and no monitoring plan for groundedness or drift.",
+      "proposed_diagnosis": "The demo is convincing enough because the underlying foundation model is strong.",
+      "root_cause": "A 2026 data-scientist evaluation must treat GenAI as an evidence and risk-management workflow: retrieval quality, answer groundedness, citation coverage, refusal behavior, privacy redaction, prompt-injection resistance, and post-deployment drift need explicit tests before launch.",
+      "plain_repro": "Run a fixed RAG golden set with expected document ids, adversarial prompts, private-data probes, and stale-document cases; compare retrieved ids, cited spans, refusal decisions, and answer-groundedness scores.",
+      "weak_assumptions": [
+        "A strong base model removes the need for task-specific evaluation.",
+        "One demo can represent retrieval quality and safety behavior.",
+        "Privacy and prompt-injection failures are outside the data-scientist evaluation scope."
+      ],
+      "evidence": [
+        {
+          "id": "no_retrieval_goldens",
+          "description": "There is no dataset of questions mapped to expected documents or answer spans.",
+          "confidence": 0.93,
+          "relevance": 0.95
+        },
+        {
+          "id": "missing_groundedness_checks",
+          "description": "The report does not verify whether generated claims are supported by retrieved context.",
+          "confidence": 0.91,
+          "relevance": 0.94
+        },
+        {
+          "id": "privacy_prompt_injection_gap",
+          "description": "No tests cover private-data leakage, prompt injection, or unsafe refusal boundaries.",
+          "confidence": 0.89,
+          "relevance": 0.9
+        },
+        {
+          "id": "nist_genai_risk_profile",
+          "description": "Current AI risk guidance treats generative AI risks as requiring explicit governance actions.",
+          "confidence": 0.86,
+          "relevance": 0.84
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "add_rag_eval_and_risk_gates",
+          "summary": "Build a RAG evaluation set with retrieval, groundedness, citation, privacy, injection, refusal, and drift gates before release.",
+          "expected_impact": 0.94,
+          "blast_radius": 0.34,
+          "reversibility": 0.82
+        },
+        {
+          "id": "ship_demo_with_manual_review",
+          "summary": "Ship the assistant after a manual demo and rely on users to report poor answers.",
+          "expected_impact": 0.25,
+          "blast_radius": 0.7,
+          "reversibility": 0.5
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "rag_goldens_retrieval_recall",
+          "description": "Assert expected document ids appear in top-k retrieval for the golden set.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "grounded_citation_check",
+          "description": "Assert answer claims cite retrieved spans and unsupported claims are rejected.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "privacy_and_injection_suite",
+          "description": "Run private-data probes and prompt-injection cases against the assistant.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "post_deploy_drift_monitor",
+          "description": "Record retrieval corpus version, model version, and live failure-rate drift thresholds.",
+          "automated": false,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The demo is not enough because RAG quality and GenAI risk behavior are untested.",
+        "root_cause": "A 2026 data-scientist evaluation must treat GenAI as an evidence and risk-management workflow: retrieval quality, answer groundedness, citation coverage, refusal behavior, privacy redaction, prompt-injection resistance, and post-deployment drift need explicit tests before launch.",
+        "evidence_ids": [
+          "no_retrieval_goldens",
+          "missing_groundedness_checks",
+          "privacy_prompt_injection_gap"
+        ],
+        "selected_fix_id": "add_rag_eval_and_risk_gates",
+        "regression_test_ids": [
+          "rag_goldens_retrieval_recall",
+          "grounded_citation_check",
+          "privacy_and_injection_suite",
+          "post_deploy_drift_monitor"
+        ],
+        "confidence": 0.89
+      }
+    },
+    {
+      "case_id": "data_scientist_2026_inference_optimization",
+      "title": "Compress and deploy a neural model without losing the evidence trail",
+      "difficulty": "advanced",
+      "topic_tags": [
+        "data-science-2026",
+        "deep-learning",
+        "inference",
+        "quantization",
+        "deployment"
+      ],
+      "estimated_minutes": 35,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A candidate suggests reducing neural-network size by changing float tensors to integers. Diagnose what is missing from the deployment-quality answer.",
+      "symptom": "The answer key lists dropout, pruning, quantification, and casting floats to integers as interchangeable ways to reduce inference cost, with no accuracy, latency, hardware, or calibration-data gates.",
+      "proposed_diagnosis": "The answer is acceptable because it names common compression techniques.",
+      "root_cause": "The answer confuses training regularization with deployment compression; a current answer should distinguish pruning, quantization-aware or post-training quantization, distillation, mixed precision, compilation, and runtime export, then prove accuracy and latency on the target hardware with representative calibration and holdout data.",
+      "plain_repro": "Benchmark the baseline model and each compressed candidate on the target runtime, recording model size, latency percentiles, throughput, memory, and accuracy deltas on calibration and holdout sets.",
+      "weak_assumptions": [
+        "Casting tensors to integers is equivalent to validated quantization.",
+        "Dropout is an inference-time compression method.",
+        "Model size reduction is safe without a target-runtime accuracy and latency gate."
+      ],
+      "evidence": [
+        {
+          "id": "compression_terms_mixed",
+          "description": "The answer key groups training regularization and deployment optimization as one technique family.",
+          "confidence": 0.91,
+          "relevance": 0.92
+        },
+        {
+          "id": "no_target_runtime_benchmark",
+          "description": "No CPU, GPU, or accelerator-specific latency and memory measurement is attached.",
+          "confidence": 0.9,
+          "relevance": 0.9
+        },
+        {
+          "id": "no_calibration_or_holdout_gate",
+          "description": "Quantization is proposed without representative calibration data or an accepted accuracy-delta threshold.",
+          "confidence": 0.88,
+          "relevance": 0.88
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "benchmark_compression_with_runtime_gates",
+          "summary": "Separate compression techniques, select the runtime path, and require calibration, holdout accuracy, latency, throughput, memory, and rollback gates.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.31,
+          "reversibility": 0.83
+        },
+        {
+          "id": "cast_weights_to_int",
+          "summary": "Cast floating-point weights to integers and accept the smaller artifact if it loads.",
+          "expected_impact": 0.22,
+          "blast_radius": 0.72,
+          "reversibility": 0.38
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "accuracy_latency_gate",
+          "description": "Assert every compressed artifact meets an agreed accuracy delta and latency percentile gate.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "calibration_dataset_recorded",
+          "description": "Assert the quantization report records calibration dataset identity and hash.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "runtime_smoke_cpu_gpu",
+          "description": "Smoke-test the exported artifact on the declared CPU or GPU runtime before accepting it.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The answer names real techniques but mixes them and lacks deployment evidence.",
+        "root_cause": "The answer confuses training regularization with deployment compression; a current answer should distinguish pruning, quantization-aware or post-training quantization, distillation, mixed precision, compilation, and runtime export, then prove accuracy and latency on the target hardware with representative calibration and holdout data.",
+        "evidence_ids": [
+          "compression_terms_mixed",
+          "no_target_runtime_benchmark",
+          "no_calibration_or_holdout_gate"
+        ],
+        "selected_fix_id": "benchmark_compression_with_runtime_gates",
+        "regression_test_ids": [
+          "accuracy_latency_gate",
+          "calibration_dataset_recorded",
+          "runtime_smoke_cpu_gpu"
+        ],
+        "confidence": 0.88
+      }
     }
   ]
 }

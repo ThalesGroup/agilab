@@ -23,6 +23,10 @@ learner response while `case_quality_score` keeps the reference exercise score.
 Bundled cases also carry a 2026 French mathematics-program coverage matrix at
 top-level domain granularity for the 2026-2027 rollout, with at least two
 exercises required per declared curriculum id.
+The bundled catalog now also includes a 2026 data-scientist interview
+evaluation inspired by a legacy QCM: modern Python/pandas practice,
+leakage-free model evaluation, scaling decisions, RAG governance, and
+inference optimization are scored with the same evidence-backed rubric.
 Classroom batches export anonymized teacher artifacts: progress, heatmap,
 needs-attention, per-student, curriculum-level, intervention-plan CSV files,
 and a printable teacher summary.
@@ -61,8 +65,10 @@ directory and set the file glob to that payload.
 The default input is a bundled JSON case file with exercise metadata. Optional
 local-AI generation requires a configured local endpoint and fails closed if the
 generated JSON does not match the expected schema. Student submissions can be
-added through a `student_answer` object in the case JSON. Mathematics cases can
-also include `curriculum_ids`; unknown ids are rejected by the coverage helper.
+added through a `student_answer` object in the case JSON. Data-scientist cases
+use topic tags such as `data-science-2026`, `pandas`, `model-evaluation`, `rag`,
+and `quantization`. Mathematics cases can also include `curriculum_ids`;
+unknown ids are rejected by the coverage helper.
 Classroom submission files contain `classroom` metadata plus a `submissions`
 list of `student_id`, `case_id`, and answer objects. Student ids are anonymized
 by default in teacher artifacts.
@@ -100,6 +106,11 @@ otherwise, and includes manual plus optional live refresh.
 Add one diagnostic case with a deliberately weak proposed fix and two candidate
 regression tests. The app should keep the stronger fix only when the evidence
 and tests support it.
+
+For data-scientist evaluation, filter the catalog to `data-scientist candidate`
+and change one answer selection. The score should fall when the answer keeps a
+stale pandas API, leaks test data, ships a RAG demo without goldens, or accepts
+model compression without a target-runtime accuracy and latency gate.
 
 For mathematics-program coverage, add or remove a `curriculum_ids` entry and
 run the focused TeSciA tests. Missing required ids, undercovered ids, and
