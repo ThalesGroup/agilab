@@ -1,3 +1,32 @@
+# AGILAB
+
+AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.
+It turns notebooks and scripts into executable, portable, evidence-backed apps
+with a stable `agi-core` handoff, optional MLflow tracking, and local or
+distributed execution behind the same run evidence contract.
+
+<p>
+  <a href="https://huggingface.co/spaces/jpmorard/agilab"><img src="https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge" alt="AGILAB Space" /></a>
+  <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge" alt="agi-core notebook" /></a>
+</p>
+
+## One-Minute Proof
+
+Run the smallest public proof first. It installs the examples profile, executes
+the packaged `flight_telemetry_project`, writes `run_manifest.json`, and then
+checks whether the evidence is a safe baseline before you move to notebooks,
+private apps, MLflow, or cluster execution.
+
+```bash
+uv --preview-features extra-build-dependencies tool install --upgrade "agilab[examples]"
+agilab first-proof --json --max-seconds 60
+agilab adoption-report --strict
+```
+
+That loop is the product in miniature: controlled environment, reproducible
+execution, artifacts, run evidence, and a portable handoff path without needing
+the Streamlit UI or a cluster.
+
 <p>
   <a href="https://pypi.org/project/agilab/"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg" alt="PyPI version" /></a>
   <a href="https://pypi.org/project/agilab/#files"><img src="https://img.shields.io/badge/wheel-yes-0F766E" alt="Wheel: yes" /></a>
@@ -43,11 +72,7 @@
 
 </details>
 
-# AGILAB
-
-AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.
-It turns notebooks and scripts into executable, portable, evidence-backed apps
-while preserving a notebook export path.
+AGILAB also preserves a notebook export path.
 That export is an `agi-core` runtime handoff: you can continue to run the saved
 project and stage contract with only the stable, production-grade core
 technology, without depending on the AGILAB UI or distributed worker layer.
