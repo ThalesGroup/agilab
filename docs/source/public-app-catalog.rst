@@ -84,8 +84,9 @@ Status legend:
      - ``agi-app-tescia-diagnostic``
      - PyPI app package
      - Evidence-scored diagnostic and self-evaluation cases with 2026 math
-       coverage, classroom batch intake, live teacher dashboard artifacts,
-       better-fix selection, and regression-plan evidence.
+       coverage, 2026 data-scientist interview evaluation, classroom batch
+       intake, live teacher dashboard artifacts, better-fix selection, and
+       regression-plan evidence.
    * - ``uav_relay_queue_project``
      - ``agi-app-uav-relay-queue``
      - PyPI app package

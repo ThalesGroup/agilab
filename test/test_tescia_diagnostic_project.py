@@ -611,6 +611,52 @@ def test_tescia_diagnostic_selects_evidence_backed_fix(monkeypatch) -> None:
     assert "SSH login success proves the shared data path is usable." in report["weak_assumptions"]
 
 
+def test_tescia_data_scientist_2026_cases_are_scored_and_current(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic import diagnose_case
+
+    cases = {
+        str(case["case_id"]): case
+        for case in _load_cases()
+        if str(case["case_id"]).startswith("data_scientist_2026_")
+    }
+
+    assert set(cases) == {
+        "data_scientist_2026_python_pandas_modernization",
+        "data_scientist_2026_model_evaluation_leakage",
+        "data_scientist_2026_scaling_feature_pipeline",
+        "data_scientist_2026_genai_rag_governance",
+        "data_scientist_2026_inference_optimization",
+    }
+    assert {case["learner_level"] for case in cases.values()} == {"data-scientist candidate"}
+    assert all("data-science-2026" in case["topic_tags"] for case in cases.values())
+    assert "pandas.concat" in cases["data_scientist_2026_python_pandas_modernization"]["root_cause"]
+    assert "merge_asof" in cases["data_scientist_2026_python_pandas_modernization"]["root_cause"]
+    assert "PR-AUC" in cases["data_scientist_2026_model_evaluation_leakage"]["root_cause"]
+    assert "Ray Data" in cases["data_scientist_2026_scaling_feature_pipeline"]["root_cause"]
+    assert "prompt-injection" in cases["data_scientist_2026_genai_rag_governance"]["root_cause"]
+    assert "quantization" in cases["data_scientist_2026_inference_optimization"]["root_cause"]
+
+    reports = {case_id: diagnose_case(case) for case_id, case in cases.items()}
+    assert reports["data_scientist_2026_python_pandas_modernization"]["selected_fix"]["id"] == (
+        "replace_legacy_python_pandas_items"
+    )
+    assert reports["data_scientist_2026_model_evaluation_leakage"]["selected_fix"]["id"] == (
+        "pipeline_cv_metric_threshold_gate"
+    )
+    assert reports["data_scientist_2026_scaling_feature_pipeline"]["selected_fix"]["id"] == (
+        "profile_partition_then_select_engine"
+    )
+    assert reports["data_scientist_2026_genai_rag_governance"]["selected_fix"]["id"] == (
+        "add_rag_eval_and_risk_gates"
+    )
+    assert reports["data_scientist_2026_inference_optimization"]["selected_fix"]["id"] == (
+        "benchmark_compression_with_runtime_gates"
+    )
+    assert all(report["self_evaluation"]["score_band"] == "excellent" for report in reports.values())
+
+
 def test_tescia_classroom_metadata_anonymizes_student_ids(monkeypatch) -> None:
     monkeypatch.syspath_prepend(str(APP_SRC))
 
@@ -886,11 +932,20 @@ def test_tescia_app_surface_catalog_answer_and_authoring_helpers(monkeypatch) ->
 
     assert any(row["case_id"] == "math_2026_seconde_gt_coverage" for row in rows)
     assert "seconde student" in filters["learner_level"]
+    assert "data-scientist candidate" in filters["learner_level"]
     assert "seconde_gt_fonctions" in filters["curriculum_id"]
     filtered = module.filter_cases(cases, curriculum_id="seconde_gt_fonctions")
     assert {case["case_id"] for case in filtered} == {
         "math_2026_seconde_gt_coverage",
         "math_2026_seconde_gt_practice_round",
+    }
+    data_scientist_cases = module.filter_cases(cases, learner_level="data-scientist candidate")
+    assert {case["case_id"] for case in data_scientist_cases} == {
+        "data_scientist_2026_python_pandas_modernization",
+        "data_scientist_2026_model_evaluation_leakage",
+        "data_scientist_2026_scaling_feature_pipeline",
+        "data_scientist_2026_genai_rag_governance",
+        "data_scientist_2026_inference_optimization",
     }
 
     answer = module.build_student_answer(

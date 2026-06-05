@@ -1,13 +1,17 @@
 # TeSciA Diagnostic Project
 
-`tescia_diagnostic_project` turns a TeSciA-style engineering diagnostic into a
-runnable AGILAB app and classroom-ready self-evaluation workflow.
+`tescia_diagnostic_project` turns TeSciA-style engineering and data-scientist
+diagnostics into a runnable AGILAB app and classroom-ready self-evaluation
+workflow.
 
 ## Purpose
 
 Use this app to convert support/debugging reasoning into structured evidence:
 symptoms, assumptions, root cause, stronger fix, regression plan, student score,
-and classroom intervention signals.
+and classroom intervention signals. The bundled catalog also includes a 2026
+data-scientist interview evaluation inspired by the legacy QCM format: modern
+Python/pandas practice, leakage-free model evaluation, scaling choices, RAG
+governance, and inference optimization.
 
 ## What You Learn
 
@@ -17,6 +21,8 @@ and classroom intervention signals.
 - How student answers produce `student_score`, feedback, and correction sheets.
 - How classroom batches can be split into worker-friendly independent rows.
 - How curriculum coverage is audited from explicit metadata.
+- How a data-scientist interview bank can be refreshed without relying on
+  outdated library APIs or unverified model claims.
 
 ## Run In AGILAB
 
@@ -43,9 +49,10 @@ student, curriculum, and intervention CSV files.
 
 ## Change One Thing
 
-After the default run works, change one `student_answer` or add one diagnostic
-case with a weaker proposed fix. The feedback should identify missing evidence,
-wrong fix choice, or missing discriminator regression tests.
+After the default run works, filter the catalog to `data-scientist candidate`,
+change one `student_answer`, or add one diagnostic case with a weaker proposed
+fix. The feedback should identify missing evidence, wrong fix choice, or
+missing discriminator regression tests.
 
 ## Troubleshooting
 
