@@ -46,11 +46,12 @@ constraint   ::= "only agilab" | "no tests" | "from current repo" | "from anothe
 8. If the previous turn established scope, `do it`, `go on`, and `check again`
    inherit that scope; otherwise inspect current repo state and ask only if
    action would be risky.
-9. If one user message combines an execution command with a follow-up planning
-   request, for example `do it; then next move`, treat it as a single ordered
-   turn: execute, validate, report the result, then give the next recommendation.
-   This avoids an extra prompt round trip while preserving current-state
-   inspection before the recommendation.
+9. If one user message combines execution, validation, publish, merge, or
+   follow-up planning requests, for example `do it; validate; push if clean;
+   merge it; then next move`, treat it as a single ordered turn. Execute each
+   explicit step only after its safety gate is satisfied, report the result,
+   then give the next recommendation. This avoids extra prompt round trips while
+   preserving current-state inspection before merge or recommendation.
 
 ## Session-Derived Routes
 
@@ -80,10 +81,11 @@ Route these patterns before choosing tools:
   the user names them. Show concrete `git -C` commands before execution.
 - For `do it` after a proposal, execute the proposed action if repo state is
   safe. If state changed unexpectedly, report the changed branch/files first.
-- For combined commands such as `do it; validate; push if clean; then suggest
-  next move`, complete the ordered chain in one response when safe. Do not ask
-  for a second `next move` turn unless a blocker or risky ambiguity requires
-  user input.
+- For combined commands such as `do it; validate; push if clean; merge it; then
+  suggest next move`, complete the ordered chain in one response when safe. A
+  merge step still requires the current PR/branch to be clean, synchronized, and
+  passing required checks; stop and report the blocker instead of asking for a
+  second `merge it` or `next move` turn.
 - For `check again`, verify the authoritative source for the prior claim:
   current repo state, workflow status, docs mirror, PyPI/GitHub release, or
   cluster discovery as appropriate.

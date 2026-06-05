@@ -158,21 +158,25 @@ RULE_PROPOSAL_PATTERNS = (
             "do it + next move",
             "do it then next move",
             "do it; validate; push",
+            "do it; validate; push if clean; merge it",
+            "merge it; then next move",
+            "merge it then next move",
             "then suggest next move",
             "then next move",
         ),
         ".claude/skills/agilab-intent-router/SKILL.md",
         (
-            "When a user combines execution and follow-up planning in one message, "
-            "treat it as an ordered single turn: execute, validate, report the "
+            "When a user combines execution, validation, publish, merge, and "
+            "follow-up planning in one message, treat it as an ordered single "
+            "turn: execute each explicit step after its safety gate, report the "
             "result, then provide the next recommendation unless a blocker needs input."
         ),
-        "Combining execution and follow-up planning avoids an extra prompt round trip.",
+        "Combining explicit safe steps avoids extra prompt round trips.",
         (
-            "combines execution and follow-up planning",
+            "combines execution, validation, publish, merge",
             "single ordered turn",
-            "do it; then next move",
-            "second `next move` turn",
+            "do it; validate; push if clean; merge it",
+            "second `merge it` or `next move` turn",
         ),
     ),
     RuleProposalPattern(
