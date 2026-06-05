@@ -284,9 +284,9 @@ def build_discovery(manifest_path: Path = DEFAULT_CAPABILITIES) -> dict[str, Any
                 transport="stdio",
                 entrypoint="agent_quickstart",
                 instructions=(
-                    "Call agent_quickstart first to orient: it returns the read-only "
-                    "safety boundary, recommended workflow, live tool list, and a "
-                    "condensed capability overview."
+                    "Call agent_quickstart first. It is read-only and returns the "
+                    "safety boundary, recommended workflow, live tool list, and "
+                    "compact capability overview."
                 ),
                 auth_required=False,
                 permissions=_permissions(executable=False),

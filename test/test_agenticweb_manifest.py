@@ -58,7 +58,9 @@ def test_agenticweb_manifest_builds_compact_discovery_from_capabilities(tmp_path
     assert by_id["capability-manifest"]["kind"] == "data"
     assert by_id["read-only-evidence"]["kind"] == "mcp"
     assert by_id["read-only-evidence"]["entrypoint"] == "agent_quickstart"
-    assert "Call agent_quickstart first" in by_id["read-only-evidence"]["instructions"]
+    assert by_id["read-only-evidence"]["instructions"].startswith(
+        "Call agent_quickstart first. It is read-only"
+    )
     assert by_id["streamlit-demo"]["kind"] == "ui"
     assert by_id["first-proof-cli"]["permissions"]["execute"] is True
     assert by_id["capability-map"]["permissions"]["train"] is False

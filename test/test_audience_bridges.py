@@ -1113,9 +1113,9 @@ def test_mcp_initialize_advertises_agent_quickstart_entrypoint() -> None:
     assert result["capabilities"]["tools"] == {}
     assert result["serverInfo"]["name"] == "agilab-mcp"
     instructions = result["instructions"]
-    assert "Call agent_quickstart first" in instructions
-    assert "read-only" in instructions
-    assert "full capabilities manifest" in instructions
+    assert instructions.startswith("Call agent_quickstart first. It is read-only")
+    assert "recommended workflow" in instructions
+    assert "compact capability overview" in instructions
 
 
 def test_mcp_tool_registry_and_descriptors_stay_in_parity() -> None:
