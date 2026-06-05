@@ -24,6 +24,7 @@ NOTEBOOK_EXPORT_SCHEMA_VERSION = 1
 NOTEBOOK_EXPORT_STAGE_CELL_SCHEMA = "agilab.notebook_export.stage_cell.v1"
 NOTEBOOK_EXPORT_MANIFEST_SCHEMA = "agilab.notebook_export_manifest.v1"
 NOTEBOOK_EXPORT_HANDOFF_SCHEMA = "agilab.notebook_export_handoff.v1"
+NOTEBOOK_VIEW_SYNC_STATUS_SCHEMA = "agilab.notebook_view_sync_status.v1"
 PYCHARM_NOTEBOOK_MIRROR_ROOT = "exported_notebooks"
 PROJECT_NOTEBOOK_MIRROR_DIR = "notebooks"
 ALLOW_WORKSPACE_SIBLING_APPS_ENV = "AGILAB_NOTEBOOK_EXPORT_ALLOW_WORKSPACE_SIBLINGS"
@@ -137,6 +138,8 @@ class RelatedPageExport:
     launch_note: str = ""
     script_path: str = ""
     inline_renderer: str = ""
+    script_sha256: str = ""
+    inline_renderer_sha256: str = ""
 
 
 @dataclass(frozen=True)
@@ -151,6 +154,7 @@ class NotebookExportContext:
     export_mode: str = DEFAULT_NOTEBOOK_EXPORT_MODE
     allow_workspace_sibling_apps: bool = False
     related_pages: tuple[RelatedPageExport, ...] = ()
+    view_sync: Mapping[str, Any] | None = None
 
 
 def _normalize_path(value: Any) -> str:
@@ -496,6 +500,102 @@ def _load_related_page_manifest(
     return {}, ()
 
 
+def _file_sha256(path: str | Path | None) -> str:
+    if not path:
+        return ""
+    try:
+        candidate = Path(path).expanduser()
+        if not candidate.is_file():
+            return ""
+        return hashlib.sha256(candidate.read_bytes()).hexdigest()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return ""
+
+
+def _inline_renderer_module_path(target: str | None) -> str:
+    target_text = str(target or "").strip()
+    if not target_text:
+        return ""
+    module_target, _, _attr = target_text.partition(":")
+    module_target = module_target.strip()
+    if not module_target:
+        return ""
+    try:
+        candidate = Path(module_target).expanduser()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return ""
+    if candidate.suffix == ".py" or "/" in module_target or "\\" in module_target:
+        return str(candidate)
+    return ""
+
+
+def _sync_source_record(kind: str, path: str | Path | None, *, module: str = "") -> dict[str, Any]:
+    path_text = _normalize_path(path)
+    return {
+        "kind": kind,
+        "module": str(module or ""),
+        "path": path_text,
+        "sha256": _file_sha256(path_text),
+    }
+
+
+def _dedupe_sync_sources(sources: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for source in sources:
+        path = str(source.get("path", "") or "").strip()
+        sha256 = str(source.get("sha256", "") or "").strip()
+        if not path or not sha256:
+            continue
+        record = {
+            "kind": str(source.get("kind", "") or ""),
+            "module": str(source.get("module", "") or ""),
+            "path": path,
+            "sha256": sha256,
+        }
+        key = (record["kind"], record["module"], record["path"])
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(record)
+    normalized.sort(key=lambda item: (item["kind"], item["module"], item["path"]))
+    return normalized
+
+
+def _build_view_sync_snapshot(
+    *,
+    settings_file: Path | None,
+    source_settings: Path | None,
+    active_app: str,
+    related_pages: Sequence[RelatedPageExport],
+) -> dict[str, Any]:
+    sources: list[dict[str, Any]] = []
+    for path, kind in (
+        (settings_file, "workspace_app_settings"),
+        (source_settings, "source_app_settings"),
+    ):
+        if path is not None:
+            sources.append(_sync_source_record(kind, path))
+    for path in _candidate_notebook_manifest_paths(active_app):
+        sources.append(_sync_source_record("notebook_export_manifest", path))
+    for page in related_pages:
+        sources.append(_sync_source_record("analysis_page_script", page.script_path, module=page.module))
+        inline_path = _inline_renderer_module_path(page.inline_renderer)
+        if inline_path:
+            sources.append(_sync_source_record("analysis_page_inline_renderer", inline_path, module=page.module))
+
+    normalized_sources = _dedupe_sync_sources(sources)
+    modules = [page.module for page in related_pages if page.module]
+    payload = {
+        "schema": "agilab.notebook_view_sync.v1",
+        "source": "app_settings_and_page_bundles",
+        "related_page_modules": modules,
+        "sources": normalized_sources,
+    }
+    payload["sha256"] = notebook_export_sha256(payload)
+    return payload
+
+
 def _bundle_record_from_provider(bundle: Any) -> dict[str, str]:
     if bundle is None:
         return {}
@@ -675,18 +775,29 @@ def build_notebook_export_context(
     page_manifest, manifest_order = _load_related_page_manifest(active_app)
     related_pages = _load_related_pages_from_settings(settings_file) or _load_related_pages_from_settings(source_settings) or manifest_order
     pages_root = _normalize_path(getattr(env, "AGILAB_PAGES_ABS", ""))
-    related_page_records = tuple(
-        RelatedPageExport(
-            module=page,
-            label=str(page_manifest.get(page, {}).get("label", "") or ""),
-            description=str(page_manifest.get(page, {}).get("description", "") or ""),
-            artifacts=tuple(str(item) for item in page_manifest.get(page, {}).get("artifacts", ())),
-            launch_note=str(page_manifest.get(page, {}).get("launch_note", "") or ""),
-            script_path=script_path,
-            inline_renderer=_discover_page_inline_renderer(page_manifest, page, script_path=script_path),
+    related_page_records_list: list[RelatedPageExport] = []
+    for page in related_pages:
+        script_path = _discover_page_script(pages_root, page)
+        inline_renderer = _discover_page_inline_renderer(page_manifest, page, script_path=script_path)
+        related_page_records_list.append(
+            RelatedPageExport(
+                module=page,
+                label=str(page_manifest.get(page, {}).get("label", "") or ""),
+                description=str(page_manifest.get(page, {}).get("description", "") or ""),
+                artifacts=tuple(str(item) for item in page_manifest.get(page, {}).get("artifacts", ())),
+                launch_note=str(page_manifest.get(page, {}).get("launch_note", "") or ""),
+                script_path=script_path,
+                inline_renderer=inline_renderer,
+                script_sha256=_file_sha256(script_path),
+                inline_renderer_sha256=_file_sha256(_inline_renderer_module_path(inline_renderer)),
+            )
         )
-        for page in related_pages
-        for script_path in (_discover_page_script(pages_root, page),)
+    related_page_records = tuple(related_page_records_list)
+    view_sync = _build_view_sync_snapshot(
+        settings_file=settings_file,
+        source_settings=source_settings,
+        active_app=active_app,
+        related_pages=related_page_records,
     )
 
     return NotebookExportContext(
@@ -699,6 +810,7 @@ def build_notebook_export_context(
         repo_root=repo_root,
         allow_workspace_sibling_apps=allow_workspace_sibling_apps,
         related_pages=related_page_records,
+        view_sync=view_sync,
     )
 
 
@@ -1046,6 +1158,8 @@ def _related_page_manifest_records(metadata: Mapping[str, Any]) -> list[dict[str
                 "launch_note": str(page.get("launch_note", "") or ""),
                 "script_path": str(page.get("script_path", "") or ""),
                 "inline_renderer": str(page.get("inline_renderer", "") or ""),
+                "script_sha256": str(page.get("script_sha256", "") or ""),
+                "inline_renderer_sha256": str(page.get("inline_renderer_sha256", "") or ""),
             }
         )
     return records
@@ -1156,6 +1270,7 @@ def build_notebook_export_manifest(
         "notebook_sha256": notebook_export_sha256(notebook_data),
         "stages": _stage_manifest_records(metadata),
         "related_pages": _related_page_manifest_records(metadata),
+        "view_sync": dict(metadata.get("view_sync", {})) if isinstance(metadata.get("view_sync", {}), Mapping) else {},
         "stage_source_hashes": _stage_source_hashes(metadata),
         "stage_cells": _stage_cell_manifest_records(notebook_data),
     }
@@ -1300,6 +1415,41 @@ def _verification_check(checks: list[dict[str, Any]], check_id: str, ok: bool, s
     return ok
 
 
+def _view_sync_source_drift(manifest: Mapping[str, Any]) -> tuple[int, list[dict[str, Any]], list[dict[str, Any]], int]:
+    view_sync = manifest.get("view_sync", {})
+    if not isinstance(view_sync, Mapping):
+        return 0, [], [], 0
+    raw_sources = view_sync.get("sources", [])
+    if not isinstance(raw_sources, list):
+        return 0, [], [], 0
+
+    checked = 0
+    changed: list[dict[str, Any]] = []
+    unavailable: list[dict[str, Any]] = []
+    for raw_source in raw_sources:
+        if not isinstance(raw_source, Mapping):
+            continue
+        path = str(raw_source.get("path", "") or "").strip()
+        expected_sha256 = str(raw_source.get("sha256", "") or "").strip()
+        if not path or not expected_sha256:
+            continue
+        actual_sha256 = _file_sha256(path)
+        record = {
+            "kind": str(raw_source.get("kind", "") or ""),
+            "module": str(raw_source.get("module", "") or ""),
+            "path": path,
+            "expected_sha256": expected_sha256,
+            "actual_sha256": actual_sha256,
+        }
+        if not actual_sha256:
+            unavailable.append(record)
+            continue
+        checked += 1
+        if actual_sha256 != expected_sha256:
+            changed.append(record)
+    return checked, changed, unavailable, len(raw_sources)
+
+
 def verify_notebook_export_manifest(
     notebook_path: str | Path,
     manifest_path: str | Path | None = None,
@@ -1415,11 +1565,93 @@ def verify_notebook_export_manifest(
             actual_sha256=actual_source_hash,
         )
 
+    checked_sources, changed_sources, unavailable_sources, total_sources = _view_sync_source_drift(manifest)
+    if total_sources:
+        _verification_check(
+            checks,
+            "view_sync_sources",
+            not changed_sources,
+            "Reachable app settings, page manifests, and analysis page sources match the notebook export snapshot.",
+            source_count=total_sources,
+            checked_count=checked_sources,
+            changed_sources=changed_sources,
+            unavailable_sources=unavailable_sources,
+        )
+
     return {
         "ok": all(check["status"] == "pass" for check in checks),
         "notebook_path": str(notebook_file),
         "manifest_path": str(manifest_file),
         "checks": checks,
+    }
+
+
+def notebook_view_sync_status(
+    notebook_path: str | Path,
+    manifest_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """Summarize both drift directions between an exported notebook and AGILAB views."""
+    verification = verify_notebook_export_manifest(notebook_path, manifest_path=manifest_path)
+    checks = verification.get("checks", [])
+    check_records = [check for check in checks if isinstance(check, Mapping)]
+    failed_checks = [check for check in check_records if check.get("status") != "pass"]
+    failed_ids = {str(check.get("id", "") or "") for check in failed_checks}
+
+    source_check = next((check for check in check_records if check.get("id") == "view_sync_sources"), {})
+    source_details = source_check.get("details", {}) if isinstance(source_check, Mapping) else {}
+    if not isinstance(source_details, Mapping):
+        source_details = {}
+    changed_sources = source_details.get("changed_sources", [])
+    unavailable_sources = source_details.get("unavailable_sources", [])
+    changed_source_count = len(changed_sources) if isinstance(changed_sources, list) else 0
+    unavailable_source_count = len(unavailable_sources) if isinstance(unavailable_sources, list) else 0
+    source_changed = str(source_check.get("status", "") or "") == "fail" and changed_source_count > 0
+
+    notebook_content_check_ids = {"notebook_sha256", "cell_ids"}
+    notebook_changed = any(check_id in failed_ids for check_id in notebook_content_check_ids) or any(
+        check_id.startswith("stage_source_") for check_id in failed_ids
+    )
+    manifest_problem = any(check_id in failed_ids for check_id in {"notebook_exists", "manifest_exists", "manifest_schema"})
+    handoff_changed = any(check_id in failed_ids for check_id in {"handoff_exists", "handoff_sha256"})
+
+    if manifest_problem:
+        state = "unverified"
+        summary = "Notebook sync could not be verified because the export notebook or manifest is missing or unsupported."
+    elif source_changed and notebook_changed:
+        state = "both_changed"
+        summary = "Both the notebook and linked AGILAB view/app sources changed since export."
+    elif source_changed:
+        state = "source_changed"
+        summary = "Linked AGILAB view/app sources changed since this notebook was exported."
+    elif notebook_changed:
+        state = "notebook_changed"
+        summary = "The notebook changed since export; re-import edited stage cells before treating AGILAB sources as current."
+    elif failed_checks:
+        state = "support_changed"
+        summary = "Notebook export support files changed or are unavailable."
+    else:
+        state = "synced"
+        summary = "Notebook, export manifest, and linked AGILAB view/app sources are synchronized."
+
+    fallback_manifest_path = (
+        str(Path(manifest_path))
+        if manifest_path is not None
+        else str(notebook_export_manifest_path(notebook_path))
+    )
+    return {
+        "schema": NOTEBOOK_VIEW_SYNC_STATUS_SCHEMA,
+        "ok": bool(verification.get("ok")),
+        "state": state,
+        "summary": summary,
+        "notebook_changed": notebook_changed,
+        "source_changed": source_changed,
+        "handoff_changed": handoff_changed,
+        "changed_source_count": changed_source_count,
+        "unavailable_source_count": unavailable_source_count,
+        "failed_check_ids": sorted(failed_ids),
+        "notebook_path": verification.get("notebook_path", str(Path(notebook_path))),
+        "manifest_path": verification.get("manifest_path", fallback_manifest_path),
+        "verification": verification,
     }
 
 
@@ -1811,6 +2043,55 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 return Path(path_value).expanduser().exists()
             except Exception:
                 return False
+
+
+        def _file_sha256(path_value):
+            if not path_value:
+                return ""
+            try:
+                path = Path(path_value).expanduser()
+                if not path.is_file():
+                    return ""
+                import hashlib
+
+                return hashlib.sha256(path.read_bytes()).hexdigest()
+            except Exception:
+                return ""
+
+
+        def _view_sync_source_drift():
+            view_sync = AGILAB_NOTEBOOK_EXPORT.get("view_sync", {{}})
+            if not isinstance(view_sync, dict):
+                return 0, [], [], 0
+            raw_sources = view_sync.get("sources", [])
+            if not isinstance(raw_sources, list):
+                return 0, [], [], 0
+
+            checked = 0
+            changed = []
+            unavailable = []
+            for source in raw_sources:
+                if not isinstance(source, dict):
+                    continue
+                path = str(source.get("path") or "").strip()
+                expected = str(source.get("sha256") or "").strip()
+                if not path or not expected:
+                    continue
+                actual = _file_sha256(path)
+                record = {{
+                    "kind": str(source.get("kind") or ""),
+                    "module": str(source.get("module") or ""),
+                    "path": path,
+                    "expected_sha256": expected,
+                    "actual_sha256": actual,
+                }}
+                if not actual:
+                    unavailable.append(record)
+                    continue
+                checked += 1
+                if actual != expected:
+                    changed.append(record)
+            return checked, changed, unavailable, len(raw_sources)
 
 
         def _command_or_path_exists(value):
@@ -2279,6 +2560,19 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                     inline_renderer_exists=inline_ok,
                 ) and ok
 
+            checked_sources, changed_sources, unavailable_sources, total_sources = _view_sync_source_drift()
+            if total_sources:
+                ok = _validation_check(
+                    checks,
+                    "view_sync_sources",
+                    not changed_sources,
+                    "Reachable app settings, page manifests, and analysis page sources match the notebook export snapshot.",
+                    source_count=total_sources,
+                    checked_count=checked_sources,
+                    changed_sources=changed_sources,
+                    unavailable_sources=unavailable_sources,
+                ) and ok
+
             report = {{
                 "ok": ok,
                 "project_name": AGILAB_NOTEBOOK_EXPORT.get("project_name"),
@@ -2660,6 +2954,7 @@ def build_notebook_document(
         "export_mode": export_context.export_mode,
         "allow_workspace_sibling_apps": export_context.allow_workspace_sibling_apps,
         "related_pages": [asdict(page) for page in export_context.related_pages],
+        "view_sync": dict(export_context.view_sync or {}),
         "stages": stage_records,
         "stages_file": str(Path(toml_path)),
     }

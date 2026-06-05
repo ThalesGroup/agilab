@@ -632,6 +632,8 @@ def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, mon
     notebook_path.parent.mkdir(parents=True)
     notebook_path.write_text("{}", encoding="utf-8")
     calls: list[tuple[str, dict[str, object]]] = []
+    status_events: list[tuple[str, str]] = []
+    sync_status_paths: list[Path] = []
     sidebar_hides: list[str] = []
 
     class _Column:
@@ -656,10 +658,21 @@ def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, mon
         columns=lambda _spec: [_Column(), _Column(), _Column()],
         button=lambda *_args, **_kwargs: False,
         subheader=lambda *_args, **_kwargs: None,
+        caption=lambda value: status_events.append(("caption", str(value))),
+        warning=lambda value: status_events.append(("warning", str(value))),
+        error=lambda value: status_events.append(("error", str(value))),
         iframe=lambda src, **kwargs: calls.append((src, kwargs)),
     )
 
     monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(
+        module,
+        "_notebook_view_sync_status",
+        lambda path: sync_status_paths.append(Path(path)) or {
+            "state": "notebook_changed",
+            "summary": "The notebook changed since export.",
+        },
+    )
     monkeypatch.setattr(module, "_hide_parent_sidebar", lambda: sidebar_hides.append("hide"))
     monkeypatch.setattr(module, "_is_hosted_analysis_runtime", lambda _env: False)
     monkeypatch.setattr(module, "_ensure_notebook_sidecar", lambda *_args, **_kwargs: True)
@@ -673,6 +686,8 @@ def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, mon
             {"height": 900},
         )
     ]
+    assert sync_status_paths == [notebook_path.resolve()]
+    assert status_events == [("warning", "Notebook sync: The notebook changed since export.")]
     assert sidebar_hides == []
 
 
