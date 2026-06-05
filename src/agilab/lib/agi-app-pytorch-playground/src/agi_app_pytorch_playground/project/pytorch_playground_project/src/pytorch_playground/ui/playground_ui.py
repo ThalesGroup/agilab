@@ -288,6 +288,7 @@ _DATAFRAME_IPC_TYPE = "agilab.pytorch_playground.dataframe.v1"
 
 
 def _ipc_encode(value):
+    # Keep this fresh-interpreter encoder aligned with the module-level encoder below.
     if isinstance(value, pd.DataFrame):
         return {
             "__type__": _DATAFRAME_IPC_TYPE,
@@ -451,8 +452,11 @@ def _training_error_result(config: PlaygroundConfig, detail: str) -> dict[str, A
         "samples": samples,
         "history": pd.DataFrame(columns=["epoch", "train_loss", "validation_loss", "train_accuracy", "validation_accuracy"]),
         "grid": pd.DataFrame(columns=["x1", "x2", "probability"]),
+        "boundary_snapshots": _empty_boundary_snapshots(),
         "network_layers": _empty_network_layers(),
         "activation_maps": _empty_activation_maps(),
+        "loss_landscape": _empty_loss_landscape(),
+        "landscape_summary": _loss_landscape_summary(_empty_loss_landscape()),
         "summary": {
             "backend": "error",
             "samples": int(len(samples)),

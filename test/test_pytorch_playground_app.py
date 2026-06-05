@@ -135,6 +135,36 @@ def test_pytorch_playground_modules_are_classified_or_entrypoints():
         _assert_pytorch_legacy_module_identity(package_root.parent, legacy_modules)
 
 
+def test_pytorch_playground_public_exports_are_unique() -> None:
+    for init_path in (
+        PROJECT_SRC / "pytorch_playground" / "__init__.py",
+        PACKAGE_PROJECT_PATH / "src" / "pytorch_playground" / "__init__.py",
+    ):
+        tree = ast.parse(init_path.read_text(encoding="utf-8"))
+        all_values = [
+            ast.literal_eval(node.value)
+            for node in tree.body
+            if (
+                isinstance(node, ast.Assign)
+                and any(isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets)
+            )
+        ]
+        assert len(all_values) == 1
+        public_exports = all_values[0]
+        assert len(public_exports) == len(set(public_exports))
+        assert "PYTORCH_PLAYGROUND_REDUCE_CONTRACT" in public_exports
+
+
+def test_pytorch_playground_compat_shim_uses_explicit_source_read() -> None:
+    for shim_path in (
+        PROJECT_SRC / "pytorch_playground" / "compat" / "module_shim.py",
+        PACKAGE_PROJECT_PATH / "src" / "pytorch_playground" / "compat" / "module_shim.py",
+    ):
+        source = shim_path.read_text(encoding="utf-8")
+        assert "Path(spec.origin).read_text" in source
+        assert "open(spec.origin" not in source
+
+
 def test_playground_ui_import_prefers_package_when_streamlit_puts_script_dir_first(monkeypatch):
     script_dir = MODULE_PATH.resolve().parent
     project_src = PROJECT_SRC.resolve()
@@ -1384,6 +1414,24 @@ def test_isolated_runner_failure_paths_return_displayable_error_results(monkeypa
     invalid_json = module._run_core_in_subprocess("train", config)
     assert invalid_json["status"] == "error"
     assert "JSONDecodeError" in invalid_json["detail"]
+
+
+def test_training_error_result_matches_train_result_artifact_shape() -> None:
+    module = _load_module()
+    config = module.PlaygroundConfig(sample_count=18, epochs=1, grid_size=6)
+
+    result = module._training_error_result(config, "boom")
+
+    assert result["status"] == "error"
+    assert result["detail"] == "boom"
+    assert result["samples"].shape[0] == 18
+    assert result["history"].empty
+    assert result["grid"].empty
+    assert result["boundary_snapshots"].equals(module._empty_boundary_snapshots())
+    assert result["network_layers"].equals(module._empty_network_layers())
+    assert result["activation_maps"].equals(module._empty_activation_maps())
+    assert result["loss_landscape"].equals(module._empty_loss_landscape())
+    assert result["landscape_summary"] == module._loss_landscape_summary(module._empty_loss_landscape())
 
 
 def test_isolated_runner_ipc_uses_json_without_pickle() -> None:
