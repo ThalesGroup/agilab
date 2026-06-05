@@ -267,6 +267,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test-results/coverage-agi-gui-support.manifest.json" in " ".join(agi_gui_commands[0].argv)
     agi_gui_combine_argv = " ".join(agi_gui_combine.argv)
     assert "'coverage', 'combine'" in agi_gui_combine_argv
+    assert "--data-file=.coverage.agi-gui" in agi_gui_combine_argv
     assert "--keep" in agi_gui_combine_argv
     assert agi_gui_combine.env["COVERAGE_FILE"] == ".coverage.agi-gui"
     assert module.AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS >= 90.0
@@ -710,10 +711,12 @@ def test_agi_gui_coverage_combine_recovers_missing_success_manifest(tmp_path, mo
         assert exc.code == 0
 
     assert combined_commands
+    combine_args = combined_commands[0]
+    assert "--data-file=.coverage.agi-gui" in combine_args
     assert any(
         "coverage-agi-gui-combine-inputs" in arg
         and "coverage-agi-gui-pipeline.db.fragment" in arg
-        for arg in combined_commands[0]
+        for arg in combine_args
     )
 
 

@@ -754,7 +754,7 @@ def _agi_gui_coverage_combine_code() -> str:
         "    target = combine_input_dir / f'{index:03d}-{source.name}'\n"
         "    shutil.copy2(source, target)\n"
         "    combine_paths.append(target.as_posix())\n"
-        "cmd = [sys.executable, '-m', 'coverage', 'combine', '--keep', *combine_paths]\n"
+        "cmd = [sys.executable, '-m', 'coverage', 'combine', '--data-file=.coverage.agi-gui', '--keep', *combine_paths]\n"
         "sys.exit(subprocess.run(cmd, check=False).returncode)\n"
     )
 

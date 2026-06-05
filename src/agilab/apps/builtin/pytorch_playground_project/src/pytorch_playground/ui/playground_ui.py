@@ -407,26 +407,6 @@ def _ipc_decode(value: Any) -> Any:
     return value
 
 
-def _config_from_cache_payload(payload: Mapping[str, Any]) -> PlaygroundConfig:
-    return PlaygroundConfig(
-        dataset=str(payload["dataset"]),
-        sample_count=int(payload["sample_count"]),
-        noise=float(payload["noise"]),
-        train_ratio=float(payload["train_ratio"]),
-        hidden_layers=tuple(int(value) for value in payload["hidden_layers"]),
-        activation=str(payload["activation"]),
-        optimizer=str(payload["optimizer"]),
-        regularization=str(payload.get("regularization", "None")),
-        regularization_rate=float(payload.get("regularization_rate", 0.0)),
-        learning_rate=float(payload["learning_rate"]),
-        epochs=int(payload["epochs"]),
-        batch_size=int(payload["batch_size"]),
-        seed=int(payload["seed"]),
-        feature_names=tuple(str(value) for value in payload["feature_names"]),
-        grid_size=int(payload["grid_size"]),
-    )
-
-
 def _streamlit_script_context_active() -> bool:
     try:
         from streamlit.runtime.scriptrunner import get_script_run_ctx
@@ -670,7 +650,7 @@ def _request_live_rerun(delay_seconds: float) -> None:
 
 @st.cache_data(show_spinner=False)
 def _cached_train(payload: dict[str, Any]) -> dict[str, Any]:
-    config = _config_from_cache_payload(payload)
+    config = _config_from_payload(payload)
     if _use_isolated_torch_training():
         return _run_core_in_subprocess("train", config)
     return _train_playground(config)
@@ -678,7 +658,7 @@ def _cached_train(payload: dict[str, Any]) -> dict[str, Any]:
 
 @st.cache_data(show_spinner=False)
 def _cached_loss_landscape(payload: dict[str, Any], resolution: int, span: float) -> dict[str, Any]:
-    config = _config_from_cache_payload(payload)
+    config = _config_from_payload(payload)
     if _use_isolated_torch_training():
         return _run_core_in_subprocess("loss_landscape", config, resolution=resolution, span=span)
     return _loss_landscape(config, resolution=resolution, span=span)

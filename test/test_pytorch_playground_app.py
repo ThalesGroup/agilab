@@ -1468,6 +1468,65 @@ def test_cached_train_and_loss_landscape_route_to_isolated_runner(monkeypatch: p
     assert calls == [("train", None, None), ("loss_landscape", 7, 0.3)]
 
 
+def test_cached_train_and_landscape_reuse_core_config_validation(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    captured: list[tuple[str, object]] = []
+    polluted_payload = {
+        "dataset": "unknown",
+        "sample_count": 5000,
+        "noise": 9.0,
+        "train_ratio": 0.1,
+        "hidden_layers": ["not-an-int"],
+        "activation": "unknown",
+        "optimizer": "unknown",
+        "regularization": "unknown",
+        "regularization_rate": 9.0,
+        "learning_rate": 9.0,
+        "epochs": -1,
+        "batch_size": 9999,
+        "seed": 999999,
+        "feature_names": ["x1", "unknown"],
+        "grid_size": 1,
+    }
+
+    def fake_train(config):
+        captured.append(("train", config))
+        return {"status": "ok", "summary": {"backend": "fake"}}
+
+    def fake_landscape(config, *, resolution, span):
+        captured.append(("loss_landscape", config))
+        return {"status": "ok", "loss_landscape": pd.DataFrame(), "landscape_summary": {"points": 0}}
+
+    for cached_func in (module._cached_train, module._cached_loss_landscape):
+        clear = getattr(cached_func, "clear", None)
+        if callable(clear):
+            clear()
+    monkeypatch.setattr(module, "_use_isolated_torch_training", lambda: False)
+    monkeypatch.setattr(module, "_train_playground", fake_train)
+    monkeypatch.setattr(module, "_loss_landscape", fake_landscape)
+
+    assert module._cached_train(dict(polluted_payload))["status"] == "ok"
+    assert module._cached_loss_landscape(dict(polluted_payload), resolution=7, span=0.3)["status"] == "ok"
+
+    assert [action for action, _config in captured] == ["train", "loss_landscape"]
+    for _action, config in captured:
+        assert config.dataset == module.PlaygroundConfig().dataset
+        assert config.sample_count == 1000
+        assert config.noise == 0.5
+        assert config.train_ratio == 0.5
+        assert config.hidden_layers == module.PlaygroundConfig().hidden_layers
+        assert config.activation == module.PlaygroundConfig().activation
+        assert config.optimizer == module.PlaygroundConfig().optimizer
+        assert config.regularization == module.PlaygroundConfig().regularization
+        assert config.regularization_rate == 1.0
+        assert config.learning_rate == 0.2
+        assert config.epochs == 10
+        assert config.batch_size == 256
+        assert config.seed == 9999
+        assert config.feature_names == ("x1",)
+        assert config.grid_size == 12
+
+
 def test_playground_ui_helper_error_and_display_edges(monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load_module()
     fake_st = SimpleNamespace(session_state={module.TRAINED_CONFIG_STATE_KEY: "bad payload"})
