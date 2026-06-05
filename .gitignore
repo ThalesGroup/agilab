@@ -93,6 +93,9 @@ run_matrix_parsed.tsv
 # Work-plan dumps (generated)
 distribution.json
 
+# Local generated reports
+/reports/
+
 # Sphinx output (generated locally, not versioned)
 docs/html/
 
