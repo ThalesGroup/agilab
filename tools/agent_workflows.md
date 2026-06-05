@@ -84,6 +84,21 @@ from the reviewed rules in `agent-context-rules.json`. It is a contract proof
 for agent context selection only: it does not execute agents, run tests, or
 override the validation gates reported by `tools/impact_validate.py`.
 
+For Tokki or another token-saving wrapper, request the compact profile:
+
+```bash
+python tools/agent_context_router.py \
+  --profile tokki \
+  --files src/agilab/pages/4_ANALYSIS.py src/agilab/notebooks/notebook_export_support.py \
+  --prompt "fix notebook sync in the analysis page" \
+  --json
+```
+
+The `context_profile` block returns the bounded baseline files, matched context
+packs, estimated token budget, and follow-up validation commands. The profile is
+advisory: it narrows context selection, while `tools/impact_validate.py` remains
+the validation source of truth.
+
 Validate the rule file with:
 
 ```bash

@@ -21,6 +21,141 @@
       "agilab-intent-router"
     ]
   },
+  "context_profiles": {
+    "tokki": {
+      "label": "Tokki compact context profile",
+      "description": "Bounded context packs for Tokki and other token-saving agents. Use the baseline files first, then add only the packs for matched AGILAB task rules.",
+      "max_total_tokens": 9000,
+      "baseline_token_budget": 1200,
+      "max_rule_packs": 3,
+      "baseline_files": [
+        "AGENT_CONVENTIONS.md",
+        "agent-context-rules.json",
+        "tools/impact_validate.py"
+      ],
+      "commands": [
+        "python tools/agent_context_router.py --profile tokki --files <paths> --prompt <task> --json",
+        "uv --preview-features extra-build-dependencies run python tools/impact_validate.py --files <paths>"
+      ],
+      "rule_packs": {
+        "docs-public-claims": {
+          "token_budget": 1800,
+          "files": [
+            ".claude/skills/agilab-docs/SKILL.md",
+            ".claude/skills/agilab-evidence-contracts/SKILL.md",
+            "tools/sync_docs_source.py"
+          ],
+          "commands": [
+            "uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --check"
+          ],
+          "why": "Route public wording through docs source discipline and evidence-boundary checks."
+        },
+        "release-publication": {
+          "token_budget": 2600,
+          "files": [
+            "AGENTS.md",
+            ".claude/skills/agilab-release-verification/SKILL.md",
+            "tools/release_plan.py",
+            ".github/workflows/pypi-publish.yaml"
+          ],
+          "commands": [
+            "./dev --print-only release",
+            "uv --preview-features extra-build-dependencies run python tools/release_plan.py"
+          ],
+          "why": "Release answers need current workflow truth, package impact, and public evidence sequencing."
+        },
+        "agent-skills": {
+          "token_budget": 2200,
+          "files": [
+            ".claude/skills/repo-skill-maintenance/SKILL.md",
+            "tools/sync_agent_skills.py",
+            "tools/agent_context_router.py",
+            "tools/agent_workflows.md"
+          ],
+          "commands": [
+            "python3 tools/sync_agent_skills.py --skills <skill>",
+            "python3 tools/agent_instruction_contract.py --check"
+          ],
+          "why": "Agent-facing changes need skill mirror, catalog, and instruction-contract alignment."
+        },
+        "streamlit-ui": {
+          "token_budget": 2200,
+          "files": [
+            ".claude/skills/agilab-streamlit-pages/SKILL.md",
+            ".claude/skills/agilab-ui-robot-validation/SKILL.md",
+            "tools/agilab_widget_robot.py"
+          ],
+          "commands": [
+            "uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile agi-gui"
+          ],
+          "why": "Streamlit changes need session-state, route, browser-log, and robot-validation guardrails without loading the whole UI tree."
+        },
+        "evidence-proof": {
+          "token_budget": 1900,
+          "files": [
+            ".claude/skills/agilab-evidence-contracts/SKILL.md",
+            "src/agilab/evidence",
+            "tools/release_proof_report.py"
+          ],
+          "commands": [
+            "uv --preview-features extra-build-dependencies run python tools/impact_validate.py --files <paths>"
+          ],
+          "why": "Evidence work needs schema, hash, replay, and proof semantics first."
+        },
+        "notebook-import-export": {
+          "token_budget": 2400,
+          "files": [
+            ".claude/skills/notebook-to-agilab-project/SKILL.md",
+            "src/agilab/notebooks/notebook_export_support.py",
+            "src/agilab/notebooks/notebook_pipeline_import.py",
+            "test/test_pipeline_editor.py"
+          ],
+          "commands": [
+            "uv --preview-features extra-build-dependencies run pytest -q -o addopts='' test/test_pipeline_editor.py"
+          ],
+          "why": "Notebook changes need cell-role metadata, import/export contracts, and focused round-trip tests."
+        },
+        "apps-examples": {
+          "token_budget": 1900,
+          "files": [
+            ".claude/skills/agilab-example-maturity/SKILL.md",
+            "tools/app_contract_matrix.py",
+            "src/agilab/examples"
+          ],
+          "commands": [
+            "./dev app-contracts"
+          ],
+          "why": "App/example changes need deterministic first-run behavior and app catalog/package alignment."
+        },
+        "installer-cluster": {
+          "token_budget": 2600,
+          "files": [
+            "AGENTS.md",
+            ".claude/skills/agilab-installer/SKILL.md",
+            ".claude/skills/agilab-security-review-patterns/SKILL.md",
+            "tools/install_contract_check.py",
+            "src/agilab/core/agi-cluster"
+          ],
+          "commands": [
+            "uv --preview-features extra-build-dependencies run python tools/install_contract_check.py --help"
+          ],
+          "why": "Installer and cluster changes need shared-core approval, manifest comparison, SSH/share safety, and polluted-environment regressions."
+        },
+        "frontend-visuals": {
+          "token_budget": 1800,
+          "files": [
+            ".claude/skills/scientific-svg-figures/SKILL.md",
+            ".claude/skills/svg-diagram-tuning/SKILL.md",
+            ".claude/skills/advanced-svg-system-design/SKILL.md"
+          ],
+          "commands": [
+            "git diff --check"
+          ],
+          "why": "Visual work needs figure/layout rules and export-safe source-of-truth assets."
+        }
+      }
+    }
+  },
   "rules": [
     {
       "id": "docs-public-claims",
@@ -94,8 +229,11 @@
         "agents.md",
         "codex",
         "claude",
+        "tokki",
         "opencode",
-        "aider"
+        "aider",
+        "context profile",
+        "token saving"
       ],
       "skills": [
         "repo-skill-maintenance",
@@ -164,6 +302,7 @@
       "label": "Notebook import and export",
       "paths": [
         "src/agilab/notebook_*.py",
+        "src/agilab/notebooks/**",
         "src/agilab/pages/3_WORKFLOW.py",
         "src/agilab/apps/builtin/**/notebooks/**",
         "test/test_*notebook*.py",

@@ -74,6 +74,19 @@ def _string_list(value: Any, *, path: str, issues: list[dict[str, str]]) -> list
     return result
 
 
+def _positive_int(value: Any, *, path: str, issues: list[dict[str, str]]) -> int:
+    if isinstance(value, int) and value > 0:
+        return value
+    issues.append(
+        {
+            "severity": "error",
+            "path": path,
+            "message": "expected a positive integer",
+        }
+    )
+    return 0
+
+
 def normalize_file(path: str | Path) -> str:
     raw = str(path).strip()
     if not raw:
@@ -232,6 +245,103 @@ def validate_rules(
                         "message": f"unknown skill: {name}",
                     }
                 )
+    profiles = rules_payload.get("context_profiles", {})
+    if profiles is not None:
+        profile_map = _expect_mapping(profiles, path="context_profiles", issues=issues)
+        for profile_id, raw_profile in profile_map.items():
+            profile_path = f"context_profiles.{profile_id}"
+            if not isinstance(profile_id, str) or not profile_id.strip():
+                issues.append(
+                    {
+                        "severity": "error",
+                        "path": profile_path,
+                        "message": "expected a non-empty profile id",
+                    }
+                )
+            profile = _expect_mapping(raw_profile, path=profile_path, issues=issues)
+            for field in ("label", "description"):
+                value = profile.get(field)
+                if not isinstance(value, str) or not value.strip():
+                    issues.append(
+                        {
+                            "severity": "error",
+                            "path": f"{profile_path}.{field}",
+                            "message": "expected a non-empty string",
+                        }
+                    )
+            max_total = _positive_int(
+                profile.get("max_total_tokens"),
+                path=f"{profile_path}.max_total_tokens",
+                issues=issues,
+            )
+            baseline_budget = _positive_int(
+                profile.get("baseline_token_budget"),
+                path=f"{profile_path}.baseline_token_budget",
+                issues=issues,
+            )
+            if max_total and baseline_budget and baseline_budget >= max_total:
+                issues.append(
+                    {
+                        "severity": "error",
+                        "path": f"{profile_path}.baseline_token_budget",
+                        "message": "baseline token budget must be smaller than max_total_tokens",
+                    }
+                )
+            _positive_int(
+                profile.get("max_rule_packs"),
+                path=f"{profile_path}.max_rule_packs",
+                issues=issues,
+            )
+            for field in ("baseline_files", "commands"):
+                for item in _string_list(profile.get(field), path=f"{profile_path}.{field}", issues=issues):
+                    if field == "baseline_files" and not (REPO_ROOT / item).exists():
+                        issues.append(
+                            {
+                                "severity": "error",
+                                "path": f"{profile_path}.{field}",
+                                "message": f"profile file does not exist: {item}",
+                            }
+                        )
+            rule_packs = _expect_mapping(
+                profile.get("rule_packs"),
+                path=f"{profile_path}.rule_packs",
+                issues=issues,
+            )
+            for rule_id, raw_pack in rule_packs.items():
+                pack_path = f"{profile_path}.rule_packs.{rule_id}"
+                if rule_id not in seen_ids:
+                    issues.append(
+                        {
+                            "severity": "error",
+                            "path": pack_path,
+                            "message": f"profile pack references unknown rule id: {rule_id}",
+                        }
+                    )
+                pack = _expect_mapping(raw_pack, path=pack_path, issues=issues)
+                _positive_int(
+                    pack.get("token_budget"),
+                    path=f"{pack_path}.token_budget",
+                    issues=issues,
+                )
+                for item in _string_list(pack.get("files"), path=f"{pack_path}.files", issues=issues):
+                    if not (REPO_ROOT / item).exists():
+                        issues.append(
+                            {
+                                "severity": "error",
+                                "path": f"{pack_path}.files",
+                                "message": f"profile file does not exist: {item}",
+                            }
+                        )
+                _string_list(pack.get("commands"), path=f"{pack_path}.commands", issues=issues)
+                why = pack.get("why")
+                if not isinstance(why, str) or not why.strip():
+                    issues.append(
+                        {
+                            "severity": "error",
+                            "path": f"{pack_path}.why",
+                            "message": "expected a non-empty string",
+                        }
+                    )
     errors = sum(1 for issue in issues if issue["severity"] == "error")
     return {
         "schema": VALIDATION_SCHEMA,
@@ -262,12 +372,74 @@ def _skill_payload(
     return payload
 
 
+def _context_profile_payload(
+    rules_payload: Mapping[str, Any],
+    *,
+    profile_id: str,
+    matched_rules: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    profiles = rules_payload.get("context_profiles", {})
+    if not isinstance(profiles, Mapping) or profile_id not in profiles:
+        raise ValueError(f"unknown context profile: {profile_id}")
+    profile = profiles[profile_id]
+    if not isinstance(profile, Mapping):
+        raise ValueError(f"context profile is not an object: {profile_id}")
+
+    max_total_tokens = int(profile.get("max_total_tokens", 0) or 0)
+    baseline_token_budget = int(profile.get("baseline_token_budget", 0) or 0)
+    max_rule_packs = int(profile.get("max_rule_packs", 0) or 0)
+    remaining_tokens = max(max_total_tokens - baseline_token_budget, 0)
+    rule_packs = profile.get("rule_packs", {})
+    rule_packs = rule_packs if isinstance(rule_packs, Mapping) else {}
+    selected_packs: list[dict[str, Any]] = []
+    dropped_rule_ids: list[str] = []
+    for matched_rule in matched_rules:
+        rule_id = str(matched_rule.get("id", "") or "")
+        raw_pack = rule_packs.get(rule_id)
+        if not isinstance(raw_pack, Mapping):
+            continue
+        if max_rule_packs and len(selected_packs) >= max_rule_packs:
+            dropped_rule_ids.append(rule_id)
+            continue
+        token_budget = int(raw_pack.get("token_budget", 0) or 0)
+        if token_budget > remaining_tokens:
+            dropped_rule_ids.append(rule_id)
+            continue
+        remaining_tokens -= token_budget
+        selected_packs.append(
+            {
+                "rule_id": rule_id,
+                "label": str(matched_rule.get("label", "") or ""),
+                "token_budget": token_budget,
+                "files": [item for item in raw_pack.get("files", []) if isinstance(item, str)],
+                "commands": [item for item in raw_pack.get("commands", []) if isinstance(item, str)],
+                "why": str(raw_pack.get("why", "") or ""),
+            }
+        )
+
+    return {
+        "id": profile_id,
+        "label": str(profile.get("label", "") or ""),
+        "description": str(profile.get("description", "") or ""),
+        "max_total_tokens": max_total_tokens,
+        "baseline_token_budget": baseline_token_budget,
+        "estimated_token_budget": baseline_token_budget
+        + sum(int(pack["token_budget"]) for pack in selected_packs),
+        "remaining_token_budget": remaining_tokens,
+        "baseline_files": [item for item in profile.get("baseline_files", []) if isinstance(item, str)],
+        "commands": [item for item in profile.get("commands", []) if isinstance(item, str)],
+        "matched_packs": selected_packs,
+        "dropped_rule_ids": dropped_rule_ids,
+    }
+
+
 def recommend_context(
     *,
     files: Sequence[str] = (),
     prompt: str = "",
     rules_path: Path = DEFAULT_RULES,
     skills: Mapping[str, Mapping[str, str]] | None = None,
+    profile: str = "",
 ) -> dict[str, Any]:
     rules_payload = _load_json(rules_path)
     if not isinstance(rules_payload, Mapping):
@@ -307,7 +479,7 @@ def recommend_context(
                 "matched_terms": matched_terms,
             }
         )
-    return {
+    result = {
         "schema": RECOMMENDATION_SCHEMA,
         "schema_version": 1,
         "status": "pass" if validation["status"] == "pass" else "rules-invalid",
@@ -325,6 +497,14 @@ def recommend_context(
         ],
         "validation": validation,
     }
+    profile_id = profile.strip()
+    if profile_id:
+        result["context_profile"] = _context_profile_payload(
+            rules_payload,
+            profile_id=profile_id,
+            matched_rules=matched_rules,
+        )
+    return result
 
 
 def render_text(payload: Mapping[str, Any]) -> str:
@@ -354,6 +534,19 @@ def render_text(payload: Mapping[str, Any]) -> str:
             lines.append(f"- {item.get('id')}: {item.get('label')}")
     else:
         lines.append("Matched rules: none; use the baseline runbooks and skills.")
+    profile = payload.get("context_profile", {})
+    if isinstance(profile, Mapping) and profile:
+        lines.append(
+            "Context profile: "
+            f"{profile.get('id')} "
+            f"({profile.get('estimated_token_budget')}/{profile.get('max_total_tokens')} tokens)"
+        )
+        packs = profile.get("matched_packs", [])
+        if isinstance(packs, list) and packs:
+            lines.append("Context packs:")
+            for pack in packs:
+                if isinstance(pack, Mapping):
+                    lines.append(f"- {pack.get('rule_id')}: {pack.get('token_budget')} tokens")
     return "\n".join(lines) + "\n"
 
 
@@ -362,6 +555,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rules", type=Path, default=DEFAULT_RULES, help="Context routing rules JSON.")
     parser.add_argument("--files", nargs="*", default=(), help="Changed or target files to classify.")
     parser.add_argument("--prompt", default="", help="Natural-language task text to classify.")
+    parser.add_argument("--profile", default="", help="Optional compact context profile, for example 'tokki'.")
     parser.add_argument("--staged", action="store_true", help="Include staged git paths.")
     parser.add_argument("--changed", action="store_true", help="Include paths changed against HEAD.")
     parser.add_argument("--check", action="store_true", help="Validate the routing rules and exit.")
@@ -388,7 +582,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if report["status"] == "pass" else 2
     files = list(args.files)
     files.extend(_git_changed_files(staged=args.staged, changed=args.changed))
-    payload = recommend_context(files=files, prompt=args.prompt, rules_path=rules_path)
+    try:
+        payload = recommend_context(files=files, prompt=args.prompt, rules_path=rules_path, profile=args.profile)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
