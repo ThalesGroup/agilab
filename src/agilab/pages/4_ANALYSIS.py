@@ -116,6 +116,17 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.notebook_export_support",
+    {
+        "notebook_view_sync_status": "notebook_view_sync_status",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "notebooks/notebook_export_support.py",
+    fallback_name="agilab_notebook_export_support_fallback",
+)
+_notebook_view_sync_status = globals()["notebook_view_sync_status"]
+import_agilab_symbols(
+    globals(),
     "agilab.app_surface",
     {
         "app_surface_config": "app_surface_config",
@@ -3183,6 +3194,25 @@ async def main():
     )
 
 
+def _render_notebook_view_sync_status(notebook_path: Path) -> None:
+    try:
+        status = _notebook_view_sync_status(notebook_path)
+    except Exception as exc:
+        st.caption(f"Notebook sync: unavailable ({exc})")
+        return
+
+    state = str(status.get("state", "") or "")
+    summary = str(status.get("summary", "") or "Notebook sync status unavailable.")
+    if state == "synced":
+        st.caption(f"Notebook sync: {summary}")
+    elif state in {"source_changed", "notebook_changed", "support_changed"}:
+        st.warning(f"Notebook sync: {summary}")
+    elif state == "both_changed":
+        st.error(f"Notebook sync: {summary}")
+    else:
+        st.caption(f"Notebook sync: {summary}")
+
+
 async def render_notebook_page(notebook_path: Path):
     """Render a project notebook by launching JupyterLab as a project-rooted sidecar."""
     env = st.session_state["env"]
@@ -3211,6 +3241,8 @@ async def render_notebook_page(notebook_path: Path):
             st.rerun()
     with title_col:
         st.subheader(f"Notebook: `{notebook_label}`")
+
+    _render_notebook_view_sync_status(resolved_notebook)
 
     if _is_hosted_analysis_runtime(env):
         st.warning("Notebook sidecars are available in local AGILAB runtimes only.")

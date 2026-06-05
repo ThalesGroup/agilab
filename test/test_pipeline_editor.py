@@ -3500,6 +3500,89 @@ launch_note = "Open this after the run."
     assert context.related_pages[0].launch_note == "Open this after the run."
     assert context.related_pages[0].script_path == str(page_script.resolve())
     assert context.related_pages[0].inline_renderer.endswith("notebook_inline.py:render_inline")
+    assert context.related_pages[0].script_sha256
+    assert context.related_pages[0].inline_renderer_sha256
+    assert context.view_sync
+    assert context.view_sync["schema"] == "agilab.notebook_view_sync.v1"
+    assert context.view_sync["related_page_modules"] == ["view_demo"]
+    sync_kinds = {source["kind"] for source in context.view_sync["sources"]}
+    assert {
+        "workspace_app_settings",
+        "source_app_settings",
+        "notebook_export_manifest",
+        "analysis_page_script",
+        "analysis_page_inline_renderer",
+    } <= sync_kinds
+
+
+def test_notebook_export_view_sync_detects_changed_analysis_page_source(tmp_path):
+    pages_root = tmp_path / "apps-pages"
+    page_script = pages_root / "view_demo" / "src" / "view_demo" / "view_demo.py"
+    page_script.parent.mkdir(parents=True, exist_ok=True)
+    page_script.write_text("print('page v1')\n", encoding="utf-8")
+    page_script.with_name("notebook_inline.py").write_text(
+        "def render_inline(*, page, record, export_payload):\n    return f'inline:{page}'\n",
+        encoding="utf-8",
+    )
+
+    source_app = tmp_path / "apps" / "demo_project"
+    source_settings = source_app / "src" / "app_settings.toml"
+    source_settings.parent.mkdir(parents=True, exist_ok=True)
+    source_settings.write_text("[pages]\nview_module=['view_demo']\n", encoding="utf-8")
+    (source_app / "notebook_export.toml").write_text(
+        """
+[notebook_export]
+
+[[notebook_export.related_pages]]
+module = "view_demo"
+label = "Demo Analysis"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    workspace_settings = tmp_path / ".agilab" / "apps" / "demo_project" / "app_settings.toml"
+    workspace_settings.parent.mkdir(parents=True, exist_ok=True)
+    workspace_settings.write_text("[pages]\nview_module=['view_demo']\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        AGILAB_PAGES_ABS=pages_root,
+        active_app=source_app,
+        app_settings_file=workspace_settings,
+        resolve_user_app_settings_file=lambda app_name, ensure_exists=False: workspace_settings,
+        find_source_app_settings_file=lambda app_name: source_settings,
+        read_agilab_path=lambda: tmp_path,
+    )
+    export_dir = tmp_path / "export" / "demo_project"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    toml_path = export_dir / "lab_stages.toml"
+    context = pipeline_editor.build_notebook_export_context(
+        env,
+        Path("demo_project"),
+        toml_path,
+        project_name="demo_project",
+    )
+    pipeline_editor.toml_to_notebook({"demo_project": [{"C": "print('stage')\n"}]}, toml_path, export_context=context)
+
+    notebook_path = toml_path.with_suffix(".ipynb")
+    manifest = json.loads(notebook_export_support.notebook_export_manifest_path(notebook_path).read_text(encoding="utf-8"))
+    assert manifest["view_sync"]["schema"] == "agilab.notebook_view_sync.v1"
+    assert manifest["related_pages"][0]["script_sha256"]
+    assert manifest["related_pages"][0]["inline_renderer_sha256"]
+    assert notebook_export_support.verify_notebook_export_manifest(notebook_path)["ok"] is True
+
+    page_script.write_text("print('page v2')\n", encoding="utf-8")
+    verification = notebook_export_support.verify_notebook_export_manifest(notebook_path)
+
+    assert verification["ok"] is False
+    sync_check = next(check for check in verification["checks"] if check["id"] == "view_sync_sources")
+    assert sync_check["status"] == "fail"
+    changed_sources = sync_check["details"]["changed_sources"]
+    assert any(source["kind"] == "analysis_page_script" and source["module"] == "view_demo" for source in changed_sources)
+    sync_status = notebook_export_support.notebook_view_sync_status(notebook_path)
+    assert sync_status["state"] == "source_changed"
+    assert sync_status["source_changed"] is True
+    assert sync_status["notebook_changed"] is False
 
 
 @pytest.mark.parametrize(
@@ -4080,6 +4163,10 @@ def test_verify_notebook_export_manifest_detects_tampered_stage_source(tmp_path)
     checks = {check["id"]: check for check in verification["checks"]}
     assert checks["notebook_sha256"]["status"] == "pass"
     assert checks["stage_source_0"]["status"] == "fail"
+    sync_status = notebook_export_support.notebook_view_sync_status(notebook_path)
+    assert sync_status["state"] == "notebook_changed"
+    assert sync_status["notebook_changed"] is True
+    assert sync_status["source_changed"] is False
 
 
 def test_notebook_helper_re_resolves_stale_analysis_page_paths_with_agi_env_and_agi_pages(
