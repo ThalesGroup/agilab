@@ -52,6 +52,16 @@ def test_build_proof_commands_with_install_adds_install_and_seed_checks() -> Non
     assert "app_install_status" in commands[4].argv[-1]
 
 
+def test_install_readiness_code_passes_string_path_to_agienv() -> None:
+    module = _load_module()
+
+    code = module._install_readiness_code(module.DEFAULT_ACTIVE_APP)
+
+    assert "active_app = Path(" in code
+    assert "AgiEnv(active_app=str(active_app), verbose=1)" in code
+    assert "AgiEnv(active_app=active_app" not in code
+
+
 def test_build_proof_commands_with_run_adds_execute_probe() -> None:
     module = _load_module()
 

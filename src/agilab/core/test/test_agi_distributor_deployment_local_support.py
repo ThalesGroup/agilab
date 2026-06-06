@@ -2067,6 +2067,19 @@ def test_local_worker_post_install_env_prefix_disables_cluster_only_for_non_dask
     )
 
 
+def test_compose_worker_post_install_tool_keeps_export_prefix_separate():
+    command = deployment_local_support._compose_worker_post_install_tool(
+        "AGI_CLUSTER_ENABLED=0 ",
+        'UV_INDEX_URL=https://mirror.example/simple export PATH="~/.local/bin:$PATH";uv --quiet',
+    )
+
+    assert command == (
+        'export PATH="~/.local/bin:$PATH"; '
+        "AGI_CLUSTER_ENABLED=0 UV_INDEX_URL=https://mirror.example/simple uv --quiet"
+    )
+    assert "export 'PATH=" not in command
+
+
 def test_infer_repo_root_from_runtime_returns_none_for_short_path():
     assert (
         deployment_local_support._infer_repo_root_from_runtime("too-short.py") is None

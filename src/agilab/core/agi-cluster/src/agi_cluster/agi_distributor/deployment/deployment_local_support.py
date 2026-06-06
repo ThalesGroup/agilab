@@ -127,6 +127,23 @@ def _shell_words(value: Any) -> str:
     return " ".join(shlex.quote(part) for part in shlex.split(str(value), posix=True))
 
 
+def _compose_worker_post_install_tool(local_env_prefix: str, uv_worker: Any) -> str:
+    uv_fragment = str(uv_worker or "").strip()
+    local_prefix = str(local_env_prefix or "").strip()
+    export_index = uv_fragment.find("export ")
+    semicolon_index = uv_fragment.find(";", export_index)
+    if export_index >= 0 and semicolon_index >= 0:
+        before_export = uv_fragment[:export_index].strip()
+        export_fragment = uv_fragment[export_index : semicolon_index + 1].strip()
+        after_export = uv_fragment[semicolon_index + 1 :].strip()
+        runnable_prefix = " ".join(
+            part for part in (local_prefix, before_export) if part
+        )
+        runnable = " ".join(part for part in (runnable_prefix, after_export) if part)
+        return " ".join(part for part in (export_fragment, runnable) if part)
+    return " ".join(part for part in (local_prefix, uv_fragment) if part)
+
+
 def _latest_glob_match(root: Path, pattern: str) -> Path | None:
     matches = sorted(root.glob(pattern), key=lambda candidate: candidate.name)
     if not matches:
@@ -1617,9 +1634,12 @@ async def deploy_local_worker(
                 exc,
             )
 
+    post_install_tool = _compose_worker_post_install_tool(
+        _local_worker_post_install_env_prefix(agi_cls),
+        uv_worker,
+    )
     post_install_cmd = (
-        f"{_local_worker_post_install_env_prefix(agi_cls)}"
-        f"{_shell_words(uv_worker)} run --no-sync --project {_shell_arg(wenv_abs)} "
+        f"{post_install_tool} run --no-sync --project {_shell_arg(wenv_abs)} "
         f"--python {_shell_arg(pyvers_worker)} python -m {_shell_arg(env.post_install_rel)} "
         f"{_shell_arg(env.active_app)}"
     )
