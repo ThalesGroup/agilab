@@ -22,9 +22,10 @@ chrome.
           :width: 260px
      - **view_autoencoder_latentspace**
 
-       Explores TensorFlow/Keras latent projections and reconstruction behavior.
+       Opt-in playground exception for TensorFlow/Keras latent projections and
+       reconstruction behavior.
 
-       When to use: Use for heavier Python 3.12 teaching or exploration sessions where latent-space structure matters more than lightweight packaging.
+       When to use: Use for heavier Python 3.12 teaching or exploration sessions where an in-page autoencoder training loop is intentional; keep reproducible training workflows in app projects.
    * - .. image:: _static/apps-pages-gallery/view_barycentric.svg
           :alt: view_barycentric preview
           :width: 260px

@@ -9,6 +9,7 @@ from typing import Any, Callable, Optional
 import streamlit as st
 
 from agilab.cluster.cluster_lan_discovery import DiscoveryOptions, discover_lan_nodes
+from agilab.orchestrate.orchestrate_page_support import ORCHESTRATE_ACTION_LABELS
 
 RUN_MODE_LABELS: tuple[str, ...] = (
     "0: python",
@@ -846,7 +847,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
         lan_action_cols = st.columns(3)
         lan_refresh_clicked = bool(
             lan_action_cols[0].button(
-                "Refresh LAN discovery",
+                ORCHESTRATE_ACTION_LABELS["refresh_lan_discovery"],
                 key=_lan_discovery_refresh_key(app_state_name),
                 help=(
                     "Run LAN discovery, refresh "
@@ -856,7 +857,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
         )
         lan_advisor_clicked = bool(
             lan_action_cols[1].button(
-                "Build cluster plan",
+                ORCHESTRATE_ACTION_LABELS["build_cluster_plan"],
                 key=_cluster_advisor_plan_key(app_state_name),
                 help="Build an advisory worker-count plan from LAN discovery without changing current settings.",
             )

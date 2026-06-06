@@ -18,6 +18,7 @@ WIDGET_ROBOT_PATH = REPO_ROOT / "tools" / "agilab_widget_robot.py"
 MATRIX_PATH = REPO_ROOT / "tools" / "agilab_widget_robot_matrix.py"
 SCHEMA = "agilab.ui_robot_action_contract.v1"
 DEFAULT_SOURCE_ROOTS = (REPO_ROOT / "src/agilab",)
+SHARED_ACTION_LABELS_SOURCE = REPO_ROOT / "src/agilab/orchestrate/orchestrate_page_support.py"
 ACTION_CALL_NAMES = {"button", "form_submit_button", "download_button"}
 EXCLUDED_PATH_PARTS = {
     ".git",
@@ -193,11 +194,24 @@ def _is_excluded(path: Path) -> bool:
     return any(part in EXCLUDED_PATH_PARTS for part in path.parts)
 
 
-def _literal_string(node: ast.AST, constants: Mapping[str, str]) -> str | None:
+def _literal_string(
+    node: ast.AST,
+    constants: Mapping[str, str],
+    string_maps: Mapping[str, Mapping[str, str]] | None = None,
+) -> str | None:
+    string_maps = string_maps or {}
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
     if isinstance(node, ast.Name):
         return constants.get(node.id)
+    if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name):
+        source_map = string_maps.get(node.value.id)
+        if source_map is None:
+            return None
+        key = _literal_string(node.slice, constants, string_maps)
+        if key is None:
+            return None
+        return source_map.get(key)
     if isinstance(node, ast.JoinedStr):
         parts: list[str] = []
         for value in node.values:
@@ -207,25 +221,75 @@ def _literal_string(node: ast.AST, constants: Mapping[str, str]) -> str | None:
                 return None
         return "".join(parts)
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left = _literal_string(node.left, constants)
-        right = _literal_string(node.right, constants)
+        left = _literal_string(node.left, constants, string_maps)
+        right = _literal_string(node.right, constants, string_maps)
         if left is not None and right is not None:
             return left + right
     return None
 
 
-def _module_string_constants(tree: ast.AST) -> dict[str, str]:
+def _literal_string_dict(
+    node: ast.AST,
+    constants: Mapping[str, str],
+    string_maps: Mapping[str, Mapping[str, str]] | None = None,
+) -> dict[str, str] | None:
+    if not isinstance(node, ast.Dict):
+        return None
+    result: dict[str, str] = {}
+    for key_node, value_node in zip(node.keys, node.values, strict=False):
+        if key_node is None:
+            return None
+        key = _literal_string(key_node, constants, string_maps)
+        value = _literal_string(value_node, constants, string_maps)
+        if key is None or value is None:
+            return None
+        result[key] = value
+    return result
+
+
+def _module_string_constants(
+    tree: ast.AST,
+    string_maps: Mapping[str, Mapping[str, str]] | None = None,
+) -> dict[str, str]:
     constants: dict[str, str] = {}
     for node in ast.iter_child_nodes(tree):
         if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-            value = _literal_string(node.value, constants)
+            value = _literal_string(node.value, constants, string_maps)
             if value is not None:
                 constants[node.targets[0].id] = value
         elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            value = _literal_string(node.value, constants) if node.value is not None else None
+            value = _literal_string(node.value, constants, string_maps) if node.value is not None else None
             if value is not None:
                 constants[node.target.id] = value
     return constants
+
+
+def _module_string_maps(tree: ast.AST) -> dict[str, dict[str, str]]:
+    maps: dict[str, dict[str, str]] = {}
+    constants = _module_string_constants(tree)
+    for node in ast.iter_child_nodes(tree):
+        target_name: str | None = None
+        value_node: ast.AST | None = None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            target_name = node.targets[0].id
+            value_node = node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            target_name = node.target.id
+            value_node = node.value
+        if target_name is None or value_node is None:
+            continue
+        value = _literal_string_dict(value_node, constants)
+        if value is not None:
+            maps[target_name] = value
+    return maps
+
+
+def _shared_string_maps() -> dict[str, dict[str, str]]:
+    try:
+        tree = ast.parse(SHARED_ACTION_LABELS_SOURCE.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return {}
+    return _module_string_maps(tree)
 
 
 def _call_name(node: ast.Call) -> str:
@@ -236,14 +300,22 @@ def _call_name(node: ast.Call) -> str:
     return ""
 
 
-def _call_label(node: ast.Call, constants: Mapping[str, str]) -> str | None:
+def _call_label(
+    node: ast.Call,
+    constants: Mapping[str, str],
+    string_maps: Mapping[str, Mapping[str, str]] | None = None,
+) -> str | None:
     if node.args:
-        label = _literal_string(node.args[0], constants)
+        label = _literal_string(node.args[0], constants, string_maps)
         if label is not None:
             return label
+        if len(node.args) > 1:
+            label = _literal_string(node.args[1], constants, string_maps)
+            if label is not None:
+                return label
     for keyword in node.keywords:
         if keyword.arg == "label":
-            return _literal_string(keyword.value, constants)
+            return _literal_string(keyword.value, constants, string_maps)
     return None
 
 
@@ -253,6 +325,7 @@ def scan_action_occurrences(
     widget_robot: Any,
 ) -> list[ActionOccurrence]:
     occurrences: list[ActionOccurrence] = []
+    shared_string_maps = _shared_string_maps()
     for root in source_roots:
         resolved_root = root if root.is_absolute() else REPO_ROOT / root
         if not resolved_root.exists():
@@ -264,14 +337,15 @@ def scan_action_occurrences(
                 tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             except (OSError, SyntaxError, UnicodeDecodeError):
                 continue
-            constants = _module_string_constants(tree)
+            string_maps = {**shared_string_maps, **_module_string_maps(tree)}
+            constants = _module_string_constants(tree, string_maps)
             for node in ast.walk(tree):
                 if not isinstance(node, ast.Call):
                     continue
                 name = _call_name(node)
                 if name not in ACTION_CALL_NAMES:
                     continue
-                label = _call_label(node, constants)
+                label = _call_label(node, constants, string_maps)
                 if not label:
                     continue
                 try:

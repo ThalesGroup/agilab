@@ -12,6 +12,12 @@ import streamlit as st
 from agi_gui.ux_widgets import action_button
 
 from agilab.evidence import run_markdown_evidence
+from agilab.orchestrate.orchestrate_page_helpers import (
+    finish_action_elapsed,
+    start_action_elapsed,
+    update_action_elapsed_status,
+)
+from agilab.orchestrate.orchestrate_page_support import ORCHESTRATE_ACTION_LABELS
 from agilab.workflow.action_execution import ActionResult, render_action_result
 
 SERVICE_MODE_POOL = 1
@@ -747,48 +753,49 @@ async def render_service_panel(
         start_col, submit_col, status_col, health_col, export_col, stop_col = st.columns(6)
         start_service_clicked = action_button(
             start_col,
-            "START service",
+            ORCHESTRATE_ACTION_LABELS["start_service"],
             key="service_start_btn",
             kind="run",
             disabled=not service_state.can(OrchestrateServiceAction.START) or not service_approved,
         )
         submit_service_clicked = action_button(
             submit_col,
-            "SUBMIT job",
+            ORCHESTRATE_ACTION_LABELS["submit_job"],
             key="service_submit_btn",
             kind="run",
             disabled=not service_state.can(OrchestrateServiceAction.SUBMIT) or not service_approved,
         )
         status_service_clicked = action_button(
             status_col,
-            "STATUS service",
+            ORCHESTRATE_ACTION_LABELS["status_service"],
             key="service_status_btn",
             kind="refresh",
             disabled=not service_state.can(OrchestrateServiceAction.STATUS),
         )
         health_gate_clicked = action_button(
             health_col,
-            "HEALTH gate",
+            ORCHESTRATE_ACTION_LABELS["health_gate"],
             key="service_health_gate_btn",
             kind="check",
             disabled=not service_state.can(OrchestrateServiceAction.HEALTH_GATE),
         )
         export_snapshot_clicked = action_button(
             export_col,
-            "EXPORT snapshot",
+            ORCHESTRATE_ACTION_LABELS["export_snapshot"],
             key="service_export_btn",
             kind="download",
             disabled=not service_state.can(OrchestrateServiceAction.EXPORT_SNAPSHOT),
         )
         stop_service_clicked = action_button(
             stop_col,
-            "STOP service",
+            ORCHESTRATE_ACTION_LABELS["stop_service"],
             key="service_stop_btn",
             kind="stop",
             disabled=not service_state.can(OrchestrateServiceAction.STOP),
         )
 
         service_log_placeholder = st.empty()
+        service_elapsed_placeholder = st.empty()
         service_health_placeholder = st.empty()
         service_summary_placeholder = st.empty()
         service_snapshot_placeholder = st.empty()
@@ -1007,11 +1014,27 @@ async def render_service_panel(
             service_stdout = ""
             service_stderr = ""
             service_error: Exception | None = None
+            elapsed_key = f"orchestrate_service_{action.value}"
+            elapsed_started = start_action_elapsed(st.session_state, elapsed_key)
+            update_action_elapsed_status(
+                service_elapsed_placeholder,
+                st.session_state,
+                elapsed_key,
+                f"Service {action_name}",
+                started_monotonic=elapsed_started,
+            )
 
             with st.spinner(f"Service action '{action_name}' in progress..."):
                 def _service_log_callback(message: str) -> None:
                     deps.append_log_lines(local_log, message)
                     _render_logs()
+                    update_action_elapsed_status(
+                        service_elapsed_placeholder,
+                        st.session_state,
+                        elapsed_key,
+                        f"Service {action_name}",
+                        started_monotonic=elapsed_started,
+                    )
 
                 runtime_root = (
                     Path(getattr(env, "agi_cluster"))
@@ -1130,6 +1153,14 @@ async def render_service_panel(
             _render_logs()
 
             if service_error or service_stderr.strip():
+                finish_action_elapsed(
+                    service_elapsed_placeholder,
+                    st.session_state,
+                    elapsed_key,
+                    f"Service {action_name}",
+                    status="failed",
+                    started_monotonic=elapsed_started,
+                )
                 service_finished_at = run_markdown_evidence.utc_now_text()
                 try:
                     start_dt = datetime.fromisoformat(service_started_at.replace("Z", "+00:00"))
@@ -1184,6 +1215,13 @@ async def render_service_panel(
                         + ", ".join(str(worker) for worker in restarted_workers)
                     )
             service_finished_at = run_markdown_evidence.utc_now_text()
+            finish_action_elapsed(
+                service_elapsed_placeholder,
+                st.session_state,
+                elapsed_key,
+                f"Service {action_name}",
+                started_monotonic=elapsed_started,
+            )
             try:
                 start_dt = datetime.fromisoformat(service_started_at.replace("Z", "+00:00"))
                 end_dt = datetime.fromisoformat(service_finished_at.replace("Z", "+00:00"))

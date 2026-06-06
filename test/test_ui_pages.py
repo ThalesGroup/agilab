@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import importlib.util
 import importlib
 import json
@@ -2469,6 +2470,7 @@ def test_project_sidebar_orders_active_project_before_actions():
     assert dashboard_body.index("with st.container(border=True):") < dashboard_body.index(
         'st.expander("Project metrics", expanded=False)'
     )
+
     assert dashboard_body.index(
         'st.expander("Project metrics", expanded=False)'
     ) < dashboard_body.index("render_environment_details(st, health.details)")
@@ -2500,6 +2502,46 @@ def test_project_sidebar_orders_active_project_before_actions():
         "project_editor_page.render_project_sidebar("
     )
     assert chrome_index < selector_index < sidebar_index < dashboard_index
+
+
+def test_project_sidebar_action_buttons_have_stable_keys():
+    source = Path("src/agilab/pages/1_PROJECT.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    expected = {
+        "Create": "project_create_sidebar_btn",
+        "Rename": "project_rename_sidebar_btn",
+        "Delete": "project_delete_sidebar_btn",
+        "Import": "project_import_sidebar_btn",
+    }
+    found: dict[str, str] = {}
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr != "button":
+            continue
+        owner = node.func.value
+        if (
+            not isinstance(owner, ast.Attribute)
+            or owner.attr != "sidebar"
+            or not isinstance(owner.value, ast.Name)
+            or owner.value.id != "st"
+            or not node.args
+            or not isinstance(node.args[0], ast.Constant)
+            or not isinstance(node.args[0].value, str)
+        ):
+            continue
+        label = node.args[0].value
+        if label not in expected:
+            continue
+        key_node = next(
+            (keyword.value for keyword in node.keywords if keyword.arg == "key"),
+            None,
+        )
+        if isinstance(key_node, ast.Constant) and isinstance(key_node.value, str):
+            found[label] = key_node.value
+
+    assert found == expected
 
 
 def test_project_status_reloads_editor_helpers_when_source_changes():

@@ -19,12 +19,6 @@ import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import tomllib  # For reading TOML files
 
-PIPELINE_PROJECT_LABEL = "Project"
-PIPELINE_PROJECT_HELP = (
-    "Project workspace whose workflow stages and exported artifacts are shown below. "
-    "Type in the dropdown to search."
-)
-
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location(
     "agilab_import_guard_local", _import_guard_path

@@ -11,7 +11,7 @@ import json
 import logging
 from pathlib import Path
 import importlib
-from typing import Any, Optional, Sequence
+from typing import Any, Callable, Optional, Sequence
 from datetime import datetime
 
 # Third-Party imports
@@ -64,6 +64,7 @@ import_agilab_symbols(
         "compute_run_mode": "compute_run_mode",
         "describe_run_mode": "describe_run_mode",
         "merge_app_settings_sources": "merge_app_settings_sources",
+        "ORCHESTRATE_ACTION_LABELS": "ORCHESTRATE_ACTION_LABELS",
         "optional_python_expr": "optional_python_expr",
         "optional_string_expr": "optional_string_expr",
         "order_benchmark_display_columns": "order_benchmark_display_columns",
@@ -238,7 +239,10 @@ import_agilab_symbols(
         "update_select_all": "_orchestrate_update_select_all",
         "capture_dataframe_preview_state": "_orchestrate_capture_dataframe_preview_state",
         "restore_dataframe_preview_state": "_orchestrate_restore_dataframe_preview_state",
+        "finish_action_elapsed": "_orchestrate_finish_action_elapsed",
         "is_app_installed": "_orchestrate_is_app_installed",
+        "start_action_elapsed": "_orchestrate_start_action_elapsed",
+        "update_action_elapsed_status": "_orchestrate_update_action_elapsed_status",
         "LOG_DISPLAY_MAX_LINES": "LOG_DISPLAY_MAX_LINES",
         "LIVE_LOG_MIN_HEIGHT": "LIVE_LOG_MIN_HEIGHT",
         "INSTALL_LOG_HEIGHT": "INSTALL_LOG_HEIGHT",
@@ -1025,6 +1029,7 @@ async def _check_distribution_action(
     *,
     cmd: str,
     project_path: Path,
+    on_log: Optional[Callable[[], None]] = None,
 ) -> ActionResult:
     dist_log: list[str] = []
     # Distribution snippets import agi_cluster and orchestrate worker-side probes.
@@ -1035,7 +1040,10 @@ async def _check_distribution_action(
     try:
         stdout, stderr = await env.run_agi(
             command,
-            log_callback=lambda message: _append_log_lines(dist_log, message),
+            log_callback=lambda message: (
+                _append_log_lines(dist_log, message),
+                on_log() if on_log is not None else None,
+            ),
             venv=runtime_root,
         )
     except (
@@ -1082,6 +1090,7 @@ async def _install_worker_action(
     install_command: str,
     venv: Any,
     local_log: list[str],
+    on_log: Optional[Callable[[], None]] = None,
 ) -> ActionResult:
     install_stdout = ""
     install_stderr = ""
@@ -1089,7 +1098,10 @@ async def _install_worker_action(
     try:
         install_stdout, install_stderr = await env.run_agi(
             install_command,
-            log_callback=lambda message: _append_log_lines(local_log, message),
+            log_callback=lambda message: (
+                _append_log_lines(local_log, message),
+                on_log() if on_log is not None else None,
+            ),
             venv=None,
         )
     except (
@@ -1576,9 +1588,9 @@ def _orchestrate_notebook_document(
 def _render_orchestrate_notebook_expander(env: Any) -> None:
     snippets: list[tuple[str, str]] = []
     for name, label in (
-        ("install", "Deploy workers"),
-        ("distribution", "CHECK distribute"),
-        ("run", "RUN"),
+        ("install", ORCHESTRATE_ACTION_LABELS["deploy_workers"]),
+        ("distribution", ORCHESTRATE_ACTION_LABELS["check_distribute"]),
+        ("run", ORCHESTRATE_ACTION_LABELS["run"]),
     ):
         snippet = st.session_state.get(_orchestrate_snippet_state_key(env, name))
         if isinstance(snippet, str) and snippet.strip():
@@ -1805,7 +1817,8 @@ async def _render_deployment_panel(
             raw_workers=raw_workers,
             timestamp=datetime.now().isoformat(timespec="seconds"),
         )
-        with st.expander("Generated Deploy workers snippet", expanded=False):
+        deploy_workers_label = ORCHESTRATE_ACTION_LABELS["deploy_workers"]
+        with st.expander(f"Generated {deploy_workers_label} snippet", expanded=False):
             st.code(cmd, language="python")
             st.caption(DEPLOY_WORKERS_AGI_INSTALL_RATIONALE)
         if not install_state.action.enabled:
@@ -1819,7 +1832,7 @@ async def _render_deployment_panel(
                 log_placeholder.code(existing_log, language="python")
         pending_install_requested = consume_pending_install_action(st.session_state)
         install_requested = st.button(
-            "Deploy workers",
+            ORCHESTRATE_ACTION_LABELS["deploy_workers"],
             key="install_btn",
             type="primary",
             disabled=not install_state.action.enabled,
@@ -1843,6 +1856,7 @@ async def _render_deployment_panel(
             log_expander = st.expander("Deployment logs", expanded=True)
             with log_expander:
                 log_placeholder = st.empty()
+                elapsed_placeholder = st.empty()
             with log_expander:
                 log_placeholder.empty()
                 for line in context_lines:
@@ -1852,6 +1866,27 @@ async def _render_deployment_panel(
                 language="python",
                 height=INSTALL_LOG_HEIGHT,
             )
+            elapsed_started = _orchestrate_start_action_elapsed(
+                st.session_state,
+                "orchestrate_deploy_workers",
+            )
+            _orchestrate_update_action_elapsed_status(
+                elapsed_placeholder,
+                st.session_state,
+                "orchestrate_deploy_workers",
+                deploy_workers_label,
+                started_monotonic=elapsed_started,
+            )
+
+            def _tick_deploy_elapsed() -> None:
+                _orchestrate_update_action_elapsed_status(
+                    elapsed_placeholder,
+                    st.session_state,
+                    "orchestrate_deploy_workers",
+                    deploy_workers_label,
+                    started_monotonic=elapsed_started,
+                )
+
             spinner_label = (
                 "Installing app..." if workerless else "Installing worker..."
             )
@@ -1861,6 +1896,15 @@ async def _render_deployment_panel(
                     install_command=install_command,
                     venv=venv,
                     local_log=local_log,
+                    on_log=_tick_deploy_elapsed,
+                )
+                _orchestrate_finish_action_elapsed(
+                    elapsed_placeholder,
+                    st.session_state,
+                    "orchestrate_deploy_workers",
+                    deploy_workers_label,
+                    status="completed" if result.status == "success" else "failed",
+                    started_monotonic=elapsed_started,
                 )
                 with log_expander:
                     log_placeholder.code(
@@ -2008,25 +2052,57 @@ async def _render_distribution_panel(
             cmd=cmd,
             worker_env_path=getattr(env, "wenv_abs", None),
         )
-        with st.expander("Generated CHECK distribute snippet", expanded=False):
+        check_distribute_label = ORCHESTRATE_ACTION_LABELS["check_distribute"]
+        with st.expander(f"Generated {check_distribute_label} snippet", expanded=False):
             st.code(cmd, language="python")
         if not distribution_state.action.enabled:
             st.caption(distribution_state.action.disabled_reason)
         if st.button(
-            "CHECK distribute",
+            ORCHESTRATE_ACTION_LABELS["check_distribute"],
             key="preview_btn",
             type="primary",
             disabled=not distribution_state.action.enabled,
         ):
             with st.expander("Orchestration log", expanded=True):
                 live_log_placeholder = st.empty()
+                elapsed_placeholder = st.empty()
                 _reset_traceback_skip()
+                elapsed_started = _orchestrate_start_action_elapsed(
+                    st.session_state,
+                    "orchestrate_check_distribute",
+                )
+                _orchestrate_update_action_elapsed_status(
+                    elapsed_placeholder,
+                    st.session_state,
+                    "orchestrate_check_distribute",
+                    check_distribute_label,
+                    started_monotonic=elapsed_started,
+                )
+
+                def _tick_distribution_elapsed() -> None:
+                    _orchestrate_update_action_elapsed_status(
+                        elapsed_placeholder,
+                        st.session_state,
+                        "orchestrate_check_distribute",
+                        check_distribute_label,
+                        started_monotonic=elapsed_started,
+                    )
+
                 with st.spinner("Building distribution..."):
                     result = await _check_distribution_action(
                         env,
                         cmd=cmd,
                         project_path=project_path,
+                        on_log=_tick_distribution_elapsed,
                     )
+                _orchestrate_finish_action_elapsed(
+                    elapsed_placeholder,
+                    st.session_state,
+                    "orchestrate_check_distribute",
+                    check_distribute_label,
+                    status="completed" if result.status == "success" else "failed",
+                    started_monotonic=elapsed_started,
+                )
                 dist_log = list(result.data.get("dist_log", ()))
                 live_log_placeholder.code(
                     "\n".join(dist_log[-LOG_DISPLAY_MAX_LINES:]),

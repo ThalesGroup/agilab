@@ -117,6 +117,17 @@ _orchestrate_page_support = import_agilab_module(
     fallback_name="agilab_orchestrate_page_support_fallback",
 )
 app_declares_workerless = _orchestrate_page_support.app_declares_workerless
+ORCHESTRATE_ACTION_LABELS = _orchestrate_page_support.ORCHESTRATE_ACTION_LABELS
+
+_orchestrate_page_helpers = import_agilab_module(
+    "agilab.orchestrate_page_helpers",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "orchestrate_page_helpers.py",
+    fallback_name="agilab_orchestrate_page_helpers_fallback",
+)
+finish_action_elapsed = _orchestrate_page_helpers.finish_action_elapsed
+start_action_elapsed = _orchestrate_page_helpers.start_action_elapsed
+update_action_elapsed_status = _orchestrate_page_helpers.update_action_elapsed_status
 
 _pinned_expander = import_agilab_module(
     "agilab.pinned_expander",
@@ -563,6 +574,7 @@ async def render_execute_section(
         target_expander = current_expander or _ensure_run_log_expander(expanded=True)
         with target_expander:
             log_placeholder = st.empty()
+            elapsed_placeholder = st.empty()
         _reset_traceback_skip()
         log_dir = Path(env.runenv or (Path.home() / "log" / "execute" / env.app))
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -636,6 +648,13 @@ async def render_execute_section(
                         log_file.write(clean + "\n")
                         log_file.flush()
                     update_log(log_placeholder, message)
+                    update_action_elapsed_status(
+                        elapsed_placeholder,
+                        st.session_state,
+                        "orchestrate_run",
+                        ORCHESTRATE_ACTION_LABELS["run"],
+                        started_monotonic=elapsed_started,
+                    )
 
                 _, stderr_text = await env.run_agi(
                     cmd.replace("asyncio.run(main())", env.snippet_tail),
@@ -646,6 +665,14 @@ async def render_execute_section(
 
         run_error: Exception | None = None
         stderr = ""
+        elapsed_started = start_action_elapsed(st.session_state, "orchestrate_run")
+        update_action_elapsed_status(
+            elapsed_placeholder,
+            st.session_state,
+            "orchestrate_run",
+            ORCHESTRATE_ACTION_LABELS["run"],
+            started_monotonic=elapsed_started,
+        )
         with st.spinner("Running AGI..."):
             try:
                 stderr = await _run_and_stream()
@@ -658,6 +685,14 @@ async def render_execute_section(
         if fatal_stderr:
             st.session_state["_last_execute_failed"] = True
         run_failed = run_error is not None or fatal_stderr
+        finish_action_elapsed(
+            elapsed_placeholder,
+            st.session_state,
+            "orchestrate_run",
+            ORCHESTRATE_ACTION_LABELS["run"],
+            status="failed" if run_failed else "completed",
+            started_monotonic=elapsed_started,
+        )
         run_finished_at = _run_markdown_evidence.utc_now_text()
         try:
             started_dt = datetime.fromisoformat(run_started_at.replace("Z", "+00:00"))
@@ -792,9 +827,13 @@ async def render_execute_section(
                 else ""
             )
             run_label = (
-                "Run workflow"
+                ORCHESTRATE_ACTION_LABELS["run_workflow"]
                 if dag_based_app
-                else ("RUN benchmark" if st.session_state.get("benchmark") else "RUN")
+                else (
+                    ORCHESTRATE_ACTION_LABELS["run_benchmark"]
+                    if st.session_state.get("benchmark")
+                    else ORCHESTRATE_ACTION_LABELS["run"]
+                )
             )
             readiness_actions = [
                 (
@@ -829,7 +868,7 @@ async def render_execute_section(
                 _queue_execute_action("run")
 
             if not dag_based_app and load_col is not None and load_col.button(
-                "Load output",
+                ORCHESTRATE_ACTION_LABELS["load_output"],
                 key="load_data_main",
                 type="primary",
                 disabled=not artifact_state.load_action.enabled,
@@ -844,7 +883,7 @@ async def render_execute_section(
                 st.session_state.pop(delete_confirm_key, None)
             elif st.session_state.get(delete_confirm_key, False):
                 if delete_col.button(
-                    "Confirm delete",
+                    ORCHESTRATE_ACTION_LABELS["confirm_delete"],
                     key="delete_data_main_confirm_btn",
                     type="primary",
                     width="stretch",
@@ -859,7 +898,7 @@ async def render_execute_section(
                 )
             elif delete_col is not None:
                 delete_armed_clicked = delete_col.button(
-                    "Delete output",
+                    ORCHESTRATE_ACTION_LABELS["delete_output"],
                     key="delete_data_main",
                     type="secondary",
                     disabled=not artifact_state.delete_action.enabled,
@@ -879,7 +918,7 @@ async def render_execute_section(
             undo_payload = st.session_state.get(delete_undo_key)
             if not dag_based_app and isinstance(undo_payload, dict):
                 undo_delete_clicked = st.button(
-                    "Undo last delete",
+                    ORCHESTRATE_ACTION_LABELS["undo_last_delete"],
                     key="delete_data_main_undo_btn",
                     type="secondary",
                     width="stretch",
@@ -922,7 +961,7 @@ async def render_execute_section(
                 _rerun_fragment_or_app()
 
             if not dag_based_app and st.button(
-                "Run -> Load -> Export",
+                ORCHESTRATE_ACTION_LABELS["run_load_export"],
                 key="combo_exec_load_export",
                 type="primary",
                 disabled=not (execute_state.combo_action.enabled and approval_ready),
@@ -1226,7 +1265,9 @@ async def render_execute_section(
             "detail": str(project_path),
         },
         {
-            "label": "Run workflow" if dag_based_app else "RUN",
+            "label": ORCHESTRATE_ACTION_LABELS["run_workflow"]
+            if dag_based_app
+            else ORCHESTRATE_ACTION_LABELS["run"],
             "state": "done" if latest_log_path or existing_run_log else (
                 "ready" if execute_state.run_action.enabled else "blocked"
             ),
@@ -1237,7 +1278,7 @@ async def render_execute_section(
         timeline_items.extend(
             [
                 {
-                    "label": "Load output",
+                    "label": ORCHESTRATE_ACTION_LABELS["load_output"],
                     "state": "done" if source_preview_path else (
                         "ready" if current_artifact_state.load_action.enabled else "waiting"
                     ),
@@ -1387,7 +1428,7 @@ async def render_execute_section(
             action_col_stats, action_col_export = st.columns([1, 1])
             with action_col_stats:
                 stats_clicked = st.button(
-                    "STATS report",
+                    ORCHESTRATE_ACTION_LABELS["stats_report"],
                     key="stats_report_main",
                     type="primary",
                     disabled=not artifact_state.stats_action.enabled,
@@ -1395,7 +1436,7 @@ async def render_execute_section(
                 )
             with action_col_export:
                 export_clicked_manual = st.button(
-                    "EXPORT dataframe",
+                    ORCHESTRATE_ACTION_LABELS["export_dataframe"],
                     key="export_df_main",
                     type="primary",
                     disabled=not artifact_state.export_action.enabled,
@@ -1410,8 +1451,38 @@ async def render_execute_section(
                 profile_file = st.session_state.profile_report_file
                 if not profile_file.exists():
                     profile = generate_profile_report(loaded_df)
-                    with st.spinner("Generating profile report..."):
-                        profile.to_file(profile_file, silent=False)
+                    elapsed_placeholder = st.empty()
+                    elapsed_started = start_action_elapsed(
+                        st.session_state,
+                        "orchestrate_stats_report",
+                    )
+                    update_action_elapsed_status(
+                        elapsed_placeholder,
+                        st.session_state,
+                        "orchestrate_stats_report",
+                        ORCHESTRATE_ACTION_LABELS["stats_report"],
+                        started_monotonic=elapsed_started,
+                    )
+                    try:
+                        with st.spinner("Generating profile report..."):
+                            profile.to_file(profile_file, silent=False)
+                    except (OSError, RuntimeError, TypeError, ValueError, AttributeError):
+                        finish_action_elapsed(
+                            elapsed_placeholder,
+                            st.session_state,
+                            "orchestrate_stats_report",
+                            ORCHESTRATE_ACTION_LABELS["stats_report"],
+                            status="failed",
+                            started_monotonic=elapsed_started,
+                        )
+                        raise
+                    finish_action_elapsed(
+                        elapsed_placeholder,
+                        st.session_state,
+                        "orchestrate_stats_report",
+                        ORCHESTRATE_ACTION_LABELS["stats_report"],
+                        started_monotonic=elapsed_started,
+                    )
                 open_new_tab(profile_file.as_uri())
 
             if export_clicked:

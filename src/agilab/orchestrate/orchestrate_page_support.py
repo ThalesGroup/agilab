@@ -51,6 +51,28 @@ DEPLOY_WORKERS_AGI_INSTALL_RATIONALE = (
     "forcing a reinstall; the user-facing action is still deployment because "
     "runtime readiness and workers are the goal."
 )
+ORCHESTRATE_ACTION_LABELS: dict[str, str] = {
+    "deploy_workers": "Deploy workers",
+    "check_distribute": "CHECK distribute",
+    "run": "RUN",
+    "run_benchmark": "RUN benchmark",
+    "run_workflow": "RUN workflow",
+    "run_load_export": "Run -> Load -> Export",
+    "load_output": "Load output",
+    "delete_output": "Delete output",
+    "confirm_delete": "Confirm delete",
+    "undo_last_delete": "Undo last delete",
+    "stats_report": "STATS report",
+    "export_dataframe": "EXPORT dataframe",
+    "refresh_lan_discovery": "Refresh LAN discovery",
+    "build_cluster_plan": "Build cluster plan",
+    "start_service": "START service",
+    "submit_job": "SUBMIT job",
+    "status_service": "STATUS service",
+    "health_gate": "HEALTH gate",
+    "export_snapshot": "EXPORT snapshot",
+    "stop_service": "STOP service",
+}
 
 BENCHMARK_MODE_LEGEND_MARKDOWN = (
     "**Mode legend**  \n"

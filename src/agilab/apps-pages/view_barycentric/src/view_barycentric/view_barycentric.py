@@ -95,6 +95,18 @@ APP_SCOPED_SESSION_DEFAULT_KEYS = (
 )
 
 
+def _vb_key(name: str) -> str:
+    return f"{PAGE_KEY_PREFIX}:{name}"
+
+
+def _ensure_choice_state(key: str, options: list, default):
+    if not options:
+        return None
+    if st.session_state.get(key) not in options:
+        st.session_state[key] = default if default in options else options[0]
+    return st.session_state[key]
+
+
 def _reset_app_scoped_session_state(active_app: Path) -> bool:
     """Clear Barycentric page state that belongs to a specific active app."""
 
@@ -396,7 +408,10 @@ def __bary_visualisation(df, selected_format, selected_name, selected_x1, select
 
     tables = [f"Normalized {selected_x1}", "Barycentric coordinates"]
     selected_table = st.selectbox(
-        label="Data", label_visibility="hidden", options=tables
+        label="Data",
+        label_visibility="hidden",
+        options=tables,
+        key=_vb_key("barycentric_table"),
     )
     if selected_table == tables[0]:
         st.write(normalized_data)
@@ -481,19 +496,14 @@ def page(env):
             continue
     csv_files_rel = sorted(csv_files_rel)
     settings_file = st.session_state.get("df_file")
-    if settings_file and settings_file in csv_files_rel:
-        default_idx = csv_files_rel.index(settings_file)
-    else:
-        default_idx = 0
+    if settings_file not in csv_files_rel:
+        st.session_state["df_file"] = csv_files_rel[0]
 
     # DataFrame selection
     st.sidebar.selectbox(
         label="DataFrame",
         options=csv_files_rel,
         key="df_file",
-        index=default_idx,
-        # on_change=update_var,
-        args=("df_file"),
     )
 
     # Check if a DataFrame has been selected
@@ -559,11 +569,18 @@ def page(env):
                 and not st.session_state.loaded_df.empty
         ):
             nrows = st.session_state.loaded_df.shape[0]
+            row_limit_key = _vb_key("row_limit")
+            default_lines = min(max(10, nrows // 10), nrows)
+            try:
+                current_lines = int(st.session_state.get(row_limit_key, default_lines))
+            except Exception:
+                current_lines = default_lines
+            st.session_state[row_limit_key] = min(max(10, current_lines), nrows)
             lines = st.slider(
                 "Number of rows:",
                 min_value=10,
                 max_value=nrows,
-                value=nrows // 10,
+                key=row_limit_key,
                 step=100,
             )
             if lines >= 0:
@@ -612,42 +629,40 @@ def page(env):
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
+                    x1_key = _vb_key("selected_x1")
+                    _ensure_choice_state(x1_key, numeric_cols, default_x1)
                     selected_x1 = st.selectbox(
                         "Correlated variables pair",
                         numeric_cols,
-                        index=(
-                            st.session_state.df_cols.index(default_x1)
-                            if default_x1 in st.session_state.df_cols
-                            else 0
-                        ),
+                        key=x1_key,
                     )
+                    x2_key = _vb_key("selected_x2")
+                    _ensure_choice_state(x2_key, numeric_cols, default_x2)
                     selected_x2 = st.selectbox(
                         "Correlated variables",
                         numeric_cols,
                         label_visibility="collapsed",
-                        index=(
-                            st.session_state.df_cols.index(default_x2)
-                            if default_x2 in st.session_state.df_cols
-                            else 0
-                        ),
+                        key=x2_key,
                     )
                 with col2:
+                    color_key = _vb_key("selected_color")
+                    _ensure_choice_state(color_key, st.session_state.df_cols, default_color)
                     selected_color = st.selectbox(
                         "Color",
                         st.session_state.df_cols,
-                        index=(
-                            st.session_state.df_cols.index(default_color)
-                            if default_color in st.session_state.df_cols
-                            else 0
-                        ),
+                        key=color_key,
                     )
                 with col3:
-                    selected_name = st.text_input(label="File", value="myfigure")
+                    figure_name_key = _vb_key("figure_name")
+                    st.session_state.setdefault(figure_name_key, "myfigure")
+                    selected_name = st.text_input(label="File", key=figure_name_key)
+                    format_key = _vb_key("figure_format")
+                    _ensure_choice_state(format_key, ["jpeg", "png", "svg", "webp"], "jpeg")
                     selected_format = st.selectbox(
                         label="Format",
                         label_visibility="collapsed",
                         options=["jpeg", "png", "svg", "webp"],
-                        index=0
+                        key=format_key,
                     )
 
                 if selected_x1 and selected_x2 and selected_color:

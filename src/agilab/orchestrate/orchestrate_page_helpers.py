@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Mapping, MutableMapping, Optional
@@ -207,6 +208,101 @@ def benchmark_display_date(
     except OSError:
         return ""
     return datetime_type.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def format_elapsed_seconds(value: Any) -> str:
+    try:
+        seconds = max(0, int(float(value)))
+    except (TypeError, ValueError):
+        seconds = 0
+    minutes, seconds = divmod(seconds, 60)
+    if minutes == 0:
+        return f"{seconds}s"
+    hours, minutes = divmod(minutes, 60)
+    if hours == 0:
+        return f"{minutes}m {seconds}s"
+    return f"{hours}h {minutes}m {seconds}s"
+
+
+def _elapsed_started_key(action_key: str) -> str:
+    return f"{action_key}__elapsed_started_monotonic"
+
+
+def _elapsed_seconds_key(action_key: str) -> str:
+    return f"{action_key}__elapsed_seconds"
+
+
+def _caption_placeholder(placeholder: Any, message: str) -> None:
+    caption = getattr(placeholder, "caption", None)
+    if callable(caption):
+        caption(message)
+        return
+    markdown = getattr(placeholder, "markdown", None)
+    if callable(markdown):
+        markdown(message)
+
+
+def start_action_elapsed(
+    session_state: MutableMapping[str, Any],
+    action_key: str,
+    *,
+    monotonic_fn: Callable[[], float] = time.monotonic,
+) -> float:
+    started = float(monotonic_fn())
+    session_state[_elapsed_started_key(action_key)] = started
+    session_state[_elapsed_seconds_key(action_key)] = 0.0
+    return started
+
+
+def update_action_elapsed_status(
+    placeholder: Any,
+    session_state: MutableMapping[str, Any],
+    action_key: str,
+    label: str,
+    *,
+    started_monotonic: Any = None,
+    monotonic_fn: Callable[[], float] = time.monotonic,
+) -> float:
+    started = started_monotonic
+    if started is None:
+        started = session_state.get(_elapsed_started_key(action_key))
+    try:
+        started_value = float(started)
+    except (TypeError, ValueError):
+        started_value = float(monotonic_fn())
+    elapsed = max(0.0, float(monotonic_fn()) - started_value)
+    session_state[_elapsed_seconds_key(action_key)] = elapsed
+    _caption_placeholder(
+        placeholder,
+        f"{label}: running for {format_elapsed_seconds(elapsed)}",
+    )
+    return elapsed
+
+
+def finish_action_elapsed(
+    placeholder: Any,
+    session_state: MutableMapping[str, Any],
+    action_key: str,
+    label: str,
+    *,
+    status: str = "completed",
+    started_monotonic: Any = None,
+    monotonic_fn: Callable[[], float] = time.monotonic,
+) -> float:
+    started = started_monotonic
+    if started is None:
+        started = session_state.get(_elapsed_started_key(action_key))
+    try:
+        started_value = float(started)
+    except (TypeError, ValueError):
+        started_value = float(monotonic_fn())
+    elapsed = max(0.0, float(monotonic_fn()) - started_value)
+    session_state[_elapsed_seconds_key(action_key)] = elapsed
+    _caption_placeholder(
+        placeholder,
+        f"{label}: {status} in {format_elapsed_seconds(elapsed)}",
+    )
+    return elapsed
 
 
 def display_log(

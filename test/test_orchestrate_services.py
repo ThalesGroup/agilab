@@ -543,6 +543,26 @@ def _service_st(session_state, *, clicked: str | None = None):
     return st
 
 
+def _placeholder_with_info(fake_st, text: str):
+    return next(
+        holder
+        for holder in fake_st._placeholders
+        if holder.last_info is not None and text in holder.last_info
+    )
+
+
+def _placeholder_with_caption(fake_st, text: str):
+    return next(
+        holder
+        for holder in fake_st._placeholders
+        if holder.last_caption is not None and text in holder.last_caption
+    )
+
+
+def _placeholder_with_dataframe(fake_st):
+    return next(holder for holder in fake_st._placeholders if holder.last_df is not None)
+
+
 def test_render_service_panel_renders_preview_without_actions(monkeypatch, tmp_path):
     session_state = _SessionState(
         {
@@ -571,8 +591,7 @@ def test_render_service_panel_renders_preview_without_actions(monkeypatch, tmp_p
     assert any("APP = \"demo\"" in block for block in fake_st._code_blocks)
     assert session_state["service_status_cache"] == "idle"
     assert session_state["service_health_allow_idle__demo"] is False
-    assert fake_st._placeholders[2].last_info is not None
-    assert "Tracked workers: `0`" in fake_st._placeholders[2].last_info
+    _placeholder_with_info(fake_st, "Tracked workers: `0`")
 
 
 def test_render_service_panel_health_gate_action(monkeypatch, tmp_path):
@@ -656,9 +675,8 @@ def test_render_service_panel_health_gate_action(monkeypatch, tmp_path):
     assert any("HEALTH gate passed." in msg for msg in fake_st._success_messages)
     assert any("restart_rate=0.500" in msg for msg in fake_st._caption_messages)
     assert fake_st._placeholders[0].last_code is not None
-    assert fake_st._placeholders[1].last_df is not None
-    assert fake_st._placeholders[2].last_info is not None
-    assert "Unhealthy workers: `1`" in fake_st._placeholders[2].last_info
+    _placeholder_with_dataframe(fake_st)
+    _placeholder_with_info(fake_st, "Unhealthy workers: `1`")
 
 
 def test_render_service_panel_submit_action_queues_work(monkeypatch, tmp_path):
@@ -964,7 +982,7 @@ def test_render_service_panel_health_gate_skips_non_mapping_worker_health_rows(m
     )
 
     assert session_state["service_health_cache"] == health_payload["worker_health"]
-    assert fake_st._placeholders[1].last_df is not None
+    _placeholder_with_dataframe(fake_st)
 
 
 def test_render_service_panel_handles_status_error_and_cached_health_failures(monkeypatch, tmp_path):
@@ -1217,8 +1235,7 @@ def test_render_service_panel_exports_operator_snapshot(monkeypatch, tmp_path):
     assert payload["status"] == "running"
     assert payload["summary"]["unhealthy_workers"] == 1
     assert session_state["service_snapshot_path_cache"] == str(expected_path)
-    assert fake_st._placeholders[3].last_caption is not None
-    assert str(expected_path) in fake_st._placeholders[3].last_caption
+    _placeholder_with_caption(fake_st, str(expected_path))
     assert any("Operator snapshot exported" in msg for msg in fake_st._success_messages)
 
 

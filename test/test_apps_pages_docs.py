@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 
@@ -58,3 +59,56 @@ def test_apps_pages_quality_bar_is_documented_and_enforced() -> None:
             "agi_pages.runtime" in path.read_text(encoding="utf-8", errors="ignore")
             for path in source_files
         ), module_name
+
+
+def test_autoencoder_latentspace_is_marked_as_opt_in_playground_exception() -> None:
+    texts = [
+        (APPS_PAGES_ROOT / "README.md").read_text(encoding="utf-8"),
+        (APPS_PAGES_ROOT / "view_autoencoder_latentspace" / "README.md").read_text(encoding="utf-8"),
+        (DOCS_SOURCE / "apps-pages.rst").read_text(encoding="utf-8"),
+        APPS_PAGES_GALLERY.read_text(encoding="utf-8"),
+    ]
+
+    for text in texts:
+        assert "opt-in" in text.lower()
+        assert "autoencoder" in text.lower()
+        assert "in-page" in text.lower()
+
+
+def test_barycentric_dataframe_selector_avoids_session_state_double_init() -> None:
+    source = (
+        APPS_PAGES_ROOT
+        / "view_barycentric"
+        / "src"
+        / "view_barycentric"
+        / "view_barycentric.py"
+    ).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    dataframe_selectboxes = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr == "selectbox"
+            and isinstance(func.value, ast.Attribute)
+            and func.value.attr == "sidebar"
+        ):
+            labels = [
+                keyword.value.value
+                for keyword in node.keywords
+                if keyword.arg == "label"
+                and isinstance(keyword.value, ast.Constant)
+                and isinstance(keyword.value.value, str)
+            ]
+            if labels == ["DataFrame"]:
+                dataframe_selectboxes.append(node)
+
+    assert len(dataframe_selectboxes) == 1
+    keywords = {keyword.arg: keyword for keyword in dataframe_selectboxes[0].keywords}
+    assert isinstance(keywords["key"].value, ast.Constant)
+    assert keywords["key"].value.value == "df_file"
+    assert "index" not in keywords
+    assert "args" not in keywords
