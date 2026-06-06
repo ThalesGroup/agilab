@@ -1,6 +1,6 @@
 :orphan:
 
-Page Bundles
+Page bundles
 ============
 
 This page explains the optional analysis dashboards that AGILab can launch from
