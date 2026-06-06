@@ -32,7 +32,9 @@ def test_main_prints_version_without_launching_streamlit(monkeypatch, capsys):
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
     rc = lab_run.main(["--version"])
@@ -43,7 +45,9 @@ def test_main_prints_version_without_launching_streamlit(monkeypatch, capsys):
 
 def test_main_keeps_streamlit_launch_path(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
-    monkeypatch.setattr(lab_run, "_resolve_apps_path", lambda _value: str(tmp_path / "apps"))
+    monkeypatch.setattr(
+        lab_run, "_resolve_apps_path", lambda _value: str(tmp_path / "apps")
+    )
     for env_key in [
         "STREAMLIT_CONFIG_FILE",
         "STREAMLIT_THEME_BASE",
@@ -60,23 +64,27 @@ def test_main_keeps_streamlit_launch_path(monkeypatch, tmp_path: Path):
         captured.append(list(lab_run.sys.argv))
         return 17
 
-    monkeypatch.setattr(lab_run, "_load_streamlit_cli", lambda: SimpleNamespace(main=fake_main))
+    monkeypatch.setattr(
+        lab_run, "_load_streamlit_cli", lambda: SimpleNamespace(main=fake_main)
+    )
 
     rc = lab_run.main(["--server.headless", "true"])
 
     assert rc == 17
-    assert captured == [[
-        "streamlit",
-        "run",
-        "--server.address",
-        "127.0.0.1",
-        str(Path(lab_run.__file__).resolve().parent / "main_page.py"),
-        "--",
-        "--apps-path",
-        str(tmp_path / "apps"),
-        "--server.headless",
-        "true",
-    ]]
+    assert captured == [
+        [
+            "streamlit",
+            "run",
+            "--server.address",
+            "127.0.0.1",
+            str(Path(lab_run.__file__).resolve().parent / "main_page.py"),
+            "--",
+            "--apps-path",
+            str(tmp_path / "apps"),
+            "--server.headless",
+            "true",
+        ]
+    ]
     assert lab_run.os.environ["STREAMLIT_CONFIG_FILE"] == str(
         Path(lab_run.__file__).resolve().parent / "resources" / "config.toml"
     )
@@ -99,7 +107,9 @@ def test_main_dispatches_pytorch_playground_without_generic_ui(monkeypatch):
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("generic AGILAB UI should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("generic AGILAB UI should not be launched")
+        ),
     )
 
     rc = lab_run.main(["pytorch-playground", "--backend", "hf", "--no-browser"])
@@ -108,14 +118,20 @@ def test_main_dispatches_pytorch_playground_without_generic_ui(monkeypatch):
     assert captured == [["--backend", "hf", "--no-browser"]]
 
 
-def test_pytorch_playground_local_launcher_uses_app_uv_project(monkeypatch, tmp_path: Path):
+def test_pytorch_playground_local_launcher_uses_app_uv_project(
+    monkeypatch, tmp_path: Path
+):
     project_root = tmp_path / "pytorch_playground_project"
     script_path = project_root / "src" / "pytorch_playground" / "playground_ui.py"
     script_path.parent.mkdir(parents=True)
-    script_path.write_text("from pytorch_playground.playground_ui import main\n", encoding="utf-8")
+    script_path.write_text(
+        "from pytorch_playground.playground_ui import main\n", encoding="utf-8"
+    )
     captured: list[list[str]] = []
 
-    monkeypatch.setattr(lab_run, "_pytorch_playground_project_root", lambda: project_root)
+    monkeypatch.setattr(
+        lab_run, "_pytorch_playground_project_root", lambda: project_root
+    )
     monkeypatch.setattr(lab_run, "_ensure_streamlit_config_file", lambda: None)
 
     rc = lab_run._run_pytorch_playground(
@@ -124,32 +140,38 @@ def test_pytorch_playground_local_launcher_uses_app_uv_project(monkeypatch, tmp_
     )
 
     assert rc == 23
-    assert captured == [[
-        "uv",
-        "--preview-features",
-        "extra-build-dependencies",
-        "run",
-        "--project",
-        str(project_root),
-        "streamlit",
-        "run",
-        "--server.address",
-        "127.0.0.1",
-        "--server.port",
-        "8765",
-        "--server.headless",
-        "true",
-        str(script_path),
-        "--",
-        "--demo-flag",
-    ]]
+    assert captured == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--project",
+            str(project_root),
+            "streamlit",
+            "run",
+            "--server.address",
+            "127.0.0.1",
+            "--server.port",
+            "8765",
+            "--server.headless",
+            "true",
+            str(script_path),
+            "--",
+            "--demo-flag",
+        ]
+    ]
 
 
 def test_pytorch_playground_hf_backend_prints_runtime_url(monkeypatch, capsys):
     opened: list[str] = []
-    monkeypatch.setattr(lab_run.webbrowser, "open", lambda url: opened.append(url) or True)
+    monkeypatch.setattr(
+        lab_run.webbrowser, "open", lambda url: opened.append(url) or True
+    )
 
-    rc = lab_run._run_pytorch_playground(["--backend", "hf", "--hf-space", "Owner/agilab", "--no-browser"])
+    rc = lab_run._run_pytorch_playground(
+        ["--backend", "hf", "--hf-space", "Owner/agilab", "--no-browser"]
+    )
 
     assert rc == 0
     assert opened == []
@@ -170,7 +192,9 @@ def test_main_dispatches_doctor_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
     rc = lab_run.main(["doctor", "--cluster", "--scheduler", "127.0.0.1"])
@@ -191,7 +215,9 @@ def test_main_dispatches_first_proof_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
     rc = lab_run.main(["first-proof", "--json", "--with-ui"])
@@ -212,7 +238,9 @@ def test_main_dispatches_agent_run_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
     rc = lab_run.main(["agent-run", "--agent", "codex", "--", "codex", "review"])
@@ -233,7 +261,9 @@ def test_main_dispatches_dry_run_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
     rc = lab_run.main(["dry-run", "--json"])
@@ -254,7 +284,9 @@ def test_main_dispatches_dry_run_alias_as_first_proof(monkeypatch):
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
     rc = lab_run.main(["dry-run", "--max-seconds", "45"])
@@ -275,13 +307,219 @@ def test_main_dispatches_workflow_validation_without_launching_streamlit(monkeyp
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
     rc = lab_run.main(["workflow", "validate", "lab_stages.toml", "--dry-run"])
 
     assert rc == 45
     assert captured == [["validate", "lab_stages.toml", "--dry-run"]]
+
+
+def test_main_dispatches_publish_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_publish(argv: list[str]) -> int:
+        captured.append(argv)
+        return 47
+
+    monkeypatch.setattr(lab_run, "_run_publish", fake_publish)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
+    )
+
+    rc = lab_run.main(["publish", "v2026.06.05", "--dry-run"])
+
+    assert rc == 47
+    assert captured == [["v2026.06.05", "--dry-run"]]
+
+
+def test_main_dispatches_release_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_release(argv: list[str]) -> int:
+        captured.append(argv)
+        return 48
+
+    monkeypatch.setattr(lab_run, "_run_release", fake_release)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
+    )
+
+    rc = lab_run.main(["release", "publish", "v2026.06.05", "--watch"])
+
+    assert rc == 48
+    assert captured == [["publish", "v2026.06.05", "--watch"]]
+
+
+def test_release_publish_alias_routes_to_publish(monkeypatch):
+    captured: list[list[str]] = []
+
+    def fake_publish(argv: list[str], *, runner) -> int:
+        captured.append(argv)
+        return 49
+
+    monkeypatch.setattr(lab_run, "_run_publish", fake_publish)
+
+    rc = lab_run._run_release(["publish", "v2026.06.05", "--watch"])
+
+    assert rc == 49
+    assert captured == [["v2026.06.05", "--watch"]]
+
+
+def test_publish_dry_run_prints_guarded_workflow_command(monkeypatch, capsys):
+    monkeypatch.setattr(lab_run, "_publish_repo_root", lambda: ROOT)
+
+    rc = lab_run._run_publish(
+        [
+            "2026.06.05",
+            "--dry-run",
+            "--packages",
+            "agilab agi-core",
+            "--mode",
+            "repair",
+            "--include-existing-pypi",
+            "--impact-base-ref",
+            "v2026.06.04",
+        ],
+        runner=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("dry-run must not dispatch")
+        ),
+    )
+
+    assert rc == 0
+    output = capsys.readouterr().out
+    assert "gh workflow run pypi-publish.yaml" in output
+    assert "--repo ThalesGroup/agilab" in output
+    assert "-f release_tag=v2026.06.05" in output
+    assert "-f release_mode=repair" in output
+    assert "-f 'packages=agilab agi-core'" in output
+    assert "-f include_existing_pypi=true" in output
+    assert "-f impact_base_ref=v2026.06.04" in output
+
+
+def test_publish_explain_does_not_require_release_tag(capsys):
+    rc = lab_run._run_publish(
+        ["--explain"],
+        runner=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("explain must not dispatch")
+        ),
+    )
+
+    assert rc == 0
+    output = capsys.readouterr().out
+    assert "AGILAB publication is workflow-owned" in output
+    assert "agilab publish v2026.06.05 --dry-run" in output
+    assert "gh workflow run pypi-publish.yaml" in output
+
+
+def test_publish_dispatches_guarded_workflow_from_source_root(
+    monkeypatch, tmp_path: Path
+):
+    captured: list[tuple[list[str], Path]] = []
+    monkeypatch.setattr(lab_run, "_publish_repo_root", lambda: tmp_path)
+
+    def fake_runner(command: list[str], *, cwd: Path) -> int:
+        captured.append((command, cwd))
+        return 0
+
+    rc = lab_run._run_publish(["v2026.06.05", "--roles", "app"], runner=fake_runner)
+
+    assert rc == 0
+    assert captured == [
+        (
+            [
+                "gh",
+                "workflow",
+                "run",
+                "pypi-publish.yaml",
+                "--repo",
+                "ThalesGroup/agilab",
+                "--ref",
+                "main",
+                "-f",
+                "release_tag=v2026.06.05",
+                "-f",
+                "release_mode=stable",
+                "-f",
+                "roles=app",
+            ],
+            tmp_path,
+        )
+    ]
+
+
+def test_release_plan_dry_run_uses_guarded_local_planner(monkeypatch, capsys):
+    monkeypatch.setattr(lab_run, "_publish_repo_root", lambda: ROOT)
+
+    rc = lab_run._run_release_plan(
+        ["--dry-run", "--impact-base-ref", "v2026.06.04"],
+        runner=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("dry-run must not run release_plan.py")
+        ),
+    )
+
+    assert rc == 0
+    output = capsys.readouterr().out
+    assert "uv --preview-features extra-build-dependencies run python" in output
+    assert "tools/release_plan.py" in output
+    assert "--impact-base-ref v2026.06.04" in output
+    assert "--check-workflow" in output
+    assert "pypi-publish.yaml" in output
+    assert "--repo-root" in output
+
+
+def test_release_status_accepts_positional_tag(monkeypatch):
+    captured: list[tuple[list[str], Path]] = []
+    monkeypatch.setattr(lab_run, "_publish_repo_root", lambda: ROOT)
+
+    def fake_runner(command: list[str], *, cwd: Path) -> int:
+        captured.append((command, cwd))
+        return 0
+
+    rc = lab_run._run_release_status(
+        ["2026.06.05", "--packages", "agilab"],
+        runner=fake_runner,
+    )
+
+    assert rc == 0
+    assert captured
+    command, cwd = captured[0]
+    assert cwd == ROOT
+    assert any("tools/release_status.py" in part for part in command)
+    assert "--tag" in command
+    assert "v2026.06.05" in command
+    assert "--packages" in command
+    assert "agilab" in command
+
+
+def test_release_watch_dry_run_prints_latest_run_commands(monkeypatch, capsys):
+    monkeypatch.setattr(lab_run, "_publish_repo_root", lambda: ROOT)
+
+    rc = lab_run._run_release_watch(
+        ["--dry-run"],
+        runner=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("dry-run must not call gh")
+        ),
+    )
+
+    assert rc == 0
+    output = capsys.readouterr().out
+    assert "gh run list --repo ThalesGroup/agilab" in output
+    assert "--workflow pypi-publish.yaml" in output
+    assert "gh run watch --repo ThalesGroup/agilab '<run-id>' --exit-status" in output
 
 
 def test_main_dispatches_app_management_without_launching_streamlit(monkeypatch):
@@ -296,7 +534,9 @@ def test_main_dispatches_app_management_without_launching_streamlit(monkeypatch)
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
     rc = lab_run.main(["app", "list", "--json"])
@@ -317,7 +557,9 @@ def test_main_dispatches_app_surface_without_pypi_management(monkeypatch):
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
     rc = lab_run.main(["app", "surface", "demo_project", "--ui", "hf", "--no-browser"])
@@ -326,7 +568,9 @@ def test_main_dispatches_app_surface_without_pypi_management(monkeypatch):
     assert captured == [["demo_project", "--ui", "hf", "--no-browser"]]
 
 
-def test_app_surface_local_launcher_uses_declared_streamlit_surface(monkeypatch, tmp_path: Path):
+def test_app_surface_local_launcher_uses_declared_streamlit_surface(
+    monkeypatch, tmp_path: Path
+):
     project_root = tmp_path / "demo_project"
     script_path = project_root / "src" / "demo" / "app_surface.py"
     script_path.parent.mkdir(parents=True)
@@ -344,36 +588,49 @@ def test_app_surface_local_launcher_uses_declared_streamlit_surface(monkeypatch,
     )
     captured: list[list[str]] = []
 
-    monkeypatch.setattr(lab_run, "_resolve_app_surface_project_root", lambda _project: project_root)
+    monkeypatch.setattr(
+        lab_run, "_resolve_app_surface_project_root", lambda _project: project_root
+    )
     monkeypatch.setattr(lab_run, "_ensure_streamlit_config_file", lambda: None)
 
     rc = lab_run._run_app_surface(
-        ["demo_project", "--host", "127.0.0.1", "--port", "8765", "--no-browser", "--", "--flag"],
+        [
+            "demo_project",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8765",
+            "--no-browser",
+            "--",
+            "--flag",
+        ],
         runner=lambda command: captured.append(command) or 53,
     )
 
     assert rc == 53
-    assert captured == [[
-        "uv",
-        "--preview-features",
-        "extra-build-dependencies",
-        "run",
-        "--project",
-        str(project_root),
-        "streamlit",
-        "run",
-        "--server.address",
-        "127.0.0.1",
-        "--server.port",
-        "8765",
-        "--server.headless",
-        "true",
-        str(script_path),
-        "--",
-        "--active-app",
-        str(project_root),
-        "--flag",
-    ]]
+    assert captured == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--project",
+            str(project_root),
+            "streamlit",
+            "run",
+            "--server.address",
+            "127.0.0.1",
+            "--server.port",
+            "8765",
+            "--server.headless",
+            "true",
+            str(script_path),
+            "--",
+            "--active-app",
+            str(project_root),
+            "--flag",
+        ]
+    ]
 
 
 def test_app_surface_hf_launcher_uses_declared_url(monkeypatch, tmp_path: Path, capsys):
@@ -396,8 +653,12 @@ def test_app_surface_hf_launcher_uses_declared_url(monkeypatch, tmp_path: Path, 
     )
     opened: list[str] = []
 
-    monkeypatch.setattr(lab_run, "_resolve_app_surface_project_root", lambda _project: project_root)
-    monkeypatch.setattr(lab_run.webbrowser, "open", lambda url: opened.append(url) or True)
+    monkeypatch.setattr(
+        lab_run, "_resolve_app_surface_project_root", lambda _project: project_root
+    )
+    monkeypatch.setattr(
+        lab_run.webbrowser, "open", lambda url: opened.append(url) or True
+    )
 
     rc = lab_run._run_app_surface(["demo_project", "--ui", "hf", "--no-browser"])
 
@@ -408,7 +669,9 @@ def test_app_surface_hf_launcher_uses_declared_url(monkeypatch, tmp_path: Path, 
     )
 
 
-def test_app_surface_hf_launcher_allows_space_override(monkeypatch, tmp_path: Path, capsys):
+def test_app_surface_hf_launcher_allows_space_override(
+    monkeypatch, tmp_path: Path, capsys
+):
     project_root = tmp_path / "demo_project"
     (project_root / "src").mkdir(parents=True)
     (project_root / "src" / "app_settings.toml").write_text(
@@ -427,11 +690,20 @@ def test_app_surface_hf_launcher_allows_space_override(monkeypatch, tmp_path: Pa
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(lab_run, "_resolve_app_surface_project_root", lambda _project: project_root)
+    monkeypatch.setattr(
+        lab_run, "_resolve_app_surface_project_root", lambda _project: project_root
+    )
     monkeypatch.setattr(lab_run.webbrowser, "open", lambda _url: True)
 
     rc = lab_run._run_app_surface(
-        ["demo_project", "--ui", "hf", "--hf-space", "Owner/Other_Space", "--no-browser"]
+        [
+            "demo_project",
+            "--ui",
+            "hf",
+            "--hf-space",
+            "Owner/Other_Space",
+            "--no-browser",
+        ]
     )
 
     assert rc == 0
@@ -452,7 +724,9 @@ def test_main_dispatches_kubernetes_job_without_launching_streamlit(monkeypatch)
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
     rc = lab_run.main(["k8s-job", "--app", "demo_project", "--image", "agilab:local"])
@@ -473,7 +747,9 @@ def test_main_dispatches_security_check_without_launching_streamlit(monkeypatch)
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
     rc = lab_run.main(["security-check", "--json", "--strict"])
@@ -494,7 +770,9 @@ def test_main_dispatches_adoption_report_without_launching_streamlit(monkeypatch
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
     rc = lab_run.main(["adoption-report", "--json", "--strict"])
@@ -567,7 +845,9 @@ def test_public_headless_cli_imports_and_help_do_not_require_streamlit() -> None
     assert result.returncode == 0, result.stderr or result.stdout
 
 
-def test_main_dispatches_evidence_contract_commands_without_launching_streamlit(monkeypatch):
+def test_main_dispatches_evidence_contract_commands_without_launching_streamlit(
+    monkeypatch,
+):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
 
@@ -579,18 +859,29 @@ def test_main_dispatches_evidence_contract_commands_without_launching_streamlit(
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
-    rc = lab_run.main(["export_lineage", "run_manifest.json", "--format", "openlineage"])
+    rc = lab_run.main(
+        ["export_lineage", "run_manifest.json", "--format", "openlineage"]
+    )
 
     assert rc == 45
-    assert captured == [["export-lineage", "run_manifest.json", "--format", "openlineage"]]
+    assert captured == [
+        ["export-lineage", "run_manifest.json", "--format", "openlineage"]
+    ]
 
     rc = lab_run.main(["export_traces", "run_manifest.json", "--output", "otel.json"])
 
     assert rc == 45
-    assert captured[-1] == ["export-traces", "run_manifest.json", "--output", "otel.json"]
+    assert captured[-1] == [
+        "export-traces",
+        "run_manifest.json",
+        "--output",
+        "otel.json",
+    ]
 
     rc = lab_run.main(["sign", "proof.agipack", "--key", "signer.pem"])
 
@@ -610,7 +901,9 @@ def test_main_dispatches_env_footprint_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(
         lab_run,
         "_load_streamlit_cli",
-        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+        lambda: (_ for _ in ()).throw(
+            AssertionError("streamlit should not be launched")
+        ),
     )
 
     rc = lab_run.main(["env", "footprint", "--json"])
@@ -622,7 +915,9 @@ def test_main_dispatches_env_footprint_without_launching_streamlit(monkeypatch):
 def test_main_reports_missing_ui_dependencies(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     monkeypatch.setattr(lab_run, "_resolve_apps_path", lambda _value: None)
-    monkeypatch.setattr(lab_run, "_missing_ui_dependencies", lambda: ["streamlit", "agi-gui"])
+    monkeypatch.setattr(
+        lab_run, "_missing_ui_dependencies", lambda: ["streamlit", "agi-gui"]
+    )
 
     with pytest.raises(SystemExit, match=r"streamlit, agi-gui.*agilab\[ui\]"):
         lab_run.main([])
@@ -638,9 +933,13 @@ def test_main_refuses_public_bind_without_auth_or_tls(monkeypatch):
         lab_run.main([])
 
 
-def test_main_allows_explicit_public_bind_with_tls_indicator(monkeypatch, tmp_path: Path):
+def test_main_allows_explicit_public_bind_with_tls_indicator(
+    monkeypatch, tmp_path: Path
+):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
-    monkeypatch.setattr(lab_run, "_resolve_apps_path", lambda _value: str(tmp_path / "apps"))
+    monkeypatch.setattr(
+        lab_run, "_resolve_apps_path", lambda _value: str(tmp_path / "apps")
+    )
     monkeypatch.setenv("STREAMLIT_SERVER_ADDRESS", "0.0.0.0")
     monkeypatch.setenv("AGILAB_PUBLIC_BIND_OK", "1")
     monkeypatch.setenv("AGILAB_TLS_TERMINATED", "1")
@@ -650,7 +949,9 @@ def test_main_allows_explicit_public_bind_with_tls_indicator(monkeypatch, tmp_pa
         captured.append(list(lab_run.sys.argv))
         return 0
 
-    monkeypatch.setattr(lab_run, "_load_streamlit_cli", lambda: SimpleNamespace(main=fake_main))
+    monkeypatch.setattr(
+        lab_run, "_load_streamlit_cli", lambda: SimpleNamespace(main=fake_main)
+    )
 
     assert lab_run.main([]) == 0
     assert captured[0][2:4] == ["--server.address", "0.0.0.0"]
