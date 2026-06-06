@@ -1883,6 +1883,13 @@ def test_build_remove_decorators_command_keeps_worker_path_as_argv():
     ]
 
 
+def test_build_remove_decorators_command_normalizes_path_arg():
+    command = build_mod._build_remove_decorators_command(Path("workers/demo_worker.py"))
+
+    assert Path(command[8]).parts == ("workers", "demo_worker.py")
+    assert all(isinstance(part, str) for part in command)
+
+
 def test_postprocess_bdist_egg_output_unpacks_and_cleans_links(tmp_path):
     out_dir = tmp_path / "worker_home" / "demo_project"
     dist_dir = out_dir / "dist"

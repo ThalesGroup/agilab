@@ -302,7 +302,7 @@ def _install_readiness_code(active_app: Path) -> str:
         from agilab.orchestrate_page_support import app_install_status
 
         active_app = Path({str(active_app)!r})
-        env = AgiEnv(active_app=active_app, verbose=1)
+        env = AgiEnv(active_app=str(active_app), verbose=1)
         status = app_install_status(env)
 
         def encode(value):
