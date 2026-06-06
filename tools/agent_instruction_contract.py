@@ -107,6 +107,7 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("agent-learnings", "AGENT_LEARNINGS.md"),
             RequiredTerm("capability-manifest", "agilab-capabilities.json"),
             RequiredTerm("agenticweb", "agenticweb.md"),
+            RequiredTerm("compact-validation", "Validation passed."),
             RequiredTerm("contract-command", "python3 tools/agent_instruction_contract.py --check"),
         ),
     ),
