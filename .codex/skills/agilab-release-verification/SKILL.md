@@ -3,7 +3,7 @@ name: agilab-release-verification
 description: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-04
+  updated: 2026-06-06
 ---
 
 # AGILAB Release Verification
@@ -339,6 +339,12 @@ the canonical docs source, not only the public mirror:
 uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
   --docs-source ../thales_agilab/docs/source \
   --refresh-from-local \
+  --refresh-from-github \
+  --github-workflow repo-guardrails \
+  --github-workflow docs-source-guard \
+  --github-workflow docs-publish \
+  --github-workflow coverage \
+  --github-workflow pypi-publish \
   --github-release-tag <tag> \
   --github-release-url "https://github.com/ThalesGroup/agilab/releases/tag/<tag>" \
   --hf-space-commit <space-sha> \
@@ -353,9 +359,17 @@ uv --preview-features extra-build-dependencies run python tools/sync_docs_source
   --delete
 ```
 
-After publishing, grep the public page for the expected values and stale
-release wording. A page can contain the right table row while a CI evidence
-summary still mentions an older tag.
+If a release workflow pushed a release-proof docs commit with `GITHUB_TOKEN`,
+do not assume it triggered the Pages workflow. Check for a matching
+`docs-publish` run on the pushed commit; dispatch `docs-publish.yaml` manually
+when no run exists.
+
+After publishing, grep the public page for the expected version, tag, HF Space
+commit, and the current release workflow run IDs, especially `pypi-publish`. A
+page can contain the right release row while stale CI evidence rows still point
+to the previous release. Treat "new version with old run IDs" as a release-proof
+failure until the canonical docs source, managed mirror, Pages deployment, and
+live HTML all agree.
 
 ### Hugging Face Space
 
