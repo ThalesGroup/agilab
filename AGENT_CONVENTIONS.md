@@ -19,6 +19,9 @@ publication, or other risky surfaces, read [AGENTS.md](AGENTS.md) too.
 - Do not edit shared core (`agi-env`, `agi-node`, `agi-cluster`, `agi-core`,
   shared installer/build tooling) unless the user explicitly approves it.
 - Keep edits narrow and validate with the smallest relevant proof first.
+- For successful final close-outs, write `Validation passed.` without listing
+  every command unless failures, skipped checks, release/audit evidence, PR
+  proof, or an explicit user request make the details useful.
 - When corrected, update `AGENT_LEARNINGS.md` only if the correction is reusable
   and not already covered by an existing rule.
 - Do not edit `docs/html/**`.
