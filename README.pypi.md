@@ -183,7 +183,7 @@ agilab adoption-report
 ```
 
 `agilab dry-run` is the fast alias for `agilab first-proof --dry-run`; it
-checks only CLI/core readiness.
+verifies CLI/core readiness only.
 `agilab first-proof --json` runs the onboarding contract and writes
 `run_manifest.json` without requiring Streamlit. Add `--with-ui` only when you
 intentionally want the proof to boot the packaged Streamlit pages too.
@@ -257,6 +257,7 @@ what they need:
 | `core` extra | `agi-core`, which wires `agi-env`, `agi-node`, and `agi-cluster` for compact local/distributed runtime smoke checks. | CLI proof, source-checkout validation, notebook/API runtime, and worker-runtime development without the UI or packaged examples. |
 | `ui` extra | Streamlit UI, page helpers, portable `agi-web` Canvas2D/WebGL and React-ready UI-island contracts, pandas/network graph utilities, `agi-apps`, and the `agi-pages` provider. Promoted app and page payload packages are on PyPI; unpromoted app payloads remain release artifacts until publication is enabled. | Running the local product UI with the packaged runtime and optional public demo assets. |
 | `examples` extra | `agi-apps` app catalog/examples plus notebook/demo helper dependencies such as JupyterLab and optional plotting packages. | Running packaged notebooks, demos, learning examples, and package first-proof routes. |
+| `notebook` extra | Notebook execution helpers such as `nbclient`, `nbformat`, and `ipykernel`. | Running `agilab run notebook` to execute a local notebook and write AGILAB evidence. |
 | `pages` extra | `agi-pages` page-provider helpers without the full UI profile. | Installing or validating sidecar page-bundle discovery separately from built-in app projects. |
 | `proof` extra | Optional `cryptography` dependency for detached Ed25519 proof-capsule signatures. | Signing `.agipack` archives and verifying them against local trust policies. |
 | `agents` extra | API client dependency boundary for packaged agent workflow helpers. | Reproducible coding-agent and assistant-backed workflows. |
@@ -482,11 +483,11 @@ compatibility status, and roadmap scope live in:
 Current public evaluation summary, refreshed from the public KPI bundle:
 
 - `4.0 / 5` for ease of adoption, research experimentation, and engineering prototyping.
-- `3.0 / 5` for production readiness.
+- `3.2 / 5` for production readiness.
 - `4.2 / 5` for strategic potential.
 - Overall public evaluation, rounded category average: `3.8 / 5`.
 
-These are AI/ML workbench scores, not production MLOps claims.
+These are public experimentation-workbench scores, not production MLOps claims.
 They cover project setup, environment management, execution, and result analysis.
 The overall score is the rounded category average, not a strategic score.
 

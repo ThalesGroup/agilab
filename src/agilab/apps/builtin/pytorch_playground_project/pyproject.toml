@@ -4,6 +4,9 @@ version = "2026.05.30.post1"
 description = "Built-in AGILab app for reproducible PyTorch classifier playground experiments."
 readme = "README.md"
 requires-python = ">=3.12"
+authors = [
+    { name = "Jean-Pierre Morard" }
+]
 dependencies = [
     "agi-env>=2026.05.31",
     "agi-node>=2026.05.31",

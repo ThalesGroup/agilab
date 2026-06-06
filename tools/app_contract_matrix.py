@@ -57,6 +57,25 @@ PAYLOAD_EXCLUDED_DIRS = frozenset(
 PAYLOAD_EXCLUDED_FILES = frozenset({".DS_Store", ".gitignore", ".lock", "uv.lock"})
 PAYLOAD_EXCLUDED_FILE_PREFIXES = (".coverage",)
 PAYLOAD_EXCLUDED_SUFFIXES = frozenset({".c", ".pid", ".pyc", ".pyo", ".pyx", ".so"})
+REQUIRED_PROJECT_URL_KEYS = frozenset(
+    {
+        "Documentation",
+        "Source",
+        "Issues",
+        "Homepage",
+        "Repository",
+        "Discussions",
+        "Changelog",
+    }
+)
+PROJECT_URL_EXPECTED_VALUES = {
+    "Documentation": "https://thalesgroup.github.io/agilab",
+    "Issues": "https://github.com/ThalesGroup/agilab/issues",
+    "Homepage": "https://github.com/ThalesGroup/agilab",
+    "Repository": "https://github.com/ThalesGroup/agilab",
+    "Discussions": "https://github.com/ThalesGroup/agilab/discussions",
+    "Changelog": "https://github.com/ThalesGroup/agilab/releases",
+}
 
 
 @dataclass(frozen=True)
@@ -145,6 +164,53 @@ def _has_dependency(dependencies: Sequence[str], package: str) -> bool:
         re.IGNORECASE,
     )
     return any(pattern.match(item.strip()) for item in dependencies)
+
+
+def _builtin_project_metadata_errors(
+    *,
+    repo_root: Path,
+    project_path: Path,
+    project_data: Mapping[str, Any],
+) -> dict[str, Any]:
+    errors: dict[str, Any] = {}
+    authors = project_data.get("authors", [])
+    if not isinstance(authors, list) or not authors:
+        errors["authors"] = "missing"
+    else:
+        placeholder_authors = [
+            author
+            for author in authors
+            if isinstance(author, dict)
+            and "your" in " ".join(str(value).lower() for value in author.values())
+        ]
+        if placeholder_authors:
+            errors["authors"] = "placeholder"
+
+    if project_data.get("readme") != "README.md":
+        errors["readme"] = project_data.get("readme")
+
+    urls = project_data.get("urls", {})
+    if not isinstance(urls, dict):
+        errors["urls"] = "invalid"
+        return errors
+
+    missing_url_keys = sorted(REQUIRED_PROJECT_URL_KEYS.difference(urls))
+    wrong_url_values = {
+        key: urls.get(key)
+        for key, expected in PROJECT_URL_EXPECTED_VALUES.items()
+        if urls.get(key) != expected
+    }
+    expected_source = (
+        "https://github.com/ThalesGroup/agilab/tree/main/"
+        f"{_relative(repo_root, project_path)}"
+    )
+    if urls.get("Source") != expected_source:
+        wrong_url_values["Source"] = urls.get("Source")
+    if missing_url_keys:
+        errors["missing_url_keys"] = missing_url_keys
+    if wrong_url_values:
+        errors["wrong_url_values"] = wrong_url_values
+    return errors
 
 
 def _literal_string_assignments(path: Path, names: set[str]) -> dict[str, str]:
@@ -495,6 +561,21 @@ def _project_checks(repo_root: Path, project_path: Path) -> list[Check]:
                 },
             )
         )
+        metadata_errors = _builtin_project_metadata_errors(
+            repo_root=repo_root,
+            project_path=project_path,
+            project_data=project_data,
+        )
+        checks.append(
+            _check(
+                f"{project_name}:metadata",
+                f"{project_name} public metadata",
+                not metadata_errors,
+                "manager pyproject declares public readme, author, and project URL metadata",
+                evidence=(_relative(repo_root, pyproject_path),),
+                details={"errors": metadata_errors},
+            )
+        )
     except Exception as exc:
         checks.append(
             _check(
@@ -648,6 +729,37 @@ def _project_checks(repo_root: Path, project_path: Path) -> list[Check]:
         )
     )
     return checks
+
+
+def _builtin_project_description_uniqueness_check(
+    repo_root: Path,
+    project_paths: Sequence[Path],
+) -> Check:
+    by_description: dict[str, list[str]] = {}
+    unreadable: dict[str, str] = {}
+    for project_path in project_paths:
+        pyproject_path = project_path / "pyproject.toml"
+        try:
+            project_data = _read_toml(pyproject_path).get("project", {})
+            description = str(project_data.get("description", "")).strip()
+        except Exception as exc:
+            unreadable[_relative(repo_root, pyproject_path)] = str(exc)
+            continue
+        if description:
+            by_description.setdefault(description, []).append(project_path.name)
+    duplicates = {
+        description: projects
+        for description, projects in sorted(by_description.items())
+        if len(projects) > 1
+    }
+    return _check(
+        "builtin_project_description_uniqueness",
+        "Built-in project description uniqueness",
+        not duplicates and not unreadable,
+        "built-in app pyproject descriptions are unique and parseable",
+        evidence=tuple(_relative(repo_root, path / "pyproject.toml") for path in project_paths),
+        details={"duplicates": duplicates, "unreadable": unreadable},
+    )
 
 
 def _project_name_for_package(repo_root: Path, package_path: str) -> str:
@@ -1188,6 +1300,7 @@ def build_report(
     )
     for project_path in project_paths:
         checks.extend(_project_checks(repo_root, project_path))
+    checks.append(_builtin_project_description_uniqueness_check(repo_root, project_paths))
     checks.extend(
         _global_checks(
             repo_root,

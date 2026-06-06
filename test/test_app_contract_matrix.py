@@ -20,6 +20,97 @@ def _load_module():
     return module
 
 
+def _seed_builtin_project(
+    tmp_path: Path,
+    name: str,
+    *,
+    description: str = "Built-in AGILAB demo app",
+    include_metadata: bool = True,
+) -> Path:
+    module_name = name.removesuffix("_project")
+    project = tmp_path / "src" / "agilab" / "apps" / "builtin" / name
+    manager = project / "src" / module_name
+    worker = project / "src" / f"{module_name}_worker"
+    manager.mkdir(parents=True)
+    worker.mkdir(parents=True)
+    (project / "src" / "app_settings.toml").write_text("", encoding="utf-8")
+    (project / "src" / "app_args_form.py").write_text("", encoding="utf-8")
+    (manager / "__init__.py").write_text("", encoding="utf-8")
+    (manager / "reduction.py").write_text("", encoding="utf-8")
+    (worker / "__init__.py").write_text("", encoding="utf-8")
+    (project / "lab_stages.toml").write_text("[stage.demo]\nname = \"Demo\"\n", encoding="utf-8")
+    (project / "README.md").write_text(
+        f"{name}\n\n"
+        + " ".join(
+            [
+                "This",
+                "built-in",
+                "project",
+                "documents",
+                "the",
+                "demo",
+                "contract",
+                "with",
+                "enough",
+                "context",
+            ]
+            * 5
+        ),
+        encoding="utf-8",
+    )
+    metadata_lines = []
+    if include_metadata:
+        metadata_lines = [
+            'readme = "README.md"',
+            'authors = [{ name = "Jean-Pierre Morard" }]',
+            "",
+            "[project.urls]",
+            'Documentation = "https://thalesgroup.github.io/agilab"',
+            f'Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps/builtin/{name}"',
+            'Issues = "https://github.com/ThalesGroup/agilab/issues"',
+            'Homepage = "https://github.com/ThalesGroup/agilab"',
+            'Repository = "https://github.com/ThalesGroup/agilab"',
+            'Discussions = "https://github.com/ThalesGroup/agilab/discussions"',
+            'Changelog = "https://github.com/ThalesGroup/agilab/releases"',
+        ]
+    (project / "pyproject.toml").write_text(
+        "\n".join(
+            [
+                "[project]",
+                f'name = "{name}"',
+                'version = "1.0.0"',
+                f'description = "{description}"',
+                'requires-python = ">=3.11"',
+                'dependencies = ["agi-env>=1", "agi-node>=1"]',
+                *metadata_lines,
+                "",
+                "[build-system]",
+                'requires = ["setuptools"]',
+                'build-backend = "setuptools.build_meta"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (worker / "pyproject.toml").write_text(
+        "\n".join(
+            [
+                "[project]",
+                f'name = "{module_name}_worker"',
+                'version = "1.0.0"',
+                'dependencies = ["agi-env>=1", "agi-node>=1"]',
+                "",
+                "[tool.uv.sources]",
+                'agi-env = { path = "../../../../../core/agi-env", editable = true }',
+                'agi-node = { path = "../../../../../core/agi-node", editable = true }',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return project
+
+
 def test_app_contract_matrix_passes_current_repo():
     module = _load_module()
 
@@ -41,6 +132,8 @@ def test_app_contract_matrix_passes_current_repo():
     assert "agi_pages_provider_matches_page_bundle_contract" in check_ids
     assert "promoted_pypi_app_catalog_matches_package_split" in check_ids
     assert "public_app_catalog_matches_package_contract" in check_ids
+    assert "flight_telemetry_project:metadata" in check_ids
+    assert "builtin_project_description_uniqueness" in check_ids
 
 
 def test_discover_builtin_projects_ignores_untracked_workspace_dirs(tmp_path: Path, monkeypatch):
@@ -82,6 +175,34 @@ def test_load_module_supports_package_imports_without_preexisting_src_path(monke
 
     assert loaded.PROMOTED_PYPI_APP_PACKAGES
     assert src_path not in module.sys.path
+
+
+def test_app_contract_matrix_detects_missing_builtin_public_metadata(tmp_path: Path):
+    module = _load_module()
+    project = _seed_builtin_project(tmp_path, "demo_project", include_metadata=False)
+
+    checks = {check.id: check for check in module._project_checks(tmp_path, project)}
+    metadata = checks["demo_project:metadata"]
+
+    assert metadata.status == "fail"
+    assert metadata.details["errors"]["authors"] == "missing"
+    assert metadata.details["errors"]["readme"] is None
+    assert metadata.details["errors"]["missing_url_keys"] == sorted(module.REQUIRED_PROJECT_URL_KEYS)
+
+
+def test_app_contract_matrix_detects_duplicate_builtin_descriptions(tmp_path: Path):
+    module = _load_module()
+    projects = [
+        _seed_builtin_project(tmp_path, "alpha_project", description="Duplicate description"),
+        _seed_builtin_project(tmp_path, "beta_project", description="Duplicate description"),
+    ]
+
+    check = module._builtin_project_description_uniqueness_check(tmp_path, projects)
+
+    assert check.status == "fail"
+    assert check.details["duplicates"] == {
+        "Duplicate description": ["alpha_project", "beta_project"]
+    }
 
 
 def test_app_contract_matrix_detects_promoted_catalog_drift():
