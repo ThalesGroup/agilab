@@ -14,6 +14,7 @@
 import argparse
 import importlib.util
 import os
+import shlex
 import subprocess
 import sys
 import tomllib
@@ -44,6 +45,8 @@ packaged_streamlit_config_path = (
 UI_EXTRA_HINT = "Install the UI profile with `python -m pip install 'agilab[ui]'`."
 PYTORCH_PLAYGROUND_HF_SPACE = "jpmorard/agilab"
 PYTORCH_PLAYGROUND_APP_NAME = "pytorch_playground_project"
+AGILAB_GITHUB_REPO = "ThalesGroup/agilab"
+PYPI_PUBLISH_WORKFLOW = "pypi-publish.yaml"
 _PUBLIC_BIND_GUARD_MODULE = import_agilab_module(
     "agilab.ui_public_bind_guard",
     current_file=__file__,
@@ -198,6 +201,361 @@ def _run_workflow(argv: list[str]) -> int:
     return workflow_validation.main(argv)
 
 
+def _publish_repo_root() -> Path:
+    repo_root = _detect_repo_root(Path.cwd()) or _detect_repo_root(_PACKAGE_DIR)
+    if not repo_root:
+        raise SystemExit(
+            "agilab publish: run this maintainer command from the AGILAB source checkout."
+        )
+    workflow = repo_root / ".github" / "workflows" / PYPI_PUBLISH_WORKFLOW
+    release_plan = repo_root / "tools" / "release_plan.py"
+    if not workflow.is_file() or not release_plan.is_file():
+        raise SystemExit(
+            "agilab publish: the guarded release workflow was not found. "
+            "Real PyPI publication must use the AGILAB source checkout and "
+            ".github/workflows/pypi-publish.yaml."
+        )
+    return repo_root
+
+
+def _normalized_release_tag(value: str) -> str:
+    tag = value.strip()
+    return tag if tag.startswith("v") else f"v{tag}"
+
+
+def _shell_join(command: list[str]) -> str:
+    return " ".join(shlex.quote(part) for part in command)
+
+
+def _has_cli_option(argv: list[str], option: str) -> bool:
+    return any(arg == option or arg.startswith(f"{option}=") for arg in argv)
+
+
+def _pop_cli_flag(argv: list[str], option: str) -> bool:
+    if option not in argv:
+        return False
+    argv.remove(option)
+    return True
+
+
+def _uv_python_tool_command(
+    repo_root: Path, script_name: str, argv: list[str]
+) -> list[str]:
+    return [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "python",
+        str(repo_root / "tools" / script_name),
+        *argv,
+    ]
+
+
+def _run_publish(argv: list[str], *, runner=subprocess.call) -> int:
+    parser = argparse.ArgumentParser(
+        prog="agilab publish",
+        description=(
+            "Dispatch the guarded AGILAB PyPI/GitHub release workflow. "
+            "Real PyPI publication stays workflow-owned through Trusted Publishing/OIDC."
+        ),
+    )
+    parser.add_argument(
+        "release_tag", nargs="?", help="Release tag, for example v2026.06.05."
+    )
+    parser.add_argument("--tag", dest="release_tag_option", help="Release tag alias.")
+    parser.add_argument(
+        "--packages", help="Optional package filter passed to the workflow."
+    )
+    parser.add_argument(
+        "--roles", help="Optional package-role filter passed to the workflow."
+    )
+    parser.add_argument(
+        "--impact-base-ref",
+        help="Publish only changed packages plus exact-pin dependents since this ref.",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=("stable", "hotfix", "candidate", "repair"),
+        default="stable",
+        help="Release intent passed as workflow release_mode.",
+    )
+    parser.add_argument(
+        "--include-existing-pypi",
+        action="store_true",
+        help="Include already-published PyPI artifacts for release-asset repair.",
+    )
+    parser.add_argument(
+        "--ref", default="main", help="Git ref used for workflow dispatch."
+    )
+    parser.add_argument("--repo", default=AGILAB_GITHUB_REPO, help="GitHub repository.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print commands without dispatching."
+    )
+    parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="Watch the latest workflow run after dispatch.",
+    )
+    parser.add_argument(
+        "--explain",
+        action="store_true",
+        help="Explain the guarded publication path and print the command without dispatching.",
+    )
+    args = parser.parse_args(argv)
+
+    requested_tag = args.release_tag_option or args.release_tag
+    if (
+        args.release_tag_option
+        and args.release_tag
+        and args.release_tag_option != args.release_tag
+    ):
+        parser.error("provide the release tag once, either positionally or with --tag")
+    if args.explain and not requested_tag:
+        print(
+            "AGILAB publication is workflow-owned: the GitHub workflow runs release "
+            "guards, release-plan selection, Trusted Publishing/OIDC, release assets, "
+            "and post-release evidence from one audited path."
+        )
+        print("example: agilab publish v2026.06.05 --dry-run")
+        print(
+            "workflow: gh workflow run "
+            f"{PYPI_PUBLISH_WORKFLOW} --repo {AGILAB_GITHUB_REPO} --ref main "
+            "-f release_tag=<tag> -f release_mode=stable"
+        )
+        return 0
+    if not requested_tag:
+        parser.error("release tag is required, for example: agilab publish v2026.06.05")
+
+    repo_root = _publish_repo_root()
+    command = [
+        "gh",
+        "workflow",
+        "run",
+        PYPI_PUBLISH_WORKFLOW,
+        "--repo",
+        args.repo,
+        "--ref",
+        args.ref,
+        "-f",
+        f"release_tag={_normalized_release_tag(requested_tag)}",
+        "-f",
+        f"release_mode={args.mode}",
+    ]
+    if args.packages:
+        command.extend(["-f", f"packages={args.packages}"])
+    if args.roles:
+        command.extend(["-f", f"roles={args.roles}"])
+    if args.impact_base_ref:
+        command.extend(["-f", f"impact_base_ref={args.impact_base_ref}"])
+    if args.include_existing_pypi:
+        command.extend(["-f", "include_existing_pypi=true"])
+
+    if args.explain:
+        print(
+            "AGILAB publication is workflow-owned: this command dispatches the "
+            "guarded PyPI/GitHub release workflow instead of uploading artifacts locally."
+        )
+    print(_shell_join(command))
+    if args.dry_run or args.explain:
+        if args.watch:
+            print(
+                "gh run list --repo "
+                f"{shlex.quote(args.repo)} --workflow {PYPI_PUBLISH_WORKFLOW} "
+                "--limit 1 --json databaseId --jq '.[0].databaseId'"
+            )
+            print(
+                f"gh run watch --repo {shlex.quote(args.repo)} <run-id> --exit-status"
+            )
+        return 0
+
+    rc = int(runner(command, cwd=repo_root))
+    if rc != 0:
+        return rc
+    print("agilab publish: dispatched GitHub release workflow.")
+
+    if not args.watch:
+        return 0
+
+    latest = subprocess.run(
+        [
+            "gh",
+            "run",
+            "list",
+            "--repo",
+            args.repo,
+            "--workflow",
+            PYPI_PUBLISH_WORKFLOW,
+            "--limit",
+            "1",
+            "--json",
+            "databaseId",
+            "--jq",
+            ".[0].databaseId",
+        ],
+        cwd=repo_root,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if latest.returncode != 0:
+        sys.stderr.write(latest.stderr)
+        return latest.returncode
+    run_id = latest.stdout.strip()
+    if not run_id:
+        print(
+            "agilab publish: workflow dispatched, but no run id was returned.",
+            file=sys.stderr,
+        )
+        return 1
+    return int(
+        runner(
+            ["gh", "run", "watch", "--repo", args.repo, run_id, "--exit-status"],
+            cwd=repo_root,
+        )
+    )
+
+
+def _run_release_plan(argv: list[str], *, runner=subprocess.call) -> int:
+    repo_root = _publish_repo_root()
+    forwarded = list(argv)
+    dry_run = _pop_cli_flag(forwarded, "--dry-run")
+    if not _has_cli_option(forwarded, "--repo-root"):
+        forwarded.extend(["--repo-root", str(repo_root)])
+    if not _has_cli_option(forwarded, "--check-workflow"):
+        forwarded.extend(
+            [
+                "--check-workflow",
+                str(repo_root / ".github" / "workflows" / PYPI_PUBLISH_WORKFLOW),
+            ]
+        )
+
+    command = _uv_python_tool_command(repo_root, "release_plan.py", forwarded)
+    if dry_run:
+        print(_shell_join(command))
+        return 0
+    return int(runner(command, cwd=repo_root))
+
+
+def _run_release_status(argv: list[str], *, runner=subprocess.call) -> int:
+    repo_root = _publish_repo_root()
+    forwarded = list(argv)
+    dry_run = _pop_cli_flag(forwarded, "--dry-run")
+    if forwarded and not forwarded[0].startswith("-"):
+        tag = forwarded.pop(0)
+        if _has_cli_option(forwarded, "--tag"):
+            raise SystemExit("agilab release status: provide the tag once.")
+        forwarded[:0] = ["--tag", _normalized_release_tag(tag)]
+    if not _has_cli_option(forwarded, "--tag"):
+        raise SystemExit(
+            "agilab release status: tag is required, for example: agilab release status v2026.06.05"
+        )
+    if not _has_cli_option(forwarded, "--repo-root"):
+        forwarded.extend(["--repo-root", str(repo_root)])
+
+    command = _uv_python_tool_command(repo_root, "release_status.py", forwarded)
+    if dry_run:
+        print(_shell_join(command))
+        return 0
+    return int(runner(command, cwd=repo_root))
+
+
+def _run_release_watch(argv: list[str], *, runner=subprocess.call) -> int:
+    parser = argparse.ArgumentParser(
+        prog="agilab release watch",
+        description="Watch the latest AGILAB PyPI publish workflow run.",
+    )
+    parser.add_argument("--repo", default=AGILAB_GITHUB_REPO, help="GitHub repository.")
+    parser.add_argument(
+        "--workflow", default=PYPI_PUBLISH_WORKFLOW, help="Workflow file name."
+    )
+    parser.add_argument("--run-id", help="Specific GitHub Actions run id to watch.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print commands without watching."
+    )
+    args = parser.parse_args(argv)
+
+    repo_root = _publish_repo_root()
+    list_command = [
+        "gh",
+        "run",
+        "list",
+        "--repo",
+        args.repo,
+        "--workflow",
+        args.workflow,
+        "--limit",
+        "1",
+        "--json",
+        "databaseId",
+        "--jq",
+        ".[0].databaseId",
+    ]
+    watch_command = [
+        "gh",
+        "run",
+        "watch",
+        "--repo",
+        args.repo,
+        args.run_id or "<run-id>",
+        "--exit-status",
+    ]
+    if args.dry_run:
+        if not args.run_id:
+            print(_shell_join(list_command))
+        print(_shell_join(watch_command))
+        return 0
+
+    run_id = args.run_id
+    if not run_id:
+        latest = subprocess.run(
+            list_command,
+            cwd=repo_root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        if latest.returncode != 0:
+            sys.stderr.write(latest.stderr)
+            return latest.returncode
+        run_id = latest.stdout.strip()
+        if not run_id:
+            print(
+                "agilab release watch: no workflow run id was returned.",
+                file=sys.stderr,
+            )
+            return 1
+    watch_command[5] = run_id
+    return int(runner(watch_command, cwd=repo_root))
+
+
+def _run_release(argv: list[str], *, runner=subprocess.call) -> int:
+    if not argv or argv[0] in {"-h", "--help", "help"}:
+        print(
+            "usage: agilab release <command> [args]\n\n"
+            "commands:\n"
+            "  publish   Dispatch the guarded PyPI/GitHub workflow\n"
+            "  plan      Run the local release package planner\n"
+            "  status    Check public release truth for a tag\n"
+            "  watch     Watch the latest publish workflow run"
+        )
+        return 0
+    command, rest = argv[0], argv[1:]
+    if command == "publish":
+        return _run_publish(rest, runner=runner)
+    if command == "plan":
+        return _run_release_plan(rest, runner=runner)
+    if command == "status":
+        return _run_release_status(rest, runner=runner)
+    if command == "watch":
+        return _run_release_watch(rest, runner=runner)
+    raise SystemExit(
+        "agilab release: supported commands are publish, plan, status, and watch"
+    )
+
+
 def _run_env(argv: list[str]) -> int:
     if argv[:1] == ["footprint"]:
         from agilab import env_footprint
@@ -253,7 +611,9 @@ def _pytorch_playground_project_root() -> Path:
 def _pytorch_playground_script_path(project_root: Path) -> Path:
     script = project_root / "src" / "pytorch_playground" / "playground_ui.py"
     if not script.is_file():
-        raise SystemExit(f"agilab pytorch-playground: Streamlit surface not found: {script}")
+        raise SystemExit(
+            f"agilab pytorch-playground: Streamlit surface not found: {script}"
+        )
     return script
 
 
@@ -408,9 +768,13 @@ def _run_app_surface(argv: list[str], *, runner=subprocess.call) -> int:
         help="Local UI host. Streamlit uses AGILAB's guarded localhost bind by default.",
     )
     parser.add_argument("--port", type=int, default=8501, help="Local UI port.")
-    parser.add_argument("--no-browser", action="store_true", help="Do not open external URLs.")
+    parser.add_argument(
+        "--no-browser", action="store_true", help="Do not open external URLs."
+    )
     parser.add_argument("--hf-url", default=None, help="Explicit hosted backend URL.")
-    parser.add_argument("--hf-space", default=None, help="Hosted Space ID, for example owner/agilab.")
+    parser.add_argument(
+        "--hf-space", default=None, help="Hosted Space ID, for example owner/agilab."
+    )
     args, extra_args = parser.parse_known_args(argv)
     if extra_args[:1] == ["--"]:
         extra_args = extra_args[1:]
@@ -422,14 +786,20 @@ def _run_app_surface(argv: list[str], *, runner=subprocess.call) -> int:
         if args.json:
             import json
 
-            print(json.dumps({"project": project_root.name, "surfaces": payload}, indent=2))
+            print(
+                json.dumps(
+                    {"project": project_root.name, "surfaces": payload}, indent=2
+                )
+            )
         else:
             for spec in payload:
                 default = " default" if spec.get("default") else ""
                 print(f"{spec['name']}\t{spec['backend']}{default}\t{spec['title']}")
         return 0
     if not specs:
-        raise SystemExit(f"agilab app surface: no app surface declared in {project_root}")
+        raise SystemExit(
+            f"agilab app surface: no app surface declared in {project_root}"
+        )
 
     selected = _APP_SURFACE_MODULE.select_app_surface_spec(project_root, name=args.ui)
     if selected is None:
@@ -445,7 +815,9 @@ def _run_app_surface(argv: list[str], *, runner=subprocess.call) -> int:
             or selected.url
         )
         if not url:
-            raise SystemExit(f"agilab app surface: surface {selected.name!r} has no URL.")
+            raise SystemExit(
+                f"agilab app surface: surface {selected.name!r} has no URL."
+            )
         url = _url_with_active_app_query(url, project_root.name)
         print(url)
         if not args.no_browser:
@@ -492,11 +864,25 @@ def _run_pytorch_playground(argv: list[str], *, runner=subprocess.call) -> int:
         default=os.environ.get("AGILAB_PYTORCH_PLAYGROUND_BACKEND", "local"),
         help="Launch locally through the app uv environment, or open the Hugging Face Space backend.",
     )
-    parser.add_argument("--host", default=None, help="Local Streamlit host. Defaults to AGILAB's guarded localhost bind.")
+    parser.add_argument(
+        "--host",
+        default=None,
+        help="Local Streamlit host. Defaults to AGILAB's guarded localhost bind.",
+    )
     parser.add_argument("--port", type=int, default=8501, help="Local Streamlit port.")
-    parser.add_argument("--no-browser", action="store_true", help="Do not open a browser for local or HF launch.")
-    parser.add_argument("--hf-url", default=None, help="Explicit Hugging Face runtime URL.")
-    parser.add_argument("--hf-space", default=None, help="Hugging Face Space ID, for example owner/agilab.")
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Do not open a browser for local or HF launch.",
+    )
+    parser.add_argument(
+        "--hf-url", default=None, help="Explicit Hugging Face runtime URL."
+    )
+    parser.add_argument(
+        "--hf-space",
+        default=None,
+        help="Hugging Face Space ID, for example owner/agilab.",
+    )
     args, extra_args = parser.parse_known_args(argv)
     if extra_args[:1] == ["--"]:
         extra_args = extra_args[1:]
@@ -599,6 +985,10 @@ def main(argv: list[str] | None = None) -> int:
         return _run_evidence_contract([command, *raw_argv[1:]])
     if raw_argv[:1] == ["workflow"]:
         return _run_workflow(raw_argv[1:])
+    if raw_argv[:1] == ["publish"]:
+        return _run_publish(raw_argv[1:])
+    if raw_argv[:1] == ["release"]:
+        return _run_release(raw_argv[1:])
     if raw_argv[:1] == ["env"]:
         return _run_env(raw_argv[1:])
     if raw_argv[:1] == ["app"]:
