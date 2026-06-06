@@ -20,16 +20,16 @@ related_pages = [
 
 [release]
 package_name = "agilab"
-package_version = "2026.06.04.2"
+package_version = "2026.06.05"
 package_extras = [
   "examples",
 ]
 pypi_url = "https://pypi.org/project/agilab/"
-github_release_tag = "v2026.06.04.2"
-github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04.2"
+github_release_tag = "v2026.06.05"
+github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.05"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
-hf_space_commit = "220cca275eeff324a54d5f1dc527efd52e05a317"
+hf_space_commit = "036ed47973311503bb06ec723936e504d2396471"
 dataset_release_tag = "datasets-2f602a17b4745f05"
 dataset_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/datasets-2f602a17b4745f05"
 dataset_manifest_sha256 = "2f602a17b4745f05cf3b2612d720675b7063cabf90164326a25bc080b2396a0f"
