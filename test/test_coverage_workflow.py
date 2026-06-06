@@ -10,6 +10,7 @@ WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
 CODECOV_CONFIG_PATH = Path("codecov.yml")
 AGI_ENV_COVERAGE_CONFIG = Path(".coveragerc.agi-env")
 SHARD_PLAN_PATH = Path("tools/coverage_shard_plan.py")
+CODECOV_UPLOADER_KEY_FINGERPRINT = "27034E7FDB850E0BBC2C62FF806BB28AED779869"
 
 
 def _workflow_text() -> str:
@@ -421,6 +422,35 @@ def test_codecov_uploads_are_blocking_coverage_publication_gates() -> None:
         assert "# v6" in block
         assert "continue-on-error: true" not in block
         assert "fail_ci_if_error: true" in block
+
+
+def test_codecov_uploads_import_verification_key_before_blocking_upload() -> None:
+    workflow_text = _workflow_text()
+    upload_steps = [
+        ("Import Codecov uploader key for agi-env", "Upload agi-env coverage to Codecov"),
+        ("Import Codecov uploader key for agi-node", "Upload agi-node coverage to Codecov"),
+        ("Import Codecov uploader key for agi-cluster", "Upload agi-cluster coverage to Codecov"),
+        ("Import Codecov uploader key for agi-gui", "Upload agi-gui coverage to Codecov"),
+        ("Import Codecov uploader key for agi-web", "Upload agi-web coverage to Codecov"),
+        ("Import Codecov uploader key for repo-wide upload", "Upload repo-wide agilab coverage to Codecov"),
+    ]
+
+    for import_step_name, upload_step_name in upload_steps:
+        import_marker = f"      - name: {import_step_name}"
+        upload_marker = f"      - name: {upload_step_name}"
+        assert workflow_text.index(import_marker) < workflow_text.index(upload_marker)
+
+        import_block = _step_block(import_step_name)
+        upload_block = _step_block(upload_step_name)
+        import_if_lines = [line.strip() for line in import_block.splitlines() if line.strip().startswith("if:")]
+        upload_if_lines = [line.strip() for line in upload_block.splitlines() if line.strip().startswith("if:")]
+
+        assert import_if_lines == upload_if_lines
+        assert "shell: bash" in import_block
+        assert "set -euo pipefail" in import_block
+        assert "https://uploader.codecov.io/verification.gpg" in import_block
+        assert "gpg --batch --import" in import_block
+        assert f"gpg --batch --list-keys {CODECOV_UPLOADER_KEY_FINGERPRINT}" in import_block
 
 
 def test_codecov_config_enforces_project_and_patch_coverage_floor() -> None:

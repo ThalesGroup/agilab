@@ -77,6 +77,14 @@ jobs:
           kill "$HEARTBEAT_PID" 2>/dev/null || true
           trap - EXIT
 
+      - name: Import Codecov uploader key for agi-env
+        if: always() && hashFiles('coverage-agi-env.xml') != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://uploader.codecov.io/verification.gpg | gpg --batch --import
+          gpg --batch --list-keys 27034E7FDB850E0BBC2C62FF806BB28AED779869 >/dev/null
+
       - name: Upload agi-env coverage to Codecov
         if: always() && hashFiles('coverage-agi-env.xml') != ''
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
@@ -175,6 +183,14 @@ jobs:
           kill "$HEARTBEAT_PID" 2>/dev/null || true
           trap - EXIT
 
+      - name: Import Codecov uploader key for agi-node
+        if: always() && hashFiles('coverage-agi-node.xml') != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://uploader.codecov.io/verification.gpg | gpg --batch --import
+          gpg --batch --list-keys 27034E7FDB850E0BBC2C62FF806BB28AED779869 >/dev/null
+
       - name: Upload agi-node coverage to Codecov
         if: always() && hashFiles('coverage-agi-node.xml') != ''
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
@@ -184,6 +200,14 @@ jobs:
           use_oidc: true
           verbose: true
           fail_ci_if_error: true
+
+      - name: Import Codecov uploader key for agi-cluster
+        if: always() && hashFiles('coverage-agi-cluster.xml') != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://uploader.codecov.io/verification.gpg | gpg --batch --import
+          gpg --batch --list-keys 27034E7FDB850E0BBC2C62FF806BB28AED779869 >/dev/null
 
       - name: Upload agi-cluster coverage to Codecov
         if: always() && hashFiles('coverage-agi-cluster.xml') != ''
@@ -356,6 +380,14 @@ jobs:
             --cov=agi_web --cov-report=xml:coverage-agi-web.xml \
             src/agilab/lib/agi-web/test
 
+      - name: Import Codecov uploader key for agi-web
+        if: always() && hashFiles('coverage-agi-web.xml') != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://uploader.codecov.io/verification.gpg | gpg --batch --import
+          gpg --batch --list-keys 27034E7FDB850E0BBC2C62FF806BB28AED779869 >/dev/null
+
       - name: Upload agi-web coverage to Codecov
         if: always() && hashFiles('coverage-agi-web.xml') != ''
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
@@ -490,6 +522,14 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Import Codecov uploader key for agi-gui
+        if: always() && hashFiles('coverage-agi-gui.xml') != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://uploader.codecov.io/verification.gpg | gpg --batch --import
+          gpg --batch --list-keys 27034E7FDB850E0BBC2C62FF806BB28AED779869 >/dev/null
+
       - name: Upload agi-gui coverage to Codecov
         if: always() && hashFiles('coverage-agi-gui.xml') != ''
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
@@ -538,6 +578,13 @@ jobs:
 
       - name: Verify committed badges are up to date
         run: git diff --exit-code -- badges/
+
+      - name: Import Codecov uploader key for repo-wide upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://uploader.codecov.io/verification.gpg | gpg --batch --import
+          gpg --batch --list-keys 27034E7FDB850E0BBC2C62FF806BB28AED779869 >/dev/null
 
       - name: Upload repo-wide agilab coverage to Codecov
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
