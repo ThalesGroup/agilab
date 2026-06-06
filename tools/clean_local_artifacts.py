@@ -57,7 +57,7 @@ def stale_build_lib_paths(root: Path) -> list[Path]:
 
 def _is_safe_build_lib_target(root: Path, target: Path) -> bool:
     resolved_root = root.resolve()
-    resolved_target = target.resolve(strict=False)
+    resolved_target = _resolve_clean_target_path(target)
     try:
         resolved_target.relative_to(resolved_root)
     except ValueError:
@@ -67,12 +67,29 @@ def _is_safe_build_lib_target(root: Path, target: Path) -> bool:
 
 def _is_safe_local_artifact_target(root: Path, target: Path) -> bool:
     resolved_root = root.resolve()
-    resolved_target = target.resolve(strict=False)
+    resolved_target = _resolve_clean_target_path(target)
     try:
         relative = resolved_target.relative_to(resolved_root)
     except ValueError:
         return False
     return len(relative.parts) >= 3 and relative.parts[:2] == ("src", "agilab") and target.name in LOCAL_ARTIFACT_DIR_NAMES
+
+
+def _resolve_clean_target_path(target: Path) -> Path:
+    """Resolve parent directories without following the final artifact symlink."""
+
+    if target.is_symlink():
+        return target.parent.resolve(strict=False) / target.name
+    return target.resolve(strict=False)
+
+
+def _remove_clean_target(target: Path) -> None:
+    """Remove an ignored artifact path without following final symlinks."""
+
+    if target.is_symlink() or target.is_file():
+        target.unlink()
+        return
+    shutil.rmtree(target)
 
 
 def _is_git_ignored(root: Path, target: Path) -> bool:
@@ -118,7 +135,7 @@ def clean_stale_build_libs(root: Path, *, apply: bool = False) -> list[CleanResu
         if not _is_safe_build_lib_target(root, target):
             raise RuntimeError(f"Refusing unsafe clean target: {target}")
         if apply:
-            shutil.rmtree(target)
+            _remove_clean_target(target)
             results.append(CleanResult(path=rel, action="removed", exists=True))
         else:
             results.append(CleanResult(path=rel, action="would-remove", exists=True))
@@ -134,7 +151,7 @@ def clean_ignored_local_artifacts(root: Path, *, apply: bool = False, ignored_fn
         if not _is_safe_local_artifact_target(root, target):
             raise RuntimeError(f"Refusing unsafe clean target: {target}")
         if apply:
-            shutil.rmtree(target)
+            _remove_clean_target(target)
             results.append(CleanResult(path=rel, action="removed", exists=True))
         else:
             results.append(CleanResult(path=rel, action="would-remove", exists=True))

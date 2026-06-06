@@ -2,8 +2,21 @@
 name = "flight_telemetry_project"
 version = "2026.05.30.post1"
 description = "Built-in AGILab example app (flight-telemetry preprocessing)"
+readme = "README.md"
 requires-python = ">=3.11"
+authors = [
+    { name = "Jean-Pierre Morard" }
+]
 dependencies = ["agi-env>=2026.05.31", "agi-node>=2026.05.31", "polars[rtcompat]>=1.35,<2", "pydantic>=2.11,<2.13", "py7zr>=1.1,<1.2", "streamlit>=1.58,<2"]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps/builtin/flight_telemetry_project"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 [tool.agilab]
 runtime_target = "flight_telemetry"

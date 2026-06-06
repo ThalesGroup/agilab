@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "tools" / "clean_local_artifacts.py"
@@ -96,3 +98,26 @@ def test_clean_ignored_local_artifacts_apply_removes_only_safe_targets(tmp_path:
     ]
     assert not target.exists()
     assert outside.exists()
+
+
+def test_clean_ignored_local_artifacts_apply_unlinks_safe_symlink_target(tmp_path: Path) -> None:
+    external_venv = tmp_path / "external-venv"
+    external_venv.mkdir()
+    target = tmp_path / "src/agilab/apps/builtin/demo_project/.venv"
+    target.parent.mkdir(parents=True)
+    try:
+        target.symlink_to(external_venv, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlink unavailable: {exc}")
+
+    results = clean_local_artifacts.clean_ignored_local_artifacts(
+        tmp_path,
+        apply=True,
+        ignored_fn=lambda _root, _target: True,
+    )
+
+    assert [result.path for result in results] == [
+        "src/agilab/apps/builtin/demo_project/.venv"
+    ]
+    assert not target.exists()
+    assert external_venv.exists()

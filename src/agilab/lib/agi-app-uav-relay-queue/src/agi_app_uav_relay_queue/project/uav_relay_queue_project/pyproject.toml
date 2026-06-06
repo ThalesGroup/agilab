@@ -1,9 +1,22 @@
 [project]
 name = "uav_relay_queue_project"
 version = "2026.05.30.post1"
-description = "Built-in AGILAB lightweight UAV relay queue example"
+description = "Built-in AGILAB UAV relay service training and queue policy app"
+readme = "README.md"
 requires-python = ">=3.13"
+authors = [
+    { name = "Jean-Pierre Morard" }
+]
 dependencies = ["agi-env>=2026.05.31", "agi-node>=2026.05.31", "networkx>=3.6.1,<4", "pandas>=2.3.0,<4", "pydantic>=2.11,<2.13", "simpy>=4.1,<5", "streamlit>=1.58,<2"]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps/builtin/uav_relay_queue_project"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 [tool.setuptools.package-data]
 uav_relay_queue = ["sample_data/*.json"]

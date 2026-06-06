@@ -111,7 +111,7 @@ into executable, portable, evidence-backed AI applications.
 
 ## Core Flow
 
-Notebook/script → AGILAB app → controlled execution → artifacts + evidence →
+Notebook/script -> AGILAB app -> controlled execution -> artifacts + evidence ->
 notebook / MLflow / UI handoff
 
 The flow is reversible where it matters for long-term reuse: WORKFLOW can export
