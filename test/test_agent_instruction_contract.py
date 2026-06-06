@@ -77,6 +77,25 @@ def test_contract_detects_missing_root_runbook_marker(tmp_path: Path) -> None:
     assert "no-fallbacks" in evidence_by_path["AGENTS.md"]["required_terms_missing"]
 
 
+def test_contract_detects_missing_compact_validation_marker(tmp_path: Path) -> None:
+    module = _load_module()
+    _write_minimal_contract_tree(module, tmp_path)
+    workflow = tmp_path / "tools" / "agent_workflows.md"
+    workflow.write_text(workflow.read_text(encoding="utf-8").replace("Validation passed.", ""), encoding="utf-8")
+
+    report = module.build_report(tmp_path)
+
+    assert report["status"] == "fail"
+    assert any(
+        issue["rule"] == "agent-instruction-required-term"
+        and issue["path"] == "tools/agent_workflows.md"
+        and "compact-validation" in issue["message"]
+        for issue in report["issues"]
+    )
+    evidence_by_path = {row["path"]: row for row in report["file_evidence"]}
+    assert "compact-validation" in evidence_by_path["tools/agent_workflows.md"]["required_terms_missing"]
+
+
 def test_contract_detects_missing_capability_command(tmp_path: Path) -> None:
     module = _load_module()
     _write_minimal_contract_tree(module, tmp_path)

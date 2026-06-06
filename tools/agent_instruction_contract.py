@@ -135,6 +135,7 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("full-runbook", "AGENTS.md"),
             RequiredTerm("capability-manifest", "agilab-capabilities.json"),
             RequiredTerm("agenticweb", "agenticweb.md"),
+            RequiredTerm("compact-validation", "Validation passed."),
         ),
     ),
     FileContract(
@@ -148,6 +149,7 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("full-runbook", "AGENTS.md"),
             RequiredTerm("capability-manifest", "agilab-capabilities.json"),
             RequiredTerm("agenticweb", "agenticweb.md"),
+            RequiredTerm("compact-validation", "Validation passed."),
         ),
     ),
 )
