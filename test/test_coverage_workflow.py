@@ -105,12 +105,14 @@ def test_coverage_push_trigger_is_path_filtered_for_cost_control() -> None:
         '"tools/coverage_timing_report.py"',
         '"tools/generate_component_coverage_badges.py"',
         '"tools/workflow_parity.py"',
+        '"badges/coverage-*.svg"',
         '"uv.lock"',
     ):
         assert path in trigger_block
     assert '"docs/**"' not in trigger_block
     assert '"README.md"' not in trigger_block
     assert '"badges/**"' not in trigger_block
+    assert '"badges/skills.svg"' not in trigger_block
 
 
 def test_agi_env_coverage_installs_streamlit_ui_dependency() -> None:
