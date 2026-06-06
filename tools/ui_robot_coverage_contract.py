@@ -90,6 +90,72 @@ REQUIRED_DEMO_PROOF_SCENARIOS = (
     "service-mode-preview-proof",
 )
 
+# Apps-pages whose content is asserted in the browser by a robot scenario. ``view_app_ui`` is
+# reached through the PyTorch analysis required-links contract; the rest are the HF first-proof
+# pages swept with seeded demo artifacts.
+BROWSER_ASSERTED_APPS_PAGES = REQUIRED_HF_FIRST_PROOF_PAGES + ("view_app_ui",)
+
+# The remaining public apps-pages render their meaningful content only after data-dependent
+# ``st.stop()`` guards pass, so the generic widget robot (which does not seed every view's
+# artifacts) deliberately performs render + Streamlit-exception checks only. Each entry names the
+# focused test that asserts the view's content against seeded fixtures. ``evaluate_contract``
+# enforces that every public view is either browser-asserted or listed here with a test that
+# exists, so a new view cannot ship with zero coverage and a dropped focused test is caught.
+APPS_PAGE_RENDER_ONLY_DISPOSITIONS: dict[str, tuple[str, str]] = {
+    "view_autoencoder_latentspace": (
+        "latent-space plots render only with a trained autoencoder artifact",
+        "test/test_view_autoencoder_latentspace.py",
+    ),
+    "view_barycentric": (
+        "barycentric projection renders only with seeded routing artifacts",
+        "test/test_view_barycentric.py",
+    ),
+    "view_data_io_decision": (
+        "decision panels render only after the artifact directory and pipeline exist",
+        "test/test_view_data_io_decision.py",
+    ),
+    "view_inference_analysis": (
+        "diagnostics render only when an active project and inference runs are passed in",
+        "test/test_view_inference_analysis.py",
+    ),
+    "view_live_artifacts": (
+        "manifest candidates render only when live artifacts are present",
+        "test/test_view_live_artifacts.py",
+    ),
+    "view_maps_3d": (
+        "3D map renders only with seeded geospatial artifacts",
+        "test/test_view_maps_3d.py",
+    ),
+    "view_maps_network": (
+        "network topology renders only after seeded relay artifacts pass the data guards",
+        "test/test_view_maps_network.py",
+    ),
+    "view_queue_resilience": (
+        "queue occupancy plots render only after the artifact directory guards pass",
+        "test/test_view_queue_resilience.py",
+    ),
+    "view_relay_resilience": (
+        "run comparison renders only after seeded relay artifacts pass the data guards",
+        "test/test_view_relay_resilience.py",
+    ),
+    "view_routing_model_comparison": (
+        "model summary renders only with seeded routing comparison artifacts",
+        "test/test_view_routing_model_comparison.py",
+    ),
+    "view_scenario_cockpit": (
+        "scenario comparison renders only after the artifact directory guards pass",
+        "test/test_view_scenario_cockpit.py",
+    ),
+    "view_shap_explanation": (
+        "feature attributions render only with a seeded SHAP explanation artifact",
+        "test/test_view_shap_explanation.py",
+    ),
+    "view_training_analysis": (
+        "scalar/training plots render only with seeded training-run artifacts",
+        "test/test_view_training_analysis.py",
+    ),
+}
+
 
 @dataclass(frozen=True)
 class CoverageIssue:
@@ -172,6 +238,49 @@ def _argv_value(argv: Sequence[str], option: str) -> str:
 
 def _argv_values(argv: Sequence[str], option: str) -> list[str]:
     return [argv[index + 1] for index, value in enumerate(argv[:-1]) if value == option]
+
+
+def apps_page_coverage_issues(public_views: Sequence[str]) -> list[CoverageIssue]:
+    """Every public apps-page must be browser-asserted or carry a render-only disposition whose
+    focused test exists; stale dispositions for removed views are also flagged."""
+    issues: list[CoverageIssue] = []
+    classified = set(BROWSER_ASSERTED_APPS_PAGES) | set(APPS_PAGE_RENDER_ONLY_DISPOSITIONS)
+    for view in sorted(set(public_views)):
+        if view in BROWSER_ASSERTED_APPS_PAGES:
+            continue
+        disposition = APPS_PAGE_RENDER_ONLY_DISPOSITIONS.get(view)
+        if disposition is None:
+            issues.append(
+                CoverageIssue(
+                    "apps_page_coverage",
+                    f"{view} is neither browser-asserted nor given a render-only disposition with a focused test",
+                )
+            )
+            continue
+        reason, focused_test = disposition
+        if not reason.strip():
+            issues.append(
+                CoverageIssue("apps_page_coverage", f"{view} render-only disposition needs a non-empty reason")
+            )
+        focused_path = Path(focused_test)
+        if not focused_path.is_absolute():
+            focused_path = REPO_ROOT / focused_path
+        if not focused_path.is_file():
+            issues.append(
+                CoverageIssue(
+                    "apps_page_coverage",
+                    f"{view} render-only disposition references a focused test that does not exist: {focused_test}",
+                )
+            )
+    stale = sorted(classified - set(public_views))
+    if stale:
+        issues.append(
+            CoverageIssue(
+                "apps_page_coverage",
+                "apps-page dispositions reference views that no longer exist: " + ", ".join(stale),
+            )
+        )
+    return issues
 
 
 def evaluate_contract() -> dict[str, Any]:
@@ -296,6 +405,9 @@ def evaluate_contract() -> dict[str, Any]:
                 "first-proof HF profile is missing public demo pages: " + ", ".join(missing_hf_pages),
             )
         )
+
+    public_apps_pages = sorted({route.name for route in widget_robot.public_apps_pages()})
+    issues.extend(apps_page_coverage_issues(public_apps_pages))
 
     scenario_by_name = {scenario.name: scenario for scenario in all_scenarios}
     hf_robot_scenarios: dict[str, dict[str, list[str]]] = {}

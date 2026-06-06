@@ -41,7 +41,7 @@ selections and notebook selections are stored separately.
 Page snapshot
 -------------
 
-.. figure:: _static/page-shots/analysis-page.png
+.. figure:: _static/page-shots/analysis-page.svg
    :alt: Screenshot of the ANALYSIS page showing discovered views and per-project selection.
    :align: center
    :class: diagram-panel diagram-wide

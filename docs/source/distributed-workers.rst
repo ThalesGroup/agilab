@@ -98,7 +98,7 @@ a per-user cluster-share path instead of a common writable directory shared by
 multiple operators. Generated snippets remain under the local ``AGI_LOG_DIR``
 workspace.
 
-.. figure:: _static/page-shots/orchestrate-page.png
+.. figure:: _static/page-shots/orchestrate-page.svg
    :alt: Screenshot of the ORCHESTRATE page showing deployment toggles and generated setup code.
    :align: center
    :class: diagram-panel diagram-wide
@@ -288,7 +288,7 @@ Important: imported snippets are snapshots. If you change worker hosts,
 execution flags, or app arguments in ORCHESTRATE, regenerate or re-import the
 snippet before running it again in WORKFLOW.
 
-.. figure:: _static/page-shots/workflow-page.png
+.. figure:: _static/page-shots/workflow-page.svg
    :alt: Screenshot of the WORKFLOW page showing the lab-stage workspace where generated snippets are imported and rerun.
    :align: center
    :class: diagram-panel diagram-wide

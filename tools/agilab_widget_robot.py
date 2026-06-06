@@ -59,6 +59,14 @@ PAGE_READY_POLL_MS = 150
 PAGE_READY_STABILIZE_MS = 100
 WIDGET_READY_POLL_MS = 150
 ACTION_OUTCOME_POLL_MS = 100
+# Short Playwright timeouts for "is it on screen right now?" probes that run inside polling
+# loops. They must stay small so a missing element does not stall the loop for seconds.
+LOCATOR_VISIBILITY_TIMEOUT_MS = 500
+BODY_TEXT_PROBE_TIMEOUT_MS = 1000
+# Substring (lower-cased) of the AGILAB boot spinner copy rendered by
+# ``st.spinner("Initializing environment...")`` in src/agilab/main_page.py. Readiness detection
+# keys off this text, so keep it in sync if that copy changes.
+INITIALIZING_ENV_TEXT = "initializing environment"
 ACTION_MIN_OBSERVATION_SECONDS = 1.0
 DEFAULT_TARGET_SECONDS = 1800.0
 DEFAULT_VIEWPORT_WIDTH = 1440
@@ -1815,23 +1823,38 @@ def _any_visible_locator(locator: Any, *, timeout_ms: float = 100.0, limit: int 
     try:
         count = locator.count()
     except Exception:
+        logger.debug("_any_visible_locator: count() failed; treating as not visible", exc_info=True)
         return False
     for index in range(min(count, limit)):
         try:
             if locator.nth(index).is_visible(timeout=timeout_ms):
                 return True
         except Exception:
+            logger.debug("_any_visible_locator: is_visible() failed at index %d", index, exc_info=True)
             continue
     return False
 
 
 def _initializing_environment_visible(page: Any) -> bool:
+    # The boot spinner renders inside the Streamlit stSpinner testid; scope the text match to it
+    # so the check stays tied to the real element rather than scanning arbitrary body copy.
     try:
-        locator = page.get_by_text(re.compile("initializing environment", re.IGNORECASE))
+        spinner = page.locator("[data-testid='stSpinner']").get_by_text(
+            re.compile(INITIALIZING_ENV_TEXT, re.IGNORECASE)
+        )
+        if _any_visible_locator(spinner):
+            return True
     except Exception:
+        logger.debug("_initializing_environment_visible: scoped spinner probe failed", exc_info=True)
+    try:
+        locator = page.get_by_text(re.compile(INITIALIZING_ENV_TEXT, re.IGNORECASE))
+    except Exception:
+        logger.debug("_initializing_environment_visible: get_by_text failed; falling back to body text", exc_info=True)
         try:
-            return "initializing environment" in page.locator("body").inner_text(timeout=1000).lower()
+            body_text = page.locator("body").inner_text(timeout=BODY_TEXT_PROBE_TIMEOUT_MS).lower()
+            return INITIALIZING_ENV_TEXT in body_text
         except Exception:
+            logger.debug("_initializing_environment_visible: body text probe failed", exc_info=True)
             return False
     return _any_visible_locator(locator)
 
@@ -1842,6 +1865,7 @@ def wait_for_page_ready(page: Any, *, timeout_ms: float) -> None:  # pragma: no 
         try:
             spinner_visible = _any_visible_locator(page.locator("[data-testid='stSpinner']"))
         except Exception:
+            logger.debug("wait_for_page_ready: spinner probe failed; assuming not visible", exc_info=True)
             spinner_visible = False
         if not spinner_visible and not _initializing_environment_visible(page):
             page.wait_for_timeout(PAGE_READY_STABILIZE_MS)
@@ -1859,6 +1883,9 @@ def wait_for_widgets_ready(page: Any, *, page_name: str, timeout_ms: float) -> i
             page.evaluate(OPEN_EXPANDERS_JS)
             count = len(page.evaluate(WIDGET_COLLECTOR_JS))
         except Exception:
+            # A persistent failure here (e.g. the widget collector JS throwing every poll) would
+            # otherwise surface downstream as a confusing "0 widgets" timeout; log the root cause.
+            logger.debug("wait_for_widgets_ready: widget collection failed for %s", page_name, exc_info=True)
             count = 0
         if count >= minimum and count == last_count:
             stable_seen += 1
@@ -2267,7 +2294,7 @@ def _capture_failure_bundle_screenshot(  # pragma: no cover - live browser path
 
 def _page_text_snapshot(page: Any) -> tuple[str, str | None]:  # pragma: no cover - live browser path
     try:
-        text = page.locator("body").inner_text(timeout=1000)
+        text = page.locator("body").inner_text(timeout=BODY_TEXT_PROBE_TIMEOUT_MS)
     except Exception as exc:
         return "", _short_detail(str(exc))
     return _limited_text(text), None
@@ -3390,7 +3417,7 @@ def _button_locator_by_label(page: Any, label: str) -> Any | None:  # pragma: no
     for index in range(min(count, 20)):
         try:
             candidate = locator.nth(index)
-            if candidate.is_visible(timeout=500):
+            if candidate.is_visible(timeout=LOCATOR_VISIBILITY_TIMEOUT_MS):
                 return candidate
         except Exception:
             logger.debug("Unable to inspect button candidate %s for label %r", index, label, exc_info=True)
@@ -3533,8 +3560,11 @@ def _visible_exception_detail(page: Any) -> str | None:  # pragma: no cover - li
     """Backward-compatible alias for older tests and call sites."""
     try:
         exceptions = page.locator("[data-testid='stException']")
-        if exceptions.count() > 0 and exceptions.first.is_visible(timeout=500):
-            return _short_detail(exceptions.first.inner_text(timeout=500) or "Streamlit exception rendered")
+        if exceptions.count() > 0 and exceptions.first.is_visible(timeout=LOCATOR_VISIBILITY_TIMEOUT_MS):
+            return _short_detail(
+                exceptions.first.inner_text(timeout=LOCATOR_VISIBILITY_TIMEOUT_MS)
+                or "Streamlit exception rendered"
+            )
     except Exception:
         logger.debug("Unable to inspect rendered Streamlit exception", exc_info=True)
     return _visible_streamlit_issue_detail(page)

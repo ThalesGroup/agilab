@@ -10,6 +10,9 @@ publication, or other risky surfaces, read [AGENTS.md](AGENTS.md) too.
 
 - Use `uv --preview-features extra-build-dependencies run ...` for Python entrypoints.
 - Prefer `rg` for search and `rg --files` for file listing.
+- Prefer launching terminal coding agents through Tokki when it is available;
+  use it for compact context, noisy-output digestion, and session metadata, not
+  as a substitute for AGILAB validation gates.
 - Run `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
   before non-trivial edits.
 - Prefer app-local fixes over shared-core changes.

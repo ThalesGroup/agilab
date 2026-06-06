@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 850" role="img" aria-labelledby="title desc">
+<title id="title">AGILAB core pages overview vector screenshot summary</title>
+<desc id="desc">Screenshot-derived SVG summary generated from core-pages-overview.png, sha256 c864b5b14e3bf92f. The PNG remains the canonical raster evidence.</desc>
+<defs><linearGradient id="panelGradient" x1="0" x2="1"><stop offset="0" stop-color="#1f2c2f"/><stop offset="0.55" stop-color="#0f3033"/><stop offset="1" stop-color="#243b24"/></linearGradient></defs>
+<rect x="0" y="0" width="1440" height="850" rx="0" fill="#07111f"/>
+<rect x="0" y="0" width="300" height="850" rx="0" fill="#10293b"/>
+<text x="20" y="46" font-size="26" font-weight="700" fill="#c9d3d7" text-anchor="start">AGI Lab</text>
+<text x="28" y="94" font-size="14" font-weight="500" fill="#d6dde0" text-anchor="start">PROJECT</text>
+<text x="28" y="128" font-size="14" font-weight="500" fill="#d6dde0" text-anchor="start">ORCHESTRATE</text>
+<text x="28" y="162" font-size="14" font-weight="500" fill="#d6dde0" text-anchor="start">WORKFLOW</text>
+<text x="28" y="196" font-size="14" font-weight="500" fill="#d6dde0" text-anchor="start">ANALYSIS</text>
+<line x1="20" y1="230" x2="280" y2="230" stroke="#4e6572" stroke-width="1" opacity="0.75"/>
+<rect x="20" y="318" width="260" height="40" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
+<text x="56" y="344" font-size="14" font-weight="600" fill="#f7f7f2" text-anchor="start">Quick actions</text>
+<rect x="20" y="374" width="260" height="40" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
+<text x="56" y="400" font-size="14" font-weight="600" fill="#f7f7f2" text-anchor="start">agi-app</text>
+<rect x="20" y="430" width="260" height="40" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
+<text x="56" y="456" font-size="14" font-weight="600" fill="#f7f7f2" text-anchor="start">Reviewed</text>
+<text x="16" y="830" font-size="12" font-weight="400" fill="#b9c5ca" text-anchor="start">AGILAB v2026.06.02</text>
+<text x="1340" y="34" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Deploy</text>
+<rect x="380" y="104" width="980" height="292" rx="20" fill="url(#panelGradient)" stroke="#4f6471" stroke-width="1"/>
+<line x1="400" y1="134" x2="1328" y2="134" stroke="#cda759" stroke-width="1" opacity="0.8"/>
+<text x="408" y="162" font-size="34" font-weight="800" fill="#f7f7f2"><tspan x="408" dy="0">Turn experiments into</tspan><tspan x="408" dy="40">evidence-backed apps.</tspan></text>
+<text x="408" y="258" font-size="18" font-weight="400" fill="#aeb9bd"><tspan x="408" dy="0">Import, execute, prove, export</tspan></text>
+<rect x="408" y="318" width="78" height="36" rx="18" fill="#12273a" stroke="#4f6471" stroke-width="1"/>
+<text x="447" y="341" font-size="13" font-weight="700" fill="#f7f7f2" text-anchor="middle">Import</text>
+<rect x="496" y="318" width="78" height="36" rx="18" fill="#12273a" stroke="#4f6471" stroke-width="1"/>
+<text x="535" y="341" font-size="13" font-weight="700" fill="#f7f7f2" text-anchor="middle">Execute</text>
+<rect x="584" y="318" width="78" height="36" rx="18" fill="#12273a" stroke="#4f6471" stroke-width="1"/>
+<text x="623" y="341" font-size="13" font-weight="700" fill="#f7f7f2" text-anchor="middle">Prove</text>
+<rect x="672" y="318" width="78" height="36" rx="18" fill="#12273a" stroke="#4f6471" stroke-width="1"/>
+<text x="711" y="341" font-size="13" font-weight="700" fill="#f7f7f2" text-anchor="middle">Export</text>
+<rect x="822" y="248" width="508" height="190" rx="18" fill="#2a3f40" stroke="#4f6471" stroke-width="1" opacity="0.92"/>
+<text x="1076" y="282" font-size="13" font-weight="800" fill="#f7f7f2" text-anchor="middle">DIGITAL TWIN MAP</text>
+<circle cx="934" cy="388" r="66" fill="#293b3d" stroke="#7f8b8e"/>
+<circle cx="934" cy="388" r="34" fill="none" stroke="#f45d52" stroke-dasharray="6 6"/>
+<circle cx="934" cy="388" r="16" fill="#4fbf9f" opacity="0.85"/>
+<line x1="952" y1="380" x2="1030" y2="326" stroke="#f4b44d" stroke-width="3"/>
+<line x1="950" y1="394" x2="1024" y2="372" stroke="#7ee6c6" stroke-width="3"/>
+<rect x="1156" y="332" width="140" height="36" rx="8" fill="#1b3030" stroke="#4f6471" stroke-width="1"/>
+<text x="1170" y="355" font-size="12" font-weight="800" fill="#f7f7f2" text-anchor="start">Controls</text>
+<rect x="1156" y="386" width="140" height="36" rx="8" fill="#1b3030" stroke="#4f6471" stroke-width="1"/>
+<text x="1170" y="409" font-size="12" font-weight="800" fill="#f7f7f2" text-anchor="start">Symptoms</text>
+<rect x="1156" y="440" width="140" height="36" rx="8" fill="#1b3030" stroke="#4f6471" stroke-width="1"/>
+<text x="1170" y="463" font-size="12" font-weight="800" fill="#f7f7f2" text-anchor="start">Diagnosis</text>
+<rect x="380" y="628" width="124" height="40" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
+<text x="442" y="653" font-size="13" font-weight="700" fill="#f7f7f2" text-anchor="middle">1. INSTALL demo</text>
+<text x="380" y="718" font-size="13" font-weight="400" fill="#aeb9bd"><tspan x="380" dy="0">Runs ORCHESTRATE install</tspan></text>
+<rect x="712" y="628" width="124" height="40" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
+<text x="774" y="653" font-size="13" font-weight="700" fill="#f7f7f2" text-anchor="middle">2. EXECUTE demo</text>
+<text x="712" y="718" font-size="13" font-weight="400" fill="#aeb9bd"><tspan x="712" dy="0">Runs ORCHESTRATE execute</tspan></text>
+<rect x="1044" y="628" width="124" height="40" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
+<text x="1106" y="653" font-size="13" font-weight="700" fill="#f7f7f2" text-anchor="middle">3. OPEN ANALYSIS</text>
+<text x="1044" y="718" font-size="13" font-weight="400" fill="#aeb9bd"><tspan x="1044" dy="0">Opens ANALYSIS evidence</tspan></text>
+</svg>

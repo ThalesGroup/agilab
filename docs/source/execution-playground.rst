@@ -33,7 +33,7 @@ The two apps are run through the normal AGILAB pages. The benchmark value comes
 from the fact that the same UI flow can drive two different worker families
 without changing the orchestration path.
 
-.. figure:: _static/page-shots/orchestrate-page.png
+.. figure:: _static/page-shots/orchestrate-page.svg
    :alt: ORCHESTRATE page showing deployment toggles and generated execution setup
    :align: center
    :class: page-shot

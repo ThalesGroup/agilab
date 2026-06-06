@@ -50,3 +50,7 @@ is not a scratchpad or task log.
   step after its safety gate, report the result, and provide the next
   recommendation without requiring a second user round trip unless a real
   blocker needs input.
+- When asked for token-saving or workflow-saving tactics and a repo-local
+  default is clear, do not end with a broad clarification menu. State the
+  assumed target, choose the highest-leverage applicable mechanism, and either
+  implement it or name the exact blocker that prevents implementation.

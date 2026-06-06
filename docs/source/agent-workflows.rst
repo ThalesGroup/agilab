@@ -78,6 +78,13 @@ Then follow the repo rules in:
   validation feedback
 - ``AGENTS.md`` for the full AGILAB runbook and validation rules
 
+When coding through a terminal agent, AGILAB recommends launching that agent
+through Tokki when it is available. Tokki keeps context compact, digests noisy
+terminal output, records session metadata, and exposes token-savings evidence.
+It is an efficiency and observability layer for agent sessions; the AGILAB
+validation source of truth remains ``tools/impact_validate.py``, ``./dev``, and
+the workflow-parity profiles.
+
 The main rule is simple: run the narrowest local proof first, then reproduce
 the real AGILAB path before broader validation.
 
