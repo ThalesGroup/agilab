@@ -38,7 +38,7 @@
 <text x="150" y="894" font-size="13" font-weight="500" fill="#58a6ff" text-anchor="middle"></text>
 <rect x="20" y="926" width="260" height="74" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
 <text x="38" y="954" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Create</text>
-<text x="16" y="980" font-size="12" font-weight="400" fill="#b9c5ca" text-anchor="start">AGILAB v2026.06.02</text>
+<text x="16" y="980" font-size="12" font-weight="400" fill="#b9c5ca" text-anchor="start">AGILAB v2026.06.02+dev.95dee1cf7</text>
 <text x="1340" y="34" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Deploy</text>
 <text x="380" y="162" font-size="34" font-weight="800" fill="#f7f7f2" text-anchor="start">Create project</text>
 <text x="380" y="202" font-size="14" font-weight="400" fill="#aeb9bd" text-anchor="start">Create a new project from an existing template.</text>
