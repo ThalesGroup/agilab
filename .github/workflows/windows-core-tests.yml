@@ -69,7 +69,7 @@ jobs:
             --with pytest-cov `
             python -m pytest -q --disable-warnings -o addopts='' --import-mode=importlib `
             --junitxml test-results/windows-core-tests.xml `
-            src/agilab/core/test src/agilab/core/agi-env/test `
+            src/agilab/core/test src/agilab/core/agi-env/test src/agilab/core/agi-cluster/test `
             2>&1 | Tee-Object -FilePath test-results/windows-core-tests.txt
           $exitCode = $LASTEXITCODE
           if ($exitCode -ne 0) {

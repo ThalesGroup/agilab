@@ -147,7 +147,7 @@ jobs:
             python -m coverage run --data-file=.coverage.agi-core-combined \
             --source=agi_node,agi_cluster \
             -m pytest -q --maxfail=1 --disable-warnings -o addopts='' --import-mode=importlib \
-            src/agilab/core/test
+            src/agilab/core/test src/agilab/core/agi-cluster/test
           uv run --no-project \
             --with-editable ./src/agilab/core/agi-env \
             --with-editable ./src/agilab/core/agi-node \

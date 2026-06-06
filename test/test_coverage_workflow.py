@@ -7,6 +7,7 @@ import sys
 
 
 WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
+CODECOV_CONFIG_PATH = Path("codecov.yml")
 AGI_ENV_COVERAGE_CONFIG = Path(".coveragerc.agi-env")
 SHARD_PLAN_PATH = Path("tools/coverage_shard_plan.py")
 
@@ -74,6 +75,7 @@ def test_core_coverage_runs_shared_core_suite_once_for_node_and_cluster() -> Non
     assert "Run agi-node + agi-cluster coverage" in workflow_text
     assert "--source=agi_node,agi_cluster" in workflow_text
     assert workflow_text.count("src/agilab/core/test") == 1
+    assert workflow_text.count("src/agilab/core/agi-cluster/test") == 1
     assert "coverage-agi-node.xml" in workflow_text
     assert "coverage-agi-cluster.xml" in workflow_text
     assert "      - agi-core" in workflow_text
@@ -419,6 +421,24 @@ def test_codecov_uploads_are_blocking_coverage_publication_gates() -> None:
         assert "# v6" in block
         assert "continue-on-error: true" not in block
         assert "fail_ci_if_error: true" in block
+
+
+def test_codecov_config_enforces_project_and_patch_coverage_floor() -> None:
+    config_text = CODECOV_CONFIG_PATH.read_text(encoding="utf-8")
+
+    assert re.search(
+        r"coverage:\n"
+        r"  status:\n"
+        r"    project:\n"
+        r"      default:\n"
+        r"        target: 95%\n"
+        r"        threshold: 1%\n"
+        r"    patch:\n"
+        r"      default:\n"
+        r"        target: 75%\n"
+        r"        threshold: 5%",
+        config_text,
+    )
 
 
 def test_coverage_artifacts_have_short_retention_for_cost_control() -> None:

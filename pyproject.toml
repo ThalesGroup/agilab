@@ -520,6 +520,7 @@ format = "google"
 testpaths = [
   "test",
   "src/agilab/core/test",
+  "src/agilab/core/agi-cluster/test",
   "src/agilab/core/agi-env/test",
   "src/agilab/lib/agi-gui/test",
   "src/agilab/lib/agi-web/test",

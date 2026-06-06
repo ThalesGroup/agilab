@@ -981,6 +981,7 @@ def _agi_core_combined_profile() -> list[CommandSpec]:
                 "addopts=",
                 "--import-mode=importlib",
                 "src/agilab/core/test",
+                "src/agilab/core/agi-cluster/test",
             ],
             timeout_seconds=20 * 60,
             remove_paths=[
@@ -1055,6 +1056,7 @@ def _agi_cluster_profile() -> list[CommandSpec]:
                 "--cov=agi_cluster",
                 "--cov-report=xml:coverage-agi-cluster.xml",
                 "src/agilab/core/test",
+                "src/agilab/core/agi-cluster/test",
             ],
             env={"COVERAGE_FILE": ".coverage.agi-cluster"},
             timeout_seconds=20 * 60,
