@@ -1,5 +1,5 @@
 [project]
-version = "2026.06.05"
+version = "2026.06.06"
 name = "agi-core"
 description = "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together"
 readme = "README.md"
@@ -30,7 +30,7 @@ keywords = [
   "distributed-computing",
   "distributed-execution",
 ]
-dependencies = ["agi-env==2026.06.04", "agi-node==2026.06.04", "agi-cluster==2026.06.05"]
+dependencies = ["agi-env==2026.06.04", "agi-node==2026.06.06", "agi-cluster==2026.06.06"]
 
 [project.entry-points."agi_env.runtime_packages"]
 agi-core = "agi_core.agi_env_runtime:RUNTIME_PACKAGE_SPEC"

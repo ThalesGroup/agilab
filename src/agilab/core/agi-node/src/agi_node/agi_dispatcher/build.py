@@ -441,7 +441,7 @@ def _purge_top_level_ui_build_artifacts(app_root: Path, *, log: logging.Logger |
     return removed
 
 
-def _build_remove_decorators_command(worker_path: str) -> list[str]:
+def _build_remove_decorators_command(worker_path: str | Path) -> list[str]:
     return [
         "uv",
         "-q",
@@ -451,7 +451,7 @@ def _build_remove_decorators_command(worker_path: str) -> list[str]:
         "agi_node.agi_dispatcher.pre_install",
         "remove_decorators",
         "--worker_path",
-        worker_path,
+        str(worker_path),
         "--verbose",
     ]
 
