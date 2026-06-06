@@ -2111,12 +2111,18 @@ def test_build_setuptools_argv_handles_relative_and_absolute_out_arg(tmp_path):
         out_arg=str(tmp_path / "external" / "demo_worker"),
     )
 
-    assert relative_argv == ["build.py", "build_ext", "-b", tmp_path / "home" / "exports" / "dist"]
+    assert all(isinstance(arg, str) for arg in relative_argv + absolute_argv)
+    assert relative_argv == [
+        "build.py",
+        "build_ext",
+        "-b",
+        str(tmp_path / "home" / "exports" / "dist"),
+    ]
     assert absolute_argv == [
         "build.py",
         "bdist_egg",
         "-d",
-        tmp_path / "external" / "demo_worker" / "dist",
+        str(tmp_path / "external" / "demo_worker" / "dist"),
     ]
 
 

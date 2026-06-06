@@ -15,6 +15,7 @@ from zipfile import ZipFile
 import argparse
 import logging
 import subprocess
+import warnings
 from collections.abc import Mapping
 
 try:
@@ -24,8 +25,8 @@ except ImportError:  # pragma: no cover - script execution fallback
 
 bootstrap_core_source_paths(source_file=__file__)
 
-from setuptools import setup, find_packages, Extension, SetuptoolsDeprecationWarning
-from Cython.Build import cythonize
+from setuptools import setup, find_packages, Extension, SetuptoolsDeprecationWarning  # noqa: E402
+from Cython.Build import cythonize  # noqa: E402
 
 
 def _inject_shared_site_packages(*, source_file: str | Path = __file__) -> None:
@@ -34,11 +35,11 @@ def _inject_shared_site_packages(*, source_file: str | Path = __file__) -> None:
 
 _inject_shared_site_packages()
 
-from agi_env import AgiEnv
-import warnings
+from agi_env import AgiEnv  # noqa: E402
+
 warnings.filterwarnings("ignore", category=SetuptoolsDeprecationWarning)
 
-from agi_env.agi_logger import AgiLogger
+from agi_env.agi_logger import AgiLogger  # noqa: E402
 
 logger = AgiLogger.get_logger(__name__)
 
@@ -581,9 +582,10 @@ def _build_setuptools_argv(
     command: str,
     home_abs: str | Path,
     out_arg: str,
-) -> list[object]:
+) -> list[str]:
     flag = "-b" if command == "build_ext" else "-d"
-    return [prog_name, command, flag, Path(home_abs) / out_arg / "dist"]
+    output_dir = Path(home_abs) / out_arg / "dist"
+    return [prog_name, command, flag, str(output_dir)]
 
 
 def _ensure_build_readme(readme_path: Path | str = "README.md") -> Path:
@@ -906,6 +908,9 @@ def _prepare_main_execution(
     prepare_setup_artifacts_fn=None,
     set_argv_fn=None,
 ) -> tuple[object, str, str, list, list[Path]]:
+    def _set_sys_argv(argv: list[str]) -> None:
+        sys.argv = argv
+
     if build_env_cls is None:
         build_env_cls = AgiEnv
     if resolve_build_output_fn is None:
@@ -917,7 +922,7 @@ def _prepare_main_execution(
     if prepare_setup_artifacts_fn is None:
         prepare_setup_artifacts_fn = _prepare_setup_artifacts
     if set_argv_fn is None:
-        set_argv_fn = lambda argv: setattr(sys, "argv", argv)
+        set_argv_fn = _set_sys_argv
 
     verbose = 0 if quiet else 2
     env = build_env_cls(
@@ -933,14 +938,13 @@ def _prepare_main_execution(
     if cmd == "build_ext":
         prepare_build_ext_command_fn(env=env, build_dir=build_dir)
 
-    set_argv_fn(
-        build_setuptools_argv_fn(
-            prog_name=prog_name,
-            command=cmd,
-            home_abs=env.home_abs,
-            out_arg=out_arg,
-        )
+    setup_argv = build_setuptools_argv_fn(
+        prog_name=prog_name,
+        command=cmd,
+        home_abs=env.home_abs,
+        out_arg=out_arg,
     )
+    set_argv_fn([str(value) for value in setup_argv])
 
     worker_module = target_module + "_worker"
     ext_modules, links_created = prepare_setup_artifacts_fn(

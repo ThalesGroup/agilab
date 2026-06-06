@@ -304,16 +304,36 @@ def test_prepare_main_execution_orchestrates_build_ext_runtime(tmp_path):
         remaining_args=["--quiet"],
         packages=["pkg_a"],
         build_env_cls=DummyEnv,
-        resolve_build_output_fn=lambda outdir, home_abs: (Path(outdir), "exports/demo_worker", "demo_worker"),
+        resolve_build_output_fn=lambda outdir, home_abs: (
+            Path(outdir),
+            "exports/demo_worker",
+            "demo_worker",
+        ),
         prepare_build_ext_command_fn=lambda **kwargs: preflight_calls.append(kwargs),
-        build_setuptools_argv_fn=lambda **kwargs: ["build.py", "build_ext", "-b", Path(kwargs["home_abs"]) / "exports/demo_worker" / "dist"],
-        prepare_setup_artifacts_fn=lambda **kwargs: (artifact_calls.append(kwargs) or (["ext_mod"], [tmp_path / "pkg_a"])),
+        build_setuptools_argv_fn=lambda **kwargs: [
+            "build.py",
+            "build_ext",
+            "-b",
+            Path(kwargs["home_abs"]) / "exports/demo_worker" / "dist",
+        ],
+        prepare_setup_artifacts_fn=lambda **kwargs: (
+            artifact_calls.append(kwargs) or (["ext_mod"], [tmp_path / "pkg_a"])
+        ),
         set_argv_fn=lambda argv: argv_calls.append(argv),
     )
 
     assert build_env_inits == [(active_app, 2)]
-    assert preflight_calls == [{"env": env, "build_dir": str(tmp_path / "exports" / "demo_worker")}]
-    assert argv_calls == [["build.py", "build_ext", "-b", tmp_path / "home" / "exports/demo_worker" / "dist"]]
+    assert preflight_calls == [
+        {"env": env, "build_dir": str(tmp_path / "exports" / "demo_worker")}
+    ]
+    assert argv_calls == [
+        [
+            "build.py",
+            "build_ext",
+            "-b",
+            str(tmp_path / "home" / "exports/demo_worker" / "dist"),
+        ]
+    ]
     assert out_arg == "exports/demo_worker"
     assert worker_module == "demo_worker_worker"
     assert ext_modules == ["ext_mod"]
@@ -356,13 +376,25 @@ def test_prepare_main_execution_skips_build_ext_preflight_for_bdist_egg(tmp_path
         build_env_cls=DummyEnv,
         resolve_build_output_fn=lambda outdir, home_abs: (Path(outdir), "dist-out", "demo"),
         prepare_build_ext_command_fn=lambda **kwargs: preflight_calls.append(kwargs),
-        build_setuptools_argv_fn=lambda **kwargs: ["build.py", "bdist_egg", "-d", Path(kwargs["home_abs"]) / "dist-out" / "dist"],
+        build_setuptools_argv_fn=lambda **kwargs: [
+            "build.py",
+            "bdist_egg",
+            "-d",
+            Path(kwargs["home_abs"]) / "dist-out" / "dist",
+        ],
         prepare_setup_artifacts_fn=lambda **kwargs: ([], [tmp_path / "pkg_link"]),
         set_argv_fn=lambda argv: argv_calls.append(argv),
     )
 
     assert preflight_calls == []
-    assert argv_calls == [["build.py", "bdist_egg", "-d", tmp_path / "home" / "dist-out" / "dist"]]
+    assert argv_calls == [
+        [
+            "build.py",
+            "bdist_egg",
+            "-d",
+            str(tmp_path / "home" / "dist-out" / "dist"),
+        ]
+    ]
     assert out_arg == "dist-out"
     assert worker_module == "demo_worker"
     assert ext_modules == []
