@@ -47,6 +47,8 @@ The README badge contract is:
 Use the short repo contract in [AGENT_CONVENTIONS.md](../AGENT_CONVENTIONS.md)
 for local coding agents with smaller context windows. Use [AGENTS.md](../AGENTS.md)
 for the full AGILAB runbook when the task touches risky surfaces.
+When validation succeeds, keep close-outs compact: write `Validation passed.`
+without listing every command unless the evidence details are explicitly needed.
 
 When coding through a terminal agent, AGILAB recommends launching that agent
 through Tokki when it is available. Tokki keeps context compact, digests noisy
