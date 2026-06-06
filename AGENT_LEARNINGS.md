@@ -54,3 +54,7 @@ is not a scratchpad or task log.
   default is clear, do not end with a broad clarification menu. State the
   assumed target, choose the highest-leverage applicable mechanism, and either
   implement it or name the exact blocker that prevents implementation.
+- When validation succeeds, keep the final close-out terse: `Validation passed.`
+  Do not expand it into a command-by-command list unless failures, skipped
+  checks, release/audit evidence, PR proof, or an explicit user request make the
+  details useful.

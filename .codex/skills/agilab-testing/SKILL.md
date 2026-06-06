@@ -37,6 +37,11 @@ Use this skill when validating changes.
   validation. It writes the full stdout/stderr stream to ignored
   `reports/dev-logs/` artifacts and prints only a bounded signal summary, which
   keeps prompt context focused without losing evidence.
+- In final user-facing close-outs, summarize successful validation as
+  `Validation passed.` without listing every command. Include the exact command
+  list only when a check failed or was skipped, the message is release/audit
+  evidence, a PR/commit body needs reproducible proof, or the user explicitly
+  asks for validation details.
 - Use `--raw-output` or `AGILAB_DEV_OUTPUT=raw` only when a human debugging
   session, wrapper, or downstream tool must consume the live raw stream or raw
   JSON. For normal diagnosis, inspect the cited `reports/dev-logs/...` artifact

@@ -167,6 +167,12 @@ Use this runbook whenever you:
   Standard is compact signal summary, Detailed adds nearby context windows, and
   Debug may point to raw artifacts or include full text only when the log is
   already small enough for prompt-safe use.
+- **Compact validation close-out rule**: In final user-facing replies, write
+  `Validation passed.` without listing every command when all checks are green
+  and the command details are not needed for the next action. Include validation
+  detail only for failures, skipped checks, release or audit evidence,
+  PR/commit messages that need reproducible proof, or when the user explicitly
+  asks for the command list.
 - **Dependency-bound validation rule**: When changing dependency caps or
   compatibility shims, validate the meaningful boundary versions when practical:
   the currently installed version, the new lower or upper bound, and an import
