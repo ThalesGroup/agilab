@@ -8,7 +8,7 @@ import ast
 import importlib.util
 import json
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -34,90 +34,118 @@ EXCLUDED_PATH_PARTS = {
 }
 
 
-EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str]] = {
+# Each disposition is (disposition, reason, focused_tests). ``focused_tests`` lists the
+# repo-relative pytest files that actually exercise the action's behavior. Generic robots
+# deliberately do not fire these actions (they mutate state, hit external services, or are
+# only reachable behind conditional flows), so the disposition is only honest if the focused
+# tests it points at still exist. ``evaluate_contract`` enforces that every listed path is
+# present on disk, closing the gap where a deleted/renamed focused test would silently leave
+# a high-risk action with zero coverage and a passing contract.
+EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
     "Add argument": (
         "trial-only",
         "mutates the ORCHESTRATE argument editor; covered by focused page tests, not fired by generic robots",
+        ("test/test_orchestrate_page_support.py",),
     ),
     "Apply": (
         "trial-only",
         "applies page-local user choices; generic robots verify visibility without firing the callback",
+        ("test/test_ui_pages.py",),
     ),
     "Build cluster plan": (
         "trial-only",
         "writes advisory LAN discovery output; focused cluster tests cover the planning logic without mutating user settings",
+        ("test/test_orchestrate_cluster.py",),
     ),
     "Clear LAN cache": (
         "trial-only",
         "clears local discovery cache; safe to render, but not a selected release action",
+        ("test/test_orchestrate_cluster.py",),
     ),
     "Create": (
         "trial-only",
         "creates project or analysis objects; PROJECT/ANALYSIS robots probe the control without mutating state",
+        ("test/test_project_sidebar_support.py",),
     ),
     "Delete": (
         "trial-only",
         "destructive project-level delete action; focused tests cover confirmation behavior",
+        ("test/test_project_sidebar_support.py",),
     ),
     "Export promotion decision": (
         "trial-only",
         "apps-page export side effect is covered by page-specific tests and visual robots",
+        ("test/test_view_release_decision.py",),
     ),
     "Import": (
         "trial-only",
         "project import is probed through PROJECT import scenarios without firing archive import",
+        ("test/test_project_sidebar_support.py",),
     ),
     "Install agi-app": (
         "ignored",
         "installs user-selected PyPI code and requires explicit operator trust; package preflight tests cover validation",
+        ("test/test_ui_pages.py",),
     ),
     "Overwrite": (
         "ignored",
         "conditional conflict-resolution action that only appears after an import conflict",
+        ("test/test_project_clone_policy.py",),
     ),
     "Rebuild Universal Offline knowledge base": (
         "ignored",
         "requires a local knowledge-base rebuild outside the deterministic UI robot environment",
+        ("test/test_pipeline_ai.py",),
     ),
     "Reset": (
         "trial-only",
         "clears the PyTorch playground local training state; focused playground tests cover state reset behavior",
+        ("test/test_pytorch_playground_app.py",),
     ),
     "Rename": (
         "trial-only",
         "project rename is probed through PROJECT rename scenarios without mutating the project",
+        ("test/test_project_sidebar_support.py",),
     ),
     "Run instant demo": (
         "trial-only",
         "runs page-local PyTorch training; focused playground tests cover state and evidence without making generic robots train",
+        ("test/test_pytorch_playground_app.py",),
     ),
     "Save .env": (
         "ignored",
         "writes local environment configuration and is covered by env-editor helper tests",
+        ("test/test_about_agilab_helpers.py",),
     ),
     "Save and retry": (
         "ignored",
         "writes local environment configuration and depends on user-provided settings",
+        ("test/test_about_agilab_helpers.py",),
     ),
     "Save classroom uploads": (
         "trial-only",
         "writes classroom intake files; focused TeSciA tests cover upload handling without mutating generic robot state",
+        ("test/test_tescia_diagnostic_project.py",),
     ),
     "Start GPT-OSS server": (
         "ignored",
         "starts an external local service and is not deterministic in CI robots",
+        ("test/test_pipeline_ai.py",),
     ),
     "Train / refresh": (
         "trial-only",
         "runs page-local PyTorch training; focused playground tests cover state and evidence without making generic robots train",
+        ("test/test_pytorch_playground_app.py",),
     ),
     "Undo last delete": (
         "trial-only",
         "stateful recovery action that appears only after selected delete-output flows",
+        ("test/test_orchestrate_execute.py",),
     ),
     "Update key": (
         "ignored",
         "updates local secret configuration and is covered by provider-form tests",
+        ("test/test_pipeline_openai.py", "test/test_pipeline_mistral.py"),
     ),
 }
 
@@ -139,6 +167,7 @@ class ActionDisposition:
     reason: str
     selected_scenarios: list[str]
     occurrences: list[ActionOccurrence]
+    focused_tests: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -277,11 +306,24 @@ def _selected_action_scenarios(widget_robot: Any, matrix: Any) -> dict[str, list
     return scenarios
 
 
-def _explicit_dispositions(widget_robot: Any) -> dict[str, tuple[str, str, str]]:
+def _explicit_dispositions(
+    widget_robot: Any,
+) -> dict[str, tuple[str, str, str, tuple[str, ...]]]:
     return {
-        widget_robot._normalized_label(label): (label, disposition, reason)
-        for label, (disposition, reason) in EXPLICIT_ACTION_DISPOSITIONS.items()
+        widget_robot._normalized_label(label): (label, disposition, reason, tuple(focused_tests))
+        for label, (disposition, reason, focused_tests) in EXPLICIT_ACTION_DISPOSITIONS.items()
     }
+
+
+def _missing_focused_tests(focused_tests: Sequence[str]) -> list[str]:
+    missing: list[str] = []
+    for rel_path in focused_tests:
+        candidate = Path(rel_path)
+        if not candidate.is_absolute():
+            candidate = REPO_ROOT / candidate
+        if not candidate.is_file():
+            missing.append(rel_path)
+    return missing
 
 
 def _is_high_risk_action(widget_robot: Any, occurrence: ActionOccurrence) -> bool:
@@ -341,14 +383,40 @@ def evaluate_contract(source_roots: Sequence[Path] = DEFAULT_SOURCE_ROOTS) -> di
                 )
             )
             continue
-        _raw_label, disposition, reason = explicit_entry
+        _raw_label, disposition, reason, focused_tests = explicit_entry
+        first = label_occurrences[0]
         if not reason.strip():
-            first = label_occurrences[0]
             issues.append(
                 ActionIssue(
                     kind="missing_action_reason",
                     label=label,
                     detail=f"{disposition} action must include a non-empty reason",
+                    path=first.path,
+                    line=first.line,
+                )
+            )
+            continue
+        if not focused_tests:
+            issues.append(
+                ActionIssue(
+                    kind="missing_focused_test",
+                    label=label,
+                    detail=f"{disposition} action must name at least one focused test that exercises its behavior",
+                    path=first.path,
+                    line=first.line,
+                )
+            )
+            continue
+        missing_tests = _missing_focused_tests(focused_tests)
+        if missing_tests:
+            issues.append(
+                ActionIssue(
+                    kind="missing_focused_test",
+                    label=label,
+                    detail=(
+                        f"{disposition} action references focused tests that do not exist: "
+                        f"{', '.join(missing_tests)}"
+                    ),
                     path=first.path,
                     line=first.line,
                 )
@@ -362,12 +430,19 @@ def evaluate_contract(source_roots: Sequence[Path] = DEFAULT_SOURCE_ROOTS) -> di
                 reason=reason,
                 selected_scenarios=[],
                 occurrences=label_occurrences,
+                focused_tests=list(focused_tests),
             )
         )
 
     unused_dispositions = [
-        {"label": raw_label, "normalized_label": normalized_label, "disposition": disposition, "reason": reason}
-        for normalized_label, (raw_label, disposition, reason) in sorted(explicit.items())
+        {
+            "label": raw_label,
+            "normalized_label": normalized_label,
+            "disposition": disposition,
+            "reason": reason,
+            "focused_tests": list(focused_tests),
+        }
+        for normalized_label, (raw_label, disposition, reason, focused_tests) in sorted(explicit.items())
         if normalized_label not in by_label
     ]
     return {

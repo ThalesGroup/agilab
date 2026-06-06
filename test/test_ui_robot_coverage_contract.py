@@ -21,6 +21,10 @@ def _load_module():
     return module
 
 
+def _all_classified_apps_pages(module) -> list[str]:
+    return [*module.BROWSER_ASSERTED_APPS_PAGES, *module.APPS_PAGE_RENDER_ONLY_DISPOSITIONS]
+
+
 def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     module = _load_module()
 
@@ -228,6 +232,7 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         parse_csv=lambda value: [part.strip() for part in str(value).split(",") if part.strip()],
         _normalized_label=lambda value: str(value).strip().lower(),
         public_builtin_apps=lambda: [SimpleNamespace(name=name) for name in module.REQUIRED_DEMO_UI_APPS],
+        public_apps_pages=lambda: [SimpleNamespace(name=name) for name in _all_classified_apps_pages(module)],
         configured_apps_pages_for_app=lambda _app: [
             SimpleNamespace(name=name) for name in module.REQUIRED_DEMO_UI_PAGES
         ],
@@ -344,6 +349,7 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
         parse_csv=lambda value: [part.strip() for part in str(value).split(",") if part.strip()],
         _normalized_label=lambda value: str(value).strip().lower(),
         public_builtin_apps=lambda: [SimpleNamespace(name="flight_telemetry_project")],
+        public_apps_pages=lambda: [SimpleNamespace(name=name) for name in _all_classified_apps_pages(module)],
         configured_apps_pages_for_app=lambda _app: [],
     )
     matrix = SimpleNamespace(
@@ -446,6 +452,7 @@ def test_ui_robot_coverage_contract_reports_empty_public_app_inventory(monkeypat
         parse_csv=lambda value: [],
         _normalized_label=lambda value: str(value).strip().lower(),
         public_builtin_apps=lambda: [],
+        public_apps_pages=lambda: [SimpleNamespace(name=name) for name in _all_classified_apps_pages(module)],
         configured_apps_pages_for_app=lambda _app: [],
     )
     matrix = SimpleNamespace(DEFAULT_SCENARIOS={}, ALL_SCENARIOS={}, OPT_IN_SCENARIOS={})
@@ -568,6 +575,7 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
         parse_csv=lambda value: [part.strip() for part in str(value).split(",") if part.strip()],
         _normalized_label=lambda value: str(value).strip().lower(),
         public_builtin_apps=lambda: [app],
+        public_apps_pages=lambda: [SimpleNamespace(name=name) for name in _all_classified_apps_pages(module)],
         configured_apps_pages_for_app=lambda _app: [route],
     )
     matrix = SimpleNamespace(
@@ -648,5 +656,76 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
     assert any(
         detail.startswith("public proof scenarios are missing documented demo routes:")
         and "notebook-migration-proof" in detail
+        for detail in details
+    )
+
+
+def test_apps_page_coverage_accepts_classified_inventory() -> None:
+    module = _load_module()
+
+    public_views = _all_classified_apps_pages(module)
+    assert module.apps_page_coverage_issues(public_views) == []
+
+
+def test_apps_page_coverage_render_only_focused_tests_exist() -> None:
+    module = _load_module()
+
+    for view, (reason, focused_test) in module.APPS_PAGE_RENDER_ONLY_DISPOSITIONS.items():
+        assert reason.strip(), view
+        assert (module.REPO_ROOT / focused_test).is_file(), focused_test
+
+
+def test_apps_page_coverage_flags_unclassified_view() -> None:
+    module = _load_module()
+
+    issues = module.apps_page_coverage_issues([*_all_classified_apps_pages(module), "view_brand_new"])
+    details = [issue.detail for issue in issues]
+
+    assert any("view_brand_new is neither browser-asserted" in detail for detail in details)
+
+
+def test_apps_page_coverage_flags_missing_focused_test(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "APPS_PAGE_RENDER_ONLY_DISPOSITIONS",
+        {"view_ghost": ("renders only with seeded data", "test/test_view_ghost_missing.py")},
+    )
+
+    issues = module.apps_page_coverage_issues([*module.BROWSER_ASSERTED_APPS_PAGES, "view_ghost"])
+    details = [issue.detail for issue in issues]
+
+    assert any(
+        "view_ghost render-only disposition references a focused test that does not exist" in detail
+        for detail in details
+    )
+
+
+def test_apps_page_coverage_accepts_absolute_focused_test(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    focused = tmp_path / "test_view_absolute.py"
+    focused.write_text("def test_view_absolute():\n    assert True\n", encoding="utf-8")
+    monkeypatch.setattr(
+        module,
+        "APPS_PAGE_RENDER_ONLY_DISPOSITIONS",
+        {"view_absolute": ("renders only with seeded data", str(focused))},
+    )
+
+    issues = module.apps_page_coverage_issues([*module.BROWSER_ASSERTED_APPS_PAGES, "view_absolute"])
+
+    assert issues == []
+
+
+def test_apps_page_coverage_flags_stale_disposition() -> None:
+    module = _load_module()
+
+    # A classified view that is no longer part of the public inventory must be reported.
+    public_views = [v for v in _all_classified_apps_pages(module) if v != "view_maps_3d"]
+    issues = module.apps_page_coverage_issues(public_views)
+    details = [issue.detail for issue in issues]
+
+    assert any(
+        detail.startswith("apps-page dispositions reference views that no longer exist:")
+        and "view_maps_3d" in detail
         for detail in details
     )

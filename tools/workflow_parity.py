@@ -64,6 +64,8 @@ UI_ROBOT_MATRIX_SHARDS = (
             "isolated-project-import-sidebar",
             "isolated-project-rename-sidebar",
             "isolated-settings-page",
+            "isolated-all-builtins-orchestrate-smoke",
+            "isolated-all-builtins-core-render-smoke",
         ),
     ),
     (

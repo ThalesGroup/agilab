@@ -48,6 +48,13 @@ Use the short repo contract in [AGENT_CONVENTIONS.md](../AGENT_CONVENTIONS.md)
 for local coding agents with smaller context windows. Use [AGENTS.md](../AGENTS.md)
 for the full AGILAB runbook when the task touches risky surfaces.
 
+When coding through a terminal agent, AGILAB recommends launching that agent
+through Tokki when it is available. Tokki keeps context compact, digests noisy
+terminal output, records session metadata, and exposes token-savings evidence.
+It is an efficiency and observability layer for agent sessions; the AGILAB
+validation source of truth remains `tools/impact_validate.py`, `./dev`, and the
+workflow-parity profiles.
+
 Use [AGENT_LEARNINGS.md](../AGENT_LEARNINGS.md) only for reusable corrections:
 when a user, reviewer, or failed validation exposes a repeated agent behavior
 not already covered by the runbooks, add one concrete rule or tighten an

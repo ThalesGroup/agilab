@@ -18,6 +18,10 @@
       "source_command": [
         "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
       ],
+      "svg_summary_kind": "screenshot-derived-vector-summary",
+      "svg_summary_path": "analysis-page.svg",
+      "svg_summary_sha256": "42a9deca930a88457d6704861e647faad9667c6e55db020593373c06537e5ace",
+      "svg_summary_size_bytes": 5885,
       "url": "",
       "width_px": 1440
     },
@@ -34,6 +38,10 @@
       "source_command": [
         "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
       ],
+      "svg_summary_kind": "screenshot-derived-vector-summary",
+      "svg_summary_path": "core-pages-overview.svg",
+      "svg_summary_sha256": "4d0b7b7c7d0faebd2ce7978a16a18c7865f5dcf817e010a0c9dbc159e455e009",
+      "svg_summary_size_bytes": 5825,
       "url": "",
       "width_px": 1440
     },
@@ -50,6 +58,10 @@
       "source_command": [
         "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
       ],
+      "svg_summary_kind": "screenshot-derived-vector-summary",
+      "svg_summary_path": "orchestrate-page.svg",
+      "svg_summary_sha256": "990988c6fe4b10b197e8b988fc95ae6308ddef676c99fd565e3438675c5d24f8",
+      "svg_summary_size_bytes": 6251,
       "url": "",
       "width_px": 1440
     },
@@ -66,6 +78,10 @@
       "source_command": [
         "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
       ],
+      "svg_summary_kind": "screenshot-derived-vector-summary",
+      "svg_summary_path": "project-create-page.svg",
+      "svg_summary_sha256": "4ca9fe0d3421c9c57fbf523c977e5b3f32fdd3c6768e6797fc1f67a446d9c923",
+      "svg_summary_size_bytes": 6962,
       "url": "",
       "width_px": 1440
     },
@@ -82,6 +98,10 @@
       "source_command": [
         "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
       ],
+      "svg_summary_kind": "screenshot-derived-vector-summary",
+      "svg_summary_path": "project-page.svg",
+      "svg_summary_sha256": "ee9809d31071913774ae6258c628de14a966055a083a4d0d144bb4506936c960",
+      "svg_summary_size_bytes": 7955,
       "url": "",
       "width_px": 1440
     },
@@ -98,11 +118,16 @@
       "source_command": [
         "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
       ],
+      "svg_summary_kind": "screenshot-derived-vector-summary",
+      "svg_summary_path": "workflow-page.svg",
+      "svg_summary_sha256": "158f159d29a4d59b0d1bec69e778669f297d5ab3d64c67a859fe219f4e0ed679",
+      "svg_summary_size_bytes": 6424,
       "url": "",
       "width_px": 1440
     }
   ],
   "source_command": [
     "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
-  ]
+  ],
+  "svg_summary_note": "SVG summaries are token-light documentation views derived from the page-shot PNGs; PNG files remain canonical raster screenshot evidence."
 }

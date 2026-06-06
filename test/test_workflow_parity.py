@@ -431,6 +431,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
             "isolated-project-import-sidebar",
             "isolated-project-rename-sidebar",
             "isolated-settings-page",
+            "isolated-all-builtins-orchestrate-smoke",
+            "isolated-all-builtins-core-render-smoke",
         },
         "state": {
             "isolated-fresh-session-core-pages",

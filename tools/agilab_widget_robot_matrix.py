@@ -343,6 +343,25 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         max_action_clicks_per_page=0,
         browser_error_check=True,
     ),
+    "isolated-all-builtins-core-render-smoke": RobotScenario(
+        name="isolated-all-builtins-core-render-smoke",
+        description=(
+            "Fast all-builtins WORKFLOW + ANALYSIS render smoke: render the remaining "
+            "core workflow pages for every built-in app with an isolated runtime, no "
+            "action callbacks, and explicit browser error capture. Complements the "
+            "ORCHESTRATE smoke so a per-app regression on WORKFLOW or ANALYSIS is caught, "
+            "not just on the default app."
+        ),
+        pages="WORKFLOW,ANALYSIS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=15.0,
+        page_timeout_seconds=120.0,
+        target_seconds=900.0,
+        max_action_clicks_per_page=0,
+        browser_error_check=True,
+    ),
     "isolated-browser-history": RobotScenario(
         name="isolated-browser-history",
         description=(

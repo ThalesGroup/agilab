@@ -77,6 +77,14 @@ def test_ui_robot_action_contract_passes_for_current_ui_surface() -> None:
     assert actions_by_label["Reset"]["disposition"] == "trial-only"
     assert actions_by_label["Train / refresh"]["disposition"] == "trial-only"
     assert payload["summary"]["unused_disposition_count"] == 0
+    # Every explicit (non selected-click) disposition must point at focused tests that exist on
+    # disk, so a deleted/renamed focused test breaks the contract instead of silently leaving a
+    # high-risk action uncovered.
+    for action in payload["actions"]:
+        if action["disposition"] in {"trial-only", "ignored"}:
+            assert action["focused_tests"], action["label"]
+            for rel_path in action["focused_tests"]:
+                assert (module.REPO_ROOT / rel_path).is_file(), rel_path
 
 
 def test_ui_robot_action_contract_load_module_rejects_missing_spec(monkeypatch) -> None:
@@ -165,7 +173,11 @@ st.button("Reset project")
 def test_ui_robot_action_contract_rejects_empty_explicit_reason(tmp_path: Path, monkeypatch) -> None:
     module = _load_module()
     _patch_fake_runtime(monkeypatch, module)
-    monkeypatch.setattr(module, "EXPLICIT_ACTION_DISPOSITIONS", {"Delete": ("trial-only", "")})
+    monkeypatch.setattr(
+        module,
+        "EXPLICIT_ACTION_DISPOSITIONS",
+        {"Delete": ("trial-only", "", ("test/test_project_sidebar_support.py",))},
+    )
     _write_page(
         tmp_path,
         """
@@ -183,6 +195,99 @@ st.button("Delete")
             "kind": "missing_action_reason",
             "label": "Delete",
             "detail": "trial-only action must include a non-empty reason",
+            "path": str(tmp_path / "page.py"),
+            "line": 4,
+        }
+    ]
+
+
+def test_ui_robot_action_contract_rejects_missing_focused_test(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    _patch_fake_runtime(monkeypatch, module)
+    monkeypatch.setattr(
+        module,
+        "EXPLICIT_ACTION_DISPOSITIONS",
+        {"Delete": ("trial-only", "covered elsewhere", ("test/test_does_not_exist.py",))},
+    )
+    _write_page(
+        tmp_path,
+        """
+import streamlit as st
+
+st.button("Delete")
+""",
+    )
+
+    payload = module.evaluate_contract((tmp_path,))
+
+    assert payload["success"] is False
+    assert payload["issues"] == [
+        {
+            "kind": "missing_focused_test",
+            "label": "Delete",
+            "detail": (
+                "trial-only action references focused tests that do not exist: "
+                "test/test_does_not_exist.py"
+            ),
+            "path": str(tmp_path / "page.py"),
+            "line": 4,
+        }
+    ]
+
+
+def test_ui_robot_action_contract_accepts_absolute_focused_test(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    _patch_fake_runtime(monkeypatch, module)
+    focused = tmp_path / "test_delete_action.py"
+    focused.write_text("def test_delete_action():\n    assert True\n", encoding="utf-8")
+    monkeypatch.setattr(
+        module,
+        "EXPLICIT_ACTION_DISPOSITIONS",
+        {"Delete": ("trial-only", "covered by temp focused test", (str(focused),))},
+    )
+    _write_page(
+        tmp_path,
+        """
+import streamlit as st
+
+st.button("Delete")
+""",
+    )
+
+    payload = module.evaluate_contract((tmp_path,))
+
+    assert payload["success"] is True
+
+
+def test_ui_robot_action_contract_rejects_disposition_without_focused_test(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    _patch_fake_runtime(monkeypatch, module)
+    monkeypatch.setattr(
+        module,
+        "EXPLICIT_ACTION_DISPOSITIONS",
+        {"Delete": ("trial-only", "covered elsewhere", ())},
+    )
+    _write_page(
+        tmp_path,
+        """
+import streamlit as st
+
+st.button("Delete")
+""",
+    )
+
+    payload = module.evaluate_contract((tmp_path,))
+
+    assert payload["success"] is False
+    assert payload["issues"] == [
+        {
+            "kind": "missing_focused_test",
+            "label": "Delete",
+            "detail": "trial-only action must name at least one focused test that exercises its behavior",
             "path": str(tmp_path / "page.py"),
             "line": 4,
         }

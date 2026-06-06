@@ -334,6 +334,10 @@ Use this runbook whenever you:
 - **CLI agent helpers**: Repo-scoped wrappers and configs exist for Codex, Aider, and
   OpenCode under `tools/*_workflow.*`, `.aider.conf.yml`, `opencode.json`, and
   `.opencode/agents/`. Keep them aligned with repo guardrails when workflow policy changes.
+  When coding through a terminal agent, prefer launching it through Tokki when
+  available so AGILAB sessions get compact context, noisy-output digestion,
+  token-savings accounting, and consistent wrapper metadata. Tokki is an
+  agent-session efficiency layer, not a replacement for AGILAB validation gates.
 - **Agent instruction contract**: Keep `AGENTS.md`, `AGENT_CONVENTIONS.md`,
   `AGENT_LEARNINGS.md`, `tools/agent_workflows.md`, public agent docs, and
   `agilab-capabilities.json` aligned. Run
