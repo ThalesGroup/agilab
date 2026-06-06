@@ -59,7 +59,9 @@ def _uv_dev(*args: str) -> list[str]:
     return [*UV_RUN, "--extra", "dev", *args]
 
 
-def _split_leading_values(args: Sequence[str], *, command_name: str) -> tuple[list[str], list[str]]:
+def _split_leading_values(
+    args: Sequence[str], *, command_name: str
+) -> tuple[list[str], list[str]]:
     values: list[str] = []
     rest: list[str] = []
     for index, item in enumerate(args):
@@ -83,7 +85,9 @@ def _pop_option_value(args: Sequence[str], index: int, option: str) -> tuple[str
     return args[index + 1], index + 2
 
 
-def _split_release_args(args: Sequence[str]) -> tuple[list[str], list[str], list[str], list[str]]:
+def _split_release_args(
+    args: Sequence[str],
+) -> tuple[list[str], list[str], list[str], list[str]]:
     """Split local release shortcut options from impact-validation options."""
 
     impact_args: list[str] = []
@@ -99,7 +103,9 @@ def _split_release_args(args: Sequence[str]) -> tuple[list[str], list[str], list
             continue
         if item == "--impact-base-ref" or item.startswith("--impact-base-ref="):
             value, index = _pop_option_value(args, index, "--impact-base-ref")
-            release_plan_args.extend(["--skip-existing-pypi", "--impact-base-ref", value])
+            release_plan_args.extend(
+                ["--skip-existing-pypi", "--impact-base-ref", value]
+            )
             release_policy_args.extend(["--impact-base-ref", value])
             continue
         if item == "--packages" or item.startswith("--packages="):
@@ -168,7 +174,9 @@ def _compact_log_path(command: Sequence[str], output: str) -> Path:
     DEV_LOG_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     family = Path(command[0]).name if command else "command"
-    digest = sha256(("\0".join(command) + "\n" + output).encode("utf-8", "replace")).hexdigest()[:12]
+    digest = sha256(
+        ("\0".join(command) + "\n" + output).encode("utf-8", "replace")
+    ).hexdigest()[:12]
     return DEV_LOG_DIR / f"{timestamp}-{family}-{digest}.log"
 
 
@@ -178,11 +186,15 @@ def _write_compact_log(command: Sequence[str], output: str) -> Path:
     return path
 
 
-def _summary_lines(output: str, *, max_lines: int, returncode: int) -> tuple[list[str], int, int]:
+def _summary_lines(
+    output: str, *, max_lines: int, returncode: int
+) -> tuple[list[str], int, int]:
     lines = output.splitlines()
     if not lines:
         return [], 0, 0
-    signals = [(index + 1, line) for index, line in enumerate(lines) if _is_signal_line(line)]
+    signals = [
+        (index + 1, line) for index, line in enumerate(lines) if _is_signal_line(line)
+    ]
     signal_budget = max(1, max_lines * 3 // 4)
     tail_budget = max(1, max_lines - min(len(signals), signal_budget))
 
@@ -194,7 +206,7 @@ def _summary_lines(output: str, *, max_lines: int, returncode: int) -> tuple[lis
     for line_number, line in signal_sample:
         selected.append(f"{line_number}: {line}")
 
-    if returncode != 0 or not selected:
+    if returncode != 0:
         tail = [line for line in lines[-tail_budget:] if line.strip()]
         if tail:
             if selected:
@@ -215,7 +227,9 @@ def _print_compact_result(
 ) -> None:
     log_path = _write_compact_log(command, output)
     lines = output.splitlines()
-    selected, signal_count, omitted = _summary_lines(output, max_lines=max_lines, returncode=returncode)
+    selected, signal_count, omitted = _summary_lines(
+        output, max_lines=max_lines, returncode=returncode
+    )
     rel_log = log_path.relative_to(ROOT) if log_path.is_relative_to(ROOT) else log_path
     status = "ok" if returncode == 0 else "failed"
     print(
@@ -226,8 +240,11 @@ def _print_compact_result(
     )
     for line in selected:
         print(line, file=sys.stderr)
-    if omitted > 0:
-        print(f"... omitted {omitted} line(s); inspect {rel_log} for full output", file=sys.stderr)
+    if omitted > 0 and selected:
+        print(
+            f"... omitted {omitted} line(s); inspect {rel_log} for full output",
+            file=sys.stderr,
+        )
 
 
 def _run_compact(command: Sequence[str], *, max_lines: int) -> int:
@@ -267,7 +284,17 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
         return [_uv_python("tools/bugfix_validate.py", *helper_args)]
 
     if command == "test":
-        return [[*UV_RUN, "pytest", "-q", "-o", "addopts=", "--import-mode=importlib", *args]]
+        return [
+            [
+                *UV_RUN,
+                "pytest",
+                "-q",
+                "-o",
+                "addopts=",
+                "--import-mode=importlib",
+                *args,
+            ]
+        ]
 
     if command == "lint":
         if args:
@@ -312,7 +339,9 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
         return [_uv_python("tools/agilab_audit.py", *args)]
 
     if command in {"audit-quality", "audit-preflight"}:
-        forwarded = ["--preflight"] if command == "audit-preflight" and not args else args
+        forwarded = (
+            ["--preflight"] if command == "audit-preflight" and not args else args
+        )
         if command == "audit-quality" and not forwarded:
             forwarded = ["--preflight"]
         return [_uv_python("tools/audit_quality_evaluator.py", *forwarded)]
@@ -324,11 +353,38 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
             profile_args.extend(["--profile", profile])
         return [_uv_python("tools/workflow_parity.py", *profile_args, *extras)]
 
+    if command in {"ui-flow", "ui-impact", "ui-robots"}:
+        return [
+            _uv_python("tools/workflow_parity.py", "--select-ui-robot-profiles", *args)
+        ]
+
+    if command in {"perf-startup", "startup-perf"}:
+        defaults = [
+            "--scenario",
+            "orchestrate-execute-import",
+            "--scenario",
+            "pipeline-ai-import",
+            "--scenario",
+            "runtime-distribution-import",
+            "--scenario",
+            "base-worker-import",
+            "--repeats",
+            "1",
+            "--warmups",
+            "0",
+        ]
+        return [_uv_python("tools/perf_smoke.py", *(args or defaults))]
+
+    if command in {"worker-reuse", "worker-env-reuse"}:
+        return [_uv_python("tools/worker_env_reuse.py", *args)]
+
     if command in {"typing", "ty"}:
         return [_uv_python("tools/workflow_parity.py", "--profile", "ty-typing", *args)]
 
     if command in {"release", "pre-release"}:
-        impact_args, release_plan_args, release_policy_args, preflight_args = _split_release_args(args)
+        impact_args, release_plan_args, release_policy_args, preflight_args = (
+            _split_release_args(args)
+        )
         return [
             _uv_python("tools/agilab_audit.py", "--strict"),
             _uv_python("tools/impact_validate.py", *impact_args),
@@ -338,7 +394,11 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
                 ".github/workflows/pypi-publish.yaml",
                 *release_plan_args,
             ),
-            _uv_python("tools/pypi_release_version_policy.py", "--skip-existing-pypi", *release_policy_args),
+            _uv_python(
+                "tools/pypi_release_version_policy.py",
+                "--skip-existing-pypi",
+                *release_policy_args,
+            ),
             _uv_python("tools/pypi_project_preflight.py", *preflight_args),
             _uv_python(
                 "tools/pypi_trusted_publisher_contract.py",
@@ -388,7 +448,14 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
         skills, extras = _split_leading_values(args, command_name=command)
         return [
             ["python3", "tools/sync_agent_skills.py", "--skills", *skills, *extras],
-            ["python3", "tools/codex_skills.py", "--root", ".codex/skills", "validate", "--strict"],
+            [
+                "python3",
+                "tools/codex_skills.py",
+                "--root",
+                ".codex/skills",
+                "validate",
+                "--strict",
+            ],
             ["python3", "tools/codex_skills.py", "--root", ".codex/skills", "generate"],
             ["python3", "tools/agent_skill_catalog.py", "--apply"],
             ["python3", "tools/generate_skill_badges.py"],
@@ -401,7 +468,15 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
                 "--fail-on",
                 "high",
             ],
-            ["python3", "tools/skill_security_scan.py", "--roots", ".claude/skills", ".codex/skills", "--fail-on", "critical"],
+            [
+                "python3",
+                "tools/skill_security_scan.py",
+                "--roots",
+                ".claude/skills",
+                ".codex/skills",
+                "--fail-on",
+                "critical",
+            ],
         ]
 
     raise SystemExit(f"unknown shortcut: {command}")
@@ -424,6 +499,9 @@ def _usage() -> str:
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] audit-quality [audit_quality_evaluator args|audit.md]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] audit-preflight
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] flow|profile <profile> [profile...] [workflow args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] ui-flow [workflow-parity changed-file args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] perf-startup [perf_smoke args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] worker-reuse [worker_env_reuse args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] typing [workflow-parity options]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] release [--release-mode MODE] [--impact-base-ref REF] [impact_validate args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] badge|guard [coverage_badge_guard args]
@@ -453,7 +531,10 @@ High-frequency mappings:
   audit     -> Audit local AGILAB worktrees, release proof, docs mirror, PyPI projects, and latest release truth.
   audit-quality -> Score a Markdown AGILAB audit, or print the deep-audit preflight when no file is provided.
   audit-preflight -> Print the mandatory architecture-foundation preflight for deep AGILAB audits.
-  flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
+  flow      -> Run one or more workflow_parity profiles with repeated --profile flags. Cache-safe profiles reuse successful local results automatically.
+  ui-flow   -> Select the minimal UI robot workflow profiles from changed files.
+  perf-startup -> Measure startup-sensitive AGILAB import paths with perf_smoke.
+  worker-reuse -> Compare worker manifest fingerprints against a deployed-env reuse marker.
   typing    -> Run the forward shared-core ty typing profile. Mypy remains the curated temporary release guard under shared-core-typing.
   release   -> Run local release guards: AGILAB audit/review, impact, generated PyPI plan, release cadence, PyPI project preflight, trusted publisher contract, Ruff availability, docs, dependency policy, typing, and badge freshness. Pass --release-mode hotfix and --impact-base-ref <tag> for same-day hotfixes.
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
@@ -482,7 +563,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if "--compact-output" in args:
         raw_output = False
         args = [item for item in args if item != "--compact-output"]
-    if "--summary-lines" in args or any(item.startswith("--summary-lines=") for item in args):
+    if "--summary-lines" in args or any(
+        item.startswith("--summary-lines=") for item in args
+    ):
         summary_lines = _parse_positive_int(
             _pop_global_option(args, "--summary-lines"),
             option="--summary-lines",

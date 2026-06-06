@@ -24,7 +24,9 @@ release_handoff_guard = _load_tool("release_handoff_guard")
 release_status = _load_tool("release_status")
 
 
-def _planned_project(version: str = "2026.05.26") -> pypi_project_preflight.PlannedPyPIProject:
+def _planned_project(
+    version: str = "2026.05.26",
+) -> pypi_project_preflight.PlannedPyPIProject:
     return pypi_project_preflight.PlannedPyPIProject(
         package="agi-page-live-artifacts",
         project="src/agilab/apps-pages/view_live_artifacts",
@@ -45,7 +47,10 @@ def test_pypi_project_preflight_reports_missing_project_with_pending_command() -
     assert status.pending_publisher_command is not None
     assert "pypi-pending-trusted-publisher.yaml" in status.pending_publisher_command
     assert "project_name=agi-page-live-artifacts" in status.pending_publisher_command
-    assert "pypi_environment=pypi-agi-page-live-artifacts" in status.pending_publisher_command
+    assert (
+        "pypi_environment=pypi-agi-page-live-artifacts"
+        in status.pending_publisher_command
+    )
 
 
 def test_pypi_project_preflight_treats_pep440_normalized_version_as_current() -> None:
@@ -61,7 +66,9 @@ def test_pypi_project_preflight_treats_pep440_normalized_version_as_current() ->
     assert status.latest == "2026.5.26"
 
 
-def test_pypi_project_preflight_allows_existing_project_with_unpublished_version() -> None:
+def test_pypi_project_preflight_allows_existing_project_with_unpublished_version() -> (
+    None
+):
     report = pypi_project_preflight.build_report(
         fetch_json=lambda _name: {
             "info": {"version": "2026.5.25"},
@@ -75,7 +82,9 @@ def test_pypi_project_preflight_allows_existing_project_with_unpublished_version
     assert report["blockers"] == []
 
 
-def test_pypi_project_preflight_allows_explicit_missing_project_for_first_publish() -> None:
+def test_pypi_project_preflight_allows_explicit_missing_project_for_first_publish() -> (
+    None
+):
     report = pypi_project_preflight.build_report(
         fetch_json=lambda _name: None,
         package_names=["agi-page-live-artifacts"],
@@ -84,13 +93,53 @@ def test_pypi_project_preflight_allows_explicit_missing_project_for_first_publis
 
     assert report["status"] == "pass"
     assert report["summary"]["allowed_missing_projects"] == 1
-    assert report["allowed_missing_projects"][0]["pypi_project"] == "agi-page-live-artifacts"
+    assert (
+        report["allowed_missing_projects"][0]["pypi_project"]
+        == "agi-page-live-artifacts"
+    )
     assert report["blockers"] == []
+
+
+def test_pypi_project_preflight_caches_project_version_until_manifest_changes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    project = tmp_path / "pkg"
+    project.mkdir()
+    pyproject = project / "pyproject.toml"
+    pyproject.write_text("[project]\nname='demo'\nversion='1'\n", encoding="utf-8")
+    calls: list[Path] = []
+
+    def fake_read_project_metadata(path: Path):
+        calls.append(path)
+        version = (
+            pyproject.read_text(encoding="utf-8")
+            .split("version='", 1)[1]
+            .split("'", 1)[0]
+        )
+        return "demo", version
+
+    pypi_project_preflight.clear_project_version_cache()
+    monkeypatch.setattr(
+        pypi_project_preflight, "read_project_metadata", fake_read_project_metadata
+    )
+
+    assert pypi_project_preflight._project_version(tmp_path, "pkg") == "1"
+    assert pypi_project_preflight._project_version(tmp_path, "pkg") == "1"
+    assert calls == [project]
+
+    pyproject.write_text(
+        "[project]\nname='demo'\nversion='2'\n# changed\n", encoding="utf-8"
+    )
+    assert pypi_project_preflight._project_version(tmp_path, "pkg") == "2"
+    assert calls == [project, project]
 
 
 def test_release_status_derives_package_version_from_release_tag() -> None:
     assert release_status.package_version_from_tag("v2026.05.23-2") == "2026.05.23"
-    assert release_status.package_version_from_tag("refs/tags/v2026.05.26") == "2026.05.26"
+    assert (
+        release_status.package_version_from_tag("refs/tags/v2026.05.26") == "2026.05.26"
+    )
 
 
 def test_release_status_can_check_partial_release_packages(monkeypatch) -> None:
@@ -120,9 +169,15 @@ def test_release_status_can_check_partial_release_packages(monkeypatch) -> None:
         release_status,
         "fetch_pypi_json",
         lambda name: {
-            "info": {"version": "2026.5.31.post1" if name == "agi-page-live-artifacts" else "2026.5.31"},
+            "info": {
+                "version": "2026.5.31.post1"
+                if name == "agi-page-live-artifacts"
+                else "2026.5.31"
+            },
             "releases": {
-                "2026.5.31.post1" if name == "agi-page-live-artifacts" else "2026.5.31": []
+                "2026.5.31.post1"
+                if name == "agi-page-live-artifacts"
+                else "2026.5.31": []
             },
         },
     )
@@ -152,17 +207,19 @@ def test_release_handoff_guard_requires_archiving_old_handoffs(tmp_path: Path) -
         encoding="utf-8",
     )
 
-    assert release_handoff_guard.stale_handoffs(
-        handoff_dir=tmp_path,
-        latest_tag="v2026.05.26",
-    ) == []
+    assert (
+        release_handoff_guard.stale_handoffs(
+            handoff_dir=tmp_path,
+            latest_tag="v2026.05.26",
+        )
+        == []
+    )
 
 
 def test_release_handoff_guard_accepts_dot_hotfix_release_tags(tmp_path: Path) -> None:
     manifest = tmp_path / "release_proof.toml"
     manifest.write_text(
-        "[release]\n"
-        'github_release_tag = "v2026.06.04.1"\n',
+        '[release]\ngithub_release_tag = "v2026.06.04.1"\n',
         encoding="utf-8",
     )
     handoff = tmp_path / "v2026.06.04-handoff.md"

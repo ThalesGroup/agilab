@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass
+from functools import lru_cache
 import json
 import os
 from pathlib import Path
@@ -19,7 +20,10 @@ try:
     from pypi_distribution_state import DistributionStateError, read_project_metadata
     from release_plan import release_plan
 except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
-    from tools.pypi_distribution_state import DistributionStateError, read_project_metadata
+    from tools.pypi_distribution_state import (
+        DistributionStateError,
+        read_project_metadata,
+    )
     from tools.release_plan import release_plan
 
 
@@ -64,17 +68,40 @@ def fetch_pypi_json(project_name: str) -> dict[str, Any] | None:
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             return None
-        raise RuntimeError(f"could not fetch PyPI metadata for {project_name}: HTTP {exc.code}") from exc
+        raise RuntimeError(
+            f"could not fetch PyPI metadata for {project_name}: HTTP {exc.code}"
+        ) from exc
     except (OSError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"could not fetch PyPI metadata for {project_name}: {exc}") from exc
+        raise RuntimeError(
+            f"could not fetch PyPI metadata for {project_name}: {exc}"
+        ) from exc
 
 
 def _project_version(repo_root: Path, project: str) -> str:
+    pyproject_path = repo_root / project / "pyproject.toml"
     try:
-        _name, version = read_project_metadata(repo_root / project)
+        stat = pyproject_path.stat()
+    except OSError:
+        signature = ("missing", 0, 0)
+    else:
+        signature = ("file", stat.st_size, stat.st_mtime_ns)
+    return _project_version_cached(str(repo_root.resolve()), project, signature)
+
+
+@lru_cache(maxsize=512)
+def _project_version_cached(
+    repo_root: str, project: str, signature: tuple[str, int, int]
+) -> str:
+    _ = signature
+    try:
+        _name, version = read_project_metadata(Path(repo_root) / project)
     except DistributionStateError as exc:
         raise RuntimeError(str(exc)) from exc
     return str(version)
+
+
+def clear_project_version_cache() -> None:
+    _project_version_cached.cache_clear()
 
 
 def _split_values(values: Sequence[str] | None) -> list[str]:
@@ -101,7 +128,10 @@ def selected_pypi_projects(
         if entry.get("publish_to_pypi") == "true"
     ]
     umbrella = plan["umbrella_package"]
-    if plan.get("umbrella_selected") == "true" and umbrella.get("publish_to_pypi") == "true":
+    if (
+        plan.get("umbrella_selected") == "true"
+        and umbrella.get("publish_to_pypi") == "true"
+    ):
         entries.append(umbrella)
     projects: list[PlannedPyPIProject] = []
     for entry in entries:
@@ -216,7 +246,8 @@ def build_report(
     blockers = [
         status
         for status in statuses
-        if status.status in {"missing-project", "empty-project", "newer-on-pypi", "error"}
+        if status.status
+        in {"missing-project", "empty-project", "newer-on-pypi", "error"}
         and not (
             status.status == "missing-project"
             and (
@@ -230,8 +261,7 @@ def build_report(
         for status in statuses
         if status.status == "missing-project"
         and (
-            status.pypi_project in allowed_missing
-            or status.package in allowed_missing
+            status.pypi_project in allowed_missing or status.package in allowed_missing
         )
     ]
     return {
@@ -241,7 +271,9 @@ def build_report(
         "summary": {
             "checked": len(statuses),
             "current": sum(1 for status in statuses if status.status == "current"),
-            "to_publish": sum(1 for status in statuses if status.status == "missing-version"),
+            "to_publish": sum(
+                1 for status in statuses if status.status == "missing-version"
+            ),
             "allowed_missing_projects": len(allowed_missing_statuses),
             "blockers": len(blockers),
         },
@@ -280,7 +312,9 @@ def render_text(report: dict[str, Any]) -> str:
                 f"(expected {blocker['version']}, latest {blocker['latest'] or 'n/a'})"
             )
             if blocker.get("pending_publisher_command"):
-                lines.append(f"  pending publisher: {blocker['pending_publisher_command']}")
+                lines.append(
+                    f"  pending publisher: {blocker['pending_publisher_command']}"
+                )
     return "\n".join(lines)
 
 
