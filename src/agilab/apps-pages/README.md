@@ -17,7 +17,7 @@ Every shipped view bundle has a local README, a source-controlled preview, direc
 
 | View | View |
 |---|---|
-| [![view_app_ui preview](../../../docs/source/_static/apps-pages-gallery/view_app_ui.svg)](view_app_ui)<br>**view_app_ui**<br>Launches app-owned interactive Streamlit surfaces from ANALYSIS. | [![view_autoencoder_latentspace preview](../../../docs/source/_static/apps-pages-gallery/view_autoencoder_latentspace.svg)](view_autoencoder_latentspace)<br>**view_autoencoder_latentspace**<br>Explores TensorFlow/Keras latent projections and reconstruction behavior. |
+| [![view_app_ui preview](../../../docs/source/_static/apps-pages-gallery/view_app_ui.svg)](view_app_ui)<br>**view_app_ui**<br>Launches app-owned interactive Streamlit surfaces from ANALYSIS. | [![view_autoencoder_latentspace preview](../../../docs/source/_static/apps-pages-gallery/view_autoencoder_latentspace.svg)](view_autoencoder_latentspace)<br>**view_autoencoder_latentspace**<br>Opt-in playground exception for TensorFlow/Keras latent projections; it trains a small autoencoder in-page and is not a generic app-agnostic sidecar. |
 | [![view_barycentric preview](../../../docs/source/_static/apps-pages-gallery/view_barycentric.svg)](view_barycentric)<br>**view_barycentric**<br>Plots proportion-style KPI features on a barycentric/simplex surface. | [![view_data_io_decision preview](../../../docs/source/_static/apps-pages-gallery/view_data_io_decision.svg)](view_data_io_decision)<br>**view_data_io_decision**<br>Reviews data-ingestion and strategy-selection evidence. |
 | [![view_forecast_analysis preview](../../../docs/source/_static/apps-pages-gallery/view_forecast_analysis.svg)](view_forecast_analysis)<br>**view_forecast_analysis**<br>Reviews forecast metrics and prediction tables for time-series workflows. | [![view_inference_analysis preview](../../../docs/source/_static/apps-pages-gallery/view_inference_analysis.svg)](view_inference_analysis)<br>**view_inference_analysis**<br>Compares allocation and inference-result metrics across exported runs. |
 | [![view_live_artifacts preview](../../../docs/source/_static/apps-pages-gallery/view_live_artifacts.svg)](view_live_artifacts)<br>**view_live_artifacts**<br>Watches exported evidence, manifests, logs, text, CSVs, and images while a run is active. | [![view_maps preview](../../../docs/source/_static/apps-pages-gallery/view_maps.svg)](view_maps)<br>**view_maps**<br>Explores geolocated datasets with map, sampling, palette, and basemap controls. |
@@ -94,7 +94,7 @@ Experimental and opt-in views:
 
 - view_autoencoder_latentspace
   - uv run streamlit run src/agilab/apps-pages/view_autoencoder_latentspace/src/view_autoencoder_latentspace/view_autoencoder_latentspace.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
-  - TensorFlow-based latent-space exploration for Python 3.12 environments. It is intentionally not part of the public `agi-pages` umbrella because its runtime constraints are heavier than the generic page bundle set.
+  - Opt-in playground exception for Python 3.12 teaching sessions. It trains a small TensorFlow/Keras autoencoder in-page, so it is intentionally not part of the public `agi-pages` umbrella or the generic app-agnostic sidecar set.
 
 ## Repository Pages (optional)
 

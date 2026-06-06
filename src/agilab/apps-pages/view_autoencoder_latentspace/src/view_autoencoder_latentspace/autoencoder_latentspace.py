@@ -68,7 +68,18 @@ APP_SCOPED_SESSION_KEYS = (
     "data",
     "df_cols",
     "coltype",
+    f"{PAGE_KEY}:figure_format",
+    f"{PAGE_KEY}:figure_name",
+    f"{PAGE_KEY}:latent_dimension",
+    f"{PAGE_KEY}:row_index",
+    f"{PAGE_KEY}:row_limit",
+    f"{PAGE_KEY}:selected_color",
 )
+
+
+def _ae_key(name: str) -> str:
+    return f"{PAGE_KEY}:{name}"
+
 
 render_streamlit_page_header(st, title=":chart_with_downwards_trend: Dimension Reduction", show_logo=False)
 
@@ -410,7 +421,7 @@ def __bary_visualisation(
     s.attrs.height = 700
     s.attrs.text_size = 12
     s.plot(c, format=selected_format)
-    row_index = st.selectbox("Choose a row:", df.index)
+    row_index = st.selectbox("Choose a row:", df.index, key=_ae_key("row_index"))
     if color_data is not None:
         st.markdown(f"**{selected_color}:** {color_data.iloc[row_index]}")
     data = {
@@ -545,11 +556,18 @@ def page(env):
         Sequential, EarlyStopping, Dense = lazy_import_keras()
         train_test_split, StandardScaler = lazy_import_sklearn()
         nrows = st.session_state.data.shape[0]
+        row_limit_key = _ae_key("row_limit")
+        default_lines = min(max(10, nrows // 10), nrows)
+        try:
+            current_lines = int(st.session_state.get(row_limit_key, default_lines))
+        except Exception:
+            current_lines = default_lines
+        st.session_state[row_limit_key] = min(max(10, current_lines), nrows)
         lines = st.slider(
             "Number of rows:",
             min_value=10,
             max_value=nrows,
-            value=nrows // 10,
+            key=row_limit_key,
             step=100,
         )
         if lines >= 0:
@@ -560,19 +578,41 @@ def page(env):
         ndim_inter = round(round(ndim ** 0.9))
         col1, col2, col3, col4 = st.columns(4)
         with col1:
+            latent_dim_key = _ae_key("latent_dimension")
+            max_latent_dim = max(2, ndim - 1)
+            try:
+                current_latent_dim = int(st.session_state.get(latent_dim_key, 3))
+            except Exception:
+                current_latent_dim = 3
+            st.session_state[latent_dim_key] = min(max(2, current_latent_dim), max_latent_dim)
             ndim_middle = st.number_input(
-                "Dimension", value=3, step=1, min_value=2, max_value=(ndim - 1)
+                "Dimension",
+                step=1,
+                min_value=2,
+                max_value=max_latent_dim,
+                key=latent_dim_key,
             )
         with col2:
+            color_key = _ae_key("selected_color")
+            if st.session_state.get(color_key) not in st.session_state.df_cols:
+                st.session_state[color_key] = st.session_state.df_cols[0]
             selected_color = st.selectbox(
                 "Color",
                 st.session_state.df_cols,
+                key=color_key,
             )
         with col3:
-            selected_name = st.text_input(label="File", value="myfigure")
+            figure_name_key = _ae_key("figure_name")
+            st.session_state.setdefault(figure_name_key, "myfigure")
+            selected_name = st.text_input(label="File", key=figure_name_key)
         with col4:
+            format_key = _ae_key("figure_format")
+            if st.session_state.get(format_key) not in ["png", "jpeg", "svg", "webp"]:
+                st.session_state[format_key] = "png"
             selected_format = st.selectbox(
-                label="Format", options=["png", "jpeg", "svg", "webp"]
+                label="Format",
+                options=["png", "jpeg", "svg", "webp"],
+                key=format_key,
             )
         norm_X = __normalize_data(X)
         y = st.session_state.data[f"{selected_color}"]

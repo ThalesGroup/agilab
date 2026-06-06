@@ -474,6 +474,72 @@ def test_page_helpers_delegate_state_log_and_install_wrappers(monkeypatch, tmp_p
     assert "display_log" in captured
 
 
+def test_orchestrate_action_elapsed_status_updates_non_widget_state():
+    module = _load_orchestrate_page_helpers_module()
+    ticks = iter([100.0, 103.4, 166.0])
+    captions: list[str] = []
+    placeholder = SimpleNamespace(caption=captions.append)
+    session_state: dict[str, object] = {}
+
+    started = module.start_action_elapsed(
+        session_state,
+        "demo_action",
+        monotonic_fn=lambda: next(ticks),
+    )
+    assert started == 100.0
+    assert session_state["demo_action__elapsed_seconds"] == 0.0
+
+    elapsed = module.update_action_elapsed_status(
+        placeholder,
+        session_state,
+        "demo_action",
+        "RUN",
+        started_monotonic=started,
+        monotonic_fn=lambda: next(ticks),
+    )
+    assert elapsed == pytest.approx(3.4)
+    assert captions[-1] == "RUN: running for 3s"
+
+    finished = module.finish_action_elapsed(
+        placeholder,
+        session_state,
+        "demo_action",
+        "RUN",
+        started_monotonic=started,
+        monotonic_fn=lambda: next(ticks),
+    )
+    assert finished == pytest.approx(66.0)
+    assert session_state["demo_action__elapsed_seconds"] == pytest.approx(66.0)
+    assert captions[-1] == "RUN: completed in 1m 6s"
+
+
+def test_orchestrate_action_label_case_policy_is_explicit():
+    support = _import_agilab_module("agilab.orchestrate_page_support")
+
+    assert support.ORCHESTRATE_ACTION_LABELS == {
+        "deploy_workers": "Deploy workers",
+        "check_distribute": "CHECK distribute",
+        "run": "RUN",
+        "run_benchmark": "RUN benchmark",
+        "run_workflow": "RUN workflow",
+        "run_load_export": "Run -> Load -> Export",
+        "load_output": "Load output",
+        "delete_output": "Delete output",
+        "confirm_delete": "Confirm delete",
+        "undo_last_delete": "Undo last delete",
+        "stats_report": "STATS report",
+        "export_dataframe": "EXPORT dataframe",
+        "refresh_lan_discovery": "Refresh LAN discovery",
+        "build_cluster_plan": "Build cluster plan",
+        "start_service": "START service",
+        "submit_job": "SUBMIT job",
+        "status_service": "STATUS service",
+        "health_gate": "HEALTH gate",
+        "export_snapshot": "EXPORT snapshot",
+        "stop_service": "STOP service",
+    }
+
+
 def test_page_helpers_looks_like_shared_path_delegates_project_root(
     monkeypatch, tmp_path
 ):

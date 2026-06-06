@@ -375,7 +375,7 @@ def test_bary_visualisation_supports_color_and_plain_modes(monkeypatch) -> None:
         module,
         "st",
         SimpleNamespace(
-            selectbox=lambda label, options: list(options)[0],
+            selectbox=lambda label, options, **kwargs: list(options)[0],
             markdown=markdowns.append,
             table=lambda data: tables.append(data),
             write=lambda value: writes.append(value),

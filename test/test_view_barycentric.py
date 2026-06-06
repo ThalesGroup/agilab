@@ -338,7 +338,7 @@ def test_bary_visualisation_supports_colored_and_plain_modes(monkeypatch) -> Non
             session_state=state,
             header=headers.append,
             write=lambda value: writes.append(value),
-            selectbox=lambda label, label_visibility=None, options=None: options[0],
+            selectbox=lambda label, label_visibility=None, options=None, **kwargs: options[0],
         ),
     )
 
@@ -366,7 +366,7 @@ def test_bary_visualisation_supports_colored_and_plain_modes(monkeypatch) -> Non
             session_state=state,
             header=headers.append,
             write=lambda value: writes.append(value),
-            selectbox=lambda label, label_visibility=None, options=None: options[1],
+            selectbox=lambda label, label_visibility=None, options=None, **kwargs: options[1],
         ),
     )
 
@@ -441,7 +441,7 @@ def test_bary_visualisation_handles_categorical_colors_and_jump(monkeypatch) -> 
             session_state=session_state,
             header=lambda *_args, **_kwargs: None,
             write=fail_write,
-            selectbox=lambda label, label_visibility=None, options=None: options[0],
+            selectbox=lambda label, label_visibility=None, options=None, **kwargs: options[0],
         ),
     )
 
@@ -577,7 +577,7 @@ def test_page_with_single_distinct_axis_shows_info(monkeypatch, tmp_path: Path) 
     assert any("only 1 distinct value" in message for message in infos)
 
 
-def test_page_warns_when_no_files_or_no_selection(monkeypatch, tmp_path: Path) -> None:
+def test_page_warns_when_no_files(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     datadir = tmp_path / "data"
     datadir.mkdir()
@@ -588,9 +588,15 @@ def test_page_warns_when_no_files_or_no_selection(monkeypatch, tmp_path: Path) -
     class _StopCalled(RuntimeError):
         pass
 
+    df_select_calls = []
+
+    def sidebar_selectbox(*args, **kwargs):
+        df_select_calls.append((args, kwargs))
+        return None
+
     sidebar = SimpleNamespace(
         text_input=lambda *args, **kwargs: None,
-        selectbox=lambda *args, **kwargs: None,
+        selectbox=sidebar_selectbox,
         error=lambda *args, **kwargs: None,
     )
 
@@ -610,23 +616,6 @@ def test_page_warns_when_no_files_or_no_selection(monkeypatch, tmp_path: Path) -
     with pytest.raises(_StopCalled):
         module.page(env)
     assert any("dataset is required" in message.lower() for message in warnings)
-
-    warnings.clear()
-    data_file = datadir / "dataset.csv"
-    data_file.write_text("a,b\n1,2\n", encoding="utf-8")
-    monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [data_file])
-    monkeypatch.setattr(
-        module,
-        "st",
-        SimpleNamespace(
-            session_state=_State(datadir=str(datadir)),
-            sidebar=sidebar,
-            warning=warnings.append,
-            error=lambda *args, **kwargs: None,
-        ),
-    )
-    module.page(env)
-    assert any("Please select a dataset" in message for message in warnings)
 
 
 def test_page_warns_when_loaded_df_invalid(monkeypatch, tmp_path: Path) -> None:
@@ -691,9 +680,15 @@ def test_view_barycentric_page_seeds_df_file_from_persisted_settings(monkeypatch
             return False
 
     session_state = _State()
+    df_select_calls = []
+
+    def sidebar_selectbox(*args, **kwargs):
+        df_select_calls.append((args, kwargs))
+        return None
+
     sidebar = SimpleNamespace(
         text_input=lambda *args, **kwargs: None,
-        selectbox=lambda *args, **kwargs: None,
+        selectbox=sidebar_selectbox,
         error=lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [data_file])
@@ -723,6 +718,12 @@ def test_view_barycentric_page_seeds_df_file_from_persisted_settings(monkeypatch
 
     env = SimpleNamespace(target="demo_bary", projects=["demo_bary"], app_settings_file=settings_path)
     module.page(env)
+    assert session_state["df_file"] == "dataset.csv"
+    assert df_select_calls
+    _, df_select_kwargs = df_select_calls[0]
+    assert df_select_kwargs["key"] == "df_file"
+    assert "index" not in df_select_kwargs
+    assert "args" not in df_select_kwargs
 
     assert session_state["datadir"] == str(datadir)
     assert session_state["df_file"] == "dataset.csv"

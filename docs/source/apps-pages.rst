@@ -144,9 +144,11 @@ pulled by the umbrella dependency graph.
      - Packaging status
    * - ``view_autoencoder_latentspace``
      - ``agi-page-latent-space``
-     - TensorFlow/Keras latent-space projection and autoencoder exploration.
+     - Opt-in TensorFlow/Keras latent-space playground that trains a small
+       autoencoder in-page.
      - Source-checkout opt-in; intentionally outside ``agi-pages`` because it
-       targets Python 3.12 and carries TensorFlow runtime constraints.
+       targets Python 3.12, carries TensorFlow runtime constraints, and is not
+       a generic app-agnostic sidecar.
    * - ``view_barycentric``
      - ``agi-page-simplex-map``
      - Barycentric/simplex visualisation for proportion-style KPI features.
@@ -383,14 +385,16 @@ Training evidence page for scalar logs and model-training runs.
 view_autoencoder_latentspace
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-TensorFlow/Keras latent-space exploration page for Python 3.12 source-checkout
-environments.
+Opt-in TensorFlow/Keras latent-space playground for Python 3.12 source-checkout
+environments. Unlike the default app-agnostic sidecars, this page trains a
+small autoencoder in-page for teaching and exploration.
 
 - Input: embeddings, labels, or autoencoder-ready tabular/image artifacts.
 - Output: latent-space projections, clustering diagnostics, and reconstruction
   exploration.
 - This page remains opt-in because TensorFlow constrains the supported Python
-  range and would make the default page bundle set heavier.
+  range, would make the default page bundle set heavier, and owns an in-page
+  training loop. Keep reproducible training workflows in app projects.
 
 Producer example for distributed runs
 -------------------------------------

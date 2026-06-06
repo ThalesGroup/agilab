@@ -3016,12 +3016,17 @@ async def main():
     if st.session_state.get(notebook_selection_key) != notebook_widget_selection:
         st.session_state[notebook_selection_key] = notebook_widget_selection
     selected_notebooks = list(notebook_widget_selection)
+    sidebar_launchers_rendered = False
 
     def _render_sidebar_launchers(
         *,
         sidebar_selected_views: list[str],
         sidebar_selected_notebooks: list[str],
     ) -> None:
+        nonlocal sidebar_launchers_rendered
+        if sidebar_launchers_rendered:
+            return
+        sidebar_launchers_rendered = True
         _render_analysis_sidebar_view_launcher(
             project=project,
             selected_views=sidebar_selected_views,

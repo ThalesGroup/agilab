@@ -104,10 +104,12 @@ from streamlit import button
 
 ANNOTATED_LABEL: str = "Reset project"
 CONCAT_LABEL = "Delete " + "cache"
+ACTION_LABELS = {"reset": "Reset from map"}
 DYNAMIC_LABEL = f"Delete {object()}"
 
 button(ANNOTATED_LABEL)
 button(CONCAT_LABEL)
+button(ACTION_LABELS["reset"])
 button(DYNAMIC_LABEL)
 """,
     )
@@ -120,6 +122,7 @@ button(DYNAMIC_LABEL)
 
     assert [(item.label, item.kind) for item in occurrences] == [
         ("Delete cache", "button"),
+        ("Reset from map", "button"),
         ("Reset project", "button"),
     ]
 

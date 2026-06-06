@@ -4577,6 +4577,7 @@ def handle_project_creation():
 
     create_clicked = st.sidebar.button(
         "Create",
+        key="project_create_sidebar_btn",
         type="primary",
         width="stretch",
         disabled=create_mode == CREATE_MODE_NOTEBOOK
@@ -4696,7 +4697,12 @@ def handle_project_rename():
         help="Enter the destination project name. AGILAB appends '_project' if it is missing.",
     ).strip()
 
-    rename_clicked = st.sidebar.button("Rename", type="primary", width="stretch")
+    rename_clicked = st.sidebar.button(
+        "Rename",
+        key="project_rename_sidebar_btn",
+        type="primary",
+        width="stretch",
+    )
     if rename_clicked:
 
         def _activate_renamed_project(result):
@@ -4738,7 +4744,12 @@ def handle_project_delete():
     )
 
     # Delete button
-    delete_clicked = st.sidebar.button("Delete", type="primary", width="stretch")
+    delete_clicked = st.sidebar.button(
+        "Delete",
+        key="project_delete_sidebar_btn",
+        type="primary",
+        width="stretch",
+    )
     if delete_clicked:
 
         def _activate_after_delete(result):
@@ -4832,7 +4843,12 @@ def handle_project_import():
             if cols[1].button("Cancel", width="stretch"):
                 st.rerun()
 
-        import_clicked = st.sidebar.button("Import", type="primary", width="stretch")
+        import_clicked = st.sidebar.button(
+            "Import",
+            key="project_import_sidebar_btn",
+            type="primary",
+            width="stretch",
+        )
         if import_clicked:
             if not target_dir.exists():
                 _run_import_action(overwrite=False)

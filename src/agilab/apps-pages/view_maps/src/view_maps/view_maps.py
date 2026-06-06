@@ -715,24 +715,36 @@ def page(env):
     # treat it as discrete. Adjust this value based on your needs.
     # Threshold to classify numeric columns as discrete vs continuous
     unique_default = int(view_settings.get("unique_threshold", 10))
+    unique_threshold_key = _vm_key("unique_threshold")
+    try:
+        unique_threshold_current = int(st.session_state.get(unique_threshold_key, unique_default))
+    except Exception:
+        unique_threshold_current = unique_default
+    st.session_state[unique_threshold_key] = min(max(2, unique_threshold_current), 100)
     unique_threshold = st.sidebar.number_input(
         "Discrete threshold (unique values <)",
         min_value=2,
         max_value=100,
-        value=unique_default,
         step=1,
+        key=unique_threshold_key,
     )
     if view_settings.get("unique_threshold", 10) != unique_threshold:
         view_settings["unique_threshold"] = int(unique_threshold)
         full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
 
     range_default = int(view_settings.get("range_threshold", 200))
+    range_threshold_key = _vm_key("range_threshold")
+    try:
+        range_threshold_current = int(st.session_state.get(range_threshold_key, range_default))
+    except Exception:
+        range_threshold_current = range_default
+    st.session_state[range_threshold_key] = min(max(1, range_threshold_current), 10000)
     range_threshold = st.sidebar.number_input(
         "Integer discrete range (max-min <=)",
         min_value=1,
         max_value=10000,
-        value=range_default,
         step=1,
+        key=range_threshold_key,
     )
     if view_settings.get("range_threshold", 200) != range_threshold:
         view_settings["range_threshold"] = int(range_threshold)
@@ -824,10 +836,20 @@ def page(env):
                         "Pastel2",
                         "Set3",
                     ]
-                    discreteseq = st.selectbox("Color Sequence", discreteseqs, index=0)
+                    discreteseq = st.selectbox(
+                        "Color Sequence",
+                        discreteseqs,
+                        index=0,
+                        key=_vm_key("color_sequence"),
+                    )
                 elif var[i] == "continuous":
                     colorscales = px.colors.named_colorscales()
-                    colorscale = st.selectbox("Color Scale", colorscales, index=0)
+                    colorscale = st.selectbox(
+                        "Color Scale",
+                        colorscales,
+                        index=0,
+                        key=_vm_key("color_scale"),
+                    )
         else:
             with c[i]:
                 st.warning(f"No columns available for {var[i]}.")

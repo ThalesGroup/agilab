@@ -54,6 +54,9 @@ APP_SCOPED_SESSION_KEYS = (
     "shap_values_glob",
     "shap_feature_values_glob",
     "shap_metadata_glob",
+    f"{PAGE_KEY}:feature_values_file",
+    f"{PAGE_KEY}:metadata_file",
+    f"{PAGE_KEY}:shap_values_file",
 )
 
 
@@ -239,16 +242,19 @@ shap_path = st.sidebar.selectbox(
     "SHAP values file",
     options=shap_files,
     format_func=lambda path: str(Path(path).relative_to(artifact_root)),
+    key=f"{PAGE_KEY}:shap_values_file",
 )
 feature_path = st.sidebar.selectbox(
     "Feature values file",
     options=[*feature_files, None] if feature_files else [None],
     format_func=lambda path: "none" if path is None else str(Path(path).relative_to(artifact_root)),
+    key=f"{PAGE_KEY}:feature_values_file",
 )
 metadata_path = st.sidebar.selectbox(
     "Metadata file",
     options=[*metadata_files, None] if metadata_files else [None],
     format_func=lambda path: "none" if path is None else str(Path(path).relative_to(artifact_root)),
+    key=f"{PAGE_KEY}:metadata_file",
 )
 
 metadata = _load_json(Path(metadata_path) if metadata_path else None)
