@@ -16,6 +16,9 @@ SOURCE_PACKAGE = str(SRC_ROOT / "agilab")
 if SOURCE_PACKAGE not in agilab.__path__:
     agilab.__path__.insert(0, SOURCE_PACKAGE)
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DOCS_PAGE_SHOTS = REPO_ROOT / "docs" / "source" / "_static" / "page-shots"
+
 from agilab.ui.screenshot_manifest import (
     SCHEMA,
     SCHEMA_VERSION,
@@ -190,3 +193,23 @@ def test_screenshot_manifest_loader_reports_contract_errors(tmp_path: Path) -> N
     )
     with pytest.raises(ValueError, match="Unsupported screenshot manifest kind"):
         load_screenshot_manifest(bad_kind)
+
+
+def test_docs_page_shot_svg_summaries_do_not_reintroduce_stale_sidebar_labels() -> None:
+    manifest = json.loads((DOCS_PAGE_SHOTS / "screenshot_manifest.json").read_text(encoding="utf-8"))
+    stale_sidebar_labels = ("Quick actions", "Reviewed")
+
+    checked = []
+    for record in manifest["screenshots"]:
+        svg_name = record.get("svg_summary_path")
+        if not svg_name:
+            continue
+        svg = DOCS_PAGE_SHOTS / svg_name
+        assert svg.is_file(), f"missing SVG summary declared by manifest: {svg_name}"
+        text = svg.read_text(encoding="utf-8")
+        checked.append(svg_name)
+
+        forbidden = [label for label in stale_sidebar_labels if label in text]
+        assert forbidden == [], f"{svg_name} contains stale sidebar labels: {forbidden}"
+
+    assert checked, "expected at least one docs page-shot SVG summary"
