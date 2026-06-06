@@ -40,6 +40,16 @@ def test_scope_for_path_groups_git_hooks_as_infrastructure():
     assert scope_guard.scope_for_path(".githooks/pre-push") == "git-hooks"
 
 
+def test_scope_for_path_groups_agent_instruction_and_discovery_files():
+    assert scope_guard.scope_for_path("AGENTS.md") == "agent-runbook"
+    assert scope_guard.scope_for_path("AGENT_LEARNINGS.md") == "agent-runbook"
+    assert scope_guard.scope_for_path("AGENT_CONVENTIONS.md") == "agent-runbook"
+    assert scope_guard.scope_for_path("tools/agent_workflows.md") == "agent-runbook"
+    assert scope_guard.scope_for_path("agenticweb.md") == "agent-discovery"
+    assert scope_guard.scope_for_path("agilab-capabilities.json") == "agent-discovery"
+    assert scope_guard.scope_for_path("llms-full.txt") == "agent-discovery"
+
+
 def test_scope_guard_flags_mixed_unrelated_worktree():
     report = scope_guard.analyze_scope(
         [
@@ -134,6 +144,12 @@ def test_main_allows_infrastructure_scopes_by_default(capsys):
             [
                 "--changed-file",
                 "AGENTS.md",
+                "--changed-file",
+                "AGENT_LEARNINGS.md",
+                "--changed-file",
+                "agenticweb.md",
+                "--changed-file",
+                "agilab-capabilities.json",
                 "--changed-file",
                 ".githooks/pre-push",
                 "--changed-file",

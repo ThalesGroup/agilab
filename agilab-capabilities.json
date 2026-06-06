@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-05T22:41:43Z",
+  "generated_at_utc": "2026-06-06T18:06:57Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 15,
     "agent_skill_count": 33,
-    "evidence_schema_count": 218,
+    "evidence_schema_count": 220,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -767,7 +767,7 @@
       "status": "Source built-in",
       "source": "src/agilab/apps/builtin/weather_forecast_legacy_project",
       "version": "2026.05.30.post1",
-      "description": "Built-in AGILab weather forecasting example migrated from notebooks"
+      "description": "Built-in AGILAB legacy weather forecasting app for migration comparison"
     },
     {
       "project": "weather_forecast_project",
@@ -1757,18 +1757,39 @@
     {
       "schema": "agilab.notebook_export_handoff.v1",
       "sources": [
+        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/global_dag_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/meteo_forecast_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.md",
+        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.md",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
     {
       "schema": "agilab.notebook_export_manifest.v1",
       "sources": [
+        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/global_dag_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/meteo_forecast_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
     {
       "schema": "agilab.notebook_export_portability.v1",
       "sources": [
+        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/global_dag_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/meteo_forecast_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
@@ -1842,6 +1863,8 @@
     {
       "schema": "agilab.notebook_view_sync.v1",
       "sources": [
+        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
+        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
@@ -1888,6 +1911,12 @@
         "src/agilab/examples/parallel_stage/parallel_stage.toml",
         "src/agilab/examples/parallel_stage/preview_parallel_stage.py",
         "tools/parallel_stage.py"
+      ]
+    },
+    {
+      "schema": "agilab.performance-cache.v1",
+      "sources": [
+        "tools/performance_cache.py"
       ]
     },
     {
@@ -2410,6 +2439,12 @@
       "schema": "agilab.widget_robot_matrix_result_cache.v1",
       "sources": [
         "tools/agilab_widget_robot_matrix.py"
+      ]
+    },
+    {
+      "schema": "agilab.worker-env-reuse.v1",
+      "sources": [
+        "tools/worker_env_reuse.py"
       ]
     },
     {

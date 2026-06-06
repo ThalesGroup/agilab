@@ -16,6 +16,7 @@ from typing import Callable, Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MAX_SCOPES = 2
 DEFAULT_ALLOWED_SCOPES = (
+    "agent-discovery",
     "agent-runbook",
     "agent-skills",
     "badges",
@@ -25,6 +26,24 @@ DEFAULT_ALLOWED_SCOPES = (
     "repo-tools",
     "tests",
 )
+
+AGENT_RUNBOOK_FILES = {
+    "AGENTS.md",
+    "AGENT_CONVENTIONS.md",
+    "AGENT_LEARNINGS.md",
+    "tools/agent_workflows.md",
+    "docs/source/agent-workflows.rst",
+}
+
+AGENT_DISCOVERY_FILES = {
+    "AGENT_SKILLS.md",
+    "agenticweb.md",
+    "agilab-capabilities.json",
+    "agilab-capabilities.schema.json",
+    "agilab-capability-rules.yml",
+    "llms.txt",
+    "llms-full.txt",
+}
 
 APP_HINTS = {
     "flight_telemetry": "flight_telemetry_project",
@@ -122,8 +141,10 @@ def scope_for_path(path: str) -> str:
         return f"lib:{package}"
     if len(parts) >= 4 and parts[:3] == ("src", "agilab", "core"):
         return f"core:{parts[3]}"
-    if path == "AGENTS.md":
+    if path in AGENT_RUNBOOK_FILES:
         return "agent-runbook"
+    if path in AGENT_DISCOVERY_FILES:
+        return "agent-discovery"
     if path.startswith("docs/") or path in {"README.md", "CHANGELOG.md"}:
         return "docs"
     if path.startswith(".claude/skills/") or path.startswith(".codex/skills/"):
