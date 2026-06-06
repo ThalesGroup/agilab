@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-06T18:06:57Z",
+  "generated_at_utc": "2026-06-06T21:38:58Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -861,7 +861,7 @@
       "name": "agilab-release-verification",
       "description": "Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks \"ready for release?\", \"release it\", \"all good?\", \"HF aligned?\", \"why badge failed?\", or any release/publication alignment check.",
       "path": ".claude/skills/agilab-release-verification/SKILL.md",
-      "updated": "2026-06-04"
+      "updated": "2026-06-06"
     },
     {
       "name": "agilab-runbook",
