@@ -1722,30 +1722,33 @@ Use this rule of thumb:
   faster codebase onboarding, architecture discovery, and repository Q&A without
   turning generated content into official docs
 
-## Final consolidated poll
+## GitHub roadmap voting
 
-Use both paths, because they serve different purposes:
+Use one public GitHub path: roadmap-labeled issues. Add a thumbs-up reaction to
+an existing roadmap issue when it matches your priority; open a new roadmap
+proposal only when the existing list is missing the work you want to sponsor.
 
-1. Quick popularity signal in GitHub Discussions
-   - Create or answer a poll: <https://github.com/ThalesGroup/agilab/discussions/new?category=polls>
-   - Browse existing poll discussions: <https://github.com/ThalesGroup/agilab/discussions/categories/polls>
-2. Structured roadmap vote in GitHub Issues
-   - Submit a vote: <https://github.com/ThalesGroup/agilab/issues/new?template=roadmap-vote.yml>
-   - Browse submitted votes: <https://github.com/ThalesGroup/agilab/issues?q=is%3Aissue+in%3Atitle+%22%5BRoadmap+vote%5D%22>
-3. Open roadmap discussion in Issues
-   - Central roadmap thread: <https://github.com/ThalesGroup/agilab/issues/2>
-   - Use this thread if you want visible engineering discussion in the normal issue workflow.
+1. Browse and upvote roadmap issues:
+   <https://github.com/ThalesGroup/agilab/issues?q=is%3Aissue+label%3Aroadmap>
+2. Submit a missing proposal:
+   <https://github.com/ThalesGroup/agilab/issues/new?template=roadmap-vote.yml>
+3. Use the central roadmap index and discussion hub:
+   <https://github.com/ThalesGroup/agilab/issues/2>
 
-### Comment template for `issues/2`
+GitHub Discussions polls are no longer the roadmap intake path. Keeping the
+signal on roadmap issues avoids splitting votes across polls, form submissions,
+and central-thread comments.
+
+### Roadmap proposal template
 
 ```text
-Vote: <one option>
+Proposal: <one roadmap item>
 Why: <why this matters now>
 Expected value: <product / engineering / user impact>
 Constraints or dependencies: <blocking items, staffing, sequencing>
 ```
 
-### Current candidate priorities
+### Current GitHub roadmap candidates
 
 - P0 release and runtime integrity
 - P1 first-run product experience
@@ -1753,12 +1756,9 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 - P3 security and supply-chain posture
 - P4 team and cluster operation
 - P5 pinned private-app validation for non-public app CI and release checks
-- Multi-app DAG orchestration productization, once the professional baseline is
-  stable
-- Intent-first operator workbench, once profiles, command actions, compact logs,
-  and evidence surfaces are stable enough to share one operator shell
-- Data connector facility and connector-aware views, once first-run and
-  evidence paths are predictable
+- Multi-app DAG orchestration productization
+- Intent-first operator workbench
+- Data connector facility and connector-aware views
 
 If the `roadmap` label is not visible yet in GitHub, the issue form still
 works. The repository workflow will create or update that label on the next

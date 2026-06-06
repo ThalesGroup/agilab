@@ -1,37 +1,45 @@
-name: Roadmap vote
-description: Submit one roadmap preference for AGILab future work.
-title: "[Roadmap vote] "
+name: Roadmap proposal
+description: Propose one roadmap item or add rationale for an existing AGILAB priority.
+title: "[Roadmap] "
 labels:
   - roadmap
 body:
   - type: markdown
     attributes:
       value: |
-        Use this form to record one roadmap preference.
-        Votes are tracked as GitHub issues in this repository.
+        Roadmap voting uses roadmap-labeled GitHub issues.
+        Before opening a new proposal, browse existing roadmap issues and add a thumbs-up reaction when one already matches your priority:
+        https://github.com/ThalesGroup/agilab/issues?q=is%3Aissue+label%3Aroadmap
+
+        Use this form only when your requested roadmap item is missing or needs a distinct engineering discussion.
 
   - type: dropdown
     id: investment
     attributes:
-      label: Preferred next AGILab investment
-      description: Select the single item that should be prioritized next.
+      label: Roadmap lane
+      description: Select the closest current roadmap lane. Use "Other / write-in" only when none match.
       options:
-        - Experiment Cockpit
-        - Evidence / Release View
-        - Scenario Playback View
-        - Elastic/OpenSearch + Grafana
-        - OpenSearch + OpenSearch Dashboards
-        - Postgres + Superset
-        - Connector framework hardening and external integrations
+        - P0 release and runtime integrity
+        - P1 first-run product experience
+        - P2 notebook interop and no-lock-in
+        - P3 security and supply-chain posture
+        - P4 team and cluster operation
+        - P5 pinned private-app validation for non-public app CI and release checks
+        - Multi-app DAG orchestration productization
+        - Intent-first operator workbench
+        - Data connector facility and connector-aware views
+        - Other / write-in
     validations:
       required: true
 
   - type: textarea
-    id: rationale
+    id: proposal
     attributes:
-      label: Why this should be next
-      description: State the operational, product, or engineering reason.
-      placeholder: This should be next because...
+      label: Proposal and rationale
+      description: State the specific request and why this should be next.
+      placeholder: |
+        Proposal: ...
+        Why this matters now: ...
     validations:
       required: true
 
@@ -41,11 +49,12 @@ body:
       label: Expected value
       description: Select the main value drivers.
       options:
-        - label: Better daily usability
-        - label: Better evidence and release readiness
-        - label: Better observability and operations
-        - label: Better audit and traceability
-        - label: Better executive analytics
+        - label: Better release or runtime integrity
+        - label: Better first-run usability
+        - label: Better notebook interoperability
+        - label: Better security, supply-chain, or audit traceability
+        - label: Better team, cluster, or private-app reproducibility
+        - label: Better connector, data-system, or app-integration coverage
 
   - type: textarea
     id: constraints
