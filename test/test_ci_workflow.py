@@ -15,6 +15,7 @@ UI_ROBOT_MATRIX_WORKFLOW_PATH = Path(".github/workflows/ui-robot-matrix.yml")
 WINDOWS_CORE_TESTS_WORKFLOW_PATH = Path(".github/workflows/windows-core-tests.yml")
 ROOT_CONFTEST_PATH = Path("test/conftest.py")
 WORKFLOW_PARITY_PATH = Path("tools/workflow_parity.py")
+PYPROJECT_PATH = Path("pyproject.toml")
 
 VALIDATION_WORKFLOW_PATHS = (
     WORKFLOW_PATH,
@@ -178,6 +179,20 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "--head-ref \"$AGILAB_CORE_CHANGE_HEAD\"" in text
 
 
+def test_root_pytest_discovers_all_existing_core_package_tests() -> None:
+    config = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
+    pytest_options = config["tool"]["pytest"]["ini_options"]
+    testpaths = set(pytest_options["testpaths"])
+    existing_core_test_dirs = {
+        path.as_posix()
+        for path in Path("src/agilab/core").glob("*/test")
+        if path.is_dir()
+    }
+    expected = {"src/agilab/core/test", *existing_core_test_dirs}
+
+    assert expected <= testpaths
+
+
 def test_validation_workflows_cancel_superseded_branch_runs() -> None:
     for path in VALIDATION_WORKFLOW_PATHS:
         text = path.read_text(encoding="utf-8")
@@ -201,7 +216,7 @@ def test_windows_core_tests_workflow_matches_failure_tracker_command() -> None:
     assert 'branches: ["main"]' in text
     assert 'branches: ["**"]' in text
     assert "--import-mode=importlib" in text
-    assert "src/agilab/core/test src/agilab/core/agi-env/test" in text
+    assert "src/agilab/core/test src/agilab/core/agi-env/test src/agilab/core/agi-cluster/test" in text
     assert "test-results/windows-core-tests.txt" in text
     assert "test-results/windows-core-tests.xml" in text
     assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2" in text

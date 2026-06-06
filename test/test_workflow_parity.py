@@ -205,7 +205,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     combined_node_xml = agi_core_combined[1]
     combined_cluster_xml = agi_core_combined[2]
     assert combined_run.timeout_seconds == 20 * 60
-    assert combined_run.argv[-1] == "src/agilab/core/test"
+    assert combined_run.argv[-2:] == [
+        "src/agilab/core/test",
+        "src/agilab/core/agi-cluster/test",
+    ]
     assert "--import-mode=importlib" in combined_run.argv
     assert "--data-file=.coverage.agi-core-combined" in combined_run.argv
     assert "--source=agi_node,agi_cluster" in combined_run.argv
@@ -236,7 +239,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "--cov=agi_cluster" in agi_cluster.argv
     assert "coverage-agi-cluster.xml" in " ".join(agi_cluster.argv)
     assert _has_with_dependency(agi_cluster.argv, "fastparquet")
-    assert agi_cluster.argv[-1] == "src/agilab/core/test"
+    assert agi_cluster.argv[-2:] == [
+        "src/agilab/core/test",
+        "src/agilab/core/agi-cluster/test",
+    ]
 
     assert [command.label for command in agi_gui_commands] == [
         "agi-gui coverage (support)",
