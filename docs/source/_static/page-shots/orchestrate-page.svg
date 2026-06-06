@@ -12,13 +12,7 @@
 <text x="28" y="196" font-size="14" font-weight="500" fill="#d6dde0" text-anchor="start">ANALYSIS</text>
 <line x1="20" y1="230" x2="280" y2="230" stroke="#4e6572" stroke-width="1" opacity="0.75"/>
 <text x="20" y="273" font-size="16" font-weight="700" fill="#f7f7f2" text-anchor="start">Flight Telemetry</text>
-<rect x="20" y="318" width="260" height="40" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
-<text x="56" y="344" font-size="14" font-weight="600" fill="#f7f7f2" text-anchor="start">Quick actions</text>
-<rect x="20" y="374" width="260" height="40" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
-<text x="56" y="400" font-size="14" font-weight="600" fill="#f7f7f2" text-anchor="start">agi-app</text>
-<rect x="20" y="430" width="260" height="40" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
-<text x="56" y="456" font-size="14" font-weight="600" fill="#f7f7f2" text-anchor="start">Reviewed</text>
-<text x="16" y="830" font-size="12" font-weight="400" fill="#b9c5ca" text-anchor="start">AGILAB v2026.06.02</text>
+<text x="16" y="830" font-size="12" font-weight="400" fill="#b9c5ca" text-anchor="start">AGILAB v2026.06.02+dev.95dee1cf7</text>
 <text x="1340" y="34" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Deploy</text>
 <rect x="380" y="120" width="980" height="590" rx="20" fill="url(#panelGradient)" stroke="#4f6471" stroke-width="1"/>
 <line x1="400" y1="135" x2="1328" y2="135" stroke="#cda759" stroke-width="1" opacity="0.8"/>
