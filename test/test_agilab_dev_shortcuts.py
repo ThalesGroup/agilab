@@ -43,7 +43,9 @@ def test_bugfix_shortcut_runs_impact_then_fast_regression_by_default():
 
 
 def test_bugfix_shortcut_keeps_changed_file_arguments():
-    assert agilab_dev.planned_commands(["bugfix", "--files", "src/agilab/main_page.py"]) == [
+    assert agilab_dev.planned_commands(
+        ["bugfix", "--files", "src/agilab/main_page.py"]
+    ) == [
         [
             "uv",
             "--preview-features",
@@ -59,7 +61,9 @@ def test_bugfix_shortcut_keeps_changed_file_arguments():
 
 
 def test_test_shortcut_keeps_pytest_arguments():
-    assert agilab_dev.planned_commands(["test", "test/test_cluster_lan_discovery.py", "-k", "windows"]) == [
+    assert agilab_dev.planned_commands(
+        ["test", "test/test_cluster_lan_discovery.py", "-k", "windows"]
+    ) == [
         [
             "uv",
             "--preview-features",
@@ -153,7 +157,9 @@ def test_regress_shortcut_defaults_to_staged_ga_run():
 
 
 def test_regress_shortcut_keeps_selector_arguments():
-    assert agilab_dev.planned_commands(["regress", "--files", "src/agilab/pipeline_ai.py", "--json"]) == [
+    assert agilab_dev.planned_commands(
+        ["regress", "--files", "src/agilab/pipeline_ai.py", "--json"]
+    ) == [
         [
             "uv",
             "--preview-features",
@@ -205,7 +211,9 @@ def test_robust_shortcut_keeps_matrix_arguments():
 
 
 def test_parallel_stage_shortcut_runs_parallel_stage_tool():
-    assert agilab_dev.planned_commands(["parallel-stage", "--check", "parallel_stage.toml"]) == [
+    assert agilab_dev.planned_commands(
+        ["parallel-stage", "--check", "parallel_stage.toml"]
+    ) == [
         [
             "uv",
             "--preview-features",
@@ -262,7 +270,9 @@ def test_app_contracts_shortcut_keeps_matrix_arguments():
 
 
 def test_builtin_app_tests_shortcut_runs_app_local_runner():
-    assert agilab_dev.planned_commands(["builtin-app-tests", "--app", "weather_forecast_project"]) == [
+    assert agilab_dev.planned_commands(
+        ["builtin-app-tests", "--app", "weather_forecast_project"]
+    ) == [
         [
             "uv",
             "--preview-features",
@@ -334,7 +344,9 @@ def test_audit_shortcut_runs_agilab_audit():
 
 
 def test_audit_quality_shortcut_scores_markdown_audit():
-    assert agilab_dev.planned_commands(["audit-quality", "CODE_REVIEW.md", "--min-score", "90"]) == [
+    assert agilab_dev.planned_commands(
+        ["audit-quality", "CODE_REVIEW.md", "--min-score", "90"]
+    ) == [
         [
             "uv",
             "--preview-features",
@@ -377,7 +389,9 @@ def test_audit_preflight_shortcut_prints_architecture_preflight():
     ]
 
 
-def test_main_keeps_machine_readable_shortcut_stdout_clean(capsys, monkeypatch, tmp_path):
+def test_main_keeps_machine_readable_shortcut_stdout_clean(
+    capsys, monkeypatch, tmp_path
+):
     calls = []
 
     class Completed:
@@ -395,13 +409,16 @@ def test_main_keeps_machine_readable_shortcut_stdout_clean(capsys, monkeypatch, 
     monkeypatch.setattr(agilab_dev.subprocess, "run", fake_run)
     monkeypatch.setattr(agilab_dev, "DEV_LOG_DIR", tmp_path)
 
-    exit_code = agilab_dev.main(["regress", "--files", "src/agilab/pipeline_ai.py", "--json"])
+    exit_code = agilab_dev.main(
+        ["regress", "--files", "src/agilab/pipeline_ai.py", "--json"]
+    )
 
     captured = capsys.readouterr()
     assert exit_code == 0
     assert captured.out == ""
     assert "tools/ga_regression_selector.py" in captured.err
     assert "./dev compact-output: ok exit=0" in captured.err
+    assert "ok\n" not in captured.err
     assert f"log={tmp_path}" in captured.err
     assert calls == [
         (
@@ -421,7 +438,9 @@ def test_main_keeps_machine_readable_shortcut_stdout_clean(capsys, monkeypatch, 
     ]
 
 
-def test_main_compact_output_prints_signal_summary_and_writes_full_log(capsys, monkeypatch, tmp_path):
+def test_main_compact_output_prints_signal_summary_and_writes_full_log(
+    capsys, monkeypatch, tmp_path
+):
     class Completed:
         returncode = 1
         stdout = "\n".join(
@@ -451,7 +470,9 @@ def test_main_compact_output_prints_signal_summary_and_writes_full_log(capsys, m
     assert "omitted" in captured.err
     logs = list(tmp_path.glob("*.log"))
     assert len(logs) == 1
-    assert "line that should stay only in the artifact" in logs[0].read_text(encoding="utf-8")
+    assert "line that should stay only in the artifact" in logs[0].read_text(
+        encoding="utf-8"
+    )
 
 
 def test_main_raw_output_keeps_streaming_subprocess_call(capsys, monkeypatch):
@@ -513,6 +534,65 @@ def test_workflow_profile_shortcut_repeats_profile_flags_and_keeps_options():
             "--profile",
             "docs",
             "--keep-going",
+        ]
+    ]
+
+
+def test_ui_flow_shortcut_selects_ui_robot_profiles_from_changed_files():
+    assert agilab_dev.planned_commands(
+        ["ui-flow", "--changed-file", "src/agilab/pages/project.py"]
+    ) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/workflow_parity.py",
+            "--select-ui-robot-profiles",
+            "--changed-file",
+            "src/agilab/pages/project.py",
+        ]
+    ]
+
+
+def test_perf_startup_shortcut_uses_quick_startup_import_scenarios():
+    command = agilab_dev.planned_commands(["perf-startup"])[0]
+
+    assert command[:6] == [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "python",
+        "tools/perf_smoke.py",
+    ]
+    assert command.count("--scenario") == 4
+    assert "orchestrate-execute-import" in command
+    assert command[-4:] == ["--repeats", "1", "--warmups", "0"]
+
+
+def test_worker_reuse_shortcut_runs_worker_env_reuse_tool():
+    assert agilab_dev.planned_commands(
+        [
+            "worker-reuse",
+            "--worker-pyproject",
+            "worker/pyproject.toml",
+            "--worker-copy",
+            "~/wenv/app_worker",
+        ]
+    ) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/worker_env_reuse.py",
+            "--worker-pyproject",
+            "worker/pyproject.toml",
+            "--worker-copy",
+            "~/wenv/app_worker",
         ]
     ]
 
@@ -816,7 +896,14 @@ def test_task_worktree_shortcut_requires_branch_and_keeps_arguments():
 def test_skills_shortcut_syncs_then_validates_and_generates():
     assert agilab_dev.planned_commands(["skills", "agilab-runbook"]) == [
         ["python3", "tools/sync_agent_skills.py", "--skills", "agilab-runbook"],
-        ["python3", "tools/codex_skills.py", "--root", ".codex/skills", "validate", "--strict"],
+        [
+            "python3",
+            "tools/codex_skills.py",
+            "--root",
+            ".codex/skills",
+            "validate",
+            "--strict",
+        ],
         ["python3", "tools/codex_skills.py", "--root", ".codex/skills", "generate"],
         ["python3", "tools/agent_skill_catalog.py", "--apply"],
         ["python3", "tools/generate_skill_badges.py"],

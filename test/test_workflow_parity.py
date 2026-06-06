@@ -34,7 +34,9 @@ def _option_values(argv: list[str], option: str) -> list[str]:
 
 
 def _load_module():
-    spec = importlib.util.spec_from_file_location("workflow_parity_test_module", MODULE_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "workflow_parity_test_module", MODULE_PATH
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -60,7 +62,9 @@ def _cache_args(cache_path: Path, *, no_result_cache: bool = False) -> SimpleNam
 
 
 def _coverage_workflow_agi_gui_targets() -> dict[str, list[str]]:
-    spec = importlib.util.spec_from_file_location("coverage_shard_plan_workflow_parity_test_module", SHARD_PLAN_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "coverage_shard_plan_workflow_parity_test_module", SHARD_PLAN_PATH
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -69,27 +73,39 @@ def _coverage_workflow_agi_gui_targets() -> dict[str, list[str]]:
 
 
 def _parity_agi_gui_targets(module) -> dict[str, list[str]]:
-    args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
-    commands = module._profile_commands(args)["agi-gui"][: len(module.AGI_GUI_COVERAGE_CHUNKS)]
+    args = SimpleNamespace(
+        components=None, skills=None, app_path=None, worker_copy=None
+    )
+    commands = module._profile_commands(args)["agi-gui"][
+        : len(module.AGI_GUI_COVERAGE_CHUNKS)
+    ]
     targets_by_chunk: dict[str, list[str]] = {}
     for command in commands:
         match = re.fullmatch(r"agi-gui coverage \(([a-z-]+)\)", command.label)
         assert match is not None
-        ignore_index = command.argv.index("--ignore=src/agilab/test/test_model_returns_code.py")
+        ignore_index = command.argv.index(
+            "--ignore=src/agilab/test/test_model_returns_code.py"
+        )
         targets_by_chunk[match.group(1)] = command.argv[ignore_index + 1 :]
     return targets_by_chunk
 
 
-def test_coverage_shard_plan_module_fails_closed_when_loader_is_missing(monkeypatch) -> None:
+def test_coverage_shard_plan_module_fails_closed_when_loader_is_missing(
+    monkeypatch,
+) -> None:
     module = _load_module()
-    monkeypatch.setattr(module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        module.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None
+    )
 
     try:
         module._coverage_shard_plan_module()
     except RuntimeError as exc:
         assert "cannot load coverage shard planner" in str(exc)
     else:
-        raise AssertionError("_coverage_shard_plan_module should fail when the module spec is missing")
+        raise AssertionError(
+            "_coverage_shard_plan_module should fail when the module spec is missing"
+        )
 
 
 def test_agi_gui_workflow_parity_matches_coverage_workflow_targets() -> None:
@@ -113,13 +129,17 @@ def test_agi_gui_workflow_parity_matches_coverage_workflow_targets() -> None:
 def test_expand_repo_globs_preserves_unmatched_patterns() -> None:
     module = _load_module()
 
-    expanded = module._expand_repo_globs(["test/test_workflow_parity.py", "missing-ui-robot-*.py"])
+    expanded = module._expand_repo_globs(
+        ["test/test_workflow_parity.py", "missing-ui-robot-*.py"]
+    )
 
     assert "test/test_workflow_parity.py" in expanded
     assert "missing-ui-robot-*.py" in expanded
 
 
-def test_ty_typing_profile_omits_missing_optional_stubs(monkeypatch, tmp_path: Path) -> None:
+def test_ty_typing_profile_omits_missing_optional_stubs(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
 
@@ -134,7 +154,9 @@ def test_ty_typing_profile_omits_missing_optional_stubs(monkeypatch, tmp_path: P
 
 def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     module = _load_module()
-    args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
+    args = SimpleNamespace(
+        components=None, skills=None, app_path=None, worker_copy=None
+    )
 
     profiles = module._profile_commands(args)
     agi_env = profiles["agi-env"][0]
@@ -257,20 +279,42 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         "agi-gui coverage xml",
     ]
     assert all(command.timeout_seconds == 8 * 60 for command in agi_gui_chunks)
-    assert all(command.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1" for command in agi_gui_commands)
+    assert all(
+        command.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"
+        for command in agi_gui_commands
+    )
     assert all(_has_extra(command.argv, "ui") for command in agi_gui_commands)
     assert all(_has_extra(command.argv, "viz") for command in agi_gui_commands)
-    assert agi_gui_commands[0].remove_paths[:2] == [".coverage.agi-gui", "coverage-agi-gui.xml"]
+    assert agi_gui_commands[0].remove_paths[:2] == [
+        ".coverage.agi-gui",
+        "coverage-agi-gui.xml",
+    ]
     assert all("coverage" in command.argv for command in agi_gui_chunks)
     assert all("--append" not in command.argv for command in agi_gui_chunks)
     assert all("--parallel-mode" in command.argv for command in agi_gui_chunks)
-    assert "test-results/coverage-agi-gui-support.db.*" in agi_gui_commands[0].remove_paths
-    assert "test-results/coverage-agi-gui-support.manifest.json" in agi_gui_commands[0].remove_paths
-    assert "test-results/coverage-agi-gui-pipeline.db.*" in agi_gui_commands[1].remove_paths
-    assert "test-results/coverage-agi-gui-pipeline.manifest.json" in agi_gui_commands[1].remove_paths
-    assert "--data-file=test-results/coverage-agi-gui-support.db" in agi_gui_commands[0].argv
+    assert (
+        "test-results/coverage-agi-gui-support.db.*" in agi_gui_commands[0].remove_paths
+    )
+    assert (
+        "test-results/coverage-agi-gui-support.manifest.json"
+        in agi_gui_commands[0].remove_paths
+    )
+    assert (
+        "test-results/coverage-agi-gui-pipeline.db.*"
+        in agi_gui_commands[1].remove_paths
+    )
+    assert (
+        "test-results/coverage-agi-gui-pipeline.manifest.json"
+        in agi_gui_commands[1].remove_paths
+    )
+    assert (
+        "--data-file=test-results/coverage-agi-gui-support.db"
+        in agi_gui_commands[0].argv
+    )
     assert "coverage_db_paths" in " ".join(agi_gui_commands[0].argv)
-    assert "test-results/coverage-agi-gui-support.manifest.json" in " ".join(agi_gui_commands[0].argv)
+    assert "test-results/coverage-agi-gui-support.manifest.json" in " ".join(
+        agi_gui_commands[0].argv
+    )
     agi_gui_combine_argv = " ".join(agi_gui_combine.argv)
     assert "'coverage', 'combine'" in agi_gui_combine_argv
     assert "--data-file=.coverage.agi-gui" in agi_gui_combine_argv
@@ -281,7 +325,9 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "coverage_db_paths" in agi_gui_combine_argv
     assert "range(120)" not in agi_gui_combine_argv
     assert "stat().st_size > 0" in agi_gui_combine_argv
-    assert "test-results/coverage-agi-gui-pipeline.manifest.json" in agi_gui_combine_argv
+    assert (
+        "test-results/coverage-agi-gui-pipeline.manifest.json" in agi_gui_combine_argv
+    )
     assert agi_gui_timing.timeout_seconds == 60
     assert "tools/coverage_timing_report.py" in agi_gui_timing.argv
     assert "test-results/junit-agi-gui-*.xml" in agi_gui_timing.argv
@@ -317,8 +363,14 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_ui_pages.py" in agi_gui_argv
     assert "--data-file=test-results/coverage-agi-gui-pages-flow.db" in agi_gui_argv
     assert "--data-file=test-results/coverage-agi-gui-pages-rest.db" in agi_gui_argv
-    assert "execute_page or experiment_page or pipeline_page_project_selectbox" in agi_gui_argv
-    assert "not (execute_page or experiment_page or pipeline_page_project_selectbox)" in agi_gui_argv
+    assert (
+        "execute_page or experiment_page or pipeline_page_project_selectbox"
+        in agi_gui_argv
+    )
+    assert (
+        "not (execute_page or experiment_page or pipeline_page_project_selectbox)"
+        in agi_gui_argv
+    )
     assert "test/test_view*.py" not in agi_gui_argv
     assert "test/test_view_maps.py" in agi_gui_argv
     assert "test/test_ci_provider_artifacts.py" in agi_gui_argv
@@ -336,12 +388,17 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert dependency_policy.label == "dependency policy"
     assert dependency_policy.argv[-1] == "test/test_pyproject_dependency_hygiene.py"
     assert "addopts=" in dependency_policy.argv
-    assert release_proof.label == "fresh source clone first-proof plus notebook import/export proof"
+    assert (
+        release_proof.label
+        == "fresh source clone first-proof plus notebook import/export proof"
+    )
     assert release_proof.env["AGILAB_RUN_RELEASE_PROOF_SLOW"] == "1"
     assert release_proof.timeout_seconds == 15 * 60
     assert "-m" in release_proof.argv
     assert "release_proof" in release_proof.argv
-    assert release_proof.argv[-1].endswith("test_newcomer_first_proof_passes_from_fresh_source_clone")
+    assert release_proof.argv[-1].endswith(
+        "test_newcomer_first_proof_passes_from_fresh_source_clone"
+    )
     assert [command.label for command in security_adoption_commands] == [
         "base supply-chain scan for shared go gate",
         "security adoption check",
@@ -391,7 +448,9 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     ]
     assert production_readiness.timeout_seconds == 5 * 60
     assert production_readiness.ensure_dirs == ["test-results"]
-    assert production_readiness.remove_paths == ["test-results/production-readiness.json"]
+    assert production_readiness.remove_paths == [
+        "test-results/production-readiness.json"
+    ]
     assert [command.label for command in cloud_emulators] == [
         "cloud emulator connector evidence",
         "cloud emulator connector tests",
@@ -400,15 +459,24 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         "tools/data_connector_cloud_emulator_report.py",
         "--compact",
     ]
-    assert cloud_emulators[1].argv[-1] == "test/test_data_connector_cloud_emulator_report.py"
+    assert (
+        cloud_emulators[1].argv[-1]
+        == "test/test_data_connector_cloud_emulator_report.py"
+    )
     assert [command.label for command in ui_robot_contract] == [
         "ui robot coverage contract",
         "ui robot action contract",
     ]
     assert ui_robot_coverage_contract.timeout_seconds == 2 * 60
-    assert ui_robot_coverage_contract.argv[-2:] == ["tools/ui_robot_coverage_contract.py", "--json"]
+    assert ui_robot_coverage_contract.argv[-2:] == [
+        "tools/ui_robot_coverage_contract.py",
+        "--json",
+    ]
     assert ui_robot_action_contract.timeout_seconds == 2 * 60
-    assert ui_robot_action_contract.argv[-2:] == ["tools/ui_robot_action_contract.py", "--json"]
+    assert ui_robot_action_contract.argv[-2:] == [
+        "tools/ui_robot_action_contract.py",
+        "--json",
+    ]
     assert ui_robot_canary.label == "ui robot fault-injection canary"
     assert ui_robot_canary.timeout_seconds == 5 * 60
     assert "tools/ui_robot_canary.py" in ui_robot_canary.argv
@@ -465,7 +533,9 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
             f"screenshots/ui-robot-matrix/{shard}",
         ]
         assert "tools/agilab_widget_robot_matrix.py" in command.argv
-        assert expected_matrix_scenarios[shard] == set(_option_values(command.argv, "--scenario"))
+        assert expected_matrix_scenarios[shard] == set(
+            _option_values(command.argv, "--scenario")
+        )
         assert "--quiet-progress" in command.argv
         assert "--json" in command.argv
         assert "--no-result-cache" in command.argv
@@ -473,9 +543,18 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         assert f"screenshots/ui-robot-matrix/{shard}" in command.argv
         assert f"test-results/ui-robot-matrix/{shard}/failure-bundles" in command.argv
         assert "--retry-failed-with-artifacts" in command.argv
-        assert f"test-results/ui-robot-matrix/{shard}/failure-artifacts/traces" in command.argv
-        assert f"test-results/ui-robot-matrix/{shard}/failure-artifacts/har" in command.argv
-        assert f"test-results/ui-robot-matrix/{shard}/failure-artifacts/video" in command.argv
+        assert (
+            f"test-results/ui-robot-matrix/{shard}/failure-artifacts/traces"
+            in command.argv
+        )
+        assert (
+            f"test-results/ui-robot-matrix/{shard}/failure-artifacts/har"
+            in command.argv
+        )
+        assert (
+            f"test-results/ui-robot-matrix/{shard}/failure-artifacts/video"
+            in command.argv
+        )
         assert _has_with_dependency(command.argv, "playwright")
         assert _has_extra(command.argv, "ai")
     assert ui_artifact_capture_robot.label == "ui artifact capture robot"
@@ -483,11 +562,18 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "isolated-project-page" in ui_artifact_capture_robot.argv
     assert "flight_telemetry_project" in ui_artifact_capture_robot.argv
     assert "--trace-dir" in ui_artifact_capture_robot.argv
-    assert "test-results/ui-artifact-capture-robot/traces" in ui_artifact_capture_robot.argv
+    assert (
+        "test-results/ui-artifact-capture-robot/traces"
+        in ui_artifact_capture_robot.argv
+    )
     assert "--har-dir" in ui_artifact_capture_robot.argv
-    assert "test-results/ui-artifact-capture-robot/har" in ui_artifact_capture_robot.argv
+    assert (
+        "test-results/ui-artifact-capture-robot/har" in ui_artifact_capture_robot.argv
+    )
     assert "--video-dir" in ui_artifact_capture_robot.argv
-    assert "test-results/ui-artifact-capture-robot/video" in ui_artifact_capture_robot.argv
+    assert (
+        "test-results/ui-artifact-capture-robot/video" in ui_artifact_capture_robot.argv
+    )
     assert ui_artifact_capture_robot.remove_paths == [
         "test-results/ui-artifact-capture-robot",
         "screenshots/ui-artifact-capture-robot",
@@ -495,7 +581,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert _has_with_dependency(ui_artifact_capture_robot.argv, "playwright")
     assert ui_history_robot.label == "ui browser history robot"
     assert ui_history_robot.timeout_seconds == 30 * 60
-    assert ui_history_robot.remove_paths == ["test-results/ui-history-robot", "screenshots/ui-history-robot"]
+    assert ui_history_robot.remove_paths == [
+        "test-results/ui-history-robot",
+        "screenshots/ui-history-robot",
+    ]
     assert "tools/agilab_widget_robot_matrix.py" in ui_history_robot.argv
     assert "isolated-browser-history" in ui_history_robot.argv
     assert "screenshots/ui-history-robot" in ui_history_robot.argv
@@ -503,7 +592,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert _has_with_dependency(ui_history_robot.argv, "playwright")
     assert ui_mobile_robot.label == "ui mobile viewport robot"
     assert ui_mobile_robot.timeout_seconds == 30 * 60
-    assert ui_mobile_robot.remove_paths == ["test-results/ui-mobile-robot", "screenshots/ui-mobile-robot"]
+    assert ui_mobile_robot.remove_paths == [
+        "test-results/ui-mobile-robot",
+        "screenshots/ui-mobile-robot",
+    ]
     assert "isolated-mobile-core-pages" in ui_mobile_robot.argv
     assert "screenshots/ui-mobile-robot" in ui_mobile_robot.argv
     assert "test-results/ui-mobile-robot/failure-bundles" in ui_mobile_robot.argv
@@ -518,7 +610,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "isolated-fresh-session-core-pages" in ui_release_evidence_robot.argv
     assert "--no-result-cache" in ui_release_evidence_robot.argv
     assert "screenshots/ui-release-evidence-robot" in ui_release_evidence_robot.argv
-    assert "test-results/ui-release-evidence-robot/failure-bundles" in ui_release_evidence_robot.argv
+    assert (
+        "test-results/ui-release-evidence-robot/failure-bundles"
+        in ui_release_evidence_robot.argv
+    )
     assert _has_with_dependency(ui_release_evidence_robot.argv, "playwright")
     assert ui_first_proof_robot.label == "ui first-proof golden path robot"
     assert ui_first_proof_robot.timeout_seconds == 45 * 60
@@ -529,38 +624,63 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "current-home-first-proof-golden-path" in ui_first_proof_robot.argv
     assert "flight_telemetry_project" in ui_first_proof_robot.argv
     assert "screenshots/ui-first-proof-robot" in ui_first_proof_robot.argv
-    assert "test-results/ui-first-proof-robot/failure-bundles" in ui_first_proof_robot.argv
+    assert (
+        "test-results/ui-first-proof-robot/failure-bundles" in ui_first_proof_robot.argv
+    )
     assert _has_with_dependency(ui_first_proof_robot.argv, "playwright")
     assert ui_keyboard_robot.label == "ui keyboard focus robot"
     assert ui_keyboard_robot.timeout_seconds == 30 * 60
-    assert ui_keyboard_robot.remove_paths == ["test-results/ui-keyboard-robot", "screenshots/ui-keyboard-robot"]
+    assert ui_keyboard_robot.remove_paths == [
+        "test-results/ui-keyboard-robot",
+        "screenshots/ui-keyboard-robot",
+    ]
     assert "isolated-keyboard-focus-core-pages" in ui_keyboard_robot.argv
     assert "test-results/ui-keyboard-robot/failure-bundles" in ui_keyboard_robot.argv
     assert _has_with_dependency(ui_keyboard_robot.argv, "playwright")
     assert ui_layout_robot.label == "ui layout integrity robot"
     assert ui_layout_robot.timeout_seconds == 45 * 60
-    assert ui_layout_robot.remove_paths == ["test-results/ui-layout-robot", "screenshots/ui-layout-robot"]
+    assert ui_layout_robot.remove_paths == [
+        "test-results/ui-layout-robot",
+        "screenshots/ui-layout-robot",
+    ]
     assert "isolated-layout-integrity-desktop" in ui_layout_robot.argv
     assert "isolated-layout-integrity-mobile" in ui_layout_robot.argv
     assert "test-results/ui-layout-robot/failure-bundles" in ui_layout_robot.argv
     assert _has_with_dependency(ui_layout_robot.argv, "playwright")
     assert ui_accessibility_robot.label == "ui accessibility semantics robot"
     assert ui_accessibility_robot.timeout_seconds == 30 * 60
-    assert ui_accessibility_robot.remove_paths == ["test-results/ui-accessibility-robot", "screenshots/ui-accessibility-robot"]
+    assert ui_accessibility_robot.remove_paths == [
+        "test-results/ui-accessibility-robot",
+        "screenshots/ui-accessibility-robot",
+    ]
     assert "isolated-accessibility-core-pages" in ui_accessibility_robot.argv
-    assert "test-results/ui-accessibility-robot/failure-bundles" in ui_accessibility_robot.argv
+    assert (
+        "test-results/ui-accessibility-robot/failure-bundles"
+        in ui_accessibility_robot.argv
+    )
     assert _has_with_dependency(ui_accessibility_robot.argv, "playwright")
     assert ui_browser_error_robot.label == "ui browser error robot"
     assert ui_browser_error_robot.timeout_seconds == 30 * 60
-    assert ui_browser_error_robot.remove_paths == ["test-results/ui-browser-error-robot", "screenshots/ui-browser-error-robot"]
+    assert ui_browser_error_robot.remove_paths == [
+        "test-results/ui-browser-error-robot",
+        "screenshots/ui-browser-error-robot",
+    ]
     assert "isolated-browser-error-core-pages" in ui_browser_error_robot.argv
-    assert "test-results/ui-browser-error-robot/failure-bundles" in ui_browser_error_robot.argv
+    assert (
+        "test-results/ui-browser-error-robot/failure-bundles"
+        in ui_browser_error_robot.argv
+    )
     assert _has_with_dependency(ui_browser_error_robot.argv, "playwright")
     assert ui_above_fold_robot.label == "ui above-fold primary targets robot"
     assert ui_above_fold_robot.timeout_seconds == 30 * 60
-    assert ui_above_fold_robot.remove_paths == ["test-results/ui-above-fold-robot", "screenshots/ui-above-fold-robot"]
+    assert ui_above_fold_robot.remove_paths == [
+        "test-results/ui-above-fold-robot",
+        "screenshots/ui-above-fold-robot",
+    ]
     assert "isolated-above-fold-core-pages" in ui_above_fold_robot.argv
-    assert "test-results/ui-above-fold-robot/failure-bundles" in ui_above_fold_robot.argv
+    assert (
+        "test-results/ui-above-fold-robot/failure-bundles" in ui_above_fold_robot.argv
+    )
     assert _has_with_dependency(ui_above_fold_robot.argv, "playwright")
     assert [command.label for command in ui_visual_baseline_robot] == [
         "ui visual baseline screenshot capture",
@@ -572,7 +692,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     ]
     assert "isolated-visual-baseline-core-pages" in ui_visual_baseline_robot[0].argv
     assert "flight_telemetry_project" in ui_visual_baseline_robot[0].argv
-    assert "screenshots/ui-visual-baseline-robot/current" in ui_visual_baseline_robot[0].argv
+    assert (
+        "screenshots/ui-visual-baseline-robot/current"
+        in ui_visual_baseline_robot[0].argv
+    )
     assert "tools/ui_visual_baseline_report.py" in ui_visual_baseline_robot[1].argv
     assert "--advisory" in ui_visual_baseline_robot[1].argv
     assert _has_with_dependency(ui_visual_baseline_robot[0].argv, "playwright")
@@ -582,8 +705,12 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert agi_web_visual.argv[agi_web_visual.argv.index("--browser") + 1] == "chromium"
     assert "screenshots/agi-web-visual-regression" in agi_web_visual.argv
     assert "docs/source/_static/agi-web-visual-baseline" in agi_web_visual.argv
-    assert agi_web_visual.argv[agi_web_visual.argv.index("--max-render-ms") + 1] == "2500"
-    assert agi_web_visual.argv[agi_web_visual.argv.index("--max-diff-ratio") + 1] == "0.08"
+    assert (
+        agi_web_visual.argv[agi_web_visual.argv.index("--max-render-ms") + 1] == "2500"
+    )
+    assert (
+        agi_web_visual.argv[agi_web_visual.argv.index("--max-diff-ratio") + 1] == "0.08"
+    )
     assert _has_with_dependency(agi_web_visual.argv, "playwright")
     assert _has_with_dependency(agi_web_visual.argv, "pillow")
     assert [command.label for command in agi_web_cross_browser] == [
@@ -594,11 +721,29 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         "test-results/agi-web-cross-browser",
         "screenshots/agi-web-cross-browser",
     ]
-    assert agi_web_cross_browser[0].argv[-4:] == ["install", "chromium", "firefox", "webkit"]
-    assert agi_web_cross_browser[1].argv[agi_web_cross_browser[1].argv.index("--browser") + 1] == "all"
+    assert agi_web_cross_browser[0].argv[-4:] == [
+        "install",
+        "chromium",
+        "firefox",
+        "webkit",
+    ]
+    assert (
+        agi_web_cross_browser[1].argv[
+            agi_web_cross_browser[1].argv.index("--browser") + 1
+        ]
+        == "all"
+    )
     assert "--allow-canvas-fallback" in agi_web_cross_browser[1].argv
-    assert agi_web_cross_browser[1].argv[agi_web_cross_browser[1].argv.index("--max-render-ms") + 1] == "4000"
-    assert all(_has_with_dependency(command.argv, "playwright") for command in agi_web_cross_browser)
+    assert (
+        agi_web_cross_browser[1].argv[
+            agi_web_cross_browser[1].argv.index("--max-render-ms") + 1
+        ]
+        == "4000"
+    )
+    assert all(
+        _has_with_dependency(command.argv, "playwright")
+        for command in agi_web_cross_browser
+    )
     assert _has_with_dependency(agi_web_cross_browser[1].argv, "pillow")
     assert ui_trend_robot.label == "ui robot trend report"
     assert "tools/ui_robot_trend_report.py" in ui_trend_robot.argv
@@ -614,18 +759,42 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         "test-results/ui-cross-browser-robot",
         "screenshots/ui-cross-browser-robot",
     ]
-    assert ui_cross_browser_robot[0].argv[-4:] == ["playwright", "install", "firefox", "webkit"]
+    assert ui_cross_browser_robot[0].argv[-4:] == [
+        "playwright",
+        "install",
+        "firefox",
+        "webkit",
+    ]
     assert "isolated-cross-browser-core-pages" in ui_cross_browser_robot[1].argv
-    assert ui_cross_browser_robot[1].argv[ui_cross_browser_robot[1].argv.index("--browser") + 1] == "firefox"
+    assert (
+        ui_cross_browser_robot[1].argv[
+            ui_cross_browser_robot[1].argv.index("--browser") + 1
+        ]
+        == "firefox"
+    )
     assert "isolated-cross-browser-core-pages" in ui_cross_browser_robot[2].argv
-    assert ui_cross_browser_robot[2].argv[ui_cross_browser_robot[2].argv.index("--browser") + 1] == "webkit"
-    assert all(_has_with_dependency(command.argv, "playwright") for command in ui_cross_browser_robot)
+    assert (
+        ui_cross_browser_robot[2].argv[
+            ui_cross_browser_robot[2].argv.index("--browser") + 1
+        ]
+        == "webkit"
+    )
+    assert all(
+        _has_with_dependency(command.argv, "playwright")
+        for command in ui_cross_browser_robot
+    )
     assert hf_install_robot.label == "hf first-proof install robot"
     assert hf_install_robot.timeout_seconds == 25 * 60
-    assert hf_install_robot.remove_paths == ["test-results/hf-install-robot", "screenshots/hf-install-robot"]
+    assert hf_install_robot.remove_paths == [
+        "test-results/hf-install-robot",
+        "screenshots/hf-install-robot",
+    ]
     assert "tools/agilab_widget_robot_matrix.py" in hf_install_robot.argv
     assert "hf-first-proof-install" in hf_install_robot.argv
-    assert "flight_telemetry_project,pytorch_playground_project,weather_forecast_project" in hf_install_robot.argv
+    assert (
+        "flight_telemetry_project,pytorch_playground_project,weather_forecast_project"
+        in hf_install_robot.argv
+    )
     assert "https://huggingface.co/spaces/jpmorard/agilab" in hf_install_robot.argv
     assert "--active-app" not in hf_install_robot.argv
     assert "screenshots/hf-install-robot" in hf_install_robot.argv
@@ -633,11 +802,17 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert _has_with_dependency(hf_install_robot.argv, "playwright")
     assert hf_visual_smoke_robot.label == "hf first-proof visual smoke robot"
     assert hf_visual_smoke_robot.timeout_seconds == 25 * 60
-    assert hf_visual_smoke_robot.remove_paths == ["test-results/hf-visual-smoke-robot", "screenshots/hf-visual-smoke-robot"]
+    assert hf_visual_smoke_robot.remove_paths == [
+        "test-results/hf-visual-smoke-robot",
+        "screenshots/hf-visual-smoke-robot",
+    ]
     assert "hf-first-proof-visual-smoke" in hf_visual_smoke_robot.argv
     assert "hf-first-proof-app-pages-visual-smoke" in hf_visual_smoke_robot.argv
     assert hf_visual_smoke_robot.argv.count("--scenario") == 2
-    assert "flight_telemetry_project,pytorch_playground_project,weather_forecast_project" in hf_visual_smoke_robot.argv
+    assert (
+        "flight_telemetry_project,pytorch_playground_project,weather_forecast_project"
+        in hf_visual_smoke_robot.argv
+    )
     assert "https://huggingface.co/spaces/jpmorard/agilab" in hf_visual_smoke_robot.argv
     assert "--active-app" not in hf_visual_smoke_robot.argv
     assert "screenshots/hf-visual-smoke-robot" in hf_visual_smoke_robot.argv
@@ -678,7 +853,9 @@ def test_agi_gui_coverage_chunk_wrapper_writes_manifest(tmp_path) -> None:
     assert manifest["coverage_db_paths"] == [db_fragment.as_posix()]
 
 
-def test_agi_gui_coverage_combine_recovers_missing_success_manifest(tmp_path, monkeypatch) -> None:
+def test_agi_gui_coverage_combine_recovers_missing_success_manifest(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS", 0.0)
     test_results = tmp_path / "test-results"
@@ -689,7 +866,9 @@ def test_agi_gui_coverage_combine_recovers_missing_success_manifest(tmp_path, mo
     for chunk in module.AGI_GUI_COVERAGE_CHUNKS:
         db_fragment = test_results / f"coverage-agi-gui-{chunk}.db.fragment"
         db_fragment.write_text("coverage-db\n", encoding="utf-8")
-        (test_results / f"junit-agi-gui-{chunk}.xml").write_text("<testsuite/>\n", encoding="utf-8")
+        (test_results / f"junit-agi-gui-{chunk}.xml").write_text(
+            "<testsuite/>\n", encoding="utf-8"
+        )
         if chunk == recovered_chunk:
             continue
         (test_results / f"coverage-agi-gui-{chunk}.manifest.json").write_text(
@@ -700,7 +879,9 @@ def test_agi_gui_coverage_combine_recovers_missing_success_manifest(tmp_path, mo
                     "returncode": 0,
                     "data_file": f"test-results/coverage-agi-gui-{chunk}.db",
                     "junit_path": f"test-results/junit-agi-gui-{chunk}.xml",
-                    "coverage_db_paths": [f"test-results/coverage-agi-gui-{chunk}.db.fragment"],
+                    "coverage_db_paths": [
+                        f"test-results/coverage-agi-gui-{chunk}.db.fragment"
+                    ],
                 }
             ),
             encoding="utf-8",
@@ -728,7 +909,9 @@ def test_agi_gui_coverage_combine_recovers_missing_success_manifest(tmp_path, mo
     )
 
 
-def test_agi_gui_coverage_combine_deduplicates_parallel_base_paths(tmp_path, monkeypatch) -> None:
+def test_agi_gui_coverage_combine_deduplicates_parallel_base_paths(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS", 0.0)
     test_results = tmp_path / "test-results"
@@ -827,10 +1010,15 @@ def test_agi_gui_coverage_combine_rediscovers_current_db_when_manifest_is_stale(
         and "coverage-agi-gui-pages-rest.db.current" in arg
         for arg in combined_commands[0]
     )
-    assert all("coverage-agi-gui-pages-rest.db.stale" not in arg for arg in combined_commands[0])
+    assert all(
+        "coverage-agi-gui-pages-rest.db.stale" not in arg
+        for arg in combined_commands[0]
+    )
 
 
-def test_agi_gui_coverage_combine_does_not_recover_failing_junit(tmp_path, monkeypatch, capsys) -> None:
+def test_agi_gui_coverage_combine_does_not_recover_failing_junit(
+    tmp_path, monkeypatch, capsys
+) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS", 0.0)
     test_results = tmp_path / "test-results"
@@ -855,7 +1043,9 @@ def test_agi_gui_coverage_combine_does_not_recover_failing_junit(tmp_path, monke
                     "returncode": 0,
                     "data_file": f"test-results/coverage-agi-gui-{chunk}.db",
                     "junit_path": f"test-results/junit-agi-gui-{chunk}.xml",
-                    "coverage_db_paths": [f"test-results/coverage-agi-gui-{chunk}.db.fragment"],
+                    "coverage_db_paths": [
+                        f"test-results/coverage-agi-gui-{chunk}.db.fragment"
+                    ],
                 }
             ),
             encoding="utf-8",
@@ -920,7 +1110,10 @@ def test_selected_profiles_can_select_ui_robot_profiles_from_changed_files() -> 
     args = SimpleNamespace(
         profile=None,
         select_ui_robot_profiles=True,
-        changed_file=["tools/agilab_widget_robot.py", "docs/source/_static/page-shots/home.png"],
+        changed_file=[
+            "tools/agilab_widget_robot.py",
+            "docs/source/_static/page-shots/home.png",
+        ],
         changed_base="",
     )
 
@@ -938,7 +1131,9 @@ def test_selected_profiles_can_select_ui_robot_profiles_from_changed_files() -> 
 def test_ui_robot_profile_selection_covers_change_classes() -> None:
     module = _load_module()
 
-    assert module.select_ui_robot_profiles_for_files([".github/workflows/coverage.yml"]) == [
+    assert module.select_ui_robot_profiles_for_files(
+        [".github/workflows/coverage.yml"]
+    ) == [
         "ui-robot-contract",
         "ui-robot-canary",
         "ui-trend-robot",
@@ -949,7 +1144,9 @@ def test_ui_robot_profile_selection_covers_change_classes() -> None:
         "ui-frontend-smoke",
         "ui-trend-robot",
     ]
-    assert module.select_ui_robot_profiles_for_files(["src/agilab/pages/project.py"]) == [
+    assert module.select_ui_robot_profiles_for_files(
+        ["src/agilab/pages/project.py"]
+    ) == [
         "ui-frontend-smoke",
         "ui-robot-matrix",
         "ui-history-robot",
@@ -961,7 +1158,9 @@ def test_ui_robot_profile_selection_covers_change_classes() -> None:
         "ui-above-fold-robot",
         "ui-trend-robot",
     ]
-    assert module.select_ui_robot_profiles_for_files([".github/workflows/huggingface.yml"]) == [
+    assert module.select_ui_robot_profiles_for_files(
+        [".github/workflows/huggingface.yml"]
+    ) == [
         "hf-install-robot",
         "hf-visual-smoke-robot",
     ]
@@ -969,7 +1168,9 @@ def test_ui_robot_profile_selection_covers_change_classes() -> None:
         "hf-install-robot",
         "hf-visual-smoke-robot",
     ]
-    assert module.select_ui_robot_profiles_for_files(["tools/hf_space_release_sync.py"]) == [
+    assert module.select_ui_robot_profiles_for_files(
+        ["tools/hf_space_release_sync.py"]
+    ) == [
         "hf-install-robot",
         "hf-visual-smoke-robot",
     ]
@@ -981,16 +1182,22 @@ def test_ui_robot_profile_selection_covers_change_classes() -> None:
     assert module.select_ui_robot_profiles_for_files(["tools/agilab_web_robot.py"]) == [
         "ui-frontend-smoke",
     ]
-    assert module.select_ui_robot_profiles_for_files(["src/agilab/lib/agi-web/src/agi_web/component.py"]) == [
+    assert module.select_ui_robot_profiles_for_files(
+        ["src/agilab/lib/agi-web/src/agi_web/component.py"]
+    ) == [
         "agi-web-visual",
     ]
-    assert module.select_ui_robot_profiles_for_files(["tools/agi_web_visual_regression.py"]) == [
+    assert module.select_ui_robot_profiles_for_files(
+        ["tools/agi_web_visual_regression.py"]
+    ) == [
         "agi-web-visual",
     ]
     assert module.select_ui_robot_profiles_for_files(["pyproject.toml"]) == [
         "ui-frontend-smoke",
     ]
-    assert module.select_ui_robot_profiles_for_files(["tools/run_configs/agilab/agilab-run-dev.sh"]) == [
+    assert module.select_ui_robot_profiles_for_files(
+        ["tools/run_configs/agilab/agilab-run-dev.sh"]
+    ) == [
         "ui-frontend-smoke",
     ]
     assert module.select_ui_robot_profiles_for_files(["README.md"]) == [
@@ -998,7 +1205,9 @@ def test_ui_robot_profile_selection_covers_change_classes() -> None:
     ]
 
 
-def test_selected_ui_robot_profiles_reads_dirty_tree_when_no_files_given(monkeypatch) -> None:
+def test_selected_ui_robot_profiles_reads_dirty_tree_when_no_files_given(
+    monkeypatch,
+) -> None:
     module = _load_module()
     monkeypatch.setattr(
         module,
@@ -1095,7 +1304,9 @@ def test_installer_profile_contract_check_allows_missing_worker_copy() -> None:
 
 def test_builtin_app_tests_profile_runs_app_local_runner() -> None:
     module = _load_module()
-    args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
+    args = SimpleNamespace(
+        components=None, skills=None, app_path=None, worker_copy=None
+    )
 
     command = module._profile_commands(args)["builtin-app-tests"][0]
 
@@ -1113,14 +1324,18 @@ def test_builtin_app_tests_profile_runs_app_local_runner() -> None:
 def test_builtin_app_tests_profile_is_accepted_by_parser(capsys) -> None:
     module = _load_module()
 
-    assert module.main(["--profile", "builtin-app-tests", "--print-only", "--json"]) == 0
+    assert (
+        module.main(["--profile", "builtin-app-tests", "--print-only", "--json"]) == 0
+    )
     payload = json.loads(capsys.readouterr().out)
 
     assert payload["profiles"] == ["builtin-app-tests"]
     assert payload["commands"]["builtin-app-tests"][0]["label"] == "built-in app tests"
 
 
-def test_prepare_command_removes_globbed_coverage_fragments(tmp_path, monkeypatch) -> None:
+def test_prepare_command_removes_globbed_coverage_fragments(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
     results_dir = tmp_path / "test-results"
@@ -1180,7 +1395,9 @@ def test_run_command_executes_with_env_and_cwd(tmp_path, monkeypatch) -> None:
     assert (workdir / "out.txt").read_text(encoding="utf-8") == "ok"
 
 
-def test_run_profiles_reuses_cached_success_without_executing(tmp_path, monkeypatch) -> None:
+def test_run_profiles_reuses_cached_success_without_executing(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_module()
     cache_path = tmp_path / "workflow-parity-cache.json"
     spec = module.CommandSpec(
@@ -1253,7 +1470,9 @@ def test_run_profiles_records_successful_result_cache(tmp_path, monkeypatch) -> 
         changed_files=[],
         cache_path=cache_path,
     )
-    cached = module._cached_run_results(module._load_result_cache(cache_path), cache_key, ["skills"])
+    cached = module._cached_run_results(
+        module._load_result_cache(cache_path), cache_key, ["skills"]
+    )
     assert cached is not None
     assert cached[0].commands[0].label == "quick success"
 
@@ -1281,11 +1500,15 @@ def test_run_profiles_does_not_cache_failures(tmp_path, monkeypatch) -> None:
         changed_files=[],
         cache_path=cache_path,
     )
-    cached = module._cached_run_results(module._load_result_cache(cache_path), cache_key, ["skills"])
+    cached = module._cached_run_results(
+        module._load_result_cache(cache_path), cache_key, ["skills"]
+    )
     assert cached is None
 
 
-def test_run_profiles_no_result_cache_bypasses_cached_success(tmp_path, monkeypatch) -> None:
+def test_run_profiles_no_result_cache_bypasses_cached_success(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_module()
     cache_path = tmp_path / "workflow-parity-cache.json"
     spec = module.CommandSpec(
@@ -1328,7 +1551,9 @@ def test_run_profiles_no_result_cache_bypasses_cached_success(tmp_path, monkeypa
         ],
     )
 
-    results = module.run_profiles(["skills"], args=_cache_args(cache_path, no_result_cache=True))
+    results = module.run_profiles(
+        ["skills"], args=_cache_args(cache_path, no_result_cache=True)
+    )
 
     assert results[0].success is False
     assert results[0].commands[0].returncode == 5
@@ -1364,10 +1589,14 @@ def test_run_profiles_stops_on_first_failure_by_default() -> None:
     assert results[0].success is False
 
 
-def test_result_cache_helpers_round_trip_successful_profile(tmp_path, monkeypatch) -> None:
+def test_result_cache_helpers_round_trip_successful_profile(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(module, "RESULT_CACHE_INPUT_GLOBS", ("present.txt", "*.yml", "missing.txt"))
+    monkeypatch.setattr(
+        module, "RESULT_CACHE_INPUT_GLOBS", ("present.txt", "*.yml", "missing.txt")
+    )
     monkeypatch.setattr(module, "RESULT_CACHE_HASH_LIMIT_BYTES", 128)
     (tmp_path / "present.txt").write_text("present", encoding="utf-8")
     (tmp_path / "workflow.yml").write_text("workflow", encoding="utf-8")
@@ -1386,15 +1615,48 @@ def test_result_cache_helpers_round_trip_successful_profile(tmp_path, monkeypatc
     )
 
     assert module._result_cache_enabled(args, module._run_command) is True
-    assert module._result_cache_enabled(SimpleNamespace(result_cache=False, no_result_cache=False), module._run_command) is False
-    assert module._result_cache_enabled(SimpleNamespace(no_result_cache=True), module._run_command) is False
+    assert (
+        module._result_cache_enabled(
+            SimpleNamespace(result_cache=False, no_result_cache=False),
+            module._run_command,
+        )
+        is False
+    )
+    assert (
+        module._result_cache_enabled(
+            SimpleNamespace(
+                result_cache=False, no_result_cache=False, print_only=False
+            ),
+            module._run_command,
+            ["dependency-policy"],
+        )
+        is True
+    )
+    assert (
+        module._result_cache_enabled(
+            SimpleNamespace(
+                result_cache=False, no_result_cache=False, print_only=False
+            ),
+            module._run_command,
+            ["docs"],
+        )
+        is False
+    )
+    assert (
+        module._result_cache_enabled(
+            SimpleNamespace(no_result_cache=True), module._run_command
+        )
+        is False
+    )
     assert module._result_cache_enabled(args, lambda _spec: None) is False
     assert module._result_cache_path(args) == cache_path
     assert module._result_cache_changed_files(args) == [changed.as_posix()]
     assert module._repo_relative_or_absolute(tmp_path / "present.txt") == "present.txt"
     assert module._repo_relative_or_absolute(outside) == outside.as_posix()
 
-    input_paths = module._result_cache_input_paths([changed.as_posix(), cache_path.as_posix()], cache_path)
+    input_paths = module._result_cache_input_paths(
+        [changed.as_posix(), cache_path.as_posix()], cache_path
+    )
 
     assert input_paths == ["present.txt", "workflow.yml", "missing.txt", "changed.txt"]
     signatures = module._result_cache_fingerprints([changed.as_posix()], cache_path)
@@ -1402,9 +1664,14 @@ def test_result_cache_helpers_round_trip_successful_profile(tmp_path, monkeypatc
     assert signatures_by_path["present.txt"]["state"] == "file"
     assert "sha256" in signatures_by_path["present.txt"]
     assert signatures_by_path["missing.txt"]["state"] == "missing"
-    assert module._file_sha256(tmp_path / "present.txt") == signatures_by_path["present.txt"]["sha256"]
+    assert (
+        module._file_sha256(tmp_path / "present.txt")
+        == signatures_by_path["present.txt"]["sha256"]
+    )
 
-    command_spec = module.CommandSpec(label="cacheable", argv=["python", "-V"], env={"DEMO": "1"})
+    command_spec = module.CommandSpec(
+        label="cacheable", argv=["python", "-V"], env={"DEMO": "1"}
+    )
     commands_by_profile = {"skills": [command_spec]}
     descriptions = {"skills": "Validate skills"}
     monkeypatch.setattr(module, "_git_head", lambda: "abc123")
@@ -1448,7 +1715,9 @@ def test_result_cache_helpers_round_trip_successful_profile(tmp_path, monkeypatc
     assert cached[0].commands[0].env == {"DEMO": "1"}
 
 
-def test_result_cache_helpers_reject_invalid_payloads_and_prune(tmp_path, monkeypatch) -> None:
+def test_result_cache_helpers_reject_invalid_payloads_and_prune(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "RESULT_CACHE_MAX_ENTRIES", 2)
     cache_path = tmp_path / "workflow_parity_results.json"
@@ -1456,24 +1725,81 @@ def test_result_cache_helpers_reject_invalid_payloads_and_prune(tmp_path, monkey
     assert module._load_result_cache(cache_path) == module._empty_result_cache()
     cache_path.write_text("{bad json", encoding="utf-8")
     assert module._load_result_cache(cache_path) == module._empty_result_cache()
-    cache_path.write_text(json.dumps({"schema": "wrong", "entries": {}}), encoding="utf-8")
+    cache_path.write_text(
+        json.dumps({"schema": "wrong", "entries": {}}), encoding="utf-8"
+    )
     assert module._load_result_cache(cache_path) == module._empty_result_cache()
-    cache_path.write_text(json.dumps({"schema": module.RESULT_CACHE_SCHEMA, "entries": []}), encoding="utf-8")
+    cache_path.write_text(
+        json.dumps({"schema": module.RESULT_CACHE_SCHEMA, "entries": []}),
+        encoding="utf-8",
+    )
     assert module._load_result_cache(cache_path) == module._empty_result_cache()
 
     assert module._command_result_from_cache(None) is None
-    assert module._command_result_from_cache({"label": "bad", "argv": [1], "env": {}, "returncode": 0, "cwd": "."}) is None
-    assert module._command_result_from_cache({"label": "bad", "argv": [], "env": [], "returncode": 0, "cwd": "."}) is None
-    assert module._command_result_from_cache({"label": "bad", "argv": [], "env": {}, "returncode": "0", "cwd": "."}) is None
+    assert (
+        module._command_result_from_cache(
+            {"label": "bad", "argv": [1], "env": {}, "returncode": 0, "cwd": "."}
+        )
+        is None
+    )
+    assert (
+        module._command_result_from_cache(
+            {"label": "bad", "argv": [], "env": [], "returncode": 0, "cwd": "."}
+        )
+        is None
+    )
+    assert (
+        module._command_result_from_cache(
+            {"label": "bad", "argv": [], "env": {}, "returncode": "0", "cwd": "."}
+        )
+        is None
+    )
     assert module._profile_result_from_cache(None) is None
-    assert module._profile_result_from_cache({"profile": 3, "description": "desc", "success": True, "commands": []}) is None
-    assert module._profile_result_from_cache({"profile": "skills", "description": "desc", "success": True, "commands": {}}) is None
-    assert module._profile_result_from_cache(
-        {"profile": "skills", "description": "desc", "success": True, "commands": [{"label": "bad"}]}
-    ) is None
+    assert (
+        module._profile_result_from_cache(
+            {"profile": 3, "description": "desc", "success": True, "commands": []}
+        )
+        is None
+    )
+    assert (
+        module._profile_result_from_cache(
+            {
+                "profile": "skills",
+                "description": "desc",
+                "success": True,
+                "commands": {},
+            }
+        )
+        is None
+    )
+    assert (
+        module._profile_result_from_cache(
+            {
+                "profile": "skills",
+                "description": "desc",
+                "success": True,
+                "commands": [{"label": "bad"}],
+            }
+        )
+        is None
+    )
     assert module._cached_run_results({"entries": []}, "key", ["skills"]) is None
-    assert module._cached_run_results({"entries": {"key": {"profiles": ["docs"], "results": []}}}, "key", ["skills"]) is None
-    assert module._cached_run_results({"entries": {"key": {"profiles": ["skills"], "results": {}}}}, "key", ["skills"]) is None
+    assert (
+        module._cached_run_results(
+            {"entries": {"key": {"profiles": ["docs"], "results": []}}},
+            "key",
+            ["skills"],
+        )
+        is None
+    )
+    assert (
+        module._cached_run_results(
+            {"entries": {"key": {"profiles": ["skills"], "results": {}}}},
+            "key",
+            ["skills"],
+        )
+        is None
+    )
     assert (
         module._cached_run_results(
             {"entries": {"key": {"profiles": ["skills"], "results": [{"profile": 3}]}}},
@@ -1507,7 +1833,9 @@ def test_result_cache_helpers_reject_invalid_payloads_and_prune(tmp_path, monkey
     assert not missing_entries_path.exists()
 
 
-def test_result_cache_helpers_cover_git_and_signature_failures(tmp_path, monkeypatch) -> None:
+def test_result_cache_helpers_cover_git_and_signature_failures(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
 
@@ -1519,7 +1847,9 @@ def test_result_cache_helpers_cover_git_and_signature_failures(tmp_path, monkeyp
 
     target = tmp_path / "hash-error.txt"
     target.write_text("content", encoding="utf-8")
-    monkeypatch.setattr(module, "_file_sha256", lambda _path: (_ for _ in ()).throw(OSError("denied")))
+    monkeypatch.setattr(
+        module, "_file_sha256", lambda _path: (_ for _ in ()).throw(OSError("denied"))
+    )
 
     signature = module._file_signature("hash-error.txt")
 
@@ -1527,10 +1857,14 @@ def test_result_cache_helpers_cover_git_and_signature_failures(tmp_path, monkeyp
     assert signature["sha256_error"] == "OSError"
 
 
-def test_result_cache_input_paths_deduplicate_and_sign_directory_or_large_file(tmp_path, monkeypatch) -> None:
+def test_result_cache_input_paths_deduplicate_and_sign_directory_or_large_file(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_module()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(module, "RESULT_CACHE_INPUT_GLOBS", ("same.txt", "same.txt", "payload"))
+    monkeypatch.setattr(
+        module, "RESULT_CACHE_INPUT_GLOBS", ("same.txt", "same.txt", "payload")
+    )
     monkeypatch.setattr(module, "RESULT_CACHE_HASH_LIMIT_BYTES", 4)
     (tmp_path / "same.txt").write_text("same", encoding="utf-8")
     (tmp_path / "payload").write_text("too large", encoding="utf-8")
@@ -1554,7 +1888,16 @@ def test_result_cache_input_paths_deduplicate_and_sign_directory_or_large_file(t
 def test_main_print_only_json_lists_selected_profile_commands(capsys) -> None:
     module = _load_module()
 
-    exit_code = module.main(["--profile", "skills", "--skills", "agilab-installer", "--print-only", "--json"])
+    exit_code = module.main(
+        [
+            "--profile",
+            "skills",
+            "--skills",
+            "agilab-installer",
+            "--print-only",
+            "--json",
+        ]
+    )
 
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
@@ -1619,7 +1962,9 @@ def test_main_runs_profile_and_renders_results(capsys, monkeypatch) -> None:
 def test_main_accepts_production_readiness_profile(capsys) -> None:
     module = _load_module()
 
-    exit_code = module.main(["--profile", "production-readiness", "--print-only", "--json"])
+    exit_code = module.main(
+        ["--profile", "production-readiness", "--print-only", "--json"]
+    )
 
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
@@ -1636,14 +1981,18 @@ def test_main_accepts_production_readiness_profile(capsys) -> None:
 
 
 def test_workflow_parity_module_entrypoint_lists_profiles(monkeypatch, capsys) -> None:
-    monkeypatch.setattr(sys, "argv", ["workflow_parity.py", "--list-profiles", "--json"])
+    monkeypatch.setattr(
+        sys, "argv", ["workflow_parity.py", "--list-profiles", "--json"]
+    )
 
     try:
         runpy.run_path(MODULE_PATH.as_posix(), run_name="__main__")
     except SystemExit as exc:
         assert exc.code == 0
     else:
-        raise AssertionError("workflow_parity __main__ should terminate through SystemExit")
+        raise AssertionError(
+            "workflow_parity __main__ should terminate through SystemExit"
+        )
 
     listed = json.loads(capsys.readouterr().out)
     assert "skills" in listed

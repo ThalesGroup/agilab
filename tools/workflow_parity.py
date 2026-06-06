@@ -19,7 +19,9 @@ from typing import Callable, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RESULT_CACHE_SCHEMA = "agilab-workflow-parity-result-cache-v1"
-DEFAULT_RESULT_CACHE_PATH = REPO_ROOT / ".pytest_cache" / "agilab" / "workflow_parity_results.json"
+DEFAULT_RESULT_CACHE_PATH = (
+    REPO_ROOT / ".pytest_cache" / "agilab" / "workflow_parity_results.json"
+)
 RESULT_CACHE_MAX_ENTRIES = 256
 RESULT_CACHE_HASH_LIMIT_BYTES = 10 * 1024 * 1024
 RESULT_CACHE_INPUT_GLOBS = (
@@ -98,7 +100,9 @@ UI_ROBOT_MATRIX_SHARDS = (
 
 def _coverage_shard_plan_module():
     module_path = REPO_ROOT / "tools" / "coverage_shard_plan.py"
-    spec = importlib.util.spec_from_file_location("agilab_coverage_shard_plan", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "agilab_coverage_shard_plan", module_path
+    )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load coverage shard planner from {module_path}")
     module = importlib.util.module_from_spec(spec)
@@ -146,7 +150,9 @@ def _expand_repo_globs(paths: Sequence[str]) -> list[str]:
         if any(token in path for token in "*?["):
             matches = sorted(REPO_ROOT.glob(path))
             if matches:
-                expanded.extend(match.relative_to(REPO_ROOT).as_posix() for match in matches)
+                expanded.extend(
+                    match.relative_to(REPO_ROOT).as_posix() for match in matches
+                )
                 continue
         expanded.append(path)
     return expanded
@@ -401,13 +407,40 @@ UI_ROBOT_PROFILE_ORDER = (
     "hf-visual-smoke-robot",
 )
 
+RESULT_CACHE_UNSAFE_PROFILES = {
+    # These profiles generate, mutate, or publish evidence/artifacts as part of
+    # their contract. A previous successful run is useful context, but should not
+    # stand in for a fresh artifact-producing validation.
+    "docs",
+    "badges",
+    "skills",
+    "release-proof",
+    "production-readiness",
+    "ui-robot-matrix",
+    "ui-artifact-capture-robot",
+    "ui-history-robot",
+    "ui-mobile-robot",
+    "ui-release-evidence-robot",
+    "ui-first-proof-robot",
+    "ui-keyboard-robot",
+    "ui-layout-robot",
+    "ui-accessibility-robot",
+    "ui-browser-error-robot",
+    "ui-above-fold-robot",
+    "ui-visual-baseline-robot",
+    "agi-web-visual",
+    "agi-web-cross-browser",
+    "ui-trend-robot",
+    "ui-cross-browser-robot",
+    "hf-install-robot",
+    "hf-visual-smoke-robot",
+}
+
 
 def select_ui_robot_profiles_for_files(paths: Sequence[str]) -> list[str]:
     profiles: set[str] = set()
     normalized = [
-        Path(path).as_posix().removeprefix("./")
-        for path in paths
-        if str(path).strip()
+        Path(path).as_posix().removeprefix("./") for path in paths if str(path).strip()
     ]
     for path in normalized:
         lower = path.lower()
@@ -427,20 +460,46 @@ def select_ui_robot_profiles_for_files(paths: Sequence[str]) -> list[str]:
                     "ui-trend-robot",
                 }
             )
-        if lower.startswith(("tools/agilab_web_robot.py", "test/test_agilab_web_robot.py")):
-            profiles.add("ui-frontend-smoke")
-        if (
-            lower.startswith(("tools/agi_web_visual_regression.py", "test/test_agi_web_visual_regression.py"))
-            or lower.startswith("src/agilab/lib/agi-web/")
+        if lower.startswith(
+            ("tools/agilab_web_robot.py", "test/test_agilab_web_robot.py")
         ):
+            profiles.add("ui-frontend-smoke")
+        if lower.startswith(
+            (
+                "tools/agi_web_visual_regression.py",
+                "test/test_agi_web_visual_regression.py",
+            )
+        ) or lower.startswith("src/agilab/lib/agi-web/"):
             profiles.add("agi-web-visual")
-        if lower.startswith(("tools/ui_visual_baseline", "test/test_ui_visual_baseline")) or "page-shots" in lower or "screenshot" in lower:
+        if (
+            lower.startswith(
+                ("tools/ui_visual_baseline", "test/test_ui_visual_baseline")
+            )
+            or "page-shots" in lower
+            or "screenshot" in lower
+        ):
             profiles.update({"ui-visual-baseline-robot", "ui-trend-robot"})
-        if lower.startswith((".github/workflows/ui-robot", ".github/workflows/coverage.yml")):
+        if lower.startswith(
+            (".github/workflows/ui-robot", ".github/workflows/coverage.yml")
+        ):
             profiles.update({"ui-robot-contract", "ui-robot-canary", "ui-trend-robot"})
         if lower.startswith(".github/workflows/ci.yml"):
-            profiles.update({"ui-frontend-smoke", "ui-robot-contract", "ui-robot-canary", "ui-trend-robot"})
-        if lower.startswith(("src/agilab/main_page.py", "src/agilab/pages/", "src/agilab/lib/agi-gui/", "src/agilab/apps-pages/")):
+            profiles.update(
+                {
+                    "ui-frontend-smoke",
+                    "ui-robot-contract",
+                    "ui-robot-canary",
+                    "ui-trend-robot",
+                }
+            )
+        if lower.startswith(
+            (
+                "src/agilab/main_page.py",
+                "src/agilab/pages/",
+                "src/agilab/lib/agi-gui/",
+                "src/agilab/apps-pages/",
+            )
+        ):
             profiles.update(
                 {
                     "ui-frontend-smoke",
@@ -469,11 +528,21 @@ def select_ui_robot_profiles_for_files(paths: Sequence[str]) -> list[str]:
         ):
             profiles.add("ui-frontend-smoke")
         if "huggingface" in lower or lower.startswith(
-            ("docker/", "spaces/", ".github/workflows/huggingface", "tools/hf_space_", "test/test_hf_space_")
+            (
+                "docker/",
+                "spaces/",
+                ".github/workflows/huggingface",
+                "tools/hf_space_",
+                "test/test_hf_space_",
+            )
         ):
             profiles.update({"hf-visual-smoke-robot", "hf-install-robot"})
-        if lower.startswith(("tools/workflow_parity.py", "test/test_workflow_parity.py")):
-            profiles.update({"ui-robot-contract", "ui-robot-canary", "ui-frontend-smoke"})
+        if lower.startswith(
+            ("tools/workflow_parity.py", "test/test_workflow_parity.py")
+        ):
+            profiles.update(
+                {"ui-robot-contract", "ui-robot-canary", "ui-frontend-smoke"}
+            )
     if not profiles:
         profiles.add("ui-robot-contract")
     return [profile for profile in UI_ROBOT_PROFILE_ORDER if profile in profiles]
@@ -494,7 +563,14 @@ def _git_changed_files(base: str = "") -> list[str]:
     paths: list[str] = []
     seen: set[str] = set()
     for argv in commands:
-        completed = subprocess.run(argv, cwd=REPO_ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+        completed = subprocess.run(
+            argv,
+            cwd=REPO_ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
         if completed.returncode != 0:
             continue
         for line in completed.stdout.splitlines():
@@ -521,32 +597,32 @@ def _agi_gui_profile() -> list[CommandSpec]:
         [
             _agi_gui_coverage_combine(),
             _agi_gui_timing_report(),
-        CommandSpec(
-            label="agi-gui coverage xml",
-            argv=[
-                "uv",
-                "--preview-features",
-                "extra-build-dependencies",
-                "run",
-                "--group",
-                "dev",
-                "--extra",
-                "ui",
-                "--extra",
-                "viz",
-                "python",
-                "-m",
-                "coverage",
-                "xml",
-                "--rcfile=.coveragerc.agi-gui",
-                "--data-file=.coverage.agi-gui",
-                "-o",
-                "coverage-agi-gui.xml",
-            ],
-            env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
-            timeout_seconds=5 * 60,
-            ensure_dirs=["test-results"],
-        ),
+            CommandSpec(
+                label="agi-gui coverage xml",
+                argv=[
+                    "uv",
+                    "--preview-features",
+                    "extra-build-dependencies",
+                    "run",
+                    "--group",
+                    "dev",
+                    "--extra",
+                    "ui",
+                    "--extra",
+                    "viz",
+                    "python",
+                    "-m",
+                    "coverage",
+                    "xml",
+                    "--rcfile=.coveragerc.agi-gui",
+                    "--data-file=.coverage.agi-gui",
+                    "-o",
+                    "coverage-agi-gui.xml",
+                ],
+                env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
+                timeout_seconds=5 * 60,
+                ensure_dirs=["test-results"],
+            ),
         ]
     )
     return commands
@@ -592,7 +668,9 @@ def _agi_gui_coverage_manifest_paths() -> list[str]:
     return [_agi_gui_coverage_manifest_path(chunk) for chunk in AGI_GUI_COVERAGE_CHUNKS]
 
 
-def _agi_gui_coverage_chunk_code(label: str, data_file: str, junit_path: str, manifest_path: str) -> str:
+def _agi_gui_coverage_chunk_code(
+    label: str, data_file: str, junit_path: str, manifest_path: str
+) -> str:
     return (
         "from pathlib import Path\n"
         "import json, shutil, subprocess, sys, time\n"
@@ -788,7 +866,9 @@ def _agi_gui_coverage_combine() -> CommandSpec:
     )
 
 
-def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool = False) -> CommandSpec:
+def _agi_gui_coverage_chunk(
+    label: str, targets: Sequence[str], *, clean: bool = False
+) -> CommandSpec:
     expanded_targets = _expand_repo_globs(targets)
     junit_path = f"test-results/junit-agi-gui-{label}.xml"
     data_file = f"test-results/coverage-agi-gui-{label}.db"
@@ -796,8 +876,14 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
     clean_paths = [
         ".coverage.agi-gui",
         "coverage-agi-gui.xml",
-        *(f"test-results/coverage-agi-gui-{chunk}.db" for chunk in AGI_GUI_COVERAGE_CHUNKS),
-        *(f"test-results/junit-agi-gui-{chunk}.xml" for chunk in AGI_GUI_COVERAGE_CHUNKS),
+        *(
+            f"test-results/coverage-agi-gui-{chunk}.db"
+            for chunk in AGI_GUI_COVERAGE_CHUNKS
+        ),
+        *(
+            f"test-results/junit-agi-gui-{chunk}.xml"
+            for chunk in AGI_GUI_COVERAGE_CHUNKS
+        ),
         *(_agi_gui_coverage_manifest_path(chunk) for chunk in AGI_GUI_COVERAGE_CHUNKS),
     ]
     return CommandSpec(
@@ -1123,7 +1209,7 @@ def _docs_profile() -> list[CommandSpec]:
                 "docs/html",
             ],
             remove_paths=["docs/html"],
-        )
+        ),
     ]
 
 
@@ -1171,11 +1257,24 @@ def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
         [
             CommandSpec(
                 label="validate codex skills",
-                argv=["python3", "tools/codex_skills.py", "--root", ".codex/skills", "validate", "--strict"],
+                argv=[
+                    "python3",
+                    "tools/codex_skills.py",
+                    "--root",
+                    ".codex/skills",
+                    "validate",
+                    "--strict",
+                ],
             ),
             CommandSpec(
                 label="generate codex skills index",
-                argv=["python3", "tools/codex_skills.py", "--root", ".codex/skills", "generate"],
+                argv=[
+                    "python3",
+                    "tools/codex_skills.py",
+                    "--root",
+                    ".codex/skills",
+                    "generate",
+                ],
             ),
             CommandSpec(
                 label="generate public agent skill catalog",
@@ -1256,11 +1355,19 @@ def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
     return commands
 
 
-def _installer_profile(app_path: str | None, worker_copy: str | None) -> list[CommandSpec]:
+def _installer_profile(
+    app_path: str | None, worker_copy: str | None
+) -> list[CommandSpec]:
     commands = [
         CommandSpec(
             label="installer shell syntax",
-            argv=["bash", "-n", "install.sh", "src/agilab/install_apps.sh", "src/agilab/core/install.sh"],
+            argv=[
+                "bash",
+                "-n",
+                "install.sh",
+                "src/agilab/install_apps.sh",
+                "src/agilab/core/install.sh",
+            ],
         ),
         CommandSpec(
             label="installer discovery tests",
@@ -1345,9 +1452,7 @@ def _shared_core_ty_target_paths() -> list[str]:
 def _shared_core_ty_typing_profile() -> list[CommandSpec]:
     target_paths = _shared_core_ty_target_paths()
     extra_search_path_args = [
-        item
-        for path in target_paths
-        for item in ("--extra-search-path", path)
+        item for path in target_paths for item in ("--extra-search-path", path)
     ]
     return [
         CommandSpec(
@@ -1737,7 +1842,10 @@ def _ui_artifact_capture_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-artifact-capture-robot/video",
             ],
             timeout_seconds=15 * 60,
-            remove_paths=["test-results/ui-artifact-capture-robot", "screenshots/ui-artifact-capture-robot"],
+            remove_paths=[
+                "test-results/ui-artifact-capture-robot",
+                "screenshots/ui-artifact-capture-robot",
+            ],
         )
     ]
 
@@ -1771,7 +1879,10 @@ def _hf_install_robot_profile() -> list[CommandSpec]:
                 "test-results/hf-install-robot/failure-bundles",
             ],
             timeout_seconds=25 * 60,
-            remove_paths=["test-results/hf-install-robot", "screenshots/hf-install-robot"],
+            remove_paths=[
+                "test-results/hf-install-robot",
+                "screenshots/hf-install-robot",
+            ],
         )
     ]
 
@@ -1807,7 +1918,10 @@ def _hf_visual_smoke_robot_profile() -> list[CommandSpec]:
                 "test-results/hf-visual-smoke-robot/failure-bundles",
             ],
             timeout_seconds=25 * 60,
-            remove_paths=["test-results/hf-visual-smoke-robot", "screenshots/hf-visual-smoke-robot"],
+            remove_paths=[
+                "test-results/hf-visual-smoke-robot",
+                "screenshots/hf-visual-smoke-robot",
+            ],
         )
     ]
 
@@ -1837,7 +1951,10 @@ def _ui_keyboard_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-keyboard-robot/failure-bundles",
             ],
             timeout_seconds=30 * 60,
-            remove_paths=["test-results/ui-keyboard-robot", "screenshots/ui-keyboard-robot"],
+            remove_paths=[
+                "test-results/ui-keyboard-robot",
+                "screenshots/ui-keyboard-robot",
+            ],
         )
     ]
 
@@ -1869,7 +1986,10 @@ def _ui_layout_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-layout-robot/failure-bundles",
             ],
             timeout_seconds=45 * 60,
-            remove_paths=["test-results/ui-layout-robot", "screenshots/ui-layout-robot"],
+            remove_paths=[
+                "test-results/ui-layout-robot",
+                "screenshots/ui-layout-robot",
+            ],
         )
     ]
 
@@ -1899,7 +2019,10 @@ def _ui_accessibility_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-accessibility-robot/failure-bundles",
             ],
             timeout_seconds=30 * 60,
-            remove_paths=["test-results/ui-accessibility-robot", "screenshots/ui-accessibility-robot"],
+            remove_paths=[
+                "test-results/ui-accessibility-robot",
+                "screenshots/ui-accessibility-robot",
+            ],
         )
     ]
 
@@ -1929,7 +2052,10 @@ def _ui_browser_error_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-browser-error-robot/failure-bundles",
             ],
             timeout_seconds=30 * 60,
-            remove_paths=["test-results/ui-browser-error-robot", "screenshots/ui-browser-error-robot"],
+            remove_paths=[
+                "test-results/ui-browser-error-robot",
+                "screenshots/ui-browser-error-robot",
+            ],
         )
     ]
 
@@ -1959,7 +2085,10 @@ def _ui_above_fold_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-above-fold-robot/failure-bundles",
             ],
             timeout_seconds=30 * 60,
-            remove_paths=["test-results/ui-above-fold-robot", "screenshots/ui-above-fold-robot"],
+            remove_paths=[
+                "test-results/ui-above-fold-robot",
+                "screenshots/ui-above-fold-robot",
+            ],
         )
     ]
 
@@ -1991,7 +2120,10 @@ def _ui_visual_baseline_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-visual-baseline-robot/failure-bundles",
             ],
             timeout_seconds=30 * 60,
-            remove_paths=["test-results/ui-visual-baseline-robot", "screenshots/ui-visual-baseline-robot"],
+            remove_paths=[
+                "test-results/ui-visual-baseline-robot",
+                "screenshots/ui-visual-baseline-robot",
+            ],
         ),
         CommandSpec(
             label="ui visual baseline report",
@@ -2051,7 +2183,10 @@ def _agi_web_visual_profile() -> list[CommandSpec]:
                 "--json",
             ],
             timeout_seconds=5 * 60,
-            remove_paths=["test-results/agi-web-visual-regression", "screenshots/agi-web-visual-regression"],
+            remove_paths=[
+                "test-results/agi-web-visual-regression",
+                "screenshots/agi-web-visual-regression",
+            ],
         ),
     ]
 
@@ -2076,7 +2211,10 @@ def _agi_web_cross_browser_profile() -> list[CommandSpec]:
                 "webkit",
             ],
             timeout_seconds=10 * 60,
-            remove_paths=["test-results/agi-web-cross-browser", "screenshots/agi-web-cross-browser"],
+            remove_paths=[
+                "test-results/agi-web-cross-browser",
+                "screenshots/agi-web-cross-browser",
+            ],
         ),
         CommandSpec(
             label="agi-web cross-browser visual smoke",
@@ -2154,7 +2292,10 @@ def _ui_cross_browser_robot_profile() -> list[CommandSpec]:
                 "webkit",
             ],
             timeout_seconds=10 * 60,
-            remove_paths=["test-results/ui-cross-browser-robot", "screenshots/ui-cross-browser-robot"],
+            remove_paths=[
+                "test-results/ui-cross-browser-robot",
+                "screenshots/ui-cross-browser-robot",
+            ],
         ),
         CommandSpec(
             label="ui cross-browser robot (firefox)",
@@ -2236,7 +2377,10 @@ def _ui_history_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-history-robot/failure-bundles",
             ],
             timeout_seconds=30 * 60,
-            remove_paths=["test-results/ui-history-robot", "screenshots/ui-history-robot"],
+            remove_paths=[
+                "test-results/ui-history-robot",
+                "screenshots/ui-history-robot",
+            ],
         )
     ]
 
@@ -2266,7 +2410,10 @@ def _ui_mobile_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-mobile-robot/failure-bundles",
             ],
             timeout_seconds=30 * 60,
-            remove_paths=["test-results/ui-mobile-robot", "screenshots/ui-mobile-robot"],
+            remove_paths=[
+                "test-results/ui-mobile-robot",
+                "screenshots/ui-mobile-robot",
+            ],
         )
     ]
 
@@ -2299,7 +2446,10 @@ def _ui_release_evidence_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-release-evidence-robot/failure-bundles",
             ],
             timeout_seconds=45 * 60,
-            remove_paths=["test-results/ui-release-evidence-robot", "screenshots/ui-release-evidence-robot"],
+            remove_paths=[
+                "test-results/ui-release-evidence-robot",
+                "screenshots/ui-release-evidence-robot",
+            ],
         )
     ]
 
@@ -2331,7 +2481,10 @@ def _ui_first_proof_robot_profile() -> list[CommandSpec]:
                 "test-results/ui-first-proof-robot/failure-bundles",
             ],
             timeout_seconds=45 * 60,
-            remove_paths=["test-results/ui-first-proof-robot", "screenshots/ui-first-proof-robot"],
+            remove_paths=[
+                "test-results/ui-first-proof-robot",
+                "screenshots/ui-first-proof-robot",
+            ],
         )
     ]
 
@@ -2416,10 +2569,26 @@ def _run_command(spec: CommandSpec) -> CommandResult:
     )
 
 
-def _result_cache_enabled(args: argparse.Namespace, runner: Callable[[CommandSpec], CommandResult]) -> bool:
+def _profiles_are_auto_cacheable(profile_names: Sequence[str]) -> bool:
+    return bool(profile_names) and not any(
+        profile in RESULT_CACHE_UNSAFE_PROFILES for profile in profile_names
+    )
+
+
+def _result_cache_enabled(
+    args: argparse.Namespace,
+    runner: Callable[[CommandSpec], CommandResult],
+    profile_names: Sequence[str] | None = None,
+) -> bool:
+    cache_requested = bool(getattr(args, "result_cache", False))
+    auto_cacheable = (
+        profile_names is not None
+        and _profiles_are_auto_cacheable(profile_names)
+        and not bool(getattr(args, "print_only", False))
+    )
     return (
         runner is _run_command
-        and bool(getattr(args, "result_cache", False))
+        and (cache_requested or auto_cacheable)
         and not bool(getattr(args, "no_result_cache", False))
     )
 
@@ -2447,7 +2616,11 @@ def _result_cache_changed_files(args: argparse.Namespace) -> list[str]:
     explicit = list(getattr(args, "changed_file", []) or [])
     if explicit:
         return explicit
-    base = str(getattr(args, "changed_base", "") or "") if getattr(args, "select_ui_robot_profiles", False) else ""
+    base = (
+        str(getattr(args, "changed_base", "") or "")
+        if getattr(args, "select_ui_robot_profiles", False)
+        else ""
+    )
     return _git_changed_files(base)
 
 
@@ -2458,13 +2631,18 @@ def _repo_relative_or_absolute(path: Path) -> str:
         return path.as_posix()
 
 
-def _result_cache_input_paths(changed_files: Sequence[str], cache_path: Path) -> list[str]:
+def _result_cache_input_paths(
+    changed_files: Sequence[str], cache_path: Path
+) -> list[str]:
     paths: list[str] = []
     seen: set[str] = set()
     cache_marker = _repo_relative_or_absolute(cache_path)
     for pattern in RESULT_CACHE_INPUT_GLOBS:
         if any(token in pattern for token in "*?["):
-            expanded = [path.relative_to(REPO_ROOT).as_posix() for path in sorted(REPO_ROOT.glob(pattern))]
+            expanded = [
+                path.relative_to(REPO_ROOT).as_posix()
+                for path in sorted(REPO_ROOT.glob(pattern))
+            ]
             candidates = expanded or [pattern]
         else:
             candidates = [pattern]
@@ -2474,7 +2652,9 @@ def _result_cache_input_paths(changed_files: Sequence[str], cache_path: Path) ->
                 seen.add(candidate)
     for changed_file in sorted(changed_files):
         path = Path(changed_file)
-        candidate = _repo_relative_or_absolute(path) if path.is_absolute() else path.as_posix()
+        candidate = (
+            _repo_relative_or_absolute(path) if path.is_absolute() else path.as_posix()
+        )
         if candidate == cache_marker or candidate in seen:
             continue
         paths.append(candidate)
@@ -2493,7 +2673,9 @@ def _file_sha256(path: Path) -> str:
 def _file_signature(path_name: str) -> dict[str, object]:
     path = Path(path_name)
     target = path if path.is_absolute() else REPO_ROOT / path
-    label = _repo_relative_or_absolute(target) if target.is_absolute() else path.as_posix()
+    label = (
+        _repo_relative_or_absolute(target) if target.is_absolute() else path.as_posix()
+    )
     try:
         stat = target.stat()
     except OSError as exc:
@@ -2512,8 +2694,13 @@ def _file_signature(path_name: str) -> dict[str, object]:
     return signature
 
 
-def _result_cache_fingerprints(changed_files: Sequence[str], cache_path: Path) -> list[dict[str, object]]:
-    return [_file_signature(path) for path in _result_cache_input_paths(changed_files, cache_path)]
+def _result_cache_fingerprints(
+    changed_files: Sequence[str], cache_path: Path
+) -> list[dict[str, object]]:
+    return [
+        _file_signature(path)
+        for path in _result_cache_input_paths(changed_files, cache_path)
+    ]
 
 
 def _run_result_cache_key(
@@ -2539,7 +2726,9 @@ def _run_result_cache_key(
             "executable": sys.executable,
             "version": sys.version,
         },
-        "env": {key: os.environ[key] for key in RESULT_CACHE_ENV_KEYS if key in os.environ},
+        "env": {
+            key: os.environ[key] for key in RESULT_CACHE_ENV_KEYS if key in os.environ
+        },
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
@@ -2566,7 +2755,11 @@ def _command_result_from_cache(payload: object) -> CommandResult | None:
         return None
     argv = payload.get("argv")
     env = payload.get("env")
-    if not isinstance(payload.get("label"), str) or not isinstance(argv, list) or not isinstance(env, dict):
+    if (
+        not isinstance(payload.get("label"), str)
+        or not isinstance(argv, list)
+        or not isinstance(env, dict)
+    ):
         return None
     if not all(isinstance(arg, str) for arg in argv) or not all(
         isinstance(key, str) and isinstance(value, str) for key, value in env.items()
@@ -2593,7 +2786,11 @@ def _profile_result_from_cache(payload: object) -> ProfileResult | None:
     description = payload.get("description")
     success = payload.get("success")
     commands_payload = payload.get("commands")
-    if not isinstance(profile, str) or not isinstance(description, str) or not isinstance(success, bool):
+    if (
+        not isinstance(profile, str)
+        or not isinstance(description, str)
+        or not isinstance(success, bool)
+    ):
         return None
     if not isinstance(commands_payload, list):
         return None
@@ -2603,7 +2800,9 @@ def _profile_result_from_cache(payload: object) -> ProfileResult | None:
         if command is None:
             return None
         commands.append(command)
-    return ProfileResult(profile=profile, description=description, success=success, commands=commands)
+    return ProfileResult(
+        profile=profile, description=description, success=success, commands=commands
+    )
 
 
 def _cached_run_results(
@@ -2642,7 +2841,9 @@ def _prune_result_cache(entries: dict[str, object]) -> None:
 
     keep = {
         key
-        for key, _value in sorted(entries.items(), key=_stored_at, reverse=True)[:RESULT_CACHE_MAX_ENTRIES]
+        for key, _value in sorted(entries.items(), key=_stored_at, reverse=True)[
+            :RESULT_CACHE_MAX_ENTRIES
+        ]
     }
     for key in list(entries):
         if key not in keep:
@@ -2656,7 +2857,9 @@ def _write_result_cache(cache_path: Path, cache_state: dict[str, object]) -> Non
     _prune_result_cache(entries)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = cache_path.with_name(f"{cache_path.name}.tmp")
-    temp_path.write_text(json.dumps(cache_state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temp_path.write_text(
+        json.dumps(cache_state, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     temp_path.replace(cache_path)
 
 
@@ -2689,7 +2892,7 @@ def run_profiles(
     cache_path: Path | None = None
     cache_state: dict[str, object] | None = None
     cache_key = ""
-    cache_enabled = _result_cache_enabled(args, runner)
+    cache_enabled = _result_cache_enabled(args, runner, profile_names)
     if cache_enabled:
         cache_path = _result_cache_path(args)
         cache_state = _load_result_cache(cache_path)
@@ -2729,12 +2932,23 @@ def run_profiles(
         )
         if not success and not args.keep_going:
             break
-    if cache_enabled and cache_path is not None and cache_state is not None and all(result.success for result in results):
+    if (
+        cache_enabled
+        and cache_path is not None
+        and cache_state is not None
+        and all(result.success for result in results)
+    ):
         _store_run_results(cache_path, cache_state, cache_key, profile_names, results)
     return results
 
 
-def _render_human(profile_names: Sequence[str], results: Sequence[ProfileResult], *, print_only: bool, args: argparse.Namespace) -> str:
+def _render_human(
+    profile_names: Sequence[str],
+    results: Sequence[ProfileResult],
+    *,
+    print_only: bool,
+    args: argparse.Namespace,
+) -> str:
     descriptions = _profile_descriptions()
     commands_by_profile = _profile_commands(args)
     lines: list[str] = []
