@@ -7,6 +7,7 @@ import importlib.util
 import math
 import os
 from pathlib import Path
+import runpy
 import sqlite3
 import sys
 from types import SimpleNamespace
@@ -1563,6 +1564,39 @@ def test_run_locked_stage_runpy_executes_and_logs(tmp_path, monkeypatch):
     assert any("Output (stage 1):\nrunpy output" in line for line in logs)
     assert "ARTIFACTS" in logs
     assert released == ["lock"]
+
+
+def test_lab_snippet_runner_labels_unrestricted_local_execution(tmp_path, monkeypatch):
+    class SessionState(dict):
+        def __getattr__(self, name):
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
+        def __setattr__(self, name, value):
+            self[name] = value
+
+    warnings: list[str] = []
+    snippet_file = tmp_path / "snippet.py"
+    snippet_file.write_text("df = {'answer': 42}\n", encoding="utf-8")
+
+    fake_streamlit = types.ModuleType("streamlit")
+    fake_streamlit.session_state = SessionState(
+        loaded_df={"answer": 0},
+        snippet_file=str(snippet_file),
+    )
+    fake_streamlit.warning = lambda message: warnings.append(message)
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+
+    runpy.run_path("src/agilab/agent_runtime/agi_codex.py")
+
+    assert fake_streamlit.session_state["workflow_snippet_execution_boundary"] == "unrestricted_local_python_snippet"
+    assert warnings == [
+        "Python snippets run as unrestricted local code in the selected manager environment. "
+        "Review and trust the snippet before running it."
+    ]
+    assert fake_streamlit.session_state.data == {"answer": 42}
 
 
 def test_run_locked_stage_handles_missing_snippet_and_lock_refusal(tmp_path, monkeypatch):

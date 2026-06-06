@@ -18,6 +18,12 @@ from pathlib import Path
 
 import streamlit as st
 
+SNIPPET_EXECUTION_BOUNDARY = "unrestricted_local_python_snippet"
+SNIPPET_EXECUTION_NOTICE = (
+    "Python snippets run as unrestricted local code in the selected manager environment. "
+    "Review and trust the snippet before running it."
+)
+
 # Ensure the agilab package is importable when running snippets from source checkouts.
 if importlib.util.find_spec("agilab") is None:
     repo_src = Path(__file__).resolve().parents[1]
@@ -26,10 +32,12 @@ if importlib.util.find_spec("agilab") is None:
 
 df = st.session_state.loaded_df
 snippet_file = st.session_state.snippet_file
+st.session_state["workflow_snippet_execution_boundary"] = SNIPPET_EXECUTION_BOUNDARY
+st.warning(SNIPPET_EXECUTION_NOTICE)
 
-with open(snippet_file, "r") as snippet:
+with open(snippet_file, "r", encoding="utf-8") as snippet:
     try:
-        exec(snippet.read())
+        exec(compile(snippet.read(), str(snippet_file), "exec"))
 
     except KeyError as err:
         raise KeyError(
