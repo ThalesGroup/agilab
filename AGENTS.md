@@ -350,8 +350,10 @@ Use this runbook whenever you:
   `.opencode/agents/`. Keep them aligned with repo guardrails when workflow policy changes.
   When coding through a terminal agent, prefer launching it through Tokki when
   available so AGILAB sessions get compact context, noisy-output digestion,
-  token-savings accounting, and consistent wrapper metadata. Tokki is an
-  agent-session efficiency layer, not a replacement for AGILAB validation gates.
+  token-savings accounting, and consistent wrapper metadata. For ad-hoc
+  terminal checks inside a session, prefer `tokki run -- <command>` when it can
+  execute the command faithfully. Tokki is an agent-session efficiency layer,
+  not a replacement for AGILAB validation gates.
 - **Agent instruction contract**: Keep `AGENTS.md`, `AGENT_CONVENTIONS.md`,
   `AGENT_LEARNINGS.md`, `tools/agent_workflows.md`, public agent docs, and
   `agilab-capabilities.json` aligned. Run

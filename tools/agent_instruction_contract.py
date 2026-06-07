@@ -93,6 +93,8 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("docs-source", "Docs source of truth"),
             RequiredTerm("agent-contract", "Agent instruction contract"),
             RequiredTerm("agent-learnings", "Agent correction ledger"),
+            RequiredTerm("fix-prevention", "Fix prevention close-out"),
+            RequiredTerm("tokki-routing", "tokki run --"),
         ),
     ),
     FileContract(
@@ -122,6 +124,8 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("concrete-rule", "one concrete rule"),
             RequiredTerm("prune", "Prune entries"),
             RequiredTerm("contract-command", "python3 tools/agent_instruction_contract.py --check"),
+            RequiredTerm("shell-url-quoting", "gh api repos/.../file?ref=main"),
+            RequiredTerm("tokki-routing", "tokki run --"),
         ),
     ),
     FileContract(
