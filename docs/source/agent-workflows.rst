@@ -81,6 +81,8 @@ Then follow the repo rules in:
 When coding through a terminal agent, AGILAB recommends launching that agent
 through Tokki when it is available. Tokki keeps context compact, digests noisy
 terminal output, records session metadata, and exposes token-savings evidence.
+For ad-hoc terminal checks inside an agent session, prefer
+``tokki run -- <command>`` when it can execute the command faithfully.
 It is an efficiency and observability layer for agent sessions; the AGILAB
 validation source of truth remains ``tools/impact_validate.py``, ``./dev``, and
 the workflow-parity profiles.

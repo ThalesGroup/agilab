@@ -13,6 +13,8 @@ publication, or other risky surfaces, read [AGENTS.md](AGENTS.md) too.
 - Prefer launching terminal coding agents through Tokki when it is available;
   use it for compact context, noisy-output digestion, and session metadata, not
   as a substitute for AGILAB validation gates.
+- For ad-hoc terminal checks inside an agent session, prefer
+  `tokki run -- <command>` when it can execute the command faithfully.
 - Run `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
   before non-trivial edits.
 - Prefer app-local fixes over shared-core changes.
