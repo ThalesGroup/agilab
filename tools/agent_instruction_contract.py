@@ -110,6 +110,7 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("capability-manifest", "agilab-capabilities.json"),
             RequiredTerm("agenticweb", "agenticweb.md"),
             RequiredTerm("compact-validation", "Validation passed."),
+            RequiredTerm("tokki-routing", "tokki run --"),
             RequiredTerm("contract-command", "python3 tools/agent_instruction_contract.py --check"),
         ),
     ),
@@ -140,6 +141,7 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("capability-manifest", "agilab-capabilities.json"),
             RequiredTerm("agenticweb", "agenticweb.md"),
             RequiredTerm("compact-validation", "Validation passed."),
+            RequiredTerm("tokki-routing", "tokki run --"),
         ),
     ),
     FileContract(
@@ -154,6 +156,7 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("capability-manifest", "agilab-capabilities.json"),
             RequiredTerm("agenticweb", "agenticweb.md"),
             RequiredTerm("compact-validation", "Validation passed."),
+            RequiredTerm("tokki-routing", "tokki run --"),
         ),
     ),
 )
