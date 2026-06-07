@@ -86,6 +86,10 @@ Route these patterns before choosing tools:
   merge step still requires the current PR/branch to be clean, synchronized, and
   passing required checks; stop and report the blocker instead of asking for a
   second `merge it` or `next move` turn.
+- For terminal checks in terse execution chains, prefer `tokki run -- <command>`
+  when Tokki can preserve command behavior. Use raw commands for interactive
+  flows, exact structured stdout, live streaming logs, or intentionally
+  unwrapped behavior.
 - For `check again`, verify the authoritative source for the prior claim:
   current repo state, workflow status, docs mirror, PyPI/GitHub release, or
   cluster discovery as appropriate.
