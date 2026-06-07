@@ -96,6 +96,50 @@ def test_contract_detects_missing_compact_validation_marker(tmp_path: Path) -> N
     assert "compact-validation" in evidence_by_path["tools/agent_workflows.md"]["required_terms_missing"]
 
 
+def test_contract_detects_missing_fix_prevention_marker(tmp_path: Path) -> None:
+    module = _load_module()
+    _write_minimal_contract_tree(module, tmp_path)
+    agents = tmp_path / "AGENTS.md"
+    agents.write_text(
+        agents.read_text(encoding="utf-8").replace("Fix prevention close-out", ""),
+        encoding="utf-8",
+    )
+
+    report = module.build_report(tmp_path)
+
+    assert report["status"] == "fail"
+    assert any(
+        issue["rule"] == "agent-instruction-required-term"
+        and issue["path"] == "AGENTS.md"
+        and "fix-prevention" in issue["message"]
+        for issue in report["issues"]
+    )
+    evidence_by_path = {row["path"]: row for row in report["file_evidence"]}
+    assert "fix-prevention" in evidence_by_path["AGENTS.md"]["required_terms_missing"]
+
+
+def test_contract_detects_missing_shell_url_quoting_marker(tmp_path: Path) -> None:
+    module = _load_module()
+    _write_minimal_contract_tree(module, tmp_path)
+    learnings = tmp_path / "AGENT_LEARNINGS.md"
+    learnings.write_text(
+        learnings.read_text(encoding="utf-8").replace("gh api repos/.../file?ref=main", ""),
+        encoding="utf-8",
+    )
+
+    report = module.build_report(tmp_path)
+
+    assert report["status"] == "fail"
+    assert any(
+        issue["rule"] == "agent-instruction-required-term"
+        and issue["path"] == "AGENT_LEARNINGS.md"
+        and "shell-url-quoting" in issue["message"]
+        for issue in report["issues"]
+    )
+    evidence_by_path = {row["path"]: row for row in report["file_evidence"]}
+    assert "shell-url-quoting" in evidence_by_path["AGENT_LEARNINGS.md"]["required_terms_missing"]
+
+
 def test_contract_detects_missing_capability_command(tmp_path: Path) -> None:
     module = _load_module()
     _write_minimal_contract_tree(module, tmp_path)
