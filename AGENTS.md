@@ -114,6 +114,14 @@ Use this runbook whenever you:
   silently return. If an automated regression is genuinely not practical,
   document the reason, the closest manual/robot validation, and the remaining
   risk before closing the fix.
+- **Fix prevention close-out**: Every issue fix must include a prevention
+  step before handoff. For product or code defects, add or tighten the
+  smallest regression, guard, or validation that would have caught the failure.
+  For agent-process defects, such as a missed command-routing rule or a
+  preventable shell-construction mistake, add or tighten the narrowest durable
+  rule in `AGENT_LEARNINGS.md`, `AGENTS.md`, a repo skill, or tooling. If no
+  durable prevention is practical, state why and name the nearest validation
+  that now covers the risk.
 - **Streamlit duplicate-widget triage**: For duplicate element ID errors, first
   check whether the page, app surface, or entrypoint is being executed twice.
   Add stable widget keys for repeated controls, but do not mask duplicate

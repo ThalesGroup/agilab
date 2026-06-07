@@ -58,3 +58,10 @@ is not a scratchpad or task log.
   Do not expand it into a command-by-command list unless failures, skipped
   checks, release/audit evidence, PR proof, or an explicit user request make the
   details useful.
+- When passing URLs, GitHub API paths, or query strings through the shell,
+  quote the entire argument or use stdin/structured flags. In zsh, unquoted
+  `?`, `&`, `[]`, or other glob-sensitive characters can change or reject the
+  command, so an unquoted `gh api repos/.../file?ref=main` style check is a
+  preventable command-construction error. When Tokki is available, run ad-hoc
+  verification commands through `tokki run -- ...`; Tokki reduces output noise
+  but does not replace correct shell quoting.
