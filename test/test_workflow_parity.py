@@ -488,6 +488,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert ui_frontend_smoke.remove_paths == ["screenshots/ui-frontend-smoke"]
     assert "tools/agilab_web_robot.py" in ui_frontend_smoke.argv
     assert "--frontend-smoke-only" in ui_frontend_smoke.argv
+    assert "--dev-scope-before-smoke" in ui_frontend_smoke.argv
     assert "--timeout" in ui_frontend_smoke.argv
     assert "--target-seconds" in ui_frontend_smoke.argv
     assert "45" in ui_frontend_smoke.argv
@@ -1639,6 +1640,16 @@ def test_result_cache_helpers_round_trip_successful_profile(
             ),
             module._run_command,
             ["docs"],
+        )
+        is False
+    )
+    assert (
+        module._result_cache_enabled(
+            SimpleNamespace(
+                result_cache=False, no_result_cache=False, print_only=False
+            ),
+            module._run_command,
+            ["ui-frontend-smoke"],
         )
         is False
     )

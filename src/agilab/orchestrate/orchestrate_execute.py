@@ -82,8 +82,8 @@ def _is_networkx_graph(value: object) -> bool:
     return nx is not None and isinstance(value, nx.Graph)
 
 
-from agi_env import AgiEnv
-from agi_gui.pagelib import cached_load_df, find_files, open_new_tab, render_dataframe_preview, save_csv
+from agi_env import AgiEnv  # noqa: E402
+from agi_gui.pagelib import cached_load_df, find_files, open_new_tab, render_dataframe_preview, save_csv  # noqa: E402
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "security" / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
@@ -118,6 +118,7 @@ _orchestrate_page_support = import_agilab_module(
 )
 app_declares_workerless = _orchestrate_page_support.app_declares_workerless
 ORCHESTRATE_ACTION_LABELS = _orchestrate_page_support.ORCHESTRATE_ACTION_LABELS
+orchestrate_snippet_runtime_root = _orchestrate_page_support.orchestrate_snippet_runtime_root
 
 _orchestrate_page_helpers = import_agilab_module(
     "agilab.orchestrate_page_helpers",
@@ -640,7 +641,7 @@ async def render_execute_section(
 
         async def _run_and_stream():
             nonlocal log_file_path
-            runtime_root = Path(project_path)
+            runtime_root = orchestrate_snippet_runtime_root(env, Path(project_path))
             with log_file_path.open("w", encoding="utf-8") as log_file:
                 def _fanout(message: str) -> None:
                     clean = strip_ansi(message or "").rstrip()
