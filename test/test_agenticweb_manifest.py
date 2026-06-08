@@ -37,6 +37,10 @@ def _write_manifest(path: Path) -> None:
                 "id": "agent-run",
                 "description": "Wrap coding-agent actions with redacted manifests.",
             },
+            {
+                "id": "agent-context-router",
+                "description": "Recommend AGILAB runbooks with an optional bounded context profile.",
+            },
         ],
     }
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -61,6 +65,10 @@ def test_agenticweb_manifest_builds_compact_discovery_from_capabilities(tmp_path
     assert by_id["read-only-evidence"]["instructions"].startswith(
         "Call agent_quickstart first. It is read-only"
     )
+    assert by_id["agent-context-router"]["kind"] == "api"
+    assert by_id["agent-context-router"]["entrypoint"] == "tools/agent_context_router.py"
+    assert "--profile tokki" in by_id["agent-context-router"]["instructions"]
+    assert "local agent wrapper expects that profile" in by_id["agent-context-router"]["instructions"]
     assert by_id["streamlit-demo"]["kind"] == "ui"
     assert by_id["first-proof-cli"]["permissions"]["execute"] is True
     assert by_id["capability-map"]["permissions"]["train"] is False

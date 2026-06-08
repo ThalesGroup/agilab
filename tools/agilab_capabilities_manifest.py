@@ -103,10 +103,10 @@ CLI_COMMANDS: tuple[dict[str, Any], ...] = (
     },
     {
         "id": "agent-context-router",
-        "command": "python3 tools/agent_context_router.py --files <paths> --prompt <task> --json",
+        "command": "python3 tools/agent_context_router.py [--profile tokki] --files <paths> --prompt <task> --json",
         "kind": "agent-context",
         "maturity": "contract-proof",
-        "description": "Recommend AGILAB runbooks and repo-managed skills from changed files or task text without executing agent tools.",
+        "description": "Recommend AGILAB runbooks and repo-managed skills from changed files or task text, with an optional bounded context profile, without executing agent tools.",
         "docs": ["docs/source/agent-workflows.rst"],
         "evidence_outputs": ["agilab.agent_context_recommendation.v1"],
     },

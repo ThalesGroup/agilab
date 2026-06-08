@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-06T21:38:58Z",
+  "generated_at_utc": "2026-06-08T09:25:57Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -10,7 +10,7 @@
     "repository": "https://github.com/ThalesGroup/agilab",
     "documentation": "https://thalesgroup.github.io/agilab/",
     "project": "agilab",
-    "version": "2026.06.05"
+    "version": "2026.06.08"
   },
   "boundary": {
     "proves": "This manifest proves that public AGILAB surfaces are discoverable from checked-in contracts.",
@@ -85,10 +85,10 @@
     },
     {
       "id": "agent-context-router",
-      "command": "python3 tools/agent_context_router.py --files <paths> --prompt <task> --json",
+      "command": "python3 tools/agent_context_router.py [--profile tokki] --files <paths> --prompt <task> --json",
       "kind": "agent-context",
       "maturity": "contract-proof",
-      "description": "Recommend AGILAB runbooks and repo-managed skills from changed files or task text without executing agent tools.",
+      "description": "Recommend AGILAB runbooks and repo-managed skills from changed files or task text, with an optional bounded context profile, without executing agent tools.",
       "docs": [
         "docs/source/agent-workflows.rst"
       ],
@@ -648,7 +648,7 @@
       "name": "agilab",
       "role": "top-level-bundle",
       "status": "PyPI package",
-      "version": "2026.06.05",
+      "version": "2026.06.08",
       "description": "AGILAB is a reproducible AI/ML workbench for engineering teams.",
       "project": ".",
       "pyproject": "pyproject.toml",

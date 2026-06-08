@@ -116,6 +116,7 @@ def test_agent_run_evidence_command_is_documented() -> None:
 
 def test_agent_skill_badges_catalog_and_resource_preflight_are_documented() -> None:
     agent_workflows = (REPO_ROOT / "tools" / "agent_workflows.md").read_text(encoding="utf-8")
+    public_docs = (REPO_ROOT / "docs" / "source" / "agent-workflows.rst").read_text(encoding="utf-8")
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     pypi_readme = (REPO_ROOT / "README.pypi.md").read_text(encoding="utf-8")
 
@@ -138,6 +139,8 @@ def test_agent_skill_badges_catalog_and_resource_preflight_are_documented() -> N
     assert "python3 tools/agenticweb_manifest.py --check" in agent_workflows
     assert "python3 tools/agent_instruction_contract.py --check" in agent_workflows
     assert "agilab.agent_instruction_contract.v1" in agent_workflows
+    assert "--profile tokki" in public_docs
+    assert "local wrapper that expects AGILAB's bounded context profile" in public_docs
     assert "python tools/resource_snapshot.py --output resource_snapshot.json --json" in agent_workflows
     assert "agilab.resource_snapshot.v1" in agent_workflows
     assert "python tools/agent_skill_quality_guard.py --changed-only --fail-on high" in agent_workflows

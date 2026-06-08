@@ -78,14 +78,12 @@ Then follow the repo rules in:
   validation feedback
 - ``AGENTS.md`` for the full AGILAB runbook and validation rules
 
-When coding through a terminal agent, AGILAB recommends launching that agent
-through Tokki when it is available. Tokki keeps context compact, digests noisy
-terminal output, records session metadata, and exposes token-savings evidence.
-For ad-hoc terminal checks inside an agent session, prefer
-``tokki run -- <command>`` when it can execute the command faithfully.
-It is an efficiency and observability layer for agent sessions; the AGILAB
-validation source of truth remains ``tools/impact_validate.py``, ``./dev``, and
-the workflow-parity profiles.
+When coding through a terminal agent, AGILAB can be used with a local agent
+wrapper such as Tokki when it is available. Keep the AGILAB-facing contract at
+the wrapper boundary: request bounded context, keep terminal evidence concise,
+and do not document wrapper-specific behavior. The AGILAB validation source of
+truth remains ``tools/impact_validate.py``, ``./dev``, and the workflow-parity
+profiles.
 
 The main rule is simple: run the narrowest local proof first, then reproduce
 the real AGILAB path before broader validation.
@@ -118,6 +116,20 @@ baseline runbooks, matched rules, and recommended repo-managed skills from
 ``agent-context-rules.json``. This is a contract proof for context selection
 only: it does not execute agents, run tests, or replace
 ``tools/impact_validate.py``.
+
+For a local wrapper that expects AGILAB's bounded context profile, pass
+``--profile tokki``::
+
+   python3 tools/agent_context_router.py \
+     --profile tokki \
+     --files src/agilab/pages/4_ANALYSIS.py src/agilab/notebooks/notebook_export_support.py \
+     --prompt "fix notebook sync in the analysis page" \
+     --json
+
+The ``context_profile`` block returns bounded baseline files, matched context
+packs, estimated token budget, and follow-up validation commands. The profile
+narrows context selection only; AGILAB validation remains anchored in
+``tools/impact_validate.py``, ``./dev``, and workflow-parity profiles.
 
 Validate the rules with::
 

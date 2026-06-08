@@ -1,7 +1,7 @@
 ---
 agenticweb: "1"
 description: "AGILAB is an open-source AI/ML workbench for reproducible experiments, notebook-to-app workflows, run evidence, proof capsules, and local agent evidence review."
-updated: "2026-06-06"
+updated: "2026-06-08"
 organization:
   name: "AGILAB"
   website: "https://thalesgroup.github.io/agilab"
@@ -193,6 +193,23 @@ capabilities:
     entrypoint: "agent_quickstart"
     instructions: "Call agent_quickstart first. It is read-only and returns the safety boundary, recommended workflow, live tool list, and compact capability overview."
   - kind: "api"
+    id: "agent-context-router"
+    description: "Recommend AGILAB runbooks and repo-managed skills from changed files or task text, with an optional bounded context profile, without executing agent tools."
+    url: "https://thalesgroup.github.io/agilab/agent-workflows.html"
+    status: "active"
+    pricing_model: "free"
+    auth_required: false
+    permissions:
+      read: true
+      cite: true
+      summarize: true
+      train: false
+      cache: true
+      execute: false
+    schema: "https://raw.githubusercontent.com/ThalesGroup/agilab/main/agilab-capabilities.schema.json"
+    entrypoint: "tools/agent_context_router.py"
+    instructions: "Use --profile tokki for bounded AGILAB context packs when your local agent wrapper expects that profile. The router is advisory and does not replace AGILAB validation gates."
+  - kind: "api"
     id: "agent-run-evidence"
     description: "Wrap coding-agent actions with redacted manifests, traces, and local artifact pointers."
     url: "https://thalesgroup.github.io/agilab/agent-workflows.html"
@@ -226,7 +243,7 @@ x_generated_by:
   command: "python3 tools/agenticweb_manifest.py --apply"
   source_manifest: "agilab-capabilities.json"
   source_schema: "agilab.capabilities.v1"
-  source_version: "2026.06.05"
+  source_version: "2026.06.08"
   boundary: "Discovery only: this file does not prove runtime success, external service reachability, security certification, or production readiness."
 ---
 

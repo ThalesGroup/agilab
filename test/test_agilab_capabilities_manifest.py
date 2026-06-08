@@ -30,6 +30,8 @@ def test_capability_manifest_exposes_public_surfaces() -> None:
     commands = {row["id"]: row for row in payload["cli_commands"]}
     assert commands["first-proof"]["evidence_outputs"] == ["run_manifest.json"]
     assert "agilab workflow validate" in commands["workflow-validate"]["command"]
+    assert "[--profile tokki]" in commands["agent-context-router"]["command"]
+    assert "optional bounded context profile" in commands["agent-context-router"]["description"]
 
     pages = {row["title"]: row for row in payload["streamlit_pages"]}
     assert pages["ORCHESTRATE"]["source"] == "src/agilab/pages/2_ORCHESTRATE.py"

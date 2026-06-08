@@ -23,8 +23,8 @@
   },
   "context_profiles": {
     "tokki": {
-      "label": "Tokki compact context profile",
-      "description": "Bounded context packs for Tokki and other token-saving agents. Use the baseline files first, then add only the packs for matched AGILAB task rules.",
+      "label": "Bounded context profile",
+      "description": "Bounded AGILAB context packs for local agent wrappers. Use the baseline files first, then add only the packs for matched AGILAB task rules.",
       "max_total_tokens": 9000,
       "baseline_token_budget": 1200,
       "max_rule_packs": 3,

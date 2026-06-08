@@ -138,6 +138,7 @@ def build_discovery(manifest_path: Path = DEFAULT_CAPABILITIES) -> dict[str, Any
     generated_at = str(manifest.get("generated_at_utc") or "")
     updated = generated_at[:10] if len(generated_at) >= 10 else ""
     agent_run = _pick_cli(manifest, "agent-run")
+    agent_context_router = _pick_cli(manifest, "agent-context-router")
     first_proof = _pick_cli(manifest, "first-proof")
     workflow_validate = _pick_cli(manifest, "workflow-validate")
     description = (
@@ -289,6 +290,23 @@ def build_discovery(manifest_path: Path = DEFAULT_CAPABILITIES) -> dict[str, Any
                     "compact capability overview."
                 ),
                 auth_required=False,
+                permissions=_permissions(executable=False),
+            ),
+            _capability(
+                kind="api",
+                capability_id="agent-context-router",
+                description=str(
+                    agent_context_router.get("description")
+                    or "Recommend AGILAB runbooks and compact context packs."
+                ),
+                url=f"{PUBLIC_DOCS}/agent-workflows.html",
+                schema=_raw_url("agilab-capabilities.schema.json"),
+                entrypoint="tools/agent_context_router.py",
+                instructions=(
+                    "Use --profile tokki for bounded AGILAB context packs when "
+                    "your local agent wrapper expects that profile. The router "
+                    "is advisory and does not replace AGILAB validation gates."
+                ),
                 permissions=_permissions(executable=False),
             ),
             _capability(
