@@ -119,6 +119,7 @@ UV_RUN_STREAMLIT = (
     "ui",
     "streamlit",
 )
+DEV_SCOPE_COMMAND = ("./dev", "scope")
 
 
 @dataclass(frozen=True)
@@ -306,6 +307,16 @@ def _build_parser() -> argparse.ArgumentParser:
             "running the full upload/navigation robot."
         ),
     )
+    parser.add_argument(
+        "--dev-scope-before-smoke",
+        action="store_true",
+        help=(
+            "For local frontend smoke runs, execute './dev scope' after the "
+            "Streamlit server is healthy and before checking frontend assets. "
+            "This catches live UI breakage caused by validation commands "
+            "resyncing the same virtual environment."
+        ),
+    )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     parser.add_argument(
         "--print-only",
@@ -355,6 +366,7 @@ def build_server_env() -> dict[str, str]:
     # The robot itself can run in a temporary `uv --with playwright` env.
     # The Streamlit child must resolve AGILAB from the repo project instead.
     env.pop("UV_RUN_RECURSION_DEPTH", None)
+    env.pop("UV_PROJECT_ENVIRONMENT", None)
     env.pop("VIRTUAL_ENV", None)
     env.setdefault("AGILAB_DISABLE_BACKGROUND_SERVICES", "1")
     env.setdefault("OPENAI_API_KEY", "sk-test-agilab-web-robot-000000000000")
@@ -394,6 +406,13 @@ def resolve_analysis_view_path(
     if remote:
         return str(Path(remote_app_root) / relative_path)
     return str((REPO_ROOT / relative_path).resolve())
+
+
+def _url_targets_loopback(url: str | None) -> bool:
+    if not url:
+        return False
+    host = (urllib.parse.urlsplit(url).hostname or "").lower()
+    return host in {"localhost", "127.0.0.1", "::1", "0.0.0.0"} or host.startswith("127.")
 
 
 def build_url(base_url: str, *, active_app: str | None = None, current_page: str | None = None) -> str:
@@ -546,6 +565,48 @@ def assert_frontend_static_assets(
             f"frontend asset check failed: {exc}",
             landing_url,
         )
+
+
+def run_dev_scope_before_smoke(
+    *,
+    timeout: float,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> RobotStep:
+    start = time.perf_counter()
+    try:
+        completed = runner(
+            list(DEV_SCOPE_COMMAND),
+            cwd=REPO_ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+            timeout=timeout,
+        )
+    except Exception as exc:
+        return RobotStep(
+            "dev scope before frontend smoke",
+            False,
+            time.perf_counter() - start,
+            f"could not run {shlex.join(DEV_SCOPE_COMMAND)}: {exc}",
+        )
+
+    if completed.returncode == 0:
+        return RobotStep(
+            "dev scope before frontend smoke",
+            True,
+            time.perf_counter() - start,
+            f"{shlex.join(DEV_SCOPE_COMMAND)} completed before frontend asset check",
+        )
+
+    output = (completed.stdout or "").splitlines()
+    tail = "\n".join(output[-20:])
+    return RobotStep(
+        "dev scope before frontend smoke",
+        False,
+        time.perf_counter() - start,
+        f"{shlex.join(DEV_SCOPE_COMMAND)} exited {completed.returncode}; tail={tail}",
+    )
 
 
 def _load_playwright() -> Any:
@@ -997,8 +1058,11 @@ def _print_json(payload: object) -> None:
     print(json.dumps(payload, indent=2))
 
 
-def _frontend_smoke_route() -> list[str]:
-    return ["frontend static assets", "frontend landing hydration"]
+def _frontend_smoke_route(*, dev_scope_before_smoke: bool = False) -> list[str]:
+    route = ["frontend static assets", "frontend landing hydration"]
+    if dev_scope_before_smoke:
+        route.insert(0, "dev scope before frontend smoke")
+    return route
 
 
 def _full_robot_route() -> list[str]:
@@ -1012,11 +1076,16 @@ def _full_robot_route() -> list[str]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
-    args = parser.parse_args(list(argv) if argv is not None else None)
+    argv_list = list(argv) if argv is not None else sys.argv[1:]
+    args = parser.parse_args(argv_list)
     if args.timeout <= 0:
         parser.error("--timeout must be greater than 0")
     if args.target_seconds <= 0:
         parser.error("--target-seconds must be greater than 0")
+    if args.dev_scope_before_smoke and not args.frontend_smoke_only:
+        parser.error("--dev-scope-before-smoke requires --frontend-smoke-only")
+    if args.dev_scope_before_smoke and args.url:
+        parser.error("--dev-scope-before-smoke is only supported for local launches")
 
     port = args.port or _free_port()
     local_url = f"http://127.0.0.1:{port}"
@@ -1027,9 +1096,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         apps_path=args.apps_path,
         port=port,
     )
+    remote_view_paths = bool(args.url) and (
+        not _url_targets_loopback(args.url) or "--remote-app-root" in argv_list
+    )
 
     if args.print_only:
-        route = _frontend_smoke_route() if args.frontend_smoke_only else _full_robot_route()
+        route = (
+            _frontend_smoke_route(
+                dev_scope_before_smoke=args.dev_scope_before_smoke
+            )
+            if args.frontend_smoke_only
+            else _full_robot_route()
+        )
         payload = {
             "base_url": base_url,
             "launch_command": launch_command,
@@ -1038,7 +1116,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "analysis_view_path": (
                 resolve_analysis_view_path(
                     args.analysis_view,
-                    remote=bool(args.url),
+                    remote=remote_view_paths,
                     remote_app_root=args.remote_app_root,
                 )
                 if args.analysis_view
@@ -1064,7 +1142,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     analysis_view_path = (
         resolve_analysis_view_path(
             args.analysis_view,
-            remote=bool(args.url),
+            remote=remote_view_paths,
             remote_app_root=args.remote_app_root,
         )
         if args.analysis_view
@@ -1079,16 +1157,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 steps.append(health)
                 if health.success:
                     if args.frontend_smoke_only:
-                        steps.extend(
-                            run_frontend_smoke(
-                                base_url=base_url,
-                                active_app_query=active_app_query,
-                                browser_name=args.browser,
-                                headless=not args.headful,
-                                timeout=args.timeout,
-                                screenshot_dir=screenshot_dir,
+                        if args.dev_scope_before_smoke:
+                            steps.append(
+                                run_dev_scope_before_smoke(timeout=args.timeout)
                             )
-                        )
+                        if steps[-1].success:
+                            steps.extend(
+                                run_frontend_smoke(
+                                    base_url=base_url,
+                                    active_app_query=active_app_query,
+                                    browser_name=args.browser,
+                                    headless=not args.headful,
+                                    timeout=args.timeout,
+                                    screenshot_dir=screenshot_dir,
+                                )
+                            )
                     else:
                         steps.extend(
                             run_browser_robot(

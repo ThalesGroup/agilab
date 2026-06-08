@@ -47,7 +47,7 @@ def build_streamlit_command(root: Path, app_args: list[str], uv_bin: str) -> lis
 
 def build_child_environment(environ: Mapping[str, str]) -> dict[str, str]:
     child_env = dict(environ)
-    for key in ("UV_NO_SYNC", "UV_RUN_RECURSION_DEPTH", "VIRTUAL_ENV"):
+    for key in ("UV_NO_SYNC", "UV_RUN_RECURSION_DEPTH", "UV_PROJECT_ENVIRONMENT", "VIRTUAL_ENV"):
         child_env.pop(key, None)
     return child_env
 

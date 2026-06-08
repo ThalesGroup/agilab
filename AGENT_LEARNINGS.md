@@ -58,6 +58,11 @@ is not a scratchpad or task log.
   Do not expand it into a command-by-command list unless failures, skipped
   checks, release/audit evidence, PR proof, or an explicit user request make the
   details useful.
+- When a source Streamlit UI is running, do not run plain repo-level `uv run`
+  validation commands against the same `.venv`. Use `./dev`, which isolates uv
+  subprocesses in `.venv-dev`, or pass an explicit ignored
+  `UV_PROJECT_ENVIRONMENT` so validation cannot strip Streamlit static assets
+  from the live UI environment.
 - When passing URLs, GitHub API paths, or query strings through the shell,
   quote the entire argument or use stdin/structured flags. In zsh, unquoted
   `?`, `&`, `[]`, or other glob-sensitive characters can change or reject the

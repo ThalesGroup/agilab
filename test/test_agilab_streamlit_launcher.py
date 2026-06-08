@@ -47,6 +47,7 @@ def test_child_environment_removes_parent_uv_sync_controls() -> None:
         {
             "UV_NO_SYNC": "1",
             "UV_RUN_RECURSION_DEPTH": "1",
+            "UV_PROJECT_ENVIRONMENT": "/tmp/agilab-dev",
             "VIRTUAL_ENV": "/stale/.venv",
             "IS_SOURCE_ENV": "1",
         }

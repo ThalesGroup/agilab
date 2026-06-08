@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 TOOLS_ROOT = REPO_ROOT / "tools"
 sys.path.insert(0, str(TOOLS_ROOT))
 
-from package_split_contract import (
+from package_split_contract import (  # noqa: E402
     APP_PROJECT_PACKAGE_SPECS,
     ASSET_PACKAGE_NAMES,
     EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES,
@@ -192,6 +192,19 @@ def test_root_extras_and_uv_sources_match_package_split_contract() -> None:
         assert source is not None, package.name
         assert source.get("editable") is True, package.name
         assert source.get("path", "").lstrip("./") == package.project, package.name
+
+
+def test_root_ui_extra_covers_default_source_analysis_view_dependencies() -> None:
+    root_pyproject = REPO_ROOT / "pyproject.toml"
+    ui_names = _requirement_names(root_pyproject, "ui")
+    default_analysis_bundle = REPO_ROOT / "src/agilab/apps-pages/view_maps/pyproject.toml"
+    required_names = {
+        requirement.name.lower()
+        for requirement in _requirements(default_analysis_bundle, "dependencies")
+        if not requirement.name.lower().startswith("agi-")
+    }
+
+    assert required_names <= ui_names
 
 
 def test_publish_tool_uses_the_same_package_split_contract() -> None:

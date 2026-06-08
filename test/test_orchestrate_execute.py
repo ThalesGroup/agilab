@@ -1377,13 +1377,17 @@ async def test_render_execute_section_skips_log_pin_editor_without_run_logs(monk
 
 
 @pytest.mark.asyncio
-async def test_render_execute_section_source_env_uses_app_runtime(monkeypatch, tmp_path):
+async def test_render_execute_section_source_env_uses_source_checkout_runtime(monkeypatch, tmp_path):
     manager_venv = tmp_path / "project" / ".venv"
     worker_venv = tmp_path / "wenv" / ".venv"
-    controller_root = tmp_path / "controller"
+    source_root = tmp_path / "source"
+    source_pkg = source_root / "src" / "agilab"
     manager_venv.mkdir(parents=True)
     worker_venv.mkdir(parents=True)
-    controller_root.mkdir()
+    (source_root / ".venv").mkdir(parents=True)
+    (source_root / ".venv" / "pyvenv.cfg").write_text("", encoding="utf-8")
+    source_pkg.mkdir(parents=True)
+    (source_root / "pyproject.toml").write_text("[project]\nname = 'agilab'\n", encoding="utf-8")
 
     fake_st = _FakeStreamlit(
         {
@@ -1414,7 +1418,8 @@ async def test_render_execute_section_source_env_uses_app_runtime(monkeypatch, t
         run_agi=_run_agi,
         is_source_env=True,
         is_worker_env=False,
-        agi_cluster=controller_root,
+        agi_cluster=tmp_path / "controller",
+        agilab_pck=source_pkg,
     )
     deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
 
@@ -1428,7 +1433,7 @@ async def test_render_execute_section_source_env_uses_app_runtime(monkeypatch, t
         deps=deps,
     )
 
-    assert Path(captured["venv"]) == tmp_path / "project"
+    assert Path(captured["venv"]) == source_root
 
 
 @pytest.mark.asyncio

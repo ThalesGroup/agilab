@@ -17,7 +17,10 @@ from agilab.orchestrate.orchestrate_page_helpers import (
     start_action_elapsed,
     update_action_elapsed_status,
 )
-from agilab.orchestrate.orchestrate_page_support import ORCHESTRATE_ACTION_LABELS
+from agilab.orchestrate.orchestrate_page_support import (
+    ORCHESTRATE_ACTION_LABELS,
+    orchestrate_snippet_runtime_root,
+)
 from agilab.workflow.action_execution import ActionResult, render_action_result
 
 SERVICE_MODE_POOL = 1
@@ -1036,12 +1039,7 @@ async def render_service_panel(
                         started_monotonic=elapsed_started,
                     )
 
-                runtime_root = (
-                    Path(getattr(env, "agi_cluster"))
-                    if bool(getattr(env, "is_source_env", False) or getattr(env, "is_worker_env", False))
-                    and getattr(env, "agi_cluster", None)
-                    else project_path
-                )
+                runtime_root = orchestrate_snippet_runtime_root(env, project_path)
                 try:
                     service_stdout, service_stderr = await env.run_agi(
                         cmd_service.replace("asyncio.run(main())", env.snippet_tail),

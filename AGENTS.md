@@ -73,7 +73,11 @@ Use this runbook whenever you:
   turns do not ingest full validation logs. Use `--raw-output` or
   `AGILAB_DEV_OUTPUT=raw` only when a human or downstream tool needs the old
   streaming output; use `--summary-lines N` or `AGILAB_DEV_SUMMARY_LINES=N` to
-  adjust the compact signal budget.
+  adjust the compact signal budget. `./dev` runs its `uv` subprocesses with an
+  isolated default `UV_PROJECT_ENVIRONMENT=.venv-dev` so validation shortcuts do
+  not resync or strip UI packages from the source Streamlit `.venv` while a
+  browser session is running. Override with `AGILAB_DEV_UV_PROJECT_ENVIRONMENT`
+  only when you intentionally want a different ignored validation environment.
 - **Upgrade packaged tools first**: Before launching the published CLI with `uvx
   agilab`, run `uv --preview-features extra-build-dependencies tool install --upgrade agilab` to install or pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching
@@ -111,7 +115,13 @@ Use this runbook whenever you:
   symptoms with narrow call-site guards when a deeper contract is wrong. Turn
   the root-cause analysis into a new or tightened regression test that fails on
   the logged bug and passes with the fix, so the same failure class cannot
-  silently return. If an automated regression is genuinely not practical,
+  silently return. For Streamlit/frontend failures involving missing static
+  files, dynamic-import errors, browser console/page errors, failed asset
+  requests, or defects that appear only after another command mutates the live
+  environment, enhance the browser robot or workflow profile so it reproduces
+  that temporal sequence and inspects the asset/dev-log evidence; do not close
+  with unit tests or AppTest alone when those surfaces could not have loaded the
+  failing browser asset. If an automated regression is genuinely not practical,
   document the reason, the closest manual/robot validation, and the remaining
   risk before closing the fix.
 - **Fix prevention close-out**: Every issue fix must include a prevention

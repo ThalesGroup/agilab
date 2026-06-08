@@ -68,6 +68,7 @@ def test_web_robot_entrypoint_help_exits_before_launch(monkeypatch, capsys) -> N
     output = capsys.readouterr().out
     assert "usage: agilab_web_robot.py" in output
     assert "--frontend-smoke-only" in output
+    assert "--dev-scope-before-smoke" in output
 
 
 def test_web_robot_theme_fallback_rejects_missing_spec(monkeypatch) -> None:
@@ -98,6 +99,7 @@ def test_web_robot_theme_fallback_rejects_missing_spec(monkeypatch) -> None:
 def test_build_server_env_scrubs_parent_uv_temp_environment(monkeypatch) -> None:
     module = _load_module()
     monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "1")
+    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", "/tmp/agilab-dev")
     monkeypatch.setenv("VIRTUAL_ENV", "/tmp/uv-build-env")
     monkeypatch.setenv("PATH", os.environ.get("PATH", ""))
     for env_key in [
@@ -113,6 +115,7 @@ def test_build_server_env_scrubs_parent_uv_temp_environment(monkeypatch) -> None
     env = module.build_server_env()
 
     assert "UV_RUN_RECURSION_DEPTH" not in env
+    assert "UV_PROJECT_ENVIRONMENT" not in env
     assert "VIRTUAL_ENV" not in env
     assert env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"
     assert env["STREAMLIT_CONFIG_FILE"] == str(module.REPO_ROOT / "src/agilab/resources/config.toml")
@@ -406,6 +409,47 @@ def test_frontend_static_asset_check_rejects_html_served_for_js() -> None:
     assert "application/javascript" in step.detail
 
 
+def test_run_dev_scope_before_smoke_reports_success() -> None:
+    module = _load_module()
+    calls = []
+
+    def fake_runner(command, **kwargs):
+        calls.append((command, kwargs))
+        return subprocess.CompletedProcess(command, 0, stdout="ok\n")
+
+    step = module.run_dev_scope_before_smoke(timeout=1.5, runner=fake_runner)
+
+    assert step.success is True
+    assert step.label == "dev scope before frontend smoke"
+    assert "completed before frontend asset check" in step.detail
+    command, kwargs = calls[0]
+    assert command == ["./dev", "scope"]
+    assert kwargs["cwd"] == module.REPO_ROOT
+    assert kwargs["stdout"] is subprocess.PIPE
+    assert kwargs["stderr"] is subprocess.STDOUT
+    assert kwargs["text"] is True
+    assert kwargs["errors"] == "replace"
+    assert kwargs["timeout"] == 1.5
+
+
+def test_run_dev_scope_before_smoke_reports_failure_tail() -> None:
+    module = _load_module()
+
+    def fake_runner(command, **_kwargs):
+        return subprocess.CompletedProcess(
+            command,
+            7,
+            stdout="\n".join(f"line {index}" for index in range(25)),
+        )
+
+    step = module.run_dev_scope_before_smoke(timeout=1.0, runner=fake_runner)
+
+    assert step.success is False
+    assert "./dev scope exited 7" in step.detail
+    assert "line 5" in step.detail
+    assert "line 24" in step.detail
+
+
 def test_find_rejected_pattern_flags_browser_connection_errors() -> None:
     module = _load_module()
 
@@ -492,6 +536,7 @@ def test_build_parser_has_expected_defaults() -> None:
     assert args.analysis_view is None
     assert args.screenshot_dir is None
     assert args.frontend_smoke_only is False
+    assert args.dev_scope_before_smoke is False
 
 
 def test_wait_for_streamlit_health_can_timeout_without_success() -> None:
@@ -648,6 +693,49 @@ def test_main_print_only_with_remote_url_targets_remote_analysis_view(capsys) ->
     assert payload["analysis_view_path"] == "/app/src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py"
 
 
+def test_main_print_only_with_loopback_url_targets_local_analysis_view(capsys) -> None:
+    module = _load_module()
+
+    code = module.main(
+        [
+            "--print-only",
+            "--json",
+            "--url",
+            "http://localhost:8501",
+            "--analysis-view",
+            "view_maps",
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["base_url"] == "http://localhost:8501"
+    assert payload["launch_command"] is None
+    assert payload["analysis_view"] == "view_maps"
+    assert payload["analysis_view_path"] == str(module.ANALYSIS_VIEW_PATHS["view_maps"].resolve())
+
+
+def test_main_print_only_with_loopback_url_can_force_remote_analysis_root(capsys) -> None:
+    module = _load_module()
+
+    code = module.main(
+        [
+            "--print-only",
+            "--json",
+            "--url",
+            "http://localhost:8501",
+            "--analysis-view",
+            "view_maps",
+            "--remote-app-root",
+            "/app",
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["analysis_view_path"] == "/app/src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py"
+
+
 def test_main_print_only_frontend_smoke_route_is_static_asset_focused(capsys) -> None:
     module = _load_module()
 
@@ -658,6 +746,57 @@ def test_main_print_only_frontend_smoke_route_is_static_asset_focused(capsys) ->
     assert payload["base_url"] == "http://127.0.0.1:9999"
     assert payload["route"] == ["frontend static assets", "frontend landing hydration"]
     assert "--frontend-smoke-only" not in payload["launch_command"]
+
+
+def test_main_print_only_frontend_smoke_can_include_dev_scope_step(capsys) -> None:
+    module = _load_module()
+
+    code = module.main(
+        [
+            "--print-only",
+            "--json",
+            "--frontend-smoke-only",
+            "--dev-scope-before-smoke",
+            "--port",
+            "9999",
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["route"] == [
+        "dev scope before frontend smoke",
+        "frontend static assets",
+        "frontend landing hydration",
+    ]
+    assert "--dev-scope-before-smoke" not in payload["launch_command"]
+
+
+def test_main_rejects_dev_scope_without_local_frontend_smoke(capsys) -> None:
+    module = _load_module()
+
+    try:
+        module.main(["--dev-scope-before-smoke"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected parser exit for missing frontend smoke mode")
+    assert "--dev-scope-before-smoke requires --frontend-smoke-only" in capsys.readouterr().err
+
+    try:
+        module.main(
+            [
+                "--url",
+                "http://demo",
+                "--frontend-smoke-only",
+                "--dev-scope-before-smoke",
+            ]
+        )
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected parser exit for remote dev-scope smoke")
+    assert "--dev-scope-before-smoke is only supported for local launches" in capsys.readouterr().err
 
 
 def test_main_rejects_zero_timeout() -> None:
@@ -1873,6 +2012,96 @@ def test_main_local_json_runs_frontend_smoke_after_healthy_server(capsys, monkey
     assert [step["label"] for step in payload["steps"]] == ["streamlit health", "frontend landing hydration"]
     assert calls[0]["base_url"] == "http://127.0.0.1:8765"
     assert calls[0]["screenshot_dir"] == tmp_path.resolve()
+
+
+def test_main_local_frontend_smoke_runs_dev_scope_before_assets(capsys, monkeypatch) -> None:
+    module = _load_module()
+    _patch_local_server(monkeypatch, module, health_success=True)
+    order: list[str] = []
+
+    def fake_dev_scope(**kwargs):
+        order.append(f"dev:{kwargs['timeout']}")
+        return module.RobotStep(
+            "dev scope before frontend smoke",
+            True,
+            0.2,
+            "ok",
+        )
+
+    def fake_frontend_smoke(**kwargs):
+        order.append(f"frontend:{kwargs['base_url']}")
+        return [
+            module.RobotStep(
+                "frontend static assets",
+                True,
+                0.3,
+                "ok",
+                kwargs["base_url"],
+            )
+        ]
+
+    monkeypatch.setattr(module, "run_dev_scope_before_smoke", fake_dev_scope)
+    monkeypatch.setattr(module, "run_frontend_smoke", fake_frontend_smoke)
+
+    code = module.main(
+        [
+            "--json",
+            "--frontend-smoke-only",
+            "--dev-scope-before-smoke",
+            "--port",
+            "8765",
+            "--timeout",
+            "1.25",
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert [step["label"] for step in payload["steps"]] == [
+        "streamlit health",
+        "dev scope before frontend smoke",
+        "frontend static assets",
+    ]
+    assert order == ["dev:1.25", "frontend:http://127.0.0.1:8765"]
+
+
+def test_main_local_frontend_smoke_stops_when_dev_scope_fails(capsys, monkeypatch) -> None:
+    module = _load_module()
+    _patch_local_server(monkeypatch, module, health_success=True)
+    monkeypatch.setattr(
+        module,
+        "run_dev_scope_before_smoke",
+        lambda **_kwargs: module.RobotStep(
+            "dev scope before frontend smoke",
+            False,
+            0.2,
+            "failed",
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "run_frontend_smoke",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("frontend smoke should not run")
+        ),
+    )
+
+    code = module.main(
+        [
+            "--json",
+            "--frontend-smoke-only",
+            "--dev-scope-before-smoke",
+            "--port",
+            "8765",
+        ]
+    )
+
+    assert code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert [step["label"] for step in payload["steps"]] == [
+        "streamlit health",
+        "dev scope before frontend smoke",
+    ]
 
 
 def test_main_local_json_runs_full_robot_after_healthy_server(capsys, monkeypatch) -> None:

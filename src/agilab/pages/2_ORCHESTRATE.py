@@ -68,6 +68,7 @@ import_agilab_symbols(
         "optional_python_expr": "optional_python_expr",
         "optional_string_expr": "optional_string_expr",
         "order_benchmark_display_columns": "order_benchmark_display_columns",
+        "orchestrate_snippet_runtime_root": "orchestrate_snippet_runtime_root",
         "resolve_requested_run_mode": "resolve_requested_run_mode",
         "resolve_project_change_args_override": "resolve_project_change_args_override",
         "sanitize_benchmark_modes": "sanitize_benchmark_modes",
@@ -1032,9 +1033,7 @@ async def _check_distribution_action(
     on_log: Optional[Callable[[], None]] = None,
 ) -> ActionResult:
     dist_log: list[str] = []
-    # Distribution snippets import agi_cluster and orchestrate worker-side probes.
-    # Prefer the controller runtime when it is known, even if source-env inference is absent.
-    runtime_root = Path(getattr(env, "agi_cluster", None) or project_path)
+    runtime_root = orchestrate_snippet_runtime_root(env, project_path)
     command = cmd.replace("asyncio.run(main())", env.snippet_tail)
 
     try:
@@ -1760,9 +1759,10 @@ async def _render_deployment_panel(
                 "Choose local, local Dask, or LAN cluster resources, then deploy the manager and worker environments."
             )
         st.caption(DEPLOY_WORKERS_AGI_INSTALL_RATIONALE)
+        install_warning_slot = st.empty()
         install_warning = _install_status_warning_message(install_status)
         if install_warning:
-            st.warning(install_warning)
+            install_warning_slot.warning(install_warning)
 
         cluster_deps = OrchestrateClusterDeps(
             parse_and_validate_scheduler=parse_and_validate_scheduler,
@@ -1921,6 +1921,11 @@ async def _render_deployment_panel(
                     st.session_state["SET ARGS"] = True
                     st.session_state["show_run"] = True
                     install_status = _app_install_status(env)
+                    refreshed_warning = _install_status_warning_message(install_status)
+                    if refreshed_warning:
+                        install_warning_slot.warning(refreshed_warning)
+                    else:
+                        install_warning_slot.empty()
 
     return verbose, install_status
 

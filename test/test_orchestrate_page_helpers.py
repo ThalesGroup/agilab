@@ -1445,10 +1445,19 @@ def test_execute_page_install_refreshes_status_before_run_gate(monkeypatch, tmp_
             self[name] = value
 
     class _Placeholder:
+        def __init__(self):
+            self.warnings = []
+            self.empty_calls = 0
+
         def code(self, *_args, **_kwargs):
             return None
 
+        def warning(self, *args, **_kwargs):
+            self.warnings.append(args[0] if args else "")
+            return None
+
         def empty(self):
+            self.empty_calls += 1
             return None
 
     class _FakeStreamlit:
@@ -1468,6 +1477,7 @@ def test_execute_page_install_refreshes_status_before_run_gate(monkeypatch, tmp_
                 log_text="",
             )
             self.buttons = {}
+            self.placeholders = []
 
         def expander(self, *_args, **_kwargs):
             return self
@@ -1491,7 +1501,9 @@ def test_execute_page_install_refreshes_status_before_run_gate(monkeypatch, tmp_
             return None
 
         def empty(self):
-            return _Placeholder()
+            placeholder = _Placeholder()
+            self.placeholders.append(placeholder)
+            return placeholder
 
         def button(self, label, **kwargs):
             key = str(kwargs.get("key") or label)
@@ -1512,10 +1524,10 @@ def test_execute_page_install_refreshes_status_before_run_gate(monkeypatch, tmp_
         "workerless": False,
         "manager_ready": False,
         "worker_ready": False,
-        "manager_exists": False,
-        "worker_exists": False,
-        "manager_problem": "",
-        "worker_problem": "",
+        "manager_exists": True,
+        "worker_exists": True,
+        "manager_problem": "missing modules: pathspec, psutil",
+        "worker_problem": "missing modules: pathspec",
     }
     refreshed_status = {
         "workerless": False,
@@ -1561,6 +1573,12 @@ def test_execute_page_install_refreshes_status_before_run_gate(monkeypatch, tmp_
     assert fake_st.buttons["install_btn"]["disabled"] is False
     assert fake_st.session_state["SET ARGS"] is True
     assert fake_st.session_state["show_run"] is True
+    install_warning_slot = fake_st.placeholders[0]
+    assert install_warning_slot.warnings == [
+        "Environment deployment is incomplete or stale. Run Deploy workers before RUN / LOAD / EXPORT. "
+        "missing modules: pathspec, psutil | missing modules: pathspec"
+    ]
+    assert install_warning_slot.empty_calls == 1
 
 
 def test_set_active_app_query_param_ignores_streamlit_api_errors(monkeypatch):
@@ -1667,12 +1685,17 @@ def test_clear_cached_distribution_calls_clear_when_available():
 
 
 @pytest.mark.asyncio
-async def test_check_distribution_action_reports_success_and_uses_controller_runtime(
+async def test_check_distribution_action_reports_success_and_uses_source_checkout_runtime(
     tmp_path: Path,
 ):
     module = _load_orchestrate_module()
-    controller_root = tmp_path / "controller"
+    source_root = tmp_path / "source"
+    source_pkg = source_root / "src" / "agilab"
     project_path = tmp_path / "project"
+    (source_root / ".venv").mkdir(parents=True)
+    (source_root / ".venv" / "pyvenv.cfg").write_text("", encoding="utf-8")
+    source_pkg.mkdir(parents=True)
+    (source_root / "pyproject.toml").write_text("[project]\nname = 'agilab'\n", encoding="utf-8")
     captured: dict[str, object] = {}
 
     async def _run_agi(cmd, log_callback=None, venv=None):
@@ -1686,7 +1709,8 @@ async def test_check_distribution_action_reports_success_and_uses_controller_run
         snippet_tail="pass",
         is_source_env=True,
         is_worker_env=False,
-        agi_cluster=controller_root,
+        agi_cluster=tmp_path / "controller",
+        agilab_pck=source_pkg,
     )
 
     result = await module._check_distribution_action(
@@ -1697,8 +1721,8 @@ async def test_check_distribution_action_reports_success_and_uses_controller_run
 
     assert result.status == "success"
     assert result.title == "Distribution built successfully."
-    assert captured == {"cmd": "pass", "venv": controller_root}
-    assert result.data["runtime_root"] == controller_root
+    assert captured == {"cmd": "pass", "venv": source_root}
+    assert result.data["runtime_root"] == source_root
     assert result.data["dist_log"] == ("building distribution", "distribution ready")
 
 
@@ -1743,12 +1767,13 @@ async def test_check_distribution_action_accepts_stderr_when_process_succeeds(
 
 
 @pytest.mark.asyncio
-async def test_check_distribution_action_prefers_controller_runtime_when_available(
+async def test_check_distribution_action_prefers_project_runtime_when_controller_has_no_venv(
     tmp_path: Path,
 ):
     module = _load_orchestrate_module()
     controller_root = tmp_path / "controller"
     project_path = tmp_path / "project"
+    controller_root.mkdir()
     captured: dict[str, object] = {}
 
     async def _run_agi(cmd, log_callback=None, venv=None):
@@ -1762,6 +1787,42 @@ async def test_check_distribution_action_prefers_controller_runtime_when_availab
         snippet_tail="pass",
         is_source_env=False,
         is_worker_env=False,
+        agi_cluster=controller_root,
+    )
+
+    result = await module._check_distribution_action(
+        env,
+        cmd="asyncio.run(main())",
+        project_path=project_path,
+    )
+
+    assert result.status == "success"
+    assert captured == {"cmd": "pass", "venv": project_path}
+    assert result.data["runtime_root"] == project_path
+
+
+@pytest.mark.asyncio
+async def test_check_distribution_action_prefers_controller_runtime_when_it_has_venv(
+    tmp_path: Path,
+):
+    module = _load_orchestrate_module()
+    controller_root = tmp_path / "controller"
+    project_path = tmp_path / "project"
+    (controller_root / ".venv").mkdir(parents=True)
+    (controller_root / ".venv" / "pyvenv.cfg").write_text("", encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    async def _run_agi(cmd, log_callback=None, venv=None):
+        captured["cmd"] = cmd
+        captured["venv"] = venv
+        log_callback("building distribution")
+        return "distribution ready", ""
+
+    env = SimpleNamespace(
+        run_agi=_run_agi,
+        snippet_tail="pass",
+        is_source_env=False,
+        is_worker_env=True,
         agi_cluster=controller_root,
     )
 

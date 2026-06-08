@@ -389,6 +389,38 @@ def test_audit_preflight_shortcut_prints_architecture_preflight():
     ]
 
 
+def test_dev_shortcuts_run_in_isolated_uv_environment(monkeypatch):
+    monkeypatch.delenv("UV_PROJECT_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("UV_RUN_RECURSION_DEPTH", raising=False)
+    monkeypatch.setenv("VIRTUAL_ENV", "/tmp/stale-ui-venv")
+
+    env = agilab_dev._subprocess_env()
+
+    assert env["UV_PROJECT_ENVIRONMENT"] == str(
+        agilab_dev.DEFAULT_DEV_UV_PROJECT_ENVIRONMENT
+    )
+    assert "VIRTUAL_ENV" not in env
+    assert "UV_RUN_RECURSION_DEPTH" not in env
+
+
+def test_dev_shortcuts_respect_explicit_uv_environment(monkeypatch):
+    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", "/tmp/custom-dev-venv")
+    monkeypatch.setenv("AGILAB_DEV_UV_PROJECT_ENVIRONMENT", "/tmp/ignored")
+
+    env = agilab_dev._subprocess_env()
+
+    assert env["UV_PROJECT_ENVIRONMENT"] == "/tmp/custom-dev-venv"
+
+
+def test_dev_shortcuts_allow_named_isolated_uv_environment(monkeypatch):
+    monkeypatch.delenv("UV_PROJECT_ENVIRONMENT", raising=False)
+    monkeypatch.setenv("AGILAB_DEV_UV_PROJECT_ENVIRONMENT", "/tmp/agilab-dev")
+
+    env = agilab_dev._subprocess_env()
+
+    assert env["UV_PROJECT_ENVIRONMENT"] == "/tmp/agilab-dev"
+
+
 def test_main_keeps_machine_readable_shortcut_stdout_clean(
     capsys, monkeypatch, tmp_path
 ):
@@ -398,8 +430,16 @@ def test_main_keeps_machine_readable_shortcut_stdout_clean(
         returncode = 0
         stdout = "ok\n"
 
-    def fake_run(command, *, cwd, stdout, stderr, text, errors):
-        calls.append((command, cwd))
+    def fake_run(command, *, cwd, env, stdout, stderr, text, errors):
+        calls.append(
+            (
+                command,
+                cwd,
+                env["UV_PROJECT_ENVIRONMENT"],
+                "VIRTUAL_ENV" in env,
+                "UV_RUN_RECURSION_DEPTH" in env,
+            )
+        )
         assert stdout is agilab_dev.subprocess.PIPE
         assert stderr is agilab_dev.subprocess.STDOUT
         assert text is True
@@ -408,6 +448,7 @@ def test_main_keeps_machine_readable_shortcut_stdout_clean(
 
     monkeypatch.setattr(agilab_dev.subprocess, "run", fake_run)
     monkeypatch.setattr(agilab_dev, "DEV_LOG_DIR", tmp_path)
+    monkeypatch.delenv("UV_PROJECT_ENVIRONMENT", raising=False)
 
     exit_code = agilab_dev.main(
         ["regress", "--files", "src/agilab/pipeline_ai.py", "--json"]
@@ -434,6 +475,9 @@ def test_main_keeps_machine_readable_shortcut_stdout_clean(
                 "--json",
             ],
             agilab_dev.ROOT,
+            str(agilab_dev.DEFAULT_DEV_UV_PROJECT_ENVIRONMENT),
+            False,
+            False,
         )
     ]
 
@@ -454,11 +498,15 @@ def test_main_compact_output_prints_signal_summary_and_writes_full_log(
             ]
         )
 
-    def fake_run(command, *, cwd, stdout, stderr, text, errors):
+    def fake_run(command, *, cwd, env, stdout, stderr, text, errors):
+        assert env["UV_PROJECT_ENVIRONMENT"] == str(
+            agilab_dev.DEFAULT_DEV_UV_PROJECT_ENVIRONMENT
+        )
         return Completed()
 
     monkeypatch.setattr(agilab_dev.subprocess, "run", fake_run)
     monkeypatch.setattr(agilab_dev, "DEV_LOG_DIR", tmp_path)
+    monkeypatch.delenv("UV_PROJECT_ENVIRONMENT", raising=False)
 
     exit_code = agilab_dev.main(["--summary-lines", "3", "test", "test_demo.py"])
 
@@ -481,11 +529,20 @@ def test_main_raw_output_keeps_streaming_subprocess_call(capsys, monkeypatch):
     class Completed:
         returncode = 0
 
-    def fake_run(command, *, cwd):
-        calls.append((command, cwd))
+    def fake_run(command, *, cwd, env):
+        calls.append(
+            (
+                command,
+                cwd,
+                env["UV_PROJECT_ENVIRONMENT"],
+                "VIRTUAL_ENV" in env,
+                "UV_RUN_RECURSION_DEPTH" in env,
+            )
+        )
         return Completed()
 
     monkeypatch.setattr(agilab_dev.subprocess, "run", fake_run)
+    monkeypatch.delenv("UV_PROJECT_ENVIRONMENT", raising=False)
 
     exit_code = agilab_dev.main(["--raw-output", "regress"])
 
@@ -507,6 +564,9 @@ def test_main_raw_output_keeps_streaming_subprocess_call(capsys, monkeypatch):
                 "--run",
             ],
             agilab_dev.ROOT,
+            str(agilab_dev.DEFAULT_DEV_UV_PROJECT_ENVIRONMENT),
+            False,
+            False,
         )
     ]
 

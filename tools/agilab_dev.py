@@ -15,6 +15,8 @@ from typing import Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 UV_RUN = ("uv", "--preview-features", "extra-build-dependencies", "run")
+DEFAULT_DEV_UV_PROJECT_ENVIRONMENT = ROOT / ".venv-dev"
+DEV_UV_PROJECT_ENVIRONMENT_ENV = "AGILAB_DEV_UV_PROJECT_ENVIRONMENT"
 DEV_LOG_DIR = ROOT / "reports" / "dev-logs"
 DEFAULT_SUMMARY_LINES = 40
 SIGNAL_WORDS = (
@@ -57,6 +59,17 @@ def _uv_python(*args: str) -> list[str]:
 
 def _uv_dev(*args: str) -> list[str]:
     return [*UV_RUN, "--extra", "dev", *args]
+
+
+def _subprocess_env() -> dict[str, str]:
+    env = dict(os.environ)
+    env.pop("VIRTUAL_ENV", None)
+    env.pop("UV_RUN_RECURSION_DEPTH", None)
+    env.setdefault(
+        "UV_PROJECT_ENVIRONMENT",
+        env.get(DEV_UV_PROJECT_ENVIRONMENT_ENV, str(DEFAULT_DEV_UV_PROJECT_ENVIRONMENT)),
+    )
+    return env
 
 
 def _split_leading_values(
@@ -251,6 +264,7 @@ def _run_compact(command: Sequence[str], *, max_lines: int) -> int:
     completed = subprocess.run(
         command,
         cwd=ROOT,
+        env=_subprocess_env(),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -582,7 +596,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if print_only:
             continue
         if raw_output:
-            completed = subprocess.run(command, cwd=ROOT)
+            completed = subprocess.run(command, cwd=ROOT, env=_subprocess_env())
             if completed.returncode:
                 return completed.returncode
         else:

@@ -74,6 +74,42 @@ ORCHESTRATE_ACTION_LABELS: dict[str, str] = {
     "stop_service": "STOP service",
 }
 
+
+def _path_has_virtualenv(path: Path) -> bool:
+    return (path / "pyvenv.cfg").is_file() or (path / ".venv" / "pyvenv.cfg").is_file()
+
+
+def _source_checkout_root(env: Any) -> Path | None:
+    package_root = getattr(env, "agilab_pck", None)
+    if not package_root:
+        return None
+    try:
+        candidates = (Path(package_root), *Path(package_root).parents)
+    except (TypeError, ValueError, OSError):
+        return None
+    for candidate in candidates:
+        if (candidate / "pyproject.toml").is_file() and (candidate / "src" / "agilab").is_dir():
+            return candidate
+    return None
+
+
+def orchestrate_snippet_runtime_root(env: Any, project_path: Path | str) -> Path:
+    """Resolve the runtime root for non-install ORCHESTRATE snippets."""
+    project_root = Path(project_path)
+    if bool(getattr(env, "is_source_env", False)):
+        source_root = _source_checkout_root(env)
+        if source_root is not None:
+            return source_root
+
+    controller = getattr(env, "agi_cluster", None)
+    if bool(getattr(env, "is_source_env", False) or getattr(env, "is_worker_env", False)) and controller:
+        controller_root = Path(controller)
+        if _path_has_virtualenv(controller_root):
+            return controller_root
+
+    return project_root
+
+
 BENCHMARK_MODE_LEGEND_MARKDOWN = (
     "**Mode legend**  \n"
     "`mode` is a 4-slot execution signature: `r d c p`.  \n"

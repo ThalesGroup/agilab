@@ -874,7 +874,7 @@ def test_render_service_panel_blocks_submit_when_service_is_not_running(monkeypa
     assert any("Start service before submitting work." in msg for msg in fake_st._info_messages)
 
 
-def test_render_service_panel_source_env_uses_controller_runtime(monkeypatch, tmp_path):
+def test_render_service_panel_source_env_uses_source_checkout_runtime(monkeypatch, tmp_path):
     session_state = _SessionState(
         {
             "args_serialized": "foo=1",
@@ -890,6 +890,13 @@ def test_render_service_panel_source_env_uses_controller_runtime(monkeypatch, tm
         captured["venv"] = kwargs.get("venv")
         return ("{'status': 'running'}", "")
 
+    source_root = tmp_path / "source"
+    source_pkg = source_root / "src" / "agilab"
+    (source_root / ".venv").mkdir(parents=True)
+    (source_root / ".venv" / "pyvenv.cfg").write_text("", encoding="utf-8")
+    source_pkg.mkdir(parents=True)
+    (source_root / "pyproject.toml").write_text("[project]\nname = 'agilab'\n", encoding="utf-8")
+
     env = SimpleNamespace(
         app="demo",
         apps_path=tmp_path,
@@ -899,6 +906,7 @@ def test_render_service_panel_source_env_uses_controller_runtime(monkeypatch, tm
         is_source_env=True,
         is_worker_env=False,
         agi_cluster=tmp_path / "controller",
+        agilab_pck=source_pkg,
     )
     env.agi_cluster.mkdir()
 
@@ -914,7 +922,7 @@ def test_render_service_panel_source_env_uses_controller_runtime(monkeypatch, tm
         )
     )
 
-    assert Path(captured["venv"]) == env.agi_cluster
+    assert Path(captured["venv"]) == source_root
 
 
 def test_render_service_panel_health_gate_skips_non_mapping_worker_health_rows(monkeypatch, tmp_path):
