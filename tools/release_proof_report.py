@@ -275,16 +275,28 @@ def render_release_proof(manifest: Mapping[str, Any]) -> str:
     )
     dataset_release_tag = str(release.get("dataset_release_tag", "") or "")
     dataset_release_url = str(release.get("dataset_release_url", "") or "")
+    dataset_count = release.get("dataset_count")
+    dataset_manifest_sha256 = str(release.get("dataset_manifest_sha256", "") or "")
     if dataset_release_tag and dataset_release_url:
         dataset_details = f"`{dataset_release_tag} <{dataset_release_url}>`__"
-        dataset_count = release.get("dataset_count")
-        dataset_manifest_sha256 = str(release.get("dataset_manifest_sha256", "") or "")
         if dataset_count is not None and dataset_manifest_sha256:
             dataset_details += (
                 f" for ``{dataset_count}`` tracked dataset files; "
                 f"manifest ``{dataset_manifest_sha256}``"
             )
         lines.extend(["   * - Dataset release", f"     - {dataset_details}"])
+    elif dataset_count is not None and dataset_manifest_sha256:
+        lines.extend(
+            [
+                "   * - Dataset manifest",
+                (
+                    f"     - ``{dataset_count}`` tracked dataset files; "
+                    f"manifest ``{dataset_manifest_sha256}``. Public dataset "
+                    "archive links are listed only when the matching GitHub "
+                    "release tag and assets are live."
+                ),
+            ]
+        )
     lines.extend(
         [
             "   * - Hosted demo",
@@ -420,6 +432,11 @@ def _latest_local_release_tag(repo_root: Path, package_version: str) -> str | No
     return output.splitlines()[0].strip() or None
 
 
+def _local_tag_exists(repo_root: Path, tag: str) -> bool:
+    output = _run_git(repo_root, ["tag", "--list", tag])
+    return bool(output and output.splitlines())
+
+
 def _github_repo_base_url(repo_root: Path) -> str | None:
     remote = _run_git(repo_root, ["remote", "get-url", "origin"])
     if not remote:
@@ -458,14 +475,14 @@ def _dataset_release_evidence(repo_root: Path, *, code_release_tag: str) -> dict
     manifest = module.build_manifest(records, code_release_tag)
     base_url = _github_repo_base_url(repo_root)
     dataset_release_tag = str(manifest["dataset_release_tag"])
-    return {
+    evidence = {
         "dataset_release_tag": dataset_release_tag,
-        "dataset_release_url": (
-            f"{base_url}/releases/tag/{dataset_release_tag}" if base_url else ""
-        ),
         "dataset_manifest_sha256": str(manifest["dataset_manifest_sha256"]),
         "dataset_count": int(manifest["dataset_count"]),
     }
+    if base_url and _local_tag_exists(repo_root, dataset_release_tag):
+        evidence["dataset_release_url"] = f"{base_url}/releases/tag/{dataset_release_tag}"
+    return evidence
 
 
 def _run_gh_json(args: Sequence[str]) -> Any:
@@ -919,6 +936,8 @@ def build_report(
     github_release_tag = str(release["github_release_tag"])
     dataset_release_tag = str(release.get("dataset_release_tag", "") or "")
     dataset_release_url = str(release.get("dataset_release_url", "") or "")
+    dataset_manifest_sha256 = str(release.get("dataset_manifest_sha256", "") or "")
+    dataset_count = release.get("dataset_count")
     checks: list[dict[str, Any]] = []
 
     project_version = _load_project_version(repo_root)
@@ -951,16 +970,29 @@ def build_report(
             details={"tag": github_release_tag, "url": github_release_url},
         )
     )
-    if dataset_release_tag or dataset_release_url:
+    if dataset_release_url:
         checks.append(
             _check_result(
                 "dataset_release_url",
-                bool(dataset_release_tag)
-                and bool(dataset_release_url)
-                and dataset_release_tag in dataset_release_url,
+                bool(dataset_release_tag) and dataset_release_tag in dataset_release_url,
                 "manifest dataset release URL contains the dataset release tag",
                 evidence=[str(manifest_path)],
                 details={"tag": dataset_release_tag, "url": dataset_release_url},
+            )
+        )
+    if dataset_manifest_sha256 or dataset_count is not None:
+        checks.append(
+            _check_result(
+                "dataset_manifest",
+                bool(dataset_manifest_sha256) and isinstance(dataset_count, int) and dataset_count >= 0,
+                "manifest records dataset content evidence without requiring a public archive link",
+                evidence=[str(manifest_path)],
+                details={
+                    "dataset_manifest_sha256": dataset_manifest_sha256,
+                    "dataset_count": dataset_count,
+                    "dataset_release_tag": dataset_release_tag,
+                    "dataset_release_url": dataset_release_url,
+                },
             )
         )
     badge_path = repo_root / "badges" / "pypi-version-agilab.svg"
