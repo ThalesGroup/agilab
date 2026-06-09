@@ -217,7 +217,8 @@ RUN uv sync --project /app --extra ui && \\
 EXPOSE 7860
 
 CMD ["bash", "-c", \\
-    "AGILAB_PUBLIC_BIND_OK=1 AGILAB_TLS_TERMINATED=1 \\
+    "uv run --project /app --no-sync python /app/src/agilab/apps/install.py /app/src/agilab/apps/builtin/flight_telemetry_project --verbose 0 && \\
+     AGILAB_PUBLIC_BIND_OK=1 AGILAB_TLS_TERMINATED=1 \\
      uv run --project /app --extra ui --no-sync streamlit run /app/src/agilab/main_page.py \\
      --server.port 7860 \\
      --server.address 0.0.0.0 \\
