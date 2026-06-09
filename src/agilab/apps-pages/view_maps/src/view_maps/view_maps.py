@@ -422,184 +422,197 @@ def page(env):
     dataset_files = _visible_dataset_files(datadir, dataset_files)
 
     st.session_state[dataset_key] = dataset_files
-    if not st.session_state[dataset_key]:
+    session_loaded_df = st.session_state.get("loaded_df")
+    session_loaded_df_ok = isinstance(session_loaded_df, pd.DataFrame) and not session_loaded_df.empty
+    if not st.session_state[dataset_key] and not session_loaded_df_ok:
         st.warning(
             f"No dataset found in {datadir} (filter: {ext_choice}). "
             "Use the EXECUTE → EXPORT workflow to materialize CSV/Parquet/JSON outputs first."
         )
         st.stop()  # Stop further processing
 
-    # Prepare list of dataset files relative to the data directory
-    dataset_files_rel = sorted(
-        {
-            Path(file).relative_to(datadir).as_posix()
-            for file in st.session_state[dataset_key]
-        }
-    )
-
-    # Prefer the consolidated export file when present.
-    priority_files = [
-        candidate
-        for candidate in dataset_files_rel
-        if Path(candidate).name.lower() in {"export.csv", "export.parquet", "export.json"}
-    ]
-    settings_files = view_settings.get("df_files_selected") or []
-    if not settings_files:
-        legacy_setting = view_settings.get("df_file")
-        settings_files = [legacy_setting] if legacy_setting else []
-    if settings_files and all(item in dataset_files_rel for item in settings_files):
-        default_selection = settings_files
+    combined_df: pd.DataFrame | None = None
+    if not st.session_state[dataset_key]:
+        st.info("Using the dataframe already loaded in this session.")
+        combined_df = session_loaded_df.copy()
+        if "__dataset__" not in combined_df.columns:
+            combined_df["__dataset__"] = "__session__"
     else:
-        default_selection = [priority_files[0]] if priority_files else (dataset_files_rel[:1] if dataset_files_rel else [])
+        # Prepare list of dataset files relative to the data directory
+        dataset_files_rel = sorted(
+            {
+                Path(file).relative_to(datadir).as_posix()
+                for file in st.session_state[dataset_key]
+            }
+        )
 
-    selection_mode_key = _vm_key("df_select_mode")
-    mode_default = str(view_settings.get("df_select_mode", "Multi-select"))
-    if mode_default not in DF_SELECTION_MODES:
-        mode_default = "Multi-select"
-    if st.session_state.get(selection_mode_key) not in DF_SELECTION_MODES:
-        st.session_state[selection_mode_key] = mode_default
-    df_mode = st.sidebar.radio(
-        "Dataset selection",
-        options=DF_SELECTION_MODES,
-        key=selection_mode_key,
-    )
-    st.session_state["df_select_mode"] = df_mode
-
-    selection_key = _vm_key("df_files_selected")
-    if selection_key not in st.session_state:
-        legacy_selection = st.session_state.get("df_files_selected")
-        if isinstance(legacy_selection, list):
-            st.session_state[selection_key] = [item for item in legacy_selection if item in dataset_files_rel]
+        # Prefer the consolidated export file when present.
+        priority_files = [
+            candidate
+            for candidate in dataset_files_rel
+            if Path(candidate).name.lower() in {"export.csv", "export.parquet", "export.json"}
+        ]
+        settings_files = view_settings.get("df_files_selected") or []
+        if not settings_files:
+            legacy_setting = view_settings.get("df_file")
+            settings_files = [legacy_setting] if legacy_setting else []
+        if settings_files and all(item in dataset_files_rel for item in settings_files):
+            default_selection = settings_files
         else:
-            st.session_state[selection_key] = []
-    current_selection = st.session_state.get(selection_key)
-    if not isinstance(current_selection, list):
-        current_selection = []
-    current_selection = [item for item in current_selection if item in dataset_files_rel]
-    if datadir_changed or (not current_selection and default_selection):
-        current_selection = default_selection
-    st.session_state[selection_key] = current_selection
+            default_selection = [priority_files[0]] if priority_files else (dataset_files_rel[:1] if dataset_files_rel else [])
 
-    single_file_key = _vm_key("df_file")
-    single_default = (
-        current_selection[0]
-        if current_selection
-        else (default_selection[0] if default_selection else "")
-    )
-    if st.session_state.get(single_file_key) not in dataset_files_rel:
-        st.session_state[single_file_key] = single_default
-
-    regex_key = _vm_key("df_file_regex")
-    if regex_key not in st.session_state:
-        st.session_state[regex_key] = str(view_settings.get("df_file_regex", ""))
-
-    selected_files: list[str] = []
-    if df_mode == "Single file":
-        st.sidebar.selectbox(
-            label="DataFrame",
-            options=dataset_files_rel,
-            key=single_file_key,
+        selection_mode_key = _vm_key("df_select_mode")
+        mode_default = str(view_settings.get("df_select_mode", "Multi-select"))
+        if mode_default not in DF_SELECTION_MODES:
+            mode_default = "Multi-select"
+        if st.session_state.get(selection_mode_key) not in DF_SELECTION_MODES:
+            st.session_state[selection_mode_key] = mode_default
+        df_mode = st.sidebar.radio(
+            "Dataset selection",
+            options=DF_SELECTION_MODES,
+            key=selection_mode_key,
         )
-        selected_single = st.session_state.get(single_file_key)
-        if selected_single:
-            selected_files = [selected_single]
-    elif df_mode == "Regex (multi)":
-        regex_raw = st.sidebar.text_input(
-            "DataFrame filename regex",
-            key=regex_key,
-            help="Python regex applied to the relative file path. Leave empty to match all files.",
-        ).strip()
-        regex_ok = True
-        pattern = None
-        if regex_raw:
-            try:
-                pattern = re.compile(regex_raw)
-            except re.error as exc:
-                regex_ok = False
-                st.sidebar.error(f"Invalid regex: {exc}")
-        matching = (
-            [item for item in dataset_files_rel if pattern.search(item)]
-            if (regex_ok and pattern is not None)
-            else (dataset_files_rel if not regex_raw else [])
-        )
-        st.sidebar.caption(f"{len(matching)} / {len(dataset_files_rel)} files match")
-        if st.sidebar.button(
-            f"Select all matching ({len(matching)})",
-            disabled=not matching,
-            key=_vm_key("df_regex_select_all"),
-        ):
-            st.session_state[selection_key] = matching
-        seeded = st.session_state.get(selection_key)
-        if not isinstance(seeded, list):
-            seeded = []
-        seeded = [item for item in seeded if item in dataset_files_rel]
-        if not seeded:
-            seeded = default_selection
-        st.session_state[selection_key] = seeded
-        st.sidebar.multiselect(
-            label="DataFrames",
-            options=dataset_files_rel,
-            key=selection_key,
-            help="Select one or more CSV/Parquet/JSON files (including split part files).",
-        )
-        selected_files = [item for item in st.session_state.get(selection_key, []) if item in dataset_files_rel]
-    else:
-        st.sidebar.multiselect(
-            label="DataFrames",
-            options=dataset_files_rel,
-            key=selection_key,
-            help="Select one or more CSV/Parquet/JSON files (including split part files).",
-        )
-        selected_files = [item for item in st.session_state.get(selection_key, []) if item in dataset_files_rel]
+        st.session_state["df_select_mode"] = df_mode
 
-    st.sidebar.caption(f"{len(selected_files)} selected")
-    if selected_files:
-        st.session_state[single_file_key] = selected_files[0]
-    st.session_state["df_files_selected"] = selected_files
-    st.session_state["df_file"] = selected_files[0] if selected_files else ""
-    st.session_state["df_file_regex"] = st.session_state.get(regex_key, "")
-    if not selected_files:
-        st.warning("Please select at least one dataset to proceed.")
-        return
+        selection_key = _vm_key("df_files_selected")
+        if selection_key not in st.session_state:
+            legacy_selection = st.session_state.get("df_files_selected")
+            if isinstance(legacy_selection, list):
+                st.session_state[selection_key] = [item for item in legacy_selection if item in dataset_files_rel]
+            else:
+                st.session_state[selection_key] = []
+        current_selection = st.session_state.get(selection_key)
+        if not isinstance(current_selection, list):
+            current_selection = []
+        current_selection = [item for item in current_selection if item in dataset_files_rel]
+        if datadir_changed or (not current_selection and default_selection):
+            current_selection = default_selection
+        st.session_state[selection_key] = current_selection
 
-    # Load and concatenate selected DataFrames
-    dataframes: list[pd.DataFrame] = []
-    load_errors: list[str] = []
-    for rel_path in selected_files:
-        df_file_abs = datadir / rel_path
-        cache_buster = None
-        try:
-            cache_buster = df_file_abs.stat().st_mtime_ns
-        except FileNotFoundError:
+        single_file_key = _vm_key("df_file")
+        single_default = (
+            current_selection[0]
+            if current_selection
+            else (default_selection[0] if default_selection else "")
+        )
+        if st.session_state.get(single_file_key) not in dataset_files_rel:
+            st.session_state[single_file_key] = single_default
+
+        regex_key = _vm_key("df_file_regex")
+        if regex_key not in st.session_state:
+            st.session_state[regex_key] = str(view_settings.get("df_file_regex", ""))
+
+        selected_files: list[str] = []
+        if df_mode == "Single file":
+            st.sidebar.selectbox(
+                label="DataFrame",
+                options=dataset_files_rel,
+                key=single_file_key,
+            )
+            selected_single = st.session_state.get(single_file_key)
+            if selected_single:
+                selected_files = [selected_single]
+        elif df_mode == "Regex (multi)":
+            regex_raw = st.sidebar.text_input(
+                "DataFrame filename regex",
+                key=regex_key,
+                help="Python regex applied to the relative file path. Leave empty to match all files.",
+            ).strip()
+            regex_ok = True
+            pattern = None
+            if regex_raw:
+                try:
+                    pattern = re.compile(regex_raw)
+                except re.error as exc:
+                    regex_ok = False
+                    st.sidebar.error(f"Invalid regex: {exc}")
+            matching = (
+                [item for item in dataset_files_rel if pattern.search(item)]
+                if (regex_ok and pattern is not None)
+                else (dataset_files_rel if not regex_raw else [])
+            )
+            st.sidebar.caption(f"{len(matching)} / {len(dataset_files_rel)} files match")
+            if st.sidebar.button(
+                f"Select all matching ({len(matching)})",
+                disabled=not matching,
+                key=_vm_key("df_regex_select_all"),
+            ):
+                st.session_state[selection_key] = matching
+            seeded = st.session_state.get(selection_key)
+            if not isinstance(seeded, list):
+                seeded = []
+            seeded = [item for item in seeded if item in dataset_files_rel]
+            if not seeded:
+                seeded = default_selection
+            st.session_state[selection_key] = seeded
+            st.sidebar.multiselect(
+                label="DataFrames",
+                options=dataset_files_rel,
+                key=selection_key,
+                help="Select one or more CSV/Parquet/JSON files (including split part files).",
+            )
+            selected_files = [item for item in st.session_state.get(selection_key, []) if item in dataset_files_rel]
+        else:
+            st.sidebar.multiselect(
+                label="DataFrames",
+                options=dataset_files_rel,
+                key=selection_key,
+                help="Select one or more CSV/Parquet/JSON files (including split part files).",
+            )
+            selected_files = [item for item in st.session_state.get(selection_key, []) if item in dataset_files_rel]
+
+        st.sidebar.caption(f"{len(selected_files)} selected")
+        if selected_files:
+            st.session_state[single_file_key] = selected_files[0]
+        st.session_state["df_files_selected"] = selected_files
+        st.session_state["df_file"] = selected_files[0] if selected_files else ""
+        st.session_state["df_file_regex"] = st.session_state.get(regex_key, "")
+        if not selected_files:
+            st.warning("Please select at least one dataset to proceed.")
+            return
+
+        # Load and concatenate selected DataFrames
+        dataframes: list[pd.DataFrame] = []
+        load_errors: list[str] = []
+        for rel_path in selected_files:
+            df_file_abs = datadir / rel_path
             cache_buster = None
+            try:
+                cache_buster = df_file_abs.stat().st_mtime_ns
+            except FileNotFoundError:
+                cache_buster = None
+            try:
+                df_loaded = load_df(df_file_abs, with_index=True, cache_buster=cache_buster)
+            except Exception as exc:
+                load_errors.append(f"{rel_path}: {exc}")
+                continue
+            if not isinstance(df_loaded, pd.DataFrame):
+                load_errors.append(f"{rel_path}: unexpected type {type(df_loaded)}")
+                continue
+            df_loaded = df_loaded.copy()
+            df_loaded["__dataset__"] = rel_path
+            dataframes.append(df_loaded)
+
+        if load_errors:
+            st.sidebar.warning("Some selected files failed to load; continuing with the rest.")
+            with st.sidebar.expander("Load errors", expanded=False):
+                for err in load_errors[:50]:
+                    st.write(err)
+                if len(load_errors) > 50:
+                    st.write(f"... ({len(load_errors) - 50} more)")
+
+        if not dataframes:
+            st.error("No selected dataframes could be loaded.")
+            return
+
         try:
-            df_loaded = load_df(df_file_abs, with_index=True, cache_buster=cache_buster)
-        except Exception as exc:
-            load_errors.append(f"{rel_path}: {exc}")
-            continue
-        if not isinstance(df_loaded, pd.DataFrame):
-            load_errors.append(f"{rel_path}: unexpected type {type(df_loaded)}")
-            continue
-        df_loaded = df_loaded.copy()
-        df_loaded["__dataset__"] = rel_path
-        dataframes.append(df_loaded)
+            combined_df = pd.concat(dataframes, ignore_index=True)
+        except Exception as e:
+            st.error(f"Error concatenating datasets: {e}")
+            return
 
-    if load_errors:
-        st.sidebar.warning("Some selected files failed to load; continuing with the rest.")
-        with st.sidebar.expander("Load errors", expanded=False):
-            for err in load_errors[:50]:
-                st.write(err)
-            if len(load_errors) > 50:
-                st.write(f"... ({len(load_errors) - 50} more)")
-
-    if not dataframes:
-        st.error("No selected dataframes could be loaded.")
-        return
-
-    try:
-        combined_df = pd.concat(dataframes, ignore_index=True)
-    except Exception as e:
-        st.error(f"Error concatenating datasets: {e}")
+    if combined_df is None:
+        st.error("No dataframe available to render.")
         return
 
     st.session_state["loaded_df"] = combined_df

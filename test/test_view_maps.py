@@ -1462,6 +1462,59 @@ def test_view_maps_page_reports_discovery_errors_as_no_dataset(
     assert any("No dataset found" in message for message in fake_st.calls["warning"])
 
 
+def test_view_maps_uses_loaded_session_dataframe_when_files_are_missing(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_view_maps_module()
+    datadir = tmp_path / "export" / "demo_map"
+    datadir.mkdir(parents=True)
+    settings_path = tmp_path / "demo_map_project" / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        "[view_maps]\n"
+        'coltype = "discrete"\n'
+        'discrete = "beam"\n'
+        'continuous = "metric"\n'
+        'lat = "lat"\n'
+        'long = "long"\n',
+        encoding="utf-8",
+    )
+    env = _make_env(tmp_path, datadir)
+    env.app_settings_file = settings_path
+    fake_st = _FakeStreamlit(
+        {
+            ("sidebar.selectbox", "File type"): "all",
+            ("column.number_input", "Sampling ratio"): 1,
+            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.number_input", "Discrete threshold (unique values <)"): 2,
+            ("sidebar.number_input", "Integer discrete range (max-min <=)"): 200,
+            ("selectbox", "discrete"): "beam",
+            ("selectbox", "continuous"): "metric",
+            ("selectbox", "lat"): "lat",
+            ("selectbox", "long"): "long",
+            ("selectbox", "Color Scale"): "",
+            ("slider", "Select the desired number of points:"): 2,
+        }
+    )
+    fake_st.session_state["loaded_df"] = pd.DataFrame(
+        {
+            "beam": ["A", "B", "A"],
+            "lat": [48.8566, 48.8570, 48.8574],
+            "long": [2.3522, 2.3530, 2.3540],
+            "metric": [1.0, 2.0, 3.0],
+            "timestamp": ["2025-01-01 00:00:00"] * 3,
+        }
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "find_files", lambda base, ext: [])
+    module.page(env)
+
+    assert any("Using the dataframe already loaded in this session." in message for message in fake_st.calls["info"])
+    assert not any("No dataset found" in message for message in fake_st.calls["warning"])
+    assert fake_st.calls["plotly_chart"]
+
+
 def test_view_maps_page_reports_invalid_regex_and_falls_back_to_default_selection(
     tmp_path, monkeypatch
 ) -> None:
