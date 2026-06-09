@@ -128,6 +128,14 @@ def test_generated_space_readme_uses_valid_hf_emoji_metadata() -> None:
     assert "emoji: lab_coat" not in module.README_TEMPLATE
 
 
+def test_generated_dockerfile_refreshes_first_proof_helpers_on_boot() -> None:
+    module = _load_module()
+
+    assert "src/agilab/apps/install.py" in module.DOCKERFILE_TEMPLATE
+    assert "flight_telemetry_project --verbose 0" in module.DOCKERFILE_TEMPLATE
+    assert "streamlit run /app/src/agilab/main_page.py" in module.DOCKERFILE_TEMPLATE
+
+
 def test_first_proof_profile_uses_public_weather_demo() -> None:
     module = _load_module()
 
