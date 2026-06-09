@@ -95,6 +95,18 @@ from the reviewed rules in `agent-context-rules.json`. It is a contract proof
 for agent context selection only: it does not execute agents, run tests, or
 override the validation gates reported by `tools/impact_validate.py`.
 
+For AGILAB development, use the scoped profile that starts from the current
+project/framework and then expands into builtin projects, all projects, and
+the whole repo only when needed:
+
+```bash
+python tools/agent_context_router.py \
+  --profile agilab \
+  --files src/agilab/pages/4_ANALYSIS.py src/agilab/notebooks/notebook_export_support.py \
+  --prompt "fix notebook sync in the analysis page" \
+  --json
+```
+
 For Tokki or another token-saving wrapper, request the compact profile:
 
 ```bash

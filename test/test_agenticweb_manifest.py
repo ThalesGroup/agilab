@@ -67,8 +67,9 @@ def test_agenticweb_manifest_builds_compact_discovery_from_capabilities(tmp_path
     )
     assert by_id["agent-context-router"]["kind"] == "api"
     assert by_id["agent-context-router"]["entrypoint"] == "tools/agent_context_router.py"
+    assert "--profile agilab" in by_id["agent-context-router"]["instructions"]
     assert "--profile tokki" in by_id["agent-context-router"]["instructions"]
-    assert "local agent wrapper expects that profile" in by_id["agent-context-router"]["instructions"]
+    assert "scoped AGILAB development context packs" in by_id["agent-context-router"]["instructions"]
     assert by_id["streamlit-demo"]["kind"] == "ui"
     assert by_id["first-proof-cli"]["permissions"]["execute"] is True
     assert by_id["capability-map"]["permissions"]["train"] is False

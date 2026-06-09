@@ -100,6 +100,41 @@ def test_recommend_context_can_emit_tokki_profile_packs() -> None:
     assert "test/test_pipeline_editor.py" in notebook_pack["files"]
 
 
+def test_recommend_context_can_emit_agilab_profile_packs() -> None:
+    payload = agent_context_router.recommend_context(
+        files=[
+            "src/agilab/main_page.py",
+            "src/agilab/apps/builtin/flight_telemetry_project",
+            "src/agilab/examples/sklearn_pipeline",
+        ],
+        prompt="split AGILAB dev context for the current project, builtin project, and all projects",
+        skills=_skill_index(),
+        profile="agilab",
+    )
+
+    profile = payload["context_profile"]
+
+    assert profile["id"] == "agilab"
+    assert profile["baseline_files"] == [
+        "AGENT_CONVENTIONS.md",
+        "AGENTS.md",
+        "AGENT_SKILLS.md",
+        "src/agilab/main_page.py",
+        "src/agilab/ui",
+        "src/agilab/workflow",
+        "src/agilab/core/agi-env",
+        "src/agilab/core/agi-node",
+        "src/agilab/core/agi-cluster",
+        "src/agilab/core/agi-core",
+        "docs/source/framework-api.rst",
+        "docs/source/architecture.rst",
+    ]
+    pack_ids = [pack["rule_id"] for pack in profile["matched_packs"]]
+    assert "builtin-project" in pack_ids
+    assert "all-projects" in pack_ids
+    assert profile["estimated_token_budget"] <= profile["max_total_tokens"]
+
+
 def test_recommend_context_routes_tokki_prompt_to_context_profile_pack() -> None:
     payload = agent_context_router.recommend_context(
         prompt="make AGILAB tokki friendly with token saving context packs",

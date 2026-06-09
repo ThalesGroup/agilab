@@ -1,7 +1,7 @@
 ---
 agenticweb: "1"
 description: "AGILAB is an open-source AI/ML workbench for reproducible experiments, notebook-to-app workflows, run evidence, proof capsules, and local agent evidence review."
-updated: "2026-06-08"
+updated: "2026-06-09"
 organization:
   name: "AGILAB"
   website: "https://thalesgroup.github.io/agilab"
@@ -194,7 +194,7 @@ capabilities:
     instructions: "Call agent_quickstart first. It is read-only and returns the safety boundary, recommended workflow, live tool list, and compact capability overview."
   - kind: "api"
     id: "agent-context-router"
-    description: "Recommend AGILAB runbooks and repo-managed skills from changed files or task text, with an optional bounded context profile, without executing agent tools."
+    description: "Recommend AGILAB runbooks and repo-managed skills from changed files or task text, with an optional scoped context profile, without executing agent tools."
     url: "https://thalesgroup.github.io/agilab/agent-workflows.html"
     status: "active"
     pricing_model: "free"
@@ -208,7 +208,7 @@ capabilities:
       execute: false
     schema: "https://raw.githubusercontent.com/ThalesGroup/agilab/main/agilab-capabilities.schema.json"
     entrypoint: "tools/agent_context_router.py"
-    instructions: "Use --profile tokki for bounded AGILAB context packs when your local agent wrapper expects that profile. The router is advisory and does not replace AGILAB validation gates."
+    instructions: "Use --profile agilab for scoped AGILAB development context packs that start with the current project/framework and expand into builtin projects, all projects, and whole-repo scope as needed. Use --profile tokki for the smaller token-saving wrapper profile. The router is advisory and does not replace AGILAB validation gates."
   - kind: "api"
     id: "agent-run-evidence"
     description: "Wrap coding-agent actions with redacted manifests, traces, and local artifact pointers."

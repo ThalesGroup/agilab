@@ -303,9 +303,12 @@ def build_discovery(manifest_path: Path = DEFAULT_CAPABILITIES) -> dict[str, Any
                 schema=_raw_url("agilab-capabilities.schema.json"),
                 entrypoint="tools/agent_context_router.py",
                 instructions=(
-                    "Use --profile tokki for bounded AGILAB context packs when "
-                    "your local agent wrapper expects that profile. The router "
-                    "is advisory and does not replace AGILAB validation gates."
+                    "Use --profile agilab for scoped AGILAB development context "
+                    "packs that start with the current project/framework and "
+                    "expand into builtin projects, all projects, and whole-repo "
+                    "scope as needed. Use --profile tokki for the smaller "
+                    "token-saving wrapper profile. The router is advisory and "
+                    "does not replace AGILAB validation gates."
                 ),
                 permissions=_permissions(executable=False),
             ),

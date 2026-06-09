@@ -555,7 +555,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rules", type=Path, default=DEFAULT_RULES, help="Context routing rules JSON.")
     parser.add_argument("--files", nargs="*", default=(), help="Changed or target files to classify.")
     parser.add_argument("--prompt", default="", help="Natural-language task text to classify.")
-    parser.add_argument("--profile", default="", help="Optional compact context profile, for example 'tokki'.")
+    parser.add_argument(
+        "--profile",
+        default="",
+        help="Optional compact context profile, for example 'agilab' or 'tokki'.",
+    )
     parser.add_argument("--staged", action="store_true", help="Include staged git paths.")
     parser.add_argument("--changed", action="store_true", help="Include paths changed against HEAD.")
     parser.add_argument("--check", action="store_true", help="Validate the routing rules and exit.")

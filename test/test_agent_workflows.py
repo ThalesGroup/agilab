@@ -139,8 +139,10 @@ def test_agent_skill_badges_catalog_and_resource_preflight_are_documented() -> N
     assert "python3 tools/agenticweb_manifest.py --check" in agent_workflows
     assert "python3 tools/agent_instruction_contract.py --check" in agent_workflows
     assert "agilab.agent_instruction_contract.v1" in agent_workflows
+    assert "--profile agilab" in public_docs
     assert "--profile tokki" in public_docs
-    assert "local wrapper that expects AGILAB's bounded context profile" in public_docs
+    assert "current project and framework files" in public_docs
+    assert "smaller local wrapper that expects the bounded token-saving profile" in public_docs
     assert "python tools/resource_snapshot.py --output resource_snapshot.json --json" in agent_workflows
     assert "agilab.resource_snapshot.v1" in agent_workflows
     assert "python tools/agent_skill_quality_guard.py --changed-only --fail-on high" in agent_workflows

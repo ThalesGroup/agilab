@@ -117,7 +117,17 @@ baseline runbooks, matched rules, and recommended repo-managed skills from
 only: it does not execute agents, run tests, or replace
 ``tools/impact_validate.py``.
 
-For a local wrapper that expects AGILAB's bounded context profile, pass
+For AGILAB development tasks, use the scoped ``--profile agilab`` route. It
+starts with the current project and framework files, then expands into builtin
+projects, all projects, and whole-repo context only when needed::
+
+   python3 tools/agent_context_router.py \
+     --profile agilab \
+     --files src/agilab/pages/4_ANALYSIS.py src/agilab/notebooks/notebook_export_support.py \
+     --prompt "fix notebook sync in the analysis page" \
+     --json
+
+For a smaller local wrapper that expects the bounded token-saving profile, pass
 ``--profile tokki``::
 
    python3 tools/agent_context_router.py \

@@ -356,11 +356,76 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
     assert any("--upgrade agi-env agi-node" in cmd for cmd in ssh_calls)
     assert any("python -m demo.post_install" in cmd for cmd in ssh_calls)
     assert any(
+        "python cli.py threaded"
+        in cmd.replace('"', "").replace("'", "")
+        for cmd in ssh_calls
+    )
+    assert any(
         "agi_node.agi_dispatcher.build" in cmd
         and "--with setuptools" in cmd
         and "--with cython" in cmd
         for cmd in ssh_calls
     )
+
+
+@pytest.mark.asyncio
+async def test_deploy_remote_worker_fails_when_threaded_smoke_probe_fails(tmp_path):
+    dist_abs = tmp_path / "dist"
+    dist_abs.mkdir(parents=True, exist_ok=True)
+    (dist_abs / "demo_worker-0.0.1.egg").write_text("x", encoding="utf-8")
+
+    env = SimpleNamespace(
+        wenv_abs=tmp_path / "worker_env",
+        wenv_rel=Path("worker_env"),
+        dist_rel=Path("worker_env/dist"),
+        dist_abs=dist_abs,
+        pyvers_worker="3.13",
+        envars={},
+        uv_worker="uv --quiet",
+        is_source_env=False,
+        app="demo_app",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        verbose=0,
+    )
+    ssh_calls = []
+
+    async def _fake_exec_ssh(_ip, cmd):
+        ssh_calls.append(cmd)
+        if "threaded" in cmd:
+            raise RuntimeError("worker is down")
+        return "ok"
+
+    async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
+        del _env, ip, files, remote_path, user, password
+
+    async def _fake_send_file(
+        _env, ip, local_path, remote_path, user=None, password=None
+    ):
+        del _env, ip, local_path, remote_path, user, password
+
+    agi_cls = SimpleNamespace(
+        _mode=0,
+        DASK_MODE=4,
+        _rapids_enabled=False,
+        _workers_data_path=None,
+        exec_ssh=_fake_exec_ssh,
+        send_files=_fake_send,
+        send_file=_fake_send_file,
+    )
+
+    with pytest.raises(RuntimeError, match="worker is down"):
+        await _call_deploy_remote_worker(
+            agi_cls,
+            "10.0.0.2",
+            env,
+            Path("worker_env"),
+            " --extra pandas-worker",
+            set_env_var_fn=lambda *_a, **_k: None,
+            log=deployment_remote_support.logger,
+        )
+
+    assert any("threaded" in cmd for cmd in ssh_calls)
 
 
 @pytest.mark.asyncio

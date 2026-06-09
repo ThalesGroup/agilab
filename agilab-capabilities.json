@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-08T09:25:57Z",
+  "generated_at_utc": "2026-06-09T08:31:20Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -85,10 +85,10 @@
     },
     {
       "id": "agent-context-router",
-      "command": "python3 tools/agent_context_router.py [--profile tokki] --files <paths> --prompt <task> --json",
+      "command": "python3 tools/agent_context_router.py [--profile agilab] --files <paths> --prompt <task> --json",
       "kind": "agent-context",
       "maturity": "contract-proof",
-      "description": "Recommend AGILAB runbooks and repo-managed skills from changed files or task text, with an optional bounded context profile, without executing agent tools.",
+      "description": "Recommend AGILAB runbooks and repo-managed skills from changed files or task text, with an optional scoped context profile, without executing agent tools.",
       "docs": [
         "docs/source/agent-workflows.rst"
       ],

@@ -807,3 +807,19 @@ async def deploy_remote_worker(
             wenv_rel,
         )
     await agi_cls.exec_ssh(ip, cmd)
+
+    # Fail fast on a runtime smoke test so a deployment does not report success
+    # when the worker environment cannot actually start its threaded entrypoint.
+    cmd = _remote_command(
+        uv,
+        "--project",
+        wenv_rel,
+        "run",
+        "--no-sync",
+        "-p",
+        pyvers,
+        "python",
+        cli,
+        "threaded",
+    )
+    await agi_cls.exec_ssh(ip, cmd)

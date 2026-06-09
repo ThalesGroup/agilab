@@ -22,6 +22,75 @@
     ]
   },
   "context_profiles": {
+    "agilab": {
+      "label": "AGILAB dev context split",
+      "description": "Start with the current project and framework, then expand into builtin projects, all projects, and whole-repo context only when the task really needs it.",
+      "max_total_tokens": 12000,
+      "baseline_token_budget": 2600,
+      "max_rule_packs": 3,
+      "baseline_files": [
+        "AGENT_CONVENTIONS.md",
+        "AGENTS.md",
+        "AGENT_SKILLS.md",
+        "src/agilab/main_page.py",
+        "src/agilab/ui",
+        "src/agilab/workflow",
+        "src/agilab/core/agi-env",
+        "src/agilab/core/agi-node",
+        "src/agilab/core/agi-cluster",
+        "src/agilab/core/agi-core",
+        "docs/source/framework-api.rst",
+        "docs/source/architecture.rst"
+      ],
+      "commands": [
+        "python3 tools/agent_context_router.py --profile agilab --files <paths> --prompt <task> --json",
+        "uv --preview-features extra-build-dependencies run python tools/impact_validate.py --files <paths>",
+        "uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile agi-gui"
+      ],
+      "rule_packs": {
+        "builtin-project": {
+          "token_budget": 2200,
+          "files": [
+            "src/agilab/apps/builtin",
+            "src/agilab/apps-pages",
+            "src/agilab/resources/help",
+            "docs/source/apps-pages.rst",
+            "docs/source/execution-playground.rst"
+          ],
+          "commands": [
+            "./dev app-contracts"
+          ],
+          "why": "Builtin project work needs the shipped app payloads, page shells, and their public usage guidance."
+        },
+        "all-projects": {
+          "token_budget": 2600,
+          "files": [
+            "src/agilab/apps",
+            "src/agilab/examples",
+            "src/agilab/lib",
+            "src/agilab/projects",
+            "docs/source/data"
+          ],
+          "commands": [
+            "./dev scope"
+          ],
+          "why": "Cross-project changes need the whole app/example/library surface, not just one app or page."
+        },
+        "all": {
+          "token_budget": 3400,
+          "files": [
+            "src",
+            "docs/source",
+            "test",
+            "tools"
+          ],
+          "commands": [
+            "python3 tools/agent_context_router.py --check"
+          ],
+          "why": "Whole-repo work needs the full source tree, docs, tests, and tooling context."
+        }
+      }
+    },
     "tokki": {
       "label": "Bounded context profile",
       "description": "Bounded AGILAB context packs for local agent wrappers. Use the baseline files first, then add only the packs for matched AGILAB task rules.",
@@ -345,6 +414,74 @@
         "agilab-evidence-contracts"
       ],
       "reason": "App payloads need deterministic first-run behavior, clear README/docs, and app-contract validation."
+    },
+    {
+      "id": "builtin-project",
+      "label": "Builtin project payloads",
+      "paths": [
+        "src/agilab/apps/builtin/**",
+        "src/agilab/apps-pages/**",
+        "src/agilab/resources/help/**",
+        "docs/source/apps-pages.rst",
+        "docs/source/execution-playground.rst"
+      ],
+      "terms": [
+        "builtin project",
+        "built-in project",
+        "builtin app",
+        "apps-pages",
+        "execution playground"
+      ],
+      "skills": [
+        "agilab-example-maturity",
+        "agilab-testing",
+        "agilab-evidence-contracts"
+      ],
+      "reason": "Builtin project work needs the shipped app payloads, page shells, and their public usage guidance."
+    },
+    {
+      "id": "all-projects",
+      "label": "All projects and examples",
+      "paths": [
+        "src/agilab/apps/**",
+        "src/agilab/examples/**",
+        "src/agilab/lib/**",
+        "src/agilab/projects/**",
+        "docs/source/data/**"
+      ],
+      "terms": [
+        "all projects",
+        "project suite",
+        "example suite",
+        "app library"
+      ],
+      "skills": [
+        "agilab-example-maturity",
+        "agilab-testing",
+        "agilab-evidence-contracts"
+      ],
+      "reason": "Cross-project changes need the whole app/example/library surface, not just one app or page."
+    },
+    {
+      "id": "all",
+      "label": "Whole repository",
+      "paths": [
+        "src/**",
+        "docs/source/**",
+        "test/**",
+        "tools/**"
+      ],
+      "terms": [
+        "repo-wide",
+        "whole repo",
+        "everything",
+        "all"
+      ],
+      "skills": [
+        "agilab-testing",
+        "agilab-evidence-contracts"
+      ],
+      "reason": "Whole-repo work needs the full source tree, docs, tests, and tooling context."
     },
     {
       "id": "installer-cluster",
