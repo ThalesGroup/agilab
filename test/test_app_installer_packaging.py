@@ -1776,6 +1776,25 @@ def test_seed_example_scripts_refreshes_stale_builtin_helper(tmp_path: Path, mon
     assert text == (EXAMPLES_ROOT / "flight_telemetry" / "AGI_run_flight_telemetry.py").read_text(encoding="utf-8")
 
 
+def test_seed_example_scripts_refreshes_changed_helper_contents(tmp_path: Path, monkeypatch) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    package_root = tmp_path / "site-packages" / "agilab"
+    examples_dir = package_root / "examples" / "flight_telemetry"
+    examples_dir.mkdir(parents=True)
+    source = examples_dir / "AGI_run_flight_telemetry.py"
+    source.write_text("# new run helper\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "_package_root", lambda: package_root)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    destination = tmp_path / "home" / "log" / "execute" / "flight_telemetry" / "AGI_run_flight_telemetry.py"
+    destination.parent.mkdir(parents=True)
+    destination.write_text("# old run helper\n", encoding="utf-8")
+
+    module._seed_example_scripts("flight_telemetry")
+
+    assert destination.read_text(encoding="utf-8") == "# new run helper\n"
+
+
 def test_packaged_run_and_install_examples_import_with_fake_home(tmp_path: Path, monkeypatch) -> None:
     agilab_path = tmp_path / ".local" / "share" / "agilab"
     agilab_path.mkdir(parents=True)
@@ -1798,6 +1817,17 @@ def test_packaged_run_and_install_examples_import_with_fake_home(tmp_path: Path,
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
         assert callable(module.main)
+
+
+def test_flight_telemetry_run_example_provisions_install_before_run() -> None:
+    text = (EXAMPLES_ROOT / "flight_telemetry" / "AGI_run_flight_telemetry.py").read_text(
+        encoding="utf-8"
+    )
+
+    install_index = text.index("await AGI.install(")
+    run_index = text.index("res = await AGI.run(")
+
+    assert install_index < run_index
 
 
 def test_packaged_examples_fail_cleanly_without_agilab_marker(tmp_path: Path, monkeypatch) -> None:

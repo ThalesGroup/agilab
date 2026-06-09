@@ -20,6 +20,12 @@ def agilab_apps_path() -> Path:
 
 async def main():
     app_env = AgiEnv(apps_path=agilab_apps_path(), app=APP, verbose=1)
+    await AGI.install(
+        app_env,
+        modes_enabled=LOCAL_RUN_MODES,
+        scheduler="127.0.0.1",
+        workers={"127.0.0.1": 1},
+    )
     request = RunRequest(
         params={
             "data_source": "file",

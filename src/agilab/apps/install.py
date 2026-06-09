@@ -148,7 +148,7 @@ def _seed_example_scripts(app_slug: str) -> None:
 
     for source in sorted(examples_dir.glob("AGI_*.py")):
         destination = execute_dir / source.name
-        if destination.exists() and not _should_refresh_example_script(destination):
+        if destination.exists() and not _should_refresh_example_script(source, destination):
             continue
         try:
             shutil.copy2(source, destination)
@@ -157,14 +157,15 @@ def _seed_example_scripts(app_slug: str) -> None:
             print(f"[WARN] Unable to copy {source} to {destination}: {exc}")
 
 
-def _should_refresh_example_script(destination: Path) -> bool:
+def _should_refresh_example_script(source: Path, destination: Path) -> bool:
     """Return True when an existing seeded helper is known-stale."""
 
     try:
-        text = destination.read_text(encoding="utf-8")
+        source_text = source.read_text(encoding="utf-8")
+        destination_text = destination.read_text(encoding="utf-8")
     except OSError:
         return False
-    return _has_stale_builtin_apps_root(text)
+    return source_text != destination_text or _has_stale_builtin_apps_root(destination_text)
 
 
 def _has_stale_builtin_apps_root(text: str) -> bool:
