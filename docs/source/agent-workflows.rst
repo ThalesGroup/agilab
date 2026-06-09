@@ -117,8 +117,17 @@ baseline runbooks, matched rules, and recommended repo-managed skills from
 only: it does not execute agents, run tests, or replace
 ``tools/impact_validate.py``.
 
-For a local wrapper that expects AGILAB's bounded context profile, pass
-``--profile tokki``::
+For a scoped AGILAB context pack that starts from the current project and framework files,
+pass ``--profile agilab``::
+
+   python3 tools/agent_context_router.py \
+     --profile agilab \
+     --files docs/source/agent-workflows.rst src/agilab/agent_run.py \
+     --prompt "update agent evidence docs" \
+     --json
+
+For a smaller local wrapper that expects the bounded token-saving profile,
+pass ``--profile tokki``::
 
    python3 tools/agent_context_router.py \
      --profile tokki \
