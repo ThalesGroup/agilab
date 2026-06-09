@@ -19,8 +19,9 @@ needed to work with these executable agent paths against the same repo contract:
 - Aider
 - OpenCode
 - Mistral Vibe
+- Tokki
 
-That does not mean the five tools behave identically. It means the repo now
+That does not mean the six tools behave identically. It means the repo now
 contains a prepared entry path for each of them instead of relying on ad hoc
 local setup.
 
