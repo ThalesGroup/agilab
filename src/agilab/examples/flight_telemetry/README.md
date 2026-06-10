@@ -46,7 +46,7 @@ Open `AGI_run_flight_telemetry.py` and look for these lines first:
 - `APP = "flight_telemetry_project"` selects the built-in app.
 - `data_in="flight_telemetry/dataset"` names the input folder.
 - `data_out="flight_telemetry/dataframe"` names the generated artifacts.
-- `mode=LOCAL_RUN_MODES` runs the stable public local worker modes.
+- `mode=PYTHON_ONLY_MODE` runs the stable public first-proof mode.
 
 ## Change One Thing
 

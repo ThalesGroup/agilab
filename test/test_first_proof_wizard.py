@@ -36,7 +36,11 @@ def test_first_proof_content_exposes_one_actionable_validated_route() -> None:
     assert content["documented_route_ids"] == ["notebook-quickstart"]
     assert content["compatibility_status"] == "validated"
     assert content["compatibility_report_status"] == "pass"
-    assert content["proof_command_labels"] == ["preinit smoke", "source ui smoke"]
+    assert content["proof_command_labels"] == [
+        "preinit smoke",
+        "streamlit integrity check",
+        "source ui smoke",
+    ]
     assert content["run_manifest_filename"] == "run_manifest.json"
     assert [label for label, _ in content["steps"]] == ["DEMO", "ORCHESTRATE", "ANALYSIS"]
     assert any("cluster, benchmark, and service options off" in detail for _, detail in content["steps"])
@@ -50,7 +54,11 @@ def test_first_proof_tool_contract_uses_newcomer_smoke_defaults() -> None:
     contract = module.first_proof_tool_contract()
 
     assert contract.active_app.name == "flight_telemetry_project"
-    assert contract.command_labels == ("preinit smoke", "source ui smoke")
+    assert contract.command_labels == (
+        "preinit smoke",
+        "streamlit integrity check",
+        "source ui smoke",
+    )
     assert contract.target_seconds == 600.0
     assert contract.source == "tools/newcomer_first_proof.py"
 

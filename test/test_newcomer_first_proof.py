@@ -28,11 +28,13 @@ def test_build_proof_commands_defaults_to_preinit_and_ui_smoke() -> None:
 
     assert [command.label for command in commands] == [
         "preinit smoke",
+        "streamlit integrity check",
         "source ui smoke",
     ]
     assert "tools/smoke_preinit.py" in " ".join(commands[0].argv)
-    assert "AppTest.from_file" in commands[1].argv[-1]
-    assert str(module.DEFAULT_ACTIVE_APP) in commands[1].argv[-1]
+    assert "streamlit-integrity: OK" in commands[1].argv[-1]
+    assert "AppTest.from_file" in commands[2].argv[-1]
+    assert str(module.DEFAULT_ACTIVE_APP) in commands[2].argv[-1]
 
 
 def test_build_proof_commands_with_install_adds_install_and_seed_checks() -> None:
@@ -42,14 +44,15 @@ def test_build_proof_commands_with_install_adds_install_and_seed_checks() -> Non
 
     assert [command.label for command in commands] == [
         "preinit smoke",
+        "streamlit integrity check",
         "source ui smoke",
         "flight install smoke",
         "seeded script check",
         "install readiness check",
     ]
-    assert "src/agilab/apps/install.py" in " ".join(commands[2].argv)
-    assert "AGI_install_flight_telemetry.py" in commands[3].argv[-1]
-    assert "app_install_status" in commands[4].argv[-1]
+    assert "src/agilab/apps/install.py" in " ".join(commands[3].argv)
+    assert "AGI_install_flight_telemetry.py" in commands[4].argv[-1]
+    assert "app_install_status" in commands[5].argv[-1]
 
 
 def test_install_readiness_code_passes_string_path_to_agienv() -> None:
@@ -73,6 +76,7 @@ def test_build_proof_commands_with_run_adds_execute_probe() -> None:
 
     assert [command.label for command in commands] == [
         "preinit smoke",
+        "streamlit integrity check",
         "source ui smoke",
         "flight install smoke",
         "seeded script check",
@@ -80,7 +84,7 @@ def test_build_proof_commands_with_run_adds_execute_probe() -> None:
         "flight execute smoke",
     ]
     assert "AGI_run_flight_telemetry.py" in commands[-1].argv[-1]
-    assert str(module.DEFAULT_ACTIVE_APP / ".venv" / "bin" / "python") in commands[-1].argv[-1]
+    assert "[sys.executable, str(run_script)]" in commands[-1].argv[-1]
 
 
 def test_resolve_active_app_rejects_missing_pyproject(tmp_path: Path) -> None:
@@ -174,7 +178,7 @@ def test_main_json_redacts_internal_commands_and_success_stdout(monkeypatch, tmp
     assert payload["success"] is True
     assert payload["with_run"] is False
     assert payload["steps"][0]["status"] == "pass"
-    assert payload["steps"][1]["command"][-1] == "<inline first-proof smoke>"
+    assert payload["steps"][2]["command"][-1] == "<inline first-proof smoke>"
     assert "stdout" not in payload["steps"][0]
     serialized = json.dumps(payload)
     assert "results" not in payload
@@ -231,14 +235,17 @@ def test_summarize_kpi_tracks_duration_target_and_failed_step() -> None:
 def test_run_proof_stops_on_first_failure() -> None:
     module = _load_module()
     commands = module.build_proof_commands(module.DEFAULT_ACTIVE_APP, with_install=True)
-    returncodes = iter([0, 7, 0, 0])
+    returncodes = iter([0, 7, 0, 0, 0])
 
     def _fake_runner(cmd, **kwargs):
         return subprocess.CompletedProcess(cmd, next(returncodes), stdout="demo", stderr="")
 
     results = module.run_proof(commands, runner=_fake_runner)
 
-    assert [result.label for result in results] == ["preinit smoke", "source ui smoke"]
+    assert [result.label for result in results] == [
+        "preinit smoke",
+        "streamlit integrity check",
+    ]
     assert results[-1].returncode == 7
 
 
@@ -257,7 +264,11 @@ def test_build_run_manifest_records_first_proof_contract(tmp_path: Path) -> None
         )
         for command in commands
     ]
-    summary = module.summarize_kpi(command_count=2, results=results, max_seconds=600.0)
+    summary = module.summarize_kpi(
+        command_count=len(commands),
+        results=results,
+        max_seconds=600.0,
+    )
     manifest_path = module.default_manifest_path(module.DEFAULT_ACTIVE_APP)
 
     manifest = module.build_run_manifest(

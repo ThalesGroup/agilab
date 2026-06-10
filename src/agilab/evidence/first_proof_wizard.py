@@ -211,7 +211,11 @@ def first_proof_tool_contract(repo_root: Path = REPO_ROOT) -> FirstProofToolCont
     except Exception:
         return FirstProofToolContract(
             active_app=fallback_app,
-            command_labels=("preinit smoke", "source ui smoke"),
+            command_labels=(
+                "preinit smoke",
+                "streamlit integrity check",
+                "source ui smoke",
+            ),
             target_seconds=600.0,
             cli_command=FIRST_PROOF_CLI_COMMAND,
             source="fallback",

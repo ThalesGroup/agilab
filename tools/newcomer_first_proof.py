@@ -190,6 +190,46 @@ def _preinit_smoke_command() -> ProofCommand:
     )
 
 
+def _streamlit_integrity_code() -> str:
+    return textwrap.dedent(
+        """
+        import importlib.metadata
+
+        import streamlit as st
+        from streamlit.testing.v1 import AppTest
+
+        required_attrs = (
+            "__version__",
+            "secrets",
+            "session_state",
+            "set_page_config",
+            "write",
+        )
+        missing = [name for name in required_attrs if not hasattr(st, name)]
+        if missing:
+            version = importlib.metadata.version("streamlit")
+            module_path = getattr(st, "__file__", "<unknown>")
+            raise SystemExit(
+                "streamlit-integrity: FAIL "
+                f"streamlit {version} at {module_path} is missing public API "
+                f"attributes required by AppTest: {', '.join(missing)}. "
+                "Recreate the source-clone virtual environment or refresh the package cache."
+            )
+        if AppTest is None:
+            raise SystemExit("streamlit-integrity: FAIL AppTest import returned None")
+        print("streamlit-integrity: OK")
+        """
+    ).strip()
+
+
+def _streamlit_integrity_command() -> ProofCommand:
+    return ProofCommand(
+        label="streamlit integrity check",
+        description="Verify the Streamlit/AppTest public API before running page smoke tests.",
+        argv=(*UV_RUN_PYTHON, "-c", _streamlit_integrity_code()),
+    )
+
+
 def _ui_smoke_code(active_app: Path) -> str:
     about_page = REPO_ROOT / "src/agilab/main_page.py"
     orchestrate_page = REPO_ROOT / "src/agilab/pages/2_ORCHESTRATE.py"
@@ -252,6 +292,7 @@ def _install_command(active_app: Path) -> ProofCommand:
             str(active_app),
             "--verbose",
             "1",
+            "--force-install",
         ),
         env={
             "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
@@ -345,15 +386,8 @@ def _install_readiness_command(active_app: Path) -> ProofCommand:
     )
 
 
-def _manager_python(active_app: Path) -> Path:
-    if os.name == "nt":
-        return active_app / ".venv" / "Scripts" / "python.exe"
-    return active_app / ".venv" / "bin" / "python"
-
-
 def _execute_script_code(active_app: Path) -> str:
     app_slug = active_app.name.replace("_project", "")
-    manager_python = _manager_python(active_app)
     run_script = default_output_dir(active_app) / f"AGI_run_{app_slug}.py"
     return textwrap.dedent(
         f"""
@@ -362,10 +396,7 @@ def _execute_script_code(active_app: Path) -> str:
         import subprocess
         import sys
 
-        manager_python = Path({str(manager_python)!r})
         run_script = Path({str(run_script)!r})
-        if not manager_python.is_file():
-            raise SystemExit(f"manager python missing: {{manager_python}}")
         if not run_script.is_file():
             raise SystemExit(f"seeded run helper missing: {{run_script}}")
 
@@ -374,13 +405,14 @@ def _execute_script_code(active_app: Path) -> str:
         env.setdefault("OPENAI_API_KEY", "sk-test-newcomer-proof-000000000000")
         env.setdefault("PYTHONUNBUFFERED", "1")
         proc = subprocess.run(
-            [str(manager_python), str(run_script)],
+            [sys.executable, str(run_script)],
             cwd={str(REPO_ROOT)!r},
             env=env,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             check=False,
+            timeout={DEFAULT_MAX_SECONDS!r},
         )
         if proc.stdout:
             print(proc.stdout, end="" if proc.stdout.endswith("\\n") else "\\n")
@@ -394,7 +426,7 @@ def _execute_script_code(active_app: Path) -> str:
 def _execute_script_command(active_app: Path) -> ProofCommand:
     return ProofCommand(
         label="flight execute smoke",
-        description="Run the seeded AGI_run_flight_telemetry.py helper with the installed manager venv.",
+        description="Run the seeded AGI_run_flight_telemetry.py helper with the proof interpreter.",
         argv=(*UV_RUN_PYTHON, "-c", _execute_script_code(active_app)),
         env={
             "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
@@ -407,6 +439,7 @@ def _execute_script_command(active_app: Path) -> ProofCommand:
 def build_proof_commands(active_app: Path, *, with_install: bool, with_run: bool = False) -> list[ProofCommand]:
     commands = [
         _preinit_smoke_command(),
+        _streamlit_integrity_command(),
         _ui_smoke_command(active_app),
     ]
     if with_install or with_run:

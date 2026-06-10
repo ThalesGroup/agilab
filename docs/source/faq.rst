@@ -523,8 +523,9 @@ What does ``tools/newcomer_first_proof.py`` actually prove?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 It proves the recommended newcomer startup path is healthy. Specifically, it
-checks that the lightweight ``agi_env`` preinit smoke works, the main page
-boots, and the ``ORCHESTRATE`` page boots against the built-in
+checks that the lightweight ``agi_env`` preinit smoke works, the Streamlit
+``AppTest`` dependency exposes the public API AGILAB needs, the main page boots,
+and the ``ORCHESTRATE`` page boots against the built-in
 ``flight_telemetry_project``.
 
 It does not replace the full visible workflow proof. Passing

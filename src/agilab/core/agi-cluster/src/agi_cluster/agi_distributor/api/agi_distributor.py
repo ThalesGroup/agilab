@@ -63,7 +63,6 @@ from asyncssh.process import ProcessError
 from contextlib import asynccontextmanager
 import psutil
 from dask.distributed import Client, wait
-from sklearn.ensemble import RandomForestRegressor
 import runpy
 
 # Project Libraries:
@@ -153,7 +152,7 @@ class AGI:
     _capacity: Optional[Dict[str, float]] = None
     _capacity_data_file: Optional[Path] = None
     _capacity_model_file: Optional[Path] = None
-    _capacity_predictor: Optional[RandomForestRegressor] = None
+    _capacity_predictor: Optional[Any] = None
     _worker_default: Dict[str, int] = _workers_default
     _run_time: Dict[str, Any] = {}
     _run_type: Optional[str] = None

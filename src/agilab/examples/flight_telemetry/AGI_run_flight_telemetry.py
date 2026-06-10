@@ -5,7 +5,7 @@ from agi_cluster.agi_distributor import AGI, RunRequest
 from agi_env import AgiEnv
 
 APP = "flight_telemetry_project"
-LOCAL_RUN_MODES = AGI.PYTHON_MODE | AGI.DASK_MODE
+PYTHON_ONLY_MODE = AGI.PYTHON_MODE
 
 
 def agilab_apps_path() -> Path:
@@ -22,7 +22,7 @@ async def main():
     app_env = AgiEnv(apps_path=agilab_apps_path(), app=APP, verbose=1)
     await AGI.install(
         app_env,
-        modes_enabled=LOCAL_RUN_MODES,
+        modes_enabled=PYTHON_ONLY_MODE,
         scheduler="127.0.0.1",
         workers={"127.0.0.1": 1},
     )
@@ -40,7 +40,7 @@ async def main():
         },
         data_in="flight_telemetry/dataset",
         data_out="flight_telemetry/dataframe",
-        mode=LOCAL_RUN_MODES,
+        mode=PYTHON_ONLY_MODE,
         scheduler="127.0.0.1",
         workers={"127.0.0.1": 1},
     )

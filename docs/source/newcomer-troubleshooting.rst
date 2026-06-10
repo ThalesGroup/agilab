@@ -97,11 +97,14 @@ Failure 4: the web UI or Main Page/ORCHESTRATE smoke fails
 Symptom:
 
 - ``streamlit run src/agilab/main_page.py`` fails
+- the newcomer proof command reports a failing ``streamlit integrity check`` step
 - the newcomer proof command reports a failing ``source ui smoke`` step
 - Main Page or ORCHESTRATE raises exceptions during AppTest startup
 
 Recovery::
 
+    uv cache clean streamlit
+    rm -rf .venv
     uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
 
 If that fails, run the pages directly::

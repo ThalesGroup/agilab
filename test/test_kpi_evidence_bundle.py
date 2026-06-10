@@ -162,7 +162,11 @@ def test_newcomer_first_proof_contract_reports_guided_wizard() -> None:
     check = module._check_newcomer_first_proof_contract(Path.cwd())
 
     assert check["status"] == "pass"
-    assert check["details"]["labels"] == ["preinit smoke", "source ui smoke"]
+    assert check["details"]["labels"] == [
+        "preinit smoke",
+        "streamlit integrity check",
+        "source ui smoke",
+    ]
     wizard = check["details"]["wizard"]
     assert wizard["recommended_path_id"] == "source-checkout-first-proof"
     assert wizard["actionable_route_ids"] == ["source-checkout-first-proof"]

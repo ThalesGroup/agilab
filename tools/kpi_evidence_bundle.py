@@ -176,7 +176,11 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
             repo_root=repo_root,
         )
         ok = (
-            labels == ["preinit smoke", "source ui smoke"]
+            labels == [
+                "preinit smoke",
+                "streamlit integrity check",
+                "source ui smoke",
+            ]
             and float(newcomer_first_proof.DEFAULT_MAX_SECONDS) == 600.0
             and active_app.name == "flight_telemetry_project"
             and wizard_content["recommended_path_id"] == "source-checkout-first-proof"

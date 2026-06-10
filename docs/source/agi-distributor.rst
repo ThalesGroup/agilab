@@ -50,7 +50,7 @@ The current bit values are:
 Prefer the public constants instead of typing numeric bitmasks:
 
 - ``AGI.PYTHON_MODE | AGI.DASK_MODE`` for the Minimal App docs example.
-- ``AGI.PYTHON_MODE | AGI.DASK_MODE`` for the Flight docs example.
+- ``AGI.PYTHON_MODE`` for the Flight docs example.
 
 This is why the install examples below pass named constants through
 ``modes_enabled=...`` and the run examples pass the same intent through a

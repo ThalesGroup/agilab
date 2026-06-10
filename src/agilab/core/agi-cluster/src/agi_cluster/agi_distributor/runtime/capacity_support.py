@@ -11,8 +11,6 @@ from typing import Any, Callable, Dict, List, Mapping, cast
 import humanize
 import numpy as np
 import polars as pl
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
 
 from agi_env import AgiEnv
 from agi_cluster.agi_distributor import runtime_misc_support
@@ -532,6 +530,9 @@ async def calibration(agi_cls: Any, log: Any = logger) -> None:
 
 
 def train_capacity(agi_cls: Any, train_home: Path, log: Any = logger) -> None:
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.model_selection import train_test_split
+
     data_file = train_home / agi_cls._capacity_data_file
     if data_file.exists():
         balancer_csv = data_file
