@@ -27,6 +27,11 @@ That loop is the product in miniature: controlled environment, reproducible
 execution, artifacts, run evidence, and a portable handoff path without needing
 the Streamlit UI or a cluster.
 
+That means you do not lose your work if the AGILAB UI or distributed runtime is
+no longer the right interface.
+The stable core runtime remains the smallest supported handoff surface and is
+production-grade core technology.
+
 ## Agent Entry Point
 
 For MCP clients, start `agilab-mcp` and call `agent_quickstart` first. It is
