@@ -151,3 +151,6 @@ artifacts/demo_media/**
 exported_notebooks/
 src/agilab/apps/builtin/*/notebooks/lab_*.ipynb
 src/agilab/apps/builtin/*/notebooks/sitecustomize.py
+
+# machine-specific tokki install scope
+.tokki/scope
