@@ -53,16 +53,10 @@ jobs:
           BASE_VERSION: ${{ github.event.inputs.version }}
         run: |
           set -euxo pipefail
-          args=(
-            --repo testpypi
-            --dist both
-            --verbose
-            --git-reset-on-failure
-            --no-pypirc-check
-          )
+          args=()
           if [ -n "${BASE_VERSION:-}" ]; then
             base="${BASE_VERSION#refs/tags/}"
             base="${base#v}"
             args+=(--version "$base")
           fi
-          uv --preview-features extra-build-dependencies run python tools/pypi_publish.py "${args[@]}"
+          ./dev publish-testpypi "${args[@]}"

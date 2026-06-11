@@ -43,6 +43,9 @@ env:
 
 jobs:
   test:
+    needs:
+      - release-plan
+    if: ${{ needs.release-plan.outputs.pypi_publish_selected == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -69,10 +72,27 @@ jobs:
           set -euxo pipefail
           uv --preview-features extra-build-dependencies run python tools/agilab_audit.py --strict
 
+      - name: Restore Playwright browser cache
+        id: playwright-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PYTHON_VERSION }}-chromium
+          restore-keys: |
+            playwright-${{ runner.os }}-${{ env.PYTHON_VERSION }}-
+            playwright-${{ runner.os }}-
+
       - name: Install Playwright browser for frontend smoke
         run: |
           set -euxo pipefail
           uv --preview-features extra-build-dependencies run --with playwright python -m playwright install --with-deps chromium
+
+      - name: Save Playwright browser cache
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PYTHON_VERSION }}-chromium
 
       - name: Fail on accidental O.* version typos in published packages
         run: |
@@ -96,7 +116,10 @@ jobs:
 
 
   release-evidence:
-    needs: test
+    needs:
+      - release-plan
+      - test
+    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -167,7 +190,10 @@ jobs:
             --compact
 
   supply-chain-evidence:
-    needs: test
+    needs:
+      - release-plan
+      - test
+    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -757,7 +783,7 @@ jobs:
           PY
 
   publish-dataset-release-assets:
-    if: ${{ always() && needs.test.result == 'success' && needs.release-plan.result == 'success' }}
+    if: ${{ always() && needs.release-plan.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     needs:
       - test
       - release-plan

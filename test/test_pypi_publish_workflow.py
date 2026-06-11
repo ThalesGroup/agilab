@@ -46,6 +46,27 @@ def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None
 def test_pypi_publish_blocks_downstream_publish_jobs_when_preflight_fails() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
+    assert "test:\n    needs:\n      - release-plan" in text
+    assert (
+        "test:\n    needs:\n      - release-plan\n"
+        "    if: ${{ needs.release-plan.outputs.pypi_publish_selected == 'true' }}"
+    ) in text
+    assert (
+        "release-evidence:\n"
+        "    needs:\n"
+        "      - release-plan\n"
+        "      - test\n"
+        "    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' "
+        "&& needs.test.result == 'success' }}"
+    ) in text
+    assert (
+        "supply-chain-evidence:\n"
+        "    needs:\n"
+        "      - release-plan\n"
+        "      - test\n"
+        "    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' "
+        "&& needs.test.result == 'success' }}"
+    ) in text
     assert "publish-agilab:" in text
     assert "pypi-provenance-evidence:" in text
     assert "needs.test.result == 'success'" in text
@@ -99,13 +120,32 @@ def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
 
     assert 'python-version: ["3.13"]' in text
     assert 'python-version: ["3.13", "3.14"]' not in text
+    assert "test:\n    needs:\n      - release-plan" in text
+    assert (
+        "test:\n    needs:\n      - release-plan\n"
+        "    if: ${{ needs.release-plan.outputs.pypi_publish_selected == 'true' }}"
+    ) in text
     assert "Run strict AGILAB audit review" in text
     assert "tools/agilab_audit.py --strict" in text
     assert text.index("tools/agilab_audit.py --strict") < text.index(
         "Install Playwright browser for frontend smoke"
     )
+    assert "Restore Playwright browser cache" in text
+    assert "id: playwright-cache" in text
+    assert "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae" in text
+    assert "path: ~/.cache/ms-playwright" in text
+    assert "key: playwright-${{ runner.os }}-${{ env.PYTHON_VERSION }}-chromium" in text
+    assert text.index("Restore Playwright browser cache") < text.index(
+        "Install Playwright browser for frontend smoke"
+    )
     assert "Install Playwright browser for frontend smoke" in text
     assert "python -m playwright install --with-deps chromium" in text
+    assert "Save Playwright browser cache" in text
+    assert "steps.playwright-cache.outputs.cache-hit != 'true'" in text
+    assert "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae" in text
+    assert text.index("Install Playwright browser for frontend smoke") < text.index(
+        "Save Playwright browser cache"
+    )
     assert "tools/workflow_parity.py" in text
     assert "--profile agi-env" in text
     assert "--profile agi-gui" in text
@@ -332,6 +372,8 @@ def test_pypi_publish_dataset_release_is_separate_from_code_release() -> None:
     dataset_job = text.split("publish-dataset-release-assets:", 1)[1].split("sync-hf-space:", 1)[0]
     assert "github-release-assets" not in dataset_job
     assert "needs.release-plan.outputs.pypi_publish_selected == 'true'" not in dataset_job
+    assert "needs.release-plan.result == 'success'" in dataset_job
+    assert "needs.test.result == 'success' || needs.test.result == 'skipped'" in dataset_job
 
 
 def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
@@ -441,16 +483,12 @@ def test_pypi_publish_does_not_recreate_legacy_single_pypi_environment() -> None
     assert re.search(r"^\s*name:\s*pypi\s*$", text, re.MULTILINE) is None
 
 
-def test_test_pypi_publish_delegates_to_the_package_release_tool() -> None:
+def test_test_pypi_publish_uses_the_local_shortcut() -> None:
     text = TEST_PYPI_WORKFLOW_PATH.read_text(encoding="utf-8")
     tool_text = (REPO_ROOT / "tools/pypi_publish.py").read_text(encoding="utf-8")
     contract_text = (REPO_ROOT / "tools/package_split_contract.py").read_text(encoding="utf-8")
 
-    assert "tools/pypi_publish.py" in text
-    assert "--repo testpypi" in text
-    assert "--dist both" in text
-    assert "--git-reset-on-failure" in text
-    assert "--no-pypirc-check" in text
+    assert "./dev publish-testpypi" in text
     assert "2026.05.12rc1" in text
     assert "TestPyPI may auto-create .postN retries" in text
     assert "TWINE_USERNAME: __token__" in text

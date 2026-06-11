@@ -437,6 +437,19 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
             ),
         ]
 
+    if command in {"publish-testpypi", "test-pypi-publish"}:
+        return [
+            _uv_python(
+                "tools/pypi_publish.py",
+                "--repo",
+                "testpypi",
+                "--verbose",
+                "--git-reset-on-failure",
+                "--no-pypirc-check",
+                *args,
+            )
+        ]
+
     if command in {"badge", "guard"}:
         defaults = ["--changed-only", "--require-fresh-xml"]
         return [_uv_python("tools/coverage_badge_guard.py", *defaults, *args)]
@@ -518,6 +531,7 @@ def _usage() -> str:
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] worker-reuse [worker_env_reuse args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] typing [workflow-parity options]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] release [--release-mode MODE] [--impact-base-ref REF] [impact_validate args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] publish-testpypi [pypi_publish args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] badge|guard [coverage_badge_guard args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] docs
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] clean [--apply]
@@ -551,6 +565,7 @@ High-frequency mappings:
   worker-reuse -> Compare worker manifest fingerprints against a deployed-env reuse marker.
   typing    -> Run the forward shared-core ty typing profile. Mypy remains the curated temporary release guard under shared-core-typing.
   release   -> Run local release guards: AGILAB audit/review, impact, generated PyPI plan, release cadence, PyPI project preflight, trusted publisher contract, Ruff availability, docs, dependency policy, typing, and badge freshness. Pass --release-mode hotfix and --impact-base-ref <tag> for same-day hotfixes.
+  publish-testpypi -> Run the local TestPyPI rehearsal path with the same publisher used by the workflow, defaulting to --verbose, --git-reset-on-failure, and --no-pypirc-check.
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
   clean     -> Dry-run cleanup of ignored local build/lib duplicate-source trees; pass --apply to remove them.

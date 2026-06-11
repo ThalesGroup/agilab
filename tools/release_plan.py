@@ -498,6 +498,18 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "python -m playwright install --with-deps chromium": (
             "release preflight must install a browser before the frontend smoke"
         ),
+        "Restore Playwright browser cache": (
+            "release preflight should reuse cached Playwright browsers when available"
+        ),
+        "actions/cache/restore@": (
+            "release preflight should restore the Playwright browser cache before install"
+        ),
+        "actions/cache/save@": (
+            "release preflight should save the Playwright browser cache after install"
+        ),
+        "~/.cache/ms-playwright": (
+            "release preflight should cache the Playwright browser payload directory"
+        ),
         "--profile ui-frontend-smoke": (
             "release preflight must verify the Streamlit frontend hydrates in a real browser"
         ),
@@ -551,6 +563,18 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         ),
         "needs.release-plan.outputs.pypi_publish_selected == 'true'": (
             "release asset jobs must be skippable when no PyPI package is selected"
+        ),
+        "test:\n    needs:\n      - release-plan\n    if: ${{ needs.release-plan.outputs.pypi_publish_selected == 'true' }}": (
+            "release preflight must wait for the release plan and skip when nothing will be published"
+        ),
+        "release-evidence:\n    needs:\n      - release-plan\n      - test\n    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' }}": (
+            "release evidence must wait for the release plan and skip when nothing will be published"
+        ),
+        "supply-chain-evidence:\n    needs:\n      - release-plan\n      - test\n    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' }}": (
+            "supply-chain evidence must wait for the release plan and skip when nothing will be published"
+        ),
+        "publish-dataset-release-assets:\n    if: ${{ always() && needs.release-plan.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}": (
+            "dataset release assets must still run when the PyPI-only preflight is intentionally skipped"
         ),
         "- release-plan": "library publishing must depend on the generated release plan",
         "name: ${{ matrix.pypi_environment }}": (

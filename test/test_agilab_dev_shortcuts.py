@@ -775,6 +775,47 @@ def test_release_shortcut_runs_local_release_guards():
     ]
 
 
+def test_publish_testpypi_shortcut_runs_local_rehearsal_path():
+    assert agilab_dev.planned_commands(["publish-testpypi"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/pypi_publish.py",
+            "--repo",
+            "testpypi",
+            "--verbose",
+            "--git-reset-on-failure",
+            "--no-pypirc-check",
+        ]
+    ]
+
+
+def test_publish_testpypi_shortcut_keeps_explicit_arguments():
+    assert agilab_dev.planned_commands(
+        ["publish-testpypi", "--dry-run", "--version", "2026.05.12"]
+    ) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/pypi_publish.py",
+            "--repo",
+            "testpypi",
+            "--verbose",
+            "--git-reset-on-failure",
+            "--no-pypirc-check",
+            "--dry-run",
+            "--version",
+            "2026.05.12",
+        ]
+    ]
+
+
 def test_release_shortcut_keeps_impact_arguments():
     commands = agilab_dev.planned_commands(["release", "--files", "pyproject.toml"])
 
