@@ -46,9 +46,9 @@ def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None
 def test_pypi_publish_blocks_downstream_publish_jobs_when_preflight_fails() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
-    assert "test:\n    needs:\n      - release-plan" in text
+    assert "test:\n    needs:\n      - release-audit\n      - release-plan" in text
     assert (
-        "test:\n    needs:\n      - release-plan\n"
+        "test:\n    needs:\n      - release-audit\n      - release-plan\n"
         "    if: ${{ needs.release-plan.outputs.pypi_publish_selected == 'true' }}"
     ) in text
     assert (
@@ -120,9 +120,9 @@ def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
 
     assert 'python-version: ["3.13"]' in text
     assert 'python-version: ["3.13", "3.14"]' not in text
-    assert "test:\n    needs:\n      - release-plan" in text
+    assert "test:\n    needs:\n      - release-audit\n      - release-plan" in text
     assert (
-        "test:\n    needs:\n      - release-plan\n"
+        "test:\n    needs:\n      - release-audit\n      - release-plan\n"
         "    if: ${{ needs.release-plan.outputs.pypi_publish_selected == 'true' }}"
     ) in text
     assert "Run strict AGILAB audit review" in text

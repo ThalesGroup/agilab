@@ -564,7 +564,10 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "needs.release-plan.outputs.pypi_publish_selected == 'true'": (
             "release asset jobs must be skippable when no PyPI package is selected"
         ),
-        "test:\n    needs:\n      - release-plan\n    if: ${{ needs.release-plan.outputs.pypi_publish_selected == 'true' }}": (
+        "release-audit:": (
+            "every release run must pass the strict audit and typo check even when PyPI publishing is skipped"
+        ),
+        "test:\n    needs:\n      - release-audit\n      - release-plan\n    if: ${{ needs.release-plan.outputs.pypi_publish_selected == 'true' }}": (
             "release preflight must wait for the release plan and skip when nothing will be published"
         ),
         "release-evidence:\n    needs:\n      - release-plan\n      - test\n    if: ${{ !cancelled() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' }}": (
@@ -573,7 +576,7 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "supply-chain-evidence:\n    needs:\n      - release-plan\n      - test\n    if: ${{ !cancelled() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' }}": (
             "supply-chain evidence must wait for the release plan and skip when nothing will be published"
         ),
-        "publish-dataset-release-assets:\n    if: ${{ !cancelled() && needs.release-plan.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}": (
+        "publish-dataset-release-assets:\n    if: ${{ !cancelled() && needs.release-plan.result == 'success' && needs.release-audit.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}": (
             "dataset release assets must still run when the PyPI-only preflight is intentionally skipped"
         ),
         "- release-plan": "library publishing must depend on the generated release plan",
