@@ -270,6 +270,22 @@ def test_agi_pages_static_html_embeds_option_and_escaped_evidence() -> None:
     assert "</script><b>x</b>" not in html
 
 
+def test_agi_pages_static_html_escapes_mixed_case_script_close_and_js_terminators() -> None:
+    agi_pages = _load_agi_pages()
+    spec = agi_pages.build_chart_spec(
+        [{"label": "</ScRiPt><!--\u2028\u2029", "value": 1}],
+        chart_type="bar",
+        title="Mixed case unsafe label",
+    )
+
+    html = agi_pages.chart_spec_to_static_html(spec, height=240)
+
+    assert "</ScRiPt>" not in html
+    assert "<\\/ScRiPt" in html
+    assert "<\\!--" in html
+    assert "\u2028" not in html.split("<script>", 1)[1].split("</script>", 1)[0]
+
+
 def test_agi_pages_static_html_clamps_height_and_sanitizes_identifier() -> None:
     agi_pages = _load_agi_pages()
     spec = agi_pages.build_chart_spec([{"x": "a", "y": 1}], chart_id="123 odd id", title="Identifier")

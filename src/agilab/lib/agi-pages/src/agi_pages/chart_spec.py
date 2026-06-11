@@ -27,7 +27,6 @@ CHART_SPEC_SCHEMA = "agilab.agi_pages.chart_spec.v1"
 CHART_EVIDENCE_SCHEMA = "agilab.agi_pages.chart_evidence.v1"
 DEFAULT_ECHARTS_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"
 SUPPORTED_DATASET_CHART_TYPES = ("line", "bar", "scatter", "heatmap")
-_SCRIPT_END_REPLACEMENT = "<\\/script"
 
 JsonValue = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 
@@ -439,7 +438,11 @@ def _resolve_heatmap_columns(data: ChartData, *, x: str | None, y: str | Sequenc
 
 
 def _json_for_script(value: Any) -> str:
-    return to_canonical_json(value).replace("</script", _SCRIPT_END_REPLACEMENT)
+    # HTML script-close parsing is case-insensitive, the JSON lands inside an
+    # executable <script> block, and JS treats U+2028/U+2029 as line terminators.
+    payload = re.sub(r"</(script)", r"<\\/\1", to_canonical_json(value), flags=re.IGNORECASE)
+    payload = payload.replace("<!--", "<\\!--")
+    return payload.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
 
 
 def _js_identifier(value: str) -> str:

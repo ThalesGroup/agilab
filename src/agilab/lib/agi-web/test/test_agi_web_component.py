@@ -317,7 +317,7 @@ def test_agi_web_component_variants_and_notebook_fallback(monkeypatch) -> None:
     fallback = agi_web.render_notebook(component, height=10, width="<100%>")
     assert isinstance(fallback, str)
     assert "min-height:240px" in fallback
-    assert "&lt;100%&gt;" in fallback
+    assert "width:100%;" in fallback
 
 
 def test_agi_web_render_notebook_returns_ipython_html(monkeypatch) -> None:
@@ -345,3 +345,111 @@ def test_agi_web_render_notebook_returns_ipython_html(monkeypatch) -> None:
 
     assert isinstance(rendered, FakeHTML)
     assert 'class="agi-web-shell"' in rendered.fragment
+
+
+def test_agi_web_json_island_escapes_mixed_case_script_end_and_line_separators() -> None:
+    agi_web = _load_agi_web()
+    component = agi_web.AgiWebComponent(
+        component_id="unsafe",
+        title="Unsafe",
+        renderer=agi_web.AgiWebRendererSpec("demo", technology="canvas2d"),
+        payload={
+            "mixed": "</ScRiPt><ScRiPt>alert(1)</ScRiPt>",
+            "comment": "<!-- sneaky -->",
+            "separators": "line and end",
+        },
+    )
+
+    html = agi_web.component_to_static_html(component)
+
+    assert "</ScRiPt>" not in html
+    assert "<\\/ScRiPt>" in html
+    assert "<!-- sneaky" not in html
+    assert "<\\!-- sneaky" in html
+    assert " " not in html
+    assert " " not in html
+    assert "\\u2028" in html
+    assert "\\u2029" in html
+
+
+def test_agi_web_action_target_validation() -> None:
+    agi_web = _load_agi_web()
+
+    stripped = agi_web.AgiWebAction("bad", "Bad", target="javascript:alert(1)").as_dict()
+    assert stripped["target"] == ""
+    assert stripped["kind"] == "emit"
+
+    for unsafe in ("data:text/html,x", "vbscript:msgbox", "file:///etc/passwd"):
+        assert agi_web.AgiWebAction("bad", "Bad", target=unsafe).as_dict()["target"] == ""
+
+    assert agi_web.AgiWebAction("ok", "Ok", target="https://agilab.dev").as_dict()["target"] == "https://agilab.dev"
+    assert agi_web.AgiWebAction("ok", "Ok", target="mailto:team@agilab.dev").as_dict()["target"] == "mailto:team@agilab.dev"
+    assert agi_web.AgiWebAction("ok", "Ok", target="details?tab=1#top").as_dict()["target"] == "details?tab=1#top"
+
+
+def test_agi_web_action_enum_validation() -> None:
+    agi_web = _load_agi_web()
+    import pytest
+
+    with pytest.raises(ValueError, match="surprise"):
+        agi_web.AgiWebAction("a", "A", kind="surprise").as_dict()
+    with pytest.raises(ValueError, match="tertiary"):
+        agi_web.AgiWebAction("a", "A", style="tertiary").as_dict()
+    for kind in ("emit", "link", "download"):
+        assert agi_web.AgiWebAction("a", "A", kind=kind).as_dict()["kind"] == kind
+
+
+def test_agi_web_static_html_width_validation_falls_back() -> None:
+    agi_web = _load_agi_web()
+    component = agi_web.AgiWebComponent(
+        component_id="demo",
+        title="Demo",
+        renderer=agi_web.AgiWebRendererSpec("demo", technology="canvas2d"),
+    )
+
+    injected = agi_web.component_to_static_html(component, width="100%;position:fixed")
+    assert "position:fixed" not in injected
+    assert "width:100%;" in injected
+
+    sized = agi_web.component_to_static_html(component, width="42.5rem")
+    assert "width:42.5rem;" in sized
+
+
+def test_agi_web_static_html_renderer_notice_for_unimplemented_technology() -> None:
+    agi_web = _load_agi_web()
+
+    def render(technology):
+        return agi_web.component_to_static_html(
+            agi_web.AgiWebComponent(
+                component_id="demo",
+                title="Demo",
+                renderer=agi_web.AgiWebRendererSpec("demo", technology=technology),
+            )
+        )
+
+    react_html = render("react")
+    assert 'class="agi-web-renderer-notice"' in react_html
+    assert 'renderer technology &quot;react&quot; is not available in this host' in react_html or \
+        'renderer technology "react" is not available in this host' in react_html
+    assert "<canvas" in react_html
+
+    for technology in ("canvas2d", "webgl"):
+        assert 'class="agi-web-renderer-notice"' not in render(technology)
+
+
+def test_agi_web_static_html_host_origin_and_link_rel() -> None:
+    agi_web = _load_agi_web()
+    component = agi_web.AgiWebComponent(
+        component_id="demo",
+        title="Demo",
+        renderer=agi_web.AgiWebRendererSpec("demo", technology="canvas2d"),
+        actions=[agi_web.AgiWebAction("open", "Open", target="https://agilab.dev")],
+    )
+
+    default_html = agi_web.component_to_static_html(component)
+    assert 'const hostOrigin = "";' in default_html
+    assert "hostOrigin || '*'" in default_html
+    assert 'rel="noopener noreferrer"' in default_html
+
+    pinned_html = agi_web.component_to_static_html(component, host_origin="https://lab.example")
+    assert 'const hostOrigin = "https://lab.example";' in pinned_html

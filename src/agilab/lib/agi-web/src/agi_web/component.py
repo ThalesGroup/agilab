@@ -20,7 +20,13 @@ from typing import Any
 AGI_WEB_COMPONENT_SCHEMA = "agilab.agi_web.component.v1"
 AGI_WEB_EVIDENCE_SCHEMA = "agilab.agi_web.component_evidence.v1"
 SUPPORTED_RENDERER_TECHNOLOGIES = ("html", "canvas2d", "react", "webgl", "custom")
-_SCRIPT_END_REPLACEMENT = "<\\/script"
+STATIC_RENDERER_TECHNOLOGIES = ("canvas2d", "webgl")
+SUPPORTED_ACTION_KINDS = ("emit", "link", "download")
+SUPPORTED_ACTION_STYLES = ("primary", "secondary")
+_SAFE_TARGET_SCHEMES = ("http", "https", "mailto")
+_SCRIPT_END_RE = re.compile(r"</(script)", re.IGNORECASE)
+_TARGET_SCHEME_RE = re.compile(r"^\s*([a-zA-Z][a-zA-Z0-9+.-]*):")
+_WIDTH_CSS_RE = re.compile(r"^\d+(\.\d+)?(px|%|rem|em|vw)$")
 
 JsonValue = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 
@@ -37,13 +43,23 @@ class AgiWebAction:
     style: str = "secondary"
 
     def as_dict(self) -> dict[str, JsonValue]:
+        kind = str(self.kind or "emit")
+        if kind not in SUPPORTED_ACTION_KINDS:
+            raise ValueError(
+                f"AgiWebAction.kind {kind!r} is not supported; allowed kinds: {sorted(SUPPORTED_ACTION_KINDS)}"
+            )
+        style = str(self.style or "secondary")
+        if style not in SUPPORTED_ACTION_STYLES:
+            raise ValueError(
+                f"AgiWebAction.style {style!r} is not supported; allowed styles: {sorted(SUPPORTED_ACTION_STYLES)}"
+            )
         return {
             "action_id": str(self.action_id),
             "label": str(self.label),
-            "kind": str(self.kind or "emit"),
-            "target": str(self.target or ""),
+            "kind": kind,
+            "target": _safe_action_target(self.target),
             "payload": normalize_json_value(dict(self.payload)),
-            "style": str(self.style or "secondary"),
+            "style": style,
         }
 
 
@@ -149,6 +165,7 @@ def component_to_static_html(
     *,
     height: int = 520,
     width: str = "100%",
+    host_origin: str = "",
 ) -> str:
     """Render a component as a standalone static HTML fragment."""
 
@@ -162,9 +179,20 @@ def component_to_static_html(
     overlay_id = f"{container_id}-overlay"
     fallback = component.fallback_html or "This AGILAB web component requires browser JavaScript for the rich view."
     height_css = max(int(height), 240)
-    width_css = html.escape(str(width), quote=True)
+    width_value = str(width or "").strip()
+    if not _WIDTH_CSS_RE.match(width_value):
+        width_value = "100%"
+    width_css = html.escape(width_value, quote=True)
     title = html.escape(str(component.title or "AGILAB web component"))
     subtitle = html.escape(str(component.subtitle or "Portable component payload with deterministic evidence."))
+    technology = str(component_payload["renderer"].get("technology", "html"))
+    renderer_notice = ""
+    if technology not in STATIC_RENDERER_TECHNOLOGIES:
+        renderer_notice = (
+            '<div class="agi-web-renderer-notice">'
+            f'renderer technology "{html.escape(technology)}" is not available in this host; '
+            "showing canvas2d preview</div>"
+        )
 
     return "\n".join(
         [
@@ -180,6 +208,7 @@ def component_to_static_html(
             "</div>",
             '<code class="agi-web-tech"></code>',
             "</div>",
+            *([renderer_notice] if renderer_notice else []),
             '<div class="agi-web-layout">',
             '<div class="agi-web-stage">',
             '<div class="agi-web-canvas-wrap" tabindex="0" aria-label="Interactive boundary replay canvas">',
@@ -216,7 +245,13 @@ def component_to_static_html(
             f'<noscript><div class="agi-web-fallback">{html.escape(fallback)}</div></noscript>',
             f'<script type="application/json" id="{data_id}">{component_json}</script>',
             "<script>",
-            _static_js(container_id=container_id, data_id=data_id, canvas_id=canvas_id, overlay_id=overlay_id),
+            _static_js(
+                container_id=container_id,
+                data_id=data_id,
+                canvas_id=canvas_id,
+                overlay_id=overlay_id,
+                host_origin=str(host_origin or ""),
+            ),
             "</script>",
             "</section>",
         ]
@@ -229,6 +264,7 @@ def render_streamlit(
     *,
     height: int = 520,
     width: str = "100%",
+    host_origin: str = "",
 ) -> Any:
     """Render a component through ``st.components.v1.html``."""
 
@@ -236,7 +272,7 @@ def render_streamlit(
     if st is None:
         import streamlit as st  # type: ignore[no-redef]
 
-    fragment = component_to_static_html(component, height=height, width=width)
+    fragment = component_to_static_html(component, height=height, width=width, host_origin=host_origin)
     return st.components.v1.html(fragment, height=height, scrolling=False)
 
 
@@ -245,10 +281,11 @@ def render_notebook(
     *,
     height: int = 520,
     width: str = "100%",
+    host_origin: str = "",
 ) -> Any:
     """Return an IPython HTML object when available, otherwise a HTML string."""
 
-    fragment = component_to_static_html(component, height=height, width=width)
+    fragment = component_to_static_html(component, height=height, width=width, host_origin=host_origin)
     try:
         from IPython.display import HTML
     except Exception:
@@ -384,8 +421,22 @@ def _is_column_like(value: Any) -> bool:
     return isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray))
 
 
+def _safe_action_target(target: str | None) -> str:
+    """Allow only http(s)/mailto schemes, relative paths, fragments, and queries."""
+
+    value = str(target or "").strip()
+    if not value:
+        return ""
+    scheme_match = _TARGET_SCHEME_RE.match(value)
+    if scheme_match and scheme_match.group(1).lower() not in _SAFE_TARGET_SCHEMES:
+        return ""
+    return value
+
+
 def _json_for_script(value: Any) -> str:
-    return to_canonical_json(value).replace("</script", _SCRIPT_END_REPLACEMENT)
+    serialized = _SCRIPT_END_RE.sub(r"<\\/\1", to_canonical_json(value))
+    serialized = serialized.replace("<!--", "<\\!--")
+    return serialized.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
 
 
 def _static_css() -> str:
@@ -438,12 +489,13 @@ def _static_css() -> str:
 .agi-web-lesson strong{display:block;margin-top:3px;color:#f8fafc;font-size:12px;line-height:1.2}
 .agi-web-lesson em{display:block;margin-top:4px;color:#9fb1c8;font-size:11px;font-style:normal;line-height:1.28}
 .agi-web-lesson--active{border-color:rgba(251,191,36,.48);background:rgba(88,55,16,.3)}
+.agi-web-renderer-notice{border:1px solid rgba(251,191,36,.4);border-radius:12px;padding:7px 10px;background:rgba(120,53,15,.3);color:#fde68a;font-size:12px}
 .agi-web-fallback{border:1px solid rgba(251,191,36,.4);border-radius:14px;padding:10px;background:rgba(120,53,15,.35);color:#fde68a}
 @media (max-width:720px){.agi-web-layout{grid-template-columns:1fr}.agi-web-canvas,.agi-web-canvas-wrap{min-height:320px}.agi-web-heading{flex-direction:column}.agi-web-tech{white-space:normal}.agi-web-controls{grid-template-columns:1fr}.agi-web-frame-count{text-align:left}.agi-web-canvas-hud{position:static;margin:10px 10px -2px}.agi-web-legend{display:none}}
 """
 
 
-def _static_js(*, container_id: str, data_id: str, canvas_id: str, overlay_id: str) -> str:
+def _static_js(*, container_id: str, data_id: str, canvas_id: str, overlay_id: str, host_origin: str = "") -> str:
     script = """
 (function(){
   const root = document.getElementById(__CONTAINER_ID__);
@@ -451,6 +503,7 @@ def _static_js(*, container_id: str, data_id: str, canvas_id: str, overlay_id: s
   const canvas = document.getElementById(__CANVAS_ID__);
   const overlayCanvas = document.getElementById(__OVERLAY_ID__);
   if (!root || !data || !canvas) return;
+  const hostOrigin = __HOST_ORIGIN__;
   const component = JSON.parse(data.textContent || '{}');
   const payload = component.payload || {};
   const renderer = component.renderer || {};
@@ -522,7 +575,7 @@ def _static_js(*, container_id: str, data_id: str, canvas_id: str, overlay_id: s
     actionRoot.innerHTML = (component.actions || []).map(action => {
       const label = escapeHtml(action.label || action.action_id || 'Action');
       const cls = action.style === 'primary' ? ' agi-web-action--primary' : '';
-      if (action.target) return '<a class="agi-web-action' + cls + '" href="' + escapeAttr(action.target) + '">' + label + '</a>';
+      if (action.target) return '<a class="agi-web-action' + cls + '" rel="noopener noreferrer" href="' + escapeAttr(action.target) + '">' + label + '</a>';
       return '<button class="agi-web-action' + cls + '" type="button" data-action="' + escapeAttr(action.action_id || '') + '">' + label + '</button>';
     }).join('');
     actionRoot.querySelectorAll('button[data-action]').forEach(button => {
@@ -530,7 +583,7 @@ def _static_js(*, container_id: str, data_id: str, canvas_id: str, overlay_id: s
         schema: 'agilab.agi_web.action.v1',
         component_id: component.component_id,
         action_id: button.getAttribute('data-action')
-      }, '*'));
+      }, hostOrigin || '*'));
     });
   }
 
@@ -1055,4 +1108,5 @@ def _static_js(*, container_id: str, data_id: str, canvas_id: str, overlay_id: s
         .replace("__DATA_ID__", json.dumps(data_id))
         .replace("__CANVAS_ID__", json.dumps(canvas_id))
         .replace("__OVERLAY_ID__", json.dumps(overlay_id))
+        .replace("__HOST_ORIGIN__", json.dumps(str(host_origin or "")))
     )
