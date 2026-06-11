@@ -1,0 +1,26 @@
+# AGILAB profile rules — reusable agent operating notes for this repo.
+# Surfaced by `tokki rules`; keep each rule short, imperative, and durable.
+
+## Routing / allocation debugging
+- Before debugging routing model quality, compare generated allocation JSON
+  (allocations_steps.json) against current local AND remote TimeRoutingEnv
+  candidate-path smoke results. If the smoke test finds candidate paths but
+  the artifacts show all no_path/reject, treat it as stale runtime drift:
+  refresh/redeploy worker envs and regenerate artifacts BEFORE retraining or
+  patching model code.
+- If allocation output is all no_path/reject, first run a direct current-env
+  smoke test and verify the deployed worker source matches local source.
+- Useful allocation health counters: no_path, reject, valid_path_count,
+  delivered bandwidth sum, bearer counts, step count, edge count, and
+  candidate-path count from a direct env smoke test.
+
+## Workers / environments
+- Verify the deployed worker file and venv when local fixes do not show up in
+  generated artifacts — runtime drift, not model logic, is the usual cause.
+- Use explicit Python interpreters for worker/debug commands: python3 or the
+  worker venv's python. Never assume `python` exists locally or remotely.
+
+## Token discipline
+- Codex/Claude rollout logs are huge but the durable signal is small: thread
+  metadata, plan, command failures, key counters, final diagnosis. Digest
+  session logs into metadata-only summaries instead of rereading transcripts.
