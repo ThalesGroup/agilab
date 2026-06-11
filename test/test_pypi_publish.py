@@ -1799,6 +1799,7 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(
     monkeypatch.setattr(module, "update_release_proof_references", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "git_reset_pyprojects", lambda: order.append("reset"))
+    monkeypatch.setattr(module, "restore_release_file_state", lambda _snapshot: order.append("reset"))
 
     try:
         module.main()
@@ -1893,6 +1894,7 @@ def test_main_does_not_reset_release_files_after_success(tmp_path, monkeypatch) 
     monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "git_reset_pyprojects", lambda: reset_calls.append("reset"))
+    monkeypatch.setattr(module, "restore_release_file_state", lambda _snapshot: reset_calls.append("reset"))
 
     module.main()
 
@@ -2039,6 +2041,7 @@ def test_main_does_not_publish_release_metadata_when_upload_fails(tmp_path, monk
     monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
     monkeypatch.setattr(module, "create_or_update_github_release", lambda *_args, **_kwargs: order.append("github-release"))
     monkeypatch.setattr(module, "git_reset_pyprojects", lambda: order.append("reset"))
+    monkeypatch.setattr(module, "restore_release_file_state", lambda _snapshot: order.append("reset"))
 
     with pytest.raises(RuntimeError, match="upload failed"):
         module.main()
@@ -2664,6 +2667,7 @@ def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch
     monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "git_reset_pyprojects", lambda: reset_calls.append("reset"))
+    monkeypatch.setattr(module, "restore_release_file_state", lambda _snapshot: reset_calls.append("reset"))
 
     try:
         module.main()

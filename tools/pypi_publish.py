@@ -2518,6 +2518,11 @@ def main():
 
     removed_symlinks: list[tuple[pathlib.Path, str, bool]] = []
     try:
+        # Snapshot release metadata before ANY mutation (including name
+        # sanitization) so failure recovery restores the developer's own
+        # uncommitted edits instead of blanket-reverting via git checkout.
+        release_snapshot = capture_release_file_state(git_paths_to_commit(include_docs=cfg.gen_docs))
+
         if not cfg.dry_run and build_umbrella:
             removed_symlinks = remove_symlinks_for_umbrella()
 
@@ -2550,7 +2555,6 @@ def main():
             cleanup_leave_latest(cfg, version_targets)
 
         # Apply version + pin internal deps, then build
-        release_snapshot = capture_release_file_state(git_paths_to_commit(include_docs=cfg.gen_docs))
         current_versions = {name: get_version_from_pyproject(toml) for name, toml, _ in publishable_libs()}
         pins = current_versions.copy()
         pins.update(package_versions)
@@ -2722,7 +2726,11 @@ def main():
         if cfg.dry_run and release_snapshot is not None:
             restore_release_file_state(release_snapshot)
         if cfg.git_reset_on_failure and not cfg.dry_run and not release_finalized:
-            git_reset_pyprojects()
+            if release_snapshot is not None:
+                restore_release_file_state(release_snapshot)
+                print("[git] restored release metadata files to pre-run snapshot")
+            else:
+                git_reset_pyprojects()
 
 
 if __name__ == "__main__":
