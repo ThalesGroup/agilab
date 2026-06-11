@@ -3,7 +3,7 @@ name: codex-session-learning
 description: Turn past Codex debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from prior sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-06
+  updated: 2026-06-11
 ---
 
 # Codex Session Learning
@@ -12,6 +12,16 @@ Use this skill to convert prior Codex work into explicit reusable assets.
 The goal is not to pretend the agent has hidden long-term memory. The goal is to
 extract structured cases, reusable prompt patterns, and validation rules from
 earlier sessions so future bug fixing starts from a stronger prompt.
+
+## Durable destination: .tokki/rules
+
+Distilled, repo-scoped rules belong in the repo's `.tokki/rules` file
+(plain text/markdown, surfaced by `tokki rules [--root DIR]`), following the
+`.tokki/{filters,scope,loc}` conventions. Write short imperative rules there
+(which checks to run first, known pitfalls, preferred commands, what not to
+reread); keep session-specific narrative in postmortem cases instead. The
+AGILAB routing-allocation rules from the 2026-04-17 sb3_trainer session live
+there as the reference example.
 
 ## When to use
 

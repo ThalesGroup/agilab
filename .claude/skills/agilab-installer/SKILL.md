@@ -14,6 +14,16 @@ Use this skill when working on:
 - `src/agilab/apps/install.py` (app install entry)
 - Data seeding / dataset archives / post-install hooks
 
+## Tokki scope emission
+
+`install.sh` ends with `write_tokki_scope()`: after app installation it reads
+the installed-apps manifest (`~/.local/share/agilab/installed_apps.txt`) and
+writes `.tokki/scope` at the repo root, one `exclude <app-dir>/**` line per
+*_project directory not selected at install. Tokki drops these from repo maps
+(read/query still reach them). The file is machine-specific and gitignored;
+re-run the installer's app step (or add an `include` line — include overrides
+exclude) if an app the user actually works on shows up excluded.
+
 ## Golden Rules
 
 - Use `uv --preview-features extra-build-dependencies …` for Python entrypoints.

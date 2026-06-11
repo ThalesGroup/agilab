@@ -3,7 +3,7 @@ name: agilab-code-statistics
 description: Generate fast, reproducible AGILAB code statistics. Use when the user asks for code stats, LOC, file counts, language breakdowns, test/docs/source ratios, churn summaries, or a concise repository size/code footprint report without running builds.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-29
+  updated: 2026-06-11
 ---
 
 # AGILAB Code Statistics
@@ -23,6 +23,20 @@ generated docs output, and untracked scratch files do not distort the numbers.
   package builds for statistics.
 - If a tool is missing (`tokei`, `cloc`), fall back to the Python snippet below
   instead of installing dependencies.
+
+## Preferred fast path: tokki loc
+
+When the installed `tokki` CLI is available (0.3.10+), use it first — it counts
+tracked files only and prints a markdown table with a TOTAL row and KLOC summary:
+
+```bash
+tokki loc ~/PycharmProjects/agilab ~/PycharmProjects/thales_agilab
+# or with no arguments, reads repo paths from .tokki/loc in the current dir
+```
+
+Columns: python files, raw lines, effective (non-blank, non-comment) lines,
+sh+toml, docs (md+rst). Fall back to the commands below for language
+breakdowns beyond those buckets or when tokki is unavailable.
 
 ## Quick Commands
 
