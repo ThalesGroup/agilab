@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-09T08:31:20Z",
+  "generated_at_utc": "2026-06-11T16:14:23Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -472,7 +472,7 @@
       "name": "agi-node",
       "role": "runtime-component",
       "status": "PyPI package",
-      "version": "2026.06.04",
+      "version": "2026.06.06",
       "description": "Distributed worker orchestration and execution support library for AGILAB",
       "project": "src/agilab/core/agi-node",
       "pyproject": "src/agilab/core/agi-node/pyproject.toml",
@@ -483,7 +483,7 @@
       "name": "agi-cluster",
       "role": "runtime-component",
       "status": "PyPI package",
-      "version": "2026.06.05",
+      "version": "2026.06.06",
       "description": "Distributed cluster orchestration layer for AGILAB workers over local and SSH backends",
       "project": "src/agilab/core/agi-cluster",
       "pyproject": "src/agilab/core/agi-cluster/pyproject.toml",
@@ -494,7 +494,7 @@
       "name": "agi-core",
       "role": "runtime-bundle",
       "status": "PyPI package",
-      "version": "2026.06.05",
+      "version": "2026.06.06",
       "description": "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together",
       "project": "src/agilab/core/agi-core",
       "pyproject": "src/agilab/core/agi-core/pyproject.toml",
@@ -637,7 +637,7 @@
       "name": "agi-apps",
       "role": "app-umbrella",
       "status": "PyPI package",
-      "version": "2026.06.05",
+      "version": "2026.06.06",
       "description": "AGILAB public app package umbrella and example assets",
       "project": "src/agilab/lib/agi-apps",
       "pyproject": "src/agilab/lib/agi-apps/pyproject.toml",
@@ -789,7 +789,7 @@
       "name": "agilab-code-statistics",
       "description": "Generate fast, reproducible AGILAB code statistics. Use when the user asks for code stats, LOC, file counts, language breakdowns, test/docs/source ratios, churn summaries, or a concise repository size/code footprint report without running builds.",
       "path": ".claude/skills/agilab-code-statistics/SKILL.md",
-      "updated": "2026-04-29"
+      "updated": "2026-06-11"
     },
     {
       "name": "agilab-deep-audit",
@@ -903,7 +903,7 @@
       "name": "codex-session-learning",
       "description": "Turn past Codex debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from prior sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.",
       "path": ".claude/skills/codex-session-learning/SKILL.md",
-      "updated": "2026-06-06"
+      "updated": "2026-06-11"
     },
     {
       "name": "docs-publish-github-pages",
