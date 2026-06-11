@@ -1243,6 +1243,13 @@ TIME_NEXT_BUTTON_KEY = _vmn_key("increment_button")
 DECISION_STEP_KEY = _vmn_key("alloc_time_index")
 SAT_HEATMAP_STEP_KEY = _vmn_key("sat_heatmap_plot_step_s")
 FLIGHT_FILTER_KEY = _vmn_key("selected_flights_filter")
+BASE_DIR_CHOICE_KEY = _vmn_key("base_dir_choice")
+INPUT_DATADIR_KEY = _vmn_key("input_datadir")
+DF_FILE_KEY = _vmn_key("df_file")
+DF_FILES_KEY = _vmn_key("df_files")
+DF_SELECT_MODE_KEY = _vmn_key("df_select_mode")
+DF_FILE_REGEX_KEY = _vmn_key("df_file_regex")
+DF_REGEX_SELECT_ALL_KEY = _vmn_key("df_regex_select_all")
 
 
 def _coerce_slider_value(options: list[Any], current: Any, *, prefer_last: bool = False) -> Any:
@@ -2801,10 +2808,10 @@ def page():
     base_seed = _get_first_nonempty_setting(setting_sources, "base_dir_choice", "dataset_base_choice")
     input_seed = _get_first_nonempty_setting(setting_sources, "input_datadir", "dataset_custom_base")
     rel_seed = _get_first_nonempty_setting(setting_sources, "datadir_rel", "dataset_subpath")
-    if base_seed and "base_dir_choice" not in st.session_state:
-        st.session_state["base_dir_choice"] = base_seed
-    if input_seed and "input_datadir" not in st.session_state:
-        st.session_state["input_datadir"] = input_seed
+    if base_seed and BASE_DIR_CHOICE_KEY not in st.session_state:
+        st.session_state[BASE_DIR_CHOICE_KEY] = base_seed
+    if input_seed and INPUT_DATADIR_KEY not in st.session_state:
+        st.session_state[INPUT_DATADIR_KEY] = input_seed
     if rel_seed and "datadir_rel" not in st.session_state:
         st.session_state["datadir_rel"] = rel_seed
     for key in (
@@ -2824,9 +2831,6 @@ def page():
         "jitter_overlap",
         "show_metrics",
         "map_marker_style",
-        "df_select_mode",
-        "df_file_regex",
-        "df_files",
         "edges_file",
         "allocations_file",
         "baseline_allocations_file",
@@ -2836,12 +2840,19 @@ def page():
     ):
         if key in vm_settings and key not in st.session_state:
             st.session_state[key] = vm_settings[key]
+    for setting_name, session_key in (
+        ("df_select_mode", DF_SELECT_MODE_KEY),
+        ("df_file_regex", DF_FILE_REGEX_KEY),
+        ("df_files", DF_FILES_KEY),
+    ):
+        if setting_name in vm_settings and session_key not in st.session_state:
+            st.session_state[session_key] = vm_settings[setting_name]
     if SAT_HEATMAP_STEP_KEY not in st.session_state:
         saved_heatmap_step = vm_settings.get("sat_heatmap_plot_step_s")
         if saved_heatmap_step in {1, 60, 600}:
             st.session_state[SAT_HEATMAP_STEP_KEY] = int(saved_heatmap_step)
-    if "df_file" in vm_settings and "df_file" not in st.session_state:
-        st.session_state["df_file"] = vm_settings["df_file"]
+    if "df_file" in vm_settings and DF_FILE_KEY not in st.session_state:
+        st.session_state[DF_FILE_KEY] = vm_settings["df_file"]
     saved_flight_filter = vm_settings.get("selected_flights_filter")
     if FLIGHT_FILTER_KEY not in st.session_state:
         st.session_state[FLIGHT_FILTER_KEY] = saved_flight_filter if isinstance(saved_flight_filter, list) else []
@@ -2872,15 +2883,15 @@ def page():
     export_base = env.AGILAB_EXPORT_ABS
     share_base = env.share_root_path()
     base_options = ["AGI_CLUSTER_SHARE", "AGILAB_EXPORT", "Custom"]
-    base_default = qp_base or st.session_state.get("base_dir_choice") or base_seed or "AGILAB_EXPORT"
+    base_default = qp_base or st.session_state.get(BASE_DIR_CHOICE_KEY) or base_seed or "AGILAB_EXPORT"
     if base_default not in base_options:
         base_default = "AGILAB_EXPORT"
-    if st.session_state.get("base_dir_choice") not in base_options:
-        st.session_state["base_dir_choice"] = base_default
+    if st.session_state.get(BASE_DIR_CHOICE_KEY) not in base_options:
+        st.session_state[BASE_DIR_CHOICE_KEY] = base_default
     base_choice = st.sidebar.radio(
         "Base directory",
         base_options,
-        key="base_dir_choice",
+        key=BASE_DIR_CHOICE_KEY,
     )
 
     base_path: Path
@@ -2890,12 +2901,12 @@ def page():
         base_path = export_base
         base_path.mkdir(parents=True, exist_ok=True)
     else:
-        custom_default = qp_input or st.session_state.get("input_datadir") or input_seed or str(export_base)
-        if not st.session_state.get("input_datadir"):  # pragma: no cover - first-run seed for interactive text input
-            st.session_state["input_datadir"] = custom_default
+        custom_default = qp_input or st.session_state.get(INPUT_DATADIR_KEY) or input_seed or str(export_base)
+        if not st.session_state.get(INPUT_DATADIR_KEY):  # pragma: no cover - first-run seed for interactive text input
+            st.session_state[INPUT_DATADIR_KEY] = custom_default
         custom_val = st.sidebar.text_input(
             "Custom data directory",
-            key="input_datadir",
+            key=INPUT_DATADIR_KEY,
         )
         base_path = Path(custom_val).expanduser()
         if not base_path.exists():
@@ -2933,7 +2944,7 @@ def page():
 
     # Persist selection for reloads / share links
     st.query_params["base_dir_choice"] = base_choice
-    st.query_params["input_datadir"] = st.session_state.get("input_datadir", "") if base_choice == "Custom" else ""
+    st.query_params["input_datadir"] = st.session_state.get(INPUT_DATADIR_KEY, "") if base_choice == "Custom" else ""
     st.query_params["datadir_rel"] = rel_subdir
 
     final_path = (base_path / rel_subdir).expanduser() if rel_subdir else base_path.expanduser()
@@ -2946,7 +2957,7 @@ def page():
         st.session_state.datadir = final_path
     elif prev_datadir != final_path:
         st.session_state.datadir = final_path
-        st.session_state.pop("df_file", None)
+        st.session_state.pop(DF_FILE_KEY, None)
         st.session_state.pop("csv_files", None)
     with st.sidebar.expander("Resolved data path", expanded=False):
         st.caption(str(final_path))
@@ -2965,8 +2976,8 @@ def page():
 
     # Persist sidebar selections for reuse
     new_vm_settings = {
-        "base_dir_choice": st.session_state.get("base_dir_choice", "AGILAB_EXPORT"),
-        "input_datadir": st.session_state.get("input_datadir", ""),
+        "base_dir_choice": st.session_state.get(BASE_DIR_CHOICE_KEY, "AGILAB_EXPORT"),
+        "input_datadir": st.session_state.get(INPUT_DATADIR_KEY, ""),
         "datadir_rel": st.session_state.get("datadir_rel", ""),
         "file_ext_choice": st.session_state.get("file_ext_choice", "all"),
         "id_col": st.session_state.get("id_col", st.session_state.get("flight_id_col", "")),
@@ -2990,10 +3001,10 @@ def page():
         "jitter_overlap": st.session_state.get("jitter_overlap", False),
         "show_metrics": st.session_state.get("show_metrics", False),
         "map_marker_style": st.session_state.get("map_marker_style", "Plane icons"),
-        "df_file": st.session_state.get("df_file", ""),
-        "df_select_mode": st.session_state.get("df_select_mode", "Single file"),
-        "df_file_regex": st.session_state.get("df_file_regex", ""),
-        "df_files": st.session_state.get("df_files", []),
+        "df_file": st.session_state.get(DF_FILE_KEY, ""),
+        "df_select_mode": st.session_state.get(DF_SELECT_MODE_KEY, "Single file"),
+        "df_file_regex": st.session_state.get(DF_FILE_REGEX_KEY, ""),
+        "df_files": st.session_state.get(DF_FILES_KEY, []),
         "layout_type_select": st.session_state.get("layout_type_select", "spring"),
         "metric_type_select": st.session_state.get("metric_type_select", ""),
     }
@@ -3027,7 +3038,7 @@ def page():
 
     if not files:
         st.session_state.pop("csv_files", None)
-        st.session_state.pop("df_file", None)
+        st.session_state.pop(DF_FILE_KEY, None)
         st.session_state.pop("id_col", None)
         st.session_state.pop("flight_id_col", None)
         st.session_state.pop("time_col", None)
@@ -3043,29 +3054,29 @@ def page():
     prev_files_rel = st.session_state.get("_prev_csv_files_rel")
     if prev_files_rel != csv_files_rel:
         # Prune stale selections when the file list changes.
-        if st.session_state.get("df_file") not in csv_files_rel:
-            st.session_state.pop("df_file", None)
-        if isinstance(st.session_state.get("df_files"), list):
-            st.session_state["df_files"] = [
-                f for f in st.session_state["df_files"] if f in csv_files_rel
+        if st.session_state.get(DF_FILE_KEY) not in csv_files_rel:
+            st.session_state.pop(DF_FILE_KEY, None)
+        if isinstance(st.session_state.get(DF_FILES_KEY), list):
+            st.session_state[DF_FILES_KEY] = [
+                f for f in st.session_state[DF_FILES_KEY] if f in csv_files_rel
             ]
 
     df_mode_options = ["Single file", "Regex (multi)"]
-    if st.session_state.get("df_select_mode") not in df_mode_options:
-        st.session_state["df_select_mode"] = df_mode_options[0]
+    if st.session_state.get(DF_SELECT_MODE_KEY) not in df_mode_options:
+        st.session_state[DF_SELECT_MODE_KEY] = df_mode_options[0]
     df_mode = st.sidebar.radio(
         "DataFrame selection",
         options=df_mode_options,
-        key="df_select_mode",
+        key=DF_SELECT_MODE_KEY,
     )
 
     selected_files_rel: list[str] = []
     if df_mode == "Regex (multi)":
-        if "df_file_regex" not in st.session_state:
-            st.session_state["df_file_regex"] = ""
+        if DF_FILE_REGEX_KEY not in st.session_state:
+            st.session_state[DF_FILE_REGEX_KEY] = ""
         regex_raw = st.sidebar.text_input(
             "DataFrame filename regex",
-            key="df_file_regex",
+            key=DF_FILE_REGEX_KEY,
             help="Python regex applied to the relative file path. Leave empty to match all files.",
         ).strip()
         regex_ok = True
@@ -3085,44 +3096,47 @@ def page():
         if st.sidebar.button(
             f"Select all matching ({len(matching)})",
             disabled=not matching,
-            key="df_regex_select_all",
+            key=DF_REGEX_SELECT_ALL_KEY,
         ):
-            st.session_state["df_files"] = matching
+            st.session_state[DF_FILES_KEY] = matching
 
-        df_files_seed: list[str] = []
-        current_df_files = st.session_state.get("df_files")
+        current_df_files = st.session_state.get(DF_FILES_KEY)
         if isinstance(current_df_files, list):
-            df_files_seed = [f for f in current_df_files if f in csv_files_rel]
-        if not df_files_seed:
-            # Preserve the current single-file selection when switching modes.
-            seed = st.session_state.get("df_file")
+            # Prune stale entries without re-adding deselected files.
+            pruned = [f for f in current_df_files if f in csv_files_rel]
+            if pruned != current_df_files:
+                st.session_state[DF_FILES_KEY] = pruned
+        else:
+            # Seed only on first render; preserve the single-file selection when switching modes.
+            seed = st.session_state.get(DF_FILE_KEY)
             if seed in csv_files_rel:
-                df_files_seed = [seed]
+                st.session_state[DF_FILES_KEY] = [seed]
             elif csv_files_rel:
-                df_files_seed = [csv_files_rel[0]]
-        st.session_state["df_files"] = df_files_seed
+                st.session_state[DF_FILES_KEY] = [csv_files_rel[0]]
+            else:
+                st.session_state[DF_FILES_KEY] = []
 
         st.sidebar.multiselect(
             label="DataFrames",
             options=csv_files_rel,
-            key="df_files",
+            key=DF_FILES_KEY,
         )
-        current_df_files = st.session_state.get("df_files")
+        current_df_files = st.session_state.get(DF_FILES_KEY)
         if isinstance(current_df_files, list):
             selected_files_rel = [f for f in current_df_files if f in csv_files_rel]
         st.sidebar.caption(f"{len(selected_files_rel)} selected")
         if selected_files_rel:
-            st.session_state["df_file"] = selected_files_rel[0]
+            st.session_state[DF_FILE_KEY] = selected_files_rel[0]
     else:
-        if csv_files_rel and st.session_state.get("df_file") not in csv_files_rel:
-            st.session_state["df_file"] = csv_files_rel[0]
+        if csv_files_rel and st.session_state.get(DF_FILE_KEY) not in csv_files_rel:
+            st.session_state[DF_FILE_KEY] = csv_files_rel[0]
         st.sidebar.selectbox(
             label="DataFrame",
             options=csv_files_rel,
-            key="df_file",
+            key=DF_FILE_KEY,
         )
-        if st.session_state.get("df_file"):
-            selected_files_rel = [st.session_state.get("df_file")]
+        if st.session_state.get(DF_FILE_KEY):
+            selected_files_rel = [st.session_state.get(DF_FILE_KEY)]
 
     selection_sig = (df_mode, tuple(selected_files_rel))
     if st.session_state.get("_prev_df_selection_sig") != selection_sig:
@@ -4574,8 +4588,8 @@ def update_var(var_key, widget_key):
     st.session_state[var_key] = st.session_state[widget_key]
 
 def update_datadir(var_key, widget_key):
-    if "df_file" in st.session_state:
-        del st.session_state["df_file"]
+    if DF_FILE_KEY in st.session_state:
+        del st.session_state[DF_FILE_KEY]
     if "csv_files" in st.session_state:
         del st.session_state["csv_files"]
     update_var(var_key, widget_key)

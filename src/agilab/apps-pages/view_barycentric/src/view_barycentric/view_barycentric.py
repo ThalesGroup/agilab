@@ -99,6 +99,10 @@ def _vb_key(name: str) -> str:
     return f"{PAGE_KEY_PREFIX}:{name}"
 
 
+INPUT_DATADIR_KEY = _vb_key("input_datadir")
+DF_FILE_KEY = _vb_key("df_file")
+
+
 def _ensure_choice_state(key: str, options: list, default):
     if not options:
         return None
@@ -453,17 +457,17 @@ def page(env):
     # Seed session from persisted values
     if "datadir" not in st.session_state and "datadir" in view_settings:
         st.session_state["datadir"] = view_settings["datadir"]
-    if "df_file" not in st.session_state and "df_file" in view_settings:
-        st.session_state["df_file"] = view_settings["df_file"]
+    if DF_FILE_KEY not in st.session_state and "df_file" in view_settings:
+        st.session_state[DF_FILE_KEY] = view_settings["df_file"]
 
     datadir = Path(st.session_state.datadir)
     # Data directory input
     st.sidebar.text_input(
         "Data Directory",
         value=str(st.session_state.datadir),
-        key="input_datadir",
+        key=INPUT_DATADIR_KEY,
         on_change=update_datadir,
-        args=("datadir", "input_datadir"),
+        args=("datadir", INPUT_DATADIR_KEY),
     )
 
     if not datadir.exists() or not datadir.is_dir():
@@ -495,24 +499,24 @@ def page(env):
         except (TypeError, ValueError):
             continue
     csv_files_rel = sorted(csv_files_rel)
-    settings_file = st.session_state.get("df_file")
+    settings_file = st.session_state.get(DF_FILE_KEY)
     if settings_file not in csv_files_rel:
-        st.session_state["df_file"] = csv_files_rel[0]
+        st.session_state[DF_FILE_KEY] = csv_files_rel[0]
 
     # DataFrame selection
     st.sidebar.selectbox(
         label="DataFrame",
         options=csv_files_rel,
-        key="df_file",
+        key=DF_FILE_KEY,
     )
 
     # Check if a DataFrame has been selected
-    if not st.session_state.get("df_file"):
+    if not st.session_state.get(DF_FILE_KEY):
         st.warning("Please select a dataset to proceed.")
         return  # Stop further processing
 
     # Load the selected DataFrame
-    df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
+    df_file_abs = Path(st.session_state.datadir) / st.session_state[DF_FILE_KEY]
     cache_buster = None
     try:
         cache_buster = df_file_abs.stat().st_mtime_ns
@@ -537,7 +541,7 @@ def page(env):
     # Persist selections
     save_fields = {
         "datadir": str(st.session_state.get("datadir", "")),
-        "df_file": st.session_state.get("df_file", ""),
+        "df_file": st.session_state.get(DF_FILE_KEY, ""),
     }
     mutated = False
     for k, v in save_fields.items():
@@ -554,8 +558,8 @@ def page(env):
             logger.warning("Unable to persist view_barycentric settings to %s", settings_path, exc_info=True)
 
 
-    if "df_file" in st.session_state and st.session_state["df_file"]:
-        df_file_abs = Path(st.session_state.datadir) / st.session_state.df_file
+    if DF_FILE_KEY in st.session_state and st.session_state[DF_FILE_KEY]:
+        df_file_abs = Path(st.session_state.datadir) / st.session_state[DF_FILE_KEY]
         cache_buster = None
         try:
             cache_buster = df_file_abs.stat().st_mtime_ns

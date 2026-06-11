@@ -467,7 +467,7 @@ def test_page_handles_load_failure(monkeypatch, tmp_path: Path) -> None:
 
     errors: list[str] = []
     warnings: list[str] = []
-    session_state = _State(datadir=str(datadir), df_file="dataset.csv")
+    session_state = _State({"datadir": str(datadir), module.DF_FILE_KEY: "dataset.csv"})
     sidebar = SimpleNamespace(
         text_input=lambda *args, **kwargs: None,
         selectbox=lambda *args, **kwargs: None,
@@ -541,10 +541,10 @@ def test_page_with_single_distinct_axis_shows_info(monkeypatch, tmp_path: Path) 
         def __exit__(self, exc_type, exc, tb):
             return False
 
-    session_state = _State(datadir=str(datadir), df_file="dataset.csv")
+    session_state = _State({"datadir": str(datadir), module.DF_FILE_KEY: "dataset.csv"})
     sidebar = SimpleNamespace(
         text_input=lambda *args, **kwargs: None,
-        selectbox=lambda *args, **kwargs: session_state["df_file"],
+        selectbox=lambda *args, **kwargs: session_state[module.DF_FILE_KEY],
         error=lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(module, "find_files", lambda *_args, **_kwargs: [data_file])
@@ -718,15 +718,15 @@ def test_view_barycentric_page_seeds_df_file_from_persisted_settings(monkeypatch
 
     env = SimpleNamespace(target="demo_bary", projects=["demo_bary"], app_settings_file=settings_path)
     module.page(env)
-    assert session_state["df_file"] == "dataset.csv"
+    assert session_state[module.DF_FILE_KEY] == "dataset.csv"
     assert df_select_calls
     _, df_select_kwargs = df_select_calls[0]
-    assert df_select_kwargs["key"] == "df_file"
+    assert df_select_kwargs["key"] == module.DF_FILE_KEY
     assert "index" not in df_select_kwargs
     assert "args" not in df_select_kwargs
 
     assert session_state["datadir"] == str(datadir)
-    assert session_state["df_file"] == "dataset.csv"
+    assert session_state[module.DF_FILE_KEY] == "dataset.csv"
 
 
 def test_view_barycentric_main_reports_missing_app_and_page_errors(monkeypatch, tmp_path: Path) -> None:
@@ -896,10 +896,10 @@ def test_view_barycentric_page_persists_and_calls_visualisation(monkeypatch, tmp
         def __exit__(self, exc_type, exc, tb):
             return False
 
-    session_state = _State(datadir=str(datadir), df_file="dataset.csv")
+    session_state = _State({"datadir": str(datadir), module.DF_FILE_KEY: "dataset.csv"})
     sidebar = SimpleNamespace(
         text_input=lambda *args, **kwargs: None,
-        selectbox=lambda *args, **kwargs: session_state["df_file"],
+        selectbox=lambda *args, **kwargs: session_state[module.DF_FILE_KEY],
         error=lambda *args, **kwargs: None,
     )
 
@@ -973,10 +973,10 @@ def test_view_barycentric_page_seeds_persisted_df_file_and_tolerates_write_failu
         def __exit__(self, exc_type, exc, tb):
             return False
 
-    session_state = _State(datadir=str(datadir), df_file="dataset.csv")
+    session_state = _State({"datadir": str(datadir), module.DF_FILE_KEY: "dataset.csv"})
     sidebar = SimpleNamespace(
         text_input=lambda *args, **kwargs: None,
-        selectbox=lambda *args, **kwargs: session_state.get("df_file", "dataset.csv"),
+        selectbox=lambda *args, **kwargs: session_state.get(module.DF_FILE_KEY, "dataset.csv"),
         error=lambda *args, **kwargs: None,
     )
 
@@ -1021,7 +1021,7 @@ def test_view_barycentric_page_seeds_persisted_df_file_and_tolerates_write_failu
     env = SimpleNamespace(target="demo_bary", projects=["demo_bary"], app_settings_file=settings_path)
     module.page(env)
 
-    assert session_state["df_file"] == "dataset.csv"
+    assert session_state[module.DF_FILE_KEY] == "dataset.csv"
 
 
 def test_view_barycentric_main_reports_outer_exception(monkeypatch) -> None:

@@ -105,9 +105,12 @@ def _candidate_base_dirs(export_payload: dict[str, Any], sources: list[dict[str,
     roots: list[Path] = [
         artifact_dir,
         artifact_dir / "pipeline",
-        Path.home() / "localshare",
-        Path.home() / "export",
     ]
+    for configured in _setting_list(sources, "input_datadir", "dataset_custom_base"):
+        try:
+            roots.append(Path(configured).expanduser())
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
     subdirs = _setting_list(sources, "dataset_subpath", "datadir_rel")
     for base in list(roots):
         for subdir in subdirs:
@@ -404,6 +407,7 @@ def _summary_markdown(
     positions: pd.DataFrame,
     expected_artifacts: list[str],
     checked_roots: list[Path],
+    data_dir_configured: bool = True,
 ) -> Markdown:
     lines = [f"#### {title}", ""]
     if topology_path is not None:
@@ -416,7 +420,7 @@ def _summary_markdown(
     else:
         lines.append("- Trajectory files: none found")
     if graph is not None:
-        lines.append(f"- Graph nodes/edges: {graph.number_of_nodes()} / {graph.number_of_edges()}")
+        lines.append(f"- Network size: {graph.number_of_nodes()} stations, {graph.number_of_edges()} links")
     if not positions.empty:
         lines.append(f"- Positioned nodes: {len(positions)}")
     if graph is None and positions.empty:
@@ -431,6 +435,10 @@ def _summary_markdown(
             lines.extend(f"  - `{artifact}`" for artifact in expected_artifacts)
         lines.append("- Checked roots:")
         lines.extend(f"  - `{root}`" for root in checked_roots)
+        if not data_dir_configured:
+            lines.append(
+                "- Data directory not configured — set pages.view_maps_network in app settings"
+            )
     return Markdown("\n".join(lines))
 
 
@@ -451,6 +459,9 @@ def render_inline(*, page: str, record: dict[str, Any], export_payload: dict[str
             positions=positions,
             expected_artifacts=[str(item) for item in record.get("artifacts", [])],
             checked_roots=base_dirs,
+            data_dir_configured=bool(
+                _setting_list(sources, "input_datadir", "dataset_custom_base")
+            ),
         )
     ]
     if not positions.empty:

@@ -303,8 +303,11 @@ def _active_env(active_app_path: Path) -> AgiEnv:
     return env
 
 
-def _default_export_root(env: AgiEnv) -> Path:
-    export_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export"))
+def _default_export_root(env: AgiEnv) -> Path | None:
+    export_raw = getattr(env, "AGILAB_EXPORT_ABS", None)
+    if not str(export_raw or ""):
+        return None
+    export_root = Path(export_raw)
     target = str(getattr(env, "target", "") or getattr(env, "app", "") or "")
     return export_root / target if target else export_root
 
@@ -315,7 +318,7 @@ def root_candidates(env: AgiEnv, active_app_path: Path) -> dict[str, Path]:
         "Run environment": Path(getattr(env, "runenv", "") or active_app_path / ".venv"),
         "App project": active_app_path,
     }
-    return {label: path for label, path in candidates.items() if str(path)}
+    return {label: path for label, path in candidates.items() if path is not None and str(path)}
 
 
 def _state_key(app_name: str, suffix: str) -> str:
@@ -325,6 +328,10 @@ def _state_key(app_name: str, suffix: str) -> str:
 def _render_controls(env: AgiEnv, active_app_path: Path) -> tuple[Path, tuple[str, ...], int, bool, int]:
     app_name = active_app_path.name
     candidates = root_candidates(env, active_app_path)
+    if "Export artifacts" not in candidates:
+        st.sidebar.info(
+            "Data directory not configured — set pages.view_live_artifacts in app settings"
+        )
     labels = [*candidates, "Custom path"]
     root_key = _state_key(app_name, "root_choice")
     if st.session_state.get(root_key) not in labels:

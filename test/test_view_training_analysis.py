@@ -629,8 +629,8 @@ def test_view_training_analysis_main_warns_when_data_root_missing(monkeypatch, t
     module.st = SimpleNamespace(
         session_state={
             "env": env,
-            "base_dir_choice": "Custom",
-            "input_datadir": str(tmp_path / "missing-root"),
+            module.BASE_DIR_CHOICE_KEY: "Custom",
+            module.INPUT_DATADIR_KEY: str(tmp_path / "missing-root"),
             "datadir_rel": "",
         },
         sidebar=sidebar,
@@ -698,8 +698,8 @@ def test_view_training_analysis_main_bootstraps_env_when_missing(monkeypatch, tm
         module.main()
 
     assert module.st.session_state["env"].app == "trainer_project"
-    assert module.st.session_state["base_dir_choice"] == "AGI_CLUSTER_SHARE"
-    assert module.st.session_state["input_datadir"] == ""
+    assert module.st.session_state[module.BASE_DIR_CHOICE_KEY] == "AGI_CLUSTER_SHARE"
+    assert module.st.session_state[module.INPUT_DATADIR_KEY] == ""
     assert module.st.session_state["datadir_rel"] == ""
     assert module.st.session_state[module.X_AXIS_KEY] == "step"
     assert any("No TensorBoard or training-history outputs found" in message for message in warnings_seen)
@@ -744,8 +744,8 @@ def test_view_training_analysis_main_resets_state_when_active_app_changes(
             "env": old_env,
             module.APP_SCOPE_KEY: str(old_app.resolve()),
             "app_settings": {"view_training_analysis": {"datadir_rel": "stale"}},
-            "base_dir_choice": "Custom",
-            "input_datadir": str(old_export),
+            module.BASE_DIR_CHOICE_KEY: "Custom",
+            module.INPUT_DATADIR_KEY: str(old_export),
             "datadir_rel": "stale",
             module.TRAINERS_KEY: ["old-trainer"],
             module.RUN_ROOTS_KEY: ["old-run"],
@@ -788,7 +788,7 @@ def test_view_training_analysis_main_resets_state_when_active_app_changes(
             "x_axis": "step",
         }
     }
-    assert module.st.session_state["input_datadir"] == ""
+    assert module.st.session_state[module.INPUT_DATADIR_KEY] == ""
     assert module.st.session_state["datadir_rel"] == ""
     assert module.st.session_state[module.X_AXIS_KEY] == "step"
     assert module.TRAINERS_KEY not in module.st.session_state
@@ -832,9 +832,9 @@ def test_view_training_analysis_main_plots_selected_metrics(monkeypatch, tmp_pat
     module.st = SimpleNamespace(
         session_state={
             "env": env,
-            "base_dir_choice": "AGILAB_EXPORT",
+            module.BASE_DIR_CHOICE_KEY: "AGILAB_EXPORT",
             "datadir_rel": "trainer_data",
-            "input_datadir": "",
+            module.INPUT_DATADIR_KEY: "",
         },
         sidebar=SimpleNamespace(
             radio=lambda *args, **kwargs: "AGILAB_EXPORT",
@@ -990,7 +990,7 @@ def test_view_training_analysis_embedded_mode_autoscales_export_target(monkeypat
     assert markdown_calls and markdown_calls[0][1] is True
     assert captions == ["Training analysis"]
     assert discovered_roots == [target_root.resolve()]
-    assert module.st.session_state["base_dir_choice"] == "AGILAB_EXPORT"
+    assert module.st.session_state[module.BASE_DIR_CHOICE_KEY] == "AGILAB_EXPORT"
     assert module.st.session_state["datadir_rel"] == "pytorch_playground"
     assert plotted == [
         (
@@ -1093,9 +1093,9 @@ def test_view_training_analysis_main_warns_when_no_trainers_or_runs(monkeypatch,
         return SimpleNamespace(
             session_state={
                 "env": env,
-                "base_dir_choice": "AGILAB_EXPORT",
+                module.BASE_DIR_CHOICE_KEY: "AGILAB_EXPORT",
                 "datadir_rel": "trainer_data",
-                "input_datadir": "",
+                module.INPUT_DATADIR_KEY: "",
             },
             sidebar=SimpleNamespace(
                 radio=lambda *args, **kwargs: "AGILAB_EXPORT",
@@ -1152,9 +1152,9 @@ def test_view_training_analysis_main_warns_when_no_trainer_output_selected(monke
     module.st = SimpleNamespace(
         session_state={
             "env": env,
-            "base_dir_choice": "AGILAB_EXPORT",
+            module.BASE_DIR_CHOICE_KEY: "AGILAB_EXPORT",
             "datadir_rel": "trainer_data",
-            "input_datadir": "",
+            module.INPUT_DATADIR_KEY: "",
         },
         sidebar=SimpleNamespace(
             radio=lambda *args, **kwargs: "AGILAB_EXPORT",
@@ -1219,9 +1219,9 @@ def test_view_training_analysis_main_handles_selection_and_metric_edge_cases(mon
         return SimpleNamespace(
             session_state={
                 "env": env,
-                "base_dir_choice": "AGILAB_EXPORT",
+                module.BASE_DIR_CHOICE_KEY: "AGILAB_EXPORT",
                 "datadir_rel": "trainer_data",
-                "input_datadir": "",
+                module.INPUT_DATADIR_KEY: "",
             },
             sidebar=SimpleNamespace(
                 radio=lambda *args, **kwargs: "AGILAB_EXPORT",

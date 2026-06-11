@@ -55,11 +55,19 @@ RUN_ROOTS_KEY = f"{PAGE_KEY}_run_roots"
 TRAINERS_KEY = f"{PAGE_KEY}_trainers"
 TAGS_KEY = f"{PAGE_KEY}_tags"
 X_AXIS_KEY = f"{PAGE_KEY}_x_axis"
+
+
+def _vta_key(name: str) -> str:
+    return f"{PAGE_KEY}_{name}"
+
+
+BASE_DIR_CHOICE_KEY = _vta_key("base_dir_choice")
+INPUT_DATADIR_KEY = _vta_key("input_datadir")
 APP_SCOPED_SESSION_KEYS = (
     "env",
     "app_settings",
-    "base_dir_choice",
-    "input_datadir",
+    BASE_DIR_CHOICE_KEY,
+    INPUT_DATADIR_KEY,
     "datadir_rel",
     RUN_ROOTS_KEY,
     TRAINERS_KEY,
@@ -664,22 +672,22 @@ def main() -> None:
     rel_seed = _get_first_nonempty_setting(setting_sources, "datadir_rel", "dataset_subpath")
     rel_seed = _embedded_default_data_subpath(env, base_seed, rel_seed, embed_mode=embed_mode)
 
-    if "base_dir_choice" not in st.session_state:
-        st.session_state["base_dir_choice"] = base_seed
-    if "input_datadir" not in st.session_state:
-        st.session_state["input_datadir"] = custom_seed
+    if BASE_DIR_CHOICE_KEY not in st.session_state:
+        st.session_state[BASE_DIR_CHOICE_KEY] = base_seed
+    if INPUT_DATADIR_KEY not in st.session_state:
+        st.session_state[INPUT_DATADIR_KEY] = custom_seed
     if "datadir_rel" not in st.session_state:
         st.session_state["datadir_rel"] = rel_seed
     if X_AXIS_KEY not in st.session_state:
         st.session_state[X_AXIS_KEY] = page_state.get("x_axis") or "step"
 
-    base_choice = st.sidebar.radio("Base directory", base_options, key="base_dir_choice")
+    base_choice = st.sidebar.radio("Base directory", base_options, key=BASE_DIR_CHOICE_KEY)
     if base_choice == "Custom":
-        st.sidebar.text_input("Custom data directory", key="input_datadir")
+        st.sidebar.text_input("Custom data directory", key=INPUT_DATADIR_KEY)
 
     st.sidebar.text_input("Relative data subpath", key="datadir_rel")
 
-    base_path = _resolve_base_path(env, base_choice, st.session_state.get("input_datadir", ""))
+    base_path = _resolve_base_path(env, base_choice, st.session_state.get(INPUT_DATADIR_KEY, ""))
     data_root = (base_path / st.session_state.get("datadir_rel", "")).resolve()
     st.sidebar.caption(f"Resolved data root: `{data_root}`")
 
@@ -688,7 +696,7 @@ def main() -> None:
         page_state.update(
             {
                 "base_dir_choice": base_choice,
-                "input_datadir": st.session_state.get("input_datadir", ""),
+                "input_datadir": st.session_state.get(INPUT_DATADIR_KEY, ""),
                 "datadir_rel": st.session_state.get("datadir_rel", ""),
                 "x_axis": st.session_state.get(X_AXIS_KEY, "step"),
             }
@@ -702,7 +710,7 @@ def main() -> None:
         page_state.update(
             {
                 "base_dir_choice": base_choice,
-                "input_datadir": st.session_state.get("input_datadir", ""),
+                "input_datadir": st.session_state.get(INPUT_DATADIR_KEY, ""),
                 "datadir_rel": st.session_state.get("datadir_rel", ""),
                 "x_axis": st.session_state.get(X_AXIS_KEY, "step"),
             }
@@ -807,7 +815,7 @@ def main() -> None:
     page_state.update(
         {
             "base_dir_choice": base_choice,
-            "input_datadir": st.session_state.get("input_datadir", ""),
+            "input_datadir": st.session_state.get(INPUT_DATADIR_KEY, ""),
             "datadir_rel": st.session_state.get("datadir_rel", ""),
             "trainer_rel": selected_trainer_labels[0] if selected_trainer_labels else "",
             "trainer_rels": selected_trainer_labels,

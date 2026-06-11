@@ -105,13 +105,16 @@ def _page_defaults(settings: dict[str, Any]) -> dict[str, Any]:
     return defaults if isinstance(defaults, dict) else {}
 
 
-def _default_pipeline_root(env: AgiEnv, defaults: dict[str, Any]) -> Path:
+def _default_pipeline_root(env: AgiEnv, defaults: dict[str, Any]) -> Path | None:
     custom_base = str(defaults.get("dataset_custom_base") or "").strip()
     subpath = str(defaults.get("dataset_subpath") or "sb3_trainer/pipeline").strip()
     if custom_base:
         base = Path(custom_base).expanduser()
     else:
-        base = Path(getattr(env, "agi_share_path_abs", Path.home() / "clustershare" / "agi"))
+        share_raw = getattr(env, "agi_share_path_abs", None)
+        if not str(share_raw or ""):
+            return None
+        base = Path(share_raw)
     return (base / subpath).expanduser()
 
 
@@ -702,11 +705,17 @@ def main() -> None:
 
     render_streamlit_page_header(st, title="Routing Model Comparison")
 
+    if default_root is None:
+        st.info(
+            "Data directory not configured — set pages.view_routing_model_comparison in app settings"
+        )
     pipeline_dir_text = st.sidebar.text_input(
         "Pipeline directory",
-        value=str(default_root),
+        value=str(default_root) if default_root is not None else "",
         key=f"{PAGE_KEY}_pipeline_dir",
     )
+    if not pipeline_dir_text.strip():
+        return
     base_dir = Path(pipeline_dir_text).expanduser()
     file_signatures = available_file_signatures(base_dir)
     available_models = [

@@ -2446,14 +2446,14 @@ def test_view_maps_network_misc_state_and_picker_helpers(
 
     module.st = SimpleNamespace(
         session_state={
-            "df_file": "stale.csv",
+            module.DF_FILE_KEY: "stale.csv",
             "csv_files": ["stale.csv"],
             "datadir_widget": "/tmp/data",
         }
     )
     module.update_datadir("datadir", "datadir_widget")
     assert module.st.session_state["datadir"] == "/tmp/data"
-    assert "df_file" not in module.st.session_state
+    assert module.DF_FILE_KEY not in module.st.session_state
     assert "csv_files" not in module.st.session_state
 
     assert module._coerce_slider_value([1, 5, 9], "4") == 5

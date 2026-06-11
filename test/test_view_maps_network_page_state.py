@@ -830,7 +830,11 @@ def test_view_maps_network_page_recovers_stale_sidebar_state_and_hidden_files(
     assert (
         _widget_by_label(at.text_input, "DataFrame filename regex").value == "nomatch$"
     )
-    assert _widget_by_label(at.multiselect, "DataFrames").value == ["network.csv"]
+    # User deselections persist across reruns instead of being reseeded.
+    assert _widget_by_label(at.multiselect, "DataFrames").value == []
+    assert any(
+        "select at least one dataset" in warning.value for warning in at.warning
+    )
 
 
 def test_view_maps_network_page_migrates_legacy_state_and_regex_defaults(
@@ -952,7 +956,7 @@ def test_view_maps_network_page_migrates_legacy_state_and_regex_defaults(
     assert _widget_by_label(at.text_input, "DataFrame filename regex").value == ""
     assert _widget_by_label(at.multiselect, "DataFrames").value == ["a.csv"]
 
-    at.button(key="df_regex_select_all").click().run()
+    at.button(key="view_maps_network:df_regex_select_all").click().run()
     assert sorted(_widget_by_label(at.multiselect, "DataFrames").value) == [
         "a.csv",
         "b.csv",

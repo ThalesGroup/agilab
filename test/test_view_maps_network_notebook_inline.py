@@ -274,5 +274,5 @@ def test_view_maps_network_notebook_inline_graph_position_and_graph_only_paths(
         export_payload={"artifact_dir": str(export_dir)},
     )
     assert len(outputs) == 2
-    assert "Graph nodes/edges: 2 / 1" in outputs[0].data
+    assert "Network size: 2 stations, 1 links" in outputs[0].data
     assert outputs[1].layout.title.text == "Maps Network"

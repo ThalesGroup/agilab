@@ -11,6 +11,7 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import html
 import os
 import sys
 import argparse
@@ -1336,10 +1337,10 @@ def page():
                 align-items: center;
                 text-align: center;
             ">
-                <h4 style="margin-bottom: 10px; width: 100%; text-align: center;">Legend ({selected_col}):</h4>
+                <h4 style="margin-bottom: 10px; width: 100%; text-align: center;">Legend ({html.escape(str(selected_col))}):</h4>
                 <div style="width: 100%; display: flex; flex-wrap: wrap; justify-content: center;">
                 {''.join([f'<span style="margin: 0 5px; color: #{color[0]:02x}{color[1]:02x}{color[2]:02x};'
-                          f'">&#x25A0;</span><span>{category}</span>' for category, color in category_color_map.items()])}
+                          f'">&#x25A0;</span><span>{html.escape(str(category))}</span>' for category, color in category_color_map.items()])}
                  </div>
             </div>
             """
