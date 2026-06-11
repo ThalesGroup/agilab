@@ -841,7 +841,9 @@ def test_agilab_main_page_shows_agilab_version(mock_ui_env):
         for caption in at.sidebar.caption
     )
     sidebar_markdowns = [str(item.value) for item in at.sidebar.markdown]
-    assert "[Settings](/SETTINGS)" in sidebar_markdowns
+    # Settings is now a registered-route st.sidebar.page_link, not a raw
+    # markdown URL; the markdown fallback must not duplicate it.
+    assert "[Settings](/SETTINGS)" not in sidebar_markdowns
     assert (
         "[Documentation](https://thalesgroup.github.io/agilab/agilab-help.html)"
         in sidebar_markdowns
@@ -1826,9 +1828,11 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "current_page=" in sidebar_markdown
     assert "view_maps" in sidebar_markdown
     assert "### Notebooks" not in sidebar_markdown
-    assert "agilab-analysis-notebook-links" in sidebar_markdown
-    assert "current_notebook=" in sidebar_markdown
-    assert "lab_stages.ipynb" in sidebar_markdown
+    assert "agilab-analysis-notebook-links" not in sidebar_markdown
+    assert "current_notebook=" not in sidebar_markdown
+    assert any(
+        "No notebooks selected." in str(item.value) for item in at.sidebar.info
+    )
     sidebar_buttons = [button.label for button in at.sidebar.button]
     assert "view_maps" not in sidebar_buttons
     assert not [
@@ -2162,7 +2166,7 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     assert "### Notebooks" not in sidebar_markdown
     assert "extra/demo.ipynb" in sidebar_markdown
-    assert "lab_stages.ipynb" in sidebar_markdown
+    assert "lab_stages.ipynb" not in sidebar_markdown
     assert "current_notebook=" in sidebar_markdown
 
     reloaded = _app_test("src/agilab/pages/4_ANALYSIS.py")
@@ -2182,7 +2186,7 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
         str(item.value) for item in reloaded.sidebar.markdown
     )
     assert "extra/demo.ipynb" in reloaded_sidebar_markdown
-    assert "lab_stages.ipynb" in reloaded_sidebar_markdown
+    assert "lab_stages.ipynb" not in reloaded_sidebar_markdown
     assert "current_notebook=" in reloaded_sidebar_markdown
 
 
@@ -3253,9 +3257,13 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
         f"(main={len(main_selectboxes)}, sidebar={len(sidebar_selectboxes)}, "
         f"errors={[e.value for e in at.error]})"
     )
-    assert "project_selectbox" in selectbox_keys
-    assert "project_selectbox__edit" in [button.key for button in at.button]
-    assert "project_selectbox__edit" not in [button.key for button in at.sidebar.button]
+    assert "project:selectbox" in selectbox_keys
+    assert "project:selectbox__edit" in [button.key for button in at.button]
+    assert "project:selectbox__edit" not in [button.key for button in at.sidebar.button]
+    # Negative regression: the shared page header must not render a global
+    # active-project chip above the page controls.
+    chip_sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "**Flight Telemetry**" not in chip_sidebar_markdown
     assert at.session_state["sidebar_selection"] == "Overview"
     assert "templates" in at.session_state
     assert "archives" in at.session_state
@@ -3326,7 +3334,7 @@ def test_project_status_create_action_exposes_environment_strategy(mock_ui_env):
     assert "Safer for real development." not in sidebar_captions
 
 
-def test_project_editor_page_is_edit_only(mock_ui_env):
+def test_project_editor_page_routes_sidebar_actions(mock_ui_env):
     at = _app_test("src/agilab/pages/1_PROJECT.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
@@ -3343,9 +3351,9 @@ def test_project_editor_page_is_edit_only(mock_ui_env):
     at.run()
     assert not at.exception
 
-    assert at.session_state["sidebar_selection"] == "Edit"
-    assert "clone_env_strategy" not in at.session_state
-    assert "clone_dest" not in [ti.key for ti in at.sidebar.text_input]
+    assert at.session_state["sidebar_selection"] == "Create"
+    assert "clone_env_strategy" in at.session_state
+    assert "project_create_name" in [ti.key for ti in at.sidebar.text_input]
     assert not any(button.label == "Export" for button in at.sidebar.button)
 
 
@@ -3428,9 +3436,14 @@ def test_project_page_guided_sample_import_hides_manual_sidebar_controls(mock_ui
     at.run()
     assert not at.exception
 
-    assert at.session_state["create_mode"] == "From notebook"
-    assert at.session_state["clone_dest"] == "flight-telemetry-from-notebook-project"
-    assert at.session_state["notebook_clone_src"] == "flight_telemetry_project"
+    assert (
+        at.session_state[project_page.PROJECT_GUIDED_NOTEBOOK_PROJECT_KEY]
+        == "flight-telemetry-from-notebook-project"
+    )
+    assert (
+        at.session_state[project_page.PROJECT_GUIDED_NOTEBOOK_TEMPLATE_KEY]
+        == "flight_telemetry_project"
+    )
     assert (
         _widget_or_none(
             [
@@ -3442,7 +3455,10 @@ def test_project_page_guided_sample_import_hides_manual_sidebar_controls(mock_ui
         is None
     )
     assert (
-        _widget_or_none([getattr(at.sidebar, "text_input", [])], "clone_dest") is None
+        _widget_or_none(
+            [getattr(at.sidebar, "text_input", [])], "project_create_name"
+        )
+        is None
     )
     choice_widgets = [
         widget_collection

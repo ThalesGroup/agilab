@@ -425,7 +425,7 @@ def test_render_view_page_back_button_sets_app_surface_overview_flag(tmp_path: P
     else:
         raise AssertionError("Back action should rerun the Streamlit page")
 
-    assert fake_st.session_state["current_page"] == "main"
+    assert "current_page" not in fake_st.session_state
     assert fake_st.query_params["current_page"] == "main"
     assert fake_st.query_params[module._APP_SURFACE_HIDE_QUERY_PARAM] == "true"
 
@@ -1006,7 +1006,7 @@ def test_migrate_legacy_flight_analysis_page_config_keeps_network_available():
     changed = module._migrate_legacy_analysis_page_config("flight_telemetry_project", cfg)
 
     assert changed is True
-    assert cfg["pages"]["default_view"] == "view_maps"
+    assert "default_view" not in cfg["pages"]
     assert cfg["pages"]["view_module"] == [
         "view_maps",
         "view_maps_network",
@@ -1062,6 +1062,53 @@ def test_migrate_legacy_analysis_page_config_preserves_custom_flight_defaults():
 
     assert changed is False
     assert cfg["pages"] == {"default_view": "view_default", "view_module": []}
+
+
+def test_merge_pending_view_selection_stages_new_view_before_widget(tmp_path: Path):
+    module = _load_analysis_module()
+    entry = tmp_path / "my_view" / "main.py"
+    entry.parent.mkdir(parents=True)
+    entry.write_text("import streamlit as st\n", encoding="utf-8")
+    session_state = {
+        "pending_view_selection__demo_project": str(entry),
+        "view_selection__demo_project": ["view_maps"],
+    }
+    custom_view_lookup: dict[str, Path] = {}
+
+    module._merge_pending_view_selection(
+        session_state, "demo_project", tmp_path, custom_view_lookup
+    )
+
+    entry_key = str(entry.resolve())
+    assert "pending_view_selection__demo_project" not in session_state
+    assert session_state["view_selection__demo_project"] == ["view_maps", entry_key]
+    assert custom_view_lookup[entry_key] == entry.resolve()
+
+
+def test_merge_pending_view_selection_ignores_unresolvable_pending_value(tmp_path: Path):
+    module = _load_analysis_module()
+    session_state = {"pending_view_selection__demo_project": str(tmp_path / "missing")}
+    custom_view_lookup: dict[str, Path] = {}
+
+    module._merge_pending_view_selection(
+        session_state, "demo_project", tmp_path, custom_view_lookup
+    )
+
+    assert "pending_view_selection__demo_project" not in session_state
+    assert "view_selection__demo_project" not in session_state
+    assert custom_view_lookup == {}
+
+
+def test_persisted_view_module_keeps_configured_but_unresolved_views():
+    module = _load_analysis_module()
+
+    persisted = module._persisted_view_module(
+        ("view_maps",),
+        ["view_maps", "view_missing", "view_dropped"],
+        ["view_maps", "view_dropped"],
+    )
+
+    assert persisted == ["view_maps", "view_missing"]
 
 
 def test_migrate_declared_app_ui_page_config_adds_app_ui_once(tmp_path: Path):

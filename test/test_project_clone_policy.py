@@ -1091,7 +1091,7 @@ def test_notebook_import_metadata_prefills_create_defaults():
     assert defaults["recommended_template"] == "flight_telemetry_project"
     assert defaults["project_name_hint"] == "flight-telemetry-from-notebook-project"
     assert session_state["notebook_clone_src"] == "flight_telemetry_project"
-    assert session_state["clone_dest"] == "flight-telemetry-from-notebook-project"
+    assert session_state["project_create_name"] == "flight-telemetry-from-notebook-project"
 
 
 def test_notebook_project_source_options_include_apps_before_templates(tmp_path: Path):

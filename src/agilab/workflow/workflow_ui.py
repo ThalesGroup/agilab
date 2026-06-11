@@ -7,10 +7,20 @@ import inspect
 import json
 import os
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 from urllib.parse import urlencode
+
+try:  # Central navigation constants shared with the main page selector.
+    from agilab.ui.page_project_selector import (
+        MAIN_NAVIGATION_MODULES as _MAIN_NAVIGATION_MODULES,
+        NAVIGATION_PAGE_ROUTES_ATTR as _NAVIGATION_PAGE_ROUTES_ATTR,
+    )
+except ImportError:  # pragma: no cover - standalone module loading in tests
+    _NAVIGATION_PAGE_ROUTES_ATTR = "_NAVIGATION_PAGE_ROUTES"
+    _MAIN_NAVIGATION_MODULES = ("__main__", "agilab.main_page")
 
 MAX_INLINE_DOWNLOAD_BYTES = 5 * 1024 * 1024
 MAX_INLINE_PREVIEW_BYTES = 256 * 1024
@@ -218,9 +228,47 @@ def _latest_timestamp_label(timestamp: float | None) -> str:
     return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M")
 
 
+_MANIFEST_LABELS = {
+    "run_manifest.json": "Run manifest",
+    "workflow_run_manifest.json": "Workflow run manifest",
+    "notebook_export_manifest.json": "Notebook export manifest",
+}
+_MANIFEST_COUNT_FIELDS = (
+    "stages",
+    "steps",
+    "artifacts",
+    "outputs",
+    "notebooks",
+    "cells",
+    "runs",
+)
+
+
+def _manifest_summary(path: Path) -> str:
+    """Return a small parsed status/count summary for a manifest file."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        return ""
+    if not isinstance(payload, Mapping):
+        return ""
+    parts: list[str] = []
+    status = _as_text(payload.get("status") or payload.get("state") or payload.get("result"))
+    if status:
+        parts.append(f"status: {status}")
+    for field in _MANIFEST_COUNT_FIELDS:
+        value = payload.get(field)
+        if isinstance(value, (list, tuple, Mapping)):
+            parts.append(f"{field}: {len(value)}")
+        elif isinstance(value, int) and not isinstance(value, bool):
+            parts.append(f"{field}: {value}")
+    return ", ".join(parts)
+
+
 def _artifact_label(path: Path) -> str:
-    if path.name == "run_manifest.json":
-        return "Run manifest"
+    manifest_label = _MANIFEST_LABELS.get(path.name)
+    if manifest_label:
+        return manifest_label
     suffix = path.suffix.lower()
     if suffix == ".log":
         return "Runtime log"
@@ -236,16 +284,21 @@ def _artifact_label(path: Path) -> str:
 
 
 def _artifact_kind_label(path: Path) -> str:
-    if path.name == "run_manifest.json":
+    if path.name in _MANIFEST_LABELS:
         return "manifest"
     return path.suffix.lower().lstrip(".") or "file"
 
 
 def _artifact_description(path: Path, root: Path) -> str:
     try:
-        return path.relative_to(root).as_posix()
+        description = path.relative_to(root).as_posix()
     except ValueError:
-        return path.name
+        description = path.name
+    if path.name in _MANIFEST_LABELS:
+        summary = _manifest_summary(path)
+        if summary:
+            description = f"{description} ({summary})"
+    return description
 
 
 def _scan_project_evidence(env: Any | None) -> dict[str, Any]:
@@ -287,9 +340,9 @@ def _scan_project_evidence(env: Any | None) -> dict[str, Any]:
                         break
             for path in paths:
                 suffix = path.suffix.lower()
-                if path.name == "run_manifest.json" and manifest is None:
+                if path.name in _MANIFEST_LABELS and manifest is None:
                     manifest = path
-                if suffix not in _COCKPIT_ARTIFACT_SUFFIXES and path.name != "run_manifest.json":
+                if suffix not in _COCKPIT_ARTIFACT_SUFFIXES and path.name not in _MANIFEST_LABELS:
                     continue
                 count += 1
                 if len(examples) < 3:
@@ -364,13 +417,43 @@ def _run_history(env: Any | None) -> tuple[str, str, str]:
     return count, caption, state
 
 
+# Page-label -> navigation route id, matching main_page._navigation_pages().
+_PAGE_ROUTE_IDS = {
+    "PROJECT": "project",
+    "PROJECT_EDITOR": "project_editor",
+    "ORCHESTRATE": "orchestrate",
+    "WORKFLOW": "workflow",
+    "ANALYSIS": "analysis",
+    "SETTINGS": "settings",
+}
+
+
+def _navigation_page_slug(page_name: str) -> str:
+    """Resolve a page URL slug from the registered ``st.navigation`` routes.
+
+    Falls back to the page label itself when the main navigation is not
+    running (tests, standalone page execution).
+    """
+    route_id = _PAGE_ROUTE_IDS.get(_as_text(page_name).upper())
+    if route_id:
+        for module_name in _MAIN_NAVIGATION_MODULES:
+            module = sys.modules.get(module_name)
+            routes = getattr(module, _NAVIGATION_PAGE_ROUTES_ATTR, None)
+            if isinstance(routes, Mapping):
+                slug = _as_text(getattr(routes.get(route_id), "url_path", ""))
+                if slug:
+                    return slug.lstrip("/")
+    return _as_text(page_name)
+
+
 def _project_page_url(page_name: str, env: Any | None) -> str:
     params: dict[str, str] = {}
     active_app = _as_text(getattr(env, "app", "") if env is not None else "")
     if active_app:
         params["active_app"] = active_app
     query = urlencode(params)
-    return f"/{page_name}?{query}" if query else f"/{page_name}"
+    slug = _navigation_page_slug(page_name)
+    return f"/{slug}?{query}" if query else f"/{slug}"
 
 
 def _project_next_action(
@@ -446,8 +529,12 @@ def _project_cockpit_cards(page_label: str, env: Any | None) -> list[dict[str, s
     if artifact_count != 1 or artifact_suffix:
         artifact_value += "s"
     if evidence["manifest"] is not None:
+        manifest_path = Path(evidence["manifest"])
         evidence_value = artifact_value
-        evidence_caption = f"manifest: {Path(evidence['manifest']).name}"
+        evidence_caption = f"manifest: {manifest_path.name}"
+        manifest_summary = _manifest_summary(manifest_path)
+        if manifest_summary:
+            evidence_caption += f" ({manifest_summary})"
         evidence_state = "ready"
     elif artifact_count:
         evidence_value = artifact_value

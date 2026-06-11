@@ -40,8 +40,17 @@ def _on_project_change(project: str) -> None:
     env = st.session_state.get("env")
     if env is None:
         return
+    from agi_gui.pagelib import clear_project_session_state
+    from agi_gui.ui_support import store_last_active_app
+
+    clear_project_session_state(st.session_state)
     env.change_app(project)
     st.session_state["env"] = env
+    st.session_state["project_changed"] = True
+    try:
+        store_last_active_app(env.active_app)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        pass
     st.query_params["active_app"] = project
     st.rerun()
 
@@ -58,7 +67,18 @@ def main() -> None:
         docs_html_file="edit-help.html",
     )
     projects = list(getattr(env, "projects", []) or [])
-    current_project = env.app if getattr(env, "app", None) in projects else (projects[0] if projects else None)
+    app_name = getattr(env, "app", None)
+    if app_name in projects:
+        current_project = app_name
+    else:
+        # Keep the unresolved app visible instead of silently switching to
+        # another project; only a real user pick triggers a change.
+        current_project = None
+        if app_name:
+            st.warning(
+                f"Active app '{app_name}' is not in the available projects. "
+                "Pick a project below to continue."
+            )
     render_project_selector(
         st,
         projects,

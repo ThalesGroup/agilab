@@ -200,7 +200,6 @@ def _stop_for_import_guard_error(exc: BaseException) -> None:
     st.caption("Full diagnostic")
     st.code(_format_import_guard_diagnostic_for_display(message), language="text")
     st.stop()
-    raise exc
 
 
 def _import_agilab_module_or_stop(*args: Any, **kwargs: Any) -> Any:
@@ -295,6 +294,7 @@ _runtime_diagnostics_module = _LazyAgilabModule(
     fallback_name="agilab_runtime_diagnostics_fallback",
 )
 GLOBAL_DIAGNOSTICS_ENV_KEY = "AGILAB_RUNTIME_DIAGNOSTICS_VERBOSE"
+CLUSTER_VERBOSE_STATE_KEY = "_cluster_verbose_value"
 
 
 def _load_env_file_map(*args: Any, **kwargs: Any) -> Any:
@@ -659,16 +659,24 @@ def render_sidebar_settings_link(env: Any | None = None) -> None:
     settings_url = "/SETTINGS"
     docs_url = docs_menu_url("agilab-help.html")
     readme_path = _active_app_readme_path(env)
+    page_link_fn = getattr(st.sidebar, "page_link", None)
+    settings_page_route = _NAVIGATION_PAGE_ROUTES.get("settings")
+    settings_rendered = False
+    if callable(page_link_fn) and settings_page_route is not None:
+        page_link_fn(settings_page_route, label="Settings")
+        settings_rendered = True
     markdown_fn = getattr(st.sidebar, "markdown", None)
     if callable(markdown_fn):
-        markdown_fn(f"[Settings]({settings_url})")
+        if not settings_rendered:
+            markdown_fn(f"[Settings]({settings_url})")
         if readme_path is not None:
             _render_sidebar_readme_link(env, readme_path)
         markdown_fn(f"[Documentation]({docs_url})")
         return
     caption_fn = getattr(st.sidebar, "caption", None)
     if callable(caption_fn):
-        caption_fn(f"Settings: {settings_url}")
+        if not settings_rendered:
+            caption_fn(f"Settings: {settings_url}")
         if readme_path is not None:
             _render_sidebar_readme_link(env, readme_path)
         caption_fn(f"Documentation: {docs_url}")
@@ -907,7 +915,7 @@ def _store_global_runtime_diagnostics_verbose(env: Any, verbose: int) -> None:
     if hasattr(env, "envars") and isinstance(env.envars, dict):
         env.envars[GLOBAL_DIAGNOSTICS_ENV_KEY] = value
     st.session_state[GLOBAL_DIAGNOSTICS_ENV_KEY] = value
-    st.session_state["cluster_verbose"] = verbose
+    st.session_state[CLUSTER_VERBOSE_STATE_KEY] = verbose
 
 
 def _render_global_runtime_diagnostics(env: Any, container: Any | None = None) -> None:
@@ -926,7 +934,7 @@ def _render_global_runtime_diagnostics(env: Any, container: Any | None = None) -
     if selected_verbose != current_verbose:
         _store_global_runtime_diagnostics_verbose(env, selected_verbose)
     else:
-        st.session_state["cluster_verbose"] = selected_verbose
+        st.session_state[CLUSTER_VERBOSE_STATE_KEY] = selected_verbose
 
 
 def _render_global_runtime_diagnostics_control(

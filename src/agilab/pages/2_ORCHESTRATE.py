@@ -400,7 +400,9 @@ def update_log(live_log_placeholder: Any, message: str, max_lines: int = 1000) -
         live_log_placeholder,
         message,
         max_lines=max_lines,
-        cluster_verbose=st.session_state.get("cluster_verbose", 1),
+        cluster_verbose=st.session_state.get(
+            "_cluster_verbose_value", st.session_state.get("cluster_verbose", 1)
+        ),
         traceback_state=_TRACEBACK_SKIP,
         strip_ansi_fn=strip_ansi,
         is_dask_shutdown_noise_fn=is_dask_shutdown_noise,
@@ -422,7 +424,9 @@ def _append_log_lines(buffer: list[str], payload: str) -> None:
     _orchestrate_append_log_lines(
         buffer,
         payload,
-        cluster_verbose=st.session_state.get("cluster_verbose", 1),
+        cluster_verbose=st.session_state.get(
+            "_cluster_verbose_value", st.session_state.get("cluster_verbose", 1)
+        ),
         traceback_state=_TRACEBACK_SKIP,
         is_dask_shutdown_noise_fn=is_dask_shutdown_noise,
     )
@@ -1077,6 +1081,23 @@ async def _check_distribution_action(
         "stdout": stdout,
         "stderr": stderr,
     }
+    if _log_indicates_install_failure(dist_log):
+        diagnostic = classify_runtime_failure(
+            "\n".join(str(line) for line in dist_log),
+            phase="distribute",
+        )
+        if diagnostic is not None:
+            data["failure_category"] = diagnostic.category
+        return ActionResult.error(
+            diagnostic.title if diagnostic else "Distribution build failed.",
+            detail=diagnostic.detail
+            if diagnostic
+            else "Detected distribution failure in logs.",
+            next_action=diagnostic.next_action
+            if diagnostic
+            else "Check orchestration logs above, then retry CHECK distribute.",
+            data=data,
+        )
     return ActionResult.success(
         "Distribution built successfully.",
         data=data,
@@ -1090,6 +1111,7 @@ async def _install_worker_action(
     venv: Any,
     local_log: list[str],
     on_log: Optional[Callable[[], None]] = None,
+    workerless: bool = False,
 ) -> ActionResult:
     install_stdout = ""
     install_stderr = ""
@@ -1126,11 +1148,12 @@ async def _install_worker_action(
         if not str(install_stderr or "").strip():
             install_stderr = "Detected install failure in logs."
 
-    status_line = (
-        "✅ Worker deployment complete."
-        if not error_flag
-        else "❌ Worker deployment finished with errors. Check logs above."
-    )
+    if error_flag:
+        status_line = "❌ Worker deployment finished with errors. Check logs above."
+    elif workerless:
+        status_line = "✅ Manager environment ready."
+    else:
+        status_line = "✅ Worker deployment complete."
     _append_log_lines(local_log, status_line)
     data = {
         "install_command": install_command,
@@ -1159,7 +1182,7 @@ async def _install_worker_action(
             data=data,
         )
     return ActionResult.success(
-        "Worker deployment completed.",
+        "Manager environment ready." if workerless else "Worker deployment completed.",
         data=data,
     )
 
@@ -1190,16 +1213,21 @@ def render_generic_ui() -> None:
 
     args_default = st.session_state.app_settings["args"]
     for i, (key, val) in enumerate(args_default.items()):
+        # Key rows by arg name (dict-backed) so deleting a middle row does not
+        # shift widget state onto the following rows.
+        row_key = f"{env.app}__{key}"
         with cols[0 if i % ncols == 0 else 2]:
             c1, c2, c3, c4 = st.columns([5, 5, 3, 1])
-            new_key = c1.text_input("Name", value=key, key=f"args_name{i}")
-            new_val = c2.text_input("Value", value=repr(val), key=f"args_value{i}")
+            new_key = c1.text_input("Name", value=key, key=f"args_name__{row_key}")
+            new_val = c2.text_input(
+                "Value", value=repr(val), key=f"args_value__{row_key}"
+            )
             try:
                 new_val = ast.literal_eval(new_val)
             except (SyntaxError, ValueError):
                 pass
             c3.text(type(new_val).__name__)
-            remove_confirm_key = f"args_remove_confirm_{i}"
+            remove_confirm_key = f"args_remove_confirm__{row_key}"
             row_delete_confirmed = False
             row_delete_armed = False
             row_delete_canceled = False
@@ -1207,20 +1235,20 @@ def render_generic_ui() -> None:
             if st.session_state.get(remove_confirm_key, False):
                 row_delete_confirmed = c4.button(
                     "✅",
-                    key=f"args_remove_confirm_button{i}",
+                    key=f"args_remove_confirm_button__{row_key}",
                     type="primary",
                     help=f"Confirm remove {new_key}",
                 )
                 row_delete_canceled = c4.button(
                     "✖",
-                    key=f"args_remove_cancel_button{i}",
+                    key=f"args_remove_cancel_button__{row_key}",
                     type="secondary",
                     help=f"Cancel remove {new_key}",
                 )
             else:
                 row_delete_armed = c4.button(
                     "🗑️",
-                    key=f"args_remove_button{i}",
+                    key=f"args_remove_button__{row_key}",
                     type="primary",
                     help=f"Remove {new_key}",
                 )
@@ -1238,9 +1266,12 @@ def render_generic_ui() -> None:
                 new_args_list.append((new_key, new_val))
 
     c1_add, c2_add, c3_add = st.columns(3)
-    i = len(args_default) + 1
-    new_key = c1_add.text_input("Name", placeholder="Name", key=f"args_name{i}")
-    new_val = c2_add.text_input("Value", placeholder="Value", key=f"args_value{i}")
+    new_key = c1_add.text_input(
+        "Name", placeholder="Name", key=f"args_name__new__{env.app}"
+    )
+    new_val = c2_add.text_input(
+        "Value", placeholder="Value", key=f"args_value__new__{env.app}"
+    )
     if c3_add.button("Add argument", type="primary", key="args_add_arg_button"):
         if new_val == "":
             new_val = None
@@ -1795,7 +1826,7 @@ async def _render_deployment_panel(
         cmd = build_install_snippet(
             env=env,
             verbose=verbose,
-            mode=st.session_state.mode,
+            mode=st.session_state.get("mode", 0),
             scheduler=scheduler,
             workers=workers,
             workers_data_path=workers_data_path,
@@ -1888,7 +1919,9 @@ async def _render_deployment_panel(
                 )
 
             spinner_label = (
-                "Installing app..." if workerless else "Installing worker..."
+                "Deploying manager environment..."
+                if workerless
+                else "Deploying worker environments..."
             )
             with st.spinner(spinner_label):
                 result = await _install_worker_action(
@@ -1897,6 +1930,7 @@ async def _render_deployment_panel(
                     venv=venv,
                     local_log=local_log,
                     on_log=_tick_deploy_elapsed,
+                    workerless=workerless,
                 )
                 _orchestrate_finish_action_elapsed(
                     elapsed_placeholder,
@@ -1918,7 +1952,6 @@ async def _render_deployment_panel(
                     )
                 render_action_result(st, result)
                 if result.status == "success":
-                    st.session_state["SET ARGS"] = True
                     st.session_state["show_run"] = True
                     install_status = _app_install_status(env)
                     refreshed_warning = _install_status_warning_message(install_status)
@@ -2025,8 +2058,8 @@ async def _render_distribution_panel(
 
         args_serialized = serialize_args_payload(st.session_state.app_settings["args"])
         st.session_state["args_serialized"] = args_serialized
-        if st.session_state.get("args_reload_required"):
-            del st.session_state["app_settings"]
+        if st.session_state.pop("args_reload_required", False):
+            st.session_state.pop("app_settings", None)
             st.rerun()
 
     if not supports_distribution_preview(env):
@@ -2138,7 +2171,9 @@ async def _render_distribution_panel(
                                 partition_key,
                                 weights_key,
                                 show_leaf_list=st.checkbox(
-                                    "Show leaf nodes", value=False
+                                    "Show leaf nodes",
+                                    value=False,
+                                    key=f"workplan_show_leaves_graph__{env.app}",
                                 ),
                             )
                         else:
@@ -2149,7 +2184,9 @@ async def _render_distribution_panel(
                                 partition_key,
                                 weights_key,
                                 show_leaf_list=st.checkbox(
-                                    "Show leaf nodes", value=False
+                                    "Show leaf nodes",
+                                    value=False,
+                                    key=f"workplan_show_leaves_tree__{env.app}",
                                 ),
                             )
                     with tabs[1]:
@@ -2513,11 +2550,12 @@ async def page() -> None:
     # Define defaults for session state keys.
     defaults = {
         "profile_report_file": env.AGILAB_EXPORT_ABS / "profile_report.html",
+        "df_export_file": str(env.AGILAB_EXPORT_ABS / env.target / "export.csv"),
         "preview_tree": False,
         "data_source": "file",
         "scheduler_ipport": {socket.gethostbyname("localhost"): 8786},
         "workers": {"127.0.0.1": 1},
-        "learn": {0, None, None, None, 1},
+        "mode": 0,
         "args_input": {},
         "loaded_df": None,
         "df_cols": [],
@@ -2557,6 +2595,7 @@ async def page() -> None:
         # Clear generic & per-project keys to prevent bleed-through
         st.session_state.pop("cluster_enabled", None)
         st.session_state.pop("cluster_scheduler_value", None)  # legacy
+        st.session_state.pop("toggle_edit_ui", None)
         st.session_state.pop(f"deploy_expanded_{previous_project}", None)
         st.session_state.pop(f"optimize_expanded_{previous_project}", None)
         clear_cluster_widget_state(st.session_state, previous_project)
@@ -2590,10 +2629,6 @@ async def page() -> None:
         ) and os.name != "nt"
     else:
         st.session_state["rapids_default"] = False
-    if "df_export_file" not in st.session_state:
-        st.session_state["df_export_file"] = str(export_abs_module / "export.csv")
-    if "loaded_df" not in st.session_state:
-        st.session_state["loaded_df"] = None
 
     # Reload app settings after potential project change
     app_settings = st.session_state.get("app_settings")
@@ -2638,7 +2673,7 @@ async def page() -> None:
         environ=os.environ,
         settings=app_settings if isinstance(app_settings, dict) else None,
     )
-    st.session_state["cluster_verbose"] = selected_verbose_int
+    st.session_state["_cluster_verbose_value"] = selected_verbose_int
 
     with orchestrate_banner_slot:
         environment_health = _render_orchestrate_readiness_panel(

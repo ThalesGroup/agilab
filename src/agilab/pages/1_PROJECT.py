@@ -17,7 +17,6 @@ import shutil
 import json
 import shlex
 import subprocess
-import time
 import zipfile
 import html
 import hashlib
@@ -317,6 +316,12 @@ WORKFLOW_UI_SESSION_ROOT_KEYS = (
 )
 EDITOR_PIN_RESPONSE = "editor_pin"
 EDITOR_UNPIN_RESPONSE = "editor_unpin"
+PROJECT_ACTION_BANNER_KEY = "_project_action_banner"
+PROJECT_GUIDED_NOTEBOOK_PROJECT_KEY = "_project_guided_notebook_project_name"
+PROJECT_GUIDED_NOTEBOOK_TEMPLATE_KEY = "_project_guided_notebook_template"
+PROJECT_CREATE_NAME_RESET_KEY = "_project_create_name_reset"
+PROJECT_RENAME_NAME_RESET_KEY = "_project_rename_name_reset"
+PROJECT_DELETE_CONFIRM_REV_KEY = "_project_delete_confirm_rev"
 
 
 def _project_query_param_value(query_params, key: str) -> str:
@@ -1775,191 +1780,6 @@ def import_project(project_zip, ignore=False):
     st.session_state["project_imported"] = result.status == "success"
     return result
 
-    # -------------------- Project Cloner (Recursive with .venv Symlink) -------------------- #
-    def clone_directory(
-        self,
-        source_dir: Path,
-        dest_dir: Path,
-        rename_map: dict,
-        spec: PathSpec,
-        source_root: Path,
-    ):
-        """
-        Recursively copy + rename directories, files, and contents.
-        """
-        import ast
-
-        for item in source_dir.iterdir():
-            rel = item.relative_to(source_root).as_posix()
-            # skip .gitignore’d files
-            if spec.match_file(rel + ("/" if item.is_dir() else "")):
-                continue
-
-            # 1) Build a new relative path by applying map only to entire segments
-            parts = rel.split("/")
-            for i, seg in enumerate(parts):
-                for old, new in sorted(rename_map.items(), key=lambda kv: -len(kv[0])):
-                    if seg == old:
-                        parts[i] = new
-                        break
-            new_rel = "/".join(parts)
-            dst = dest_dir / new_rel
-            dst.parent.mkdir(parents=True, exist_ok=True)
-
-            # 2) Recurse / copy
-            if item.is_dir():
-                if item.name == ".venv":
-                    os.symlink(item, dst, target_is_directory=True)
-                else:
-                    self.clone_directory(item, dest_dir, rename_map, spec, source_root)
-
-            elif item.is_file():
-                suf = item.suffix.lower()
-
-                # Python → AST rename + whole‑word replace
-                if suf == ".py":
-                    src = item.read_text()
-                    try:
-                        tree = ast.parse(src)
-                        tree = ContentRenamer(rename_map).visit(tree)
-                        out = _ast_to_source(tree)
-                    except SyntaxError:
-                        out = src
-                    out = replace_content(out, rename_map)
-                    dst.write_text(out, encoding="utf-8")
-
-                # text files → whole‑word replace
-                elif suf in (".toml", ".md", ".txt", ".json", ".yaml", ".yml"):
-                    txt = item.read_text()
-                    txt = replace_content(txt, rename_map)
-                    dst.write_text(txt, encoding="utf-8")
-
-                # archives or binaries
-                else:
-                    shutil.copy2(item, dst)
-
-            elif item.is_symlink():
-                target = os.readlink(item)
-                os.symlink(target, dst, target_is_directory=item.is_dir())
-
-
-def clone_directory(
-    self,
-    source_dir: Path,
-    dest_dir: Path,
-    rename_map: dict,
-    spec: PathSpec,
-    source_root: Path,
-):
-    """
-    Recursively copy + rename directories, files, and contents.
-    """
-    for item in source_dir.iterdir():
-        rel = item.relative_to(source_root).as_posix()
-        # skip .gitignore’d files
-        if spec.match_file(rel + ("/" if item.is_dir() else "")):
-            continue
-
-        # 1) Build a new relative path by applying map only to entire segments
-        parts = rel.split("/")
-        for i, seg in enumerate(parts):
-            for old, new in sorted(rename_map.items(), key=lambda kv: -len(kv[0])):
-                if seg == old:
-                    parts[i] = new
-                    break
-        new_rel = "/".join(parts)
-
-        dst = dest_dir / new_rel
-        dst.parent.mkdir(parents=True, exist_ok=True)
-
-        # 2) Recurse / copy
-        if item.is_dir():
-            if item.name == ".venv":
-                os.symlink(item, dst, target_is_directory=True)
-            else:
-                self.clone_directory(item, dest_dir, rename_map, spec, source_root)
-
-        elif item.is_file():
-            suf = item.suffix.lower()
-
-            # First, if the **basename** matches an old→new, rename the file itself
-            base = item.stem
-            if base in rename_map:
-                dst = dst.with_name(rename_map[base] + item.suffix)
-
-            # Archives
-            if suf in (".7z", ".zip"):
-                shutil.copy2(item, dst)
-
-            # Python → AST rename + whole‑word replace
-            elif suf == ".py":
-                src = item.read_text(encoding="utf-8")
-                try:
-                    tree = ast.parse(src)
-                    renamer = ContentRenamer(rename_map)
-                    new_tree = renamer.visit(tree)
-                    out = _ast_to_source(new_tree)
-                except SyntaxError:
-                    out = src
-                out = replace_content(out, rename_map)
-                dst.write_text(out, encoding="utf-8")
-
-            # Text files → whole‑word replace
-            elif suf in (".toml", ".md", ".txt", ".json", ".yaml", ".yml"):
-                txt = item.read_text(encoding="utf-8")
-                txt = replace_content(txt, rename_map)
-                dst.write_text(txt, encoding="utf-8")
-
-            # Everything else
-            else:
-                shutil.copy2(item, dst)
-
-        elif item.is_symlink():
-            target = os.readlink(item)
-            os.symlink(target, dst, target_is_directory=item.is_dir())
-
-
-def _cleanup_rename(self, root: Path, rename_map: dict):
-    """
-    1) Rename any leftover file/dir basenames (including .py) that exactly match a key.
-    2) Rewrite text files for any straggler content references.
-    """
-    # Build simple name→new map (no slashes)
-    simple_map = {old: new for old, new in rename_map.items() if "/" not in old}
-    # Sort longest first
-    sorted_simple = sorted(simple_map.items(), key=lambda kv: len(kv[0]), reverse=True)
-
-    # -- phase 1: rename basenames bottom-up --
-    for path in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
-        old_name = path.name
-        # exact matches
-        for old, new in sorted_simple:
-            if old_name == old:
-                path.rename(path.with_name(new))
-                break
-            if old_name == f"{old}_worker" or old_name == f"{old}_project":
-                path.rename(path.with_name(old_name.replace(old, new, 1)))
-                break
-            if path.is_file() and old_name.startswith(old + "."):
-                # e.g. flight.py → truc.py
-                new_name = new + old_name[len(old) :]
-                path.rename(path.with_name(new_name))
-                break
-
-    # -- phase 2: rewrite any lingering references in text files --
-    exts = {".py", ".toml", ".md", ".json", ".yaml", ".yml", ".txt"}
-    for file in root.rglob("*"):
-        if not file.is_file() or file.suffix.lower() not in exts:
-            continue
-        txt = file.read_text(encoding="utf-8")
-        new_txt = replace_content(txt, rename_map)
-        if new_txt != txt:
-            file.write_text(new_txt, encoding="utf-8")
-
-
-import ast
-import streamlit as st
-
 
 class ContentRenamer(ast.NodeTransformer):
     """
@@ -1977,6 +1797,7 @@ class ContentRenamer(ast.NodeTransformer):
             rename_map (dict): Mapping of old names to new names.
         """
         self.rename_map = rename_map
+        self.renamed: list[str] = []
 
     def visit_Name(self, node):
         # Rename variable and function names
@@ -1997,7 +1818,7 @@ class ContentRenamer(ast.NodeTransformer):
             None
         """
         if node.id in self.rename_map:
-            st.write(f"Renaming Name: {node.id} ➔ {self.rename_map[node.id]}")
+            self.renamed.append(f"Renaming Name: {node.id} ➔ {self.rename_map[node.id]}")
             node.id = self.rename_map[node.id]
         self.generic_visit(node)  # Ensure child nodes are visited
         return node
@@ -2017,7 +1838,7 @@ class ContentRenamer(ast.NodeTransformer):
             None.
         """
         if node.attr in self.rename_map:
-            st.write(f"Renaming Attribute: {node.attr} ➔ {self.rename_map[node.attr]}")
+            self.renamed.append(f"Renaming Attribute: {node.attr} ➔ {self.rename_map[node.attr]}")
             node.attr = self.rename_map[node.attr]
         self.generic_visit(node)
         return node
@@ -2034,7 +1855,7 @@ class ContentRenamer(ast.NodeTransformer):
             ast.FunctionDef: The function node with potential name change.
         """
         if node.name in self.rename_map:
-            st.write(f"Renaming Function: {node.name} ➔ {self.rename_map[node.name]}")
+            self.renamed.append(f"Renaming Function: {node.name} ➔ {self.rename_map[node.name]}")
             node.name = self.rename_map[node.name]
         self.generic_visit(node)
         return node
@@ -2051,7 +1872,7 @@ class ContentRenamer(ast.NodeTransformer):
             ast.ClassDef: The potentially modified ClassDef node.
         """
         if node.name in self.rename_map:
-            st.write(f"Renaming Class: {node.name} ➔ {self.rename_map[node.name]}")
+            self.renamed.append(f"Renaming Class: {node.name} ➔ {self.rename_map[node.name]}")
             node.name = self.rename_map[node.name]
         self.generic_visit(node)
         return node
@@ -2075,7 +1896,7 @@ class ContentRenamer(ast.NodeTransformer):
             None.
         """
         if node.arg in self.rename_map:
-            st.write(f"Renaming Argument: {node.arg} ➔ {self.rename_map[node.arg]}")
+            self.renamed.append(f"Renaming Argument: {node.arg} ➔ {self.rename_map[node.arg]}")
             node.arg = self.rename_map[node.arg]
         self.generic_visit(node)
         return node
@@ -2095,7 +1916,7 @@ class ContentRenamer(ast.NodeTransformer):
         new_names = []
         for name in node.names:
             if name in self.rename_map:
-                st.write(f"Renaming Global Variable: {name} ➔ {self.rename_map[name]}")
+                self.renamed.append(f"Renaming Global Variable: {name} ➔ {self.rename_map[name]}")
                 new_names.append(self.rename_map[name])
             else:
                 new_names.append(name)
@@ -2118,9 +1939,7 @@ class ContentRenamer(ast.NodeTransformer):
         new_names = []
         for name in node.names:
             if name in self.rename_map:
-                st.write(
-                    f"Renaming Nonlocal Variable: {name} ➔ {self.rename_map[name]}"
-                )
+                self.renamed.append(f"Renaming Nonlocal Variable: {name} ➔ {self.rename_map[name]}")
                 new_names.append(self.rename_map[name])
             else:
                 new_names.append(name)
@@ -2173,9 +1992,7 @@ class ContentRenamer(ast.NodeTransformer):
             This function may modify the target variable in the For loop node if it exists in the rename map.
         """
         if isinstance(node.target, ast.Name) and node.target.id in self.rename_map:
-            st.write(
-                f"Renaming For Loop Variable: {node.target.id} ➔ {self.rename_map[node.target.id]}"
-            )
+            self.renamed.append(f"Renaming For Loop Variable: {node.target.id} ➔ {self.rename_map[node.target.id]}")
             node.target.id = self.rename_map[node.target.id]
         self.generic_visit(node)
         return node
@@ -2190,17 +2007,13 @@ class ContentRenamer(ast.NodeTransformer):
         for alias in node.names:
             original_name = alias.name
             if original_name in self.rename_map:
-                st.write(
-                    f"Renaming Import Module: {original_name} ➔ {self.rename_map[original_name]}"
-                )
+                self.renamed.append(f"Renaming Import Module: {original_name} ➔ {self.rename_map[original_name]}")
                 alias.name = self.rename_map[original_name]
             else:
                 # Handle compound module names if necessary
                 for old, new in self.rename_map.items():
                     if original_name.startswith(old):
-                        st.write(
-                            f"Renaming Import Module: {original_name} ➔ {original_name.replace(old, new, 1)}"
-                        )
+                        self.renamed.append(f"Renaming Import Module: {original_name} ➔ {original_name.replace(old, new, 1)}")
                         alias.name = original_name.replace(old, new, 1)
                         break
         self.generic_visit(node)
@@ -2215,37 +2028,37 @@ class ContentRenamer(ast.NodeTransformer):
         """
         # Rename the module being imported from
         if node.module in self.rename_map:
-            st.write(
-                f"Renaming ImportFrom Module: {node.module} ➔ {self.rename_map[node.module]}"
-            )
+            self.renamed.append(f"Renaming ImportFrom Module: {node.module} ➔ {self.rename_map[node.module]}")
             node.module = self.rename_map[node.module]
         else:
             for old, new in self.rename_map.items():
                 if node.module and node.module.startswith(old):
                     new_module = node.module.replace(old, new, 1)
-                    st.write(
-                        f"Renaming ImportFrom Module: {node.module} ➔ {new_module}"
-                    )
+                    self.renamed.append(f"Renaming ImportFrom Module: {node.module} ➔ {new_module}")
                     node.module = new_module
                     break
 
         # Rename the imported names
         for alias in node.names:
             if alias.name in self.rename_map:
-                st.write(
-                    f"Renaming Imported Name: {alias.name} ➔ {self.rename_map[alias.name]}"
-                )
+                self.renamed.append(f"Renaming Imported Name: {alias.name} ➔ {self.rename_map[alias.name]}")
                 alias.name = self.rename_map[alias.name]
             else:
                 for old, new in self.rename_map.items():
                     if alias.name.startswith(old):
-                        st.write(
-                            f"Renaming Imported Name: {alias.name} ➔ {alias.name.replace(old, new, 1)}"
-                        )
+                        self.renamed.append(f"Renaming Imported Name: {alias.name} ➔ {alias.name.replace(old, new, 1)}")
                         alias.name = alias.name.replace(old, new, 1)
                         break
         self.generic_visit(node)
         return node
+
+
+def render_rename_summary(renamed: list[str]) -> None:
+    """Render one compact summary for identifier renames collected by ContentRenamer."""
+    if not renamed:
+        return
+    with st.expander(f"Renamed {len(renamed)} identifier(s)", expanded=False):
+        st.code("\n".join(renamed), language="text")
 
 
 # -------------------- Code Editor Display -------------------- #
@@ -2430,8 +2243,9 @@ def render_code_editor(
                 result = _save_code_editor_file_action(path, updated_text, lang)
                 render_action_result(st, result)
                 if result.status == "success" and lang == "json":
-                    time.sleep(1)
+                    st.session_state[PROJECT_ACTION_BANNER_KEY] = result.title
                     st.session_state.pop("app_settings", None)
+                    st.rerun()
         return response
     else:
         # Case when the user doesn't have access to write to the file
@@ -3155,10 +2969,10 @@ def _render_worker_python_env(env):
 
 def _render_uv_env(env):
     app_venv_file = getattr(env, "uvproject", env.active_app / "uv_config.toml")
+    rapids_state_key = f"rapids__{env.app}"
     if app_venv_file.exists():
         app_venv = app_venv_file.read_text()
-        if "-cu12" in app_venv:
-            st.session_state["rapids"] = True
+        st.session_state[rapids_state_key] = "-cu12" in app_venv
         render_code_editor(
             app_venv_file,
             app_venv,
@@ -3169,6 +2983,7 @@ def _render_uv_env(env):
             scope="uv-config",
         )
     else:
+        st.session_state[rapids_state_key] = False
         st.warning("No uv_config.toml is defined for this project.")
 
 
@@ -3572,9 +3387,11 @@ def _apply_notebook_import_defaults_from_upload(
         previous_defaults.get("project_name_hint", "") or ""
     ).strip()
     if "project_name_hint" not in visible_defaults and previous_project_name:
-        current_project_name = str(session_state.get("clone_dest", "") or "").strip()
+        current_project_name = str(
+            session_state.get("project_create_name", "") or ""
+        ).strip()
         if current_project_name == previous_project_name:
-            session_state.pop("clone_dest", None)
+            session_state.pop("project_create_name", None)
 
     previous_template = str(
         previous_defaults.get("recommended_template", "") or ""
@@ -3590,9 +3407,11 @@ def _apply_notebook_import_defaults_from_upload(
 
     project_name_hint = str(defaults.get("project_name_hint", "") or "").strip()
     if project_name_hint:
-        current_project_name = str(session_state.get("clone_dest", "") or "").strip()
+        current_project_name = str(
+            session_state.get("project_create_name", "") or ""
+        ).strip()
         if not current_project_name or current_project_name == previous_project_name:
-            session_state["clone_dest"] = project_name_hint
+            session_state["project_create_name"] = project_name_hint
 
     recommended_template = str(defaults.get("recommended_template", "") or "").strip()
     if recommended_template in template_options:
@@ -3640,18 +3459,20 @@ def _guided_notebook_import_values(
     """Resolve the fixed project/template values for the guided sample import."""
     project_name = str(
         notebook_defaults.get("project_name_hint")
-        or session_state.get("clone_dest")
+        or session_state.get(PROJECT_GUIDED_NOTEBOOK_PROJECT_KEY)
+        or session_state.get("project_create_name")
         or default_project
     ).strip()
     template_name = str(
         notebook_defaults.get("recommended_template")
+        or session_state.get(PROJECT_GUIDED_NOTEBOOK_TEMPLATE_KEY)
         or session_state.get("notebook_clone_src")
         or default_template
     ).strip()
     if template_name not in template_options:
         template_name = default_template
-    session_state["clone_dest"] = project_name
-    session_state["notebook_clone_src"] = template_name
+    session_state[PROJECT_GUIDED_NOTEBOOK_PROJECT_KEY] = project_name
+    session_state[PROJECT_GUIDED_NOTEBOOK_TEMPLATE_KEY] = template_name
     return project_name, template_name
 
 
@@ -4428,11 +4249,12 @@ def handle_project_creation():
     Handle the 'Create' tab in the sidebar for project creation.
     """
     st.header("Create project")
+    if st.session_state.pop(PROJECT_CREATE_NAME_RESET_KEY, False):
+        st.session_state.pop("project_create_name", None)
     sample_import_requested = bool(
         st.session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY)
     )
     if sample_import_requested:
-        st.session_state["create_mode"] = CREATE_MODE_NOTEBOOK
         create_mode = CREATE_MODE_NOTEBOOK
     else:
         create_mode = compact_choice(
@@ -4447,6 +4269,7 @@ def handle_project_creation():
     guided_notebook_import = False
     guided_project_name = ""
     active_notebook_source = None
+    notebook_template_source = NOTEBOOK_PROJECT_DEFAULT_TEMPLATE
 
     if create_mode == CREATE_MODE_NOTEBOOK:
         st.caption(
@@ -4480,6 +4303,7 @@ def handle_project_creation():
                 default_template=default_template,
                 template_options=template_options,
             )
+            notebook_template_source = guided_template_name
             normalized_project_name = normalize_project_name(guided_project_name)
             st.info(
                 "AGILAB's included notebook is selected. "
@@ -4510,6 +4334,10 @@ def handle_project_creation():
                 key="notebook_clone_src",
                 default=default_template,
                 inline_limit=5,
+            )
+            notebook_template_source = str(
+                st.session_state.get("notebook_clone_src", default_template)
+                or default_template
             )
             _render_notebook_import_sample_actions(st.sidebar, st.session_state)
             st.sidebar.file_uploader(
@@ -4555,7 +4383,7 @@ def handle_project_creation():
     else:
         raw = st.sidebar.text_input(
             "New project base name",
-            key="clone_dest",
+            key="project_create_name",
             help="Enter the destination project name. AGILAB appends '_project' if it is missing.",
         ).strip()
 
@@ -4589,7 +4417,11 @@ def handle_project_creation():
             new_name = str(result.data["new_name"])
             env.change_app(new_name)
             st.session_state["switch_to_edit"] = True
-            time.sleep(1.5)
+            st.session_state[PROJECT_CREATE_NAME_RESET_KEY] = True
+            banner_parts = [result.title]
+            if result.detail:
+                banner_parts.append(str(result.detail))
+            st.session_state[PROJECT_ACTION_BANNER_KEY] = "\n\n".join(banner_parts)
             st.rerun()
 
         def _activate_notebook_project(result):
@@ -4600,6 +4432,9 @@ def handle_project_creation():
             st.session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
             st.session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY, None)
             st.session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY, None)
+            st.session_state.pop(PROJECT_GUIDED_NOTEBOOK_PROJECT_KEY, None)
+            st.session_state.pop(PROJECT_GUIDED_NOTEBOOK_TEMPLATE_KEY, None)
+            st.session_state[PROJECT_CREATE_NAME_RESET_KEY] = True
             st.session_state["project_changed"] = True
             st.session_state["_requested_lab_dir"] = new_name
             st.query_params["active_app"] = new_name
@@ -4628,10 +4463,7 @@ def handle_project_creation():
                 ),
                 lambda: _create_project_from_notebook_action(
                     env,
-                    template_source=st.session_state.get(
-                        "notebook_clone_src",
-                        NOTEBOOK_PROJECT_DEFAULT_TEMPLATE,
-                    ),
+                    template_source=notebook_template_source,
                     raw_project_name=raw,
                     uploaded_notebook=_active_notebook_import_source(st.session_state),
                     clone_env_strategy=clone_env_strategy,
@@ -4689,11 +4521,13 @@ def handle_project_rename():
         f"Rename moves the active project '{current}' and updates AGILAB to the new name."
     )
     st.sidebar.caption("Maintenance action: rename the active project.")
+    if st.session_state.pop(PROJECT_RENAME_NAME_RESET_KEY, False):
+        st.session_state.pop("project_rename_name", None)
 
     # — no on_change here —
     raw = st.sidebar.text_input(
         "Rename active project to",
-        key="clone_dest",
+        key="project_rename_name",
         help="Enter the destination project name. AGILAB appends '_project' if it is missing.",
     ).strip()
 
@@ -4709,6 +4543,7 @@ def handle_project_rename():
             new_name = str(result.data["new_name"])
             env.change_app(new_name)
             st.session_state["switch_to_edit"] = True
+            st.session_state[PROJECT_RENAME_NAME_RESET_KEY] = True
             st.rerun()
 
         run_streamlit_action(
@@ -4737,10 +4572,11 @@ def handle_project_delete():
     )
     st.sidebar.caption("Danger zone: destructive project removal.")
 
-    # Confirmation checkbox
-    confirm_delete = st.checkbox(
+    # Confirmation checkbox rendered next to the Delete button (versioned key).
+    confirm_rev = int(st.session_state.get(PROJECT_DELETE_CONFIRM_REV_KEY, 0) or 0)
+    confirm_delete = st.sidebar.checkbox(
         f"I confirm that I want to delete {env.app}.",
-        key="confirm_delete",
+        key=f"confirm_delete__{confirm_rev}",
     )
 
     # Delete button
@@ -4749,10 +4585,12 @@ def handle_project_delete():
         key="project_delete_sidebar_btn",
         type="primary",
         width="stretch",
+        disabled=not confirm_delete,
     )
     if delete_clicked:
 
         def _activate_after_delete(result):
+            st.session_state[PROJECT_DELETE_CONFIRM_REV_KEY] = confirm_rev + 1
             deleted_project = str(result.data.get("app") or env.app)
             _clear_deleted_project_runtime_state(st.session_state, deleted_project)
             next_app = result.data.get("next_app")
@@ -4939,10 +4777,14 @@ def page():
     for key, value in session_defaults.items():
         st.session_state.setdefault(key, value)
 
-    st.session_state["sidebar_selection"] = "Edit"
+    banner = st.session_state.pop(PROJECT_ACTION_BANNER_KEY, None)
+    if banner:
+        st.success(banner)
+
+    _consume_notebook_import_query_seed(st.session_state, st.query_params)
     _consume_project_section_query_seed(st.session_state, st.query_params)
 
-    handle_project_selection()
+    render_project_sidebar(env)
 
 
 # -------------------- Main Application Entry -------------------- #

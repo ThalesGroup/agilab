@@ -1571,7 +1571,7 @@ def test_execute_page_install_refreshes_status_before_run_gate(monkeypatch, tmp_
     assert returned_status is refreshed_status
     assert install_calls == ["install"]
     assert fake_st.buttons["install_btn"]["disabled"] is False
-    assert fake_st.session_state["SET ARGS"] is True
+    assert "SET ARGS" not in fake_st.session_state
     assert fake_st.session_state["show_run"] is True
     install_warning_slot = fake_st.placeholders[0]
     assert install_warning_slot.warnings == [
@@ -1912,6 +1912,57 @@ async def test_check_distribution_action_reports_run_exception(tmp_path: Path):
     assert result.title == "Distribution build failed."
     assert result.detail == "cluster unavailable"
     assert result.data["dist_log"] == ("ERROR: cluster unavailable",)
+
+
+@pytest.mark.asyncio
+async def test_check_distribution_action_reports_log_detected_failure(tmp_path: Path):
+    module = _load_orchestrate_module()
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        log_callback("TRACEBACK")
+        log_callback("RuntimeError: Command failed with exit code 1")
+        return "", ""
+
+    env = SimpleNamespace(
+        run_agi=_run_agi,
+        snippet_tail="pass",
+        is_source_env=False,
+        is_worker_env=False,
+    )
+
+    result = await module._check_distribution_action(
+        env,
+        cmd="asyncio.run(main())",
+        project_path=tmp_path / "project",
+    )
+
+    assert result.status == "error"
+    assert result.title == "Distribution build failed."
+    assert result.detail == "Detected distribution failure in logs."
+    assert "CHECK distribute" in str(result.next_action)
+
+
+@pytest.mark.asyncio
+async def test_install_worker_action_workerless_uses_manager_messaging(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        return "None\nProcess finished", ""
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+        workerless=True,
+    )
+
+    assert result.status == "success"
+    assert result.title == "Manager environment ready."
+    assert "✅ Manager environment ready." in result.data["install_log"]
 
 
 @pytest.mark.asyncio

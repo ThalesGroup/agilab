@@ -73,7 +73,7 @@ def test_render_project_selector_can_hide_edit_button_and_keep_valid_state() -> 
             return options[index]
 
     streamlit = SimpleNamespace(
-        session_state={"project_selectbox": "alpha_project"},
+        session_state={"project:selectbox": "alpha_project"},
         sidebar=Sidebar(),
         query_params={},
         switch_page=lambda *_args, **_kwargs: events.append("switch"),
@@ -88,7 +88,7 @@ def test_render_project_selector_can_hide_edit_button_and_keep_valid_state() -> 
     )
 
     assert selection == "alpha_project"
-    assert streamlit.session_state["project_selectbox"] == "alpha_project"
+    assert streamlit.session_state["project:selectbox"] == "alpha_project"
     assert events == []
 
 
@@ -133,25 +133,27 @@ def test_project_selector_refreshes_names_from_environment() -> None:
     assert env.projects == ["beta_project", "alpha_project"]
 
 
-def test_project_selector_edit_button_updates_query_and_switches_page(monkeypatch) -> None:
+def test_project_selector_edit_button_is_disabled_without_registered_route(monkeypatch) -> None:
     module = _load_module()
     switched: list[Path] = []
     changed: list[str] = []
+    button_kwargs: dict[str, object] = {}
 
     class SelectorHost:
         @staticmethod
         def selectbox(_label, options, *, index=0, **_kwargs):
             assert options == ["alpha_project", "beta_project"]
             assert index == 0
-            return "beta_project"
+            return options[index]
 
     class EditHost:
         @staticmethod
         def button(_label, **_kwargs):
+            button_kwargs.update(_kwargs)
             return True
 
     streamlit = SimpleNamespace(
-        session_state={"project_selectbox": "stale_project"},
+        session_state={"project:selectbox": "stale_project"},
         sidebar=SimpleNamespace(
             info=lambda *_args, **_kwargs: None,
             columns=lambda *_args, **_kwargs: (SelectorHost(), EditHost()),
@@ -169,9 +171,56 @@ def test_project_selector_edit_button_updates_query_and_switches_page(monkeypatc
         on_change=changed.append,
     )
 
+    # Stale session value is replaced by the real current project pre-widget.
+    assert streamlit.session_state["project:selectbox"] == "alpha_project"
+    assert selection == "alpha_project"
+    assert button_kwargs.get("disabled") is True
+    # Without a registered route the edit button must not hard-code a page path.
+    assert switched == []
+    assert "active_app" not in streamlit.query_params
+    # Selection changes fire only through the widget's own on_change callback.
+    assert changed == []
+
+
+def test_project_selector_widget_callback_fires_on_change(monkeypatch) -> None:
+    module = _load_module()
+    changed: list[str] = []
+
+    class SelectorHost:
+        def __init__(self, streamlit_holder):
+            self._holder = streamlit_holder
+
+        def selectbox(self, _label, options, *, index=0, key=None, on_change=None, **_kwargs):
+            # Simulate a real user pick: widget state mutates, callback fires.
+            self._holder["st"].session_state[key] = "beta_project"
+            on_change()
+            return "beta_project"
+
+    holder: dict[str, SimpleNamespace] = {}
+    streamlit = SimpleNamespace(
+        session_state={},
+        sidebar=SimpleNamespace(
+            info=lambda *_args, **_kwargs: None,
+            columns=lambda *_args, **_kwargs: (
+                SelectorHost(holder),
+                SimpleNamespace(button=lambda *_a, **_k: False),
+            ),
+        ),
+        query_params={},
+        switch_page=lambda *_args, **_kwargs: None,
+    )
+    holder["st"] = streamlit
+    monkeypatch.delattr(sys.modules["__main__"], "_NAVIGATION_PAGE_ROUTES", raising=False)
+    monkeypatch.setitem(sys.modules, "agilab.main_page", SimpleNamespace(_NAVIGATION_PAGE_ROUTES={}))
+
+    selection = module.render_project_selector(
+        streamlit,
+        ["alpha_project", "beta_project"],
+        "alpha_project",
+        on_change=changed.append,
+    )
+
     assert selection == "beta_project"
-    assert streamlit.query_params["active_app"] == "beta_project"
-    assert switched == [Path("pages/1_PROJECT.py")]
     assert changed == ["beta_project"]
 
 
@@ -261,7 +310,7 @@ def test_switch_to_project_page_handles_missing_switch_page_without_side_effects
     assert streamlit.query_params == {}
 
 
-def test_switch_to_project_page_can_use_fallback_path_without_active_app(monkeypatch) -> None:
+def test_switch_to_project_page_requires_registered_route(monkeypatch) -> None:
     module = _load_module()
     switched: list[Path] = []
     streamlit = SimpleNamespace(query_params={"keep": "value"}, switch_page=switched.append)
@@ -269,6 +318,6 @@ def test_switch_to_project_page_can_use_fallback_path_without_active_app(monkeyp
     monkeypatch.delattr(sys.modules["__main__"], "_NAVIGATION_PAGE_ROUTES", raising=False)
     monkeypatch.setitem(sys.modules, "agilab.main_page", SimpleNamespace(_NAVIGATION_PAGE_ROUTES={}))
 
-    assert module.switch_to_project_page(streamlit) is True
+    assert module.switch_to_project_page(streamlit, active_app="alpha_project") is False
     assert streamlit.query_params == {"keep": "value"}
-    assert switched == [Path("pages/1_PROJECT.py")]
+    assert switched == []

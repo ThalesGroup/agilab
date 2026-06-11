@@ -446,12 +446,13 @@ def _find_venv_for(script_path: Path) -> Path | None:
 
 def _port_for(key: str) -> int:
     """Stable deterministic port in [8600..8899] from a key (e.g., view path)."""
-    base_value = os.getenv(
-        "AGILAB_PAGES_BASE_PORT", os.getenv("AGILAB_PAGES_VENVS_ABS", "8600")
-    )
+    base_value = os.getenv("AGILAB_PAGES_BASE_PORT", "8600")
     try:
         base = int(base_value)
     except (TypeError, ValueError):
+        logger.warning(
+            "Ignoring non-numeric AGILAB_PAGES_BASE_PORT %r; using 8600.", base_value
+        )
         base = 8600
     span = 300
     h = int(hashlib.sha1(key.encode("utf-8")).hexdigest(), 16)
@@ -1783,7 +1784,7 @@ def _migrate_legacy_analysis_page_config(project: str | None, cfg: dict) -> bool
 
     changed = False
     if has_legacy_default:
-        pages["default_view"] = "view_maps"
+        del pages["default_view"]
         changed = True
 
     if not isinstance(raw_modules, list):
@@ -1794,8 +1795,9 @@ def _migrate_legacy_analysis_page_config(project: str | None, cfg: dict) -> bool
             for value in raw_modules
             if isinstance(value, str) and value.strip()
         ]
-        if "view_maps" not in modules:
-            modules.insert(0, "view_maps")
+        if "view_maps" in modules:
+            modules.remove("view_maps")
+        modules.insert(0, "view_maps")
         if "view_maps_network" not in modules:
             insert_at = (
                 modules.index("view_maps") + 1
@@ -2434,7 +2436,6 @@ def _render_analysis_sidebar_view_launcher(
         return
 
     builtin_names = set(resolved_pages.keys())
-    linked_views = set(selected_views)
     link_rows: list[str] = []
     missing_views: list[str] = []
     for view_name in launch_options:
@@ -2455,10 +2456,9 @@ def _render_analysis_sidebar_view_launcher(
         )
         link_href = html.escape(view_url, quote=True)
         link_label = html.escape(display_label)
-        link_weight = "650" if view_name in linked_views else "450"
         link_rows.append(
             "<div class='agilab-analysis-view-link'>"
-            f"<a href='{link_href}' style='font-weight:{link_weight};'>{link_label}</a>"
+            f"<a href='{link_href}'>{link_label}</a>"
             "</div>"
         )
 
@@ -2489,11 +2489,12 @@ def _render_analysis_sidebar_notebook_launcher(
     notebook_names: list[str],
     notebook_lookup: dict[str, Path],
 ) -> None:
-    launch_options = list(dict.fromkeys([*notebook_names, *selected_notebooks]))
+    launch_options = list(dict.fromkeys(selected_notebooks))
     if not launch_options:
+        if notebook_names:
+            st.sidebar.info("No notebooks selected.")
         return
 
-    linked_notebooks = set(selected_notebooks)
     link_rows: list[str] = []
     missing_notebooks: list[str] = []
     for notebook_name in launch_options:
@@ -2506,10 +2507,9 @@ def _render_analysis_sidebar_notebook_launcher(
             _analysis_sidebar_notebook_url(project, notebook_path), quote=True
         )
         link_label = html.escape(display_label)
-        link_weight = "650" if notebook_name in linked_notebooks else "450"
         link_rows.append(
             "<div class='agilab-analysis-notebook-link'>"
-            f"<a href='{link_href}' style='font-weight:{link_weight};'>{link_label}</a>"
+            f"<a href='{link_href}'>{link_label}</a>"
             "</div>"
         )
 
@@ -2531,6 +2531,67 @@ def _render_analysis_sidebar_notebook_launcher(
         )
     for display_label in missing_notebooks:
         st.sidebar.caption(f"Missing notebook: {display_label}")
+
+
+def _merge_pending_view_selection(
+    session_state: Any,
+    project: str | None,
+    pages_root: Path | None,
+    custom_view_lookup: dict[str, Path],
+) -> None:
+    """Merge a staged custom view into the selection before the widget is built."""
+    pending_key = f"pending_view_selection__{project or 'default'}"
+    pending_value = session_state.pop(pending_key, None)
+    if not pending_value:
+        return
+    entry = _find_view_entry(str(pending_value), pages_root)
+    if entry is None:
+        return
+    _, entry_path = entry
+    entry_key = str(entry_path)
+    custom_view_lookup[entry_key] = entry_path
+    selection_key = f"view_selection__{project or 'default'}"
+    merged = list(session_state.get(selection_key, []))
+    if entry_key not in merged:
+        merged.append(entry_key)
+    session_state[selection_key] = merged
+
+
+def _persisted_view_module(
+    config_view_module: Sequence[str],
+    configured_views: list[str],
+    offered_view_names: list[str],
+) -> list[str]:
+    """Keep configured-but-unresolved views; drop only on explicit deselection."""
+    persisted = list(config_view_module)
+    offered = set(offered_view_names)
+    for configured_value in configured_views:
+        if configured_value in persisted or configured_value in offered:
+            continue
+        if _normalize_view_name(configured_value) in offered:
+            continue
+        persisted.append(configured_value)
+    return _dedupe_preserve_order(persisted)
+
+
+_PROJECT_SCOPED_ANALYSIS_STATE_PREFIXES = (
+    "view_selection__",
+    "pending_view_selection__",
+    "notebook_selection__",
+    "sidecar_attempts__",
+    "notebook_sidecar_attempts__",
+)
+
+
+def _clear_project_scoped_analysis_state(session_state: Any) -> None:
+    """Drop project-scoped ANALYSIS session keys when the active app changes."""
+    stale_keys = [
+        key
+        for key in list(session_state.keys())
+        if str(key).startswith(_PROJECT_SCOPED_ANALYSIS_STATE_PREFIXES)
+    ]
+    for key in stale_keys:
+        del session_state[key]
 
 
 def _render_custom_analysis_page_authoring(
@@ -2590,11 +2651,12 @@ def _render_custom_analysis_page_authoring(
                     entry_key = str(entrypoint_path)
                     custom_view_lookup[entry_key] = entrypoint_path
                     all_available_views = sorted(set(all_available_views) | {entry_key})
-                    selection_key = f"view_selection__{project or 'default'}"
-                    selected_for_project = list(st.session_state.get(selection_key, []))
-                    if entry_key not in selected_for_project:
-                        selected_for_project.append(entry_key)
-                    st.session_state[selection_key] = selected_for_project
+                    # The views multiselect (key=view_selection__*) is already
+                    # instantiated for this run; stage the new view and merge it
+                    # into the selection before the widget is built on rerun.
+                    st.session_state[
+                        f"pending_view_selection__{project or 'default'}"
+                    ] = entry_key
                     bundle_root = entrypoint_path.parent
                     if (
                         entrypoint_path.parent.name == "src"
@@ -2898,17 +2960,22 @@ async def main():
         env = _initialize_analysis_env(requested_app)
     else:
         env = st.session_state["env"]
+        if requested_app and requested_app != env.app:
+            requested_path = _resolve_app_path(
+                _safe_analysis_path(getattr(env, "apps_path", None)), requested_app
+            )
+            if requested_path is not None and requested_path.name != env.app:
+                # Switch the cached env to the app requested in the URL.
+                on_project_change(str(requested_path))
+                env = _initialize_analysis_env(requested_path.name)
+                _clear_project_scoped_analysis_state(st.session_state)
 
     if env.app:
         st.query_params["active_app"] = env.app
+        _store_active_app(env)
 
     # Sidebar header/logo
     render_page_header(st, page_label="ANALYSIS", env=None)
-
-    if env.app:
-        st.query_params["active_app"] = env.app
-    if env.app:
-        _store_active_app(env)
 
     # Where to store selected pages per project
     project = env.app
@@ -2933,6 +3000,17 @@ async def main():
         migrated_cfg = True
     if _migrate_legacy_analysis_page_config(project, cfg):
         migrated_cfg = True
+    # Drop legacy default-view keys from the persisted file before any
+    # early-return route, but keep them in memory for default seeding below.
+    configured_default_keys: dict[str, Any] = {}
+    persisted_pages_cfg = cfg.get("pages")
+    if isinstance(persisted_pages_cfg, dict):
+        for legacy_key in ("default_views", "default_view"):
+            if legacy_key in persisted_pages_cfg:
+                configured_default_keys[legacy_key] = persisted_pages_cfg.pop(
+                    legacy_key
+                )
+                migrated_cfg = True
     if migrated_cfg:
         _write_config(app_settings, cfg)
     _render_analysis_project_sidebar_label(project, active_app_path, cfg)
@@ -2949,6 +3027,8 @@ async def main():
             continue
         _, custom_path = custom_entry
         custom_view_lookup[str(custom_path)] = custom_path
+
+    _merge_pending_view_selection(st.session_state, project, pages_root, custom_view_lookup)
 
     all_available_views = sorted(
         set(resolved_pages.keys()) | set(custom_view_lookup.keys())
@@ -2970,6 +3050,8 @@ async def main():
     pages_cfg = pages_cfg if isinstance(pages_cfg, dict) else {}
     surface_config = app_surface_config(active_app_path, cfg)
     pages_cfg_for_selection = dict(pages_cfg)
+    for default_key, default_value in configured_default_keys.items():
+        pages_cfg_for_selection.setdefault(default_key, default_value)
     if surface_config and _APP_UI_PAGE_KEY in configured_views:
         pages_cfg_for_selection["restrict_to_view_module"] = False
     has_view_session_selection = selection_key in st.session_state
@@ -2984,15 +3066,6 @@ async def main():
     )
     view_names = list(selection_state.view_names)
     widget_selection = list(selection_state.widget_selection)
-    if not has_view_session_selection:
-        for default_view_name in reversed(
-            tuple(getattr(selection_state, "default_view_names", ()) or ())
-        ):
-            if (
-                default_view_name in view_names
-                and default_view_name not in widget_selection
-            ):
-                widget_selection.insert(0, default_view_name)
     if st.session_state.get(selection_key) != widget_selection:
         st.session_state[selection_key] = widget_selection
     selected_views = list(widget_selection)
@@ -3160,16 +3233,13 @@ async def main():
     persisted_pages = cfg.setdefault("pages", {})
     config_changed = False
 
-    normalized_config = list(selection_state.config_view_module)
+    normalized_config = _persisted_view_module(
+        selection_state.config_view_module,
+        configured_views,
+        view_names,
+    )
     if persisted_pages.get("view_module") != normalized_config:
         persisted_pages["view_module"] = normalized_config
-        config_changed = True
-
-    if "default_views" in persisted_pages:
-        del persisted_pages["default_views"]
-        config_changed = True
-    if "default_view" in persisted_pages:
-        del persisted_pages["default_view"]
         config_changed = True
 
     if notebook_names or isinstance(cfg.get("notebooks"), dict):
@@ -3318,7 +3388,6 @@ async def render_view_page(
         back_col, title_col, _ = st.columns([1, 6, 1])
         with back_col:
             if st.button("← Back to Analysis", type="primary"):
-                st.session_state["current_page"] = "main"
                 st.query_params["current_page"] = "main"
                 for key, value in (back_query_params or {}).items():
                     st.query_params[key] = value

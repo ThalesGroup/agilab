@@ -206,7 +206,14 @@ def ensure_page_env(
         return streamlit.session_state["env"]
 
     about_page = load_about_page_module(current_file, load_module=load_module)
-    about_page.main()
+    bootstrap_environment = getattr(about_page, "_ensure_navigation_environment", None)
+    resources_path_fn = getattr(about_page, "_about_resources_path", None)
+    if callable(bootstrap_environment) and callable(resources_path_fn):
+        # Run only the environment bootstrap; never nest a full
+        # ``st.navigation().run()`` inside a page run.
+        bootstrap_environment(resources_path_fn(), rerun_after_bootstrap=False)
+    else:
+        about_page.main()
     streamlit.rerun()
     return None
 
@@ -298,7 +305,8 @@ def render_page_header(
 
     render_logo()
     render_pinned_expanders(streamlit)
-    render_active_project_chip(streamlit, env=env)
+    # Conventions ban a global active-project chip above page controls; pages
+    # opting in can call render_active_project_chip explicitly.
     if show_project_context and render_page_context is not None:
         render_page_context(streamlit, page_label=page_label, env=env)
 

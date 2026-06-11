@@ -1156,7 +1156,11 @@ def display_log(
     combined = "\n".join([clean_stdout, clean_stderr]).strip()
     log_verbose = 1
     try:
-        log_verbose = int(session_state.get("cluster_verbose", 1))
+        log_verbose = int(
+            session_state.get(
+                "_cluster_verbose_value", session_state.get("cluster_verbose", 1)
+            )
+        )
     except (AttributeError, TypeError, ValueError):
         log_verbose = 1
 

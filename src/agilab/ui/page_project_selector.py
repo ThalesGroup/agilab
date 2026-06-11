@@ -12,6 +12,7 @@ PROJECT_EDITOR_PAGE_PATH = Path("pages/1_PROJECT.py")
 PROJECT_ROUTE_ID = PROJECT_EDITOR_ROUTE_ID
 PROJECT_PAGE_PATH = PROJECT_EDITOR_PAGE_PATH
 MAIN_NAVIGATION_MODULES = ("__main__", "agilab.main_page")
+PROJECT_SELECTBOX_KEY = "project:selectbox"
 
 
 def _unique_project_names(projects: Iterable[Any]) -> list[str]:
@@ -52,13 +53,14 @@ def _registered_navigation_page(route_id: str) -> Any | None:
 
 
 def switch_to_project_page(streamlit: Any, *, active_app: str | None = None) -> bool:
-    """Switch to PROJECT_EDITOR using the active ``st.navigation`` page when available."""
+    """Switch to PROJECT_EDITOR using the registered ``st.navigation`` page only."""
     switch_page = getattr(streamlit, "switch_page", None)
-    if not callable(switch_page):
+    project_page = _registered_navigation_page(PROJECT_ROUTE_ID)
+    if not callable(switch_page) or project_page is None:
         return False
     if active_app is not None:
         streamlit.query_params["active_app"] = str(active_app)
-    switch_page(_registered_navigation_page(PROJECT_ROUTE_ID) or PROJECT_PAGE_PATH)
+    switch_page(project_page)
     return True
 
 
@@ -68,7 +70,7 @@ def render_project_selector(
     current_project: str | None,
     *,
     on_change: Callable[[str], None],
-    key: str = "project_selectbox",
+    key: str = PROJECT_SELECTBOX_KEY,
     label: str = "Project",
     help_text: str = "Project workspace used by this page. Type in the dropdown to search.",
     show_edit_button: bool = True,
@@ -89,6 +91,15 @@ def render_project_selector(
 
     if streamlit.session_state.get(key) not in project_names:
         streamlit.session_state.pop(key, None)
+    if current in project_names and streamlit.session_state.get(key) != current:
+        # Sync the widget to the environment before render so stale session
+        # values cannot revert project changes made elsewhere.
+        streamlit.session_state[key] = current
+
+    def _emit_change() -> None:
+        chosen = streamlit.session_state.get(key)
+        if chosen and chosen != current:
+            on_change(chosen)
 
     default_index = project_names.index(current) if current in project_names else 0
     selector_host = target
@@ -102,11 +113,17 @@ def render_project_selector(
         index=default_index,
         key=key,
         help=help_text,
+        on_change=_emit_change,
         label_visibility="collapsed",
     )
     if show_edit_button:
-        if edit_host.button(edit_label, key=f"{key}__edit", help=f"Edit {selection}.", width="stretch"):
+        project_page_available = _registered_navigation_page(PROJECT_ROUTE_ID) is not None
+        if edit_host.button(
+            edit_label,
+            key=f"{key}__edit",
+            help=f"Edit {selection}.",
+            width="stretch",
+            disabled=not project_page_available,
+        ):
             switch_to_project_page(streamlit, active_app=selection)
-    if selection != current:
-        on_change(selection)
     return selection

@@ -1105,7 +1105,12 @@ def _multi_app_dag_engine(
         stage_submitter = build_multi_app_dag_distributed_stage_submitter(
             env=env,
             app_settings=st.session_state.get("app_settings"),
-            verbose=int(st.session_state.get("cluster_verbose", 0) or 0),
+            verbose=int(
+            st.session_state.get(
+                "_cluster_verbose_value", st.session_state.get("cluster_verbose", 0)
+            )
+            or 0
+        ),
         )
     return DagRunEngine(
         repo_root=repo_root,
@@ -1125,7 +1130,12 @@ def _multi_app_dag_distributed_request_preview_rows(
     settings = load_dag_distributed_settings(env, st.session_state.get("app_settings"))
     config = dag_distributed_stage_config_from_settings(
         settings,
-        verbose=int(st.session_state.get("cluster_verbose", 0) or 0),
+        verbose=int(
+            st.session_state.get(
+                "_cluster_verbose_value", st.session_state.get("cluster_verbose", 0)
+            )
+            or 0
+        ),
     )
     if config is None:
         return []

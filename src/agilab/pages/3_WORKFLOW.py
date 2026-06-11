@@ -2,6 +2,7 @@ import logging
 import os
 import json
 import html
+import socket
 from pathlib import Path
 import importlib
 import importlib.util
@@ -154,7 +155,9 @@ _pipeline_ai_module = import_agilab_symbols(
         "UOAIC_PROVIDER": "UOAIC_PROVIDER",
         "UOAIC_REBUILD_FLAG_KEY": "UOAIC_REBUILD_FLAG_KEY",
         "UOAIC_RUNTIME_KEY": "UOAIC_RUNTIME_KEY",
+        "GENERATION_MODE_PYTHON_SNIPPET": "GENERATION_MODE_PYTHON_SNIPPET",
         "GENERATION_MODE_SAFE_ACTIONS": "GENERATION_MODE_SAFE_ACTIONS",
+        "STAGE_GENERATION_MODE_FIELD": "STAGE_GENERATION_MODE_FIELD",
         "ask_gpt": "ask_gpt",
         "configure_assistant_engine": "configure_assistant_engine",
         "extract_code": "extract_code",
@@ -327,6 +330,44 @@ def on_page_change() -> None:
     st.session_state.page_broken = True
 
 
+def _set_runtime_selection(index_page: str, name: str, value: str) -> None:
+    """Persist a runtime selection under the project-scoped key and the legacy global key."""
+    st.session_state[f"{index_page}__{name}"] = value
+    st.session_state[name] = value
+
+
+def _restore_runtime_selections(index_page: str) -> None:
+    """Re-seed legacy global runtime keys from the project-scoped copies."""
+    for name in ("lab_selected_venv", "lab_selected_engine"):
+        scoped = st.session_state.get(f"{index_page}__{name}")
+        if scoped is not None and not st.session_state.get(name):
+            st.session_state[name] = scoped
+
+
+def _generation_failure_state_key(index_page: str) -> str:
+    """Project-scoped key holding the last assistant/contract generation failure."""
+    return f"{index_page}__generation_failure"
+
+
+def _effective_generation_mode(index_page: str, stage: int) -> str:
+    """Return the persisted assistant generation mode for a stage (default: safe actions)."""
+    safe_prefix = str(index_page).replace("/", "_")
+    for key in (
+        f"{safe_prefix}_generation_mode_{stage}",
+        f"{safe_prefix}_first_generation_mode",
+        f"{safe_prefix}_new_generation_mode",
+    ):
+        raw = str(st.session_state.get(key) or "").strip()
+        if not raw:
+            continue
+        if raw == GENERATION_MODE_PYTHON_SNIPPET or raw.lower().startswith(
+            "python snippet"
+        ):
+            return GENERATION_MODE_PYTHON_SNIPPET
+        return GENERATION_MODE_SAFE_ACTIONS
+    return GENERATION_MODE_SAFE_ACTIONS
+
+
 def on_stage_change(
     module_dir: Path,
     stages_file: Path,
@@ -344,8 +385,10 @@ def on_stage_change(
     # Drop any existing editor instance state for this stage (best-effort)
     st.session_state.pop(f"{index_page}_a_{index_stage}", None)
     venv_map = st.session_state.get(f"{index_page}__venv_map", {})
-    st.session_state["lab_selected_venv"] = normalize_runtime_path(
-        venv_map.get(index_stage, "")
+    _set_runtime_selection(
+        index_page,
+        "lab_selected_venv",
+        normalize_runtime_path(venv_map.get(index_stage, "")),
     )
     # Do not call st.rerun() here: callbacks automatically trigger a rerun
     # after returning. Rely on the updated session_state to refresh the UI.
@@ -376,17 +419,17 @@ def load_last_stage(
             venv_map = st.session_state.setdefault(f"{index_page}__venv_map", {})
             if e:
                 venv_map[current_stage] = e
-                st.session_state["lab_selected_venv"] = e
+                _set_runtime_selection(index_page, "lab_selected_venv", e)
             else:
                 venv_map.pop(current_stage, None)
-                st.session_state["lab_selected_venv"] = ""
+                _set_runtime_selection(index_page, "lab_selected_venv", "")
             engine_map = st.session_state.setdefault(f"{index_page}__engine_map", {})
             selected_engine = entry.get("R", "") or ("agi.run" if e else "runpy")
             if selected_engine:
                 engine_map[current_stage] = selected_engine
             else:
                 engine_map.pop(current_stage, None)
-            st.session_state["lab_selected_engine"] = selected_engine
+            _set_runtime_selection(index_page, "lab_selected_engine", selected_engine)
             # Drive the text area via session state, using a revisioned key to control remounts
             q_rev = st.session_state.get(f"{index_page}__q_rev", 0)
             prompt_key = f"{index_page}_q__{q_rev}"
@@ -426,7 +469,7 @@ def clean_query(index_page: str) -> None:
         details_store.pop(current_stage, None)
         venv_store = st.session_state.setdefault(f"{index_page}__venv_map", {})
         venv_store.pop(current_stage, None)
-        st.session_state["lab_selected_venv"] = ""
+        _set_runtime_selection(index_page, "lab_selected_venv", "")
 
 
 def _resolve_dataframe_selection(
@@ -671,12 +714,13 @@ def on_query_change(
                 )
                 return
 
+            generation_mode = _effective_generation_mode(index_page, stage)
             answer = ask_gpt(
                 raw_text,
                 df_file,
                 index_page,
                 env.envars,
-                generation_mode=GENERATION_MODE_SAFE_ACTIONS,
+                generation_mode=generation_mode,
                 load_df_cached=load_df_cached,
             )
             detail = answer[4] if len(answer) > 4 else ""
@@ -684,13 +728,18 @@ def on_query_change(
             extra_fields = (
                 answer[5] if len(answer) > 5 and isinstance(answer[5], dict) else None
             )
+            if extra_fields is None:
+                extra_fields = {STAGE_GENERATION_MODE_FIELD: generation_mode}
+            else:
+                extra_fields.setdefault(STAGE_GENERATION_MODE_FIELD, generation_mode)
             if not str(answer[3] if len(answer) > 3 else "").strip():
-                if detail:
-                    st.info(detail)
-                else:
-                    st.info(
-                        "Assistant response did not include runnable code. Stage was not saved."
-                    )
+                # Callback output vanishes on rerun; stash the failure so the
+                # next render can surface it beside the stage editor.
+                st.session_state[_generation_failure_state_key(index_page)] = {
+                    "detail": detail
+                    or "Assistant response did not include runnable code. Stage was not saved.",
+                    "query": raw_text,
+                }
                 return
             venv_map = st.session_state.get(f"{index_page}__venv_map", {})
             engine_map = st.session_state.get(f"{index_page}__engine_map", {})
@@ -712,9 +761,11 @@ def on_query_change(
             else:
                 details_store[stage] = detail
             if skipped:
-                st.info(
-                    "Assistant response did not include runnable code. Stage was not saved."
-                )
+                st.session_state[_generation_failure_state_key(index_page)] = {
+                    "detail": detail
+                    or "Assistant response did not include runnable code. Stage was not saved.",
+                    "query": raw_text,
+                }
             _bump_history_revision()
             st.session_state[index_page][0] = stage
             # Deterministic mapping to D/Q/M/C slots
@@ -726,8 +777,11 @@ def on_query_change(
             e = entry.get("E", "")
             if e:
                 venv_map[stage] = e
-                st.session_state["lab_selected_venv"] = e
-            st.session_state[f"{index_page}_q"] = q
+                _set_runtime_selection(index_page, "lab_selected_venv", e)
+            # Write the prompt to the active revisioned widget key so the
+            # rerendered text area shows the saved query (see load_last_stage).
+            q_rev = st.session_state.get(f"{index_page}__q_rev", 0)
+            st.session_state[f"{index_page}_q__{q_rev}"] = q
             st.session_state[index_page][-1] = nstage
         st.session_state.pop(f"{index_page}_a_{stage}", None)
         st.session_state.page_broken = True
@@ -880,14 +934,17 @@ def sidebar_controls() -> None:
     if not modules:
         modules = [env.target] if env.target else []
 
+    # Consume the navigation intent exactly once; it only applies when it
+    # normalizes to a known module.
     requested_lab = _normalize_lab_choice(
-        st.session_state.get("_requested_lab_dir"), modules
+        st.session_state.pop("_requested_lab_dir", None), modules
     )
 
     # If no explicit project was known, prefer the configured environment target.
     project_changed = st.session_state.pop("project_changed", False)
     if project_changed:
         for key in (
+            "project:selectbox",
             "project_selectbox",
             "lab_dir_selectbox",
             "lab_dir",
@@ -900,6 +957,8 @@ def sidebar_controls() -> None:
             "df_files",
             "df_dir",
             "lab_prompt",
+            "lab_selected_venv",
+            "lab_selected_engine",
             "_experiment_reload_required",
         ):
             st.session_state.pop(key, None)
@@ -924,8 +983,14 @@ def sidebar_controls() -> None:
         persisted_lab = requested_lab or normalized_target or env.target
     else:
         persisted_lab = (
-            _normalize_lab_choice(_qp_first("lab_dir_selectbox"), modules)
-            or _normalize_lab_choice(st.session_state.get("project_selectbox"), modules)
+            requested_lab
+            or _normalize_lab_choice(_qp_first("lab_dir_selectbox"), modules)
+            or _normalize_lab_choice(
+                st.session_state.get(
+                    "project:selectbox", st.session_state.get("project_selectbox")
+                ),
+                modules,
+            )
             or _normalize_lab_choice(st.session_state.get("lab_dir_selectbox"), modules)
             or _normalize_lab_choice(st.session_state.get("lab_dir"), modules)
             or _normalize_lab_choice(last_active, modules)
@@ -941,14 +1006,16 @@ def sidebar_controls() -> None:
         persisted_lab = normalized_target
 
     st.session_state.pop("project_filter", None)
+    st.session_state.pop("project:selectbox", None)
     st.session_state.pop("project_selectbox", None)
+    # Detect a real lab change by comparing the resolved selection against the
+    # previously stored value before overwriting it.
+    previous_lab = _normalize_lab_choice(st.session_state.get("lab_dir"), modules)
     selected_lab = persisted_lab
     st.session_state["lab_dir_selectbox"] = selected_lab
     st.session_state["lab_dir"] = selected_lab
-    if selected_lab != persisted_lab:
+    if previous_lab and selected_lab != previous_lab:
         on_lab_change(selected_lab)
-    if requested_lab and st.session_state.get("lab_dir_selectbox") == requested_lab:
-        st.session_state.pop("_requested_lab_dir", None)
 
     try:
         diagnostics_settings_file = env.resolve_user_app_settings_file(selected_lab)
@@ -963,7 +1030,7 @@ def sidebar_controls() -> None:
         environ=os.environ,
         settings=diagnostics_settings,
     )
-    st.session_state["cluster_verbose"] = selected_diagnostics_verbose
+    st.session_state["_cluster_verbose_value"] = selected_diagnostics_verbose
 
     stages_file_name = st.session_state["stages_file_name"]
     export_root = _pipeline_export_root(env)
@@ -1125,6 +1192,16 @@ def sidebar_controls() -> None:
     # Last active app is now persisted via on_lab_change when user switches labs.
 
 
+@st.cache_data(ttl=5, show_spinner=False)
+def _mlflow_server_responding(port: int) -> bool:
+    """Cheap cached liveness probe for the local MLflow UI."""
+    try:
+        with socket.create_connection(("127.0.0.1", int(port)), timeout=0.5):
+            return True
+    except (OSError, TypeError, ValueError):
+        return False
+
+
 def mlflow_controls() -> None:
     """Display MLflow UI controls in sidebar."""
     if not st.session_state.get("server_started"):
@@ -1133,8 +1210,9 @@ def mlflow_controls() -> None:
     st.sidebar.divider()
     mlflow_port = st.session_state.get("mlflow_port", 5000)
     mlflow_url = f"http://localhost:{mlflow_port}"
+    status = "running" if _mlflow_server_responding(mlflow_port) else "not responding"
     st.sidebar.markdown(f"### [MLflow]({mlflow_url})")
-    st.sidebar.markdown(f"**Status:** running  \n**Port:** `{mlflow_port}`")
+    st.sidebar.markdown(f"**Status:** {status}  \n**Port:** `{mlflow_port}`")
 
 
 def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
@@ -1466,6 +1544,73 @@ def _render_pipeline_workspace_overview(
             )
 
 
+def _render_generation_failure(index_page: str) -> None:
+    """Surface the last stashed assistant/contract failure beside the stage editor."""
+    failure = st.session_state.pop(_generation_failure_state_key(index_page), None)
+    if not isinstance(failure, dict):
+        return
+    st.error("Stage generation failed; the stage was not saved.")
+    detail = str(failure.get("detail") or "").strip()
+    if detail:
+        st.code(detail, language="text")
+
+
+@st.cache_data(show_spinner=False)
+def _stages_file_validation_issues(stages_file: Path, mtime_ns: int) -> List[str]:
+    """Return cheap static validation issues for a stages file (cached on mtime)."""
+    del mtime_ns
+    try:
+        from agilab.workflow_validation import validate_lab_stages_file
+    except ImportError:
+        return []
+    try:
+        report = validate_lab_stages_file(Path(stages_file))
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return []
+    issues: List[str] = []
+    for issue in report.get("issues", []):
+        if not isinstance(issue, dict):
+            continue
+        severity = str(issue.get("severity") or "").strip()
+        message = str(issue.get("message") or "").strip()
+        if message:
+            issues.append(f"{severity}: {message}" if severity else message)
+    return issues
+
+
+def _render_stages_file_summary(lab_dir: Path, stages_file: Path) -> None:
+    """Compact read-only inspection surface for the active lab_stages.toml."""
+    stages = [
+        entry
+        for entry in get_stages_list(lab_dir, stages_file)
+        if isinstance(entry, dict)
+    ]
+    with st.expander(f"Stages file summary ({stages_file.name})", expanded=False):
+        st.caption(f"Stages file: `{stages_file}`")
+        st.caption(f"{len(stages)} stage(s) recorded.")
+        for index, entry in enumerate(stages):
+            name = _stage_summary(entry) or f"Stage {index}"
+            mode = str(entry.get(STAGE_GENERATION_MODE_FIELD) or "").strip()
+            parts = [mode or "mode not recorded"]
+            if mode == GENERATION_MODE_SAFE_ACTIONS:
+                parts.append(
+                    "contract recorded"
+                    if str(entry.get("action_contract_sha256") or "").strip()
+                    else "contract missing"
+                )
+            st.caption(f"{index}. {name} ({', '.join(parts)})")
+        if stages_file.exists():
+            try:
+                mtime_ns = stages_file.stat().st_mtime_ns
+            except OSError:
+                mtime_ns = 0
+            issues = _stages_file_validation_issues(stages_file, mtime_ns)
+            if issues:
+                st.caption("Validation issues:")
+                for issue in issues[:8]:
+                    st.caption(f"- {issue}")
+
+
 def _load_about_page_module():
     """Load the main page module using import fallback for source and packaged layouts."""
     return _load_about_page_module_impl(__file__, load_module=load_local_module)
@@ -1524,6 +1669,7 @@ def page() -> None:
     if st.session_state.pop(f"{index_page_str}__clear_q", False):
         q_rev = st.session_state.get(f"{index_page_str}__q_rev", 0)
         st.session_state.pop(f"{index_page_str}_q__{q_rev}", None)
+    _restore_runtime_selections(index_page_str)
     load_last_stage(module_path, stages_file, index_page_str)
 
     df_file = st.session_state.get("df_file")
@@ -1582,9 +1728,9 @@ def page() -> None:
         safe_service_template_marker=SAFE_SERVICE_START_TEMPLATE_MARKER,
     )
 
+    _render_generation_failure(index_page_str)
     display_lab_tab(lab_dir, index_page_str, stages_file, module_path, env, lab_deps)
-    # Disabled per request to hide the lab_stages.toml expander from the main UI.
-    # display_history_tab(stages_file, module_path)
+    _render_stages_file_summary(lab_dir, stages_file)
 
 
 @st.cache_data
