@@ -323,6 +323,42 @@ tools/pypi_release_retention.py
     ) in module.validate_workflow_contract(workflow)
 
 
+def test_release_plan_job_gate_validation_flags_semantic_violations(tmp_path: Path) -> None:
+    module = _load_module()
+    live = (REPO_ROOT / ".github/workflows/pypi-publish.yaml").read_text(encoding="utf-8")
+    workflow = tmp_path / "pypi-publish.yaml"
+
+    workflow.write_text(
+        live.replace(
+            "if: ${{ !cancelled() && needs.release-plan.result == 'success' "
+            "&& needs.release-audit.result == 'success'",
+            "if: ${{ always() && needs.release-plan.result == 'success' "
+            "&& needs.release-audit.result == 'success'",
+        ),
+        encoding="utf-8",
+    )
+    missing = module.validate_workflow_job_gates(workflow)
+    assert any("must not use \"always()\"" in error for error in missing)
+
+    workflow.write_text(
+        live.replace(
+            "      - release-audit\n      - release-plan\n"
+            "    if: ${{ needs.release-plan.outputs.pypi_publish_selected",
+            "      - release-plan\n"
+            "    if: ${{ needs.release-plan.outputs.pypi_publish_selected",
+        ),
+        encoding="utf-8",
+    )
+    missing = module.validate_workflow_job_gates(workflow)
+    assert any(
+        "job 'test' must declare needs 'release-audit'" in error for error in missing
+    )
+
+    assert module.validate_workflow_job_gates(
+        REPO_ROOT / ".github/workflows/pypi-publish.yaml"
+    ) == []
+
+
 def test_release_plan_current_workflow_consumes_generated_matrix() -> None:
     module = _load_module()
     missing = module.validate_workflow_contract(

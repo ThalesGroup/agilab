@@ -281,7 +281,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install release-plan dependencies
-        run: python -m pip install --upgrade --no-cache-dir packaging
+        run: python -m pip install --upgrade --no-cache-dir packaging pyyaml
 
       - name: Render release package plan
         id: release-plan

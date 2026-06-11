@@ -487,6 +487,123 @@ def write_github_output(path: Path, payload: dict[str, Any]) -> None:
         handle.write("\n".join(lines) + "\n")
 
 
+JOB_GATE_CONTRACT: dict[str, dict[str, Any]] = {
+    "release-audit": {
+        "description": (
+            "every release run must pass the strict audit and typo check even when "
+            "PyPI publishing is skipped"
+        ),
+        "needs": set(),
+        "if_required": (),
+        "if_forbidden": ("always()",),
+        "ungated": True,
+    },
+    "test": {
+        "description": (
+            "release preflight must wait for the audit and release plan and skip when "
+            "nothing will be published"
+        ),
+        "needs": {"release-audit", "release-plan"},
+        "if_required": ("needs.release-plan.outputs.pypi_publish_selected == 'true'",),
+        "if_forbidden": ("always()",),
+    },
+    "release-evidence": {
+        "description": (
+            "release evidence must wait for the release plan and skip when nothing "
+            "will be published"
+        ),
+        "needs": {"release-plan", "test"},
+        "if_required": (
+            "!cancelled()",
+            "needs.release-plan.outputs.pypi_publish_selected == 'true'",
+            "needs.test.result == 'success'",
+        ),
+        "if_forbidden": ("always()",),
+    },
+    "supply-chain-evidence": {
+        "description": (
+            "supply-chain evidence must wait for the release plan and skip when "
+            "nothing will be published"
+        ),
+        "needs": {"release-plan", "test"},
+        "if_required": (
+            "!cancelled()",
+            "needs.release-plan.outputs.pypi_publish_selected == 'true'",
+            "needs.test.result == 'success'",
+        ),
+        "if_forbidden": ("always()",),
+    },
+    "publish-dataset-release-assets": {
+        "description": (
+            "dataset release assets must pass the audit and still run when the "
+            "PyPI-only preflight is intentionally skipped"
+        ),
+        "needs": {"test", "release-plan", "release-audit"},
+        "if_required": (
+            "!cancelled()",
+            "needs.release-plan.result == 'success'",
+            "needs.release-audit.result == 'success'",
+            "needs.test.result == 'success' || needs.test.result == 'skipped'",
+        ),
+        "if_forbidden": ("always()",),
+    },
+}
+
+
+def validate_workflow_job_gates(workflow_path: Path) -> list[str]:
+    """Semantically validate job needs/if gating instead of matching YAML bytes."""
+
+    try:
+        import yaml
+    except ImportError:  # pragma: no cover - environment without PyYAML
+        return ["workflow job-gate validation requires PyYAML: pip install pyyaml"]
+
+    try:
+        document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        return [f"workflow is not parseable YAML: {exc}"]
+
+    jobs = document.get("jobs") if isinstance(document, dict) else None
+    if not isinstance(jobs, dict):
+        return [
+            f"{contract['description']}: job '{name}' is missing"
+            for name, contract in JOB_GATE_CONTRACT.items()
+        ]
+
+    missing: list[str] = []
+    for name, contract in JOB_GATE_CONTRACT.items():
+        job = jobs.get(name)
+        if not isinstance(job, dict):
+            missing.append(f"{contract['description']}: job '{name}' is missing")
+            continue
+        needs = job.get("needs") or []
+        if isinstance(needs, str):
+            needs = [needs]
+        needs_set = set(needs)
+        for required_need in sorted(contract["needs"] - needs_set):
+            missing.append(
+                f"{contract['description']}: job '{name}' must declare needs '{required_need}'"
+            )
+        condition = " ".join(str(job.get("if", "")).split())
+        if contract.get("ungated") and condition:
+            missing.append(
+                f"{contract['description']}: job '{name}' must run unconditionally"
+            )
+        for required_clause in contract["if_required"]:
+            if required_clause not in condition:
+                missing.append(
+                    f"{contract['description']}: job '{name}' if-gate must include "
+                    f"\"{required_clause}\""
+                )
+        for forbidden_clause in contract["if_forbidden"]:
+            if forbidden_clause in condition:
+                missing.append(
+                    f"{contract['description']}: job '{name}' if-gate must not use "
+                    f"\"{forbidden_clause}\" (use !cancelled() so cancelled runs stop publishing)"
+                )
+    return missing
+
+
 def validate_workflow_contract(workflow_path: Path) -> list[str]:
     """Return missing workflow fragments for the generated release-plan contract."""
 
@@ -563,21 +680,6 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         ),
         "needs.release-plan.outputs.pypi_publish_selected == 'true'": (
             "release asset jobs must be skippable when no PyPI package is selected"
-        ),
-        "release-audit:": (
-            "every release run must pass the strict audit and typo check even when PyPI publishing is skipped"
-        ),
-        "test:\n    needs:\n      - release-audit\n      - release-plan\n    if: ${{ needs.release-plan.outputs.pypi_publish_selected == 'true' }}": (
-            "release preflight must wait for the release plan and skip when nothing will be published"
-        ),
-        "release-evidence:\n    needs:\n      - release-plan\n      - test\n    if: ${{ !cancelled() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' }}": (
-            "release evidence must wait for the release plan and skip when nothing will be published"
-        ),
-        "supply-chain-evidence:\n    needs:\n      - release-plan\n      - test\n    if: ${{ !cancelled() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' }}": (
-            "supply-chain evidence must wait for the release plan and skip when nothing will be published"
-        ),
-        "publish-dataset-release-assets:\n    if: ${{ !cancelled() && needs.release-plan.result == 'success' && needs.release-audit.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}": (
-            "dataset release assets must still run when the PyPI-only preflight is intentionally skipped"
         ),
         "- release-plan": "library publishing must depend on the generated release plan",
         "name: ${{ matrix.pypi_environment }}": (
@@ -713,6 +815,7 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
             "PyPI release retention must fail closed while stale releases remain: "
             "remove '--allow-delete-failure-warning'"
         )
+    missing.extend(validate_workflow_job_gates(workflow_path))
     return missing
 
 

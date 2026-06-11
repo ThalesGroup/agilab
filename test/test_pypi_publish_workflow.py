@@ -46,27 +46,26 @@ def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None
 def test_pypi_publish_blocks_downstream_publish_jobs_when_preflight_fails() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
-    assert "test:\n    needs:\n      - release-audit\n      - release-plan" in text
-    assert (
-        "test:\n    needs:\n      - release-audit\n      - release-plan\n"
-        "    if: ${{ needs.release-plan.outputs.pypi_publish_selected == 'true' }}"
-    ) in text
-    assert (
-        "release-evidence:\n"
-        "    needs:\n"
-        "      - release-plan\n"
-        "      - test\n"
-        "    if: ${{ !cancelled() && needs.release-plan.outputs.pypi_publish_selected == 'true' "
-        "&& needs.test.result == 'success' }}"
-    ) in text
-    assert (
-        "supply-chain-evidence:\n"
-        "    needs:\n"
-        "      - release-plan\n"
-        "      - test\n"
-        "    if: ${{ !cancelled() && needs.release-plan.outputs.pypi_publish_selected == 'true' "
-        "&& needs.test.result == 'success' }}"
-    ) in text
+    jobs = yaml.safe_load(text)["jobs"]
+    assert "if" not in jobs["release-audit"], "release-audit must run on every release"
+    assert set(jobs["test"]["needs"]) >= {"release-audit", "release-plan"}
+    assert "needs.release-plan.outputs.pypi_publish_selected == 'true'" in jobs["test"]["if"]
+    for evidence_job in ("release-evidence", "supply-chain-evidence"):
+        assert set(jobs[evidence_job]["needs"]) >= {"release-plan", "test"}
+        condition = jobs[evidence_job]["if"]
+        assert "!cancelled()" in condition
+        assert "always()" not in condition
+        assert "needs.release-plan.outputs.pypi_publish_selected == 'true'" in condition
+        assert "needs.test.result == 'success'" in condition
+    dataset_condition = jobs["publish-dataset-release-assets"]["if"]
+    assert "!cancelled()" in dataset_condition
+    assert "always()" not in dataset_condition
+    assert "needs.release-audit.result == 'success'" in dataset_condition
+    assert set(jobs["publish-dataset-release-assets"]["needs"]) >= {
+        "test",
+        "release-plan",
+        "release-audit",
+    }
     assert "publish-agilab:" in text
     assert "pypi-provenance-evidence:" in text
     assert "needs.test.result == 'success'" in text
@@ -120,11 +119,6 @@ def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
 
     assert 'python-version: ["3.13"]' in text
     assert 'python-version: ["3.13", "3.14"]' not in text
-    assert "test:\n    needs:\n      - release-audit\n      - release-plan" in text
-    assert (
-        "test:\n    needs:\n      - release-audit\n      - release-plan\n"
-        "    if: ${{ needs.release-plan.outputs.pypi_publish_selected == 'true' }}"
-    ) in text
     assert "Run strict AGILAB audit review" in text
     assert "tools/agilab_audit.py --strict" in text
     assert text.index("tools/agilab_audit.py --strict") < text.index(
