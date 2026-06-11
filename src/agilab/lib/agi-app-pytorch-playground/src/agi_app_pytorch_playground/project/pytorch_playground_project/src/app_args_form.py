@@ -286,6 +286,43 @@ def _field_key(env: Any, name: str) -> str:
     return f"{APP_FORM_ID}:{_project_key(env)}:{name}"
 
 
+def _persisted_sig_key(env: Any) -> str:
+    return f"{APP_FORM_ID}:{_project_key(env)}:__persisted_payload"
+
+
+def _reseed_widgets_if_payload_changed(
+    env: Any, defaults_model: Any, defaults_payload: dict[str, Any]
+) -> None:
+    """Overwrite stale widget state when the persisted [args] payload changed
+    outside this form (project switch, generic editor, manual TOML edit) so the
+    widgets reflect the freshly loaded settings. Must run before any widget
+    renders; writing keyed widget state is only safe pre-instantiation."""
+    sig_key = _persisted_sig_key(env)
+    if sig_key not in st.session_state:
+        # First render in this session: record the payload and let widgets seed
+        # lazily so pre-seeded widget state (e.g. from the host page) survives.
+        st.session_state[sig_key] = dict(defaults_payload)
+        return
+    if st.session_state[sig_key] == defaults_payload:
+        return
+    for field in FORM_FIELDS:
+        value = getattr(defaults_model, field.name)
+        if field.widget == "feature_names":
+            value = list(_coerce_feature_names(value, default=DEFAULT_FEATURES))
+        elif field.widget == "selectbox":
+            value = value if value in field.options else field.options[0]
+        elif field.widget == "text_input":
+            value = str(value)
+        else:
+            value = _coerce_field_value(field, value)
+        st.session_state[_field_key(env, field.name)] = value
+    st.session_state[sig_key] = dict(defaults_payload)
+
+
+def _mark_payload_synced(env: Any, parsed: "app_args.PytorchPlaygroundArgs") -> None:
+    st.session_state[_persisted_sig_key(env)] = parsed.model_dump(mode="json")
+
+
 def _seed_widget_value(key: str, value: Any) -> None:
     if key not in st.session_state:
         st.session_state[key] = value
@@ -407,6 +444,7 @@ def persist_current_args(*, env: Any | None = None) -> app_args.PytorchPlaygroun
         settings_path=settings_path,
         defaults_payload=defaults_payload,
     )
+    _mark_payload_synced(active_env, parsed)
     return parsed
 
 
@@ -824,6 +862,7 @@ def render(
     defaults_model, defaults_payload, settings_path = load_args_state(
         active_env, args_module=app_args
     )
+    _reseed_widgets_if_payload_changed(active_env, defaults_model, defaults_payload)
 
     artifact_target = str(
         getattr(active_env, "target", "")
@@ -904,6 +943,7 @@ def render(
                 settings_path=settings_path,
                 defaults_payload=defaults_payload,
             )
+            _mark_payload_synced(active_env, parsed)
             if not snippet_rendered:
                 _render_synced_run_snippet(
                     output_container, env=active_env, parsed=parsed, compact=compact

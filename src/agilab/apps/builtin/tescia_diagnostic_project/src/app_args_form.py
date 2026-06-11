@@ -162,62 +162,89 @@ st.caption(
 )
 st.caption(f"Analysis artifacts are exported to `{artifact_root}`.")
 
-st.session_state.setdefault(_k("data_in"), str(current_payload.get("data_in", "") or ""))
-st.session_state.setdefault(_k("data_out"), str(current_payload.get("data_out", "") or ""))
-st.session_state.setdefault(
-    _k("submission_inbox"),
+# Seed widget state before instantiation (never write to widget keys afterwards).
+# Reseed when the persisted [args] payload changed outside this form (project
+# switch, generic editor, manual TOML edit) so widgets stay in sync.
+_persisted_sig_key = _k("__persisted_payload")
+_reseed = (
+    _persisted_sig_key in st.session_state
+    and st.session_state[_persisted_sig_key] != current_payload
+)
+st.session_state[_persisted_sig_key] = current_payload
+
+
+def _seed(name: str, value: Any) -> None:
+    key = _k(name)
+    if _reseed or key not in st.session_state:
+        st.session_state[key] = value
+
+
+_seed("data_in", str(current_payload.get("data_in", "") or ""))
+_seed("data_out", str(current_payload.get("data_out", "") or ""))
+_seed(
+    "submission_inbox",
     str(current_payload.get("submission_inbox", "tescia_diagnostic/submissions") or ""),
 )
-st.session_state.setdefault(
-    _k("include_submission_inbox"),
-    bool(current_payload.get("include_submission_inbox", True)),
-)
-st.session_state.setdefault(_k("files"), str(current_payload.get("files", "*.json") or "*.json"))
-st.session_state.setdefault(_k("nfile"), int(current_payload.get("nfile", 1) or 1))
-st.session_state.setdefault(
-    _k("minimum_evidence_confidence"),
+_seed("include_submission_inbox", bool(current_payload.get("include_submission_inbox", True)))
+_seed("files", str(current_payload.get("files", "*.json") or "*.json"))
+_seed("nfile", int(current_payload.get("nfile", 1) or 1))
+_seed(
+    "minimum_evidence_confidence",
     float(current_payload.get("minimum_evidence_confidence", 0.65) or 0.65),
 )
-st.session_state.setdefault(
-    _k("minimum_regression_coverage"),
+_seed(
+    "minimum_regression_coverage",
     float(current_payload.get("minimum_regression_coverage", 0.6) or 0.6),
 )
-st.session_state.setdefault(_k("reset_target"), bool(current_payload.get("reset_target", False)))
-st.session_state.setdefault(_k("case_source"), str(current_payload.get("case_source", "bundled") or "bundled"))
-st.session_state.setdefault(
-    _k("generated_cases_filename"),
+_seed("reset_target", bool(current_payload.get("reset_target", False)))
+_seed("case_source", str(current_payload.get("case_source", "bundled") or "bundled"))
+_seed(
+    "generated_cases_filename",
     str(current_payload.get("generated_cases_filename", "tescia_diagnostic_cases.generated.json") or ""),
 )
-st.session_state.setdefault(_k("regenerate_cases"), bool(current_payload.get("regenerate_cases", False)))
-st.session_state.setdefault(_k("ai_provider"), str(current_payload.get("ai_provider", "gpt-oss") or "gpt-oss"))
-st.session_state.setdefault(
-    _k("ai_endpoint"),
+_seed("regenerate_cases", bool(current_payload.get("regenerate_cases", False)))
+_seed("ai_provider", str(current_payload.get("ai_provider", "gpt-oss") or "gpt-oss"))
+_seed(
+    "ai_endpoint",
     str(current_payload.get("ai_endpoint", DEFAULT_GPT_OSS_ENDPOINT) or DEFAULT_GPT_OSS_ENDPOINT),
 )
-st.session_state.setdefault(
-    _k("ai_model"),
+_seed(
+    "ai_model",
     str(current_payload.get("ai_model", DEFAULT_GPT_OSS_MODEL) or DEFAULT_GPT_OSS_MODEL),
 )
-st.session_state.setdefault(_k("ai_topic"), str(current_payload.get("ai_topic", "") or ""))
-st.session_state.setdefault(_k("ai_case_count"), int(current_payload.get("ai_case_count", 2) or 2))
-st.session_state.setdefault(
-    _k("ai_temperature"),
-    float(current_payload.get("ai_temperature", 0.2) or 0.2),
-)
-st.session_state.setdefault(
-    _k("ai_timeout_s"),
-    float(current_payload.get("ai_timeout_s", 120.0) or 120.0),
-)
+_seed("ai_topic", str(current_payload.get("ai_topic", "") or ""))
+_seed("ai_case_count", int(current_payload.get("ai_case_count", 2) or 2))
+_seed("ai_temperature", float(current_payload.get("ai_temperature", 0.2) or 0.2))
+_seed("ai_timeout_s", float(current_payload.get("ai_timeout_s", 120.0) or 120.0))
 
 c1, c2, c3, c4 = st.columns([2, 2, 1.2, 1.1])
 with c1:
-    st.text_input("Diagnostic cases directory", key=_k("data_in"))
+    st.text_input(
+        "Diagnostic cases directory",
+        key=_k("data_in"),
+        help="Relative path under shared storage.",
+    )
 with c2:
-    st.text_input("Report output directory", key=_k("data_out"))
+    st.text_input(
+        "Report output directory",
+        key=_k("data_out"),
+        help="Relative path under shared storage.",
+    )
 with c3:
-    st.text_input("Files glob", key=_k("files"))
+    st.text_input(
+        "Files glob",
+        key=_k("files"),
+        help="Glob used to discover diagnostic case JSON files (e.g. `*.json`).",
+    )
 with c4:
-    st.number_input("Number of files", key=_k("nfile"), min_value=1, max_value=50, step=1)
+    st.number_input(
+        "Number of files",
+        key=_k("nfile"),
+        min_value=1,
+        max_value=50,
+        step=1,
+        help="Maximum number of case files read per run.",
+    )
 
 c5, c6, c7 = st.columns([1.4, 1.4, 1.0])
 with c5:
@@ -227,6 +254,7 @@ with c5:
         min_value=0.0,
         max_value=1.0,
         step=0.05,
+        help="Cases with average evidence confidence below this gate are flagged as not actionable.",
     )
 with c6:
     st.number_input(
@@ -235,6 +263,7 @@ with c6:
         min_value=0.0,
         max_value=1.0,
         step=0.05,
+        help="Cases with regression coverage below this gate are flagged as not actionable.",
     )
 with c7:
     st.checkbox("Reset output", key=_k("reset_target"))
@@ -353,6 +382,7 @@ else:
         app_settings["args"] = validated_payload
         st.session_state["app_settings"] = app_settings
         st.session_state["is_args_from_ui"] = True
+        st.session_state[_persisted_sig_key] = validated_payload
         st.success(f"Saved to `{settings_path}`.")
     else:
         st.info("No changes to save.")

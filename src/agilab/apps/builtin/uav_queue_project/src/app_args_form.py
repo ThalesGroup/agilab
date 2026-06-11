@@ -33,7 +33,8 @@ def _load_current_args(settings_path: Path) -> UavQueueArgs:
     try:
         return load_args(settings_path)
     except Exception as exc:
-        st.warning(f"Unable to load UAV relay queue args from `{settings_path}`: {exc}")
+        st.warning(f"Unable to load UAV queue args from `{settings_path}`; restoring defaults.")
+        st.code(str(exc))
         return UavQueueArgs()
 
 
@@ -69,8 +70,14 @@ defaults = {
     "random_seed": int(current_payload.get("random_seed", 2026) or 2026),
     "reset_target": bool(current_payload.get("reset_target", False)),
 }
+# Reseed widget state when the persisted [args] payload changed outside this form
+# (project switch, generic editor, manual TOML edit) so widgets stay in sync.
+_persisted_sig_key = _k("__persisted_payload")
+_reseed = st.session_state.get(_persisted_sig_key) != current_payload
+st.session_state[_persisted_sig_key] = current_payload
 for key, value in defaults.items():
-    st.session_state.setdefault(_k(key), value)
+    if _reseed or _k(key) not in st.session_state:
+        st.session_state[_k(key)] = value
 
 c1, c2, c3, c4 = st.columns([2, 2, 1.2, 1.2])
 with c1:
@@ -78,7 +85,7 @@ with c1:
 with c2:
     st.text_input("Results directory", key=_k("data_out"))
 with c3:
-    st.text_input("Files glob", key=_k("files"))
+    st.text_input("Files glob", key=_k("files"), help="Pattern used to match input files, e.g. *.json or *.csv.")
 with c4:
     st.number_input("Number of files", key=_k("nfile"), min_value=1, step=1)
 
@@ -96,7 +103,14 @@ with c8:
 with c9:
     st.number_input("Source rate (pps)", key=_k("source_rate_pps"), min_value=0.1, max_value=500.0, step=0.5)
 with c10:
-    st.number_input("Queue weight", key=_k("queue_weight"), min_value=0.0, max_value=20.0, step=0.1)
+    st.number_input(
+        "Queue weight",
+        key=_k("queue_weight"),
+        min_value=0.0,
+        max_value=20.0,
+        step=0.1,
+        help="Penalty applied to queue length when the queue-aware policy scores routes.",
+    )
 with c11:
     st.number_input("Random seed", key=_k("random_seed"), min_value=0, step=1)
 
@@ -122,7 +136,7 @@ if data_out_raw:
 try:
     validated = UavQueueArgs(**candidate)
 except ValidationError as exc:
-    st.error("Invalid UAV relay queue parameters:")
+    st.error("Invalid UAV queue parameters:")
     if hasattr(env, "humanize_validation_errors"):
         for msg in env.humanize_validation_errors(exc):
             st.markdown(msg)

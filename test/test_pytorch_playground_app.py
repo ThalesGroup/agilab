@@ -2450,6 +2450,36 @@ def test_pytorch_playground_agi_web_fallback_edges(monkeypatch: pytest.MonkeyPat
     )
 
 
+def test_pytorch_playground_agi_web_fallback_states_reason(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    config = module.PlaygroundConfig(sample_count=32, grid_size=12, seed=11)
+    result = _minimal_playground_result(module, config)
+
+    captions: list[str] = []
+    monkeypatch.setattr(module, "st", SimpleNamespace(caption=lambda message: captions.append(str(message))))
+
+    monkeypatch.setattr(module, "_render_agi_web_streamlit", None)
+    assert not module._render_agi_web_boundary_panel(
+        config, result, pending_changes=False, preset_label="Playground"
+    )
+    assert any("agi-web renderer is not installed" in caption for caption in captions)
+
+    captions.clear()
+    monkeypatch.setattr(module, "_render_agi_web_streamlit", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_build_agi_web_playground_component", lambda *_args, **_kwargs: None)
+    assert not module._render_agi_web_boundary_panel(
+        config, result, pending_changes=False, preset_label="Playground"
+    )
+    assert any("agi-web component classes are unavailable" in caption for caption in captions)
+
+    # A streamlit stub without caption support must still fall back silently.
+    monkeypatch.setattr(module, "st", SimpleNamespace())
+    monkeypatch.setattr(module, "_render_agi_web_streamlit", None)
+    assert not module._render_agi_web_boundary_panel(
+        config, result, pending_changes=False, preset_label="Playground"
+    )
+
+
 def test_pytorch_playground_instant_panel_returns_after_agi_web_render(monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load_module()
     config = module.PlaygroundConfig(sample_count=32, grid_size=12, seed=10)

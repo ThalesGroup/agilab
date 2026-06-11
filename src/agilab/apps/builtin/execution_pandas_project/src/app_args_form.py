@@ -33,7 +33,8 @@ def _load_current_args(settings_path: Path) -> ExecutionPandasArgs:
     try:
         return load_args(settings_path)
     except Exception as exc:
-        st.warning(f"Unable to load Execution Pandas args from `{settings_path}`: {exc}")
+        st.warning(f"Unable to load Execution Pandas args from `{settings_path}`; restoring defaults.")
+        st.code(str(exc))
         return ExecutionPandasArgs()
 
 
@@ -53,6 +54,11 @@ st.caption(
     "Use this form to size the playground workload before EXECUTE."
 )
 
+# Reseed widget state when the persisted [args] payload changed outside this form
+# (project switch, generic editor, manual TOML edit) so widgets stay in sync.
+_persisted_sig_key = _k("__persisted_payload")
+_reseed = st.session_state.get(_persisted_sig_key) != current_payload
+st.session_state[_persisted_sig_key] = current_payload
 for key, default in (
     ("data_in", str(current_payload.get("data_in", "execution_playground/dataset") or "execution_playground/dataset")),
     ("data_out", str(current_payload.get("data_out", "execution_pandas/results") or "execution_pandas/results")),
@@ -67,7 +73,8 @@ for key, default in (
     ("seed", int(current_payload.get("seed", 42) or 42)),
     ("reset_target", bool(current_payload.get("reset_target", False))),
 ):
-    st.session_state.setdefault(_k(key), default)
+    if _reseed or _k(key) not in st.session_state:
+        st.session_state[_k(key)] = default
 
 c1, c2, c3 = st.columns([2, 2, 1.2])
 with c1:
@@ -79,7 +86,7 @@ with c3:
 
 c4, c5, c6, c7 = st.columns([1.2, 1.2, 1.2, 1.2])
 with c4:
-    st.text_input("Files glob", key=_k("files"))
+    st.text_input("Files glob", key=_k("files"), help="Pattern used to match dataset files, e.g. *.csv.")
 with c5:
     st.number_input("Files", key=_k("nfile"), min_value=1, step=1)
 with c6:
@@ -91,7 +98,13 @@ c8, c9, c10, c11 = st.columns([1.2, 1.2, 1.2, 1.2])
 with c8:
     st.number_input("Groups", key=_k("n_groups"), min_value=1, step=1)
 with c9:
-    st.number_input("Compute passes", key=_k("compute_passes"), min_value=1, step=1)
+    st.number_input(
+        "Compute passes",
+        key=_k("compute_passes"),
+        min_value=1,
+        step=1,
+        help="Aggregation passes per partition; higher values increase CPU work.",
+    )
 with c10:
     st.selectbox(
         "Kernel",

@@ -154,25 +154,35 @@ st.caption(
     + " This public built-in app runs file-based Flight input only."
 )
 
-# Seed widget state once (never write to widget keys after instantiation)
-st.session_state.setdefault(_k("data_source"), str(current_payload.get("data_source", "file") or "file"))
-st.session_state.setdefault(_k("data_in"), str(current_payload.get("data_in", "") or ""))
-st.session_state.setdefault(_k("data_out"), str(current_payload.get("data_out", "") or ""))
-st.session_state.setdefault(_k("files"), str(current_payload.get("files", "*") or "*"))
-st.session_state.setdefault(_k("nfile"), int(current_payload.get("nfile", 1) or 1))
-st.session_state.setdefault(_k("nskip"), int(current_payload.get("nskip", 0) or 0))
-st.session_state.setdefault(_k("nread"), int(current_payload.get("nread", 0) or 0))
-st.session_state.setdefault(_k("sampling_rate"), float(current_payload.get("sampling_rate", 1.0) or 1.0))
-st.session_state.setdefault(
-    _k("datemin"),
-    _parse_iso_date(current_payload.get("datemin"), fallback=date(2020, 1, 1)),
+# Seed widget state before instantiation (never write to widget keys afterwards).
+# Reseed when the persisted [args] payload changed outside this form (project
+# switch, generic editor, manual TOML edit) so widgets stay in sync.
+_persisted_sig_key = _k("__persisted_payload")
+_reseed = (
+    _persisted_sig_key in st.session_state
+    and st.session_state[_persisted_sig_key] != current_payload
 )
-st.session_state.setdefault(
-    _k("datemax"),
-    _parse_iso_date(current_payload.get("datemax"), fallback=date(2021, 1, 1)),
-)
-st.session_state.setdefault(_k("output_format"), str(current_payload.get("output_format", "parquet") or "parquet"))
-st.session_state.setdefault(_k("reset_target"), bool(current_payload.get("reset_target", False)))
+st.session_state[_persisted_sig_key] = current_payload
+
+
+def _seed(name: str, value: Any) -> None:
+    key = _k(name)
+    if _reseed or key not in st.session_state:
+        st.session_state[key] = value
+
+
+_seed("data_source", str(current_payload.get("data_source", "file") or "file"))
+_seed("data_in", str(current_payload.get("data_in", "") or ""))
+_seed("data_out", str(current_payload.get("data_out", "") or ""))
+_seed("files", str(current_payload.get("files", "*") or "*"))
+_seed("nfile", int(current_payload.get("nfile", 1) or 1))
+_seed("nskip", int(current_payload.get("nskip", 0) or 0))
+_seed("nread", int(current_payload.get("nread", 0) or 0))
+_seed("sampling_rate", float(current_payload.get("sampling_rate", 1.0) or 1.0))
+_seed("datemin", _parse_iso_date(current_payload.get("datemin"), fallback=date(2020, 1, 1)))
+_seed("datemax", _parse_iso_date(current_payload.get("datemax"), fallback=date(2021, 1, 1)))
+_seed("output_format", str(current_payload.get("output_format", "parquet") or "parquet"))
+_seed("reset_target", bool(current_payload.get("reset_target", False)))
 if st.session_state.get(_k("data_source")) not in SUPPORTED_DATA_SOURCES:
     st.warning("Unsupported Flight data source reset to `file` for the public built-in app.")
     st.session_state[_k("data_source")] = "file"
@@ -212,6 +222,7 @@ with c5:
         key=_k("nskip"),
         step=1,
         min_value=0,
+        help="Lines skipped at the top of each input file.",
     )
 
 c6, c7, c8, c9, c10 = st.columns([1.2, 1.2, 1.5, 1.5, 1.2])
@@ -221,6 +232,7 @@ with c6:
         key=_k("nread"),
         step=1,
         min_value=0,
+        help="Use 0 to read every remaining line.",
     )
 with c7:
     st.number_input(
@@ -228,11 +240,12 @@ with c7:
         key=_k("sampling_rate"),
         step=0.1,
         min_value=0.0,
+        help="Telemetry sampling rate forwarded to the worker (1.0 keeps the source rate).",
     )
 with c8:
-    st.date_input("from Date", key=_k("datemin"))
+    st.date_input("from Date", key=_k("datemin"), help="Inclusive start of the flight date filter.")
 with c9:
-    st.date_input("to Date", key=_k("datemax"))
+    st.date_input("to Date", key=_k("datemax"), help="Inclusive end of the flight date filter.")
 with c10:
     st.selectbox("Dataset output format", options=["parquet", "csv"], key=_k("output_format"))
 
@@ -267,12 +280,20 @@ candidate: dict[str, Any] = {
     "reset_target": bool(st.session_state.get(_k("reset_target"), False)),
 }
 if candidate["data_source"] not in SUPPORTED_DATA_SOURCES:
+    # Coerce the candidate only; the widget key must not be written after instantiation.
     candidate["data_source"] = "file"
-    st.session_state[_k("data_source")] = "file"
 if data_in_raw:
     candidate["data_in"] = data_in_raw
 if data_out_raw:
     candidate["data_out"] = data_out_raw
+
+datemin_value = candidate["datemin"]
+datemax_value = candidate["datemax"]
+if isinstance(datemin_value, date) and isinstance(datemax_value, date) and datemin_value > datemax_value:
+    st.error(
+        f"'from Date' ({datemin_value.isoformat()}) must be on or before "
+        f"'to Date' ({datemax_value.isoformat()}). Settings are not saved until the range is fixed."
+    )
 
 try:
     validated = FlightArgs(**candidate)
@@ -296,6 +317,7 @@ else:
         app_settings["args"] = validated_payload
         st.session_state["app_settings"] = app_settings
         st.session_state["is_args_from_ui"] = True
+        st.session_state[_persisted_sig_key] = validated_payload
         st.success(f"Saved to `{settings_path}`.")
     else:
         st.info("No changes to save.")

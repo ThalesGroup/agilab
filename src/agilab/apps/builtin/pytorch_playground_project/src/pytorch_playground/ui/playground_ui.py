@@ -2576,7 +2576,13 @@ def _render_agi_web_boundary_panel(
     pending_changes: bool,
     preset_label: str,
 ) -> bool:
+    def _explain_fallback(reason: str) -> None:
+        caption = getattr(st, "caption", None)
+        if callable(caption):
+            caption(f"Fluid WebGL preview unavailable ({reason}); showing the standard charts instead.")
+
     if _render_agi_web_streamlit is None:
+        _explain_fallback("the agi-web renderer is not installed")
         return False
     component = _build_agi_web_playground_component(
         config,
@@ -2585,6 +2591,7 @@ def _render_agi_web_boundary_panel(
         preset_label=preset_label,
     )
     if component is None:
+        _explain_fallback("the agi-web component classes are unavailable")
         return False
     try:
         _render_agi_web_streamlit(component, streamlit=st, height=560)
@@ -2702,6 +2709,7 @@ def main(
                 preset_labels,
                 index=preset_index,
                 help="Preset only seeds the controls; every value stays editable.",
+                key="pt_challenge_preset",
             )
             defaults = _preset_config(preset_label, shared_config)
             preset_key = _safe_key_fragment(preset_label)
@@ -2712,6 +2720,7 @@ def main(
                 type="primary",
                 width="stretch",
                 help="Train the selected challenge now and show the boundary-first view.",
+                key="pt_instant_run",
             )
             st.caption("One click trains the selected challenge; advanced controls can wait.")
             st.markdown("### Dataset")
@@ -2784,7 +2793,9 @@ def main(
             if instant_run_requested:
                 training_mode = "Full run"
             live_mode = training_mode == LIVE_TRAINING_MODE_LABEL
-            refresh_requested = st.button("Train / refresh", width="stretch", disabled=live_mode)
+            refresh_requested = st.button(
+                "Train / refresh", width="stretch", disabled=live_mode, key="pt_train_refresh"
+            )
             train_requested = refresh_requested or instant_run_requested
             live_epochs_per_tick = 5
             live_reset_requested = False
@@ -2970,10 +2981,10 @@ def main(
             controls, chart_area = st.columns([1, 3])
             with controls:
                 layer_options = sorted(int(value) for value in activation_maps["layer"].unique())
-                selected_layer = st.selectbox("Layer", layer_options)
+                selected_layer = st.selectbox("Layer", layer_options, key="pt_activation_layer")
                 layer_maps = activation_maps[activation_maps["layer"] == selected_layer]
                 neuron_options = sorted(int(value) for value in layer_maps["neuron"].unique())
-                selected_neuron = st.selectbox("Neuron", neuron_options)
+                selected_neuron = st.selectbox("Neuron", neuron_options, key="pt_activation_neuron")
                 selected = layer_maps[layer_maps["neuron"] == selected_neuron]["activation"]
                 st.metric("Mean", f"{selected.mean():.3f}")
                 st.metric("Range", f"{selected.min():.3f} / {selected.max():.3f}")
@@ -2992,9 +3003,9 @@ def main(
         controls, chart_area = st.columns([1, 3])
         with controls:
             if interactive_controls:
-                landscape_resolution = st.slider("Resolution", 5, 31, 21, step=2)
-                landscape_span = st.slider("Span", 0.1, 1.5, 0.75, step=0.05)
-                compute_landscape = st.checkbox("Compute landscape", value=False)
+                landscape_resolution = st.slider("Resolution", 5, 31, 21, step=2, key="pt_landscape_resolution")
+                landscape_span = st.slider("Span", 0.1, 1.5, 0.75, step=0.05, key="pt_landscape_span")
+                compute_landscape = st.checkbox("Compute landscape", value=False, key="pt_landscape_compute")
             else:
                 compute_landscape = bool(compute_loss_landscape)
                 st.metric("Resolution", int(landscape_resolution))
@@ -3043,6 +3054,7 @@ def main(
             data=_build_evidence_pack(trained_config, evidence_result),
             file_name="pytorch_playground_evidence.zip",
             mime="application/zip",
+            key="pt_evidence_download",
         )
         st.code(f"?pytorch_playground={_encode_share_config(trained_config)}", language="text")
         st.code(json.dumps(_json_safe(manifest), indent=2, sort_keys=True), language="json")

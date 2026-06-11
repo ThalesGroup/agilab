@@ -33,7 +33,8 @@ def _load_current_args(settings_path: Path) -> RRuntimeBridgeArgs:
     try:
         return load_args(settings_path)
     except Exception as exc:
-        st.warning(f"Unable to load R Runtime Bridge args from `{settings_path}`: {exc}")
+        st.warning(f"Unable to load R Runtime Bridge args from `{settings_path}`; restoring defaults.")
+        st.code(str(exc))
         return RRuntimeBridgeArgs()
 
 
@@ -51,6 +52,11 @@ st.caption(
     "AGILAB captures stdout, stderr, output.json, artifacts, hashes, and reduce evidence."
 )
 
+# Reseed widget state when the persisted [args] payload changed outside this form
+# (project switch, generic editor, manual TOML edit) so widgets stay in sync.
+_persisted_sig_key = _k("__persisted_payload")
+_reseed = st.session_state.get(_persisted_sig_key) != current_payload
+st.session_state[_persisted_sig_key] = current_payload
 for key, default in (
     ("data_out", str(current_payload.get("data_out", "r_runtime_bridge/evidence") or "r_runtime_bridge/evidence")),
     ("script_path", str(current_payload.get("script_path", "scripts/summarize.R") or "scripts/summarize.R")),
@@ -59,7 +65,8 @@ for key, default in (
     ("timeout_seconds", int(current_payload.get("timeout_seconds", 120) or 120)),
     ("reset_target", bool(current_payload.get("reset_target", False))),
 ):
-    st.session_state.setdefault(_k(key), default)
+    if _reseed or _k(key) not in st.session_state:
+        st.session_state[_k(key)] = default
 
 c1, c2 = st.columns([2, 2])
 with c1:
@@ -71,7 +78,11 @@ c3, c4, c5 = st.columns([1.2, 2.8, 1.2])
 with c3:
     st.text_input("Rscript command", key=_k("rscript"))
 with c4:
-    st.text_input("Input x values", key=_k("x"))
+    st.text_input(
+        "Input x values",
+        key=_k("x"),
+        help="Comma-separated numbers passed to the R script, e.g. 1, 2.5, 3.",
+    )
 with c5:
     st.number_input("Timeout seconds", key=_k("timeout_seconds"), min_value=1, max_value=3600, step=10)
 
@@ -92,6 +103,9 @@ except (ValidationError, ValueError) as exc:
     if isinstance(exc, ValidationError) and hasattr(env, "humanize_validation_errors"):
         for msg in env.humanize_validation_errors(exc):
             st.markdown(msg)
+    elif isinstance(exc, ValueError):
+        st.markdown("Input x values must be a comma-separated list of numbers (example: `1, 2.5, 3`).")
+        st.code(str(exc))
     else:
         st.code(str(exc))
 else:

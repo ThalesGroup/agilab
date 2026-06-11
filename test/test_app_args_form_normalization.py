@@ -233,6 +233,121 @@ def test_flight_app_args_form_repairs_foreign_workspace_args(tmp_path: Path) -> 
     assert "hidden_layers" not in persisted["args"]
 
 
+def _make_builtin_env(form_path: Path, settings_file: Path, tmp_path: Path) -> _BuiltinFormEnv:
+    app_name = _app_name_from_form(form_path)
+    return _BuiltinFormEnv(
+        AGILAB_EXPORT_ABS=str(tmp_path / "export"),
+        active_app=str(form_path.parent.parent),
+        app=app_name,
+        app_settings_file=str(settings_file),
+        apps_path=str(form_path.parents[2]),
+        envars={},
+        share_root=tmp_path / "share",
+        target=app_name,
+    )
+
+
+def test_flight_app_args_form_reports_invalid_date_range_without_saving(tmp_path: Path) -> None:
+    import datetime as _dt
+
+    form_path = Path("src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py")
+    settings_file = _seed_settings_for_form(form_path, tmp_path)
+    env = _make_builtin_env(form_path, settings_file, tmp_path)
+
+    _clear_form_package_modules(form_path)
+    at = AppTest.from_file(str(form_path), default_timeout=30)
+    at.session_state["env"] = env
+    at.session_state["_env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    at.run()
+    assert not at.exception
+
+    before = settings_file.read_bytes()
+    at.date_input(key="flight_telemetry_project:app_args_form:datemin").set_value(_dt.date(2021, 6, 1))
+    at.date_input(key="flight_telemetry_project:app_args_form:datemax").set_value(_dt.date(2020, 6, 1))
+    at.run()
+
+    assert not at.exception
+    errors = "\n".join(str(message.value) for message in at.error)
+    assert "must be on or before" in errors
+    assert settings_file.read_bytes() == before
+    assert not any("Saved to" in str(message.value) for message in at.success)
+
+
+def test_flight_app_args_form_reseeds_widgets_after_external_settings_change(tmp_path: Path) -> None:
+    form_path = Path("src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py")
+    settings_file = _seed_settings_for_form(form_path, tmp_path)
+    env = _make_builtin_env(form_path, settings_file, tmp_path)
+
+    _clear_form_package_modules(form_path)
+    at = AppTest.from_file(str(form_path), default_timeout=30)
+    at.session_state["env"] = env
+    at.session_state["_env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    at.run()
+    assert not at.exception
+
+    # A user edit followed by a rerun keeps the widget value (no spurious reseed).
+    at.text_input(key="flight_telemetry_project:app_args_form:files").set_value("*.parquet")
+    at.run()
+    assert not at.exception
+    at.run()
+    assert at.text_input(key="flight_telemetry_project:app_args_form:files").value == "*.parquet"
+
+    # An external [args] edit (project switch, generic editor) reseeds widget state.
+    content = settings_file.read_text(encoding="utf-8")
+    settings_file.write_text(content.replace('files = "*.parquet"', 'files = "*.csv"'), encoding="utf-8")
+    at.run()
+    assert not at.exception
+    assert at.text_input(key="flight_telemetry_project:app_args_form:files").value == "*.csv"
+
+
+def test_tescia_app_args_form_reseeds_widgets_after_external_settings_change(tmp_path: Path) -> None:
+    form_path = Path("src/agilab/apps/builtin/tescia_diagnostic_project/src/app_args_form.py")
+    settings_file = _seed_settings_for_form(form_path, tmp_path)
+    env = _make_builtin_env(form_path, settings_file, tmp_path)
+
+    _clear_form_package_modules(form_path)
+    at = AppTest.from_file(str(form_path), default_timeout=30)
+    at.session_state["env"] = env
+    at.session_state["_env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    at.run()
+    assert not at.exception
+    assert at.text_input(key="tescia_diagnostic_project:app_args_form:files").value == "*.json"
+
+    content = settings_file.read_text(encoding="utf-8")
+    settings_file.write_text(content.replace('files = "*.json"', 'files = "case_*.json"'), encoding="utf-8")
+    at.run()
+    assert not at.exception
+    assert at.text_input(key="tescia_diagnostic_project:app_args_form:files").value == "case_*.json"
+
+
+def test_pytorch_playground_form_reseeds_widgets_after_external_settings_change(tmp_path: Path) -> None:
+    form_path = Path("src/agilab/apps/builtin/pytorch_playground_project/src/app_args_form.py")
+    settings_file = _seed_settings_for_form(form_path, tmp_path)
+    env = _make_builtin_env(form_path, settings_file, tmp_path)
+    dataset_key = f"pytorch_playground_args:{env.active_app}:dataset"
+
+    _clear_form_package_modules(form_path)
+    at = AppTest.from_file(str(form_path), default_timeout=30)
+    at.session_state["env"] = env
+    at.session_state["_env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    at.run()
+    assert not at.exception
+    assert at.selectbox(key=dataset_key).value == "circles"
+
+    # Simulate a project switch back: the page reloads app_settings from disk.
+    content = settings_file.read_text(encoding="utf-8")
+    settings_file.write_text(content.replace('dataset = "circles"', 'dataset = "spiral"'), encoding="utf-8")
+    at.session_state["app_settings"] = None
+    at.session_state["is_args_from_ui"] = False
+    at.run()
+    assert not at.exception
+    assert at.selectbox(key=dataset_key).value == "spiral"
+
+
 def test_minimal_app_app_args_form_renders_and_persists_args(tmp_path: Path) -> None:
     settings_file = tmp_path / "minimal_app_project" / "app_settings.toml"
     settings_file.parent.mkdir()
@@ -271,3 +386,63 @@ def test_minimal_app_app_args_form_renders_and_persists_args(tmp_path: Path) -> 
     assert persisted["args"]["nskip"] == 2
     assert persisted["args"]["reset_target"] is True
     assert at.session_state["app_settings"]["args"]["files"] == "*.csv"
+
+
+def test_minimal_app_form_reseeds_widgets_when_settings_change_on_disk(tmp_path: Path) -> None:
+    settings_file = tmp_path / "minimal_app_project" / "app_settings.toml"
+    settings_file.parent.mkdir()
+    settings_file.write_text('[args]\nfiles = "*.csv"\nnfile = 2\n', encoding="utf-8")
+    env = _BuiltinFormEnv(
+        app_settings_file=str(settings_file),
+        share_root=tmp_path / "share",
+    )
+
+    at = AppTest.from_file(
+        "src/agilab/apps/builtin/minimal_app_project/src/app_args_form.py",
+        default_timeout=20,
+    )
+    at.session_state["env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+
+    at.run()
+    assert not at.exception
+    assert at.text_input(key="minimal_app_project:app_args_form:files").value == "*.csv"
+    assert at.number_input(key="minimal_app_project:app_args_form:nfile").value == 2
+
+    # Simulate an external edit (generic ORCHESTRATE editor / manual TOML change).
+    settings_file.write_text('[args]\nfiles = "*.parquet"\nnfile = 5\n', encoding="utf-8")
+    at.run()
+
+    assert not at.exception
+    assert at.text_input(key="minimal_app_project:app_args_form:files").value == "*.parquet"
+    assert at.number_input(key="minimal_app_project:app_args_form:nfile").value == 5
+
+
+def test_r_runtime_bridge_form_reports_actionable_x_parse_error(tmp_path: Path) -> None:
+    form_path = Path("src/agilab/apps/builtin/r_runtime_bridge_project/src/app_args_form.py")
+    settings_file = _seed_settings_for_form(form_path, tmp_path)
+    env = _BuiltinFormEnv(
+        AGILAB_EXPORT_ABS=str(tmp_path / "export"),
+        app="r_runtime_bridge_project",
+        app_settings_file=str(settings_file),
+        envars={},
+        share_root=tmp_path / "share",
+        target="r_runtime_bridge_project",
+    )
+
+    _clear_form_package_modules(form_path)
+    at = AppTest.from_file(str(form_path), default_timeout=30)
+    at.session_state["env"] = env
+    at.session_state["_env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+
+    at.run()
+    assert not at.exception
+
+    at.text_input(key="r_runtime_bridge_project:app_args_form:x").set_value("1, oops, 3")
+    at.run()
+
+    assert not at.exception
+    assert any("Invalid R Runtime Bridge parameters" in str(item.value) for item in at.error)
+    markdown_text = "\n".join(str(item.value) for item in at.markdown)
+    assert "comma-separated list of numbers" in markdown_text

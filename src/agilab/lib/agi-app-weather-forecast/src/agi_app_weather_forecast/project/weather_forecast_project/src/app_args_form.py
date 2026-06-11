@@ -33,7 +33,8 @@ def _load_current_args(settings_path: Path) -> WeatherForecastArgs:
     try:
         return load_args(settings_path)
     except Exception as exc:
-        st.warning(f"Unable to load Weather Forecast args from `{settings_path}`: {exc}")
+        st.warning(f"Unable to load Weather Forecast args from `{settings_path}`; restoring defaults.")
+        st.code(str(exc))
         return WeatherForecastArgs()
 
 
@@ -57,18 +58,27 @@ st.caption(
 if share_root:
     st.caption(f"Current shared root: `{share_root}`")
 
-st.session_state.setdefault(_k("data_in"), str(current_payload.get("data_in", "") or ""))
-st.session_state.setdefault(_k("data_out"), str(current_payload.get("data_out", "") or ""))
-st.session_state.setdefault(_k("files"), str(current_payload.get("files", "*.csv") or "*.csv"))
-st.session_state.setdefault(_k("nfile"), int(current_payload.get("nfile", 1) or 1))
-st.session_state.setdefault(_k("station"), str(current_payload.get("station", "Paris-Montsouris") or "Paris-Montsouris"))
-st.session_state.setdefault(_k("target_column"), str(current_payload.get("target_column", "tmax_c") or "tmax_c"))
-st.session_state.setdefault(_k("lags"), int(current_payload.get("lags", 7) or 7))
-st.session_state.setdefault(_k("horizon_days"), int(current_payload.get("horizon_days", 7) or 7))
-st.session_state.setdefault(_k("validation_days"), int(current_payload.get("validation_days", 9) or 9))
-st.session_state.setdefault(_k("n_estimators"), int(current_payload.get("n_estimators", 100) or 100))
-st.session_state.setdefault(_k("random_state"), int(current_payload.get("random_state", 42) or 42))
-st.session_state.setdefault(_k("reset_target"), bool(current_payload.get("reset_target", False)))
+# Reseed widget state when the persisted [args] payload changed outside this form
+# (project switch, generic editor, manual TOML edit) so widgets stay in sync.
+_persisted_sig_key = _k("__persisted_payload")
+_reseed = st.session_state.get(_persisted_sig_key) != current_payload
+st.session_state[_persisted_sig_key] = current_payload
+for key, default in (
+    ("data_in", str(current_payload.get("data_in", "") or "")),
+    ("data_out", str(current_payload.get("data_out", "") or "")),
+    ("files", str(current_payload.get("files", "*.csv") or "*.csv")),
+    ("nfile", int(current_payload.get("nfile", 1) or 1)),
+    ("station", str(current_payload.get("station", "Paris-Montsouris") or "Paris-Montsouris")),
+    ("target_column", str(current_payload.get("target_column", "tmax_c") or "tmax_c")),
+    ("lags", int(current_payload.get("lags", 7) or 7)),
+    ("horizon_days", int(current_payload.get("horizon_days", 7) or 7)),
+    ("validation_days", int(current_payload.get("validation_days", 9) or 9)),
+    ("n_estimators", int(current_payload.get("n_estimators", 100) or 100)),
+    ("random_state", int(current_payload.get("random_state", 42) or 42)),
+    ("reset_target", bool(current_payload.get("reset_target", False))),
+):
+    if _reseed or _k(key) not in st.session_state:
+        st.session_state[_k(key)] = default
 
 c1, c2, c3, c4 = st.columns([2, 2, 1.2, 1.2])
 with c1:
@@ -76,7 +86,7 @@ with c1:
 with c2:
     st.text_input("Results directory", key=_k("data_out"))
 with c3:
-    st.text_input("Files glob", key=_k("files"))
+    st.text_input("Files glob", key=_k("files"), help="Pattern used to match input files, e.g. *.json or *.csv.")
 with c4:
     st.number_input("Number of files", key=_k("nfile"), min_value=1, step=1)
 
@@ -90,7 +100,14 @@ with c7:
 
 c8, c9, c10, c11 = st.columns([1.1, 1.1, 1.1, 1.1])
 with c8:
-    st.number_input("Lags", key=_k("lags"), min_value=1, max_value=30, step=1)
+    st.number_input(
+        "Lags",
+        key=_k("lags"),
+        min_value=1,
+        max_value=30,
+        step=1,
+        help="Number of previous days used as model features.",
+    )
 with c9:
     st.number_input("Horizon days", key=_k("horizon_days"), min_value=1, max_value=30, step=1)
 with c10:

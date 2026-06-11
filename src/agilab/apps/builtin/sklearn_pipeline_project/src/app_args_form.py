@@ -33,7 +33,8 @@ def _load_current_args(settings_path: Path) -> SklearnPipelineArgs:
     try:
         return load_args(settings_path)
     except Exception as exc:
-        st.warning(f"Unable to load Scikit-Learn Pipeline args from `{settings_path}`: {exc}")
+        st.warning(f"Unable to load Scikit-Learn Pipeline args from `{settings_path}`; restoring defaults.")
+        st.code(str(exc))
         return SklearnPipelineArgs()
 
 
@@ -48,6 +49,11 @@ st.caption(
     f"model, metrics, predictions, and hash manifest. Analysis artifacts are exported to `{artifact_root}`."
 )
 
+# Reseed widget state when the persisted [args] payload changed outside this form
+# (project switch, generic editor, manual TOML edit) so widgets stay in sync.
+_persisted_sig_key = _k("__persisted_payload")
+_reseed = st.session_state.get(_persisted_sig_key) != current_payload
+st.session_state[_persisted_sig_key] = current_payload
 for key, default in (
     ("data_out", str(current_payload.get("data_out", "sklearn_pipeline/evidence") or "sklearn_pipeline/evidence")),
     ("sample_count", int(current_payload.get("sample_count", 240) or 240)),
@@ -56,7 +62,8 @@ for key, default in (
     ("seed", int(current_payload.get("seed", 2026) or 2026)),
     ("reset_target", bool(current_payload.get("reset_target", False))),
 ):
-    st.session_state.setdefault(_k(key), default)
+    if _reseed or _k(key) not in st.session_state:
+        st.session_state[_k(key)] = default
 
 c1, c2, c3 = st.columns([2.0, 1.2, 1.2])
 with c1:
@@ -70,7 +77,14 @@ c4, c5, c6 = st.columns([1.2, 1.2, 1.2])
 with c4:
     st.slider("Test split", key=_k("test_size"), min_value=0.10, max_value=0.50, step=0.05)
 with c5:
-    st.number_input("Regularization C", key=_k("regularization_c"), min_value=0.01, max_value=100.0, step=0.1)
+    st.number_input(
+        "Regularization C",
+        key=_k("regularization_c"),
+        min_value=0.01,
+        max_value=100.0,
+        step=0.1,
+        help="Inverse regularization strength; lower values regularize the classifier more.",
+    )
 with c6:
     st.checkbox("Reset output", key=_k("reset_target"))
 

@@ -33,7 +33,8 @@ def _load_current_args(settings_path: Path) -> MinimalAppArgs:
     try:
         return load_args(settings_path)
     except Exception as exc:
-        st.warning(f"Unable to load MinimalApp args from `{settings_path}`: {exc}")
+        st.warning(f"Unable to load MinimalApp args from `{settings_path}`; restoring defaults.")
+        st.code(str(exc))
         return MinimalAppArgs()
 
 
@@ -47,6 +48,11 @@ st.caption(
     "before adapting the manager and worker code to your own workflow."
 )
 
+# Reseed widget state when the persisted [args] payload changed outside this form
+# (project switch, generic editor, manual TOML edit) so widgets stay in sync.
+_persisted_sig_key = _k("__persisted_payload")
+_reseed = st.session_state.get(_persisted_sig_key) != current_payload
+st.session_state[_persisted_sig_key] = current_payload
 for key, default in (
     ("data_in", str(current_payload.get("data_in", "minimal_app/dataset") or "minimal_app/dataset")),
     ("data_out", str(current_payload.get("data_out", "minimal_app/dataframe") or "minimal_app/dataframe")),
@@ -56,7 +62,8 @@ for key, default in (
     ("nread", int(current_payload.get("nread", 0) or 0)),
     ("reset_target", bool(current_payload.get("reset_target", False))),
 ):
-    st.session_state.setdefault(_k(key), default)
+    if _reseed or _k(key) not in st.session_state:
+        st.session_state[_k(key)] = default
 
 c1, c2, c3 = st.columns([2, 2, 1.2])
 with c1:

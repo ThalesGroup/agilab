@@ -575,17 +575,40 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
         st.markdown(f"**{catalog['title']}**")
         st.caption(catalog["student_prompt"])
         answer = build_student_answer(
-            diagnosis=st.text_area("Diagnosis", value=str(case.get("student_answer", {}).get("diagnosis", ""))),
-            root_cause=st.text_area("Root cause", value=str(case.get("student_answer", {}).get("root_cause", ""))),
-            evidence_ids=st.text_input("Evidence ids", value=",".join(case.get("student_answer", {}).get("evidence_ids", []))),
-            selected_fix_id=st.text_input("Selected fix id", value=str(case.get("student_answer", {}).get("selected_fix_id", ""))),
+            diagnosis=st.text_area(
+                "Diagnosis",
+                value=str(case.get("student_answer", {}).get("diagnosis", "")),
+                key=f"tescia_answer_diagnosis_{selected_id}",
+            ),
+            root_cause=st.text_area(
+                "Root cause",
+                value=str(case.get("student_answer", {}).get("root_cause", "")),
+                key=f"tescia_answer_root_cause_{selected_id}",
+            ),
+            evidence_ids=st.text_input(
+                "Evidence ids",
+                value=",".join(case.get("student_answer", {}).get("evidence_ids", [])),
+                key=f"tescia_answer_evidence_{selected_id}",
+            ),
+            selected_fix_id=st.text_input(
+                "Selected fix id",
+                value=str(case.get("student_answer", {}).get("selected_fix_id", "")),
+                key=f"tescia_answer_fix_{selected_id}",
+            ),
             regression_test_ids=st.text_input(
                 "Regression test ids",
                 value=",".join(case.get("student_answer", {}).get("regression_test_ids", [])),
+                key=f"tescia_answer_regression_{selected_id}",
             ),
-            confidence=st.slider("Confidence", 0.0, 1.0, float(case.get("student_answer", {}).get("confidence", 0.75))),
+            confidence=st.slider(
+                "Confidence",
+                0.0,
+                1.0,
+                float(case.get("student_answer", {}).get("confidence", 0.75)),
+                key=f"tescia_answer_confidence_{selected_id}",
+            ),
         )
-        if st.button("Evaluate answer", type="primary", width="stretch"):
+        if st.button("Evaluate answer", type="primary", width="stretch", key="tescia_answer_evaluate"):
             try:
                 scored = score_student_submission(case, answer)
             except ValueError as exc:
@@ -600,6 +623,7 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
                     file_name=f"{selected_id}_correction.md",
                     mime="text/markdown",
                     width="stretch",
+                    key="tescia_answer_correction_download",
                 )
 
     with classroom_tab:
@@ -653,7 +677,7 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
                 f"latest `{classroom_source['path']}`."
             )
         else:
-            st.caption("No classroom run artifact found yet; showing the bundled classroom sample preview.")
+            st.info("No classroom run artifact found yet; showing the bundled classroom sample preview.")
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Submissions", classroom_report["submission_count"])
         m2.metric("Students", classroom_report["unique_student_count"])
@@ -668,6 +692,7 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
             file_name="classroom_teacher_summary.md",
             mime="text/markdown",
             width="stretch",
+            key="tescia_classroom_summary_download",
         )
         st.download_button(
             "Download classroom batch JSON",
@@ -675,6 +700,7 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
             file_name="tescia_classroom_submissions.json",
             mime="application/json",
             width="stretch",
+            key="tescia_classroom_template_download",
         )
         if live_refresh:
             time.sleep(float(refresh_seconds))

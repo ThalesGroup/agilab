@@ -1490,6 +1490,87 @@ def test_tescia_app_surface_error_refresh_last_run_authoring_and_warning(monkeyp
     assert called == [{"mode": "full"}]
 
 
+def test_tescia_app_surface_sample_fallback_uses_info_and_namespaced_answer_keys(monkeypatch, tmp_path) -> None:
+    fake_env = _FakeEnv(tmp_path)
+
+    class RecordingStreamlit(_FakeStreamlit):
+        def __init__(self, env: _FakeEnv) -> None:
+            super().__init__(env)
+            self.infos: list[str] = []
+            self.captions: list[str] = []
+            self.widget_keys: list[object] = []
+
+        def info(self, message, *_args, **_kwargs) -> None:
+            self.infos.append(str(message))
+
+        def caption(self, message, *_args, **_kwargs) -> None:
+            self.captions.append(str(message))
+
+        def text_area(self, *_args, **kwargs):
+            self.widget_keys.append(kwargs.get("key"))
+            return kwargs.get("value", "")
+
+        def text_input(self, *_args, **kwargs):
+            self.widget_keys.append(kwargs.get("key"))
+            return kwargs.get("value", "")
+
+        def slider(self, *_args, **kwargs):
+            self.widget_keys.append(kwargs.get("key"))
+            return kwargs.get("value", 0.0)
+
+        def button(self, label, *_args, **kwargs) -> bool:
+            self.buttons.append(label)
+            self.widget_keys.append(kwargs.get("key"))
+            return False
+
+        def download_button(self, label, *_args, **kwargs) -> bool:
+            self.downloads.append(label)
+            self.widget_keys.append(kwargs.get("key"))
+            return False
+
+    fake_streamlit = RecordingStreamlit(fake_env)
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+    monkeypatch.syspath_prepend(str(APP_SRC))
+    module = _load_app_surface_module()
+    sample_report = module.classroom_preview_report(module.load_cases())
+    monkeypatch.setattr(
+        module,
+        "classroom_display_report",
+        lambda *_args, **_kwargs: (sample_report, {"source": "sample", "path": "sample.json"}),
+    )
+
+    module.render(mode="analysis")
+
+    # The no-run fallback must be an amber info, never a quiet caption or a success state.
+    assert any("No classroom run artifact found yet" in message for message in fake_streamlit.infos)
+    assert not any("No classroom run artifact found yet" in message for message in fake_streamlit.captions)
+    answer_keys = {
+        key for key in fake_streamlit.widget_keys if isinstance(key, str) and key.startswith("tescia_answer_")
+    }
+    assert {
+        prefix
+        for prefix in (
+            "tescia_answer_diagnosis_",
+            "tescia_answer_root_cause_",
+            "tescia_answer_evidence_",
+            "tescia_answer_fix_",
+            "tescia_answer_regression_",
+            "tescia_answer_confidence_",
+        )
+        if any(key.startswith(prefix) for key in answer_keys)
+    } == {
+        "tescia_answer_diagnosis_",
+        "tescia_answer_root_cause_",
+        "tescia_answer_evidence_",
+        "tescia_answer_fix_",
+        "tescia_answer_regression_",
+        "tescia_answer_confidence_",
+    }
+    assert "tescia_answer_evaluate" in answer_keys
+    assert "tescia_classroom_summary_download" in fake_streamlit.widget_keys
+    assert "tescia_classroom_template_download" in fake_streamlit.widget_keys
+
+
 def test_tescia_app_surface_script_entrypoint(monkeypatch, tmp_path) -> None:
     fake_env = _FakeEnv(tmp_path)
     fake_streamlit = _FakeStreamlit(fake_env)

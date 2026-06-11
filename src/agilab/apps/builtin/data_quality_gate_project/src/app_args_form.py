@@ -33,7 +33,8 @@ def _load_current_args(settings_path: Path) -> DataQualityGateArgs:
     try:
         return load_args(settings_path)
     except Exception as exc:
-        st.warning(f"Unable to load Data Quality Gate args from `{settings_path}`: {exc}")
+        st.warning(f"Unable to load Data Quality Gate args from `{settings_path}`; restoring defaults.")
+        st.code(str(exc))
         return DataQualityGateArgs()
 
 
@@ -49,6 +50,11 @@ st.caption(
     f"Analysis artifacts are exported to `{artifact_root}`."
 )
 
+# Reseed widget state when the persisted [args] payload changed outside this form
+# (project switch, generic editor, manual TOML edit) so widgets stay in sync.
+_persisted_sig_key = _k("__persisted_payload")
+_reseed = st.session_state.get(_persisted_sig_key) != current_payload
+st.session_state[_persisted_sig_key] = current_payload
 for key, default in (
     ("data_out", str(current_payload.get("data_out", "data_quality_gate/evidence") or "data_quality_gate/evidence")),
     ("baseline_csv", str(current_payload.get("baseline_csv") or "")),
@@ -62,7 +68,8 @@ for key, default in (
     ("include_quality_issues", bool(current_payload.get("include_quality_issues", False))),
     ("reset_target", bool(current_payload.get("reset_target", False))),
 ):
-    st.session_state.setdefault(_k(key), default)
+    if _reseed or _k(key) not in st.session_state:
+        st.session_state[_k(key)] = default
 
 c1, c2, c3 = st.columns([2.0, 1.0, 1.0])
 with c1:
@@ -74,7 +81,14 @@ with c3:
 
 c4, c5, c6 = st.columns([1.0, 1.0, 1.0])
 with c4:
-    st.slider("Drift strength", key=_k("drift_strength"), min_value=0.0, max_value=1.0, step=0.05)
+    st.slider(
+        "Drift strength",
+        key=_k("drift_strength"),
+        min_value=0.0,
+        max_value=1.0,
+        step=0.05,
+        help="0 keeps candidate close to baseline; higher values shift its distributions further.",
+    )
 with c5:
     st.number_input("Seed", key=_k("seed"), min_value=0, step=1)
 with c6:

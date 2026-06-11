@@ -33,7 +33,8 @@ def _load_current_args(settings_path: Path) -> MissionDecisionArgs:
     try:
         return load_args(settings_path)
     except Exception as exc:
-        st.warning(f"Unable to load Mission Decision args from `{settings_path}`: {exc}")
+        st.warning(f"Unable to load Mission Decision args from `{settings_path}`; restoring defaults.")
+        st.code(str(exc))
         return MissionDecisionArgs()
 
 
@@ -72,8 +73,14 @@ defaults = {
     "random_seed": int(current_payload.get("random_seed", 2026) or 2026),
     "reset_target": bool(current_payload.get("reset_target", False)),
 }
+# Reseed widget state when the persisted [args] payload changed outside this form
+# (project switch, generic editor, manual TOML edit) so widgets stay in sync.
+_persisted_sig_key = _k("__persisted_payload")
+_reseed = st.session_state.get(_persisted_sig_key) != current_payload
+st.session_state[_persisted_sig_key] = current_payload
 for key, value in defaults.items():
-    st.session_state.setdefault(_k(key), value)
+    if _reseed or _k(key) not in st.session_state:
+        st.session_state[_k(key)] = value
 
 c1, c2, c3, c4 = st.columns([2, 2, 1.2, 1.2])
 with c1:
@@ -81,7 +88,7 @@ with c1:
 with c2:
     st.text_input("Results directory", key=_k("data_out"))
 with c3:
-    st.text_input("Files glob", key=_k("files"))
+    st.text_input("Files glob", key=_k("files"), help="Pattern used to match input files, e.g. *.json or *.csv.")
 with c4:
     st.number_input("Number of files", key=_k("nfile"), min_value=1, step=1)
 
@@ -101,7 +108,14 @@ with c8:
 
 c9, c10, c11, c12, c13 = st.columns([1, 1, 1, 1, 1])
 with c9:
-    st.number_input("Latency weight", key=_k("latency_weight"), min_value=0.0, max_value=1.0, step=0.01)
+    st.number_input(
+        "Latency weight",
+        key=_k("latency_weight"),
+        min_value=0.0,
+        max_value=1.0,
+        step=0.01,
+        help="Objective weights are relative; they do not need to sum to exactly 1.",
+    )
 with c10:
     st.number_input("Cost weight", key=_k("cost_weight"), min_value=0.0, max_value=1.0, step=0.01)
 with c11:

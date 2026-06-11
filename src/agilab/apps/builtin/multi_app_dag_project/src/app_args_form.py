@@ -49,7 +49,8 @@ def _load_current_args(settings_path: Path) -> MultiAppDagArgs:
     try:
         return load_args(settings_path)
     except Exception as exc:
-        st.warning(f"Unable to load Multi-app DAG args from `{settings_path}`: {exc}")
+        st.warning(f"Unable to load Multi-app DAG args from `{settings_path}`; restoring defaults.")
+        st.code(str(exc))
         return MultiAppDagArgs()
 
 
@@ -63,18 +64,24 @@ st.caption(
     "then use WORKFLOW to inspect the cross-app DAG."
 )
 
+# Reseed widget state when the persisted [args] payload changed outside this form
+# (project switch, generic editor, manual TOML edit) so widgets stay in sync.
+_persisted_sig_key = _k("__persisted_payload")
+_reseed = st.session_state.get(_persisted_sig_key) != current_payload
+st.session_state[_persisted_sig_key] = current_payload
 for key, default in (
     ("dag_path", str(current_payload.get("dag_path", "dag_templates/flight_to_weather_legacy_multi_app_dag.json"))),
     ("output_path", str(current_payload.get("output_path", "~/log/execute/multi_app_dag/runner_state.json"))),
     ("reset_target", bool(current_payload.get("reset_target", False))),
 ):
-    st.session_state.setdefault(_k(key), default)
+    if _reseed or _k(key) not in st.session_state:
+        st.session_state[_k(key)] = default
 
 c1, c2 = st.columns([2, 2])
 with c1:
-    st.text_input("DAG template", key=_k("dag_path"))
+    st.text_input("DAG template", key=_k("dag_path"), help="DAG JSON template path, relative to the project.")
 with c2:
-    st.text_input("Preview output", key=_k("output_path"))
+    st.text_input("Preview output", key=_k("output_path"), help="Where the preview runner state JSON is written.")
 
 c3, _ = st.columns([1.2, 2.8])
 with c3:
