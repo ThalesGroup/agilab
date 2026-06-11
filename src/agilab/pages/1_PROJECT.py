@@ -2215,7 +2215,7 @@ def render_code_editor(
         editor_key = f"{editor_scope}:{path}:{target_class}:{tab}:{fct}"
         response = code_editor(
             code,
-            height=min(30, len(code)),
+            height=max(1, min(30, code.count("\n") + 1)),
             theme="contrast",
             buttons=_project_editor_toolbar_buttons(
                 buttons if buttons is not None else CUSTOM_BUTTONS,
