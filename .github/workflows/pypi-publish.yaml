@@ -72,27 +72,34 @@ jobs:
           set -euxo pipefail
           uv --preview-features extra-build-dependencies run python tools/agilab_audit.py --strict
 
+      - name: Resolve Playwright version for browser cache key
+        id: playwright-version
+        run: |
+          set -euxo pipefail
+          version="$(uv --preview-features extra-build-dependencies run --with playwright python -c 'from importlib.metadata import version; print(version("playwright"))')"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
       - name: Restore Playwright browser cache
         id: playwright-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ env.PYTHON_VERSION }}-chromium
-          restore-keys: |
-            playwright-${{ runner.os }}-${{ env.PYTHON_VERSION }}-
-            playwright-${{ runner.os }}-
+          # Exact-key only: the key tracks the resolved Playwright version, so a
+          # version bump rolls to a fresh cache instead of restoring stale
+          # browser revisions and unioning them into ever-growing saves.
+          key: playwright-${{ runner.os }}-py${{ matrix.python-version }}-${{ steps.playwright-version.outputs.version }}-chromium
 
       - name: Install Playwright browser for frontend smoke
         run: |
           set -euxo pipefail
-          uv --preview-features extra-build-dependencies run --with playwright python -m playwright install --with-deps chromium
+          uv --preview-features extra-build-dependencies run --with "playwright==${{ steps.playwright-version.outputs.version }}" python -m playwright install --with-deps chromium
 
       - name: Save Playwright browser cache
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ env.PYTHON_VERSION }}-chromium
+          key: playwright-${{ runner.os }}-py${{ matrix.python-version }}-${{ steps.playwright-version.outputs.version }}-chromium
 
       - name: Fail on accidental O.* version typos in published packages
         run: |

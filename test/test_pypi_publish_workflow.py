@@ -130,11 +130,22 @@ def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
     assert text.index("tools/agilab_audit.py --strict") < text.index(
         "Install Playwright browser for frontend smoke"
     )
+    assert "Resolve Playwright version for browser cache key" in text
+    assert "id: playwright-version" in text
     assert "Restore Playwright browser cache" in text
     assert "id: playwright-cache" in text
     assert "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae" in text
     assert "path: ~/.cache/ms-playwright" in text
-    assert "key: playwright-${{ runner.os }}-${{ env.PYTHON_VERSION }}-chromium" in text
+    assert (
+        "key: playwright-${{ runner.os }}-py${{ matrix.python-version }}"
+        "-${{ steps.playwright-version.outputs.version }}-chromium"
+    ) in text
+    assert "restore-keys" not in text.split("Restore Playwright browser cache", 1)[1].split(
+        "Install Playwright browser for frontend smoke", 1
+    )[0]
+    assert text.index("Resolve Playwright version for browser cache key") < text.index(
+        "Restore Playwright browser cache"
+    )
     assert text.index("Restore Playwright browser cache") < text.index(
         "Install Playwright browser for frontend smoke"
     )
