@@ -31,6 +31,13 @@ PROJECT_SESSION_STATE_KEYS_TO_CLEAR = (
     "lab_prompt",
     "lab_selected_venv",
     "pipeline_config_snapshot",
+    # PROJECT sidebar action state and result banners must not survive a
+    # project switch: a pending Create/Delete selection or an import/export
+    # result from the previous project would otherwise show for the new one.
+    "sidebar_selection",
+    "export_message",
+    "project_imported",
+    "project_created",
 )
 PROJECT_SESSION_STATE_PREFIXES = ("arg_name", "arg_value", "view_checkbox")
 PROJECT_SECTION_LABELS = (

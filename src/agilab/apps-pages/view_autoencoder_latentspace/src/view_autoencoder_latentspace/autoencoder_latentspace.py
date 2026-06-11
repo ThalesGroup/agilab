@@ -614,23 +614,41 @@ def page(env):
                 options=["png", "jpeg", "svg", "webp"],
                 key=format_key,
             )
-        norm_X = __normalize_data(X)
-        y = st.session_state.data[f"{selected_color}"]
-        X_train, X_test, y_train, y_test = train_test_split(
-            norm_X.values, y, test_size=0.2, random_state=42
+        # Training is heavy (Keras fit in the render thread), so it only runs
+        # on an explicit user action; cached results keep rendering afterwards.
+        train_signature = (
+            f"{st.session_state.get('df_file', '')}|{lines}|{ndim}|{ndim_inter}|"
+            f"{ndim_middle}|{selected_color}"
         )
-        aek = build_AE(X_train, ndim, ndim_inter, ndim_middle)
-        aeke = Sequential(aek.layers[: -(ceil(ndim_middle / 2) + 1)])
-        X_train_reduit_keras = aeke.predict(X_train, verbose=0)
-        lr_df = pd.DataFrame(data=X_train_reduit_keras)
-        __bary_visualisation(
-            lr_df,
-            X,
-            selected_color,
-            selected_name,
-            selected_format,
-            color_data=y_train,
-        )
+        trained_signature_key = _ae_key("trained_signature")
+        should_train = st.session_state.get(trained_signature_key) == train_signature
+        if not should_train:
+            st.info(
+                "Training runs locally in this playground and can take a while "
+                "for large datasets or high dimensions."
+            )
+            if st.button("Train autoencoder", key=_ae_key("train_button")):
+                st.session_state[trained_signature_key] = train_signature
+                should_train = True
+        if should_train:
+            norm_X = __normalize_data(X)
+            y = st.session_state.data[f"{selected_color}"]
+            X_train, X_test, y_train, y_test = train_test_split(
+                norm_X.values, y, test_size=0.2, random_state=42
+            )
+            with st.spinner("Training autoencoder..."):
+                aek = build_AE(X_train, ndim, ndim_inter, ndim_middle)
+            aeke = Sequential(aek.layers[: -(ceil(ndim_middle / 2) + 1)])
+            X_train_reduit_keras = aeke.predict(X_train, verbose=0)
+            lr_df = pd.DataFrame(data=X_train_reduit_keras)
+            __bary_visualisation(
+                lr_df,
+                X,
+                selected_color,
+                selected_name,
+                selected_format,
+                color_data=y_train,
+            )
     # Persist current selections for reloads
     persist_keys = {
         "datadir": str(st.session_state.get("datadir", "")),

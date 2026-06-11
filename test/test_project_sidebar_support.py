@@ -60,3 +60,23 @@ def test_project_sidebar_session_defaults_preserve_existing_selection() -> None:
     )
 
     assert streamlit.session_state["sidebar_selection"] == "Rename"
+
+
+def test_project_switch_clears_sidebar_action_state_and_result_banners():
+    from agi_env.ui.pagelib_session_support import clear_project_session_state
+
+    session_state = {
+        "sidebar_selection": "Delete",
+        "export_message": "Export completed.",
+        "project_imported": True,
+        "project_created": True,
+        "unrelated": "keep",
+    }
+
+    clear_project_session_state(session_state)
+
+    assert "sidebar_selection" not in session_state
+    assert "export_message" not in session_state
+    assert "project_imported" not in session_state
+    assert "project_created" not in session_state
+    assert session_state["unrelated"] == "keep"

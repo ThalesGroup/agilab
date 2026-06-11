@@ -510,6 +510,9 @@ def test_page_runs_autoencoder_flow_and_persists_settings(monkeypatch, tmp_path:
             selectbox=lambda label, options, **kwargs: "label" if label == "Color" else options[0],
             text_input=lambda *args, **kwargs: "latent-demo",
             warning=lambda *args, **kwargs: None,
+            info=lambda *args, **kwargs: None,
+            button=lambda *args, **kwargs: True,
+            spinner=lambda *args, **kwargs: _ColumnContext(),
         ),
     )
     env = SimpleNamespace(target="demo", projects=["demo_project"], app_settings_file=settings_path)
@@ -585,6 +588,9 @@ def test_page_persistence_tolerates_invalid_settings_and_write_failures(monkeypa
             selectbox=lambda label, options, **kwargs: "label" if label == "Color" else options[0],
             text_input=lambda *args, **kwargs: "latent-demo",
             warning=lambda *args, **kwargs: None,
+            info=lambda *args, **kwargs: None,
+            button=lambda *args, **kwargs: True,
+            spinner=lambda *args, **kwargs: _ColumnContext(),
         ),
     )
 
@@ -592,6 +598,74 @@ def test_page_persistence_tolerates_invalid_settings_and_write_failures(monkeypa
     module.page(env)
 
     assert settings_path.read_text(encoding="utf-8") == 'view_autoencoder_latentspace = "broken"\n'
+
+
+def test_page_does_not_train_until_user_clicks_train(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text("", encoding="utf-8")
+    data = pd.DataFrame(
+        {
+            "x": [1.0 + i for i in range(12)],
+            "y": [2.0 + i for i in range(12)],
+            "label": [i % 2 for i in range(12)],
+        }
+    )
+    infos: list[str] = []
+    trained: list[bool] = []
+
+    class _State(dict):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.__dict__ = self
+
+    class _ColumnContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(module, "sidebar_views", lambda: None)
+    monkeypatch.setattr(module, "load_df", lambda *args, **kwargs: data.copy())
+    monkeypatch.setattr(module, "lazy_import_keras", lambda: (object, object, object))
+    monkeypatch.setattr(
+        module,
+        "lazy_import_sklearn",
+        lambda: (
+            lambda X, y, test_size=0.2, random_state=42: (X[:8], X[8:], y.iloc[:8], y.iloc[8:]),
+            object,
+        ),
+    )
+    monkeypatch.setattr(module, "__normalize_data", lambda df: df.fillna(0))
+    monkeypatch.setattr(
+        module,
+        "build_AE",
+        lambda *args, **kwargs: trained.append(True) or SimpleNamespace(layers=["a", "b", "c", "d", "e"]),
+    )
+    monkeypatch.setattr(module, "__bary_visualisation", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=_State(datadir=str(tmp_path), df_file="data.csv", coltype="discrete"),
+            slider=lambda *args, **kwargs: 10,
+            columns=lambda n: [_ColumnContext() for _ in range(n)],
+            number_input=lambda *args, **kwargs: 2,
+            selectbox=lambda label, options, **kwargs: "label" if label == "Color" else options[0],
+            text_input=lambda *args, **kwargs: "latent-demo",
+            warning=lambda *args, **kwargs: None,
+            info=infos.append,
+            button=lambda *args, **kwargs: False,
+            spinner=lambda *args, **kwargs: _ColumnContext(),
+        ),
+    )
+    env = SimpleNamespace(target="demo", projects=["demo_project"], app_settings_file=settings_path)
+
+    module.page(env)
+
+    assert not trained
+    assert any("Training runs locally" in message for message in infos)
 
 
 def test_main_missing_active_app_sets_error(monkeypatch, tmp_path: Path) -> None:
