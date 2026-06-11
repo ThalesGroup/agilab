@@ -438,11 +438,18 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
         ]
 
     if command in {"publish-testpypi", "test-pypi-publish"}:
+        if "--repo" in args:
+            raise SystemExit(
+                "publish-testpypi always targets testpypi; run tools/pypi_publish.py "
+                "directly to publish to another repository"
+            )
         return [
             _uv_python(
                 "tools/pypi_publish.py",
                 "--repo",
                 "testpypi",
+                "--dist",
+                "both",
                 "--verbose",
                 "--git-reset-on-failure",
                 "--no-pypirc-check",
@@ -565,7 +572,7 @@ High-frequency mappings:
   worker-reuse -> Compare worker manifest fingerprints against a deployed-env reuse marker.
   typing    -> Run the forward shared-core ty typing profile. Mypy remains the curated temporary release guard under shared-core-typing.
   release   -> Run local release guards: AGILAB audit/review, impact, generated PyPI plan, release cadence, PyPI project preflight, trusted publisher contract, Ruff availability, docs, dependency policy, typing, and badge freshness. Pass --release-mode hotfix and --impact-base-ref <tag> for same-day hotfixes.
-  publish-testpypi -> Run the local TestPyPI rehearsal path with the same publisher used by the workflow, defaulting to --verbose, --git-reset-on-failure, and --no-pypirc-check.
+  publish-testpypi -> Run the local TestPyPI rehearsal path with the same publisher used by the workflow, defaulting to --dist both, --verbose, --git-reset-on-failure, and --no-pypirc-check. The repo is pinned to testpypi; --repo is rejected.
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
   clean     -> Dry-run cleanup of ignored local build/lib duplicate-source trees; pass --apply to remove them.

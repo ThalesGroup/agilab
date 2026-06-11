@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "tools" / "agilab_dev.py"
@@ -786,6 +788,8 @@ def test_publish_testpypi_shortcut_runs_local_rehearsal_path():
             "tools/pypi_publish.py",
             "--repo",
             "testpypi",
+            "--dist",
+            "both",
             "--verbose",
             "--git-reset-on-failure",
             "--no-pypirc-check",
@@ -806,6 +810,8 @@ def test_publish_testpypi_shortcut_keeps_explicit_arguments():
             "tools/pypi_publish.py",
             "--repo",
             "testpypi",
+            "--dist",
+            "both",
             "--verbose",
             "--git-reset-on-failure",
             "--no-pypirc-check",
@@ -814,6 +820,11 @@ def test_publish_testpypi_shortcut_keeps_explicit_arguments():
             "2026.05.12",
         ]
     ]
+
+
+def test_publish_testpypi_shortcut_rejects_repo_override():
+    with pytest.raises(SystemExit):
+        agilab_dev.planned_commands(["publish-testpypi", "--repo", "pypi"])
 
 
 def test_release_shortcut_keeps_impact_arguments():

@@ -51,6 +51,9 @@ jobs:
       - name: Build and upload all TestPyPI packages with one unified version
         env:
           BASE_VERSION: ${{ github.event.inputs.version }}
+          # Stream the full publisher log to the Actions log; the compact
+          # summary's log file lives on the ephemeral runner and is lost.
+          AGILAB_DEV_OUTPUT: raw
         run: |
           set -euxo pipefail
           args=()

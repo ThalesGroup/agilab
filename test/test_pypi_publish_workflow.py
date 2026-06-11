@@ -56,7 +56,7 @@ def test_pypi_publish_blocks_downstream_publish_jobs_when_preflight_fails() -> N
         "    needs:\n"
         "      - release-plan\n"
         "      - test\n"
-        "    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' "
+        "    if: ${{ !cancelled() && needs.release-plan.outputs.pypi_publish_selected == 'true' "
         "&& needs.test.result == 'success' }}"
     ) in text
     assert (
@@ -64,7 +64,7 @@ def test_pypi_publish_blocks_downstream_publish_jobs_when_preflight_fails() -> N
         "    needs:\n"
         "      - release-plan\n"
         "      - test\n"
-        "    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' "
+        "    if: ${{ !cancelled() && needs.release-plan.outputs.pypi_publish_selected == 'true' "
         "&& needs.test.result == 'success' }}"
     ) in text
     assert "publish-agilab:" in text

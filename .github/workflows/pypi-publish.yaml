@@ -119,7 +119,7 @@ jobs:
     needs:
       - release-plan
       - test
-    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' }}
+    if: ${{ !cancelled() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -193,7 +193,7 @@ jobs:
     needs:
       - release-plan
       - test
-    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' }}
+    if: ${{ !cancelled() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -328,7 +328,7 @@ jobs:
       - release-evidence
       - supply-chain-evidence
       - release-plan
-    if: ${{ needs.release-plan.outputs.library_selected == 'true' }}
+    if: ${{ !cancelled() && needs.release-plan.result == 'success' && needs.release-plan.outputs.library_selected == 'true' && ((needs.test.result == 'success' && needs.release-evidence.result == 'success' && needs.supply-chain-evidence.result == 'success') || needs.release-plan.outputs.pypi_publish_selected != 'true') }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -783,7 +783,7 @@ jobs:
           PY
 
   publish-dataset-release-assets:
-    if: ${{ always() && needs.release-plan.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
+    if: ${{ !cancelled() && needs.release-plan.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     needs:
       - test
       - release-plan
