@@ -32,16 +32,66 @@ declare -a DEFAULT_APPS_ORDER=(
   uav_relay_queue_project
 )
 
-declare -a DEFAULT_SELECTED_APPS=(
-  flight_telemetry_project
+# Default selection is intentionally minimal: the teaching core plus whatever
+# the user actually worked with in their last session (detected below).
+# Use --install-apps all (or the picker) for a full install.
+declare -a MINIMAL_DEFAULT_APPS=(
   minimal_app_project
-  sat_trajectory_project
-  flight_trajectory_project
-  link_sim_project
-  network_sim_project
-  ilp_project
-  sb3_trainer_project
+  flight_telemetry_project
 )
+declare -a LAST_SESSION_APPS=()
+
+# Detect apps used in the last session: the persisted last-active app from the
+# UI global state, plus workspace app directories touched within 24h of the
+# most recent activity.
+detect_last_session_apps() {
+  LAST_SESSION_APPS=()
+  local state_file="${AGILAB_APP_STATE_FILE:-$HOME/.local/share/agilab/app_state.toml}"
+  if [[ -f "$state_file" ]]; then
+    local last_app
+    last_app="$(sed -n 's/^last_active_app[[:space:]]*=[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' "$state_file" | tail -1)"
+    if [[ -n "$last_app" ]]; then
+      LAST_SESSION_APPS+=("$(basename -- "$last_app")")
+    fi
+  fi
+  local workspace_root="${AGILAB_WORKSPACE_APPS_DIR:-$HOME/.agilab/apps}"
+  if [[ -d "$workspace_root" ]]; then
+    local newest=0 mtime dir
+    local -a candidate_names=()
+    local -a candidate_mtimes=()
+    while IFS= read -r dir; do
+      [[ -d "$dir" ]] || continue
+      mtime="$(stat -f %m "$dir" 2>/dev/null || stat -c %Y "$dir" 2>/dev/null || echo 0)"
+      candidate_names+=("$(basename -- "$dir")")
+      candidate_mtimes+=("$mtime")
+      if (( mtime > newest )); then
+        newest=$mtime
+      fi
+    done < <(find "$workspace_root" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
+    local window=$(( 24 * 3600 ))
+    local i
+    for i in "${!candidate_names[@]}"; do
+      if (( newest > 0 && candidate_mtimes[i] + window >= newest )); then
+        if [[ " ${LAST_SESSION_APPS[*]-} " != *" ${candidate_names[$i]} "* ]]; then
+          LAST_SESSION_APPS+=("${candidate_names[$i]}")
+        fi
+      fi
+    done
+  fi
+}
+
+detect_last_session_apps
+declare -a DEFAULT_SELECTED_APPS=("${MINIMAL_DEFAULT_APPS[@]}")
+for app in ${LAST_SESSION_APPS+"${LAST_SESSION_APPS[@]}"}; do
+  if [[ " ${DEFAULT_SELECTED_APPS[*]} " != *" ${app} "* ]]; then
+    DEFAULT_SELECTED_APPS+=("$app")
+  fi
+done
+if (( ${#LAST_SESSION_APPS[@]} )); then
+  echo -e "${BLUE:-}(Apps) Default selection is minimal plus last-session apps:${NC:-} ${DEFAULT_SELECTED_APPS[*]}"
+else
+  echo -e "${BLUE:-}(Apps) No last-session app usage found; defaulting to the minimal app set:${NC:-} ${DEFAULT_SELECTED_APPS[*]}"
+fi
 
 declare -a INCLUDED_APPS=()
 declare -a INCLUDED_PAGES=()
@@ -833,6 +883,11 @@ if (( FILTER_BUILTINS_BY_DEFAULT )); then
         break
       fi
     done
+    # Minimal default: only the minimal core and last-session apps are
+    # selected by default; everything else stays available in the picker.
+    if (( ! skip )) && ! in_list "$app" "${DEFAULT_SELECTED_APPS[@]}"; then
+      skip=1
+    fi
     if (( skip )); then
       BUILTIN_SKIPPED_BY_DEFAULT+=("$app")
       continue

@@ -1359,7 +1359,7 @@ resolve_cli_path_arg() {
 print_dry_run_plan() {
     local apps_plan
     if (( INSTALL_APPS_FLAG )); then
-        apps_plan="${CUSTOM_INSTALL_APPS:-default apps selection}"
+        apps_plan="${CUSTOM_INSTALL_APPS:-minimal default + last-session apps}"
     else
         apps_plan="skipped"
     fi
