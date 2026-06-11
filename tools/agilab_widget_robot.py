@@ -2922,6 +2922,25 @@ def _snapshot_specific_files(paths: Sequence[Path], *, require_non_empty: bool =
     return ArtifactFileSnapshot(files=files)
 
 
+def _workflow_source_payload_is_restorable(path: Path) -> bool:
+    """Return True when the source stage file uses the module-keyed contract.
+
+    Conceptual stage files ([[stages]]/[[steps]] documentation for the
+    workflow concept view) are not restorable into the exported stage
+    contract, so their presence must not make the export assertion fail.
+    """
+    try:
+        payload = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+        return False
+    for key, value in payload.items():
+        if key in {"stages", "steps", "__meta__"}:
+            continue
+        if isinstance(value, list) and value and all(isinstance(item, dict) for item in value):
+            return True
+    return False
+
+
 def _workflow_source_stage_contract_path(context: WorkflowArtifactContext) -> Path | None:
     active_app_path = Path(context.active_app_query).expanduser()
     candidates = [
@@ -2929,7 +2948,7 @@ def _workflow_source_stage_contract_path(context: WorkflowArtifactContext) -> Pa
         DEFAULT_APPS_ROOT / context.app_name / WORKFLOW_STAGE_CONTRACT_FILENAME,
     ]
     for candidate in candidates:
-        if candidate.is_file():
+        if candidate.is_file() and _workflow_source_payload_is_restorable(candidate):
             return candidate
     return None
 
