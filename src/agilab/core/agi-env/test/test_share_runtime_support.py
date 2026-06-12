@@ -24,7 +24,15 @@ def test_share_runtime_helpers_cover_target_path_modes_and_ip_validation(tmp_pat
 
     assert share_runtime_module.mode_to_str(0b0111, hw_rapids_capable=False) == "_dcp"
     assert share_runtime_module.mode_to_str(0b0111, hw_rapids_capable=True) == "rdcp"
-    assert share_runtime_module.mode_to_int("pc") == 6
+    # Bitmask must match AGI constants and mode_to_str: p=1, c=2, d=4, r=8.
+    assert share_runtime_module.mode_to_int("pc") == 0b0011
+    assert share_runtime_module.mode_to_int("p") == 1
+    assert share_runtime_module.mode_to_int("c") == 2
+    assert share_runtime_module.mode_to_int("d") == 4
+    assert share_runtime_module.mode_to_int("r") == 8
+    assert share_runtime_module.mode_to_int("pcdr") == 0b1111
+    # Round-trip with mode_to_str.
+    assert share_runtime_module.mode_to_str(share_runtime_module.mode_to_int("dcp")) == "_dcp"
 
     assert share_runtime_module.is_valid_ip("192.168.20.130") is True
     assert share_runtime_module.is_valid_ip("999.1.1.1") is False

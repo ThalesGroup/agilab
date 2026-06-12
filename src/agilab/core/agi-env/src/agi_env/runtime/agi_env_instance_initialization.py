@@ -164,7 +164,12 @@ def _load_environment(
     load_dotenv_values_fn: Callable,
     module_logger,
 ) -> _LoadedEnvironment:
-    env.is_managed_pc = getpass.getuser().startswith("T0")
+    try:
+        env.is_managed_pc = getpass.getuser().startswith("T0")
+    except (KeyError, OSError):
+        # No user mapping (e.g. container with an arbitrary uid); not a
+        # managed PC.
+        env.is_managed_pc = False
     env._is_managed_pc = env.is_managed_pc
     env._agi_resources = Path("resources/.agilab")
     home_abs = Path.home() / "MyApp" if env.is_managed_pc else Path.home()

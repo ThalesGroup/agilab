@@ -45,13 +45,13 @@ def mode_to_str(mode: int, *, hw_rapids_capable: bool = False) -> str:
 
 
 def mode_to_int(mode: str) -> int:
-    """Convert iterable mode flags (``p``, ``c``, ``d``) into the bitmask int."""
+    """Convert iterable mode flags (``p``, ``c``, ``d``, ``r``) into the bitmask int."""
 
     mode_int = 0
     set_rm = set(mode)
-    for i, value in enumerate(["p", "c", "d"]):
+    for i, value in enumerate(["p", "c", "d", "r"]):
         if value in set_rm:
-            mode_int += 2 ** (len(["p", "c", "d"]) - 1 - i)
+            mode_int += 1 << i
     return mode_int
 
 
