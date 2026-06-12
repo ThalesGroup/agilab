@@ -3081,11 +3081,17 @@ async def main():
             st.session_state.get(notebook_selection_key, []),
             notebook_names,
         )
-    else:
+    elif "selected" in notebooks_cfg:
         notebook_widget_selection = _configured_notebook_options(
             notebooks_cfg.get("selected", []),
             notebook_names,
         )
+    else:
+        # Never-configured projects (e.g. a fresh notebook import) default to
+        # every discovered notebook; an empty launcher would hide the imported
+        # notebook entirely. Explicit deselection persists selected = [] and is
+        # honored by the branch above.
+        notebook_widget_selection = list(notebook_names)
     if st.session_state.get(notebook_selection_key) != notebook_widget_selection:
         st.session_state[notebook_selection_key] = notebook_widget_selection
     selected_notebooks = list(notebook_widget_selection)

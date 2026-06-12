@@ -1828,9 +1828,12 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "current_page=" in sidebar_markdown
     assert "view_maps" in sidebar_markdown
     assert "### Notebooks" not in sidebar_markdown
-    assert "agilab-analysis-notebook-links" not in sidebar_markdown
-    assert "current_notebook=" not in sidebar_markdown
-    assert any(
+    # Never-configured projects default to every discovered notebook so a
+    # fresh notebook import is reachable from the sidebar; only an explicit
+    # selected = [] in app settings hides the launcher.
+    assert "agilab-analysis-notebook-links" in sidebar_markdown
+    assert "current_notebook=" in sidebar_markdown
+    assert not any(
         "No notebooks selected." in str(item.value) for item in at.sidebar.info
     )
     sidebar_buttons = [button.label for button in at.sidebar.button]
