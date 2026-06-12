@@ -46,6 +46,18 @@ def _profile_output_dir(output_root: Path, profile: str) -> Path:
     return output_root / profile.replace("/", "-")
 
 
+# Advisories acknowledged without a fixed release. Each entry must state why
+# the risk is accepted for AGILAB's exposure; remove the entry as soon as the
+# upstream fix ships so the scan resumes enforcing it.
+ACKNOWLEDGED_VULNERABILITIES: dict[str, str] = {
+    # torch.jit.script memory corruption (no fixed release as of 2026-06-12).
+    # AGILAB never feeds untrusted TorchScript sources to torch.jit.script;
+    # torch is only resolved by the opt-in local-llm profile and the local
+    # pytorch playground, both of which run user-owned code on user machines.
+    "GHSA-rrmf-rvhw-rf47": "torch.jit.script memory corruption; no fixed release; AGILAB does not script untrusted models",
+}
+
+
 def build_profile_scan(profile: str, *, output_root: Path) -> ProfileScan:
     """Return the command plan for one install profile."""
     if profile not in PROFILE_EXTRAS:
@@ -84,6 +96,11 @@ def build_profile_scan(profile: str, *, output_root: Path) -> ProfileScan:
             str(audit_requirements),
             "--no-deps",
             "--disable-pip",
+            *(
+                part
+                for vuln_id in sorted(ACKNOWLEDGED_VULNERABILITIES)
+                for part in ("--ignore-vuln", vuln_id)
+            ),
             "--format",
             "json",
             "--output",

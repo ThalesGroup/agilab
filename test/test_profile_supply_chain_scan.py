@@ -83,3 +83,16 @@ def test_write_pip_audit_requirements_removes_local_editables(tmp_path: Path) ->
     assert "file:///repo" not in text
     assert "requests==2.33.1" in text
     assert "--hash=sha256:abc" in text
+
+
+def test_acknowledged_vulnerabilities_are_ignored_with_rationale():
+    module = _load_module()
+    assert module.ACKNOWLEDGED_VULNERABILITIES, "expected at least one acknowledged advisory"
+    for vuln_id, rationale in module.ACKNOWLEDGED_VULNERABILITIES.items():
+        assert vuln_id.startswith(("GHSA-", "PYSEC-"))
+        assert rationale.strip(), f"{vuln_id} needs a written rationale"
+    plan = module.build_profile_scan("local-llm", output_root=__import__("pathlib").Path("/tmp/scan"))
+    audit_cmd = next(cmd for cmd in plan.commands if "pip-audit" in cmd)
+    for vuln_id in module.ACKNOWLEDGED_VULNERABILITIES:
+        assert "--ignore-vuln" in audit_cmd
+        assert vuln_id in audit_cmd
