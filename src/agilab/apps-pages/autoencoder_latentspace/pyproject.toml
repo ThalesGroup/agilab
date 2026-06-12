@@ -25,11 +25,11 @@ dependencies = [
 ]
 
 [project.entry-points."agilab.pages"]
-view_autoencoder_latentspace = "view_autoencoder_latentspace:bundle_root"
+autoencoder_latentspace = "autoencoder_latentspace:bundle_root"
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
-Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps-pages/view_autoencoder_latentspace"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/apps-pages/autoencoder_latentspace"
 Issues = "https://github.com/ThalesGroup/agilab/issues"
 Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"

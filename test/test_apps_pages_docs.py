@@ -64,7 +64,7 @@ def test_apps_pages_quality_bar_is_documented_and_enforced() -> None:
 def test_autoencoder_latentspace_is_marked_as_opt_in_playground_exception() -> None:
     texts = [
         (APPS_PAGES_ROOT / "README.md").read_text(encoding="utf-8"),
-        (APPS_PAGES_ROOT / "view_autoencoder_latentspace" / "README.md").read_text(encoding="utf-8"),
+        (APPS_PAGES_ROOT / "autoencoder_latentspace" / "README.md").read_text(encoding="utf-8"),
         (DOCS_SOURCE / "apps-pages.rst").read_text(encoding="utf-8"),
         APPS_PAGES_GALLERY.read_text(encoding="utf-8"),
     ]

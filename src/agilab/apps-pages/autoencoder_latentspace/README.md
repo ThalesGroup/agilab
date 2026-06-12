@@ -1,6 +1,6 @@
-# view_autoencoder_latentspace
+# autoencoder_latentspace
 
-![view_autoencoder_latentspace preview](../../../../docs/source/_static/apps-pages-gallery/view_autoencoder_latentspace.svg)
+![autoencoder_latentspace preview](../../../../docs/source/_static/apps-pages-gallery/autoencoder_latentspace.svg)
 
 Package: `agi-page-latent-space`
 
@@ -22,7 +22,7 @@ Most apps-pages inspect artifacts produced by the active app. This page is diffe
 Open it from `ANALYSIS` after selecting a project, or run it directly while developing:
 
 ```bash
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_autoencoder_latentspace/src/view_autoencoder_latentspace/view_autoencoder_latentspace.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
+uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/autoencoder_latentspace/src/autoencoder_latentspace/main.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
 ```
 
 ## Quality Contract

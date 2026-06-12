@@ -178,9 +178,9 @@ def _discover_topology_path(sources: list[dict[str, Any]], base_dirs: list[Path]
         "pipeline/topology.gml",
         "pipeline/ilp_topology.gml",
         "pipeline/topology.json",
-        "network_sim/pipeline/topology.gml",
-        "network_sim/pipeline/ilp_topology.gml",
-        "network_sim/pipeline/topology.json",
+        "*/pipeline/topology.gml",
+        "*/pipeline/ilp_topology.gml",
+        "*/pipeline/topology.json",
     ]
     matches = _expand_globs(patterns, base_dirs)
     return matches[0] if matches else None
@@ -190,8 +190,6 @@ def _discover_trajectory_paths(sources: list[dict[str, Any]], base_dirs: list[Pa
     patterns = _setting_list(sources, "traj_glob", "default_traj_globs")
     if not patterns:
         patterns = [
-            "flight_trajectory/pipeline/*.csv",
-            "flight_trajectory/pipeline/*.parquet",
             "*trajectory*/pipeline/*.csv",
             "*trajectory*/pipeline/*.parquet",
         ]

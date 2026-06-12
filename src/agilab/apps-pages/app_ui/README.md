@@ -1,6 +1,6 @@
-# view_app_ui
+# app_ui
 
-![view_app_ui preview](../../../../docs/source/_static/apps-pages-gallery/view_app_ui.svg)
+![app_ui preview](../../../../docs/source/_static/apps-pages-gallery/app_ui.svg)
 
 Package: `agi-page-app-ui`
 
@@ -12,13 +12,13 @@ Use when the app owns live controls, training loops, or a custom UI that should 
 
 ## Expected Inputs
 
-- An active app with a [pages.view_app_ui] or app_surface Streamlit entrypoint.
+- An active app with a [pages.app_ui] or app_surface Streamlit entrypoint.
 - The app-owned UI source and its exported artifacts.
 
 Open it from `ANALYSIS` after selecting a project, or run it directly while developing:
 
 ```bash
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_app_ui/src/view_app_ui/view_app_ui.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
+uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/app_ui/src/app_ui/app_ui.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
 ```
 
 ## Quality Contract

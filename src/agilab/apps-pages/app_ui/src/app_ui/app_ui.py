@@ -19,7 +19,7 @@ from agi_pages.runtime import (
 )
 
 
-PAGE_KEY = "view_app_ui"
+PAGE_KEY = "app_ui"
 
 
 def _safe_page_config() -> None:
@@ -84,7 +84,7 @@ def _prepend_sys_path(path: Path) -> None:
 
 
 def _load_module(path: Path) -> ModuleType:
-    module_name = f"_agilab_view_app_ui_{abs(hash(str(path.resolve())))}"
+    module_name = f"_agilab_app_ui_{abs(hash(str(path.resolve())))}"
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
         raise ModuleNotFoundError(f"Unable to load app UI from {path}")
@@ -121,7 +121,7 @@ def main() -> None:
         if entrypoint is None:
             _safe_page_config()
             st.info("This project does not declare an app UI entrypoint for ANALYSIS.")
-            st.caption("Configure [pages.view_app_ui].entrypoint in the active app settings.")
+            st.caption("Configure [pages.app_ui].entrypoint in the active app settings.")
             return
         _run_app_ui(entrypoint, active_app)
     except Exception as exc:

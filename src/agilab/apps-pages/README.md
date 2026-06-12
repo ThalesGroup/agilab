@@ -84,9 +84,9 @@ Quick start (dev checkout):
   - uv run streamlit run src/agilab/apps-pages/view_live_artifacts/src/view_live_artifacts/view_live_artifacts.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
   - Generic live monitor for exported evidence, manifests, logs, JSON/CSV/text files, and images. Uses Streamlit fragment refresh to update the artifact panel without executing the app.
 
-- view_app_ui
-  - uv run streamlit run src/agilab/apps-pages/view_app_ui/src/view_app_ui/view_app_ui.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
-  - Generic bridge for app-owned Streamlit UIs declared in `[pages.view_app_ui]`. The page stays app-agnostic; the active app owns the UI entrypoint, controls, execution semantics, and evidence artifacts.
+- app_ui
+  - uv run streamlit run src/agilab/apps-pages/app_ui/src/app_ui/app_ui.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
+  - Generic bridge for app-owned Streamlit UIs declared in `[pages.app_ui]`. The page stays app-agnostic; the active app owns the UI entrypoint, controls, execution semantics, and evidence artifacts.
 
 Notes
 - The `--active-app` points to a `*_project` folder (e.g., `src/agilab/apps/builtin/flight_telemetry_project`).
@@ -97,8 +97,8 @@ Notes
 
 Experimental and opt-in views:
 
-- view_autoencoder_latentspace
-  - uv run streamlit run src/agilab/apps-pages/view_autoencoder_latentspace/src/view_autoencoder_latentspace/view_autoencoder_latentspace.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
+- autoencoder_latentspace
+  - uv run streamlit run src/agilab/apps-pages/autoencoder_latentspace/src/autoencoder_latentspace/main.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
   - Opt-in playground exception for Python 3.12 teaching sessions. It trains a small TensorFlow/Keras autoencoder in-page, so it is intentionally not part of the public `agi-pages` umbrella or the generic app-agnostic sidecar set.
 
 ## Repository Pages (optional)
