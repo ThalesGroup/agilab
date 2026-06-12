@@ -1501,7 +1501,11 @@ def test_workflow_page_artifact_validation_fails_when_export_contract_missing(tm
     module = _load_module()
     app_root = tmp_path / "flight_telemetry_project"
     app_root.mkdir()
-    (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
+    (app_root / "lab_stages.toml").write_text(
+        "flight_telemetry = [{ D = \"Load\", Q = \"\", M = \"\", C = \"\", R = \"runpy\" }]\n\n"
+        "[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n",
+        encoding="utf-8",
+    )
     context = module.WorkflowArtifactContext(
         app_name="flight_telemetry_project",
         active_app_query=str(app_root),
@@ -1520,11 +1524,39 @@ def test_workflow_page_artifact_validation_fails_when_export_contract_missing(tm
     assert "was not restored" in probes[0].detail
 
 
+def test_workflow_page_artifact_validation_skips_conceptual_stage_files(tmp_path) -> None:
+    module = _load_module()
+    app_root = tmp_path / "flight_telemetry_project"
+    app_root.mkdir()
+    (app_root / "lab_stages.toml").write_text(
+        "[[stages]]\nid = \"load\"\nlabel = \"Load data\"\n",
+        encoding="utf-8",
+    )
+    context = module.WorkflowArtifactContext(
+        app_name="flight_telemetry_project",
+        active_app_query=str(app_root),
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+    )
+
+    probes = module.validate_workflow_page_artifacts(
+        context=context,
+        display="WORKFLOW",
+        url="http://demo",
+    )
+
+    assert probes == []
+
+
 def test_workflow_page_artifact_validation_requires_versioned_export_contract(tmp_path) -> None:
     module = _load_module()
     app_root = tmp_path / "flight_telemetry_project"
     app_root.mkdir()
-    (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
+    (app_root / "lab_stages.toml").write_text(
+        "flight_telemetry = [{ D = \"Load\", Q = \"\", M = \"\", C = \"\", R = \"runpy\" }]\n\n"
+        "[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n",
+        encoding="utf-8",
+    )
     export_contract = tmp_path / "export" / "flight_telemetry" / "lab_stages.toml"
     export_contract.parent.mkdir(parents=True)
     export_contract.write_text("[flight]\n", encoding="utf-8")
@@ -1550,7 +1582,11 @@ def test_workflow_page_artifact_validation_accepts_restored_contract(tmp_path) -
     module = _load_module()
     app_root = tmp_path / "flight_telemetry_project"
     app_root.mkdir()
-    (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
+    (app_root / "lab_stages.toml").write_text(
+        "flight_telemetry = [{ D = \"Load\", Q = \"\", M = \"\", C = \"\", R = \"runpy\" }]\n\n"
+        "[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n",
+        encoding="utf-8",
+    )
     export_contract = tmp_path / "export" / "flight_telemetry" / "lab_stages.toml"
     export_contract.parent.mkdir(parents=True)
     export_contract.write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")

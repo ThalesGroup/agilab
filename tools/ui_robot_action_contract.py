@@ -43,6 +43,11 @@ EXCLUDED_PATH_PARTS = {
 # present on disk, closing the gap where a deleted/renamed focused test would silently leave
 # a high-risk action with zero coverage and a passing contract.
 EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
+    "Train autoencoder": (
+        "trial-only",
+        "starts an explicit local Keras training run in the autoencoder playground; generic robots verify the gate renders without launching training",
+        ("test/test_view_autoencoder_latentspace.py",),
+    ),
     "Add argument": (
         "trial-only",
         "mutates the ORCHESTRATE argument editor; covered by focused page tests, not fired by generic robots",
