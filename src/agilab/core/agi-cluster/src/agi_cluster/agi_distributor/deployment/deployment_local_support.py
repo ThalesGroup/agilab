@@ -6,6 +6,7 @@ import shutil
 import stat
 import subprocess
 import time
+import tomllib
 from importlib.metadata import (
     PackageNotFoundError,
     distribution as pkg_distribution,
@@ -19,6 +20,9 @@ import tomlkit
 from packaging.requirements import InvalidRequirement, Requirement
 
 from agi_cluster.agi_distributor import deployment_dask_support
+from agi_cluster.agi_distributor.deployment.deployment_build_support import (
+    _latest_glob_match as _latest_glob_match,
+)
 from agi_cluster.agi_distributor.api.worker_cli_support import resolve_worker_cli_path
 from agi_cluster.agi_distributor.deployment_editable_install_support import (
     EDITABLE_INSTALL_CACHE_SCHEMA as EDITABLE_INSTALL_CACHE_SCHEMA,
@@ -123,10 +127,6 @@ def _shell_arg(value: Any) -> str:
     return shlex.quote(str(value))
 
 
-def _shell_words(value: Any) -> str:
-    return " ".join(shlex.quote(part) for part in shlex.split(str(value), posix=True))
-
-
 def _compose_worker_post_install_tool(local_env_prefix: str, uv_worker: Any) -> str:
     uv_fragment = str(uv_worker or "").strip()
     local_prefix = str(local_env_prefix or "").strip()
@@ -144,16 +144,9 @@ def _compose_worker_post_install_tool(local_env_prefix: str, uv_worker: Any) -> 
     return " ".join(part for part in (local_prefix, uv_fragment) if part)
 
 
-def _latest_glob_match(root: Path, pattern: str) -> Path | None:
-    matches = sorted(root.glob(pattern), key=lambda candidate: candidate.name)
-    if not matches:
-        return None
-    return max(
-        matches, key=lambda candidate: (candidate.stat().st_mtime_ns, candidate.name)
-    )
-
-
-def _force_remove(path: Path, *, env_logger: Any | None = None) -> None:
+def _force_remove(
+    path: Path, *, env_logger: Any | None = None, os_name: str = os.name
+) -> None:
     """Delete a path robustly, falling back to Windows `rmdir` when needed."""
     if path.is_symlink():
         path.unlink()
@@ -172,17 +165,27 @@ def _force_remove(path: Path, *, env_logger: Any | None = None) -> None:
         except OSError:
             pass
 
+    removal_error: BaseException | None = None
     try:
         shutil.rmtree(path, onerror=_on_err)
-    except FORCE_REMOVE_EXCEPTIONS:
-        pass
+    except FORCE_REMOVE_EXCEPTIONS as exc:
+        removal_error = exc
 
     if path.exists():
-        if env_logger is not None:
-            env_logger.warn(
-                "Path {} still exists, using subprocess cmd to delete it.".format(path)
-            )
-        subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", str(path)], check=False)
+        if os_name == "nt":
+            if env_logger is not None:
+                env_logger.warn(
+                    "Path {} still exists, using subprocess cmd to delete it.".format(
+                        path
+                    )
+                )
+            subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", str(path)], check=False)
+            return
+        # On POSIX there is no `cmd` fallback; surface the real deletion
+        # failure instead of crashing later with FileNotFoundError('cmd').
+        if removal_error is not None:
+            raise removal_error
+        raise OSError(f"Failed to remove path: {path}")
 
 
 def _resolve_distribution_install_spec(package_name: str) -> str | None:
@@ -712,6 +715,36 @@ def _update_pyproject_dependencies(
     pyproject_file.write_text(tomlkit.dumps(data))
 
 
+# Read-only dependency parses keyed by (path, mtime_ns, size): one deploy
+# re-reads the same pyproject files several times (manager/worker probes), so
+# cache the raw dependency strings while still noticing mid-deploy rewrites.
+_PYPROJECT_DEPENDENCY_CACHE: dict[tuple[str, int, int], tuple[str, ...] | None] = {}
+
+
+def _pyproject_dependency_strings(resolved_pyproject: Path) -> tuple[str, ...] | None:
+    try:
+        stat_result = resolved_pyproject.stat()
+    except OSError:
+        return None
+    cache_key = (
+        str(resolved_pyproject),
+        stat_result.st_mtime_ns,
+        stat_result.st_size,
+    )
+    if cache_key in _PYPROJECT_DEPENDENCY_CACHE:
+        return _PYPROJECT_DEPENDENCY_CACHE[cache_key]
+    try:
+        # tomllib is much faster than tomlkit for this read-only parse.
+        project_doc = tomllib.loads(resolved_pyproject.read_text())
+    except (OSError, tomllib.TOMLDecodeError):
+        _PYPROJECT_DEPENDENCY_CACHE[cache_key] = None
+        return None
+    deps = project_doc.get("project", {}).get("dependencies")
+    result = tuple(str(dep) for dep in deps) if isinstance(deps, list) else ()
+    _PYPROJECT_DEPENDENCY_CACHE[cache_key] = result
+    return result
+
+
 def _gather_dependency_specs(
     projects: list[Path | None],
 ) -> tuple[dict[str, dict[str, Any]], set[str]]:
@@ -730,11 +763,7 @@ def _gather_dependency_specs(
         if resolved_pyproject in seen_pyprojects:
             continue
         seen_pyprojects.add(resolved_pyproject)
-        try:
-            project_doc = tomlkit.parse(resolved_pyproject.read_text())
-        except PYPROJECT_PARSE_EXCEPTIONS:
-            continue
-        deps = project_doc.get("project", {}).get("dependencies")
+        deps = _pyproject_dependency_strings(resolved_pyproject)
         if not deps:
             continue
         worker_pyprojects.add(str(resolved_pyproject))
@@ -849,8 +878,6 @@ def _project_venv_has_modules(
 
 async def deploy_local_worker(
     agi_cls: Any,
-    src: Path,
-    wenv_rel: Path,
     options_worker: str,
     *,
     agi_version_missing_on_pypi_fn: Callable[[Path], bool],
@@ -1117,6 +1144,10 @@ async def deploy_local_worker(
             (node_project, "agi-node"),
             (core_project, "agi-core"),
         )
+        # Batch resolved specs into at most two uv invocations (no-deps vs
+        # with-deps) instead of spawning one ``uv pip install`` per package.
+        manager_no_deps_refs: list[str | Path] = []
+        manager_with_deps_refs: list[str | Path] = []
         for project_path, package_name in install_targets:
             if project_path and project_path.exists():
                 if (
@@ -1126,14 +1157,26 @@ async def deploy_local_worker(
                     continue
             install_spec = _resolve_install_spec(project_path, package_name)
             if install_spec:
-                await _install_into_project_venv(
-                    uv,
-                    app_path,
-                    install_spec,
-                    run_fn=run_fn,
-                    no_deps=package_name not in {"agi-env", "agi-node"},
-                    install_cache_enabled=stage_cache_enabled,
-                )
+                if package_name in {"agi-env", "agi-node"}:
+                    manager_with_deps_refs.append(install_spec)
+                else:
+                    manager_no_deps_refs.append(install_spec)
+        await _install_many_into_project_venv(
+            uv,
+            app_path,
+            manager_no_deps_refs,
+            run_fn=run_fn,
+            no_deps=True,
+            install_cache_enabled=stage_cache_enabled,
+        )
+        await _install_many_into_project_venv(
+            uv,
+            app_path,
+            manager_with_deps_refs,
+            run_fn=run_fn,
+            no_deps=False,
+            install_cache_enabled=stage_cache_enabled,
+        )
 
         resources_src = env_project / "src/agi_env/resources"
         if not resources_src.exists():
@@ -1199,9 +1242,12 @@ async def deploy_local_worker(
         and str(run_type).strip().startswith("sync")
         and agi_version_missing_on_pypi_fn(wenv_abs)
     ):
+        # Space-separated ``VAR=value cmd`` form (matching the manager-side
+        # prefix above): with ';' separators the assignments stay shell-local
+        # and are never exported to the uv child process.
         worker_extra_indexes = (
-            "PIP_INDEX_URL=https://test.pypi.org/simple; "
-            "PIP_EXTRA_INDEX_URL=https://pypi.org/simple; "
+            "PIP_INDEX_URL=https://test.pypi.org/simple "
+            "PIP_EXTRA_INDEX_URL=https://pypi.org/simple "
         )
 
     worker_core_add_specs: list[str] = []
@@ -1337,7 +1383,7 @@ async def deploy_local_worker(
         ]
         worker_stage_inputs = _deploy_stage_project_inputs(wenv_abs, app_path)
         cmd_worker = (
-            f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-env"
+            f'{worker_extra_indexes}{uv_worker} --project "{wenv_abs}" add agi-env'
         )
         await deploy_plan.run(
             _DeployPlanNode(
@@ -1353,7 +1399,7 @@ async def deploy_local_worker(
             )
         )
         cmd_worker = (
-            f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-node"
+            f'{worker_extra_indexes}{uv_worker} --project "{wenv_abs}" add agi-node'
         )
         await deploy_plan.run(
             _DeployPlanNode(
@@ -1456,6 +1502,9 @@ async def deploy_local_worker(
             (node_project, "agi-node"),
             (core_project, "agi-core"),
         )
+        # All worker targets use the same flags, so batch them into a single
+        # uv invocation instead of one subprocess per package.
+        worker_install_refs: list[str | Path] = []
         for project_path, package_name in install_targets:
             if project_path and project_path.exists():
                 if (
@@ -1465,26 +1514,18 @@ async def deploy_local_worker(
                     continue
             install_spec = _resolve_install_spec(project_path, package_name)
             if install_spec:
-                await _install_into_project_venv(
-                    uv_worker,
-                    wenv_abs,
-                    install_spec,
-                    run_fn=run_fn,
-                    venv_project=worker_venv_project,
-                    install_cache_enabled=stage_cache_enabled,
-                )
+                worker_install_refs.append(install_spec)
+        await _install_many_into_project_venv(
+            uv_worker,
+            wenv_abs,
+            worker_install_refs,
+            run_fn=run_fn,
+            venv_project=worker_venv_project,
+            install_cache_enabled=stage_cache_enabled,
+        )
 
-        python_dirs = env.pyvers_worker.split(".")
-        if python_dirs[-1].endswith("t"):
-            python_dir = f"{python_dirs[0]}.{python_dirs[1].removesuffix('t')}t"
-        else:
-            python_dir = f"{python_dirs[0]}.{python_dirs[1]}"
-        site_packages_worker = (
-            worker_venv_project
-            / ".venv"
-            / "lib"
-            / f"python{python_dir}"
-            / "site-packages"
+        site_packages_worker = _project_site_packages_dir(
+            worker_venv_project, python_version=env.pyvers_worker
         )
         _cleanup_editable(site_packages_worker)
     else:
@@ -1585,37 +1626,10 @@ async def deploy_local_worker(
             os.makedirs(install_dataset_dir, exist_ok=True)
 
             seen_archives: set[str] = set()
+            # App-specific dataset reuse decisions (e.g. sat_trajectory's
+            # Trajectory.7z) belong to the per-app post_install hook in
+            # agi_node; the generic deployer just copies archives.
             for archive_path in sorted(archives, key=lambda path: path.as_posix()):
-                if archive_path.name == "Trajectory.7z":
-                    try:
-                        sat_trajectory_root = (
-                            Path(share_root) / "sat_trajectory"
-                        ).resolve(strict=False)
-                        candidates = (
-                            sat_trajectory_root / "dataframe" / "Trajectory",
-                            sat_trajectory_root / "dataset" / "Trajectory",
-                        )
-                        has_samples = False
-                        for candidate in candidates:
-                            if candidate.is_dir():
-                                samples: list[Path] = []
-                                for pattern in ("*.csv", "*.parquet", "*.pq", "*.parq"):
-                                    samples.extend(candidate.glob(pattern))
-                                    if len(samples) >= 2:
-                                        has_samples = True
-                                        break
-                            if has_samples:
-                                break
-                        if has_samples:
-                            log.info(
-                                "Skipping %s copy; sat_trajectory trajectories already available at %s.",
-                                archive_path.name,
-                                sat_trajectory_root,
-                            )
-                            continue
-                    except OSError:
-                        pass
-
                 key = str(archive_path)
                 if key in seen_archives:
                     continue

@@ -89,10 +89,11 @@ async def _call_deploy_local_worker(
     set_env_var_fn,
     log,
 ) -> None:
+    # src/wenv_rel are accepted for call-site compatibility but the production
+    # signature dropped them: deploy_local_worker derives both from agi_cls.env.
+    del src, wenv_rel
     await deployment_local_support.deploy_local_worker(
         agi_cls,
-        src,
-        wenv_rel,
         options_worker,
         agi_version_missing_on_pypi_fn=agi_version_missing_on_pypi_fn,
         worker_site_packages_dir_fn=uv_source_support.worker_site_packages_dir,
@@ -121,7 +122,8 @@ def test_force_remove_falls_back_to_subprocess_when_path_survives(
         lambda *args, **kwargs: calls.append((args, kwargs)),
     )
 
-    deployment_local_support._force_remove(target, env_logger=env_logger)
+    # The ``cmd /c rmdir`` fallback is Windows-only; force the nt branch.
+    deployment_local_support._force_remove(target, env_logger=env_logger, os_name="nt")
 
     assert calls
     assert calls[0][0][0] == ["cmd", "/c", "rmdir", "/s", "/q", str(target)]
@@ -183,7 +185,8 @@ def test_force_remove_onerror_handles_oserror_and_skips_logger_when_missing(
         lambda *args, **kwargs: subprocess_calls.append((args, kwargs)),
     )
 
-    deployment_local_support._force_remove(target)
+    # Force the nt branch: the subprocess fallback is Windows-only now.
+    deployment_local_support._force_remove(target, os_name="nt")
 
     assert chmod_calls == [(str(child), deployment_local_support.stat.S_IWRITE)]
     assert subprocess_calls
@@ -206,9 +209,36 @@ def test_force_remove_swallows_filesystem_error_and_uses_subprocess(
         lambda *args, **kwargs: subprocess_calls.append((args, kwargs)),
     )
 
-    deployment_local_support._force_remove(target)
+    # On Windows the swallowed rmtree failure falls back to ``cmd /c rmdir``.
+    deployment_local_support._force_remove(target, os_name="nt")
 
     assert subprocess_calls
+
+
+def test_force_remove_posix_surfaces_rmtree_error_instead_of_cmd_fallback(
+    monkeypatch, tmp_path
+):
+    # Regression: previously a surviving path triggered an unconditional
+    # ``cmd /c rmdir`` call that crashed on POSIX with FileNotFoundError('cmd')
+    # and masked the real deletion failure.
+    target = tmp_path / "stubborn"
+    target.mkdir(parents=True, exist_ok=True)
+    subprocess_calls = []
+
+    def _fake_rmtree(*_args, **_kwargs):
+        raise OSError("cannot remove")
+
+    monkeypatch.setattr(deployment_local_support.shutil, "rmtree", _fake_rmtree)
+    monkeypatch.setattr(
+        deployment_local_support.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess_calls.append((args, kwargs)),
+    )
+
+    with pytest.raises(OSError, match="cannot remove"):
+        deployment_local_support._force_remove(target, os_name="posix")
+
+    assert subprocess_calls == []
 
 
 def test_deploy_local_worker_venv_cleanup_is_conditional() -> None:
@@ -221,6 +251,23 @@ def test_deploy_local_worker_venv_cleanup_is_conditional() -> None:
     assert "_remove_project_venv_if_mismatched(\n        worker_venv_project," in source
     assert "if worker_venv_project is None:" in source
     assert '_force_remove(wenv_abs / ".venv"' in source
+
+
+def test_deploy_local_worker_command_strings_are_shell_safe() -> None:
+    source = Path(
+        deployment_local_support.deploy_local_worker.__globals__["__file__"]
+    ).read_text(encoding="utf-8")
+
+    # Regression: the TestPyPI fallback prefix must use the space-separated
+    # ``VAR=value cmd`` form; ';' separators leave the assignments shell-local
+    # so uv never sees them.
+    assert "PIP_INDEX_URL=https://test.pypi.org/simple; " not in source
+    assert "PIP_EXTRA_INDEX_URL=https://pypi.org/simple; " not in source
+    # Regression: worker-add commands must quote the project path so home
+    # directories containing spaces do not split into multiple argv tokens.
+    assert "--project {wenv_abs} add" not in source
+    assert '--project "{wenv_abs}" add agi-env' in source
+    assert '--project "{wenv_abs}" add agi-node' in source
 
 
 def test_cleanup_editable_ignores_missing_entries():
@@ -2376,7 +2423,9 @@ def test_gather_dependency_specs_propagates_unexpected_parse_bug(monkeypatch, tm
     def _boom(_text):
         raise ValueError("unexpected parse bug")
 
-    monkeypatch.setattr(deployment_local_support.tomlkit, "parse", _boom)
+    # _gather_dependency_specs now parses read-only with tomllib (faster than
+    # tomlkit); unexpected non-TOMLDecodeError failures must still propagate.
+    monkeypatch.setattr(deployment_local_support.tomllib, "loads", _boom)
 
     with pytest.raises(ValueError, match="unexpected parse bug"):
         deployment_local_support._gather_dependency_specs([project])
@@ -2989,7 +3038,10 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     assert "pip" in manager_toml
     assert "pip==" not in worker_toml
     assert (wenv_abs / "src" / "demo_worker" / "dataset.7z").exists()
-    assert (wenv_abs / "src" / "demo_worker" / "Trajectory.7z").exists() is False
+    # New contract: the generic deployer always copies archives; app-specific
+    # dataset reuse (skipping Trajectory.7z when sat_trajectory data already
+    # exists) is decided by the per-app post_install hook in agi_node.
+    assert (wenv_abs / "src" / "demo_worker" / "Trajectory.7z").exists() is True
     pth_path = (
         deployment_local_support._project_site_packages_dir(
             wenv_abs, python_version="3.13"
@@ -3970,10 +4022,11 @@ path = "../sat_trajectory_project"
         for cmd, _ in commands
     )
     manager_python = _venv_python(app_path)
+    # Core installs are now batched into one uv invocation per no-deps mode
+    # instead of one subprocess per package.
     expected_manager_installs = [
         f'pip install --python "{manager_python}" --upgrade --no-deps -e "{app_path}"',
-        f'pip install --python "{manager_python}" --upgrade "{env_project}"',
-        f'pip install --python "{manager_python}" --upgrade "{node_project}"',
+        f'pip install --python "{manager_python}" --upgrade "{env_project}" "{node_project}"',
         f'pip install --python "{manager_python}" --upgrade --no-deps "{core_project}"',
     ]
     for expected in expected_manager_installs:

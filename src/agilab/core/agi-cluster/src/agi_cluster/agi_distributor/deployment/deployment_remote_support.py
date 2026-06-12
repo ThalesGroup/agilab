@@ -13,6 +13,9 @@ from typing import Any, Callable, Union
 from asyncssh.process import ProcessError
 
 from agi_cluster.agi_distributor import deployment_dask_support
+from agi_cluster.agi_distributor.deployment.deployment_build_support import (
+    _latest_glob_match as _latest_artifact_match,
+)
 from agi_env import AgiEnv
 
 
@@ -177,6 +180,53 @@ def _sshfs_source_host(source: str) -> str:
     return host
 
 
+def _local_mount_record_from_mount_output(path: Path) -> dict[str, str] | None:
+    """Fallback mount probe parsing ``mount`` output (findmnt is Linux-only)."""
+    try:
+        completed = subprocess.run(
+            ["mount"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+
+    try:
+        resolved = path.expanduser().resolve(strict=False)
+    except (OSError, RuntimeError):
+        return None
+
+    # BSD/macOS format: ``<source> on <target> (<fstype>, <options>...)``.
+    line_re = re.compile(r"^(?P<source>.+?) on (?P<target>/.*?) \((?P<options>[^)]*)\)\s*$")
+    best: dict[str, str] | None = None
+    best_depth = -1
+    for raw_line in completed.stdout.splitlines():
+        match = line_re.match(raw_line.strip())
+        if not match:
+            continue
+        target = Path(match.group("target"))
+        try:
+            if not resolved.is_relative_to(target):
+                continue
+        except (OSError, ValueError):
+            continue
+        depth = len(target.parts)
+        if depth <= best_depth:
+            continue
+        fstype = match.group("options").split(",", 1)[0].strip()
+        best = {
+            "TARGET": match.group("target"),
+            "SOURCE": match.group("source"),
+            "FSTYPE": fstype,
+        }
+        best_depth = depth
+    return best
+
+
 def _local_mount_record_for_path(path: Path) -> dict[str, str] | None:
     try:
         completed = subprocess.run(
@@ -194,6 +244,14 @@ def _local_mount_record_for_path(path: Path) -> dict[str, str] | None:
             text=True,
             timeout=5,
         )
+    except FileNotFoundError:
+        # findmnt (util-linux) does not exist on macOS/BSD managers; fall back
+        # to parsing ``mount`` output so the reverse-SSHFS guard stays active.
+        logger.warning(
+            "findmnt is unavailable; probing local mounts for %s via 'mount' output",
+            path,
+        )
+        return _local_mount_record_from_mount_output(path)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if completed.returncode != 0:
@@ -221,8 +279,10 @@ def _reverse_sshfs_mount_problem(local_share: Path, worker_ip: str) -> str | Non
     if not record:
         return None
 
-    fstype = record.get("FSTYPE", "")
-    if "sshfs" not in fstype.lower():
+    fstype = record.get("FSTYPE", "").lower()
+    # macFUSE/FUSE-T SSHFS mounts can surface as "macfuse"/"fuse"/"nfs"
+    # fstypes on macOS, so match beyond the Linux "fuse.sshfs" form.
+    if not any(marker in fstype for marker in ("sshfs", "fuse", "nfs")):
         return None
 
     source = record.get("SOURCE", "")
@@ -290,8 +350,16 @@ def _scheduler_ssh_target(agi_cls: Any, env: Any) -> str:
 
 
 def _remote_env_update_command(remote_share: str) -> str:
+    # Update only the AGI_CLUSTER_SHARE line: the remote ~/.agilab/.env holds
+    # other operator-managed settings that must be preserved (merge semantics,
+    # matching install.sh/write_env_updates).
     line = f"AGI_CLUSTER_SHARE={remote_share!r}"
-    return f'mkdir -p "$HOME/.agilab" && printf \'%s\\n\' {quote(line)} > "$HOME/.agilab/.env"'
+    return (
+        'mkdir -p "$HOME/.agilab" && touch "$HOME/.agilab/.env" && '
+        "{ grep -v '^AGI_CLUSTER_SHARE=' \"$HOME/.agilab/.env\" || true; "
+        f"printf '%s\\n' {quote(line)}; }} > \"$HOME/.agilab/.env.tmp\" && "
+        'mv "$HOME/.agilab/.env.tmp" "$HOME/.agilab/.env"'
+    )
 
 
 def _remote_share_mount_command(
@@ -546,21 +614,24 @@ async def _remote_project_has_pip(
     return True
 
 
-def _latest_artifact_match(root: Path, pattern: str) -> Path | None:
-    matches = sorted(root.glob(pattern), key=lambda candidate: candidate.name)
-    if not matches:
-        return None
-    return max(
-        matches, key=lambda candidate: (candidate.stat().st_mtime_ns, candidate.name)
-    )
+def _resolve_worker_egg(env: Any, dist_abs: Path, log: Any) -> Path:
+    egg_file = _latest_artifact_match(dist_abs, f"{env.target_worker}*.egg")
+    if egg_file is None:
+        egg_file = _latest_artifact_match(dist_abs, f"{env.app}*.egg")
+    if egg_file is None:
+        log.error(
+            f"searching for {dist_abs / env.target_worker}*.egg or {dist_abs / env.app}*.egg"
+        )
+        raise FileNotFoundError(
+            f"no existing egg file in {dist_abs / env.target_worker}* or {dist_abs / env.app}*"
+        )
+    return egg_file
 
 
 async def deploy_remote_worker(
     agi_cls: Any,
     ip: str,
     env: Any,
-    wenv_rel: Path,
-    option: str,
     *,
     worker_site_packages_dir_fn: Callable[..., Path | PurePosixPath],
     staged_uv_sources_pth_content_fn: Callable[..., str],
@@ -568,8 +639,6 @@ async def deploy_remote_worker(
     log: Any = logger,
 ) -> None:
     """Install packages and bootstrap a remote worker environment."""
-
-    del option
 
     wenv_rel = env.wenv_rel
     dist_abs = env.dist_abs
@@ -587,18 +656,8 @@ async def deploy_remote_worker(
             log=log,
         )
 
+    egg_file = _resolve_worker_egg(env, dist_abs, log)
     if env.is_source_env:
-        egg_file = _latest_artifact_match(dist_abs, f"{env.target_worker}*.egg")
-        if egg_file is None:
-            egg_file = _latest_artifact_match(dist_abs, f"{env.app}*.egg")
-        if egg_file is None:
-            log.error(
-                f"searching for {dist_abs / env.target_worker}*.egg or {dist_abs / env.app}*.egg"
-            )
-            raise FileNotFoundError(
-                f"no existing egg file in {dist_abs / env.target_worker}* or {dist_abs / env.app}*"
-            )
-
         wenv = env.agi_env / "dist"
         env_whl = _latest_artifact_match(wenv, "agi_env*.whl")
         if env_whl is None:
@@ -615,17 +674,6 @@ async def deploy_remote_worker(
         await agi_cls.send_files(env, ip, [egg_file], wenv_rel)
         await agi_cls.send_files(env, ip, [node_whl, env_whl], dist_remote)
     else:
-        egg_file = _latest_artifact_match(dist_abs, f"{env.target_worker}*.egg")
-        if egg_file is None:
-            egg_file = _latest_artifact_match(dist_abs, f"{env.app}*.egg")
-        if egg_file is None:
-            log.error(
-                f"searching for {dist_abs / env.target_worker}*.egg or {dist_abs / env.app}*.egg"
-            )
-            raise FileNotFoundError(
-                f"no existing egg file in {dist_abs / env.target_worker}* or {dist_abs / env.app}*"
-            )
-
         await agi_cls.send_files(env, ip, [egg_file], wenv_rel)
         env_whl = None
         node_whl = None
@@ -761,51 +809,29 @@ async def deploy_remote_worker(
     )
     await agi_cls.exec_ssh(ip, cmd)
 
-    if env.verbose > 1:
-        cmd = _remote_command(
-            uv,
-            "--project",
-            wenv_rel,
-            "run",
-            "--no-sync",
-            "--with",
-            "setuptools",
-            "--with",
-            "cython",
-            "-p",
-            pyvers,
-            "python",
-            "-m",
-            "agi_node.agi_dispatcher.build",
-            "--app-path",
-            wenv_rel,
-            "build_ext",
-            "-b",
-            wenv_rel,
-        )
-    else:
-        cmd = _remote_command(
-            uv,
-            "--project",
-            wenv_rel,
-            "run",
-            "--no-sync",
-            "--with",
-            "setuptools",
-            "--with",
-            "cython",
-            "-p",
-            pyvers,
-            "python",
-            "-m",
-            "agi_node.agi_dispatcher.build",
-            "--app-path",
-            wenv_rel,
-            "-q",
-            "build_ext",
-            "-b",
-            wenv_rel,
-        )
+    quiet_args = () if env.verbose > 1 else ("-q",)
+    cmd = _remote_command(
+        uv,
+        "--project",
+        wenv_rel,
+        "run",
+        "--no-sync",
+        "--with",
+        "setuptools",
+        "--with",
+        "cython",
+        "-p",
+        pyvers,
+        "python",
+        "-m",
+        "agi_node.agi_dispatcher.build",
+        "--app-path",
+        wenv_rel,
+        *quiet_args,
+        "build_ext",
+        "-b",
+        wenv_rel,
+    )
     await agi_cls.exec_ssh(ip, cmd)
 
     # Fail fast on a runtime smoke test so a deployment does not report success

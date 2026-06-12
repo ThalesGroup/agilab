@@ -8,6 +8,19 @@ from pathlib import Path
 from shlex import quote
 from typing import Any, Callable, cast
 
+from agi_cluster.agi_distributor.deployment.deployment_resolver_env_support import (
+    UV_INDEX_RESOLVER_ENV_VARS as UV_INDEX_RESOLVER_ENV_VARS,
+    UV_RESOLVER_PROPAGATED_ENV_VARS as UV_RESOLVER_PROPAGATED_ENV_VARS,
+    UV_WHEELHOUSE_RESOLVER_ENV_VARS as UV_WHEELHOUSE_RESOLVER_ENV_VARS,
+    _envar_nonempty as _envar_nonempty,
+    _envar_value as _envar_value,
+    _uv_offline_flag as _resolver_uv_offline_flag,
+    _uv_resolver_env_prefix as _uv_resolver_env_prefix,
+    _uv_resolver_mode as _uv_resolver_mode,
+)
+from agi_cluster.agi_distributor.deployment.deployment_venv_support import (
+    project_site_packages_dir as _project_site_packages_dir,
+)
 from agi_env import AgiEnv
 from agi_env.share_runtime_support import python_supports_free_threading
 
@@ -17,16 +30,6 @@ BUILD_CACHE_SCHEMA = "agilab-worker-build-cache-v1"
 DISABLE_BUILD_CACHE_ENV = "AGILAB_DISABLE_WORKER_BUILD_CACHE"
 BUILD_CACHE_HASH_LIMIT = 8 * 1024 * 1024
 GIT_FINGERPRINT_TIMEOUT_SECONDS = 2.0
-UV_INDEX_RESOLVER_ENV_VARS = ("UV_INDEX_URL", "UV_EXTRA_INDEX_URL")
-UV_WHEELHOUSE_RESOLVER_ENV_VARS = ("UV_FIND_LINKS",)
-UV_RESOLVER_PROPAGATED_ENV_VARS = (
-    "UV_INDEX_URL",
-    "UV_EXTRA_INDEX_URL",
-    "UV_FIND_LINKS",
-    "SSL_CERT_FILE",
-    "REQUESTS_CA_BUNDLE",
-    "UV_NATIVE_TLS",
-)
 
 
 def _sorted_glob_matches(root: Path, pattern: str) -> list[Path]:
@@ -63,74 +66,8 @@ def _worker_packages(baseworker: str | None, *, worker_group: str | None = None)
     return packages
 
 
-def _python_site_version(pyvers_worker: str) -> str:
-    python_dirs = pyvers_worker.split(".")
-    if python_dirs[-1][-1] == "t":
-        return python_dirs[0] + "." + python_dirs[1]
-    return python_dirs[0] + "." + python_dirs[1]
-
-
-def _envar_value(envars: Any, key: str) -> Any:
-    raw = os.environ.get(key)
-    if raw is None:
-        try:
-            raw = envars.get(key)
-        except (AttributeError, RuntimeError, TypeError):
-            raw = None
-    return raw
-
-
-def _envar_nonempty(envars: Any, key: str) -> bool:
-    raw = _envar_value(envars, key)
-    if raw is None:
-        return False
-    normalized = str(raw).strip().strip("\"'").strip()
-    return bool(normalized) and normalized.casefold() not in {"none", "null"}
-
-
-def _uv_resolver_mode(envars: Any) -> str:
-    if any(_envar_nonempty(envars, key) for key in UV_INDEX_RESOLVER_ENV_VARS):
-        return "mirror"
-    if any(_envar_nonempty(envars, key) for key in UV_WHEELHOUSE_RESOLVER_ENV_VARS):
-        return "wheelhouse"
-    raw = _envar_value(envars, "AGI_INTERNET_ON")
-    if raw is None:
-        return "online"
-    if isinstance(raw, bool):
-        return "online" if raw else "cache-only"
-    if isinstance(raw, (int, float)):
-        try:
-            return "online" if int(raw) == 1 else "cache-only"
-        except (TypeError, ValueError):
-            return "cache-only"
-    normalized = str(raw).strip().strip("\"'").strip().lower()
-    return "online" if normalized in {"1", "true", "yes", "on"} else "cache-only"
-
-
-def _uv_resolver_env_prefix(envars: Any) -> str:
-    values: dict[str, str] = {}
-    for key in UV_RESOLVER_PROPAGATED_ENV_VARS:
-        if _envar_nonempty(envars, key):
-            values[key] = str(_envar_value(envars, key)).strip().strip("\"'").strip()
-    return "".join(f"{key}={quote(value)} " for key, value in values.items())
-
-
 def _uv_offline_flag(env: Any) -> str:
-    envars = getattr(env, "envars", {})
-    mode = _uv_resolver_mode(envars)
-    if mode in {"online", "mirror"}:
-        return ""
-    if mode == "wheelhouse":
-        return "--offline "
-    raw = _envar_value(envars, "AGI_INTERNET_ON")
-    if isinstance(raw, bool):
-        return "" if raw else "--offline "
-    if isinstance(raw, (int, float)):
-        try:
-            return "" if int(raw) == 1 else "--offline "
-        except (TypeError, ValueError):
-            return "--offline "
-    return "" if str(raw).strip().lower() in {"1", "true", "yes", "on"} else "--offline "
+    return _resolver_uv_offline_flag(getattr(env, "envars", {}))
 
 
 def _project_uv(env: Any) -> str:
@@ -532,8 +469,7 @@ def _copy_cython_worker_lib(
     if worker_lib is None:
         raise RuntimeError(failure_message)
 
-    python_version = _python_site_version(pyvers_worker)
-    destination_dir = wenv_abs / f".venv/lib/python{python_version}/site-packages"
+    destination_dir = _project_site_packages_dir(wenv_abs, python_version=pyvers_worker)
     destination_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(worker_lib, destination_dir / worker_lib.name)
     if build_output:

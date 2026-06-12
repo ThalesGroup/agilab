@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import shlex
 from pathlib import Path
@@ -1303,7 +1304,9 @@ async def test_run_debug_branch_returns_list_result(tmp_path, monkeypatch):
     assert calls["new"] == 1
     assert calls["run"] == 1
     assert calls["kill"] == 1
-    assert (tmp_path / "dask_worker_0.pid").exists()
+    # New contract: the pid file is written next to the wenv (the location the
+    # cleanup scanners glob) and removed again when run_local exits.
+    assert not (tmp_path / "dask_worker_0.pid").exists()
 
 
 @pytest.mark.asyncio
@@ -1615,6 +1618,150 @@ async def test_main_branches_simulate_install_dask_and_local(monkeypatch):
     assert "start" in calls
     assert "distribute" in calls
     assert "stop" in calls
+
+
+def test_remote_dask_worker_command_uses_posix_paths_for_windows_manager():
+    # Regression: a Windows manager's native wenv_rel must not leak
+    # backslash separators into the command sent to POSIX workers.
+    from pathlib import PureWindowsPath
+
+    command = runtime_distribution_support._remote_dask_worker_command(
+        cmd_prefix="",
+        dask_env="",
+        uv_cmd="uv",
+        wenv_rel=PureWindowsPath("wenv") / "flight_telemetry_worker",
+        scheduler="10.0.0.1:8786",
+        pid_file="dask_worker_0_0.pid",
+    )
+
+    assert "--project wenv/flight_telemetry_worker" in command
+    assert "--pid-file wenv/dask_worker_0_0.pid" in command
+    assert "\\" not in command
+
+
+@pytest.mark.asyncio
+async def test_sync_raises_recorded_worker_launch_error():
+    # Regression: a failed background remote launch must surface its root
+    # cause instead of the generic 10s attach timeout.
+    class _Client:
+        async def scheduler_info(self):
+            return {"workers": {}}
+
+    AGI._dask_client = _Client()
+    AGI._workers = {"10.0.0.5": 2}
+    AGI._worker_launch_errors = [ConnectionError("Authentication failed for SSH user")]
+
+    async def _fake_sleep(_delay):
+        return None
+
+    try:
+        with pytest.raises(ConnectionError, match="Authentication failed"):
+            await runtime_distribution_support.sync(
+                AGI,
+                timeout=5,
+                client_type=_Client,
+                sleep_fn=_fake_sleep,
+            )
+    finally:
+        AGI._worker_launch_errors = []
+
+
+@pytest.mark.asyncio
+async def test_start_records_launch_task_failures(monkeypatch, tmp_path):
+    wenv_abs = tmp_path / "worker_env"
+    (wenv_abs / "dist").mkdir(parents=True, exist_ok=True)
+
+    AGI.env = SimpleNamespace(
+        is_local=lambda _ip: False,
+        envars={"10.0.0.5_CMD_PREFIX": "x "},
+        uv="uv",
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+    )
+    AGI._mode = AGI.DASK_MODE
+    AGI._mode_auto = False
+    AGI._workers = {"10.0.0.5": 1}
+    AGI._scheduler = "10.0.0.5:8786"
+    AGI._worker_init_error = False
+
+    class _Client:
+        def upload_file(self, _path):
+            return None
+
+    async def _fake_start_scheduler(_scheduler):
+        return True
+
+    async def _failing_exec_ssh_async(_ip, _cmd):
+        raise ConnectionError("key changed on remote host")
+
+    sync_calls = {"count": 0}
+
+    async def _fake_sync(timeout=60):
+        sync_calls["count"] += 1
+        # Yield so the launch task's done callback runs before assertions.
+        for _ in range(5):
+            await asyncio.sleep(0)
+        errors = getattr(AGI, "_worker_launch_errors", None)
+        if errors:
+            raise errors[0]
+
+    async def _fake_build_remote():
+        return None
+
+    monkeypatch.setattr(AGI, "_dask_client", _Client())
+    monkeypatch.setattr(AGI, "_start_scheduler", staticmethod(_fake_start_scheduler))
+    monkeypatch.setattr(AGI, "_sync", staticmethod(_fake_sync))
+    monkeypatch.setattr(AGI, "_build_lib_remote", staticmethod(_fake_build_remote))
+    monkeypatch.setattr(AGI, "exec_ssh_async", staticmethod(_failing_exec_ssh_async))
+
+    with pytest.raises(ConnectionError, match="key changed"):
+        await runtime_distribution_support.start(
+            AGI,
+            "10.0.0.5",
+            set_env_var_fn=lambda *_args, **_kwargs: None,
+        )
+    assert sync_calls["count"] == 1
+    assert AGI._worker_launch_errors
+
+
+@pytest.mark.asyncio
+async def test_stop_shuts_down_client_after_partial_benchmark(monkeypatch):
+    # Regression: stop() used to skip client.shutdown() unless the last
+    # benchmark mode happened to be 7 or 15, leaking the scheduler for
+    # partial mode ranges. New contract: only an in-flight benchmark
+    # (_mode_auto=True) defers shutdown.
+    class _Client:
+        def __init__(self):
+            self.shutdown_calls = 0
+
+        async def scheduler_info(self):
+            return {"workers": {}}
+
+        async def retire_workers(self, workers, close_workers=True, remove=True):
+            return None
+
+        async def shutdown(self):
+            self.shutdown_calls += 1
+
+    async def _fake_close_all():
+        return None
+
+    async def _fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
+    AGI._TIMEOUT = 2
+
+    AGI._dask_client = _Client()
+    AGI._mode_auto = False
+    AGI._mode = 5  # partial-range benchmark final mode
+    await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
+    assert AGI._dask_client.shutdown_calls == 1
+
+    AGI._dask_client = _Client()
+    AGI._mode_auto = True
+    await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
+    assert AGI._dask_client.shutdown_calls == 0
 
 
 def test_clean_job_respects_cond_and_verbosity():

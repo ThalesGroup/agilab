@@ -208,6 +208,41 @@ def test_read_stderr_iterable_stream_sets_project_error_flag():
     assert agi_cls._worker_init_error is True
 
 
+def test_read_stderr_project_error_flag_is_sticky_across_following_lines():
+    # Regression: trailing stderr lines (tracebacks, blanks) after the
+    # [ProjectError] marker used to reset the flag back to False.
+    agi_cls = SimpleNamespace(_worker_init_error=False)
+    stream = [b"boom [ProjectError]\n", b"Traceback (most recent call last):\n", b"  ...\n"]
+
+    scheduler_io_support.read_stderr(agi_cls, stream, sleep_fn=lambda *_a, **_k: None)
+
+    assert agi_cls._worker_init_error is True
+
+
+def test_read_stderr_channel_project_error_flag_is_sticky():
+    class _Chan:
+        def __init__(self):
+            self._chunks = [b"line-b [ProjectError]\n", b"trailing line\n"]
+
+        def recv_stderr_ready(self):
+            return bool(self._chunks)
+
+        def recv_stderr(self, _size):
+            return self._chunks.pop(0) if self._chunks else b""
+
+        def exit_status_ready(self):
+            return not self._chunks
+
+    agi_cls = SimpleNamespace(_worker_init_error=False)
+    scheduler_io_support.read_stderr(
+        agi_cls,
+        SimpleNamespace(channel=_Chan()),
+        sleep_fn=lambda *_a, **_k: None,
+    )
+
+    assert agi_cls._worker_init_error is True
+
+
 def test_read_stderr_channel_stream_sets_project_error_flag():
     class _Chan:
         def __init__(self):

@@ -939,7 +939,10 @@ async def test_agi_submit_queues_tasks_for_service_workers(monkeypatch, tmp_path
     payload = json.loads(queued_file.read_text(encoding="utf-8"))
     assert payload["schema"] == "agi.service.task.v1"
     assert payload["task_name"] == "test-batch"
-    assert payload["worker_idx"] == 0
+    # New contract: tasks are targeted by worker name only. A positional
+    # worker_idx drifts after service_recover reorders _service_workers, so
+    # submit() writes None and workers match on the stable name instead.
+    assert payload["worker_idx"] is None
     assert payload["worker"] == "127.0.0.1:8787"
 
     stopped = await AGI.serve(env, action="stop", shutdown_on_stop=False)
@@ -1352,6 +1355,121 @@ async def test_serve_stop_handles_partial_timeout_and_empty_future_map(monkeypat
     assert result["status"] == "stopped"
     assert result["workers"] == ["w3"]
     assert result["pending"] == []
+
+
+@pytest.mark.asyncio
+async def test_serve_stop_skips_dead_workers_and_tolerates_break_gather_error(monkeypatch):
+    env = _minimal_app_env()
+    submissions = []
+
+    class _StopClient:
+        status = "running"
+
+        def submit(self, *_args, **kwargs):
+            submissions.append(kwargs)
+            return _FakeFuture(status="submitted")
+
+        _gather_calls = 0
+
+        def gather(self, futures, errors="raise"):
+            # First gather is the break_loop batch: simulate a dead worker.
+            _StopClient._gather_calls += 1
+            if _StopClient._gather_calls == 1:
+                raise RuntimeError("break_loop gather failed: worker is gone")
+            return [None for _ in futures]
+
+        def scheduler_info(self):
+            return {"workers": {"tcp://w-alive": {}}}
+
+    AGI._dask_client = _StopClient()
+    AGI._service_futures = {
+        "w-alive": _FakeFuture(status="finished"),
+        "w-dead": _FakeFuture(status="finished"),
+    }
+    AGI._service_workers = ["w-alive", "w-dead"]
+    cleanups = {"clear_state": 0, "reset_queue": 0}
+    stops = []
+
+    monkeypatch.setattr(AGI, "_service_finalize_response", staticmethod(lambda _env, payload, **_kwargs: payload))
+    monkeypatch.setattr(
+        AGI,
+        "_service_clear_state",
+        staticmethod(lambda _env: cleanups.__setitem__("clear_state", cleanups["clear_state"] + 1)),
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_reset_service_queue_state",
+        staticmethod(lambda: cleanups.__setitem__("reset_queue", cleanups["reset_queue"] + 1)),
+    )
+
+    async def _fake_stop():
+        stops.append("stop")
+
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_fake_stop))
+
+    result = await service_lifecycle_support.serve(
+        AGI,
+        env,
+        action="stop",
+        wait_fn=lambda futures, **_kwargs: (set(futures), set()),
+        background_job_manager_factory=lambda: object(),
+    )
+
+    # break_loop is only submitted to workers still attached to the
+    # scheduler, and a failing gather no longer aborts the stop: cleanup and
+    # _stop() must always run.
+    break_keys = [entry["key"] for entry in submissions]
+    assert any("w-alive" in key for key in break_keys)
+    assert not any("w-dead" in key for key in break_keys)
+    assert result["status"] == "stopped"
+    assert cleanups == {"clear_state": 1, "reset_queue": 1}
+    assert stops == ["stop"]
+    assert AGI._service_futures == {}
+
+
+@pytest.mark.asyncio
+async def test_serve_stop_handles_wait_timeout_error_as_partial(monkeypatch):
+    env = _minimal_app_env()
+    AGI._dask_client = SimpleNamespace(
+        submit=lambda *_args, **_kwargs: _FakeFuture(status="submitted"),
+        gather=lambda futures, errors="raise": None,
+    )
+    finished = _FakeFuture(status="finished")
+    pending = _FakeFuture(status="pending")
+    AGI._service_futures = {"w-done": finished, "w-stuck": pending}
+    AGI._service_workers = ["w-done", "w-stuck"]
+    cleanups = {"clear_state": 0, "reset_queue": 0}
+
+    monkeypatch.setattr(AGI, "_service_finalize_response", staticmethod(lambda _env, payload, **_kwargs: payload))
+    monkeypatch.setattr(
+        AGI,
+        "_service_clear_state",
+        staticmethod(lambda _env: cleanups.__setitem__("clear_state", cleanups["clear_state"] + 1)),
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_reset_service_queue_state",
+        staticmethod(lambda: cleanups.__setitem__("reset_queue", cleanups["reset_queue"] + 1)),
+    )
+
+    def _raising_wait(_futures, **_kwargs):
+        # Real dask.distributed.wait raises TimeoutError on timeout instead
+        # of returning a partial (done, not_done) tuple.
+        raise TimeoutError("waited too long")
+
+    result = await service_lifecycle_support.serve(
+        AGI,
+        env,
+        action="stop",
+        shutdown_on_stop=False,
+        wait_fn=_raising_wait,
+        background_job_manager_factory=lambda: object(),
+    )
+
+    assert result["status"] == "partial"
+    assert result["workers"] == ["w-done"]
+    assert result["pending"] == ["w-stuck"]
+    assert cleanups == {"clear_state": 1, "reset_queue": 1}
 
 
 @pytest.mark.asyncio

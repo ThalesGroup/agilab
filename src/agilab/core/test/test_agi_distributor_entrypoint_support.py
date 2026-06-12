@@ -887,6 +887,110 @@ async def test_update_get_distrib_and_distribute_delegate_to_run(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_install_and_update_derive_rapids_from_run_mode_bit(monkeypatch):
+    captured = []
+
+    async def _fake_run(*_args, **kwargs):
+        captured.append(kwargs["request"])
+        return "run-result"
+
+    monkeypatch.setattr(AGI, "run", staticmethod(_fake_run))
+    env = SimpleNamespace()
+
+    # Rapids run-mode bit is 8 (compute_run_mode rapids*8), not the
+    # _INSTALL_MODE/_UPDATE_MODE deployment bits (16/32).
+    result = await entrypoint_support.install(
+        AGI, env=env, modes_enabled=13, args={}
+    )
+    assert result == "run-result"
+    assert captured[-1].rapids_enabled is True
+
+    await entrypoint_support.install(AGI, env=env, modes_enabled=5, args={})
+    assert captured[-1].rapids_enabled is False
+
+    result = await entrypoint_support.update(
+        AGI, env=env, modes_enabled=AGI._RUN_MASK | 8, args={}
+    )
+    assert result == "run-result"
+    assert captured[-1].rapids_enabled is True
+
+    await entrypoint_support.update(AGI, env=env, modes_enabled=AGI._RUN_MASK & ~8, args={})
+    assert captured[-1].rapids_enabled is False
+
+
+@pytest.mark.asyncio
+async def test_update_get_distrib_and_distribute_forward_verbose(monkeypatch):
+    captured = []
+
+    async def _fake_run(*_args, **kwargs):
+        captured.append(kwargs["request"])
+        return None
+
+    monkeypatch.setattr(AGI, "run", staticmethod(_fake_run))
+    env = SimpleNamespace()
+
+    await entrypoint_support.update(
+        AGI, env=env, modes_enabled=AGI.DASK_MODE, verbose=3, args={}
+    )
+    assert captured[-1].verbose == 3
+
+    await entrypoint_support.get_distrib(AGI, env=env, verbose=2, args={})
+    assert captured[-1].verbose == 2
+
+    await entrypoint_support.distribute(AGI, env=env, verbose=1, args={})
+    assert captured[-1].verbose == 1
+
+
+@pytest.mark.asyncio
+async def test_prepare_scheduler_nodes_runs_prep_for_composite_auto_modes(
+    monkeypatch, tmp_path
+):
+    cluster_pck = tmp_path / "cluster"
+    cli_path = cluster_pck / "agi_distributor" / "cli.py"
+    cli_path.parent.mkdir(parents=True, exist_ok=True)
+    cli_path.write_text("print('cli')\n", encoding="utf-8")
+
+    calls = {"kill": [], "get_scheduler": []}
+
+    async def _fake_send(_env, _ip, _local, _remote):
+        return None
+
+    async def _fake_kill(ip, _pid, force=True):
+        calls["kill"].append(ip)
+
+    AGI.env = SimpleNamespace(
+        cluster_pck=cluster_pck,
+        envars={},
+        hw_rapids_capable=False,
+        is_local=lambda ip: True,
+    )
+    # Benchmark (auto) mode with a composite Dask mode (5 = dask|python):
+    # the gate must use a bitmask, not exact equality with DASK_MODE.
+    AGI._mode_auto = True
+    AGI._mode = 5
+    AGI._workers = {"127.0.0.1": 1}
+    monkeypatch.setattr(AGI, "send_file", staticmethod(_fake_send))
+    monkeypatch.setattr(AGI, "_kill", staticmethod(_fake_kill))
+    monkeypatch.setattr(
+        AGI,
+        "_get_scheduler",
+        staticmethod(
+            lambda scheduler: calls["get_scheduler"].append(scheduler) or ("127.0.0.1", 8786)
+        ),
+    )
+
+    scheduler = await entrypoint_support._prepare_scheduler_nodes(
+        AGI,
+        None,
+        cli_rel=Path("worker/cli.py"),
+    )
+
+    assert scheduler == "127.0.0.1"
+    assert calls["get_scheduler"] == ["127.0.0.1"]
+    assert calls["kill"] == ["127.0.0.1"]
+
+
+@pytest.mark.asyncio
 async def test_detect_export_cmd_expected_lookup_error_returns_empty(monkeypatch):
     async def _fake_exec(_ip, _cmd):
         raise RuntimeError("expected lookup failure")
@@ -928,7 +1032,10 @@ async def test_prepare_scheduler_nodes_defaults_local_scheduler_and_handles_miss
     )
 
     AGI.env = SimpleNamespace(
-        cluster_pck=cluster_pck, envars={}, hw_rapids_capable=False
+        cluster_pck=cluster_pck,
+        envars={},
+        hw_rapids_capable=False,
+        is_local=lambda ip: ip in {"127.0.0.1", "localhost"},
     )
     AGI._mode_auto = False
     AGI._mode = AGI.DASK_MODE
@@ -949,22 +1056,23 @@ async def test_prepare_scheduler_nodes_defaults_local_scheduler_and_handles_miss
     assert scheduler == "127.0.0.1"
     assert calls["kill"] == [("127.0.0.1", True)]
 
+    # New contract: a missing scheduler with non-local workers must abort
+    # instead of silently electing the first worker as scheduler host.
     calls = {"send": [], "kill": [], "info": []}
     AGI._workers = {"10.0.0.2": 1}
     monkeypatch.setattr(
         AGI, "_get_scheduler", staticmethod(lambda _scheduler: ("10.0.0.1", 8786))
     )
 
-    scheduler = await entrypoint_support._prepare_scheduler_nodes(
-        AGI,
-        None,
-        cli_rel=Path("worker/cli.py"),
-        log=log,
-    )
+    with pytest.raises(ValueError, match="scheduler"):
+        await entrypoint_support._prepare_scheduler_nodes(
+            AGI,
+            None,
+            cli_rel=Path("worker/cli.py"),
+            log=log,
+        )
 
-    assert scheduler is None
-    assert any("required -> Stop" in message for message in calls["info"])
-    assert ("10.0.0.1", True) in calls["kill"]
+    assert calls["kill"] == []
 
 
 @pytest.mark.asyncio

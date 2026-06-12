@@ -3,7 +3,6 @@ import logging
 import os
 import socket
 import time
-from pathlib import Path
 from typing import Any, Callable, Optional, Set
 
 from agi_env import AgiEnv
@@ -70,7 +69,6 @@ async def deploy_application(
     reset_deploy_state(agi_cls)
     env = agi_cls.env
     app_path = env.active_app
-    wenv_rel = env.wenv_rel
     options_worker = ""
     if isinstance(env.base_worker_cls, str):
         options_worker = " --extra " + " --extra ".join(agi_cls.install_worker_group)
@@ -81,7 +79,7 @@ async def deploy_application(
     if env.verbose > 0:
         log.info(f"Installing {app_path} on 127.0.0.1")
 
-    await agi_cls._deploy_local_worker(app_path, Path(wenv_rel), options_worker)
+    await agi_cls._deploy_local_worker(options_worker)
     if agi_cls._mode & agi_cls.DASK_MODE:
         tasks = []
         for ip in node_ips:
@@ -90,10 +88,18 @@ async def deploy_application(
             if not env.is_local(ip):
                 tasks.append(
                     asyncio.create_task(
-                        agi_cls._deploy_remote_worker(ip, env, wenv_rel, options_worker)
+                        agi_cls._deploy_remote_worker(ip, env)
                     )
                 )
-        await asyncio.gather(*tasks)
+        try:
+            await asyncio.gather(*tasks)
+        except BaseException:
+            # A failing node must not leave sibling deploy tasks running
+            # unobserved (a retry would then race half-finished installs).
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
 
     if agi_cls.verbose:
         duration = agi_cls._format_elapsed(time_fn() - start_time)

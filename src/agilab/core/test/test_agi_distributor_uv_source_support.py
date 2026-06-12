@@ -794,3 +794,24 @@ nested = "value"
     )
 
     assert staged == stage_root / "dep"
+
+
+def test_pyproject_io_round_trips_utf8_content_regardless_of_locale(tmp_path):
+    # Regression: pyproject read/write without encoding="utf-8" decoded with
+    # the platform locale codec, so UTF-8 bytes like 'č' (C4 8D) crashed or
+    # mojibake'd on cp1252 Windows managers. The IO is now pinned to UTF-8.
+    pyproject = tmp_path / "pyproject.toml"
+    dep_dir = tmp_path / "dep"
+    dep_dir.mkdir()
+    pyproject.write_text(
+        '[project]\nname = "demo"\nauthors = [{ name = "Čeněk Dvořák" }]\n'
+        '[tool.uv.sources]\ndep = { path = "dep" }\n',
+        encoding="utf-8",
+    )
+
+    entries = uv_source_support._iter_local_uv_source_paths(pyproject)
+    assert entries == [("dep", dep_dir.resolve())]
+
+    uv_source_support.ensure_optional_extras(pyproject, {"extra1"})
+    raw = pyproject.read_bytes()
+    assert "Čeněk Dvořák".encode("utf-8") in raw

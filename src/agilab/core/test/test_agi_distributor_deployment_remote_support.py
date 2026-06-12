@@ -276,12 +276,14 @@ async def _call_deploy_remote_worker(
     set_env_var_fn,
     log,
 ) -> None:
+    # wenv_rel/option are accepted for call-site compatibility but the
+    # production signature dropped them: deploy_remote_worker reads
+    # env.wenv_rel and never used option.
+    del wenv_rel, option
     await deployment_remote_support.deploy_remote_worker(
         agi_cls,
         ip,
         env,
-        wenv_rel,
-        option,
         worker_site_packages_dir_fn=uv_source_support.worker_site_packages_dir,
         staged_uv_sources_pth_content_fn=uv_source_support.staged_uv_sources_pth_content,
         set_env_var_fn=set_env_var_fn,
@@ -1437,3 +1439,88 @@ async def test_deploy_remote_worker_rapids_runtime_error_is_logged(tmp_path):
         )
 
     log.error.assert_called_once()
+
+
+def test_remote_env_update_command_preserves_other_env_keys():
+    # Regression: the command previously truncated the whole remote
+    # ~/.agilab/.env with '>' redirection; it must merge instead, replacing
+    # only the AGI_CLUSTER_SHARE line.
+    cmd = deployment_remote_support._remote_env_update_command("clustershare")
+
+    assert "grep -v '^AGI_CLUSTER_SHARE='" in cmd
+    assert 'mv "$HOME/.agilab/.env.tmp" "$HOME/.agilab/.env"' in cmd
+    assert "AGI_CLUSTER_SHARE=" in cmd
+    # No direct truncating redirection of the env file itself.
+    assert '> "$HOME/.agilab/.env"' not in cmd.replace(
+        '> "$HOME/.agilab/.env.tmp"', ""
+    )
+
+
+def test_local_mount_record_for_path_falls_back_to_mount_on_missing_findmnt(
+    monkeypatch, tmp_path
+):
+    # Regression: findmnt does not exist on macOS, which silently disabled the
+    # reverse-SSHFS loop guard; the probe must fall back to ``mount`` output.
+    share = tmp_path / "clustershare" / "agi"
+    share.mkdir(parents=True, exist_ok=True)
+    mount_output = (
+        "/dev/disk3s1 on / (apfs, sealed, local, read-only, journaled)\n"
+        f"agi@192.168.20.15:/home/agi/clustershare on {tmp_path / 'clustershare'} "
+        "(macfuse, nodev, nosuid, synchronous, mounted by agi)\n"
+    )
+
+    def _fake_run(argv, **_kwargs):
+        if argv[0] == "findmnt":
+            raise FileNotFoundError("findmnt")
+        assert argv == ["mount"]
+        return SimpleNamespace(returncode=0, stdout=mount_output)
+
+    monkeypatch.setattr(deployment_remote_support.subprocess, "run", _fake_run)
+
+    record = deployment_remote_support._local_mount_record_for_path(share)
+
+    assert record == {
+        "TARGET": str(tmp_path / "clustershare"),
+        "SOURCE": "agi@192.168.20.15:/home/agi/clustershare",
+        "FSTYPE": "macfuse",
+    }
+
+    problem = deployment_remote_support._reverse_sshfs_mount_problem(
+        share, "192.168.20.15"
+    )
+    assert problem is not None and "SSHFS loop" in problem
+
+
+def test_reverse_sshfs_mount_problem_matches_macfuse_and_nfs_fstypes(monkeypatch):
+    # macFUSE/FUSE-T SSHFS mounts surface as "macfuse"/"nfs" rather than the
+    # Linux "fuse.sshfs" fstype.
+    for fstype in ("macfuse", "nfs", "fuse.sshfs"):
+        monkeypatch.setattr(
+            deployment_remote_support,
+            "_local_mount_record_for_path",
+            lambda _path, _fstype=fstype: {
+                "TARGET": "/Users/agi/clustershare",
+                "SOURCE": "agi@192.168.20.15:/home/agi/clustershare",
+                "FSTYPE": _fstype,
+            },
+        )
+        problem = deployment_remote_support._reverse_sshfs_mount_problem(
+            Path("/Users/agi/clustershare"), "192.168.20.15"
+        )
+        assert problem is not None, fstype
+
+
+def test_resolve_worker_egg_falls_back_and_raises(tmp_path):
+    env = SimpleNamespace(target_worker="demo_worker", app="demo_app")
+    log = mock.Mock()
+
+    with pytest.raises(FileNotFoundError, match="no existing egg file"):
+        deployment_remote_support._resolve_worker_egg(env, tmp_path, log)
+    log.error.assert_called_once()
+
+    fallback_egg = tmp_path / "demo_app-0.0.1.egg"
+    fallback_egg.write_text("egg", encoding="utf-8")
+    assert (
+        deployment_remote_support._resolve_worker_egg(env, tmp_path, log)
+        == fallback_egg
+    )

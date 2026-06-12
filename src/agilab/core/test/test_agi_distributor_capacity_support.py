@@ -894,6 +894,63 @@ def test_update_capacity_writes_utf8_capacity_csv_for_polars(tmp_path, monkeypat
     assert open_calls == [{"encoding": "utf-8", "newline": ""}]
 
 
+def test_parse_run_timing_supports_raw_seconds_and_humanized_deltas():
+    # Regression: local runs return humanized strings ("1 minute and 15
+    # seconds"); parsing float(parts[1]) recorded a 75s run as 1.0s and let
+    # slow local modes win the benchmark.
+    assert capacity_support._parse_run_timing("___d 75.2") == ("___d", 75.2)
+    assert capacity_support._parse_run_timing("___p 1 minute and 15 seconds") == ("___p", 75.0)
+    assert capacity_support._parse_run_timing("__cp 59.90 seconds") == ("__cp", 59.9)
+    assert capacity_support._parse_run_timing("___p 2 hours, 3 minutes and 1.5 seconds") == (
+        "___p",
+        2 * 3600 + 3 * 60 + 1.5,
+    )
+    with pytest.raises(ValueError, match="Unexpected run format"):
+        capacity_support._parse_run_timing("invalid-format")
+    with pytest.raises(ValueError, match="Unexpected run format"):
+        capacity_support._parse_run_timing("___p quick brown fox")
+
+
+@pytest.mark.asyncio
+async def test_benchmark_resets_mode_auto_when_a_run_fails(monkeypatch, tmp_path):
+    # Regression: _mode_auto used to stay True after a benchmark exception,
+    # corrupting every subsequent regular run in the process.
+    env = _minimal_app_env()
+    env.benchmark = tmp_path / "benchmark.json"
+
+    async def _bad_run(*_args, **_kwargs):
+        return "invalid-format"
+
+    monkeypatch.setattr(BaseWorker, "_is_cython_installed", staticmethod(lambda _env: True))
+    monkeypatch.setattr(AGI, "run", staticmethod(_bad_run))
+    monkeypatch.setattr(AGI, "_benchmark_dask_modes", staticmethod(lambda *_a, **_k: None))
+
+    with pytest.raises(ValueError, match="Unexpected run format"):
+        await capacity_support.benchmark(AGI, env, request=RunRequest(mode=[0]))
+    assert AGI._mode_auto is False
+
+
+def test_update_capacity_skips_retrain_without_run_time_feedback(tmp_path, monkeypatch):
+    # Regression: with no per-worker run times the function used to fall
+    # through to a full RandomForest retrain on unchanged data every run.
+    AGI._workers = {"127.0.0.1": 1}
+    AGI.workers_info = {}
+    AGI._run_time = {}
+    AGI._capacity_data_file = str(tmp_path / "capacity.csv")
+    AGI.env = SimpleNamespace(home_abs=str(tmp_path))
+    train_calls = {"count": 0}
+    monkeypatch.setattr(
+        AGI,
+        "_train_capacity",
+        staticmethod(lambda _path: train_calls.__setitem__("count", train_calls["count"] + 1)),
+    )
+
+    capacity_support.update_capacity(AGI)
+
+    assert train_calls["count"] == 0
+    assert not Path(AGI._capacity_data_file).exists()
+
+
 def test_train_capacity_missing_and_success(tmp_path):
     AGI._capacity_data_file = "capacity_data.csv"
     AGI._capacity_model_file = "capacity_model.pkl"

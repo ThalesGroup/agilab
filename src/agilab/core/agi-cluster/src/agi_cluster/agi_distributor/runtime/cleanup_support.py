@@ -185,6 +185,12 @@ async def wait_for_port_release(
     return False
 
 
+def _normalized_process_username(username: Any) -> str:
+    """Strip a Windows ``DOMAIN\\user`` prefix so usernames compare exactly."""
+    text = str(username or "")
+    return text.rsplit("\\", 1)[-1]
+
+
 def clean_dirs_local(
     agi_cls: Any,
     *,
@@ -200,7 +206,9 @@ def clean_dirs_local(
         try:
             if (
                 proc.info["username"]
-                and proc.info["username"].endswith(me)
+                # Exact match (after DOMAIN\ normalization): a suffix match
+                # would let user 'ed' kill processes owned by 'fred'.
+                and _normalized_process_username(proc.info["username"]) == me
                 and proc.info["pid"]
                 and proc.info["pid"] != self_pid
                 and proc.info["cmdline"]

@@ -191,7 +191,9 @@ async def test_agi_run_mode_string_valid_path_calls_mode2int_and_main(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_agi_run_mode_zero_sets_run_type(monkeypatch):
+async def test_agi_run_mode_zero_leaves_run_type_to_deploy(monkeypatch):
+    # _configure_mode must not derive _run_type: reset_deploy_state
+    # (deployment_orchestration_support) is the single derivation site.
     env = _minimal_app_env()
     env.base_worker_cls = "PandasWorker"
 
@@ -200,13 +202,15 @@ async def test_agi_run_mode_zero_sets_run_type(monkeypatch):
 
     monkeypatch.setattr(AGI, "_main", staticmethod(_fake_main))
     monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
+    sentinel = "sentinel-run-type"
+    monkeypatch.setattr(AGI, "_run_type", sentinel, raising=False)
 
     result = await AGI.run(
         env,
         request=RunRequest(scheduler="127.0.0.1", workers={"127.0.0.1": 1}, mode=0),
     )
     assert result == {"status": "ok"}
-    assert AGI._run_type == "run --no-sync"
+    assert AGI._run_type == sentinel
 
 
 @pytest.mark.asyncio

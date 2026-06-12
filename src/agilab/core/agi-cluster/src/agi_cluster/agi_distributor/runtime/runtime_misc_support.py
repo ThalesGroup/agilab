@@ -413,7 +413,11 @@ def configure_runtime_mode(
         raise ValueError(invalid_type_message)
 
     agi_cls._run_types = list(_RUN_TYPES)
-    if agi_cls._mode & agi_cls._RUN_MASK not in range(0, agi_cls.RAPIDS_MODE):
+    # Validate the whole mode against the supported bit space; masking first
+    # (mode & _RUN_MASK) made the old check a tautology, letting e.g. mode=999
+    # silently take the install/deploy path.
+    supported_mode_bits = int(getattr(agi_cls, "_RAPIDS_SET", 0b111111))
+    if agi_cls._mode < 0 or agi_cls._mode & ~supported_mode_bits:
         raise ValueError(f"mode {agi_cls._mode} not implemented")
     if require_dask and not (agi_cls._mode & agi_cls.DASK_MODE):
         raise ValueError(dask_error_message)

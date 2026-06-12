@@ -8,9 +8,12 @@ import re
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union, cast
 
-from dask.distributed import Client
+if TYPE_CHECKING:
+    # Annotation-only: defer the dask.distributed import so importing AGI
+    # stays cheap for non-Dask runs.
+    from dask.distributed import Client
 
 from agi_env import AgiEnv
 

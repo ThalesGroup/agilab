@@ -28,7 +28,7 @@ def _relative_toml_path(path: Path, *, start: Path) -> str:
 def _iter_local_uv_source_paths(pyproject_path: Path) -> list[tuple[str, Path]]:
     """Return existing local ``tool.uv.sources.*.path`` entries from a pyproject."""
     try:
-        data = tomlkit.parse(pyproject_path.read_text())
+        data = tomlkit.parse(pyproject_path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return []
 
@@ -84,7 +84,7 @@ def ensure_optional_extras(pyproject_file: Path, extras: Set[str]) -> None:
         return
 
     try:
-        doc = tomlkit.parse(pyproject_file.read_text())
+        doc = tomlkit.parse(pyproject_file.read_text(encoding="utf-8"))
     except FileNotFoundError:
         doc = tomlkit.document()
 
@@ -102,7 +102,7 @@ def ensure_optional_extras(pyproject_file: Path, extras: Set[str]) -> None:
 
     project_tbl["optional-dependencies"] = optional_tbl
     doc["project"] = project_tbl
-    pyproject_file.write_text(tomlkit.dumps(doc))
+    pyproject_file.write_text(tomlkit.dumps(doc), encoding="utf-8")
 
 
 def rewrite_uv_sources_paths_for_copied_pyproject(
@@ -114,8 +114,8 @@ def rewrite_uv_sources_paths_for_copied_pyproject(
 ) -> None:
     """Rewrite ``[tool.uv.sources.*].path`` entries after copying a worker pyproject."""
     try:
-        src_data = tomlkit.parse(src_pyproject.read_text())
-        dest_data = tomlkit.parse(dest_pyproject.read_text())
+        src_data = tomlkit.parse(src_pyproject.read_text(encoding="utf-8"))
+        dest_data = tomlkit.parse(dest_pyproject.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return
 
@@ -173,7 +173,7 @@ def rewrite_uv_sources_paths_for_copied_pyproject(
     if not rewrites:
         return
 
-    dest_pyproject.write_text(tomlkit.dumps(dest_data))
+    dest_pyproject.write_text(tomlkit.dumps(dest_data), encoding="utf-8")
     if log_rewrites:
         for name, old, new in rewrites:
             log.info("Rewrote uv source '%s' path: %s -> %s", name, old or "<unset>", new)
@@ -231,7 +231,7 @@ def _stage_uv_source_dependency(
         return staged_target
 
     try:
-        staged_data = tomlkit.parse(staged_pyproject.read_text())
+        staged_data = tomlkit.parse(staged_pyproject.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return staged_target
 
@@ -263,7 +263,7 @@ def _stage_uv_source_dependency(
             rewrites.append((nested_name, str(old_path_value or ""), new_path_value))
 
     if rewrites:
-        staged_pyproject.write_text(tomlkit.dumps(staged_data))
+        staged_pyproject.write_text(tomlkit.dumps(staged_data), encoding="utf-8")
         if log_rewrites:
             for nested_name, old, new in rewrites:
                 log.info("Staged uv source '%s' path: %s -> %s", nested_name, old or "<unset>", new)
@@ -281,8 +281,8 @@ def stage_uv_sources_for_copied_pyproject(
 ) -> list[Path]:
     """Stage local ``tool.uv.sources.*.path`` entries next to the copied pyproject."""
     try:
-        src_data = tomlkit.parse(src_pyproject.read_text())
-        dest_data = tomlkit.parse(dest_pyproject.read_text())
+        src_data = tomlkit.parse(src_pyproject.read_text(encoding="utf-8"))
+        dest_data = tomlkit.parse(dest_pyproject.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return []
 
@@ -328,7 +328,7 @@ def stage_uv_sources_for_copied_pyproject(
             rewrites.append((name, str(old_path_value or ""), new_path_value))
 
     if rewrites:
-        dest_pyproject.write_text(tomlkit.dumps(dest_data))
+        dest_pyproject.write_text(tomlkit.dumps(dest_data), encoding="utf-8")
         if log_rewrites:
             for name, old, new in rewrites:
                 log.info("Staged uv source '%s' path: %s -> %s", name, old or "<unset>", new)
@@ -339,7 +339,7 @@ def stage_uv_sources_for_copied_pyproject(
 def missing_uv_source_paths(pyproject_path: Path) -> list[tuple[str, str]]:
     """Return unresolved ``tool.uv.sources.*.path`` entries from a copied pyproject."""
     try:
-        data = tomlkit.parse(pyproject_path.read_text())
+        data = tomlkit.parse(pyproject_path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return []
 

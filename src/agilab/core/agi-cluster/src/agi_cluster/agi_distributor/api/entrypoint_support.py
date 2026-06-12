@@ -51,10 +51,6 @@ def _configure_mode(agi_cls: Any, env: Any, mode: PreparedMode) -> None:
         mode,
         invalid_type_message="parameter <mode> must be an int, a list of int or a string",
     )
-    if not agi_cls._mode:
-        agi_cls._run_type = agi_cls._run_types[
-            (agi_cls._mode & agi_cls._DEPLOYEMENT_MASK) >> agi_cls.DASK_MODE
-        ]
 
 
 def _initialize_run_state(
@@ -277,6 +273,11 @@ async def run(
     )
 
 
+def _rapids_mode_bit(agi_cls: Any) -> int:
+    """Run-mode rapids bit (8), matching compute_run_mode's ``rapids * 8``."""
+    return agi_cls._RAPIDS_SET ^ agi_cls._RAPIDS_RESET
+
+
 async def install(
     agi_cls: Any,
     *,
@@ -287,7 +288,7 @@ async def install(
     modes_enabled: int,
     verbose: Optional[int] = None,
     args: Dict[str, Any],
-) -> None:
+) -> Any:
     agi_cls._run_type = "sync"
     mode = agi_cls._INSTALL_MODE | modes_enabled
     request = _request_from_payload(
@@ -296,10 +297,10 @@ async def install(
         workers=workers,
         workers_data_path=workers_data_path,
         mode=mode,
-        rapids_enabled=bool(agi_cls._INSTALL_MODE & modes_enabled),
+        rapids_enabled=bool(modes_enabled & _rapids_mode_bit(agi_cls)),
         verbose=0 if verbose is None else verbose,
     )
-    await agi_cls.run(
+    return await agi_cls.run(
         env=env,
         request=request,
     )
@@ -312,17 +313,19 @@ async def update(
     scheduler: Optional[str] = None,
     workers: Optional[Dict[str, int]] = None,
     modes_enabled: int,
+    verbose: Optional[int] = None,
     args: Dict[str, Any],
-) -> None:
+) -> Any:
     agi_cls._run_type = "upgrade"
     request = _request_from_payload(
         args,
         scheduler=scheduler,
         workers=workers,
         mode=(agi_cls._UPDATE_MODE | modes_enabled) & agi_cls._DASK_RESET,
-        rapids_enabled=bool(agi_cls._UPDATE_MODE & modes_enabled),
+        rapids_enabled=bool(modes_enabled & _rapids_mode_bit(agi_cls)),
+        verbose=0 if verbose is None else verbose,
     )
-    await agi_cls.run(
+    return await agi_cls.run(
         env=env,
         request=request,
     )
@@ -334,6 +337,7 @@ async def get_distrib(
     env: Any,
     scheduler: Optional[str] = None,
     workers: Optional[Dict[str, int]] = None,
+    verbose: int = 0,
     args: Dict[str, Any],
 ) -> Any:
     agi_cls._run_type = "simulate"
@@ -342,6 +346,7 @@ async def get_distrib(
         scheduler=scheduler,
         workers=workers,
         mode=agi_cls._SIMULATE_MODE,
+        verbose=verbose,
     )
     return await agi_cls.run(env, request=request)
 
@@ -352,6 +357,7 @@ async def distribute(
     env: Any,
     scheduler: Optional[str] = None,
     workers: Optional[Dict[str, int]] = None,
+    verbose: int = 0,
     args: Dict[str, Any],
 ) -> Any:
     return await get_distrib(
@@ -359,6 +365,7 @@ async def distribute(
         env=env,
         scheduler=scheduler,
         workers=workers,
+        verbose=verbose,
         args=args,
     )
 
@@ -428,17 +435,22 @@ async def _prepare_scheduler_nodes(
     log: Any = logger,
 ) -> Optional[str]:
     env = agi_cls.env
-    if (agi_cls._mode_auto and agi_cls._mode == agi_cls.DASK_MODE) or not agi_cls._mode_auto:
+    # Bitmask test (not exact equality) so benchmark mode lists whose first
+    # Dask mode is composite (5, 6, 7, ...) still prepare the scheduler.
+    if not agi_cls._mode_auto or (agi_cls._mode & agi_cls.DASK_MODE):
         env.hw_rapids_capable = True
         if agi_cls._mode & agi_cls.DASK_MODE:
             if scheduler is None:
-                if list(agi_cls._workers) == ["127.0.0.1"]:
+                if all(env.is_local(ip) for ip in agi_cls._workers):
                     scheduler = "127.0.0.1"
                 else:
-                    log.info("AGI.run(...scheduler='scheduler ip address' is required -> Stop")
+                    raise ValueError(
+                        "AGI.run(..., scheduler='scheduler ip address') is required "
+                        "for non-local workers"
+                    )
             agi_cls._scheduler_ip, agi_cls._scheduler_port = agi_cls._get_scheduler(scheduler)
 
-        for ip in list(agi_cls._workers):
+        async def _prepare_worker_node(ip: str) -> None:
             await agi_cls.send_file(
                 env,
                 ip,
@@ -449,6 +461,10 @@ async def _prepare_scheduler_nodes(
             if not hw_rapids_capable or hw_rapids_capable == "no_rapids_hw":
                 env.hw_rapids_capable = False
             await agi_cls._kill(ip, os.getpid(), force=True)
+
+        # Per-host work is independent; run hosts concurrently (send_file
+        # still precedes _kill on each host), mirroring clean_remote_procs.
+        await asyncio.gather(*(_prepare_worker_node(ip) for ip in list(agi_cls._workers)))
 
         if agi_cls._scheduler_ip not in agi_cls._workers:
             await agi_cls._kill(agi_cls._scheduler_ip, os.getpid(), force=True)

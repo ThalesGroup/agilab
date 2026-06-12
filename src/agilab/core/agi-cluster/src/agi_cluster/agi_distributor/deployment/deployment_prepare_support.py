@@ -201,7 +201,7 @@ async def prepare_local_env(
     set_env_var_fn(f"{ip}_PYTHON_VERSION", pyvers)
 
     if env.is_worker_env:
-        cmd = f"{uv} --project {wenv_abs} init --bare --no-workspace"
+        cmd = f'{uv} --project "{wenv_abs}" init --bare --no-workspace'
         await run_fn(cmd, wenv_abs)
 
 

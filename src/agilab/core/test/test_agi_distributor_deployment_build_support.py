@@ -117,8 +117,25 @@ def test_build_module_command_prefers_legacy_source_build_script(tmp_path):
         ("3.14t", "3.14t"),
     ],
 )
-def test_python_site_version_handles_free_thread_suffix(pyvers_worker, expected):
-    assert deployment_build_support._python_site_version(pyvers_worker) == expected
+def test_cython_lib_destination_handles_free_thread_suffix(
+    tmp_path, pyvers_worker, expected
+):
+    # _python_site_version was removed in favor of the shared
+    # deployment_venv_support.project_site_packages_dir helper, which keeps
+    # the free-threading "t" suffix consistent across deployment modules.
+    worker_lib = tmp_path / "dist" / "demo_cy.so"
+    worker_lib.parent.mkdir(parents=True, exist_ok=True)
+    worker_lib.write_text("binary", encoding="utf-8")
+
+    deployment_build_support._copy_cython_worker_lib(
+        wenv_abs=tmp_path,
+        pyvers_worker=pyvers_worker,
+        build_output="",
+        failure_message="missing",
+    )
+
+    expected_dir = tmp_path / ".venv" / "lib" / f"python{expected}" / "site-packages"
+    assert (expected_dir / "demo_cy.so").exists()
 
 
 def test_project_uv_adds_free_threading_prefix(monkeypatch):

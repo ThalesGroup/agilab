@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -148,6 +149,66 @@ def _best_single_node_workers(agi_cls: Any, workers: Mapping[str, int]) -> dict[
     return {host: 1} if host else {}
 
 
+_PRECISEDELTA_UNIT_SECONDS = {
+    "microsecond": 1e-6,
+    "microseconds": 1e-6,
+    "millisecond": 1e-3,
+    "milliseconds": 1e-3,
+    "second": 1.0,
+    "seconds": 1.0,
+    "minute": 60.0,
+    "minutes": 60.0,
+    "hour": 3600.0,
+    "hours": 3600.0,
+    "day": 86400.0,
+    "days": 86400.0,
+    "month": 2628000.0,
+    "months": 2628000.0,
+    "year": 31536000.0,
+    "years": 31536000.0,
+}
+
+
+def _parse_run_timing(run_value: str) -> tuple[str, float]:
+    """Return ``(mode_token, seconds)`` from a worker run string.
+
+    Local runs return ``"<mode> <humanize.precisedelta>"`` (e.g.
+    ``"___p 1 minute and 15 seconds"``) while Dask runs return raw seconds
+    (``"___d 75.2"``); both must parse to comparable seconds, otherwise a
+    75s local leg would be recorded as 1.0s and win the benchmark.
+    """
+    parts = run_value.split()
+    if len(parts) < 2:
+        raise ValueError(f"Unexpected run format: {run_value}")
+    if len(parts) == 2:
+        try:
+            return parts[0], float(parts[1])
+        except ValueError:
+            raise ValueError(f"Unexpected run format: {run_value}") from None
+    total = 0.0
+    matched = False
+    pending_value: float | None = None
+    for token in parts[1:]:
+        cleaned = token.rstrip(",").lower()
+        if cleaned == "and" or not cleaned:
+            continue
+        if pending_value is None:
+            try:
+                pending_value = float(cleaned)
+            except ValueError:
+                raise ValueError(f"Unexpected run format: {run_value}") from None
+            continue
+        unit = _PRECISEDELTA_UNIT_SECONDS.get(cleaned)
+        if unit is None:
+            raise ValueError(f"Unexpected run format: {run_value}")
+        total += pending_value * unit
+        pending_value = None
+        matched = True
+    if not matched or pending_value is not None:
+        raise ValueError(f"Unexpected run format: {run_value}")
+    return parts[0], total
+
+
 _TRUE_RAPIDS_CAPABILITIES = {"1", "true", "yes", "on", "hw_rapids_capable"}
 _FALSE_RAPIDS_CAPABILITIES = {"0", "false", "no", "off", "no_rapids_hw"}
 
@@ -276,8 +337,6 @@ async def benchmark(
             modes_enabled=agi_cls.CYTHON_MODE,
             **request.to_app_kwargs(),
         )
-    agi_cls._mode_auto = True
-
     if os.path.exists(benchmark_path):
         os.remove(benchmark_path)
     local_modes = [mode for mode in benchmark_modes if not (mode & agi_cls.DASK_MODE)]
@@ -291,37 +350,40 @@ async def benchmark(
         variant: str,
         node: str,
     ) -> None:
-        runtime = run_value.split()
-        if len(runtime) < 2:
-            raise ValueError(f"Unexpected run format: {run_value}")
-        runtime_float = float(runtime[1])
+        mode_token, runtime_float = _parse_run_timing(run_value)
         runs[key] = {
             "variant": variant,
             "nodes": nodes,
             "node": node,
-            "mode": runtime[0],
+            "mode": mode_token,
             "timing": humanize.precisedelta(timedelta(seconds=runtime_float)),
             "seconds": runtime_float,
         }
 
-    for mode in local_modes:
-        run_mode = mode & rapids_mode_mask
-        run = await agi_cls.run(
-            env,
-            request=request.with_execution(mode=run_mode),
-        )
-        if isinstance(run, str):
-            await _record(run, mode, nodes=1, variant="local", node="local")
+    # _mode_auto must never leak True past benchmark(); a stuck flag corrupts
+    # every subsequent regular run's scheduler prep and stop() shutdown.
+    agi_cls._mode_auto = True
+    try:
+        for mode in local_modes:
+            run_mode = mode & rapids_mode_mask
+            run = await agi_cls.run(
+                env,
+                request=request.with_execution(mode=run_mode),
+            )
+            if isinstance(run, str):
+                await _record(run, mode, nodes=1, variant="local", node="local")
 
-    if dask_modes:
-        await agi_cls._benchmark_dask_modes(
-            env,
-            request,
-            dask_modes,
-            rapids_mode_mask,
-            runs,
-            include_best_single_node=request.benchmark_best_single_node,
-        )
+        if dask_modes:
+            await agi_cls._benchmark_dask_modes(
+                env,
+                request,
+                dask_modes,
+                rapids_mode_mask,
+                runs,
+                include_best_single_node=request.benchmark_best_single_node,
+            )
+    finally:
+        agi_cls._mode_auto = False
 
     ordered_runs = sorted(runs.items(), key=lambda item: item[1]["seconds"])
     for idx, (_mode_key, run_data) in enumerate(ordered_runs, start=1):
@@ -336,7 +398,6 @@ async def benchmark(
         runs[mode_key]["delta"] = runs[mode_key]["seconds"] - best_run_data["seconds"]
 
     agi_cls._best_mode[env.target] = best_run_data
-    agi_cls._mode_auto = False
 
     runs_str_keys = {str(key): value for key, value in runs.items()}
     with open(benchmark_path, "w") as handle:
@@ -376,15 +437,12 @@ async def benchmark_dask_modes(
             run = await agi_cls._distribute()
             agi_cls._update_capacity()
             if isinstance(run, str):
-                runtime = run.split()
-                if len(runtime) < 2:
-                    raise ValueError(f"Unexpected run format: {run}")
-                runtime_float = float(runtime[1])
+                mode_token, runtime_float = _parse_run_timing(run)
                 runs[mode] = {
                     "variant": "cluster",
                     "nodes": cluster_node_count,
                     "node": "cluster",
-                    "mode": runtime[0],
+                    "mode": mode_token,
                     "timing": humanize.precisedelta(timedelta(seconds=runtime_float)),
                     "seconds": runtime_float,
                 }
@@ -441,15 +499,12 @@ async def benchmark_dask_modes(
                         run = await agi_cls._distribute()
                         agi_cls._update_capacity()
                         if isinstance(run, str):
-                            runtime = run.split()
-                            if len(runtime) < 2:
-                                raise ValueError(f"Unexpected run format: {run}")
-                            runtime_float = float(runtime[1])
+                            mode_token, runtime_float = _parse_run_timing(run)
                             runs[f"{mode}:best-node"] = {
                                 "variant": "best-node",
                                 "nodes": 1,
                                 "node": best_host,
-                                "mode": runtime[0],
+                                "mode": mode_token,
                                 "timing": humanize.precisedelta(timedelta(seconds=runtime_float)),
                                 "seconds": runtime_float,
                             }
@@ -458,6 +513,9 @@ async def benchmark_dask_modes(
                     agi_cls._rapids_enabled = previous_rapids_enabled
     finally:
         agi_cls._workers = workers_dict
+        # This is the final benchmark stop: clear _mode_auto so stop() shuts
+        # the Dask client/scheduler down even for partial mode ranges.
+        agi_cls._mode_auto = False
         await agi_cls._stop()
 
 
@@ -467,15 +525,20 @@ async def calibration(agi_cls: Any, log: Any = logger) -> None:
         log.info("Reusing cached worker capacity calibration.")
         return
 
-    res_workers_info = agi_cls._dask_client.gather(
-        [
-            agi_cls._dask_client.run(
-                BaseWorker._get_worker_info,
-                BaseWorker._worker_id,
-                workers=agi_cls._dask_workers,
-            )
-        ]
-    )
+    def _collect_workers_info() -> Any:
+        return agi_cls._dask_client.gather(
+            [
+                agi_cls._dask_client.run(
+                    BaseWorker._get_worker_info,
+                    BaseWorker._worker_id,
+                    workers=agi_cls._dask_workers,
+                )
+            ]
+        )
+
+    # The sync Dask client blocks the calling thread; keep the event loop free
+    # for the asyncssh worker channels while calibration data is gathered.
+    res_workers_info = await asyncio.to_thread(_collect_workers_info)
 
     infos = {}
     for res in res_workers_info:
@@ -600,6 +663,12 @@ def update_capacity(agi_cls: Any) -> None:
             if worker_name == worker:
                 info["run_time"] = wrt[worker]
                 workers_rt[worker_name] = info
+
+    if not workers_rt:
+        # No per-worker run-time feedback was collected for this run; there is
+        # nothing to append to the balancer CSV, so skip the (expensive)
+        # RandomForest retrain instead of refitting on unchanged data.
+        return
 
     current_state = deepcopy(workers_rt)
 

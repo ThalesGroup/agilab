@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import errno
 import getpass
 import logging
@@ -6,7 +7,7 @@ import os
 import shutil
 import subprocess
 from contextlib import asynccontextmanager
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any, AsyncIterator, Callable, Iterable, List, Optional, cast
 
 import asyncssh
@@ -197,23 +198,39 @@ def _prepare_known_hosts_for_policy(
         log.info("Pinned SSH host key for %s in %s", host, known_hosts_path)
 
 
+_SCP_TRANSFER_TIMEOUT_SECONDS = 300
+
+
 async def _run_scp_command(
     cmd: list[str],
     *,
-    local_path: Path,
+    local_path: Any,
     remote: str,
     log: Any = logger,
     extra_env: dict[str, str] | None = None,
+    timeout_sec: float = _SCP_TRANSFER_TIMEOUT_SECONDS,
 ) -> None:
     import os as _os
     proc_env = {**_os.environ, **(extra_env or {})}
+    # stdin is detached so an unexpected interactive auth prompt fails fast
+    # instead of blocking the whole deployment on the inherited console.
     process = await asyncio.create_subprocess_exec(
         *cmd,
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env=proc_env,
     )
-    _stdout, stderr = await process.communicate()
+    try:
+        _stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_sec)
+    except asyncio.TimeoutError:
+        with contextlib.suppress(OSError, ProcessLookupError):
+            process.kill()
+        with contextlib.suppress(Exception):
+            await process.wait()
+        message = f"SCP transfer of {local_path} to {remote} timed out after {timeout_sec}s"
+        log.error(message)
+        raise ConnectionError(f"SCP error: {message}") from None
 
     if process.returncode != 0:
         message = stderr.decode().strip()
@@ -298,13 +315,41 @@ async def send_file(
             shutil.copyfile(local_path, destination)
         return
 
+    await _send_remote_paths(
+        env,
+        ip,
+        [local_path],
+        remote_path,
+        user=user,
+        password=password,
+        log=log,
+    )
+
+
+def _remote_scp_target(remote_path: Any) -> str:
+    """Render the scp destination with POSIX separators (remote hosts are POSIX)."""
+    if isinstance(remote_path, PurePath):
+        return remote_path.as_posix()
+    return str(remote_path)
+
+
+async def _send_remote_paths(
+    env: AgiEnv,
+    ip: str,
+    local_paths: list[Path],
+    remote_path: Any,
+    *,
+    user: Optional[str] = None,
+    password: Optional[str] = None,
+    log: Any = logger,
+) -> None:
     if not user:
         user = getattr(env, "user", None) or getpass.getuser()
     if not password:
         password = getattr(env, "password", None)
 
     user_at_ip = f"{user}@{ip}" if user else ip
-    remote = f"{user_at_ip}:{remote_path}"
+    remote = f"{user_at_ip}:{_remote_scp_target(remote_path)}"
 
     auth_prefix: list[str] = []
     scp_env: dict[str, str] = {}
@@ -312,21 +357,41 @@ async def send_file(
     if password and os.name != "nt":
         auth_prefix = ["sshpass", "-e"]
         scp_env["SSHPASS"] = password
+    elif password and os.name == "nt":
+        log.error(
+            "Password-based scp requires sshpass, which is unavailable on Windows; "
+            "the configured cluster password is ignored for the transfer to %s. "
+            "Configure key-based auth (e.g. AGI_SSH_KEY_PATH) on Windows managers.",
+            ip,
+        )
 
-    scp_cmd = ["scp", *_scp_host_key_options(env)]
-    if local_path.is_dir():
+    scp_cmd = [
+        "scp",
+        *_scp_host_key_options(env),
+        "-o",
+        "ConnectTimeout=5",
+        "-o",
+        "ServerAliveInterval=15",
+        "-o",
+        "ServerAliveCountMax=3",
+    ]
+    if not password:
+        # Without a password, never fall back to interactive prompts.
+        scp_cmd.extend(["-o", "BatchMode=yes"])
+    if any(local_path.is_dir() for local_path in local_paths):
         scp_cmd.append("-r")
     ssh_key_path = getattr(env, "ssh_key_path", None)
     if ssh_key_path:
         scp_cmd.extend(["-i", str(Path(ssh_key_path).expanduser())])
-    scp_cmd.append(str(local_path))
+    scp_cmd.extend(str(local_path) for local_path in local_paths)
     scp_cmd.append(remote)
     cmd = auth_prefix + scp_cmd
 
+    local_label: Any = local_paths[0] if len(local_paths) == 1 else [str(p) for p in local_paths]
     last_error: ConnectionError | OSError | None = None
     for _attempt in range(2):
         try:
-            await _run_scp_command(cmd, local_path=local_path, remote=remote, log=log, extra_env=scp_env)
+            await _run_scp_command(cmd, local_path=local_label, remote=remote, log=log, extra_env=scp_env)
             return
         except (ConnectionError, OSError) as exc:
             last_error = exc
@@ -344,11 +409,31 @@ async def send_files(
     *,
     user: Optional[str] = None,
 ) -> None:
-    tasks = []
-    for file_path in files:
-        remote_path = remote_dir / file_path.name
-        tasks.append(agi_cls.send_file(env, ip, file_path, remote_path, user=user))
-    await asyncio.gather(*tasks)
+    if not files:
+        return
+    if _is_local_ip(ip) or len(files) == 1:
+        tasks = []
+        for file_path in files:
+            remote_path = remote_dir / file_path.name
+            tasks.append(agi_cls.send_file(env, ip, file_path, remote_path, user=user))
+        await asyncio.gather(*tasks)
+        return
+    # Batch all files into a single scp invocation so the SSH handshake is
+    # paid once per host instead of once per file.
+    await _send_remote_paths(env, ip, list(files), remote_dir, user=user, log=logger)
+
+
+_SSH_CONNECT_LOCKS: dict[tuple[int, str], asyncio.Lock] = {}
+
+
+def _ssh_connect_lock(ip: str) -> asyncio.Lock:
+    """Return a per-(event loop, ip) lock serializing connection creation."""
+    key = (id(asyncio.get_running_loop()), ip)
+    lock = _SSH_CONNECT_LOCKS.get(key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _SSH_CONNECT_LOCKS[key] = lock
+    return lock
 
 
 @asynccontextmanager
@@ -372,6 +457,35 @@ async def get_ssh_connection(
         yield conn
         return
 
+    # Serialize creation per IP so concurrent callers share one connection
+    # instead of racing and leaking all-but-the-last one.
+    async with _ssh_connect_lock(ip):
+        conn = agi_cls._ssh_connections.get(ip)
+        if not (conn and not conn.is_closed()):
+            conn = await _open_ssh_connection(
+                agi_cls,
+                ip,
+                env,
+                timeout_sec=timeout_sec,
+                discover_private_keys_fn=discover_private_keys_fn,
+                log=log,
+            )
+
+    # The yield lives outside the connect try/except so with-body errors
+    # (e.g. asyncssh ProcessError) propagate unchanged instead of being
+    # rewritten into ConnectionError.
+    yield conn
+
+
+async def _open_ssh_connection(
+    agi_cls: Any,
+    ip: str,
+    env: Any,
+    *,
+    timeout_sec: int,
+    discover_private_keys_fn: Callable[[Path], List[str]],
+    log: Any,
+) -> Any:
     agent_path = None
     try:
         client_keys: Optional[Iterable[str]] = None
@@ -389,7 +503,10 @@ async def get_ssh_connection(
 
         host_key_policy = _cluster_ssh_host_key_policy(env)
         known_hosts_path = _cluster_ssh_known_hosts_path(env)
-        _prepare_known_hosts_for_policy(
+        # ssh-keygen/ssh-keyscan are blocking subprocesses; keep them off the
+        # event loop so concurrent first connections do not freeze everything.
+        await asyncio.to_thread(
+            _prepare_known_hosts_for_policy,
             ip,
             known_hosts_path,
             host_key_policy,
@@ -404,12 +521,14 @@ async def get_ssh_connection(
                 known_hosts=str(known_hosts_path),
                 client_keys=client_keys,
                 agent_path=agent_path,
+                keepalive_interval=15,
+                keepalive_count_max=3,
             ),
             timeout=timeout_sec,
         )
 
         agi_cls._ssh_connections[ip] = conn
-        yield conn
+        return conn
 
     except asyncio.TimeoutError:
         err_msg = f"Connection to {ip} timed out after {timeout_sec} seconds."
@@ -498,14 +617,49 @@ async def exec_ssh(
         raise ConnectionError(friendly) from None
 
 
-async def exec_ssh_async(agi_cls: Any, ip: str, cmd: str) -> str:
-    """Execute a remote command via SSH and return the last non-empty stdout line."""
+def _stream_text(payload: Any) -> str:
+    if isinstance(payload, bytes):
+        return payload.decode("utf-8", errors="replace")
+    return str(payload or "")
+
+
+async def exec_ssh_async(agi_cls: Any, ip: str, cmd: str, *, log: Any = logger) -> str:
+    """Execute a remote command via SSH and return the last non-empty stdout line.
+
+    Reads stderr and checks the exit status so a fast-failing remote launch
+    (missing venv, bad project, busy port) surfaces its real error instead of
+    being silently swallowed by fire-and-forget callers.
+    """
 
     async with agi_cls.get_ssh_connection(ip) as conn:
         process = await conn.create_process(cmd)
-        stdout = await process.stdout.read()
-        await process.wait()
-        lines = [line.strip() for line in stdout.splitlines() if line.strip()]
+        stderr_stream = getattr(process, "stderr", None)
+        if stderr_stream is not None:
+            stdout, stderr = await asyncio.gather(
+                process.stdout.read(),
+                stderr_stream.read(),
+            )
+        else:
+            stdout = await process.stdout.read()
+            stderr = ""
+        result = await process.wait()
+
+        stdout_text = _stream_text(stdout)
+        stderr_text = _stream_text(stderr)
+        if "[ProjectError]" in stderr_text or "[ProjectError]" in stdout_text:
+            agi_cls._worker_init_error = True
+
+        exit_status = getattr(result, "exit_status", None)
+        if exit_status is None:
+            exit_status = getattr(process, "exit_status", None)
+        if exit_status:
+            detail = stderr_text.strip() or stdout_text.strip() or f"exit status {exit_status}"
+            log.error(f"[{ip}] remote command failed (exit {exit_status}): {detail}")
+            raise ConnectionError(
+                f"Remote command on {ip} failed with exit status {exit_status}: {detail[:2000]}"
+            )
+
+        lines = [line.strip() for line in stdout_text.splitlines() if line.strip()]
         return lines[-1] if lines else ""
 
 

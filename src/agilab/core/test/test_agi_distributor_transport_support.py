@@ -249,6 +249,145 @@ async def test_send_file_remote_directory_adds_recursive_flag(monkeypatch, tmp_p
     assert "-r" in calls[0]
 
 
+def test_remote_scp_target_uses_posix_separators_for_windows_paths():
+    from pathlib import PureWindowsPath
+
+    target = transport_support._remote_scp_target(PureWindowsPath("wenv") / "demo_worker")
+    assert target == "wenv/demo_worker"
+    assert transport_support._remote_scp_target("already/posix") == "already/posix"
+
+
+@pytest.mark.asyncio
+async def test_send_file_adds_batchmode_and_timeouts_for_key_auth(monkeypatch, tmp_path):
+    local_file = tmp_path / "src.bin"
+    local_file.write_text("x", encoding="utf-8")
+    env = SimpleNamespace(user="alice", password=None, ssh_key_path=None)
+    calls = []
+
+    class _Proc:
+        returncode = 0
+
+        async def communicate(self):
+            return b"ok", b""
+
+    async def _fake_subproc(*cmd, **_kwargs):
+        calls.append(cmd)
+        return _Proc()
+
+    monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False))
+    monkeypatch.setattr(transport_support.asyncio, "create_subprocess_exec", _fake_subproc)
+
+    await transport_support.send_file(
+        env=env,
+        ip="10.0.0.9",
+        local_path=local_file,
+        remote_path=Path("/tmp/remote.bin"),
+    )
+
+    flat = list(calls[0])
+    assert "BatchMode=yes" in flat
+    assert "ConnectTimeout=5" in flat
+    assert "ServerAliveInterval=15" in flat
+
+
+@pytest.mark.asyncio
+async def test_run_scp_command_times_out_hung_transfer(monkeypatch, tmp_path):
+    # Regression: a hung scp used to block deployment forever.
+    killed = {"count": 0}
+
+    class _HungProc:
+        returncode = None
+
+        async def communicate(self):
+            await asyncio.sleep(3600)
+
+        def kill(self):
+            killed["count"] += 1
+
+        async def wait(self):
+            return None
+
+    async def _fake_subproc(*_cmd, **_kwargs):
+        return _HungProc()
+
+    monkeypatch.setattr(transport_support.asyncio, "create_subprocess_exec", _fake_subproc)
+
+    with pytest.raises(ConnectionError, match="timed out"):
+        await transport_support._run_scp_command(
+            ["scp", "x", "y"],
+            local_path=tmp_path / "x",
+            remote="user@host:y",
+            timeout_sec=0.01,
+        )
+    assert killed["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_connection_serializes_concurrent_connects(monkeypatch):
+    # Regression: concurrent callers used to race and leak all but the last
+    # opened connection; now they share one in-flight connect per IP.
+    connect_calls = {"count": 0}
+
+    class _Conn:
+        def is_closed(self):
+            return False
+
+    async def _fake_connect(*_args, **_kwargs):
+        connect_calls["count"] += 1
+        await asyncio.sleep(0.01)
+        return _Conn()
+
+    monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False))
+    monkeypatch.setattr(transport_support.asyncssh, "connect", _fake_connect)
+
+    agi_cls = SimpleNamespace(
+        env=SimpleNamespace(
+            user="alice",
+            password="secret",
+            ssh_key_path=None,
+            envars={},
+        ),
+        _ssh_connections={},
+    )
+
+    async def _use_connection():
+        async with transport_support.get_ssh_connection(agi_cls, "10.0.0.42") as conn:
+            return conn
+
+    conns = await asyncio.gather(*(_use_connection() for _ in range(4)))
+    assert connect_calls["count"] == 1
+    assert all(conn is conns[0] for conn in conns)
+    assert agi_cls._ssh_connections["10.0.0.42"] is conns[0]
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_connection_body_errors_are_not_rewritten(monkeypatch):
+    # Regression: errors raised by the with-body (e.g. asyncssh ProcessError)
+    # used to be converted into ConnectionError for fresh connections.
+    class _Conn:
+        def is_closed(self):
+            return False
+
+    async def _fake_connect(*_args, **_kwargs):
+        return _Conn()
+
+    monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False))
+    monkeypatch.setattr(transport_support.asyncssh, "connect", _fake_connect)
+
+    agi_cls = SimpleNamespace(
+        env=SimpleNamespace(user="alice", password="secret", ssh_key_path=None, envars={}),
+        _ssh_connections={},
+    )
+
+    class _BodyError(transport_support.asyncssh.Error):
+        def __init__(self):
+            super().__init__(1, "command failed")
+
+    with pytest.raises(_BodyError):
+        async with transport_support.get_ssh_connection(agi_cls, "10.0.0.43"):
+            raise _BodyError()
+
+
 def test_discover_private_ssh_keys_ignores_config_and_public_metadata(tmp_path):
     ssh_dir = tmp_path / ".ssh"
     ssh_dir.mkdir()
@@ -282,11 +421,49 @@ def test_private_key_discovery_handles_missing_dir_and_unreadable_files(tmp_path
 
 
 @pytest.mark.asyncio
-async def test_send_files_delegates_to_send_file(tmp_path):
-    sent = []
+async def test_send_files_batches_remote_files_into_single_scp(monkeypatch, tmp_path):
+    # New contract: multiple remote files travel in one scp invocation so the
+    # SSH handshake is paid once per host instead of once per file.
     files = [tmp_path / "a.txt", tmp_path / "b.txt"]
     for file_path in files:
         file_path.write_text("x", encoding="utf-8")
+    calls = []
+
+    class _Proc:
+        returncode = 0
+
+        async def communicate(self):
+            return b"ok", b""
+
+    async def _fake_subproc(*cmd, **_kwargs):
+        calls.append(cmd)
+        return _Proc()
+
+    monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False))
+    monkeypatch.setattr(transport_support.asyncio, "create_subprocess_exec", _fake_subproc)
+
+    agi_cls = SimpleNamespace()
+    await transport_support.send_files(
+        agi_cls,
+        SimpleNamespace(user="bob", password=None, ssh_key_path=None),
+        "10.0.0.2",
+        files,
+        Path("/remote"),
+        user="bob",
+    )
+
+    assert len(calls) == 1
+    flat = list(calls[0])
+    assert str(files[0]) in flat
+    assert str(files[1]) in flat
+    assert flat[-1] == "bob@10.0.0.2:/remote"
+
+
+@pytest.mark.asyncio
+async def test_send_files_delegates_to_send_file_for_local_and_single_file(tmp_path):
+    sent = []
+    files = [tmp_path / "a.txt"]
+    files[0].write_text("x", encoding="utf-8")
 
     async def _fake_send_file(_env, ip, local_path, remote_path, user=None, password=None):
         sent.append((ip, local_path.name, remote_path.name, user))
@@ -301,10 +478,7 @@ async def test_send_files_delegates_to_send_file(tmp_path):
         user="bob",
     )
 
-    assert sent == [
-        ("10.0.0.2", "a.txt", "a.txt", "bob"),
-        ("10.0.0.2", "b.txt", "b.txt", "bob"),
-    ]
+    assert sent == [("10.0.0.2", "a.txt", "a.txt", "bob")]
 
 
 @pytest.mark.asyncio
@@ -668,26 +842,33 @@ async def test_exec_ssh_success_and_error_paths():
         await transport_support.exec_ssh(agi_cls, "10.0.0.2", "echo hi", process_error_cls=_ProcessError)
 
 
+class _FakeStream:
+    def __init__(self, payload):
+        self._payload = payload
+
+    async def read(self):
+        return self._payload
+
+
+class _FakeAsyncProc:
+    def __init__(self, stdout=b"", stderr=b"", exit_status=0):
+        self.stdout = _FakeStream(stdout)
+        self.stderr = _FakeStream(stderr)
+        self._exit_status = exit_status
+
+    async def wait(self):
+        return SimpleNamespace(exit_status=self._exit_status)
+
+
 @pytest.mark.asyncio
 async def test_exec_ssh_async_and_close_all_connections():
-    class _Stdout:
-        async def read(self):
-            return b"\nalpha\nbeta\n"
-
-    class _Proc:
-        def __init__(self):
-            self.stdout = _Stdout()
-
-        async def wait(self):
-            return None
-
     class _Conn:
         def __init__(self):
             self.closed = False
             self.waited = False
 
         async def create_process(self, _cmd):
-            return _Proc()
+            return _FakeAsyncProc(stdout=b"\nalpha\nbeta\n")
 
         def close(self):
             self.closed = True
@@ -709,10 +890,49 @@ async def test_exec_ssh_async_and_close_all_connections():
         _ssh_connections={"10.0.0.2": conn},
     )
 
+    # New contract: stdout is decoded to text and exit status is checked.
     last_line = await transport_support.exec_ssh_async(agi_cls, "10.0.0.2", "run")
-    assert last_line == b"beta"
+    assert last_line == "beta"
 
     await transport_support.close_all_connections(agi_cls)
     assert agi_cls._ssh_connections == {}
     assert conn.closed is True
     assert conn.waited is True
+
+
+@pytest.mark.asyncio
+async def test_exec_ssh_async_raises_on_nonzero_exit_and_flags_project_errors():
+    class _Conn:
+        def __init__(self, proc):
+            self._proc = proc
+
+        async def create_process(self, _cmd):
+            return self._proc
+
+        def is_closed(self):
+            return False
+
+    failing = _FakeAsyncProc(stdout=b"", stderr=b"uv: project not found\n", exit_status=2)
+
+    @asynccontextmanager
+    async def _failing_ctx(_ip):
+        yield _Conn(failing)
+
+    agi_cls = SimpleNamespace(get_ssh_connection=_failing_ctx, _worker_init_error=False)
+    with pytest.raises(ConnectionError, match="exit status 2.*project not found"):
+        await transport_support.exec_ssh_async(agi_cls, "10.0.0.2", "run worker")
+
+    project_error = _FakeAsyncProc(
+        stdout=b"",
+        stderr=b"boom [ProjectError]\n",
+        exit_status=1,
+    )
+
+    @asynccontextmanager
+    async def _project_error_ctx(_ip):
+        yield _Conn(project_error)
+
+    agi_cls = SimpleNamespace(get_ssh_connection=_project_error_ctx, _worker_init_error=False)
+    with pytest.raises(ConnectionError):
+        await transport_support.exec_ssh_async(agi_cls, "10.0.0.2", "run worker")
+    assert agi_cls._worker_init_error is True

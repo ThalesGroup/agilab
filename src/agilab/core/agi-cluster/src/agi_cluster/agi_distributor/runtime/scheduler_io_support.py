@@ -139,7 +139,10 @@ def read_stderr(
                 decoded = decode_bytes(raw.encode("latin-1", errors="replace"))
             line = decoded.strip()
             log.info(line)
-            agi_cls._worker_init_error = line.endswith("[ProjectError]")
+            # Sticky flag: stderr lines after the marker (tracebacks, blanks)
+            # must not reset a detected worker init error.
+            if line.endswith("[ProjectError]"):
+                agi_cls._worker_init_error = True
         return
 
     while True:
@@ -154,7 +157,8 @@ def read_stderr(
             for part in decoded.splitlines():
                 line = part.strip()
                 log.info(line)
-                agi_cls._worker_init_error = line.endswith("[ProjectError]")
+                if line.endswith("[ProjectError]"):
+                    agi_cls._worker_init_error = True
         elif channel.exit_status_ready():
             break
         else:

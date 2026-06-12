@@ -7,9 +7,12 @@ import os
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from dask.distributed import Client, wait
+if TYPE_CHECKING:
+    # Annotation-only: defer the dask.distributed import so importing AGI
+    # stays cheap for non-Dask runs.
+    from dask.distributed import Client
 
 from agi_cluster.agi_distributor import runtime_misc_support
 from agi_env import AgiEnv
@@ -34,6 +37,19 @@ _SERVICE_BREAK_LOOP_EXCEPTIONS = (
     RuntimeError,
     TimeoutError,
 )
+
+
+def _break_loop_gather_exceptions() -> tuple:
+    """Exceptions to tolerate when gathering break_loop tasks.
+
+    Includes ``KilledWorker`` (imported lazily) so stopping a service whose
+    worker died after task assignment still reaches cleanup.
+    """
+    try:
+        from dask.distributed import KilledWorker
+    except ImportError:
+        return _SERVICE_BREAK_LOOP_EXCEPTIONS
+    return _SERVICE_BREAK_LOOP_EXCEPTIONS + (KilledWorker,)
 
 
 def wrap_worker_chunk(payload: Any, worker_index: int) -> Any:
@@ -276,7 +292,7 @@ async def service_restart_workers(
     if break_tasks:
         try:
             client.gather(break_tasks)
-        except _SERVICE_BREAK_LOOP_EXCEPTIONS:
+        except _break_loop_gather_exceptions():
             log.debug("Ignoring break_loop error during service restart", exc_info=True)
 
     restarted = _submit_service_worker_inits(
@@ -343,10 +359,15 @@ async def serve(
     cleanup_heartbeat_max_files: Optional[int] = None,
     health_output_path: Optional[Union[str, Path]] = None,
     background_job_manager_factory: Any,
-    wait_fn: Any = wait,
+    wait_fn: Any = None,
     log: Any = logger,
     **args: Any,
 ) -> Dict[str, Any]:
+    if wait_fn is None:
+        # Deferred import: dask.distributed is only needed when a caller does
+        # not inject its own wait function.
+        from dask.distributed import wait as wait_fn
+
     command = (action or "start").lower()
     health_only = command == "health"
     if health_only:
@@ -538,6 +559,19 @@ async def serve(
                 health_output_path=health_output_path,
             )
 
+        # break_loop tasks are pinned (allow_other_workers=False); submitting
+        # them to a dead/disconnected worker would make the gather below hang
+        # forever, so only target workers still attached to the scheduler.
+        try:
+            connected_workers = await agi_cls._service_connected_workers(client)
+        except _SERVICE_BREAK_LOOP_EXCEPTIONS + (AttributeError,):
+            connected_workers = []
+        break_targets = (
+            [worker for worker in target_workers if worker in connected_workers]
+            if connected_workers
+            else list(target_workers)
+        )
+
         break_tasks = [
             client.submit(
                 BaseWorker.break_loop,
@@ -546,16 +580,31 @@ async def serve(
                 pure=False,
                 key=f"agi-serve-break-{env.target}-{worker.replace(':', '-')}",
             )
-            for worker in target_workers
+            for worker in break_targets
         ]
-        client.gather(break_tasks)
+        if break_tasks:
+            try:
+                client.gather(break_tasks)
+            except _break_loop_gather_exceptions():
+                log.debug("Ignoring break_loop error during service stop", exc_info=True)
 
         if future_map:
             wait_kwargs: Dict[str, Any] = {}
             if stop_timeout is not None:
                 wait_kwargs["timeout"] = stop_timeout
 
-            done, not_done = wait_fn(list(future_map.keys()), **wait_kwargs)
+            try:
+                done, not_done = wait_fn(list(future_map.keys()), **wait_kwargs)
+            except TimeoutError:
+                # dask.distributed.wait raises TimeoutError instead of
+                # returning a partial tuple; derive done/not_done from future
+                # statuses so cleanup and the 'partial' status still happen.
+                done = {
+                    future
+                    for future in future_map
+                    if str(getattr(future, "status", "pending")).lower() != "pending"
+                }
+                not_done = {future for future in future_map if future not in done}
 
             stopped_workers = [future_map[f] for f in done]
             pending_workers = [future_map[f] for f in not_done]
@@ -799,7 +848,11 @@ async def submit(
             "task_id": batch_id,
             "task_name": batch_name,
             "created_at": time.time(),
-            "worker_idx": worker_idx,
+            # Target tasks by worker name only: positional ids drift after
+            # service_recover/restart reorders _service_workers, while the
+            # worker process keeps the id frozen at init time. worker_idx=None
+            # makes _task_matches_worker rely on the stable name match.
+            "worker_idx": None,
             "worker": str(worker_addr),
             "plan": agi_cls._wrap_worker_chunk(
                 WorkDispatcher._convert_functions_to_names(work_plan or []),

@@ -110,11 +110,11 @@ async def test_deploy_application_calls_local_and_remote_workers():
         is_local=lambda ip: ip == "127.0.0.1",
     )
 
-    async def _fake_local(src, wenv_rel, options):
-        calls["local"].append((str(src), str(wenv_rel), options))
+    async def _fake_local(options):
+        calls["local"].append(options)
 
-    async def _fake_remote(ip, _env, wenv_rel, options):
-        calls["remote"].append((ip, str(wenv_rel), options))
+    async def _fake_remote(ip, _env):
+        calls["remote"].append(ip)
 
     agi_cls = SimpleNamespace(
         _run_types=["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"],
@@ -133,8 +133,8 @@ async def test_deploy_application_calls_local_and_remote_workers():
 
     await deployment_orchestration_support.deploy_application(agi_cls, "127.0.0.1")
 
-    assert calls["local"] == [(str(Path("/tmp/demo_app")), "wenv", " --extra pandas-worker")]
-    assert calls["remote"] == [("10.0.0.2", "wenv", " --extra pandas-worker")]
+    assert calls["local"] == [" --extra pandas-worker"]
+    assert calls["remote"] == ["10.0.0.2"]
     assert calls["todo"][0] == {"127.0.0.1", "10.0.0.2"}
 
 
@@ -149,11 +149,11 @@ async def test_deploy_application_local_mode_skips_remote_workers():
         is_local=lambda ip: ip == "127.0.0.1",
     )
 
-    async def _fake_local(src, wenv_rel, options):
-        calls["local"].append((str(src), str(wenv_rel), options))
+    async def _fake_local(options):
+        calls["local"].append(options)
 
-    async def _fake_remote(ip, _env, wenv_rel, options):
-        calls["remote"].append((ip, str(wenv_rel), options))
+    async def _fake_remote(ip, _env):
+        calls["remote"].append(ip)
 
     agi_cls = SimpleNamespace(
         _run_types=["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"],
@@ -172,7 +172,7 @@ async def test_deploy_application_local_mode_skips_remote_workers():
 
     await deployment_orchestration_support.deploy_application(agi_cls, "127.0.0.1")
 
-    assert calls["local"] == [(str(Path("/tmp/demo_app")), "wenv", " --extra pandas-worker")]
+    assert calls["local"] == [" --extra pandas-worker"]
     assert calls["remote"] == []
     assert calls["todo"][0] == {"127.0.0.1", "10.0.0.2"}
 
@@ -188,7 +188,7 @@ async def test_deploy_application_logs_elapsed_when_verbose():
     )
     log = SimpleNamespace(info=lambda *_args, **_kwargs: None)
 
-    async def _fake_local(_src, _wenv_rel, _options):
+    async def _fake_local(_options):
         return None
 
     agi_cls = SimpleNamespace(
@@ -212,4 +212,57 @@ async def test_deploy_application_logs_elapsed_when_verbose():
         "127.0.0.1",
         time_fn=lambda: 10.0,
         log=log,
+    )
+
+
+@pytest.mark.asyncio
+async def test_deploy_application_cancels_sibling_remote_deploys_on_failure():
+    # Regression: a failing node must not leave sibling deploy tasks running
+    # unobserved in the background after deploy_application re-raises.
+    import asyncio
+
+    env = SimpleNamespace(
+        active_app=Path("/tmp/demo_app"),
+        wenv_rel=Path("wenv"),
+        base_worker_cls="PandasWorker",
+        verbose=0,
+        is_local=lambda ip: ip == "127.0.0.1",
+    )
+    started: list[str] = []
+    cancelled: list[str] = []
+
+    async def _fake_local(_options):
+        return None
+
+    async def _fake_remote(ip, _env):
+        started.append(ip)
+        if ip == "10.0.0.2":
+            raise ConnectionError("ssh failed")
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            cancelled.append(ip)
+            raise
+
+    agi_cls = SimpleNamespace(
+        _run_types=["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"],
+        _mode=0b0100,
+        _DEPLOYEMENT_MASK=0b110000,
+        DASK_MODE=0b0100,
+        _workers={"127.0.0.1": 1, "10.0.0.2": 1, "10.0.0.3": 1},
+        install_worker_group=["pandas-worker"],
+        env=env,
+        verbose=0,
+        _get_scheduler=lambda _scheduler: ("127.0.0.1", 8786),
+        _venv_todo=lambda _node_ips: None,
+        _deploy_local_worker=_fake_local,
+        _deploy_remote_worker=_fake_remote,
+    )
+
+    with pytest.raises(ConnectionError, match="ssh failed"):
+        await deployment_orchestration_support.deploy_application(agi_cls, "127.0.0.1")
+
+    assert "10.0.0.2" in started
+    assert sorted(cancelled) == sorted(
+        ip for ip in started if ip != "10.0.0.2"
     )

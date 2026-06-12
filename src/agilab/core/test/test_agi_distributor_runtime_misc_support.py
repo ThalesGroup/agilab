@@ -572,14 +572,25 @@ def test_configure_runtime_mode_rejects_invalid_type_with_custom_message():
 
 
 def test_configure_runtime_mode_rejects_missing_default_and_unimplemented_mask():
-    agi_cls = SimpleNamespace(_RUN_MASK=0b011111, RAPIDS_MODE=16, DASK_MODE=4)
+    # New contract: the whole mode is validated against the supported bit
+    # space (_RAPIDS_SET); the old masked check was a tautology that let
+    # out-of-range modes such as 999 silently take the install/deploy path.
+    agi_cls = SimpleNamespace(
+        _RUN_MASK=0b001111, RAPIDS_MODE=16, DASK_MODE=4, _RAPIDS_SET=0b111111
+    )
     env = SimpleNamespace(mode2int=lambda value: value)
 
     with pytest.raises(ValueError, match="parameter <mode> must be an int or a string"):
         runtime_misc_support.configure_runtime_mode(agi_cls, env, None)
 
-    with pytest.raises(ValueError, match="mode 16 not implemented"):
-        runtime_misc_support.configure_runtime_mode(agi_cls, env, 16)
+    with pytest.raises(ValueError, match="mode 999 not implemented"):
+        runtime_misc_support.configure_runtime_mode(agi_cls, env, 999)
+
+    with pytest.raises(ValueError, match="mode -7 not implemented"):
+        runtime_misc_support.configure_runtime_mode(agi_cls, env, -7)
+
+    # Modes inside the supported bit space (e.g. the install bit) stay valid.
+    assert runtime_misc_support.configure_runtime_mode(agi_cls, env, 16) == 16
 
 
 def test_resolve_install_worker_group_supports_sb3_alias_without_import():

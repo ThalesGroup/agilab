@@ -6,7 +6,7 @@ import os
 import shlex
 import time
 from contextlib import redirect_stderr, redirect_stdout
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any, Callable, Dict, Optional
 from zipfile import BadZipFile, ZipFile
 
@@ -78,6 +78,11 @@ def _remote_prefix(value: Any) -> str:
 
 
 def _remote_path(value: Path | str) -> str:
+    # Mirror cleanup_support/deployment_remote_support._remote_arg: remote hosts
+    # are POSIX shells, so Path values must keep forward separators even when
+    # the manager runs on Windows.
+    if isinstance(value, PurePath):
+        return shlex.quote(value.as_posix())
     return shlex.quote(str(value))
 
 
@@ -95,7 +100,7 @@ def _remote_dask_worker_command(
     pid_file: str,
 ) -> str:
     uv_parts = " ".join(shlex.quote(part) for part in shlex.split(str(uv_cmd), posix=True))
-    worker_path = Path(wenv_rel)
+    worker_path = wenv_rel if isinstance(wenv_rel, PurePath) else Path(wenv_rel)
     return (
         f"{_remote_prefix(cmd_prefix)}"
         f"{_remote_prefix(dask_env)}"
@@ -267,6 +272,17 @@ async def _scheduler_info_payload(client: Any) -> Any:
     return await _maybe_await(client.scheduler_info())
 
 
+async def _call_client_blocking(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    """Run a (potentially blocking) sync Dask client call off the event loop.
+
+    The production client is a synchronous ``distributed.Client`` whose
+    ``gather``/``scheduler_info`` block the calling thread for the entire
+    compute; offloading keeps the loop servicing the asyncssh worker channels.
+    """
+    result = await asyncio.to_thread(fn, *args, **kwargs)
+    return await _maybe_await(result)
+
+
 def dask_env_prefix(agi_cls: Any) -> str:
     level = agi_cls._dask_log_level
     if not level:
@@ -293,18 +309,47 @@ async def run_local(
     log: Any = logger,
 ) -> Any:
     env = agi_cls.env
-    env.hw_rapids_capable = env.envars.get("127.0.0.1", "hw_rapids_capable")
+    # Normalize the persisted per-IP capability sentinel ("hw_rapids_capable"
+    # / "no_rapids_hw") to a boolean; both sentinel strings are truthy, and an
+    # unprobed host must not be treated as RAPIDS-capable.
+    local_capability = str(env.envars.get("127.0.0.1", "") or "").strip().lower()
+    env.hw_rapids_capable = local_capability in {"1", "true", "yes", "on", "hw_rapids_capable"}
 
     if not (env.wenv_abs / ".venv").exists():
         log.info("Worker installation not found")
         raise FileNotFoundError("Worker installation (.venv) not found")
     validate_worker_uv_sources_fn(env.wenv_abs / "pyproject.toml")
 
-    pid_file = "dask_worker_0.pid"
+    # Write the pid file where the cleanup scanners look for it
+    # (env.wenv_abs.parent/*.pid), not the arbitrary launch CWD.
+    pid_file = Path(env.wenv_abs).parent / "dask_worker_0.pid"
     current_pid = os.getpid()
+    pid_file.parent.mkdir(parents=True, exist_ok=True)
     with open(pid_file, "w", encoding="utf-8") as stream:
         stream.write(str(current_pid))
 
+    try:
+        return await _run_local_worker(
+            agi_cls,
+            env,
+            base_worker_cls=base_worker_cls,
+            run_async_fn=run_async_fn,
+            log=log,
+        )
+    finally:
+        with contextlib.suppress(OSError):
+            pid_file.unlink()
+
+
+async def _run_local_worker(
+    agi_cls: Any,
+    env: Any,
+    *,
+    base_worker_cls: Any,
+    run_async_fn: Callable[[str, Path], Any],
+    log: Any = logger,
+) -> Any:
+    current_pid = os.getpid()
     await agi_cls._kill(current_pid=current_pid, force=True)
 
     log.info("debug=%s", env.debug)
@@ -382,6 +427,23 @@ async def start(
 
     await ensure_remote_cluster_shares(agi_cls)
 
+    # Keep strong references to the remote-launch tasks (asyncio only holds
+    # weak ones) and record their failures so sync() can fail fast with the
+    # real SSH root cause instead of a generic attach timeout.
+    launch_tasks: set[Any] = set()
+    launch_errors: list[BaseException] = []
+    agi_cls._worker_launch_tasks = launch_tasks
+    agi_cls._worker_launch_errors = launch_errors
+
+    def _on_worker_launch_done(task: Any) -> None:
+        launch_tasks.discard(task)
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            launch_errors.append(exc)
+            log.error(f"Remote worker launch failed: {exc}")
+
     for i, (ip, n) in enumerate(agi_cls._workers.items()):
         is_local = env.is_local(ip)
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
@@ -417,7 +479,10 @@ async def start(
                         scheduler=agi_cls._scheduler,
                         pid_file=pid_file,
                     )
-                    create_task_fn(agi_cls.exec_ssh_async(ip, remote_cmd))
+                    launch_task = create_task_fn(agi_cls.exec_ssh_async(ip, remote_cmd))
+                    if hasattr(launch_task, "add_done_callback"):
+                        launch_tasks.add(launch_task)
+                        launch_task.add_done_callback(_on_worker_launch_done)
                     log.info(f"Launched remote worker in background on {ip}: {remote_cmd}")
 
             except _WORKER_START_EXCEPTIONS as exc:
@@ -454,6 +519,11 @@ async def sync(
     poll_attempt = 0
 
     while True:
+        launch_errors = getattr(agi_cls, "_worker_launch_errors", None)
+        if launch_errors:
+            # A background remote worker launch already failed; surface its
+            # root cause instead of waiting for the generic attach timeout.
+            raise launch_errors[0]
         try:
             info = await _scheduler_info_payload(agi_cls._dask_client)
             workers_info = info.get("workers")
@@ -513,18 +583,26 @@ async def ensure_remote_cluster_shares(
         prepare_remote_cluster_share_fn = deployment_remote_support._prepare_remote_cluster_share
 
     env = agi_cls.env
-    mounted: list[str] = []
-    for ip in sorted(getattr(agi_cls, "_workers", {}) or {}):
-        if env.is_local(ip):
-            continue
-        await prepare_remote_cluster_share_fn(
-            agi_cls,
-            ip,
-            env,
-            remote_share,
-            log=log,
+    # Per-host preparation is independent (2 SSH round-trips each); run the
+    # hosts concurrently like deploy_application does instead of serially.
+    mounted = [
+        ip
+        for ip in sorted(getattr(agi_cls, "_workers", {}) or {})
+        if not env.is_local(ip)
+    ]
+    if mounted:
+        await asyncio.gather(
+            *(
+                prepare_remote_cluster_share_fn(
+                    agi_cls,
+                    ip,
+                    env,
+                    remote_share,
+                    log=log,
+                )
+                for ip in mounted
+            )
         )
-        mounted.append(ip)
     return mounted
 
 
@@ -562,9 +640,10 @@ async def distribute(
 ) -> str:
     env = agi_cls.env
 
+    scheduler_info = await _call_client_blocking(agi_cls._dask_client.scheduler_info)
     agi_cls._dask_workers = [
         worker.split("/")[-1]
-        for worker in list(agi_cls._dask_client.scheduler_info()["workers"].keys())
+        for worker in list(scheduler_info["workers"].keys())
     ]
     log.info(f"AGI run mode={agi_cls._mode} on {list(agi_cls._dask_workers)} ... ")
 
@@ -579,7 +658,8 @@ async def distribute(
     dask_workers = list(agi_cls._dask_workers)
     client = agi_cls._dask_client
 
-    agi_cls._dask_client.gather(
+    await _call_client_blocking(
+        agi_cls._dask_client.gather,
         [
             client.submit(
                 base_worker_cls._new,
@@ -587,13 +667,13 @@ async def distribute(
                 app=_manager_app_name(env),
                 mode=agi_cls._mode,
                 verbose=agi_cls.verbose,
-                worker_id=dask_workers.index(worker),
+                worker_id=worker_id,
                 worker=worker,
                 args=_worker_startup_args(agi_cls),
                 workers=[worker],
             )
-            for worker in dask_workers
-        ]
+            for worker_id, worker in enumerate(dask_workers)
+        ],
     )
 
     await agi_cls._calibration()
@@ -610,7 +690,11 @@ async def distribute(
             workers=[worker_addr],
         )
 
-    gathered_logs = client.gather(list(futures.values())) if futures else []
+    gathered_logs = (
+        await _call_client_blocking(client.gather, list(futures.values()))
+        if futures
+        else []
+    )
     worker_logs: Dict[str, str] = {}
     for idx, worker_addr in enumerate(futures.keys()):
         log_value = gathered_logs[idx] if idx < len(gathered_logs) else ""
@@ -734,11 +818,20 @@ async def stop(
         await sleep_fn(1)
 
     try:
-        if ((agi_cls._mode_auto and (agi_cls._mode == 7 or agi_cls._mode == 15))
-                or not agi_cls._mode_auto):
+        # Skip the scheduler shutdown only while a benchmark is still
+        # iterating modes (_mode_auto); benchmark_dask_modes clears the flag
+        # before its final _stop() so partial mode ranges shut down too.
+        if not agi_cls._mode_auto:
             await _maybe_await(agi_cls._dask_client.shutdown())
     except _STOP_RETRY_EXCEPTIONS as exc:
         log.debug("Dask client shutdown raised: %s", exc)
+
+    # Cancel any still-pending remote worker launch tasks so they are not
+    # destroyed pending at loop close.
+    for task in list(getattr(agi_cls, "_worker_launch_tasks", None) or []):
+        task.cancel()
+    if getattr(agi_cls, "_worker_launch_tasks", None):
+        agi_cls._worker_launch_tasks.clear()
 
     await agi_cls._close_all_connections()
 

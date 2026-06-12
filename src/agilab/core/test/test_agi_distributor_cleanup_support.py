@@ -383,6 +383,39 @@ def test_clean_dirs_local_kills_dask_processes_and_ignores_errors(tmp_path):
     ]
 
 
+def test_clean_dirs_local_only_kills_exact_username_matches(tmp_path):
+    # Regression: the suffix match (username.endswith(me)) let user 'ed'
+    # kill processes owned by 'fred'; only exact matches (after DOMAIN\
+    # normalization) may be killed.
+    agi_cls = SimpleNamespace(env=SimpleNamespace(wenv_abs=tmp_path / "wenv"))
+    agi_cls.env.wenv_abs.mkdir(parents=True, exist_ok=True)
+    killed: list[int] = []
+
+    class _Proc:
+        def __init__(self, info):
+            self.info = info
+
+        def kill(self):
+            killed.append(self.info["pid"])
+
+    procs = [
+        _Proc({"pid": 200, "username": "fred", "cmdline": ["dask-worker"]}),
+        _Proc({"pid": 201, "username": "ed", "cmdline": ["dask-worker"]}),
+        _Proc({"pid": 202, "username": "CORP\\ed", "cmdline": ["dask scheduler"]}),
+    ]
+
+    cleanup_support.clean_dirs_local(
+        agi_cls,
+        process_iter_fn=lambda *_a, **_k: procs,
+        getuser_fn=lambda: "ed",
+        getpid_fn=lambda: 100,
+        rmtree_fn=lambda *_a, **_k: None,
+        gettempdir_fn=lambda: "/tmp/demo",
+    )
+
+    assert killed == [201, 202]
+
+
 def test_clean_dirs_local_ignores_rmtree_typeerror(tmp_path):
     agi_cls = SimpleNamespace(env=SimpleNamespace(wenv_abs=tmp_path / "wenv"))
     agi_cls.env.wenv_abs.mkdir(parents=True, exist_ok=True)

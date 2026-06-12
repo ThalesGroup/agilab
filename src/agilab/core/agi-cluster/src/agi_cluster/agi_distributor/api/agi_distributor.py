@@ -11,8 +11,10 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """Cluster workplan utilities for distributing AGILab workloads."""
+from __future__ import annotations
+
 import traceback
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 import asyncio
 import inspect
 import getpass
@@ -62,8 +64,21 @@ runtime_misc_support.ensure_asyncio_run_signature(
 from asyncssh.process import ProcessError
 from contextlib import asynccontextmanager
 import psutil
-from dask.distributed import Client, wait
 import runpy
+
+if TYPE_CHECKING:
+    from dask.distributed import Client
+
+
+def wait(*args: Any, **kwargs: Any) -> Any:
+    """Lazy proxy for ``dask.distributed.wait``.
+
+    Importing dask.distributed eagerly slows every ``import AGI`` even for
+    non-Dask local runs; the real ``wait`` is loaded on first use.
+    """
+    from dask.distributed import wait as _wait
+
+    return _wait(*args, **kwargs)
 
 # Project Libraries:
 from agi_env import AgiEnv
@@ -737,11 +752,9 @@ class AGI:
         return runtime_misc_support.hardware_supports_rapids()
 
     @staticmethod
-    async def _deploy_local_worker(src: Path, wenv_rel: Path, options_worker: str) -> None:
+    async def _deploy_local_worker(options_worker: str) -> None:
         await deployment_local_support.deploy_local_worker(
             AGI,
-            src,
-            wenv_rel,
             options_worker,
             agi_version_missing_on_pypi_fn=runtime_misc_support.agi_version_missing_on_pypi,
             worker_site_packages_dir_fn=uv_source_support.worker_site_packages_dir,  # ty: ignore[invalid-argument-type]
@@ -753,13 +766,11 @@ class AGI:
         )
 
     @staticmethod
-    async def _deploy_remote_worker(ip: str, env: AgiEnv, wenv_rel: Path, option: str) -> None:
+    async def _deploy_remote_worker(ip: str, env: AgiEnv) -> None:
         await deployment_remote_support.deploy_remote_worker(
             AGI,
             ip,
             env,
-            wenv_rel,
-            option,
             worker_site_packages_dir_fn=uv_source_support.worker_site_packages_dir,
             staged_uv_sources_pth_content_fn=uv_source_support.staged_uv_sources_pth_content,
             set_env_var_fn=AgiEnv.set_env_var,
@@ -796,8 +807,8 @@ class AGI:
             modes_enabled: int = _RUN_MASK,
             verbose: Optional[int] = None,
             **args: Any,
-    ) -> None:
-        await entrypoint_support.install(
+    ) -> Any:
+        return await entrypoint_support.install(
             AGI,
             env=env,
             scheduler=scheduler,
@@ -816,13 +827,14 @@ class AGI:
             modes_enabled: int = _RUN_MASK,
             verbose: Optional[int] = None,
             **args: Any,
-    ) -> None:
-        await entrypoint_support.update(
+    ) -> Any:
+        return await entrypoint_support.update(
             AGI,
             env=env,
             scheduler=scheduler,
             workers=workers,
             modes_enabled=modes_enabled,
+            verbose=verbose,
             args=args,
         )
 
@@ -839,6 +851,7 @@ class AGI:
             env=env,
             scheduler=scheduler,
             workers=workers,
+            verbose=verbose,
             args=args,
         )
 
@@ -856,6 +869,7 @@ class AGI:
             env=env,
             scheduler=scheduler,
             workers=workers,
+            verbose=verbose,
             args=args,
         )
 
@@ -877,11 +891,13 @@ class AGI:
         timeout: float,
         heartbeat_interval: int = 5000,
     ) -> Client:
+        from dask.distributed import Client as _Client
+
         return await entrypoint_support.connect_scheduler_with_retry(
             address,
             timeout=timeout,
             heartbeat_interval=heartbeat_interval,
-            client_factory=Client,
+            client_factory=_Client,
             sleep_fn=asyncio.sleep,
             monotonic_fn=time.monotonic,
             log=logger,
@@ -917,10 +933,12 @@ class AGI:
 
     @staticmethod
     async def _sync(timeout: int = 60) -> None:
+        from dask.distributed import Client as _Client
+
         await runtime_distribution_support.sync(
             AGI,
             timeout=timeout,
-            client_type=Client,
+            client_type=_Client,
             sleep_fn=asyncio.sleep,
             time_fn=time.time,
             log=logger,
