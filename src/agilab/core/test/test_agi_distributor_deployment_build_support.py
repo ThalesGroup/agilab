@@ -135,7 +135,10 @@ def test_cython_lib_destination_handles_free_thread_suffix(
         failure_message="missing",
     )
 
-    expected_dir = tmp_path / ".venv" / "lib" / f"python{expected}" / "site-packages"
+    expected_dir = deployment_build_support._project_site_packages_dir(
+        tmp_path,
+        python_version=expected,
+    )
     assert (expected_dir / "demo_cy.so").exists()
 
 
@@ -492,7 +495,10 @@ def test_copy_cython_worker_lib_prefers_latest_output(tmp_path):
         failure_message="build_ext failed",
     )
 
-    destination = wenv_abs / ".venv" / "lib" / "python3.13" / "site-packages"
+    destination = deployment_build_support._project_site_packages_dir(
+        wenv_abs,
+        python_version="3.13",
+    )
     assert (destination / "worker_new_cy.so").exists()
     assert not (destination / "worker_old_cy.so").exists()
 
@@ -844,7 +850,13 @@ async def test_build_lib_local_cython_copies_worker_lib(tmp_path):
         run_fn=_fake_run,
     )
 
-    target = env.wenv_abs / ".venv/lib/python3.13/site-packages/demo_cy.so"
+    target = (
+        deployment_build_support._project_site_packages_dir(
+            env.wenv_abs,
+            python_version="3.13",
+        )
+        / "demo_cy.so"
+    )
     assert target.exists()
     assert any("build_ext" in cmd for cmd, _ in commands)
     assert any(

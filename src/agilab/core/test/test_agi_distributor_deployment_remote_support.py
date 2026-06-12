@@ -1457,6 +1457,7 @@ def test_remote_env_update_command_preserves_other_env_keys():
     )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="BSD/macOS mount output uses POSIX paths")
 def test_local_mount_record_for_path_falls_back_to_mount_on_missing_findmnt(
     monkeypatch, tmp_path
 ):
