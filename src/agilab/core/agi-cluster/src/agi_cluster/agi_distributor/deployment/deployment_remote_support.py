@@ -17,6 +17,7 @@ from agi_cluster.agi_distributor.deployment.deployment_build_support import (
     _latest_glob_match as _latest_artifact_match,
 )
 from agi_env import AgiEnv
+from agi_env.cython_build_config import cython_build_overlay_specs
 
 
 logger = logging.getLogger(__name__)
@@ -816,10 +817,11 @@ async def deploy_remote_worker(
         wenv_rel,
         "run",
         "--no-sync",
-        "--with",
-        "setuptools",
-        "--with",
-        "cython",
+        *(
+            item
+            for spec in cython_build_overlay_specs()
+            for item in ("--with", spec)
+        ),
         "-p",
         pyvers,
         "python",

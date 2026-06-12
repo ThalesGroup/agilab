@@ -682,7 +682,7 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
         "python-upgrade",
         "--no-sync",
     ]
-    assert argv[argv.index("--project") + 1] == str(wenv_abs)
+    assert Path(argv[argv.index("--project") + 1]) == wenv_abs
     assert argv[argv.index("--python") + 1] == "3.13"
     assert "from agi_env import AgiEnv" in script
     assert "AgiEnv(apps_path=Path('/tmp/apps'), app='demo_project', verbose=2)" in script

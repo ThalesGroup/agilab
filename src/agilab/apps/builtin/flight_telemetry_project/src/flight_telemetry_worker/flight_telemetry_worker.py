@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # https://github.com/cython/cython/wiki/enhancements-compilerdirectives
-# cython:infer_types True
-# cython:boundscheck False
-# cython:cdivision True
+# cython: infer_types=True
+# cython: boundscheck=False
+# cython: cdivision=True
 
 import glob
 import logging

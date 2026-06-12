@@ -663,7 +663,19 @@ def test_kill_does_not_target_unrelated_dask_named_processes(monkeypatch):
     )
     monkeypatch.setattr(cli_mod.os, "name", "posix", raising=False)
     monkeypatch.setattr(cli_mod.subprocess, "check_output", lambda *args, **kwargs: output)
-    monkeypatch.setattr(cli_mod.Path, "glob", lambda self, _pattern: [])
+
+    class _NoPidPath:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        @property
+        def parent(self):
+            return self
+
+        def glob(self, _pattern):
+            return []
+
+    monkeypatch.setattr(cli_mod, "Path", _NoPidPath)
     monkeypatch.setattr(cli_mod.os, "getpid", lambda: 999)
     monkeypatch.setattr(cli_mod, "_poll_until_dead", lambda pids: set())
 

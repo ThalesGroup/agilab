@@ -8,6 +8,8 @@ import sys
 import os
 import shutil
 import re
+import json
+import hashlib
 import shlex
 import stat
 from pathlib import Path
@@ -17,6 +19,7 @@ import logging
 import subprocess
 import warnings
 from collections.abc import Mapping
+from time import perf_counter
 
 try:
     from .bootstrap_source_paths import append_shared_site_packages, bootstrap_core_source_paths
@@ -26,6 +29,7 @@ except ImportError:  # pragma: no cover - script execution fallback
 bootstrap_core_source_paths(source_file=__file__)
 
 from setuptools import setup, find_packages, Extension, SetuptoolsDeprecationWarning  # noqa: E402
+import Cython  # noqa: E402
 from Cython.Build import cythonize  # noqa: E402
 
 
@@ -36,6 +40,16 @@ def _inject_shared_site_packages(*, source_file: str | Path = __file__) -> None:
 _inject_shared_site_packages()
 
 from agi_env import AgiEnv  # noqa: E402
+from agi_env.cython_build_config import (  # noqa: E402
+    CYTHON_ANNOTATE_ENV,
+    CYTHON_BUILD_REQUIREMENT,
+    CYTHON_BUILD_STAMP_FILENAME,
+    CYTHON_CACHE_ENV,
+    CYTHON_DIRECTIVES_ENV,
+    CYTHON_DISABLE_BUILD_CACHE_ENV,
+    CYTHON_TYPE_PREPROCESS_ENV,
+    cython_pyx_stamp_matches,
+)
 
 warnings.filterwarnings("ignore", category=SetuptoolsDeprecationWarning)
 
@@ -268,6 +282,7 @@ def _build_ext_compile_config(
     *,
     sys_platform: str,
     pyvers_worker: str,
+    environ: Mapping[str, str] | None = None,
 ) -> tuple[list[str], list[tuple[str, str]], dict[str, bool]]:
     extra_compile_args: list[str] = []
     if sys_platform == "darwin":
@@ -279,11 +294,10 @@ def _build_ext_compile_config(
     if sys_platform.startswith("win") and pyvers_worker.endswith("t"):
         define_macros.append(("Py_GIL_DISABLED", "1"))
 
-    compiler_directives: dict[str, bool] = {}
-    if pyvers_worker.endswith("t"):
-        # free-threaded CPython compatibility
-        compiler_directives = {"freethreading_compatible": True}
-
+    compiler_directives = _resolve_cython_compiler_directives(
+        pyvers_worker=pyvers_worker,
+        environ=environ,
+    )
     return extra_compile_args, define_macros, compiler_directives
 
 
@@ -310,9 +324,115 @@ def _build_worker_extension(
 
 _CYTHON_CACHE_DISABLED_VALUES = {"0", "false", "no", "off", "disable", "disabled"}
 _CYTHON_CACHE_ENABLED_VALUES = {"1", "true", "yes", "on", "enable", "enabled"}
-_CYTHON_TYPE_PREPROCESS_ENV = "AGILAB_CYTHON_TYPE_PREPROCESS"
+_CYTHON_SAFE_COMPILER_DIRECTIVES: dict[str, bool] = {
+    "boundscheck": False,
+    "wraparound": False,
+    "initializedcheck": False,
+    "nonecheck": False,
+    "embedsignature": True,
+    "profile": False,
+    "linetrace": False,
+}
+# Worker code is arbitrary user-authored Python: cdivision and infer_types are
+# intentionally opt-in because they can change results on unaudited workers.
+_CYTHON_DIRECTIVE_ALLOWLIST = frozenset(
+    {
+        "boundscheck",
+        "wraparound",
+        "cdivision",
+        "initializedcheck",
+        "infer_types",
+        "overflowcheck",
+        "nonecheck",
+        "embedsignature",
+        "profile",
+        "linetrace",
+    }
+)
+# Named bundle removing index checks only; deliberately excludes cdivision,
+# which changes arithmetic results instead of just removing checks.
+_CYTHON_UNCHECKED_BUNDLE: dict[str, bool] = {
+    "boundscheck": False,
+    "wraparound": False,
+    "initializedcheck": False,
+    "nonecheck": False,
+}
 _TOP_LEVEL_UI_MODULE_PATTERNS = ("app_args_form.py", "*_args_form.py")
 _TOP_LEVEL_UI_BYTECODE_PATTERNS = ("app_args_form.*.pyc", "*_args_form.*.pyc")
+
+
+def _env_flag(value: str | None, *, default: bool = False) -> bool:
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if not normalized:
+        return default
+    if normalized in _CYTHON_CACHE_ENABLED_VALUES:
+        return True
+    if normalized in _CYTHON_CACHE_DISABLED_VALUES:
+        return False
+    return default
+
+
+def _parse_cython_directive_overrides(raw_value: str) -> dict[str, bool]:
+    directives: dict[str, bool] = {}
+    for item in raw_value.split(","):
+        part = item.strip()
+        if not part:
+            continue
+        if part == "unchecked":
+            directives.update(_CYTHON_UNCHECKED_BUNDLE)
+            continue
+        if "=" not in part:
+            key, value = part, "true"
+        else:
+            key, value = part.split("=", 1)
+        key = key.strip()
+        value = value.strip().lower()
+        if not key:
+            continue
+        if key not in _CYTHON_DIRECTIVE_ALLOWLIST:
+            # A typo silently dropping a safety directive is worse than failing.
+            raise ValueError(
+                f"Unknown Cython compiler directive {key!r}; allowed: "
+                f"unchecked, {', '.join(sorted(_CYTHON_DIRECTIVE_ALLOWLIST))}"
+            )
+        if value in _CYTHON_CACHE_ENABLED_VALUES:
+            directives[key] = True
+        elif value in _CYTHON_CACHE_DISABLED_VALUES:
+            directives[key] = False
+        else:
+            raise ValueError(
+                f"Unsupported Cython directive boolean value for {key!r}: {value!r}"
+            )
+    return directives
+
+
+def _resolve_cython_compiler_directives(
+    *,
+    pyvers_worker: str,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, bool]:
+    if environ is None:
+        environ = os.environ
+
+    raw_value = environ.get(CYTHON_DIRECTIVES_ENV, "").strip()
+    legacy_only = raw_value.lower() in _CYTHON_CACHE_DISABLED_VALUES
+    compiler_directives: dict[str, bool] = {} if legacy_only else dict(_CYTHON_SAFE_COMPILER_DIRECTIVES)
+    if raw_value and not legacy_only:
+        compiler_directives.update(_parse_cython_directive_overrides(raw_value))
+    if pyvers_worker.endswith("t"):
+        compiler_directives["freethreading_compatible"] = True
+    return compiler_directives
+
+
+def _resolve_cython_annotate_option(
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> bool:
+    if environ is None:
+        environ = os.environ
+    return _env_flag(environ.get(CYTHON_ANNOTATE_ENV), default=False)
 
 
 def _resolve_cython_cache_option(
@@ -324,7 +444,7 @@ def _resolve_cython_cache_option(
     if environ is None:
         environ = os.environ
 
-    raw_value = environ.get("AGILAB_CYTHON_CACHE", "").strip()
+    raw_value = environ.get(CYTHON_CACHE_ENV, "").strip()
     default_cache_dir = path_cls.home() / ".cache" / "agilab" / "cython"
     if not raw_value or raw_value.lower() in _CYTHON_CACHE_ENABLED_VALUES:
         return str(default_cache_dir)
@@ -341,12 +461,8 @@ def _resolve_cython_type_preprocess_option(
     if environ is None:
         environ = os.environ
 
-    raw_value = environ.get(_CYTHON_TYPE_PREPROCESS_ENV, "").strip().lower()
-    if raw_value in _CYTHON_CACHE_ENABLED_VALUES:
-        return True
-    if raw_value in _CYTHON_CACHE_DISABLED_VALUES:
-        return False
-    return False
+    raw_value = environ.get(CYTHON_TYPE_PREPROCESS_ENV, "").strip().lower()
+    return _env_flag(raw_value, default=False)
 
 
 def _cythonize_worker_extension(
@@ -354,20 +470,36 @@ def _cythonize_worker_extension(
     extension: Extension,
     compiler_directives: dict[str, bool],
     quiet: bool,
+    annotate: bool | None = None,
     cythonize_fn=None,
     resolve_cython_cache_option_fn=None,
+    log: logging.Logger | None = None,
 ) -> list[Extension]:
     if cythonize_fn is None:
         cythonize_fn = cythonize
     if resolve_cython_cache_option_fn is None:
         resolve_cython_cache_option_fn = _resolve_cython_cache_option
-    return cythonize_fn(
-        [extension],
-        language_level=3,
-        quiet=quiet,
-        compiler_directives=compiler_directives,
-        cache=resolve_cython_cache_option_fn(),
+    if annotate is None:
+        annotate = _resolve_cython_annotate_option()
+    cache_option = resolve_cython_cache_option_fn()
+    log = _runtime_logger(log)
+    log.info(
+        f"Cythonize options: cache={cache_option} "
+        f"annotate={annotate} directives={compiler_directives}"
     )
+    start = perf_counter()
+    try:
+        # nthreads is intentionally omitted: each worker build has one extension.
+        return cythonize_fn(
+            [extension],
+            language_level=3,
+            quiet=quiet,
+            compiler_directives=compiler_directives,
+            cache=cache_option,
+            annotate=annotate,
+        )
+    finally:
+        log.info(f"Cythonize stage completed in {perf_counter() - start:.3f}s")
 
 
 def _unpack_worker_eggs(
@@ -481,12 +613,28 @@ def _postprocess_bdist_egg_output(
     dest_src = out_dir / "src"
     _unpack_worker_eggs(dist_dir=out_dir / "dist", dest_src=dest_src, zip_cls=zip_cls, log=log)
 
+    type_preprocess = _resolve_cython_type_preprocess_option()
+    if _worker_cython_source_is_fresh(
+        _resolve_worker_python_path(env),
+        _resolve_worker_python_path(env).with_suffix(".pyx"),
+        type_preprocess=type_preprocess,
+    ):
+        log.info("Worker .pyx stamp is fresh; skipping pre_install regeneration.")
+        if links_created:
+            cleanup_links_fn(links_created)
+            log.info("Cleanup of created symlinks/files done.")
+        return
+
     cmd = _build_remove_decorators_command(
         env.worker_path,
-        type_preprocess=_resolve_cython_type_preprocess_option(),
+        type_preprocess=type_preprocess,
     )
     log.info(f"Generating worker .pyx via pre_install:\n  {shlex.join(cmd)}")
-    subprocess_run_fn(cmd, check=True)
+    start = perf_counter()
+    try:
+        subprocess_run_fn(cmd, check=True)
+    finally:
+        log.info(f"pre_install subprocess completed in {perf_counter() - start:.3f}s")
 
     if links_created:
         cleanup_links_fn(links_created)
@@ -524,6 +672,26 @@ def _build_pre_install_command(
     return cmd
 
 
+def _worker_cython_source_is_fresh(
+    worker_py: Path,
+    worker_pyx: Path,
+    *,
+    type_preprocess: bool,
+) -> bool:
+    if not worker_pyx.exists():
+        return False
+    try:
+        source = worker_py.read_text(encoding="utf-8")
+        pyx_source = worker_pyx.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return cython_pyx_stamp_matches(
+        pyx_source,
+        source,
+        type_preprocess=type_preprocess,
+    )
+
+
 def _ensure_worker_cython_source(
     env,
     *,
@@ -543,17 +711,30 @@ def _ensure_worker_cython_source(
     worker_py = _resolve_worker_python_path(env)
     worker_pyx = worker_py.with_suffix(".pyx")
     pre_install_script = resolve_pre_install_script_fn(env)
-    if worker_pyx.exists() or not pre_install_script:
+    type_preprocess = resolve_cython_type_preprocess_option_fn()
+    is_fresh = _worker_cython_source_is_fresh(
+        worker_py,
+        worker_pyx,
+        type_preprocess=type_preprocess,
+    )
+    if is_fresh:
+        log.info("Worker .pyx stamp is fresh; pre_install stage skipped.")
+        return
+    if not pre_install_script:
         return
 
     pre_cmd = _build_pre_install_command(
         pre_install_script=pre_install_script,
         worker_py=worker_py,
         verbose=env.verbose,
-        type_preprocess=resolve_cython_type_preprocess_option_fn(),
+        type_preprocess=type_preprocess,
     )
-    log.info("Ensuring Cython source via pre_install: %s", " ".join(pre_cmd))
-    subprocess_run(pre_cmd, check=True)
+    log.info(f"Ensuring Cython source via pre_install: {' '.join(pre_cmd)}")
+    start = perf_counter()
+    try:
+        subprocess_run(pre_cmd, check=True)
+    finally:
+        log.info(f"pre_install subprocess completed in {perf_counter() - start:.3f}s")
 
 
 def _resolve_build_output(
@@ -592,8 +773,158 @@ def _build_setuptools_argv(
     out_arg: str,
 ) -> list[str]:
     flag = "-b" if command == "build_ext" else "-d"
-    output_dir = Path(home_abs) / out_arg / "dist"
+    output_dir = _build_dist_output_dir(home_abs=home_abs, out_arg=out_arg)
     return [prog_name, command, flag, str(output_dir)]
+
+
+def _build_dist_output_dir(*, home_abs: str | Path, out_arg: str) -> Path:
+    return Path(home_abs) / out_arg / "dist"
+
+
+def _cython_build_stamp_path(*, home_abs: str | Path, out_arg: str) -> Path:
+    return _build_dist_output_dir(home_abs=home_abs, out_arg=out_arg) / CYTHON_BUILD_STAMP_FILENAME
+
+
+def _file_sha256(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _compiled_worker_outputs_exist(*, home_abs: str | Path, out_arg: str, worker_module: str) -> bool:
+    output_dir = _build_dist_output_dir(home_abs=home_abs, out_arg=out_arg)
+    return any(output_dir.glob(f"{worker_module}_cy.*"))
+
+
+def _cython_build_cache_disabled(*, environ: Mapping[str, str] | None = None) -> bool:
+    if environ is None:
+        environ = os.environ
+    return _env_flag(environ.get(CYTHON_DISABLE_BUILD_CACHE_ENV), default=False)
+
+
+def _cython_build_stamp_payload(
+    *,
+    env,
+    out_arg: str,
+    worker_module: str,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, object] | None:
+    if environ is None:
+        environ = os.environ
+    try:
+        worker_py = _resolve_worker_python_path(env)
+    # Defensive: fingerprinting is best-effort — a resolution failure means
+    # "no stamp", never a failed build.
+    except Exception:
+        return None
+    worker_pyx = worker_py.with_suffix(".pyx")
+    worker_py_hash = _file_sha256(worker_py)
+    worker_pyx_hash = _file_sha256(worker_pyx)
+    if worker_py_hash is None or worker_pyx_hash is None:
+        return None
+
+    extra_compile_args, define_macros, compiler_directives = _build_ext_compile_config(
+        sys_platform=sys.platform,
+        pyvers_worker=str(getattr(env, "pyvers_worker", "")),
+        environ=environ,
+    )
+    # Normalized through JSON so the equality check against the stamp read
+    # back from disk compares like with like (tuples become lists).
+    return json.loads(json.dumps({
+        "schema": "agilab-cython-build-stamp-v1",
+        "annotate": _resolve_cython_annotate_option(environ=environ),
+        "compile_config": {
+            "define_macros": [[name, value] for name, value in define_macros],
+            "extra_compile_args": extra_compile_args,
+        },
+        "compiler_directives": compiler_directives,
+        "cython_build_requirement": CYTHON_BUILD_REQUIREMENT,
+        "cython_version": getattr(Cython, "__version__", ""),
+        "pyvers_worker": str(getattr(env, "pyvers_worker", "")),
+        "python_tag": sys.implementation.cache_tag,
+        "sys_platform": sys.platform,
+        "type_preprocess": _resolve_cython_type_preprocess_option(environ=environ),
+        "worker_module": worker_module,
+        "worker_py": {
+            "path": str(worker_py.resolve(strict=False)),
+            "sha256": worker_py_hash,
+        },
+        "worker_pyx": {
+            "path": str(worker_pyx.resolve(strict=False)),
+            "sha256": worker_pyx_hash,
+        },
+    }))
+
+
+def _cython_build_stamp_hit(
+    *,
+    env,
+    out_arg: str,
+    worker_module: str,
+    log: logging.Logger | None = None,
+) -> bool:
+    log = _runtime_logger(log)
+    if _cython_build_cache_disabled():
+        log.info(f"Cython build stamp disabled by {CYTHON_DISABLE_BUILD_CACHE_ENV}.")
+        return False
+    home_abs = getattr(env, "home_abs", None)
+    if home_abs is None:
+        log.info("Cython build stamp miss: build environment has no home_abs.")
+        return False
+    if not _compiled_worker_outputs_exist(
+        home_abs=home_abs,
+        out_arg=out_arg,
+        worker_module=worker_module,
+    ):
+        log.info("Cython build stamp miss: compiled worker output is absent.")
+        return False
+    payload = _cython_build_stamp_payload(env=env, out_arg=out_arg, worker_module=worker_module)
+    if payload is None:
+        log.info("Cython build stamp miss: unable to fingerprint current inputs.")
+        return False
+    stamp_path = _cython_build_stamp_path(home_abs=home_abs, out_arg=out_arg)
+    try:
+        cached = json.loads(stamp_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        log.info(f"Cython build stamp miss: {stamp_path} is absent or invalid.")
+        return False
+    if cached == payload:
+        log.info(f"Cython build stamp hit: skipping setup for {worker_module}.")
+        return True
+    log.info(f"Cython build stamp miss: inputs changed for {worker_module}.")
+    return False
+
+
+def _record_cython_build_stamp(
+    *,
+    env,
+    out_arg: str,
+    worker_module: str,
+    log: logging.Logger | None = None,
+) -> None:
+    log = _runtime_logger(log)
+    if _cython_build_cache_disabled():
+        return
+    home_abs = getattr(env, "home_abs", None)
+    if home_abs is None:
+        log.info("Cython build stamp not written: build environment has no home_abs.")
+        return
+    if not _compiled_worker_outputs_exist(
+        home_abs=home_abs,
+        out_arg=out_arg,
+        worker_module=worker_module,
+    ):
+        log.info("Cython build stamp not written: compiled worker output is absent.")
+        return
+    payload = _cython_build_stamp_payload(env=env, out_arg=out_arg, worker_module=worker_module)
+    if payload is None:
+        log.info("Cython build stamp not written: unable to fingerprint current inputs.")
+        return
+    stamp_path = _cython_build_stamp_path(home_abs=home_abs, out_arg=out_arg)
+    stamp_path.parent.mkdir(parents=True, exist_ok=True)
+    stamp_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    log.info(f"Wrote Cython build stamp: {stamp_path}")
 
 
 def _ensure_build_readme(readme_path: Path | str = "README.md") -> Path:
@@ -678,6 +1009,8 @@ def _configure_build_ext_modules(
         extension=mod,
         compiler_directives=compil_directives,
         quiet=bool(remaining_args and ("-q" in remaining_args or "--quiet" in remaining_args)),
+        annotate=_resolve_cython_annotate_option(),
+        log=log,
     )
     log.info(f"Cython extension configured: {worker_module}_cy")
     return ext_modules
@@ -942,9 +1275,13 @@ def _prepare_main_execution(
         raw_outdir,
         home_abs=env.home_abs,
     )
+    worker_module = target_module + "_worker"
 
     if cmd == "build_ext":
         prepare_build_ext_command_fn(env=env, build_dir=build_dir)
+        if _cython_build_stamp_hit(env=env, out_arg=out_arg, worker_module=worker_module):
+            setattr(env, "_agilab_skip_setup", True)
+            return env, out_arg, worker_module, [], []
 
     setup_argv = build_setuptools_argv_fn(
         prog_name=prog_name,
@@ -954,7 +1291,6 @@ def _prepare_main_execution(
     )
     set_argv_fn([str(value) for value in setup_argv])
 
-    worker_module = target_module + "_worker"
     ext_modules, links_created = prepare_setup_artifacts_fn(
         env=env,
         cmd=cmd,
@@ -980,6 +1316,7 @@ def _execute_main_setup(
     build_setup_kwargs_fn=None,
     setup_fn=None,
     finalize_setup_artifacts_fn=None,
+    record_cython_build_stamp_fn=None,
 ) -> None:
     if ensure_build_readme_fn is None:
         ensure_build_readme_fn = _ensure_build_readme
@@ -989,15 +1326,32 @@ def _execute_main_setup(
         setup_fn = setup
     if finalize_setup_artifacts_fn is None:
         finalize_setup_artifacts_fn = _finalize_setup_artifacts
+    if record_cython_build_stamp_fn is None:
+        record_cython_build_stamp_fn = _record_cython_build_stamp
+
+    log = _runtime_logger()
+    if getattr(env, "_agilab_skip_setup", False):
+        log.info("Setup stage skipped by fresh Cython build stamp.")
+        return
 
     ensure_build_readme_fn()
-    setup_fn(**build_setup_kwargs_fn(worker_module=worker_module, ext_modules=ext_modules))
-    finalize_setup_artifacts_fn(
-        env=env,
-        cmd=cmd,
-        out_arg=out_arg,
-        links_created=links_created,
-    )
+    start = perf_counter()
+    try:
+        setup_fn(**build_setup_kwargs_fn(worker_module=worker_module, ext_modules=ext_modules))
+    finally:
+        log.info(f"Setup/C compile stage completed in {perf_counter() - start:.3f}s")
+    start = perf_counter()
+    try:
+        finalize_setup_artifacts_fn(
+            env=env,
+            cmd=cmd,
+            out_arg=out_arg,
+            links_created=links_created,
+        )
+    finally:
+        log.info(f"Setup finalize stage completed in {perf_counter() - start:.3f}s")
+    if cmd == "build_ext":
+        record_cython_build_stamp_fn(env=env, out_arg=out_arg, worker_module=worker_module)
 
 
 def main(argv: list[str] | None = None) -> None:

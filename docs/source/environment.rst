@@ -149,6 +149,33 @@ rather than shown as one of the workflow pages.
    * - ``AGI_LOG_DIR``
      - ``~/log``
      - Parent directory for install logs (``install_logs``), worker logs, and general telemetry.
+   * - ``AGILAB_CYTHON_CACHE``
+     - ``~/.cache/agilab/cython``
+     - Cythonize cache directory for worker extension builds. Set to ``off`` to
+       disable Cython's conversion cache, or to a custom path for a shared local
+       cache.
+   * - ``AGILAB_CYTHON_TYPE_PREPROCESS``
+     - ``0``
+     - Opt-in conservative worker-source preprocessor that inserts local Cython
+       declarations only when the AST evidence is safe. When enabled,
+       ``pre_install`` also writes ``<worker>.cython-preview.json`` next to the
+       generated ``.pyx``.
+   * - ``AGILAB_CYTHON_DIRECTIVES``
+     - safe defaults
+     - Comma-separated Cython compiler directive overrides, for example
+       ``boundscheck=true`` or ``cdivision=true,infer_types=true``. Set to
+       ``off`` to restore legacy directives. ``cdivision`` and ``infer_types``
+       are opt-in because they can change results on arbitrary user workers.
+   * - ``AGILAB_CYTHON_ANNOTATE``
+     - ``0``
+     - Enables Cython ``annotate=True`` HTML diagnostics during worker extension
+       builds. This is for build investigation only and participates in worker
+       build-cache fingerprints.
+   * - ``AGILAB_DISABLE_WORKER_BUILD_CACHE``
+     - ``0``
+     - Disables AGILAB's worker build-output cache and Cython build stamps when
+       set to a truthy value. Use this when debugging cache invalidation or
+       forcing a clean worker rebuild.
    * - ``AGI_EXPORT_DIR``
      - ``~/export``
      - Target directory for exported artefacts.
