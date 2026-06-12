@@ -14,6 +14,11 @@ Page bundles are standalone dashboards that complement the built-in workflow
 pages. In the UI they appear alongside the main pages, but they run in their
 own sidecar web process.
 
+Naming convention:
+
+- ``view_*`` page bundles are the generic app-agnostic sidecars.
+- ``app_ui`` and ``autoencoder_latentspace`` are visible exceptions with their own names because they are not generic sidecars.
+
 Looking for the PyTorch playground, live play/pause training, or loss landscape?
 Use the built-in ``pytorch_playground_project`` app or launch it directly with
 ``agilab pytorch-playground``. It is a reproducible app project, not a generic
@@ -142,7 +147,7 @@ pulled by the umbrella dependency graph.
      - Package
      - Purpose
      - Packaging status
-   * - ``view_autoencoder_latentspace``
+   * - ``autoencoder_latentspace``
      - ``agi-page-latent-space``
      - Opt-in TensorFlow/Keras latent-space playground that trains a small
        autoencoder in-page.
@@ -169,7 +174,7 @@ pulled by the umbrella dependency graph.
      - ``agi-page-live-artifacts``
      - Dynamic artifact, manifest, evidence, and log monitor for active apps.
      - Included in ``agi-pages``.
-   * - ``view_app_ui``
+   * - ``app_ui``
      - ``agi-page-app-ui``
      - Bridge that displays an app-owned Streamlit UI from ANALYSIS.
      - Included in ``agi-pages``.

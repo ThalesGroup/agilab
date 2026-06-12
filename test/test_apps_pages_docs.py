@@ -75,6 +75,17 @@ def test_autoencoder_latentspace_is_marked_as_opt_in_playground_exception() -> N
         assert "in-page" in text.lower()
 
 
+def test_view_prefix_remains_the_generic_page_family() -> None:
+    docs = (DOCS_SOURCE / "apps-pages.rst").read_text(encoding="utf-8")
+    readme = (APPS_PAGES_ROOT / "README.md").read_text(encoding="utf-8")
+
+    for text in (docs, readme):
+        assert "view_*" in text
+        assert "generic app-agnostic sidecars" in text
+        assert "app_ui" in text
+        assert "autoencoder_latentspace" in text
+
+
 def test_barycentric_dataframe_selector_avoids_session_state_double_init() -> None:
     source = (
         APPS_PAGES_ROOT
