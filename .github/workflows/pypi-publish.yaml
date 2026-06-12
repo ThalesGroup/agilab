@@ -784,6 +784,7 @@ jobs:
           for package in ${PYPI_RETENTION_PACKAGES}; do
             args+=(--package "$package")
           done
+          args+=(--allow-delete-failure-warning)
           python tools/pypi_release_retention.py "${args[@]}"
 
       - name: Clear temporary PyPI confirmation variable

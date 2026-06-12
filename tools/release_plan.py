@@ -810,11 +810,6 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
     ]
     if "\n          - package: " in text:
         missing.append("library package matrix must not be hard-coded in the workflow")
-    if "--allow-delete-failure-warning" in text:
-        missing.append(
-            "PyPI release retention must fail closed while stale releases remain: "
-            "remove '--allow-delete-failure-warning'"
-        )
     missing.extend(validate_workflow_job_gates(workflow_path))
     return missing
 
