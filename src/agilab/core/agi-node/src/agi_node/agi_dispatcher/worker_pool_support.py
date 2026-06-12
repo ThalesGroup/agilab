@@ -26,11 +26,12 @@ kind, concat/empty semantics).
 from __future__ import annotations
 
 import logging
+import math
 import os
 import sys
 import time
 import traceback
-from concurrent.futures import BrokenExecutor, as_completed
+from concurrent.futures import BrokenExecutor, ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 from dataclasses import dataclass
 from typing import Any, Callable, Sequence
 
@@ -49,6 +50,22 @@ POOL_MAX_WORKERS_ENV = "AGILAB_POOL_MAX_WORKERS"
 
 #: Optional per-app override read from ``worker.args`` when present.
 POOL_MAX_WORKERS_ARG = "pool_max_workers"
+
+#: Per-work-item time budget in seconds (float). Opt-in: unset means no
+#: timeout, preserving historical behavior. Read from ``worker.args`` first,
+#: then the environment.
+POOL_ITEM_TIMEOUT_ENV = "AGILAB_POOL_ITEM_TIMEOUT"
+POOL_ITEM_TIMEOUT_ARG = "pool_item_timeout"
+
+#: Executor backend override: ``process``/``thread`` force a backend,
+#: ``auto`` (default) keeps the family default except on free-threaded
+#: interpreters (PYTHON_GIL=0), where process-pool families switch to a
+#: thread pool — same parallelism without spawn/pickling costs.
+POOL_EXECUTOR_ENV = "AGILAB_POOL_EXECUTOR"
+
+#: Grace added on top of the derived chunk deadline so a timeout reflects a
+#: genuinely stuck item rather than scheduling jitter.
+_POOL_TIMEOUT_GRACE_SECONDS = 5.0
 
 _MAP_CHUNKSIZE_CAP = 32
 
@@ -124,6 +141,76 @@ def _resolve_pool_cap(args: Any) -> int | None:
             return value
         logger.warning("Ignoring non-positive pool max workers value %r", raw)
     return None
+
+
+def resolve_pool_item_timeout(args: Any = None) -> float | None:
+    """Read the optional per-item time budget from args, then the environment."""
+    candidates = []
+    getter = getattr(args, "get", None)
+    if callable(getter):
+        candidates.append(getter(POOL_ITEM_TIMEOUT_ARG))
+    candidates.append(os.environ.get(POOL_ITEM_TIMEOUT_ENV))
+    for raw in candidates:
+        if raw is None or raw == "":
+            continue
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Ignoring invalid pool item timeout value %r (expected seconds)",
+                raw,
+            )
+            continue
+        if value > 0:
+            return value
+        logger.warning("Ignoring non-positive pool item timeout value %r", raw)
+    return None
+
+
+def _chunk_deadline_seconds(item_timeout: float, item_count: int, width: int) -> float:
+    """Whole-chunk deadline: serial item budget per pool slot plus grace."""
+    waves = math.ceil(item_count / max(width, 1))
+    return item_timeout * max(waves, 1) + _POOL_TIMEOUT_GRACE_SECONDS
+
+
+def _free_threading_active() -> bool:
+    """Return True when this interpreter runs with the GIL disabled."""
+    checker = getattr(sys, "_is_gil_enabled", None)
+    if callable(checker):
+        try:
+            return not bool(checker())
+        # Defensive: a probe failure must never change executor selection.
+        except Exception:
+            return False
+    return False
+
+
+def resolve_executor(hooks: PoolFrameHooks) -> tuple[Callable[..., Any], str]:
+    """Resolve the executor backend for this run.
+
+    ``AGILAB_POOL_EXECUTOR=process|thread`` forces a backend; ``auto`` (or
+    unset) keeps the family default, except that process-pool families run a
+    thread pool on free-threaded interpreters where threads deliver the same
+    parallelism without spawn and pickling costs.
+    """
+    choice = os.environ.get(POOL_EXECUTOR_ENV, "auto").strip().lower() or "auto"
+    if choice not in ("auto", "process", "thread"):
+        logger.warning(
+            "Ignoring invalid %s value %r (expected auto, process or thread)",
+            POOL_EXECUTOR_ENV,
+            choice,
+        )
+        choice = "auto"
+    if choice == "thread" and hooks.executor_kind != "thread":
+        return ThreadPoolExecutor, "thread (forced by env)"
+    if choice in ("process", "thread"):
+        # "process" pins process families to their default (disables the
+        # free-threading auto-switch); it cannot convert a thread family,
+        # whose workers are not required to be picklable.
+        return hooks.executor_factory, hooks.executor_kind
+    if hooks.executor_kind == "process" and _free_threading_active():
+        return ThreadPoolExecutor, "thread (free-threaded interpreter)"
+    return hooks.executor_factory, hooks.executor_kind
 
 
 def map_chunksize(item_count: int, width: int) -> int:
@@ -226,22 +313,59 @@ def exec_multi_process(
     """
     chunks = select_worker_chunks(worker, workers_plan)
     chunk_lengths = [len(chunk) for chunk in chunks]
-    width = resolve_pool_width(chunk_lengths, getattr(worker, "args", None))
+    args = getattr(worker, "args", None)
+    width = resolve_pool_width(chunk_lengths, args)
+    item_timeout = resolve_pool_item_timeout(args)
+    executor_factory, executor_kind = resolve_executor(hooks)
     logging.info(
-        f"{hooks.family}.works - {hooks.executor_kind} pool width {width}"
+        f"{hooks.family}.works - {executor_kind} pool width {width}"
         f" - worker #{worker._worker_id}"
         f" - work_pool x {sum(chunk_lengths)} across {len(chunk_lengths)} chunk(s)"
+        + (f" - item timeout {item_timeout}s" if item_timeout else "")
     )
 
     worker.work_init()
-    with hooks.executor_factory(
+    with executor_factory(
         max_workers=width,
         initializer=_pool_child_init,
         initargs=(worker, worker.pool_vars),
     ) as executor:
         for work_id, work in enumerate(chunks):
-            results = _run_chunk(executor, worker, hooks, work_id, list(work), width)
+            results = _run_chunk(
+                executor, worker, hooks, work_id, list(work), width, item_timeout
+            )
             _finish_chunk(worker, hooks, results)
+
+
+def _batches(indexed: list[tuple[int, Any]], chunksize: int) -> list[list[tuple[int, Any]]]:
+    """Mirror the submission batching of :func:`_run_chunk` for reporting."""
+    return [indexed[offset : offset + chunksize] for offset in range(0, len(indexed), chunksize)]
+
+
+def _abandon_stuck_pool(executor: Any) -> None:
+    """Unblock a pool whose tasks blew their deadline.
+
+    Cancels queued work and, for process pools, terminates the children
+    (best-effort via the executor's process table — without it the enclosing
+    ``with`` block would hang in ``shutdown(wait=True)`` behind the stuck
+    task). Thread pools cannot be force-stopped; their stragglers are left
+    running and the caller's error message says so.
+    """
+    try:
+        executor.shutdown(wait=False, cancel_futures=True)
+    # Defensive: a stuck pool must not be able to mask the timeout error.
+    except Exception:
+        pass
+    processes = getattr(executor, "_processes", None)
+    if isinstance(processes, dict):
+        for process in list(processes.values()):
+            terminate = getattr(process, "terminate", None)
+            if callable(terminate):
+                try:
+                    terminate()
+                # Defensive: child reaping is best-effort during abandonment.
+                except Exception:
+                    pass
 
 
 def _run_chunk(
@@ -251,6 +375,7 @@ def _run_chunk(
     work_id: int,
     work: list[Any],
     width: int,
+    item_timeout: float | None = None,
 ) -> list[tuple[int, Any]]:
     """Submit one chunk to the warm pool and collect (index, result) pairs."""
     if not work:
@@ -262,16 +387,34 @@ def _run_chunk(
         executor.submit(_pool_run_batch, indexed[offset : offset + chunksize])
         for offset in range(0, len(indexed), chunksize)
     ]
+    deadline = (
+        _chunk_deadline_seconds(item_timeout, len(work), width)
+        if item_timeout is not None
+        else None
+    )
 
     results: list[tuple[int, Any]] = []
     failures: list[tuple[Any, str]] = []
     try:
-        for future in as_completed(futures):
+        for future in as_completed(futures, timeout=deadline):
             for idx, result, error in future.result():
                 if error is None:
                     results.append((idx, result))
                 else:
                     failures.append((work[idx], error))
+    except FuturesTimeoutError as exc:
+        _abandon_stuck_pool(executor)
+        pending = [item for f, batch in zip(futures, _batches(indexed, chunksize)) if not f.done() for _, item in batch]
+        preview = ", ".join(repr(item) for item in pending[:3])
+        if len(pending) > 3:
+            preview += ", ..."
+        raise RuntimeError(
+            f"{hooks.family}.work_pool exceeded the {item_timeout}s per-item time "
+            f"budget on chunk #{work_id} ({deadline:.1f}s chunk deadline); "
+            f"{len(pending)} item(s) still pending: {preview}. Process-pool "
+            "children are terminated; thread-pool stragglers cannot be stopped "
+            "and may keep running in the background."
+        ) from exc
     except BrokenExecutor as exc:
         raise RuntimeError(
             f"{hooks.family} {hooks.executor_kind} pool broke while running chunk "

@@ -249,3 +249,134 @@ def test_run_works_returns_per_call_elapsed_not_t0_age():
     worker = EngineWorker(mode=0)
     elapsed = worker_pool_support.run_works(worker, {0: [[1]]}, None)
     assert 0.0 <= elapsed < 100.0
+
+
+# --- item timeout ---------------------------------------------------------
+
+
+def _pandas_hooks(executor_factory):
+    return worker_pool_support.PoolFrameHooks(
+        family="PandasWorker",
+        executor_kind="process",
+        executor_factory=executor_factory,
+        is_frame=lambda r: isinstance(r, pd.DataFrame),
+        is_empty=lambda df: df.empty,
+        concat_labeled=pandas_module._concat_labeled,
+        empty_frame=pd.DataFrame,
+    )
+
+
+def test_resolve_pool_item_timeout_sources(monkeypatch):
+    assert worker_pool_support.resolve_pool_item_timeout({}) is None
+    monkeypatch.setenv(worker_pool_support.POOL_ITEM_TIMEOUT_ENV, "2.5")
+    assert worker_pool_support.resolve_pool_item_timeout({}) == 2.5
+    # args wins over env; invalid/non-positive values are ignored.
+    assert worker_pool_support.resolve_pool_item_timeout({"pool_item_timeout": "0.5"}) == 0.5
+    monkeypatch.setenv(worker_pool_support.POOL_ITEM_TIMEOUT_ENV, "nope")
+    assert worker_pool_support.resolve_pool_item_timeout({}) is None
+    monkeypatch.setenv(worker_pool_support.POOL_ITEM_TIMEOUT_ENV, "-3")
+    assert worker_pool_support.resolve_pool_item_timeout({}) is None
+
+
+def test_chunk_deadline_scales_with_waves():
+    deadline = worker_pool_support._chunk_deadline_seconds(2.0, 8, 4)
+    assert deadline == 2.0 * 2 + worker_pool_support._POOL_TIMEOUT_GRACE_SECONDS
+
+
+def test_timed_out_chunk_raises_and_abandons_pool(monkeypatch):
+    class StuckFuture:
+        def done(self):
+            return False
+
+    class StuckPool(RecordingPool):
+        abandoned = []
+
+        def submit(self, fn, *args):
+            return StuckFuture()
+
+        def shutdown(self, wait=True, cancel_futures=False):
+            StuckPool.abandoned.append((wait, cancel_futures))
+
+    def _raise_timeout(futures, timeout=None):
+        assert timeout is not None
+        raise worker_pool_support.FuturesTimeoutError()
+
+    monkeypatch.setattr(worker_pool_support, "as_completed", _raise_timeout)
+    worker = EngineWorker(mode=1)
+    worker.args = {"output_format": "csv", "pool_item_timeout": 0.01}
+    with pytest.raises(RuntimeError, match="per-item time"):
+        worker_pool_support.exec_multi_process(
+            worker, {0: [["slow1", "slow2"]]}, None, _pandas_hooks(StuckPool)
+        )
+    # The stuck pool was abandoned without waiting, so the with-block exit
+    # cannot hang behind the stuck task.
+    assert (False, True) in StuckPool.abandoned
+
+
+def test_abandon_stuck_pool_terminates_process_children():
+    class FakeProcess:
+        def __init__(self):
+            self.terminated = False
+
+        def terminate(self):
+            self.terminated = True
+
+    class FakeExecutor:
+        def __init__(self):
+            self._processes = {1: FakeProcess(), 2: FakeProcess()}
+            self.shutdown_calls = []
+
+        def shutdown(self, wait=True, cancel_futures=False):
+            self.shutdown_calls.append((wait, cancel_futures))
+
+    executor = FakeExecutor()
+    worker_pool_support._abandon_stuck_pool(executor)
+    assert executor.shutdown_calls == [(False, True)]
+    assert all(p.terminated for p in executor._processes.values())
+
+
+# --- executor backend selection -------------------------------------------
+
+
+def test_resolve_executor_auto_keeps_family_default(monkeypatch):
+    monkeypatch.delenv(worker_pool_support.POOL_EXECUTOR_ENV, raising=False)
+    monkeypatch.setattr(worker_pool_support, "_free_threading_active", lambda: False)
+    factory, kind = worker_pool_support.resolve_executor(_pandas_hooks(RecordingPool))
+    assert factory is RecordingPool and kind == "process"
+
+
+def test_resolve_executor_auto_switches_to_threads_when_free_threaded(monkeypatch):
+    monkeypatch.delenv(worker_pool_support.POOL_EXECUTOR_ENV, raising=False)
+    monkeypatch.setattr(worker_pool_support, "_free_threading_active", lambda: True)
+    factory, kind = worker_pool_support.resolve_executor(_pandas_hooks(RecordingPool))
+    assert factory is worker_pool_support.ThreadPoolExecutor
+    assert "thread" in kind
+
+
+def test_resolve_executor_env_forces_threads(monkeypatch):
+    monkeypatch.setenv(worker_pool_support.POOL_EXECUTOR_ENV, "thread")
+    monkeypatch.setattr(worker_pool_support, "_free_threading_active", lambda: False)
+    factory, kind = worker_pool_support.resolve_executor(_pandas_hooks(RecordingPool))
+    assert factory is worker_pool_support.ThreadPoolExecutor
+
+
+def test_resolve_executor_process_pins_default_despite_free_threading(monkeypatch):
+    monkeypatch.setenv(worker_pool_support.POOL_EXECUTOR_ENV, "process")
+    monkeypatch.setattr(worker_pool_support, "_free_threading_active", lambda: True)
+    factory, kind = worker_pool_support.resolve_executor(_pandas_hooks(RecordingPool))
+    assert factory is RecordingPool and kind == "process"
+
+
+def test_resolve_executor_never_converts_thread_family_to_process(monkeypatch):
+    monkeypatch.setenv(worker_pool_support.POOL_EXECUTOR_ENV, "process")
+    hooks = worker_pool_support.PoolFrameHooks(
+        family="PolarsWorker",
+        executor_kind="thread",
+        executor_factory=RecordingPool,
+        is_frame=lambda r: True,
+        is_empty=lambda df: False,
+        concat_labeled=lambda frames, labels: frames[0],
+        empty_frame=lambda: None,
+    )
+    factory, kind = worker_pool_support.resolve_executor(hooks)
+    assert factory is RecordingPool and kind == "thread"
