@@ -81,8 +81,6 @@ class BaseWorker(ArtifactContract, abc.ABC):
 
     _insts = {}
     _built = None
-    _pool_init = None
-    _work_pool = None
     _share_path = None
     verbose = 1
     _mode = None
@@ -110,6 +108,30 @@ class BaseWorker(ArtifactContract, abc.ABC):
     _service_active: ClassVar[Dict[int, bool]] = {}
     _service_lock: ClassVar[threading.Lock] = threading.Lock()
     _service_poll_default: ClassVar[float] = 1.0
+
+    #: Shared state handed to ``pool_init`` in every pool child. Apps usually
+    #: set ``self.pool_vars = {"args": self.args}`` in ``start()``. For
+    #: process-based worker families (pandas/fireducks) the worker instance
+    #: and ``pool_vars`` must be picklable.
+    pool_vars: Any = None
+
+    # --- in-worker pool contract (overridable hooks) -------------------
+    # These hooks make the duck-typed pool contract explicit: pool_init runs
+    # once per pool child (process or thread) per works() call; mono mode
+    # never calls pool_init, so start() must seed any in-process globals.
+
+    def pool_init(self, worker_vars: Any) -> None:
+        """Per-pool-child initializer hook; default is a no-op."""
+
+    def work_init(self) -> None:
+        """Per-works()-call initialization hook; default is a no-op."""
+
+    def _actual_work_pool(self, x: Any = None) -> Any:
+        """Process one work item; dataframe families must override this."""
+        raise NotImplementedError(
+            f"{type(self).__name__} must implement work_pool/_actual_work_pool "
+            "to process work items in mono and pool modes."
+        )
 
     @classmethod
     def _require_args_helper(cls, attr_name: str) -> Callable[..., Any]:

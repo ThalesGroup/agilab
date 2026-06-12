@@ -10,38 +10,66 @@ data_worker Framework Callback Functions Module
 ===============================================
 
 This module provides the `PolarsWorker` class, which extends the foundational
-functionalities of `BaseWorker` for processing data using multiprocessing or
-single-threaded approaches.
+functionalities of `BaseWorker` for processing data using a thread pool or
+single-threaded approaches. The pool path deliberately uses threads rather
+than processes: polars releases the GIL in its native kernels, so threads
+parallelise IO/native work without process spawn and pickling costs.
 
 Classes:
     PolarsWorker: Worker class for data processing tasks.
 
-Internal Libraries:
-    os
-
 External Libraries:
-    concurrent.futures.ProcessPoolExecutor
+    concurrent.futures.ThreadPoolExecutor
     pathlib.Path
-    time
     polars as pl
     BaseWorker from node import BaseWorker
 
 
 """
 
-# Internal Libraries:
-import os
-
 # External Libraries:
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-import time
 
 from agi_node.agi_dispatcher import BaseWorker
+from agi_node.agi_dispatcher import worker_pool_support
 
 import polars as pl
 import logging
 logger = logging.getLogger(__name__)
+
+
+def _thread_pool_factory(*, max_workers, initializer, initargs):
+    """Build the thread pool for the pool execution path.
+
+    ``ThreadPoolExecutor`` is resolved through this module's global namespace
+    so tests can monkeypatch ``polars_worker.ThreadPoolExecutor``.
+    """
+    return ThreadPoolExecutor(
+        max_workers=max_workers,
+        initializer=initializer,
+        initargs=initargs,
+    )
+
+
+def _concat_labeled(frames, labels):
+    """Label each frame with its worker_id and concatenate vertically."""
+    labeled = [
+        frame.with_columns(pl.lit(label).alias("worker_id"))
+        for frame, label in zip(frames, labels)
+    ]
+    return pl.concat(labeled, how="vertical")
+
+
+_POLARS_POOL_HOOKS = worker_pool_support.PoolFrameHooks(
+    family="PolarsWorker",
+    executor_kind="thread",
+    executor_factory=_thread_pool_factory,
+    is_frame=lambda result: isinstance(result, pl.DataFrame),
+    is_empty=lambda df: df.is_empty(),
+    concat_labeled=_concat_labeled,
+    empty_frame=pl.DataFrame,
+)
 
 class PolarsWorker(BaseWorker):
     """
@@ -119,82 +147,21 @@ class PolarsWorker(BaseWorker):
             workers_plan_metadata (any): Additional information about the workers.
 
         Returns:
-            float: Execution time in seconds.
+            float: Execution time of this works() call in seconds.
         """
-        if workers_plan:
-            # Pool execution is requested via the pool bit (1); the dask bit (4)
-            # keeps its historical in-worker pooling behavior.
-            if self._mode & 0b0101:  # ty: ignore[unsupported-operator]
-                self._exec_multi_process(workers_plan, workers_plan_metadata)
-            else:
-                self._exec_mono_process(workers_plan, workers_plan_metadata)
-
-        self.stop()
-
-        if BaseWorker._t0 is None:
-            BaseWorker._t0 = time.time()
-        return time.time() - BaseWorker._t0
-
+        return worker_pool_support.run_works(self, workers_plan, workers_plan_metadata)
 
     def _exec_multi_process(self, workers_plan: any, workers_plan_metadata: any) -> None:  # ty: ignore[invalid-type-form]
         """
-        Executes tasks in multiprocessing mode.
+        Executes tasks with a thread pool shared across all plan chunks.
 
         Args:
             workers_plan (any): Distribution tree structure.
             workers_plan_metadata (any): Additional information about the workers.
         """
-        ncore = 1
-        works = []
-        if isinstance(workers_plan, list):
-            for i in workers_plan[self._worker_id]:
-                works += i
-            ncore = max(min(len(works), int(os.cpu_count())), 1)  # ty: ignore[invalid-argument-type]
-
-        logging.info(
-            f"PolarsWorker.work - ncore {ncore} - worker_id #{self._worker_id}"
-            f" - work_pool x {len(works)}",
+        worker_pool_support.exec_multi_process(
+            self, workers_plan, workers_plan_metadata, _POLARS_POOL_HOOKS
         )
-        self.work_init()  # ty: ignore[unresolved-attribute]
-        for work_id, work in enumerate(workers_plan[self._worker_id]):
-            list_df = []
-            df = pl.DataFrame()
-            ncore = max(min(len(work), int(os.cpu_count())), 1)  # ty: ignore[invalid-argument-type]
-
-            if os.name == "nt":
-                process_factory_type = "spawn"
-            else:
-                process_factory_type ="spawn"
-
-           # mp_ctx = multiprocessing.get_context(process_factory_type)
-
-            with ThreadPoolExecutor(
-                #mp_context=mp_ctx,
-                max_workers=ncore,
-                initializer=self.pool_init,  # ty: ignore[unresolved-attribute]
-                initargs=(self.pool_vars,),  # ty: ignore[unresolved-attribute]
-            ) as exec:
-                # Map each work item to work_pool.
-                dfs = exec.map(self.work_pool, work)
-            # Post pool processinflight: collect non-empty DataFrames.
-            for df_result in dfs:
-                # Check if the result DataFrame has columns.
-                if df_result.shape[1] > 0:
-                    list_df.append(df_result)
-                    # Additional processing per result can be done here.
-
-            if list_df:
-                # Add a 'worker_id' to each DataFrame.
-                for idx, df_result in enumerate(list_df):
-                    list_df[idx] = df_result.with_columns(
-                        pl.lit(str((self._worker_id, idx))).alias("worker_id")
-                    )
-
-                # Concatenate all DataFrames into a single DataFrame.
-                df = pl.concat(list_df, how="vertical")
-
-            # Handle the concatenated DataFrame.
-            self.work_done(df if not df.is_empty() else pl.DataFrame())
 
     def _exec_mono_process(self, workers_plan: any, workers_plan_metadata: any) -> None:  # ty: ignore[invalid-type-form]
         """
@@ -204,33 +171,6 @@ class PolarsWorker(BaseWorker):
             workers_plan (any): Distribution tree structure.
             workers_plan_metadata (any): Additional information about the workers.
         """
-        self.work_init()  # ty: ignore[unresolved-attribute]
-        for work_id, work in enumerate(workers_plan[self._worker_id]):
-            list_df = []
-            df = pl.DataFrame()
-            logging.info(
-                f"PolarsWorker.work - monoprocess work #{work_id} - work_pool x {len(work)}"
-            )
-
-            if workers_plan:
-                # Apply the work_pool function to each item in work.
-                dfs = [self.work_pool(file) for file in work]
-
-                # Ensure that the returned objects are Polars DataFrames.
-                if dfs and isinstance(dfs[0], pl.DataFrame):
-                    for df_result in dfs:
-                        if not df_result.is_empty():
-                            list_df.append(df_result)
-
-                    if list_df:
-                        # Add a 'worker_id' to each DataFrame.
-                        for idx, df_result in enumerate(list_df):
-                            list_df[idx] = df_result.with_columns(
-                                pl.lit(str((self._worker_id, 0))).alias("worker_id")
-                            )
-
-                        # Concatenate all DataFrames into a single DataFrame.
-                        df = pl.concat(list_df, how="vertical")
-
-            # Handle the concatenated DataFrame.
-            self.work_done(df)
+        worker_pool_support.exec_mono_process(
+            self, workers_plan, workers_plan_metadata, _POLARS_POOL_HOOKS
+        )

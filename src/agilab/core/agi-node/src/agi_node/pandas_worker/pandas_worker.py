@@ -22,25 +22,62 @@ Internal Libraries:
 External Libraries:
     concurrent.futures.ProcessPoolExecutor
     pathlib.Path
-    time
     pandas as pd
     BaseWorker from node import BaseWorker.node
 
 """
 
 # Internal Libraries:
-import os
+import multiprocessing
 
 # External Libraries:
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-import time
+
+import numpy as np
 
 from agi_node.agi_dispatcher import BaseWorker
+from agi_node.agi_dispatcher import worker_pool_support
 
 import pandas as pd
 import logging
 logger = logging.getLogger(__name__)
+
+
+def _process_pool_factory(*, max_workers, initializer, initargs):
+    """Build the process pool for the pool execution path.
+
+    ``ProcessPoolExecutor`` is resolved through this module's global namespace
+    so tests can monkeypatch ``pandas_worker.ProcessPoolExecutor``. An explicit
+    spawn context keeps child startup deterministic across platforms.
+    """
+    return ProcessPoolExecutor(
+        max_workers=max_workers,
+        initializer=initializer,
+        initargs=initargs,
+        mp_context=multiprocessing.get_context("spawn"),
+    )
+
+
+def _concat_labeled(frames, labels):
+    """Concatenate frames and add the worker_id column in one allocation."""
+    df = pd.concat(list(frames), axis=0, ignore_index=True)
+    df["worker_id"] = np.repeat(
+        np.asarray(list(labels), dtype=object),
+        [len(frame) for frame in frames],
+    )
+    return df
+
+
+_PANDAS_POOL_HOOKS = worker_pool_support.PoolFrameHooks(
+    family="PandasWorker",
+    executor_kind="process",
+    executor_factory=_process_pool_factory,
+    is_frame=lambda result: isinstance(result, pd.DataFrame),
+    is_empty=lambda df: df.empty,
+    concat_labeled=_concat_labeled,
+    empty_frame=pd.DataFrame,
+)
 
 class PandasWorker(BaseWorker):
     """
@@ -115,73 +152,21 @@ class PandasWorker(BaseWorker):
             workers_plan_metadata (any): Additional information about the workers.
 
         Returns:
-            float: Execution time in seconds.
+            float: Execution time of this works() call in seconds.
         """
-        if workers_plan:
-            # Pool execution is requested via the pool bit (1); the dask bit (4)
-            # keeps its historical in-worker pooling behavior.
-            if self._mode & 0b0101:  # ty: ignore[unsupported-operator]
-                self._exec_multi_process(workers_plan, workers_plan_metadata)
-            else:
-                self._exec_mono_process(workers_plan, workers_plan_metadata)
-
-        self.stop()
-
-        if BaseWorker._t0 is None:
-            BaseWorker._t0 = time.time()
-        return time.time() - BaseWorker._t0
+        return worker_pool_support.run_works(self, workers_plan, workers_plan_metadata)
 
     def _exec_multi_process(self, workers_plan: any, workers_plan_metadata: any) -> None:  # ty: ignore[invalid-type-form]
         """
-        Executes tasks in multiprocessing mode.
+        Executes tasks with a process pool shared across all plan chunks.
 
         Args:
             workers_plan (any): Distribution tree structure.
             workers_plan_metadata (any): Additional information about the workers.
         """
-        works = []
-        if isinstance(workers_plan, list):
-            for i in workers_plan[self._worker_id]:
-                works += i
-            ncore = max(min(len(works), int(os.cpu_count())), 1)  # ty: ignore[invalid-argument-type]
-        else:
-            ncore = 1
-
-        logging.info(
-            f"PandasWorker.work - ncore {ncore} - minimal_app_worker #{self._worker_id}"
-            f" - work_pool x {len(works)}",
+        worker_pool_support.exec_multi_process(
+            self, workers_plan, workers_plan_metadata, _PANDAS_POOL_HOOKS
         )
-
-        self.work_init()  # ty: ignore[unresolved-attribute]
-        for work_id, work in enumerate(workers_plan[self._worker_id]):
-            list_df = []
-            df = pd.DataFrame()
-            ncore = max(min(len(work), int(os.cpu_count())), 1)  # ty: ignore[invalid-argument-type]
-
-            # Note: multiprocessing context commented out, as ThreadPoolExecutor is used
-            # mp_ctx = multiprocessing.get_context("spawn")
-
-            with ProcessPoolExecutor(
-                # mp_context=mp_ctx,
-                max_workers=ncore,
-                initializer=self.pool_init,  # ty: ignore[unresolved-attribute]
-                initargs=(self.pool_vars,),  # ty: ignore[unresolved-attribute]
-            ) as exec:
-                dfs = exec.map(self.work_pool, work)
-
-            for df_result in dfs:
-                if not df_result.empty:
-                    list_df.append(df_result)
-
-            if list_df:
-                for idx, df_result in enumerate(list_df):
-                    df_result = df_result.copy()
-                    df_result["worker_id"] = str((self._worker_id, idx))
-                    list_df[idx] = df_result
-
-                df = pd.concat(list_df, axis=0, ignore_index=True)
-
-            self.work_done(df if not df.empty else pd.DataFrame())
 
     def _exec_mono_process(self, workers_plan: any, workers_plan_metadata: any) -> None:  # ty: ignore[invalid-type-form]
         """
@@ -191,28 +176,6 @@ class PandasWorker(BaseWorker):
             workers_plan (any): Distribution tree structure.
             workers_plan_metadata (any): Additional information about the workers.
         """
-        self.work_init()  # ty: ignore[unresolved-attribute]
-        for work_id, work in enumerate(workers_plan[self._worker_id]):
-            list_df = []
-            df = pd.DataFrame()
-            logging.info(
-                f"PandasWorker.work - monoprocess work #{work_id} - work_pool x {len(work)}"
-            )
-
-            if workers_plan:
-                dfs = [self.work_pool(file) for file in work]
-
-                if dfs and isinstance(dfs[0], pd.DataFrame):
-                    for df_result in dfs:
-                        if not df_result.empty:
-                            list_df.append(df_result)
-
-                    if list_df:
-                        for idx, df_result in enumerate(list_df):
-                            df_result = df_result.copy()
-                            df_result["worker_id"] = str((self._worker_id, 0))
-                            list_df[idx] = df_result
-
-                        df = pd.concat(list_df, axis=0, ignore_index=True)
-
-            self.work_done(df)
+        worker_pool_support.exec_mono_process(
+            self, workers_plan, workers_plan_metadata, _PANDAS_POOL_HOOKS
+        )

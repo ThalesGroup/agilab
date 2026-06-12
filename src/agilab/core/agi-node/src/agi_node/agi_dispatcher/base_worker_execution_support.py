@@ -735,6 +735,10 @@ def _log_worker_plan_progress(
     return plan_batch_count
 
 
+# Note: this StringIO capture only sees records emitted in THIS process.
+# Logs from ProcessPoolExecutor children (pool mode) cannot reach it; the
+# shared pool engine (worker_pool_support._pool_child_init) configures basic
+# stderr logging in each child so child-side failures remain visible.
 def _attach_worker_log_capture(
     *,
     logging_module: Any = logging,
