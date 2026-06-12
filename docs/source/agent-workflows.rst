@@ -85,6 +85,8 @@ the wrapper boundary: request bounded context, keep terminal evidence concise,
 and do not document wrapper-specific behavior. The AGILAB validation source of
 truth remains ``tools/impact_validate.py``, ``./dev``, and the workflow-parity
 profiles.
+For ad-hoc terminal checks inside an already routed local wrapper session, use
+``tokki run -- <command>`` when it can execute the command faithfully.
 
 The main rule is simple: run the narrowest local proof first, then reproduce
 the real AGILAB path before broader validation.
