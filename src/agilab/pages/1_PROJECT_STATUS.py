@@ -52,7 +52,6 @@ def _on_project_change(project: str) -> None:
     except (OSError, RuntimeError, TypeError, ValueError):
         pass
     st.query_params["active_app"] = project
-    st.rerun()
 
 
 def main() -> None:
