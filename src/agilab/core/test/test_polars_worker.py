@@ -97,7 +97,10 @@ def test_exec_mono_process(worker_csv):
     assert result_df is not None, "Expected a DataFrame from ._exec_mono_process."
     assert result_df.height == 2, f"Expected DataFrame height 2, got {result_df.height}."
     part_values = result_df["worker_id"].to_list()
-    assert part_values == [str((0, 0)), str((0, 0))], f"Unexpected worker_id values: {part_values}"
+    # Contract: worker_id labels are str((worker_id, item_idx)) using the
+    # ORIGINAL work-item index, identical in mono and pool modes (the old
+    # mono path tagged every frame with (worker_id, 0)).
+    assert part_values == [str((0, 0)), str((0, 1))], f"Unexpected worker_id values: {part_values}"
 
 def test_exec_multi_process(worker_csv):
     worker_csv._mode = 1
@@ -148,7 +151,9 @@ def test_works_mode4_dispatches_to_multi(worker_csv, monkeypatch):
     assert calls == ["multi"]
 
 
-def test_exec_multi_process_list_plan_and_windows_branch(monkeypatch):
+def test_exec_multi_process_list_plan_filters_empty_frames():
+    # The dead per-platform spawn-context branch was removed with the shared
+    # pool engine; this now pins list-plan handling and empty-frame filtering.
     class MixedPolarsWorker(DummyPolarsWorker):
         def _actual_work_pool(self, x):
             if x == 0:
@@ -157,19 +162,21 @@ def test_exec_multi_process_list_plan_and_windows_branch(monkeypatch):
 
     worker = MixedPolarsWorker(worker_id=0, output_format="csv", verbose=0)
     worker._mode = 1
-    monkeypatch.setattr(polars_worker_module.os, "name", "nt", raising=False)
     worker._exec_multi_process([[[0, 1]]], None)
 
     assert worker.last_df is not None
     assert worker.last_df["col"].to_list() == [1]
 
 
-def test_works_sets_baseworker_t0_when_missing(worker_csv, monkeypatch):
+def test_works_returns_per_call_elapsed_and_leaves_t0_alone(worker_csv):
+    # Contract: works() returns the elapsed time of THIS call (perf_counter);
+    # it no longer reads or initializes the class-level BaseWorker._t0
+    # registration timestamp (which measured worker age, not run time).
     BaseWorker._t0 = None
-    monkeypatch.setattr(polars_worker_module.time, "time", lambda: 123.0)
     worker_csv._mode = 0
 
     result = worker_csv.works({0: [[1]]}, None)
 
-    assert result == 0.0
-    assert BaseWorker._t0 == 123.0
+    assert isinstance(result, float)
+    assert 0.0 <= result < 100.0
+    assert BaseWorker._t0 is None

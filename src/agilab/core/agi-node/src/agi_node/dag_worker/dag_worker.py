@@ -22,6 +22,7 @@ from __future__ import annotations
 import inspect
 import logging
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -106,12 +107,17 @@ class DagWorker(BaseWorker):
     # -----------------------------
     # Your existing methods (kept minimal)
     # -----------------------------
-    def works(self, workers_plan, workers_plan_metadata):
+    def works(self, workers_plan, workers_plan_metadata) -> float:
+        """Execute the DAG plan and return this call's elapsed seconds.
+
+        DagWorker intentionally ignores the pool/dask mode bits: stages are
+        always scheduled on the in-worker thread pool because dependency
+        ordering (not the ORCHESTRATE pool toggle) drives concurrency here.
         """
-        Your existing entry point; keep as-is, just call multiprocess path for mode 4, etc.
-        """
-        # If you had mode checks, keep them. Here we directly call the multi-process variant.
+        start = time.perf_counter()
         self._exec_multi_process(workers_plan, workers_plan_metadata)
+        self.stop()
+        return time.perf_counter() - start
 
     def _exec_mono_process(self, workers_plan, workers_plan_metadata):
         """Sequential fallback kept for compatibility; reuses the multi-process pipeline."""
@@ -211,13 +217,22 @@ class DagWorker(BaseWorker):
         def _run_stage(fn):
             # Wait for deps inside the pool thread so independent branches keep
             # running concurrently instead of serializing on topo order.
+            # Known limitation: a stage blocked on its dependencies still
+            # occupies a pool slot, so runnable stages queued behind it can
+            # starve when max_workers < graph width. An event-driven ready
+            # queue (submit on dependency completion) would fix this but is a
+            # larger scheduling change deferred for now.
             pipeline_result = {}
             for dep in dependency_graph.get(fn, []):
                 if dep in futures:
                     pipeline_result[dep] = futures[dep][0].result()
             return self.get_work(fn, fargs.get(fn, ()), pipeline_result)
 
-        max_workers = min(max(2, os.cpu_count() or 2), len(topo))
+        # Size the pool against the stages actually assigned to this worker;
+        # `topo` may also contain cross-partition dependency-only nodes that
+        # the submit loop below skips.
+        local_stage_count = sum(1 for fn in topo if fn in function_info)
+        max_workers = min(max(2, os.cpu_count() or 2), max(1, local_stage_count))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             for fn in topo:
                 if fn not in function_info:
@@ -233,7 +248,11 @@ class DagWorker(BaseWorker):
                 future = executor.submit(_run_stage, fn)
                 futures[fn] = (future, function_info[fn]["partition_name"])
 
-        # finalize (log every outcome, then propagate the first failure)
+        # finalize (log every outcome, then propagate the first failure).
+        # Note: stage return values are consumed by dependent stages via
+        # `pipeline_result`; terminal-stage results are intentionally NOT
+        # persisted by the framework (DagWorker has no work_done sink) — DAG
+        # stages are expected to persist their own artifacts as side effects.
         first_failure = None
         for fn, (future, pname) in futures.items():
             try:

@@ -1681,7 +1681,7 @@ def test_render_cluster_settings_ui_uses_ssh_key_auth_and_resolved_share(monkeyp
     assert all("agi_share_path" not in text for text in fake_st.markdowns)
     assert all(not ("clustershare" in text and "→" in text) for text in fake_st.markdowns)
     assert fake_st.session_state["mode"] == 6
-    assert fake_st.infos[-1] == "Run mode 6: dask and cython"
+    assert fake_st.infos[-1] == "Run mode 6: dask and cython (pools in-worker)"
 
 
 def test_render_cluster_settings_ui_password_auth_clears_credentials_and_ignores_cache_errors(monkeypatch, tmp_path):
@@ -1740,7 +1740,7 @@ def test_render_cluster_settings_ui_password_auth_clears_credentials_and_ignores
     assert ("CLUSTER_CREDENTIALS", "") in env_calls
     assert ("AGI_SSH_KEY_PATH", "") in env_calls
     assert fake_st.session_state["mode"] == 4
-    assert fake_st.infos[-1] == "Run mode 4: dask"
+    assert fake_st.infos[-1] == "Run mode 4: dask (pools in-worker)"
 
 
 def test_render_cluster_settings_ui_persists_cleared_workers_data_path(monkeypatch, tmp_path):
