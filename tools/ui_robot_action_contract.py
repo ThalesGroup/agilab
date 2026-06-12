@@ -46,7 +46,7 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
     "Train autoencoder": (
         "trial-only",
         "starts an explicit local Keras training run in the autoencoder playground; generic robots verify the gate renders without launching training",
-        ("test/test_view_autoencoder_latentspace.py",),
+        ("test/test_autoencoder_latentspace.py",),
     ),
     "Add argument": (
         "trial-only",
