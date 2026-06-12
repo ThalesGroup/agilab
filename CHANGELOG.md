@@ -29,12 +29,9 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.12
 
 ### Changed
 
-- Published AGILAB `2026.06.12` to PyPI for `agi-env`, `agi-gui`, `agi-web`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-apps`, the impacted `agi-page-*` analysis pages, the impacted `agi-app-*` packages, and `agilab`.
-- Fixed Streamlit pages UX across PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS, and bootstrap: crash fixes, stale-state and dead-flow repairs, destructive-action guards, and honest status semantics.
-- Hardened `agi-web` and `agi-pages` HTML/JS rendering against script-island escapes, unsafe action targets, and CSS injection.
-- Improved builtin app args forms and ANALYSIS surfaces: settings reseed on external change, actionable validation, namespaced widget keys, and explicit fallbacks.
-- Made the installer default to a minimal app set plus apps used in the last session.
+- Published AGILAB `2026.06.12` to PyPI for `agi-env`, `agi-gui`, `agi-web`, `agi-page-simplex-map`, `agi-page-live-artifacts`, `agi-page-geospatial-3d`, `agi-page-network-map`, `agi-page-routing-model-comparison`, `agi-page-training-report`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-flight-telemetry`, `agi-app-weather-forecast`, `agi-app-pytorch-playground`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
 - Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.06.08] - 2026-06-08
 
@@ -680,3 +677,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.06.04.2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04.2
 [2026.06.05]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.05
 [2026.06.08]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.08
+[2026.06.12]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.12
