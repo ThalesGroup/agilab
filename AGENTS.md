@@ -34,7 +34,8 @@ Use this runbook whenever you:
   `app-contracts` for
   built-in app/package/catalog/docs alignment, `audit` for local worktree/docs/release/PyPI
   state, `builtin-app-tests` for app-local built-in test execution,
-  `flow` for one or more workflow parity profiles,
+  `flow` for one or more workflow parity profiles, `ui-flow` for selecting the
+  minimal local UI robot profiles from changed files,
   `release` for local pre-tag release guards, `badge` for the explicit release/pre-release
   coverage-badge guard, `maintenance` for long-term extension/evidence/docs/package
   drift signals, `memory` for path-scoped maintenance-note drift checks,
@@ -56,7 +57,9 @@ Use this runbook whenever you:
   environment with pytest importlib mode, avoiding false root-environment dependency
   failures for app-local packages,
   `audit` is the quick robustness check before handoff between machines,
-  `flow` matches local GitHub workflow profiles, `release` starts with the strict AGILAB audit/review,
+  `flow` matches local GitHub workflow profiles, `ui-flow` is the local-first gate
+  before relying on the scheduled full UI robot matrix for browser-heavy frontend changes,
+  `release` starts with the strict AGILAB audit/review,
   then checks impact, generated PyPI release plan, trusted-publisher contract, Ruff availability,
   dependency policy, strict typing, docs, and badges before a tag,
   `badge` checks badge freshness when intentionally requested, `maintenance` reports the

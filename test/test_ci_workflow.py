@@ -147,14 +147,40 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
 
     assert 'branches: ["main"]' in push_block
     assert 'branches: ["**"]' not in push_block
+    assert 'cron: "17 5 * * 1"' in text
+    assert 'cron: "17 5 * * *"' not in text
     assert "Validate first-launch robot" in text
     assert (
         "uv --preview-features extra-build-dependencies run --extra ui python "
         "tools/first_launch_robot.py --json --output first-launch-robot.json"
     ) in text
+    assert "Resolve Playwright version for browser cache key" in text
+    assert "id: playwright-version" in text
+    assert "Restore Playwright browser cache" in text
+    assert "id: playwright-cache" in text
+    assert "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae" in text
+    assert "path: ~/.cache/ms-playwright" in text
+    assert (
+        "key: playwright-${{ runner.os }}-py3.13-${{ steps.playwright-version.outputs.version }}-chromium"
+    ) in text
+    assert "restore-keys" not in text.split("Restore Playwright browser cache", 1)[1].split(
+        "Install Playwright browser for frontend smoke", 1
+    )[0]
     assert "Install Playwright browser for frontend smoke" in text
     assert "Validate Streamlit frontend smoke" in text
-    assert "python -m playwright install --with-deps chromium" in text
+    assert (
+        'uv --preview-features extra-build-dependencies run --with "playwright==${{ steps.playwright-version.outputs.version }}" '
+        "python -m playwright install --with-deps chromium"
+    ) in text
+    assert "Save Playwright browser cache" in text
+    assert "steps.playwright-cache.outputs.cache-hit != 'true'" in text
+    assert "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae" in text
+    assert text.index("Restore Playwright browser cache") < text.index(
+        "Install Playwright browser for frontend smoke"
+    )
+    assert text.index("Install Playwright browser for frontend smoke") < text.index(
+        "Save Playwright browser cache"
+    )
     assert "tools/agilab_web_robot.py" in text
     assert "--frontend-smoke-only" in text
     assert "frontend-smoke-robot.json" in text
@@ -240,12 +266,14 @@ def test_docs_workflows_block_stale_release_proof_github_runs() -> None:
     assert "run --extra ui pytest -q -o addopts='' test/test_sync_docs_source.py" not in guard_text
 
 
-def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
+def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
     text = UI_ROBOT_MATRIX_WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "name: ui-robot-matrix" in text
     assert "workflow_dispatch:" in text
     assert "schedule:" in text
+    assert 'cron: "43 2 * * 3"' in text
+    assert 'cron: "43 2 * * *"' not in text
     assert "pull_request:" not in text
     assert "\n  push:" not in text
     assert "ui-robot-matrix:" in text
@@ -256,6 +284,31 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
     assert "- shard: quality" in text
     assert "- shard: layout" in text
     assert "tools/agilab_widget_robot_matrix.py" in text
+    assert "Resolve Playwright version for browser cache key" in text
+    assert "id: playwright-version" in text
+    assert "Restore Playwright browser cache" in text
+    assert "id: playwright-cache" in text
+    assert "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae" in text
+    assert "path: ~/.cache/ms-playwright" in text
+    assert (
+        "key: playwright-${{ runner.os }}-py3.13-${{ steps.playwright-version.outputs.version }}-chromium"
+    ) in text
+    assert "restore-keys" not in text.split("Restore Playwright browser cache", 1)[1].split(
+        "Install Playwright browser", 1
+    )[0]
+    assert (
+        'uv --preview-features extra-build-dependencies run --with "playwright==${{ steps.playwright-version.outputs.version }}" '
+        "python -m playwright install --with-deps chromium"
+    ) in text
+    assert "Save Playwright browser cache" in text
+    assert "steps.playwright-cache.outputs.cache-hit != 'true' && matrix.shard == 'core'" in text
+    assert "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae" in text
+    assert text.index("Restore Playwright browser cache") < text.index(
+        "Install Playwright browser"
+    )
+    assert text.index("Install Playwright browser") < text.index(
+        "Save Playwright browser cache"
+    )
     assert "uv --preview-features extra-build-dependencies run --extra ai --with playwright python tools/agilab_widget_robot_matrix.py" in text
     for scenario in {
         scenario
