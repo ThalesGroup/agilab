@@ -1077,7 +1077,6 @@ def _global_checks(
             details={
                 "invalid_children": invalid_page_children,
                 "unexpected_root_python": unexpected_root_python,
-                "explicit_exceptions": sorted(allowed_page_root_exceptions),
             },
         )
     )
