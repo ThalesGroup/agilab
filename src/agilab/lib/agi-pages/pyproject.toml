@@ -147,7 +147,7 @@ dev = [
     editable = true
 
 [tool.uv.sources.agi-page-app-ui]
-    path = "../../apps-pages/view_app_ui"
+path = "../../apps-pages/app_ui"
     editable = true
 
 [tool.uv.sources.agi-page-training-report]
