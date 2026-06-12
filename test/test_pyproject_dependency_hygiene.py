@@ -736,7 +736,7 @@ def test_stale_or_component_ui_dependencies_are_bounded() -> None:
     checked = {
         "src/agilab/lib/agi-gui/pyproject.toml": {"streamlit_code_editor", "watchdog"},
         "src/agilab/apps-pages/view_barycentric/pyproject.toml": {"barviz", "scikit-learn", "sqlalchemy"},
-        "src/agilab/apps-pages/view_autoencoder_latentspace/pyproject.toml": {
+        "src/agilab/apps-pages/autoencoder_latentspace/pyproject.toml": {
             "barviz",
             "keras",
             "scikit-learn",
