@@ -12,7 +12,7 @@ import pytest
 
 
 MODULE_PATH = Path(
-    "src/agilab/apps-pages/view_autoencoder_latentspace/src/view_autoencoder_latentspace/autoencoder_latentspace.py"
+    "src/agilab/apps-pages/autoencoder_latentspace/src/autoencoder_latentspace/autoencoder_latentspace.py"
 )
 
 BARVIZ_STUB = """
@@ -108,7 +108,7 @@ def _load_module():
     fake_streamlit.cache_data = identity_decorator
     fake_streamlit.cache_resource = identity_decorator
 
-    spec = importlib.util.spec_from_file_location("view_autoencoder_latentspace_test_module", MODULE_PATH)
+    spec = importlib.util.spec_from_file_location("autoencoder_latentspace_test_module", MODULE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     with patch.dict(sys.modules, {"barviz": fake_barviz, "streamlit": fake_streamlit}):
@@ -147,7 +147,7 @@ def test_update_datadir_clears_selected_file_state(monkeypatch) -> None:
     assert initialize_calls == ["called"]
 
 
-def test_view_autoencoder_latentspace_ensure_repo_on_path_adds_src_and_repo(monkeypatch, tmp_path: Path) -> None:
+def test_autoencoder_latentspace_ensure_repo_on_path_adds_src_and_repo(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     repo_root = tmp_path / "repo"
     src_root = repo_root / "src"
@@ -155,9 +155,9 @@ def test_view_autoencoder_latentspace_ensure_repo_on_path_adds_src_and_repo(monk
         src_root
         / "agilab"
         / "apps-pages"
-        / "view_autoencoder_latentspace"
+        / "autoencoder_latentspace"
         / "src"
-        / "view_autoencoder_latentspace"
+        / "autoencoder_latentspace"
     )
     app_root.mkdir(parents=True)
     module_path = app_root / "autoencoder_latentspace.py"
@@ -405,7 +405,7 @@ def test_bary_visualisation_supports_color_and_plain_modes(monkeypatch) -> None:
 def test_page_handles_missing_and_empty_data(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     settings_path = tmp_path / "app_settings.toml"
-    settings_path.write_text("[view_autoencoder_latentspace]\ndatadir = \"/tmp/data\"\ndf_file = \"missing.csv\"\n", encoding="utf-8")
+    settings_path.write_text("[autoencoder_latentspace]\ndatadir = \"/tmp/data\"\ndf_file = \"missing.csv\"\n", encoding="utf-8")
     warnings_seen: list[str] = []
 
     monkeypatch.setattr(module, "sidebar_views", lambda: None)
@@ -527,14 +527,15 @@ def test_page_runs_autoencoder_flow_and_persists_settings(monkeypatch, tmp_path:
         "color_len": 8,
     }
     written = settings_path.read_text(encoding="utf-8")
-    assert "view_autoencoder_latentspace" in written
+    assert "autoencoder_latentspace" in written
     assert "df_file = \"data.csv\"" in written
+
 
 
 def test_page_persistence_tolerates_invalid_settings_and_write_failures(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
     settings_path = tmp_path / "app_settings.toml"
-    settings_path.write_text('view_autoencoder_latentspace = "broken"\n', encoding="utf-8")
+    settings_path.write_text('autoencoder_latentspace = "broken"\n', encoding="utf-8")
     data = pd.DataFrame(
         {
             "x": [1.0 + i for i in range(12)],
@@ -597,7 +598,83 @@ def test_page_persistence_tolerates_invalid_settings_and_write_failures(monkeypa
     env = SimpleNamespace(target="demo", projects=["demo_project"], app_settings_file=settings_path)
     module.page(env)
 
-    assert settings_path.read_text(encoding="utf-8") == 'view_autoencoder_latentspace = "broken"\n'
+    assert settings_path.read_text(encoding="utf-8") == 'autoencoder_latentspace = "broken"\n'
+
+
+def test_page_loads_legacy_view_autoencoder_latentspace_settings(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text(
+        "\n".join(
+            [
+                "[view_autoencoder_latentspace]",
+                f'datadir = "{tmp_path}"',
+                'df_file = "data.csv"',
+                'coltype = "discrete"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    data = pd.DataFrame(
+        {
+            "x": [1.0 + i for i in range(12)],
+            "y": [2.0 + i for i in range(12)],
+            "label": [i % 2 for i in range(12)],
+        }
+    )
+
+    class _ColumnContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    captured: dict[str, Path] = {}
+
+    def fake_load_df(df_file_abs, cache_buster=None):
+        captured["df_file_abs"] = df_file_abs
+        return data.copy()
+
+    monkeypatch.setattr(module, "sidebar_views", lambda: None)
+    monkeypatch.setattr(module, "load_df", fake_load_df)
+    monkeypatch.setattr(module, "lazy_import_keras", lambda: (object, object, object))
+    monkeypatch.setattr(module, "lazy_import_sklearn", lambda: (object, object))
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=_State(),
+            slider=lambda *args, **kwargs: 10,
+            columns=lambda n: [_ColumnContext() for _ in range(n)],
+            number_input=lambda *args, **kwargs: 2,
+            selectbox=lambda label, options, **kwargs: options[0],
+            text_input=lambda *args, **kwargs: "latent-demo",
+            warning=lambda *args, **kwargs: None,
+            info=lambda *args, **kwargs: None,
+            button=lambda *args, **kwargs: False,
+            spinner=lambda *args, **kwargs: _ColumnContext(),
+        ),
+    )
+
+    env = SimpleNamespace(target="demo", projects=["demo_project"], app_settings_file=settings_path)
+
+    module.page(env)
+
+    assert captured["df_file_abs"] == tmp_path / "data.csv"
+    assert module.st.session_state.datadir == str(tmp_path)
+    assert module.st.session_state.df_file == "data.csv"
+    assert module.st.session_state.coltype == "discrete"
+    assert settings_path.read_text(encoding="utf-8") == "\n".join(
+        [
+            "[view_autoencoder_latentspace]",
+            f'datadir = "{tmp_path}"',
+            'df_file = "data.csv"',
+            'coltype = "discrete"',
+            "",
+        ]
+    )
 
 
 def test_page_does_not_train_until_user_clicks_train(monkeypatch, tmp_path: Path) -> None:
@@ -749,7 +826,7 @@ def test_main_resets_page_state_when_active_app_changes(monkeypatch, tmp_path: P
     assert page_calls == [session_state["env"]]
 
 
-def test_view_autoencoder_latentspace_smoke_renders(
+def test_autoencoder_latentspace_smoke_renders(
     tmp_path: Path, monkeypatch, create_temp_app_project, run_page_app_test
 ) -> None:
     _seed_fake_page_deps(monkeypatch, tmp_path)
@@ -759,7 +836,7 @@ def test_view_autoencoder_latentspace_smoke_renders(
     project_dir = create_temp_app_project(
         "demo_autoencoder_project",
         "demo_autoencoder",
-        "[view_autoencoder_latentspace]\n"
+        "[autoencoder_latentspace]\n"
         f'datadir = "{data_dir.as_posix()}"\n'
         'df_file = "empty.csv"\n',
         pyproject_name="demo-autoencoder-project",

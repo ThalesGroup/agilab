@@ -8,11 +8,11 @@ from types import SimpleNamespace
 import pytest
 
 
-MODULE_PATH = Path("src/agilab/apps-pages/view_app_ui/src/view_app_ui/view_app_ui.py")
+MODULE_PATH = Path("src/agilab/apps-pages/app_ui/src/app_ui/app_ui.py")
 
 
 def _load_module():
-    spec = importlib.util.spec_from_file_location("view_app_ui_test_module", MODULE_PATH)
+    spec = importlib.util.spec_from_file_location("app_ui_test_module", MODULE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -20,7 +20,7 @@ def _load_module():
     return module
 
 
-def test_view_app_ui_resolves_project_scoped_entrypoint(tmp_path: Path) -> None:
+def test_app_ui_resolves_project_scoped_entrypoint(tmp_path: Path) -> None:
     module = _load_module()
     app = tmp_path / "demo_project"
     ui = app / "src" / "demo" / "ui.py"
@@ -38,7 +38,7 @@ def test_view_app_ui_resolves_project_scoped_entrypoint(tmp_path: Path) -> None:
         module._resolve_active_app(["--active-app", str(tmp_path / "missing_project")])
 
 
-def test_view_app_ui_reads_missing_or_invalid_settings_as_empty(tmp_path: Path) -> None:
+def test_app_ui_reads_missing_or_invalid_settings_as_empty(tmp_path: Path) -> None:
     module = _load_module()
     app = tmp_path / "demo_project"
     settings = app / "src" / "app_settings.toml"
@@ -52,11 +52,12 @@ def test_view_app_ui_reads_missing_or_invalid_settings_as_empty(tmp_path: Path) 
     assert module._read_toml(settings) == {}
     assert module._configured_app_ui(app) == {}
 
-    settings.write_text("[pages]\nview_app_ui = 'bad'\n", encoding="utf-8")
+    settings.write_text("[pages]\napp_ui = 'bad'\n", encoding="utf-8")
     assert module._configured_app_ui(app) == {}
 
 
-def test_view_app_ui_loads_declared_entrypoint_from_settings(tmp_path: Path) -> None:
+
+def test_app_ui_loads_declared_entrypoint_from_settings(tmp_path: Path) -> None:
     module = _load_module()
     app = tmp_path / "demo_project"
     settings = app / "src" / "app_settings.toml"
@@ -65,9 +66,9 @@ def test_view_app_ui_loads_declared_entrypoint_from_settings(tmp_path: Path) -> 
         "\n".join(
             [
                 "[pages]",
-                'view_module = ["view_app_ui"]',
+                'view_module = ["app_ui"]',
                 "",
-                "[pages.view_app_ui]",
+                "[pages.app_ui]",
                 'title = "Demo UI"',
                 'entrypoint = "demo/ui.py"',
                 "",
@@ -79,7 +80,7 @@ def test_view_app_ui_loads_declared_entrypoint_from_settings(tmp_path: Path) -> 
     assert module._configured_app_ui(app) == {"title": "Demo UI", "entrypoint": "demo/ui.py"}
 
 
-def test_view_app_ui_runs_app_main_with_active_app_argument(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_app_ui_runs_app_main_with_active_app_argument(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     module = _load_module()
     app = tmp_path / "demo_project"
     ui = app / "src" / "demo" / "ui.py"
@@ -105,7 +106,7 @@ def test_view_app_ui_runs_app_main_with_active_app_argument(monkeypatch: pytest.
     assert marker.read_text(encoding="utf-8") == f"{ui}|--active-app|{app}"
 
 
-def test_view_app_ui_runs_app_main_with_script_local_imports(
+def test_app_ui_runs_app_main_with_script_local_imports(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -134,7 +135,7 @@ def test_view_app_ui_runs_app_main_with_script_local_imports(
     assert sys.path[:2] == [str((app / "src").resolve()), str(ui.parent.resolve())]
 
 
-def test_view_app_ui_reorders_path_and_rejects_entrypoint_without_main(
+def test_app_ui_reorders_path_and_rejects_entrypoint_without_main(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -153,7 +154,7 @@ def test_view_app_ui_reorders_path_and_rejects_entrypoint_without_main(
     assert sys.path[:3] == [str(app / "src"), str(ui.parent), "existing"]
 
 
-def test_view_app_ui_load_module_reports_missing_spec_and_cleans_failed_import(
+def test_app_ui_load_module_reports_missing_spec_and_cleans_failed_import(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -166,19 +167,19 @@ def test_view_app_ui_load_module_reports_missing_spec_and_cleans_failed_import(
         module._load_module(bad_ui)
 
     monkeypatch.undo()
-    before = {name for name in sys.modules if name.startswith("_agilab_view_app_ui_")}
+    before = {name for name in sys.modules if name.startswith("_agilab_app_ui_")}
     with pytest.raises(RuntimeError, match="boom"):
         module._load_module(bad_ui)
-    after = {name for name in sys.modules if name.startswith("_agilab_view_app_ui_")}
+    after = {name for name in sys.modules if name.startswith("_agilab_app_ui_")}
 
     assert after == before
 
 
-def test_view_app_ui_main_reports_missing_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_app_ui_main_reports_missing_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     module = _load_module()
     app = tmp_path / "demo_project"
     (app / "src").mkdir(parents=True)
-    monkeypatch.setattr(sys, "argv", ["view_app_ui.py", "--active-app", str(app)])
+    monkeypatch.setattr(sys, "argv", ["app_ui.py", "--active-app", str(app)])
 
     fake_st = SimpleNamespace(
         messages=[],
@@ -194,7 +195,7 @@ def test_view_app_ui_main_reports_missing_config(monkeypatch: pytest.MonkeyPatch
     assert ("info", "This project does not declare an app UI entrypoint for ANALYSIS.") in fake_st.messages
 
 
-def test_view_app_ui_main_runs_configured_entrypoint_and_reports_errors(
+def test_app_ui_main_runs_configured_entrypoint_and_reports_errors(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -207,14 +208,14 @@ def test_view_app_ui_main_runs_configured_entrypoint_and_reports_errors(
     settings.write_text(
         "\n".join(
             [
-                "[pages.view_app_ui]",
+                "[pages.app_ui]",
                 'entrypoint = "demo/ui.py"',
                 "",
             ]
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(sys, "argv", ["view_app_ui.py", "--active-app", str(app)])
+    monkeypatch.setattr(sys, "argv", ["app_ui.py", "--active-app", str(app)])
     calls: list[tuple[Path, Path]] = []
     fake_st = SimpleNamespace(
         messages=[],
@@ -240,7 +241,7 @@ def test_view_app_ui_main_runs_configured_entrypoint_and_reports_errors(
     assert ("error", "Failed to render app UI: render boom") in fake_st.messages
 
 
-def test_view_app_ui_safe_page_config_suppresses_streamlit_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_app_ui_safe_page_config_suppresses_streamlit_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load_module()
     fake_st = SimpleNamespace(set_page_config=lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("late config")))
     monkeypatch.setattr(module, "st", fake_st)

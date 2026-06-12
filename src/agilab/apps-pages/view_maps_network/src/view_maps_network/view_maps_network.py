@@ -581,7 +581,7 @@ def _load_cloud_heatmap_points(
     min_weight: float = 0.0,
     max_points: int = _CLOUD_HEATMAP_MAX_POINTS,
 ) -> pd.DataFrame:
-    """Load a link_sim cloud map NPZ and convert sampled grid points to lat/lon."""
+    """Load a cloud map NPZ (heatmap/x_min/z_min/step/center arrays) and convert sampled grid points to lat/lon."""
     path = Path(npz_path).expanduser()
     if not path.exists():
         raise FileNotFoundError(path)

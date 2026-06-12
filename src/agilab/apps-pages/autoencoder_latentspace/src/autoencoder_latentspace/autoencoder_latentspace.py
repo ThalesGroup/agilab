@@ -49,7 +49,8 @@ logger = logging.getLogger(__name__)
 
 var = ["discrete", "continuous", "lat", "long"]
 var_default = [0, None]
-PAGE_KEY = "view_autoencoder_latentspace"
+PAGE_KEY = "autoencoder_latentspace"
+LEGACY_PAGE_KEY = "view_autoencoder_latentspace"
 APP_SCOPE_KEY = f"{PAGE_KEY}_active_app_path"
 APP_SCOPED_SESSION_KEYS = (
     "env",
@@ -514,9 +515,11 @@ def page(env):
         with open(settings_path, "rb") as fh:
             persisted = _toml.load(fh)
     except (OSError, _toml.TOMLDecodeError):
-        logger.debug("Unable to load view_autoencoder_latentspace settings from %s", settings_path, exc_info=True)
+        logger.debug("Unable to load autoencoder_latentspace settings from %s", settings_path, exc_info=True)
         persisted = {}
-    raw_view_settings = persisted.get("view_autoencoder_latentspace", {}) if isinstance(persisted, dict) else {}
+    raw_view_settings = {}
+    if isinstance(persisted, dict):
+        raw_view_settings = persisted.get(PAGE_KEY, persisted.get(LEGACY_PAGE_KEY, {}))
     view_settings = raw_view_settings if isinstance(raw_view_settings, dict) else {}
 
     sidebar_views()
@@ -661,14 +664,15 @@ def page(env):
             view_settings[k] = v
             mutated = True
     if mutated:
-        persisted["view_autoencoder_latentspace"] = view_settings
+        persisted[PAGE_KEY] = view_settings
+        persisted.pop(LEGACY_PAGE_KEY, None)
         try:
             settings_path.parent.mkdir(parents=True, exist_ok=True)
             with open(settings_path, "wb") as fh:
                 _dump_toml_payload(prepare_app_settings_for_write(persisted), fh)
         except Exception:
             logger.warning(
-                "Unable to persist view_autoencoder_latentspace settings to %s",
+                "Unable to persist autoencoder_latentspace settings to %s",
                 settings_path,
                 exc_info=True,
             )

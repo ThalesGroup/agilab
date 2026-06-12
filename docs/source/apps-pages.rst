@@ -14,6 +14,11 @@ Page bundles are standalone dashboards that complement the built-in workflow
 pages. In the UI they appear alongside the main pages, but they run in their
 own sidecar web process.
 
+Naming convention:
+
+- ``view_*`` page bundles are the generic app-agnostic sidecars.
+- ``app_ui`` and ``autoencoder_latentspace`` are visible exceptions with their own names because they are not generic sidecars.
+
 Looking for the PyTorch playground, live play/pause training, or loss landscape?
 Use the built-in ``pytorch_playground_project`` app or launch it directly with
 ``agilab pytorch-playground``. It is a reproducible app project, not a generic
@@ -142,7 +147,7 @@ pulled by the umbrella dependency graph.
      - Package
      - Purpose
      - Packaging status
-   * - ``view_autoencoder_latentspace``
+   * - ``autoencoder_latentspace``
      - ``agi-page-latent-space``
      - Opt-in TensorFlow/Keras latent-space playground that trains a small
        autoencoder in-page.
@@ -169,7 +174,7 @@ pulled by the umbrella dependency graph.
      - ``agi-page-live-artifacts``
      - Dynamic artifact, manifest, evidence, and log monitor for active apps.
      - Included in ``agi-pages``.
-   * - ``view_app_ui``
+   * - ``app_ui``
      - ``agi-page-app-ui``
      - Bridge that displays an app-owned Streamlit UI from ANALYSIS.
      - Included in ``agi-pages``.
@@ -345,13 +350,13 @@ Live evidence monitor for app-agnostic exported artifacts.
 - Use it for long-running local or distributed runs that write incremental
   evidence while the app remains responsible for execution.
 
-view_app_ui
+app_ui
 ^^^^^^^^^^^
 
 Generic bridge for the default app-owned Streamlit UI.
 
 - Input: an active app with ``[app_surface]`` or legacy
-  ``[pages.view_app_ui].entrypoint`` configured in ``app_settings.toml``.
+  ``[pages.app_ui].entrypoint`` configured in ``app_settings.toml``.
 - Output: the app-owned UI rendered inside ANALYSIS while the app keeps
   control of training, execution semantics, and evidence artifacts.
 
@@ -382,7 +387,7 @@ Training evidence page for scalar logs and model-training runs.
   artifacts under an app export directory.
 - Output: run selector, scalar trends, and training metadata for comparison.
 
-view_autoencoder_latentspace
+autoencoder_latentspace
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Opt-in TensorFlow/Keras latent-space playground for Python 3.12 source-checkout

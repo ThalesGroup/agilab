@@ -5,9 +5,14 @@ active app and its exported datasets.
 
 Page projects depend on `agi-gui`, the shared UI package under `src/agilab/lib/agi-gui`.
 
+Naming convention:
+
+- `view_*` page bundles are the generic app-agnostic sidecars.
+- `app_ui` and `autoencoder_latentspace` are visible exceptions with their own names because they are not generic sidecars.
+
 Looking for the PyTorch playground or loss landscape? Use the built-in
 `pytorch_playground_project`. It is a reproducible app project, not a generic
-app-agnostic analysis page. The generic `view_app_ui` bridge lets ANALYSIS
+app-agnostic analysis page. The generic `app_ui` bridge lets ANALYSIS
 display the app-owned playground UI without moving training logic into
 apps-pages.
 
@@ -17,7 +22,7 @@ Every shipped view bundle has a local README, a source-controlled preview, direc
 
 | View | View |
 |---|---|
-| [![view_app_ui preview](../../../docs/source/_static/apps-pages-gallery/view_app_ui.svg)](view_app_ui)<br>**view_app_ui**<br>Launches app-owned interactive Streamlit surfaces from ANALYSIS. | [![view_autoencoder_latentspace preview](../../../docs/source/_static/apps-pages-gallery/view_autoencoder_latentspace.svg)](view_autoencoder_latentspace)<br>**view_autoencoder_latentspace**<br>Opt-in playground exception for TensorFlow/Keras latent projections; it trains a small autoencoder in-page and is not a generic app-agnostic sidecar. |
+| [![app_ui preview](../../../docs/source/_static/apps-pages-gallery/app_ui.svg)](app_ui)<br>**app_ui**<br>Launches app-owned interactive Streamlit surfaces from ANALYSIS. | [![autoencoder_latentspace preview](../../../docs/source/_static/apps-pages-gallery/autoencoder_latentspace.svg)](autoencoder_latentspace)<br>**autoencoder_latentspace**<br>Opt-in playground exception for TensorFlow/Keras latent projections; it trains a small autoencoder in-page and is not a generic app-agnostic sidecar. |
 | [![view_barycentric preview](../../../docs/source/_static/apps-pages-gallery/view_barycentric.svg)](view_barycentric)<br>**view_barycentric**<br>Plots proportion-style KPI features on a barycentric/simplex surface. | [![view_data_io_decision preview](../../../docs/source/_static/apps-pages-gallery/view_data_io_decision.svg)](view_data_io_decision)<br>**view_data_io_decision**<br>Reviews data-ingestion and strategy-selection evidence. |
 | [![view_forecast_analysis preview](../../../docs/source/_static/apps-pages-gallery/view_forecast_analysis.svg)](view_forecast_analysis)<br>**view_forecast_analysis**<br>Reviews forecast metrics and prediction tables for time-series workflows. | [![view_inference_analysis preview](../../../docs/source/_static/apps-pages-gallery/view_inference_analysis.svg)](view_inference_analysis)<br>**view_inference_analysis**<br>Compares allocation and inference-result metrics across exported runs. |
 | [![view_live_artifacts preview](../../../docs/source/_static/apps-pages-gallery/view_live_artifacts.svg)](view_live_artifacts)<br>**view_live_artifacts**<br>Watches exported evidence, manifests, logs, text, CSVs, and images while a run is active. | [![view_maps preview](../../../docs/source/_static/apps-pages-gallery/view_maps.svg)](view_maps)<br>**view_maps**<br>Explores geolocated datasets with map, sampling, palette, and basemap controls. |
@@ -79,9 +84,9 @@ Quick start (dev checkout):
   - uv run streamlit run src/agilab/apps-pages/view_live_artifacts/src/view_live_artifacts/view_live_artifacts.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
   - Generic live monitor for exported evidence, manifests, logs, JSON/CSV/text files, and images. Uses Streamlit fragment refresh to update the artifact panel without executing the app.
 
-- view_app_ui
-  - uv run streamlit run src/agilab/apps-pages/view_app_ui/src/view_app_ui/view_app_ui.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
-  - Generic bridge for app-owned Streamlit UIs declared in `[pages.view_app_ui]`. The page stays app-agnostic; the active app owns the UI entrypoint, controls, execution semantics, and evidence artifacts.
+- app_ui
+  - uv run streamlit run src/agilab/apps-pages/app_ui/src/app_ui/app_ui.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
+  - Generic bridge for app-owned Streamlit UIs declared in `[pages.app_ui]`. The page stays app-agnostic; the active app owns the UI entrypoint, controls, execution semantics, and evidence artifacts.
 
 Notes
 - The `--active-app` points to a `*_project` folder (e.g., `src/agilab/apps/builtin/flight_telemetry_project`).
@@ -92,8 +97,8 @@ Notes
 
 Experimental and opt-in views:
 
-- view_autoencoder_latentspace
-  - uv run streamlit run src/agilab/apps-pages/view_autoencoder_latentspace/src/view_autoencoder_latentspace/view_autoencoder_latentspace.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
+- autoencoder_latentspace
+  - uv run streamlit run src/agilab/apps-pages/autoencoder_latentspace/src/autoencoder_latentspace/main.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
   - Opt-in playground exception for Python 3.12 teaching sessions. It trains a small TensorFlow/Keras autoencoder in-page, so it is intentionally not part of the public `agi-pages` umbrella or the generic app-agnostic sidecar set.
 
 ## Repository Pages (optional)
