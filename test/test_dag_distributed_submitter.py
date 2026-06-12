@@ -460,7 +460,7 @@ def test_stage_subprocess_runner_generates_isolated_agilab_run_script(monkeypatc
     def _fake_run(command, **kwargs):
         captured["command"] = command
         captured["kwargs"] = kwargs
-        kwargs["stdout"].write('{"result": null}\n')
+        kwargs["stdout"].write('{"result": "ok"}\n')
         kwargs["stderr"].write("")
         return subprocess.CompletedProcess(command, 0)
 
@@ -492,9 +492,54 @@ def test_stage_subprocess_runner_generates_isolated_agilab_run_script(monkeypatc
     assert captured["kwargs"]["stderr"] is not subprocess.PIPE
     assert "capture_output" not in captured["kwargs"]
     assert result["returncode"] == 0
-    assert result["stdout_tail"] == '{"result": null}\n'
+    # New contract: a null AGI.run result now fails the stage, so the success
+    # path must print a real result payload.
+    assert result["stdout_tail"] == '{"result": "ok"}\n'
     assert result["stdout_log"].endswith("distributed_stage.stdout.log")
     assert result["stderr_log"].endswith("distributed_stage.stderr.log")
+
+
+@pytest.mark.parametrize(
+    ("stdout_payload", "expected_detail"),
+    (
+        ('{"result": null}\n', "returned no result"),
+        (
+            '{"result": {"status": "error", "message": "scheduler unreachable", "kind": "connection"}}\n',
+            "scheduler unreachable",
+        ),
+    ),
+)
+def test_stage_subprocess_runner_rejects_null_or_error_results(
+    monkeypatch, tmp_path: Path, stdout_payload: str, expected_detail: str
+) -> None:
+    # AGI.run swallows ProcessError/ConnectionError; a zero exit code with a
+    # null/error result must not produce success evidence.
+    def _fake_run(command, **kwargs):
+        kwargs["stdout"].write(stdout_payload)
+        kwargs["stderr"].write("")
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(dag_distributed_submitter.subprocess, "run", _fake_run)
+    config = dag_distributed_submitter.DagDistributedStageConfig(
+        scheduler="192.168.20.111:8786",
+        workers={"192.168.20.111": 1},
+        workers_data_path="clustershare/agi",
+        mode=7,
+    )
+
+    with pytest.raises(RuntimeError, match=expected_detail):
+        dag_distributed_submitter.run_agilab_stage_subprocess(
+            config=config,
+            repo_root=tmp_path,
+            run_root=tmp_path / "run",
+            apps_path=tmp_path / "src/agilab/apps/builtin",
+            app_name="flight_telemetry_project",
+            request_payload={"params": {}, "stages": []},
+            timestamp="2026-05-07T00:00:00Z",
+        )
+
+    script = (tmp_path / "run/run_distributed_stage.py").read_text(encoding="utf-8")
+    assert "sys.exit(1)" in script
 
 
 def test_stage_subprocess_runner_raises_with_trimmed_failure(monkeypatch, tmp_path: Path) -> None:

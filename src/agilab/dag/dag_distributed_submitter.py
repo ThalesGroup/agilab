@@ -296,7 +296,36 @@ def run_agilab_stage_subprocess(
     if completed.returncode:
         detail = stderr_tail.strip() or stdout_tail.strip() or f"exit {completed.returncode}"
         raise RuntimeError(f"Distributed DAG stage `{app_name}` failed: {_tail(detail, max_chars=4000)}")
+    failure_detail = _stage_result_failure(stdout_tail)
+    if failure_detail:
+        # Defense in depth: AGI.run can swallow ProcessError/ConnectionError
+        # and the script may still print a null/error result; never record
+        # success evidence for such a stage.
+        raise RuntimeError(
+            f"Distributed DAG stage `{app_name}` failed: {_tail(failure_detail, max_chars=4000)}"
+        )
     return payload
+
+
+def _stage_result_failure(stdout_tail: str) -> str | None:
+    """Return a failure description when the stage printed a null/error result."""
+    for line in reversed(stdout_tail.strip().splitlines()):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(parsed, Mapping) or "result" not in parsed:
+            continue
+        result = parsed.get("result")
+        if result is None:
+            return "AGI.run returned no result (worker launch or environment failure)"
+        if isinstance(result, Mapping) and result.get("status") == "error":
+            return str(result.get("message") or "AGI.run reported an error result")
+        return None
+    return None
 
 
 def resolve_stage_apps_path(repo_root: Path, app_name: str) -> Path:
@@ -360,6 +389,7 @@ def _stage_run_script(
     return f'''\
 import asyncio
 import json
+import sys
 
 from agi_cluster.agi_distributor import AGI, RunRequest, StageRequest
 from agi_env import AgiEnv
@@ -401,6 +431,11 @@ async def main():
     )
     result = await AGI.run(app_env, request=request)
     print(json.dumps({{"result": result}}, default=str))
+    # AGI.run swallows ProcessError/ModuleNotFoundError (returns None) and
+    # ConnectionError (returns a status=error payload); exit nonzero so the
+    # submitter does not record success evidence for a failed stage.
+    if result is None or (isinstance(result, dict) and result.get("status") == "error"):
+        sys.exit(1)
 
 
 if __name__ == "__main__":
