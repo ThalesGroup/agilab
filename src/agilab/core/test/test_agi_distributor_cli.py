@@ -213,7 +213,7 @@ def test_kill_pids_handles_process_lookup(monkeypatch):
 @pytest.mark.skipif(not hasattr(signal, "SIGKILL"), reason="SIGKILL is not available on this platform")
 def test_kill_invokes_sigkill_after_grace(monkeypatch):
     calls = []
-    monkeypatch.setattr(cli_mod, "get_processes_containing", lambda _name: {10, 11})
+    monkeypatch.setattr(cli_mod, "get_processes_matching", lambda _match: {10, 11})
     monkeypatch.setattr(cli_mod, "_poll_until_dead", lambda pids: set(pids))
     monkeypatch.setattr(cli_mod.Path, "glob", lambda self, _pattern: [])
     monkeypatch.setattr(cli_mod.os, "getpid", lambda: 999)
@@ -232,7 +232,7 @@ def test_kill_handles_pid_files_and_children(monkeypatch, tmp_path):
     pid_file = tmp_path / "demo.pid"
     pid_file.write_text("321", encoding="utf-8")
 
-    monkeypatch.setattr(cli_mod, "get_processes_containing", lambda _name: set())
+    monkeypatch.setattr(cli_mod, "get_processes_matching", lambda _match: set())
     monkeypatch.setattr(cli_mod.Path, "glob", lambda self, _pattern: [pid_file])
     monkeypatch.setattr(cli_mod.os, "getpid", lambda: 999)
     monkeypatch.setattr(cli_mod, "get_child_pids", lambda pids: {654} if pids == {321} else set())
@@ -258,7 +258,7 @@ def test_kill_handles_pid_files_children_and_exclusions(monkeypatch, tmp_path):
     (tmp_path / "broken.pid").write_text("bad\n", encoding="utf-8")
 
     kill_calls = []
-    monkeypatch.setattr(cli_mod, "get_processes_containing", lambda _name: set())
+    monkeypatch.setattr(cli_mod, "get_processes_matching", lambda _match: set())
     monkeypatch.setattr(cli_mod.os, "getpid", lambda: 999)
     monkeypatch.setattr(cli_mod, "get_child_pids", lambda pids: {222} if 111 in pids else set())
     monkeypatch.setattr(cli_mod, "kill_pids", lambda pids, sig: kill_calls.append((set(pids), sig)) or set())
@@ -274,7 +274,7 @@ def test_kill_handles_pid_files_children_and_exclusions(monkeypatch, tmp_path):
 
 
 def test_kill_logs_no_dask_when_no_processes_or_pid_files(monkeypatch, caplog):
-    monkeypatch.setattr(cli_mod, "get_processes_containing", lambda _name: set())
+    monkeypatch.setattr(cli_mod, "get_processes_matching", lambda _match: set())
     monkeypatch.setattr(cli_mod.Path, "glob", lambda self, _pattern: [])
     monkeypatch.setattr(cli_mod.os, "getpid", lambda: 999)
 
@@ -289,7 +289,7 @@ def test_kill_warns_on_pid_file_cleanup_failure_and_sigkills_survivors(monkeypat
     pid_file = tmp_path / "demo.pid"
     pid_file.write_text("321", encoding="utf-8")
 
-    monkeypatch.setattr(cli_mod, "get_processes_containing", lambda _name: set())
+    monkeypatch.setattr(cli_mod, "get_processes_matching", lambda _match: set())
     monkeypatch.setattr(cli_mod.Path, "glob", lambda self, _pattern: [pid_file])
     monkeypatch.setattr(cli_mod.os, "getpid", lambda: 999)
     monkeypatch.setattr(cli_mod, "get_child_pids", lambda pids: set())
@@ -389,7 +389,8 @@ def test_clean_handles_oserror(monkeypatch):
         "rmtree",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("fail-clean")),
     )
-    cli_mod.clean("/tmp/whatever")
+    # New contract: clean reports failure to its caller.
+    assert cli_mod.clean("/tmp/whatever") is False
 
 
 def test_clean_propagates_unexpected_runtime_bug(monkeypatch):
@@ -430,7 +431,9 @@ def test_unzip_handles_bad_zip(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(cli_mod.logger, "error", lambda message: errors.append(message))
 
-    cli_mod.unzip(str(wenv))
+    # New contract: unzip reports failure to its caller so the CLI can exit
+    # nonzero instead of hiding extraction errors from the remote manager.
+    assert cli_mod.unzip(str(wenv)) is False
 
     assert errors == ["Error during unzip: boom-unzip"]
 
@@ -473,7 +476,7 @@ def test_unzip_extracts_egg_contents(tmp_path):
     with zipfile.ZipFile(egg_path, "w") as zf:
         zf.writestr("demo_pkg/data.txt", "hello")
 
-    cli_mod.unzip(str(root))
+    assert cli_mod.unzip(str(root)) is True
     extracted = root / "src" / "demo_pkg" / "data.txt"
     assert extracted.exists()
     assert extracted.read_text(encoding="utf-8") == "hello"
@@ -625,6 +628,53 @@ def test_cli_main_unzip_runs_with_arg(monkeypatch, tmp_path):
 
 def test_cli_main_threaded_runs(monkeypatch):
     _run_cli_as_main(monkeypatch, ["threaded"])
+
+
+def test_cli_main_unzip_failure_exits_nonzero(monkeypatch, tmp_path):
+    # Regression: a corrupt egg must make `cli.py unzip` exit nonzero so the
+    # manager's check=True SSH invocation surfaces the failed deploy step.
+    root = tmp_path / "worker"
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "demo.egg").write_bytes(b"not-a-zip")
+
+    with pytest.raises(SystemExit) as excinfo:
+        _run_cli_as_main(monkeypatch, ["unzip", str(root)])
+
+    assert excinfo.value.code == 1
+
+
+def test_is_dask_command_only_matches_dask_entrypoints():
+    # Regression: kill() must not match arbitrary same-user processes whose
+    # command line merely contains the substring "dask".
+    assert cli_mod._is_dask_command("/usr/bin/python /venv/bin/dask-scheduler")
+    assert cli_mod._is_dask_command("python -m distributed.cli.dask_worker tcp://1.2.3.4:8786")
+    assert cli_mod._is_dask_command("dask worker tcp://1.2.3.4:8786")
+    assert not cli_mod._is_dask_command("vim /home/user/notes/dask_tuning.md")
+    assert not cli_mod._is_dask_command("python my_daskboard.py")
+
+
+def test_kill_does_not_target_unrelated_dask_named_processes(monkeypatch):
+    output = "\n".join(
+        [
+            "101 python /venv/bin/dask-scheduler",
+            "202 vim /home/user/notes/dask_tuning.md",
+            "303 python -m distributed.cli.dask_worker tcp://1.2.3.4:8786",
+        ]
+    )
+    monkeypatch.setattr(cli_mod.os, "name", "posix", raising=False)
+    monkeypatch.setattr(cli_mod.subprocess, "check_output", lambda *args, **kwargs: output)
+    monkeypatch.setattr(cli_mod.Path, "glob", lambda self, _pattern: [])
+    monkeypatch.setattr(cli_mod.os, "getpid", lambda: 999)
+    monkeypatch.setattr(cli_mod, "_poll_until_dead", lambda pids: set())
+
+    killed: list[set] = []
+    monkeypatch.setattr(
+        cli_mod, "kill_pids", lambda pids, sig: killed.append(set(pids)) or set()
+    )
+
+    cli_mod.kill(exclude_pids=set())
+
+    assert killed and killed[0] == {101, 303}
 
 
 def test_cli_main_kill_warns_for_invalid_excluded_pid(monkeypatch, caplog):

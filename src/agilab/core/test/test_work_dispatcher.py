@@ -287,7 +287,9 @@ async def test_do_distrib_rebuilds_stale_cache_serializes_dates_and_skips_empty_
     assert DemoWorker.build_calls == 1
     assert loaded_workers == {"127.0.0.1": 1}
     assert work_plan == [["chunk-a"]]
-    assert metadata[0]["day"] == datetime.date(2026, 4, 13)
+    # New contract: the rebuild path returns the same JSON-normalized payload
+    # as a cache hit, so dates come back as isoformat strings on both paths.
+    assert metadata[0]["day"] == "2026-04-13"
 
     data = json.loads(plan_path.read_text(encoding="utf-8"))
     assert data["workers"] == workers
@@ -295,6 +297,86 @@ async def test_do_distrib_rebuilds_stale_cache_serializes_dates_and_skips_empty_
     assert data["work_plan"] == [["chunk-a"], []]
     assert data["work_plan_metadata"][0]["day"] == "2026-04-13"
     assert data["work_plan_metadata"][0]["ts"].startswith("2026-04-13T09:30:00")
+
+
+@pytest.mark.asyncio
+async def test_do_distrib_cache_miss_and_hit_return_identical_payloads(tmp_path, monkeypatch):
+    # Regression: the rebuild path used to return the raw build_distribution
+    # output (callables, tuples) while a cache hit returned the JSON-degraded
+    # plan, so the same run dispatched different payloads on re-invocation.
+    plan_path = tmp_path / "plan.json"
+    env = SimpleNamespace(
+        target="DemoWorker",
+        target_class="DemoWorker",
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir(exist_ok=True)
+
+    workers = {"127.0.0.1": 1}
+    args = {"alpha": 1}
+
+    def my_step():
+        return None
+
+    class DemoWorker:
+        def __init__(self, env, **kwargs):
+            pass
+
+        def build_distribution(self, assigned_workers):
+            return [[("part-a", 2), my_step]], [[("part-a", 2)]], "partition", 1, 1.0
+
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(DemoWorker=DemoWorker)),
+    )
+
+    miss_result = await WorkDispatcher._do_distrib(env, workers, args)
+    hit_result = await WorkDispatcher._do_distrib(env, workers, args)
+
+    assert miss_result == hit_result
+    assert miss_result[1] == [[["part-a", 2], "my_step"]]
+
+
+@pytest.mark.asyncio
+async def test_do_distrib_filters_plan_and_metadata_in_lockstep(tmp_path, monkeypatch):
+    # Regression: empty chunks were filtered out of the plan but not the
+    # metadata, breaking the per-worker index alignment between the two.
+    plan_path = tmp_path / "plan.json"
+    env = SimpleNamespace(
+        target="DemoWorker",
+        target_class="DemoWorker",
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir(exist_ok=True)
+
+    workers = {"127.0.0.1": 3}
+
+    class DemoWorker:
+        def __init__(self, env, **kwargs):
+            pass
+
+        def build_distribution(self, assigned_workers):
+            return (
+                [[], ["w1"], ["w2"]],
+                [[], ["m1"], ["m2"]],
+                "partition",
+                2,
+                1.0,
+            )
+
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(DemoWorker=DemoWorker)),
+    )
+
+    _loaded, work_plan, metadata = await WorkDispatcher._do_distrib(env, workers, {"alpha": 1})
+
+    assert work_plan == [["w1"], ["w2"]]
+    assert metadata == [["m1"], ["m2"]]
 
 
 @pytest.mark.asyncio
@@ -422,8 +504,25 @@ def test_make_chunks_rejects_invalid_work_item_weights():
 
 
 def test_make_chunks_single_weight_returns_nested_shape():
+    # New contract: the single-weight branch returns the same per-worker shape
+    # as the multi-weight branches (one chunk holding (label, size) tuples),
+    # so consumers can always do `for label, size in chunk`.
     chunks = WorkDispatcher.make_chunks(1, [("single", 1)], workers={"127.0.0.1": 1})
-    assert chunks == [[[("single", 1)]]]
+    assert chunks == [[("single", 1)]]
+
+
+def test_make_chunks_optimal_respects_non_unit_capacities():
+    # Regression: the prune bound used to divide the already capacity-
+    # normalized working sizes by the capacities a second time, pruning
+    # branches that could still improve the assignment.
+    chunks = WorkDispatcher._make_chunks_optimal(
+        [("a", 8), ("b", 8), ("c", 1), ("d", 1)], [2, 2]
+    )
+
+    normalized_loads = sorted(
+        sum(weight for _name, weight in chunk) / 2 for chunk in chunks
+    )
+    assert normalized_loads == [4.5, 4.5]
 
 
 def test_make_chunks_optimal_and_fastest_real_paths():

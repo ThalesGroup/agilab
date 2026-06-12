@@ -583,7 +583,18 @@ def test_service_loop_async_worker_uses_event_loop_fallback(monkeypatch):
             self.closed = True
 
     fake_loop = FakeLoop()
-    monkeypatch.setattr(base_worker_mod.asyncio, "run", lambda _awaitable: (_ for _ in ()).throw(RuntimeError("running loop")))
+    # New contract: the fallback loop is selected by probing for a running
+    # event loop *before* consuming the awaitable (asyncio.run is never called
+    # in that case), so a RuntimeError raised inside the worker's coroutine is
+    # no longer mistaken for "cannot be called from a running event loop".
+    monkeypatch.setattr(
+        base_worker_mod.asyncio, "get_running_loop", lambda: fake_loop
+    )
+    monkeypatch.setattr(
+        base_worker_mod.asyncio,
+        "run",
+        lambda _awaitable: pytest.fail("asyncio.run must not be used while a loop is running"),
+    )
     monkeypatch.setattr(base_worker_mod.asyncio, "new_event_loop", lambda: fake_loop)
 
     payload = BaseWorker.loop(poll_interval=0.0)
@@ -591,3 +602,23 @@ def test_service_loop_async_worker_uses_event_loop_fallback(monkeypatch):
     assert payload["status"] == "stopped"
     assert fake_loop.awaited
     assert fake_loop.closed is True
+
+
+def test_service_loop_async_worker_runtime_error_propagates(monkeypatch):
+    # Regression: a RuntimeError raised inside the worker's own async loop
+    # used to be re-awaited on a new event loop, which masked the original
+    # error with "cannot reuse already awaited coroutine".
+    class FailingAsyncWorker(BaseWorker):
+        async def _loop_impl(self):
+            raise RuntimeError("model not loaded")
+
+        def loop(self):
+            return self._loop_impl()
+
+    worker = FailingAsyncWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "tcp://127.0.0.1:8787"
+    BaseWorker._insts = {0: worker}
+
+    with pytest.raises(RuntimeError, match="model not loaded"):
+        BaseWorker.loop(poll_interval=0.0)

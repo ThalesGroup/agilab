@@ -739,6 +739,112 @@ def test_baseworker_get_worker_info_creates_temp_share_dir(monkeypatch, tmp_path
     assert info["network_speed"][0] > 0
 
 
+def test_collect_worker_info_handles_missing_cpu_frequency(monkeypatch, tmp_path):
+    # Regression: psutil.cpu_freq() returns None on platforms exposing no
+    # frequency info; calibration must degrade gracefully instead of raising.
+    monkeypatch.setattr(
+        base_worker_mod.psutil,
+        "virtual_memory",
+        lambda: SimpleNamespace(total=8_000_000_000, available=4_000_000_000),
+    )
+    monkeypatch.setattr(base_worker_mod.psutil, "cpu_count", lambda: 4)
+    monkeypatch.setattr(base_worker_mod.psutil, "cpu_freq", lambda: None)
+
+    BaseWorker._share_path = str(tmp_path)
+    BaseWorker._worker = "127.0.0.1:8787"
+    try:
+        info = BaseWorker._get_worker_info(0)
+    finally:
+        BaseWorker._share_path = None
+
+    assert info["cpu_frequency"] == [0.0]
+    assert info["network_speed"][0] > 0
+
+
+def test_measure_worker_write_speed_clamps_zero_elapsed(tmp_path):
+    # Regression: a write finishing within one clock tick must not raise
+    # ZeroDivisionError; the elapsed time is clamped to a minimum.
+    write_speed = execution_support._measure_worker_write_speed(
+        path=str(tmp_path),
+        worker="worker",
+        time_module=SimpleNamespace(
+            perf_counter=lambda: 1.0,
+            time=lambda: pytest.fail("perf_counter must be preferred"),
+            sleep=lambda _delay: None,
+        ),
+        os_module=os,
+        size=4,
+    )
+
+    assert write_speed[0] > 0
+
+
+def test_collapse_plan_for_single_worker_merges_all_partitions():
+    # Regression: the local (non-Dask) path runs a single in-process worker;
+    # plan partitions beyond index 0 used to be silently dropped.
+    plan = [["w0-a", "w0-b"], ["w1-a"], ["w2-a"]]
+    metadata = [[("p0", 1), ("p1", 1)], [("p2", 1)], [("p3", 1)]]
+
+    merged_plan, merged_metadata = execution_support._collapse_plan_for_single_worker(
+        plan, metadata
+    )
+
+    assert merged_plan == [["w0-a", "w0-b", "w1-a", "w2-a"]]
+    assert merged_metadata == [[("p0", 1), ("p1", 1), ("p2", 1), ("p3", 1)]]
+
+
+def test_collapse_plan_for_single_worker_passes_through_non_list_shapes():
+    plan = {"plan": 1}
+    metadata = {"meta": 2}
+    assert execution_support._collapse_plan_for_single_worker(plan, metadata) == (
+        plan,
+        metadata,
+    )
+
+    single = ([["only"]], [["meta"]])
+    assert execution_support._collapse_plan_for_single_worker(*single) == single
+
+
+def test_run_worker_executes_every_partition_locally(monkeypatch, tmp_path):
+    env = SimpleNamespace(
+        wenv_abs=tmp_path / "demo_worker",
+        _run_time=None,
+        mode2str=lambda mode: f"mode-{mode}",
+    )
+    executed: list[tuple[object, object]] = []
+
+    class FakeDispatcher:
+        @staticmethod
+        async def _do_distrib(_env, workers, _args):
+            return workers, [["a"], ["b"], ["c"], ["d"]], [["ma"], ["mb"], ["mc"], ["md"]]
+
+    monkeypatch.setattr(
+        execution_support.worker_tracking_support,
+        "prepare_worker_tracking_environment",
+        lambda _env, **_kwargs: None,
+    )
+
+    result = asyncio.run(
+        execution_support.run_worker(
+            env=env,
+            workers={"127.0.0.1": 4},
+            mode=0,
+            args=None,
+            do_works_fn=lambda plan, meta: executed.append((plan, meta)),
+            dispatcher_loader=lambda: FakeDispatcher,
+            sys_path=[],
+            logger_obj=SimpleNamespace(info=lambda *a, **k: None, error=lambda *a, **k: None),
+            traceback_module=SimpleNamespace(format_exc=lambda: ""),
+            time_module=SimpleNamespace(time=iter([0.0, 1.0]).__next__),
+            humanize_module=SimpleNamespace(precisedelta=lambda _delta: "1 second"),
+            datetime_module=SimpleNamespace(timedelta=lambda seconds: seconds),
+        )
+    )
+
+    assert executed == [([["a", "b", "c", "d"]], [["ma", "mb", "mc", "md"]])]
+    assert result.startswith("mode-0 ")
+
+
 def test_resolve_worker_info_path_uses_tempdir_and_creates_missing_dir(tmp_path):
     created_dirs: list[tuple[str, bool]] = []
     logged: list[str] = []
@@ -863,10 +969,19 @@ def test_baseworker_build_verbose_non_managed_path_updates_sys_path(monkeypatch,
         "copyfile",
         lambda src, dst: copied.append((src, dst)),
     )
+    monkeypatch.setattr(
+        base_worker_mod.os,
+        "makedirs",
+        lambda *_args, **_kwargs: None,
+    )
 
     dask_home = tmp_path / "dask-home"
     dask_home.mkdir()
     (dask_home / "entry.txt").write_text("x", encoding="utf-8")
+    # New contract: the egg source is resolved from real *.egg files in
+    # dask_home (preferring ones matching the target worker), not from the
+    # historical "some_egg_file" placeholder.
+    (dask_home / "demo_worker-1.0.egg").write_bytes(b"egg")
 
     original_sys_path = list(sys.path)
     try:
@@ -875,10 +990,10 @@ def test_baseworker_build_verbose_non_managed_path_updates_sys_path(monkeypatch,
         sys.path[:] = original_sys_path
 
     assert BaseWorker._home_dir == Path("~/").expanduser().absolute()
-    assert copied and copied[0][0].endswith("/some_egg_file")
+    assert copied and copied[0][0] == str(dask_home / "demo_worker-1.0.egg")
     assert any("home_dir:" in message for message in logged)
     assert any("entry.txt" in message for message in logged)
-    assert copied[0][1] == Path("~/").expanduser().absolute() / "wenv" / "demo_worker" / "some_egg_file.egg"
+    assert copied[0][1] == Path("~/").expanduser().absolute() / "wenv" / "demo_worker" / "demo_worker-1.0.egg"
 
 
 def test_log_build_worker_context_only_logs_for_verbose_builds(tmp_path):
@@ -944,15 +1059,48 @@ def test_configure_build_worker_state_updates_base_worker_class_attrs():
     assert BaseWorker._worker == "local-worker"
 
 
-def test_resolve_worker_egg_install_paths_uses_home_wenv_target():
+def test_resolve_worker_egg_install_paths_uses_home_wenv_target(tmp_path):
+    # New contract: the egg source is discovered from real *.egg files in
+    # dask_home, preferring eggs matching the target worker name.
+    dask_home = tmp_path / "dask-home"
+    dask_home.mkdir()
+    (dask_home / "other-1.0.egg").write_bytes(b"egg")
+    (dask_home / "demo_worker-1.0.egg").write_bytes(b"egg")
+
     egg_src, extract_path = execution_support._resolve_worker_egg_install_paths(
         home_dir=Path("/tmp/home"),
         target_worker="demo_worker",
-        dask_home="/tmp/dask-home",
+        dask_home=str(dask_home),
     )
 
-    assert egg_src == "/tmp/dask-home/some_egg_file"
+    assert egg_src == str(dask_home / "demo_worker-1.0.egg")
     assert extract_path == Path("/tmp/home") / "wenv" / "demo_worker"
+
+
+def test_resolve_worker_egg_install_paths_falls_back_to_any_egg(tmp_path):
+    dask_home = tmp_path / "dask-home"
+    dask_home.mkdir()
+    (dask_home / "other-1.0.egg").write_bytes(b"egg")
+
+    egg_src, _extract_path = execution_support._resolve_worker_egg_install_paths(
+        home_dir=Path("/tmp/home"),
+        target_worker="demo_worker",
+        dask_home=str(dask_home),
+    )
+
+    assert egg_src == str(dask_home / "other-1.0.egg")
+
+
+def test_resolve_worker_egg_install_paths_raises_without_eggs(tmp_path):
+    dask_home = tmp_path / "dask-home"
+    dask_home.mkdir()
+
+    with pytest.raises(FileNotFoundError, match="no egg file found"):
+        execution_support._resolve_worker_egg_install_paths(
+            home_dir=Path("/tmp/home"),
+            target_worker="demo_worker",
+            dask_home=str(dask_home),
+        )
 
 
 def test_install_worker_egg_deduplicates_sys_path_and_returns_destination(tmp_path):

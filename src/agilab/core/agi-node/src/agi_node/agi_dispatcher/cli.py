@@ -73,9 +73,11 @@ def clean(wenv=None):
             logger.info(f"Removed {wenv}")
     except _CLEAN_EXCEPTIONS as e:
         logger.error(f"Error during cleanup: {e}")
+        return False
+    return True
 
-def get_processes_containing(substring: str):
-    substring = substring.lower()
+def get_processes_matching(match_fn):
+    """Return PIDs whose command line (Unix) or image name (Windows) matches."""
     pids = set()
     if os.name != "nt":
         try:
@@ -88,7 +90,7 @@ def get_processes_containing(substring: str):
             for line in output.splitlines():
                 try:
                     pid_str, cmd = line.strip().split(None, 1)
-                    if substring in cmd.lower():
+                    if match_fn(cmd):
                         pids.add(int(pid_str))
                 except ValueError:
                     continue
@@ -104,7 +106,7 @@ def get_processes_containing(substring: str):
                 parts = [p.strip('"') for p in line.split('","')]
                 if len(parts) >= 2:
                     name, pid_str = parts[0], parts[1]
-                    if substring in name.lower():
+                    if match_fn(name):
                         try:
                             pids.add(int(pid_str))
                         except ValueError:
@@ -112,6 +114,32 @@ def get_processes_containing(substring: str):
         except _PROCESS_LIST_EXCEPTIONS as e:
             logger.warning(f"Windows tasklist failed: {e}")
     return pids
+
+
+def get_processes_containing(substring: str):
+    substring = substring.lower()
+    return get_processes_matching(lambda cmd: substring in cmd.lower())
+
+
+# Only match actual dask scheduler/worker entrypoints, never arbitrary
+# processes whose command line merely contains the substring "dask"
+# (e.g. an editor opened on dask_tuning.md or an unrelated project).
+_DASK_CMD_MARKERS = (
+    "dask-scheduler",
+    "dask-worker",
+    "dask scheduler",
+    "dask worker",
+    "dask_scheduler",
+    "dask_worker",
+    "distributed.cli",
+    "distributed.nanny",
+    "distributed.worker",
+)
+
+
+def _is_dask_command(cmd: str) -> bool:
+    cmd = cmd.lower()
+    return any(marker in cmd for marker in _DASK_CMD_MARKERS)
 
 def get_child_pids(parent_pids):
     children = set()
@@ -181,8 +209,8 @@ def kill(exclude_pids=None):
     current_pid = os.getpid()
     exclude_pids.add(current_pid)
 
-    # 1) Match by name
-    dask_pids = get_processes_containing("dask")
+    # 1) Match dask scheduler/worker entrypoints by command line
+    dask_pids = get_processes_matching(_is_dask_command)
     dask_pids -= exclude_pids
 
     sent = kill_pids(dask_pids, signal.SIGTERM)
@@ -238,7 +266,12 @@ def unzip(wenv=None):
                 zf.extractall(root_src)
         logger.info(f"Unzipped: {eggs}")
     except _UNZIP_EXCEPTIONS as e:
+        # Report failure to the caller: the manager invokes this command over
+        # SSH with check=True and must see a nonzero exit code instead of a
+        # silently truncated/partial extraction.
         logger.error(f"Error during unzip: {e}")
+        return False
+    return True
 
 # ---------------- fast threaded test ----------------
 def _busy_work(iters: int) -> int:
@@ -411,13 +444,15 @@ if __name__ == "__main__":
         if not arg:
             print("Missing argument for 'clean'\n" + USAGE)
             sys.exit(1)
-        clean(wenv=arg)
+        if not clean(wenv=arg):
+            sys.exit(1)
 
     elif cmd == "unzip":
         if not arg:
             print("Missing argument for 'unzip'\n" + USAGE)
             sys.exit(1)
-        unzip(wenv=arg)
+        if not unzip(wenv=arg):
+            sys.exit(1)
 
     elif cmd == "threaded":
         test_python_threads()

@@ -286,13 +286,15 @@ def test_exec_mono_process_delegates_to_multi(monkeypatch):
     assert w._exec_mono_process([[]], [[]]) == 123.0
 
 
-def test_exec_multi_process_future_exception_is_captured(caplog):
+def test_exec_multi_process_future_exception_is_logged_and_raised(caplog):
+    # Stage failures must be logged per partition and then propagated so the
+    # manager does not report a silent success.
     w = _cfg(InvokeDagWorker(), 0, 0, 0)
     workers_tree = [[(make_fn("boom"), [])]]
     workers_tree_info = [[("P0", 1)]]
 
     with caplog.at_level("ERROR"):
-        elapsed = w._exec_multi_process(workers_tree, workers_tree_info)
+        with pytest.raises(RuntimeError, match="boom"):
+            w._exec_multi_process(workers_tree, workers_tree_info)
 
-    assert elapsed == 0.0
     assert any("generated an exception" in record.message for record in caplog.records)

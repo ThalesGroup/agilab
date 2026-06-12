@@ -81,6 +81,32 @@ def add_cython_dist_paths(
     )
 
 
+def _collapse_plan_for_single_worker(
+    workers_plan: Any,
+    workers_plan_metadata: Any,
+) -> tuple[Any, Any]:
+    """Merge per-worker plan partitions into a single partition.
+
+    ``run_worker`` executes the plan with exactly one in-process worker (the
+    local/non-Dask path), while ``_do_distrib`` partitions the plan across
+    every requested worker slot.  Without merging, only partition 0 would run
+    and every other partition would be silently dropped.
+    """
+    if not isinstance(workers_plan, list) or len(workers_plan) <= 1:
+        return workers_plan, workers_plan_metadata
+    if not all(isinstance(part, list) for part in workers_plan):
+        return workers_plan, workers_plan_metadata
+
+    merged_plan = [item for part in workers_plan for item in part]
+    if isinstance(workers_plan_metadata, list) and all(
+        isinstance(part, list) for part in workers_plan_metadata
+    ):
+        merged_metadata = [item for part in workers_plan_metadata for item in part]
+    else:
+        merged_metadata = workers_plan_metadata
+    return [merged_plan], [merged_metadata]
+
+
 async def run_worker(
     *,
     env: Any,
@@ -116,6 +142,11 @@ async def run_worker(
 
     if mode == 48:
         return workers_plan
+
+    workers_plan, workers_plan_metadata = _collapse_plan_for_single_worker(
+        workers_plan,
+        workers_plan_metadata,
+    )
 
     worker_tracking_support.prepare_worker_tracking_environment(
         env,
@@ -391,11 +422,16 @@ def _measure_worker_write_speed(
     settle_seconds: float = 0.0,
 ) -> list[float]:
     file_path = os_module.path.join(path, str(worker).replace(":", "_"))
-    start = time_module.time()
+    # Prefer a monotonic high-resolution clock; clamp the denominator so a
+    # write completing within one clock tick (coarse time.time() resolution on
+    # some platforms) records a large-but-finite throughput instead of
+    # raising ZeroDivisionError during calibration.
+    clock = getattr(time_module, "perf_counter", time_module.time)
+    start = clock()
     with open_fn(file_path, "w") as stream:
         stream.write("\x00" * size)
 
-    elapsed = time_module.time() - start
+    elapsed = max(clock() - start, 1e-6)
     if settle_seconds > 0:
         time_module.sleep(settle_seconds)
     os_module.remove(file_path)
@@ -418,7 +454,11 @@ def collect_worker_info(
     ram_total = [ram.total / 10 ** 9]
     ram_available = [ram.available / 10 ** 9]
     cpu_count = [psutil_module.cpu_count()]
-    cpu_frequency = [psutil_module.cpu_freq().current / 10 ** 3]
+    # psutil.cpu_freq() returns None on platforms exposing no frequency info
+    # (virtualized guests/containers without /sys cpufreq, some ARM hosts);
+    # degrade gracefully instead of failing cluster calibration.
+    freq = psutil_module.cpu_freq()
+    cpu_frequency = [freq.current / 10 ** 3 if freq and freq.current else 0.0]
 
     path = _resolve_worker_info_path(
         share_path=share_path,
@@ -506,7 +546,15 @@ def _resolve_worker_egg_install_paths(
     dask_home: str,
     path_cls: type[Path] = Path,
 ) -> tuple[str, Path]:
-    egg_src = dask_home + "/some_egg_file"
+    dask_home_path = path_cls(dask_home)
+    eggs = sorted(dask_home_path.glob(f"*{target_worker}*.egg")) or sorted(
+        dask_home_path.glob("*.egg")
+    )
+    if not eggs:
+        raise FileNotFoundError(
+            f"no egg file found in {dask_home} for target {target_worker}"
+        )
+    egg_src = str(eggs[0])
     extract_path = path_cls(home_dir) / "wenv" / target_worker
     return egg_src, extract_path
 
@@ -520,10 +568,12 @@ def _install_worker_egg(
     os_module: Any = os,
     shutil_module: Any = shutil,
 ) -> Path:
-    egg_name = f"{str(os_module.path.basename(egg_src))}.egg"
+    egg_basename = str(os_module.path.basename(egg_src))
+    egg_name = egg_basename if egg_basename.endswith(".egg") else f"{egg_basename}.egg"
     egg_dest = extract_path / egg_name
 
     logger_obj.info("copy: %s to %s", egg_src, egg_dest)
+    os_module.makedirs(str(extract_path), exist_ok=True)
     shutil_module.copyfile(egg_src, egg_dest)
 
     egg_dest_str = str(egg_dest)

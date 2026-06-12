@@ -208,35 +208,48 @@ class DagWorker(BaseWorker):
         results = {}
         futures = {}
 
+        def _run_stage(fn):
+            # Wait for deps inside the pool thread so independent branches keep
+            # running concurrently instead of serializing on topo order.
+            pipeline_result = {}
+            for dep in dependency_graph.get(fn, []):
+                if dep in futures:
+                    pipeline_result[dep] = futures[dep][0].result()
+            return self.get_work(fn, fargs.get(fn, ()), pipeline_result)
+
         max_workers = min(max(2, os.cpu_count() or 2), len(topo))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             for fn in topo:
-                # wait for deps & collect their outputs
-                pipeline_result = {}
-                for dep in dependency_graph.get(fn, []):
-                    if dep in futures:
-                        dep_val = futures[dep][0].result()
-                        results[dep] = dep_val
-                        pipeline_result[dep] = dep_val
+                if fn not in function_info:
+                    # Dependency owned by another partition/worker: it is not
+                    # assigned here, so treat it as satisfied elsewhere instead
+                    # of re-executing it locally with empty args.
+                    logging.info(
+                        f"Skipping cross-partition dependency {fn} (not assigned to worker {worker_id})"
+                    )
+                    continue
 
                 # forward (fn_name, args, pipeline_result) to get_work
-                future = executor.submit(
-                    self.get_work,
-                    fn,
-                    fargs.get(fn, ()),
-                    pipeline_result,
-                )
+                future = executor.submit(_run_stage, fn)
                 futures[fn] = (future, function_info[fn]["partition_name"])
 
-        # finalize (log exceptions)
+        # finalize (log every outcome, then propagate the first failure)
+        first_failure = None
         for fn, (future, pname) in futures.items():
             try:
                 results[fn] = future.result()
                 logging.info(f"Method {fn} for partition {pname} completed.")
             # Worker code boundary: DAG partitions execute app methods; log each
-            # failed partition and continue collecting sibling partition results.
+            # failed partition while still collecting sibling partition results.
             except _DAG_PARTITION_BOUNDARY_EXCEPTIONS as exc:
                 logging.error(f"Method {fn} for partition {pname} generated an exception: {exc}")
+                if first_failure is None:
+                    first_failure = exc
+
+        if first_failure is not None:
+            # Re-raise so works() propagates stage failures to the manager
+            # instead of silently reporting success.
+            raise first_failure
 
         # ._exec_multi_process doesn't need to return anything specific
         return 0.0

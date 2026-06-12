@@ -60,6 +60,20 @@ _WORKER_HOOK_BOUNDARY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
 _WORKER_SERVICE_BOUNDARY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
 
 
+def _safe_getuser() -> str:
+    """Return the current username, or "" when no user mapping exists.
+
+    getpass.getuser() raises KeyError (<=3.12) / OSError (3.13+) when none of
+    LOGNAME/USER/LNAME/USERNAME are set and the uid has no passwd entry (e.g.
+    containers running with an arbitrary uid); importing this module must not
+    fail in that situation.
+    """
+    try:
+        return getpass.getuser()
+    except (KeyError, OSError):
+        return ""
+
+
 class BaseWorker(ArtifactContract, abc.ABC):
     """
     class BaseWorker v1.0
@@ -80,7 +94,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
     _dask_home = None
     _worker = None
     _t0 = None
-    _is_managed_pc = getpass.getuser().startswith("T0")
+    _is_managed_pc = _safe_getuser().startswith("T0")
     _cython_decorators = ["njit"]
     env: Optional[AgiEnv] = None
     default_settings_path: ClassVar[str] = "app_settings.toml"
@@ -550,9 +564,22 @@ class BaseWorker(ArtifactContract, abc.ABC):
                 _write_heartbeat("running")
                 result = _run_once()
                 if inspect.isawaitable(result):
+                    # Decide the execution path *before* consuming the
+                    # awaitable: a RuntimeError raised inside the worker's own
+                    # coroutine must propagate as-is, not be confused with
+                    # "asyncio.run() cannot be called from a running event
+                    # loop" (re-awaiting a consumed coroutine would mask the
+                    # real failure).
                     try:
-                        result = asyncio.run(result)
+                        asyncio.get_running_loop()
                     except RuntimeError:
+                        running_loop = None
+                    else:
+                        running_loop = True
+
+                    if running_loop is None:
+                        result = asyncio.run(result)
+                    else:
                         loop = asyncio.new_event_loop()
                         try:
                             result = loop.run_until_complete(result)
@@ -954,7 +981,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
         if not env:
             env = BaseWorker.env
         else:
-            BaseWorker.env
+            BaseWorker.env = env
 
         def _load_dispatcher():
             from .agi_dispatcher import (

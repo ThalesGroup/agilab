@@ -22,6 +22,7 @@ import os
 import sys
 import stat
 import json
+from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -154,6 +155,21 @@ class WorkDispatcher:
             with open(file, "w") as f:
                 json.dump(data, f, default=convert_dates, indent=2)
 
+            # Normalize the in-memory plan exactly like the cached copy
+            # (callables -> names, tuples -> lists, datetimes -> isoformat)
+            # so cache-miss and cache-hit runs dispatch identical payloads.
+            normalized = json.loads(
+                json.dumps(
+                    {
+                        "work_plan": data["work_plan"],
+                        "work_plan_metadata": workers_plan_metadata,
+                    },
+                    default=convert_dates,
+                )
+            )
+            workers_plan = normalized["work_plan"]
+            workers_plan_metadata = normalized["work_plan_metadata"]
+
         loaded_workers = {}
         workers_work_item_tree_iter = iter(workers_plan)
         for ip, nb_workers in workers.items():
@@ -167,7 +183,17 @@ class WorkDispatcher:
                 if chunks:
                     loaded_workers[ip] += 1
 
-        workers_plan = [chunks for chunks in workers_plan if chunks]
+        # Drop empty chunks from the plan and its metadata in lockstep so the
+        # per-worker index alignment between the two lists is preserved.
+        kept = [
+            (plan_chunk, metadata_chunk)
+            for plan_chunk, metadata_chunk in zip_longest(
+                workers_plan, workers_plan_metadata or [], fillvalue=[]
+            )
+            if plan_chunk
+        ]
+        workers_plan = [plan_chunk for plan_chunk, _ in kept]
+        workers_plan_metadata = [metadata_chunk for _, metadata_chunk in kept]
 
         return loaded_workers.copy(), workers_plan, workers_plan_metadata
 
@@ -245,14 +271,9 @@ class WorkDispatcher:
             return chunks
 
         else:
-            return [
-                [
-                    [
-                        chk,
-                    ]
-                    for chk in weights
-                ]
-            ]
+            # Return the same per-worker shape as the multi-weight branches:
+            # one chunk (list of (label, size) tuples) for the single worker.
+            return [list(weights)]
 
     @staticmethod
     def _normalize_worker_capacities(capacities: Optional[List[Any]], workers: Dict) -> np.ndarray:
@@ -320,7 +341,7 @@ class WorkDispatcher:
 
             # Optimisation: if even putting all remaining work on the least-loaded
             # worker cannot improve the current maximum load, finish this branch.
-            if max(working_sizes) > min(np.array(working_sizes + remaining_weight) / capacities):
+            if max(working_sizes) > min(working_sizes + remaining_weight / capacities):
                 smallest_chunk_index = int(
                     np.argmin(working_sizes + remaining_weight / capacities)
                 )

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -1100,6 +1102,54 @@ def test_baseworker_setup_data_directories_and_info(monkeypatch, tmp_path):
     assert info["cpu_frequency"] == [3.2]
     assert info["ram_total"] == [8.0]
     assert info["ram_available"] == [4.0]
+
+
+def test_safe_getuser_returns_empty_string_when_user_lookup_fails(monkeypatch):
+    # Regression: the class body computes _is_managed_pc at import time;
+    # getpass.getuser() raising (unmapped uid + scrubbed env) must not be
+    # able to break the module import.
+    monkeypatch.setattr(
+        base_worker_mod.getpass,
+        "getuser",
+        lambda: (_ for _ in ()).throw(OSError("No username set in the environment")),
+    )
+    assert base_worker_mod._safe_getuser() == ""
+
+    monkeypatch.setattr(
+        base_worker_mod.getpass,
+        "getuser",
+        lambda: (_ for _ in ()).throw(KeyError("getpwuid(): uid not found")),
+    )
+    assert base_worker_mod._safe_getuser() == ""
+
+
+def test_baseworker_run_updates_class_env_when_env_passed(monkeypatch, tmp_path):
+    # Regression: the else branch of _run was a bare no-op expression
+    # ("BaseWorker.env") instead of the assignment, leaving the class env
+    # stale when callers passed a fresh env.
+    env = SimpleNamespace(
+        wenv_abs=tmp_path / "demo_worker",
+        mode2str=lambda mode: f"mode-{mode}",
+    )
+
+    class PlanDispatcher:
+        @staticmethod
+        async def _do_distrib(_env, workers, args):
+            return workers, {"plan": "only"}, {"meta": True}
+
+    monkeypatch.setitem(
+        sys.modules,
+        "agi_node.agi_dispatcher.agi_dispatcher",
+        SimpleNamespace(WorkDispatcher=PlanDispatcher),
+    )
+
+    previous_env = BaseWorker.env
+    try:
+        BaseWorker.env = SimpleNamespace(stale=True)
+        asyncio.run(BaseWorker._run(env=env, workers={"local": 1}, mode=48, args=None))
+        assert BaseWorker.env is env
+    finally:
+        BaseWorker.env = previous_env
 
 
 def test_baseworker_setup_data_directories_requires_source_path():

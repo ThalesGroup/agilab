@@ -91,7 +91,15 @@ class PolarsWorker(BaseWorker):
         # Example post-processing logic using Polars.
         # For instance, saving the DataFrame to disk.
         output_format = self.args.get("output_format")
-        output_filename = f"{self._worker_id}_output"
+        # work_done is called once per work chunk; suffix subsequent chunks so
+        # they do not overwrite the first chunk's output file.
+        chunk_index = getattr(self, "_work_done_chunk", 0)
+        self._work_done_chunk = chunk_index + 1
+        output_filename = (
+            f"{self._worker_id}_output"
+            if chunk_index == 0
+            else f"{self._worker_id}_output_{chunk_index}"
+        )
 
         if output_format == "parquet":
             output_path = Path(self.data_out) / f"{output_filename}.parquet"
@@ -114,7 +122,9 @@ class PolarsWorker(BaseWorker):
             float: Execution time in seconds.
         """
         if workers_plan:
-            if self._mode & 4:  # ty: ignore[unsupported-operator]
+            # Pool execution is requested via the pool bit (1); the dask bit (4)
+            # keeps its historical in-worker pooling behavior.
+            if self._mode & 0b0101:  # ty: ignore[unsupported-operator]
                 self._exec_multi_process(workers_plan, workers_plan_metadata)
             else:
                 self._exec_mono_process(workers_plan, workers_plan_metadata)

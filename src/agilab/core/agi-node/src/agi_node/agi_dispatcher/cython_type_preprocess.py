@@ -107,6 +107,12 @@ def _expr_type(node: ast.AST) -> tuple[str | None, str]:
         left_type, _ = _expr_type(node.left)
         right_type, _ = _expr_type(node.right)
         if left_type in CYTHON_NUMERIC_TYPES and right_type in CYTHON_NUMERIC_TYPES:
+            if isinstance(node.op, ast.Div):
+                # Python 3 true division yields float even for integer operands.
+                return "double", "true division result"
+            if isinstance(node.op, ast.Pow):
+                # Power results (e.g. negative exponents) are not statically safe.
+                return None, "power expression type is not statically safe"
             if "double" in {left_type, right_type}:
                 return "double", "numeric expression"
             return "Py_ssize_t", "integer-sized numeric expression"
@@ -155,7 +161,12 @@ def _insert_after_line(node: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
         value = node.body[0].value
         if isinstance(value, ast.Constant) and isinstance(value.value, str):
             return int(getattr(node.body[0], "end_lineno", node.body[0].lineno))
-    return node.lineno
+    if node.body and node.body[0].lineno > node.lineno:
+        # Insert just before the first body statement so multi-line signatures
+        # ("def foo(\n    a,\n):") never receive cdefs inside the parens.
+        return int(node.body[0].lineno) - 1
+    # Inline one-liner def ("def f(): x = 1.0"): no valid insertion point.
+    return -1
 
 
 def _body_indent(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
@@ -302,6 +313,12 @@ class _FunctionCollector(ast.NodeVisitor):
         for statement in node.body:
             self.visit(statement)
 
+    def visit_Delete(self, node: ast.Delete) -> None:
+        # Cython forbids deleting C-typed locals; never give del'ed names a cdef.
+        for target in node.targets:
+            for name in _target_names(target):
+                self._block(name, line=node.lineno, reason="variable is deleted")
+
     def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
         cython_type, reason = _expr_type(node.value)
         for name in _target_names(node.target):
@@ -372,7 +389,17 @@ def analyze_source(source: str, *, filename: str = "<source>") -> PreprocessPrev
         for statement in info.node.body:
             collector.visit(statement)
         typed, function_skipped = collector.resolve()
-        if typed:
+        if typed and info.insert_after_line < 0:
+            skipped.extend(
+                SkippedVariable(
+                    function=info.qualname,
+                    name=variable.name,
+                    lines=(variable.line,),
+                    reason="no safe insertion point for inline function body",
+                )
+                for variable in typed
+            )
+        elif typed:
             declarations.append(
                 FunctionDeclarations(
                     function=info.qualname,

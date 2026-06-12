@@ -57,8 +57,6 @@ def _ensure_hacl_dir(log=logger, path_factory=Path) -> None:
         pass
 
 
-_ensure_hacl_dir()
-
 def _relative_to_home(path: Path) -> Path:
     try:
         return path.relative_to(Path.home())
@@ -441,8 +439,12 @@ def _purge_top_level_ui_build_artifacts(app_root: Path, *, log: logging.Logger |
     return removed
 
 
-def _build_remove_decorators_command(worker_path: str | Path) -> list[str]:
-    return [
+def _build_remove_decorators_command(
+    worker_path: str | Path,
+    *,
+    type_preprocess: bool = False,
+) -> list[str]:
+    cmd = [
         "uv",
         "-q",
         "run",
@@ -452,8 +454,11 @@ def _build_remove_decorators_command(worker_path: str | Path) -> list[str]:
         "remove_decorators",
         "--worker_path",
         str(worker_path),
-        "--verbose",
     ]
+    if type_preprocess:
+        cmd.append("--type-preprocess")
+    cmd.append("--verbose")
+    return cmd
 
 
 def _postprocess_bdist_egg_output(
@@ -476,8 +481,11 @@ def _postprocess_bdist_egg_output(
     dest_src = out_dir / "src"
     _unpack_worker_eggs(dist_dir=out_dir / "dist", dest_src=dest_src, zip_cls=zip_cls, log=log)
 
-    cmd = _build_remove_decorators_command(env.worker_path)
-    log.info(f"Stripping decorators via:\n  {shlex.join(cmd)}")
+    cmd = _build_remove_decorators_command(
+        env.worker_path,
+        type_preprocess=_resolve_cython_type_preprocess_option(),
+    )
+    log.info(f"Generating worker .pyx via pre_install:\n  {shlex.join(cmd)}")
     subprocess_run_fn(cmd, check=True)
 
     if links_created:
