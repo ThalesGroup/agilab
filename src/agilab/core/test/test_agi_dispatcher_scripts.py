@@ -365,6 +365,11 @@ def shadowed(values):
         pass
     return i
 
+def too_wide():
+    for i in range(10**20):
+        break
+    return i
+
 def numeric(values, other):
     offset = len(values) - 1
     scaled = len(values) * 8
@@ -384,6 +389,13 @@ def numeric(values, other):
 
     assert ("shadowed", "i", "Py_ssize_t") not in typed
     assert ("shadowed", "i") in skipped
+    assert ("too_wide", "i", "Py_ssize_t") not in typed
+    assert ("too_wide", "i") in skipped
+    assert {
+        item.reason
+        for item in preview.skipped
+        if item.function == "too_wide" and item.name == "i"
+    } == {"range() bound exceeds Py_ssize_t"}
     assert ("numeric", "offset", "Py_ssize_t") in typed
     assert ("numeric", "scaled", "Py_ssize_t") in typed
     assert ("numeric", "truth", "bint") in typed

@@ -197,6 +197,70 @@ def test_baseworker_runtime_wrapper_loading_and_logging(monkeypatch):
     assert ("demo_worker_cy", "TargetWorker") in loaded_calls
 
 
+def test_load_worker_cython_failure_has_actionable_recovery(tmp_path):
+    env = SimpleNamespace(
+        target_worker="demo_worker",
+        target_worker_class="TargetWorker",
+        wenv_abs=tmp_path / "demo_worker",
+    )
+
+    def _missing_module(module_name, module_class):
+        assert (module_name, module_class) == ("demo_worker_cy", "TargetWorker")
+        raise ModuleNotFoundError("module demo_worker_cy is not installed")
+
+    with pytest.raises(ModuleNotFoundError) as exc_info:
+        runtime_support.load_worker(
+            env,
+            2,
+            load_module_fn=_missing_module,
+            sys_modules={},
+        )
+
+    message = str(exc_info.value)
+    assert "Cython mode requested for worker 'demo_worker'" in message
+    assert "compiled module 'demo_worker_cy' is not importable" in message
+    assert str(tmp_path / "demo_worker" / "dist") in message
+    assert "install.py --with-cython" in message
+    assert "[tool.agilab.cython].enabled = true" in message
+    assert "--no-cython" in message
+    assert "mode without bit 2" in message
+    assert exc_info.value.__cause__ is not None
+
+
+def test_load_worker_evicts_selected_worker_module_before_import():
+    env = SimpleNamespace(
+        target_worker="demo_worker",
+        target_worker_class="TargetWorker",
+    )
+    sys_modules = {
+        "demo_worker.demo_worker": object(),
+        "demo_worker_cy": object(),
+    }
+    loaded: list[str] = []
+
+    def _load(module_name, _module_class):
+        loaded.append(module_name)
+        return module_name
+
+    assert runtime_support.load_worker(
+        env,
+        0,
+        load_module_fn=_load,
+        sys_modules=sys_modules,
+    ) == "demo_worker.demo_worker"
+    assert "demo_worker.demo_worker" not in sys_modules
+    assert "demo_worker_cy" in sys_modules
+
+    assert runtime_support.load_worker(
+        env,
+        2,
+        load_module_fn=_load,
+        sys_modules=sys_modules,
+    ) == "demo_worker_cy"
+    assert "demo_worker_cy" not in sys_modules
+    assert loaded == ["demo_worker.demo_worker", "demo_worker_cy"]
+
+
 def test_baseworker_runtime_wrappers_delegate(monkeypatch, tmp_path):
     calls: dict[str, object] = {}
 
