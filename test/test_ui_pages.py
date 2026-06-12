@@ -211,6 +211,24 @@ def _load_project_page_module():
     return module
 
 
+def _load_project_status_page_module():
+    module_path = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "agilab"
+        / "pages"
+        / "1_PROJECT_STATUS.py"
+    )
+    module_name = "agilab_project_status_page_for_tests"
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ModuleNotFoundError(f"Unable to load PROJECT status page from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_project_installed_pypi_app_batch_reports_empty_and_partial_failure():
     module = _load_project_page_module()
 
@@ -2562,6 +2580,49 @@ def test_project_status_reloads_editor_helpers_when_source_changes():
     assert "spec.loader.exec_module(module)" in loader_body
 
 
+def test_project_status_project_change_callback_does_not_call_rerun(monkeypatch):
+    module = _load_project_status_page_module()
+    stored_apps: list[object] = []
+
+    class FakeEnv:
+        def __init__(self) -> None:
+            self.active_app = "old_project"
+            self.changed_to: str | None = None
+
+        def change_app(self, project: str) -> None:
+            self.changed_to = project
+            self.active_app = project
+
+    class FakeStreamlit:
+        def __init__(self) -> None:
+            self.session_state = {"env": FakeEnv()}
+            self.query_params = {}
+
+        def rerun(self) -> None:
+            raise AssertionError(
+                "PROJECT project-change callbacks should rely on Streamlit's automatic rerun"
+            )
+
+    fake_st = FakeStreamlit()
+    fake_agi_gui = types.ModuleType("agi_gui")
+    fake_pagelib = types.ModuleType("agi_gui.pagelib")
+    fake_ui_support = types.ModuleType("agi_gui.ui_support")
+    fake_pagelib.clear_project_session_state = lambda _state: None
+    fake_ui_support.store_last_active_app = stored_apps.append
+
+    monkeypatch.setitem(sys.modules, "agi_gui", fake_agi_gui)
+    monkeypatch.setitem(sys.modules, "agi_gui.pagelib", fake_pagelib)
+    monkeypatch.setitem(sys.modules, "agi_gui.ui_support", fake_ui_support)
+    monkeypatch.setattr(module, "st", fake_st)
+
+    module._on_project_change("sat_trajectory_project")
+
+    assert fake_st.session_state["env"].changed_to == "sat_trajectory_project"
+    assert fake_st.session_state["project_changed"] is True
+    assert fake_st.query_params["active_app"] == "sat_trajectory_project"
+    assert stored_apps == ["sat_trajectory_project"]
+
+
 def test_execute_page_cython_setting_hydrates_from_app_settings(mock_ui_env):
     """Test that the EXECUTE page hydrates the Cython checkbox from app settings."""
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
@@ -2906,9 +2967,7 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
     export_root = tmp_path / "export"
     flight_lab = export_root / "flight_telemetry_project"
     trainer_lab = export_root / "sb3_trainer_project"
-    trainer_project = _create_mock_project_root(
-        mock_ui_env["apps_dir"], "sb3_trainer_project"
-    )
+    _create_mock_project_root(mock_ui_env["apps_dir"], "sb3_trainer_project")
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
     (flight_lab / "lab_stages.toml").write_text(
@@ -3069,9 +3128,7 @@ def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tm
     export_root = tmp_path / "export"
     flight_lab = export_root / "flight_telemetry_project"
     trainer_lab = export_root / "sb3_trainer_project"
-    trainer_project = _create_mock_project_root(
-        mock_ui_env["apps_dir"], "sb3_trainer_project"
-    )
+    _create_mock_project_root(mock_ui_env["apps_dir"], "sb3_trainer_project")
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
     (flight_lab / "lab_stages.toml").write_text(
