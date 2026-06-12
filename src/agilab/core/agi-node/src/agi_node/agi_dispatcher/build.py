@@ -45,10 +45,14 @@ from agi_env.cython_build_config import (  # noqa: E402
     CYTHON_BUILD_REQUIREMENT,
     CYTHON_BUILD_STAMP_FILENAME,
     CYTHON_CACHE_ENV,
+    CYTHON_DIRECTIVE_ALLOWLIST,
     CYTHON_DIRECTIVES_ENV,
     CYTHON_DISABLE_BUILD_CACHE_ENV,
     CYTHON_TYPE_PREPROCESS_ENV,
+    CYTHON_UNCHECKED_BUNDLE,
     cython_pyx_stamp_matches,
+    parse_cython_directive_overrides,
+    resolve_cython_directives_spec,
 )
 
 warnings.filterwarnings("ignore", category=SetuptoolsDeprecationWarning)
@@ -283,6 +287,7 @@ def _build_ext_compile_config(
     sys_platform: str,
     pyvers_worker: str,
     environ: Mapping[str, str] | None = None,
+    project_dir: str | Path | None = None,
 ) -> tuple[list[str], list[tuple[str, str]], dict[str, bool]]:
     extra_compile_args: list[str] = []
     if sys_platform == "darwin":
@@ -297,6 +302,7 @@ def _build_ext_compile_config(
     compiler_directives = _resolve_cython_compiler_directives(
         pyvers_worker=pyvers_worker,
         environ=environ,
+        project_dir=project_dir,
     )
     return extra_compile_args, define_macros, compiler_directives
 
@@ -333,30 +339,10 @@ _CYTHON_SAFE_COMPILER_DIRECTIVES: dict[str, bool] = {
     "profile": False,
     "linetrace": False,
 }
-# Worker code is arbitrary user-authored Python: cdivision and infer_types are
-# intentionally opt-in because they can change results on unaudited workers.
-_CYTHON_DIRECTIVE_ALLOWLIST = frozenset(
-    {
-        "boundscheck",
-        "wraparound",
-        "cdivision",
-        "initializedcheck",
-        "infer_types",
-        "overflowcheck",
-        "nonecheck",
-        "embedsignature",
-        "profile",
-        "linetrace",
-    }
-)
-# Named bundle removing index checks only; deliberately excludes cdivision,
-# which changes arithmetic results instead of just removing checks.
-_CYTHON_UNCHECKED_BUNDLE: dict[str, bool] = {
-    "boundscheck": False,
-    "wraparound": False,
-    "initializedcheck": False,
-    "nonecheck": False,
-}
+# Directive vocabulary (allowlist + 'unchecked' bundle) is shared with the
+# cluster deployment layer via agi_env.cython_build_config.
+_CYTHON_DIRECTIVE_ALLOWLIST = CYTHON_DIRECTIVE_ALLOWLIST
+_CYTHON_UNCHECKED_BUNDLE = CYTHON_UNCHECKED_BUNDLE
 _TOP_LEVEL_UI_MODULE_PATTERNS = ("app_args_form.py", "*_args_form.py")
 _TOP_LEVEL_UI_BYTECODE_PATTERNS = ("app_args_form.*.pyc", "*_args_form.*.pyc")
 
@@ -374,53 +360,44 @@ def _env_flag(value: str | None, *, default: bool = False) -> bool:
     return default
 
 
-def _parse_cython_directive_overrides(raw_value: str) -> dict[str, bool]:
-    directives: dict[str, bool] = {}
-    for item in raw_value.split(","):
-        part = item.strip()
-        if not part:
-            continue
-        if part == "unchecked":
-            directives.update(_CYTHON_UNCHECKED_BUNDLE)
-            continue
-        if "=" not in part:
-            key, value = part, "true"
-        else:
-            key, value = part.split("=", 1)
-        key = key.strip()
-        value = value.strip().lower()
-        if not key:
-            continue
-        if key not in _CYTHON_DIRECTIVE_ALLOWLIST:
-            # A typo silently dropping a safety directive is worse than failing.
-            raise ValueError(
-                f"Unknown Cython compiler directive {key!r}; allowed: "
-                f"unchecked, {', '.join(sorted(_CYTHON_DIRECTIVE_ALLOWLIST))}"
-            )
-        if value in _CYTHON_CACHE_ENABLED_VALUES:
-            directives[key] = True
-        elif value in _CYTHON_CACHE_DISABLED_VALUES:
-            directives[key] = False
-        else:
-            raise ValueError(
-                f"Unsupported Cython directive boolean value for {key!r}: {value!r}"
-            )
-    return directives
+def _parse_cython_directive_overrides(
+    raw_value: str,
+    *,
+    source: str | None = None,
+) -> dict[str, bool]:
+    # Parsing/validation is shared with the cluster deployment layer so local
+    # and remote builds reject the same typos with the same message.
+    return parse_cython_directive_overrides(raw_value, source=source)
 
 
 def _resolve_cython_compiler_directives(
     *,
     pyvers_worker: str,
     environ: Mapping[str, str] | None = None,
+    project_dir: str | Path | None = None,
 ) -> dict[str, bool]:
     if environ is None:
         environ = os.environ
+    if project_dir is None:
+        # main() chdirs to --app-path (the app/worker project directory)
+        # before any resolution runs, so the cwd pyproject.toml is the
+        # project config source both locally and on remote staged wenvs.
+        project_dir = Path.cwd()
 
-    raw_value = environ.get(CYTHON_DIRECTIVES_ENV, "").strip()
+    # Precedence: env var (incl. the --compiler-directives argv override,
+    # which wins the env slot) > project [tool.agilab.cython].directives >
+    # framework safe defaults.
+    raw_value, source = resolve_cython_directives_spec(
+        environ=environ,
+        project_dir=project_dir,
+    )
+    raw_value = raw_value or ""
     legacy_only = raw_value.lower() in _CYTHON_CACHE_DISABLED_VALUES
     compiler_directives: dict[str, bool] = {} if legacy_only else dict(_CYTHON_SAFE_COMPILER_DIRECTIVES)
     if raw_value and not legacy_only:
-        compiler_directives.update(_parse_cython_directive_overrides(raw_value))
+        compiler_directives.update(
+            _parse_cython_directive_overrides(raw_value, source=source)
+        )
     if pyvers_worker.endswith("t"):
         compiler_directives["freethreading_compatible"] = True
     return compiler_directives
@@ -828,6 +805,7 @@ def _cython_build_stamp_payload(
         sys_platform=sys.platform,
         pyvers_worker=str(getattr(env, "pyvers_worker", "")),
         environ=environ,
+        project_dir=getattr(env, "active_app", None),
     )
     # Normalized through JSON so the equality check against the stamp read
     # back from disk compares like with like (tuples become lists).
@@ -994,6 +972,7 @@ def _configure_build_ext_modules(
     extra_compile_args, define_macros, compil_directives = build_ext_compile_config_fn(
         sys_platform=sys.platform,
         pyvers_worker=pyvers_worker,
+        project_dir=active_app,
     )
     ensure_hacl_dir_fn()
     mod = build_worker_extension_fn(
@@ -1209,7 +1188,30 @@ def _resolve_main_inputs(
 
     pre_parser = argparse.ArgumentParser(add_help=False)
     pre_parser.add_argument("--app-path", dest="app_path")
+    pre_parser.add_argument(
+        "--compiler-directives",
+        dest="compiler_directives",
+        default=None,
+        help=(
+            "Explicit Cython directives spec (same syntax as "
+            f"{CYTHON_DIRECTIVES_ENV}, including 'unchecked'/'off'); overrides "
+            "the env var and the project [tool.agilab.cython] config."
+        ),
+    )
     global_args, remaining = pre_parser.parse_known_args(raw_args)
+
+    if global_args.compiler_directives is not None:
+        directives_spec = global_args.compiler_directives.strip()
+        if directives_spec and directives_spec.lower() not in _CYTHON_CACHE_DISABLED_VALUES:
+            # Fail fast on typos before any build work happens.
+            _parse_cython_directive_overrides(
+                directives_spec, source="--compiler-directives"
+            )
+        # The manager-resolved spec must override every other channel; winning
+        # the env-var slot keeps a single precedence chain (env > project
+        # pyproject > framework default) for every resolution site, including
+        # the build-stamp fingerprint. An empty value clears the override.
+        os.environ[CYTHON_DIRECTIVES_ENV] = directives_spec
 
     if global_args.app_path:
         app_path_str = _fix_windows_drive(global_args.app_path)

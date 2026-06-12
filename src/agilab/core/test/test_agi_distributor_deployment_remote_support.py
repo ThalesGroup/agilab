@@ -330,7 +330,9 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
         send_calls.append((ip, [Path(local_path).name], str(remote_path.parent)))
 
     agi_cls = SimpleNamespace(
-        _mode=0,
+        # Cython bit set: remote build_ext emission is gated on _mode & 2.
+        _mode=2,
+        CYTHON_MODE=2,
         DASK_MODE=4,
         _rapids_enabled=False,
         _workers_data_path=None,
@@ -469,7 +471,9 @@ async def test_deploy_remote_worker_verbose_build_keeps_overlay_without_quiet_fl
         del user, password
 
     agi_cls = SimpleNamespace(
-        _mode=0,
+        # Cython bit set: remote build_ext emission is gated on _mode & 2.
+        _mode=2,
+        CYTHON_MODE=2,
         DASK_MODE=4,
         _rapids_enabled=False,
         _workers_data_path=None,

@@ -118,6 +118,7 @@ def _inject_source_core_paths(script_path: str | os.PathLike[str], sys_path: lis
 _inject_source_core_paths(__file__, sys.path)
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
+from agi_env.cython_build_config import read_project_cython_config
 from agi_env.runtime_bootstrap_support import default_cluster_share
 
 # Take the first argument from the command line as the module name
@@ -378,6 +379,53 @@ def _truthy(value: object) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).strip().strip("\"'").lower() in {"1", "true", "yes", "on"}
+
+
+def _project_cython_enabled_setting(env_or_path: object) -> bool | None:
+    """Return ``[tool.agilab.cython].enabled`` from the app pyproject, if declared."""
+
+    project_root = _project_root_from_env_or_path(env_or_path)
+    if project_root is None:
+        return None
+    return read_project_cython_config(project_root).enabled
+
+
+def _app_settings_cython_setting(env_or_path: object) -> bool | None:
+    """Return ``[cluster].cython`` from the app's src/app_settings.toml, if declared."""
+
+    project_root = _project_root_from_env_or_path(env_or_path)
+    if project_root is None:
+        return None
+    settings_path = project_root / "src" / "app_settings.toml"
+    try:
+        data = tomllib.loads(settings_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    cluster = data.get("cluster")
+    if not isinstance(cluster, dict):
+        return None
+    value = cluster.get("cython")
+    return value if isinstance(value, bool) else None
+
+
+def resolve_cython_mode_enabled(env_or_path: object, *, cli_override: bool | None = None) -> bool:
+    """Compose the install-time CYTHON_MODE bit from the declared settings.
+
+    Precedence: ``--with-cython``/``--no-cython`` CLI override > project
+    ``[tool.agilab.cython].enabled`` > app_settings ``[cluster].cython`` >
+    ``True`` (deprecation window: an undeclared project keeps today's
+    always-cython install behavior).
+    """
+
+    if cli_override is not None:
+        return cli_override
+    project_setting = _project_cython_enabled_setting(env_or_path)
+    if project_setting is not None:
+        return project_setting
+    settings_value = _app_settings_cython_setting(env_or_path)
+    if settings_value is not None:
+        return settings_value
+    return True
 
 
 def _install_cache_root() -> Path:
@@ -677,6 +725,21 @@ async def main():
             action="store_true",
             help="Run AGI.install even when the local install-state fingerprint is unchanged.",
         )
+        cython_group = parser.add_mutually_exclusive_group()
+        cython_group.add_argument(
+            "--with-cython",
+            dest="with_cython",
+            action="store_true",
+            default=None,
+            help="Force the Cython worker build, overriding the project's declared setting.",
+        )
+        cython_group.add_argument(
+            "--no-cython",
+            dest="with_cython",
+            action="store_false",
+            default=None,
+            help="Skip the Cython worker build, overriding the project's declared setting.",
+        )
 
 
         argv = [a.replace("$", "") for a in sys.argv[1:]]
@@ -723,7 +786,24 @@ async def main():
         return 1
 
     scheduler = "127.0.0.1"
-    modes_enabled = AGI.DASK_MODE | AGI.CYTHON_MODE
+    modes_enabled = AGI.DASK_MODE
+    try:
+        cython_enabled = resolve_cython_mode_enabled(
+            app_env, cli_override=args.with_cython
+        )
+    except ValueError as err:
+        # A misdeclared [tool.agilab.cython] table is a configuration error
+        # naming the pyproject path; surface it instead of a traceback.
+        print(f"[ERROR] {err}", file=sys.stderr)
+        return 1
+    if cython_enabled:
+        modes_enabled |= AGI.CYTHON_MODE
+    else:
+        print(
+            f"[INFO] Cython worker build disabled for {app_env.active_app}; "
+            "re-install with --with-cython (or declare "
+            "[tool.agilab.cython].enabled = true) to compile the worker."
+        )
     force_install = args.force_install or _truthy(os.environ.get(INSTALL_STATE_FORCE_ENV))
     if not force_install:
         cache_hit, cache_reason = _install_state_matches(

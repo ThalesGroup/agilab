@@ -3,12 +3,26 @@
 Scope and non-goals:
 - This pass only emits local Cython declarations when a value is proven stable
   from simple AST evidence inside one function body.
-- It never rewrites function signatures, parameters, return types, decorators,
-  or Python control flow. AGILAB dispatch inspects worker signatures at runtime.
+- Declarations are emitted as a single ``@cython.locals(...)`` decorator placed
+  directly above each typed ``def`` (plus an idempotent ``import cython``), so
+  the output stays valid Python for any user formatting and is checked with
+  ``compile()``. A fail-open wrapper guarantees the preprocessor can never
+  break a build: any failure falls back to the unmodified source.
+- It never rewrites function signatures, parameters, return types, author
+  decorators, or Python control flow. AGILAB dispatch inspects worker
+  signatures at runtime.
 - Unknown binding syntax is default-deny: if a statement binds a name without a
   positive handler, that name is skipped instead of guessed.
 - Bare integer assignments remain Python objects. C integer arithmetic is only
   inferred inside guarded expressions where semantics stay narrow.
+- Bounded propagation: names resolving to exactly one inferred type with zero
+  blockers feed ``ast.Name`` lookups on later passes; any conflict demotes the
+  name back to untyped (demote-on-doubt, monotone). Known limit:
+  self-referential chains (``x = x + 1.0``) stay untyped.
+- ``float``/``bool`` annotations on parameters and locals seed inference only,
+  mirroring exactly what Cython 3 ``annotation_typing`` already enforces.
+  ``int`` annotations deliberately stay Python ints (arbitrary precision), and
+  annotated names themselves are never redeclared.
 """
 
 from __future__ import annotations
@@ -17,14 +31,22 @@ import argparse
 import ast
 import builtins
 import json
+import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
 
+logger = logging.getLogger(__name__)
+
 CYTHON_NUMERIC_TYPES = {"bint", "double", "Py_ssize_t"}
 _CALL_BUILTINS = {"bool", "enumerate", "float", "isinstance", "len", "range"}
 _SMALL_INT_LITERAL_ABS_LIMIT = 1_000_000
+_CYTHON_LOCALS_TYPE_MAP = {
+    "Py_ssize_t": "cython.Py_ssize_t",
+    "bint": "cython.bint",
+    "double": "cython.double",
+}
 
 
 @dataclass(frozen=True)
@@ -47,7 +69,7 @@ class SkippedVariable:
 @dataclass(frozen=True)
 class FunctionDeclarations:
     function: str
-    insert_after_line: int
+    def_line: int
     indent: str
     variables: tuple[TypedVariable, ...]
 
@@ -56,6 +78,7 @@ class FunctionDeclarations:
 class PreprocessPreview:
     declarations: tuple[FunctionDeclarations, ...]
     skipped: tuple[SkippedVariable, ...]
+    degraded_reasons: tuple[str, ...] = ()
 
     @property
     def typed_variables(self) -> tuple[TypedVariable, ...]:
@@ -65,6 +88,7 @@ class PreprocessPreview:
         report: dict[str, object] = {
             "declarations": [asdict(variable) for variable in self.typed_variables],
             "skipped": [asdict(variable) for variable in self.skipped],
+            "degraded_reasons": list(self.degraded_reasons),
         }
         if input_path is not None:
             report["input"] = input_path
@@ -84,8 +108,6 @@ class _Candidate:
 class _FunctionInfo:
     qualname: str
     node: ast.FunctionDef | ast.AsyncFunctionDef
-    insert_after_line: int
-    indent: str
 
 
 def _annotation_type(node: ast.AST) -> str | None:
@@ -120,8 +142,9 @@ def _numeric_operand_type(
     *,
     shadowed_builtins: set[str],
     allow_int_literal: bool,
+    env: dict[str, str] | None = None,
 ) -> tuple[str | None, str]:
-    cython_type, reason = _expr_type(node, shadowed_builtins=shadowed_builtins)
+    cython_type, reason = _expr_type(node, shadowed_builtins=shadowed_builtins, env=env)
     if cython_type is not None:
         return cython_type, reason
     if allow_int_literal and _is_small_int_literal(node):
@@ -133,6 +156,7 @@ def _expr_type(
     node: ast.AST,
     *,
     shadowed_builtins: set[str] | None = None,
+    env: dict[str, str] | None = None,
 ) -> tuple[str | None, str]:
     if shadowed_builtins is None:
         shadowed_builtins = set()
@@ -144,8 +168,14 @@ def _expr_type(
             return "double", "float literal"
         return None, "literal keeps Python object semantics"
 
+    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+        resolved = env.get(node.id) if env else None
+        if resolved is not None:
+            return resolved, "propagated local type"
+        return None, "name type is not statically known"
+
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
-        return _expr_type(node.operand, shadowed_builtins=shadowed_builtins)
+        return _expr_type(node.operand, shadowed_builtins=shadowed_builtins, env=env)
 
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
         return "bint", "not expression"
@@ -162,6 +192,7 @@ def _expr_type(
                     operand,
                     shadowed_builtins=shadowed_builtins,
                     allow_int_literal=True,
+                    env=env,
                 )[0]
                 for operand in operands
             ]
@@ -174,11 +205,13 @@ def _expr_type(
             node.left,
             shadowed_builtins=shadowed_builtins,
             allow_int_literal=True,
+            env=env,
         )
         right_type, _ = _numeric_operand_type(
             node.right,
             shadowed_builtins=shadowed_builtins,
             allow_int_literal=True,
+            env=env,
         )
         if left_type in CYTHON_NUMERIC_TYPES and right_type in CYTHON_NUMERIC_TYPES:
             if isinstance(node.op, ast.Div):
@@ -187,9 +220,14 @@ def _expr_type(
             if isinstance(node.op, ast.Pow):
                 # Power results (e.g. negative exponents) are not statically safe.
                 return None, "power expression type is not statically safe"
-            if isinstance(node.op, ast.Mult) and not (
-                _is_small_int_literal(node.left) or _is_small_int_literal(node.right)
+            if (
+                isinstance(node.op, ast.Mult)
+                and "double" not in {left_type, right_type}
+                and not (_is_small_int_literal(node.left) or _is_small_int_literal(node.right))
             ):
+                # Integer products can overflow silently; double products mirror
+                # Python float semantics (IEEE inf), so only integer-typed
+                # multiplication requires a small literal operand.
                 return None, "multiplication requires a small literal operand"
             if not isinstance(
                 node.op,
@@ -313,25 +351,103 @@ def _function_args(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
     return names
 
 
-def _insert_after_line(node: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
-    if node.body and isinstance(node.body[0], ast.Expr):
-        value = node.body[0].value
-        if isinstance(value, ast.Constant) and isinstance(value.value, str):
-            if node.body[0].lineno == node.lineno:
-                return -1
-            return int(getattr(node.body[0], "end_lineno", node.body[0].lineno))
-    if node.body and node.body[0].lineno > node.lineno:
-        # Insert just before the first body statement so multi-line signatures
-        # ("def foo(\n    a,\n):") never receive cdefs inside the parens.
-        return int(node.body[0].lineno) - 1
-    # Inline one-liner def ("def f(): x = 1.0"): no valid insertion point.
-    return -1
+def _annotation_env_seeds(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    *,
+    shadowed_builtins: set[str],
+) -> dict[str, str]:
+    """Mirror Cython 3 ``annotation_typing`` for ``float``/``bool`` annotations.
+
+    Seeded names feed dependent inference only and are never redeclared by this
+    pass: Cython already types them, so re-emitting a declaration would be a
+    redeclaration. ``int`` annotations are deliberately not seeded because
+    Cython 3 keeps them Python ints (arbitrary precision).
+    """
+
+    seeds: dict[str, str] = {}
+    conflicted: set[str] = set()
+
+    def _add(name: str, annotation: ast.AST | None) -> None:
+        if annotation is None:
+            return
+        if isinstance(annotation, ast.Name) and annotation.id in shadowed_builtins:
+            return
+        cython_type = _annotation_type(annotation)
+        if cython_type is None:
+            return
+        if seeds.get(name, cython_type) != cython_type:
+            conflicted.add(name)
+        seeds[name] = cython_type
+
+    args = node.args
+    for arg in [*args.posonlyargs, *args.args, *args.kwonlyargs]:
+        _add(arg.arg, arg.annotation)
+
+    def _scan(statements: Iterable[ast.stmt]) -> None:
+        for statement in statements:
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue
+            if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
+                _add(statement.target.id, statement.annotation)
+            for body_field in ("body", "orelse", "finalbody"):
+                _scan(getattr(statement, body_field, None) or [])
+            for handler in getattr(statement, "handlers", None) or []:
+                _scan(handler.body)
+            for case in getattr(statement, "cases", None) or []:
+                _scan(case.body)
+
+    _scan(node.body)
+    for name in conflicted:
+        seeds.pop(name, None)
+    return seeds
 
 
-def _body_indent(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
-    if node.body:
-        return " " * int(getattr(node.body[0], "col_offset", node.col_offset + 4))
-    return " " * (node.col_offset + 4)
+def _cython_name_rebound(tree: ast.AST) -> bool:
+    """Return True when the source rebinds the name ``cython`` anywhere.
+
+    An emitted ``@cython.locals`` decorator would resolve against the user's
+    object instead of the cython module; demote-on-doubt and skip emission.
+    A plain top-level ``import cython`` is the supported case, not a rebind.
+    """
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)) and node.id == "cython":
+            return True
+        if isinstance(node, ast.arg) and node.arg == "cython":
+            return True
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name == "cython":
+            return True
+        if isinstance(node, ast.ExceptHandler) and node.name == "cython":
+            return True
+        if isinstance(node, (ast.Global, ast.Nonlocal)) and "cython" in node.names:
+            return True
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                bound = alias.asname or alias.name.split(".", 1)[0]
+                if bound == "cython" and not (alias.name == "cython" and alias.asname is None):
+                    return True
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if (alias.asname or alias.name) == "cython":
+                    return True
+        if isinstance(node, (ast.MatchAs, ast.MatchStar)) and getattr(node, "name", None) == "cython":
+            return True
+        if isinstance(node, ast.MatchMapping) and node.rest == "cython":
+            return True
+    return False
+
+
+def _has_author_cython_locals(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    for decorator in node.decorator_list:
+        target = decorator.func if isinstance(decorator, ast.Call) else decorator
+        if (
+            isinstance(target, ast.Attribute)
+            and target.attr == "locals"
+            and isinstance(target.value, ast.Name)
+            and target.value.id == "cython"
+        ):
+            return True
+    return False
 
 
 def _iter_functions(
@@ -343,20 +459,23 @@ def _iter_functions(
             yield from _iter_functions(node.body, (*prefix, node.name))
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             qualname = ".".join((*prefix, node.name))
-            yield _FunctionInfo(
-                qualname=qualname,
-                node=node,
-                insert_after_line=_insert_after_line(node),
-                indent=_body_indent(node),
-            )
+            yield _FunctionInfo(qualname=qualname, node=node)
             yield from _iter_functions(node.body, (*prefix, node.name))
 
 
 class _FunctionCollector(ast.NodeVisitor):
-    def __init__(self, *, function: str, parameters: set[str], shadowed_builtins: set[str]) -> None:
+    def __init__(
+        self,
+        *,
+        function: str,
+        parameters: set[str],
+        shadowed_builtins: set[str],
+        env: dict[str, str] | None = None,
+    ) -> None:
         self.function = function
         self.parameters = parameters
         self.shadowed_builtins = shadowed_builtins
+        self.env = env or {}
         self.candidates: dict[str, list[_Candidate]] = {}
         self.blocked: dict[str, list[_Candidate]] = {}
         self.global_or_nonlocal: set[str] = set()
@@ -390,7 +509,11 @@ class _FunctionCollector(ast.NodeVisitor):
         return
 
     def visit_Assign(self, node: ast.Assign) -> None:
-        cython_type, reason = _expr_type(node.value, shadowed_builtins=self.shadowed_builtins)
+        cython_type, reason = _expr_type(
+            node.value,
+            shadowed_builtins=self.shadowed_builtins,
+            env=self.env,
+        )
         for target in node.targets:
             names = _bound_names(target)
             if isinstance(target, ast.Name) and cython_type is not None:
@@ -405,7 +528,11 @@ class _FunctionCollector(ast.NodeVisitor):
         annotation_type = _annotation_type(node.annotation)
         value_reason = "annotated assignment without value"
         if node.value is not None:
-            _, value_reason = _expr_type(node.value, shadowed_builtins=self.shadowed_builtins)
+            _, value_reason = _expr_type(
+                node.value,
+                shadowed_builtins=self.shadowed_builtins,
+                env=self.env,
+            )
 
         reason = (
             "source annotation already provides a type hint"
@@ -418,12 +545,36 @@ class _FunctionCollector(ast.NodeVisitor):
             self.generic_visit(node.value)
 
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
-        names = _bound_names(node.target)
-        cython_type, reason = _expr_type(node.value, shadowed_builtins=self.shadowed_builtins)
-        if isinstance(node.target, ast.Name) and cython_type is not None:
-            self._record(node.target.id, _Candidate(cython_type, node.lineno, reason))
+        if isinstance(node.target, ast.Name):
+            name = node.target.id
+            if self.env.get(name) is None:
+                # Pending: the target's type is not in the environment yet.
+                # Recording nothing keeps the name env-eligible from its other
+                # binding sites; the next propagation pass re-evaluates this
+                # site target-aware and demotes on any conflict.
+                pass
+            else:
+                synthetic = ast.BinOp(
+                    left=ast.Name(id=name, ctx=ast.Load()),
+                    op=node.op,
+                    right=node.value,
+                )
+                cython_type, reason = _expr_type(
+                    synthetic,
+                    shadowed_builtins=self.shadowed_builtins,
+                    env=self.env,
+                )
+                if cython_type is not None:
+                    self._record(name, _Candidate(cython_type, node.lineno, reason))
+                else:
+                    self._block(name, line=node.lineno, reason=reason)
         else:
-            for name in names:
+            cython_type, reason = _expr_type(
+                node.value,
+                shadowed_builtins=self.shadowed_builtins,
+                env=self.env,
+            )
+            for name in _bound_names(node.target):
                 self._block(name, line=node.lineno, reason=reason)
         self.generic_visit(node.value)
 
@@ -492,13 +643,17 @@ class _FunctionCollector(ast.NodeVisitor):
             self.visit(statement)
 
     def visit_Delete(self, node: ast.Delete) -> None:
-        # Cython forbids deleting C-typed locals; never give del'ed names a cdef.
+        # Cython forbids deleting C-typed locals; never give del'ed names a type.
         for target in node.targets:
             for name in _bound_names(target):
                 self._block(name, line=node.lineno, reason="variable is deleted")
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
-        cython_type, reason = _expr_type(node.value, shadowed_builtins=self.shadowed_builtins)
+        cython_type, reason = _expr_type(
+            node.value,
+            shadowed_builtins=self.shadowed_builtins,
+            env=self.env,
+        )
         for name in _bound_names(node.target):
             if cython_type is not None and isinstance(node.target, ast.Name):
                 self._record(name, _Candidate(cython_type, node.lineno, reason))
@@ -573,36 +728,122 @@ class _FunctionCollector(ast.NodeVisitor):
         return tuple(typed), tuple(skipped)
 
 
+def _analyze_function(
+    info: _FunctionInfo,
+) -> tuple[tuple[TypedVariable, ...], tuple[SkippedVariable, ...]]:
+    """Run bounded propagation passes over one function body.
+
+    Pass 1 is the plain per-site collection; names resolving to exactly one
+    inferred type with zero blockers (plus annotation seeds) form the
+    environment for the next pass, where ``_expr_type`` resolves ``ast.Name``
+    loads. Conflicts demote names permanently (demote-on-doubt) and the loop
+    repeats until the environment is stable. Each non-stable pass either grows
+    the demoted set or the environment, so the pass budget always suffices.
+    Known limit: self-referential chains (``x = x + 1.0``) stay untyped.
+    """
+
+    node = info.node
+    parameters = _function_args(node)
+    shadowed = _shadowed_builtins(node)
+    seeds = _annotation_env_seeds(node, shadowed_builtins=shadowed)
+    env: dict[str, str] = dict(seeds)
+    demoted: dict[str, str] = {}
+    pass_budget: int | None = None
+    typed: tuple[TypedVariable, ...] = ()
+    function_skipped: tuple[SkippedVariable, ...] = ()
+
+    while True:
+        collector = _FunctionCollector(
+            function=info.qualname,
+            parameters=parameters,
+            shadowed_builtins=shadowed,
+            env=env,
+        )
+        for statement in node.body:
+            collector.visit(statement)
+        typed, function_skipped = collector.resolve()
+        if pass_budget is None:
+            names = set(collector.candidates) | set(collector.blocked) | set(seeds)
+            pass_budget = 2 * len(names) + 2
+
+        next_env = dict(seeds)
+        for variable in typed:
+            if variable.name not in demoted and variable.name not in seeds:
+                next_env[variable.name] = variable.cython_type
+        for name, cython_type in env.items():
+            if name in seeds:
+                continue
+            if next_env.get(name) != cython_type:
+                demoted[name] = "propagated type conflicted across passes; demoted to untyped"
+                next_env.pop(name, None)
+
+        if next_env == env:
+            break
+        pass_budget -= 1
+        if pass_budget <= 0:
+            # Unreachable by the monotonicity bound; demote everything rather
+            # than emit declarations derived from an unstable environment.
+            demoted.update(
+                {
+                    variable.name: "propagation did not stabilize; demoted to untyped"
+                    for variable in typed
+                }
+            )
+            break
+        env = next_env
+
+    skipped_names = {item.name for item in function_skipped}
+    extra_skipped = tuple(
+        SkippedVariable(
+            function=info.qualname,
+            name=variable.name,
+            lines=(variable.line,),
+            reason=demoted[variable.name],
+        )
+        for variable in typed
+        if variable.name in demoted and variable.name not in skipped_names
+    )
+    final_typed = tuple(variable for variable in typed if variable.name not in demoted)
+    return final_typed, (*function_skipped, *extra_skipped)
+
+
 def analyze_source(source: str, *, filename: str = "<source>") -> PreprocessPreview:
     tree = ast.parse(source, filename=filename)
+    source_lines = source.splitlines()
+    cython_rebound = _cython_name_rebound(tree)
     declarations: list[FunctionDeclarations] = []
     skipped: list[SkippedVariable] = []
 
     for info in _iter_functions(tree.body):
-        collector = _FunctionCollector(
-            function=info.qualname,
-            parameters=_function_args(info.node),
-            shadowed_builtins=_shadowed_builtins(info.node),
-        )
-        for statement in info.node.body:
-            collector.visit(statement)
-        typed, function_skipped = collector.resolve()
-        if typed and info.insert_after_line < 0:
+        typed, function_skipped = _analyze_function(info)
+        if typed and cython_rebound:
             skipped.extend(
                 SkippedVariable(
                     function=info.qualname,
                     name=variable.name,
                     lines=(variable.line,),
-                    reason="no safe insertion point for inline function body",
+                    reason="the name 'cython' is rebound in source",
+                )
+                for variable in typed
+            )
+        elif typed and _has_author_cython_locals(info.node):
+            skipped.extend(
+                SkippedVariable(
+                    function=info.qualname,
+                    name=variable.name,
+                    lines=(variable.line,),
+                    reason="author-owned cython.locals present",
                 )
                 for variable in typed
             )
         elif typed:
+            def_line = int(info.node.lineno)
+            line_text = source_lines[def_line - 1] if def_line - 1 < len(source_lines) else ""
             declarations.append(
                 FunctionDeclarations(
                     function=info.qualname,
-                    insert_after_line=info.insert_after_line,
-                    indent=info.indent,
+                    def_line=def_line,
+                    indent=line_text[: info.node.col_offset],
                     variables=typed,
                 )
             )
@@ -614,30 +855,105 @@ def analyze_source(source: str, *, filename: str = "<source>") -> PreprocessPrev
     )
 
 
-def render_pyx(source: str, preview: PreprocessPreview) -> str:
-    lines = source.splitlines(keepends=True)
-    newline = "\n"
-    if lines:
-        newline = "\r\n" if lines[0].endswith("\r\n") else "\n"
-
-    groups = sorted(
-        preview.declarations,
-        key=lambda group: group.insert_after_line,
-        reverse=True,
+def _locals_decorator_line(group: FunctionDeclarations, newline: str) -> str:
+    arguments = ", ".join(
+        f"{variable.name}={_CYTHON_LOCALS_TYPE_MAP[variable.cython_type]}"
+        for variable in sorted(group.variables, key=lambda item: (item.cython_type, item.name))
     )
-    for group in groups:
-        insert_at = group.insert_after_line
-        declarations = [
-            f"{group.indent}cdef {variable.cython_type} {variable.name}{newline}"
-            for variable in sorted(group.variables, key=lambda item: (item.cython_type, item.name))
-        ]
-        lines[insert_at:insert_at] = declarations
+    return f"{group.indent}@cython.locals({arguments}){newline}"
+
+
+def _has_top_level_cython_import(tree: ast.Module, *, before_line: int) -> bool:
+    for statement in tree.body:
+        if isinstance(statement, ast.Import) and statement.lineno < before_line:
+            for alias in statement.names:
+                if alias.name == "cython" and alias.asname is None:
+                    return True
+    return False
+
+
+def _module_prelude_insert_index(tree: ast.Module, lines: Sequence[str]) -> int:
+    """Return the 0-based line index where ``import cython`` belongs.
+
+    The import lands after the module docstring and any ``__future__`` imports;
+    without those it lands after leading blank/comment lines (shebang, coding
+    declaration, agilab-pyx stamp).
+    """
+
+    insert_after = 0
+    index = 0
+    body = tree.body
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        insert_after = int(getattr(body[0], "end_lineno", body[0].lineno))
+        index = 1
+    while (
+        index < len(body)
+        and isinstance(body[index], ast.ImportFrom)
+        and body[index].module == "__future__"
+    ):
+        insert_after = int(getattr(body[index], "end_lineno", body[index].lineno))
+        index += 1
+    if insert_after:
+        return insert_after
+
+    limit = body[0].lineno - 1 if body else len(lines)
+    position = 0
+    while position < limit:
+        stripped = lines[position].strip()
+        if stripped and not stripped.startswith("#"):
+            break
+        position += 1
+    return position
+
+
+def render_pyx(source: str, preview: PreprocessPreview) -> str:
+    groups = [group for group in preview.declarations if group.variables]
+    if not groups:
+        return source
+
+    lines = source.splitlines(keepends=True)
+    newline = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
+    for group in sorted(groups, key=lambda item: item.def_line, reverse=True):
+        lines.insert(group.def_line - 1, _locals_decorator_line(group, newline))
+
+    tree = ast.parse(source)
+    first_def_line = min(group.def_line for group in groups)
+    if not _has_top_level_cython_import(tree, before_line=first_def_line):
+        lines.insert(
+            _module_prelude_insert_index(tree, source.splitlines()),
+            f"import cython{newline}",
+        )
     return "".join(lines)
 
 
 def preprocess_source(source: str, *, filename: str = "<source>") -> tuple[str, PreprocessPreview]:
-    preview = analyze_source(source, filename=filename)
-    return render_pyx(source, preview), preview
+    preview: PreprocessPreview | None = None
+    try:
+        preview = analyze_source(source, filename=filename)
+        rendered = render_pyx(source, preview)
+        # The decorator-based output is valid Python; gate it before use.
+        compile(rendered, filename, "exec")
+        return rendered, preview
+    # Defensive boundary: the preprocessor is an optional optimization pass and
+    # must never break a worker build; fall back to the unmodified source and
+    # record the degradation in the report.
+    except Exception as error:
+        reason = f"{type(error).__name__}: {error}"
+        logger.warning(
+            "Cython type preprocessing failed for %s; using original source (%s)",
+            filename,
+            reason,
+        )
+        return source, PreprocessPreview(
+            declarations=(),
+            skipped=preview.skipped if preview is not None else (),
+            degraded_reasons=(f"preprocessing degraded to passthrough: {reason}",),
+        )
 
 
 def preprocess_file(path: Path) -> tuple[str, PreprocessPreview]:
@@ -648,8 +964,8 @@ def preprocess_file(path: Path) -> tuple[str, PreprocessPreview]:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Generate a conservative .pyx preview from a Python source by inserting "
-            "Cython local cdef declarations only where simple AST evidence is stable."
+            "Generate a conservative .pyx preview from a Python source by adding "
+            "@cython.locals decorators only where simple AST evidence is stable."
         )
     )
     parser.add_argument("input", type=Path, help="Python source to inspect.")

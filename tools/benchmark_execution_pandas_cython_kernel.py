@@ -3,14 +3,9 @@ from __future__ import annotations
 import argparse
 import csv
 import importlib
-import importlib.util
 import json
-import statistics
-import subprocess
 import sys
-import sysconfig
 import tempfile
-import time
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -20,8 +15,6 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_SRC = ROOT / "src/agilab/apps/builtin/execution_pandas_project/src"
-AGI_ENV_SRC = ROOT / "src/agilab/core/agi-env/src"
-AGI_NODE_SRC = ROOT / "src/agilab/core/agi-node/src"
 WORKER_SOURCE = APP_SRC / "execution_pandas_worker/execution_pandas_worker.py"
 SOURCE_MODULE = "execution_pandas_worker.execution_pandas_worker"
 COMPILED_MODULE = "_execution_pandas_typed_kernel_cy"
@@ -36,11 +29,14 @@ def _ensure_app_path() -> None:
         sys.path.insert(0, path)
 
 
-def _ensure_core_paths() -> None:
-    for path in (AGI_ENV_SRC, AGI_NODE_SRC):
-        text = str(path)
-        if text not in sys.path:
-            sys.path.insert(0, text)
+def _verify_machinery():
+    """Load the generic per-project verify/bench machinery this tool wraps."""
+
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from tools import cython_worker_verify
+
+    return cython_worker_verify
 
 
 def _load_source_worker() -> ModuleType:
@@ -54,64 +50,16 @@ def _build_compiled_worker(
     module_name: str = COMPILED_MODULE,
     source_text: str | None = None,
 ) -> ModuleType:
-    pyx_path = tmp_root / f"{module_name}.pyx"
+    verify = _verify_machinery()
     if source_text is None:
         source_text = WORKER_SOURCE.read_text(encoding="utf-8")
-    pyx_path.write_text(source_text, encoding="utf-8")
-    setup_path = tmp_root / "setup.py"
-    setup_path.write_text(
-        "\n".join(
-            [
-                "from setuptools import Extension, setup",
-                "from Cython.Build import cythonize",
-                f"extension = Extension({module_name!r}, [{pyx_path.name!r}])",
-                "setup(",
-                f"    name={module_name!r},",
-                "    ext_modules=cythonize([extension], language_level=3, quiet=True),",
-                ")",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    subprocess.run(
-        [sys.executable, str(setup_path), "build_ext", "--inplace"],
-        cwd=tmp_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    suffix = sysconfig.get_config_var("EXT_SUFFIX") or ".so"
-    extension_path = tmp_root / f"{module_name}{suffix}"
-    if not extension_path.exists():
-        candidates = sorted(tmp_root.glob(f"{module_name}*.so"))
-        if not candidates:
-            candidates = sorted(tmp_root.glob(f"{module_name}*.pyd"))
-        if not candidates:
-            raise FileNotFoundError(f"Compiled module not found under {tmp_root}")
-        extension_path = candidates[0]
-
-    spec = importlib.util.spec_from_file_location(module_name, extension_path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Unable to import compiled module from {extension_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules.pop(module_name, None)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
+    return verify.compile_python_module(tmp_root, module_name, source_text)
 
 
 def _preprocess_worker_source(source_text: str) -> tuple[str, dict[str, Any]]:
-    _ensure_core_paths()
-    from agi_node.agi_dispatcher.cython_type_preprocess import preprocess_source
-    from agi_node.agi_dispatcher.pre_install import remove_decorators
-
-    stripped = remove_decorators(source_text, verbose=False)
-    preprocessed, preview = preprocess_source(
-        stripped,
-        filename=str(WORKER_SOURCE),
-    )
-    return preprocessed, preview.to_report(input_path=str(WORKER_SOURCE))
+    verify = _verify_machinery()
+    stripped = verify.strip_worker_decorators(source_text)
+    return verify.preprocess_worker_source(stripped, filename=str(WORKER_SOURCE))
 
 
 def _make_arrays(rows: int, seed: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -187,21 +135,14 @@ def _measure(
     repeats: int,
     warmups: int,
 ) -> dict[str, Any]:
-    samples: list[float] = []
-    checksum = 0.0
-    for idx in range(warmups + repeats):
-        t0 = time.perf_counter()
-        checksum = _run_kernel(module, arrays, compute_passes)
-        seconds = time.perf_counter() - t0
-        if idx >= warmups:
-            samples.append(seconds)
-    return {
-        "samples_seconds": samples,
-        "median_seconds": statistics.median(samples),
-        "min_seconds": min(samples),
-        "max_seconds": max(samples),
-        "checksum": checksum,
-    }
+    verify = _verify_machinery()
+    timing = verify.measure_callable(
+        lambda: _run_kernel(module, arrays, compute_passes),
+        repeats=repeats,
+        warmups=warmups,
+    )
+    timing["checksum"] = timing.pop("result")
+    return timing
 
 
 def _rows_for_csv(results: dict[str, Any]) -> list[dict[str, Any]]:

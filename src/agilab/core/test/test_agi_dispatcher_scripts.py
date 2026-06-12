@@ -183,13 +183,47 @@ def test_pre_install_prepare_for_cython_can_type_preprocess(tmp_path, monkeypatc
 
     pyx_text = worker_py.with_suffix(".pyx").read_text(encoding="utf-8")
     report = json.loads(worker_py.with_suffix(CYTHON_PREVIEW_REPORT_SUFFIX).read_text(encoding="utf-8"))
-    assert "cdef Py_ssize_t i" in pyx_text
-    assert "cdef double total" in pyx_text
+    assert "import cython\n" in pyx_text
+    assert "@cython.locals(i=cython.Py_ssize_t, total=cython.double)\n" in pyx_text
+    assert "cdef" not in pyx_text
     assert len(report["declarations"]) == 2
+    assert report["degraded_reasons"] == []
     assert report["input"] == str(worker_py)
     assert report["output"] == str(worker_py.with_suffix(".pyx"))
     assert any("Cython type preprocessing inserted 2" in line for line in logs)
     assert any("Cython type preprocessing report written" in line for line in logs)
+
+
+def test_pre_install_prepare_for_cython_degrades_to_passthrough_on_render_bug(tmp_path, monkeypatch):
+    worker_py = tmp_path / "demo_worker.py"
+    worker_py.write_text(
+        "def run():\n"
+        "    total = 0.0\n"
+        "    return total\n",
+        encoding="utf-8",
+    )
+    logs = []
+    monkeypatch.setattr(pre_mod.AgiEnv, "log_info", staticmethod(logs.append))
+    monkeypatch.setattr(type_preprocess_mod, "render_pyx", lambda _source, _preview: "def broken(:\n")
+
+    pre_mod.prepare_for_cython(
+        Namespace(
+            worker_path=str(worker_py),
+            cython_target_src_ext=".py",
+            type_preprocess=True,
+            verbose=False,
+        )
+    )
+
+    pyx_text = worker_py.with_suffix(".pyx").read_text(encoding="utf-8")
+    report = json.loads(worker_py.with_suffix(CYTHON_PREVIEW_REPORT_SUFFIX).read_text(encoding="utf-8"))
+    assert "def run():" in pyx_text
+    assert "@cython.locals" not in pyx_text
+    assert "# agilab-pyx: src-sha256=" in pyx_text
+    assert report["declarations"] == []
+    assert report["degraded_reasons"]
+    assert "SyntaxError" in report["degraded_reasons"][0]
+    assert any("Cython type preprocessing degraded" in line for line in logs)
 
 
 def test_cython_type_preprocess_skips_dynamic_reassignments():
@@ -257,6 +291,8 @@ def test_cython_type_preprocess_handles_complex_function_shapes():
     assert ("Worker.compute", "i", "Py_ssize_t") in typed
     assert ("Worker.compute", "ratio", "double") in typed
     assert ("Worker.compute", "repeated", "Py_ssize_t") in typed
+    assert ("Worker.compute", "total", "double") in typed
+    assert ("Worker.compute.inner", "nested", "double") in typed
     assert "label" in skipped
     assert "pair_a" in skipped
     assert "resource" in skipped
@@ -264,7 +300,14 @@ def test_cython_type_preprocess_handles_complex_function_shapes():
     assert "cm" in skipped
     assert report["input"] == "worker.py"
     assert report["output"] == "worker.pyx"
-    assert "\r\n        cdef Py_ssize_t count\r\n" in pyx_source
+    assert pyx_source.startswith("import cython\r\n")
+    assert (
+        "\r\n    @cython.locals(count=cython.Py_ssize_t, i=cython.Py_ssize_t, "
+        "repeated=cython.Py_ssize_t, walrus=cython.Py_ssize_t, flag=cython.bint, "
+        "ok=cython.bint, ratio=cython.double, total=cython.double)\r\n"
+        "    async def compute(self, values, *extra, scale=1.0, **kw):\r\n"
+    ) in pyx_source
+    assert "\r\n        @cython.locals(nested=cython.double)\r\n        def inner():\r\n" in pyx_source
 
 
 def test_cython_type_preprocess_extra_safe_and_blocked_edges():
@@ -350,24 +393,31 @@ def numeric(values, other):
     assert ("numeric", "started") in skipped
 
 
-def test_cython_type_preprocess_preserves_signatures_and_blocks_inline_docstring_defs():
+def test_cython_type_preprocess_preserves_signatures_and_decorates_inline_defs():
     source = (
         "def inline(): \"doc\"; total = 1.0; return total\n"
         "\n"
         "def normal(a: float, b=1):\n"
         "    value = 1.0\n"
-        "    return value\n"
+        "    scaled = a * 2.0\n"
+        "    return value, scaled\n"
     )
 
     preview = type_preprocess_mod.analyze_source(source)
     pyx_source = type_preprocess_mod.render_pyx(source, preview)
-    skipped = {(item.function, item.name): item.reason for item in preview.skipped}
+    typed = {(item.function, item.name, item.cython_type) for item in preview.typed_variables}
 
+    assert pyx_source.startswith("import cython\n")
+    # One-liner defs are newly typeable: the decorator binds above the def line.
+    assert (
+        '@cython.locals(total=cython.double)\n'
+        'def inline(): "doc"; total = 1.0; return total\n'
+    ) in pyx_source
+    assert ("inline", "total", "double") in typed
+    # Annotated parameters seed inference but are never redeclared.
+    assert "@cython.locals(scaled=cython.double, value=cython.double)\ndef normal(a: float, b=1):" in pyx_source
+    assert "a=cython" not in pyx_source
     assert "def normal(a: float, b=1):" in pyx_source
-    assert "cdef double a" not in pyx_source
-    assert "cdef double value" in pyx_source
-    assert "cdef double total" not in pyx_source
-    assert skipped[("inline", "total")] == "no safe insertion point for inline function body"
 
 
 def test_cython_type_preprocess_rendered_output_translates_with_real_cython(tmp_path):
@@ -415,6 +465,169 @@ def outer():
     assert ("outer.inner", "value") not in typed
 
 
+def test_cython_type_preprocess_propagates_local_type_chains():
+    preview = type_preprocess_mod.analyze_source(
+        "def kernel(values):\n"
+        "    x = 1.0\n"
+        "    d = x / 2.0\n"
+        "    e = d * d + 1.0\n"
+        "    return e\n"
+    )
+
+    typed = {(item.name, item.cython_type) for item in preview.typed_variables}
+    assert typed == {("x", "double"), ("d", "double"), ("e", "double")}
+
+
+def test_cython_type_preprocess_keeps_self_referential_chains_untyped():
+    # Documented bounded-propagation limit: self-referential rebinding stays untyped.
+    preview = type_preprocess_mod.analyze_source(
+        "def kernel():\n"
+        "    x = 1.0\n"
+        "    x = x + 1.0\n"
+        "    return x\n"
+    )
+
+    assert not preview.typed_variables
+    assert "x" in {item.name for item in preview.skipped}
+
+
+def test_cython_type_preprocess_annotation_seeded_kernel_types_body_locals():
+    source = (
+        "def step(x: float, dt: float):\n"
+        "    v = x * dt\n"
+        "    out = v + x\n"
+        "    return out\n"
+    )
+
+    pyx_source, preview = type_preprocess_mod.preprocess_source(source, filename="worker.py")
+
+    typed = {(item.name, item.cython_type) for item in preview.typed_variables}
+    assert typed == {("v", "double"), ("out", "double")}
+    assert pyx_source.startswith("import cython\n")
+    assert "@cython.locals(out=cython.double, v=cython.double)\ndef step(x: float, dt: float):" in pyx_source
+    # Annotated parameters are typed by Cython 3 annotation_typing already.
+    assert "x=cython" not in pyx_source
+    assert "dt=cython" not in pyx_source
+
+
+def test_cython_type_preprocess_int_annotations_do_not_seed_c_ints():
+    # Cython 3 keeps `int` annotations as Python ints (arbitrary precision).
+    preview = type_preprocess_mod.analyze_source(
+        "def count_up(n: int):\n"
+        "    m = n + 1\n"
+        "    half = n / 2.0\n"
+        "    return m, half\n"
+    )
+
+    typed_names = {item.name for item in preview.typed_variables}
+    assert "m" not in typed_names
+    assert "half" not in typed_names
+
+
+def test_cython_type_preprocess_augassign_conflicts_demote_to_untyped():
+    preview = type_preprocess_mod.analyze_source(
+        "def toggle():\n"
+        "    x = True\n"
+        "    x += True\n"
+        "    y = 0.0\n"
+        "    y += 1.0\n"
+        "    return x, y\n"
+    )
+
+    typed = {(item.name, item.cython_type) for item in preview.typed_variables}
+    skipped = {item.name for item in preview.skipped}
+    assert typed == {("y", "double")}
+    assert "x" in skipped
+
+
+def test_cython_type_preprocess_augassign_without_known_target_stays_untyped():
+    preview = type_preprocess_mod.analyze_source(
+        "def bump(values):\n"
+        "    acc = values.pop()\n"
+        "    acc += 1.0\n"
+        "    return acc\n"
+    )
+
+    assert not preview.typed_variables
+    assert "acc" in {item.name for item in preview.skipped}
+
+
+def test_cython_type_preprocess_skips_author_owned_locals_decorator():
+    source = (
+        "import cython\n"
+        "\n"
+        "@cython.locals(total=cython.double)\n"
+        "def run(values):\n"
+        "    total = 0.0\n"
+        "    extra = 1.0\n"
+        "    return total + extra\n"
+    )
+
+    pyx_source, preview = type_preprocess_mod.preprocess_source(source, filename="worker.py")
+
+    skipped = {item.name: item.reason for item in preview.skipped}
+    assert pyx_source == source
+    assert not preview.typed_variables
+    assert skipped["extra"] == "author-owned cython.locals present"
+    assert skipped["total"] == "author-owned cython.locals present"
+
+
+def test_cython_type_preprocess_skips_emission_when_cython_name_is_rebound():
+    source = (
+        "cython = None\n"
+        "\n"
+        "def run():\n"
+        "    total = 0.0\n"
+        "    return total\n"
+    )
+
+    pyx_source, preview = type_preprocess_mod.preprocess_source(source, filename="worker.py")
+
+    skipped = {item.name: item.reason for item in preview.skipped}
+    assert pyx_source == source
+    assert not preview.typed_variables
+    assert skipped["total"] == "the name 'cython' is rebound in source"
+
+
+def test_cython_type_preprocess_fail_open_returns_original_source_on_render_bug(monkeypatch):
+    source = "def run():\n    total = 0.0\n    return total\n"
+    monkeypatch.setattr(
+        type_preprocess_mod,
+        "render_pyx",
+        lambda _source, _preview: "def broken(:\n",
+    )
+
+    rendered, preview = type_preprocess_mod.preprocess_source(source, filename="worker.py")
+
+    assert rendered == source
+    assert not preview.typed_variables
+    assert preview.degraded_reasons
+    assert "SyntaxError" in preview.degraded_reasons[0]
+
+
+def test_cython_type_preprocess_fail_open_covers_analysis_crashes(monkeypatch):
+    source = "def run():\n    total = 0.0\n    return total\n"
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("collector bug")
+
+    monkeypatch.setattr(type_preprocess_mod, "analyze_source", _boom)
+
+    rendered, preview = type_preprocess_mod.preprocess_source(source, filename="worker.py")
+
+    assert rendered == source
+    assert "RuntimeError: collector bug" in preview.degraded_reasons[0]
+
+
+def test_cython_type_preprocess_fail_open_on_unparseable_input():
+    source = "def broken(:\n    pass\n"
+
+    rendered, preview = type_preprocess_mod.preprocess_source(source, filename="worker.py")
+
+    assert rendered == source
+    assert preview.degraded_reasons
+
+
 def test_cython_type_preprocess_cli_writes_reports_and_handles_empty_inputs(
     tmp_path,
     capsys,
@@ -448,7 +661,8 @@ def test_cython_type_preprocess_cli_writes_reports_and_handles_empty_inputs(
     assert exit_code == 0
     assert printed_report["input"] == str(input_path)
     assert stored_report["output"] == str(output_path)
-    assert "cdef double total" in output_path.read_text(encoding="utf-8")
+    assert stored_report["degraded_reasons"] == []
+    assert "@cython.locals(i=cython.Py_ssize_t, total=cython.double)" in output_path.read_text(encoding="utf-8")
 
     empty_path = tmp_path / "empty.py"
     empty_path.write_text("def run():\n    return object()\n", encoding="utf-8")

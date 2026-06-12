@@ -329,6 +329,14 @@ async def benchmark(
     benchmark_path = _benchmark_path(env)
 
     if not _is_cython_installed(env):
+        logger.info(
+            "Compiled worker module '%s_cy' is not importable; auto-installing "
+            "with CYTHON_MODE for the benchmark. If a regular run with the "
+            "cython mode bit (2) fails the same way, re-install the app with "
+            "cython enabled (install.py --with-cython, or declare "
+            "[tool.agilab.cython].enabled = true in the project pyproject).",
+            getattr(env, "target_worker", "worker"),
+        )
         await agi_cls.install(
             env,
             scheduler=request.scheduler,

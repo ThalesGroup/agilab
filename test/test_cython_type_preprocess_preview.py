@@ -50,7 +50,7 @@ def compute(values):
     assert {"dynamic", "item", "label"} <= skipped
 
 
-def test_render_pyx_inserts_declarations_after_function_docstring() -> None:
+def test_render_pyx_adds_locals_decorator_above_def() -> None:
     source = '''class Demo:
     def run(self, values):
         """Worker method."""
@@ -62,11 +62,15 @@ def test_render_pyx_inserts_declarations_after_function_docstring() -> None:
 
     pyx_source = previewer.render_pyx(source, previewer.analyze_source(source))
 
-    assert '        """Worker method."""\n        cdef Py_ssize_t i\n' in pyx_source
-    assert "        cdef double total\n        total = 0.0\n" in pyx_source
+    assert pyx_source.startswith("import cython\n")
+    assert (
+        "    @cython.locals(i=cython.Py_ssize_t, total=cython.double)\n"
+        "    def run(self, values):\n"
+    ) in pyx_source
+    assert "cdef" not in pyx_source
 
 
-def test_existing_source_annotations_are_not_duplicated_as_cdef() -> None:
+def test_existing_source_annotations_are_not_duplicated() -> None:
     source = """
 def compute():
     total: float = 0.0
@@ -78,9 +82,9 @@ def compute():
     preview = previewer.analyze_source(source)
     pyx_source = previewer.render_pyx(source, preview)
 
-    assert "cdef double inferred" in pyx_source
-    assert "cdef double total" not in pyx_source
-    assert "cdef bint flag" not in pyx_source
+    assert "@cython.locals(inferred=cython.double)\ndef compute():" in pyx_source
+    assert "total=" not in pyx_source
+    assert "flag=" not in pyx_source
     assert {item.name for item in preview.skipped} == {"flag", "total"}
 
 
@@ -111,5 +115,6 @@ def test_cli_writes_pyx_and_report(tmp_path: Path) -> None:
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert exit_code == 0
     assert output_path.exists()
-    assert "cdef double total" in output_path.read_text(encoding="utf-8")
+    assert "@cython.locals(i=cython.Py_ssize_t, total=cython.double)" in output_path.read_text(encoding="utf-8")
     assert {item["name"] for item in report["declarations"]} == {"i", "total"}
+    assert report["degraded_reasons"] == []

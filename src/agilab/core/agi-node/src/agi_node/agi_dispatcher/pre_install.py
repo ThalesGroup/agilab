@@ -159,6 +159,8 @@ def prepare_for_cython(args):
             f"{len(preview.typed_variables)} local declarations "
             f"and skipped {len(preview.skipped)} variables."
         )
+        for reason in preview.degraded_reasons:
+            AgiEnv.log_info(f"Cython type preprocessing degraded: {reason}")
         report_out.write_text(
             json.dumps(
                 preview.to_report(input_path=str(cython_src), output_path=str(cython_out)),

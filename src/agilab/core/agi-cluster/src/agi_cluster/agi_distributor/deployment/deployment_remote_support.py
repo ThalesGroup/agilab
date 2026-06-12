@@ -15,6 +15,7 @@ from asyncssh.process import ProcessError
 from agi_cluster.agi_distributor import deployment_dask_support
 from agi_cluster.agi_distributor.deployment.deployment_build_support import (
     _latest_glob_match as _latest_artifact_match,
+    _resolved_cython_directives_spec,
 )
 from agi_env import AgiEnv
 from agi_env.cython_build_config import cython_build_overlay_specs
@@ -94,6 +95,14 @@ def _env_lookup(env: Any, *names: str) -> str | None:
 
 def _truthy_env(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _cython_mode_enabled(agi_cls: Any) -> bool:
+    """Return whether this deploy carries the cython mode bit (AGI._mode & 2)."""
+
+    mode = int(getattr(agi_cls, "_mode", 0) or 0)
+    cython_mode = int(getattr(agi_cls, "CYTHON_MODE", 2) or 2)
+    return bool(mode & cython_mode)
 
 
 def _scheduler_ssh_port(env: Any) -> int:
@@ -810,31 +819,47 @@ async def deploy_remote_worker(
     )
     await agi_cls.exec_ssh(ip, cmd)
 
-    quiet_args = () if env.verbose > 1 else ("-q",)
-    cmd = _remote_command(
-        uv,
-        "--project",
-        wenv_rel,
-        "run",
-        "--no-sync",
-        *(
-            item
-            for spec in cython_build_overlay_specs()
-            for item in ("--with", spec)
-        ),
-        "-p",
-        pyvers,
-        "python",
-        "-m",
-        "agi_node.agi_dispatcher.build",
-        "--app-path",
-        wenv_rel,
-        *quiet_args,
-        "build_ext",
-        "-b",
-        wenv_rel,
-    )
-    await agi_cls.exec_ssh(ip, cmd)
+    if _cython_mode_enabled(agi_cls):
+        quiet_args = () if env.verbose > 1 else ("-q",)
+        # Manager-resolved directives travel as an explicit argv because env
+        # vars do not survive the SSH command; local and remote builds must
+        # resolve the exact same spec.
+        directives_spec = _resolved_cython_directives_spec(env)
+        directives_args = (
+            ("--compiler-directives", directives_spec) if directives_spec else ()
+        )
+        cmd = _remote_command(
+            uv,
+            "--project",
+            wenv_rel,
+            "run",
+            "--no-sync",
+            *(
+                item
+                for spec in cython_build_overlay_specs()
+                for item in ("--with", spec)
+            ),
+            "-p",
+            pyvers,
+            "python",
+            "-m",
+            "agi_node.agi_dispatcher.build",
+            "--app-path",
+            wenv_rel,
+            *directives_args,
+            *quiet_args,
+            "build_ext",
+            "-b",
+            wenv_rel,
+        )
+        await agi_cls.exec_ssh(ip, cmd)
+    else:
+        log.info(
+            "[%s] Skipping remote Cython build_ext: the cython mode bit is not "
+            "set for this deploy (re-install with cython enabled to compile "
+            "the worker).",
+            ip,
+        )
 
     # Fail fast on a runtime smoke test so a deployment does not report success
     # when the worker environment cannot actually start its threaded entrypoint.

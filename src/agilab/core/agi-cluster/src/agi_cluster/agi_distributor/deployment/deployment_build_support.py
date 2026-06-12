@@ -28,6 +28,8 @@ from agi_env.cython_build_config import (
     CYTHON_DISABLE_BUILD_CACHE_ENV,
     CYTHON_TYPE_PREPROCESS_ENV,
     cython_build_overlay_specs,
+    resolve_cython_directives_spec,
+    validate_cython_directives_spec,
 )
 from agi_env.share_runtime_support import python_supports_free_threading
 
@@ -106,6 +108,28 @@ def _env_truthy(envars: Any, key: str) -> bool:
 
 def _build_cache_enabled(env: Any) -> bool:
     return not _env_truthy(getattr(env, "envars", {}), DISABLE_BUILD_CACHE_ENV)
+
+
+def _resolved_cython_directives_spec(env: Any) -> str | None:
+    """Return the directives spec shipped to local and remote worker builds.
+
+    Resolution mirrors build.py (env var > project ``[tool.agilab.cython]``
+    pyproject config > framework default) and the spec is passed explicitly as
+    ``--compiler-directives`` so an SSH-deployed build, where manager env vars
+    do not survive, cannot diverge from the local one. ``None`` means both
+    sides fall back to the same framework defaults.
+    """
+
+    raw_env_value = _envar_value(getattr(env, "envars", {}), CYTHON_DIRECTIVES_ENV)
+    spec, source = resolve_cython_directives_spec(
+        env_value=None if raw_env_value is None else str(raw_env_value),
+        project_dir=getattr(env, "active_app", None),
+    )
+    if spec is not None:
+        # Hard error on unknown directive names before any build subprocess
+        # runs; the message names the pyproject path or env var at fault.
+        validate_cython_directives_spec(spec, source=source)
+    return spec
 
 
 def _file_fingerprint(path: Path) -> dict[str, Any] | None:
@@ -274,6 +298,9 @@ def _worker_build_cache_payload(
         "cython_build_requirements": list(cython_build_overlay_specs()),
         "cython_type_preprocess": _env_truthy(envars, CYTHON_TYPE_PREPROCESS_ENV),
         "cython_directives": _envar_value(envars, CYTHON_DIRECTIVES_ENV),
+        # Resolved spec (env > project pyproject > default) so a project-config
+        # change invalidates the cache even when the env var never moves.
+        "cython_directives_resolved": _resolved_cython_directives_spec(env),
         "cython_annotate": _env_truthy(envars, CYTHON_ANNOTATE_ENV),
         "base_worker_cls": str(getattr(env, "base_worker_cls", "")),
         "worker_group": worker_group,
@@ -457,13 +484,19 @@ def _build_ext_command(
     wenv_arg: str,
     verbose: int,
     build_overlay_args: str | None = None,
+    compiler_directives_spec: str | None = None,
 ) -> str:
     quiet_flag = "" if verbose > 1 else "-q "
     if build_overlay_args is None:
         build_overlay_args = " ".join(f"--with {spec}" for spec in cython_build_overlay_specs())
+    directives_flag = (
+        f"--compiler-directives {quote(compiler_directives_spec)} "
+        if compiler_directives_spec
+        else ""
+    )
     return (
         f"{uv} --project {app_path_arg} run --no-sync {build_overlay_args} "
-        f"{module_cmd} --app-path {app_path_arg} {quiet_flag}build_ext -b {wenv_arg}"
+        f"{module_cmd} --app-path {app_path_arg} {directives_flag}{quiet_flag}build_ext -b {wenv_arg}"
     )
 
 
@@ -573,6 +606,7 @@ async def build_lib_local(
             wenv_arg=wenv_arg,
             verbose=env.verbose,
             build_overlay_args=build_overlay_args,
+            compiler_directives_spec=_resolved_cython_directives_spec(env),
         )
         res = await run_fn(cmd, app_path)
         _copy_cython_worker_lib(

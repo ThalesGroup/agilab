@@ -542,6 +542,7 @@ markers = [
   "integration: live/external integration checks (excluded from default CI suite)",
   "release_proof: expensive release-proof gates that run only during release validation",
   "ui_robot: browser-driven AGILAB UI robot checks (opt-in; launches Streamlit/Playwright)",
+  "cython_compile: real cythonize compile-and-compare soundness gate (skips without Cython + C toolchain)",
 ]
 filterwarnings = [
   "ignore:ast\\.Num is deprecated.*:DeprecationWarning:ast",
