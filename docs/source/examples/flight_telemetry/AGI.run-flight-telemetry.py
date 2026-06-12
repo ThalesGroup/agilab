@@ -36,8 +36,6 @@ async def main():
         data_in="flight_telemetry/dataset",
         data_out="flight_telemetry/dataframe",
         mode=PYTHON_ONLY_MODE,
-        scheduler="127.0.0.1",
-        workers={"127.0.0.1": 1},
     )
     res = await AGI.run(app_env, request=request)
     print(res)

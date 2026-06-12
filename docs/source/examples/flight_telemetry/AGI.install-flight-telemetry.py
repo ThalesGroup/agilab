@@ -24,8 +24,6 @@ async def main():
     res = await AGI.install(
         app_env,
         modes_enabled=PYTHON_ONLY_MODE,
-        scheduler="127.0.0.1",
-        workers={"127.0.0.1": 1},
     )
     print(res)
     return res

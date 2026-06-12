@@ -101,7 +101,8 @@ Symptom:
 - the newcomer proof command reports a failing ``source ui smoke`` step
 - Main Page or ORCHESTRATE raises exceptions during AppTest startup
 
-Recovery::
+Recovery (run from the repository root; ``rm -rf .venv`` deletes the whole
+local environment and forces a full re-resolve on the next ``uv run``)::
 
     uv cache clean streamlit
     rm -rf .venv

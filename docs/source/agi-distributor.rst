@@ -60,9 +60,11 @@ should not teach those values directly.
 In normal usage, these values are generated from the UI toggles rather than
 typed manually.
 
-The literal-included Minimal App and Flight snippets below are kept aligned with the
-packaged examples under ``src/agilab/examples``: they resolve built-in apps from
-``apps/builtin`` and keep Cython off for the public first-run examples. Cython
+The literal-included Minimal App and Flight snippets below follow the same
+conventions as the packaged examples under ``src/agilab/examples``: they
+resolve built-in apps from ``apps/builtin`` and keep Cython off for the public
+first-run examples. The docs snippets stay Python-only for the first run,
+while the packaged Flight install example also enables Dask. Cython
 can still be enabled intentionally later, after the local Python/Dask path is
 known-good.
 
