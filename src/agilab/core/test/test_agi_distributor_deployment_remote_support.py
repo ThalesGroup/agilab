@@ -7,6 +7,7 @@ from unittest import mock
 
 import pytest
 
+from agi_env.cython_build_config import CYTHON_BUILD_REQUIREMENT
 from agi_cluster.agi_distributor import deployment_remote_support, uv_source_support
 
 
@@ -365,7 +366,7 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
     assert any(
         "agi_node.agi_dispatcher.build" in cmd
         and "--with setuptools" in cmd
-        and "--with cython" in cmd
+        and f"--with {CYTHON_BUILD_REQUIREMENT}" in cmd
         for cmd in ssh_calls
     )
 
@@ -495,7 +496,7 @@ async def test_deploy_remote_worker_verbose_build_keeps_overlay_without_quiet_fl
     assert len(build_commands) == 1
     build_cmd = build_commands[0]
     assert "--with setuptools" in build_cmd
-    assert "--with cython" in build_cmd
+    assert f"--with {CYTHON_BUILD_REQUIREMENT}" in build_cmd
     assert " -q " not in f" {build_cmd} "
 
 

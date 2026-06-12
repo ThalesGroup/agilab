@@ -1,9 +1,21 @@
-"""Conservative Cython local-variable preprocessing for worker sources."""
+"""Conservative Cython local-variable preprocessing for worker sources.
+
+Scope and non-goals:
+- This pass only emits local Cython declarations when a value is proven stable
+  from simple AST evidence inside one function body.
+- It never rewrites function signatures, parameters, return types, decorators,
+  or Python control flow. AGILAB dispatch inspects worker signatures at runtime.
+- Unknown binding syntax is default-deny: if a statement binds a name without a
+  positive handler, that name is skipped instead of guessed.
+- Bare integer assignments remain Python objects. C integer arithmetic is only
+  inferred inside guarded expressions where semantics stay narrow.
+"""
 
 from __future__ import annotations
 
 import argparse
 import ast
+import builtins
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -11,6 +23,8 @@ from typing import Iterable, Sequence
 
 
 CYTHON_NUMERIC_TYPES = {"bint", "double", "Py_ssize_t"}
+_CALL_BUILTINS = {"bool", "enumerate", "float", "isinstance", "len", "range"}
+_SMALL_INT_LITERAL_ABS_LIMIT = 1_000_000
 
 
 @dataclass(frozen=True)
@@ -89,7 +103,40 @@ def _call_name(node: ast.AST) -> str | None:
     return None
 
 
-def _expr_type(node: ast.AST) -> tuple[str | None, str]:
+def _is_small_int_literal(node: ast.AST) -> bool:
+    if isinstance(node, ast.Constant):
+        return (
+            isinstance(node.value, int)
+            and not isinstance(node.value, bool)
+            and abs(node.value) <= _SMALL_INT_LITERAL_ABS_LIMIT
+        )
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        return _is_small_int_literal(node.operand)
+    return False
+
+
+def _numeric_operand_type(
+    node: ast.AST,
+    *,
+    shadowed_builtins: set[str],
+    allow_int_literal: bool,
+) -> tuple[str | None, str]:
+    cython_type, reason = _expr_type(node, shadowed_builtins=shadowed_builtins)
+    if cython_type is not None:
+        return cython_type, reason
+    if allow_int_literal and _is_small_int_literal(node):
+        return "Py_ssize_t", "small int literal operand"
+    return None, reason
+
+
+def _expr_type(
+    node: ast.AST,
+    *,
+    shadowed_builtins: set[str] | None = None,
+) -> tuple[str | None, str]:
+    if shadowed_builtins is None:
+        shadowed_builtins = set()
+
     if isinstance(node, ast.Constant):
         if isinstance(node.value, bool):
             return "bint", "bool literal"
@@ -98,14 +145,41 @@ def _expr_type(node: ast.AST) -> tuple[str | None, str]:
         return None, "literal keeps Python object semantics"
 
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
-        return _expr_type(node.operand)
+        return _expr_type(node.operand, shadowed_builtins=shadowed_builtins)
+
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        return "bint", "not expression"
 
     if isinstance(node, ast.Compare):
-        return "bint", "comparison result"
+        boolean_ops = (ast.Is, ast.IsNot, ast.In, ast.NotIn)
+        numeric_ops = (ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE)
+        if all(isinstance(op, boolean_ops) for op in node.ops):
+            return "bint", "identity or membership comparison"
+        if all(isinstance(op, numeric_ops) for op in node.ops):
+            operands = (node.left, *node.comparators)
+            operand_types = [
+                _numeric_operand_type(
+                    operand,
+                    shadowed_builtins=shadowed_builtins,
+                    allow_int_literal=True,
+                )[0]
+                for operand in operands
+            ]
+            if all(operand_type in CYTHON_NUMERIC_TYPES for operand_type in operand_types):
+                return "bint", "numeric comparison result"
+        return None, "comparison operands are not statically numeric"
 
     if isinstance(node, ast.BinOp):
-        left_type, _ = _expr_type(node.left)
-        right_type, _ = _expr_type(node.right)
+        left_type, _ = _numeric_operand_type(
+            node.left,
+            shadowed_builtins=shadowed_builtins,
+            allow_int_literal=True,
+        )
+        right_type, _ = _numeric_operand_type(
+            node.right,
+            shadowed_builtins=shadowed_builtins,
+            allow_int_literal=True,
+        )
         if left_type in CYTHON_NUMERIC_TYPES and right_type in CYTHON_NUMERIC_TYPES:
             if isinstance(node.op, ast.Div):
                 # Python 3 true division yields float even for integer operands.
@@ -113,6 +187,15 @@ def _expr_type(node: ast.AST) -> tuple[str | None, str]:
             if isinstance(node.op, ast.Pow):
                 # Power results (e.g. negative exponents) are not statically safe.
                 return None, "power expression type is not statically safe"
+            if isinstance(node.op, ast.Mult) and not (
+                _is_small_int_literal(node.left) or _is_small_int_literal(node.right)
+            ):
+                return None, "multiplication requires a small literal operand"
+            if not isinstance(
+                node.op,
+                (ast.Add, ast.Sub, ast.Mult, ast.FloorDiv, ast.Mod, ast.Div),
+            ):
+                return None, "operator is not statically safe"
             if "double" in {left_type, right_type}:
                 return "double", "numeric expression"
             return "Py_ssize_t", "integer-sized numeric expression"
@@ -120,30 +203,104 @@ def _expr_type(node: ast.AST) -> tuple[str | None, str]:
 
     if isinstance(node, ast.Call):
         name = _call_name(node.func)
-        if name == "len":
+        if name == "len" and name not in shadowed_builtins:
             return "Py_ssize_t", "len() result"
-        if name == "float":
+        if name == "float" and name not in shadowed_builtins:
             return "double", "float() result"
-        if name == "bool":
+        if name == "bool" and name not in shadowed_builtins:
             return "bint", "bool() result"
+        if name == "isinstance" and name not in shadowed_builtins:
+            return "bint", "isinstance() result"
         return None, "call result is dynamic"
 
     return None, "expression type is dynamic"
 
 
-def _target_names(target: ast.AST) -> tuple[str, ...]:
-    if isinstance(target, ast.Name):
+def _pattern_bound_names(pattern: ast.AST) -> tuple[str, ...]:
+    names: list[str] = []
+    if isinstance(pattern, ast.MatchAs):
+        if pattern.name:
+            names.append(pattern.name)
+        if pattern.pattern is not None:
+            names.extend(_pattern_bound_names(pattern.pattern))
+    elif isinstance(pattern, ast.MatchStar):
+        if pattern.name:
+            names.append(pattern.name)
+    elif isinstance(pattern, ast.MatchMapping):
+        if pattern.rest:
+            names.append(pattern.rest)
+        for child in pattern.patterns:
+            names.extend(_pattern_bound_names(child))
+    elif isinstance(pattern, ast.MatchClass):
+        for child in [*pattern.patterns, *pattern.kwd_patterns]:
+            names.extend(_pattern_bound_names(child))
+    elif isinstance(pattern, (ast.MatchSequence, ast.MatchOr)):
+        for child in pattern.patterns:
+            names.extend(_pattern_bound_names(child))
+    return tuple(names)
+
+
+def _bound_names(target: ast.AST) -> tuple[str, ...]:
+    if isinstance(target, ast.Name) and isinstance(target.ctx, (ast.Store, ast.Del)):
         return (target.id,)
+    if isinstance(target, ast.Starred):
+        return _bound_names(target.value)
     if isinstance(target, (ast.Tuple, ast.List)):
         names: list[str] = []
         for item in target.elts:
-            names.extend(_target_names(item))
+            names.extend(_bound_names(item))
         return tuple(names)
+    if isinstance(target, ast.ExceptHandler):
+        return (target.name,) if target.name else ()
+    if isinstance(target, ast.alias):
+        return (target.asname or target.name.split(".", 1)[0],)
+    if isinstance(target, (ast.MatchAs, ast.MatchStar, ast.MatchMapping, ast.MatchClass, ast.MatchSequence, ast.MatchOr)):
+        return _pattern_bound_names(target)
+    if isinstance(target, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return (target.name,)
     return ()
 
 
-def _is_range_call(node: ast.AST) -> bool:
-    return isinstance(node, ast.Call) and _call_name(node.func) == "range"
+def _is_range_call(node: ast.AST, *, shadowed_builtins: set[str]) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and _call_name(node.func) == "range"
+        and "range" not in shadowed_builtins
+    )
+
+
+def _is_safe_enumerate_call(node: ast.AST, *, shadowed_builtins: set[str]) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and _call_name(node.func) == "enumerate"
+        and "enumerate" not in shadowed_builtins
+        and len(node.args) == 1
+        and not node.keywords
+    )
+
+
+def _statement_bound_names(statement: ast.stmt) -> tuple[str, ...]:
+    names: list[str] = []
+    for child in ast.walk(statement):
+        if isinstance(child, ast.Name) and isinstance(child.ctx, (ast.Store, ast.Del)):
+            names.append(child.id)
+        elif isinstance(child, ast.alias):
+            names.extend(_bound_names(child))
+        elif isinstance(child, ast.ExceptHandler):
+            names.extend(_bound_names(child))
+        elif isinstance(child, (ast.MatchAs, ast.MatchStar, ast.MatchMapping, ast.MatchClass, ast.MatchSequence, ast.MatchOr)):
+            names.extend(_bound_names(child))
+        elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and child is statement:
+            names.extend(_bound_names(child))
+    return tuple(names)
+
+
+def _shadowed_builtins(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    builtin_names = set(dir(builtins)) | _CALL_BUILTINS
+    bound: set[str] = set()
+    for statement in node.body:
+        bound.update(_statement_bound_names(statement))
+    return bound & builtin_names
 
 
 def _function_args(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
@@ -160,6 +317,8 @@ def _insert_after_line(node: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
     if node.body and isinstance(node.body[0], ast.Expr):
         value = node.body[0].value
         if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            if node.body[0].lineno == node.lineno:
+                return -1
             return int(getattr(node.body[0], "end_lineno", node.body[0].lineno))
     if node.body and node.body[0].lineno > node.lineno:
         # Insert just before the first body statement so multi-line signatures
@@ -194,9 +353,10 @@ def _iter_functions(
 
 
 class _FunctionCollector(ast.NodeVisitor):
-    def __init__(self, *, function: str, parameters: set[str]) -> None:
+    def __init__(self, *, function: str, parameters: set[str], shadowed_builtins: set[str]) -> None:
         self.function = function
         self.parameters = parameters
+        self.shadowed_builtins = shadowed_builtins
         self.candidates: dict[str, list[_Candidate]] = {}
         self.blocked: dict[str, list[_Candidate]] = {}
         self.global_or_nonlocal: set[str] = set()
@@ -218,18 +378,21 @@ class _FunctionCollector(ast.NodeVisitor):
         self.global_or_nonlocal.update(node.names)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._block(node.name, line=node.lineno, reason="nested function binding is dynamic")
         return
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._block(node.name, line=node.lineno, reason="nested async function binding is dynamic")
         return
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._block(node.name, line=node.lineno, reason="nested class binding is dynamic")
         return
 
     def visit_Assign(self, node: ast.Assign) -> None:
-        cython_type, reason = _expr_type(node.value)
+        cython_type, reason = _expr_type(node.value, shadowed_builtins=self.shadowed_builtins)
         for target in node.targets:
-            names = _target_names(target)
+            names = _bound_names(target)
             if isinstance(target, ast.Name) and cython_type is not None:
                 self._record(target.id, _Candidate(cython_type, node.lineno, reason))
             else:
@@ -238,11 +401,11 @@ class _FunctionCollector(ast.NodeVisitor):
         self.generic_visit(node.value)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
-        names = _target_names(node.target)
+        names = _bound_names(node.target)
         annotation_type = _annotation_type(node.annotation)
         value_reason = "annotated assignment without value"
         if node.value is not None:
-            _, value_reason = _expr_type(node.value)
+            _, value_reason = _expr_type(node.value, shadowed_builtins=self.shadowed_builtins)
 
         reason = (
             "source annotation already provides a type hint"
@@ -255,8 +418,8 @@ class _FunctionCollector(ast.NodeVisitor):
             self.generic_visit(node.value)
 
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
-        names = _target_names(node.target)
-        cython_type, reason = _expr_type(node.value)
+        names = _bound_names(node.target)
+        cython_type, reason = _expr_type(node.value, shadowed_builtins=self.shadowed_builtins)
         if isinstance(node.target, ast.Name) and cython_type is not None:
             self._record(node.target.id, _Candidate(cython_type, node.lineno, reason))
         else:
@@ -265,12 +428,27 @@ class _FunctionCollector(ast.NodeVisitor):
         self.generic_visit(node.value)
 
     def visit_For(self, node: ast.For) -> None:
-        names = _target_names(node.target)
-        if isinstance(node.target, ast.Name) and _is_range_call(node.iter):
+        names = _bound_names(node.target)
+        if isinstance(node.target, ast.Name) and _is_range_call(
+            node.iter,
+            shadowed_builtins=self.shadowed_builtins,
+        ):
             self._record(
                 node.target.id,
                 _Candidate("Py_ssize_t", node.lineno, "range() loop index"),
             )
+        elif (
+            isinstance(node.target, (ast.Tuple, ast.List))
+            and len(node.target.elts) == 2
+            and isinstance(node.target.elts[0], ast.Name)
+            and _is_safe_enumerate_call(node.iter, shadowed_builtins=self.shadowed_builtins)
+        ):
+            self._record(
+                node.target.elts[0].id,
+                _Candidate("Py_ssize_t", node.lineno, "enumerate() loop index"),
+            )
+            for name in _bound_names(node.target.elts[1]):
+                self._block(name, line=node.lineno, reason="enumerate() value target is dynamic")
         else:
             for name in names:
                 self._block(name, line=node.lineno, reason="loop target is dynamic")
@@ -278,7 +456,7 @@ class _FunctionCollector(ast.NodeVisitor):
             self.visit(statement)
 
     def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
-        for name in _target_names(node.target):
+        for name in _bound_names(node.target):
             self._block(name, line=node.lineno, reason="async loop target is dynamic")
         for statement in [*node.body, *node.orelse]:
             self.visit(statement)
@@ -286,7 +464,7 @@ class _FunctionCollector(ast.NodeVisitor):
     def visit_With(self, node: ast.With) -> None:
         for item in node.items:
             if item.optional_vars is not None:
-                for name in _target_names(item.optional_vars):
+                for name in _bound_names(item.optional_vars):
                     self._block(
                         name,
                         line=node.lineno,
@@ -298,7 +476,7 @@ class _FunctionCollector(ast.NodeVisitor):
     def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
         for item in node.items:
             if item.optional_vars is not None:
-                for name in _target_names(item.optional_vars):
+                for name in _bound_names(item.optional_vars):
                     self._block(
                         name,
                         line=node.lineno,
@@ -316,17 +494,36 @@ class _FunctionCollector(ast.NodeVisitor):
     def visit_Delete(self, node: ast.Delete) -> None:
         # Cython forbids deleting C-typed locals; never give del'ed names a cdef.
         for target in node.targets:
-            for name in _target_names(target):
+            for name in _bound_names(target):
                 self._block(name, line=node.lineno, reason="variable is deleted")
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
-        cython_type, reason = _expr_type(node.value)
-        for name in _target_names(node.target):
+        cython_type, reason = _expr_type(node.value, shadowed_builtins=self.shadowed_builtins)
+        for name in _bound_names(node.target):
             if cython_type is not None and isinstance(node.target, ast.Name):
                 self._record(name, _Candidate(cython_type, node.lineno, reason))
             else:
                 self._block(name, line=node.lineno, reason=reason)
         self.generic_visit(node.value)
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            for name in _bound_names(alias):
+                self._block(name, line=node.lineno, reason="import target is dynamic")
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        for alias in node.names:
+            for name in _bound_names(alias):
+                self._block(name, line=node.lineno, reason="import target is dynamic")
+
+    def visit_Match(self, node: ast.Match) -> None:
+        for case in node.cases:
+            for name in _bound_names(case.pattern):
+                self._block(name, line=node.lineno, reason="match capture target is dynamic")
+            if case.guard is not None:
+                self.visit(case.guard)
+            for statement in case.body:
+                self.visit(statement)
 
     def resolve(self) -> tuple[tuple[TypedVariable, ...], tuple[SkippedVariable, ...]]:
         typed: list[TypedVariable] = []
@@ -385,6 +582,7 @@ def analyze_source(source: str, *, filename: str = "<source>") -> PreprocessPrev
         collector = _FunctionCollector(
             function=info.qualname,
             parameters=_function_args(info.node),
+            shadowed_builtins=_shadowed_builtins(info.node),
         )
         for statement in info.node.body:
             collector.visit(statement)

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from agi_env.cython_build_config import CYTHON_BUILD_REQUIREMENT
 from agi_cluster.agi_distributor import AGI
 import agi_cluster.agi_distributor.deployment_build_support as deployment_build_support
 from agi_cluster.agi_distributor import uv_source_support
@@ -205,8 +206,8 @@ def test_worker_build_commands_request_build_tool_overlay():
         verbose=0,
     )
 
-    assert "run --no-sync --with setuptools --with cython" in bdist_cmd
-    assert "run --no-sync --with setuptools --with cython" in build_ext_cmd
+    assert f"run --no-sync --with setuptools --with {CYTHON_BUILD_REQUIREMENT}" in bdist_cmd
+    assert f"run --no-sync --with setuptools --with {CYTHON_BUILD_REQUIREMENT}" in build_ext_cmd
     assert " -q " in f" {bdist_cmd} "
     assert " -q " in f" {build_ext_cmd} "
 
@@ -228,8 +229,8 @@ def test_worker_build_commands_keep_overlay_without_quiet_flag_when_verbose():
         verbose=2,
     )
 
-    assert "run --no-sync --with setuptools --with cython" in bdist_cmd
-    assert "run --no-sync --with setuptools --with cython" in build_ext_cmd
+    assert f"run --no-sync --with setuptools --with {CYTHON_BUILD_REQUIREMENT}" in bdist_cmd
+    assert f"run --no-sync --with setuptools --with {CYTHON_BUILD_REQUIREMENT}" in build_ext_cmd
     assert " -q " not in f" {bdist_cmd} "
     assert " -q " not in f" {build_ext_cmd} "
 
@@ -245,7 +246,7 @@ def test_source_worker_build_overlay_includes_editable_core_projects(tmp_path):
     overlay = deployment_build_support._build_run_overlay_args(env)
 
     assert "--with setuptools" in overlay
-    assert "--with cython" in overlay
+    assert f"--with {CYTHON_BUILD_REQUIREMENT}" in overlay
     assert _editable_overlay_arg(env.agi_env) in overlay
     assert _editable_overlay_arg(env.agi_node) in overlay
     assert _editable_overlay_arg(env.agi_cluster) in overlay
@@ -367,6 +368,20 @@ def test_build_support_fingerprint_edge_cases(monkeypatch, tmp_path):
     assert deployment_build_support._git_directory_fingerprint(source) is None
 
 
+def test_file_fingerprint_uses_hash_not_mtime_for_small_files(tmp_path):
+    source = tmp_path / "module.py"
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+
+    first = deployment_build_support._file_fingerprint(source)
+    os.utime(source, (100, 100))
+    second = deployment_build_support._file_fingerprint(source)
+
+    assert first is not None and second is not None
+    assert first["sha256"] == second["sha256"]
+    assert "mtime_ns" not in first
+    assert "mtime_ns" not in second
+
+
 def test_worker_build_cache_helpers_cover_disabled_and_missing_outputs(tmp_path):
     env = SimpleNamespace(
         wenv_abs=tmp_path / "wenv",
@@ -402,6 +417,30 @@ def test_worker_build_cache_helpers_cover_disabled_and_missing_outputs(tmp_path)
         core_install_commands=[],
     )
     assert not deployment_build_support._build_cache_path(env.wenv_abs).exists()
+
+
+def test_worker_build_cache_payload_records_cython_codegen_inputs(tmp_path):
+    env = _build_env(tmp_path)
+    env.envars = {
+        "AGILAB_CYTHON_ANNOTATE": "1",
+        "AGILAB_CYTHON_TYPE_PREPROCESS": "1",
+        "AGILAB_CYTHON_DIRECTIVES": "off",
+    }
+
+    payload = deployment_build_support._worker_build_cache_payload(
+        env=env,
+        packages="agi_dispatcher, pandas_worker",
+        worker_group="pandas-worker",
+        is_cy=True,
+        module_cmd="python -m build",
+        core_install_commands=[],
+    )
+
+    assert payload["schema"] == "agilab-worker-build-cache-v2"
+    assert payload["cython_build_requirements"] == ["setuptools", CYTHON_BUILD_REQUIREMENT]
+    assert payload["cython_type_preprocess"] is True
+    assert payload["cython_directives"] == "off"
+    assert payload["cython_annotate"] is True
 
 
 def test_copy_cython_worker_lib_raises_when_output_missing(tmp_path):

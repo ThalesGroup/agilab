@@ -13,6 +13,12 @@ from zipfile import ZipFile
 import py7zr
 import pytest
 
+from agi_env.cython_build_config import (
+    CYTHON_BUILD_STAMP_FILENAME,
+    CYTHON_PREVIEW_REPORT_SUFFIX,
+    add_cython_pyx_stamp,
+    cython_pyx_stamp_line,
+)
 from agi_node.agi_dispatcher import build as build_mod
 from agi_node.agi_dispatcher import cython_type_preprocess as type_preprocess_mod
 from agi_node.agi_dispatcher import post_install as post_mod
@@ -62,6 +68,27 @@ def test_pre_install_remove_decorators_by_name():
     assert "@drop" not in out
     assert "@keep" in out
     assert "def func" in out
+
+
+def test_pre_install_prepare_for_cython_writes_freshness_stamp(tmp_path):
+    worker_path = tmp_path / "demo_worker.py"
+    worker_path.write_text("@decorator\ndef run():\n    return 1\n", encoding="utf-8")
+    report_path = worker_path.with_suffix(CYTHON_PREVIEW_REPORT_SUFFIX)
+    report_path.write_text("stale\n", encoding="utf-8")
+
+    pre_mod.prepare_for_cython(
+        Namespace(
+            worker_path=str(worker_path),
+            cython_target_src_ext=".py",
+            type_preprocess=False,
+            verbose=False,
+        )
+    )
+
+    pyx_text = worker_path.with_suffix(".pyx").read_text(encoding="utf-8")
+    assert "# agilab-pyx: src-sha256=" in pyx_text
+    assert "type-preprocess=0" in pyx_text
+    assert not report_path.exists()
 
 
 def test_pre_install_process_decorators_handles_missing_parent_entry(monkeypatch):
@@ -155,9 +182,14 @@ def test_pre_install_prepare_for_cython_can_type_preprocess(tmp_path, monkeypatc
     )
 
     pyx_text = worker_py.with_suffix(".pyx").read_text(encoding="utf-8")
+    report = json.loads(worker_py.with_suffix(CYTHON_PREVIEW_REPORT_SUFFIX).read_text(encoding="utf-8"))
     assert "cdef Py_ssize_t i" in pyx_text
     assert "cdef double total" in pyx_text
+    assert len(report["declarations"]) == 2
+    assert report["input"] == str(worker_py)
+    assert report["output"] == str(worker_py.with_suffix(".pyx"))
     assert any("Cython type preprocessing inserted 2" in line for line in logs)
+    assert any("Cython type preprocessing report written" in line for line in logs)
 
 
 def test_cython_type_preprocess_skips_dynamic_reassignments():
@@ -259,6 +291,102 @@ def run(values):
     assert "blocked" in skipped
     assert "pair" in skipped
     assert type_preprocess_mod._call_name(type_preprocess_mod.ast.Constant(value=1)) is None
+
+
+def test_cython_type_preprocess_blocks_reproduced_unsound_bindings():
+    source = """
+def run(arr, pair, value):
+    c, *rest = pair
+    mask = arr > 0
+    import math as m
+    match value:
+        case {"x": x, **remaining}:
+            pass
+    return c, rest, mask, m, x, remaining
+"""
+
+    preview = type_preprocess_mod.analyze_source(source)
+    typed_names = {item.name for item in preview.typed_variables}
+    skipped = {item.name: item.reason for item in preview.skipped}
+
+    assert not ({"c", "rest", "mask", "m", "x", "remaining"} & typed_names)
+    assert {"c", "rest", "mask", "m", "x", "remaining"} <= set(skipped)
+    assert skipped["mask"] == "comparison operands are not statically numeric"
+
+
+def test_cython_type_preprocess_blocks_shadowed_builtins_and_keeps_safe_reach():
+    source = """
+def shadowed(values):
+    range = lambda n: [0]
+    for i in range(len(values)):
+        pass
+    return i
+
+def numeric(values, other):
+    offset = len(values) - 1
+    scaled = len(values) * 8
+    product = len(values) * len(other)
+    truth = not values
+    check = isinstance(values, list)
+    for idx, item in enumerate(values):
+        pass
+    for started, value in enumerate(values, 1):
+        pass
+    return offset, scaled, product, truth, check, idx, started
+"""
+
+    preview = type_preprocess_mod.analyze_source(source)
+    typed = {(item.function, item.name, item.cython_type) for item in preview.typed_variables}
+    skipped = {(item.function, item.name) for item in preview.skipped}
+
+    assert ("shadowed", "i", "Py_ssize_t") not in typed
+    assert ("shadowed", "i") in skipped
+    assert ("numeric", "offset", "Py_ssize_t") in typed
+    assert ("numeric", "scaled", "Py_ssize_t") in typed
+    assert ("numeric", "truth", "bint") in typed
+    assert ("numeric", "check", "bint") in typed
+    assert ("numeric", "idx", "Py_ssize_t") in typed
+    assert ("numeric", "product") in skipped
+    assert ("numeric", "started") in skipped
+
+
+def test_cython_type_preprocess_preserves_signatures_and_blocks_inline_docstring_defs():
+    source = (
+        "def inline(): \"doc\"; total = 1.0; return total\n"
+        "\n"
+        "def normal(a: float, b=1):\n"
+        "    value = 1.0\n"
+        "    return value\n"
+    )
+
+    preview = type_preprocess_mod.analyze_source(source)
+    pyx_source = type_preprocess_mod.render_pyx(source, preview)
+    skipped = {(item.function, item.name): item.reason for item in preview.skipped}
+
+    assert "def normal(a: float, b=1):" in pyx_source
+    assert "cdef double a" not in pyx_source
+    assert "cdef double value" in pyx_source
+    assert "cdef double total" not in pyx_source
+    assert skipped[("inline", "total")] == "no safe insertion point for inline function body"
+
+
+def test_cython_type_preprocess_rendered_output_translates_with_real_cython(tmp_path):
+    cython_build = pytest.importorskip("Cython.Build")
+    source = (
+        "def run(values):\n"
+        "    total = 0.0\n"
+        "    for i in range(len(values)):\n"
+        "        total += 1.0\n"
+        "    return total\n"
+    )
+    pyx_source, preview = type_preprocess_mod.preprocess_source(source, filename="worker.py")
+    pyx_path = tmp_path / "worker.pyx"
+    pyx_path.write_text(pyx_source, encoding="utf-8")
+
+    cython_build.cythonize([str(pyx_path)], language_level=3, quiet=True, force=True)
+
+    assert preview.typed_variables
+    assert pyx_path.with_suffix(".c").exists()
 
 
 def test_cython_type_preprocess_respects_global_and_nonlocal_targets():
@@ -1772,22 +1900,71 @@ def test_build_ext_compile_config_covers_platform_and_free_threading():
     compile_args, define_macros, compiler_directives = build_mod._build_ext_compile_config(
         sys_platform="darwin",
         pyvers_worker="3.13",
+        environ={},
     )
     assert compile_args == [
         "-Wno-unknown-warning-option",
         "-Wno-unreachable-code-fallthrough",
     ]
     assert define_macros == [("CYTHON_FALLTHROUGH", "")]
-    assert compiler_directives == {}
+    assert compiler_directives["boundscheck"] is False
+    assert compiler_directives["wraparound"] is False
+    assert compiler_directives["initializedcheck"] is False
+    assert compiler_directives["nonecheck"] is False
+    assert compiler_directives["embedsignature"] is True
+    assert compiler_directives["profile"] is False
+    assert compiler_directives["linetrace"] is False
+    assert "freethreading_compatible" not in compiler_directives
 
     compile_args, define_macros, compiler_directives = build_mod._build_ext_compile_config(
         sys_platform="win32",
         pyvers_worker="3.13t",
+        environ={},
     )
     assert compile_args == []
     assert ("CYTHON_FALLTHROUGH", "") in define_macros
     assert ("Py_GIL_DISABLED", "1") in define_macros
-    assert compiler_directives == {"freethreading_compatible": True}
+    assert compiler_directives["freethreading_compatible"] is True
+    assert compiler_directives["boundscheck"] is False
+    assert compiler_directives["nonecheck"] is False
+
+
+def test_resolve_cython_compiler_directives_supports_off_and_overrides():
+    assert build_mod._resolve_cython_compiler_directives(
+        pyvers_worker="3.13",
+        environ={"AGILAB_CYTHON_DIRECTIVES": "off"},
+    ) == {}
+    assert build_mod._resolve_cython_compiler_directives(
+        pyvers_worker="3.13t",
+        environ={"AGILAB_CYTHON_DIRECTIVES": "off"},
+    ) == {"freethreading_compatible": True}
+
+    directives = build_mod._resolve_cython_compiler_directives(
+        pyvers_worker="3.13",
+        environ={"AGILAB_CYTHON_DIRECTIVES": "infer_types=true,cdivision=true,boundscheck=true"},
+    )
+    assert directives["infer_types"] is True
+    assert directives["cdivision"] is True
+    assert directives["boundscheck"] is True
+
+    # The named bundle removes index checks only — cdivision is excluded
+    # because it changes arithmetic results instead of removing checks.
+    directives = build_mod._resolve_cython_compiler_directives(
+        pyvers_worker="3.13",
+        environ={"AGILAB_CYTHON_DIRECTIVES": "unchecked"},
+    )
+    assert directives["boundscheck"] is False
+    assert directives["wraparound"] is False
+    assert directives["initializedcheck"] is False
+    assert directives["nonecheck"] is False
+    assert "cdivision" not in directives
+
+    # A typo silently dropping a safety directive is worse than failing.
+    with pytest.raises(ValueError, match="Unknown Cython compiler directive"):
+        build_mod._resolve_cython_compiler_directives(
+            pyvers_worker="3.13",
+            environ={"AGILAB_CYTHON_DIRECTIVES": "boundschek=false"},
+        )
 
 
 def test_build_worker_extension_uses_expected_fields(tmp_path):
@@ -1853,15 +2030,17 @@ def test_cythonize_worker_extension_passes_quiet_directives_and_cache(tmp_path):
         extension=extension,
         compiler_directives={"freethreading_compatible": True},
         quiet=True,
-        cythonize_fn=lambda modules, language_level=3, quiet=False, compiler_directives=None, cache=False: (
-            cythonize_calls.append((modules, language_level, quiet, compiler_directives, cache)) or ["ext_mod"]
+        annotate=True,
+        cythonize_fn=lambda modules, language_level=3, quiet=False, compiler_directives=None, cache=False, annotate=False: (
+            cythonize_calls.append((modules, language_level, quiet, compiler_directives, cache, annotate)) or ["ext_mod"]
         ),
         resolve_cython_cache_option_fn=lambda: str(tmp_path / "cython-cache"),
+        log=SimpleNamespace(info=lambda *args: None),
     )
 
     assert result == ["ext_mod"]
     assert cythonize_calls == [
-        ([extension], 3, True, {"freethreading_compatible": True}, str(tmp_path / "cython-cache"))
+        ([extension], 3, True, {"freethreading_compatible": True}, str(tmp_path / "cython-cache"), True)
     ]
 
 
@@ -1904,7 +2083,7 @@ def test_postprocess_bdist_egg_output_unpacks_and_cleans_links(tmp_path):
         zf.writestr("demo_args_form.py", "import streamlit\n")
         zf.writestr("__pycache__/app_args_form.cpython-313.pyc", b"")
 
-    env = SimpleNamespace(worker_path="workers/demo_worker.py")
+    env = SimpleNamespace(worker_path="workers/demo_worker.py", home_abs=str(tmp_path))
     links_created = [tmp_path / "src" / "demo_worker" / "module_link"]
     cleanup_calls = []
     subprocess_calls = []
@@ -2044,6 +2223,64 @@ def test_ensure_worker_cython_source_runs_pre_install_when_pyx_missing(tmp_path)
     assert log_lines and "Ensuring Cython source via pre_install" in str(log_lines[0][0])
 
 
+def test_ensure_worker_cython_source_skips_when_pyx_stamp_is_fresh(tmp_path):
+    worker_py = tmp_path / "workers" / "demo_worker.py"
+    worker_py.parent.mkdir(parents=True, exist_ok=True)
+    worker_py.write_text("value = 1\n", encoding="utf-8")
+    worker_pyx = worker_py.with_suffix(".pyx")
+    worker_pyx.write_text(
+        add_cython_pyx_stamp(
+            "value = 1\n",
+            stamp_line=cython_pyx_stamp_line(
+                "value = 1\n",
+                type_preprocess=False,
+            ),
+        ),
+        encoding="utf-8",
+    )
+    pre_script = tmp_path / "pre_install.py"
+    pre_script.write_text("print('ok')\n", encoding="utf-8")
+    run_calls = []
+
+    build_mod._ensure_worker_cython_source(
+        SimpleNamespace(worker_path=str(worker_py), home_abs=str(tmp_path), verbose=2),
+        resolve_pre_install_script_fn=lambda _env: pre_script,
+        subprocess_run=lambda cmd, check=True: run_calls.append((cmd, check)),
+        log=SimpleNamespace(info=lambda *args: None),
+    )
+
+    assert run_calls == []
+
+
+def test_ensure_worker_cython_source_regenerates_when_preprocess_flag_changes(tmp_path):
+    worker_py = tmp_path / "workers" / "demo_worker.py"
+    worker_py.parent.mkdir(parents=True, exist_ok=True)
+    worker_py.write_text("value = 1\n", encoding="utf-8")
+    worker_py.with_suffix(".pyx").write_text(
+        add_cython_pyx_stamp(
+            "value = 1\n",
+            stamp_line=cython_pyx_stamp_line(
+                "value = 1\n",
+                type_preprocess=False,
+            ),
+        ),
+        encoding="utf-8",
+    )
+    pre_script = tmp_path / "pre_install.py"
+    pre_script.write_text("print('ok')\n", encoding="utf-8")
+    run_calls = []
+
+    build_mod._ensure_worker_cython_source(
+        SimpleNamespace(worker_path=str(worker_py), home_abs=str(tmp_path), verbose=0),
+        resolve_pre_install_script_fn=lambda _env: pre_script,
+        resolve_cython_type_preprocess_option_fn=lambda: True,
+        subprocess_run=lambda cmd, check=True: run_calls.append((cmd, check)),
+        log=SimpleNamespace(info=lambda *args: None),
+    )
+
+    assert run_calls and "--type-preprocess" in run_calls[0][0]
+
+
 def test_resolve_cython_type_preprocess_option_from_environment():
     assert build_mod._resolve_cython_type_preprocess_option(environ={}) is False
     assert build_mod._resolve_cython_type_preprocess_option(
@@ -2135,6 +2372,83 @@ def test_build_setuptools_argv_handles_relative_and_absolute_out_arg(tmp_path):
     ]
 
 
+def test_cython_build_stamp_hit_and_record_track_codegen_inputs(tmp_path):
+    home = tmp_path / "home"
+    worker_py = home / "demo_project" / "src" / "demo_worker" / "demo_worker.py"
+    worker_py.parent.mkdir(parents=True, exist_ok=True)
+    worker_py.write_text("def run():\n    return 1\n", encoding="utf-8")
+    worker_py.with_suffix(".pyx").write_text("def run():\n    return 1\n", encoding="utf-8")
+    dist = home / "exports" / "dist"
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "demo_worker_cy.cpython-test.so").write_text("binary", encoding="utf-8")
+    env = SimpleNamespace(
+        home_abs=str(home),
+        worker_path=str(worker_py),
+        pyvers_worker="3.13",
+    )
+
+    build_mod._record_cython_build_stamp(
+        env=env,
+        out_arg="exports",
+        worker_module="demo_worker",
+        log=SimpleNamespace(info=lambda *args: None),
+    )
+
+    stamp_path = dist / CYTHON_BUILD_STAMP_FILENAME
+    payload = json.loads(stamp_path.read_text(encoding="utf-8"))
+    assert payload["worker_pyx"]["sha256"]
+    assert build_mod._cython_build_stamp_hit(
+        env=env,
+        out_arg="exports",
+        worker_module="demo_worker",
+        log=SimpleNamespace(info=lambda *args: None),
+    ) is True
+
+    worker_py.with_suffix(".pyx").write_text("def run():\n    return 2\n", encoding="utf-8")
+    assert build_mod._cython_build_stamp_hit(
+        env=env,
+        out_arg="exports",
+        worker_module="demo_worker",
+        log=SimpleNamespace(info=lambda *args: None),
+    ) is False
+
+
+def test_execute_main_setup_skips_or_records_cython_stamp(tmp_path):
+    calls = []
+    skipped_env = SimpleNamespace(_agilab_skip_setup=True)
+
+    build_mod._execute_main_setup(
+        env=skipped_env,
+        cmd="build_ext",
+        out_arg="exports",
+        worker_module="demo_worker",
+        ext_modules=[],
+        links_created=[],
+        ensure_build_readme_fn=lambda: calls.append("readme"),
+        setup_fn=lambda **_kwargs: calls.append("setup"),
+        finalize_setup_artifacts_fn=lambda **_kwargs: calls.append("finalize"),
+    )
+
+    assert calls == []
+
+    env = SimpleNamespace()
+    build_mod._execute_main_setup(
+        env=env,
+        cmd="build_ext",
+        out_arg="exports",
+        worker_module="demo_worker",
+        ext_modules=["ext_mod"],
+        links_created=[],
+        ensure_build_readme_fn=lambda: calls.append("readme"),
+        build_setup_kwargs_fn=lambda **kwargs: calls.append(("kwargs", kwargs)) or {"ext_modules": ["ext_mod"]},
+        setup_fn=lambda **kwargs: calls.append(("setup", kwargs)),
+        finalize_setup_artifacts_fn=lambda **kwargs: calls.append(("finalize", kwargs)),
+        record_cython_build_stamp_fn=lambda **kwargs: calls.append(("stamp", kwargs)),
+    )
+
+    assert calls[-1][0] == "stamp"
+
+
 def test_ensure_build_readme_creates_placeholder_once(tmp_path):
     readme = tmp_path / "README.md"
 
@@ -2169,10 +2483,12 @@ def test_build_setup_kwargs_uses_find_packages_and_ext_modules():
     }
 
 
-def test_configure_build_ext_modules_orchestrates_helper_calls(tmp_path):
+def test_configure_build_ext_modules_orchestrates_helper_calls(tmp_path, monkeypatch):
     build_extension_calls = []
     cythonize_calls = []
     log_lines = []
+    log = SimpleNamespace(info=lambda *args: log_lines.append(args))
+    monkeypatch.delenv("AGILAB_CYTHON_ANNOTATE", raising=False)
 
     result = build_mod._configure_build_ext_modules(
         active_app=tmp_path / "demo_project",
@@ -2194,7 +2510,7 @@ def test_configure_build_ext_modules_orchestrates_helper_calls(tmp_path):
         cythonize_worker_extension_fn=lambda **kwargs: (
             cythonize_calls.append(kwargs) or ["ext_mod"]
         ),
-        log=SimpleNamespace(info=lambda *args: log_lines.append(args)),
+        log=log,
     )
 
     assert result == ["ext_mod"]
@@ -2214,6 +2530,8 @@ def test_configure_build_ext_modules_orchestrates_helper_calls(tmp_path):
             "extension": "ext_def",
             "compiler_directives": {"freethreading_compatible": True},
             "quiet": True,
+            "annotate": False,
+            "log": log,
         }
     ]
     assert any(args[0] == "cwd: " + str(tmp_path / "demo_project") for args in log_lines if args)
@@ -3276,7 +3594,7 @@ def test_build_main_build_ext_invokes_pre_install_and_setup(tmp_path, monkeypatc
     monkeypatch.setattr(
         build_mod,
         "cythonize",
-        lambda modules, language_level=3, quiet=False, compiler_directives=None, cache=False: (
+        lambda modules, language_level=3, quiet=False, compiler_directives=None, cache=False, annotate=False: (
             cythonize_calls.append((modules, quiet, compiler_directives)) or ["ext_mod"]
         ),
     )
@@ -3532,7 +3850,7 @@ def test_build_main_build_ext_free_threaded_nonquiet_uses_worker_resolve_fallbac
     monkeypatch.setattr(build_mod.subprocess, "run", lambda cmd, check=True: run_calls.append((cmd, check)))
     cythonize_calls = []
 
-    def _fake_cythonize(modules, language_level=3, quiet=False, compiler_directives=None, cache=False):
+    def _fake_cythonize(modules, language_level=3, quiet=False, compiler_directives=None, cache=False, annotate=False):
         cythonize_calls.append((modules, quiet, compiler_directives))
         return ["ext_mod"]
 
@@ -3557,7 +3875,9 @@ def test_build_main_build_ext_free_threaded_nonquiet_uses_worker_resolve_fallbac
     assert cythonize_calls and cythonize_calls[0][1] is False
     ext = cythonize_calls[0][0][0]
     assert ("Py_GIL_DISABLED", "1") in ext.define_macros
-    assert cythonize_calls[0][2] == {"freethreading_compatible": True}
+    assert cythonize_calls[0][2]["freethreading_compatible"] is True
+    assert cythonize_calls[0][2]["boundscheck"] is False
+    assert cythonize_calls[0][2]["nonecheck"] is False
     assert setup_calls and setup_calls[0]["name"] == "demo_worker"
 
 

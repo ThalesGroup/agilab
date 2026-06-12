@@ -20,6 +20,8 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_SRC = ROOT / "src/agilab/apps/builtin/execution_pandas_project/src"
+AGI_ENV_SRC = ROOT / "src/agilab/core/agi-env/src"
+AGI_NODE_SRC = ROOT / "src/agilab/core/agi-node/src"
 WORKER_SOURCE = APP_SRC / "execution_pandas_worker/execution_pandas_worker.py"
 SOURCE_MODULE = "execution_pandas_worker.execution_pandas_worker"
 COMPILED_MODULE = "_execution_pandas_typed_kernel_cy"
@@ -34,23 +36,37 @@ def _ensure_app_path() -> None:
         sys.path.insert(0, path)
 
 
+def _ensure_core_paths() -> None:
+    for path in (AGI_ENV_SRC, AGI_NODE_SRC):
+        text = str(path)
+        if text not in sys.path:
+            sys.path.insert(0, text)
+
+
 def _load_source_worker() -> ModuleType:
     _ensure_app_path()
     return importlib.import_module(SOURCE_MODULE)
 
 
-def _build_compiled_worker(tmp_root: Path) -> ModuleType:
-    pyx_path = tmp_root / f"{COMPILED_MODULE}.pyx"
-    pyx_path.write_text(WORKER_SOURCE.read_text(encoding="utf-8"), encoding="utf-8")
+def _build_compiled_worker(
+    tmp_root: Path,
+    *,
+    module_name: str = COMPILED_MODULE,
+    source_text: str | None = None,
+) -> ModuleType:
+    pyx_path = tmp_root / f"{module_name}.pyx"
+    if source_text is None:
+        source_text = WORKER_SOURCE.read_text(encoding="utf-8")
+    pyx_path.write_text(source_text, encoding="utf-8")
     setup_path = tmp_root / "setup.py"
     setup_path.write_text(
         "\n".join(
             [
                 "from setuptools import Extension, setup",
                 "from Cython.Build import cythonize",
-                f"extension = Extension({COMPILED_MODULE!r}, [{pyx_path.name!r}])",
+                f"extension = Extension({module_name!r}, [{pyx_path.name!r}])",
                 "setup(",
-                f"    name={COMPILED_MODULE!r},",
+                f"    name={module_name!r},",
                 "    ext_modules=cythonize([extension], language_level=3, quiet=True),",
                 ")",
                 "",
@@ -66,23 +82,36 @@ def _build_compiled_worker(tmp_root: Path) -> ModuleType:
         text=True,
     )
     suffix = sysconfig.get_config_var("EXT_SUFFIX") or ".so"
-    extension_path = tmp_root / f"{COMPILED_MODULE}{suffix}"
+    extension_path = tmp_root / f"{module_name}{suffix}"
     if not extension_path.exists():
-        candidates = sorted(tmp_root.glob(f"{COMPILED_MODULE}*.so"))
+        candidates = sorted(tmp_root.glob(f"{module_name}*.so"))
         if not candidates:
-            candidates = sorted(tmp_root.glob(f"{COMPILED_MODULE}*.pyd"))
+            candidates = sorted(tmp_root.glob(f"{module_name}*.pyd"))
         if not candidates:
             raise FileNotFoundError(f"Compiled module not found under {tmp_root}")
         extension_path = candidates[0]
 
-    spec = importlib.util.spec_from_file_location(COMPILED_MODULE, extension_path)
+    spec = importlib.util.spec_from_file_location(module_name, extension_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Unable to import compiled module from {extension_path}")
     module = importlib.util.module_from_spec(spec)
-    sys.modules.pop(COMPILED_MODULE, None)
-    sys.modules[COMPILED_MODULE] = module
+    sys.modules.pop(module_name, None)
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _preprocess_worker_source(source_text: str) -> tuple[str, dict[str, Any]]:
+    _ensure_core_paths()
+    from agi_node.agi_dispatcher.cython_type_preprocess import preprocess_source
+    from agi_node.agi_dispatcher.pre_install import remove_decorators
+
+    stripped = remove_decorators(source_text, verbose=False)
+    preprocessed, preview = preprocess_source(
+        stripped,
+        filename=str(WORKER_SOURCE),
+    )
+    return preprocessed, preview.to_report(input_path=str(WORKER_SOURCE))
 
 
 def _make_arrays(rows: int, seed: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -195,13 +224,51 @@ def _rows_for_csv(results: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+def _rows_for_preprocess_csv(results: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    row_count = int(results["environment"]["rows"])
+    speedup = float(results["speedup_preprocessed_vs_raw"])
+    typed_count = int(results["preprocess"]["typed_count"])
+    skipped_count = int(results["preprocess"]["skipped_count"])
+    for runtime, data in results["runtimes"].items():
+        median = float(data["median_seconds"])
+        rows.append(
+            {
+                "runtime": runtime,
+                "median_seconds": f"{median:.6f}",
+                "min_seconds": f"{float(data['min_seconds']):.6f}",
+                "max_seconds": f"{float(data['max_seconds']):.6f}",
+                "rows_per_second": f"{row_count / median:.0f}" if median else "",
+                "speedup_preprocessed_vs_raw": (
+                    f"{speedup:.2f}" if runtime == "cython_preprocessed" else "1.00"
+                ),
+                "checksum": f"{float(data['checksum']):.6f}",
+                "typed_count": str(typed_count),
+                "skipped_count": str(skipped_count),
+            }
+        )
+    return rows
+
+
 def _write_csv(path: Path, results: dict[str, Any]) -> None:
-    rows = _rows_for_csv(results)
+    compare_preprocess = bool(results["environment"].get("compare_preprocess"))
+    rows = _rows_for_preprocess_csv(results) if compare_preprocess else _rows_for_csv(results)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(
-            fh,
-            fieldnames=[
+        fieldnames = (
+            [
+                "runtime",
+                "median_seconds",
+                "min_seconds",
+                "max_seconds",
+                "rows_per_second",
+                "speedup_preprocessed_vs_raw",
+                "checksum",
+                "typed_count",
+                "skipped_count",
+            ]
+            if compare_preprocess
+            else [
                 "runtime",
                 "median_seconds",
                 "min_seconds",
@@ -209,7 +276,11 @@ def _write_csv(path: Path, results: dict[str, Any]) -> None:
                 "rows_per_second",
                 "speedup_vs_python",
                 "checksum",
-            ],
+            ]
+        )
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=fieldnames,
             lineterminator="\n",
         )
         writer.writeheader()
@@ -270,6 +341,84 @@ def run_benchmark(
     }
 
 
+def run_compare_preprocess_benchmark(
+    *,
+    rows: int,
+    compute_passes: int,
+    repeats: int,
+    warmups: int,
+    seed: int,
+) -> dict[str, Any]:
+    source_worker = _load_source_worker()
+    arrays = _make_arrays(rows, seed)
+    source_text = WORKER_SOURCE.read_text(encoding="utf-8")
+    preprocessed_source, preprocess_report = _preprocess_worker_source(source_text)
+    with tempfile.TemporaryDirectory(prefix="agilab-cython-preprocess-") as tmp_dir:
+        tmp_root = Path(tmp_dir)
+        raw_worker = _build_compiled_worker(
+            tmp_root,
+            module_name="_execution_pandas_typed_kernel_raw_cy",
+            source_text=source_text,
+        )
+        preprocessed_worker = _build_compiled_worker(
+            tmp_root,
+            module_name="_execution_pandas_typed_kernel_preprocessed_cy",
+            source_text=preprocessed_source,
+        )
+        _validate_kernel_equivalence(
+            source_worker,
+            raw_worker,
+            arrays,
+            compute_passes,
+        )
+        _validate_kernel_equivalence(
+            source_worker,
+            preprocessed_worker,
+            arrays,
+            compute_passes,
+        )
+        raw_result = _measure(
+            raw_worker,
+            arrays,
+            compute_passes=compute_passes,
+            repeats=repeats,
+            warmups=warmups,
+        )
+        preprocessed_result = _measure(
+            preprocessed_worker,
+            arrays,
+            compute_passes=compute_passes,
+            repeats=repeats,
+            warmups=warmups,
+        )
+
+    speedup = raw_result["median_seconds"] / preprocessed_result["median_seconds"]
+    return {
+        "environment": {
+            "python": sys.version.split()[0],
+            "platform": sys.platform,
+            "rows": rows,
+            "compute_passes": compute_passes,
+            "repeats": repeats,
+            "warmups": warmups,
+            "seed": seed,
+            "kernel": KERNEL_NAME,
+            "dtype_contract": "float64-contiguous",
+            "compare_preprocess": True,
+        },
+        "preprocess": {
+            "typed_count": len(preprocess_report["declarations"]),
+            "skipped_count": len(preprocess_report["skipped"]),
+            "report": preprocess_report,
+        },
+        "runtimes": {
+            "cython_raw": raw_result,
+            "cython_preprocessed": preprocessed_result,
+        },
+        "speedup_preprocessed_vs_raw": speedup,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Benchmark the typed numeric kernel used by execution_pandas_project."
@@ -281,9 +430,15 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--json-out", type=Path)
     parser.add_argument("--csv-out", type=Path)
+    parser.add_argument(
+        "--compare-preprocess",
+        action="store_true",
+        help="Compile raw and preprocessed worker sources and compare their kernel timing.",
+    )
     args = parser.parse_args()
 
-    results = run_benchmark(
+    runner = run_compare_preprocess_benchmark if args.compare_preprocess else run_benchmark
+    results = runner(
         rows=args.rows,
         compute_passes=args.compute_passes,
         repeats=args.repeats,

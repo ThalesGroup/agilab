@@ -84,6 +84,40 @@ def test_cython_kernel_benchmark_writes_lf_csv(tmp_path) -> None:
     assert b"\n" in data
 
 
+def test_cython_kernel_compare_preprocess_csv_reports_counts(tmp_path) -> None:
+    results = {
+        "environment": {"rows": 100, "compare_preprocess": True},
+        "preprocess": {"typed_count": 3, "skipped_count": 2},
+        "runtimes": {
+            "cython_raw": {
+                "median_seconds": 1.0,
+                "min_seconds": 1.0,
+                "max_seconds": 1.0,
+                "checksum": 1.0,
+            },
+            "cython_preprocessed": {
+                "median_seconds": 0.8,
+                "min_seconds": 0.8,
+                "max_seconds": 0.8,
+                "checksum": 1.0,
+            },
+        },
+        "speedup_preprocessed_vs_raw": 1.25,
+    }
+    csv_path = tmp_path / "compare.csv"
+
+    rows = cython_kernel._rows_for_preprocess_csv(results)
+    cython_kernel._write_csv(csv_path, results)
+
+    assert rows[0]["runtime"] == "cython_raw"
+    assert rows[0]["speedup_preprocessed_vs_raw"] == "1.00"
+    assert rows[1]["runtime"] == "cython_preprocessed"
+    assert rows[1]["speedup_preprocessed_vs_raw"] == "1.25"
+    assert rows[1]["typed_count"] == "3"
+    assert rows[1]["skipped_count"] == "2"
+    assert "speedup_preprocessed_vs_raw" in csv_path.read_text(encoding="utf-8")
+
+
 def test_ssh_target_defaults_to_agi_and_preserves_explicit_user() -> None:
     assert matrix._ssh_target("192.168.20.130") == "agi@192.168.20.130"
     assert matrix._ssh_target("bench@192.168.20.130") == "bench@192.168.20.130"

@@ -153,6 +153,11 @@ Python and Cython:
 
    uv --preview-features extra-build-dependencies run python tools/benchmark_execution_pandas_cython_kernel.py --rows 100000 --compute-passes 32 --repeats 3 --warmups 1
 
+To measure the optional type-preprocessor itself, add
+``--compare-preprocess``. That mode compiles the same worker as raw Cython and
+as ``remove_decorators + preprocess_source`` output, validates both against the
+Python implementation, and records typed/skipped counts in the JSON/CSV report.
+
 Latest local evidence on macOS / Python ``3.13.13``:
 
 .. csv-table:: Typed numeric kernel speedup for ``execution_pandas_project``

@@ -13,6 +13,7 @@
 
 import sys
 import argparse
+import json
 from pathlib import Path
 import parso
 
@@ -55,6 +56,11 @@ def _ensure_agi_env() -> None:
 
 _ensure_agi_env()
 from agi_env import AgiEnv
+from agi_env.cython_build_config import (
+    CYTHON_PREVIEW_REPORT_SUFFIX,
+    add_cython_pyx_stamp,
+    cython_pyx_stamp_line,
+)
 
 try:
     from .cython_type_preprocess import preprocess_source
@@ -140,7 +146,10 @@ def prepare_for_cython(args):
     with open(cython_src, 'r') as file:
         source = file.read()
     modified_source = remove_decorators(source, verbose=args.verbose)
-    if getattr(args, "type_preprocess", False):
+    type_preprocess = bool(getattr(args, "type_preprocess", False))
+    cython_out = worker_path.with_suffix('.pyx')
+    report_out = worker_path.with_suffix(CYTHON_PREVIEW_REPORT_SUFFIX)
+    if type_preprocess:
         modified_source, preview = preprocess_source(
             modified_source,
             filename=str(cython_src),
@@ -150,7 +159,20 @@ def prepare_for_cython(args):
             f"{len(preview.typed_variables)} local declarations "
             f"and skipped {len(preview.skipped)} variables."
         )
-    cython_out = worker_path.with_suffix('.pyx')
+        report_out.write_text(
+            json.dumps(
+                preview.to_report(input_path=str(cython_src), output_path=str(cython_out)),
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        AgiEnv.log_info(f"Cython type preprocessing report written to {report_out}")
+    elif report_out.exists():
+        report_out.unlink()
+    stamp_line = cython_pyx_stamp_line(source, type_preprocess=type_preprocess)
+    modified_source = add_cython_pyx_stamp(modified_source, stamp_line=stamp_line)
     with open(cython_out, 'w') as file:
         file.write(modified_source)
     AgiEnv.log_info(f'Processed {cython_src} and generated {cython_out}')

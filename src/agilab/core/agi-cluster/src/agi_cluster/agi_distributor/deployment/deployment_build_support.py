@@ -22,12 +22,19 @@ from agi_cluster.agi_distributor.deployment.deployment_venv_support import (
     project_site_packages_dir as _project_site_packages_dir,
 )
 from agi_env import AgiEnv
+from agi_env.cython_build_config import (
+    CYTHON_ANNOTATE_ENV,
+    CYTHON_DIRECTIVES_ENV,
+    CYTHON_DISABLE_BUILD_CACHE_ENV,
+    CYTHON_TYPE_PREPROCESS_ENV,
+    cython_build_overlay_specs,
+)
 from agi_env.share_runtime_support import python_supports_free_threading
 
 
 logger = logging.getLogger(__name__)
-BUILD_CACHE_SCHEMA = "agilab-worker-build-cache-v1"
-DISABLE_BUILD_CACHE_ENV = "AGILAB_DISABLE_WORKER_BUILD_CACHE"
+BUILD_CACHE_SCHEMA = "agilab-worker-build-cache-v2"
+DISABLE_BUILD_CACHE_ENV = CYTHON_DISABLE_BUILD_CACHE_ENV
 BUILD_CACHE_HASH_LIMIT = 8 * 1024 * 1024
 GIT_FINGERPRINT_TIMEOUT_SECONDS = 2.0
 
@@ -111,7 +118,6 @@ def _file_fingerprint(path: Path) -> dict[str, Any] | None:
     payload: dict[str, Any] = {
         "path": str(path.resolve(strict=False)),
         "size": stat_result.st_size,
-        "mtime_ns": stat_result.st_mtime_ns,
     }
     if stat_result.st_size <= BUILD_CACHE_HASH_LIMIT:
         digest = hashlib.sha256()
@@ -122,6 +128,8 @@ def _file_fingerprint(path: Path) -> dict[str, Any] | None:
             payload["sha256"] = digest.hexdigest()
         except OSError:
             pass
+    if "sha256" not in payload:
+        payload["mtime_ns"] = stat_result.st_mtime_ns
     return payload
 
 
@@ -260,8 +268,13 @@ def _worker_build_cache_payload(
 ) -> dict[str, Any]:
     app_path = Path(env.active_app)
     worker_pyproject_src = _worker_pyproject_source(env)
+    envars = getattr(env, "envars", {})
     return {
         "schema": BUILD_CACHE_SCHEMA,
+        "cython_build_requirements": list(cython_build_overlay_specs()),
+        "cython_type_preprocess": _env_truthy(envars, CYTHON_TYPE_PREPROCESS_ENV),
+        "cython_directives": _envar_value(envars, CYTHON_DIRECTIVES_ENV),
+        "cython_annotate": _env_truthy(envars, CYTHON_ANNOTATE_ENV),
         "base_worker_cls": str(getattr(env, "base_worker_cls", "")),
         "worker_group": worker_group,
         "packages": packages,
@@ -367,7 +380,7 @@ def _core_install_commands(*, env: Any, uv: str, app_path_arg: str) -> list[str]
 
 
 def _build_run_overlay_args(env: Any) -> str:
-    args = ["--with setuptools", "--with cython"]
+    args = [f"--with {spec}" for spec in cython_build_overlay_specs()]
     if getattr(env, "is_source_env", False):
         for source_path in (
             getattr(env, "agi_env", None),
@@ -424,9 +437,11 @@ def _bdist_egg_command(
     packages: str,
     wenv_arg: str,
     verbose: int,
-    build_overlay_args: str = "--with setuptools --with cython",
+    build_overlay_args: str | None = None,
 ) -> str:
     quiet_flag = "" if verbose > 1 else "-q "
+    if build_overlay_args is None:
+        build_overlay_args = " ".join(f"--with {spec}" for spec in cython_build_overlay_specs())
     return (
         f"{uv} --project {app_path_arg} run --no-sync {build_overlay_args} "
         f"{module_cmd} --app-path {app_path_arg} {quiet_flag}"
@@ -441,9 +456,11 @@ def _build_ext_command(
     app_path_arg: str,
     wenv_arg: str,
     verbose: int,
-    build_overlay_args: str = "--with setuptools --with cython",
+    build_overlay_args: str | None = None,
 ) -> str:
     quiet_flag = "" if verbose > 1 else "-q "
+    if build_overlay_args is None:
+        build_overlay_args = " ".join(f"--with {spec}" for spec in cython_build_overlay_specs())
     return (
         f"{uv} --project {app_path_arg} run --no-sync {build_overlay_args} "
         f"{module_cmd} --app-path {app_path_arg} {quiet_flag}build_ext -b {wenv_arg}"
