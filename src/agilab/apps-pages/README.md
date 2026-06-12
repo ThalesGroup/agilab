@@ -5,9 +5,14 @@ active app and its exported datasets.
 
 Page projects depend on `agi-gui`, the shared UI package under `src/agilab/lib/agi-gui`.
 
+Naming convention:
+
+- `view_*` page bundles are the generic app-agnostic sidecars.
+- `app_ui` and `autoencoder_latentspace` are visible exceptions with their own names because they are not generic sidecars.
+
 Looking for the PyTorch playground or loss landscape? Use the built-in
 `pytorch_playground_project`. It is a reproducible app project, not a generic
-app-agnostic analysis page. The generic `view_app_ui` bridge lets ANALYSIS
+app-agnostic analysis page. The generic `app_ui` bridge lets ANALYSIS
 display the app-owned playground UI without moving training logic into
 apps-pages.
 
@@ -17,7 +22,7 @@ Every shipped view bundle has a local README, a source-controlled preview, direc
 
 | View | View |
 |---|---|
-| [![view_app_ui preview](../../../docs/source/_static/apps-pages-gallery/view_app_ui.svg)](view_app_ui)<br>**view_app_ui**<br>Launches app-owned interactive Streamlit surfaces from ANALYSIS. | [![view_autoencoder_latentspace preview](../../../docs/source/_static/apps-pages-gallery/view_autoencoder_latentspace.svg)](view_autoencoder_latentspace)<br>**view_autoencoder_latentspace**<br>Opt-in playground exception for TensorFlow/Keras latent projections; it trains a small autoencoder in-page and is not a generic app-agnostic sidecar. |
+| [![app_ui preview](../../../docs/source/_static/apps-pages-gallery/app_ui.svg)](app_ui)<br>**app_ui**<br>Launches app-owned interactive Streamlit surfaces from ANALYSIS. | [![autoencoder_latentspace preview](../../../docs/source/_static/apps-pages-gallery/autoencoder_latentspace.svg)](autoencoder_latentspace)<br>**autoencoder_latentspace**<br>Opt-in playground exception for TensorFlow/Keras latent projections; it trains a small autoencoder in-page and is not a generic app-agnostic sidecar. |
 | [![view_barycentric preview](../../../docs/source/_static/apps-pages-gallery/view_barycentric.svg)](view_barycentric)<br>**view_barycentric**<br>Plots proportion-style KPI features on a barycentric/simplex surface. | [![view_data_io_decision preview](../../../docs/source/_static/apps-pages-gallery/view_data_io_decision.svg)](view_data_io_decision)<br>**view_data_io_decision**<br>Reviews data-ingestion and strategy-selection evidence. |
 | [![view_forecast_analysis preview](../../../docs/source/_static/apps-pages-gallery/view_forecast_analysis.svg)](view_forecast_analysis)<br>**view_forecast_analysis**<br>Reviews forecast metrics and prediction tables for time-series workflows. | [![view_inference_analysis preview](../../../docs/source/_static/apps-pages-gallery/view_inference_analysis.svg)](view_inference_analysis)<br>**view_inference_analysis**<br>Compares allocation and inference-result metrics across exported runs. |
 | [![view_live_artifacts preview](../../../docs/source/_static/apps-pages-gallery/view_live_artifacts.svg)](view_live_artifacts)<br>**view_live_artifacts**<br>Watches exported evidence, manifests, logs, text, CSVs, and images while a run is active. | [![view_maps preview](../../../docs/source/_static/apps-pages-gallery/view_maps.svg)](view_maps)<br>**view_maps**<br>Explores geolocated datasets with map, sampling, palette, and basemap controls. |

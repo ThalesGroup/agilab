@@ -9,18 +9,18 @@ chrome.
 .. list-table::
    :widths: 34 66
 
-   * - .. image:: _static/apps-pages-gallery/view_app_ui.svg
-          :alt: view_app_ui preview
+   * - .. image:: _static/apps-pages-gallery/app_ui.svg
+          :alt: app_ui preview
           :width: 260px
-     - **view_app_ui**
+     - **app_ui**
 
        Launches app-owned interactive Streamlit surfaces from ANALYSIS.
 
        When to use: Use when the app owns live controls, training loops, or a custom UI that should stay outside generic page bundles.
-   * - .. image:: _static/apps-pages-gallery/view_autoencoder_latentspace.svg
-          :alt: view_autoencoder_latentspace preview
+   * - .. image:: _static/apps-pages-gallery/autoencoder_latentspace.svg
+          :alt: autoencoder_latentspace preview
           :width: 260px
-     - **view_autoencoder_latentspace**
+     - **autoencoder_latentspace**
 
        Opt-in playground exception for TensorFlow/Keras latent projections and
        reconstruction behavior.
