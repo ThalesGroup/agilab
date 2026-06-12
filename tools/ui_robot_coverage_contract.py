@@ -37,7 +37,7 @@ REQUIRED_PYTORCH_ANALYSIS_SCENARIO = "isolated-pytorch-playground-analysis"
 REQUIRED_PYTORCH_ANALYSIS_APP = "pytorch_playground_project"
 REQUIRED_PYTORCH_ANALYSIS_TEXT = ("PyTorch Playground", "Refresh evidence", "Synced RUN snippet", "Settings")
 REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_SIDEBAR_TEXT = ("Project:",)
-REQUIRED_PYTORCH_ANALYSIS_LINKS = ("PyTorch Playground=>current_page=view_app_ui",)
+REQUIRED_PYTORCH_ANALYSIS_LINKS = ("PyTorch Playground=>current_page=app_ui",)
 REQUIRED_PYTORCH_ANALYSIS_ACTIONS = ("Refresh evidence",)
 REQUIRED_HF_ROBOT_SCENARIOS = {
     "hf-first-proof-visual-smoke": {
@@ -90,10 +90,10 @@ REQUIRED_DEMO_PROOF_SCENARIOS = (
     "service-mode-preview-proof",
 )
 
-# Apps-pages whose content is asserted in the browser by a robot scenario. ``view_app_ui`` is
+# Apps-pages whose content is asserted in the browser by a robot scenario. ``app_ui`` is
 # reached through the PyTorch analysis required-links contract; the rest are the HF first-proof
 # pages swept with seeded demo artifacts.
-BROWSER_ASSERTED_APPS_PAGES = REQUIRED_HF_FIRST_PROOF_PAGES + ("view_app_ui",)
+BROWSER_ASSERTED_APPS_PAGES = REQUIRED_HF_FIRST_PROOF_PAGES + ("app_ui",)
 
 # The remaining public apps-pages render their meaningful content only after data-dependent
 # ``st.stop()`` guards pass, so the generic widget robot (which does not seed every view's
@@ -102,9 +102,9 @@ BROWSER_ASSERTED_APPS_PAGES = REQUIRED_HF_FIRST_PROOF_PAGES + ("view_app_ui",)
 # enforces that every public view is either browser-asserted or listed here with a test that
 # exists, so a new view cannot ship with zero coverage and a dropped focused test is caught.
 APPS_PAGE_RENDER_ONLY_DISPOSITIONS: dict[str, tuple[str, str]] = {
-    "view_autoencoder_latentspace": (
+    "autoencoder_latentspace": (
         "latent-space plots render only with a trained autoencoder artifact",
-        "test/test_view_autoencoder_latentspace.py",
+        "test/test_autoencoder_latentspace.py",
     ),
     "view_barycentric": (
         "barycentric projection renders only with seeded routing artifacts",

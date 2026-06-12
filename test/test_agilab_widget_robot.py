@@ -1010,7 +1010,7 @@ def test_required_link_probe_matches_label_and_href_fragments() -> None:
 
         def get_attribute(self, name: str, **_kwargs) -> str:
             assert name == "href"
-            return "/ANALYSIS?current_page=view_app_ui&active_app=pytorch_playground_project"
+            return "/ANALYSIS?current_page=app_ui&active_app=pytorch_playground_project"
 
     class _Page:
         url = "http://demo/ANALYSIS"
@@ -1027,7 +1027,7 @@ def test_required_link_probe_matches_label_and_href_fragments() -> None:
         _Page(),
         app_name="pytorch_playground_project",
         display="ANALYSIS",
-        required_links=("PyTorch Playground=>current_page=view_app_ui;pytorch_playground_project",),
+        required_links=("PyTorch Playground=>current_page=app_ui;pytorch_playground_project",),
         timeout_ms=100,
     )
 
@@ -1068,7 +1068,7 @@ def test_required_link_probe_reports_missing_href_fragment() -> None:
         _Page(),
         app_name="pytorch_playground_project",
         display="ANALYSIS",
-        required_links=("PyTorch Playground=>current_page=view_app_ui",),
+        required_links=("PyTorch Playground=>current_page=app_ui",),
         timeout_ms=100,
     )
 
