@@ -23,6 +23,19 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.06.12] - 2026-06-12
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.12
+
+### Changed
+
+- Published AGILAB `2026.06.12` to PyPI for `agi-env`, `agi-gui`, `agi-web`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-apps`, the impacted `agi-page-*` analysis pages, the impacted `agi-app-*` packages, and `agilab`.
+- Fixed Streamlit pages UX across PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS, and bootstrap: crash fixes, stale-state and dead-flow repairs, destructive-action guards, and honest status semantics.
+- Hardened `agi-web` and `agi-pages` HTML/JS rendering against script-island escapes, unsafe action targets, and CSS injection.
+- Improved builtin app args forms and ANALYSIS surfaces: settings reseed on external change, actionable validation, namespaced widget keys, and explicit fallbacks.
+- Made the installer default to a minimal app set plus apps used in the last session.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+
 ## [2026.06.08] - 2026-06-08
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.08
