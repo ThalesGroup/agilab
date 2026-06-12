@@ -312,6 +312,16 @@ tools/pypi_release_retention.py
 
     assert not any("--allow-delete-failure-warning" in error for error in missing)
 
+    workflow.write_text(
+        workflow.read_text(encoding="utf-8") + "\n--allow-delete-failure-warning\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        "PyPI release retention must fail closed while stale releases remain: "
+        "remove '--allow-delete-failure-warning'"
+    ) in module.validate_workflow_contract(workflow)
+
 
 def test_release_plan_job_gate_validation_flags_semantic_violations(tmp_path: Path) -> None:
     module = _load_module()

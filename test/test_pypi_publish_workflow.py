@@ -425,7 +425,8 @@ def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_asse
     assert "tools/pypi_release_retention.py" in text
     assert "--confirm-delete" in text
     assert "--direct-web-only" in text
-    assert "--allow-delete-failure-warning" in text
+    assert "retention_log=\"$(mktemp)\"" in text
+    assert "PyPI redirected back to login while opening the release delete page after password/TOTP authentication." in text
     assert "--github-confirm-login-repository \"$GITHUB_REPOSITORY\"" in text
     assert "--github-confirm-login-variable \"PYPI_CONFIRM_LOGIN_URL\"" in text
     assert "--github-confirm-login-timeout 1800" in text

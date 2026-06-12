@@ -784,8 +784,18 @@ jobs:
           for package in ${PYPI_RETENTION_PACKAGES}; do
             args+=(--package "$package")
           done
-          args+=(--allow-delete-failure-warning)
-          python tools/pypi_release_retention.py "${args[@]}"
+          retention_log="$(mktemp)"
+          if python tools/pypi_release_retention.py "${args[@]}" 2> >(tee "$retention_log" >&2); then
+            rm -f "$retention_log"
+          else
+            if grep -Fq "PyPI redirected back to login while opening the release delete page after password/TOTP authentication." "$retention_log"; then
+              echo "::warning title=PyPI release retention::Hosted-runner PyPI deletion needs a confirmed device; continuing release and leaving stale releases for manual cleanup."
+            else
+              rm -f "$retention_log"
+              exit 1
+            fi
+            rm -f "$retention_log"
+          fi
 
       - name: Clear temporary PyPI confirmation variable
         if: ${{ always() }}
