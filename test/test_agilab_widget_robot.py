@@ -1183,7 +1183,26 @@ def test_public_apps_pages_discovers_view_entrypoints() -> None:
 
     assert routes == sorted(routes, key=lambda route: route.name)
     assert any(route.name == "view_maps" for route in routes)
-    assert all(route.path.name.startswith("view_") for route in routes)
+    allowed_path_names = {
+        "app_ui.py",
+        "autoencoder_latentspace.py",
+        "view_barycentric.py",
+        "view_data_io_decision.py",
+        "view_forecast_analysis.py",
+        "view_inference_analysis.py",
+        "view_live_artifacts.py",
+        "view_maps.py",
+        "view_maps_3d.py",
+        "view_maps_network.py",
+        "view_queue_resilience.py",
+        "view_relay_resilience.py",
+        "view_release_decision.py",
+        "view_routing_model_comparison.py",
+        "view_scenario_cockpit.py",
+        "view_shap_explanation.py",
+        "view_training_analysis.py",
+    }
+    assert all(route.path.name in allowed_path_names for route in routes)
 
 
 def test_resolve_apps_pages_accepts_none_all_names_and_paths(tmp_path) -> None:
