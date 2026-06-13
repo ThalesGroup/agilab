@@ -34,6 +34,12 @@ PYPI_PUBLISH_PACKAGE_NAMES = tuple(
     for package in PACKAGE_CONTRACTS
     if package.role in PYPI_PUBLISH_ROLES or package.name in PROMOTED_APP_PROJECT_PACKAGE_NAMES
 )
+OIDC_AUTH_NOTE = (
+    "Upload authentication must come from GitHub OIDC Trusted Publishing. "
+    "PyPI and upload logs may refer to a short-lived API token because PyPI "
+    "exchanges the GitHub OIDC identity for a project-scoped upload token; "
+    "that is not a stored `PYPI_API_TOKEN`, `PYPI_TOKEN`, or `TWINE_PASSWORD` secret."
+)
 
 
 @dataclass(frozen=True)
@@ -133,6 +139,7 @@ def format_markdown(claims: Sequence[TrustedPublisherClaim]) -> str:
         "",
         "Configure every PyPI project below with these exact GitHub publisher values.",
         "A PyPI `invalid-publisher` error means the project is missing this entry or one field differs.",
+        OIDC_AUTH_NOTE,
         "",
         "| PyPI project | GitHub owner | GitHub repository | Workflow | Environment | OIDC subject |",
         "| --- | --- | --- | --- | --- | --- |",
@@ -157,6 +164,7 @@ def format_text(claims: Sequence[TrustedPublisherClaim]) -> str:
     lines = [
         "PyPI Trusted Publishing contract",
         "Configure these GitHub publisher values in each PyPI project:",
+        OIDC_AUTH_NOTE,
         "",
     ]
     for claim in claims:

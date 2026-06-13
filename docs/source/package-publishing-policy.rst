@@ -315,6 +315,11 @@ Real PyPI publication must use GitHub OIDC Trusted Publishing. Long-lived PyPI
 API tokens are not part of the normal release path. If a package or repository
 is not configured as a PyPI trusted publisher, the publish workflow should stop
 with an explicit configuration error instead of falling back to a stored token.
+PyPI may still describe an upload as using an API token because the Trusted
+Publishing flow exchanges the GitHub OIDC identity for a short-lived PyPI upload
+token. That upload token is minted by PyPI for the matched project and workflow;
+it is not a stored repository secret, not ``PYPI_API_TOKEN``, not
+``PYPI_TOKEN``, and not ``TWINE_PASSWORD``.
 
 Each PyPI project selected for upload must have a GitHub trusted publisher entry
 matching the release workflow claims exactly. The workflow renders the same contract with
