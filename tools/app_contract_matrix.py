@@ -1052,7 +1052,11 @@ def _global_checks(
             if path.is_file() or path.is_dir()
         }
     allowed_page_root_files = {"README.md", ".gitignore", "__init__.py"}
-    allowed_page_root_dirs = {"templates"}
+    allowed_page_root_dirs = {
+        "templates",
+        "app_ui",
+        "autoencoder_latentspace",
+    }
     invalid_page_children = sorted(
         child
         for child in tracked_page_children
