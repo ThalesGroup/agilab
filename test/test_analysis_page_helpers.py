@@ -1648,6 +1648,32 @@ def test_analysis_page_state_restricts_to_configured_normalized_views(tmp_path: 
     assert state.config_view_module == ("view_maps", "view_maps_network")
 
 
+def test_analysis_page_state_restricted_views_ignore_stale_session_selection(tmp_path: Path):
+    state_module = _load_analysis_state_module()
+    app_ui = tmp_path / "app_ui.py"
+    training = tmp_path / "view_training_analysis.py"
+
+    state = state_module.build_analysis_view_selection_state(
+        pages_cfg={
+            "restrict_to_view_module": True,
+            "default_view": "app_ui",
+        },
+        current_page=None,
+        configured_views=["app_ui"],
+        resolved_pages={
+            "app_ui": app_ui,
+            "view_training_analysis": training,
+        },
+        custom_view_lookup={},
+        session_selection=["view_training_analysis"],
+        has_session_selection=True,
+    )
+
+    assert state.view_names == ("app_ui",)
+    assert state.widget_selection == ("app_ui",)
+    assert state.config_view_module == ("app_ui",)
+
+
 def test_analysis_page_state_falls_back_to_all_views_when_restrict_config_is_empty(tmp_path: Path):
     state_module = _load_analysis_state_module()
     view_maps = tmp_path / "view_maps.py"
