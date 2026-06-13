@@ -219,7 +219,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert agi_env.env["COVERAGE_FILE"] == ".coverage.agi-env"
     assert "--cov=agi_env" in agi_env.argv
     assert "coverage-agi-env.xml" in " ".join(agi_env.argv)
-    assert _has_with_dependency(agi_env.argv, "streamlit")
+    assert _has_with_dependency(agi_env.argv, "streamlit==1.57.0")
     assert agi_env.argv[-1] == "src/agilab/core/agi-env/test"
 
     assert len(agi_core_combined) == 3

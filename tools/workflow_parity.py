@@ -950,7 +950,7 @@ def _agi_env_profile() -> list[CommandSpec]:
                 "--with",
                 "sqlalchemy",
                 "--with",
-                "streamlit",
+                "streamlit==1.57.0",
                 "--with",
                 "pytest",
                 "--with",
