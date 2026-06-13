@@ -227,12 +227,13 @@ def test_load_worker_cython_failure_has_actionable_recovery(tmp_path):
     assert exc_info.value.__cause__ is not None
 
 
-def test_load_worker_evicts_selected_worker_module_before_import():
+def test_load_worker_evicts_package_and_selected_worker_module_before_import():
     env = SimpleNamespace(
         target_worker="demo_worker",
         target_worker_class="TargetWorker",
     )
     sys_modules = {
+        "demo_worker": object(),
         "demo_worker.demo_worker": object(),
         "demo_worker_cy": object(),
     }
@@ -248,15 +249,17 @@ def test_load_worker_evicts_selected_worker_module_before_import():
         load_module_fn=_load,
         sys_modules=sys_modules,
     ) == "demo_worker.demo_worker"
+    assert "demo_worker" not in sys_modules
     assert "demo_worker.demo_worker" not in sys_modules
     assert "demo_worker_cy" in sys_modules
-
+    sys_modules["demo_worker"] = object()
     assert runtime_support.load_worker(
         env,
         2,
         load_module_fn=_load,
         sys_modules=sys_modules,
     ) == "demo_worker_cy"
+    assert "demo_worker" not in sys_modules
     assert "demo_worker_cy" not in sys_modules
     assert loaded == ["demo_worker.demo_worker", "demo_worker_cy"]
 

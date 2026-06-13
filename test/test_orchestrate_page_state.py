@@ -58,7 +58,7 @@ def test_orchestrate_page_state_defaults_to_single_run():
     assert state.selected_benchmark_modes == ()
     assert state.benchmark_best_single_node is False
     assert state.run_mode == 1
-    assert state.run_mode_label == "Run mode 1: pool of process"
+    assert state.run_mode_label == "Run mode 1: pool"
     assert state.verbose == 2
     assert state.scheduler == "None"
     assert state.workers == "None"

@@ -1,6 +1,7 @@
 import multiprocessing
 import time
 import sys
+from concurrent.futures import Future
 from pathlib import Path
 
 import pandas as pd
@@ -64,7 +65,9 @@ class DummyFireducksWorker(FireducksWorker):
 
 
 class InlineProcessPool:
-    def __init__(self, max_workers, initializer, initargs):
+    """Inline stand-in for ProcessPoolExecutor (submit-based pool engine)."""
+
+    def __init__(self, max_workers=None, initializer=None, initargs=(), mp_context=None):
         self._initializer = initializer
         self._initargs = initargs
 
@@ -76,8 +79,13 @@ class InlineProcessPool:
     def __exit__(self, exc_type, exc, tb):
         return False
 
-    def map(self, fn, items):
-        return [fn(item) for item in items]
+    def submit(self, fn, *args):
+        future = Future()
+        try:
+            future.set_result(fn(*args))
+        except Exception as exc:  # pragma: no cover - mirrors executor behavior
+            future.set_exception(exc)
+        return future
 
 
 @pytest.fixture

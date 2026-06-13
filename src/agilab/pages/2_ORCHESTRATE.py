@@ -2363,7 +2363,9 @@ async def _render_run_panels(
                     format_func=benchmark_mode_label,
                     help=(
                         "Select the exact execution modes to benchmark. Leave empty to run "
-                        "the single mode defined by the optimization toggles."
+                        "the single mode defined by the optimization toggles. Dask modes "
+                        "keep the historical in-worker pooling behavior, so a Dask mode "
+                        "with and without 'pool' executes the same code inside each worker."
                     ),
                 )
                 selected_dask_benchmark = any(

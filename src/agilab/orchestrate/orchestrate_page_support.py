@@ -21,28 +21,35 @@ except ModuleNotFoundError:  # pragma: no cover - packaging is supplied by AGILA
     _PackagingRequirement = None
 
 
+# Labels describe what each mode bit actually executes today:
+# pool bit (1) enables the in-worker pool (process or thread backend, per app);
+# cython bit (2) runs the compiled worker; dask bit (4) distributes via Dask AND
+# keeps the historical in-worker pooling behavior, so "dask" modes pool in-worker
+# even when the pool bit is off; rapids bit (8) provisions RAPIDS/GPU dependencies.
 RUN_MODE_LABELS: tuple[str, ...] = (
     "0: python",
-    "1: pool of process",
+    "1: pool",
     "2: cython",
     "3: pool and cython",
-    "4: dask",
+    "4: dask (pools in-worker)",
     "5: dask and pool",
-    "6: dask and cython",
+    "6: dask and cython (pools in-worker)",
     "7: dask and pool and cython",
     "8: rapids",
     "9: rapids and pool",
     "10: rapids and cython",
     "11: rapids and pool and cython",
-    "12: rapids and dask",
+    "12: rapids and dask (pools in-worker)",
     "13: rapids and dask and pool",
-    "14: rapids and dask and cython",
+    "14: rapids and dask and cython (pools in-worker)",
     "15: rapids and dask and pool and cython",
 )
 
 BENCHMARK_MODE_COLUMN_HELP = (
     "Mode is a 4-slot execution signature: r=RAPIDS/GPU, d=Dask/cluster, "
-    "c=Cython build, p=worker pool (process or thread backend). _ means disabled."
+    "c=Cython build, p=worker pool (process or thread backend). _ means disabled. "
+    "The Dask bit also keeps the historical in-worker pooling behavior, so Dask "
+    "modes pool in-worker whether or not p is set."
 )
 DEPLOY_WORKERS_AGI_INSTALL_RATIONALE = (
     "Deploy workers uses the existing AGI.install API because that stable "

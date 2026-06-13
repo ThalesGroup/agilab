@@ -1,6 +1,7 @@
 import multiprocessing
 import sys
 import time
+from concurrent.futures import Future
 from pathlib import Path
 
 import pandas as pd
@@ -107,7 +108,9 @@ class FalsyWorkersPlan:
 
 
 class InlineProcessPool:
-    def __init__(self, max_workers, initializer, initargs):
+    """Inline stand-in for ProcessPoolExecutor (submit-based pool engine)."""
+
+    def __init__(self, max_workers=None, initializer=None, initargs=(), mp_context=None):
         self._initializer = initializer
         self._initargs = initargs
 
@@ -119,8 +122,13 @@ class InlineProcessPool:
     def __exit__(self, exc_type, exc, tb):
         return False
 
-    def map(self, fn, items):
-        return [fn(item) for item in items]
+    def submit(self, fn, *args):
+        future = Future()
+        try:
+            future.set_result(fn(*args))
+        except Exception as exc:  # pragma: no cover - mirrors executor behavior
+            future.set_exception(exc)
+        return future
 
 
 @pytest.fixture
@@ -191,7 +199,10 @@ def test_exec_mono_process(worker_csv):
     result_df = worker_csv.last_df
     assert result_df is not None
     assert len(result_df) == 2
-    assert result_df["worker_id"].tolist() == [str((0, 0)), str((0, 0))]
+    # Contract: worker_id labels are str((worker_id, item_idx)) using the
+    # ORIGINAL work-item index, identical in mono and pool modes (the old
+    # mono path tagged every frame with (worker_id, 0)).
+    assert result_df["worker_id"].tolist() == [str((0, 0)), str((0, 1))]
 
 
 def test_exec_multi_process(monkeypatch, worker_csv):
@@ -216,8 +227,9 @@ def test_exec_multi_process_with_list_plan(monkeypatch, worker_csv):
     assert result_df["col"].tolist() == [200, 201]
 
 
-def test_exec_multi_process_windows_branch(monkeypatch, worker_csv):
-    monkeypatch.setattr(pandas_module.os, "name", "nt", raising=False)
+def test_exec_multi_process_without_output_dir(monkeypatch, worker_csv):
+    # The dead per-platform spawn branch was removed with the shared pool
+    # engine; this now pins pool execution when no data_out is configured.
     monkeypatch.setattr(pandas_module, "ProcessPoolExecutor", InlineProcessPool)
 
     worker_csv.last_df = None
@@ -273,13 +285,44 @@ def test_pandas_worker_works_dispatches_multi_and_stops():
     assert elapsed >= 0.0
 
 
-def test_pandas_worker_works_without_plan_stops_and_initializes_t0():
+def test_pandas_worker_works_without_plan_stops_and_returns_elapsed():
+    # Contract: works() times THIS call with perf_counter; it no longer reads
+    # or fabricates the class-level registration timestamp BaseWorker._t0.
     BaseWorker._t0 = None
     worker = DispatchPandasWorker(mode=0)
     elapsed = worker.works(None, None)
     assert worker.called == ["stop"]
-    assert BaseWorker._t0 is not None
+    assert BaseWorker._t0 is None
     assert elapsed >= 0.0
+
+
+def test_pandas_worker_works_returns_per_call_time_not_process_age():
+    # Regression: the old implementation returned time.time() - BaseWorker._t0
+    # (worker age since registration), growing monotonically across runs.
+    BaseWorker._t0 = time.time() - 1000.0
+    worker = DispatchPandasWorker(mode=0)
+    elapsed = worker.works({0: [[1]]}, None)
+    assert 0.0 <= elapsed < 100.0
+
+
+def test_pandas_worker_work_done_chunk_counter_resets_between_works_calls(
+    temp_output_dir,
+):
+    # Regression: service-mode reuses the same worker instance across works()
+    # calls; the chunk suffix counter must reset so the second run writes
+    # 0_output.csv again instead of 0_output_1.csv.
+    worker = DummyPandasWorker(worker_id=0, output_format="csv", verbose=0)
+    worker.data_out = temp_output_dir
+    worker._mode = 0
+    plan = {0: [[1], [2]]}
+
+    PandasWorker.works(worker, plan, None)
+    first_run = sorted(p.name for p in temp_output_dir.iterdir())
+    assert first_run == ["0_output.csv", "0_output_1.csv"]
+
+    PandasWorker.works(worker, plan, None)
+    second_run = sorted(p.name for p in temp_output_dir.iterdir())
+    assert second_run == ["0_output.csv", "0_output_1.csv"]
 
 
 if __name__ == "__main__":
