@@ -118,3 +118,41 @@ def test_cli_writes_pyx_and_report(tmp_path: Path) -> None:
     assert "@cython.locals(i=cython.Py_ssize_t, total=cython.double)" in output_path.read_text(encoding="utf-8")
     assert {item["name"] for item in report["declarations"]} == {"i", "total"}
     assert report["degraded_reasons"] == []
+
+
+def test_range_bound_that_overflows_py_ssize_t_blocks_loop_index() -> None:
+    # Regression: a range() bound that is a compile-time-constant integer larger
+    # than Py_ssize_t must NOT type the loop index. ``2**64 - 1`` is the
+    # adversarial case — the >63-bit power is provably out-of-range, and the
+    # trailing ``- 1`` must not cancel that back into range (which would wrongly
+    # type ``i`` as Py_ssize_t and overflow at runtime).
+    for bound in ("2**64 - 1", "0, 2**64 - 1, 1", "-(2**100), 5", "10**20"):
+        source = (
+            "def run():\n"
+            f"    for i in range({bound}):\n"
+            "        break\n"
+            "    return i\n"
+        )
+        preview = previewer.analyze_source(source)
+        typed = {item.name for item in preview.typed_variables}
+        skipped = {item.name for item in preview.skipped}
+        assert "i" not in typed, f"loop index wrongly typed for range({bound})"
+        assert "i" in skipped, f"loop index not recorded as skipped for range({bound})"
+
+
+def test_range_bound_within_py_ssize_t_still_types_loop_index() -> None:
+    # Guard the optimization the overflow fix must preserve: a fitting constant
+    # bound and a variable bound both still type the loop index as Py_ssize_t.
+    source = (
+        "def run(values):\n"
+        "    count = len(values)\n"
+        "    for i in range(1000):\n"
+        "        pass\n"
+        "    for j in range(count):\n"
+        "        pass\n"
+        "    return count\n"
+    )
+    preview = previewer.analyze_source(source)
+    typed = {(item.name, item.cython_type) for item in preview.typed_variables}
+    assert ("i", "Py_ssize_t") in typed
+    assert ("j", "Py_ssize_t") in typed

@@ -192,10 +192,6 @@ CASES = (
             "    return i\n"
         ),
         entry="run",
-        pending=(
-            "plan item 14: range() bounds beyond Py_ssize_t must not type the "
-            "loop index"
-        ),
     ),
     Case(
         name="deleted_name",

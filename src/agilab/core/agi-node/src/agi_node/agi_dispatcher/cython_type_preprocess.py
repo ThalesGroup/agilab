@@ -32,6 +32,7 @@ import ast
 import builtins
 import json
 import logging
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -42,11 +43,20 @@ logger = logging.getLogger(__name__)
 CYTHON_NUMERIC_TYPES = {"bint", "double", "Py_ssize_t"}
 _CALL_BUILTINS = {"bool", "enumerate", "float", "isinstance", "len", "range"}
 _SMALL_INT_LITERAL_ABS_LIMIT = 1_000_000
+_PY_SSIZE_MIN = -sys.maxsize - 1
+_PY_SSIZE_MAX = sys.maxsize
 _CYTHON_LOCALS_TYPE_MAP = {
     "Py_ssize_t": "cython.Py_ssize_t",
     "bint": "cython.bint",
     "double": "cython.double",
 }
+_STATIC_INT_UNKNOWN = object()
+#: Distinct from ``_STATIC_INT_UNKNOWN``: the operand is provably an integer whose
+#: magnitude cannot fit in ``Py_ssize_t`` (or is too large to evaluate exactly).
+#: An *unknown* (e.g. a variable bound) stays optimistically typed, but an
+#: *overflow* must block the loop-index typing — and it must stay overflow through
+#: further arithmetic so a later ``- 1`` cannot cancel it back into range.
+_STATIC_INT_OVERFLOW = object()
 
 
 @dataclass(frozen=True)
@@ -135,6 +145,56 @@ def _is_small_int_literal(node: ast.AST) -> bool:
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
         return _is_small_int_literal(node.operand)
     return False
+
+
+def _static_int_value(node: ast.AST) -> int | object:
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, int) and not isinstance(node.value, bool):
+            return node.value
+        return _STATIC_INT_UNKNOWN
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.UAdd):
+        return _static_int_value(node.operand)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        value = _static_int_value(node.operand)
+        if isinstance(value, int):
+            return -value
+        # Negating a provably-overflowing magnitude still overflows.
+        return _STATIC_INT_OVERFLOW if value is _STATIC_INT_OVERFLOW else _STATIC_INT_UNKNOWN
+    if not isinstance(node, ast.BinOp):
+        return _STATIC_INT_UNKNOWN
+
+    left = _static_int_value(node.left)
+    right = _static_int_value(node.right)
+    # An unknown operand makes the whole expression unknown; a provably
+    # out-of-range operand makes it provably out-of-range. Propagate overflow
+    # rather than collapsing it to a concrete sentinel int, so a later ``- 1``
+    # or ``+ k`` cannot cancel it back into Py_ssize_t range.
+    if left is _STATIC_INT_UNKNOWN or right is _STATIC_INT_UNKNOWN:
+        return _STATIC_INT_UNKNOWN
+    if left is _STATIC_INT_OVERFLOW or right is _STATIC_INT_OVERFLOW:
+        return _STATIC_INT_OVERFLOW
+    try:
+        if isinstance(node.op, ast.Add):
+            return left + right
+        if isinstance(node.op, ast.Sub):
+            return left - right
+        if isinstance(node.op, ast.Mult):
+            return left * right
+        if isinstance(node.op, ast.FloorDiv) and right != 0:
+            return left // right
+        if isinstance(node.op, ast.Mod) and right != 0:
+            return left % right
+        if isinstance(node.op, ast.Pow) and right >= 0:
+            if abs(left) > 1 and right > _PY_SSIZE_MAX.bit_length():
+                return _STATIC_INT_OVERFLOW
+            return left**right
+    except ArithmeticError:
+        return _STATIC_INT_UNKNOWN
+    return _STATIC_INT_UNKNOWN
+
+
+def _fits_py_ssize_t(value: int) -> bool:
+    return _PY_SSIZE_MIN <= value <= _PY_SSIZE_MAX
 
 
 def _numeric_operand_type(
@@ -305,6 +365,28 @@ def _is_range_call(node: ast.AST, *, shadowed_builtins: set[str]) -> bool:
         and _call_name(node.func) == "range"
         and "range" not in shadowed_builtins
     )
+
+
+def _range_loop_index_candidate(
+    node: ast.AST,
+    *,
+    shadowed_builtins: set[str],
+) -> tuple[bool, str] | None:
+    if not _is_range_call(node, shadowed_builtins=shadowed_builtins):
+        return None
+    if not isinstance(node, ast.Call):
+        return None
+    if node.keywords:
+        return (False, "range() call uses keyword arguments")
+    if len(node.args) not in {1, 2, 3}:
+        return (False, "range() argument count is invalid")
+    for argument in node.args:
+        value = _static_int_value(argument)
+        if value is _STATIC_INT_OVERFLOW or (
+            isinstance(value, int) and not _fits_py_ssize_t(value)
+        ):
+            return (False, "range() bound exceeds Py_ssize_t")
+    return (True, "range() loop index")
 
 
 def _is_safe_enumerate_call(node: ast.AST, *, shadowed_builtins: set[str]) -> bool:
@@ -580,14 +662,19 @@ class _FunctionCollector(ast.NodeVisitor):
 
     def visit_For(self, node: ast.For) -> None:
         names = _bound_names(node.target)
-        if isinstance(node.target, ast.Name) and _is_range_call(
+        range_candidate = _range_loop_index_candidate(
             node.iter,
             shadowed_builtins=self.shadowed_builtins,
-        ):
-            self._record(
-                node.target.id,
-                _Candidate("Py_ssize_t", node.lineno, "range() loop index"),
-            )
+        )
+        if isinstance(node.target, ast.Name) and range_candidate is not None:
+            is_safe_range_index, reason = range_candidate
+            if is_safe_range_index:
+                self._record(
+                    node.target.id,
+                    _Candidate("Py_ssize_t", node.lineno, reason),
+                )
+            else:
+                self._block(node.target.id, line=node.lineno, reason=reason)
         elif (
             isinstance(node.target, (ast.Tuple, ast.List))
             and len(node.target.elts) == 2
