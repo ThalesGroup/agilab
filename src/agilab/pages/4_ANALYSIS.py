@@ -226,7 +226,7 @@ _ANALYSIS_VIEW_PROFILES = {
         "Inspect data ingestion decisions and feature evidence.",
         "Use for data-quality and source-selection examples.",
     ),
-    "view_autoencoder_latentspace": (
+    "autoencoder_latentspace": (
         "Latent-space view",
         "Inspect reduced-dimensional embeddings and clustering behavior.",
         "Use after dimensionality-reduction workflows.",
@@ -1607,7 +1607,23 @@ def _dedupe_preserve_order(values: list[str]) -> list[str]:
     return result
 
 
-_APP_UI_PAGE_KEY = "view_app_ui"
+_APP_UI_PAGE_KEY = "app_ui"
+_LEGACY_APP_UI_PAGE_KEY = "view_app_ui"
+_APP_UI_PAGE_KEYS = (_APP_UI_PAGE_KEY, _LEGACY_APP_UI_PAGE_KEY)
+
+
+def _normalize_app_ui_page_key(value: str) -> str:
+    return _APP_UI_PAGE_KEY if value == _LEGACY_APP_UI_PAGE_KEY else value
+
+
+def _normalized_page_module_values(raw_modules: object) -> list[str]:
+    if not isinstance(raw_modules, list):
+        return []
+    return [
+        _normalize_app_ui_page_key(value.strip())
+        for value in raw_modules
+        if isinstance(value, str) and value.strip()
+    ]
 
 
 def _declared_app_pages_config(active_app_path: Path | None) -> dict[str, Any] | None:
@@ -1629,8 +1645,15 @@ def _declared_app_ui_page_config(active_app_path: Path | None) -> dict[str, str]
     pages = _declared_app_pages_config(active_app_path)
     if pages is None:
         return None
-    page_cfg = pages.get(_APP_UI_PAGE_KEY)
-    if not isinstance(page_cfg, dict):
+    page_cfg = next(
+        (
+            candidate
+            for key in _APP_UI_PAGE_KEYS
+            if isinstance((candidate := pages.get(key)), dict)
+        ),
+        None,
+    )
+    if page_cfg is None:
         return None
     entrypoint = page_cfg.get("entrypoint")
     if not isinstance(entrypoint, str) or not entrypoint.strip():
@@ -1666,27 +1689,13 @@ def _migrate_declared_app_ui_page_config(
         pages[_APP_UI_PAGE_KEY] = declared
         changed = True
 
-    raw_modules = pages.get("view_module")
-    modules = (
-        [
-            value.strip()
-            for value in raw_modules
-            if isinstance(value, str) and value.strip()
-        ]
-        if isinstance(raw_modules, list)
-        else []
-    )
+    modules = _normalized_page_module_values(pages.get("view_module"))
     seed_restricts_views = bool(
         seed_pages and seed_pages.get("restrict_to_view_module") is True
     )
     seed_modules = (
-        [
-            value.strip()
-            for value in seed_pages.get("view_module", [])
-            if isinstance(value, str) and value.strip()
-        ]
+        _normalized_page_module_values(seed_pages.get("view_module"))
         if isinstance(seed_pages, dict)
-        and isinstance(seed_pages.get("view_module"), list)
         else []
     )
     if seed_restricts_views:
@@ -1730,13 +1739,8 @@ def _migrate_declared_app_surface_config(
         seed_pages and seed_pages.get("restrict_to_view_module") is True
     )
     seed_modules = (
-        [
-            value.strip()
-            for value in seed_pages.get("view_module", [])
-            if isinstance(value, str) and value.strip()
-        ]
+        _normalized_page_module_values(seed_pages.get("view_module"))
         if isinstance(seed_pages, dict)
-        and isinstance(seed_pages.get("view_module"), list)
         else []
     )
     declared_app_ui_page = _declared_app_ui_page_config(active_app_path)
@@ -1752,9 +1756,10 @@ def _migrate_declared_app_surface_config(
             changed = True
 
     if declared_app_ui_page is None:
-        if _APP_UI_PAGE_KEY in pages:
-            del pages[_APP_UI_PAGE_KEY]
-            changed = True
+        for key in _APP_UI_PAGE_KEYS:
+            if key in pages:
+                del pages[key]
+                changed = True
     return changed
 
 
@@ -1917,7 +1922,9 @@ def _is_legacy_app_ui_route(current_page: str | None) -> bool:
     if not value:
         return False
     path = Path(value)
-    return path.stem == _APP_UI_PAGE_KEY or _APP_UI_PAGE_KEY in path.parts
+    return path.stem in _APP_UI_PAGE_KEYS or any(
+        part in _APP_UI_PAGE_KEYS for part in path.parts
+    )
 
 
 def _is_app_surface_overview_requested(current_page: str | None) -> bool:
@@ -1928,7 +1935,7 @@ def _consume_legacy_app_ui_route_for_app_surface(
     current_page: str | None,
     active_app_path: Path | None,
 ) -> bool:
-    """Treat stale view_app_ui deep links as app-surface links when the app declares one."""
+    """Treat stale app UI deep links as app-surface links when the app declares one."""
     if not _is_legacy_app_ui_route(current_page):
         return False
     if configured_app_surface_entrypoint(active_app_path) is None:
