@@ -169,7 +169,9 @@ def load_worker(
     sys_modules: MutableMapping[str, Any] | None = None,
 ) -> Any:
     active_modules = sys_modules if sys_modules is not None else sys.modules
-    module_name = env.target_worker
+    package_name = env.target_worker
+    active_modules.pop(package_name, None)
+    module_name = package_name
     if mode & 2:
         module_name = f"{module_name}_cy"
     else:
