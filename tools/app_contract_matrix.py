@@ -1072,7 +1072,7 @@ def _global_checks(
             "apps_pages_root_keeps_asset_bundle_shape",
             "Apps-pages root keeps asset-bundle shape",
             not invalid_page_children and not unexpected_root_python,
-            "apps-pages root only carries the provider, docs, templates, and view_* bundle projects",
+            "apps-pages root only carries the provider, docs, templates, view_* bundle projects, and the two explicit app-specific exceptions",
             evidence=(str(APPS_PAGES_REL), "tools/package_split_contract.py"),
             details={
                 "invalid_children": invalid_page_children,
