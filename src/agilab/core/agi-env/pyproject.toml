@@ -1,5 +1,5 @@
 [project]
-version = "2026.06.12"
+version = "2026.06.13.1"
 name = "agi-env"
 description = "Environment bootstrap package for AGILAB with virtualenv, path, and runtime helpers"
 requires-python = ">=3.11"
