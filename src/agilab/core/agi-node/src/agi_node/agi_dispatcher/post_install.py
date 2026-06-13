@@ -205,6 +205,9 @@ def _looks_like_generated_trajectory(path: Path) -> bool:
     name = path.name.lower()
     return (
         "_trajectory" in name
+        or name.startswith("trajectory_")
+        or name.startswith("generated_")
+        or name.startswith("generated-")
         or name.startswith("starlink-")
         or name.endswith("_traj.csv")
         or name.endswith("_traj.parquet")
@@ -215,10 +218,10 @@ def _folder_looks_large(folder: Path) -> bool:
     """Detect large/generated trajectory folders that can stall downstream apps/tests."""
 
     files = _iter_data_files(folder)
-    if len(files) < 2:
-        return False
     if any(_looks_like_generated_trajectory(path) for path in files):
         return True
+    if len(files) < 2:
+        return False
     if len(files) > 20:
         return True
     try:

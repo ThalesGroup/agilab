@@ -834,11 +834,17 @@ def test_post_dir_is_duplicate_of(tmp_path):
 
 def test_post_generated_trajectory_name_detection():
     assert post_mod._looks_like_generated_trajectory(Path("sat_trajectory.csv"))
+    assert post_mod._looks_like_generated_trajectory(Path("trajectory_data.csv"))
+    assert post_mod._looks_like_generated_trajectory(Path("trajectory_data.parquet"))
+    assert post_mod._looks_like_generated_trajectory(Path("generated_trajectory_data.csv"))
+    assert post_mod._looks_like_generated_trajectory(Path("generated-flight_trajectory.pq"))
     assert post_mod._looks_like_generated_trajectory(Path("starlink-2026.csv"))
     assert post_mod._looks_like_generated_trajectory(Path("flight_traj.parquet"))
     assert post_mod._looks_like_generated_trajectory(Path("flight_traj.csv"))
     assert post_mod._looks_like_generated_trajectory(Path("flight_trajectory.pq"))
     assert not post_mod._looks_like_generated_trajectory(Path("baseline.csv"))
+    assert not post_mod._looks_like_generated_trajectory(Path("trajectory.csv"))
+    assert not post_mod._looks_like_generated_trajectory(Path("sattrajectory.csv"))
 
 
 def test_post_folder_looks_large_for_generated_or_many_files(tmp_path):
@@ -847,6 +853,16 @@ def test_post_folder_looks_large_for_generated_or_many_files(tmp_path):
     (generated / "a_trajectory.csv").write_text("x", encoding="utf-8")
     (generated / "b.csv").write_text("y", encoding="utf-8")
     assert post_mod._folder_looks_large(generated) is True
+
+    generated_single = tmp_path / "generated_single"
+    generated_single.mkdir()
+    (generated_single / "generated_trajectory.csv").write_text("x", encoding="utf-8")
+    assert post_mod._folder_looks_large(generated_single) is True
+
+    generated_single_no_marker = tmp_path / "generated_single_no_marker"
+    generated_single_no_marker.mkdir()
+    (generated_single_no_marker / "baseline.csv").write_text("x", encoding="utf-8")
+    assert post_mod._folder_looks_large(generated_single_no_marker) is False
 
     many = tmp_path / "many"
     many.mkdir()
