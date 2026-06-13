@@ -1,0 +1,7 @@
+# Repo-local commands that Tokki may execute through `tokki run -- ...`
+# without a model call under the default readonly shell policy.
+exact ./dev scope
+exact ./dev impact
+exact ./dev test
+template ./dev impact --only <safe-component>
+template ./dev flow <safe-component>
