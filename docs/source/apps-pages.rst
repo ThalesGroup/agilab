@@ -351,12 +351,12 @@ Live evidence monitor for app-agnostic exported artifacts.
   evidence while the app remains responsible for execution.
 
 app_ui
-^^^^^^^^^^^
+^^^^^^
 
 Generic bridge for the default app-owned Streamlit UI.
 
-- Input: an active app with ``[app_surface]`` or legacy
-  ``[pages.app_ui].entrypoint`` configured in ``app_settings.toml``.
+- Input: an active app with ``[app_surface]`` or ``[pages.app_ui].entrypoint``
+  configured in ``app_settings.toml``.
 - Output: the app-owned UI rendered inside ANALYSIS while the app keeps
   control of training, execution semantics, and evidence artifacts.
 
@@ -388,7 +388,7 @@ Training evidence page for scalar logs and model-training runs.
 - Output: run selector, scalar trends, and training metadata for comparison.
 
 autoencoder_latentspace
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
 
 Opt-in TensorFlow/Keras latent-space playground for Python 3.12 source-checkout
 environments. Unlike the default app-agnostic sidecars, this page trains a

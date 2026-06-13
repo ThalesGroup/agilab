@@ -929,6 +929,9 @@ def _page_quality_contract_errors(repo_root: Path, page_modules: set[str]) -> di
         page_root = repo_root / APPS_PAGES_REL / module
         readme_path = page_root / "README.md"
         preview_path = repo_root / APPS_PAGES_GALLERY_ASSETS_REL / f"{module}.svg"
+        legacy_preview_path = (
+            repo_root / APPS_PAGES_GALLERY_ASSETS_REL / f"view_{module}.svg"
+        )
         source_root = page_root / "src" / module
         source_files = sorted(source_root.glob("*.py")) if source_root.is_dir() else []
         direct_tests = sorted(
@@ -943,7 +946,7 @@ def _page_quality_contract_errors(repo_root: Path, page_modules: set[str]) -> di
             module_errors["readme"] = _relative(repo_root, readme_path)
         elif f"apps-pages-gallery/{module}.svg" not in readme_text:
             module_errors["readme_preview_link"] = _relative(repo_root, readme_path)
-        if not preview_path.is_file():
+        if not preview_path.is_file() and not legacy_preview_path.is_file():
             module_errors["preview"] = _relative(repo_root, preview_path)
         if f"_static/apps-pages-gallery/{module}.svg" not in gallery_text or f"**{module}**" not in gallery_text:
             module_errors["gallery"] = _relative(repo_root, gallery_path)
@@ -1052,7 +1055,11 @@ def _global_checks(
             if path.is_file() or path.is_dir()
         }
     allowed_page_root_files = {"README.md", ".gitignore", "__init__.py"}
-    allowed_page_root_dirs = {"templates"}
+    allowed_page_root_dirs = {
+        "templates",
+        "app_ui",
+        "autoencoder_latentspace",
+    }
     invalid_page_children = sorted(
         child
         for child in tracked_page_children

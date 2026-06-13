@@ -69,7 +69,7 @@ __all__ = (
 PAGE_BUNDLE_ENTRYPOINT_NAMES = ("{module}.py", "main.py", "app.py")
 PAGE_BUNDLE_ENTRYPOINT_GROUP = "agilab.pages"
 PUBLIC_PAGE_MODULES = (
-    "view_app_ui",
+    "app_ui",
     "view_barycentric",
     "view_data_io_decision",
     "view_forecast_analysis",
