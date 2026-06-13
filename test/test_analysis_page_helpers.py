@@ -679,7 +679,7 @@ def test_render_configured_app_surface_skips_when_hidden_or_overview_requested(t
     assert render_calls == []
 
 
-def test_legacy_view_app_ui_route_opens_declared_app_surface(tmp_path: Path, monkeypatch):
+def test_legacy_app_ui_route_opens_declared_app_surface(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
     app = tmp_path / "demo_project"
     surface = app / "src" / "demo" / "app_surface.py"
@@ -696,7 +696,48 @@ def test_legacy_view_app_ui_route_opens_declared_app_surface(tmp_path: Path, mon
         ),
         encoding="utf-8",
     )
-    legacy_route = tmp_path / "apps-pages" / "view_app_ui" / "src" / "view_app_ui" / "view_app_ui.py"
+    legacy_route = tmp_path / "apps-pages" / "app_ui" / "src" / "app_ui" / "app_ui.py"
+    fake_st = SimpleNamespace(
+        query_params={
+            "current_page": str(legacy_route),
+            module._APP_SURFACE_HIDE_QUERY_PARAM: "true",
+        },
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+
+    assert module._consume_legacy_app_ui_route_for_app_surface(str(legacy_route), app) is True
+    assert "current_page" not in fake_st.query_params
+    assert module._APP_SURFACE_HIDE_QUERY_PARAM not in fake_st.query_params
+
+
+def test_legacy_view_app_ui_route_opens_declared_app_surface(
+    tmp_path: Path, monkeypatch
+):
+    module = _load_analysis_module()
+    app = tmp_path / "demo_project"
+    surface = app / "src" / "demo" / "app_surface.py"
+    surface.parent.mkdir(parents=True)
+    surface.write_text("def render(**_kwargs): pass\n", encoding="utf-8")
+    (app / "src" / "app_settings.toml").write_text(
+        "\n".join(
+            [
+                "[app_surface]",
+                'title = "Demo Surface"',
+                'entrypoint = "demo/app_surface.py"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    legacy_route = (
+        tmp_path
+        / "apps-pages"
+        / "view_app_ui"
+        / "src"
+        / "view_app_ui"
+        / "view_app_ui.py"
+    )
     fake_st = SimpleNamespace(
         query_params={
             "current_page": str(legacy_route),
@@ -1120,9 +1161,9 @@ def test_migrate_declared_app_ui_page_config_adds_app_ui_once(tmp_path: Path):
         "\n".join(
             [
                 "[pages]",
-                'view_module = ["view_app_ui"]',
+                'view_module = ["app_ui"]',
                 "",
-                "[pages.view_app_ui]",
+                "[pages.app_ui]",
                 'title = "Demo UI"',
                 'entrypoint = "demo/ui.py"',
                 "",
@@ -1137,9 +1178,46 @@ def test_migrate_declared_app_ui_page_config_adds_app_ui_once(tmp_path: Path):
 
     assert changed is True
     assert second_changed is False
-    assert cfg["pages"]["view_module"] == ["view_app_ui"]
-    assert cfg["pages"]["view_app_ui"] == {
+    assert cfg["pages"]["view_module"] == ["app_ui"]
+    assert cfg["pages"]["app_ui"] == {
         "title": "Demo UI",
+        "entrypoint": "demo/ui.py",
+    }
+
+
+def test_migrate_declared_app_ui_page_config_accepts_legacy_view_app_ui(
+    tmp_path: Path,
+):
+    module = _load_analysis_module()
+    app = tmp_path / "demo_project"
+    settings = app / "src" / "app_settings.toml"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(
+        "\n".join(
+            [
+                "[pages]",
+                "restrict_to_view_module = true",
+                'view_module = ["view_app_ui"]',
+                "",
+                "[pages.view_app_ui]",
+                'title = "Legacy Demo UI"',
+                'entrypoint = "demo/ui.py"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    cfg = {"pages": {"view_module": []}}
+
+    changed = module._migrate_declared_app_ui_page_config(app, cfg)
+    second_changed = module._migrate_declared_app_ui_page_config(app, cfg)
+
+    assert changed is True
+    assert second_changed is False
+    assert cfg["pages"]["restrict_to_view_module"] is True
+    assert cfg["pages"]["view_module"] == ["app_ui"]
+    assert cfg["pages"]["app_ui"] == {
+        "title": "Legacy Demo UI",
         "entrypoint": "demo/ui.py",
     }
 
@@ -1154,9 +1232,9 @@ def test_migrate_declared_app_ui_page_config_honors_restricted_seed_views(tmp_pa
             [
                 "[pages]",
                 "restrict_to_view_module = true",
-                'view_module = ["view_app_ui"]',
+                'view_module = ["app_ui"]',
                 "",
-                "[pages.view_app_ui]",
+                "[pages.app_ui]",
                 'title = "Demo UI"',
                 'entrypoint = "demo/ui.py"',
                 "",
@@ -1166,8 +1244,8 @@ def test_migrate_declared_app_ui_page_config_honors_restricted_seed_views(tmp_pa
     )
     cfg = {
         "pages": {
-            "view_module": ["view_app_ui", "view_training_analysis"],
-            "view_app_ui": {"entrypoint": "demo/ui.py", "title": "Demo UI"},
+            "view_module": ["app_ui", "view_training_analysis"],
+            "app_ui": {"entrypoint": "demo/ui.py", "title": "Demo UI"},
         }
     }
 
@@ -1177,7 +1255,7 @@ def test_migrate_declared_app_ui_page_config_honors_restricted_seed_views(tmp_pa
     assert changed is True
     assert second_changed is False
     assert cfg["pages"]["restrict_to_view_module"] is True
-    assert cfg["pages"]["view_module"] == ["view_app_ui"]
+    assert cfg["pages"]["view_module"] == ["app_ui"]
 
 
 def test_migrate_declared_app_surface_config_replaces_legacy_app_ui_bridge(tmp_path: Path):
@@ -1202,8 +1280,8 @@ def test_migrate_declared_app_surface_config_replaces_legacy_app_ui_bridge(tmp_p
     )
     cfg = {
         "pages": {
-            "view_module": ["view_app_ui", "view_training_analysis"],
-            "view_app_ui": {"entrypoint": "demo/ui.py", "title": "Demo UI"},
+            "view_module": ["app_ui", "view_training_analysis"],
+            "app_ui": {"entrypoint": "demo/ui.py", "title": "Demo UI"},
         }
     }
 
@@ -1218,7 +1296,7 @@ def test_migrate_declared_app_surface_config_replaces_legacy_app_ui_bridge(tmp_p
     }
     assert cfg["pages"] == {
         "restrict_to_view_module": True,
-        "view_module": ["view_app_ui"],
+        "view_module": ["app_ui"],
     }
 
 
@@ -1248,8 +1326,8 @@ def test_migrate_declared_app_surface_config_keeps_single_sidebar_launcher(tmp_p
 
     assert changed is True
     assert cfg["pages"]["restrict_to_view_module"] is True
-    assert cfg["pages"]["view_module"] == ["view_app_ui"]
-    assert "view_app_ui" not in cfg["pages"]
+    assert cfg["pages"]["view_module"] == ["app_ui"]
+    assert "app_ui" not in cfg["pages"]
 
 
 def test_configured_view_options_restricts_to_declared_available_views(tmp_path: Path):
@@ -1613,18 +1691,18 @@ default = "streamlit"
 
     assert changed is True
     assert cfg["pages"]["restrict_to_view_module"] is True
-    assert cfg["pages"]["view_module"] == ["view_app_ui"]
-    assert "view_app_ui" not in cfg["pages"]
+    assert cfg["pages"]["view_module"] == ["app_ui"]
+    assert "app_ui" not in cfg["pages"]
     assert cfg["app_surface"]["entrypoint"] == "demo_surface/app.py"
 
 
-def test_view_app_ui_label_uses_declared_title_not_internal_route() -> None:
+def test_app_ui_label_uses_declared_title_not_internal_route() -> None:
     module = _load_analysis_module()
-    builtin_names = {"view_app_ui", "view_maps"}
+    builtin_names = {"app_ui", "view_maps"}
 
     assert (
         module._view_label(
-            "view_app_ui",
+            "app_ui",
             builtin_names,
             app_surface_cfg={
                 "title": "PyTorch Playground",
@@ -1635,7 +1713,7 @@ def test_view_app_ui_label_uses_declared_title_not_internal_route() -> None:
     )
     assert (
         module._view_label(
-            "view_app_ui",
+            "app_ui",
             builtin_names,
             app_ui_page_cfg={
                 "title": "Flight Telemetry Project",
@@ -1644,7 +1722,7 @@ def test_view_app_ui_label_uses_declared_title_not_internal_route() -> None:
         )
         == "Flight Telemetry"
     )
-    assert module._view_label("view_app_ui", builtin_names) == "App UI"
+    assert module._view_label("app_ui", builtin_names) == "App UI"
     assert module._view_label("view_maps", builtin_names) == "view_maps"
 
 
