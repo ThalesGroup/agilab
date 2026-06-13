@@ -73,6 +73,23 @@ def _assert_ordered_fragments(source: str, fragments: tuple[str, ...]) -> None:
     assert positions == sorted(positions), fragments
 
 
+def _sidebar_link_fragments(label: str) -> tuple[str, str]:
+    return (f">{label}</a>", f"[{label}](")
+
+
+def _assert_sidebar_link_present(markdown: str, label: str) -> None:
+    assert any(fragment in markdown for fragment in _sidebar_link_fragments(label)), (
+        f"Expected sidebar link for '{label}' in rendered markdown."
+    )
+
+
+def _assert_sidebar_link_absent(markdown: str, label: str) -> None:
+    for fragment in _sidebar_link_fragments(label):
+        assert fragment not in markdown, (
+            f"Did not expect sidebar link fragment '{fragment}' for '{label}'."
+        )
+
+
 def test_primary_pages_keep_homogeneous_support_field_order() -> None:
     """Support fields should not jump above the page's primary content."""
     analysis_source = Path("src/agilab/pages/4_ANALYSIS.py").read_text(
@@ -2061,8 +2078,8 @@ def test_explore_page_app_surface_back_keeps_single_app_ui_sidebar_view(mock_ui_
     assert "**Flight Telemetry**" in sidebar_markdown
     assert "Flight Telemetry Project" not in sidebar_markdown
     assert "Project:" not in sidebar_markdown
-    assert ">Flight Telemetry</a>" in sidebar_markdown
-    assert ">view_app_ui</a>" not in sidebar_markdown
+    _assert_sidebar_link_present(sidebar_markdown, "Flight Telemetry")
+    _assert_sidebar_link_absent(sidebar_markdown, "view_app_ui")
     assert sidebar_markdown.count("current_page=view_app_ui") == 1
     assert "view_other" not in sidebar_markdown
     assert "current_page=" in sidebar_markdown
@@ -2128,8 +2145,8 @@ def test_explore_page_app_surface_uses_standard_view_selection(mock_ui_env):
     assert "Project:" not in sidebar_markdown
     assert "surface:analysis" not in markdown_text
     assert "surface:controls" not in sidebar_markdown
-    assert ">Demo Surface</a>" in sidebar_markdown
-    assert ">view_app_ui</a>" not in sidebar_markdown
+    _assert_sidebar_link_present(sidebar_markdown, "Demo Surface")
+    _assert_sidebar_link_absent(sidebar_markdown, "view_app_ui")
     assert sidebar_markdown.count("current_page=view_app_ui") == 1
     assert "Choose analysis views" in [str(item.label) for item in at.expander]
     assert "Additional views" not in [
@@ -2145,8 +2162,8 @@ def test_explore_page_app_surface_uses_standard_view_selection(mock_ui_env):
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     assert "Project:" not in sidebar_markdown
-    assert ">Demo Surface</a>" in sidebar_markdown
-    assert ">view_app_ui</a>" not in sidebar_markdown
+    _assert_sidebar_link_present(sidebar_markdown, "Demo Surface")
+    _assert_sidebar_link_absent(sidebar_markdown, "view_app_ui")
     assert "view_extra" in sidebar_markdown
     assert "current_page=" in sidebar_markdown
 
