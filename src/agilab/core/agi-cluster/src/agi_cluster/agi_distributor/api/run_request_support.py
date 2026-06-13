@@ -8,6 +8,51 @@ from typing import Any, TypeAlias
 RunMode: TypeAlias = int | list[int] | str | None
 RUN_STAGES_KEY = "_agilab_run_stages"
 
+#: Accepted ``executor_kind`` values. ``None``/``"auto"`` defer to the per-app
+#: pool default and the in-worker free-threading probe; ``"process"`` and
+#: ``"thread"`` force a backend. Mirrors ``AGILAB_POOL_EXECUTOR`` in
+#: ``worker_pool_support`` — the field is the per-run way to set that env knob.
+EXECUTOR_KINDS = ("process", "thread")
+
+
+def _normalize_executor_kind(value: Any) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError("RunRequest.executor_kind must be a string or None")
+    choice = value.strip().lower()
+    if choice in ("", "auto"):
+        return None
+    if choice not in EXECUTOR_KINDS:
+        raise ValueError(
+            "RunRequest.executor_kind must be one of "
+            f"{('auto', *EXECUTOR_KINDS)}, got {value!r}"
+        )
+    return choice
+
+
+#: Accepted ``start_method`` values for the in-worker process pool.
+#: ``None``/``"spawn"`` keep the cross-platform default; ``"forkserver"`` opts
+#: into the POSIX warm-server pool. Mirrors ``AGILAB_POOL_START_METHOD`` in
+#: ``worker_pool_support`` and only affects the process executor.
+START_METHODS = ("spawn", "forkserver")
+
+
+def _normalize_start_method(value: Any) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError("RunRequest.start_method must be a string or None")
+    choice = value.strip().lower()
+    if choice in ("", "spawn", "default"):
+        return None
+    if choice not in START_METHODS:
+        raise ValueError(
+            "RunRequest.start_method must be 'spawn', 'forkserver' or None, "
+            f"got {value!r}"
+        )
+    return choice
+
 
 @dataclass(frozen=True)
 class StageRequest:
@@ -55,8 +100,12 @@ class RunRequest:
     mode: RunMode = None
     rapids_enabled: bool = False
     benchmark_best_single_node: bool = False
+    executor_kind: str | None = None
+    start_method: str | None = None
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "executor_kind", _normalize_executor_kind(self.executor_kind))
+        object.__setattr__(self, "start_method", _normalize_start_method(self.start_method))
         if not isinstance(self.params, Mapping):
             raise TypeError("RunRequest.params must be a mapping")
         params = dict(self.params)
@@ -99,6 +148,8 @@ class RunRequest:
             "mode",
             "rapids_enabled",
             "benchmark_best_single_node",
+            "executor_kind",
+            "start_method",
         }
         unknown = set(updates) - allowed
         if unknown:

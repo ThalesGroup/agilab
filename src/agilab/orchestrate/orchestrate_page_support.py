@@ -567,11 +567,25 @@ def build_run_snippet(
     workers_data_path: str = "None",
     rapids_enabled: bool = False,
     benchmark_best_single_node: bool = False,
+    executor_kind: str | None = None,
+    start_method: str | None = None,
 ) -> str:
     params, stages, data_in, data_out, reset_target = _split_run_request_payload(run_args)
     if app_declares_workerless(env):
         return _build_workerless_run_snippet(env=env, verbose=verbose, params=params)
     workers_data_path_expr = workers_data_path if workers_data_path not in ("", None) else "None"
+    executor_kind_value = str(executor_kind).strip().lower() if executor_kind else ""
+    executor_kind_lines = (
+        [f"        executor_kind={executor_kind_value!r},"]
+        if executor_kind_value in ("process", "thread")
+        else []
+    )
+    start_method_value = str(start_method).strip().lower() if start_method else ""
+    start_method_lines = (
+        [f"        start_method={start_method_value!r},"]
+        if start_method_value == "forkserver"
+        else []
+    )
     snippet_lines = [
         "import asyncio",
         "import json",
@@ -606,6 +620,8 @@ def build_run_snippet(
         f"        workers_data_path={workers_data_path_expr},",
         f"        rapids_enabled={bool(rapids_enabled)!r},",
         f"        benchmark_best_single_node={bool(benchmark_best_single_node)!r},",
+        *executor_kind_lines,
+        *start_method_lines,
         "    )",
         "    res = await AGI.run(app_env, request=request)",
         "    print(res)",

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 import math
+import multiprocessing
 import os
 import sys
 import time
@@ -59,9 +60,74 @@ POOL_ITEM_TIMEOUT_ARG = "pool_item_timeout"
 
 #: Executor backend override: ``process``/``thread`` force a backend,
 #: ``auto`` (default) keeps the family default except on free-threaded
-#: interpreters (PYTHON_GIL=0), where process-pool families switch to a
-#: thread pool — same parallelism without spawn/pickling costs.
+#: interpreters (a free-threaded build with the GIL disabled), where
+#: process-pool families switch to a thread pool — same parallelism without
+#: spawn/pickling costs.
 POOL_EXECUTOR_ENV = "AGILAB_POOL_EXECUTOR"
+
+#: Process-pool start method. ``spawn`` (default) re-imports and pickles per
+#: child — deterministic across platforms. ``forkserver`` (POSIX only) warms a
+#: single clean server process once and forks children from it: no per-child
+#: interpreter cold start and none of the fork+threads deadlock hazards of raw
+#: ``fork`` (which is deliberately not offered). Ignored by thread pools.
+POOL_START_METHOD_ENV = "AGILAB_POOL_START_METHOD"
+_DEFAULT_START_METHOD = "spawn"
+SUPPORTED_START_METHODS = ("spawn", "forkserver")
+
+
+def available_start_methods() -> tuple[str, ...]:
+    """Supported start methods that this platform actually provides.
+
+    ``forkserver`` is POSIX-only, so on Windows this collapses to ``spawn``.
+    """
+    provided = set(multiprocessing.get_all_start_methods())
+    return tuple(method for method in SUPPORTED_START_METHODS if method in provided)
+
+
+def resolve_pool_start_method() -> str:
+    """Resolve the process-pool start method from the environment.
+
+    ``AGILAB_POOL_START_METHOD=spawn|forkserver`` selects the method; unset (or
+    any unsupported/unavailable value) falls back to ``spawn``. ``forkserver``
+    silently degrades to ``spawn`` on platforms that do not provide it so a
+    cross-platform run never fails on this knob.
+    """
+    choice = os.environ.get(POOL_START_METHOD_ENV, _DEFAULT_START_METHOD).strip().lower()
+    if not choice:
+        return _DEFAULT_START_METHOD
+    if choice not in SUPPORTED_START_METHODS:
+        logger.warning(
+            "Ignoring invalid %s value %r (expected spawn or forkserver)",
+            POOL_START_METHOD_ENV,
+            choice,
+        )
+        return _DEFAULT_START_METHOD
+    if choice not in available_start_methods():
+        logger.warning(
+            "%s=%s is not available on this platform; falling back to spawn",
+            POOL_START_METHOD_ENV,
+            choice,
+        )
+        return _DEFAULT_START_METHOD
+    return choice
+
+
+def resolve_process_pool_context(preload: Sequence[str] = ()) -> Any:
+    """Return the multiprocessing context for the process pool.
+
+    ``preload`` is applied only for ``forkserver`` (it pre-imports the named
+    modules into the warm server so forked children skip that import cost); it
+    is best-effort — a preload failure must never abort the run.
+    """
+    method = resolve_pool_start_method()
+    context = multiprocessing.get_context(method)
+    if method == "forkserver" and preload:
+        try:
+            context.set_forkserver_preload(list(preload))
+        # Defensive: preload is a pure optimization; never let it break a run.
+        except Exception:
+            logger.warning("Could not set forkserver preload %r", tuple(preload))
+    return context
 
 #: Grace added on top of the derived chunk deadline so a timeout reflects a
 #: genuinely stuck item rather than scheduling jitter.
@@ -317,8 +383,13 @@ def exec_multi_process(
     width = resolve_pool_width(chunk_lengths, args)
     item_timeout = resolve_pool_item_timeout(args)
     executor_factory, executor_kind = resolve_executor(hooks)
+    executor_detail = (
+        f"process ({resolve_pool_start_method()})"
+        if executor_kind == "process"
+        else executor_kind
+    )
     logging.info(
-        f"{hooks.family}.works - {executor_kind} pool width {width}"
+        f"{hooks.family}.works - {executor_detail} pool width {width}"
         f" - worker #{worker._worker_id}"
         f" - work_pool x {sum(chunk_lengths)} across {len(chunk_lengths)} chunk(s)"
         + (f" - item timeout {item_timeout}s" if item_timeout else "")

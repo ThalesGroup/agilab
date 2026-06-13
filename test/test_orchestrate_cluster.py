@@ -98,6 +98,18 @@ class _FakeStreamlit:
             self.session_state[key] = result
         return result
 
+    def selectbox(self, _label, options, *, key=None, index=0, format_func=None, **_kwargs):
+        self.selectbox_labels = getattr(self, "selectbox_labels", [])
+        self.selectbox_labels.append(_label)
+        options = list(options)
+        default = options[index] if options else None
+        result = self._value(key, default)
+        if options and result not in options:
+            result = default
+        if key is not None:
+            self.session_state[key] = result
+        return result
+
     def text_input(self, _label, *, key=None, value="", **_kwargs):
         result = self._value(key, value)
         if key is not None:
@@ -121,6 +133,10 @@ class _FakeStreamlit:
 
     def info(self, text):
         self.infos.append(text)
+
+    def caption(self, text):
+        self.captions = getattr(self, "captions", [])
+        self.captions.append(text)
 
     def error(self, text):
         self.errors.append(text)
@@ -2063,3 +2079,84 @@ def test_render_cluster_settings_ui_lan_button_error_edges(monkeypatch, tmp_path
     monkeypatch.setattr(orchestrate_cluster, "_write_cluster_advisor_plan", lambda *_args, **_kwargs: (False, "readonly"))
     orchestrate_cluster.render_cluster_settings_ui(_env(), _deps())
     assert any("Could not write cluster plan" in error for error in advisor_st.errors)
+
+
+def test_coerce_pool_start_method_choice_defaults_to_spawn():
+    assert orchestrate_cluster._coerce_pool_start_method_choice(None) == "spawn"
+    assert orchestrate_cluster._coerce_pool_start_method_choice("garbage") == "spawn"
+    # raw fork is never selectable through the UI coercion.
+    assert orchestrate_cluster._coerce_pool_start_method_choice("fork") == "spawn"
+    assert orchestrate_cluster._coerce_pool_start_method_choice("  SPAWN ") == "spawn"
+    if "forkserver" in orchestrate_cluster.pool_start_method_choices():
+        assert orchestrate_cluster._coerce_pool_start_method_choice("forkserver") == "forkserver"
+
+
+def test_pool_start_method_choices_always_includes_spawn():
+    choices = orchestrate_cluster.pool_start_method_choices()
+    assert choices[0] == "spawn"
+    assert set(choices) <= {"spawn", "forkserver"}
+
+
+def test_resolved_backend_caption_is_conditional():
+    thread = orchestrate_cluster._resolved_backend_caption("thread", "spawn")
+    assert "thread pool" in thread and "does not apply" in thread
+    proc = orchestrate_cluster._resolved_backend_caption("process", "forkserver")
+    assert "process pool" in proc and "forkserver" in proc
+    auto = orchestrate_cluster._resolved_backend_caption("auto", "spawn")
+    assert "default" in auto and "Polars" in auto and "spawn" in auto
+
+
+def _start_method_render_env_and_deps(tmp_path):
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: {"parsed": raw},
+        write_app_settings_toml=lambda path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda key, value: None,
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        agi_share_path=None,
+        share_root_path=lambda: tmp_path / "share",
+        user="",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+    return env, deps
+
+
+def test_process_start_method_selectbox_hidden_when_only_spawn_available(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        widget_values={"cluster_pool__demo_project": True, "cluster_enabled__demo_project": False},
+        session_state={"benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    # Simulate a spawn-only platform (e.g. Windows).
+    monkeypatch.setattr(orchestrate_cluster, "pool_start_method_choices", lambda: ("spawn",))
+    env, deps = _start_method_render_env_and_deps(tmp_path)
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    # No pointless one-item dropdown, but the executor selector and the
+    # resolved-backend caption still render and the stored value stays coherent.
+    assert "Process start method" not in getattr(fake_st, "selectbox_labels", [])
+    assert "Pool executor backend" in fake_st.selectbox_labels
+    assert fake_st.session_state.app_settings["cluster"]["pool_start_method"] == "spawn"
+    assert getattr(fake_st, "captions", [])
+
+
+def test_process_start_method_selectbox_shown_when_multiple_methods(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        widget_values={"cluster_pool__demo_project": True, "cluster_enabled__demo_project": False},
+        session_state={"benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    monkeypatch.setattr(orchestrate_cluster, "pool_start_method_choices", lambda: ("spawn", "forkserver"))
+    env, deps = _start_method_render_env_and_deps(tmp_path)
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    assert "Process start method" in fake_st.selectbox_labels

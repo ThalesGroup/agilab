@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -1341,3 +1342,28 @@ async def test_start_scheduler_reraises_runtime_error_and_worker_init_error(
             create_task_fn=lambda coro: coro,
             sleep_fn=_fake_sleep,
         )
+
+
+def test_apply_pool_executor_env_sets_and_clears(monkeypatch) -> None:
+    monkeypatch.delenv("AGILAB_POOL_EXECUTOR", raising=False)
+
+    entrypoint_support._apply_pool_executor_env("thread")
+    assert os.environ["AGILAB_POOL_EXECUTOR"] == "thread"
+
+    entrypoint_support._apply_pool_executor_env("process")
+    assert os.environ["AGILAB_POOL_EXECUTOR"] == "process"
+
+    # auto/None must clear any prior override so it never leaks into a later run.
+    entrypoint_support._apply_pool_executor_env(None)
+    assert "AGILAB_POOL_EXECUTOR" not in os.environ
+
+
+def test_apply_pool_start_method_env_sets_and_clears(monkeypatch) -> None:
+    monkeypatch.delenv("AGILAB_POOL_START_METHOD", raising=False)
+
+    entrypoint_support._apply_pool_start_method_env("forkserver")
+    assert os.environ["AGILAB_POOL_START_METHOD"] == "forkserver"
+
+    # None/spawn must clear any prior override so the default never leaks.
+    entrypoint_support._apply_pool_start_method_env(None)
+    assert "AGILAB_POOL_START_METHOD" not in os.environ

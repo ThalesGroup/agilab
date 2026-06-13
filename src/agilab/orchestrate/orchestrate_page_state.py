@@ -77,6 +77,8 @@ class OrchestratePageState:
     workers_data_path_issue: str
     cluster_share_issue: str
     rapids_enabled: bool
+    pool_executor: str | None
+    pool_start_method: str | None
     can_run: bool
     run_disabled_reason: str
 
@@ -212,6 +214,30 @@ def _coerce_int_tuple(values: Sequence[Any]) -> tuple[int, ...]:
 
 def _coerce_verbose(value: Any) -> int:
     return coerce_diagnostics_verbose(value)
+
+
+def _normalize_pool_executor(value: Any) -> str | None:
+    """Coerce a stored pool-executor choice to ``"process"``/``"thread"``/``None``.
+
+    ``None`` (the default) means *auto*: defer to the per-app pool default and the
+    in-worker free-threading probe.
+    """
+    if not isinstance(value, str):
+        return None
+    choice = value.strip().lower()
+    return choice if choice in ("process", "thread") else None
+
+
+def _normalize_pool_start_method(value: Any) -> str | None:
+    """Coerce a stored process-pool start method to ``"forkserver"``/``None``.
+
+    ``None`` (the default) means *spawn*: the cross-platform default needs no
+    per-run env override. Only ``"forkserver"`` is propagated.
+    """
+    if not isinstance(value, str):
+        return None
+    choice = value.strip().lower()
+    return "forkserver" if choice == "forkserver" else None
 
 
 def _missing_install_paths(
@@ -678,6 +704,8 @@ def build_orchestrate_page_state(
         if benchmark_enabled
         else bool(cluster_params.get("rapids", False))
     )
+    pool_executor = _normalize_pool_executor(cluster_params.get("pool_executor"))
+    pool_start_method = _normalize_pool_start_method(cluster_params.get("pool_start_method"))
 
     return OrchestratePageState(
         status=status,
@@ -696,6 +724,8 @@ def build_orchestrate_page_state(
         workers_data_path_issue=workers_data_path_issue,
         cluster_share_issue=str(cluster_share_issue or ""),
         rapids_enabled=rapids_enabled,
+        pool_executor=pool_executor,
+        pool_start_method=pool_start_method,
         can_run=can_run,
         run_disabled_reason=run_disabled_reason,
     )

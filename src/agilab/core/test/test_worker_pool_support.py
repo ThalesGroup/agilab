@@ -380,3 +380,87 @@ def test_resolve_executor_never_converts_thread_family_to_process(monkeypatch):
     )
     factory, kind = worker_pool_support.resolve_executor(hooks)
     assert factory is RecordingPool and kind == "thread"
+
+
+def test_resolve_pool_start_method_defaults_to_spawn(monkeypatch):
+    monkeypatch.delenv(worker_pool_support.POOL_START_METHOD_ENV, raising=False)
+    assert worker_pool_support.resolve_pool_start_method() == "spawn"
+    monkeypatch.setenv(worker_pool_support.POOL_START_METHOD_ENV, "SPAWN")
+    assert worker_pool_support.resolve_pool_start_method() == "spawn"
+
+
+def test_resolve_pool_start_method_accepts_forkserver_when_available(monkeypatch):
+    if "forkserver" not in worker_pool_support.available_start_methods():
+        pytest.skip("forkserver not available on this platform")
+    monkeypatch.setenv(worker_pool_support.POOL_START_METHOD_ENV, "  ForkServer ")
+    assert worker_pool_support.resolve_pool_start_method() == "forkserver"
+
+
+def test_resolve_pool_start_method_rejects_raw_fork_and_garbage(monkeypatch):
+    monkeypatch.setenv(worker_pool_support.POOL_START_METHOD_ENV, "fork")
+    assert worker_pool_support.resolve_pool_start_method() == "spawn"
+    monkeypatch.setenv(worker_pool_support.POOL_START_METHOD_ENV, "garbage")
+    assert worker_pool_support.resolve_pool_start_method() == "spawn"
+
+
+def test_resolve_pool_start_method_falls_back_when_unavailable(monkeypatch):
+    # Simulate a platform that does not provide forkserver (e.g. Windows).
+    monkeypatch.setattr(worker_pool_support, "available_start_methods", lambda: ("spawn",))
+    monkeypatch.setenv(worker_pool_support.POOL_START_METHOD_ENV, "forkserver")
+    assert worker_pool_support.resolve_pool_start_method() == "spawn"
+
+
+def test_resolve_process_pool_context_matches_resolved_method(monkeypatch):
+    monkeypatch.setattr(worker_pool_support, "resolve_pool_start_method", lambda: "spawn")
+    ctx = worker_pool_support.resolve_process_pool_context(preload=("pandas",))
+    assert ctx.get_start_method() == "spawn"
+
+
+def test_resolve_process_pool_context_never_builds_unavailable_context(monkeypatch):
+    """Windows robustness contract: a forced ``forkserver`` on a platform that
+    only provides ``spawn`` must degrade to spawn WITHOUT ever calling
+    ``get_context('forkserver')`` — that call raises ``ValueError`` on Windows,
+    so the availability gate, not an exception, must do the work.
+    """
+    real_get_context = worker_pool_support.multiprocessing.get_context
+    seen_methods: list[str | None] = []
+
+    def guarded_get_context(method=None):
+        seen_methods.append(method)
+        if method == "forkserver":  # mirrors CPython on Windows / non-POSIX
+            raise ValueError("forkserver is not available on this platform")
+        return real_get_context(method)
+
+    monkeypatch.setattr(
+        worker_pool_support.multiprocessing, "get_all_start_methods", lambda: ["spawn"]
+    )
+    monkeypatch.setattr(
+        worker_pool_support.multiprocessing, "get_context", guarded_get_context
+    )
+    monkeypatch.setenv(worker_pool_support.POOL_START_METHOD_ENV, "forkserver")
+
+    ctx = worker_pool_support.resolve_process_pool_context(preload=("pandas", "numpy"))
+
+    assert ctx.get_start_method() == "spawn"
+    assert "forkserver" not in seen_methods
+
+
+def test_resolve_process_pool_context_preload_failure_is_swallowed(monkeypatch):
+    """A forkserver preload error is best-effort: it must never abort the run."""
+
+    class _BoomContext:
+        def set_forkserver_preload(self, _names):
+            raise RuntimeError("preload boom")
+
+        def get_start_method(self):
+            return "forkserver"
+
+    monkeypatch.setattr(worker_pool_support, "resolve_pool_start_method", lambda: "forkserver")
+    monkeypatch.setattr(
+        worker_pool_support.multiprocessing, "get_context", lambda method=None: _BoomContext()
+    )
+
+    ctx = worker_pool_support.resolve_process_pool_context(preload=("pandas",))
+
+    # The context is still returned despite the preload blowing up.
+    assert ctx.get_start_method() == "forkserver"

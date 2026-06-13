@@ -27,9 +27,6 @@ External Libraries:
 
 """
 
-# Internal Libraries:
-import multiprocessing
-
 # External Libraries:
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -48,14 +45,18 @@ def _process_pool_factory(*, max_workers, initializer, initargs):
     """Build the process pool for the pool execution path.
 
     ``ProcessPoolExecutor`` is resolved through this module's global namespace
-    so tests can monkeypatch ``pandas_worker.ProcessPoolExecutor``. An explicit
-    spawn context keeps child startup deterministic across platforms.
+    so tests can monkeypatch ``pandas_worker.ProcessPoolExecutor``. The start
+    method defaults to ``spawn`` (deterministic across platforms) and can be
+    switched to ``forkserver`` via ``AGILAB_POOL_START_METHOD`` on POSIX; the
+    pandas/numpy preload only matters for ``forkserver``.
     """
     return ProcessPoolExecutor(
         max_workers=max_workers,
         initializer=initializer,
         initargs=initargs,
-        mp_context=multiprocessing.get_context("spawn"),
+        mp_context=worker_pool_support.resolve_process_pool_context(
+            preload=("pandas", "numpy")
+        ),
     )
 
 

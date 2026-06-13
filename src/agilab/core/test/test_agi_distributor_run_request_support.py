@@ -64,3 +64,47 @@ def test_run_request_with_execution_updates_only_runtime_controls() -> None:
     assert request.mode == 0
     with pytest.raises(TypeError, match="Unknown execution field"):
         request.with_execution(params={"seed": 1})
+
+
+def test_run_request_executor_kind_normalizes_auto_to_none() -> None:
+    assert RunRequest().executor_kind is None
+    assert RunRequest(executor_kind="auto").executor_kind is None
+    assert RunRequest(executor_kind="").executor_kind is None
+    assert RunRequest(executor_kind="  THREAD ").executor_kind == "thread"
+    assert RunRequest(executor_kind="Process").executor_kind == "process"
+
+
+def test_run_request_executor_kind_rejects_invalid() -> None:
+    with pytest.raises(ValueError, match="executor_kind"):
+        RunRequest(executor_kind="gpu")
+    with pytest.raises(TypeError, match="executor_kind"):
+        RunRequest(executor_kind=5)  # type: ignore[arg-type]
+
+
+def test_run_request_with_execution_accepts_executor_kind() -> None:
+    request = RunRequest()
+    updated = request.with_execution(executor_kind="thread")
+    assert updated.executor_kind == "thread"
+    assert request.executor_kind is None
+
+
+def test_run_request_start_method_normalizes_spawn_and_default_to_none() -> None:
+    assert RunRequest().start_method is None
+    assert RunRequest(start_method="spawn").start_method is None
+    assert RunRequest(start_method="").start_method is None
+    assert RunRequest(start_method="default").start_method is None
+    assert RunRequest(start_method="  ForkServer ").start_method == "forkserver"
+
+
+def test_run_request_start_method_rejects_invalid() -> None:
+    with pytest.raises(ValueError, match="start_method"):
+        RunRequest(start_method="fork")
+    with pytest.raises(TypeError, match="start_method"):
+        RunRequest(start_method=5)  # type: ignore[arg-type]
+
+
+def test_run_request_with_execution_accepts_start_method() -> None:
+    request = RunRequest()
+    updated = request.with_execution(start_method="forkserver")
+    assert updated.start_method == "forkserver"
+    assert request.start_method is None

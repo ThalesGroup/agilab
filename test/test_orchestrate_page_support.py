@@ -129,6 +129,53 @@ def test_build_install_and_run_snippets_embed_expected_values():
     assert "benchmark_best_single_node=True" in run_snippet
     assert 'RUN_PARAMS = json.loads(\'{"foo": "bar", "n": 2}\')' in run_snippet
     assert f'AGILAB_SNIPPET_API = "{CURRENT_SNIPPET_API}"' in run_snippet
+    # No executor_kind passed -> Auto -> field omitted from the snippet.
+    assert "executor_kind" not in run_snippet
+
+
+def test_build_run_snippet_emits_executor_kind_only_when_forced():
+    env = SimpleNamespace(apps_path="/tmp/apps", app="demo_project", is_source_env=False)
+
+    base_kwargs = dict(
+        env=env,
+        verbose=0,
+        run_mode=1,
+        scheduler="None",
+        workers="None",
+        run_args={"seed": 0},
+    )
+
+    forced = orchestrate_page_support.build_run_snippet(executor_kind="thread", **base_kwargs)
+    assert "executor_kind='thread'" in forced
+
+    auto = orchestrate_page_support.build_run_snippet(executor_kind="auto", **base_kwargs)
+    assert "executor_kind" not in auto
+
+    none = orchestrate_page_support.build_run_snippet(executor_kind=None, **base_kwargs)
+    assert "executor_kind" not in none
+
+
+def test_build_run_snippet_emits_start_method_only_for_forkserver():
+    env = SimpleNamespace(apps_path="/tmp/apps", app="demo_project", is_source_env=False)
+
+    base_kwargs = dict(
+        env=env,
+        verbose=0,
+        run_mode=1,
+        scheduler="None",
+        workers="None",
+        run_args={"seed": 0},
+    )
+
+    forced = orchestrate_page_support.build_run_snippet(start_method="forkserver", **base_kwargs)
+    assert "start_method='forkserver'" in forced
+
+    # spawn is the default — never emitted (keeps the snippet minimal).
+    spawn = orchestrate_page_support.build_run_snippet(start_method="spawn", **base_kwargs)
+    assert "start_method" not in spawn
+
+    none = orchestrate_page_support.build_run_snippet(start_method=None, **base_kwargs)
+    assert "start_method" not in none
 
 
 def test_build_run_snippet_uses_stages_and_accepts_legacy_args_key():

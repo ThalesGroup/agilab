@@ -2422,6 +2422,8 @@ async def _render_run_panels(
                     workers_data_path=run_state.workers_data_path,
                     rapids_enabled=run_state.rapids_enabled,
                     benchmark_best_single_node=run_state.benchmark_best_single_node,
+                    executor_kind=run_state.pool_executor,
+                    start_method=run_state.pool_start_method,
                     run_args=st.session_state.app_settings.get("args", {}),
                 )
                 _store_orchestrate_notebook_snippet(env, "run", cmd)

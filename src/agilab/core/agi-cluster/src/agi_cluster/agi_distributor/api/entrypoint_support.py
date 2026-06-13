@@ -33,6 +33,48 @@ _EXPORT_CMD_LOOKUP_EXCEPTIONS = (
 _AGI_RUN_BOUNDARY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
 
 
+#: Env knob read in-worker by ``worker_pool_support.resolve_executor``. Mirrors
+#: ``worker_pool_support.POOL_EXECUTOR_ENV``; duplicated here as a stable literal
+#: so the manager need not import the agi-node worker package to set it.
+_POOL_EXECUTOR_ENV = "AGILAB_POOL_EXECUTOR"
+
+
+def _apply_pool_executor_env(executor_kind: Optional[str]) -> None:
+    """Bridge ``RunRequest.executor_kind`` to the in-worker pool env knob.
+
+    Local pool workers inherit the manager environment, so exporting the choice
+    here lets ``resolve_executor`` honor a per-run selection. ``None``/``auto``
+    clears any prior override so it never leaks into a later run on a long-lived
+    manager. Remote workers are not auto-forwarded, matching the other
+    ``AGILAB_POOL_*`` knobs.
+    """
+    if executor_kind:
+        os.environ[_POOL_EXECUTOR_ENV] = executor_kind
+    else:
+        os.environ.pop(_POOL_EXECUTOR_ENV, None)
+
+
+#: Env knob read in-worker by ``worker_pool_support.resolve_pool_start_method``.
+#: Mirrors ``worker_pool_support.POOL_START_METHOD_ENV``; duplicated as a stable
+#: literal so the manager need not import the agi-node worker package to set it.
+_POOL_START_METHOD_ENV = "AGILAB_POOL_START_METHOD"
+
+
+def _apply_pool_start_method_env(start_method: Optional[str]) -> None:
+    """Bridge ``RunRequest.start_method`` to the in-worker process-pool env knob.
+
+    Same contract as :func:`_apply_pool_executor_env`: a truthy value (only
+    ``"forkserver"`` survives normalization) is exported for local workers that
+    inherit the manager environment; ``None``/``spawn`` clears any prior
+    override so the default cross-platform ``spawn`` is never leaked into a later
+    run on a long-lived manager.
+    """
+    if start_method:
+        os.environ[_POOL_START_METHOD_ENV] = start_method
+    else:
+        os.environ.pop(_POOL_START_METHOD_ENV, None)
+
+
 def _normalize_workers(
     workers: Optional[Dict[str, int]],
     workers_default: Dict[str, int],
@@ -246,6 +288,8 @@ async def run(
         raise TypeError("AGI.run requires request=RunRequest(...)")
     workers = _normalize_workers(request.workers, workers_default)
     request = request.with_execution(workers=workers)
+    _apply_pool_executor_env(request.executor_kind)
+    _apply_pool_start_method_env(request.start_method)
     args = request.to_dispatch_kwargs()
     worker_args = request.to_app_kwargs()
     _initialize_run_state(

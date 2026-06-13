@@ -1,5 +1,6 @@
 import ipaddress
 import json
+import multiprocessing
 import os
 import re
 from dataclasses import dataclass
@@ -62,10 +63,81 @@ def compute_cluster_mode(cluster_params: dict[str, Any], cluster_enabled: bool) 
     )
 
 
+#: Worker-pool executor backend choices surfaced in ORCHESTRATE. ``"auto"`` is
+#: the default: defer to the per-app pool default and the in-worker
+#: free-threading probe. ``"process"``/``"thread"`` force a backend and become
+#: ``RunRequest.executor_kind`` (then ``AGILAB_POOL_EXECUTOR`` in the worker).
+POOL_EXECUTOR_CHOICES = ("auto", "process", "thread")
+POOL_EXECUTOR_LABELS = {
+    "auto": "Auto (per-app + free-threading)",
+    "process": "Force process",
+    "thread": "Force thread",
+}
+
+
+def _coerce_pool_executor_choice(value: Any) -> str:
+    if isinstance(value, str):
+        choice = value.strip().lower()
+        if choice in POOL_EXECUTOR_CHOICES:
+            return choice
+    return "auto"
+
+
+#: Process-pool start method surfaced in ORCHESTRATE. ``"spawn"`` is the default
+#: (cross-platform, deterministic). ``"forkserver"`` is POSIX-only and becomes
+#: ``RunRequest.start_method`` (then ``AGILAB_POOL_START_METHOD`` in the worker).
+#: It only affects the process executor — thread pools ignore it.
+POOL_START_METHOD_LABELS = {
+    "spawn": "spawn (default, cross-platform)",
+    "forkserver": "forkserver (POSIX, warm server)",
+}
+
+
+def pool_start_method_choices() -> tuple[str, ...]:
+    """``spawn`` plus ``forkserver`` only when this platform provides it."""
+    provided = set(multiprocessing.get_all_start_methods())
+    return tuple(
+        method for method in ("spawn", "forkserver") if method in provided
+    ) or ("spawn",)
+
+
+def _coerce_pool_start_method_choice(value: Any) -> str:
+    choices = pool_start_method_choices()
+    if isinstance(value, str):
+        choice = value.strip().lower()
+        if choice in choices:
+            return choice
+    return "spawn"
+
+
+def _resolved_backend_caption(executor_choice: str, start_method_choice: str) -> str:
+    """Honest, conditional summary of the backend the selection will resolve to.
+
+    The UI cannot know the worker interpreter's free-threading state or each
+    app's family default, so the ``auto`` case stays explicitly conditional
+    rather than claiming a single resolved backend.
+    """
+    method = start_method_choice if start_method_choice in ("spawn", "forkserver") else "spawn"
+    if executor_choice == "thread":
+        return "Resolves to: a thread pool (start method does not apply to threads)."
+    if executor_choice == "process":
+        return (
+            f"Resolves to: a process pool using {method} (pool width ≤ CPU count); "
+            "the free-threading auto-switch is disabled."
+        )
+    return (
+        f"Resolves to: each app's default — a process pool using {method} for "
+        "process-default apps (Pandas/Fireducks), or a thread pool for thread-default "
+        "apps (Polars) and on a free-threaded interpreter."
+    )
+
+
 def cluster_widget_keys(app_state_name: str) -> dict[str, str]:
     return {
         "cython": f"cluster_cython__{app_state_name}",
         "pool": f"cluster_pool__{app_state_name}",
+        "pool_executor": f"cluster_pool_executor__{app_state_name}",
+        "pool_start_method": f"cluster_pool_start_method__{app_state_name}",
         "rapids": f"cluster_rapids__{app_state_name}",
         "cluster_enabled": f"cluster_enabled__{app_state_name}",
         "scheduler": f"cluster_scheduler__{app_state_name}",
@@ -94,6 +166,8 @@ def hydrate_cluster_widget_state(
     session_state.setdefault(widget_keys["cluster_enabled"], bool(cluster_params.get("cluster_enabled", False)))
     session_state.setdefault(widget_keys["cython"], bool(cluster_params.get("cython", False)))
     session_state.setdefault(widget_keys["pool"], bool(cluster_params.get("pool", False)))
+    session_state.setdefault(widget_keys["pool_executor"], _coerce_pool_executor_choice(cluster_params.get("pool_executor")))
+    session_state.setdefault(widget_keys["pool_start_method"], _coerce_pool_start_method_choice(cluster_params.get("pool_start_method")))
     if is_managed_pc:
         session_state[widget_keys["rapids"]] = False
     else:
@@ -814,6 +888,55 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
             help=f"Enable or disable {param}.",
         )
         cluster_params[param] = updated_value
+
+    pool_executor_key = widget_keys["pool_executor"]
+    if pool_executor_key not in st.session_state:
+        st.session_state[pool_executor_key] = _coerce_pool_executor_choice(cluster_params.get("pool_executor"))
+    pool_executor_choice = st.selectbox(
+        "Pool executor backend",
+        options=POOL_EXECUTOR_CHOICES,
+        format_func=lambda choice: POOL_EXECUTOR_LABELS.get(choice, choice),
+        key=pool_executor_key,
+        help=(
+            "Backend for the in-worker pool (the `pool` mode bit, and Dask which "
+            "also pools in-worker). Auto keeps each app's default and lets a "
+            "free-threaded interpreter switch process pools to threads. Force "
+            "thread always switches; Force process pins process-default apps and "
+            "disables the free-threading auto-switch, but cannot convert a "
+            "thread-default app (e.g. Polars) to processes. Caution: Force thread "
+            "serializes CPU-bound work on a standard (GIL-enabled) interpreter — "
+            "it is a win only on a free-threaded build or for IO/GIL-releasing work."
+        ),
+    )
+    pool_executor_choice = _coerce_pool_executor_choice(pool_executor_choice)
+    cluster_params["pool_executor"] = pool_executor_choice
+
+    pool_start_method_key = widget_keys["pool_start_method"]
+    if pool_start_method_key not in st.session_state:
+        st.session_state[pool_start_method_key] = _coerce_pool_start_method_choice(cluster_params.get("pool_start_method"))
+    start_method_options = pool_start_method_choices()
+    if len(start_method_options) > 1:
+        pool_start_method_choice = st.selectbox(
+            "Process start method",
+            options=start_method_options,
+            format_func=lambda choice: POOL_START_METHOD_LABELS.get(choice, choice),
+            key=pool_start_method_key,
+            help=(
+                "Applies to the process pool only (ignored when the resolved backend "
+                "is a thread pool). spawn re-imports and pickles per child — "
+                "deterministic across platforms. forkserver (POSIX) warms one clean "
+                "server process and forks children from it: no per-child interpreter "
+                "cold start and none of the fork+threads deadlock hazards of raw fork "
+                "(which is deliberately not offered)."
+            ),
+        )
+    else:
+        # Only one start method is available (e.g. spawn-only on Windows): there
+        # is nothing to choose, so skip the widget and keep the stored value.
+        pool_start_method_choice = st.session_state[pool_start_method_key]
+    pool_start_method_choice = _coerce_pool_start_method_choice(pool_start_method_choice)
+    cluster_params["pool_start_method"] = pool_start_method_choice
+    st.caption(_resolved_backend_caption(pool_executor_choice, pool_start_method_choice))
 
     cluster_enabled_key = widget_keys["cluster_enabled"]
     cluster_share_problem = _cluster_share_problem(env)
