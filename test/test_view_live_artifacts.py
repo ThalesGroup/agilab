@@ -115,9 +115,10 @@ def test_live_artifacts_discovery_covers_exception_edges(monkeypatch, tmp_path: 
 
     monkeypatch.setattr(Path, "glob", original_glob)
     original_stat = Path.stat
+    target_image_path = image_path.resolve(strict=False)
 
     def broken_stat(self: Path, *args, **kwargs):
-        if self == image_path.resolve(strict=False):
+        if self == target_image_path:
             raise OSError("stat boom")
         return original_stat(self, *args, **kwargs)
 
