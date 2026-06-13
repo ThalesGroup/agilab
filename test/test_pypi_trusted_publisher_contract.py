@@ -52,6 +52,8 @@ def test_markdown_report_explains_invalid_publisher_and_setup_path() -> None:
     assert "`pypi-agi-apps`" in markdown
     assert "`repo:ThalesGroup/agilab:environment:pypi-agi-apps`" in markdown
     assert "`invalid-publisher`" in markdown
+    assert "short-lived API token" in markdown
+    assert "not a stored `PYPI_API_TOKEN`, `PYPI_TOKEN`, or `TWINE_PASSWORD` secret" in markdown
     assert "Settings > Publishing > Trusted publishers" in markdown
 
 
@@ -86,6 +88,8 @@ def test_docs_list_every_required_trusted_publisher_environment() -> None:
     docs = (REPO_ROOT / "docs/source/package-publishing-policy.rst").read_text(encoding="utf-8")
 
     assert "invalid-publisher" in docs
+    assert "short-lived PyPI" in docs and "upload\ntoken" in docs
+    assert "not a stored repository secret" in docs
     assert "repo:ThalesGroup/agilab:environment:<environment>" in docs
     for claim in module.trusted_publisher_claims():
         assert f"``{claim.project}``" in docs
