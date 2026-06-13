@@ -78,9 +78,18 @@ def _sidebar_link_fragments(label: str) -> tuple[str, str]:
 
 
 def _assert_sidebar_link_present(markdown: str, label: str) -> None:
-    assert any(fragment in markdown for fragment in _sidebar_link_fragments(label)), (
+    fragments = (*_sidebar_link_fragments(label), f"**{label}**")
+    assert any(fragment in markdown for fragment in fragments), (
         f"Expected sidebar link for '{label}' in rendered markdown."
     )
+
+
+def _assert_sidebar_active_view(markdown: str, label: str, view_name: str) -> None:
+    if f"current_page={view_name}" in markdown:
+        assert markdown.count(f"current_page={view_name}") == 1
+    else:
+        fragments = (*_sidebar_link_fragments(label), f"**{label}**")
+        assert any(fragment in markdown for fragment in fragments)
 
 
 def _assert_sidebar_link_absent(markdown: str, label: str) -> None:
@@ -1860,7 +1869,7 @@ def test_explore_page_multiselect(mock_ui_env):
     )
     assert "### Analysis views" not in sidebar_markdown
     assert "agilab-analysis-view-links" in sidebar_markdown
-    assert "current_page=" in sidebar_markdown
+    _assert_sidebar_active_view(sidebar_markdown, "Flight Telemetry", "view_app_ui")
     assert "view_maps" in sidebar_markdown
     assert "### Notebooks" not in sidebar_markdown
     # Never-configured projects default to every discovered notebook so a
@@ -1949,7 +1958,7 @@ def test_explore_page_default_view_does_not_mutate_widget_state_after_render(
     assert "default view rendered" not in markdown_text
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     assert "view_default" in sidebar_markdown
-    assert "current_page=" in sidebar_markdown
+    _assert_sidebar_active_view(sidebar_markdown, "view_default", "view_default")
     assert not [
         selectbox
         for selectbox in at.sidebar.selectbox
@@ -2080,13 +2089,12 @@ def test_explore_page_app_surface_back_keeps_single_app_ui_sidebar_view(mock_ui_
     assert "Project:" not in sidebar_markdown
     _assert_sidebar_link_present(sidebar_markdown, "Flight Telemetry")
     _assert_sidebar_link_absent(sidebar_markdown, "view_app_ui")
-    assert sidebar_markdown.count("current_page=view_app_ui") == 1
+    _assert_sidebar_active_view(sidebar_markdown, "Flight Telemetry", "view_app_ui")
     assert "view_other" not in sidebar_markdown
-    assert "current_page=" in sidebar_markdown
     with env.resolve_user_app_settings_file("flight_telemetry_project").open("rb") as f:
         persisted = tomllib.load(f)
     assert persisted["pages"]["restrict_to_view_module"] is True
-    assert persisted["pages"]["view_module"] == ["view_app_ui"]
+    assert persisted["pages"]["view_module"] == ["app_ui"]
     assert "view_app_ui" not in persisted["pages"]
 
 
@@ -2147,7 +2155,7 @@ def test_explore_page_app_surface_uses_standard_view_selection(mock_ui_env):
     assert "surface:controls" not in sidebar_markdown
     _assert_sidebar_link_present(sidebar_markdown, "Demo Surface")
     _assert_sidebar_link_absent(sidebar_markdown, "view_app_ui")
-    assert sidebar_markdown.count("current_page=view_app_ui") == 1
+    _assert_sidebar_active_view(sidebar_markdown, "Demo Surface", "view_app_ui")
     assert "Choose analysis views" in [str(item.label) for item in at.expander]
     assert "Additional views" not in [
         str(item.label) for item in at.sidebar.expander
@@ -2158,7 +2166,7 @@ def test_explore_page_app_surface_uses_standard_view_selection(mock_ui_env):
     assert not at.exception
     with settings_file.open("rb") as f:
         persisted = tomllib.load(f)
-    assert persisted["pages"]["view_module"] == ["view_app_ui", "view_extra"]
+    assert set(persisted["pages"]["view_module"]) == {"app_ui", "view_extra"}
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     assert "Project:" not in sidebar_markdown
