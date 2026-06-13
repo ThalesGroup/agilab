@@ -24,9 +24,8 @@ Typical:
   # with PyPI Trusted Publishing / OIDC.
 
 Notes
-- Local twine upload to real PyPI is disabled by default so published files show
-  Trusted Publishing / OIDC provenance. Set AGILAB_ALLOW_LOCAL_PYPI_TWINE=1 only
-  for documented break-glass maintenance.
+- Real PyPI uploads are offloaded to the GitHub pypi-publish workflow only so
+  published files show Trusted Publishing / OIDC provenance.
 - Cleanup/purge uses PyPI web login and needs real account USER/PASS (not token).
 """
 
@@ -104,7 +103,6 @@ except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.py
 UPLOAD_COLLISION_DETECTED: bool = False
 UPLOAD_SUCCESS_COUNT: int = 0
 UPLOAD_SKIPPED_EXISTING_COUNT: int = 0
-ALLOW_LOCAL_PYPI_TWINE_ENV = "AGILAB_ALLOW_LOCAL_PYPI_TWINE"
 VERSION_PATTERN = r"\d+\.\d+\.\d+(?:\.\d+)?(?:(?:a|b|rc)\d+)?(?:\.post\d+)?"
 VERSION_RE = re.compile(rf"^{VERSION_PATTERN}$", re.IGNORECASE)
 
@@ -567,12 +565,6 @@ def require_safe_pypi_release(cfg: Cfg) -> None:
         )
     if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only:
         return
-    if str(os.environ.get(ALLOW_LOCAL_PYPI_TWINE_ENV, "")).strip().lower() not in {"1", "true", "yes", "on"}:
-        raise SystemExit(
-            "ERROR: Local twine upload to real PyPI is disabled. "
-            "Run the GitHub pypi-publish workflow so PyPI files are uploaded via Trusted Publishing/OIDC. "
-            f"Break-glass local upload requires {ALLOW_LOCAL_PYPI_TWINE_ENV}=1 and must be documented."
-        )
     missing: list[str] = []
     if not cfg.git_commit_version:
         missing.append("--git-commit-version")
@@ -1466,6 +1458,11 @@ def twine_upload(files: List[str], repo: str, skip_existing: bool, retries: int)
     global UPLOAD_COLLISION_DETECTED, UPLOAD_SUCCESS_COUNT, UPLOAD_SKIPPED_EXISTING_COUNT
     if not files:
         raise SystemExit("No artifacts to upload")
+    if repo == "pypi":
+        raise SystemExit(
+            "ERROR: Real PyPI uploads are offloaded to the GitHub pypi-publish workflow. "
+            "Use the workflow so PyPI files are uploaded via Trusted Publishing/OIDC."
+        )
     UPLOAD_COLLISION_DETECTED = False
     UPLOAD_SUCCESS_COUNT = 0
     UPLOAD_SKIPPED_EXISTING_COUNT = 0

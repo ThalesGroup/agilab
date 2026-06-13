@@ -540,11 +540,9 @@ future promotion but are skipped by the real PyPI publish step; their artifacts
 remain GitHub Release archive payloads until promotion.
 
 The local ``tools/pypi_publish.py`` helper may still build packages and publish
-to TestPyPI for rehearsals, but local twine upload to real PyPI is disabled by
-default. Real PyPI files should come from ``.github/workflows/pypi-publish.yaml``
-so PyPI metadata shows Trusted Publishing/OIDC provenance. Any break-glass local
-twine upload requires ``AGILAB_ALLOW_LOCAL_PYPI_TWINE=1`` and a documented
-release exception.
+to TestPyPI for rehearsals, but real PyPI upload is offloaded to
+``.github/workflows/pypi-publish.yaml``. PyPI metadata should therefore show
+Trusted Publishing/OIDC provenance for all public files.
 
 Release managers can run the same provenance gate locally after a publish run::
 
