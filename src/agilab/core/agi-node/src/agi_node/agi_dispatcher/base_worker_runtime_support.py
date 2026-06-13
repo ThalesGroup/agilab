@@ -137,6 +137,30 @@ def load_manager(
     return load_module_fn(module_name, env.target_class)
 
 
+def _cython_worker_import_error_message(
+    env: Any,
+    module_name: str,
+    exc: BaseException,
+) -> str:
+    target_worker = getattr(env, "target_worker", module_name.removesuffix("_cy"))
+    parts = [
+        (
+            f"Cython mode requested for worker '{target_worker}', but compiled "
+            f"module '{module_name}' is not importable."
+        )
+    ]
+    wenv_abs = getattr(env, "wenv_abs", None)
+    if wenv_abs is not None:
+        parts.append(f"Expected compiled artifacts under '{Path(wenv_abs) / 'dist'}'.")
+    parts.append(
+        "Reinstall/build with Cython enabled (`install.py --with-cython` or "
+        "`[tool.agilab.cython].enabled = true`), or rerun without the Cython "
+        "mode bit (`--no-cython` or a mode without bit 2)."
+    )
+    parts.append(f"Original import error: {exc}")
+    return " ".join(parts)
+
+
 def load_worker(
     env: Any,
     mode: int,
@@ -145,13 +169,23 @@ def load_worker(
     sys_modules: MutableMapping[str, Any] | None = None,
 ) -> Any:
     active_modules = sys_modules if sys_modules is not None else sys.modules
-    module_name = env.target_worker
-    active_modules.pop(module_name, None)
+    package_name = env.target_worker
+    active_modules.pop(package_name, None)
+    module_name = package_name
     if mode & 2:
         module_name = f"{module_name}_cy"
     else:
         module_name = f"{module_name}.{module_name}"
-    return load_module_fn(module_name, env.target_worker_class)
+    active_modules.pop(module_name, None)
+    try:
+        return load_module_fn(module_name, env.target_worker_class)
+    except ModuleNotFoundError as exc:
+        if mode & 2:
+            raise ModuleNotFoundError(
+                _cython_worker_import_error_message(env, module_name, exc),
+                name=module_name,
+            ) from exc
+        raise
 
 
 def is_cython_installed(
