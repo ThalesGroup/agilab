@@ -34,6 +34,7 @@ REQUIRED_HF_FIRST_PROOF_APPS = (
 REQUIRED_HF_FIRST_PROOF_PAGES = ("view_forecast_analysis", "view_maps", "view_release_decision")
 FORBIDDEN_HF_FIRST_PROOF_APPS = ("flight_project", "weather_forecast_legacy_project")
 REQUIRED_PYTORCH_ANALYSIS_SCENARIO = "isolated-pytorch-playground-analysis"
+REQUIRED_RELEASE_EVIDENCE_SCENARIO = "isolated-release-evidence"
 REQUIRED_PYTORCH_ANALYSIS_APP = "pytorch_playground_project"
 REQUIRED_PYTORCH_ANALYSIS_TEXT = ("PyTorch Playground", "Refresh evidence", "Synced RUN snippet", "Settings")
 REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_SIDEBAR_TEXT = ("Project:",)
@@ -635,6 +636,13 @@ def evaluate_contract() -> dict[str, Any]:
             CoverageIssue(
                 "pytorch_analysis_robot",
                 f"ui-robot-matrix profile does not run {REQUIRED_PYTORCH_ANALYSIS_SCENARIO}",
+            )
+        )
+    if REQUIRED_RELEASE_EVIDENCE_SCENARIO not in ui_robot_matrix_profile_scenarios:
+        issues.append(
+            CoverageIssue(
+                "release_evidence_robot",
+                f"ui-robot-matrix profile does not run {REQUIRED_RELEASE_EVIDENCE_SCENARIO}",
             )
         )
 
