@@ -27,6 +27,21 @@ That loop is the product in miniature: controlled environment, reproducible
 execution, artifacts, run evidence, and a portable handoff path without needing
 the Streamlit UI or a cluster.
 
+## Golden ML Loop
+
+The strongest AGILAB path is intentionally small and evidence-first:
+
+1. **Import or create** a notebook, script, or app project.
+2. **Run** it through a controlled local environment first.
+3. **Capture** artifacts plus `run_manifest.json` evidence.
+4. **Inspect and compare** outputs in ANALYSIS, notebook export, MLflow handoff,
+   or proof-pack tools.
+5. **Promote** the result only when the evidence, package contract, and release
+   proof are coherent.
+
+That is the center of gravity: make exploratory ML work replayable before
+moving it into a heavier tracker, registry, cluster, or production platform.
+
 That means you do not lose your work if the AGILAB UI or distributed runtime is
 no longer the right interface.
 The stable core runtime remains the smallest supported handoff surface and is
