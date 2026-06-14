@@ -82,6 +82,7 @@ UI_ROBOT_MATRIX_SHARDS = (
         (
             "isolated-browser-error-core-pages",
             "isolated-pytorch-playground-analysis",
+            "isolated-release-evidence",
             "isolated-above-fold-core-pages",
             "isolated-keyboard-focus-core-pages",
             "isolated-accessibility-core-pages",

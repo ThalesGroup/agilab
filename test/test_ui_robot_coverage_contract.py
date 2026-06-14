@@ -105,6 +105,7 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     ]
     assert "isolated-project-editor-page" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
     assert "isolated-pytorch-playground-analysis" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
+    assert "isolated-release-evidence" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
     assert payload["coverage"]["pytorch_analysis_robot"] == {
         "apps": ["pytorch_playground_project"],
         "forbidden_sidebar_text": ["Project:"],
@@ -222,9 +223,10 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         required_action_labels=",".join(module.REQUIRED_PYTORCH_ANALYSIS_ACTIONS),
         browser_error_check=True,
     )
+    release_evidence = scenario(module.REQUIRED_RELEASE_EVIDENCE_SCENARIO, pages="PROJECT,ORCHESTRATE,ANALYSIS")
     all_scenarios = {
         item.name: item
-        for item in (core_scenario, editor, hf_visual, hf_app_pages, hf_install, pytorch)
+        for item in (core_scenario, editor, hf_visual, hf_app_pages, hf_install, pytorch, release_evidence)
     }
     widget_robot = SimpleNamespace(
         page_label=lambda page: str(page),
@@ -277,9 +279,11 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
                             "isolated-project-editor-page",
                             "--scenario",
                             "isolated-pytorch-playground-analysis",
+                            "--scenario",
+                            "isolated-release-evidence",
                             "--apps",
                             ",".join(module.REQUIRED_DEMO_UI_APPS),
-                    ]
+                        ]
                 )
             ],
         }

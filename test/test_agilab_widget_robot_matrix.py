@@ -104,7 +104,6 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert journey.assert_orchestrate_artifacts is True
     assert "isolated-browser-history" not in [scenario.name for scenario in scenarios]
     assert "isolated-mobile-core-pages" not in [scenario.name for scenario in scenarios]
-    assert "isolated-release-evidence" not in [scenario.name for scenario in scenarios]
     assert "isolated-fresh-session-core-pages" not in [scenario.name for scenario in scenarios]
     assert "isolated-keyboard-focus-core-pages" not in [scenario.name for scenario in scenarios]
     assert "isolated-layout-integrity-desktop" not in [scenario.name for scenario in scenarios]
