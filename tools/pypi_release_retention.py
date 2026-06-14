@@ -43,6 +43,9 @@ PYPI_HOSTS = {
     "testpypi": "https://test.pypi.org/",
 }
 SCHEMA_VERSION = "agilab.pypi_release_retention.v1"
+PYPI_PROJECT_NAME_RE = re.compile(
+    r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$"
+)
 
 
 @dataclass(frozen=True)
@@ -101,6 +104,77 @@ def split_packages(values: Sequence[str] | None) -> list[str]:
     for value in values or ():
         packages.extend(token for token in re.split(r"[\s,]+", value.strip()) if token)
     return list(dict.fromkeys(packages))
+
+
+def read_packages_file(path: Path | str) -> list[str]:
+    source = str(path)
+    if source == "-":
+        text = sys.stdin.read()
+    else:
+        text = Path(path).read_text(encoding="utf-8")
+    packages: list[str] = []
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if re.search(r"[\s,]", line):
+            raise SystemExit(
+                f"ERROR: {source}:{line_number} must contain exactly one package name. "
+                "Use one non-wrapped package per line."
+            )
+        packages.append(line)
+    return packages
+
+
+def validate_package_names(packages: Sequence[str]) -> None:
+    invalid = [
+        package
+        for package in packages
+        if not PYPI_PROJECT_NAME_RE.fullmatch(package)
+    ]
+    if invalid:
+        raise SystemExit(
+            "ERROR: invalid PyPI package name(s): "
+            + ", ".join(invalid)
+            + ". If this came from a long --packages value, it was likely "
+            "line-wrapped inside a package name. Use repeated --package or "
+            "--packages-file with one package per line."
+        )
+
+
+def resolve_package_selection(
+    *,
+    package_values: Sequence[str],
+    packages_values: Sequence[str],
+    packages_files: Sequence[Path | str],
+) -> list[str]:
+    packages = split_packages([*package_values, *packages_values])
+    for path in packages_files:
+        packages.extend(read_packages_file(path))
+    packages = list(dict.fromkeys(packages))
+    validate_package_names(packages)
+    return packages
+
+
+def release_plan_package_names(repo_root: Path) -> list[str]:
+    return list(selected_public_versions(repo_root.resolve()).keys())
+
+
+def filter_packages_with_visible_protect_version(
+    *,
+    packages: Sequence[str],
+    repo: str,
+    protect_version: str,
+) -> tuple[list[str], list[str]]:
+    selected: list[str] = []
+    skipped: list[str] = []
+    for package in packages:
+        plan = build_plan(package, repo, protect_version)
+        if plan.missing_protected_version:
+            skipped.append(package)
+        else:
+            selected.append(package)
+    return selected, skipped
 
 
 def split_package_versions(values: Sequence[str] | None) -> dict[str, str]:
@@ -983,8 +1057,27 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Comma- or space-separated package names.",
     )
     parser.add_argument(
+        "--packages-file",
+        action="append",
+        type=Path,
+        default=[],
+        help=(
+            "Read package names from a file, one package per non-empty line. "
+            "Use '-' to read from stdin."
+        ),
+    )
+    parser.add_argument(
         "--protect-version",
         help="Single version to protect for every selected package. Kept for legacy aligned releases.",
+    )
+    parser.add_argument(
+        "--select-visible-protected-packages",
+        action="store_true",
+        help=(
+            "Use the release-plan public package set, then keep only packages "
+            "where --protect-version is already visible on PyPI. This avoids "
+            "manually copying long package lists for partial aligned releases."
+        ),
     )
     parser.add_argument(
         "--protect-package-version",
@@ -1055,9 +1148,39 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    packages = split_packages([*args.package, *args.packages])
+    packages = resolve_package_selection(
+        package_values=args.package,
+        packages_values=args.packages,
+        packages_files=args.packages_file,
+    )
+    if args.select_visible_protected_packages:
+        if not args.protect_version:
+            raise SystemExit(
+                "ERROR: --select-visible-protected-packages requires --protect-version"
+            )
+        candidates = packages or release_plan_package_names(args.repo_root)
+        packages, skipped = filter_packages_with_visible_protect_version(
+            packages=candidates,
+            repo=args.repo,
+            protect_version=args.protect_version,
+        )
+        if skipped:
+            print(
+                "[pypi-retention] skipped packages without protected version "
+                f"{normalize_version(args.protect_version)} visible on {args.repo}: "
+                + ", ".join(skipped),
+                file=sys.stderr,
+            )
     if not packages:
-        raise SystemExit("ERROR: at least one --package or --packages value is required")
+        raise SystemExit(
+            "ERROR: at least one --package, --packages, or --packages-file value is required"
+            + (
+                ", or use --select-visible-protected-packages with a protected version "
+                "that is visible on PyPI"
+                if args.select_visible_protected_packages
+                else ""
+            )
+        )
     protect_versions = resolve_protect_versions(
         packages=packages,
         protect_version=args.protect_version,

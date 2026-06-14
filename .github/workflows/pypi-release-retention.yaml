@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       runner:
-        description: "Runner label for this workflow. Use ubuntu-latest or self-hosted."
+        description: "Runner label. Use self-hosted/static-IP for unattended PyPI web deletion."
         required: false
         default: "ubuntu-latest"
       protect_version:
         description: "PyPI release version to keep. Older releases are deleted."
         required: true
       packages:
-        description: "Optional comma- or space-separated package names. Default: release provenance package set."
+        description: "Optional comma- or space-separated package names. Default: release packages where the protected version is visible."
         required: false
 
 permissions:
@@ -49,18 +49,29 @@ jobs:
             exit 2
           }
           packages="${{ inputs.packages }}"
+          package_file="$(mktemp)"
           if [[ -z "$packages" ]]; then
-            packages="$(python - <<'PY'
+            python - <<'PY' > "$package_file"
           from tools.release_plan import release_plan
 
-          print(" ".join(release_plan()["provenance_packages"]))
+          for package in release_plan()["provenance_packages"]:
+              print(package)
           PY
-          )"
+          else
+            python - "$packages" > "$package_file" <<'PY'
+          import re
+          import sys
+
+          for package in re.split(r"[\s,]+", sys.argv[1].strip()):
+              if package:
+                  print(package)
+          PY
           fi
           python tools/pypi_release_retention.py \
             --repo pypi \
-            --packages "$packages" \
+            --packages-file "$package_file" \
             --protect-version "${{ inputs.protect_version }}" \
+            --select-visible-protected-packages \
             --confirm-delete \
             --direct-web-only \
             --json \

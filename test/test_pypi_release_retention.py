@@ -87,6 +87,138 @@ def test_resolve_protect_versions_rejects_missing_package_version() -> None:
         )
 
 
+def test_main_reads_package_file_one_package_per_line(monkeypatch, tmp_path: Path, capsys) -> None:
+    module = _load_module()
+
+    packages_file = tmp_path / "packages.txt"
+    packages_file.write_text(
+        "# AGILAB packages selected for cleanup\n"
+        "agilab\n"
+        "agi-core\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        module,
+        "fetch_releases",
+        lambda package, repo: ["2026.04.16", "2026.05.17"],
+    )
+
+    status = module.main(
+        [
+            "--packages-file",
+            str(packages_file),
+            "--protect-version",
+            "2026.05.17",
+            "--dry-run",
+            "--json",
+        ]
+    )
+
+    assert status == 0
+    captured = capsys.readouterr()
+    assert '"package": "agilab"' in captured.out
+    assert '"package": "agi-core"' in captured.out
+
+
+def test_main_rejects_wrapped_package_fragment_before_pypi_lookup(monkeypatch) -> None:
+    module = _load_module()
+
+    def fail_fetch_releases(package, repo):  # pragma: no cover - must not be called
+        raise AssertionError("unexpected PyPI lookup")
+
+    monkeypatch.setattr(module, "fetch_releases", fail_fetch_releases)
+
+    with pytest.raises(SystemExit, match="line-wrapped inside a package name"):
+        module.main(
+            [
+                "--packages",
+                "agi-app-flight-\ntelemetry",
+                "--protect-version",
+                "2026.05.17",
+                "--dry-run",
+            ]
+        )
+
+
+def test_package_file_rejects_wrapped_line(tmp_path: Path) -> None:
+    module = _load_module()
+
+    packages_file = tmp_path / "packages.txt"
+    packages_file.write_text("agilab agi-core\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="one non-wrapped package per line"):
+        module.read_packages_file(packages_file)
+
+
+def test_main_auto_selects_packages_with_visible_protected_version(monkeypatch, capsys, tmp_path: Path) -> None:
+    module = _load_module()
+    releases = {
+        "agilab": ["2026.06.12", "2026.06.14.1"],
+        "agi-core": ["2026.06.12", "2026.06.14.1"],
+        "agi-old-only": ["2026.06.12"],
+    }
+
+    monkeypatch.setattr(
+        module,
+        "selected_public_versions",
+        lambda repo_root: {
+            "agilab": "2026.06.14.1",
+            "agi-core": "2026.06.14.1",
+            "agi-old-only": "2026.06.12",
+        },
+    )
+    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: releases[package])
+
+    status = module.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--protect-version",
+            "2026.06.14.1",
+            "--select-visible-protected-packages",
+            "--dry-run",
+            "--json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert status == 0
+    assert '"package": "agilab"' in captured.out
+    assert '"package": "agi-core"' in captured.out
+    assert '"package": "agi-old-only"' not in captured.out
+    assert "skipped packages without protected version 2026.6.14.1" in captured.err
+
+
+def test_main_auto_select_requires_protect_version() -> None:
+    module = _load_module()
+
+    with pytest.raises(SystemExit, match="requires --protect-version"):
+        module.main(["--select-visible-protected-packages", "--dry-run"])
+
+
+def test_main_auto_select_fails_when_no_protected_package_is_visible(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(
+        module,
+        "selected_public_versions",
+        lambda repo_root: {"agi-old-only": "2026.06.12"},
+    )
+    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.06.12"])
+
+    with pytest.raises(SystemExit, match="visible on PyPI"):
+        module.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--protect-version",
+                "2026.06.14.1",
+                "--select-visible-protected-packages",
+                "--dry-run",
+            ]
+        )
+
+
 def test_main_refuses_to_delete_without_confirmation(monkeypatch, capsys) -> None:
     module = _load_module()
 
