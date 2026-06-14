@@ -689,3 +689,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.06.08]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.08
 [2026.06.12]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.12
 [2026.06.13.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.13.1
+[2026.06.14.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.14.1

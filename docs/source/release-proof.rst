@@ -24,7 +24,7 @@ Current public release
    * - Dataset manifest
      - ``13`` tracked dataset files; manifest ``2f602a17b4745f05cf3b2612d720675b7063cabf90164326a25bc080b2396a0f``. Public dataset archive links are listed only when the matching GitHub release tag and assets are live.
    * - Hosted demo
-     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``fa904f398d861b435cd78713784f92647f2fdf73``
+     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``2f3fd2ea501f15cc87f5e8f96873bcddf22ae8ba``
    * - Public guardrails
      - `repo-guardrails run 27402705440 <https://github.com/ThalesGroup/agilab/actions/runs/27402705440>`__ passed repository guardrails and clean package first-proof jobs
    * - Docs source guard
