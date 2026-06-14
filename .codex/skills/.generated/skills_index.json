@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-06T21:39:04Z",
+  "generated_at_utc": "2026-06-14T15:44:05Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -15,7 +15,7 @@
       "name": "agilab-code-statistics",
       "description": "Generate fast, reproducible AGILAB code statistics. Use when the user asks for code stats, LOC, file counts, language breakdowns, test/docs/source ratios, churn summaries, or a concise repository size/code footprint report without running builds.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-29",
+      "updated": "2026-06-11",
       "path": ".codex/skills/agilab-code-statistics/SKILL.md",
       "body_preview": "# AGILAB Code Statistics\nUse this skill to answer code-statistics questions quickly and reproducibly.\nDefault to tracked files only, so ignored caches, virtualenvs, local datasets,\ngenerated docs output, and untracked scratch files do not distort the numbers."
     },
@@ -167,7 +167,7 @@
       "name": "codex-session-learning",
       "description": "Turn past Codex debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from prior sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-06",
+      "updated": "2026-06-11",
       "path": ".codex/skills/codex-session-learning/SKILL.md",
       "body_preview": "# Codex Session Learning\nUse this skill to convert prior Codex work into explicit reusable assets.\nThe goal is not to pretend the agent has hidden long-term memory. The goal is to\nextract structured cases, reusable prompt patterns, and validation rules from"
     },
