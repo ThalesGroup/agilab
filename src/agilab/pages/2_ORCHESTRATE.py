@@ -59,6 +59,7 @@ import_agilab_symbols(
         "BENCHMARK_MODE_LEGEND_MARKDOWN": "BENCHMARK_MODE_LEGEND_MARKDOWN",
         "benchmark_dataframe_column_config": "benchmark_dataframe_column_config",
         "benchmark_mode_label": "benchmark_mode_label",
+        "benchmark_results_caption": "benchmark_results_caption",
         "benchmark_rows_with_delta_percent": "benchmark_rows_with_delta_percent",
         "benchmark_workers_data_path_issue": "benchmark_workers_data_path_issue",
         "compute_run_mode": "compute_run_mode",
@@ -2466,6 +2467,7 @@ async def _render_run_panels(
 
                                 if date_value:
                                     st.caption(f"Benchmark date: {date_value}")
+                                st.caption(benchmark_results_caption(raw))
                                 st.info(BENCHMARK_MODE_LEGEND_MARKDOWN)
 
                                 render_dataframe_preview(

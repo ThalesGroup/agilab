@@ -665,6 +665,20 @@ def _benchmark_seconds(value: Any) -> float | None:
         return None
 
 
+def _benchmark_summary_mode_label(key: str, row: Mapping[str, Any]) -> str:
+    raw_mode = row.get("mode", key)
+    try:
+        return benchmark_mode_label(int(raw_mode))
+    except (TypeError, ValueError):
+        pass
+
+    key_mode, _, _ = key.partition(":")
+    try:
+        return benchmark_mode_label(int(key_mode))
+    except ValueError:
+        return str(raw_mode or key)
+
+
 def _best_node_rapids_counterpart_key(key: str) -> str | None:
     mode_text, separator, suffix = key.partition(":")
     if separator != ":" or suffix != "best-node":
@@ -734,6 +748,29 @@ def benchmark_rows_with_delta_percent(raw: Mapping[str, Any]) -> dict[str, Any]:
         else:
             row["delta (%)"] = 0.0 if seconds == best_seconds else None
     return rows
+
+
+def benchmark_results_caption(rows: Mapping[str, Any]) -> str:
+    """Return compact user-facing caption text for benchmark result rows."""
+    measured: list[tuple[float, str]] = []
+    for key, value in rows.items():
+        if not isinstance(value, Mapping):
+            continue
+        seconds = _benchmark_seconds(value.get("seconds"))
+        if seconds is None:
+            continue
+        measured.append((seconds, _benchmark_summary_mode_label(str(key), value)))
+
+    if not measured:
+        return "Benchmark results loaded, but no numeric timing rows were found."
+
+    best_seconds, best_mode = min(measured, key=lambda item: item[0])
+    plural = "mode" if len(measured) == 1 else "modes"
+    return (
+        f"Fastest mode: {best_mode} in {best_seconds:.3f}s across "
+        f"{len(measured)} measured {plural}. Lower is better; delta (%) compares "
+        "each row with this fastest run."
+    )
 
 
 def sanitize_benchmark_modes(

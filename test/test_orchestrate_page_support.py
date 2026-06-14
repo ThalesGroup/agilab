@@ -599,6 +599,43 @@ def test_benchmark_rows_with_delta_percent_handles_zero_and_invalid_seconds():
     assert rows["meta"] == "kept"
 
 
+def test_benchmark_results_caption_identifies_fastest_mode():
+    rows = orchestrate_page_support.benchmark_rows_with_delta_percent(
+        {
+            "0": {"mode": 0, "seconds": 10.0},
+            "2": {"mode": 2, "seconds": "5"},
+            "meta": "kept",
+        }
+    )
+
+    summary = orchestrate_page_support.benchmark_results_caption(rows)
+
+    assert "Fastest mode: 2: cython in 5.000s" in summary
+    assert "2 measured modes" in summary
+    assert "delta (%)" in summary
+
+
+def test_benchmark_results_caption_falls_back_to_key_mode_for_variants():
+    summary = orchestrate_page_support.benchmark_results_caption(
+        {"12:best-node": {"variant": "best-node", "seconds": 1.25}}
+    )
+
+    assert (
+        "Fastest mode: 12: rapids and dask (pools in-worker) in 1.250s"
+        in summary
+    )
+    assert "1 measured mode" in summary
+
+
+def test_benchmark_results_caption_reports_missing_numeric_rows():
+    assert (
+        orchestrate_page_support.benchmark_results_caption(
+            {"0": {"mode": 0, "seconds": "n/a"}, "meta": "kept"}
+        )
+        == "Benchmark results loaded, but no numeric timing rows were found."
+    )
+
+
 def test_benchmark_rows_hide_best_node_non_rapids_when_rapids_counterpart_exists():
     rows = orchestrate_page_support.benchmark_rows_with_delta_percent(
         {
