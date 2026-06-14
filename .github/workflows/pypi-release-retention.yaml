@@ -3,6 +3,10 @@ name: pypi-release-retention
 on:
   workflow_dispatch:
     inputs:
+      runner:
+        description: "Runner label for this workflow. Use ubuntu-latest or self-hosted."
+        required: false
+        default: "ubuntu-latest"
       protect_version:
         description: "PyPI release version to keep. Older releases are deleted."
         required: true
@@ -16,7 +20,7 @@ permissions:
 
 jobs:
   retention:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     env:
       PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
       PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
