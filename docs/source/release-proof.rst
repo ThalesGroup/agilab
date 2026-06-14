@@ -18,9 +18,9 @@ Current public release
    * - Item
      - Public evidence
    * - Package version
-     - ``agilab[examples]==2026.06.13.1`` on `PyPI <https://pypi.org/project/agilab/>`__
+     - ``agilab[examples]==2026.06.14.1`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
-     - `v2026.06.13.1 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.13.1>`__
+     - `v2026.06.14.1 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.14.1>`__
    * - Dataset manifest
      - ``13`` tracked dataset files; manifest ``2f602a17b4745f05cf3b2612d720675b7063cabf90164326a25bc080b2396a0f``. Public dataset archive links are listed only when the matching GitHub release tag and assets are live.
    * - Hosted demo
@@ -43,7 +43,7 @@ What was proved
 
   .. code-block:: bash
 
-     python -m pip install "agilab[examples]==2026.06.13.1"
+     python -m pip install "agilab[examples]==2026.06.14.1"
      python -m agilab.lab_run first-proof --json --max-seconds 60
 
 - The public GitHub Actions matrix validated the packaged first proof on
@@ -74,7 +74,7 @@ the current source checkout:
    python -m venv .venv
    . .venv/bin/activate
    python -m pip install --upgrade pip
-   python -m pip install "agilab[examples]==2026.06.13.1"
+   python -m pip install "agilab[examples]==2026.06.14.1"
    python -m agilab.lab_run first-proof --json --max-seconds 60
 
 Use :doc:`quick-start` when you want the fuller source-checkout path with the

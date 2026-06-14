@@ -1,5 +1,5 @@
 [project]
-version = "2026.06.13.1"
+version = "2026.06.14.1"
 name = "agi-web"
 description = "AGILAB portable web component contract with static Canvas2D/WebGL adapters for Streamlit and HTML"
 requires-python = ">=3.11"
