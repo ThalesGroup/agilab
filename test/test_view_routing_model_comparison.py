@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import importlib
 import json
 import sys
 from pathlib import Path
@@ -8,6 +9,7 @@ from pathlib import Path
 import math
 
 import pandas as pd
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +32,116 @@ def _load_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+class _StopStreamlit(Exception):
+    pass
+
+
+class _Context:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class _MetricColumn:
+    def __init__(self, calls: list[tuple[str, tuple[object, ...]]]) -> None:
+        self._calls = calls
+
+    def metric(self, *args: object) -> None:
+        self._calls.append(("metric", args))
+
+
+class _Sidebar:
+    def __init__(
+        self,
+        *,
+        pipeline_text: str | None = None,
+        selected_models: list[str] | None = None,
+        failure_rows: int = 100,
+    ) -> None:
+        self.pipeline_text = pipeline_text
+        self.selected_models = selected_models
+        self.failure_rows = failure_rows
+
+    def text_input(self, _label: str, *, value: str, key: str) -> str:
+        return value if self.pipeline_text is None else self.pipeline_text
+
+    def multiselect(
+        self,
+        _label: str,
+        *,
+        options: list[str],
+        default: list[str],
+        key: str,
+    ) -> list[str]:
+        return default if self.selected_models is None else self.selected_models
+
+    def number_input(self, *args: object, **kwargs: object) -> int:
+        return self.failure_rows
+
+
+class _StreamlitStub:
+    def __init__(
+        self,
+        *,
+        pipeline_text: str | None = None,
+        selected_models: list[str] | None = None,
+    ) -> None:
+        self.session_state: dict[str, object] = {}
+        self.sidebar = _Sidebar(
+            pipeline_text=pipeline_text,
+            selected_models=selected_models,
+        )
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+
+    def error(self, *args: object) -> None:
+        self.calls.append(("error", args))
+
+    def stop(self) -> None:
+        raise _StopStreamlit
+
+    def info(self, *args: object) -> None:
+        self.calls.append(("info", args))
+
+    def warning(self, *args: object) -> None:
+        self.calls.append(("warning", args))
+
+    def expander(self, *args: object, **kwargs: object) -> _Context:
+        self.calls.append(("expander", args))
+        return _Context()
+
+    def write(self, *args: object) -> None:
+        self.calls.append(("write", args))
+
+    def columns(self, count: int) -> list[_MetricColumn]:
+        return [_MetricColumn(self.calls) for _ in range(count)]
+
+    def tabs(self, labels: list[str]) -> list[_Context]:
+        self.calls.append(("tabs", tuple(labels)))
+        return [_Context() for _ in labels]
+
+    def subheader(self, *args: object) -> None:
+        self.calls.append(("subheader", args))
+
+    def dataframe(self, *args: object, **kwargs: object) -> None:
+        self.calls.append(("dataframe", args))
+
+    def caption(self, *args: object) -> None:
+        self.calls.append(("caption", args))
+
+    def plotly_chart(self, *args: object, **kwargs: object) -> None:
+        self.calls.append(("plotly_chart", args))
+
+
+def _write_allocations(path: Path, allocations: list[dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps([{"time_index": 0, "allocations": allocations}]),
+        encoding="utf-8",
+    )
 
 
 def test_routing_model_comparison_parses_allocation_helpers() -> None:
@@ -60,6 +172,118 @@ def test_routing_model_comparison_parses_allocation_helpers() -> None:
     assert module.demand_outcome(True, 0.5) == "partial"
 
 
+def test_routing_model_comparison_covers_fallback_helper_branches(tmp_path: Path) -> None:
+    module = _load_module()
+    active_app = tmp_path / "active_app"
+
+    module.resolve_active_app_path = lambda **kwargs: active_app
+    assert module._resolve_active_app() == active_app
+
+    assert module.safe_bool("maybe") is True
+    assert math.isnan(module.safe_float(True))
+    assert math.isnan(module.safe_float(object()))
+    assert module.parse_list_value("") == []
+    assert module.parse_list_value("('A', 'B')") == ["A", "B"]
+    assert module.parse_list_value("{'not': 'a list'}") == []
+    assert module.parse_list_value(("A", "B")) == ["A", "B"]
+    assert module.is_edge_list_path([]) is False
+    assert module.has_path({"path_labels": "['A', 'B']"}) is True
+    assert module.has_path({"routed": "yes"}) is True
+    assert module.has_path({"delivered_bandwidth": 0.5}) is True
+    assert module.has_path({"delivered_bandwidth": 0.0}) is False
+    assert module.is_routed(
+        {"path_labels": ["A", "B"], "served_fraction": 0.25}
+    ) is True
+    assert module.is_routed({"path_labels": ["A", "B"], "served_fraction": 0}) is False
+    assert math.isnan(module.get_satisfaction({"bandwidth": 0, "delivered_bandwidth": 1}))
+    assert module.get_latency_ms({"latency": "42"}) == 42.0
+    assert math.isnan(module.get_latency_ms({}))
+    assert module.get_latency_target_ms({"latency_target": "20"}) == 20.0
+    assert module.get_latency_target_ms({"max_latency": 25}) == 25.0
+    assert math.isnan(module.get_latency_target_ms({}))
+    assert module.hop_count({"path": ["A", "B", "C"]}) == 2
+    assert module.hop_count({"path_labels": ["A", "B"]}) == 1
+    assert module.hop_count({}) == 0
+    assert module.normalize_bearer("") == "UNKNOWN"
+    assert module.demand_outcome(True, math.nan) == "unknown"
+    assert module.step_time_s({"time_s": "12.5"}) == 12.5
+    assert module.step_time_s({"t_now_s": "18"}) == 18.0
+    assert module.step_time_s({"time_index": 2}) == 120.0
+
+    missing_app = tmp_path / "missing_app"
+    assert module._load_app_settings(missing_app) == {}
+    app = tmp_path / "app"
+    settings_file = app / "src" / "app_settings.toml"
+    settings_file.parent.mkdir(parents=True)
+    settings_file.write_text(
+        "[pages.view_routing_model_comparison]\n"
+        "dataset_custom_base = '/tmp/agilab-routing'\n",
+        encoding="utf-8",
+    )
+    settings = module._load_app_settings(app)
+    assert module._page_defaults(settings)["dataset_custom_base"] == "/tmp/agilab-routing"
+    settings_file.write_text("[pages\n", encoding="utf-8")
+    assert module._load_app_settings(app) == {}
+    assert module._page_defaults({}) == {}
+    assert module._page_defaults({"pages": []}) == {}
+    assert module._page_defaults({"pages": {module.PAGE_KEY: "bad"}}) == {}
+
+    env = type("Env", (), {"agi_share_path_abs": str(tmp_path / "share")})()
+    assert module._default_pipeline_root(env, {}) == tmp_path / "share" / "sb3_trainer/pipeline"
+    custom_root = module._default_pipeline_root(
+        env,
+        {"dataset_custom_base": str(tmp_path), "dataset_subpath": "pipeline"},
+    )
+    assert custom_root == tmp_path / "pipeline"
+    empty_env = type("Env", (), {"agi_share_path_abs": ""})()
+    assert module._default_pipeline_root(empty_env, {}) is None
+
+
+def test_routing_model_comparison_scoped_env_reuses_or_initializes(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    app_path = tmp_path / "apps" / "routing_app"
+    app_path.mkdir(parents=True)
+    streamlit = _StreamlitStub()
+    reused_env = object()
+    streamlit.session_state["env"] = reused_env
+    resets: list[tuple[dict[str, object], Path]] = []
+
+    monkeypatch.setattr(module, "st", streamlit)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: app_path)
+    monkeypatch.setattr(
+        module,
+        "reset_scoped_session_state",
+        lambda state, scope_key, active, prefixes: resets.append((state, active)),
+    )
+
+    assert module._ensure_app_scoped_env() is reused_env
+    assert resets == [(streamlit.session_state, app_path)]
+
+    streamlit.session_state.clear()
+    created: list[dict[str, object]] = []
+
+    class FakeAgiEnv:
+        @staticmethod
+        def current():
+            raise RuntimeError("no current env")
+
+        @staticmethod
+        def for_app(**kwargs):
+            env = type("Env", (), {})()
+            created.append(kwargs)
+            return env
+
+    monkeypatch.setattr(module, "AgiEnv", FakeAgiEnv)
+
+    env = module._ensure_app_scoped_env()
+
+    assert created == [
+        {"apps_path": app_path.parent, "app": app_path.name, "verbose": 0}
+    ]
+    assert getattr(env, "init_done") is True
+    assert streamlit.session_state["env"] is env
+
+
 def test_routing_model_comparison_loads_and_summarizes_allocations(tmp_path: Path) -> None:
     module = _load_module()
     base = tmp_path / "pipeline"
@@ -73,6 +297,7 @@ def test_routing_model_comparison_loads_and_summarizes_allocations(tmp_path: Pat
                 {
                     "time_index": 0,
                     "allocations": [
+                        ["ignored", "non-dict"],
                         {
                             "source_label": "A",
                             "destination_label": "B",
@@ -193,4 +418,246 @@ def test_routing_model_comparison_figures_handle_empty_and_visible_models() -> N
     assert len(module.build_overview_figure(alloc_df, summary, models).data) >= 4
     assert len(module.build_time_figure(alloc_df, models).data) == 8
     assert len(module.build_path_figure(alloc_df, models).data) >= 2
+    no_routed = alloc_df.assign(routed=False)
+    assert len(module.build_path_figure(no_routed, models).data) == 2
     assert module._format_summary(summary).columns.tolist() == models
+
+
+def test_routing_model_comparison_empty_helpers_and_metrics(monkeypatch) -> None:
+    module = _load_module()
+
+    empty = pd.DataFrame()
+    assert module.add_latency_targets(empty) is empty
+    empty_allocations = pd.DataFrame(columns=["model"])
+    assert module.build_summary(empty_allocations).empty
+    failures = module.build_failure_table(
+        pd.DataFrame(
+            [
+                {
+                    "model": "ILP",
+                    "time_index": 0,
+                    "source_label": "A",
+                    "destination_label": "B",
+                    "outcome": "fulfilled",
+                    "requested_mbps": 1.0,
+                    "delivered_mbps": 1.0,
+                    "satisfaction_ratio": 1.0,
+                    "latency_ms": 10.0,
+                    "latency_target_used_ms": 20.0,
+                    "latency_violation": False,
+                    "hop_count": 1,
+                    "bearers": "SAT",
+                    "path": "A -> B",
+                }
+            ]
+        )
+    )
+    assert failures.empty
+
+    streamlit = _StreamlitStub()
+    monkeypatch.setattr(module, "st", streamlit)
+    module.render_metric_row(pd.DataFrame())
+    assert streamlit.calls == []
+
+    sparse_summary = pd.DataFrame(
+        [
+            {
+                "model": "ILP",
+                "served_bandwidth_ratio": 1.0,
+                "mean_latency_ms": math.nan,
+                "latency_violation_rate": math.nan,
+                "routed_count": 1,
+            }
+        ]
+    )
+    module.render_metric_row(sparse_summary)
+    assert [name for name, _args in streamlit.calls].count("metric") == 2
+
+
+def test_routing_model_comparison_package_bundle_root() -> None:
+    package_src = str(
+        ROOT
+        / "src/agilab/apps-pages/view_routing_model_comparison/src"
+    )
+    if package_src not in sys.path:
+        sys.path.insert(0, package_src)
+
+    package = importlib.import_module("view_routing_model_comparison")
+
+    assert package.bundle_root().name == "view_routing_model_comparison"
+
+
+def test_routing_model_comparison_main_renders_pipeline(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    pipeline_dir = tmp_path / "pipeline"
+    app = tmp_path / "apps" / "routing_app"
+    settings_path = app / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        "[pages.view_routing_model_comparison]\n"
+        f"dataset_custom_base = {json.dumps(str(tmp_path))}\n"
+        "dataset_subpath = 'pipeline'\n",
+        encoding="utf-8",
+    )
+    _write_allocations(
+        pipeline_dir / "trainer_fcas_routing_ilp" / "allocations_steps.json",
+        [
+            {
+                "source_label": "A",
+                "destination_label": "B",
+                "bandwidth": 10.0,
+                "delivered_bandwidth": 10.0,
+                "served_fraction": 1.0,
+                "latency_ms": 20.0,
+                "latency_target_ms": 30.0,
+                "routed": True,
+                "bearers": ["SAT", "IVDL"],
+                "path": [[1, 2]],
+            }
+        ],
+    )
+    streamlit = _StreamlitStub()
+    env = type("Env", (), {"agi_share_path_abs": ""})()
+
+    monkeypatch.setattr(module, "st", streamlit)
+    monkeypatch.setattr(module, "configure_streamlit_page", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "_ensure_app_scoped_env", lambda: env)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: app)
+
+    module.main()
+
+    call_names = [name for name, _args in streamlit.calls]
+    assert "expander" in call_names
+    assert call_names.count("plotly_chart") == 3
+    assert "dataframe" in call_names
+    assert any(name == "caption" and "Loaded 1 allocation" in args[0] for name, args in streamlit.calls)
+
+
+def test_routing_model_comparison_main_renders_without_missing_files_or_model_filter(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    pipeline_dir = tmp_path / "pipeline"
+    app = tmp_path / "apps" / "routing_app"
+    app.mkdir(parents=True)
+    for model, rel_path in module.MODEL_FILES.items():
+        _write_allocations(
+            pipeline_dir / rel_path,
+            [
+                {
+                    "source_label": f"{model}-A",
+                    "destination_label": f"{model}-B",
+                    "bandwidth": 10.0,
+                    "delivered_bandwidth": 10.0,
+                    "served_fraction": 1.0,
+                    "latency_ms": 20.0,
+                    "latency_target_ms": 30.0,
+                    "routed": True,
+                }
+            ],
+        )
+    streamlit = _StreamlitStub(
+        pipeline_text=str(pipeline_dir),
+        selected_models=[],
+    )
+    env = type("Env", (), {"agi_share_path_abs": ""})()
+
+    monkeypatch.setattr(module, "st", streamlit)
+    monkeypatch.setattr(module, "configure_streamlit_page", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "_ensure_app_scoped_env", lambda: env)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: app)
+
+    module.main()
+
+    assert all(name != "expander" for name, _args in streamlit.calls)
+    assert any(name == "caption" and "Loaded 3 allocation" in args[0] for name, args in streamlit.calls)
+
+
+def test_routing_model_comparison_main_stops_when_loaded_data_is_empty(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    pipeline_dir = tmp_path / "pipeline"
+    app = tmp_path / "apps" / "routing_app"
+    app.mkdir(parents=True)
+    _write_allocations(
+        pipeline_dir / "trainer_fcas_routing_ilp" / "allocations_steps.json",
+        [],
+    )
+    streamlit = _StreamlitStub(pipeline_text=str(pipeline_dir))
+    env = type("Env", (), {"agi_share_path_abs": ""})()
+
+    monkeypatch.setattr(module, "st", streamlit)
+    monkeypatch.setattr(module, "configure_streamlit_page", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "_ensure_app_scoped_env", lambda: env)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: app)
+
+    with pytest.raises(_StopStreamlit):
+        module.main()
+
+    assert any(
+        name == "warning" and "No allocation data was loaded" in args[0]
+        for name, args in streamlit.calls
+    )
+
+
+def test_routing_model_comparison_main_warns_when_filter_removes_rows(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    pipeline_dir = tmp_path / "pipeline"
+    app = tmp_path / "apps" / "routing_app"
+    app.mkdir(parents=True)
+    _write_allocations(
+        pipeline_dir / "trainer_fcas_routing_ilp" / "allocations_steps.json",
+        [
+            {
+                "source_label": "A",
+                "destination_label": "B",
+                "bandwidth": 10.0,
+                "delivered_bandwidth": 10.0,
+                "served_fraction": 1.0,
+                "routed": True,
+            }
+        ],
+    )
+    streamlit = _StreamlitStub(
+        pipeline_text=str(pipeline_dir),
+        selected_models=["PPO-GNN"],
+    )
+    env = type("Env", (), {"agi_share_path_abs": ""})()
+
+    monkeypatch.setattr(module, "st", streamlit)
+    monkeypatch.setattr(module, "configure_streamlit_page", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "_ensure_app_scoped_env", lambda: env)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: app)
+
+    with pytest.raises(_StopStreamlit):
+        module.main()
+
+    assert any(
+        name == "warning" and "No allocation rows match" in args[0]
+        for name, args in streamlit.calls
+    )
+
+
+def test_routing_model_comparison_main_returns_without_pipeline(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    app = tmp_path / "apps" / "routing_app"
+    app.mkdir(parents=True)
+    streamlit = _StreamlitStub(pipeline_text="")
+    env = type("Env", (), {"agi_share_path_abs": ""})()
+
+    monkeypatch.setattr(module, "st", streamlit)
+    monkeypatch.setattr(module, "configure_streamlit_page", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "_ensure_app_scoped_env", lambda: env)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: app)
+
+    module.main()
+
+    assert any(
+        name == "info" and "Data directory not configured" in args[0]
+        for name, args in streamlit.calls
+    )
