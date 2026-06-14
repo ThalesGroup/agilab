@@ -235,10 +235,38 @@ def test_app_project_payload_build_helper_ignores_generated_app_dirs() -> None:
     support = _load_app_project_build_support()
 
     assert APP_GENERATED_DIRS <= support._EXCLUDED_PAYLOAD_DIRS
+    assert APP_GENERATED_NAMES <= support._EXCLUDED_PAYLOAD_FILES
+    assert ".coverage.worker.123" in support._ignore_payload_artifacts(
+        ".",
+        [".coverage.worker.123"],
+    )
 
 
 def _builtin_app_dirs() -> list[Path]:
-    return sorted(path for path in BUILTIN_APPS_ROOT.glob("*_project") if path.is_dir())
+    tracked_readmes = _git_paths("ls-files", "src/agilab/apps/builtin/*_project/README.md")
+    tracked_dirs = set()
+    for path in tracked_readmes:
+        if not path.startswith("src/agilab/apps/builtin/"):
+            continue
+        project_name = Path(path).parent.name
+        tracked_dirs.add(BUILTIN_APPS_ROOT / project_name)
+    return sorted(path for path in tracked_dirs if path.is_dir())
+
+
+def test_builtin_app_dirs_follow_tracked_readme_inventory(tmp_path: Path, monkeypatch) -> None:
+    tracked = tmp_path / "tracked_project"
+    polluted = tmp_path / "polluted_project"
+    tracked.mkdir()
+    polluted.mkdir()
+
+    def fake_git_paths(*args: str) -> set[str]:
+        assert args == ("ls-files", "src/agilab/apps/builtin/*_project/README.md")
+        return {"src/agilab/apps/builtin/tracked_project/README.md"}
+
+    monkeypatch.setattr(sys.modules[__name__], "BUILTIN_APPS_ROOT", tmp_path)
+    monkeypatch.setattr(sys.modules[__name__], "_git_paths", fake_git_paths)
+
+    assert _builtin_app_dirs() == [tracked]
 
 
 def _root_package_data() -> list[str]:
@@ -1227,6 +1255,21 @@ def test_app_project_payload_copy_produces_self_contained_project_dirs(tmp_path:
         assert changed, f"{distribution}: expected packaged pyproject source sanitization"
         for pyproject_path in payload_root.rglob("pyproject.toml"):
             assert "[tool.uv.sources]" not in pyproject_path.read_text(encoding="utf-8")
+
+
+def test_app_project_payload_copy_excludes_parallel_coverage_artifacts(tmp_path: Path) -> None:
+    support = _load_app_project_build_support()
+    source_artifact = BUILTIN_APPS_ROOT / "flight_telemetry_project" / ".coverage.worker.123"
+    source_artifact.write_text("generated coverage", encoding="utf-8")
+
+    try:
+        support.copy_app_project_payload("flight_telemetry_project", tmp_path)
+    finally:
+        source_artifact.unlink(missing_ok=True)
+
+    payload_root = tmp_path / "flight_telemetry_project"
+    assert payload_root.is_dir()
+    assert not (payload_root / ".coverage.worker.123").exists()
 
 
 def test_agi_apps_umbrella_bundles_only_the_base_minimal_app_template() -> None:

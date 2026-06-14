@@ -98,7 +98,7 @@ _EXCLUDED_PAYLOAD_DIRS = {
     "notebooks",
     "test",
 }
-_EXCLUDED_PAYLOAD_FILES = {".DS_Store", ".gitignore", ".lock", "uv.lock"}
+_EXCLUDED_PAYLOAD_FILES = {".coverage", ".DS_Store", ".gitignore", ".lock", "uv.lock"}
 _EXCLUDED_PAYLOAD_SUFFIXES = {".c", ".pid", ".pyc", ".pyo", ".pyx", ".so"}
 
 
@@ -128,7 +128,11 @@ def _ignore_payload_artifacts(directory: str, names: list[str]) -> set[str]:
         if path.is_dir() and (name in _EXCLUDED_PAYLOAD_DIRS or name.endswith(".egg-info")):
             ignored.add(name)
             continue
-        if name in _EXCLUDED_PAYLOAD_FILES or path.suffix in _EXCLUDED_PAYLOAD_SUFFIXES:
+        if (
+            name in _EXCLUDED_PAYLOAD_FILES
+            or name.startswith(".coverage.")
+            or path.suffix in _EXCLUDED_PAYLOAD_SUFFIXES
+        ):
             ignored.add(name)
     return ignored
 
