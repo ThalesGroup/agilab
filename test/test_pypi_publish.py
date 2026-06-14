@@ -29,12 +29,6 @@ def _load_pypi_publish():
     return module
 
 
-@pytest.fixture(autouse=True)
-def _allow_break_glass_pypi_for_release_flow_unit_tests(monkeypatch):
-    """Most tests exercise release ordering internals, not the outer OIDC gate."""
-    monkeypatch.setenv("AGILAB_ALLOW_LOCAL_PYPI_TWINE", "1")
-
-
 def _base_cfg(module, **overrides):
     values = {
         "repo": "pypi",
@@ -348,9 +342,9 @@ def test_require_safe_pypi_release_rejects_missing_repo_sync_flags() -> None:
         raise AssertionError("require_safe_pypi_release() should reject unsafe real PyPI publish settings")
 
 
-def test_require_safe_pypi_release_rejects_local_twine_without_break_glass(monkeypatch) -> None:
+def test_require_safe_pypi_release_accepts_valid_real_pypi_settings(monkeypatch) -> None:
     module = _load_pypi_publish()
-    monkeypatch.delenv(module.ALLOW_LOCAL_PYPI_TWINE_ENV, raising=False)
+    monkeypatch.setenv("AGILAB_ALLOW_LOCAL_PYPI_TWINE", "1")
 
     cfg = module.Cfg(
         repo="pypi",
@@ -378,8 +372,15 @@ def test_require_safe_pypi_release_rejects_local_twine_without_break_glass(monke
         gen_docs=False,
     )
 
-    with pytest.raises(SystemExit, match="Trusted Publishing/OIDC"):
-        module.require_safe_pypi_release(cfg)
+    module.require_safe_pypi_release(cfg)
+
+
+def test_twine_upload_rejects_real_pypi_uploads(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setenv("AGILAB_ALLOW_LOCAL_PYPI_TWINE", "1")
+
+    with pytest.raises(SystemExit, match="offloaded to the GitHub pypi-publish workflow"):
+        module.twine_upload(["dist/agilab-2026.06.13.whl"], "pypi", True, 1)
 
 
 def test_require_safe_pypi_release_rejects_skipping_release_preflight() -> None:
@@ -1830,12 +1831,12 @@ def test_twine_upload_reports_summary_and_skip_existing(monkeypatch, capsys) -> 
 
     monkeypatch.setattr(module.subprocess, "run", _fake_run)
 
-    module.twine_upload(files, "pypi", True, 1)
+    module.twine_upload(files, "testpypi", True, 1)
 
     out = capsys.readouterr().out
     assert "[upload] uploaded: first.whl" in out
     assert "[upload] skipped existing (already on server): second.whl" in out
-    assert "[upload] summary: uploaded=1 skipped_existing=1 total=2 repo=pypi" in out
+    assert "[upload] summary: uploaded=1 skipped_existing=1 total=2 repo=testpypi" in out
     assert module.UPLOAD_SUCCESS_COUNT == 1
     assert module.UPLOAD_SKIPPED_EXISTING_COUNT == 1
 
