@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import configparser
 import hmac
 import hashlib
 from html.parser import HTMLParser
@@ -253,14 +254,46 @@ def wait_for_package_protected_releases(
     return latest
 
 
-def require_credentials(username: str | None, password: str | None) -> tuple[str, str]:
-    user = (username or os.environ.get("PYPI_RELEASE_PRUNE_USERNAME") or "").strip()
-    secret = (password or os.environ.get("PYPI_RELEASE_PRUNE_PASSWORD") or "").strip()
+def read_cleanup_creds_from_pypirc(repo_name: str) -> tuple[str | None, str | None]:
+    pypirc = Path.home() / ".pypirc"
+    if not pypirc.exists():
+        return None, None
+    config = configparser.RawConfigParser()
+    config.read(pypirc)
+    section = f"{repo_name}_cleanup"
+    if not config.has_section(section):
+        return None, None
+    username = (config.get(section, "username", fallback="") or "").strip() or None
+    password = (config.get(section, "password", fallback="") or "").strip() or None
+    return username, password
+
+
+def require_credentials(
+    username: str | None,
+    password: str | None,
+    *,
+    repo_name: str = "pypi",
+) -> tuple[str, str]:
+    pypirc_user, pypirc_password = read_cleanup_creds_from_pypirc(repo_name)
+    user = (
+        username
+        or os.environ.get("PYPI_RELEASE_PRUNE_USERNAME")
+        or pypirc_user
+        or ""
+    ).strip()
+    secret = (
+        password
+        or os.environ.get("PYPI_RELEASE_PRUNE_PASSWORD")
+        or os.environ.get("PYPI_CLEANUP_PASSWORD")
+        or os.environ.get("PYPI_PASSWORD")
+        or pypirc_password
+        or ""
+    ).strip()
     if not user or not secret:
         raise SystemExit(
-            "ERROR: PyPI release pruning needs PYPI_RELEASE_PRUNE_USERNAME and "
-            "PYPI_RELEASE_PRUNE_PASSWORD secrets because Trusted Publishing/OIDC "
-            "only covers upload, not release deletion."
+            "ERROR: PyPI release pruning needs cleanup web-login credentials via "
+            "CLI, environment, or ~/.pypirc because Trusted Publishing/OIDC only "
+            "covers upload, not release deletion."
         )
     if user == "__token__" or secret.startswith("pypi-"):
         raise SystemExit(
@@ -1058,7 +1091,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if pending_deletes and not args.dry_run:
         if not args.confirm_delete:
             raise SystemExit("ERROR: destructive PyPI retention requires --confirm-delete")
-        username, password = require_credentials(args.username, args.password)
+        username, password = require_credentials(
+            args.username,
+            args.password,
+            repo_name=args.repo,
+        )
         confirm_provider = None
         if args.github_confirm_login_variable and args.github_confirm_login_timeout > 0:
             if not args.github_confirm_login_repository or not args.github_token:
@@ -1089,6 +1126,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
 
             confirm_provider.cleanup = cleanup_confirm_provider  # type: ignore[attr-defined]
+        elif os.environ.get("PYPI_CONFIRM_LOGIN_URL"):
+
+            def confirm_provider() -> str | None:
+                return os.environ.get("PYPI_CONFIRM_LOGIN_URL")
 
         delete_blocked = False
         rotating_totp_secret = _rotating_totp_secret(args.otp_code, args.totp_secret)

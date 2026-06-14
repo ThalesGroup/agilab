@@ -133,7 +133,7 @@ def test_main_retries_until_protected_release_is_visible(monkeypatch, capsys) ->
     assert '"missing_protected_version": false' in capsys.readouterr().out
 
 
-def test_main_requires_web_cleanup_credentials_for_deletion(monkeypatch) -> None:
+def test_main_requires_web_cleanup_credentials_for_deletion(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
 
     monkeypatch.setattr(
@@ -141,11 +141,55 @@ def test_main_requires_web_cleanup_credentials_for_deletion(monkeypatch) -> None
         "fetch_releases",
         lambda package, repo: ["2026.04.16", "2026.05.17"],
     )
+    monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.delenv("PYPI_RELEASE_PRUNE_USERNAME", raising=False)
     monkeypatch.delenv("PYPI_RELEASE_PRUNE_PASSWORD", raising=False)
+    monkeypatch.delenv("PYPI_CLEANUP_PASSWORD", raising=False)
+    monkeypatch.delenv("PYPI_PASSWORD", raising=False)
 
-    with pytest.raises(SystemExit, match="PYPI_RELEASE_PRUNE_USERNAME"):
+    with pytest.raises(SystemExit, match="cleanup web-login credentials"):
         module.main(["--package", "agilab", "--protect-version", "2026.05.17", "--confirm-delete"])
+
+
+def test_require_credentials_reads_pypirc_cleanup_section(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("PYPI_RELEASE_PRUNE_USERNAME", raising=False)
+    monkeypatch.delenv("PYPI_RELEASE_PRUNE_PASSWORD", raising=False)
+    monkeypatch.delenv("PYPI_CLEANUP_PASSWORD", raising=False)
+    monkeypatch.delenv("PYPI_PASSWORD", raising=False)
+    (tmp_path / ".pypirc").write_text(
+        "[distutils]\n"
+        "index-servers = pypi\n"
+        "\n"
+        "[pypi_cleanup]\n"
+        "username = maintainer\n"
+        "password = web-secret\n",
+        encoding="utf-8",
+    )
+
+    assert module.require_credentials(None, None, repo_name="pypi") == (
+        "maintainer",
+        "web-secret",
+    )
+
+
+def test_require_credentials_rejects_pypirc_api_token(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("PYPI_RELEASE_PRUNE_USERNAME", raising=False)
+    monkeypatch.delenv("PYPI_RELEASE_PRUNE_PASSWORD", raising=False)
+    monkeypatch.delenv("PYPI_CLEANUP_PASSWORD", raising=False)
+    monkeypatch.delenv("PYPI_PASSWORD", raising=False)
+    (tmp_path / ".pypirc").write_text(
+        "[pypi_cleanup]\nusername = __token__\npassword = pypi-token\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit, match="API token"):
+        module.require_credentials(None, None, repo_name="pypi")
 
 
 def test_totp_generation_matches_rfc_vector() -> None:
@@ -677,6 +721,54 @@ def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -
         ("agi-core", "2026.04.16", "maintainer", "secret", "123456"),
     ]
     assert '"success": true' in capsys.readouterr().out
+
+
+def test_main_uses_local_confirm_login_url_provider(monkeypatch) -> None:
+    module = _load_module()
+    releases = {"agilab": ["2026.04.16", "2026.05.17"]}
+    provider_values: list[str | None] = []
+
+    def fake_delete_release(
+        *,
+        package,
+        version,
+        repo,
+        username,
+        password,
+        auth_code=None,
+        totp_secret=None,
+        confirm_login_url_provider=None,
+        direct_web_only=False,
+        verbose=False,
+    ):
+        provider_values.append(confirm_login_url_provider())
+        releases[package] = [item for item in releases[package] if item != version]
+
+    monkeypatch.setenv(
+        "PYPI_CONFIRM_LOGIN_URL",
+        "https://pypi.org/account/confirm-login/?token=token",
+    )
+    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: releases[package])
+    monkeypatch.setattr(module, "delete_release", fake_delete_release)
+
+    status = module.main(
+        [
+            "--package",
+            "agilab",
+            "--protect-version",
+            "2026.05.17",
+            "--username",
+            "maintainer",
+            "--password",
+            "secret",
+            "--confirm-delete",
+            "--retry-delay",
+            "0",
+        ]
+    )
+
+    assert status == 0
+    assert provider_values == ["https://pypi.org/account/confirm-login/?token=token"]
 
 
 def test_main_deletes_old_versions_with_disaligned_protected_versions(monkeypatch, capsys) -> None:
