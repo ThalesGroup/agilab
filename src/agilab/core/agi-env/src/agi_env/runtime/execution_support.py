@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import re
@@ -143,6 +144,15 @@ async def _stream_process_output(
     await asyncio.wait_for(asyncio.gather(*coroutines), timeout=timeout)
 
 
+async def _kill_and_wait(proc: asyncio.subprocess.Process) -> None:
+    """Terminate a timed-out subprocess and reap it when the platform permits."""
+
+    with contextlib.suppress(ProcessLookupError, OSError):
+        proc.kill()
+    with contextlib.suppress(asyncio.TimeoutError, ProcessLookupError, OSError):
+        await asyncio.wait_for(proc.wait(), timeout=5)
+
+
 def _raise_process_error(
     err: Exception,
     *,
@@ -263,7 +273,7 @@ async def run(
         return "\n".join(result)
     except asyncio.TimeoutError as err:
         if proc is not None:
-            proc.kill()
+            await _kill_and_wait(proc)
         raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}") from err
     except PROCESS_WRAP_EXCEPTIONS as err:
         _raise_process_error(
@@ -298,7 +308,8 @@ async def run_bg(
         process_env.update(env_override)
 
     cmd = inject_uv_preview_flag(cmd)  # ty: ignore[invalid-assignment]
-    result: list[str] = []
+    stdout_lines: list[str] = []
+    stderr_lines: list[str] = []
 
     proc = await _spawn_process(
         cmd=cmd,
@@ -309,18 +320,17 @@ async def run_bg(
 
     out_cb, err_cb = _resolve_stream_callbacks(log_callback=log_callback, logger=logger)
     try:
-        await _stream_process_output(
-            proc,
+        await asyncio.wait_for(
+            asyncio.gather(
+                _read_stream(proc.stdout, callback=out_cb, result=stdout_lines),
+                _read_stream(proc.stderr, callback=err_cb, result=stderr_lines),
+                proc.wait(),
+            ),
             timeout=timeout,
-            out_cb=out_cb,
-            err_cb=err_cb,
-            result=result,
-            wait_for_exit=True,
         )
     except asyncio.TimeoutError as err:
-        proc.kill()
+        await _kill_and_wait(proc)
         raise RuntimeError(f"Timeout expired for command: {cmd}") from err
-    stdout, stderr = await proc.communicate()
     returncode = proc.returncode
 
     if returncode != 0:
@@ -331,7 +341,7 @@ async def run_bg(
             simple_message=True,
         )
 
-    return stdout.decode(), stderr.decode()
+    return "\n".join(stdout_lines), "\n".join(stderr_lines)
 
 
 async def run_async(

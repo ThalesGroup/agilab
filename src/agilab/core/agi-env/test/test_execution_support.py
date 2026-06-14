@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+import subprocess
+import sys
 from unittest import mock
 
 import pytest
@@ -354,15 +356,41 @@ def test_run_bg_uses_shell_for_shell_syntax(tmp_path: Path, monkeypatch):
         raise AssertionError("plain exec should not be used for shell syntax")
 
     async def _fake_shell(*_args, **_kwargs):
-        return _FakeProc(stderr_lines=[b"stderr line\n", b""])
+        return _FakeProc(stdout_lines=[b"stdout line\n", b""], stderr_lines=[b"stderr line\n", b""])
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", _unexpected_exec)
     monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
 
     stdout, stderr = asyncio.run(execution_support.run_bg("echo hi; echo bye", cwd=tmp_path, venv=tmp_path))
 
-    assert stdout == ""
-    assert stderr == ""
+    assert stdout == "stdout line"
+    assert stderr == "stderr line"
+
+
+def test_run_bg_returns_real_subprocess_output_after_streaming(tmp_path: Path):
+    streamed: list[str] = []
+    cmd = subprocess.list2cmdline(
+        [
+            sys.executable,
+            "-c",
+            "import sys; print('real out'); print('real err', file=sys.stderr)",
+        ]
+    )
+
+    stdout, stderr = asyncio.run(
+        execution_support.run_bg(
+            cmd,
+            cwd=tmp_path,
+            venv=None,
+            timeout=10,
+            log_callback=lambda message, **_kwargs: streamed.append(message),
+            build_env_fn=lambda _venv: {},
+        )
+    )
+
+    assert stdout == "real out"
+    assert stderr == "real err"
+    assert streamed == ["real out", "real err"]
 
 
 def test_run_bg_propagates_unexpected_exec_bug(tmp_path: Path, monkeypatch):
