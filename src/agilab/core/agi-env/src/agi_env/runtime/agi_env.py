@@ -142,10 +142,12 @@ try:
     import pwd
 except ImportError:  # Windows
     pwd = None  # type: ignore
-if FormattedTB is not None:
-    # Get constructor parameters of FormattedTB
-    _sig = inspect.signature(FormattedTB.__init__).parameters
 
+
+def _formatted_traceback_kwargs() -> dict[str, object] | None:
+    """Build IPython traceback options without mutating process-global state."""
+    if FormattedTB is None:
+        return None
     _call_pdb = bool(getattr(sys.stdin, "isatty", lambda: False)())
     if "AGILAB_CALL_PDB" in os.environ:
         _call_pdb = os.environ["AGILAB_CALL_PDB"].strip().lower() in {
@@ -155,13 +157,22 @@ if FormattedTB is not None:
             "on",
         }
 
-    _tb_kwargs = dict(mode='Verbose', call_pdb=_call_pdb)
+    _sig = inspect.signature(FormattedTB.__init__).parameters
+    _tb_kwargs: dict[str, object] = dict(mode="Verbose", call_pdb=_call_pdb)
     if 'color_scheme' in _sig:
         _tb_kwargs['color_scheme'] = 'NoColor'
     else:
         _tb_kwargs['theme_name'] = 'NoColor'
+    return _tb_kwargs
 
+
+def _install_formatted_traceback_excepthook():
+    """Install AGILAB's optional rich traceback hook during runtime setup."""
+    _tb_kwargs = _formatted_traceback_kwargs()
+    if _tb_kwargs is None:
+        return None
     sys.excepthook = FormattedTB(**_tb_kwargs)
+    return sys.excepthook
 
 from agi_env.runtime.agi_logger import AgiLogger
 
@@ -379,6 +390,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
             )
 
+        _install_formatted_traceback_excepthook()
         initialize_agi_env_instance(
             self,
             apps_path=apps_path,

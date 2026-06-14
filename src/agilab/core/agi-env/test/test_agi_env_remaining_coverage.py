@@ -64,6 +64,8 @@ def test_agi_env_import_honours_call_pdb_override_and_color_scheme(monkeypatch):
 
     monkeypatch.setenv("AGILAB_CALL_PDB", "yes")
     monkeypatch.setattr(sys, "stdin", SimpleNamespace(isatty=lambda: False), raising=False)
+    original_excepthook = object()
+    monkeypatch.setattr(sys, "excepthook", original_excepthook)
 
     module = _load_agi_env_variant(
         "agi_env.agi_env_formatted_tb_variant",
@@ -71,6 +73,9 @@ def test_agi_env_import_honours_call_pdb_override_and_color_scheme(monkeypatch):
         formatted_tb_type=_FakeFormattedTB,
     )
 
+    assert module.sys.excepthook is original_excepthook
+    assert captured == {}
+    module._install_formatted_traceback_excepthook()
     assert module.sys.excepthook is not None
     assert captured == {
         "mode": "Verbose",

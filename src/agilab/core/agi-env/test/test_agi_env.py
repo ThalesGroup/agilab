@@ -2425,6 +2425,8 @@ def test_run_async_and_run_bg_cover_success_and_nonzero_paths(tmp_path: Path, mo
     )
     assert "out" in streamed
     assert "err" in streamed
+    assert stdout == "out"
+    assert stderr == "err"
 
     with pytest.raises(RuntimeError, match="exit 4"):
         asyncio.run(AgiEnv._run_bg(fail_cmd, cwd=tmp_path, venv=tmp_path, timeout=10))
@@ -2477,7 +2479,7 @@ def test_run_bg_shell_fallback_handles_blank_lines_and_simple_callback(tmp_path:
     )
 
     assert stdout == ""
-    assert stderr == "stderr line\n"
+    assert stderr == "stderr line"
     assert streamed == ["stderr line"]
 
 
