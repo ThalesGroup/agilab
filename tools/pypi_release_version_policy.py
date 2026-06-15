@@ -87,7 +87,8 @@ def validate_public_release_versions(
         raise ReleaseVersionPolicyError(
             "Public PyPI .postN releases are forbidden for new AGILAB publications. "
             f"Selected post-release versions: {formatted}. Use release_mode=stable with "
-            "YYYY.MM.DD, release_mode=hotfix with YYYY.MM.DD.N for a same-day fix, or "
+            "YYYY.MM.DD, release_mode=hotfix with package version YYYY.MM.DD.N "
+            "and release tag vYYYY.MM.DD_N for a same-day fix, or "
             "release_mode=candidate with YYYY.MM.DDrcN for a public pre-release rehearsal."
         )
 
@@ -194,7 +195,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         choices=RELEASE_MODES,
         default="stable",
         help=(
-            "Public release intent: stable=YYYY.MM.DD, hotfix=YYYY.MM.DD.N, "
+            "Public release intent: stable=YYYY.MM.DD, hotfix=package YYYY.MM.DD.N "
+            "with release tag vYYYY.MM.DD_N, "
             "candidate=YYYY.MM.DDrcN, repair=no PyPI distributions."
         ),
     )

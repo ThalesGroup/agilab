@@ -8,9 +8,9 @@ Highlights
 - Builds with uv (wheels and/or sdists). No pep517 shim.
 - Per-package versions for published AGI components, bundles, and payload packages.
   Real PyPI never auto-bumps to .postN; choose an explicit new version instead.
-  Public .postN releases are reserved for documented critical hotfixes. Use
-  release-candidate versions or TestPyPI for release rehearsals; TestPyPI may
-  auto-bump .postN for retries.
+  Public package hotfixes use YYYY.MM.DD.N. GitHub release tags use
+  vYYYY.MM.DD_N for the same-day id. Use release-candidate versions or TestPyPI
+  for release rehearsals; TestPyPI may auto-bump .postN for retries.
 - Robust pyproject.toml editing with tomlkit (preserves formatting, trailing newline).
 - TestPyPI twine auth from ~/.pypirc; CLI --username/--password are ONLY for cleanup/purge.
 - Optional purge/cleanup (web login flow) before/after using pypi-cleanup.
@@ -142,7 +142,8 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Explicit version 'X.Y.Z[.N][rcN][.postN]'. If omitted, base=UTC YYYY.MM.DD. "
             "Real PyPI refuses automatic .postN bumps when that version is already used; "
-            ".postN is forbidden on public PyPI. Use YYYY.MM.DD.N for same-day hotfixes."
+            ".postN is forbidden on public PyPI. Use package version YYYY.MM.DD.N "
+            "and release tag vYYYY.MM.DD_N for same-day hotfixes."
         ),
     )
 
@@ -609,8 +610,8 @@ def require_public_post_release_policy(cfg: Cfg, package_versions: Dict[str, str
     raise SystemExit(
         "ERROR: Public PyPI .postN releases are forbidden for new AGILAB publications. "
         f"Selected post-release versions: {formatted}. Use a release candidate or TestPyPI for "
-        "rehearsal, publish YYYY.MM.DD for a stable release, or publish YYYY.MM.DD.N "
-        "for a same-day hotfix."
+        "rehearsal, publish YYYY.MM.DD for a stable release, or publish package "
+        "version YYYY.MM.DD.N with release tag vYYYY.MM.DD_N for a same-day hotfix."
     )
 
 
@@ -1677,6 +1678,25 @@ def compute_date_tag() -> str:
     return tag
 
 
+def hotfix_release_tag_base(version: str) -> str | None:
+    match = re.fullmatch(r"(\d{4}\.\d{1,2}\.\d{1,2})\.(\d+)", version.strip())
+    if not match:
+        return None
+    return f"{match.group(1)}_{match.group(2)}"
+
+
+def compute_release_tag_for_version(version: str) -> str:
+    base = hotfix_release_tag_base(version)
+    if base is None:
+        return compute_date_tag()
+    tag = base
+    n = 2
+    while _tag_exists(f"v{tag}"):
+        tag = f"{base}-{n}"
+        n += 1
+    return tag
+
+
 def _is_git_repo(path: pathlib.Path) -> bool:
     try:
         subprocess.run(
@@ -2535,7 +2555,7 @@ def main():
             print(f"  - {name}: {package_versions[name]}")
         date_tag = normalize_base(chosen)  # primary date base (YYYY.MM.DD)
         print(f"[plan] Tag base (UTC): {date_tag}")
-        planned_tag = compute_date_tag() if cfg.repo == "pypi" and cfg.git_tag else None
+        planned_tag = compute_release_tag_for_version(chosen) if cfg.repo == "pypi" and cfg.git_tag else None
         if cfg.dry_run:
             print("[dry-run] Collisions per package:")
             for n in version_targets:

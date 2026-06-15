@@ -29,7 +29,8 @@ def package_version_from_tag(tag: str) -> str:
     if value.startswith("refs/tags/"):
         value = value.removeprefix("refs/tags/")
     value = value.removeprefix("v")
-    return re.sub(r"-\d+$", "", value)
+    value = re.sub(r"-\d+$", "", value)
+    return re.sub(r"^(\d{4}\.\d{1,2}\.\d{1,2})_(\d+)$", r"\1.\2", value)
 
 
 def _run_json(command: list[str]) -> tuple[dict[str, Any] | None, str | None]:

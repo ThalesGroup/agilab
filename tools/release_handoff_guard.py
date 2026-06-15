@@ -13,15 +13,17 @@ from typing import Sequence
 ROOT = Path(__file__).resolve().parents[1]
 HANDOFF_DIR = ROOT / "tools" / "release_handoffs"
 PROOF_MANIFEST = ROOT / "docs" / "source" / "data" / "release_proof.toml"
-TAG_RE = re.compile(r"v\d{4}\.\d{2}\.\d{2}(?:(?:-|\.)\d+)?")
+TAG_RE = re.compile(r"v\d{4}\.\d{2}\.\d{2}(?:(?:-|\.|_)\d+)?")
 
 
 def _tag_key(tag: str) -> tuple[int, int, int, int]:
     body = tag.removeprefix("v")
     suffix = 0
-    if "-" in body:
-        body, raw_suffix = body.rsplit("-", 1)
-        suffix = int(raw_suffix) if raw_suffix.isdigit() else 0
+    for separator in ("-", "_"):
+        if separator in body:
+            body, raw_suffix = body.rsplit(separator, 1)
+            suffix = int(raw_suffix) if raw_suffix.isdigit() else 0
+            break
     parts = body.split(".")
     if len(parts) == 4:
         raw_suffix = parts.pop()

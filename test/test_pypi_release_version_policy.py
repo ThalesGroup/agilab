@@ -71,7 +71,8 @@ def test_release_version_policy_rejects_public_post_release_even_with_hotfix_mod
 
     message = str(excinfo.value)
     assert ".postN releases are forbidden" in message
-    assert "release_mode=hotfix with YYYY.MM.DD.N" in message
+    assert "release_mode=hotfix with package version YYYY.MM.DD.N" in message
+    assert "release tag vYYYY.MM.DD_N" in message
 
 
 def test_release_version_policy_rejects_stable_shape_in_hotfix_mode() -> None:

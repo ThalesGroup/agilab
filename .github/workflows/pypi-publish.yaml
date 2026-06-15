@@ -16,7 +16,7 @@ on:
         description: "Optional git ref used to publish only changed packages plus exact-pin dependents. Ignored when packages or roles are set."
         required: false
       release_mode:
-        description: "Release intent: stable=YYYY.MM.DD, hotfix=YYYY.MM.DD.N, candidate=YYYY.MM.DDrcN, repair=no PyPI distributions."
+        description: "Release intent: stable=YYYY.MM.DD, hotfix=package YYYY.MM.DD.N with release tag vYYYY.MM.DD_N, candidate=YYYY.MM.DDrcN, repair=no PyPI distributions."
         required: false
         type: choice
         default: stable

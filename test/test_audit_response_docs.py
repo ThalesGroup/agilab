@@ -291,6 +291,7 @@ def test_package_publishing_policy_addresses_common_audit_misreads() -> None:
     assert "tools/pypi_release_version_policy.py" in policy
     assert "``release_mode=hotfix``" in policy
     assert "``YYYY.MM.DD.N``" in policy
+    assert "``vYYYY.MM.DD_N``" in policy
     assert "release-candidate versions such as ``YYYY.MM.DDrc1``" in policy
     assert "disallow_untyped_defs = true" in policy
     assert "runs mypy with ``--strict``" in policy
