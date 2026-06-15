@@ -106,6 +106,11 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     assert "isolated-project-editor-page" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
     assert "isolated-pytorch-playground-analysis" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
     assert "isolated-release-evidence" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
+    assert payload["coverage"]["orchestrate_pool_robot"] == {
+        "flags": ["browser_error_check"],
+        "pages": ["ORCHESTRATE"],
+        "required_text": ["Item timeout seconds", "Max workers", "Pool executor", "Pool parameters"],
+    }
     assert payload["coverage"]["pytorch_analysis_robot"] == {
         "apps": ["pytorch_playground_project"],
         "forbidden_sidebar_text": ["Project:"],
@@ -213,6 +218,11 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         pages="ORCHESTRATE",
         click_action_labels="Deploy workers",
     )
+    orchestrate_pool = scenario(
+        module.REQUIRED_ORCHESTRATE_POOL_SCENARIO,
+        pages="ORCHESTRATE",
+        required_text=",".join(module.REQUIRED_ORCHESTRATE_POOL_TEXT),
+    )
     pytorch = scenario(
         "isolated-pytorch-playground-analysis",
         pages="ANALYSIS",
@@ -226,7 +236,16 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
     release_evidence = scenario(module.REQUIRED_RELEASE_EVIDENCE_SCENARIO, pages="PROJECT,ORCHESTRATE,ANALYSIS")
     all_scenarios = {
         item.name: item
-        for item in (core_scenario, editor, hf_visual, hf_app_pages, hf_install, pytorch, release_evidence)
+        for item in (
+            core_scenario,
+            editor,
+            hf_visual,
+            hf_app_pages,
+            hf_install,
+            orchestrate_pool,
+            pytorch,
+            release_evidence,
+        )
     }
     widget_robot = SimpleNamespace(
         page_label=lambda page: str(page),
@@ -240,7 +259,11 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         ],
     )
     matrix = SimpleNamespace(
-        DEFAULT_SCENARIOS={"core-selected-actions": core_scenario, "isolated-project-editor-page": editor},
+        DEFAULT_SCENARIOS={
+            "core-selected-actions": core_scenario,
+            "isolated-project-editor-page": editor,
+            module.REQUIRED_ORCHESTRATE_POOL_SCENARIO: orchestrate_pool,
+        },
         ALL_SCENARIOS=all_scenarios,
         OPT_IN_SCENARIOS={"isolated-pytorch-playground-analysis": pytorch},
     )

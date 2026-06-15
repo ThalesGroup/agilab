@@ -1230,6 +1230,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert "Observe benchmark results" not in expander_labels
     assert all("Path: Prepare" not in label for label in expander_labels)
     assert "Resource summary" in markdown_text
+    assert "Pool parameters" in markdown_text
     assert "Share" in markdown_text
     assert "CPU" in markdown_text
     assert "RAM" in markdown_text
@@ -1275,6 +1276,12 @@ def test_execute_page_cluster_settings(mock_ui_env):
     pool_state = at.session_state[pool_key] if pool_key in at.session_state else None
     assert cluster_state.get("cluster_enabled", enabled_state) is True
     assert cluster_state.get("pool", pool_state) is True
+    assert at.number_input(key=f"cluster_pool_max_workers__{app_state_name}").label == "Max workers"
+    assert (
+        at.number_input(key=f"cluster_pool_item_timeout__{app_state_name}").label
+        == "Item timeout seconds"
+    )
+    assert at.selectbox(key=f"cluster_pool_executor__{app_state_name}").label == "Pool executor"
     assert at.session_state[scheduler_key] == "127.0.0.1:8786"
     assert "agi_share_path" not in markdown_text
 

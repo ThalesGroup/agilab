@@ -322,6 +322,21 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         target_seconds=2400.0,
         assert_orchestrate_artifacts=True,
     ),
+    "isolated-orchestrate-pool-parameters": RobotScenario(
+        name="isolated-orchestrate-pool-parameters",
+        description=(
+            "Render ORCHESTRATE in an isolated session for a pool-enabled app and assert "
+            "the Resources and deployment panel exposes the pool tuning controls."
+        ),
+        pages="ORCHESTRATE",
+        apps="flight_telemetry_project",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        max_action_clicks_per_page=0,
+        required_text="Pool parameters,Max workers,Item timeout seconds,Pool executor",
+        browser_error_check=True,
+    ),
 }
 
 
