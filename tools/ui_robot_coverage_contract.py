@@ -35,6 +35,8 @@ REQUIRED_HF_FIRST_PROOF_PAGES = ("view_forecast_analysis", "view_maps", "view_re
 FORBIDDEN_HF_FIRST_PROOF_APPS = ("flight_project", "weather_forecast_legacy_project")
 REQUIRED_PYTORCH_ANALYSIS_SCENARIO = "isolated-pytorch-playground-analysis"
 REQUIRED_RELEASE_EVIDENCE_SCENARIO = "isolated-release-evidence"
+REQUIRED_ORCHESTRATE_POOL_SCENARIO = "isolated-orchestrate-pool-parameters"
+REQUIRED_ORCHESTRATE_POOL_TEXT = ("Pool parameters", "Max workers", "Item timeout seconds", "Pool executor")
 REQUIRED_PYTORCH_ANALYSIS_APP = "pytorch_playground_project"
 REQUIRED_PYTORCH_ANALYSIS_TEXT = ("PyTorch Playground", "Refresh evidence", "Synced RUN snippet", "Settings")
 REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_SIDEBAR_TEXT = ("Project:",)
@@ -646,6 +648,41 @@ def evaluate_contract() -> dict[str, Any]:
             )
         )
 
+    orchestrate_pool: dict[str, list[str]] = {}
+    orchestrate_pool_scenario = scenario_by_name.get(REQUIRED_ORCHESTRATE_POOL_SCENARIO)
+    if orchestrate_pool_scenario is None:
+        issues.append(
+            CoverageIssue(
+                "orchestrate_pool_robot",
+                f"{REQUIRED_ORCHESTRATE_POOL_SCENARIO} is missing from the robot matrix",
+            )
+        )
+    else:
+        pages = sorted(_scenario_pages(widget_robot, orchestrate_pool_scenario))
+        required_text = sorted(_scenario_required_text(widget_robot, orchestrate_pool_scenario))
+        flags = sorted(_scenario_flags(orchestrate_pool_scenario))
+        orchestrate_pool = {
+            "pages": pages,
+            "required_text": required_text,
+            "flags": flags,
+        }
+        if "ORCHESTRATE" not in pages:
+            issues.append(
+                CoverageIssue(
+                    "orchestrate_pool_robot",
+                    f"{REQUIRED_ORCHESTRATE_POOL_SCENARIO} does not cover ORCHESTRATE",
+                )
+            )
+        missing_text = sorted(set(REQUIRED_ORCHESTRATE_POOL_TEXT) - set(required_text))
+        if missing_text:
+            issues.append(
+                CoverageIssue(
+                    "orchestrate_pool_robot",
+                    f"{REQUIRED_ORCHESTRATE_POOL_SCENARIO} is missing required text probes: "
+                    + ", ".join(missing_text),
+                )
+            )
+
     demo_doc_text = DEMOS_DOC_PATH.read_text(encoding="utf-8") if DEMOS_DOC_PATH.is_file() else ""
     missing_demo_doc_snippets = [snippet for snippet in REQUIRED_DEMO_DOC_SNIPPETS if snippet not in demo_doc_text]
     if missing_demo_doc_snippets:
@@ -718,6 +755,7 @@ def evaluate_contract() -> dict[str, Any]:
             "hf_visual_smoke_profile_scenarios": hf_visual_smoke_profile_scenarios,
             "ui_robot_matrix_profile_scenarios": ui_robot_matrix_profile_scenarios,
             "hf_robot_scenarios": hf_robot_scenarios,
+            "orchestrate_pool_robot": orchestrate_pool,
             "pytorch_analysis_robot": pytorch_analysis,
             "public_demo_contract": {
                 "doc_snippets": list(REQUIRED_DEMO_DOC_SNIPPETS),

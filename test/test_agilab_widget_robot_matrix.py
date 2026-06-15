@@ -36,8 +36,22 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
         "current-home-actions",
         "current-home-pytorch-direct-run-readiness",
         "current-home-orchestrate-journey",
+        "isolated-orchestrate-pool-parameters",
     ]
-    isolated, entry, project, project_editor, project_notebook, project_import, project_rename, settings, current_home, pytorch_direct, journey = scenarios
+    (
+        isolated,
+        entry,
+        project,
+        project_editor,
+        project_notebook,
+        project_import,
+        project_rename,
+        settings,
+        current_home,
+        pytorch_direct,
+        journey,
+        pool_parameters,
+    ) = scenarios
     assert isolated.pages == "ORCHESTRATE,WORKFLOW,ANALYSIS"
     assert isolated.runtime_isolation == "isolated"
     assert isolated.action_button_policy == "trial"
@@ -102,6 +116,13 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert "EXPORT dataframe" in journey.click_action_labels
     assert "Confirm delete" in journey.click_action_labels
     assert journey.assert_orchestrate_artifacts is True
+    assert pool_parameters.pages == "ORCHESTRATE"
+    assert pool_parameters.apps == "flight_telemetry_project"
+    assert pool_parameters.runtime_isolation == "isolated"
+    assert pool_parameters.action_button_policy == "trial"
+    assert pool_parameters.max_action_clicks_per_page == 0
+    assert pool_parameters.required_text == "Pool parameters,Max workers,Item timeout seconds,Pool executor"
+    assert pool_parameters.browser_error_check is True
     assert "isolated-browser-history" not in [scenario.name for scenario in scenarios]
     assert "isolated-mobile-core-pages" not in [scenario.name for scenario in scenarios]
     assert "isolated-fresh-session-core-pages" not in [scenario.name for scenario in scenarios]
@@ -1547,13 +1568,14 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
         "current-home-actions",
         "current-home-pytorch-direct-run-readiness",
         "current-home-orchestrate-journey",
+        "isolated-orchestrate-pool-parameters",
     ]
     assert summary["success"] is True
-    assert summary["scenario_count"] == 11
-    assert summary["page_count"] == 22
-    assert summary["widget_count"] == 55
-    assert summary["interacted_count"] == 33
-    assert summary["probed_count"] == 22
+    assert summary["scenario_count"] == 12
+    assert summary["page_count"] == 24
+    assert summary["widget_count"] == 60
+    assert summary["interacted_count"] == 36
+    assert summary["probed_count"] == 24
     assert summary["failed_scenarios"] == []
     assert summary["failure_samples"] == []
 
