@@ -41,6 +41,10 @@ LAN_UI_PROBE_WORKERS = 32
 CLUSTER_ADVISOR_SCHEMA = "agilab.cluster_advisor.v1"
 CLUSTER_PLAN_FILE = Path(".agilab") / "cluster_plan.json"
 MAX_ADVISED_WORKERS_PER_HOST = 4
+POOL_MAX_WORKERS_ENV = "AGILAB_POOL_MAX_WORKERS"
+POOL_ITEM_TIMEOUT_ENV = "AGILAB_POOL_ITEM_TIMEOUT"
+POOL_EXECUTOR_ENV = "AGILAB_POOL_EXECUTOR"
+POOL_EXECUTOR_OPTIONS = ("auto", "process", "thread")
 
 
 @dataclass(frozen=True)
@@ -68,6 +72,9 @@ def cluster_widget_keys(app_state_name: str) -> dict[str, str]:
         "pool": f"cluster_pool__{app_state_name}",
         "rapids": f"cluster_rapids__{app_state_name}",
         "cluster_enabled": f"cluster_enabled__{app_state_name}",
+        "pool_max_workers": f"cluster_pool_max_workers__{app_state_name}",
+        "pool_item_timeout": f"cluster_pool_item_timeout__{app_state_name}",
+        "pool_executor": f"cluster_pool_executor__{app_state_name}",
         "scheduler": f"cluster_scheduler__{app_state_name}",
         "user": f"cluster_user__{app_state_name}",
         "use_key": f"cluster_use_key__{app_state_name}",
@@ -94,6 +101,18 @@ def hydrate_cluster_widget_state(
     session_state.setdefault(widget_keys["cluster_enabled"], bool(cluster_params.get("cluster_enabled", False)))
     session_state.setdefault(widget_keys["cython"], bool(cluster_params.get("cython", False)))
     session_state.setdefault(widget_keys["pool"], bool(cluster_params.get("pool", False)))
+    session_state.setdefault(
+        widget_keys["pool_max_workers"],
+        _optional_positive_int(cluster_params.get("pool_max_workers")) or 0,
+    )
+    session_state.setdefault(
+        widget_keys["pool_item_timeout"],
+        _optional_positive_float(cluster_params.get("pool_item_timeout")) or 0.0,
+    )
+    session_state.setdefault(
+        widget_keys["pool_executor"],
+        _pool_executor_value(cluster_params.get("pool_executor")),
+    )
     if is_managed_pc:
         session_state[widget_keys["rapids"]] = False
     else:
@@ -135,6 +154,64 @@ def persist_env_var_if_changed(
         current = str(agi_env_envars.get(key, "") or "")
     if normalized != current:
         set_env_var(key, normalized)
+
+
+def _optional_positive_int(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _optional_positive_float(value: Any) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _pool_executor_value(value: Any) -> str:
+    normalized = str(value or "auto").strip().lower()
+    if normalized not in POOL_EXECUTOR_OPTIONS:
+        return "auto"
+    return normalized
+
+
+def _persist_pool_runtime_env(
+    *,
+    cluster_params: dict[str, Any],
+    pool_enabled: bool,
+    set_env_var: Callable[[str, str], None],
+    agi_env_envars: dict[str, Any] | None,
+) -> None:
+    if pool_enabled:
+        max_workers = _optional_positive_int(cluster_params.get("pool_max_workers"))
+        item_timeout = _optional_positive_float(cluster_params.get("pool_item_timeout"))
+        executor = _pool_executor_value(cluster_params.get("pool_executor"))
+        values = {
+            POOL_MAX_WORKERS_ENV: "" if max_workers is None else str(max_workers),
+            POOL_ITEM_TIMEOUT_ENV: "" if item_timeout is None else str(item_timeout),
+            POOL_EXECUTOR_ENV: "" if executor == "auto" else executor,
+        }
+    else:
+        values = {
+            POOL_MAX_WORKERS_ENV: "",
+            POOL_ITEM_TIMEOUT_ENV: "",
+            POOL_EXECUTOR_ENV: "",
+        }
+    for key, value in values.items():
+        persist_env_var_if_changed(
+            key=key,
+            value=value,
+            set_env_var=set_env_var,
+            agi_env_envars=agi_env_envars,
+        )
 
 
 def _describe_share_path(env: Any) -> str:
@@ -814,6 +891,73 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
             help=f"Enable or disable {param}.",
         )
         cluster_params[param] = updated_value
+
+    pool_enabled = bool(cluster_params.get("pool", False))
+    if pool_enabled:
+        with st.container():
+            st.markdown("**Pool parameters**")
+            pool_cols = st.columns(3)
+            max_workers_key = widget_keys["pool_max_workers"]
+            if max_workers_key not in st.session_state:
+                st.session_state[max_workers_key] = _optional_positive_int(
+                    cluster_params.get("pool_max_workers")
+                ) or 0
+            max_workers = pool_cols[0].number_input(
+                "Max workers",
+                key=max_workers_key,
+                min_value=0,
+                step=1,
+                help="Optional cap for in-worker pool width. Use 0 for the automatic CPU/chunk limit.",
+            )
+            max_workers_value = _optional_positive_int(max_workers)
+            if max_workers_value is None:
+                cluster_params.pop("pool_max_workers", None)
+            else:
+                cluster_params["pool_max_workers"] = max_workers_value
+
+            item_timeout_key = widget_keys["pool_item_timeout"]
+            if item_timeout_key not in st.session_state:
+                st.session_state[item_timeout_key] = _optional_positive_float(
+                    cluster_params.get("pool_item_timeout")
+                ) or 0.0
+            item_timeout = pool_cols[1].number_input(
+                "Item timeout seconds",
+                key=item_timeout_key,
+                min_value=0.0,
+                step=0.5,
+                help="Optional per-work-item timeout. Use 0 for no timeout.",
+            )
+            item_timeout_value = _optional_positive_float(item_timeout)
+            if item_timeout_value is None:
+                cluster_params.pop("pool_item_timeout", None)
+            else:
+                cluster_params["pool_item_timeout"] = item_timeout_value
+
+            executor_key = widget_keys["pool_executor"]
+            executor_value = _pool_executor_value(cluster_params.get("pool_executor"))
+            if executor_key not in st.session_state:
+                st.session_state[executor_key] = executor_value
+            selected_executor = pool_cols[2].selectbox(
+                "Pool executor",
+                POOL_EXECUTOR_OPTIONS,
+                key=executor_key,
+                help="Choose auto unless you need to force process or thread execution.",
+            )
+            executor_value = _pool_executor_value(selected_executor)
+            if executor_value == "auto":
+                cluster_params.pop("pool_executor", None)
+            else:
+                cluster_params["pool_executor"] = executor_value
+    else:
+        for key in ("pool_max_workers", "pool_item_timeout", "pool_executor"):
+            cluster_params.pop(key, None)
+
+    _persist_pool_runtime_env(
+        cluster_params=cluster_params,
+        pool_enabled=pool_enabled,
+        set_env_var=deps.set_env_var,
+        agi_env_envars=deps.agi_env_envars,
+    )
 
     cluster_enabled_key = widget_keys["cluster_enabled"]
     cluster_share_problem = _cluster_share_problem(env)

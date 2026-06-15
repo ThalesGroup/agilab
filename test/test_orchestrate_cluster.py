@@ -63,6 +63,12 @@ class _Context:
     def columns(self, spec, **kwargs):
         return self._st.columns(spec, **kwargs)
 
+    def number_input(self, *args, **kwargs):
+        return self._st.number_input(*args, **kwargs)
+
+    def selectbox(self, *args, **kwargs):
+        return self._st.selectbox(*args, **kwargs)
+
 
 class _FakeStreamlit:
     def __init__(self, *, widget_values=None, session_state=None, button_values=None):
@@ -73,6 +79,8 @@ class _FakeStreamlit:
         self.infos: list[str] = []
         self.errors: list[str] = []
         self.buttons: list[str] = []
+        self.number_inputs: list[str] = []
+        self.selectboxes: list[str] = []
 
     def _value(self, key, default=""):
         if key in self.widget_values:
@@ -106,6 +114,23 @@ class _FakeStreamlit:
 
     def text_area(self, _label, *, key=None, value="", **_kwargs):
         result = self._value(key, value)
+        if key is not None:
+            self.session_state[key] = result
+        return result
+
+    def number_input(self, label, *, key=None, value=0, **_kwargs):
+        self.number_inputs.append(label)
+        result = self._value(key, value)
+        if key is not None:
+            self.session_state[key] = result
+        return result
+
+    def selectbox(self, label, options, *, key=None, index=0, **_kwargs):
+        self.selectboxes.append(label)
+        default = options[index]
+        result = self._value(key, default)
+        if result not in options:
+            result = default
         if key is not None:
             self.session_state[key] = result
         return result
@@ -974,6 +999,9 @@ def test_render_cluster_settings_ui_initializes_state_and_persists_cluster_mode(
             "cluster_cython__demo_project": True,
             "cluster_pool__demo_project": True,
             "cluster_rapids__demo_project": True,
+            "cluster_pool_max_workers__demo_project": 3,
+            "cluster_pool_item_timeout__demo_project": 2.5,
+            "cluster_pool_executor__demo_project": "thread",
             "cluster_enabled__demo_project": False,
         },
         session_state={"benchmark": False},
@@ -1006,12 +1034,80 @@ def test_render_cluster_settings_ui_initializes_state_and_persists_cluster_mode(
     assert cluster["cython"] is True
     assert cluster["pool"] is True
     assert cluster["rapids"] is True
+    assert cluster["pool_max_workers"] == 3
+    assert cluster["pool_item_timeout"] == 2.5
+    assert cluster["pool_executor"] == "thread"
     assert cluster["cluster_enabled"] is False
+    assert "**Pool parameters**" in fake_st.markdowns
+    assert fake_st.number_inputs == ["Max workers", "Item timeout seconds"]
+    assert fake_st.selectboxes == ["Pool executor"]
     assert fake_st.session_state.dask is False
     assert fake_st.session_state["mode"] == 11
     assert fake_st.infos[-1] == "Run mode 11: rapids and pool and cython"
+    assert ("AGILAB_POOL_MAX_WORKERS", "3") in writes["env_calls"]
+    assert ("AGILAB_POOL_ITEM_TIMEOUT", "2.5") in writes["env_calls"]
+    assert ("AGILAB_POOL_EXECUTOR", "thread") in writes["env_calls"]
     assert writes["cleared"] is True
     assert writes["write"][0] == env.app_settings_file
+
+
+def test_render_cluster_settings_ui_clears_pool_parameters_when_pool_disabled(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        widget_values={
+            "cluster_cython__demo_project": False,
+            "cluster_pool__demo_project": False,
+            "cluster_rapids__demo_project": False,
+            "cluster_enabled__demo_project": False,
+        },
+        session_state={
+            "app_settings": {
+                "cluster": {
+                    "pool": True,
+                    "pool_max_workers": 4,
+                    "pool_item_timeout": 1.0,
+                    "pool_executor": "process",
+                }
+            },
+            "benchmark": False,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+
+    writes: dict[str, object] = {}
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: {"parsed": raw},
+        write_app_settings_toml=lambda path, settings: writes.setdefault("write", (path, settings)) and settings,
+        clear_load_toml_cache=lambda: writes.setdefault("cleared", True),
+        set_env_var=lambda key, value: writes.setdefault("env_calls", []).append((key, value)),
+        agi_env_envars={
+            "AGILAB_POOL_MAX_WORKERS": "4",
+            "AGILAB_POOL_ITEM_TIMEOUT": "1.0",
+            "AGILAB_POOL_EXECUTOR": "process",
+        },
+    )
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        agi_share_path=None,
+        share_root_path=lambda: tmp_path / "share",
+        user="",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["pool"] is False
+    assert "pool_max_workers" not in cluster
+    assert "pool_item_timeout" not in cluster
+    assert "pool_executor" not in cluster
+    assert "Pool parameters" not in fake_st.markdowns
+    assert ("AGILAB_POOL_MAX_WORKERS", "") in writes["env_calls"]
+    assert ("AGILAB_POOL_ITEM_TIMEOUT", "") in writes["env_calls"]
+    assert ("AGILAB_POOL_EXECUTOR", "") in writes["env_calls"]
 
 
 def test_render_cluster_settings_ui_can_hide_run_mode_info(monkeypatch, tmp_path):
