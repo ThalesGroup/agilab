@@ -59,6 +59,10 @@ discrete = "aircraft"
 lat = "lat"
 long = "long"
 coltype = "discrete"
+show_coordinate_overlay = true
+overlay_lat = "overlay_lat"
+overlay_long = "overlay_long"
+overlay_label = "overlay_label"
 
 [pages]
 default_view = "view_maps"

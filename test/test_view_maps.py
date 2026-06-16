@@ -516,6 +516,24 @@ def test_view_maps_safe_unique_count_handles_nested_payloads() -> None:
     assert module._safe_unique_count(series) == 2
 
 
+def test_view_maps_builds_generic_coordinate_overlay_points() -> None:
+    module = _load_view_maps_module()
+    df = pd.DataFrame(
+        {
+            "node_lat": ["48.0", "bad", "48.0", "49.0"],
+            "node_lon": ["2.0", "3.0", "2.0", "4.0"],
+            "node_name": ["A", "B", "A", "C"],
+        }
+    )
+
+    points = module._coordinate_overlay_points(df, "node_lat", "node_lon", "node_name")
+
+    assert points["node_lat"].tolist() == [48.0, 49.0]
+    assert points["node_lon"].tolist() == [2.0, 4.0]
+    assert points["node_name"].tolist() == ["A", "C"]
+    assert module._coordinate_overlay_points(df, "missing", "node_lon").empty
+
+
 @pytest.mark.parametrize(
     ("span", "expected"),
     [
@@ -833,7 +851,7 @@ def test_view_maps_page_single_file_mode_renders_overlay_and_caption(
             ("sidebar.selectbox", "DataFrame"): "export.csv",
             ("column.number_input", "Sampling ratio"): 1,
             ("sidebar.multiselect", "Filter beams"): [],
-            ("sidebar.checkbox", "Show satellite overlay"): True,
+            ("sidebar.checkbox", "Show coordinate overlay"): True,
             ("sidebar.number_input", "Discrete threshold (unique values <)"): 3,
             ("sidebar.number_input", "Integer discrete range (max-min <=)"): 100,
             ("selectbox", "discrete"): "int_small",
@@ -865,6 +883,11 @@ def test_view_maps_page_single_file_mode_renders_overlay_and_caption(
         for message in fake_st.calls["caption"]
     )
     assert fake_st.calls["plotly_chart"]
+    fig = fake_st.calls["plotly_chart"][0][0][0]
+    overlay_trace = next(trace for trace in fig.data if trace.name == "Coordinate overlay")
+    assert list(overlay_trace.lat) == [48.857]
+    assert list(overlay_trace.lon) == [2.36]
+    assert list(overlay_trace.text) == ["SAT1"]
     assert fake_st.calls["dataframe"]
     assert fake_st.session_state["df_select_mode"] == "Single file"
     assert fake_st.session_state["df_file"] == "export.csv"
@@ -904,7 +927,7 @@ def test_view_maps_page_handles_dict_valued_columns(
             ("sidebar.radio", "Dataset selection"): "Single file",
             ("sidebar.selectbox", "DataFrame"): "export.json",
             ("column.number_input", "Sampling ratio"): 1,
-            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.checkbox", "Show coordinate overlay"): False,
             ("sidebar.number_input", "Discrete threshold (unique values <)"): 3,
             ("sidebar.number_input", "Integer discrete range (max-min <=)"): 100,
             ("selectbox", "discrete"): "payload",
@@ -989,7 +1012,7 @@ def test_view_maps_page_regex_mode_reports_load_errors_and_uses_continuous_color
             ("sidebar.multiselect", "DataFrames"): ["export.csv", "other.csv"],
             ("column.number_input", "Sampling ratio"): 2,
             ("sidebar.multiselect", "Filter beams"): ["A"],
-            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.checkbox", "Show coordinate overlay"): False,
             ("sidebar.number_input", "Discrete threshold (unique values <)"): 3,
             ("sidebar.number_input", "Integer discrete range (max-min <=)"): 100,
             ("selectbox", "discrete"): "beam",
@@ -1073,7 +1096,7 @@ def test_view_maps_page_recovers_legacy_selection_and_reclassifies_integer_range
             ("sidebar.text_input", "DataFrame filename regex"): "",
             ("sidebar.multiselect", "DataFrames"): ["export.csv"],
             ("column.number_input", "Sampling ratio"): 1,
-            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.checkbox", "Show coordinate overlay"): False,
             ("sidebar.number_input", "Discrete threshold (unique values <)"): 2,
             ("sidebar.number_input", "Integer discrete range (max-min <=)"): 10,
             ("selectbox", "discrete"): "reclass_int",
@@ -1293,7 +1316,7 @@ def test_view_maps_page_persists_datadir_and_recovers_invalid_line_limits(
             ("sidebar.radio", "Dataset selection"): "Single file",
             ("sidebar.selectbox", "DataFrame"): "export.csv",
             ("column.number_input", "Sampling ratio"): 1,
-            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.checkbox", "Show coordinate overlay"): False,
             ("sidebar.number_input", "Discrete threshold (unique values <)"): 2,
             ("sidebar.number_input", "Integer discrete range (max-min <=)"): 200,
             ("selectbox", "discrete"): "metric",
@@ -1361,7 +1384,7 @@ def test_view_maps_page_warns_without_color_column_and_can_render_plain_map(
             ("sidebar.radio", "Dataset selection"): "Single file",
             ("sidebar.selectbox", "DataFrame"): "export.csv",
             ("column.number_input", "Sampling ratio"): 1,
-            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.checkbox", "Show coordinate overlay"): False,
             ("sidebar.number_input", "Discrete threshold (unique values <)"): 10,
             ("sidebar.number_input", "Integer discrete range (max-min <=)"): 200,
             ("selectbox", "lat"): "lat",
@@ -1395,7 +1418,7 @@ def test_view_maps_page_warns_without_color_column_and_can_render_plain_map(
             ("sidebar.radio", "Dataset selection"): "Single file",
             ("sidebar.selectbox", "DataFrame"): "export.csv",
             ("column.number_input", "Sampling ratio"): 1,
-            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.checkbox", "Show coordinate overlay"): False,
             ("sidebar.number_input", "Discrete threshold (unique values <)"): 2,
             ("sidebar.number_input", "Integer discrete range (max-min <=)"): 200,
             ("selectbox", "discrete"): "metric",
@@ -1457,7 +1480,7 @@ def test_view_maps_page_covers_continuous_and_plain_color_rendering(
             ("sidebar.radio", "Dataset selection"): "Single file",
             ("sidebar.selectbox", "DataFrame"): "export.csv",
             ("column.number_input", "Sampling ratio"): 1,
-            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.checkbox", "Show coordinate overlay"): False,
             ("sidebar.number_input", "Discrete threshold (unique values <)"): 2,
             ("sidebar.number_input", "Integer discrete range (max-min <=)"): 200,
             ("selectbox", "discrete"): "metric",
@@ -1489,7 +1512,7 @@ def test_view_maps_page_covers_continuous_and_plain_color_rendering(
             ("sidebar.radio", "Dataset selection"): "Single file",
             ("sidebar.selectbox", "DataFrame"): "export.csv",
             ("column.number_input", "Sampling ratio"): 1,
-            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.checkbox", "Show coordinate overlay"): False,
             ("sidebar.number_input", "Discrete threshold (unique values <)"): 2,
             ("sidebar.number_input", "Integer discrete range (max-min <=)"): 200,
             ("selectbox", "discrete"): "metric",
@@ -1568,7 +1591,7 @@ def test_view_maps_uses_loaded_session_dataframe_when_files_are_missing(
         {
             ("sidebar.selectbox", "File type"): "all",
             ("column.number_input", "Sampling ratio"): 1,
-            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.checkbox", "Show coordinate overlay"): False,
             ("sidebar.number_input", "Discrete threshold (unique values <)"): 2,
             ("sidebar.number_input", "Integer discrete range (max-min <=)"): 200,
             ("selectbox", "discrete"): "beam",
@@ -1633,7 +1656,7 @@ def test_view_maps_page_reports_invalid_regex_and_falls_back_to_default_selectio
             ("sidebar.multiselect", "DataFrames"): ["export.csv"],
             ("column.number_input", "Sampling ratio"): 1,
             ("sidebar.multiselect", "Filter beams"): [],
-            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.checkbox", "Show coordinate overlay"): False,
             ("sidebar.number_input", "Discrete threshold (unique values <)"): 3,
             ("sidebar.number_input", "Integer discrete range (max-min <=)"): 100,
             ("selectbox", "discrete"): "beam",
@@ -1828,7 +1851,7 @@ def test_view_maps_page_warns_without_lat_lon_columns(tmp_path, monkeypatch) -> 
             ("sidebar.radio", "Dataset selection"): "Single file",
             ("sidebar.selectbox", "DataFrame"): "export.csv",
             ("column.number_input", "Sampling ratio"): 1,
-            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.checkbox", "Show coordinate overlay"): False,
             ("sidebar.number_input", "Discrete threshold (unique values <)"): 3,
             ("sidebar.number_input", "Integer discrete range (max-min <=)"): 100,
         }

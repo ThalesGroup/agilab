@@ -30,6 +30,10 @@ SPEED_DTYPE_CONTRACT = "float64-contiguous"
 SPEED_KERNEL_COLUMN = "speed_kernel_runtime"
 SPEED_DTYPE_COLUMN = "speed_dtype_contract"
 SPEED_KERNEL_CHECKSUM_COLUMN = "speed_kernel_checksum_m"
+OVERLAY_LAT_COLUMN = "overlay_lat"
+OVERLAY_LONG_COLUMN = "overlay_long"
+OVERLAY_LABEL_COLUMN = "overlay_label"
+OVERLAY_KIND_COLUMN = "overlay_kind"
 
 
 def _kernel_runtime_label() -> str:
@@ -135,6 +139,31 @@ def _haversine_distance_series(df: pl.DataFrame) -> tuple[pl.Series, str, str, f
         _kernel_runtime_label(),
         SPEED_DTYPE_CONTRACT,
         float(checksum),
+    )
+
+
+def _add_coordinate_overlay_columns(df: pl.DataFrame) -> pl.DataFrame:
+    """Add generic map overlay coordinates for the View Maps coordinate layer."""
+    if not {"aircraft", "lat", "long"} <= set(df.columns):
+        return df
+
+    return df.with_columns(
+        [
+            pl.col("lat")
+            .cast(pl.Float64, strict=False)
+            .mean()
+            .over("aircraft")
+            .alias(OVERLAY_LAT_COLUMN),
+            pl.col("long")
+            .cast(pl.Float64, strict=False)
+            .mean()
+            .over("aircraft")
+            .alias(OVERLAY_LONG_COLUMN),
+            (pl.lit("route centroid: ") + pl.col("aircraft").cast(pl.String)).alias(
+                OVERLAY_LABEL_COLUMN
+            ),
+            pl.lit("route_centroid").alias(OVERLAY_KIND_COLUMN),
+        ]
     )
 
 
@@ -280,6 +309,7 @@ class FlightTelemetryWorker(PolarsWorker):
 
         # Preserve the historical output column name expected by downstream demos.
         df = self.calculate_speed("speed", df)
+        df = _add_coordinate_overlay_columns(df)
         return df.with_columns(pl.lit(Path(file).name).alias("source_file"))
 
     def work_done(self, worker_df):
