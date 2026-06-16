@@ -13,6 +13,7 @@
 
 import argparse
 import os
+import json
 from pathlib import Path
 import re
 import sys
@@ -214,6 +215,39 @@ def downsample_df_deterministic(df: pd.DataFrame, ratio: int) -> pd.DataFrame:
     sampled = df_reset.iloc[::ratio].copy()
     # Reset index for the result
     return sampled.reset_index(drop=True)
+
+
+def _stable_display_value(value):
+    """Return a scalar representation suitable for unique counts and labels."""
+
+    try:
+        hash(value)
+        return value
+    except TypeError:
+        pass
+
+    try:
+        return json.dumps(value, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        return repr(value)
+
+
+def _safe_unique_count(series: pd.Series) -> int:
+    """Count unique values even when a column contains dict/list payloads."""
+
+    try:
+        return int(series.nunique(dropna=False))
+    except TypeError:
+        return int(series.map(_stable_display_value).nunique(dropna=False))
+
+
+def _contains_unhashable_values(series: pd.Series) -> bool:
+    for value in series.dropna().head(100):
+        try:
+            hash(value)
+        except TypeError:
+            return True
+    return False
 
 
 def _compute_zoom_from_span(span_deg: float) -> float:
@@ -810,7 +844,7 @@ def page(env):
                     [
                         {
                             "Columns": col,
-                            "nbval": len(set(st.session_state.loaded_df[col])),
+                            "nbval": _safe_unique_count(st.session_state.loaded_df[col]),
                         }
                         for col in cols
                     ]
@@ -891,10 +925,13 @@ def page(env):
         st.session_state.get("coltype") == "discrete"
         and color_column
         and color_column in plot_df.columns
-        and is_numeric_dtype(plot_df[color_column])
     ):
-        plot_df = plot_df.copy()
-        plot_df[color_column] = plot_df[color_column].astype("Int64").astype(str)
+        if is_numeric_dtype(plot_df[color_column]):
+            plot_df = plot_df.copy()
+            plot_df[color_column] = plot_df[color_column].astype("Int64").astype(str)
+        elif _contains_unhashable_values(plot_df[color_column]):
+            plot_df = plot_df.copy()
+            plot_df[color_column] = plot_df[color_column].map(_stable_display_value)
 
     if st.session_state.get("lat") and st.session_state.get("long"):
         if st.session_state.get("coltype") and st.session_state.get(st.session_state["coltype"]):

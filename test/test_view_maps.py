@@ -502,6 +502,20 @@ def test_view_maps_downsample_deterministic_samples_every_nth_row() -> None:
     assert sampled.index.tolist() == [0, 1]
 
 
+def test_view_maps_safe_unique_count_handles_nested_payloads() -> None:
+    module = _load_view_maps_module()
+    series = pd.Series(
+        [
+            {"beam": "A", "metrics": {"snr": 12}},
+            {"metrics": {"snr": 12}, "beam": "A"},
+            {"beam": "B", "metrics": {"snr": 8}},
+        ]
+    )
+
+    assert module._contains_unhashable_values(series)
+    assert module._safe_unique_count(series) == 2
+
+
 @pytest.mark.parametrize(
     ("span", "expected"),
     [
@@ -858,6 +872,75 @@ def test_view_maps_page_single_file_mode_renders_overlay_and_caption(
     assert fake_st.session_state["long"] == "long"
     assert fake_st.session_state["coltype"] == "discrete"
     assert fake_st.session_state["view_maps:df_files_selected"] == ["export.csv"]
+
+
+def test_view_maps_page_handles_dict_valued_columns(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_view_maps_module()
+    datadir = tmp_path / "export" / "demo_map"
+    datadir.mkdir(parents=True)
+    export_json = datadir / "export.json"
+    export_json.write_text("[]", encoding="utf-8")
+    settings_path = tmp_path / "demo_map_project" / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        "[view_maps]\n"
+        f'datadir = "{datadir.as_posix()}"\n'
+        'file_ext_choice = "all"\n'
+        'df_select_mode = "Single file"\n'
+        'df_file = "export.json"\n'
+        'df_files_selected = ["export.json"]\n'
+        'coltype = "discrete"\n'
+        'lat = "lat"\n'
+        'long = "long"\n',
+        encoding="utf-8",
+    )
+    env = _make_env(tmp_path, datadir)
+    env.app_settings_file = settings_path
+    fake_st = _FakeStreamlit(
+        {
+            ("sidebar.selectbox", "File type"): "all",
+            ("sidebar.radio", "Dataset selection"): "Single file",
+            ("sidebar.selectbox", "DataFrame"): "export.json",
+            ("column.number_input", "Sampling ratio"): 1,
+            ("sidebar.checkbox", "Show satellite overlay"): False,
+            ("sidebar.number_input", "Discrete threshold (unique values <)"): 3,
+            ("sidebar.number_input", "Integer discrete range (max-min <=)"): 100,
+            ("selectbox", "discrete"): "payload",
+            ("selectbox", "lat"): "lat",
+            ("selectbox", "long"): "long",
+            ("selectbox", "Color Sequence"): "Plotly",
+            ("column.number_input", "Select the desired number of points:"): 2,
+        }
+    )
+
+    def fake_find_files(base, ext):
+        if ext == ".json":
+            return [export_json]
+        return []
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "find_files", fake_find_files)
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, with_index=True, cache_buster=None: pd.DataFrame(
+            {
+                "lat": [48.0, 48.1],
+                "long": [7.0, 7.1],
+                "payload": [
+                    {"beam": "A", "metrics": {"snr": 12}},
+                    {"beam": "B", "metrics": {"snr": 8}},
+                ],
+            }
+        ),
+    )
+
+    module.page(env)
+
+    assert fake_st.calls["plotly_chart"]
+    assert fake_st.session_state["discrete"] == "payload"
 
 
 def test_view_maps_page_regex_mode_reports_load_errors_and_uses_continuous_color_scale(
