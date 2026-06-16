@@ -1198,6 +1198,52 @@ def test_view_maps_3d_page_handles_regex_and_beam_seed_fallbacks(monkeypatch, tm
     assert fake_st.session_state["beam_files"] == ["beam.csv"]
 
 
+def test_view_maps_3d_uses_configured_root_beams_file(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    datadir = tmp_path / "sat_trajectory" / "pipeline"
+    datadir.mkdir(parents=True)
+    dataset_path = datadir / "Trajectory" / "SAT-Z.csv"
+    dataset_path.parent.mkdir()
+    dataset_path.write_text("metric,lat,long,alt\n1,43.0,1.0,1000\n", encoding="utf-8")
+    beams_path = datadir / "beams.csv"
+    beams_path.write_text("beam,long,lat\n1,1.0,43.0\n", encoding="utf-8")
+
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text(
+        "[view_maps_3d]\n"
+        f'datadir = "{datadir.as_posix()}"\n'
+        f'beamdir = "{datadir.as_posix()}"\n'
+        'file_ext_choice = "csv"\n'
+        'beam_files = ["beams.csv"]\n',
+        encoding="utf-8",
+    )
+    env = SimpleNamespace(
+        app_settings_file=settings_path,
+        target="sat_trajectory_project",
+        projects=["sat_trajectory_project"],
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+        share_root_path=lambda: tmp_path,
+    )
+    fake_st = _FakeStreamlit()
+    fake_st.session_state["env"] = env
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_list_dataset_files", lambda *_args, **_kwargs: [dataset_path])
+    monkeypatch.setattr(
+        module,
+        "load_df",
+        lambda path, *args, **kwargs: pd.DataFrame({"beam": [1], "long": [1.0], "lat": [43.0]})
+        if Path(path) == beams_path
+        else pd.DataFrame({"metric": [1], "lat": [43.0], "long": [1.0], "alt": [1000.0]}),
+    )
+
+    module.page()
+
+    assert fake_st.session_state[module._vm3d_key("beam_files")] == ["beams.csv"]
+    assert fake_st.session_state["beam_files"] == ["beams.csv"]
+    assert "beams.csv" in fake_st.session_state["dfs_beams"]
+
+
 def test_view_maps_3d_page_reclassifies_continuous_and_date_like_columns(monkeypatch, tmp_path) -> None:
     module = _load_view_maps_3d_module()
     export_root = tmp_path / "export"

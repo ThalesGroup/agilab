@@ -847,15 +847,32 @@ def page():
         args=("beamdir", beamdir_widget_key),
     )
 
-    # Initialize session state for beam_files if it doesn't exist
-    default_beam_files = ["dataset/beams.csv"]  # Define your default file here
+    configured_beam_files = view_settings.get("beam_files")
+    if isinstance(configured_beam_files, list):
+        default_beam_files = [str(item) for item in configured_beam_files]
+    elif isinstance(configured_beam_files, str) and configured_beam_files.strip():
+        default_beam_files = [configured_beam_files.strip()]
+    else:
+        default_beam_files = ["beams.csv", "dataset/beams.csv"]
     if "beam_files" not in st.session_state:
         st.session_state["beam_files"] = default_beam_files
 
     if st.session_state.beamdir:
         beamdir = Path(st.session_state.beamdir)
         if beamdir.exists() and beamdir.is_dir():
-            files = find_files(st.session_state["beamdir"], recursive=False)
+            direct_files = sorted(beamdir.glob("*.csv"))
+            nested_files = find_files(st.session_state["beamdir"], recursive=False)
+            def _beam_path_sort_key(path):
+                path = Path(path)
+                try:
+                    return path.relative_to(beamdir).as_posix()
+                except ValueError:
+                    return path.as_posix()
+
+            files = sorted(
+                {*direct_files, *nested_files},
+                key=_beam_path_sort_key,
+            )
             visible = []
             for f in files:
                 try:
