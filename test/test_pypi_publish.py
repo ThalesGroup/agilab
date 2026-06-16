@@ -435,6 +435,7 @@ def test_public_post_release_policy_rejects_post_release_even_with_legacy_env(mo
     message = str(excinfo.value)
     assert ".postN releases are forbidden" in message
     assert "YYYY.MM.DD.N" in message
+    assert "vYYYY.MM.DD_N" in message
 
 
 def test_public_post_release_policy_accepts_hotfix_and_rejects_dry_run_post_release() -> None:
@@ -757,6 +758,21 @@ def test_compute_date_tag_with_collisions(monkeypatch) -> None:
     monkeypatch.setattr(module, "_tag_exists", lambda tag, repo=None: tag in existing)
 
     assert module.compute_date_tag() == "2026.03.20-3"
+
+
+def test_compute_release_tag_for_hotfix_uses_underscore_suffix(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "_tag_exists", lambda _tag, repo=None: False)
+
+    assert module.compute_release_tag_for_version("2026.03.20.1") == "2026.03.20_1"
+
+
+def test_compute_release_tag_for_hotfix_keeps_retry_collision_suffix(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    existing = {"v2026.03.20_1", "v2026.03.20_1-2"}
+    monkeypatch.setattr(module, "_tag_exists", lambda tag, repo=None: tag in existing)
+
+    assert module.compute_release_tag_for_version("2026.03.20.1") == "2026.03.20_1-3"
 
 
 def test_github_release_notes_lists_published_packages() -> None:

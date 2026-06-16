@@ -137,6 +137,7 @@ def test_pypi_project_preflight_caches_project_version_until_manifest_changes(
 
 def test_release_status_derives_package_version_from_release_tag() -> None:
     assert release_status.package_version_from_tag("v2026.05.23-2") == "2026.05.23"
+    assert release_status.package_version_from_tag("v2026.05.23_1") == "2026.05.23.1"
     assert (
         release_status.package_version_from_tag("refs/tags/v2026.05.26") == "2026.05.26"
     )
@@ -216,19 +217,19 @@ def test_release_handoff_guard_requires_archiving_old_handoffs(tmp_path: Path) -
     )
 
 
-def test_release_handoff_guard_accepts_dot_hotfix_release_tags(tmp_path: Path) -> None:
+def test_release_handoff_guard_accepts_underscore_hotfix_release_tags(tmp_path: Path) -> None:
     manifest = tmp_path / "release_proof.toml"
     manifest.write_text(
-        '[release]\ngithub_release_tag = "v2026.06.04.1"\n',
+        '[release]\ngithub_release_tag = "v2026.06.04_1"\n',
         encoding="utf-8",
     )
     handoff = tmp_path / "v2026.06.04-handoff.md"
     handoff.write_text("# AGILAB release handoff for v2026.06.04\n", encoding="utf-8")
 
-    assert release_handoff_guard.latest_release_tag(manifest) == "v2026.06.04.1"
+    assert release_handoff_guard.latest_release_tag(manifest) == "v2026.06.04_1"
     assert release_handoff_guard.stale_handoffs(
         handoff_dir=tmp_path,
-        latest_tag="v2026.06.04.1",
+        latest_tag="v2026.06.04_1",
     ) == [handoff]
 
 

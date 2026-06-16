@@ -494,6 +494,9 @@ def _release_tag_matches_version(manifest_tag: str, project_version: str) -> boo
     if not manifest_tag or not project_version:
         return False
     accepted_bases = [project_version]
+    hotfix_tag = re.sub(r"^(\d{4}\.\d{1,2}\.\d{1,2})\.(\d+)$", r"\1_\2", project_version)
+    if hotfix_tag != project_version:
+        accepted_bases.append(hotfix_tag)
     post_base = re.sub(r"\.post\d+\Z", "", project_version)
     if post_base != project_version:
         accepted_bases.append(post_base)
@@ -507,6 +510,9 @@ def _accepted_release_tag_pattern(project_version: str) -> str:
     if not project_version:
         return ""
     patterns = [f"v{project_version}[-N]"]
+    hotfix_tag = re.sub(r"^(\d{4}\.\d{1,2}\.\d{1,2})\.(\d+)$", r"\1_\2", project_version)
+    if hotfix_tag != project_version:
+        patterns.insert(0, f"v{hotfix_tag}[-N]")
     post_base = re.sub(r"\.post\d+\Z", "", project_version)
     if post_base != project_version:
         patterns.append(f"v{post_base}[-N]")
