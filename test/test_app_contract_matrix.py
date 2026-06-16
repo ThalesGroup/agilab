@@ -132,6 +132,7 @@ def test_app_contract_matrix_passes_current_repo():
     assert "agi_pages_provider_matches_page_bundle_contract" in check_ids
     assert "promoted_pypi_app_catalog_matches_package_split" in check_ids
     assert "public_app_catalog_matches_package_contract" in check_ids
+    assert "reuse_catalog_covers_pages_and_projects" in check_ids
     assert "flight_telemetry_project:metadata" in check_ids
     assert "builtin_project_description_uniqueness" in check_ids
 

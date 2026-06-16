@@ -10,6 +10,40 @@ If you are new to AGILab, do not start here. Start with
 :doc:`newcomer-guide`, then use :doc:`explore-help` when you are ready to add
 custom or optional views.
 
+Before creating a new visualization from a notebook or from ANALYSIS, run a
+reuse check:
+
+.. code-block:: sh
+
+   agilab pages suggest "route map with UAV trajectories"
+   agilab reuse suggest --from-notebook path/to/notebook.ipynb
+
+The suggestions come from ``src/agilab/resources/reuse_catalog.toml`` and cover
+both reusable ``view_*`` page bundles and built-in app projects. New maintained
+views must be represented in that catalog so reviewers can see whether the new
+surface reuses, clones, or deliberately differs from an existing one.
+
+When a notebook is open from ANALYSIS, AGILab also refreshes the reuse check
+against the saved notebook file while the Jupyter sidecar is embedded. Save the
+notebook after editing cells to update the suggestions. Set
+``AGILAB_NOTEBOOK_REUSE_REFRESH_SECONDS=0`` to disable that live saved-file
+check.
+
+Before review or release preflight, enforce the same rule from the command line:
+
+.. code-block:: sh
+
+   agilab reuse validate
+   agilab reuse validate --changed
+
+``agilab reuse validate`` checks that every source-controlled page bundle and
+built-in app project is represented in the catalog. ``--changed`` narrows the
+gate to changed page/project paths and fails when a changed surface has a close
+catalog match that is not named in ``checked_against``. Catalog entries must
+declare ``reuse_decision`` (``reuse``, ``extend``, ``clone``, or ``new``) and a
+``reuse_rationale`` so reviewers can distinguish deliberate new work from an
+accidental duplicate.
+
 Page bundles are standalone dashboards that complement the built-in workflow
 pages. In the UI they appear alongside the main pages, but they run in their
 own sidecar web process.

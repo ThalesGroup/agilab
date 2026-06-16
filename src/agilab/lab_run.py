@@ -61,6 +61,12 @@ _APP_SURFACE_MODULE = import_agilab_module(
     fallback_path=_PACKAGE_DIR / "app_surface.py",
     fallback_name="agilab_app_surface_local",
 )
+_REUSE_CATALOG_MODULE = import_agilab_module(
+    "agilab.reuse_catalog",
+    current_file=__file__,
+    fallback_path=_PACKAGE_DIR / "reuse_catalog.py",
+    fallback_name="agilab_reuse_catalog_local",
+)
 
 
 def _streamlit_config_path() -> Path:
@@ -250,6 +256,123 @@ def _uv_python_tool_command(
         str(repo_root / "tools" / script_name),
         *argv,
     ]
+
+
+def _run_reuse_suggest(argv: list[str], *, default_kind: str = "all", prog: str = "agilab reuse suggest") -> int:
+    parser = argparse.ArgumentParser(
+        prog=prog,
+        description="Suggest existing AGILAB views or projects before creating a new one.",
+    )
+    parser.add_argument("query", nargs="*", help="Plain-language need to match.")
+    parser.add_argument(
+        "--kind",
+        choices=("all", "page", "project"),
+        default=default_kind,
+        help="Suggestion family.",
+    )
+    parser.add_argument("--from-path", type=Path, help="Read intent from a file or project directory.")
+    parser.add_argument("--from-notebook", type=Path, help="Read intent from a notebook without executing it.")
+    parser.add_argument("--limit", type=int, default=5, help="Maximum matches to print.")
+    parser.add_argument("--json", action="store_true", help="Emit JSON.")
+    args = parser.parse_args(argv)
+
+    source_path = args.from_notebook or args.from_path
+    report = _REUSE_CATALOG_MODULE.build_suggestion_report(
+        " ".join(args.query),
+        kind=args.kind,
+        from_path=source_path,
+        limit=args.limit,
+    )
+    if args.json:
+        import json
+
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+    if not report["matches"]:
+        print("No similar AGILAB view or project found.")
+        return 0
+    for match in report["matches"]:
+        package = f" [{match['package']}]" if match.get("package") else ""
+        print(f"{match['kind']} {match['id']}{package} score={match['score']}")
+        print(f"  {match['purpose']}")
+        print(f"  When to use: {match['when_to_use']}")
+        print(f"  Reuse policy: {match['reuse_policy']}")
+    return 0
+
+
+def _run_reuse_validate(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="agilab reuse validate",
+        description="Validate the reuse catalog and changed page/project reuse decisions.",
+    )
+    parser.add_argument("--catalog", type=Path, help="Reuse catalog TOML path.")
+    parser.add_argument("--repo-root", type=Path, help="AGILAB source checkout root.")
+    parser.add_argument(
+        "--changed",
+        action="store_true",
+        help="Validate changed page/project paths from git status and diffs.",
+    )
+    parser.add_argument(
+        "--base-ref",
+        default="HEAD",
+        help="Base ref used by --changed for git diff path discovery.",
+    )
+    parser.add_argument(
+        "--path",
+        dest="paths",
+        action="append",
+        default=[],
+        help="Changed path to validate; may be repeated.",
+    )
+    parser.add_argument(
+        "--similarity-threshold",
+        type=int,
+        default=_REUSE_CATALOG_MODULE.DEFAULT_CHANGED_SIMILARITY_THRESHOLD,
+        help="Minimum score that requires checked_against acknowledgement.",
+    )
+    parser.add_argument("--json", action="store_true", help="Emit JSON.")
+    args = parser.parse_args(argv)
+
+    repo_root = (
+        args.repo_root
+        or _detect_repo_root(Path.cwd())
+        or _detect_repo_root(_PACKAGE_DIR)
+        or Path.cwd()
+    )
+    if args.changed or args.paths:
+        if args.paths:
+            report = _REUSE_CATALOG_MODULE.validate_changed_surfaces(
+                repo_root=repo_root,
+                changed_paths=args.paths,
+                catalog_path=args.catalog,
+                similarity_threshold=args.similarity_threshold,
+            )
+        else:
+            report = _REUSE_CATALOG_MODULE.validate_changed(
+                repo_root=repo_root,
+                catalog_path=args.catalog,
+                base_ref=args.base_ref,
+                similarity_threshold=args.similarity_threshold,
+            )
+    else:
+        surfaces = _REUSE_CATALOG_MODULE.discover_repo_surfaces(repo_root)
+        report = _REUSE_CATALOG_MODULE.validate_catalog(
+            catalog_path=args.catalog,
+            expected_pages=surfaces["page"],
+            expected_projects=surfaces["project"],
+        )
+
+    if args.json:
+        import json
+
+        print(json.dumps(report, indent=2, sort_keys=True))
+    elif report["status"] == "pass":
+        print("Reuse catalog validation passed.")
+    else:
+        print("Reuse catalog validation failed.")
+        for category, detail in report.get("errors", {}).items():
+            print(f"  {category}: {detail}")
+    return 0 if report["status"] == "pass" else 1
 
 
 def _run_publish(argv: list[str], *, runner=subprocess.call) -> int:
@@ -993,6 +1116,18 @@ def main(argv: list[str] | None = None) -> int:
         return _run_env(raw_argv[1:])
     if raw_argv[:1] == ["app"]:
         return _run_app(raw_argv[1:])
+    if raw_argv[:2] == ["reuse", "suggest"]:
+        return _run_reuse_suggest(raw_argv[2:])
+    if raw_argv[:2] == ["reuse", "validate"]:
+        return _run_reuse_validate(raw_argv[2:])
+    if raw_argv[:2] == ["pages", "suggest"]:
+        return _run_reuse_suggest(
+            raw_argv[2:], default_kind="page", prog="agilab pages suggest"
+        )
+    if raw_argv[:2] in (["project", "suggest"], ["projects", "suggest"]):
+        return _run_reuse_suggest(
+            raw_argv[2:], default_kind="project", prog="agilab projects suggest"
+        )
     if raw_argv[:1] in (
         ["kubernetes-job"],
         ["kubernetes_job"],
