@@ -787,5 +787,5 @@ def main() -> None:
         st.dataframe(failures.head(int(limit_failures)), width="stretch")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
