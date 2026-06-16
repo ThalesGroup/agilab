@@ -735,6 +735,8 @@ def test_direct_pypi_delete_consumes_confirm_login_url_after_runner_login_redire
     assert confirm_url in session.get_urls
     assert cleanup_calls == ["cleanup"]
     assert session.delete_attempts == 2
+    login_posts = [url for url, _kwargs in session.posts if url == "https://pypi.org/account/login/"]
+    assert len(login_posts) == 2
     assert session.posts[-1][1]["data"] == {
         "csrf_token": "delete-csrf",
         "confirm_delete_version": "2026.5.17",

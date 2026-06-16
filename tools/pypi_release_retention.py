@@ -735,41 +735,66 @@ def delete_release_via_pypi_web(
             }
         )
 
-        login_path = "/account/login/"
-        login_url = f"{base_url}{login_path}"
-        response = session.get(login_url)
-        response.raise_for_status()
-        login_form = _find_form(response.text, target_path=login_path)
-        login_data = dict(login_form.inputs)
-        login_data.update({"username": username, "password": password})
-        response = session.post(
-            urljoin(base_url, login_form.action or login_path),
-            data=login_data,
-            headers={"referer": login_url},
-        )
-        response.raise_for_status()
-        if response.url.rstrip("/") == login_url.rstrip("/"):
-            raise RuntimeError(f"login failed for PyPI user {username!r}")
+        def login_to_pypi() -> Any:
+            login_path = "/account/login/"
+            login_url = f"{base_url}{login_path}"
+            login_response = session.get(login_url)
+            login_response.raise_for_status()
+            login_form = _find_form(login_response.text, target_path=login_path)
+            login_data = dict(login_form.inputs)
+            login_data.update({"username": username, "password": password})
+            login_response = session.post(
+                urljoin(base_url, login_form.action or login_path),
+                data=login_data,
+                headers={"referer": login_url},
+            )
+            login_response.raise_for_status()
+            if login_response.url.rstrip("/") == login_url.rstrip("/"):
+                raise RuntimeError(f"login failed for PyPI user {username!r}")
 
-        two_factor_prefix = f"{base_url}/account/two-factor/"
-        if response.url.startswith(two_factor_prefix):
-            auth_code = _fresh_totp_code(auth_code, secret=totp_secret)
-            if auth_code is None:
+            two_factor_prefix = f"{base_url}/account/two-factor/"
+            if not login_response.url.startswith(two_factor_prefix):
+                return login_response
+
+            fresh_auth_code = _fresh_totp_code(auth_code, secret=totp_secret)
+            if fresh_auth_code is None:
                 raise RuntimeError(
                     "PyPI requested 2FA but no non-interactive code was available"
                 )
-            two_factor_path = urlparse(response.url).path
-            two_factor_form = _find_form(response.text, target_path=two_factor_path)
+            two_factor_path = urlparse(login_response.url).path
+            two_factor_form = _find_form(login_response.text, target_path=two_factor_path)
             two_factor_data = dict(two_factor_form.inputs)
-            two_factor_data.update({"method": "totp", "totp_value": auth_code})
-            response = session.post(
+            two_factor_data.update({"method": "totp", "totp_value": fresh_auth_code})
+            login_response = session.post(
                 urljoin(base_url, two_factor_form.action or two_factor_path),
                 data=two_factor_data,
-                headers={"referer": response.url},
+                headers={"referer": login_response.url},
             )
-            response.raise_for_status()
-            if response.url.startswith(two_factor_prefix):
+            login_response.raise_for_status()
+            if login_response.url.startswith(two_factor_prefix):
                 raise RuntimeError("PyPI rejected the generated TOTP code")
+            return login_response
+
+        login_to_pypi()
+
+        def retry_login_after_confirmation() -> None:
+            print(
+                "[pypi-retention] PyPI login confirmation consumed; "
+                "logging in again before opening the delete page",
+                file=sys.stderr,
+            )
+            login_to_pypi()
+
+        def consume_confirm_login_url() -> bool:
+            if confirm_login_url_provider is None:
+                return False
+            confirm_url = confirm_login_url_provider()
+            if not confirm_url:
+                return False
+            _consume_confirm_login_url(session, confirm_url)
+            _cleanup_confirm_login_url_provider(confirm_login_url_provider)
+            retry_login_after_confirmation()
+            return True
 
         delete_path = f"/manage/project/{package}/release/{version}/"
         delete_url = f"{base_url}{delete_path}"
@@ -796,14 +821,10 @@ def delete_release_via_pypi_web(
         if response is None:
             return
         if urlparse(response.url).path.rstrip("/") == "/account/login":
-            if confirm_login_url_provider is not None:
-                confirm_url = confirm_login_url_provider()
-                if confirm_url:
-                    _consume_confirm_login_url(session, confirm_url)
-                    _cleanup_confirm_login_url_provider(confirm_login_url_provider)
-                    response = open_delete_page()
-                    if response is None:
-                        return
+            if consume_confirm_login_url():
+                response = open_delete_page()
+                if response is None:
+                    return
             if urlparse(response.url).path.rstrip("/") == "/account/login":
                 raise RuntimeError(
                     "PyPI redirected back to login while opening the release delete "
