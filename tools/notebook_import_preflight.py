@@ -44,6 +44,7 @@ from agilab.notebook_pipeline_import import (  # noqa: E402
     write_notebook_import_pipeline_view,
     write_notebook_import_view_plan,
 )
+from agilab.reuse_catalog import build_suggestion_report  # noqa: E402
 
 
 def _check_result(
@@ -143,6 +144,11 @@ def build_report(
             module_name=module_name,
             manifest=view_manifest,
             manifest_path=view_manifest_path,
+        )
+        reuse_report = build_suggestion_report(
+            kind="all",
+            from_path=resolved_notebook,
+            limit=5,
         )
         written_contract = (
             write_notebook_import_contract(
@@ -258,6 +264,20 @@ def build_report(
                 "declared_view_count": view_plan.get("summary", {}).get("declared_view_count"),
             },
         ),
+        _check_result(
+            "notebook_import_preflight_reuse_suggestions",
+            "Notebook reuse suggestions",
+            True,
+            "preflight records similar existing views and projects before notebook promotion",
+            evidence=[
+                str(resolved_notebook),
+                "src/agilab/resources/reuse_catalog.toml",
+            ],
+            details={
+                "match_count": reuse_report.get("match_count", 0),
+                "matches": reuse_report.get("matches", []),
+            },
+        ),
     ]
     if output_path:
         checks.append(
@@ -326,11 +346,13 @@ def build_report(
             "pipeline_view_edge_count": pipeline_view.get("summary", {}).get("edge_count"),
             "view_plan_status": view_plan.get("status"),
             "view_plan_ready_view_count": view_plan.get("summary", {}).get("ready_view_count"),
+            "reuse_match_count": reuse_report.get("match_count", 0),
         },
         "preflight": preflight,
         "contract": contract,
         "pipeline_view": pipeline_view,
         "view_plan": view_plan,
+        "reuse_suggestions": reuse_report,
         "checks": checks,
     }
 

@@ -29,6 +29,8 @@ APPS_PAGES_GALLERY_ASSETS_REL = Path("docs/source/_static/apps-pages-gallery")
 AGI_APPS_CATALOG_REL = Path("src/agilab/lib/agi-apps/src/agi_apps/catalog.json")
 AGI_PAGES_PROVIDER_REL = Path("src/agilab/lib/agi-pages/src/agi_pages/__init__.py")
 APP_PROJECT_BUILD_SUPPORT_REL = Path("src/agilab/lib/app_project_build_support.py")
+REUSE_CATALOG_REL = Path("src/agilab/resources/reuse_catalog.toml")
+REUSE_CATALOG_MODULE_REL = Path("src/agilab/reuse_catalog.py")
 REDUCER_EXEMPT_PROJECTS = frozenset({"minimal_app_project", "multi_app_dag_project"})
 OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS = frozenset(
     {
@@ -962,6 +964,38 @@ def _page_quality_contract_errors(repo_root: Path, page_modules: set[str]) -> di
     return errors
 
 
+def _reuse_catalog_check(
+    repo_root: Path,
+    *,
+    builtin_projects: set[str],
+    source_page_modules: set[str],
+) -> Check:
+    try:
+        reuse_catalog = _load_module(
+            repo_root,
+            REUSE_CATALOG_MODULE_REL,
+            "agilab_app_contract_reuse_catalog",
+        )
+        validation = reuse_catalog.validate_catalog(
+            catalog_path=repo_root / REUSE_CATALOG_REL,
+            expected_pages=source_page_modules,
+            expected_projects=builtin_projects,
+        )
+    except Exception as exc:
+        validation = {
+            "status": "fail",
+            "errors": {"load": str(exc)},
+        }
+    return _check(
+        "reuse_catalog_covers_pages_and_projects",
+        "Reuse catalog covers page and project reuse decisions",
+        validation.get("status") == "pass",
+        "every source-controlled page bundle and built-in app project is represented in the reuse-suggestion catalog with a reviewable reuse decision",
+        evidence=(str(REUSE_CATALOG_REL), str(REUSE_CATALOG_MODULE_REL)),
+        details=validation,
+    )
+
+
 def _global_checks(
     repo_root: Path,
     *,
@@ -994,6 +1028,13 @@ def _global_checks(
     }
     public_rows = _public_catalog_rows(repo_root)
     agi_apps_rows = _catalog_distribution_rows(repo_root)
+    checks = [
+        _reuse_catalog_check(
+            repo_root,
+            builtin_projects=builtin_projects,
+            source_page_modules=source_page_modules,
+        )
+    ]
 
     package_mapping_errors = {
         package: {
@@ -1004,7 +1045,7 @@ def _global_checks(
         for package, project in sorted(package_to_project.items())
         if not project or project not in builtin_projects
     }
-    checks = [
+    checks.append(
         _check(
             "app_package_specs_point_to_builtin_projects",
             "App package specs point to built-in projects",
@@ -1013,7 +1054,7 @@ def _global_checks(
             evidence=("tools/package_split_contract.py", str(BUILTIN_APPS_REL)),
             details={"errors": package_mapping_errors, "package_to_project": package_to_project},
         )
-    ]
+    )
     payload_contract_errors, payload_drift_errors = _app_payload_contract_errors(
         repo_root,
         package_specs,

@@ -6,6 +6,17 @@ package or source status behind them. It is intentionally more exhaustive than
 the README: the README stays focused on the shortest adoption path, while this
 page is the reference for choosing an app.
 
+Before creating a new project, run:
+
+.. code-block:: sh
+
+   agilab projects suggest "classic sklearn model with metrics"
+   agilab reuse suggest --from-notebook path/to/notebook.ipynb --kind project
+
+The same reuse catalog also covers analysis views, so notebook-first work can
+discover both an existing app project and an existing visualization before it
+turns into a new maintained surface.
+
 Status legend:
 
 - ``PyPI app package``: promoted by the current release plan and installable as

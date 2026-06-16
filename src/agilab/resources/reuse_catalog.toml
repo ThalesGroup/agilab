@@ -1,0 +1,417 @@
+schema = "agilab.reuse_catalog.v1"
+
+[[page]]
+id = "app_ui"
+title = "App-owned UI bridge"
+package = "agi-page-app-ui"
+purpose = "Launches app-owned interactive Streamlit surfaces from ANALYSIS."
+when_to_use = "Use when an app owns live controls, training loops, or a custom UI that should stay outside generic page bundles."
+inputs = ["app_surface entrypoint", "active app", "pages.app_ui settings"]
+tags = ["app", "ui", "streamlit", "surface", "interactive", "custom"]
+reuse_policy = "Prefer app_ui before creating a new page when the visualization belongs to one app rather than a generic artifact contract."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "autoencoder_latentspace"
+title = "Autoencoder latent space"
+package = "agi-page-latent-space"
+purpose = "Opt-in TensorFlow/Keras latent projection and reconstruction playground."
+when_to_use = "Use for teaching or exploration sessions where in-page autoencoder training is intentional."
+inputs = ["image samples", "latent projections", "reconstruction metrics"]
+tags = ["autoencoder", "latent", "keras", "tensorflow", "projection", "training"]
+reuse_policy = "Prefer this opt-in playground before creating another latent-space teaching dashboard."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_barycentric"
+title = "Barycentric simplex map"
+package = "agi-page-simplex-map"
+purpose = "Plots proportion-style KPI features on a barycentric/simplex surface."
+when_to_use = "Use when three or more normalized contributions need a visual balance map instead of a raw table."
+inputs = ["normalized KPI table", "proportion features", "CSV dataframe"]
+tags = ["barycentric", "simplex", "kpi", "proportion", "balance", "ternary"]
+reuse_policy = "Prefer this page before building a custom simplex, ternary, or contribution-balance visualization."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_data_io_decision"
+title = "Data IO decision evidence"
+package = "agi-page-decision-evidence"
+purpose = "Reviews data-ingestion and strategy-selection evidence."
+when_to_use = "Use after a decision producer exports strategy, route, latency, cost, and reliability artifacts."
+inputs = ["strategy JSON", "route metrics", "latency evidence", "cost evidence"]
+tags = ["data", "io", "ingestion", "decision", "strategy", "reliability"]
+reuse_policy = "Prefer this page before creating another ingestion or strategy-selection review screen."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_forecast_analysis"
+title = "Forecast analysis"
+package = "agi-page-timeseries-forecast"
+purpose = "Reviews forecast metrics and prediction tables for time-series workflows."
+when_to_use = "Use for notebook-to-AGILAB migrations or apps exporting forecast_metrics.json and forecast_predictions.csv."
+inputs = ["forecast_metrics.json", "forecast_predictions.csv", "time series data"]
+tags = ["forecast", "timeseries", "prediction", "metrics", "skforecast", "weather"]
+reuse_policy = "Prefer this page before creating another forecast metric or prediction-table dashboard."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_inference_analysis"
+title = "Inference analysis"
+package = "agi-page-inference-report"
+purpose = "Compares allocation and inference-result metrics across exported runs."
+when_to_use = "Use when several allocation exports need side-by-side diagnostics for load, routing, latency, bearer mix, and flows."
+inputs = ["allocations_steps.json", "allocations_steps.csv", "allocations_steps.parquet", "inference metrics"]
+tags = ["inference", "allocation", "latency", "routing", "comparison", "diagnostics"]
+reuse_policy = "Prefer this page before creating another side-by-side allocation or inference-result comparison."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_live_artifacts"
+title = "Live artifacts"
+package = "agi-page-live-artifacts"
+purpose = "Watches exported evidence, manifests, logs, text, CSVs, and images while a run is active."
+when_to_use = "Use when a producer is still writing files and the reviewer needs a safe live artifact monitor."
+inputs = ["run_manifest.json", "logs", "JSON files", "CSV files", "images", "text artifacts"]
+tags = ["live", "artifact", "manifest", "log", "monitor", "refresh"]
+reuse_policy = "Prefer this page before creating another generic file, manifest, or live-run monitor."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_maps"
+title = "2D geospatial map"
+package = "agi-page-geospatial-map"
+purpose = "Explores geolocated datasets with map, sampling, palette, and basemap controls."
+when_to_use = "Use first when latitude/longitude data needs a quick spatial sanity check."
+inputs = ["latitude column", "longitude column", "geolocated CSV", "geolocated parquet"]
+tags = ["map", "geospatial", "latitude", "longitude", "folium", "pydeck", "geo"]
+reuse_policy = "Prefer this page before creating a new 2D latitude/longitude map viewer."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_maps_3d"
+title = "3D geospatial map"
+package = "agi-page-geospatial-3d"
+purpose = "Shows geospatial data in Deck.gl with extrusion, color, and overlay controls."
+when_to_use = "Use when altitude, density, or height-encoded metrics need a spatial 3D view."
+inputs = ["latitude column", "longitude column", "altitude", "density", "height metric"]
+tags = ["map", "3d", "deckgl", "geospatial", "altitude", "extrusion", "density"]
+reuse_policy = "Prefer this page before creating a new 3D map, extrusion, or altitude visualization."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_maps_network"
+title = "Network geospatial map"
+package = "agi-page-network-map"
+purpose = "Synchronizes topology, routes, allocations, trajectories, and geographic views."
+when_to_use = "Use for relay or satellite queue-analysis runs where route choice and link availability need visual inspection."
+inputs = ["topology.gml", "allocations_steps.csv", "trajectory CSV", "node positions", "edge table"]
+tags = ["map", "network", "route", "routing", "trajectory", "topology", "uav", "satellite"]
+reuse_policy = "Prefer this page before creating another network, route, trajectory, or topology map."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_queue_resilience"
+title = "Queue resilience"
+package = "agi-page-queue-health"
+purpose = "Reviews queue occupancy, packet events, routing summaries, and run metadata."
+when_to_use = "Use for compact queue-analysis artifacts from any producer writing the AGILAB queue contract."
+inputs = ["summary_metrics.json", "queue_timeseries.csv", "packet_events.csv", "routing_summary.csv"]
+tags = ["queue", "resilience", "packet", "routing", "telemetry", "health"]
+reuse_policy = "Prefer this page before creating another queue occupancy, packet event, or route summary dashboard."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_relay_resilience"
+title = "Relay resilience"
+package = "agi-page-relay-health"
+purpose = "Compares relay queue health, route usage, and exported node motion traces."
+when_to_use = "Use after relay-focused queue runs when packet delivery and relay behavior need side-by-side review."
+inputs = ["relay queue metrics", "node positions", "routing_summary.csv", "trajectory summary"]
+tags = ["relay", "queue", "resilience", "route", "motion", "uav"]
+reuse_policy = "Prefer this page before creating another relay-health or packet-delivery comparison."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_release_decision"
+title = "Release decision cockpit"
+package = "agi-page-promotion-gate"
+purpose = "Builds an evidence cockpit for candidate/baseline review and promotion gates."
+when_to_use = "Use before handoff when a run needs explicit gates, indexed evidence, and a promotion_decision.json export."
+inputs = ["candidate run", "baseline run", "promotion_decision.json", "evidence index"]
+tags = ["release", "promotion", "decision", "gate", "baseline", "candidate", "evidence"]
+reuse_policy = "Prefer this page before creating another promotion gate, release decision, or baseline/candidate review cockpit."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_routing_model_comparison"
+title = "Routing model comparison"
+package = "agi-page-routing-model-comparison"
+purpose = "Compares baseline and candidate routing allocation decisions."
+when_to_use = "Use when routing models need allocation deltas, failure inspection, and side-by-side decision evidence."
+inputs = ["baseline allocations", "candidate allocations", "routing failures", "allocation deltas"]
+tags = ["routing", "model", "comparison", "allocation", "baseline", "candidate"]
+reuse_policy = "Prefer this page before creating another routing-model comparison dashboard."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_scenario_cockpit"
+title = "Scenario cockpit"
+package = "agi-page-scenario-cockpit"
+purpose = "Packages baseline/candidate scenario evidence and promotion-gate deltas."
+when_to_use = "Use before opening detailed queue or network maps when a compact scenario decision artifact is enough."
+inputs = ["scenario evidence JSON", "baseline run", "candidate run", "queue summary"]
+tags = ["scenario", "cockpit", "promotion", "baseline", "candidate", "uav", "queue"]
+reuse_policy = "Prefer this page before creating another scenario-level evidence cockpit."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_shap_explanation"
+title = "Feature attribution"
+package = "agi-page-feature-attribution"
+purpose = "Displays local feature-attribution evidence without depending on a specific explainer runtime."
+when_to_use = "Use when producer workflows export SHAPKit, shap, or compatible attribution tables."
+inputs = ["SHAP values", "feature attribution table", "feature names", "prediction rows"]
+tags = ["shap", "feature", "attribution", "explanation", "explainability", "xai"]
+reuse_policy = "Prefer this page before creating another SHAP or feature-attribution visualization."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[page]]
+id = "view_training_analysis"
+title = "Training analysis"
+package = "agi-page-training-report"
+purpose = "Browses scalar training runs from TensorBoard logs or AGILAB training-history CSVs."
+when_to_use = "Use to compare trainers, tags, steps, and training curves before deeper model review."
+inputs = ["tensorboard logs", "training_history.csv", "loss", "accuracy", "scalar metrics"]
+tags = ["training", "tensorboard", "loss", "accuracy", "curve", "metric", "trainer"]
+reuse_policy = "Prefer this page before creating another training-history or scalar-metric browser."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "data_quality_gate_project"
+title = "Data quality gate"
+package = "agi-app-data-quality-gate"
+purpose = "Production-adjacent data gate for contract, drift, leakage, and promotion-decision evidence before training."
+when_to_use = "Use before model training when the core question is whether data is fit for promotion."
+artifacts = ["contract report", "drift report", "leakage report", "promotion decision"]
+tags = ["data", "quality", "drift", "leakage", "contract", "promotion"]
+reuse_policy = "Prefer this project before creating another data validation, drift, or leakage gate."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "execution_pandas_project"
+title = "Pandas execution benchmark"
+package = "agi-app-pandas-execution"
+purpose = "Cython worker speedup demo for a Pandas typed numeric kernel."
+when_to_use = "Use when comparing Python versus Cython execution paths around a Pandas workload."
+artifacts = ["runtime evidence", "Cython report", "benchmark metrics", "reducer evidence"]
+tags = ["pandas", "cython", "benchmark", "execution", "kernel", "speed"]
+reuse_policy = "Prefer this project before creating another Pandas execution-mode or Cython speedup proof."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "execution_polars_project"
+title = "Polars execution benchmark"
+package = "agi-app-polars-execution"
+purpose = "Synthetic worker execution playground for the Polars path."
+when_to_use = "Use when comparing execution modes on a Polars-style data pipeline."
+artifacts = ["runtime evidence", "benchmark metrics", "mode matrix", "reducer evidence"]
+tags = ["polars", "benchmark", "execution", "kernel", "speed", "matrix"]
+reuse_policy = "Prefer this project before creating another Polars execution-mode benchmark."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "flight_telemetry_project"
+title = "Flight telemetry first proof"
+package = "agi-app-flight-telemetry"
+purpose = "First proof and compact end-to-end data ingestion with map/network analysis."
+when_to_use = "Use when the goal is to prove AGILAB install, execution, artifacts, evidence, and ANALYSIS quickly."
+artifacts = ["run_manifest.json", "telemetry exports", "map analysis", "haversine speed evidence"]
+tags = ["flight", "telemetry", "first", "proof", "map", "haversine", "cython"]
+reuse_policy = "Prefer this project before creating another first-proof, telemetry ingestion, or geospatial worker demo."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "minimal_app_project"
+title = "Minimal app template"
+package = "None"
+purpose = "Minimal app structure reference for adapting manager, worker, settings, and app argument form code."
+when_to_use = "Use when learning or cloning the smallest AGILAB app shape."
+artifacts = ["run_manifest.json", "minimal reducer output", "app settings"]
+tags = ["minimal", "template", "starter", "manager", "worker", "app"]
+reuse_policy = "Prefer cloning this project before creating a new app skeleton from scratch."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "mission_decision_project"
+title = "Mission decision"
+package = "agi-app-mission-decision"
+purpose = "Deterministic mission-decision evidence with scenario scoring, re-planning, and decision artifacts."
+when_to_use = "Use when the workflow is about scenario scoring, replanning, or mission decision evidence."
+artifacts = ["scenario scores", "replanning evidence", "decision artifacts"]
+tags = ["mission", "decision", "scenario", "score", "replan", "fred"]
+reuse_policy = "Prefer this project before creating another mission scoring or decision-evidence app."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "multi_app_dag_project"
+title = "Multi-app DAG"
+package = "agi-app-multi-dag"
+purpose = "Cross-app DAG template preview and artifact-handoff contract review."
+when_to_use = "Use when the workflow spans multiple apps with explicit artifact handoffs."
+artifacts = ["DAG manifest", "handoff contract", "portfolio sample"]
+tags = ["dag", "multi", "app", "handoff", "pipeline", "orchestration"]
+reuse_policy = "Prefer this project before creating another inter-project DAG or artifact-handoff proof."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "pytorch_playground_project"
+title = "PyTorch playground"
+package = "agi-app-pytorch-playground"
+purpose = "Reproducible PyTorch classifier playground with live play/pause training, generated code, and evidence artifacts."
+when_to_use = "Use when the goal is visual ML teaching, live training controls, or generated PyTorch/Lightning code."
+artifacts = ["training history", "generated code", "control replay", "model evidence"]
+tags = ["pytorch", "training", "playground", "classifier", "lightning", "neural", "live"]
+reuse_policy = "Prefer this project before creating another live ML training playground or loss/decision-boundary app."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "r_runtime_bridge_project"
+title = "R runtime bridge"
+package = "None"
+purpose = "Narrow R stage runtime proof where AGILAB orchestrates and a worker executes Rscript through JSON input/output."
+when_to_use = "Use when the key question is integrating an R runtime into an AGILAB workflow."
+artifacts = ["Rscript logs", "JSON input", "JSON output", "manifest hashes"]
+tags = ["r", "rscript", "runtime", "bridge", "json", "worker"]
+reuse_policy = "Prefer this project before creating another R runtime or Rscript bridge proof."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "sklearn_pipeline_project"
+title = "Scikit-learn pipeline"
+package = "agi-app-sklearn-pipeline"
+purpose = "Minimal classic ML app proof using scikit-learn with deterministic data, fitted pipeline, predictions, and metrics."
+when_to_use = "Use when the workflow is a familiar scikit-learn training and inference pipeline."
+artifacts = ["fitted model", "predictions", "metrics", "artifact hashes"]
+tags = ["sklearn", "scikit", "pipeline", "classic", "ml", "model", "prediction"]
+reuse_policy = "Prefer this project before creating another classic ML or scikit-learn pipeline proof."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "tescia_diagnostic_project"
+title = "Tescia diagnostic"
+package = "agi-app-tescia-diagnostic"
+purpose = "Evidence-scored diagnostic and self-evaluation cases with classroom intake and teacher dashboard artifacts."
+when_to_use = "Use when building diagnostic evaluation, teacher review, or self-evaluation evidence workflows."
+artifacts = ["diagnostic cases", "teacher dashboard artifacts", "evaluation evidence", "regression plan"]
+tags = ["diagnostic", "evaluation", "teacher", "classroom", "assessment", "tescia"]
+reuse_policy = "Prefer this project before creating another diagnostic evaluation or classroom review app."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "uav_queue_project"
+title = "UAV queue proof"
+package = "agi-app-uav-queue"
+purpose = "Queue-policy proof generator and scenario-cockpit evidence source used by the advanced proof pack."
+when_to_use = "Use when testing compact UAV queue policies or producing queue-analysis evidence."
+artifacts = ["queue metrics", "packet events", "routing summary", "scenario evidence"]
+tags = ["uav", "queue", "routing", "packet", "scenario", "policy"]
+reuse_policy = "Prefer this project before creating another queue-policy simulator or queue-analysis evidence source."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "uav_relay_queue_project"
+title = "UAV relay queue"
+package = "agi-app-uav-relay-queue"
+purpose = "Compact UAV relay queue scenario with relay-health, scenario-cockpit, and network-map analysis."
+when_to_use = "Use when relay behavior, route choice, link availability, and trajectory/network analysis need to be reviewed together."
+artifacts = ["relay queue metrics", "topology.gml", "allocations_steps.csv", "trajectory CSVs"]
+tags = ["uav", "relay", "queue", "network", "route", "trajectory", "topology"]
+reuse_policy = "Prefer this project before creating another UAV relay, route, trajectory, or network queue simulation."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "weather_forecast_legacy_project"
+title = "Weather forecast legacy"
+package = "None"
+purpose = "Source-checkout weather migration reference kept beside the packaged weather forecast path."
+when_to_use = "Use only when comparing against the legacy source-checkout weather migration flow."
+artifacts = ["forecast metrics", "forecast predictions", "legacy migration evidence"]
+tags = ["weather", "forecast", "legacy", "migration", "timeseries"]
+reuse_policy = "Prefer weather_forecast_project for new work; use this legacy project only for compatibility comparison."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []
+
+[[project]]
+id = "weather_forecast_project"
+title = "Weather forecast"
+package = "agi-app-weather-forecast"
+purpose = "Notebook-to-app migration using a small weather forecast dataset, forecast metrics, and promotion evidence."
+when_to_use = "Use when migrating a forecasting notebook or producing reusable forecast artifacts."
+artifacts = ["forecast_metrics.json", "forecast_predictions.csv", "promotion_decision.json"]
+tags = ["weather", "forecast", "timeseries", "notebook", "migration", "prediction"]
+reuse_policy = "Prefer this project before creating another weather, forecast, or notebook-migration app."
+reuse_decision = "reuse"
+reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
+checked_against = []

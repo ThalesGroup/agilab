@@ -1094,6 +1094,37 @@ def test_notebook_import_metadata_prefills_create_defaults():
     assert session_state["project_create_name"] == "flight-telemetry-from-notebook-project"
 
 
+def test_notebook_import_preview_includes_reuse_suggestions() -> None:
+    module = _load_project_module()
+    notebook = {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "metadata": {},
+        "cells": [
+            {
+                "cell_type": "code",
+                "source": [
+                    "forecast_metrics = 'forecast_metrics.json'\n",
+                    "forecast_predictions = 'forecast_predictions.csv'\n",
+                ],
+            }
+        ],
+    }
+    uploaded = SimpleNamespace(
+        name="forecast.ipynb",
+        getvalue=lambda: json.dumps(notebook).encode("utf-8"),
+    )
+
+    preview, error = module._project_notebook_preview_from_upload(
+        uploaded, "forecast_import_project"
+    )
+
+    assert error == ""
+    assert preview is not None
+    ids = {match["id"] for match in preview["reuse_suggestions"]["matches"]}
+    assert "view_forecast_analysis" in ids
+
+
 def test_notebook_project_source_options_include_apps_before_templates(tmp_path: Path):
     module = _load_project_module()
     (tmp_path / "builtin" / "flight_telemetry_project").mkdir(parents=True)

@@ -170,6 +170,14 @@ _search_promoted_pypi_app_catalog = (
     _pypi_app_packages_module.search_promoted_pypi_app_catalog
 )
 
+_reuse_catalog_module = import_agilab_module(
+    "agilab.reuse_catalog",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "reuse_catalog.py",
+    fallback_name="agilab_reuse_catalog_project_fallback",
+)
+_build_reuse_suggestion_report = _reuse_catalog_module.build_suggestion_report
+
 _notebook_pipeline_import_module = import_agilab_module(
     "agilab.notebook_pipeline_import",
     current_file=__file__,
@@ -3562,6 +3570,11 @@ def _build_project_notebook_import_preview(uploaded_notebook, module_dir: Path) 
         source_notebook=source_name,
     )
     preflight = _build_notebook_import_preflight(notebook_import)
+    reuse_report = _build_reuse_suggestion_report(
+        json.dumps(notebook_content),
+        kind="all",
+        limit=5,
+    )
     return {
         "source_name": source_name,
         "module": module,
@@ -3571,6 +3584,7 @@ def _build_project_notebook_import_preview(uploaded_notebook, module_dir: Path) 
         "toml_content": _build_lab_stages_preview(notebook_import, module_name=module),
         "notebook_import": notebook_import,
         "preflight": preflight,
+        "reuse_suggestions": reuse_report,
         "contract": _build_notebook_import_contract(
             notebook_import,
             preflight=preflight,
@@ -3724,6 +3738,23 @@ def _render_project_notebook_runtime_role_review(
         if error:
             target.caption(f"Notebook runtime review unavailable: {error}")
         return {}, ""
+
+    reuse_report = preview.get("reuse_suggestions", {})
+    reuse_matches = (
+        list(reuse_report.get("matches", []))
+        if isinstance(reuse_report, dict)
+        else []
+    )
+    if reuse_matches:
+        emit_info = getattr(target, "info", target.caption)
+        emit_info(
+            "Notebook reuse check: uploaded notebook resembles existing AGILAB surfaces:\n\n"
+            + "\n".join(
+                f"- `{match.get('kind', 'item')}:{match.get('id', 'unknown')}` - "
+                f"{match.get('when_to_use', 'Review the existing AGILAB surface.')}"
+                for match in reuse_matches[:5]
+            )
+        )
 
     preflight = preview.get("preflight", {})
     if not isinstance(preflight, dict) or not preflight.get("safe_to_import"):
@@ -4403,6 +4434,26 @@ def handle_project_creation():
     elif notebook_source_missing:
         st.sidebar.info("Upload a notebook before creating the project.")
 
+    reuse_matches = []
+    if raw:
+        reuse_report = _build_reuse_suggestion_report(raw, kind="project", limit=3)
+        reuse_matches = list(reuse_report.get("matches", []))
+    enforce_reuse_rationale = bool(reuse_matches) and not guided_notebook_import
+    if reuse_matches:
+        st.sidebar.info(
+            "Similar AGILAB projects already exist:\n\n"
+            + "\n".join(
+                f"- `{match['id']}` - {match['when_to_use']}"
+                for match in reuse_matches
+            )
+        )
+    reuse_rationale = st.sidebar.text_input(
+        "Why create a new project?",
+        key="project_create_reuse_rationale",
+        placeholder="Required when an existing project looks similar.",
+        help="State why cloning or adapting the suggested project is not enough.",
+    )
+
     create_clicked = st.sidebar.button(
         "Create",
         key="project_create_sidebar_btn",
@@ -4412,6 +4463,9 @@ def handle_project_creation():
         and (notebook_source_missing or bool(notebook_role_detail)),
     )
     if create_clicked:
+        if enforce_reuse_rationale and not reuse_rationale.strip():
+            st.sidebar.error("Explain why a new project is needed before creating it.")
+            return
 
         def _activate_clone(result):
             new_name = str(result.data["new_name"])

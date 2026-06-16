@@ -158,6 +158,39 @@ def test_notebook_import_preflight_flags_generic_risks_and_contract(tmp_path: Pa
     assert "artifacts/orders.parquet" in view_plan["matched_views"][0]["matched_artifacts"]
 
 
+def test_notebook_import_preflight_reports_reuse_suggestions(tmp_path: Path) -> None:
+    report_module = _load_module(REPORT_PATH, "notebook_import_preflight_reuse_report_module")
+    notebook_path = tmp_path / "forecast.ipynb"
+    notebook_path.write_text(
+        json.dumps(
+            {
+                "cells": [
+                    {
+                        "cell_type": "code",
+                        "source": [
+                            "forecast_metrics = 'forecast_metrics.json'\n",
+                            "forecast_predictions = 'forecast_predictions.csv'\n",
+                        ],
+                    }
+                ],
+                "metadata": {},
+                "nbformat": 4,
+                "nbformat_minor": 5,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = report_module.build_report(notebook_path=notebook_path)
+    ids = {match["id"] for match in report["reuse_suggestions"]["matches"]}
+
+    assert report["summary"]["reuse_match_count"] > 0
+    assert "notebook_import_preflight_reuse_suggestions" in {
+        check["id"] for check in report["checks"]
+    }
+    assert "view_forecast_analysis" in ids
+
+
 def test_supervisor_notebook_import_preserves_artifact_role_inference() -> None:
     core_module = _load_module(CORE_PATH, "notebook_import_preflight_supervisor_roles_module")
     source = "\n".join(
@@ -603,6 +636,7 @@ optional_artifacts = ["data/*.csv"]
         "notebook_import_preflight_lab_stages_preview",
         "notebook_import_preflight_pipeline_view",
         "notebook_import_preflight_view_plan",
+        "notebook_import_preflight_reuse_suggestions",
         "notebook_import_preflight_contract_write",
         "notebook_import_preflight_pipeline_view_write",
         "notebook_import_preflight_view_plan_write",

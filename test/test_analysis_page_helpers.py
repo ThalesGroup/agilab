@@ -788,10 +788,16 @@ def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, mon
         caption=lambda value: status_events.append(("caption", str(value))),
         warning=lambda value: status_events.append(("warning", str(value))),
         error=lambda value: status_events.append(("error", str(value))),
+        info=lambda value: status_events.append(("info", str(value))),
         iframe=lambda src, **kwargs: calls.append((src, kwargs)),
     )
 
     monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(
+        module,
+        "_build_reuse_suggestion_report",
+        lambda **_kwargs: {"matches": []},
+    )
     monkeypatch.setattr(
         module,
         "_notebook_view_sync_status",
@@ -814,8 +820,50 @@ def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, mon
         )
     ]
     assert sync_status_paths == [notebook_path.resolve()]
-    assert status_events == [("warning", "Notebook sync: The notebook changed since export.")]
+    assert status_events == [
+        ("warning", "Notebook sync: The notebook changed since export."),
+        (
+            "caption",
+            "Notebook reuse check: no similar AGILAB view or project found for the saved notebook.",
+        ),
+    ]
     assert sidebar_hides == []
+
+
+def test_render_notebook_reuse_suggestions_reads_saved_file(
+    tmp_path: Path, monkeypatch
+):
+    module = _load_analysis_module()
+    notebook_path = tmp_path / "route.ipynb"
+    notebook_path.write_text("{}", encoding="utf-8")
+    info_messages: list[str] = []
+    captured_paths: list[Path] = []
+    fake_st = SimpleNamespace(
+        fragment=lambda **_kwargs: (lambda fn: fn),
+        info=lambda value: info_messages.append(str(value)),
+        caption=lambda value: info_messages.append(str(value)),
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(
+        module,
+        "_build_reuse_suggestion_report",
+        lambda **kwargs: captured_paths.append(Path(kwargs["from_path"]))
+        or {
+            "matches": [
+                {
+                    "kind": "page",
+                    "id": "view_maps_network",
+                    "when_to_use": "Use for route and trajectory review.",
+                }
+            ]
+        },
+    )
+
+    module._render_notebook_reuse_suggestions(notebook_path)
+
+    assert captured_paths == [notebook_path]
+    assert "view_maps_network" in info_messages[0]
 
 
 def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Path, monkeypatch):

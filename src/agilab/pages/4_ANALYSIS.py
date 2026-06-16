@@ -114,6 +114,13 @@ import_agilab_symbols(
     fallback_path=Path(__file__).resolve().parents[1] / "ui_performance.py",
     fallback_name="agilab_ui_performance_fallback",
 )
+_reuse_catalog_module = import_agilab_module(
+    "agilab.reuse_catalog",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "reuse_catalog.py",
+    fallback_name="agilab_reuse_catalog_analysis_fallback",
+)
+_build_reuse_suggestion_report = _reuse_catalog_module.build_suggestion_report
 import_agilab_symbols(
     globals(),
     "agilab.notebook_export_support",
@@ -235,6 +242,8 @@ _ANALYSIS_VIEW_PROFILES = {
 
 _APP_SURFACE_HIDE_QUERY_PARAM = "hide_app_surface"
 _TRUTHY_QUERY_VALUES = {"1", "true", "yes", "on"}
+_NOTEBOOK_REUSE_REFRESH_SECONDS_ENV = "AGILAB_NOTEBOOK_REUSE_REFRESH_SECONDS"
+_DEFAULT_NOTEBOOK_REUSE_REFRESH_SECONDS = 8
 
 _ANALYSIS_ARTIFACT_SUFFIXES = {
     ".csv",
@@ -2616,6 +2625,29 @@ def _render_custom_analysis_page_authoring(
             placeholder="my_analysis_view",
             key=f"analysis_template_view_name__{project or 'default'}",
         )
+        reuse_matches = []
+        if template_name.strip():
+            reuse_report = _build_reuse_suggestion_report(
+                template_name,
+                kind="page",
+                limit=3,
+            )
+            reuse_matches = list(reuse_report.get("matches", []))
+        if reuse_matches:
+            match_lines = [
+                f"`{match['id']}` - {match['when_to_use']}"
+                for match in reuse_matches
+            ]
+            st.info(
+                "Existing analysis views may already cover this need:\n\n"
+                + "\n".join(f"- {line}" for line in match_lines)
+            )
+        reuse_rationale = st.text_input(
+            "Why create a new view?",
+            placeholder="Required when an existing view looks similar.",
+            key=f"analysis_template_reuse_rationale__{project or 'default'}",
+            help="State why the existing view or cloning path is not enough.",
+        )
         clone_source = compact_choice(
             st,
             "Starting point",
@@ -2634,6 +2666,8 @@ def _render_custom_analysis_page_authoring(
         if create_template_view:
             if not template_name.strip():
                 st.error("Page name must not be empty.")
+            elif reuse_matches and not reuse_rationale.strip():
+                st.error("Explain why a new analysis view is needed before creating it.")
             elif not pages_root:
                 st.error("AGILAB pages root is not available.")
             else:
@@ -3301,6 +3335,66 @@ def _render_notebook_view_sync_status(notebook_path: Path) -> None:
         st.caption(f"Notebook sync: {summary}")
 
 
+def _notebook_reuse_refresh_run_every(environ: Any = os.environ) -> str | None:
+    raw_value = str(
+        environ.get(
+            _NOTEBOOK_REUSE_REFRESH_SECONDS_ENV,
+            str(_DEFAULT_NOTEBOOK_REUSE_REFRESH_SECONDS),
+        )
+        or ""
+    ).strip()
+    try:
+        seconds = int(float(raw_value))
+    except (TypeError, ValueError):
+        seconds = _DEFAULT_NOTEBOOK_REUSE_REFRESH_SECONDS
+    if seconds <= 0:
+        return None
+    return f"{max(2, seconds)}s"
+
+
+def _render_notebook_reuse_suggestion_panel(notebook_path: Path) -> None:
+    try:
+        report = _build_reuse_suggestion_report(
+            kind="all",
+            from_path=notebook_path,
+            limit=5,
+        )
+    except Exception as exc:
+        st.caption(f"Notebook reuse check: unavailable ({exc})")
+        return
+
+    matches = list(report.get("matches", []) or [])
+    if not matches:
+        st.caption(
+            "Notebook reuse check: no similar AGILAB view or project found for the saved notebook."
+        )
+        return
+
+    lines = [
+        f"- `{match.get('kind', 'item')}:{match.get('id', 'unknown')}` - "
+        f"{match.get('when_to_use', 'Review the existing AGILAB surface.')}"
+        for match in matches[:5]
+    ]
+    st.info(
+        "Notebook reuse check: saved notebook resembles existing AGILAB surfaces:\n\n"
+        + "\n".join(lines)
+    )
+
+
+def _render_notebook_reuse_suggestions(notebook_path: Path) -> None:
+    run_every = _notebook_reuse_refresh_run_every()
+    fragment = getattr(st, "fragment", None)
+    if run_every is None or not callable(fragment):
+        _render_notebook_reuse_suggestion_panel(notebook_path)
+        return
+
+    @fragment(run_every=run_every)
+    def _reuse_suggestion_fragment() -> None:
+        _render_notebook_reuse_suggestion_panel(notebook_path)
+
+    _reuse_suggestion_fragment()
+
+
 async def render_notebook_page(notebook_path: Path):
     """Render a project notebook by launching JupyterLab as a project-rooted sidecar."""
     env = st.session_state["env"]
@@ -3331,6 +3425,7 @@ async def render_notebook_page(notebook_path: Path):
         st.subheader(f"Notebook: `{notebook_label}`")
 
     _render_notebook_view_sync_status(resolved_notebook)
+    _render_notebook_reuse_suggestions(resolved_notebook)
 
     if _is_hosted_analysis_runtime(env):
         st.warning("Notebook sidecars are available in local AGILAB runtimes only.")
