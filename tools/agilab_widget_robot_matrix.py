@@ -624,6 +624,24 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         above_fold_check=True,
         browser_error_check=True,
     ),
+    "hf-first-proof-view-maps-visual-smoke": RobotScenario(
+        name="hf-first-proof-view-maps-visual-smoke",
+        description=(
+            "Capture a focused hosted Hugging Face screenshot for the first-proof "
+            "view_maps app-page with browser-error and above-fold evidence."
+        ),
+        pages="none",
+        apps_pages="view_maps",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=420.0,
+        target_seconds=600.0,
+        success_screenshot=True,
+        visual_mask_dynamic_regions=True,
+        above_fold_check=True,
+        browser_error_check=True,
+    ),
     "current-home-first-proof-golden-path": RobotScenario(
         name="current-home-first-proof-golden-path",
         description=(

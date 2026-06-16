@@ -51,11 +51,20 @@ REQUIRED_HF_ROBOT_SCENARIOS = {
         "apps_pages": REQUIRED_HF_FIRST_PROOF_PAGES,
         "flags": ("success_screenshot", "above_fold_check", "browser_error_check"),
     },
+    "hf-first-proof-view-maps-visual-smoke": {
+        "apps_pages": ("view_maps",),
+        "flags": ("success_screenshot", "above_fold_check", "browser_error_check"),
+    },
     "hf-first-proof-install": {
         "pages": ("ORCHESTRATE",),
         "actions": ("Deploy workers",),
     },
 }
+REQUIRED_HF_VISUAL_SMOKE_ROBOT_SCENARIOS = (
+    "hf-first-proof-visual-smoke",
+    "hf-first-proof-app-pages-visual-smoke",
+    "hf-first-proof-view-maps-visual-smoke",
+)
 REQUIRED_DEMO_DOC_SNIPPETS = (
     "Robot/proof coverage",
     "UI robot",
@@ -477,10 +486,7 @@ def evaluate_contract() -> dict[str, Any]:
     hf_install_profile_scenarios: list[str] = []
     ui_robot_matrix_profile_apps: list[str] = []
     ui_robot_matrix_profile_scenarios: list[str] = []
-    hf_visual_smoke_required_scenarios = {
-        "hf-first-proof-visual-smoke",
-        "hf-first-proof-app-pages-visual-smoke",
-    }
+    hf_visual_smoke_required_scenarios = set(REQUIRED_HF_VISUAL_SMOKE_ROBOT_SCENARIOS)
     hf_install_required_scenarios = {"hf-first-proof-install"}
     for command in parity_profiles.get("hf-visual-smoke-robot", []):
         scenarios = _argv_values(command.argv, "--scenario")
@@ -503,20 +509,14 @@ def evaluate_contract() -> dict[str, Any]:
     ui_robot_matrix_profile_scenarios = sorted(set(ui_robot_matrix_profile_scenarios))
     missing_profile_apps = sorted(set(hf_first_proof_apps) - set(hf_visual_smoke_profile_apps))
     missing_install_profile_apps = sorted(set(hf_first_proof_apps) - set(hf_install_profile_apps))
-    if "hf-first-proof-visual-smoke" not in hf_visual_smoke_profile_scenarios:
-        issues.append(
-            CoverageIssue(
-                "hf_robot_profile",
-                "hf-visual-smoke-robot does not run hf-first-proof-visual-smoke",
+    for scenario_name in REQUIRED_HF_VISUAL_SMOKE_ROBOT_SCENARIOS:
+        if scenario_name not in hf_visual_smoke_profile_scenarios:
+            issues.append(
+                CoverageIssue(
+                    "hf_robot_profile",
+                    f"hf-visual-smoke-robot does not run {scenario_name}",
+                )
             )
-        )
-    if "hf-first-proof-app-pages-visual-smoke" not in hf_visual_smoke_profile_scenarios:
-        issues.append(
-            CoverageIssue(
-                "hf_robot_profile",
-                "hf-visual-smoke-robot does not run hf-first-proof-app-pages-visual-smoke",
-            )
-        )
     if missing_profile_apps:
         issues.append(
             CoverageIssue(

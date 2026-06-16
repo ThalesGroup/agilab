@@ -101,6 +101,7 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     assert payload["coverage"]["hf_install_profile_scenarios"] == ["hf-first-proof-install"]
     assert payload["coverage"]["hf_visual_smoke_profile_scenarios"] == [
         "hf-first-proof-app-pages-visual-smoke",
+        "hf-first-proof-view-maps-visual-smoke",
         "hf-first-proof-visual-smoke",
     ]
     assert "isolated-project-editor-page" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
@@ -129,6 +130,12 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-app-pages-visual-smoke"] == {
         "actions": [],
         "apps_pages": ["view_forecast_analysis", "view_maps", "view_release_decision"],
+        "flags": ["above_fold_check", "browser_error_check", "success_screenshot"],
+        "pages": [],
+    }
+    assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-view-maps-visual-smoke"] == {
+        "actions": [],
+        "apps_pages": ["view_maps"],
         "flags": ["above_fold_check", "browser_error_check", "success_screenshot"],
         "pages": [],
     }
@@ -213,6 +220,13 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         above_fold_check=True,
         browser_error_check=True,
     )
+    hf_view_maps = scenario(
+        "hf-first-proof-view-maps-visual-smoke",
+        apps_pages="view_maps",
+        success_screenshot=True,
+        above_fold_check=True,
+        browser_error_check=True,
+    )
     hf_install = scenario(
         "hf-first-proof-install",
         pages="ORCHESTRATE",
@@ -241,6 +255,7 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
             editor,
             hf_visual,
             hf_app_pages,
+            hf_view_maps,
             hf_install,
             orchestrate_pool,
             pytorch,
@@ -280,6 +295,8 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
                         "hf-first-proof-visual-smoke",
                         "--scenario",
                         "hf-first-proof-app-pages-visual-smoke",
+                        "--scenario",
+                        "hf-first-proof-view-maps-visual-smoke",
                         "--apps",
                         ",".join(module.REQUIRED_HF_FIRST_PROOF_APPS),
                     ]
@@ -430,6 +447,7 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
     ) in details
     assert "hf-visual-smoke-robot does not run hf-first-proof-visual-smoke" in details
     assert "hf-visual-smoke-robot does not run hf-first-proof-app-pages-visual-smoke" in details
+    assert "hf-visual-smoke-robot does not run hf-first-proof-view-maps-visual-smoke" in details
     assert "hf-visual-smoke-robot is missing first-proof apps: flight_project" in details
     assert "hf-install-robot does not run hf-first-proof-install" in details
     assert "hf-install-robot is missing first-proof apps: flight_project" in details
@@ -566,6 +584,21 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
         above_fold_check=False,
         browser_error_check=False,
     )
+    broken_hf_view_maps = SimpleNamespace(
+        name="hf-first-proof-view-maps-visual-smoke",
+        pages="",
+        apps="",
+        apps_pages="none",
+        click_action_labels="",
+        required_text="",
+        forbidden_text="",
+        forbidden_sidebar_text="",
+        required_links="",
+        required_action_labels="",
+        success_screenshot=False,
+        above_fold_check=False,
+        browser_error_check=False,
+    )
     broken_hf_install = SimpleNamespace(
         name="hf-first-proof-install",
         pages="ORCHESTRATE",
@@ -609,7 +642,13 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
         DEFAULT_SCENARIOS={},
         ALL_SCENARIOS={
             scenario.name: scenario
-            for scenario in (broken_hf_visual, broken_hf_app_pages, broken_hf_install, broken_pytorch)
+            for scenario in (
+                broken_hf_visual,
+                broken_hf_app_pages,
+                broken_hf_view_maps,
+                broken_hf_install,
+                broken_pytorch,
+            )
         },
         OPT_IN_SCENARIOS={"isolated-pytorch-playground-analysis": broken_pytorch},
     )
@@ -665,6 +704,7 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
         "hf-first-proof-app-pages-visual-smoke is missing required apps-pages: "
         "view_forecast_analysis, view_release_decision"
     ) in details
+    assert "hf-first-proof-view-maps-visual-smoke is missing required apps-pages: view_maps" in details
     assert "isolated-pytorch-playground-analysis does not cover ANALYSIS" in details
     assert "isolated-pytorch-playground-analysis does not target pytorch_playground_project" in details
     assert (

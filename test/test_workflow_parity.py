@@ -810,7 +810,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     ]
     assert "hf-first-proof-visual-smoke" in hf_visual_smoke_robot.argv
     assert "hf-first-proof-app-pages-visual-smoke" in hf_visual_smoke_robot.argv
-    assert hf_visual_smoke_robot.argv.count("--scenario") == 2
+    assert "hf-first-proof-view-maps-visual-smoke" in hf_visual_smoke_robot.argv
+    assert hf_visual_smoke_robot.argv.count("--scenario") == 3
     assert (
         "flight_telemetry_project,pytorch_playground_project,weather_forecast_project"
         in hf_visual_smoke_robot.argv

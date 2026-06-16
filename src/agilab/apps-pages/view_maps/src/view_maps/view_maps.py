@@ -274,7 +274,7 @@ def _safe_unique_count(series: pd.Series) -> int:
 
 
 def _contains_unhashable_values(series: pd.Series) -> bool:
-    for value in series.dropna().head(100):
+    for value in series.dropna():
         try:
             hash(value)
         except TypeError:

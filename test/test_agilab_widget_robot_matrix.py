@@ -140,6 +140,7 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert "hf-first-proof-install" not in [scenario.name for scenario in scenarios]
     assert "hf-first-proof-visual-smoke" not in [scenario.name for scenario in scenarios]
     assert "hf-first-proof-app-pages-visual-smoke" not in [scenario.name for scenario in scenarios]
+    assert "hf-first-proof-view-maps-visual-smoke" not in [scenario.name for scenario in scenarios]
 
 
 def test_opt_in_browser_history_scenario_is_not_part_of_default_all() -> None:
@@ -195,6 +196,7 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     visual_baseline = module.resolve_scenarios(["isolated-visual-baseline-core-pages"])[0]
     hf_visual_smoke = module.resolve_scenarios(["hf-first-proof-visual-smoke"])[0]
     hf_apps_pages_smoke = module.resolve_scenarios(["hf-first-proof-app-pages-visual-smoke"])[0]
+    hf_view_maps_smoke = module.resolve_scenarios(["hf-first-proof-view-maps-visual-smoke"])[0]
     cross_browser = module.resolve_scenarios(["isolated-cross-browser-core-pages"])[0]
 
     assert mobile.name not in default_names
@@ -213,6 +215,7 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert visual_baseline.name not in default_names
     assert hf_visual_smoke.name not in default_names
     assert hf_apps_pages_smoke.name not in default_names
+    assert hf_view_maps_smoke.name not in default_names
     assert cross_browser.name not in default_names
     assert mobile.viewport_width == 390
     assert mobile.viewport_height == 844
@@ -261,6 +264,11 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert hf_visual_smoke.visual_mask_dynamic_regions is True
     assert hf_visual_smoke.above_fold_check is True
     assert hf_visual_smoke.browser_error_check is True
+    assert hf_view_maps_smoke.apps_pages == "view_maps"
+    assert hf_view_maps_smoke.success_screenshot is True
+    assert hf_view_maps_smoke.visual_mask_dynamic_regions is True
+    assert hf_view_maps_smoke.above_fold_check is True
+    assert hf_view_maps_smoke.browser_error_check is True
     assert cross_browser.browser_error_check is True
 
 
@@ -689,6 +697,35 @@ def test_build_robot_command_enables_hf_app_pages_visual_smoke_controls(tmp_path
     assert "--browser-error-check" in argv
     assert summary_path == tmp_path / "hf-first-proof-app-pages-visual-smoke.json"
     assert progress_path == tmp_path / "hf-first-proof-app-pages-visual-smoke.ndjson"
+
+
+def test_build_robot_command_enables_hf_view_maps_visual_smoke_controls(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["hf-first-proof-view-maps-visual-smoke"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project,weather_forecast_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        url="https://huggingface.co/spaces/jpmorard/agilab",
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--apps") + 1] == "flight_telemetry_project,weather_forecast_project"
+    assert argv[argv.index("--pages") + 1] == "none"
+    assert argv[argv.index("--apps-pages") + 1] == "view_maps"
+    assert argv[argv.index("--url") + 1] == "https://huggingface.co/spaces/jpmorard/agilab"
+    assert "--active-app" not in argv
+    assert "--success-screenshot" in argv
+    assert "--visual-mask-dynamic-regions" in argv
+    assert "--above-fold-check" in argv
+    assert "--browser-error-check" in argv
+    assert summary_path == tmp_path / "hf-first-proof-view-maps-visual-smoke.json"
+    assert progress_path == tmp_path / "hf-first-proof-view-maps-visual-smoke.ndjson"
 
 
 def test_build_robot_command_enables_artifact_assertions_for_stateful_journey(tmp_path) -> None:
