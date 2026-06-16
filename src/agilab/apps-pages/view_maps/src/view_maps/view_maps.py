@@ -109,6 +109,38 @@ DATASET_EXTENSIONS = (".csv", ".parquet", ".json")
 FILE_TYPE_OPTIONS = ("csv", "parquet", "json", "all")
 DF_SELECTION_MODES = ("Single file", "Multi-select", "Regex (multi)")
 PAGE_KEY_PREFIX = "view_maps"
+OVERLAY_NONE = "(none)"
+DEFAULT_OVERLAY_LAT_COLUMNS = (
+    "sat_track_lat",
+    "track_lat",
+    "overlay_lat",
+    "beam_lat",
+    "latitude",
+    "lat",
+)
+DEFAULT_OVERLAY_LON_COLUMNS = (
+    "sat_track_long",
+    "sat_track_lon",
+    "track_long",
+    "track_lon",
+    "overlay_long",
+    "overlay_lon",
+    "beam_long",
+    "beam_lon",
+    "longitude",
+    "long",
+    "lon",
+    "lng",
+)
+DEFAULT_OVERLAY_LABEL_COLUMNS = (
+    "sat",
+    "sat_name",
+    "label",
+    "name",
+    "beam",
+    "category",
+    "__dataset__",
+)
 
 
 def _vm_key(name: str) -> str:
@@ -292,6 +324,38 @@ def _compute_viewport(df: pd.DataFrame, lat_col: str, lon_col: str) -> dict[str,
     span = max(span_lat, span_lon)
     zoom = _compute_zoom_from_span(span if span > 0 else 0.01)
     return {"center_lat": center_lat, "center_lon": center_lon, "default_zoom": zoom}
+
+
+def _ordered_existing_columns(df: pd.DataFrame, preferred: tuple[str, ...]) -> list[str]:
+    columns = [str(column) for column in df.columns]
+    preferred_existing = [column for column in preferred if column in columns]
+    return preferred_existing + [column for column in columns if column not in preferred_existing]
+
+
+def _select_column_index(options: list[str], saved: object, fallback: object = None) -> int:
+    for candidate in (saved, fallback):
+        if candidate in options:
+            return options.index(candidate)
+    return 0
+
+
+def _coordinate_overlay_points(
+    df: pd.DataFrame,
+    lat_col: str | None,
+    lon_col: str | None,
+    label_col: str | None = None,
+) -> pd.DataFrame:
+    if not lat_col or not lon_col or lat_col not in df.columns or lon_col not in df.columns:
+        return pd.DataFrame()
+
+    columns = [lat_col, lon_col]
+    if label_col and label_col != OVERLAY_NONE and label_col in df.columns:
+        columns.append(label_col)
+
+    points = df[columns].copy()
+    points[lat_col] = pd.to_numeric(points[lat_col], errors="coerce")
+    points[lon_col] = pd.to_numeric(points[lon_col], errors="coerce")
+    return points.dropna(subset=[lat_col, lon_col]).drop_duplicates()
 
 
 def _load_map_defaults(env: AgiEnv) -> dict[str, float]:
@@ -741,15 +805,74 @@ def page(env):
     else:
         st.sidebar.write("")
 
-    sat_default = bool(view_settings.get("show_sat_overlay", True))
-    show_sat_overlay = st.sidebar.checkbox(
-        "Show satellite overlay",
-        value=sat_default,
-        key=f"view_maps_sat_overlay_{env.app}",
+    legacy_overlay_available = {"sat_track_lat", "sat_track_long"} <= set(df.columns)
+    overlay_default = bool(
+        view_settings.get(
+            "show_coordinate_overlay",
+            view_settings.get("show_sat_overlay", legacy_overlay_available),
+        )
     )
-    if view_settings.get("show_sat_overlay", True) != show_sat_overlay:
-        view_settings["show_sat_overlay"] = show_sat_overlay
+    show_coordinate_overlay = st.sidebar.checkbox(
+        "Show coordinate overlay",
+        value=overlay_default,
+        key=f"view_maps_coordinate_overlay_{env.app}",
+        help="Overlay a second set of points from latitude/longitude columns in the loaded dataframe.",
+    )
+    if overlay_default != show_coordinate_overlay:
+        view_settings["show_coordinate_overlay"] = show_coordinate_overlay
         full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
+
+    overlay_lat_col = None
+    overlay_lon_col = None
+    overlay_label_col = None
+    if show_coordinate_overlay:
+        overlay_lat_options = _ordered_existing_columns(df, DEFAULT_OVERLAY_LAT_COLUMNS)
+        overlay_lon_options = _ordered_existing_columns(df, DEFAULT_OVERLAY_LON_COLUMNS)
+        overlay_label_options = [OVERLAY_NONE] + _ordered_existing_columns(df, DEFAULT_OVERLAY_LABEL_COLUMNS)
+        if overlay_lat_options and overlay_lon_options:
+            overlay_lat_key = _vm_key("overlay_lat")
+            overlay_lon_key = _vm_key("overlay_long")
+            overlay_label_key = _vm_key("overlay_label")
+            overlay_lat_col = st.sidebar.selectbox(
+                "Overlay latitude",
+                overlay_lat_options,
+                index=_select_column_index(
+                    overlay_lat_options,
+                    view_settings.get("overlay_lat"),
+                    "sat_track_lat",
+                ),
+                key=overlay_lat_key,
+            )
+            overlay_lon_col = st.sidebar.selectbox(
+                "Overlay longitude",
+                overlay_lon_options,
+                index=_select_column_index(
+                    overlay_lon_options,
+                    view_settings.get("overlay_long"),
+                    "sat_track_long",
+                ),
+                key=overlay_lon_key,
+            )
+            overlay_label_col = st.sidebar.selectbox(
+                "Overlay label",
+                overlay_label_options,
+                index=_select_column_index(
+                    overlay_label_options,
+                    view_settings.get("overlay_label"),
+                    "sat",
+                ),
+                key=overlay_label_key,
+            )
+            for setting_name, setting_value in {
+                "overlay_lat": overlay_lat_col,
+                "overlay_long": overlay_lon_col,
+                "overlay_label": overlay_label_col,
+            }.items():
+                if view_settings.get(setting_name) != setting_value:
+                    view_settings[setting_name] = setting_value
+                    full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
+        else:
+            st.sidebar.caption("No coordinate columns available for overlay.")
 
     # Select numeric columns
     numeric_cols = st.session_state.loaded_df.select_dtypes(include=["number"]).columns.tolist()
@@ -957,24 +1080,27 @@ def page(env):
                 **color_kwargs,
             )
 
-            if (
-                show_sat_overlay
-                and {"sat_track_lat", "sat_track_long"} <= set(st.session_state.loaded_df.columns)
-            ):
-                sat_points = (
-                    st.session_state.loaded_df[["sat_track_lat", "sat_track_long", "sat"]]
-                    .dropna(subset=["sat_track_lat", "sat_track_long"])
-                    .drop_duplicates()
+            if show_coordinate_overlay and overlay_lat_col and overlay_lon_col:
+                overlay_points = _coordinate_overlay_points(
+                    st.session_state.loaded_df,
+                    overlay_lat_col,
+                    overlay_lon_col,
+                    overlay_label_col,
                 )
-                if not sat_points.empty:
+                if not overlay_points.empty:
+                    text = (
+                        overlay_points[overlay_label_col]
+                        if overlay_label_col and overlay_label_col != OVERLAY_NONE and overlay_label_col in overlay_points.columns
+                        else None
+                    )
                     fig.add_trace(
                         go.Scattermap(
-                            lat=sat_points["sat_track_lat"],
-                            lon=sat_points["sat_track_long"],
+                            lat=overlay_points[overlay_lat_col],
+                            lon=overlay_points[overlay_lon_col],
                             mode="markers",
-                            marker=dict(size=10, color="#ffa600", symbol="triangle"),
-                            name="Satellite track",
-                            text=sat_points.get("sat"),
+                            marker=dict(size=10, color="#ffa600", symbol="circle"),
+                            name="Coordinate overlay",
+                            text=text,
                         )
                     )
 

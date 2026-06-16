@@ -15,6 +15,7 @@ analysis views over the produced flight dataframe.
 - How worker-only Cython acceleration can cover a real hot loop while the app
   remains readable Python.
 - How `view_maps` and `view_maps_network` reuse the same run artifacts.
+- How `view_maps` can draw a generic coordinate overlay from dataframe columns.
 - How reducer summaries record row counts, source files, distance metrics,
   kernel runtime, dtype contracts, and checksums.
 - How notebook-import view declarations point the generic importer at
@@ -38,6 +39,10 @@ can point the input glob at local flight CSV files under shared storage.
 The run writes a flight dataframe dataset and a `ReduceArtifact` summary with
 aircraft counts, source-file counts, trajectory distance/time-span fields,
 written output files, speed-kernel metadata, and checksum evidence.
+
+The dataframe also includes `overlay_lat`, `overlay_long`, and `overlay_label`
+columns. In `ANALYSIS` > `view_maps`, enable `Show coordinate overlay` to draw
+one route-centroid marker per aircraft on top of the trajectory points.
 
 ## Change One Thing
 
