@@ -76,10 +76,10 @@ and compact capability overview. The same entry point is advertised by the MCP
 
 <p>
   <a href="https://pypi.org/project/github-ai-scraper/"><img src="https://img.shields.io/badge/github--ai--scraper-discoverable-0F766E" alt="GitHub AI scraper discoverable" /></a>
-  <a href="https://github.com/ThalesGroup/agilab"><img src="https://img.shields.io/github/stars/ThalesGroup/agilab?style=flat&label=stars" alt="GitHub stars" /></a>
+  <a href="https://github.com/ThalesGroup/agilab"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/github-stars.svg" alt="GitHub stars" /></a>
   <a href="https://pypi.org/project/agilab/"><img src="https://img.shields.io/pypi/dm/agilab" alt="PyPI downloads" /></a>
   <a href="https://github.com/ThalesGroup/agilab/issues"><img src="https://img.shields.io/github/issues/ThalesGroup/agilab" alt="Open issues" /></a>
-  <a href="https://github.com/ThalesGroup/agilab/pulse"><img src="https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg" alt="Commit activity" /></a>
+  <a href="https://github.com/ThalesGroup/agilab/pulse"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/commit-activity.svg" alt="Commit activity" /></a>
   <a href="AGENT_SKILLS.md"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills.svg" alt="Skills" /></a>
   <a href="https://agentskills.io/"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-standard.svg" alt="Standard: Agent Skills" /></a>
   <a href="tools/agent_workflows.md"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/agent-works-with.svg" alt="Works with Codex Claude Aider OpenCode and Mistral Vibe" /></a>
