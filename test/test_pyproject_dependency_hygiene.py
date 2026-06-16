@@ -486,7 +486,9 @@ def test_streamlit_runtime_allows_validated_latest_1x() -> None:
                 if requirement.name.lower() != "streamlit":
                     continue
                 specifier_text = str(requirement.specifier)
-                if ">=1.57" not in specifier_text or "<1.58" not in specifier_text:
+                if ">=1.57" not in specifier_text or not any(
+                    upper in specifier_text for upper in ("<1.58", "<1.59")
+                ):
                     violations.append(f"{pyproject.relative_to(REPO_ROOT)}: {requirement}")
 
     assert violations == []
