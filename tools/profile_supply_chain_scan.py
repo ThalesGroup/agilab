@@ -55,6 +55,10 @@ ACKNOWLEDGED_VULNERABILITIES: dict[str, str] = {
     # torch is only resolved by the opt-in local-llm profile and the local
     # pytorch playground, both of which run user-owned code on user machines.
     "GHSA-rrmf-rvhw-rf47": "torch.jit.script memory corruption; no fixed release; AGILAB does not script untrusted models",
+    # Bleach email linkification ReDoS path (no fixed release as of
+    # 2026-06-16). AGILAB does not call bleach.linkify(parse_email=True);
+    # Bleach is pulled transitively by the examples notebook/Jupyter stack.
+    "GHSA-g75f-g53v-794x": "bleach.linkify parse_email ReDoS; no fixed release; AGILAB does not call parse_email linkification",
 }
 
 

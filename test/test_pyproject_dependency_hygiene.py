@@ -358,8 +358,62 @@ def test_root_starlette_profiles_keep_supply_chain_safe_floor() -> None:
             for requirement in _optional_dependencies(pyproject, extra_name)
         }
         assert "starlette" in requirements
-        assert _has_minimum_version(requirements["starlette"], "1.0.1")
+        expected_floor = "1.3.1" if extra_name in {"local-llm", "offline"} else "1.0.1"
+        assert _has_minimum_version(requirements["starlette"], expected_floor)
         assert _has_upper_bound(requirements["starlette"])
+
+
+def test_root_local_llm_profiles_keep_transitive_vulnerability_safe_floors() -> None:
+    pyproject = REPO_ROOT / "pyproject.toml"
+    expected_floors = {
+        "langchain": "1.3.9",
+        "pypdf": "6.13.0",
+        "python-multipart": "0.0.31",
+        "starlette": "1.3.1",
+        "tornado": "6.5.7",
+    }
+
+    for extra_name in ("local-llm", "offline"):
+        requirements = {
+            requirement.name.lower().replace("_", "-"): requirement
+            for requirement in _optional_dependencies(pyproject, extra_name)
+        }
+        for package_name, minimum_version in expected_floors.items():
+            assert package_name in requirements
+            assert _has_minimum_version(requirements[package_name], minimum_version)
+            assert _has_upper_bound(requirements[package_name])
+
+
+def test_root_cryptography_profiles_keep_supply_chain_safe_floor() -> None:
+    pyproject = REPO_ROOT / "pyproject.toml"
+
+    for extra_name in ("ui", "proof"):
+        requirements = {
+            requirement.name.lower().replace("_", "-"): requirement
+            for requirement in _optional_dependencies(pyproject, extra_name)
+        }
+        assert "cryptography" in requirements
+        assert _has_minimum_version(requirements["cryptography"], "48.0.1")
+        assert _has_upper_bound(requirements["cryptography"])
+
+
+def test_root_examples_profile_keeps_bleach_supply_chain_safe_floor() -> None:
+    requirements = {
+        requirement.name.lower().replace("_", "-"): requirement
+        for requirement in _optional_dependencies(REPO_ROOT / "pyproject.toml", "examples")
+    }
+
+    assert "bleach" in requirements
+    assert _has_minimum_version(requirements["bleach"], "6.4.0")
+    assert _has_upper_bound(requirements["bleach"])
+
+
+def test_root_dev_dependency_group_keeps_pip_supply_chain_safe_floor() -> None:
+    dev_dependencies = _load_pyproject(REPO_ROOT / "pyproject.toml").get("dependency-groups", {}).get("dev", [])
+    requirements = {Requirement(dependency).name.lower().replace("_", "-"): Requirement(dependency) for dependency in dev_dependencies}
+
+    assert "pip" in requirements
+    assert _has_minimum_version(requirements["pip"], "26.1.2")
 
 
 def test_agi_gui_keeps_starlette_supply_chain_safe_floor() -> None:
