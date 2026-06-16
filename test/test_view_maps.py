@@ -534,6 +534,13 @@ def test_view_maps_builds_generic_coordinate_overlay_points() -> None:
     assert module._coordinate_overlay_points(df, "missing", "node_lon").empty
 
 
+def test_view_maps_detects_late_unhashable_color_values() -> None:
+    module = _load_view_maps_module()
+    series = pd.Series(["normal"] * 150 + [{"beam": "late"}, ["payload"]])
+
+    assert module._contains_unhashable_values(series)
+
+
 @pytest.mark.parametrize(
     ("span", "expected"),
     [

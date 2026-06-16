@@ -184,7 +184,12 @@ def test_root_extras_and_uv_sources_match_package_split_contract() -> None:
         requirement_names = _requirement_names(root_pyproject, extra)
         assert set(package_names) <= requirement_names, extra
 
-    assert _requirement_names(root_pyproject, "pages") == {"agi-pages", "starlette"}
+    assert _requirement_names(root_pyproject, "pages") == {
+        "agi-pages",
+        "plotly",
+        "sqlalchemy",
+        "starlette",
+    }
 
     sources = _load_toml(root_pyproject).get("tool", {}).get("uv", {}).get("sources", {})
     for package in LIBRARY_PACKAGE_CONTRACTS:
@@ -196,7 +201,6 @@ def test_root_extras_and_uv_sources_match_package_split_contract() -> None:
 
 def test_root_ui_extra_covers_default_source_analysis_view_dependencies() -> None:
     root_pyproject = REPO_ROOT / "pyproject.toml"
-    ui_names = _requirement_names(root_pyproject, "ui")
     default_analysis_bundle = REPO_ROOT / "src/agilab/apps-pages/view_maps/pyproject.toml"
     required_names = {
         requirement.name.lower()
@@ -204,7 +208,8 @@ def test_root_ui_extra_covers_default_source_analysis_view_dependencies() -> Non
         if not requirement.name.lower().startswith("agi-")
     }
 
-    assert required_names <= ui_names
+    assert required_names <= _requirement_names(root_pyproject, "ui")
+    assert required_names <= _requirement_names(root_pyproject, "pages")
 
 
 def test_publish_tool_uses_the_same_package_split_contract() -> None:

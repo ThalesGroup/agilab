@@ -309,9 +309,20 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
     assert _optional_dependency_names(pyproject, "agents") == {"openai"}
     assert _optional_dependency_names(pyproject, "core") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["core"])
     assert set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["examples"]) | {"jupyterlab", "matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "examples")
-    assert _optional_dependency_names(pyproject, "pages") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["pages"]) | {"starlette"}
+    assert _optional_dependency_names(pyproject, "pages") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["pages"]) | {
+        "plotly",
+        "sqlalchemy",
+        "starlette",
+    }
     assert {"matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "viz")
-    assert set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["ui"]) | {"streamlit", "networkx", "pandas", "tomli_w"} <= _optional_dependency_names(pyproject, "ui")
+    assert set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["ui"]) | {
+        "networkx",
+        "pandas",
+        "plotly",
+        "sqlalchemy",
+        "streamlit",
+        "tomli_w",
+    } <= _optional_dependency_names(pyproject, "ui")
     assert {"mlflow"} <= _optional_dependency_names(pyproject, "mlflow") <= {
         "mlflow",
         "idna",

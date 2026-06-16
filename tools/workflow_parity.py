@@ -1907,6 +1907,8 @@ def _hf_visual_smoke_robot_profile() -> list[CommandSpec]:
                 "hf-first-proof-visual-smoke",
                 "--scenario",
                 "hf-first-proof-app-pages-visual-smoke",
+                "--scenario",
+                "hf-first-proof-view-maps-visual-smoke",
                 "--apps",
                 "flight_telemetry_project,pytorch_playground_project,weather_forecast_project",
                 "--url",
