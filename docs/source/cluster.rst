@@ -93,11 +93,14 @@ directly into the user share root. When cluster mode is enabled and
 This avoids collisions when the same user runs several app workflows on the same
 cluster share. The cluster settings UI exposes two controls:
 
-- **Workflow session policy**: ``new`` creates a fresh session directory,
-  ``last`` reuses the newest existing session for the app, and ``select`` uses
-  the named session.
+- **Workflow session policy**: ``new`` creates a fresh session directory when
+  **Workflow session** is empty, ``last`` reuses the newest existing session for
+  the app, and ``select`` uses the named session.
 - **Workflow session**: optional session name. Leave it empty for automatic
-  selection, or set it when you want a stable session such as ``trial-001``.
+  selection. With ``new`` this creates a session; with ``last`` it reuses the
+  newest session; with ``select`` it uses the newest session when one exists and
+  creates one otherwise. Set a value when you want a stable session such as
+  ``trial-001``.
 
 The same behavior can be preseeded with environment values:
 
