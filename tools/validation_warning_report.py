@@ -389,15 +389,18 @@ def build_report(
     rules = load_allowlist(allowlist_path)
     occurrences = [warning for file in files for warning in _scan_file(file)]
 
-    grouped: dict[tuple[str, str], list[WarningOccurrence]] = {}
+    grouped: dict[tuple[str, str, str], list[WarningOccurrence]] = {}
     for occurrence in occurrences:
         warning_id = _warning_id(occurrence.category, occurrence.message)
-        grouped.setdefault((warning_id, occurrence.category), []).append(occurrence)
+        allowlist_id = _allowance_for(occurrence, warning_id, rules) or ""
+        grouped.setdefault((warning_id, occurrence.category, allowlist_id), []).append(
+            occurrence
+        )
 
     warning_groups: list[WarningGroup] = []
-    for (warning_id, category), group_occurrences in sorted(grouped.items()):
+    for (warning_id, category, allowlist_key), group_occurrences in sorted(grouped.items()):
         first = group_occurrences[0]
-        allowlist_id = _allowance_for(first, warning_id, rules)
+        allowlist_id = allowlist_key or None
         examples = tuple(
             {
                 "source": _display_path(item.source),
@@ -426,6 +429,9 @@ def build_report(
     total_count = sum(group.count for group in warning_groups)
     unapproved_count = total_count - approved_count
     expired_rules = [rule.rule_id for rule in rules if rule.expired]
+    unique_warning_count = len(
+        {(group.warning_id, group.category) for group in warning_groups}
+    )
 
     return {
         "schema": SCHEMA,
@@ -437,7 +443,7 @@ def build_report(
         "summary": {
             "file_count": len(files),
             "warning_count": total_count,
-            "unique_warning_count": len(warning_groups),
+            "unique_warning_count": unique_warning_count,
             "approved_warning_count": approved_count,
             "unapproved_warning_count": unapproved_count,
             "expired_allowlist_rule_count": len(expired_rules),
