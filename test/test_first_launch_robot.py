@@ -113,6 +113,23 @@ def test_first_launch_robot_helpers_cover_empty_values_and_docs_import_failure(
     assert module.sys.path[0] == src_root
 
 
+def test_first_launch_robot_suppresses_streamlit_bare_mode_context_logger() -> None:
+    module = _load_module()
+    logger = module.logging.getLogger(module.STREAMLIT_BARE_MODE_LOGGER)
+    previous_level = logger.level
+    try:
+        logger.disabled = False
+        logger.setLevel(module.logging.NOTSET)
+
+        module._suppress_streamlit_bare_mode_log_warning()
+
+        assert logger.level == module.logging.ERROR
+        assert logger.disabled is True
+    finally:
+        logger.disabled = False
+        logger.setLevel(previous_level)
+
+
 def test_first_launch_robot_marks_env_missing_when_session_state_probe_fails(
     monkeypatch,
 ) -> None:

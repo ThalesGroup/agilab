@@ -67,7 +67,7 @@ jobs:
             --with pytest `
             --with pytest-asyncio `
             --with pytest-cov `
-            python -m pytest -q --disable-warnings -o addopts='' --import-mode=importlib `
+            python -m pytest -q -o addopts='' --import-mode=importlib `
             --junitxml test-results/windows-core-tests.xml `
             src/agilab/core/test src/agilab/core/agi-env/test src/agilab/core/agi-cluster/test `
             2>&1 | Tee-Object -FilePath test-results/windows-core-tests.txt
@@ -75,6 +75,17 @@ jobs:
           if ($exitCode -ne 0) {
             exit $exitCode
           }
+
+      - name: Audit Windows warning output
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          & uv --preview-features extra-build-dependencies run --no-project `
+            python tools/validation_warning_report.py `
+            test-results/windows-core-tests.txt `
+            --strict `
+            --output test-results/windows-core-warning-report.json
 
       - name: Upload Windows core test artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -84,4 +95,5 @@ jobs:
           path: |
             test-results/windows-core-tests.txt
             test-results/windows-core-tests.xml
+            test-results/windows-core-warning-report.json
           if-no-files-found: ignore

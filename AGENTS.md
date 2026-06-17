@@ -58,7 +58,9 @@ Use this runbook whenever you:
   environment with pytest importlib mode, avoiding false root-environment dependency
   failures for app-local packages,
   `warnings` writes a structured validation-warning report and can fail on
-  unapproved warnings when `--strict` is used,
+  unapproved warnings when `--strict` is used; for multi-command validation batches,
+  create a marker file before the batch and pass `--newer-than <marker>` so stale
+  dev logs do not pollute the current warning audit,
   `audit` is the quick robustness check before handoff between machines,
   `flow` matches local GitHub workflow profiles, `ui-flow` is the local-first gate
   before relying on the scheduled full UI robot matrix for browser-heavy frontend changes,

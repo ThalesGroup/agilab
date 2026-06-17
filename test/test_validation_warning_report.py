@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 import sys
+from datetime import datetime, timedelta, timezone
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +46,42 @@ def test_warning_report_summarizes_log_warning_and_pytest_warning_count(tmp_path
     assert not any(
         "--disable-warnings" in warning["message"] for warning in report["warnings"]
     )
+
+
+def test_warning_report_does_not_treat_warning_word_in_branch_name_as_warning(tmp_path):
+    log_path = tmp_path / "validation.log"
+    log_path.write_text(
+        "- /repo: codex/validation-warning-cleanup 3819307\n",
+        encoding="utf-8",
+    )
+
+    report = validation_warning_report.build_report((tmp_path,))
+
+    assert report["status"] == "pass"
+    assert report["summary"]["warning_count"] == 0
+
+
+def test_warning_report_can_scan_only_files_newer_than_marker(tmp_path):
+    old_log = tmp_path / "old.log"
+    marker = tmp_path / "start.marker"
+    new_log = tmp_path / "new.log"
+    old_log.write_text("WARNING stale warning\n", encoding="utf-8")
+    marker.write_text("start\n", encoding="utf-8")
+    new_log.write_text("all good\n", encoding="utf-8")
+    old_time = datetime.now(timezone.utc) - timedelta(hours=2)
+    marker_time = datetime.now(timezone.utc) - timedelta(hours=1)
+    new_time = datetime.now(timezone.utc)
+    os.utime(old_log, (old_time.timestamp(), old_time.timestamp()))
+    os.utime(marker, (marker_time.timestamp(), marker_time.timestamp()))
+    os.utime(new_log, (new_time.timestamp(), new_time.timestamp()))
+
+    report = validation_warning_report.build_report(
+        (tmp_path,), newer_than=validation_warning_report._parse_newer_than(str(marker))
+    )
+
+    assert report["status"] == "pass"
+    assert report["summary"]["file_count"] == 1
+    assert report["summary"]["warning_count"] == 0
 
 
 def test_warning_report_allowlist_approves_matching_warning(tmp_path):

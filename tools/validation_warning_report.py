@@ -28,7 +28,7 @@ WARNING_CLASS_RE = re.compile(
     r"FutureWarning|RuntimeWarning|ResourceWarning|UserWarning)\b"
 )
 WARNING_LINE_RE = re.compile(
-    r"(?i)(::warning|##\[warning\]|\bWARNING\b|\bwarning\s+-|\bwarning:)"
+    r"(::warning|##\[warning\]|\bWARNING\b|(?i:\bwarning\s+-|\bwarning:))"
 )
 SUPPORTED_SUFFIXES = {".log", ".txt", ".out", ".err", ".json", ".ndjson"}
 
@@ -256,19 +256,51 @@ def _scan_file(path: Path) -> list[WarningOccurrence]:
     return _scan_text(path)
 
 
-def _iter_input_files(paths: Sequence[Path]) -> list[Path]:
+def _is_new_enough(path: Path, newer_than: datetime | None) -> bool:
+    if newer_than is None:
+        return True
+    mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    return mtime >= newer_than
+
+
+def _iter_input_files(
+    paths: Sequence[Path], *, newer_than: datetime | None = None
+) -> list[Path]:
     files: list[Path] = []
     for path in paths:
         if not path.exists():
             continue
         if path.is_file():
-            if path.suffix in SUPPORTED_SUFFIXES:
+            if path.suffix in SUPPORTED_SUFFIXES and _is_new_enough(
+                path, newer_than
+            ):
                 files.append(path)
             continue
         for candidate in sorted(path.rglob("*")):
-            if candidate.is_file() and candidate.suffix in SUPPORTED_SUFFIXES:
+            if (
+                candidate.is_file()
+                and candidate.suffix in SUPPORTED_SUFFIXES
+                and _is_new_enough(candidate, newer_than)
+            ):
                 files.append(candidate)
     return sorted(files)
+
+
+def _parse_newer_than(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    marker = Path(value)
+    if marker.exists():
+        return datetime.fromtimestamp(marker.stat().st_mtime, tz=timezone.utc)
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(
+            "--newer-than must be an existing marker path or an ISO-8601 timestamp"
+        ) from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _compile_regex(value: object, *, field: str, rule_id: str) -> re.Pattern[str] | None:
@@ -351,8 +383,9 @@ def build_report(
     *,
     allowlist_path: Path | None = None,
     max_examples: int = 3,
+    newer_than: datetime | None = None,
 ) -> dict[str, Any]:
-    files = _iter_input_files(paths)
+    files = _iter_input_files(paths, newer_than=newer_than)
     rules = load_allowlist(allowlist_path)
     occurrences = [warning for file in files for warning in _scan_file(file)]
 
@@ -399,6 +432,7 @@ def build_report(
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "paths": [_display_path(path) for path in paths],
         "allowlist": _display_path(allowlist_path) if allowlist_path else None,
+        "newer_than": newer_than.isoformat() if newer_than else None,
         "status": "pass" if unapproved_count == 0 else "warn",
         "summary": {
             "file_count": len(files),
@@ -481,6 +515,13 @@ def _parser() -> argparse.ArgumentParser:
         default=3,
         help="Maximum examples retained per warning group.",
     )
+    parser.add_argument(
+        "--newer-than",
+        help=(
+            "Only scan files modified at or after this existing marker file's mtime "
+            "or ISO-8601 timestamp."
+        ),
+    )
     return parser
 
 
@@ -492,6 +533,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             paths,
             allowlist_path=args.allowlist,
             max_examples=max(args.max_examples, 0),
+            newer_than=_parse_newer_than(args.newer_than),
         )
     except (OSError, ValueError) as exc:
         print(f"validation warning report failed: {exc}", file=sys.stderr)

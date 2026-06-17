@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from html import unescape
 import importlib.util
 import json
+import logging
 from pathlib import Path
 import platform
 import sys
@@ -24,6 +25,17 @@ DEFAULT_ACTIVE_APP = (
 DEFAULT_APPS_PATH = REPO_ROOT / "src" / "agilab" / "apps" / "builtin"
 SCHEMA = "agilab.first_launch_robot.v1"
 DEFAULT_TARGET_SECONDS = 45.0
+STREAMLIT_BARE_MODE_LOGGER = (
+    "streamlit.runtime.scriptrunner_utils.script_run_context"
+)
+
+
+def _suppress_streamlit_bare_mode_log_warning() -> None:
+    """Keep AppTest bare-mode context warnings out of validation logs."""
+
+    logger = logging.getLogger(STREAMLIT_BARE_MODE_LOGGER)
+    logger.setLevel(logging.ERROR)
+    logger.disabled = True
 
 
 def _check_result(
@@ -143,6 +155,7 @@ def build_report(
     timeout: float = DEFAULT_TARGET_SECONDS,
     target_seconds: float = DEFAULT_TARGET_SECONDS,
 ) -> dict[str, Any]:
+    _suppress_streamlit_bare_mode_log_warning()
     from streamlit.testing.v1 import AppTest
 
     start = time.perf_counter()
