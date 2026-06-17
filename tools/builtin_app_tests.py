@@ -59,6 +59,8 @@ def build_pytest_command(pytest_args: Sequence[str] = ()) -> list[str]:
         ".",
         "--with",
         "pytest",
+        "--with",
+        "pytest-asyncio",
         "python",
         "-m",
         "pytest",

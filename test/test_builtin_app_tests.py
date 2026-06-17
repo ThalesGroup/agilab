@@ -31,7 +31,7 @@ def test_discover_builtin_app_tests_returns_sorted_projects_with_tests(tmp_path)
 def test_build_pytest_command_uses_app_local_project_and_importlib_mode():
     command = builtin_app_tests.build_pytest_command()
 
-    assert command[:8] == [
+    assert command[:10] == [
         "uv",
         "--preview-features",
         "extra-build-dependencies",
@@ -40,6 +40,8 @@ def test_build_pytest_command_uses_app_local_project_and_importlib_mode():
         ".",
         "--with",
         "pytest",
+        "--with",
+        "pytest-asyncio",
     ]
     assert "--import-mode=importlib" in command
     assert command[-1] == "test"
