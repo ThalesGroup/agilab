@@ -1427,6 +1427,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                     workflow_name=app_state_name,
                     policy=workflow_policy,
                     selected_session=workflow_session,
+                    create=False,
                 )
             except OSError as exc:
                 workflow_session_error_shown = True
@@ -1451,8 +1452,9 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 WORKFLOW_SESSION_POLICY_OPTIONS,
                 key=workflow_policy_key,
                 help=(
-                    "`new` creates an isolated session, `last` reuses the latest session, "
-                    "and `select` uses the named session."
+                    "`new` creates an isolated session when the session field is empty, "
+                    "`last` reuses the latest session, and `select` uses the named session "
+                    "or the latest session when empty."
                 ),
             )
         workflow_policy = _workflow_session_policy(workflow_policy_input)
@@ -1462,9 +1464,13 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 "Workflow session",
                 key=workflow_session_key,
                 placeholder="auto, or e.g. trial-001",
-                help="Session directory below the cluster user share. Leave empty to auto-select for the policy.",
+                help=(
+                    "Session directory below the cluster user share. Leave empty to auto-select "
+                    "for the policy: `new` creates one, `last` reuses the latest, and `select` "
+                    "uses the latest when available."
+                ),
             )
-        workflow_session = _safe_workflow_component(workflow_session_input, workflow_session)
+        workflow_session = _safe_workflow_component(workflow_session_input, "")
         if cluster_share_ready and cluster_share_candidate is not None and not workflow_session_error_shown:
             try:
                 workflow_workers_path, workflow_session, workflow_policy = _resolve_workflow_session_workers_path(
