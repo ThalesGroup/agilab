@@ -735,12 +735,22 @@ def delete_release_via_pypi_web(
             }
         )
 
-        def login_to_pypi() -> Any:
+        def login_to_pypi(*, allow_confirmed_session: bool = False) -> Any:
             login_path = "/account/login/"
             login_url = f"{base_url}{login_path}"
             login_response = session.get(login_url)
             login_response.raise_for_status()
-            login_form = _find_form(login_response.text, target_path=login_path)
+            try:
+                login_form = _find_form(login_response.text, target_path=login_path)
+            except RuntimeError:
+                if allow_confirmed_session:
+                    print(
+                        "[pypi-retention] PyPI login form was absent after "
+                        "confirmation; reusing the confirmed session",
+                        file=sys.stderr,
+                    )
+                    return login_response
+                raise
             login_data = dict(login_form.inputs)
             login_data.update({"username": username, "password": password})
             login_response = session.post(
@@ -783,7 +793,7 @@ def delete_release_via_pypi_web(
                 "logging in again before opening the delete page",
                 file=sys.stderr,
             )
-            login_to_pypi()
+            login_to_pypi(allow_confirmed_session=True)
 
         def consume_confirm_login_url() -> bool:
             if confirm_login_url_provider is None:

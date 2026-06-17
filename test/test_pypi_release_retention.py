@@ -735,8 +735,118 @@ def test_direct_pypi_delete_consumes_confirm_login_url_after_runner_login_redire
     assert confirm_url in session.get_urls
     assert cleanup_calls == ["cleanup"]
     assert session.delete_attempts == 2
-    login_posts = [url for url, _kwargs in session.posts if url == "https://pypi.org/account/login/"]
+    login_posts = [
+        url
+        for url, _kwargs in session.posts
+        if url == "https://pypi.org/account/login/"
+    ]
     assert len(login_posts) == 2
+    assert session.posts[-1][1]["data"] == {
+        "csrf_token": "delete-csrf",
+        "confirm_delete_version": "2026.5.17",
+    }
+
+
+def test_direct_pypi_delete_reuses_confirmed_session_when_login_form_disappears() -> None:
+    module = _load_module()
+    confirm_url = "https://pypi.org/account/confirm-login/?token=token"
+
+    class ConfirmProvider:
+        def __call__(self) -> str:
+            return confirm_url
+
+        def cleanup(self) -> None:
+            return None
+
+    class FakeResponse:
+        def __init__(self, *, text: str, url: str) -> None:
+            self.text = text
+            self.url = url
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeSession:
+        def __init__(self) -> None:
+            self.headers = {}
+            self.get_urls = []
+            self.posts = []
+            self.delete_attempts = 0
+            self.login_gets = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def get(self, url):
+            self.get_urls.append(url)
+            if url == "https://pypi.org/account/login/":
+                self.login_gets += 1
+                if self.login_gets == 1:
+                    return FakeResponse(
+                        url=url,
+                        text="""
+                        <form method="post" action="/account/login/">
+                          <input name="csrf_token" value="login-csrf">
+                        </form>
+                        """,
+                    )
+                return FakeResponse(
+                    url=url,
+                    text="<html><p>Login already confirmed.</p></html>",
+                )
+            if url == confirm_url:
+                return FakeResponse(url=url, text="<html>confirmed</html>")
+            self.delete_attempts += 1
+            if self.delete_attempts == 1:
+                return FakeResponse(
+                    url="https://pypi.org/account/login/",
+                    text="<html>login required</html>",
+                )
+            return FakeResponse(
+                url=url,
+                text="""
+                <form method="post" action="/manage/project/agilab/release/2026.5.17/">
+                  <input name="csrf_token" value="delete-csrf">
+                  <input name="confirm_delete_version" value="">
+                </form>
+                """,
+            )
+
+        def post(self, url, **kwargs):
+            self.posts.append((url, kwargs))
+            if url == "https://pypi.org/account/login/":
+                return FakeResponse(
+                    url="https://pypi.org/manage/projects/",
+                    text="<html></html>",
+                )
+            return FakeResponse(
+                url="https://pypi.org/manage/project/agilab/releases/",
+                text="<html></html>",
+            )
+
+    session = FakeSession()
+
+    module.delete_release_via_pypi_web(
+        package="agilab",
+        version="2026.5.17",
+        repo="pypi",
+        username="maintainer",
+        password="secret",
+        confirm_login_url_provider=ConfirmProvider(),
+        session_factory=lambda: session,
+    )
+
+    assert confirm_url in session.get_urls
+    assert session.login_gets == 2
+    login_posts = [
+        url
+        for url, _kwargs in session.posts
+        if url == "https://pypi.org/account/login/"
+    ]
+    assert len(login_posts) == 1
     assert session.posts[-1][1]["data"] == {
         "csrf_token": "delete-csrf",
         "confirm_delete_version": "2026.5.17",
