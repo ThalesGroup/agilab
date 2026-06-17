@@ -114,6 +114,40 @@ reason = "Streamlit bare-mode validation emits this warning outside a script con
     assert report["warnings"][0]["allowlist_id"] == "streamlit-bare-mode"
 
 
+def test_warning_report_source_allowlist_does_not_approve_other_sources(tmp_path):
+    allowed_log = tmp_path / "allowed.log"
+    other_log = tmp_path / "other.log"
+    allowed_log.write_text("WARNING shared warning\n", encoding="utf-8")
+    other_log.write_text("WARNING shared warning\n", encoding="utf-8")
+    allowlist_path = tmp_path / "warning_allowlist.toml"
+    allowlist_path.write_text(
+        """
+[[warnings]]
+id = "approved-source"
+category = "log-warning"
+message = "shared warning"
+source = "allowed[.]log"
+expires = "2099-12-31"
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    report = validation_warning_report.build_report(
+        (tmp_path,), allowlist_path=allowlist_path
+    )
+
+    assert report["status"] == "warn"
+    assert report["summary"]["warning_count"] == 2
+    assert report["summary"]["approved_warning_count"] == 1
+    assert report["summary"]["unapproved_warning_count"] == 1
+    assert report["summary"]["unique_warning_count"] == 1
+    assert sorted(warning["approved"] for warning in report["warnings"]) == [
+        False,
+        True,
+    ]
+
+
 def test_warning_report_expired_allowlist_rule_does_not_approve(tmp_path):
     log_path = tmp_path / "validation.log"
     log_path.write_text("WARNING old warning\n", encoding="utf-8")
