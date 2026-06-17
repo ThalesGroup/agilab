@@ -567,6 +567,26 @@ def _validate_distinct_cluster_share(plan: ValidationPlan, *, home: Path | None 
         )
 
 
+def _reverse_sshfs_mount_problem(local_share: Path, worker_ip: str) -> str | None:
+    from agi_cluster.agi_distributor.deployment.deployment_remote_support import (
+        _reverse_sshfs_mount_problem as detect_reverse_sshfs_mount,
+    )
+
+    return detect_reverse_sshfs_mount(local_share, worker_ip)
+
+
+def _validate_scheduler_cluster_share_not_reverse_mounted(
+    plan: ValidationPlan,
+    *,
+    home: Path | None = None,
+) -> None:
+    cluster_root = local_cluster_share_root(plan, home=home)
+    for spec in remote_worker_specs(plan):
+        problem = _reverse_sshfs_mount_problem(cluster_root, spec.host)
+        if problem:
+            raise RuntimeError(problem)
+
+
 def write_cluster_share_sentinel(
     plan: ValidationPlan,
     *,
@@ -574,6 +594,7 @@ def write_cluster_share_sentinel(
     token: str | None = None,
 ) -> tuple[Path, str]:
     _validate_distinct_cluster_share(plan, home=home)
+    _validate_scheduler_cluster_share_not_reverse_mounted(plan, home=home)
     cluster_root = local_cluster_share_root(plan, home=home)
     marker_dir = cluster_root / SHARE_SENTINEL_DIR
     marker_dir.mkdir(parents=True, exist_ok=True)
@@ -738,16 +759,23 @@ def _remote_env_update_script(plan: ValidationPlan) -> str:
     return "\n".join(
         [
             "from pathlib import Path",
-            "key = 'AGI_CLUSTER_SHARE'",
-            f"value = {json.dumps(plan.remote_cluster_share_setting)}",
+            "updates = (",
+            "    ('IS_SOURCE_ENV', '0'),",
+            "    ('IS_WORKER_ENV', '1'),",
+            "    ('AGI_CLUSTER_ENABLED', '1'),",
+            f"    ('AGI_CLUSTER_SHARE', {json.dumps(plan.remote_cluster_share_setting)}),",
+            ")",
+            "update_keys = {key for key, _value in updates}",
             "env_path = Path.home() / '.agilab' / '.env'",
             "env_path.parent.mkdir(parents=True, exist_ok=True)",
             "lines = []",
             "if env_path.exists():",
             "    for raw_line in env_path.read_text(encoding='utf-8').splitlines():",
-            "        if not raw_line.strip().startswith(key + '='):",
+            "        key = raw_line.split('=', 1)[0].strip()",
+            "        if key not in update_keys:",
             "            lines.append(raw_line)",
-            "lines.append(f'{key}={value!r}')",
+            "for key, value in updates:",
+            "    lines.append(f'{key}={value!r}')",
             "env_path.write_text('\\n'.join(lines) + '\\n', encoding='utf-8')",
             "print(str(env_path))",
         ]
@@ -903,6 +931,7 @@ def apply_share_setup(
         raise ValueError(f"unsupported share setup backend: {backend}")
 
     _validate_distinct_cluster_share(plan)
+    _validate_scheduler_cluster_share_not_reverse_mounted(plan)
     local_root = local_cluster_share_root(plan)
     local_root.mkdir(parents=True, exist_ok=True)
     summaries = [
@@ -1025,6 +1054,7 @@ def local_output_candidates(plan: ValidationPlan, *, home: Path | None = None) -
 
 
 def collect_local_outputs(plan: ValidationPlan, *, home: Path | None = None) -> tuple[OutputSummary, ...]:
+    _validate_scheduler_cluster_share_not_reverse_mounted(plan, home=home)
     return tuple(
         _summarize_output_dir(candidate, location="local")
         for candidate in local_output_candidates(plan, home=home)
@@ -1032,6 +1062,7 @@ def collect_local_outputs(plan: ValidationPlan, *, home: Path | None = None) -> 
 
 
 def clean_local_outputs(plan: ValidationPlan, *, home: Path | None = None) -> None:
+    _validate_scheduler_cluster_share_not_reverse_mounted(plan, home=home)
     for candidate in local_output_candidates(plan, home=home):
         shutil.rmtree(candidate, ignore_errors=True)
 
@@ -1191,6 +1222,22 @@ def _configure_process_env(plan: ValidationPlan) -> None:
         os.environ.pop("AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED", None)
 
 
+def _configure_agi_env_for_cluster_validation(env: Any, plan: ValidationPlan) -> None:
+    if not isinstance(getattr(env, "envars", None), dict):
+        env.envars = {}
+    env.AGI_LOCAL_SHARE = plan.local_share_setting
+    env.AGI_CLUSTER_SHARE = plan.local_cluster_share_setting
+    env.agi_share_path = plan.local_cluster_share_setting
+    env.envars["AGI_CLUSTER_ENABLED"] = "1"
+    env.envars["AGI_LOCAL_SHARE"] = plan.local_share_setting
+    env.envars["AGI_CLUSTER_SHARE"] = plan.local_cluster_share_setting
+    try:
+        env._share_root_cache = None
+        env.agi_share_path_abs = env.share_root_path()
+    except AttributeError:
+        pass
+
+
 def _reset_agi_state(agi_cls: Any) -> None:
     for name, value in (
         ("_ssh_connections", {}),
@@ -1231,11 +1278,12 @@ async def run_cluster_validation(args: argparse.Namespace) -> dict[str, Any]:
     env.password = None
     env.scheduler_ssh_port = plan.scheduler_ssh_port
     env.remote_cluster_share_premounted = plan.remote_cluster_share_premounted
-    if not isinstance(getattr(env, "envars", None), dict):
-        env.envars = {}
+    _configure_agi_env_for_cluster_validation(env, plan)
     env.envars["AGILAB_SCHEDULER_SSH_PORT"] = str(plan.scheduler_ssh_port)
     if plan.remote_cluster_share_premounted:
         env.envars["AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED"] = "1"
+    else:
+        env.envars.pop("AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED", None)
     if args.ssh_key:
         env.ssh_key_path = str(Path(args.ssh_key).expanduser())
 

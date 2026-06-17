@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 import types
@@ -21,7 +22,7 @@ loaded_path = str(getattr(loaded_agilab, "__file__", ""))
 if loaded_agilab is not None and not loaded_path.startswith(str(SRC_ROOT)):
     sys.modules.pop("agilab", None)
 
-from agilab import cluster_flight_validation as cfv
+from agilab import cluster_flight_validation as cfv  # noqa: E402
 
 
 def _args(**overrides):
@@ -270,6 +271,45 @@ def test_build_validation_plan_reads_env_files_and_serializes_paths(tmp_path: Pa
     assert plan.to_dict()["local_dataset_dir"].endswith("share-in-env/flight_cluster_validation/dataset/csv")
 
 
+def test_remote_env_update_script_enables_cluster_mode_without_clobbering_env(tmp_path: Path):
+    env_path = tmp_path / ".agilab" / ".env"
+    env_path.parent.mkdir()
+    env_path.write_text(
+        "KEEP_ME=1\n"
+        "IS_SOURCE_ENV=1\n"
+        "IS_WORKER_ENV=0\n"
+        "AGI_CLUSTER_ENABLED=0\n"
+        "AGI_LOCAL_SHARE=localshare\n"
+        "AGI_CLUSTER_SHARE='oldshare'\n",
+        encoding="utf-8",
+    )
+    plan = cfv.build_validation_plan(
+        _args(workers="jpm@192.168.3.35", remote_cluster_share="clustershare/worker"),
+        home=tmp_path,
+        environ={"USER": "agi"},
+    )
+
+    subprocess.run(
+        [sys.executable, "-c", cfv._remote_env_update_script(plan)],
+        check=True,
+        env={**os.environ, "HOME": str(tmp_path)},
+        text=True,
+        capture_output=True,
+    )
+
+    lines = env_path.read_text(encoding="utf-8").splitlines()
+    assert "KEEP_ME=1" in lines
+    assert "AGI_LOCAL_SHARE=localshare" in lines
+    assert "IS_SOURCE_ENV='0'" in lines
+    assert "IS_WORKER_ENV='1'" in lines
+    assert "AGI_CLUSTER_ENABLED='1'" in lines
+    assert "AGI_CLUSTER_SHARE='clustershare/worker'" in lines
+    assert "IS_SOURCE_ENV=1" not in lines
+    assert "IS_WORKER_ENV=0" not in lines
+    assert "AGI_CLUSTER_ENABLED=0" not in lines
+    assert "AGI_CLUSTER_SHARE='oldshare'" not in lines
+
+
 def test_build_validation_plan_rejects_absolute_relative_arguments(tmp_path: Path):
     with pytest.raises(ValueError, match="--dataset-rel must be relative"):
         cfv.build_validation_plan(
@@ -498,6 +538,36 @@ def test_cluster_share_sentinel_rejects_local_share_alias(tmp_path: Path):
 
     with pytest.raises(ValueError, match="must be distinct"):
         cfv.write_cluster_share_sentinel(plan, home=tmp_path, token="fixed")
+
+
+def test_scheduler_cluster_share_rejects_reverse_worker_mount_before_io(
+    tmp_path: Path,
+    monkeypatch,
+):
+    cluster_share = tmp_path / "shared"
+    plan = cfv.build_validation_plan(
+        _args(cluster_share=str(cluster_share), workers="jpm@192.168.3.35"),
+        home=tmp_path,
+        environ={"USER": "agi"},
+    )
+    checked: list[tuple[Path, str]] = []
+
+    def fake_reverse_mount_problem(local_share: Path, worker_ip: str) -> str:
+        checked.append((local_share, worker_ip))
+        return "SSHFS loop detected"
+
+    monkeypatch.setattr(cfv, "_reverse_sshfs_mount_problem", fake_reverse_mount_problem)
+
+    with pytest.raises(RuntimeError, match="SSHFS loop"):
+        cfv.write_cluster_share_sentinel(plan, home=tmp_path, token="fixed")
+    with pytest.raises(RuntimeError, match="SSHFS loop"):
+        cfv.apply_share_setup(plan, "sshfs", timeout=1)
+
+    assert checked == [
+        (cluster_share, "192.168.3.35"),
+        (cluster_share, "192.168.3.35"),
+    ]
+    assert not cluster_share.exists()
 
 
 def test_validate_shared_cluster_share_probes_remote_sentinel(tmp_path: Path, monkeypatch):
@@ -1226,6 +1296,7 @@ def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypa
             _args(
                 scheduler="127.0.0.1",
                 workers="127.0.0.1",
+                cluster_share="cluster-root",
                 aircraft="60",
                 timeout=5,
                 verbose=2,
@@ -1240,5 +1311,11 @@ def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypa
     assert FakeAgiEnv.reset_called is True
     assert FakeAGI._TIMEOUT == 5
     assert install_calls[0]["workers"] == {"127.0.0.1": 1}
+    install_env = install_calls[0]["env"]
+    assert install_env.AGI_LOCAL_SHARE == "localshare"
+    assert install_env.AGI_CLUSTER_SHARE == "cluster-root"
+    assert install_env.agi_share_path == "cluster-root"
+    assert install_env.envars["AGI_CLUSTER_ENABLED"] == "1"
+    assert install_env.envars["AGI_CLUSTER_SHARE"] == "cluster-root"
     assert run_requests[0].kwargs["mode"] == 4
     assert run_requests[0].kwargs["data_out"] == "flight_cluster_validation/dataframe_cluster_validation"

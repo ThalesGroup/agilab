@@ -360,14 +360,23 @@ def _scheduler_ssh_target(agi_cls: Any, env: Any) -> str:
 
 
 def _remote_env_update_command(remote_share: str) -> str:
-    # Update only the AGI_CLUSTER_SHARE line: the remote ~/.agilab/.env holds
-    # other operator-managed settings that must be preserved (merge semantics,
-    # matching install.sh/write_env_updates).
-    line = f"AGI_CLUSTER_SHARE={remote_share!r}"
+    # Update only worker cluster-mode lines: the remote ~/.agilab/.env holds other
+    # operator-managed settings that must be preserved (merge semantics,
+    # matching install.sh/write_env_updates).  Remote workers resolve relative
+    # app outputs through the active share mode, so the share path and cluster
+    # flag must be written together; Dask workers also need worker layout flags
+    # because AgiEnv reads those from the persisted .env file during startup.
+    source_line = "IS_SOURCE_ENV='0'"
+    worker_line = "IS_WORKER_ENV='1'"
+    enabled_line = "AGI_CLUSTER_ENABLED='1'"
+    share_line = f"AGI_CLUSTER_SHARE={remote_share!r}"
     return (
         'mkdir -p "$HOME/.agilab" && touch "$HOME/.agilab/.env" && '
-        "{ grep -v '^AGI_CLUSTER_SHARE=' \"$HOME/.agilab/.env\" || true; "
-        f"printf '%s\\n' {quote(line)}; }} > \"$HOME/.agilab/.env.tmp\" && "
+        "{ grep -Ev '^(IS_SOURCE_ENV|IS_WORKER_ENV|AGI_CLUSTER_ENABLED|AGI_CLUSTER_SHARE)=' "
+        "\"$HOME/.agilab/.env\" || true; "
+        f"printf '%s\\n' {quote(source_line)} {quote(worker_line)} "
+        f"{quote(enabled_line)} {quote(share_line)}; }} "
+        "> \"$HOME/.agilab/.env.tmp\" && "
         'mv "$HOME/.agilab/.env.tmp" "$HOME/.agilab/.env"'
     )
 
