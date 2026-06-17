@@ -1449,12 +1449,19 @@ async def test_deploy_remote_worker_rapids_runtime_error_is_logged(tmp_path):
 def test_remote_env_update_command_preserves_other_env_keys():
     # Regression: the command previously truncated the whole remote
     # ~/.agilab/.env with '>' redirection; it must merge instead, replacing
-    # only the AGI_CLUSTER_SHARE line.
+    # only the worker cluster-mode lines.
     cmd = deployment_remote_support._remote_env_update_command("clustershare")
 
-    assert "grep -v '^AGI_CLUSTER_SHARE='" in cmd
+    assert (
+        "grep -Ev '^(IS_SOURCE_ENV|IS_WORKER_ENV|AGI_CLUSTER_ENABLED|AGI_CLUSTER_SHARE)='"
+        in cmd
+    )
     assert 'mv "$HOME/.agilab/.env.tmp" "$HOME/.agilab/.env"' in cmd
+    assert "IS_SOURCE_ENV=" in cmd
+    assert "IS_WORKER_ENV=" in cmd
+    assert "AGI_CLUSTER_ENABLED=" in cmd
     assert "AGI_CLUSTER_SHARE=" in cmd
+    assert "AGI_LOCAL_SHARE" not in cmd
     # No direct truncating redirection of the env file itself.
     assert '> "$HOME/.agilab/.env"' not in cmd.replace(
         '> "$HOME/.agilab/.env.tmp"', ""
