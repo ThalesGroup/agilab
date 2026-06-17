@@ -37,6 +37,9 @@ REQUIRED_PYTORCH_ANALYSIS_SCENARIO = "isolated-pytorch-playground-analysis"
 REQUIRED_RELEASE_EVIDENCE_SCENARIO = "isolated-release-evidence"
 REQUIRED_ORCHESTRATE_POOL_SCENARIO = "isolated-orchestrate-pool-parameters"
 REQUIRED_ORCHESTRATE_POOL_TEXT = ("Pool parameters", "Max workers", "Item timeout seconds", "Pool executor")
+REQUIRED_EXECUTION_PANDAS_POOL_SCENARIO = "isolated-execution-pandas-orchestrate-pool-executor"
+REQUIRED_EXECUTION_PANDAS_POOL_APP = "execution_pandas_project"
+REQUIRED_EXECUTION_PANDAS_POOL_TEXT = ("Pool executor", "Auto (ORCHESTRATE setting)")
 REQUIRED_PYTORCH_ANALYSIS_APP = "pytorch_playground_project"
 REQUIRED_PYTORCH_ANALYSIS_TEXT = ("PyTorch Playground", "Refresh evidence", "Synced RUN snippet", "Settings")
 REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_SIDEBAR_TEXT = ("Project:",)
@@ -647,6 +650,13 @@ def evaluate_contract() -> dict[str, Any]:
                 f"ui-robot-matrix profile does not run {REQUIRED_RELEASE_EVIDENCE_SCENARIO}",
             )
         )
+    if REQUIRED_EXECUTION_PANDAS_POOL_SCENARIO not in ui_robot_matrix_profile_scenarios:
+        issues.append(
+            CoverageIssue(
+                "execution_pandas_pool_robot",
+                f"ui-robot-matrix profile does not run {REQUIRED_EXECUTION_PANDAS_POOL_SCENARIO}",
+            )
+        )
 
     orchestrate_pool: dict[str, list[str]] = {}
     orchestrate_pool_scenario = scenario_by_name.get(REQUIRED_ORCHESTRATE_POOL_SCENARIO)
@@ -680,6 +690,58 @@ def evaluate_contract() -> dict[str, Any]:
                     "orchestrate_pool_robot",
                     f"{REQUIRED_ORCHESTRATE_POOL_SCENARIO} is missing required text probes: "
                     + ", ".join(missing_text),
+                )
+            )
+
+    execution_pandas_pool: dict[str, list[str]] = {}
+    execution_pandas_pool_scenario = scenario_by_name.get(REQUIRED_EXECUTION_PANDAS_POOL_SCENARIO)
+    if execution_pandas_pool_scenario is None:
+        issues.append(
+            CoverageIssue(
+                "execution_pandas_pool_robot",
+                f"{REQUIRED_EXECUTION_PANDAS_POOL_SCENARIO} is missing from the robot matrix",
+            )
+        )
+    else:
+        pages = sorted(_scenario_pages(widget_robot, execution_pandas_pool_scenario))
+        apps = sorted(_scenario_apps(widget_robot, execution_pandas_pool_scenario))
+        required_text = sorted(_scenario_required_text(widget_robot, execution_pandas_pool_scenario))
+        flags = sorted(_scenario_flags(execution_pandas_pool_scenario))
+        execution_pandas_pool = {
+            "apps": apps,
+            "pages": pages,
+            "required_text": required_text,
+            "flags": flags,
+        }
+        if REQUIRED_EXECUTION_PANDAS_POOL_APP not in apps:
+            issues.append(
+                CoverageIssue(
+                    "execution_pandas_pool_robot",
+                    f"{REQUIRED_EXECUTION_PANDAS_POOL_SCENARIO} does not target "
+                    f"{REQUIRED_EXECUTION_PANDAS_POOL_APP}",
+                )
+            )
+        if "ORCHESTRATE" not in pages:
+            issues.append(
+                CoverageIssue(
+                    "execution_pandas_pool_robot",
+                    f"{REQUIRED_EXECUTION_PANDAS_POOL_SCENARIO} does not cover ORCHESTRATE",
+                )
+            )
+        missing_text = sorted(set(REQUIRED_EXECUTION_PANDAS_POOL_TEXT) - set(required_text))
+        if missing_text:
+            issues.append(
+                CoverageIssue(
+                    "execution_pandas_pool_robot",
+                    f"{REQUIRED_EXECUTION_PANDAS_POOL_SCENARIO} is missing required text probes: "
+                    + ", ".join(missing_text),
+                )
+            )
+        if "browser_error_check" not in flags:
+            issues.append(
+                CoverageIssue(
+                    "execution_pandas_pool_robot",
+                    f"{REQUIRED_EXECUTION_PANDAS_POOL_SCENARIO} does not enable browser_error_check",
                 )
             )
 
@@ -756,6 +818,7 @@ def evaluate_contract() -> dict[str, Any]:
             "ui_robot_matrix_profile_scenarios": ui_robot_matrix_profile_scenarios,
             "hf_robot_scenarios": hf_robot_scenarios,
             "orchestrate_pool_robot": orchestrate_pool,
+            "execution_pandas_pool_robot": execution_pandas_pool,
             "pytorch_analysis_robot": pytorch_analysis,
             "public_demo_contract": {
                 "doc_snippets": list(REQUIRED_DEMO_DOC_SNIPPETS),

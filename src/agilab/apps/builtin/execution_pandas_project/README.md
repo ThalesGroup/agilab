@@ -39,9 +39,11 @@ distance/checksum fields, and the execution engine label.
 
 ## Change One Thing
 
-After the default run works, change only the partition count or switch
-`kernel_mode` from `typed_numeric` to `dataframe`. The output row counts should
-stay stable while the runtime and kernel metadata change.
+After the default run works, change only the partition count, switch
+`kernel_mode` from `typed_numeric` to `dataframe`, or set the ORCHESTRATE pool
+executor to `thread` for a bounded pool-mode benchmark. The output row counts
+should stay stable while the runtime, kernel metadata, and execution-model label
+change.
 
 ## Troubleshooting
 

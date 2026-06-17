@@ -107,10 +107,20 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     assert "isolated-project-editor-page" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
     assert "isolated-pytorch-playground-analysis" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
     assert "isolated-release-evidence" in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
+    assert (
+        "isolated-execution-pandas-orchestrate-pool-executor"
+        in payload["coverage"]["ui_robot_matrix_profile_scenarios"]
+    )
     assert payload["coverage"]["orchestrate_pool_robot"] == {
         "flags": ["browser_error_check"],
         "pages": ["ORCHESTRATE"],
         "required_text": ["Item timeout seconds", "Max workers", "Pool executor", "Pool parameters"],
+    }
+    assert payload["coverage"]["execution_pandas_pool_robot"] == {
+        "apps": ["execution_pandas_project"],
+        "flags": ["browser_error_check"],
+        "pages": ["ORCHESTRATE"],
+        "required_text": ["Auto (ORCHESTRATE setting)", "Pool executor"],
     }
     assert payload["coverage"]["pytorch_analysis_robot"] == {
         "apps": ["pytorch_playground_project"],
@@ -237,6 +247,13 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         pages="ORCHESTRATE",
         required_text=",".join(module.REQUIRED_ORCHESTRATE_POOL_TEXT),
     )
+    execution_pandas_pool = scenario(
+        module.REQUIRED_EXECUTION_PANDAS_POOL_SCENARIO,
+        pages="ORCHESTRATE",
+        apps=module.REQUIRED_EXECUTION_PANDAS_POOL_APP,
+        required_text=",".join(module.REQUIRED_EXECUTION_PANDAS_POOL_TEXT),
+        browser_error_check=True,
+    )
     pytorch = scenario(
         "isolated-pytorch-playground-analysis",
         pages="ANALYSIS",
@@ -258,6 +275,7 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
             hf_view_maps,
             hf_install,
             orchestrate_pool,
+            execution_pandas_pool,
             pytorch,
             release_evidence,
         )
@@ -321,6 +339,8 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
                             "isolated-pytorch-playground-analysis",
                             "--scenario",
                             "isolated-release-evidence",
+                            "--scenario",
+                            module.REQUIRED_EXECUTION_PANDAS_POOL_SCENARIO,
                             "--apps",
                             ",".join(module.REQUIRED_DEMO_UI_APPS),
                         ]
@@ -720,6 +740,13 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
     assert "isolated-pytorch-playground-analysis does not enable browser_error_check" in details
     assert "ui-robot-matrix profile does not run isolated-project-editor-page" in details
     assert "ui-robot-matrix profile does not run isolated-pytorch-playground-analysis" in details
+    assert (
+        "ui-robot-matrix profile does not run "
+        "isolated-execution-pandas-orchestrate-pool-executor"
+    ) in details
+    assert (
+        "isolated-execution-pandas-orchestrate-pool-executor is missing from the robot matrix"
+    ) in details
     assert any(
         detail.startswith("public proof scenarios are missing documented demo routes:")
         and "notebook-migration-proof" in detail

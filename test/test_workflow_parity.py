@@ -507,6 +507,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
             "isolated-project-rename-sidebar",
             "isolated-settings-page",
             "isolated-all-builtins-orchestrate-smoke",
+            "isolated-execution-pandas-orchestrate-pool-executor",
             "isolated-all-builtins-core-render-smoke",
         },
         "state": {

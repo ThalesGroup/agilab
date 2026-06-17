@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import pytest
 import sys
 import time
 import tomllib
@@ -11,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from agi_node.reduction import ReduceArtifact
-from agi_node.agi_dispatcher import BaseWorker
+from agi_node.agi_dispatcher import BaseWorker, worker_pool_support
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -19,20 +21,25 @@ SRC_ROOT = APP_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from execution_pandas.execution_pandas import ExecutionPandas
-from execution_pandas.app_args import ExecutionPandasArgs
-from execution_pandas.reduction import (
+from execution_pandas.execution_pandas import ExecutionPandas  # noqa: E402
+from execution_pandas.app_args import ExecutionPandasArgs  # noqa: E402
+from execution_pandas.reduction import (  # noqa: E402
     REDUCE_ARTIFACT_NAME,
     REDUCER_NAME,
     build_reduce_artifact,
     partial_from_result_frame,
     reduce_artifact_path,
 )
-from execution_pandas_worker.execution_pandas_worker import (
+from execution_pandas_worker.execution_pandas_worker import (  # noqa: E402
     ExecutionPandasWorker,
     _fill_vectorized_score_array,
     _tail_checksum_from_arrays,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_pool_executor_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(worker_pool_support.POOL_EXECUTOR_ENV, raising=False)
 
 
 def _load_toml(path: Path) -> dict:
@@ -57,6 +64,39 @@ def _make_env(tmp_path: Path) -> SimpleNamespace:
     )
 
 
+def _run_worker_plan(
+    tmp_path: Path,
+    args: ExecutionPandasArgs,
+    *,
+    mode: int,
+) -> ExecutionPandasWorker:
+    env = _make_env(tmp_path)
+    manager = ExecutionPandas(env, args=args)
+    workers = {"127.0.0.1": 1}
+    work_plan, metadata, *_ = manager.build_distribution(workers)
+
+    worker = ExecutionPandasWorker()
+    worker.env = env
+    worker.args = manager.args.model_dump(mode="json")
+    worker._worker_id = 0
+    worker.worker_id = 0
+    worker.verbose = 0
+    worker._mode = mode
+
+    BaseWorker._t0 = time.time()
+    worker.start()
+    seconds = worker.works(work_plan, metadata)
+
+    assert seconds >= 0.0
+    return worker
+
+
+def _read_first_output_csv(worker: ExecutionPandasWorker) -> pd.DataFrame:
+    output_files = sorted(Path(worker.data_out).glob("*.csv"))
+    assert output_files
+    return pd.read_csv(output_files[0])
+
+
 def test_execution_pandas_declares_cython_worker_reference_contract() -> None:
     settings = _load_toml(APP_ROOT / "src" / "app_settings.toml")
     worker_manifest = _load_toml(
@@ -69,6 +109,7 @@ def test_execution_pandas_declares_cython_worker_reference_contract() -> None:
     }
 
     assert settings["args"]["kernel_mode"] == "typed_numeric"
+    assert settings["args"]["pool_executor"] == "auto"
     assert settings["cluster"]["cython"] is True
     assert {"setuptools", "cython"} <= build_requires
 
@@ -127,6 +168,70 @@ def test_execution_pandas_worker_processes_a_file(tmp_path: Path) -> None:
     assert set(result["kernel_mode"]) == {"typed_numeric"}
     assert set(result["kernel_runtime"]) == {"python"}
     assert set(result["dtype_contract"]) == {"float64-contiguous"}
+
+
+def test_execution_pandas_worker_labels_forced_thread_executor(tmp_path: Path) -> None:
+    args = ExecutionPandasArgs(
+        n_partitions=1,
+        nfile=1,
+        rows_per_file=16,
+        n_groups=4,
+        pool_executor="thread",
+        reset_target=True,
+    )
+
+    worker = _run_worker_plan(tmp_path, args, mode=1)
+    result = _read_first_output_csv(worker)
+
+    assert set(result["execution_model"]) == {"threads"}
+
+
+def test_execution_pandas_worker_auto_labels_orchestrate_thread_executor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(worker_pool_support.POOL_EXECUTOR_ENV, "thread")
+    args = ExecutionPandasArgs(
+        n_partitions=1,
+        nfile=1,
+        rows_per_file=16,
+        n_groups=4,
+        pool_executor="auto",
+        reset_target=True,
+    )
+
+    worker = _run_worker_plan(tmp_path, args, mode=1)
+    result = _read_first_output_csv(worker)
+
+    assert set(result["execution_model"]) == {"threads"}
+
+
+def test_execution_pandas_worker_pool_selector_does_not_relabel_serial_work(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(worker_pool_support.POOL_EXECUTOR_ENV, "thread")
+    env = _make_env(tmp_path)
+    args = ExecutionPandasArgs(
+        n_partitions=1,
+        nfile=1,
+        rows_per_file=16,
+        n_groups=4,
+        pool_executor="thread",
+    )
+    manager = ExecutionPandas(env, args=args)
+    source = sorted(manager.args.data_in.glob("*.csv"))[0]
+
+    worker = ExecutionPandasWorker()
+    worker.env = env
+    worker.args = manager.args.model_dump(mode="json")
+    worker._worker_id = 0
+    worker.verbose = 0
+    worker.start()
+
+    result = worker.work_pool(str(source))
+
+    assert set(result["execution_model"]) == {"process"}
 
 
 def test_execution_pandas_vectorized_tail_checksum_matches_scalar_reference() -> None:
@@ -322,3 +427,49 @@ def test_execution_pandas_worker_uses_parallel_path_for_pool_mode(tmp_path: Path
 
     assert seconds >= 0.0
     assert calls["parallel"] == 1
+
+
+def test_execution_pandas_pool_executor_arg_scopes_env_override(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv(worker_pool_support.POOL_EXECUTOR_ENV, "process")
+    env = _make_env(tmp_path)
+    args = ExecutionPandasArgs(
+        n_partitions=4,
+        nfile=4,
+        rows_per_file=24,
+        n_groups=6,
+        reset_target=True,
+        pool_executor="thread",
+    )
+    manager = ExecutionPandas(env, args=args)
+    workers = {"127.0.0.1": 1}
+    work_plan, metadata, *_ = manager.build_distribution(workers)
+
+    worker = ExecutionPandasWorker()
+    worker.env = env
+    worker.args = manager.args.model_dump(mode="json")
+    worker._worker_id = 0
+    worker.worker_id = 0
+    worker.verbose = 0
+    worker._mode = 1
+
+    observed: list[str | None] = []
+    observed_labels: list[str | None] = []
+
+    def _fake_multi(plan, meta):
+        observed.append(os.environ.get(worker_pool_support.POOL_EXECUTOR_ENV))
+        observed_labels.append(getattr(worker, "_execution_model_label", None))
+
+    worker._exec_multi_process = _fake_multi
+
+    BaseWorker._t0 = time.time()
+    worker.start()
+    seconds = worker.works(work_plan, metadata)
+
+    assert seconds >= 0.0
+    assert observed == ["thread"]
+    assert observed_labels == ["threads"]
+    assert os.environ.get(worker_pool_support.POOL_EXECUTOR_ENV) == "process"
+    assert not hasattr(worker, "_execution_model_label")
