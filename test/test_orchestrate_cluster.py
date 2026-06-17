@@ -1613,6 +1613,56 @@ def test_render_cluster_settings_ui_blocks_cluster_when_share_is_unusable(monkey
     assert fake_st.session_state["cluster_enabled__demo_project__reset"] is True
 
 
+def test_render_cluster_settings_ui_falls_back_to_local_share_when_cluster_share_missing(monkeypatch, tmp_path):
+    app_name = "demo_project"
+    widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
+    local_share = tmp_path / "localshare" / "agi"
+    missing_share = tmp_path / "clustershare" / "agi"
+    local_share.mkdir(parents=True)
+    fake_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+        },
+        session_state={"app_settings": {"cluster": {"cluster_enabled": True}}, "benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    _disable_lan_defaults(monkeypatch)
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: {"parsed": raw},
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app=app_name,
+        home_abs=tmp_path,
+        is_managed_pc=False,
+        AGI_LOCAL_SHARE=str(local_share),
+        AGI_CLUSTER_SHARE=str(missing_share),
+        agi_share_path=Path("localshare/agi"),
+        share_root_path=lambda: local_share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert not missing_share.exists()
+    assert cluster["cluster_enabled"] is False
+    assert cluster["workers_data_path"] == "localshare/agi"
+    assert fake_st.session_state[widget_keys["workers_data_path"]] == "localshare/agi"
+    assert fake_st.errors
+    assert "using local share" in fake_st.errors[-1]
+
+
 def test_render_cluster_settings_ui_creates_missing_cluster_share(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         widget_values={

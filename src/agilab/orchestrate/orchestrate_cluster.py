@@ -327,6 +327,15 @@ def _env_local_share_candidate(env: Any) -> Path | None:
     return _resolve_env_relative_path(raw_value, env)
 
 
+def _env_explicit_local_share_candidate(env: Any) -> Path | None:
+    raw_value = getattr(env, "AGI_LOCAL_SHARE", None)
+    envars = getattr(env, "envars", None)
+    if not raw_value and isinstance(envars, dict):
+        raw_value = envars.get("AGI_LOCAL_SHARE")
+    if not raw_value:
+        return None
+    return _resolve_env_relative_path(raw_value, env)
+
 def _path_is_within(path: Path, parent: Path) -> bool:
     try:
         path.relative_to(parent)
@@ -392,6 +401,12 @@ def _cluster_share_problem(env: Any) -> str | None:
     if not candidate.is_dir():
         if candidate.exists():
             return f"Cluster mode needs a writable `AGI_CLUSTER_SHARE`, but `{candidate}` is not a directory."
+        local_share = _env_explicit_local_share_candidate(env)
+        if local_share is not None:
+            return (
+                f"Cluster mode needs a mounted writable `AGI_CLUSTER_SHARE`, but `{candidate}` "
+                f"is unavailable; using local share `{local_share}` instead of creating a shadow share."
+            )
         try:
             candidate.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
@@ -966,6 +981,12 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
         st.session_state[cluster_enabled_key] = False
     if bool(cluster_params.get("cluster_enabled", False)) and cluster_share_problem:
         cluster_params["cluster_enabled"] = False
+        local_share_candidate = _env_explicit_local_share_candidate(env)
+        if local_share_candidate is not None:
+            cluster_params["workers_data_path"] = _home_relative_share_text(local_share_candidate, env) or str(
+                local_share_candidate
+            )
+            st.session_state[widget_keys["workers_data_path"]] = cluster_params["workers_data_path"]
         if cluster_enabled_key not in st.session_state:
             st.session_state[cluster_enabled_key] = False
 
@@ -977,6 +998,12 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
         help="Enable cluster: provide a scheduler IP and workers configuration.",
     )
     if cluster_requested and cluster_share_problem:
+        local_share_candidate = _env_explicit_local_share_candidate(env)
+        if local_share_candidate is not None:
+            cluster_params["workers_data_path"] = _home_relative_share_text(local_share_candidate, env) or str(
+                local_share_candidate
+            )
+            st.session_state[widget_keys["workers_data_path"]] = cluster_params["workers_data_path"]
         st.error(
             f"{cluster_share_problem} Fix the cluster share before enabling cluster mode; "
             "the setting was not saved."
