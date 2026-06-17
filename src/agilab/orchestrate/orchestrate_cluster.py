@@ -1399,15 +1399,50 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
         workers_data_path_widget_key = widget_keys["workers_data_path"]
         workflow_policy_key = widget_keys["workflow_session_policy"]
         workflow_session_key = widget_keys["workflow_session"]
-        if workflow_policy_key not in st.session_state:
-            st.session_state[workflow_policy_key] = _workflow_session_policy(
-                cluster_params.get("workflow_session_policy") or _env_value(env, WORKFLOW_SESSION_POLICY_ENV)
+        workflow_policy = _workflow_session_policy(
+            st.session_state.get(
+                workflow_policy_key,
+                cluster_params.get("workflow_session_policy") or _env_value(env, WORKFLOW_SESSION_POLICY_ENV),
             )
-        if workflow_session_key not in st.session_state:
-            st.session_state[workflow_session_key] = _safe_workflow_component(
+        )
+        workflow_session = _safe_workflow_component(
+            st.session_state.get(
+                workflow_session_key,
                 cluster_params.get("workflow_session") or _env_value(env, WORKFLOW_SESSION_ENV),
-                "",
-            )
+            ),
+            "",
+        )
+        workflow_workers_data_path = ""
+        workflow_session_error_shown = False
+        cluster_share_ready = (
+            cluster_share_candidate is not None
+            and cluster_share_candidate.is_dir()
+            and os.access(cluster_share_candidate, os.W_OK)
+        )
+        if cluster_share_ready and cluster_share_candidate is not None:
+            try:
+                workflow_workers_path, workflow_session, workflow_policy = _resolve_workflow_session_workers_path(
+                    cluster_share_candidate,
+                    user=sanitized_user,
+                    workflow_name=app_state_name,
+                    policy=workflow_policy,
+                    selected_session=workflow_session,
+                )
+            except OSError as exc:
+                workflow_session_error_shown = True
+                st.error(f"Could not prepare workflow session under `{cluster_share_candidate}`: {exc}")
+            else:
+                workflow_workers_data_path = _workflow_workers_data_path_text(
+                    cluster_share_candidate,
+                    workflow_workers_path,
+                    env,
+                )
+                cluster_params["workflow_session_policy"] = workflow_policy
+                cluster_params["workflow_session"] = workflow_session
+        elif workflow_session:
+            cluster_params["workflow_session"] = workflow_session
+        st.session_state[workflow_policy_key] = workflow_policy
+        st.session_state[workflow_session_key] = workflow_session
 
         workflow_cols = st.columns(2)
         with workflow_cols[0]:
@@ -1429,12 +1464,8 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 placeholder="auto, or e.g. trial-001",
                 help="Session directory below the cluster user share. Leave empty to auto-select for the policy.",
             )
-        workflow_session = _safe_workflow_component(workflow_session_input, "")
-        cluster_share_candidate = _env_cluster_share_candidate(env)
-        if cluster_share_candidate is not None and cluster_share_candidate.is_dir() and os.access(
-            cluster_share_candidate,
-            os.W_OK,
-        ):
+        workflow_session = _safe_workflow_component(workflow_session_input, workflow_session)
+        if cluster_share_ready and cluster_share_candidate is not None and not workflow_session_error_shown:
             try:
                 workflow_workers_path, workflow_session, workflow_policy = _resolve_workflow_session_workers_path(
                     cluster_share_candidate,
@@ -1451,26 +1482,25 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                     workflow_workers_path,
                     env,
                 )
-                cluster_params["workflow_session_policy"] = workflow_policy
-                cluster_params["workflow_session"] = workflow_session
-                st.session_state[workflow_policy_key] = workflow_policy
-                st.session_state[workflow_session_key] = workflow_session
-                current_workers_data_path = st.session_state.get(
-                    workers_data_path_widget_key,
-                    cluster_params.get("workers_data_path"),
-                )
-                preserve_empty_widget = (
-                    workers_data_path_widget_key in st.session_state
-                    and not _clean_path_text(st.session_state.get(workers_data_path_widget_key))
-                )
-                if not preserve_empty_widget and _workers_data_path_should_follow_workflow_session(
-                    current_workers_data_path,
-                    env,
-                    user=sanitized_user,
-                    workflow_name=app_state_name,
-                ):
-                    cluster_params["workers_data_path"] = workflow_workers_data_path
-                    st.session_state[workers_data_path_widget_key] = workflow_workers_data_path
+        if workflow_workers_data_path:
+            cluster_params["workflow_session_policy"] = workflow_policy
+            cluster_params["workflow_session"] = workflow_session
+            current_workers_data_path = st.session_state.get(
+                workers_data_path_widget_key,
+                cluster_params.get("workers_data_path"),
+            )
+            preserve_empty_widget = (
+                workers_data_path_widget_key in st.session_state
+                and not _clean_path_text(st.session_state.get(workers_data_path_widget_key))
+            )
+            if not preserve_empty_widget and _workers_data_path_should_follow_workflow_session(
+                current_workers_data_path,
+                env,
+                user=sanitized_user,
+                workflow_name=app_state_name,
+            ):
+                cluster_params["workers_data_path"] = workflow_workers_data_path
+                st.session_state[workers_data_path_widget_key] = workflow_workers_data_path
         elif workflow_session:
             cluster_params["workflow_session"] = workflow_session
 

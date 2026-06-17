@@ -1287,6 +1287,56 @@ def test_render_cluster_settings_ui_populates_empty_cluster_from_lan_discovery(m
     )
 
 
+def test_render_cluster_settings_ui_preserves_workflow_session_without_cluster_share(monkeypatch, tmp_path):
+    widget_keys = orchestrate_cluster.cluster_widget_keys("demo_project")
+    fake_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+            widget_keys["workflow_session"]: "manual-session",
+        },
+        session_state={
+            "app_settings": {
+                "cluster": {
+                    "cluster_enabled": True,
+                    "workers": {"127.0.0.1": 1},
+                    "workflow_session": "manual-session",
+                }
+            },
+            widget_keys["workflow_session"]: "manual-session",
+            "benchmark": False,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    monkeypatch.setattr(orchestrate_cluster, "_lan_discovery_cluster_defaults", lambda *_, **__: {})
+
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: {"127.0.0.1": 1} if "127.0.0.1" in raw else None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("no share")),
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["workflow_session"] == "manual-session"
+
+
 def test_render_cluster_settings_ui_preserves_explicit_cluster_values_over_lan_discovery(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         widget_values={
