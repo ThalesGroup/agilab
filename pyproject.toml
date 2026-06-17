@@ -553,6 +553,10 @@ filterwarnings = [
   "ignore:'parseString' deprecated - use 'parse_string':Warning:matplotlib\\._fontconfig_pattern",
   "ignore:'resetCache' deprecated - use 'reset_cache':Warning:matplotlib\\._fontconfig_pattern",
   "ignore:'enablePackrat' deprecated - use 'enable_packrat':Warning:matplotlib\\._mathtext",
+  "ignore:.*agi_node\\.agi_dispatcher\\.(pre_install|post_install|build).*found in sys\\.modules.*:RuntimeWarning",
+  "ignore:Trying to unpickle estimator .* from version 1\\.4\\.1\\.post1 when using version .*:Warning:sklearn\\.base",
+  "ignore:numpy\\.core\\.numeric is deprecated.*:DeprecationWarning:agi_cluster\\.agi_distributor\\.runtime\\.runtime_misc_support",
+  "ignore:__package__ != __spec__\\.parent:DeprecationWarning",
 ]
 
 addopts = [

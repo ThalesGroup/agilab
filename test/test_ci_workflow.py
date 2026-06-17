@@ -242,13 +242,24 @@ def test_windows_core_tests_workflow_matches_failure_tracker_command() -> None:
     assert 'branches: ["main"]' in text
     assert 'branches: ["**"]' in text
     assert "--import-mode=importlib" in text
+    assert "--disable-warnings" not in text
+    assert "Audit Windows warning output" in text
+    assert "tools/validation_warning_report.py" in text
+    assert "--strict" in text
     assert "src/agilab/core/test src/agilab/core/agi-env/test src/agilab/core/agi-cluster/test" in text
     assert "test-results/windows-core-tests.txt" in text
     assert "test-results/windows-core-tests.xml" in text
+    assert "test-results/windows-core-warning-report.json" in text
     assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2" in text
     assert "actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6" in text
     assert "astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0" in text
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7" in text
+
+
+def test_clean_public_install_avoids_stale_pip_cache_warnings() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "python -m pip install --upgrade pip --no-cache-dir" in text
 
 
 def test_docs_workflows_block_stale_release_proof_github_runs() -> None:

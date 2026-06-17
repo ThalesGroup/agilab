@@ -259,7 +259,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip --no-cache-dir
           python tools/install_release_proof_package.py --retries 20 --delay-seconds 15
 
       - name: Validate clean package first proof

@@ -316,6 +316,20 @@ def test_maintenance_shortcut_has_maintain_alias():
     ]
 
 
+def test_warnings_shortcut_runs_validation_warning_report():
+    assert agilab_dev.planned_commands(["warnings", "--strict"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/validation_warning_report.py",
+            "--strict",
+        ]
+    ]
+
+
 def test_memory_shortcut_runs_maintenance_memory():
     assert agilab_dev.planned_commands(["memory", "check", "--all"]) == [
         [

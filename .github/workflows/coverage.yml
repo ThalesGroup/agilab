@@ -590,12 +590,7 @@ jobs:
       - name: Upload repo-wide agilab coverage to Codecov
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
         with:
-          files: >-
-            ./merged-coverage/coverage-agi-env.xml,
-            ./merged-coverage/coverage-agi-node.xml,
-            ./merged-coverage/coverage-agi-cluster.xml,
-            ./merged-coverage/coverage-agi-gui.xml,
-            ./merged-coverage/coverage-agi-web.xml
+          files: ./merged-coverage/coverage-agi-env.xml,./merged-coverage/coverage-agi-node.xml,./merged-coverage/coverage-agi-cluster.xml,./merged-coverage/coverage-agi-gui.xml,./merged-coverage/coverage-agi-web.xml
           use_oidc: true
           verbose: true
           fail_ci_if_error: true

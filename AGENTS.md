@@ -34,6 +34,7 @@ Use this runbook whenever you:
   `app-contracts` for
   built-in app/package/catalog/docs alignment, `audit` for local worktree/docs/release/PyPI
   state, `builtin-app-tests` for app-local built-in test execution,
+  `warnings` for summarizing validation warning signals from local logs and robot artifacts,
   `flow` for one or more workflow parity profiles, `ui-flow` for selecting the
   minimal local UI robot profiles from changed files,
   `release` for local pre-tag release guards, `badge` for the explicit release/pre-release
@@ -56,6 +57,10 @@ Use this runbook whenever you:
   `builtin-app-tests` runs built-in app tests inside each app's own `uv --project .`
   environment with pytest importlib mode, avoiding false root-environment dependency
   failures for app-local packages,
+  `warnings` writes a structured validation-warning report and can fail on
+  unapproved warnings when `--strict` is used; for multi-command validation batches,
+  create a marker file before the batch and pass `--newer-than <marker>` so stale
+  dev logs do not pollute the current warning audit,
   `audit` is the quick robustness check before handoff between machines,
   `flow` matches local GitHub workflow profiles, `ui-flow` is the local-first gate
   before relying on the scheduled full UI robot matrix for browser-heavy frontend changes,

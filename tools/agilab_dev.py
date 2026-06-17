@@ -346,6 +346,9 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command in {"maintenance", "maintain"}:
         return [_uv_python("tools/maintenance_dashboard.py", *args)]
 
+    if command in {"warnings", "warning-report"}:
+        return [_uv_python("tools/validation_warning_report.py", *args)]
+
     if command in {"memory", "maint-memory"}:
         return [_uv_python("tools/maintenance_memory.py", *args)]
 
@@ -528,6 +531,7 @@ def _usage() -> str:
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] app-contracts [app_contract_matrix args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] builtin-app-tests [builtin_app_tests args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] maintenance [maintenance_dashboard args]
+  ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] warnings [validation_warning_report args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] memory [maintenance_memory args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] audit [agilab_audit args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] audit-quality [audit_quality_evaluator args|audit.md]
@@ -562,6 +566,7 @@ High-frequency mappings:
   app-contracts -> Check built-in app, PyPI package, app catalog, and public-doc alignment.
   builtin-app-tests -> Run built-in app tests inside each app's own uv project environment.
   maintenance -> Report extension contracts, ADRs, docs drift, app/package contracts, evidence docs, release friction, TODO hotspots, generated artifacts, and coverage signals.
+  warnings  -> Summarize warning signals from local validation logs and robot artifacts; pass --strict to fail on unapproved warnings.
   memory    -> Check path-scoped maintenance memory notes for source drift.
   audit     -> Audit local AGILAB worktrees, release proof, docs mirror, PyPI projects, and latest release truth.
   audit-quality -> Score a Markdown AGILAB audit, or print the deep-audit preflight when no file is provided.

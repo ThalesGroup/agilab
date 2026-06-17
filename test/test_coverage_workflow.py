@@ -426,6 +426,24 @@ def test_codecov_uploads_are_blocking_coverage_publication_gates() -> None:
         assert "fail_ci_if_error: true" in block
 
 
+def test_repo_wide_codecov_file_list_has_no_whitespace_tokens() -> None:
+    block = _step_block("Upload repo-wide agilab coverage to Codecov")
+    match = re.search(r"\n          files: (?P<files>\S+)\n", block)
+
+    assert match is not None
+    files = match.group("files")
+    expected_files = [
+        "./merged-coverage/coverage-agi-env.xml",
+        "./merged-coverage/coverage-agi-node.xml",
+        "./merged-coverage/coverage-agi-cluster.xml",
+        "./merged-coverage/coverage-agi-gui.xml",
+        "./merged-coverage/coverage-agi-web.xml",
+    ]
+
+    assert files.split(",") == expected_files
+    assert all(token == token.strip() for token in files.split(","))
+
+
 def test_codecov_uploads_import_verification_key_before_blocking_upload() -> None:
     workflow_text = _workflow_text()
     upload_steps = [
