@@ -4,6 +4,17 @@ exact ./dev scope
 exact ./dev impact
 exact ./dev test
 exact ./dev docs
+exact ./dev release
+exact ./dev parallel-stage
+exact ./dev maintenance
+exact ./dev memory
+exact ./dev bugfix
 template ./dev impact --only <safe-component>
 template ./dev flow <safe-component>
 template ./dev task-worktree <safe-ref>
+template ./dev bugfix <safe-file>
+template ./dev regress <safe-selector>
+template ./dev parallel-stage <safe-profile>
+template ./dev maintenance <safe-scope>
+template ./dev memory <safe-component>
+template ./dev docs <safe-target>
