@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from types import SimpleNamespace
 import time
+from contextlib import contextmanager
 
 import cython
 import numpy as np
 import pandas as pd
 
+from agi_node.agi_dispatcher import worker_pool_support
 from agi_node.pandas_worker import PandasWorker
 from execution_pandas.reduction import write_reduce_artifact
 
@@ -85,6 +88,58 @@ def _typed_numeric_score_kernel(
 
 def _kernel_runtime_label() -> str:
     return "cython" if cython.compiled else "python"
+
+
+def _pool_executor_choice(args: SimpleNamespace | object) -> str:
+    raw = str(getattr(args, "pool_executor", "auto") or "auto").strip().lower()
+    return raw if raw in {"process", "thread"} else "auto"
+
+
+def _pool_execution_model_label(args: SimpleNamespace | object) -> str:
+    choice = _pool_executor_choice(args)
+    if choice == "auto":
+        choice = (
+            os.environ.get(worker_pool_support.POOL_EXECUTOR_ENV, "auto")
+            .strip()
+            .lower()
+        )
+        if choice not in {"auto", "process", "thread"}:
+            choice = "auto"
+    if choice == "thread":
+        return "threads"
+    if choice == "auto" and worker_pool_support._free_threading_active():
+        return "threads"
+    return "process"
+
+
+@contextmanager
+def _pool_executor_context(worker: object, args: SimpleNamespace | object):
+    choice = _pool_executor_choice(args)
+    previous = os.environ.get(worker_pool_support.POOL_EXECUTOR_ENV)
+    had_label = hasattr(worker, "_execution_model_label")
+    previous_label = getattr(worker, "_execution_model_label", None)
+    if choice != "auto":
+        os.environ[worker_pool_support.POOL_EXECUTOR_ENV] = choice
+    setattr(worker, "_execution_model_label", _pool_execution_model_label(args))
+    try:
+        yield
+    finally:
+        if choice != "auto":
+            if previous is None:
+                os.environ.pop(worker_pool_support.POOL_EXECUTOR_ENV, None)
+            else:
+                os.environ[worker_pool_support.POOL_EXECUTOR_ENV] = previous
+        if had_label:
+            setattr(worker, "_execution_model_label", previous_label)
+        else:
+            try:
+                delattr(worker, "_execution_model_label")
+            except AttributeError:
+                pass
+
+
+def _execution_model_label(worker: object) -> str:
+    return str(getattr(worker, "_execution_model_label", "process") or "process")
 
 
 def _as_contiguous_float64(series: pd.Series) -> np.ndarray:
@@ -256,7 +311,8 @@ class ExecutionPandasWorker(PandasWorker):
         """Treat pool and dask bits as parallel paths for this benchmark worker."""
         if workers_plan:
             if self._mode & 0b0101:
-                self._exec_multi_process(workers_plan, workers_plan_metadata)
+                with _pool_executor_context(self, self._current_args()):
+                    self._exec_multi_process(workers_plan, workers_plan_metadata)
             else:
                 self._exec_mono_process(workers_plan, workers_plan_metadata)
 
@@ -305,7 +361,7 @@ class ExecutionPandasWorker(PandasWorker):
         agg["dtype_contract"] = dtype_contract
         agg["source_file"] = source.name
         agg["engine"] = "pandas"
-        agg["execution_model"] = "process"
+        agg["execution_model"] = _execution_model_label(self)
         return agg
 
     def work_done(self, df: pd.DataFrame | None = None) -> None:

@@ -337,6 +337,21 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         required_text="Pool parameters,Max workers,Item timeout seconds,Pool executor",
         browser_error_check=True,
     ),
+    "isolated-execution-pandas-orchestrate-pool-executor": RobotScenario(
+        name="isolated-execution-pandas-orchestrate-pool-executor",
+        description=(
+            "Render execution_pandas_project in ORCHESTRATE and assert the "
+            "app-specific run-argument form exposes the pool executor selector."
+        ),
+        pages="ORCHESTRATE",
+        apps="execution_pandas_project",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="trial",
+        max_action_clicks_per_page=0,
+        required_text="Pool executor,Auto (ORCHESTRATE setting)",
+        browser_error_check=True,
+    ),
 }
 
 

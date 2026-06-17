@@ -37,6 +37,7 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
         "current-home-pytorch-direct-run-readiness",
         "current-home-orchestrate-journey",
         "isolated-orchestrate-pool-parameters",
+        "isolated-execution-pandas-orchestrate-pool-executor",
     ]
     (
         isolated,
@@ -51,6 +52,7 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
         pytorch_direct,
         journey,
         pool_parameters,
+        execution_pandas_pool,
     ) = scenarios
     assert isolated.pages == "ORCHESTRATE,WORKFLOW,ANALYSIS"
     assert isolated.runtime_isolation == "isolated"
@@ -123,6 +125,13 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert pool_parameters.max_action_clicks_per_page == 0
     assert pool_parameters.required_text == "Pool parameters,Max workers,Item timeout seconds,Pool executor"
     assert pool_parameters.browser_error_check is True
+    assert execution_pandas_pool.pages == "ORCHESTRATE"
+    assert execution_pandas_pool.apps == "execution_pandas_project"
+    assert execution_pandas_pool.runtime_isolation == "isolated"
+    assert execution_pandas_pool.action_button_policy == "trial"
+    assert execution_pandas_pool.max_action_clicks_per_page == 0
+    assert execution_pandas_pool.required_text == "Pool executor,Auto (ORCHESTRATE setting)"
+    assert execution_pandas_pool.browser_error_check is True
     assert "isolated-browser-history" not in [scenario.name for scenario in scenarios]
     assert "isolated-mobile-core-pages" not in [scenario.name for scenario in scenarios]
     assert "isolated-fresh-session-core-pages" not in [scenario.name for scenario in scenarios]
@@ -1606,13 +1615,14 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
         "current-home-pytorch-direct-run-readiness",
         "current-home-orchestrate-journey",
         "isolated-orchestrate-pool-parameters",
+        "isolated-execution-pandas-orchestrate-pool-executor",
     ]
     assert summary["success"] is True
-    assert summary["scenario_count"] == 12
-    assert summary["page_count"] == 24
-    assert summary["widget_count"] == 60
-    assert summary["interacted_count"] == 36
-    assert summary["probed_count"] == 24
+    assert summary["scenario_count"] == 13
+    assert summary["page_count"] == 26
+    assert summary["widget_count"] == 65
+    assert summary["interacted_count"] == 39
+    assert summary["probed_count"] == 26
     assert summary["failed_scenarios"] == []
     assert summary["failure_samples"] == []
 

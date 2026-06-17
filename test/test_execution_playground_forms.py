@@ -21,6 +21,7 @@ def _make_env(tmp_path: Path, *, app_name: str, data_out: str) -> SimpleNamespac
         "n_groups = 32\n"
         "compute_passes = 32\n"
         "kernel_mode = \"typed_numeric\"\n"
+        "pool_executor = \"auto\"\n"
         "output_format = \"csv\"\n"
         "seed = 42\n"
         "reset_target = false\n",
@@ -44,10 +45,19 @@ def test_execution_pandas_form_renders_and_persists_args(tmp_path: Path) -> None
     assert at.text_input(key="execution_pandas_project:app_args_form:data_in").value == "execution_playground/dataset"
     assert at.text_input(key="execution_pandas_project:app_args_form:data_out").value == "execution_pandas/results"
     assert at.selectbox(key="execution_pandas_project:app_args_form:kernel_mode").value == "typed_numeric"
+    pool_executor = at.selectbox(key="execution_pandas_project:app_args_form:pool_executor")
+    assert pool_executor.label == "Pool executor"
+    assert pool_executor.options == [
+        "Auto (ORCHESTRATE setting)",
+        "Process",
+        "Thread",
+    ]
+    assert pool_executor.value == "auto"
 
     at.number_input(key="execution_pandas_project:app_args_form:nfile").set_value(8)
     at.number_input(key="execution_pandas_project:app_args_form:rows_per_file").set_value(50000)
     at.selectbox(key="execution_pandas_project:app_args_form:kernel_mode").set_value("dataframe")
+    at.selectbox(key="execution_pandas_project:app_args_form:pool_executor").set_value("thread")
     at.selectbox(key="execution_pandas_project:app_args_form:output_format").set_value("parquet")
     at.run()
 
@@ -56,6 +66,7 @@ def test_execution_pandas_form_renders_and_persists_args(tmp_path: Path) -> None
     assert at.session_state["app_settings"]["args"]["nfile"] == 8
     assert at.session_state["app_settings"]["args"]["rows_per_file"] == 50000
     assert at.session_state["app_settings"]["args"]["kernel_mode"] == "dataframe"
+    assert at.session_state["app_settings"]["args"]["pool_executor"] == "thread"
     assert at.session_state["app_settings"]["args"]["output_format"] == "parquet"
 
 

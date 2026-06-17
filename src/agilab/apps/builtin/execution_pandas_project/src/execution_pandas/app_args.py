@@ -24,6 +24,7 @@ class ExecutionPandasArgs(BaseModel):
     n_groups: int = 32
     compute_passes: int = 32
     kernel_mode: Literal["dataframe", "typed_numeric"] = "typed_numeric"
+    pool_executor: Literal["auto", "process", "thread"] = "auto"
     output_format: Literal["csv", "parquet"] = "csv"
     seed: int = 42
     reset_target: bool = False
@@ -39,6 +40,7 @@ class ExecutionPandasArgsTD(TypedDict, total=False):
     n_groups: int
     compute_passes: int
     kernel_mode: str
+    pool_executor: str
     output_format: str
     seed: int
     reset_target: bool

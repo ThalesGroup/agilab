@@ -11,7 +11,7 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
-from execution_pandas.app_args import ExecutionPandasArgs, dump_args, load_args
+from execution_pandas.app_args import ExecutionPandasArgs, dump_args, load_args  # noqa: E402
 
 
 PAGE_ID = "execution_pandas_project:app_args_form"
@@ -69,6 +69,7 @@ for key, default in (
     ("n_groups", int(current_payload.get("n_groups", 32) or 32)),
     ("compute_passes", int(current_payload.get("compute_passes", 32) or 32)),
     ("kernel_mode", str(current_payload.get("kernel_mode", "typed_numeric") or "typed_numeric")),
+    ("pool_executor", str(current_payload.get("pool_executor", "auto") or "auto")),
     ("output_format", str(current_payload.get("output_format", "csv") or "csv")),
     ("seed", int(current_payload.get("seed", 42) or 42)),
     ("reset_target", bool(current_payload.get("reset_target", False))),
@@ -113,11 +114,26 @@ with c10:
         key=_k("kernel_mode"),
     )
 with c11:
-    st.checkbox("Reset output", key=_k("reset_target"))
+    st.selectbox(
+        "Pool executor",
+        options=["auto", "process", "thread"],
+        format_func=lambda value: {
+            "auto": "Auto (ORCHESTRATE setting)",
+            "process": "Process",
+            "thread": "Thread",
+        }[value],
+        key=_k("pool_executor"),
+        help=(
+            "Only affects pool or Dask runs. Auto follows the ORCHESTRATE "
+            "Resources and deployment pool executor setting when it is set."
+        ),
+    )
 
-c12, _ = st.columns([1.2, 3.6])
+c12, c13, _ = st.columns([1.2, 1.2, 2.4])
 with c12:
     st.number_input("Seed", key=_k("seed"), min_value=0, step=1)
+with c13:
+    st.checkbox("Reset output", key=_k("reset_target"))
 
 candidate: dict[str, Any] = {
     "data_in": (st.session_state.get(_k("data_in")) or "").strip(),
@@ -129,6 +145,7 @@ candidate: dict[str, Any] = {
     "n_groups": st.session_state.get(_k("n_groups"), 32),
     "compute_passes": st.session_state.get(_k("compute_passes"), 32),
     "kernel_mode": st.session_state.get(_k("kernel_mode")) or "typed_numeric",
+    "pool_executor": st.session_state.get(_k("pool_executor")) or "auto",
     "output_format": st.session_state.get(_k("output_format")) or "csv",
     "seed": st.session_state.get(_k("seed"), 42),
     "reset_target": bool(st.session_state.get(_k("reset_target"), False)),
@@ -163,5 +180,5 @@ else:
     st.caption(
         f"Planned workload: `{validated.nfile}` files, about `{total_rows:,}` rows total, "
         f"`{validated.n_partitions}` partitions per file, about `{rows_per_partition:,}` rows per partition, "
-        f"`{validated.kernel_mode}` kernel."
+        f"`{validated.kernel_mode}` kernel, `{validated.pool_executor}` pool executor."
     )
