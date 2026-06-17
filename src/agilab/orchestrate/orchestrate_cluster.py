@@ -3,8 +3,10 @@ import json
 import os
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
+from uuid import uuid4
 
 import streamlit as st
 
@@ -45,6 +47,12 @@ POOL_MAX_WORKERS_ENV = "AGILAB_POOL_MAX_WORKERS"
 POOL_ITEM_TIMEOUT_ENV = "AGILAB_POOL_ITEM_TIMEOUT"
 POOL_EXECUTOR_ENV = "AGILAB_POOL_EXECUTOR"
 POOL_EXECUTOR_OPTIONS = ("auto", "process", "thread")
+WORKFLOW_SESSION_POLICY_ENV = "AGI_WORKFLOW_SESSION_POLICY"
+WORKFLOW_SESSION_ENV = "AGI_WORKFLOW_SESSION"
+WORKFLOW_SESSION_POLICY_OPTIONS = ("new", "last", "select")
+WORKFLOW_SESSION_DEFAULT_POLICY = "new"
+WORKFLOW_SESSION_DIR = "workflows"
+WORKFLOW_SESSION_WORKERS_DIR = "workers"
 
 
 @dataclass(frozen=True)
@@ -80,6 +88,8 @@ def cluster_widget_keys(app_state_name: str) -> dict[str, str]:
         "use_key": f"cluster_use_key__{app_state_name}",
         "ssh_key_path": f"cluster_ssh_key__{app_state_name}",
         "password": f"cluster_password__{app_state_name}",
+        "workflow_session_policy": f"cluster_workflow_session_policy__{app_state_name}",
+        "workflow_session": f"cluster_workflow_session__{app_state_name}",
         "workers_data_path": f"cluster_workers_data_path__{app_state_name}",
         "workers": f"cluster_workers__{app_state_name}",
     }
@@ -112,6 +122,14 @@ def hydrate_cluster_widget_state(
     session_state.setdefault(
         widget_keys["pool_executor"],
         _pool_executor_value(cluster_params.get("pool_executor")),
+    )
+    session_state.setdefault(
+        widget_keys["workflow_session_policy"],
+        _workflow_session_policy(cluster_params.get("workflow_session_policy")),
+    )
+    session_state.setdefault(
+        widget_keys["workflow_session"],
+        _safe_workflow_component(cluster_params.get("workflow_session"), ""),
     )
     if is_managed_pc:
         session_state[widget_keys["rapids"]] = False
@@ -355,11 +373,118 @@ def _workers_data_path_points_to_local_share(value: Any, env: Any) -> bool:
     return data_path == local_share or _path_is_within(data_path, local_share)
 
 
-def _env_cluster_share_candidate(env: Any) -> Path | None:
-    raw_value = getattr(env, "AGI_CLUSTER_SHARE", None)
+def _env_value(env: Any, key: str) -> Any:
+    value = getattr(env, key, None)
     envars = getattr(env, "envars", None)
-    if not raw_value and isinstance(envars, dict):
-        raw_value = envars.get("AGI_CLUSTER_SHARE")
+    if not value and isinstance(envars, dict):
+        value = envars.get(key)
+    return value
+
+
+def _workflow_session_policy(value: Any) -> str:
+    policy = str(value or "").strip().lower().replace("_", "-")
+    return policy if policy in WORKFLOW_SESSION_POLICY_OPTIONS else WORKFLOW_SESSION_DEFAULT_POLICY
+
+
+def _safe_workflow_component(value: Any, fallback: str) -> str:
+    fallback_text = str(fallback or "").strip()
+    text = str(value or "").strip() or fallback_text
+    cleaned = re.sub(r"[^A-Za-z0-9._@+-]+", "-", text).strip(".-")
+    return cleaned or fallback_text
+
+
+def _new_workflow_session_id() -> str:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"{timestamp}-{uuid4().hex[:8]}"
+
+
+def _workflow_sessions_root(cluster_share: Path, user: Any, workflow_name: Any) -> Path:
+    safe_user = _safe_workflow_component(user, "local-user")
+    safe_workflow = _safe_workflow_component(workflow_name, "default")
+    user_root = cluster_share if cluster_share.name == safe_user else cluster_share / safe_user
+    return user_root / WORKFLOW_SESSION_DIR / safe_workflow
+
+
+def _list_workflow_sessions(sessions_root: Path) -> list[Path]:
+    try:
+        entries = [path for path in sessions_root.iterdir() if path.is_dir()]
+    except OSError:
+        return []
+
+    def sort_key(path: Path) -> tuple[int, str]:
+        try:
+            return (path.stat().st_mtime_ns, path.name)
+        except OSError:
+            return (0, path.name)
+
+    return sorted(entries, key=sort_key, reverse=True)
+
+
+def _resolve_workflow_session_workers_path(
+    cluster_share: Path,
+    *,
+    user: Any,
+    workflow_name: Any,
+    policy: Any,
+    selected_session: Any = "",
+    create: bool = True,
+    session_id_factory: Callable[[], str] = _new_workflow_session_id,
+) -> tuple[Path, str, str]:
+    resolved_policy = _workflow_session_policy(policy)
+    sessions_root = _workflow_sessions_root(cluster_share, user, workflow_name)
+    session_id = _safe_workflow_component(selected_session, "")
+    if resolved_policy == "last":
+        sessions = _list_workflow_sessions(sessions_root)
+        if sessions:
+            session_id = sessions[0].name
+    elif resolved_policy == "select" and not session_id:
+        sessions = _list_workflow_sessions(sessions_root)
+        if sessions:
+            session_id = sessions[0].name
+    if not session_id:
+        session_id = _safe_workflow_component(session_id_factory(), "session")
+
+    workers_path = sessions_root / session_id / WORKFLOW_SESSION_WORKERS_DIR
+    if create:
+        workers_path.mkdir(parents=True, exist_ok=True)
+    return workers_path, session_id, resolved_policy
+
+
+def _workflow_workers_data_path_text(cluster_share: Path, workers_path: Path, env: Any) -> str:
+    cluster_share_setting = _env_cluster_share_setting(env)
+    if cluster_share_setting:
+        try:
+            suffix = workers_path.relative_to(cluster_share)
+        except ValueError:
+            pass
+        else:
+            return (Path(cluster_share_setting) / suffix).as_posix()
+    return _home_relative_share_text(workers_path, env) or str(workers_path)
+
+
+def _workers_data_path_should_follow_workflow_session(
+    value: Any,
+    env: Any,
+    *,
+    user: Any,
+    workflow_name: Any,
+) -> bool:
+    text = _clean_path_text(value)
+    if not text:
+        return True
+    if _workers_data_path_points_to_local_share(text, env):
+        return True
+    data_path = _resolve_env_relative_path(text, env)
+    cluster_share = _env_cluster_share_candidate(env)
+    if data_path is None or cluster_share is None:
+        return False
+    if data_path == cluster_share:
+        return True
+    return _path_is_within(data_path, _workflow_sessions_root(cluster_share, user, workflow_name))
+
+
+def _env_cluster_share_candidate(env: Any) -> Path | None:
+    raw_value = _env_value(env, "AGI_CLUSTER_SHARE")
     if not raw_value:
         try:
             raw_value = env.share_root_path()
@@ -380,10 +505,7 @@ def _env_cluster_share_candidate(env: Any) -> Path | None:
 
 
 def _env_cluster_share_setting(env: Any) -> str | None:
-    raw_value = getattr(env, "AGI_CLUSTER_SHARE", None)
-    envars = getattr(env, "envars", None)
-    if not raw_value and isinstance(envars, dict):
-        raw_value = envars.get("AGI_CLUSTER_SHARE")
+    raw_value = _env_value(env, "AGI_CLUSTER_SHARE")
     if not raw_value:
         raw_value = getattr(env, "agi_share_path", None)
     if not raw_value:
@@ -1275,6 +1397,83 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 cluster_params["scheduler"] = scheduler
 
         workers_data_path_widget_key = widget_keys["workers_data_path"]
+        workflow_policy_key = widget_keys["workflow_session_policy"]
+        workflow_session_key = widget_keys["workflow_session"]
+        if workflow_policy_key not in st.session_state:
+            st.session_state[workflow_policy_key] = _workflow_session_policy(
+                cluster_params.get("workflow_session_policy") or _env_value(env, WORKFLOW_SESSION_POLICY_ENV)
+            )
+        if workflow_session_key not in st.session_state:
+            st.session_state[workflow_session_key] = _safe_workflow_component(
+                cluster_params.get("workflow_session") or _env_value(env, WORKFLOW_SESSION_ENV),
+                "",
+            )
+
+        workflow_cols = st.columns(2)
+        with workflow_cols[0]:
+            workflow_policy_input = st.selectbox(
+                "Workflow session policy",
+                WORKFLOW_SESSION_POLICY_OPTIONS,
+                key=workflow_policy_key,
+                help=(
+                    "`new` creates an isolated session, `last` reuses the latest session, "
+                    "and `select` uses the named session."
+                ),
+            )
+        workflow_policy = _workflow_session_policy(workflow_policy_input)
+        cluster_params["workflow_session_policy"] = workflow_policy
+        with workflow_cols[1]:
+            workflow_session_input = st.text_input(
+                "Workflow session",
+                key=workflow_session_key,
+                placeholder="auto, or e.g. trial-001",
+                help="Session directory below the cluster user share. Leave empty to auto-select for the policy.",
+            )
+        workflow_session = _safe_workflow_component(workflow_session_input, "")
+        cluster_share_candidate = _env_cluster_share_candidate(env)
+        if cluster_share_candidate is not None and cluster_share_candidate.is_dir() and os.access(
+            cluster_share_candidate,
+            os.W_OK,
+        ):
+            try:
+                workflow_workers_path, workflow_session, workflow_policy = _resolve_workflow_session_workers_path(
+                    cluster_share_candidate,
+                    user=sanitized_user,
+                    workflow_name=app_state_name,
+                    policy=workflow_policy,
+                    selected_session=workflow_session,
+                )
+            except OSError as exc:
+                st.error(f"Could not prepare workflow session under `{cluster_share_candidate}`: {exc}")
+            else:
+                workflow_workers_data_path = _workflow_workers_data_path_text(
+                    cluster_share_candidate,
+                    workflow_workers_path,
+                    env,
+                )
+                cluster_params["workflow_session_policy"] = workflow_policy
+                cluster_params["workflow_session"] = workflow_session
+                st.session_state[workflow_policy_key] = workflow_policy
+                st.session_state[workflow_session_key] = workflow_session
+                current_workers_data_path = st.session_state.get(
+                    workers_data_path_widget_key,
+                    cluster_params.get("workers_data_path"),
+                )
+                preserve_empty_widget = (
+                    workers_data_path_widget_key in st.session_state
+                    and not _clean_path_text(st.session_state.get(workers_data_path_widget_key))
+                )
+                if not preserve_empty_widget and _workers_data_path_should_follow_workflow_session(
+                    current_workers_data_path,
+                    env,
+                    user=sanitized_user,
+                    workflow_name=app_state_name,
+                ):
+                    cluster_params["workers_data_path"] = workflow_workers_data_path
+                    st.session_state[workers_data_path_widget_key] = workflow_workers_data_path
+        elif workflow_session:
+            cluster_params["workflow_session"] = workflow_session
+
         if workers_data_path_widget_key not in st.session_state:
             st.session_state[workers_data_path_widget_key] = cluster_params.get("workers_data_path", "")
 

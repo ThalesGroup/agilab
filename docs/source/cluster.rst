@@ -79,6 +79,36 @@ Example placeholders:
 - worker path: ``/path/to/worker/clustershare/agilab-two-node``
 - worker address: ``<worker-user>@<worker-host>``
 
+Workflow session directories
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+ORCHESTRATE isolates cluster run data below the cluster share instead of writing
+directly into the user share root. When cluster mode is enabled and
+``AGI_CLUSTER_SHARE`` is usable, the default **Workers Data Path** becomes:
+
+.. code-block:: text
+
+   <AGI_CLUSTER_SHARE>/<cluster-user>/workflows/<app-name>/<session-id>/workers
+
+This avoids collisions when the same user runs several app workflows on the same
+cluster share. The cluster settings UI exposes two controls:
+
+- **Workflow session policy**: ``new`` creates a fresh session directory,
+  ``last`` reuses the newest existing session for the app, and ``select`` uses
+  the named session.
+- **Workflow session**: optional session name. Leave it empty for automatic
+  selection, or set it when you want a stable session such as ``trial-001``.
+
+The same behavior can be preseeded with environment values:
+
+- ``AGI_WORKFLOW_SESSION_POLICY=new|last|select``
+- ``AGI_WORKFLOW_SESSION=<session-id>``
+
+If the cluster share is unavailable and an explicit ``AGI_LOCAL_SHARE`` exists,
+ORCHESTRATE disables cluster mode and points **Workers Data Path** back to the
+local share instead of creating a shadow cluster-share directory. Fix the mounted
+``AGI_CLUSTER_SHARE`` before enabling cluster mode again.
+
 Discover candidate workers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
