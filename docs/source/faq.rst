@@ -398,6 +398,20 @@ Use ``--components agi-web`` for the portable web-component contract badge.
 For the global badge, you also need the corresponding aggregate XML inputs
 before regenerating ``badges/coverage-agilab.svg``.
 
+How should I report a 100% coverage improvement?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Report the scope that actually reached 100%. AGILAB tracks component coverage
+separately for surfaces such as ``agi-env``, ``agi-node``, ``agi-cluster``,
+``agi-gui``, and ``agi-web`` before combining the XML artifacts into the global
+``agilab`` badge. A focused test change can make one component complete without
+making the aggregate badge complete.
+
+When a coverage change is ready to publish, keep the source tests, generated XML
+evidence, and badge refresh aligned. Do not edit badge SVGs by hand or describe
+local macOS coverage as release truth when the Ubuntu coverage workflow is the
+canonical badge source.
+
 Why can ``agi-gui`` be at 99% while global ``agilab`` coverage is lower?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
