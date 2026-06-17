@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-14T16:12:54Z",
+  "generated_at_utc": "2026-06-17T16:21:02Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -10,7 +10,7 @@
     "repository": "https://github.com/ThalesGroup/agilab",
     "documentation": "https://thalesgroup.github.io/agilab/",
     "project": "agilab",
-    "version": "2026.06.14.1"
+    "version": "2026.06.16"
   },
   "boundary": {
     "proves": "This manifest proves that public AGILAB surfaces are discoverable from checked-in contracts.",
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 15,
     "agent_skill_count": 33,
-    "evidence_schema_count": 220,
+    "evidence_schema_count": 225,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -351,7 +351,7 @@
       "name": "agi-page-geospatial-map",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.06.01",
+      "version": "2026.06.16",
       "description": "AGILAB page bundle for 2D geospatial map exploration.",
       "project": "src/agilab/apps-pages/view_maps",
       "pyproject": "src/agilab/apps-pages/view_maps/pyproject.toml",
@@ -362,7 +362,7 @@
       "name": "agi-page-geospatial-3d",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.16",
       "description": "AGILAB page bundle for 3D geospatial exploration.",
       "project": "src/agilab/apps-pages/view_maps_3d",
       "pyproject": "src/agilab/apps-pages/view_maps_3d/pyproject.toml",
@@ -384,7 +384,7 @@
       "name": "agi-page-routing-model-comparison",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.16",
       "description": "AGILAB page bundle for comparing routing model allocation decisions.",
       "project": "src/agilab/apps-pages/view_routing_model_comparison",
       "pyproject": "src/agilab/apps-pages/view_routing_model_comparison/pyproject.toml",
@@ -538,7 +538,7 @@
       "name": "agi-app-flight-telemetry",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.16",
       "description": "AGILAB flight-telemetry ingestion demo with reusable dataframe and map-analysis outputs",
       "project": "src/agilab/lib/agi-app-flight-telemetry",
       "pyproject": "src/agilab/lib/agi-app-flight-telemetry/pyproject.toml",
@@ -637,7 +637,7 @@
       "name": "agi-apps",
       "role": "app-umbrella",
       "status": "PyPI package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.16",
       "description": "AGILAB public app package umbrella and example assets",
       "project": "src/agilab/lib/agi-apps",
       "pyproject": "src/agilab/lib/agi-apps/pyproject.toml",
@@ -648,7 +648,7 @@
       "name": "agilab",
       "role": "top-level-bundle",
       "status": "PyPI package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.16",
       "description": "AGILAB is a reproducible AI/ML workbench for engineering teams.",
       "project": ".",
       "pyproject": "pyproject.toml",
@@ -686,7 +686,7 @@
       "package": "agi-app-flight-telemetry",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-flight-telemetry",
-      "version": "2026.06.14.1",
+      "version": "2026.06.16",
       "description": "AGILAB flight-telemetry ingestion demo with reusable dataframe and map-analysis outputs"
     },
     {
@@ -885,7 +885,7 @@
       "name": "agilab-testing",
       "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
       "path": ".claude/skills/agilab-testing/SKILL.md",
-      "updated": "2026-06-06"
+      "updated": "2026-06-17"
     },
     {
       "name": "agilab-ui-robot-validation",
@@ -1757,36 +1757,18 @@
     {
       "schema": "agilab.notebook_export_handoff.v1",
       "sources": [
-        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.md",
-        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.md",
-        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.md",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.md",
-        "src/agilab/apps/builtin/weather_forecast_legacy_project/notebooks/lab_stages.notebook_export.md",
-        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.md",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
     {
       "schema": "agilab.notebook_export_manifest.v1",
       "sources": [
-        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/weather_forecast_legacy_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
     {
       "schema": "agilab.notebook_export_portability.v1",
       "sources": [
-        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/weather_forecast_legacy_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
@@ -1860,12 +1842,6 @@
     {
       "schema": "agilab.notebook_view_sync.v1",
       "sources": [
-        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/weather_forecast_legacy_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
@@ -2153,6 +2129,31 @@
       ]
     },
     {
+      "schema": "agilab.reuse_catalog.v1",
+      "sources": [
+        "src/agilab/resources/reuse_catalog.toml",
+        "src/agilab/reuse_catalog.py"
+      ]
+    },
+    {
+      "schema": "agilab.reuse_catalog_validation.v1",
+      "sources": [
+        "src/agilab/reuse_catalog.py"
+      ]
+    },
+    {
+      "schema": "agilab.reuse_changed_validation.v1",
+      "sources": [
+        "src/agilab/reuse_catalog.py"
+      ]
+    },
+    {
+      "schema": "agilab.reuse_suggestions.v1",
+      "sources": [
+        "src/agilab/reuse_catalog.py"
+      ]
+    },
+    {
       "schema": "agilab.revision_traceability.v1",
       "sources": [
         "docs/source/features.rst",
@@ -2402,6 +2403,12 @@
       "sources": [
         "docs/source/security-adoption.rst",
         "src/agilab/security/untrusted_content_boundary.py"
+      ]
+    },
+    {
+      "schema": "agilab.validation_warning_report.v1",
+      "sources": [
+        "tools/validation_warning_report.py"
       ]
     },
     {
