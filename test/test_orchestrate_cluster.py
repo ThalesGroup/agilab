@@ -1337,6 +1337,73 @@ def test_render_cluster_settings_ui_preserves_workflow_session_without_cluster_s
     assert cluster["workflow_session"] == "manual-session"
 
 
+def test_render_cluster_settings_ui_empty_workflow_session_auto_selects_latest(monkeypatch, tmp_path):
+    app_name = "demo_project"
+    widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
+    share = tmp_path / "cluster-share"
+    sessions_root = share / "agi" / "workflows" / app_name
+    old_session = sessions_root / "session-a"
+    latest_session = sessions_root / "session-b"
+    old_session.mkdir(parents=True)
+    latest_session.mkdir(parents=True)
+    os.utime(old_session, (1, 1))
+    os.utime(latest_session, (2, 2))
+    fake_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+            widget_keys["workflow_session_policy"]: "select",
+            widget_keys["workflow_session"]: "",
+        },
+        session_state={
+            "app_settings": {
+                "cluster": {
+                    "cluster_enabled": True,
+                    "workflow_session_policy": "select",
+                    "workflow_session": "session-a",
+                    "workers_data_path": "cluster-share/agi/workflows/demo_project/session-a/workers",
+                }
+            },
+            widget_keys["workflow_session_policy"]: "select",
+            widget_keys["workflow_session"]: "session-a",
+            widget_keys["workers_data_path"]: "cluster-share/agi/workflows/demo_project/session-a/workers",
+            "benchmark": False,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    _disable_lan_defaults(monkeypatch)
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda _raw: None,
+        parse_and_validate_workers=lambda _raw: None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app=app_name,
+        home_abs=tmp_path,
+        is_managed_pc=False,
+        AGI_CLUSTER_SHARE=str(share),
+        agi_share_path=Path("cluster-share"),
+        share_root_path=lambda: share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["workflow_session_policy"] == "select"
+    assert cluster["workflow_session"] == "session-b"
+    assert cluster["workers_data_path"] == "cluster-share/agi/workflows/demo_project/session-b/workers"
+
+
 def test_render_cluster_settings_ui_preserves_explicit_cluster_values_over_lan_discovery(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         widget_values={
