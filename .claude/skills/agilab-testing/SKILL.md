@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-06
+  updated: 2026-06-17
 ---
 
 # Testing Skill (AGILAB)
@@ -441,6 +441,17 @@ validation, release, and Hugging Face sync in one flow.
   local badge refresh disagrees with the latest green coverage workflow, inspect
   the CI XML artifacts first and align the badge with the CI aggregate instead
   of blindly committing the local percentage.
+- For badge refreshes, generate from a complete current XML set. The full
+  `badges` profile expects `coverage-agi-env.xml`, `coverage-agi-node.xml`,
+  `coverage-agi-cluster.xml`, `coverage-agi-gui.xml`, and
+  `coverage-agi-web.xml`; aggregates such as `agi-core` and `agilab` are only
+  trustworthy after all component XML inputs are present.
+- Use `tools/coverage_badge_guard.py --allow-badge-only` only for a deliberate
+  badge-only correction that was regenerated from current coverage XML. Run
+  `tools/workflow_parity.py --profile badges` after the generated SVG diff is
+  committed or the tree is otherwise clean; its final `git diff --exit-code --
+  badges/` step is expected to fail while the intended badge refresh is still
+  unstaged or uncommitted.
 - Badge-only commits normally do not trigger the coverage workflow. After a
   badge correction, manually dispatch `coverage.yml` on `main` and wait for the
   aggregate badge-freshness job before calling the badge fixed.
