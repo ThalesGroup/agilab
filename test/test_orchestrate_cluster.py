@@ -2299,3 +2299,169 @@ def test_render_cluster_settings_ui_lan_button_error_edges(monkeypatch, tmp_path
     monkeypatch.setattr(orchestrate_cluster, "_write_cluster_advisor_plan", lambda *_args, **_kwargs: (False, "readonly"))
     orchestrate_cluster.render_cluster_settings_ui(_env(), _deps())
     assert any("Could not write cluster plan" in error for error in advisor_st.errors)
+
+
+def test_workflow_session_helper_remaining_edges(monkeypatch, tmp_path):
+    share = tmp_path / "cluster-share"
+    share.mkdir()
+
+    assert (
+        orchestrate_cluster._env_value(
+            SimpleNamespace(envars={"AGI_WORKFLOW_SESSION": "env-session"}),
+            "AGI_WORKFLOW_SESSION",
+        )
+        == "env-session"
+    )
+    assert orchestrate_cluster._workflow_session_policy("LAST") == "last"
+    assert orchestrate_cluster._workflow_session_policy("bad") == "new"
+    assert orchestrate_cluster._safe_workflow_component(" ../bad name ", "fallback") == "bad-name"
+    assert orchestrate_cluster._safe_workflow_component("", "fallback") == "fallback"
+
+    class _BrokenIterdirPath(type(Path())):
+        def iterdir(self):
+            raise OSError("denied")
+
+    assert orchestrate_cluster._list_workflow_sessions(_BrokenIterdirPath(tmp_path / "blocked")) == []
+
+    workers_path, session, policy = orchestrate_cluster._resolve_workflow_session_workers_path(
+        share,
+        user="agi",
+        workflow_name="demo_project",
+        policy="select",
+        create=False,
+        session_id_factory=lambda: "fresh-run",
+    )
+    assert policy == "select"
+    assert session == "fresh-run"
+    assert workers_path == share / "agi" / "workflows" / "demo_project" / "fresh-run" / "workers"
+    assert not workers_path.exists()
+
+    env_with_setting = SimpleNamespace(home_abs=tmp_path, AGI_CLUSTER_SHARE=str(share))
+    assert (
+        orchestrate_cluster._workflow_workers_data_path_text(
+            share,
+            tmp_path / "other" / "workers",
+            env_with_setting,
+        )
+        == "other/workers"
+    )
+
+    env_without_setting = SimpleNamespace(
+        home_abs=tmp_path,
+        share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("missing share")),
+    )
+    assert (
+        orchestrate_cluster._workflow_workers_data_path_text(
+            share,
+            share / "agi" / "workflows" / "demo_project" / "session-a" / "workers",
+            env_without_setting,
+        )
+        == "cluster-share/agi/workflows/demo_project/session-a/workers"
+    )
+    assert not orchestrate_cluster._workers_data_path_should_follow_workflow_session(
+        "/external/data",
+        env_without_setting,
+        user="agi",
+        workflow_name="demo_project",
+    )
+
+
+def test_render_cluster_settings_ui_uses_workflow_session_env_defaults(monkeypatch, tmp_path):
+    app_name = "demo_project"
+    widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
+    share = tmp_path / "cluster-share"
+    share.mkdir()
+    fake_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+        },
+        session_state={"app_settings": {"cluster": {"cluster_enabled": True}}, "benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    _disable_lan_defaults(monkeypatch)
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda _raw: None,
+        parse_and_validate_workers=lambda _raw: None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app=app_name,
+        home_abs=tmp_path,
+        is_managed_pc=False,
+        AGI_CLUSTER_SHARE=str(share),
+        envars={
+            "AGI_WORKFLOW_SESSION_POLICY": "select",
+            "AGI_WORKFLOW_SESSION": "env-session",
+        },
+        agi_share_path=Path("localshare"),
+        share_root_path=lambda: share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["workflow_session_policy"] == "select"
+    assert cluster["workflow_session"] == "env-session"
+    assert cluster["workers_data_path"] == "cluster-share/agi/workflows/demo_project/env-session/workers"
+    assert fake_st.session_state[widget_keys["workflow_session_policy"]] == "select"
+    assert fake_st.session_state[widget_keys["workflow_session"]] == "env-session"
+
+
+def test_render_cluster_settings_ui_reports_workflow_session_prepare_error(monkeypatch, tmp_path):
+    app_name = "demo_project"
+    widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
+    share = tmp_path / "cluster-share"
+    share.mkdir()
+    fake_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+            widget_keys["workflow_session"]: "session-a",
+        },
+        session_state={"app_settings": {"cluster": {"cluster_enabled": True}}, "benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    monkeypatch.setattr(
+        orchestrate_cluster,
+        "_resolve_workflow_session_workers_path",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("readonly")),
+    )
+    _disable_lan_defaults(monkeypatch)
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda _raw: None,
+        parse_and_validate_workers=lambda _raw: None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app=app_name,
+        home_abs=tmp_path,
+        is_managed_pc=False,
+        AGI_CLUSTER_SHARE=str(share),
+        agi_share_path=Path("cluster-share"),
+        share_root_path=lambda: share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    assert any("Could not prepare workflow session" in error for error in fake_st.errors)
