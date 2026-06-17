@@ -252,6 +252,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert agi_node.timeout_seconds == 20 * 60
     assert agi_node.env["COVERAGE_FILE"] == ".coverage.agi-node"
     assert "--cov=agi_node" in agi_node.argv
+    assert "--import-mode=importlib" in agi_node.argv
     assert "coverage-agi-node.xml" in " ".join(agi_node.argv)
     assert _has_with_dependency(agi_node.argv, "fastparquet")
     assert agi_node.argv[-1] == "src/agilab/core/test"
@@ -259,6 +260,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert agi_cluster.timeout_seconds == 20 * 60
     assert agi_cluster.env["COVERAGE_FILE"] == ".coverage.agi-cluster"
     assert "--cov=agi_cluster" in agi_cluster.argv
+    assert "--import-mode=importlib" in agi_cluster.argv
     assert "coverage-agi-cluster.xml" in " ".join(agi_cluster.argv)
     assert _has_with_dependency(agi_cluster.argv, "fastparquet")
     assert agi_cluster.argv[-2:] == [
