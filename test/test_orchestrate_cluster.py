@@ -530,7 +530,6 @@ def test_workflow_session_module_path_policies(tmp_path):
         user="agi",
         workflow_name="workflows",
         project_name="demo_project",
-        legacy_workflow_names=("demo_project",),
     )
     assert orchestrate_cluster._workers_data_path_should_follow_workflow_session(
         "clustershare/agi/workflows/latest-run/demo",
@@ -538,31 +537,27 @@ def test_workflow_session_module_path_policies(tmp_path):
         user="agi",
         workflow_name="workflows",
         project_name="demo_project",
-        legacy_workflow_names=("demo_project",),
     )
     assert orchestrate_cluster._workers_data_path_should_follow_workflow_session(
-        "clustershare/agi/demo_project/latest-run/workers",
+        "clustershare/agi/workflows/demo_project/latest-run/stale",
         env,
         user="agi",
         workflow_name="workflows",
         project_name="demo_project",
-        legacy_workflow_names=("demo_project",),
     )
     assert orchestrate_cluster._workers_data_path_should_follow_workflow_session(
-        "clustershare/agi/workflows/demo_project/latest-run/workers",
+        "clustershare/agi/demo_project/latest-run/stale",
         env,
         user="agi",
         workflow_name="workflows",
         project_name="demo_project",
-        legacy_workflow_names=("demo_project",),
     )
-    assert not orchestrate_cluster._workers_data_path_should_follow_workflow_session(
+    assert orchestrate_cluster._workers_data_path_should_follow_workflow_session(
         "clustershare/agi/workflows/latest-run/custom-module",
         env,
         user="agi",
         workflow_name="workflows",
         project_name="demo_project",
-        legacy_workflow_names=("demo_project",),
     )
     assert not orchestrate_cluster._workers_data_path_should_follow_workflow_session(
         "clustershare/agi/workflows/latest-run/demo/custom-data",
@@ -570,7 +565,6 @@ def test_workflow_session_module_path_policies(tmp_path):
         user="agi",
         workflow_name="workflows",
         project_name="demo_project",
-        legacy_workflow_names=("demo_project",),
     )
     assert not orchestrate_cluster._workers_data_path_should_follow_workflow_session(
         "/external/data",
@@ -578,7 +572,51 @@ def test_workflow_session_module_path_policies(tmp_path):
         user="agi",
         workflow_name="workflows",
         project_name="demo_project",
-        legacy_workflow_names=("demo_project",),
+    )
+
+
+def test_workflow_session_path_regression_uses_workflow_session_module_semantic(tmp_path):
+    share = tmp_path / "clustershare" / "agi"
+    session_id = "20260618T093102Z-492de776"
+
+    path, session, policy = orchestrate_cluster._resolve_workflow_session_module_path(
+        share,
+        user="agi",
+        workflow_name="workflows",
+        project_name="flight_telemetry_project",
+        policy="select",
+        selected_session=session_id,
+        create=False,
+    )
+
+    assert policy == "select"
+    assert session == session_id
+    assert path == share / "workflows" / session_id / "flight_telemetry"
+    assert "workers" not in path.parts
+    assert "flight_telemetry_project" not in path.parts
+
+
+def test_workers_data_path_regression_rewrites_misplaced_managed_share_values(tmp_path):
+    share = tmp_path / "clustershare" / "agi"
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        AGI_CLUSTER_SHARE=str(share),
+        AGI_LOCAL_SHARE=str(tmp_path / "localshare"),
+    )
+
+    assert orchestrate_cluster._workers_data_path_should_follow_workflow_session(
+        "clustershare/agi/workflows/flight_telemetry_project/20260618T093102Z-492de776/stale",
+        env,
+        user="agi",
+        workflow_name="workflows",
+        project_name="flight_telemetry_project",
+    )
+    assert not orchestrate_cluster._workers_data_path_should_follow_workflow_session(
+        "clustershare/agi/workflows/20260618T093102Z-492de776/flight_telemetry/custom-data",
+        env,
+        user="agi",
+        workflow_name="workflows",
+        project_name="flight_telemetry_project",
     )
 
 
@@ -1437,12 +1475,12 @@ def test_render_cluster_settings_ui_empty_workflow_session_auto_selects_latest(m
                     "cluster_enabled": True,
                     "workflow_session_policy": "select",
                     "workflow_session": "session-a",
-                    "workers_data_path": "cluster-share/agi/workflows/demo_project/session-a/workers",
+                    "workers_data_path": "cluster-share/agi/workflows/demo_project/session-a/stale",
                 }
             },
             widget_keys["workflow_session_policy"]: "select",
             widget_keys["workflow_session"]: "session-a",
-            widget_keys["workers_data_path"]: "cluster-share/agi/workflows/demo_project/session-a/workers",
+            widget_keys["workers_data_path"]: "cluster-share/agi/workflows/demo_project/session-a/stale",
             "benchmark": False,
         },
     )
@@ -2709,12 +2747,12 @@ def test_workflow_session_helper_remaining_edges(monkeypatch, tmp_path):
 
     env_with_setting = SimpleNamespace(home_abs=tmp_path, AGI_CLUSTER_SHARE=str(share))
     assert (
-        orchestrate_cluster._workflow_workers_data_path_text(
+        orchestrate_cluster._workflow_data_path_text(
             share,
-            tmp_path / "other" / "workers",
+            tmp_path / "other" / "data",
             env_with_setting,
         )
-        == "other/workers"
+        == "other/data"
     )
 
     env_without_setting = SimpleNamespace(
@@ -2722,7 +2760,7 @@ def test_workflow_session_helper_remaining_edges(monkeypatch, tmp_path):
         share_root_path=lambda: (_ for _ in ()).throw(RuntimeError("missing share")),
     )
     assert (
-        orchestrate_cluster._workflow_workers_data_path_text(
+        orchestrate_cluster._workflow_data_path_text(
             share,
             share / "agi" / "workflows" / "session-a" / "demo",
             env_without_setting,
