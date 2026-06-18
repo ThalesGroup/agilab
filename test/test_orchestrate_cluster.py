@@ -443,7 +443,7 @@ def test_orchestrate_cluster_helper_edge_branches(tmp_path, monkeypatch):
 
 def test_workflow_session_workers_path_policies(tmp_path):
     share = tmp_path / "clustershare" / "agi"
-    sessions_root = share / "workflows" / "demo_project"
+    sessions_root = share / "demo_project"
     old_session = sessions_root / "old-run"
     latest_session = sessions_root / "latest-run"
     old_session.mkdir(parents=True)
@@ -491,6 +491,12 @@ def test_workflow_session_workers_path_policies(tmp_path):
     env = SimpleNamespace(home_abs=tmp_path, AGI_CLUSTER_SHARE=str(share), AGI_LOCAL_SHARE=str(tmp_path / "localshare"))
     assert orchestrate_cluster._workers_data_path_should_follow_workflow_session(
         "clustershare/agi",
+        env,
+        user="agi",
+        workflow_name="demo_project",
+    )
+    assert orchestrate_cluster._workers_data_path_should_follow_workflow_session(
+        "clustershare/agi/demo_project/latest-run/workers",
         env,
         user="agi",
         workflow_name="demo_project",
@@ -1279,11 +1285,11 @@ def test_render_cluster_settings_ui_populates_empty_cluster_from_lan_discovery(m
     cluster = fake_st.session_state.app_settings["cluster"]
     assert cluster["scheduler"] == "192.168.3.103:8786"
     assert cluster["workers"] == {"192.168.3.35": 1}
-    assert cluster["workers_data_path"] == "clustershare/agi/workflows/demo_project/session-a/workers"
+    assert cluster["workers_data_path"] == "clustershare/agi/demo_project/session-a/workers"
     assert fake_st.session_state["cluster_scheduler__demo_project"] == "192.168.3.103:8786"
     assert fake_st.session_state["cluster_workers__demo_project"] == '{\n  "192.168.3.35": 1\n}'
     assert fake_st.session_state["cluster_workers_data_path__demo_project"] == (
-        "clustershare/agi/workflows/demo_project/session-a/workers"
+        "clustershare/agi/demo_project/session-a/workers"
     )
 
 
@@ -1341,7 +1347,7 @@ def test_render_cluster_settings_ui_empty_workflow_session_auto_selects_latest(m
     app_name = "demo_project"
     widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
     share = tmp_path / "cluster-share"
-    sessions_root = share / "agi" / "workflows" / app_name
+    sessions_root = share / "agi" / app_name
     old_session = sessions_root / "session-a"
     latest_session = sessions_root / "session-b"
     old_session.mkdir(parents=True)
@@ -1401,7 +1407,7 @@ def test_render_cluster_settings_ui_empty_workflow_session_auto_selects_latest(m
     cluster = fake_st.session_state.app_settings["cluster"]
     assert cluster["workflow_session_policy"] == "select"
     assert cluster["workflow_session"] == "session-b"
-    assert cluster["workers_data_path"] == "cluster-share/agi/workflows/demo_project/session-b/workers"
+    assert cluster["workers_data_path"] == "cluster-share/agi/demo_project/session-b/workers"
 
 
 def test_render_cluster_settings_ui_preserves_explicit_cluster_values_over_lan_discovery(monkeypatch, tmp_path):
@@ -1626,11 +1632,11 @@ def test_render_cluster_settings_ui_refresh_replaces_stale_lan_discovery_state(m
     cluster = fake_st.session_state.app_settings["cluster"]
     assert cluster["scheduler"] == "192.168.3.103:8786"
     assert cluster["workers"] == {"192.168.3.35": 1}
-    assert cluster["workers_data_path"] == "clustershare/agi/workflows/demo_project/session-a/workers"
+    assert cluster["workers_data_path"] == "clustershare/agi/demo_project/session-a/workers"
     assert fake_st.session_state[widget_keys["scheduler"]] == "192.168.3.103:8786"
     assert fake_st.session_state[widget_keys["workers"]] == '{\n  "192.168.3.35": 1\n}'
     assert fake_st.session_state[widget_keys["workers_data_path"]] == (
-        "clustershare/agi/workflows/demo_project/session-a/workers"
+        "clustershare/agi/demo_project/session-a/workers"
     )
     assert refresh_calls
     assert refresh_calls[0][1]["remote_user"] == "agi"
@@ -1906,7 +1912,7 @@ def test_render_cluster_settings_ui_creates_missing_cluster_share(monkeypatch, t
     cluster = fake_st.session_state.app_settings["cluster"]
     assert missing_share.is_dir()
     assert cluster["cluster_enabled"] is True
-    assert cluster["workers_data_path"] == str(missing_share / "workflows" / "demo_project" / "session-a" / "workers")
+    assert cluster["workers_data_path"] == str(missing_share / "demo_project" / "session-a" / "workers")
     assert fake_st.errors == []
 
 
@@ -1965,9 +1971,9 @@ def test_render_cluster_settings_ui_replaces_stale_local_workers_data_path(monke
     orchestrate_cluster.render_cluster_settings_ui(env, deps)
 
     cluster = fake_st.session_state.app_settings["cluster"]
-    assert cluster["workers_data_path"] == "clustershare/agi/workflows/demo_project/session-a/workers"
+    assert cluster["workers_data_path"] == "clustershare/agi/demo_project/session-a/workers"
     assert fake_st.session_state[widget_keys["workers_data_path"]] == (
-        "clustershare/agi/workflows/demo_project/session-a/workers"
+        "clustershare/agi/demo_project/session-a/workers"
     )
 
 
@@ -2450,7 +2456,7 @@ def test_workflow_session_helper_remaining_edges(monkeypatch, tmp_path):
     )
     assert policy == "select"
     assert session == "fresh-run"
-    assert workers_path == share / "agi" / "workflows" / "demo_project" / "fresh-run" / "workers"
+    assert workers_path == share / "agi" / "demo_project" / "fresh-run" / "workers"
     assert not workers_path.exists()
 
     env_with_setting = SimpleNamespace(home_abs=tmp_path, AGI_CLUSTER_SHARE=str(share))
@@ -2470,10 +2476,10 @@ def test_workflow_session_helper_remaining_edges(monkeypatch, tmp_path):
     assert (
         orchestrate_cluster._workflow_workers_data_path_text(
             share,
-            share / "agi" / "workflows" / "demo_project" / "session-a" / "workers",
+            share / "agi" / "demo_project" / "session-a" / "workers",
             env_without_setting,
         )
-        == "cluster-share/agi/workflows/demo_project/session-a/workers"
+        == "cluster-share/agi/demo_project/session-a/workers"
     )
     assert not orchestrate_cluster._workers_data_path_should_follow_workflow_session(
         "/external/data",
@@ -2530,7 +2536,7 @@ def test_render_cluster_settings_ui_uses_workflow_session_env_defaults(monkeypat
     cluster = fake_st.session_state.app_settings["cluster"]
     assert cluster["workflow_session_policy"] == "select"
     assert cluster["workflow_session"] == "env-session"
-    assert cluster["workers_data_path"] == "cluster-share/agi/workflows/demo_project/env-session/workers"
+    assert cluster["workers_data_path"] == "cluster-share/agi/demo_project/env-session/workers"
     assert fake_st.session_state[widget_keys["workflow_session_policy"]] == "select"
     assert fake_st.session_state[widget_keys["workflow_session"]] == "env-session"
 
