@@ -54,6 +54,7 @@ WORKFLOW_SESSION_POLICY_OPTIONS = ("new", "last", "select")
 WORKFLOW_SESSION_DEFAULT_POLICY = "new"
 WORKFLOW_DEFAULT_ID = "workflows"
 WORKFLOW_PROJECT_SUFFIXES = ("_project", "-project")
+GENERATED_WORKFLOW_SESSION_RE = re.compile(r"^\d{8}T\d{6}Z-[0-9a-fA-F]{8}$")
 
 
 @dataclass(frozen=True)
@@ -419,13 +420,26 @@ def _workflow_sessions_root(cluster_share: Path, user: Any, workflow_name: Any) 
     return _workflow_user_root(cluster_share, user) / safe_workflow
 
 
-def _workflow_cluster_share_root(cluster_share: Path, *, user: Any, workflow_name: Any) -> Path:
+def _workflow_cluster_share_root(
+    cluster_share: Path,
+    *,
+    user: Any,
+    workflow_name: Any,
+    selected_session: Any = "",
+) -> Path:
     safe_user = _safe_workflow_component(user, "local-user")
     safe_workflow = _safe_workflow_component(workflow_name, "default")
     parts = cluster_share.parts
-    for index in range(len(parts) - 3, -1, -1):
-        if parts[index] == safe_user and parts[index + 1] == safe_workflow:
-            return Path(*parts[: index + 1])
+    if len(parts) < 3:
+        return cluster_share
+    suffix_user, suffix_workflow, suffix_session = parts[-3:]
+    if suffix_user != safe_user or suffix_workflow != safe_workflow:
+        return cluster_share
+    safe_session = _safe_workflow_component(selected_session, "")
+    if safe_session and suffix_session == safe_session:
+        return Path(*parts[:-2])
+    if GENERATED_WORKFLOW_SESSION_RE.fullmatch(suffix_session):
+        return Path(*parts[:-2])
     return cluster_share
 
 
@@ -1485,6 +1499,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 cluster_share_candidate,
                 user=sanitized_user,
                 workflow_name=workflow_id,
+                selected_session=workflow_session,
             )
             if cluster_share_candidate is not None
             else None

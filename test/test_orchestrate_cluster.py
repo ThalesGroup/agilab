@@ -648,6 +648,15 @@ def test_workflow_session_path_regression_uses_workflow_session_root_semantic(tm
         )
         == share / "workflows"
     )
+    configured_share = tmp_path / "mnt" / "agi" / "workflows" / "cluster-share"
+    assert (
+        orchestrate_cluster._workflow_cluster_share_root(
+            configured_share,
+            user="agi",
+            workflow_name="workflows",
+        )
+        == configured_share
+    )
 
 
 def test_workflow_workers_data_path_regression_does_not_duplicate_module_dataset(tmp_path):
@@ -2123,6 +2132,68 @@ def test_render_cluster_settings_ui_refresh_keeps_session_scoped_share_root(monk
     assert fake_st.session_state[widget_keys["workers_data_path"]] == expected
     assert duplicated not in cluster["workers_data_path"]
     assert refresh_calls
+
+
+def test_render_cluster_settings_ui_preserves_share_with_user_workflow_parent_names(
+    monkeypatch,
+    tmp_path,
+):
+    app_name = "flight_trajectory_project"
+    session_id = "session-a"
+    widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
+    configured_share = tmp_path / "mnt" / "agi" / "workflows" / "cluster-share"
+    configured_share.mkdir(parents=True)
+    fake_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+            widget_keys["workflow_session"]: session_id,
+        },
+        session_state={
+            "app_settings": {
+                "cluster": {
+                    "cluster_enabled": True,
+                    "workflow_session": session_id,
+                }
+            },
+            widget_keys["workflow_session"]: session_id,
+            "benchmark": False,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    _disable_lan_defaults(monkeypatch)
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda _raw: None,
+        parse_and_validate_workers=lambda _raw: None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app=app_name,
+        home_abs=tmp_path,
+        is_managed_pc=False,
+        AGI_CLUSTER_SHARE=str(configured_share),
+        agi_share_path=Path("mnt/agi/workflows/cluster-share"),
+        share_root_path=lambda: configured_share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["workers_data_path"] == (
+        "mnt/agi/workflows/cluster-share/agi/workflows/session-a"
+    )
+    assert (configured_share / "agi" / "workflows" / session_id).is_dir()
+    assert not (tmp_path / "mnt" / "agi" / "workflows" / session_id).exists()
 
 
 def test_render_cluster_settings_ui_builds_advisory_cluster_plan_without_applying(monkeypatch, tmp_path):
