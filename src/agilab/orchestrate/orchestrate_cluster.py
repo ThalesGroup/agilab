@@ -490,14 +490,6 @@ def _path_matches_workflow_session_default(data_path: Path, sessions_root: Path,
     return len(relative_path.parts) == 2 and relative_path.parts[1] == module_name
 
 
-def _path_is_current_workflow_module_or_child(data_path: Path, sessions_root: Path, module_name: str) -> bool:
-    try:
-        relative_path = data_path.relative_to(sessions_root)
-    except ValueError:
-        return False
-    return len(relative_path.parts) >= 3 and relative_path.parts[1] == module_name
-
-
 def _workers_data_path_should_follow_workflow_session(
     value: Any,
     env: Any,
@@ -523,7 +515,7 @@ def _workers_data_path_should_follow_workflow_session(
         return True
     user_root = _workflow_user_root(cluster_share, user)
     if _path_is_within(data_path, user_root):
-        return not _path_is_current_workflow_module_or_child(data_path, sessions_root, module_name)
+        return True
     return False
 
 
@@ -1604,7 +1596,21 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
             placeholder="/path/to/data",
             help="Path to data directory on workers.",
         )
-        cluster_params["workers_data_path"] = str(workers_data_path_input or "").strip()
+        workers_data_path_value = str(workers_data_path_input or "").strip()
+        if (
+            workflow_workers_data_path
+            and _clean_path_text(workers_data_path_value)
+            and _workers_data_path_should_follow_workflow_session(
+                workers_data_path_value,
+                env,
+                user=sanitized_user,
+                workflow_name=workflow_id,
+                project_name=app_state_name,
+            )
+        ):
+            workers_data_path_value = workflow_workers_data_path
+            st.session_state[workers_data_path_widget_key] = workflow_workers_data_path
+        cluster_params["workers_data_path"] = workers_data_path_value
 
         workers_widget_key = widget_keys["workers"]
         workers_dict = cluster_params.get("workers", {})
