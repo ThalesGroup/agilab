@@ -519,46 +519,6 @@ def _workers_data_path_should_follow_workflow_session(
     return False
 
 
-def canonical_workflow_workers_data_path(
-    cluster_params: dict[str, Any],
-    env: Any,
-    *,
-    project_name: Any = None,
-) -> str:
-    """Return the managed workflow session root without changing custom paths."""
-    current_value = str(cluster_params.get("workers_data_path") or "").strip()
-    if not current_value:
-        return current_value
-
-    workflow_session = _safe_workflow_component(
-        cluster_params.get("workflow_session"),
-        "",
-    )
-    if not workflow_session:
-        return current_value
-
-    workflow_name = _orchestrate_workflow_id(cluster_params, env)
-    user = cluster_params.get("user") or getattr(env, "user", None)
-    if not _workers_data_path_should_follow_workflow_session(
-        current_value,
-        env,
-        user=user,
-        workflow_name=workflow_name,
-        project_name=project_name,
-    ):
-        return current_value
-
-    cluster_share = _env_cluster_share_candidate(env)
-    if cluster_share is None:
-        return current_value
-
-    session_path = (
-        _workflow_sessions_root(cluster_share, user, workflow_name)
-        / workflow_session
-    )
-    return _workflow_data_path_text(cluster_share, session_path, env)
-
-
 def _orchestrate_workflow_id(cluster_params: dict[str, Any], env: Any) -> str:
     return _safe_workflow_component(
         cluster_params.get("workflow_id") or _env_value(env, WORKFLOW_ID_ENV),

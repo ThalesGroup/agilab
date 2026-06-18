@@ -259,7 +259,6 @@ import_agilab_symbols(
     "agilab.orchestrate_cluster",
     {
         "OrchestrateClusterDeps": "OrchestrateClusterDeps",
-        "canonical_workflow_workers_data_path": "canonical_workflow_workers_data_path",
         "clear_cluster_widget_state": "clear_cluster_widget_state",
         "cluster_widget_keys": "cluster_widget_keys",
         "hydrate_cluster_widget_state": "hydrate_cluster_widget_state",
@@ -913,11 +912,6 @@ def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None
 
     cluster_settings = app_settings.setdefault("cluster", {})
     app_state_name = Path(str(env.app)).name if env.app else ""
-    cluster_settings["workers_data_path"] = canonical_workflow_workers_data_path(
-        cluster_settings,
-        env,
-        project_name=app_state_name,
-    )
     hydrate_cluster_widget_state(
         st.session_state,
         app_state_name,
@@ -1324,14 +1318,7 @@ def render_generic_ui() -> None:
         else:
             existing_app_settings = load_toml_file(app_settings_file)
             existing_app_settings.setdefault("args", {})
-            existing_cluster_settings = existing_app_settings.setdefault("cluster", {})
-            existing_cluster_settings["workers_data_path"] = (
-                canonical_workflow_workers_data_path(
-                    existing_cluster_settings,
-                    env,
-                    project_name=env.app,
-                )
-            )
+            existing_app_settings.setdefault("cluster", {})
             existing_app_settings["args"] = args_input
             st.session_state.app_settings = _write_app_settings_toml(
                 app_settings_file,
