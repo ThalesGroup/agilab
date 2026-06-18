@@ -23,6 +23,35 @@ def test_base_worker_path_support_normalized_and_share_root(monkeypatch, tmp_pat
     assert path_support.share_root_path(env) == tmp_path / "clustershare"
 
 
+def test_worker_share_fallback_uses_runtime_home_for_relative_share(monkeypatch, tmp_path):
+    worker_home = tmp_path / "worker-home"
+    manager_home = tmp_path / "manager-home"
+    worker_home.mkdir()
+    manager_home.mkdir()
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: worker_home))
+
+    env = SimpleNamespace(
+        is_worker_env=True,
+        share_root_path=lambda: (_ for _ in ()).throw(OSError("share unavailable")),
+        agi_share_path_abs=manager_home / "clustershare" / "agi",
+        agi_share_path=Path("clustershare") / "agi",
+        home_abs=manager_home,
+        _is_managed_pc=False,
+    )
+
+    expected_share = worker_home / "clustershare" / "agi"
+    assert path_support.share_root_path(env) == expected_share
+
+    resolved = path_support.resolve_data_dir(
+        env,
+        Path("demo") / "data",
+        share_root_path_fn=lambda current_env: path_support.share_root_path(current_env),
+        remap_managed_pc_path_fn=lambda value: Path(value),
+        normalized_path_fn=lambda value: Path(value),
+    )
+    assert resolved == (expected_share / "demo" / "data").resolve(strict=False)
+
+
 def test_base_worker_path_support_data_dir_aliases_and_home_remap(monkeypatch, tmp_path):
     class _BrokenPath:
         def __fspath__(self):
