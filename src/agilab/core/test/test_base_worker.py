@@ -228,6 +228,31 @@ def test_baseworker_share_root_path_none_absolute_and_home_fallback(tmp_path):
     assert BaseWorker._share_root_path(env_home) == (tmp_path / "home")
 
 
+def test_baseworker_resolves_share_prefixed_relative_worker_path_once(monkeypatch, tmp_path):
+    worker_home = tmp_path / "worker-home"
+    manager_home = tmp_path / "manager-home"
+    worker_home.mkdir()
+    manager_home.mkdir()
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: worker_home))
+
+    env = SimpleNamespace(
+        is_worker_env=True,
+        share_root_path=lambda: (_ for _ in ()).throw(OSError("share unavailable")),
+        agi_share_path_abs=manager_home / "clustershare" / "agi",
+        agi_share_path=Path("clustershare") / "agi",
+        home_abs=manager_home,
+        _is_managed_pc=False,
+    )
+
+    resolved = BaseWorker._resolve_data_dir(
+        env,
+        Path("clustershare") / "agi" / "demo_project" / "session-a" / "workers",
+    )
+    assert resolved == (
+        worker_home / "clustershare" / "agi" / "demo_project" / "session-a" / "workers"
+    ).resolve(strict=False)
+
+
 def test_baseworker_collect_share_aliases_and_data_dir_fallbacks(monkeypatch, tmp_path):
     class _BrokenPath:
         def __fspath__(self):
@@ -1391,7 +1416,6 @@ def test_baseworker_setup_data_directories_without_env_falls_back_to_home(
     requested_output = fake_home / "reports" / "out"
     fallback_output = fake_home / "out" / "output"
 
-    original_home = Path.home
     original_mkdir = Path.mkdir
 
     def _patched_home():

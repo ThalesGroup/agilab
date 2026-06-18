@@ -100,6 +100,80 @@ def share_root_path(
     return path_cls(env.home_abs).expanduser()
 
 
+def _relative_share_prefixes(
+    env: Any | None,
+    share_base: Path,
+    *,
+    path_cls: type[Path] = Path,
+    home_factory: Callable[[], Path] = Path.home,
+) -> list[Path]:
+    prefixes: list[Path] = []
+
+    def add_prefix(value: Any) -> None:
+        if not value:
+            return
+        try:
+            prefix = path_cls(value).expanduser()
+        except PATH_FALLBACK_EXCEPTIONS:
+            return
+        if prefix.is_absolute():
+            return
+        if prefix not in {path_cls(), path_cls(".")}:
+            prefixes.append(prefix)
+
+    if env is not None:
+        for attr in ("agi_share_path", "AGILAB_SHARE_REL"):
+            add_prefix(getattr(env, attr, None))
+
+        share_abs = getattr(env, "agi_share_path_abs", None)
+        home_abs = getattr(env, "home_abs", None)
+        if share_abs and home_abs:
+            try:
+                add_prefix(path_cls(share_abs).expanduser().relative_to(path_cls(home_abs).expanduser()))
+            except PATH_FALLBACK_EXCEPTIONS:
+                pass
+
+    try:
+        home = path_cls(home_factory()).expanduser()
+        add_prefix(path_cls(share_base).expanduser().relative_to(home))
+    except PATH_FALLBACK_EXCEPTIONS:
+        pass
+
+    unique: list[Path] = []
+    seen: set[tuple[str, ...]] = set()
+    for prefix in sorted(prefixes, key=lambda value: len(value.parts), reverse=True):
+        parts = tuple(part for part in prefix.parts if part not in {"", "."})
+        if not parts or parts in seen:
+            continue
+        seen.add(parts)
+        unique.append(path_cls(*parts))
+    return unique
+
+
+def _resolve_relative_data_path(
+    raw: Path,
+    share_base: Path,
+    env: Any | None,
+    *,
+    path_cls: type[Path] = Path,
+    home_factory: Callable[[], Path] = Path.home,
+) -> Path:
+    raw_parts = tuple(part for part in raw.parts if part not in {"", "."})
+    for prefix in _relative_share_prefixes(
+        env,
+        share_base,
+        path_cls=path_cls,
+        home_factory=home_factory,
+    ):
+        prefix_parts = prefix.parts
+        if raw_parts[: len(prefix_parts)] != prefix_parts:
+            continue
+        remainder_parts = raw_parts[len(prefix_parts) :]
+        remainder = path_cls(*remainder_parts) if remainder_parts else path_cls()
+        return path_cls(share_base).expanduser() / remainder
+    return path_cls(share_base).expanduser() / raw
+
+
 def resolve_data_dir(
     env: Any | None,
     data_path: Path | str | None,
@@ -116,7 +190,13 @@ def resolve_data_dir(
     raw = path_cls(str(data_path)).expanduser()
     if not raw.is_absolute():
         base = share_root_path_fn(env) or home_factory()
-        raw = path_cls(base).expanduser() / raw
+        raw = _resolve_relative_data_path(
+            raw,
+            path_cls(base).expanduser(),
+            env,
+            path_cls=path_cls,
+            home_factory=home_factory,
+        )
 
     remapped = remap_managed_pc_path_fn(raw)
     try:
