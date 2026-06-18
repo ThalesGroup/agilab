@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-06-02
+  updated: 2026-06-18
 ---
 
 # AGILab runbook (Agent Skill)
@@ -48,6 +48,20 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   `~/.agilab/.env` keys such as `APPS_PATH` and `IS_SOURCE_ENV`. Restart Streamlit after
   fixing bootstrap code because `st.session_state["env"]` and `env.active_app` can retain
   stale paths across reruns.
+- **Worker data path resolution layer**: in cluster and workflow execution, UI pages may
+  choose and persist `workers_data_path`, but app `data_in` and `data_out` resolution belongs
+  to the shared worker runtime: `BaseWorker._resolve_data_dir` and
+  `agi_node.agi_dispatcher.base_worker_path_support`. The canonical workflow share root passed
+  as `workers_data_path` is `clustershare/<user>/<workflow-id>/<session>`. App module
+  subdirectories are appended by app arguments, where the module is the project name without
+  the `_project` suffix, yielding `clustershare/<user>/<workflow-id>/<session>/<module>/...`
+  for app data. Do not fix duplicated paths such as `<module>/<module>/dataset`, stale
+  `<project>/<session>/workers`, or UI value re-aggregation in one app page only. Fix the
+  shared resolver when the failure class is generic, keep UI fixes limited to default
+  selection/persistence, and add regressions at both `test_base_worker_path_support.py` and
+  `test_base_worker.py` plus a focused UI test only when the default/persisted value changes.
+  Do not preserve backward compatibility for the legacy `/workers` layout unless an explicit
+  migration request requires it.
 - **Source Streamlit launches must be non-mutating by default**: if starting
   `agilab run (dev)` prints `Uninstalled ...` or `Installed ...`, inspect both
   the outer run-config command and any launcher-spawned inner `uv run` command.

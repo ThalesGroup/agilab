@@ -253,6 +253,29 @@ def test_baseworker_resolves_share_prefixed_relative_worker_path_once(monkeypatc
     ).resolve(strict=False)
 
 
+def test_baseworker_deduplicates_share_leaf_for_any_app_module(tmp_path):
+    share_root = (
+        tmp_path
+        / "clustershare"
+        / "agi"
+        / "workflows"
+        / "20260618T093102Z-492de776"
+        / "any_module"
+    )
+    env = SimpleNamespace(
+        share_root_path=lambda: share_root,
+        agi_share_path_abs=None,
+        agi_share_path=None,
+        home_abs=tmp_path / "worker-home",
+        _is_managed_pc=False,
+    )
+
+    resolved = BaseWorker._resolve_data_dir(env, Path("any_module") / "dataset")
+
+    assert resolved == (share_root / "dataset").resolve(strict=False)
+    assert "any_module/any_module" not in resolved.as_posix()
+
+
 def test_baseworker_collect_share_aliases_and_data_dir_fallbacks(monkeypatch, tmp_path):
     class _BrokenPath:
         def __fspath__(self):
