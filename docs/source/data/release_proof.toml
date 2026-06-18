@@ -54,8 +54,8 @@ summary = "passed docs mirror and release-proof consistency checks"
 id = "docs-publish"
 label = "Docs publish"
 workflow = "docs-publish"
-run_id = "27405597054"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/27405597054"
+run_id = "27788337446"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/27788337446"
 summary = "built the public documentation from the managed docs mirror"
 
 [[ci_runs]]
@@ -70,8 +70,8 @@ summary = "passed component coverage and badge freshness checks"
 id = "pypi-publish"
 label = "PyPI publish"
 workflow = "pypi-publish"
-run_id = "27401833940"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/27401833940"
+run_id = "27786476047"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/27786476047"
 summary = "passed the public release proof workflow gate"
 
 [proof_command]
