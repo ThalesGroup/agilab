@@ -785,6 +785,37 @@ def test_canonical_workflow_workers_data_path_preserves_operator_overrides(tmp_p
     )
 
 
+def test_canonical_workflow_workers_data_path_repairs_session_scoped_env_root(tmp_path):
+    session_id = "20260618T075646Z-33e64bf9"
+    share = tmp_path / "clustershare" / "agi"
+    stale_share = share / "workflows" / session_id
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        AGI_CLUSTER_SHARE=str(stale_share),
+        AGI_LOCAL_SHARE=str(tmp_path / "localshare"),
+        agi_share_path=Path("clustershare/agi/workflows") / session_id,
+        user="agi",
+    )
+    cluster_params = {
+        "user": "agi",
+        "workflow_id": "workflows",
+        "workflow_session": session_id,
+        "workers_data_path": (
+            f"clustershare/agi/workflows/{session_id}"
+            f"/agi/workflows/{session_id}"
+        ),
+    }
+
+    normalized = orchestrate_cluster.canonical_workflow_workers_data_path(
+        cluster_params,
+        env,
+        project_name="flight_trajectory_project",
+    )
+
+    assert normalized == f"clustershare/agi/workflows/{session_id}"
+    assert normalized.count(session_id) == 1
+
+
 def test_cluster_advisor_recommends_workers_and_writes_evidence(tmp_path):
     cache = tmp_path / "lan.json"
     cache.write_text(
