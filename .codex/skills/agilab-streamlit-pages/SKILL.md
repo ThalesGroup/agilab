@@ -74,6 +74,14 @@ Use this skill when editing:
 - Never assign `st.session_state["k"] = …` **after** a widget with `key="k"` was created.
   - Prefer `st.session_state.setdefault("k", default)` before the widget.
   - Or use widget return values and compute derived state separately.
+  - If a rendered widget value must be normalized into persisted settings such
+    as `app_settings["cluster"]` or `app_settings["args"]`, update only that
+    persisted payload after render. Do not write the normalized value back into
+    the widget key unless you do it before widget creation, behind a rerun, or
+    through a versioned replacement key.
+  - When fixing this class of bug, use a test fake or AppTest scenario that
+    raises on post-instantiation widget-key mutation; a permissive fake can hide
+    the real `StreamlitAPIException`.
 - Do not both pre-seed `st.session_state[key]` and pass a widget default/value/index for
   the same keyed widget. Pick one source of initialization:
   - use the widget default and leave `st.session_state` untouched before creation, or
