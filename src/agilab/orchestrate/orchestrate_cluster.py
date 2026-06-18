@@ -497,7 +497,6 @@ def _workers_data_path_should_follow_workflow_session(
     user: Any,
     workflow_name: Any,
     project_name: Any = None,
-    cluster_share_override: Path | None = None,
 ) -> bool:
     text = _clean_path_text(value)
     if not text:
@@ -505,7 +504,7 @@ def _workers_data_path_should_follow_workflow_session(
     if _workers_data_path_points_to_local_share(text, env):
         return True
     data_path = _resolve_env_relative_path(text, env)
-    cluster_share = cluster_share_override or _env_cluster_share_candidate(env)
+    cluster_share = _env_cluster_share_candidate(env)
     if data_path is None or cluster_share is None:
         return False
     if data_path == cluster_share:
@@ -518,25 +517,6 @@ def _workers_data_path_should_follow_workflow_session(
     if _path_is_within(data_path, user_root):
         return True
     return False
-
-
-def _workflow_cluster_share_root(
-    cluster_share: Path,
-    *,
-    workflow_name: Any,
-    workflow_session: Any,
-) -> Path:
-    """Strip a stale workflow/session suffix from a configured share root."""
-    workflow_component = _safe_workflow_component(workflow_name, WORKFLOW_DEFAULT_ID)
-    session_component = _safe_workflow_component(workflow_session, "")
-    if not session_component:
-        return cluster_share
-
-    parts = cluster_share.parts
-    for index in range(len(parts) - 1):
-        if parts[index : index + 2] == (workflow_component, session_component):
-            return Path(*parts[:index])
-    return cluster_share
 
 
 def canonical_workflow_workers_data_path(
@@ -559,34 +539,24 @@ def canonical_workflow_workers_data_path(
 
     workflow_name = _orchestrate_workflow_id(cluster_params, env)
     user = cluster_params.get("user") or getattr(env, "user", None)
-    cluster_share = _env_cluster_share_candidate(env)
-    if cluster_share is None:
-        return current_value
-    cluster_share = _workflow_cluster_share_root(
-        cluster_share,
-        workflow_name=workflow_name,
-        workflow_session=workflow_session,
-    )
-
     if not _workers_data_path_should_follow_workflow_session(
         current_value,
         env,
         user=user,
         workflow_name=workflow_name,
         project_name=project_name,
-        cluster_share_override=cluster_share,
     ):
+        return current_value
+
+    cluster_share = _env_cluster_share_candidate(env)
+    if cluster_share is None:
         return current_value
 
     session_path = (
         _workflow_sessions_root(cluster_share, user, workflow_name)
         / workflow_session
     )
-    cluster_share_setting = _home_relative_share_text(cluster_share, env) or str(
-        cluster_share
-    )
-    suffix = session_path.relative_to(cluster_share)
-    return (Path(cluster_share_setting) / suffix).as_posix()
+    return _workflow_data_path_text(cluster_share, session_path, env)
 
 
 def _orchestrate_workflow_id(cluster_params: dict[str, Any], env: Any) -> str:
