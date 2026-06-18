@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-17T16:21:02Z",
+  "generated_at_utc": "2026-06-18T12:07:50Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -10,7 +10,7 @@
     "repository": "https://github.com/ThalesGroup/agilab",
     "documentation": "https://thalesgroup.github.io/agilab/",
     "project": "agilab",
-    "version": "2026.06.16"
+    "version": "2026.06.17"
   },
   "boundary": {
     "proves": "This manifest proves that public AGILAB surfaces are discoverable from checked-in contracts.",
@@ -483,7 +483,7 @@
       "name": "agi-cluster",
       "role": "runtime-component",
       "status": "PyPI package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.17",
       "description": "Distributed cluster orchestration layer for AGILAB workers over local and SSH backends",
       "project": "src/agilab/core/agi-cluster",
       "pyproject": "src/agilab/core/agi-cluster/pyproject.toml",
@@ -494,7 +494,7 @@
       "name": "agi-core",
       "role": "runtime-bundle",
       "status": "PyPI package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.17",
       "description": "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together",
       "project": "src/agilab/core/agi-core",
       "pyproject": "src/agilab/core/agi-core/pyproject.toml",
@@ -637,7 +637,7 @@
       "name": "agi-apps",
       "role": "app-umbrella",
       "status": "PyPI package",
-      "version": "2026.06.16",
+      "version": "2026.06.17",
       "description": "AGILAB public app package umbrella and example assets",
       "project": "src/agilab/lib/agi-apps",
       "pyproject": "src/agilab/lib/agi-apps/pyproject.toml",
@@ -648,7 +648,7 @@
       "name": "agilab",
       "role": "top-level-bundle",
       "status": "PyPI package",
-      "version": "2026.06.16",
+      "version": "2026.06.17",
       "description": "AGILAB is a reproducible AI/ML workbench for engineering teams.",
       "project": ".",
       "pyproject": "pyproject.toml",
@@ -867,7 +867,7 @@
       "name": "agilab-runbook",
       "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
       "path": ".claude/skills/agilab-runbook/SKILL.md",
-      "updated": "2026-06-02"
+      "updated": "2026-06-18"
     },
     {
       "name": "agilab-security-review-patterns",

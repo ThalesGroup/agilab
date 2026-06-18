@@ -171,6 +171,11 @@ def _resolve_relative_data_path(
         remainder_parts = raw_parts[len(prefix_parts) :]
         remainder = path_cls(*remainder_parts) if remainder_parts else path_cls()
         return path_cls(share_base).expanduser() / remainder
+    share_leaf = path_cls(share_base).expanduser().name
+    if raw_parts and raw_parts[0] == share_leaf:
+        remainder_parts = raw_parts[1:]
+        remainder = path_cls(*remainder_parts) if remainder_parts else path_cls()
+        return path_cls(share_base).expanduser() / remainder
     return path_cls(share_base).expanduser() / raw
 
 
