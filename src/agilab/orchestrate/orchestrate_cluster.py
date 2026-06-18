@@ -89,6 +89,7 @@ def cluster_widget_keys(app_state_name: str) -> dict[str, str]:
         "ssh_key_path": f"cluster_ssh_key__{app_state_name}",
         "password": f"cluster_password__{app_state_name}",
         "workflow_session_policy": f"cluster_workflow_session_policy__{app_state_name}",
+        "workflow_existing_session": f"cluster_workflow_existing_session__{app_state_name}",
         "workflow_session": f"cluster_workflow_session__{app_state_name}",
         "workers_data_path": f"cluster_workers_data_path__{app_state_name}",
         "workers": f"cluster_workers__{app_state_name}",
@@ -426,6 +427,10 @@ def _list_workflow_sessions(sessions_root: Path) -> list[Path]:
             return (0, path.name)
 
     return sorted(entries, key=sort_key, reverse=True)
+
+
+def _workflow_session_names(sessions_root: Path) -> list[str]:
+    return [session.name for session in _list_workflow_sessions(sessions_root)]
 
 
 def _resolve_workflow_session_workers_path(
@@ -1412,6 +1417,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
 
         workers_data_path_widget_key = widget_keys["workers_data_path"]
         workflow_policy_key = widget_keys["workflow_session_policy"]
+        workflow_existing_session_key = widget_keys["workflow_existing_session"]
         workflow_session_key = widget_keys["workflow_session"]
         workflow_policy = _workflow_session_policy(
             st.session_state.get(
@@ -1433,7 +1439,11 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
             and cluster_share_candidate.is_dir()
             and os.access(cluster_share_candidate, os.W_OK)
         )
+        workflow_session_options: list[str] = []
         if cluster_share_ready and cluster_share_candidate is not None:
+            workflow_session_options = _workflow_session_names(
+                _workflow_sessions_root(cluster_share_candidate, sanitized_user, app_state_name)
+            )
             try:
                 workflow_workers_path, workflow_session, workflow_policy = _resolve_workflow_session_workers_path(
                     cluster_share_candidate,
@@ -1473,6 +1483,32 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
             )
         workflow_policy = _workflow_session_policy(workflow_policy_input)
         cluster_params["workflow_session_policy"] = workflow_policy
+
+        if workflow_policy == "select":
+            if workflow_session_options:
+                manual_session_option = "Manual / latest"
+                existing_session_options = [manual_session_option, *workflow_session_options]
+                current_existing_session = st.session_state.get(workflow_existing_session_key)
+                if current_existing_session not in existing_session_options:
+                    st.session_state[workflow_existing_session_key] = manual_session_option
+                selected_existing_session = st.selectbox(
+                    "Existing session directory",
+                    existing_session_options,
+                    key=workflow_existing_session_key,
+                    help="Pick a session directory already present under the workflow cluster share.",
+                )
+                if selected_existing_session != manual_session_option:
+                    workflow_session = _safe_workflow_component(selected_existing_session, "")
+                    st.session_state[workflow_session_key] = workflow_session
+            elif cluster_share_ready:
+                st.session_state.pop(workflow_existing_session_key, None)
+                st.info(
+                    "No existing workflow session directories found under "
+                    f"`{_workflow_sessions_root(cluster_share_candidate, sanitized_user, app_state_name)}`."
+                )
+        else:
+            st.session_state.pop(workflow_existing_session_key, None)
+
         with workflow_cols[1]:
             workflow_session_input = st.text_input(
                 "Workflow session",
