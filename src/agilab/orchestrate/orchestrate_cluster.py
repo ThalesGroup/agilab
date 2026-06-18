@@ -53,8 +53,6 @@ WORKFLOW_ID_ENV = "AGI_WORKFLOW_ID"
 WORKFLOW_SESSION_POLICY_OPTIONS = ("new", "last", "select")
 WORKFLOW_SESSION_DEFAULT_POLICY = "new"
 WORKFLOW_DEFAULT_ID = "workflows"
-WORKFLOW_SESSION_DIR = "workflows"
-WORKFLOW_SESSION_LEGACY_WORKERS_DIR = "workers"
 WORKFLOW_PROJECT_SUFFIXES = ("_project", "-project")
 
 
@@ -421,11 +419,6 @@ def _workflow_sessions_root(cluster_share: Path, user: Any, workflow_name: Any) 
     return _workflow_user_root(cluster_share, user) / safe_workflow
 
 
-def _legacy_workflow_sessions_root(cluster_share: Path, user: Any, workflow_name: Any) -> Path:
-    safe_workflow = _safe_workflow_component(workflow_name, "default")
-    return _workflow_user_root(cluster_share, user) / WORKFLOW_SESSION_DIR / safe_workflow
-
-
 def _list_workflow_sessions(sessions_root: Path) -> list[Path]:
     try:
         entries = [path for path in sessions_root.iterdir() if path.is_dir()]
@@ -477,39 +470,16 @@ def _resolve_workflow_session_module_path(
     return module_path, session_id, resolved_policy
 
 
-def _resolve_workflow_session_workers_path(
-    cluster_share: Path,
-    *,
-    user: Any,
-    workflow_name: Any,
-    project_name: Any = None,
-    policy: Any,
-    selected_session: Any = "",
-    create: bool = True,
-    session_id_factory: Callable[[], str] = _new_workflow_session_id,
-) -> tuple[Path, str, str]:
-    return _resolve_workflow_session_module_path(
-        cluster_share,
-        user=user,
-        workflow_name=workflow_name,
-        project_name=project_name,
-        policy=policy,
-        selected_session=selected_session,
-        create=create,
-        session_id_factory=session_id_factory,
-    )
-
-
-def _workflow_workers_data_path_text(cluster_share: Path, workers_path: Path, env: Any) -> str:
+def _workflow_data_path_text(cluster_share: Path, module_path: Path, env: Any) -> str:
     cluster_share_setting = _env_cluster_share_setting(env)
     if cluster_share_setting:
         try:
-            suffix = workers_path.relative_to(cluster_share)
+            suffix = module_path.relative_to(cluster_share)
         except ValueError:
             pass
         else:
             return (Path(cluster_share_setting) / suffix).as_posix()
-    return _home_relative_share_text(workers_path, env) or str(workers_path)
+    return _home_relative_share_text(module_path, env) or str(module_path)
 
 
 def _path_matches_workflow_session_leaf(data_path: Path, sessions_root: Path, leaf_name: str) -> bool:
@@ -520,6 +490,14 @@ def _path_matches_workflow_session_leaf(data_path: Path, sessions_root: Path, le
     return len(relative_path.parts) == 2 and relative_path.parts[1] == leaf_name
 
 
+def _path_is_current_workflow_module_or_child(data_path: Path, sessions_root: Path, module_name: str) -> bool:
+    try:
+        relative_path = data_path.relative_to(sessions_root)
+    except ValueError:
+        return False
+    return len(relative_path.parts) >= 2 and relative_path.parts[1] == module_name
+
+
 def _workers_data_path_should_follow_workflow_session(
     value: Any,
     env: Any,
@@ -527,7 +505,6 @@ def _workers_data_path_should_follow_workflow_session(
     user: Any,
     workflow_name: Any,
     project_name: Any = None,
-    legacy_workflow_names: tuple[Any, ...] = (),
 ) -> bool:
     text = _clean_path_text(value)
     if not text:
@@ -541,25 +518,13 @@ def _workers_data_path_should_follow_workflow_session(
     if data_path == cluster_share:
         return True
     module_name = _workflow_module_component(workflow_name if project_name is None else project_name)
-    candidate_roots = [
-        _workflow_sessions_root(cluster_share, user, workflow_name),
-        _legacy_workflow_sessions_root(cluster_share, user, workflow_name),
-    ]
-    seen_roots = {root.resolve(strict=False) for root in candidate_roots}
-    for legacy_workflow_name in legacy_workflow_names:
-        for candidate_root in (
-            _workflow_sessions_root(cluster_share, user, legacy_workflow_name),
-            _legacy_workflow_sessions_root(cluster_share, user, legacy_workflow_name),
-        ):
-            resolved_candidate_root = candidate_root.resolve(strict=False)
-            if resolved_candidate_root not in seen_roots:
-                candidate_roots.append(candidate_root)
-                seen_roots.add(resolved_candidate_root)
-    return any(
-        _path_matches_workflow_session_leaf(data_path, candidate_root, module_name)
-        or _path_matches_workflow_session_leaf(data_path, candidate_root, WORKFLOW_SESSION_LEGACY_WORKERS_DIR)
-        for candidate_root in candidate_roots
-    )
+    sessions_root = _workflow_sessions_root(cluster_share, user, workflow_name)
+    if _path_matches_workflow_session_leaf(data_path, sessions_root, module_name):
+        return True
+    user_root = _workflow_user_root(cluster_share, user)
+    if _path_is_within(data_path, user_root):
+        return not _path_is_current_workflow_module_or_child(data_path, sessions_root, module_name)
+    return False
 
 
 def _orchestrate_workflow_id(cluster_params: dict[str, Any], env: Any) -> str:
@@ -760,7 +725,7 @@ def _lan_discovery_cluster_defaults(
     *,
     home: Path | str | None = None,
 ) -> dict[str, Any]:
-    """Return scheduler/workers defaults from the last LAN discovery cache."""
+    """Return scheduler and worker defaults from the last LAN discovery cache."""
     cache_file = cache_path or _default_lan_discovery_cache_path(home)
     try:
         payload = json.loads(cache_file.expanduser().read_text(encoding="utf-8"))
@@ -1527,7 +1492,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 workflow_session_error_shown = True
                 st.error(f"Could not prepare workflow session under `{cluster_share_candidate}`: {exc}")
             else:
-                workflow_workers_data_path = _workflow_workers_data_path_text(
+                workflow_workers_data_path = _workflow_data_path_text(
                     cluster_share_candidate,
                     workflow_workers_path,
                     env,
@@ -1604,7 +1569,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
             except OSError as exc:
                 st.error(f"Could not prepare workflow session under `{cluster_share_candidate}`: {exc}")
             else:
-                workflow_workers_data_path = _workflow_workers_data_path_text(
+                workflow_workers_data_path = _workflow_data_path_text(
                     cluster_share_candidate,
                     workflow_workers_path,
                     env,
@@ -1626,7 +1591,6 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 user=sanitized_user,
                 workflow_name=workflow_id,
                 project_name=app_state_name,
-                legacy_workflow_names=(app_state_name,),
             ):
                 cluster_params["workers_data_path"] = workflow_workers_data_path
                 st.session_state[workers_data_path_widget_key] = workflow_workers_data_path
