@@ -30,11 +30,11 @@ Current public release
    * - Docs source guard
      - `docs-source-guard run 27405793185 <https://github.com/ThalesGroup/agilab/actions/runs/27405793185>`__ passed docs mirror and release-proof consistency checks
    * - Docs publish
-     - `docs-publish run 27405597054 <https://github.com/ThalesGroup/agilab/actions/runs/27405597054>`__ built the public documentation from the managed docs mirror
+     - `docs-publish run 27788337446 <https://github.com/ThalesGroup/agilab/actions/runs/27788337446>`__ built the public documentation from the managed docs mirror
    * - Coverage
      - `coverage run 27402705475 <https://github.com/ThalesGroup/agilab/actions/runs/27402705475>`__ passed component coverage and badge freshness checks
    * - PyPI publish
-     - `pypi-publish run 27401833940 <https://github.com/ThalesGroup/agilab/actions/runs/27401833940>`__ passed the public release proof workflow gate
+     - `pypi-publish run 27786476047 <https://github.com/ThalesGroup/agilab/actions/runs/27786476047>`__ passed the public release proof workflow gate
 
 What was proved
 ---------------
