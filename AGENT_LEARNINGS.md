@@ -70,3 +70,8 @@ is not a scratchpad or task log.
   preventable command-construction error. When Tokki is available, run ad-hoc
   verification commands through `tokki run -- ...`; Tokki reduces output noise
   but does not replace correct shell quoting.
+- When the user asks to install or test source apps and AGILAB is already
+  installed, use the model-free `src/agilab/install_apps.sh` or
+  `src\agilab\install_apps.ps1` script with explicit `APPS_REPOSITORY` and
+  `BUILTIN_APPS`. Do not replace that with root reinstall flows, manual
+  `~/.agilab/.env` patching, or hand-written pytest loops.
