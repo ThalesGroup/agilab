@@ -15,7 +15,7 @@ import traceback
 import urllib.error
 import urllib.request
 from datetime import timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Callable, List, Optional, cast
 
 CAPACITY_MODEL_MANIFEST_SCHEMA = "agilab.capacity_model_manifest.v1"
@@ -357,6 +357,67 @@ def bootstrap_capacity_predictor(
     return predictor
 
 
+def _pure_path_from_text(value: str) -> PurePosixPath | PureWindowsPath:
+    if "\\" in value or re.match(r"^[A-Za-z]:[\\/]", value):
+        return PureWindowsPath(value)
+    return PurePosixPath(value)
+
+
+def _first_relative_data_path_segment(value: Any) -> str | None:
+    if not isinstance(value, (str, os.PathLike)):
+        return None
+    raw = os.fspath(value)
+    if not isinstance(raw, str):
+        return None
+    text = raw.strip()
+    if not text:
+        return None
+    path = _pure_path_from_text(text)
+    if path.is_absolute():
+        return None
+    parts = tuple(part for part in path.parts if part not in {"", "."})
+    if not parts or parts[0] == "..":
+        return None
+    return parts[0]
+
+
+def _worker_data_path_module_candidates(
+    *arg_maps: dict[str, Any] | None,
+) -> set[str]:
+    candidates: set[str] = set()
+    for arg_map in arg_maps:
+        if not isinstance(arg_map, dict):
+            continue
+        for key in ("data_in", "data_out"):
+            segment = _first_relative_data_path_segment(arg_map.get(key))
+            if segment:
+                candidates.add(segment)
+    return candidates
+
+
+def normalize_workers_data_path(
+    workers_data_path: str | None,
+    *,
+    args: dict[str, Any],
+    worker_args: dict[str, Any] | None = None,
+) -> str | None:
+    """Return the workflow session root for module-scoped worker data paths."""
+    if workers_data_path is None:
+        return None
+    text = str(workers_data_path).strip()
+    if not text:
+        return workers_data_path
+
+    path = _pure_path_from_text(text)
+    module_candidates = _worker_data_path_module_candidates(worker_args, args)
+    if path.name not in module_candidates:
+        return workers_data_path
+    parent = path.parent
+    if str(parent) in {"", "."}:
+        return workers_data_path
+    return str(parent)
+
+
 def initialize_runtime_state(
     agi_cls: Any,
     env: Any,
@@ -382,7 +443,11 @@ def initialize_runtime_state(
     agi_cls._worker_args = worker_args if worker_args is not None else agi_cls._args
     agi_cls.verbose = verbose
     agi_cls._workers = workers
-    agi_cls._workers_data_path = workers_data_path
+    agi_cls._workers_data_path = normalize_workers_data_path(
+        workers_data_path,
+        args=agi_cls._args,
+        worker_args=agi_cls._worker_args,
+    )
     agi_cls._run_time = {}
 
 

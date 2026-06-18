@@ -49,10 +49,11 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   fixing bootstrap code because `st.session_state["env"]` and `env.active_app` can retain
   stale paths across reruns.
 - **Worker data path resolution layer**: in cluster and workflow execution, UI pages may
-  choose and persist `workers_data_path`, but app `data_in` and `data_out` resolution belongs
-  to the shared worker runtime: `BaseWorker._resolve_data_dir` and
-  `agi_node.agi_dispatcher.base_worker_path_support`. The canonical workflow share root passed
-  as `workers_data_path` is `clustershare/<user>/<workflow-id>/<session>`. App module
+  choose and persist `workers_data_path`, but canonical share-root storage and app
+  `data_in` / `data_out` resolution belong to the shared worker runtime:
+  `runtime_misc_support.initialize_runtime_state`, `BaseWorker._resolve_data_dir`,
+  and `agi_node.agi_dispatcher.base_worker_path_support`. The canonical workflow share
+  root passed as `workers_data_path` is `clustershare/<user>/<workflow-id>/<session>`. App module
   subdirectories are appended by app arguments, where the module is the project name without
   the `_project` suffix, yielding `clustershare/<user>/<workflow-id>/<session>/<module>/...`
   for app data. Do not fix duplicated paths such as `<module>/<module>/dataset`, stale

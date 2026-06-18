@@ -539,6 +539,78 @@ def test_initialize_runtime_state_sets_common_runtime_fields():
     assert calls["info"] == [("runtime for %s v%s", "demo", 1)]
 
 
+def test_initialize_runtime_state_normalizes_workflow_module_workers_data_path():
+    agi_cls = SimpleNamespace()
+    env = SimpleNamespace(
+        manager_path=Path("/tmp/manager"),
+        target="flight_trajectory_project",
+        verbose=0,
+    )
+    session_root = Path("/Users/agi/clustershare/agi/workflows/20260618T093102Z-492de776")
+
+    runtime_misc_support.initialize_runtime_state(
+        agi_cls,
+        env,
+        workers={"127.0.0.1": 1},
+        verbose=0,
+        rapids_enabled=False,
+        args={"data_in": "flight_trajectory/dataset"},
+        worker_args={"data_in": "flight_trajectory/dataset"},
+        workers_data_path=str(session_root / "flight_trajectory"),
+    )
+
+    assert agi_cls._workers_data_path == str(session_root)
+
+
+def test_initialize_runtime_state_preserves_workflow_session_workers_data_path():
+    agi_cls = SimpleNamespace()
+    env = SimpleNamespace(
+        manager_path=Path("/tmp/manager"),
+        target="flight_trajectory_project",
+        verbose=0,
+    )
+    session_root = Path("/Users/agi/clustershare/agi/workflows/20260618T093102Z-492de776")
+
+    runtime_misc_support.initialize_runtime_state(
+        agi_cls,
+        env,
+        workers={"127.0.0.1": 1},
+        verbose=0,
+        rapids_enabled=False,
+        args={"data_in": "flight_trajectory/dataset"},
+        worker_args={"data_in": "flight_trajectory/dataset"},
+        workers_data_path=str(session_root),
+    )
+
+    assert agi_cls._workers_data_path == str(session_root)
+
+
+def test_initialize_runtime_state_normalizes_windows_module_workers_data_path():
+    agi_cls = SimpleNamespace()
+    env = SimpleNamespace(
+        manager_path=Path("/tmp/manager"),
+        target="flight_trajectory_project",
+        verbose=0,
+    )
+    session_root = (
+        r"C:\Users\agi\clustershare\agi\workflows"
+        r"\20260618T093102Z-492de776"
+    )
+
+    runtime_misc_support.initialize_runtime_state(
+        agi_cls,
+        env,
+        workers={"127.0.0.1": 1},
+        verbose=0,
+        rapids_enabled=False,
+        args={"data_in": "flight_trajectory/dataset"},
+        worker_args={"data_in": "flight_trajectory/dataset"},
+        workers_data_path=rf"{session_root}\flight_trajectory",
+    )
+
+    assert agi_cls._workers_data_path == session_root
+
+
 def test_configure_runtime_mode_supports_default_dask_mode():
     agi_cls = SimpleNamespace(_RUN_MASK=0b001111, RAPIDS_MODE=16, DASK_MODE=4)
     env = SimpleNamespace(mode2int=lambda value: {"d": 4}[value])
