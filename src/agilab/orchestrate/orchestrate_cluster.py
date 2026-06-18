@@ -398,11 +398,19 @@ def _new_workflow_session_id() -> str:
     return f"{timestamp}-{uuid4().hex[:8]}"
 
 
-def _workflow_sessions_root(cluster_share: Path, user: Any, workflow_name: Any) -> Path:
+def _workflow_user_root(cluster_share: Path, user: Any) -> Path:
     safe_user = _safe_workflow_component(user, "local-user")
+    return cluster_share if cluster_share.name == safe_user else cluster_share / safe_user
+
+
+def _workflow_sessions_root(cluster_share: Path, user: Any, workflow_name: Any) -> Path:
     safe_workflow = _safe_workflow_component(workflow_name, "default")
-    user_root = cluster_share if cluster_share.name == safe_user else cluster_share / safe_user
-    return user_root / WORKFLOW_SESSION_DIR / safe_workflow
+    return _workflow_user_root(cluster_share, user) / safe_workflow
+
+
+def _legacy_workflow_sessions_root(cluster_share: Path, user: Any, workflow_name: Any) -> Path:
+    safe_workflow = _safe_workflow_component(workflow_name, "default")
+    return _workflow_user_root(cluster_share, user) / WORKFLOW_SESSION_DIR / safe_workflow
 
 
 def _list_workflow_sessions(sessions_root: Path) -> list[Path]:
@@ -480,7 +488,13 @@ def _workers_data_path_should_follow_workflow_session(
         return False
     if data_path == cluster_share:
         return True
-    return _path_is_within(data_path, _workflow_sessions_root(cluster_share, user, workflow_name))
+    return _path_is_within(
+        data_path,
+        _workflow_sessions_root(cluster_share, user, workflow_name),
+    ) or _path_is_within(
+        data_path,
+        _legacy_workflow_sessions_root(cluster_share, user, workflow_name),
+    )
 
 
 def _env_cluster_share_candidate(env: Any) -> Path | None:
