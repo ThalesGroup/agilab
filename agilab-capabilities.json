@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-18T12:07:50Z",
+  "generated_at_utc": "2026-06-18T13:44:39Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -825,7 +825,7 @@
       "name": "agilab-installer",
       "description": "Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.",
       "path": ".claude/skills/agilab-installer/SKILL.md",
-      "updated": "2026-05-29"
+      "updated": "2026-06-18"
     },
     {
       "name": "agilab-intent-router",

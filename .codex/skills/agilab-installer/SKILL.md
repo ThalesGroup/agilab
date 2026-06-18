@@ -3,7 +3,7 @@ name: agilab-installer
 description: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-29
+  updated: 2026-06-18
 ---
 
 # AGILAB Installer Skill
@@ -29,6 +29,10 @@ exclude) if an app the user actually works on shows up excluded.
 - Use `uv --preview-features extra-build-dependencies …` for Python entrypoints.
 - Do not add silent fallbacks (detect missing capabilities and raise actionable errors).
 - Keep installs **idempotent**: rerunning should not wipe user data or re-download unnecessarily.
+- For source app installation or app tests, use the dedicated app installer
+  script directly. Do not substitute root reinstall flows, manual
+  `~/.agilab/.env` edits, or ad-hoc pytest loops when `install_apps.sh` /
+  `install_apps.ps1` is the intended model-free operation.
 - Before editing or validating installer-related diffs, run
   `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --files install.sh src/agilab/install_apps.sh src/agilab/apps/install.py`
   or point it at the actual changed install/deploy files. Use the output to confirm whether install
@@ -49,7 +53,11 @@ exclude) if an app the user actually works on shows up excluded.
   - macOS/Linux: `./install.sh --install-apps --test-apps --test-core`
   - Windows: `.\install.ps1 -InstallApps -TestApps -TestCore`
 - Apps/pages install only:
-  - `cd src/agilab && ./install_apps.sh --test-apps`
+  - All source apps: `cd src/agilab && APPS_REPOSITORY=/path/to/apps-repo AGILAB_DEV_APPS_REPOSITORY=1 BUILTIN_APPS=__AGILAB_ALL_APPS__ ./install_apps.sh`
+  - All source app tests: `cd src/agilab && APPS_REPOSITORY=/path/to/apps-repo AGILAB_DEV_APPS_REPOSITORY=1 BUILTIN_APPS=__AGILAB_ALL_APPS__ ./install_apps.sh --test-apps`
+  - Narrow source app tests: `cd src/agilab && APPS_REPOSITORY=/path/to/apps-repo AGILAB_DEV_APPS_REPOSITORY=1 BUILTIN_APPS=flight_trajectory_project ./install_apps.sh --test-apps`
+  - Windows source app tests: `cd src\agilab; $env:APPS_REPOSITORY="C:\path\to\apps-repo"; $env:AGILAB_DEV_APPS_REPOSITORY="1"; $env:BUILTIN_APPS="__AGILAB_ALL_APPS__"; .\install_apps.ps1 -TestApps`
+  - Use root `./install.sh` / `.\install.ps1` only when root/core/end-user side effects are required.
 - PyPI app package management:
   - Use the PROJECT page `Install PyPI app` flow or the CLI
     `agilab app search/check/install/list/update/remove` for promoted public

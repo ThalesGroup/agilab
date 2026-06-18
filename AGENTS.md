@@ -478,6 +478,18 @@ Use this runbook whenever you:
   environment, then use `./install.sh --non-interactive`/`-y`. Optional flags:
   `--apps-repository`, `--install-path`, `--install-apps [all|builtin|comma list]`,
   `--test-apps`, `--test-core`.
+- **Script-first app install/test**: When AGILAB itself is already installed or
+  the task is only to install/test source apps, use the model-free app installer
+  directly instead of composing a root install, hand-editing `~/.agilab/.env`, or
+  running ad-hoc pytest loops. From the checkout root, run
+  `cd src/agilab && APPS_REPOSITORY=/path/to/apps-repo AGILAB_DEV_APPS_REPOSITORY=1 BUILTIN_APPS=__AGILAB_ALL_APPS__ ./install_apps.sh`
+  and add `--test-apps` when app tests are requested. Use a comma-separated
+  `BUILTIN_APPS` value for a narrow app subset, for example
+  `BUILTIN_APPS=flight_trajectory_project`. On Windows, use the matching
+  `src\agilab\install_apps.ps1 -TestApps` surface with the same environment
+  variables. Reserve root `install.sh` / `install.ps1` for root/core/end-user
+  side effects such as first install, `.agilab-path` updates, dataset seeding,
+  or full install validation.
 - **Apps repository symlinks**: Set `APPS_REPOSITORY` in
   `~/.local/share/agilab/.env` to the path of your apps repository checkout. The installer can
   create symlinks so optional apps/pages resolve without manual action.

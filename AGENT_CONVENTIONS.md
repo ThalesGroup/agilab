@@ -20,6 +20,10 @@ publication, or other risky surfaces, read [AGENTS.md](AGENTS.md) too.
 - Prefer app-local fixes over shared-core changes.
 - Do not edit shared core (`agi-env`, `agi-node`, `agi-cluster`, `agi-core`,
   shared installer/build tooling) unless the user explicitly approves it.
+- For source app installation or app tests, run `src/agilab/install_apps.sh`
+  or `src\agilab\install_apps.ps1` with explicit `APPS_REPOSITORY` and
+  `BUILTIN_APPS`; do not substitute a root reinstall, manual `.env` edits, or
+  ad-hoc pytest loops.
 - Keep edits narrow and validate with the smallest relevant proof first.
 - For successful final close-outs, write `Validation passed.` without listing
   every command unless failures, skipped checks, release/audit evidence, PR
