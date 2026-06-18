@@ -562,7 +562,7 @@ def test_workflow_session_path_policies(tmp_path):
         workflow_name="workflows",
         project_name="demo_project",
     )
-    assert not orchestrate_cluster._workers_data_path_should_follow_workflow_session(
+    assert orchestrate_cluster._workers_data_path_should_follow_workflow_session(
         "clustershare/agi/workflows/latest-run/demo/custom-data",
         env,
         user="agi",
@@ -657,12 +657,26 @@ def test_workers_data_path_regression_rewrites_misplaced_managed_share_values(tm
         workflow_name="workflows",
         project_name="flight_telemetry_project",
     )
-    assert not orchestrate_cluster._workers_data_path_should_follow_workflow_session(
+    assert orchestrate_cluster._workers_data_path_should_follow_workflow_session(
         "clustershare/agi/workflows/20260618T093102Z-492de776/flight_telemetry/custom-data",
         env,
         user="agi",
         workflow_name="workflows",
         project_name="flight_telemetry_project",
+    )
+    assert orchestrate_cluster._workers_data_path_should_follow_workflow_session(
+        "clustershare/agi/workflows/20260618T093102Z-492de776/flight_trajectory/dataset",
+        env,
+        user="agi",
+        workflow_name="workflows",
+        project_name="flight_trajectory_project",
+    )
+    assert orchestrate_cluster._workers_data_path_should_follow_workflow_session(
+        "clustershare/agi/workflows/20260618T093102Z-492de776/flight_trajectory/flight_trajectory/dataset",
+        env,
+        user="agi",
+        workflow_name="workflows",
+        project_name="flight_trajectory_project",
     )
 
 
@@ -1561,12 +1575,13 @@ def test_render_cluster_settings_ui_empty_workflow_session_auto_selects_latest(m
     assert cluster["workers_data_path"] == "cluster-share/agi/workflows/session-b"
 
 
-def test_render_cluster_settings_ui_preserves_custom_workers_data_path_under_workflow_root(monkeypatch, tmp_path):
-    app_name = "demo_project"
+def test_render_cluster_settings_ui_rewrites_stale_app_child_workers_data_path(monkeypatch, tmp_path):
+    app_name = "flight_trajectory_project"
     widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
     share = tmp_path / "cluster-share"
     (share / "agi" / "workflows" / "session-a").mkdir(parents=True)
-    custom_data_path = "cluster-share/agi/workflows/session-a/demo/custom-data"
+    stale_data_path = "cluster-share/agi/workflows/session-a/flight_trajectory/dataset"
+    session_data_path = "cluster-share/agi/workflows/session-a"
     fake_st = _FakeStreamlit(
         widget_values={
             widget_keys["cluster_enabled"]: True,
@@ -1575,18 +1590,18 @@ def test_render_cluster_settings_ui_preserves_custom_workers_data_path_under_wor
             widget_keys["rapids"]: False,
             widget_keys["use_key"]: True,
             widget_keys["workflow_session"]: "session-a",
-            widget_keys["workers_data_path"]: custom_data_path,
+            widget_keys["workers_data_path"]: stale_data_path,
         },
         session_state={
             "app_settings": {
                 "cluster": {
                     "cluster_enabled": True,
                     "workflow_session": "session-a",
-                    "workers_data_path": custom_data_path,
+                    "workers_data_path": stale_data_path,
                 }
             },
             widget_keys["workflow_session"]: "session-a",
-            widget_keys["workers_data_path"]: custom_data_path,
+            widget_keys["workers_data_path"]: stale_data_path,
             "benchmark": False,
         },
     )
@@ -1617,8 +1632,8 @@ def test_render_cluster_settings_ui_preserves_custom_workers_data_path_under_wor
 
     cluster = fake_st.session_state.app_settings["cluster"]
     assert cluster["workflow_session"] == "session-a"
-    assert cluster["workers_data_path"] == custom_data_path
-    assert fake_st.session_state[widget_keys["workers_data_path"]] == custom_data_path
+    assert cluster["workers_data_path"] == session_data_path
+    assert fake_st.session_state[widget_keys["workers_data_path"]] == session_data_path
 
 
 def test_render_cluster_settings_ui_selects_existing_workflow_session_directory(monkeypatch, tmp_path):
