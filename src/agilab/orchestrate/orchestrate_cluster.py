@@ -1608,6 +1608,8 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 project_name=app_state_name,
             )
         ):
+            # Keep this as a local/persisted-settings normalization. Streamlit
+            # owns workers_data_path_widget_key after the text_input is created.
             workers_data_path_value = workflow_workers_data_path
         cluster_params["workers_data_path"] = workers_data_path_value
 

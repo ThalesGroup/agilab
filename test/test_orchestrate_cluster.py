@@ -1495,7 +1495,7 @@ def test_render_cluster_settings_ui_populates_empty_cluster_from_lan_discovery(m
 
 def test_render_cluster_settings_ui_preserves_workflow_session_without_cluster_share(monkeypatch, tmp_path):
     widget_keys = orchestrate_cluster.cluster_widget_keys("demo_project")
-    fake_st = _FakeStreamlit(
+    fake_st = _GuardedFakeStreamlit(
         widget_values={
             widget_keys["cluster_enabled"]: True,
             widget_keys["cython"]: False,
@@ -1554,7 +1554,7 @@ def test_render_cluster_settings_ui_empty_workflow_session_auto_selects_latest(m
     latest_session.mkdir(parents=True)
     os.utime(old_session, (1, 1))
     os.utime(latest_session, (2, 2))
-    fake_st = _FakeStreamlit(
+    fake_st = _GuardedFakeStreamlit(
         widget_values={
             widget_keys["cluster_enabled"]: True,
             widget_keys["cython"]: False,
@@ -2304,7 +2304,7 @@ def test_render_cluster_settings_ui_replaces_stale_local_workers_data_path(monke
     cluster_share = tmp_path / "clustershare" / "agi"
     local_share.mkdir(parents=True)
     cluster_share.mkdir(parents=True)
-    fake_st = _FakeStreamlit(
+    fake_st = _GuardedFakeStreamlit(
         widget_values={
             widget_keys["cluster_enabled"]: True,
             widget_keys["cython"]: False,
