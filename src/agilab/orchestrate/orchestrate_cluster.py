@@ -438,12 +438,11 @@ def _workflow_session_names(sessions_root: Path) -> list[str]:
     return [session.name for session in _list_workflow_sessions(sessions_root)]
 
 
-def _resolve_workflow_session_module_path(
+def _resolve_workflow_session_path(
     cluster_share: Path,
     *,
     user: Any,
     workflow_name: Any,
-    project_name: Any = None,
     policy: Any,
     selected_session: Any = "",
     create: bool = True,
@@ -463,31 +462,32 @@ def _resolve_workflow_session_module_path(
     if not session_id:
         session_id = _safe_workflow_component(session_id_factory(), "session")
 
-    module_name = _workflow_module_component(workflow_name if project_name is None else project_name)
-    module_path = sessions_root / session_id / module_name
+    session_path = sessions_root / session_id
     if create:
-        module_path.mkdir(parents=True, exist_ok=True)
-    return module_path, session_id, resolved_policy
+        session_path.mkdir(parents=True, exist_ok=True)
+    return session_path, session_id, resolved_policy
 
 
-def _workflow_data_path_text(cluster_share: Path, module_path: Path, env: Any) -> str:
+def _workflow_data_path_text(cluster_share: Path, session_path: Path, env: Any) -> str:
     cluster_share_setting = _env_cluster_share_setting(env)
     if cluster_share_setting:
         try:
-            suffix = module_path.relative_to(cluster_share)
+            suffix = session_path.relative_to(cluster_share)
         except ValueError:
             pass
         else:
             return (Path(cluster_share_setting) / suffix).as_posix()
-    return _home_relative_share_text(module_path, env) or str(module_path)
+    return _home_relative_share_text(session_path, env) or str(session_path)
 
 
-def _path_matches_workflow_session_leaf(data_path: Path, sessions_root: Path, leaf_name: str) -> bool:
+def _path_matches_workflow_session_default(data_path: Path, sessions_root: Path, module_name: str) -> bool:
     try:
         relative_path = data_path.relative_to(sessions_root)
     except ValueError:
         return False
-    return len(relative_path.parts) == 2 and relative_path.parts[1] == leaf_name
+    if len(relative_path.parts) == 1:
+        return True
+    return len(relative_path.parts) == 2 and relative_path.parts[1] == module_name
 
 
 def _path_is_current_workflow_module_or_child(data_path: Path, sessions_root: Path, module_name: str) -> bool:
@@ -495,7 +495,7 @@ def _path_is_current_workflow_module_or_child(data_path: Path, sessions_root: Pa
         relative_path = data_path.relative_to(sessions_root)
     except ValueError:
         return False
-    return len(relative_path.parts) >= 2 and relative_path.parts[1] == module_name
+    return len(relative_path.parts) >= 3 and relative_path.parts[1] == module_name
 
 
 def _workers_data_path_should_follow_workflow_session(
@@ -519,7 +519,7 @@ def _workers_data_path_should_follow_workflow_session(
         return True
     module_name = _workflow_module_component(workflow_name if project_name is None else project_name)
     sessions_root = _workflow_sessions_root(cluster_share, user, workflow_name)
-    if _path_matches_workflow_session_leaf(data_path, sessions_root, module_name):
+    if _path_matches_workflow_session_default(data_path, sessions_root, module_name):
         return True
     user_root = _workflow_user_root(cluster_share, user)
     if _path_is_within(data_path, user_root):
@@ -1479,11 +1479,10 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 _workflow_sessions_root(cluster_share_candidate, sanitized_user, workflow_id)
             )
             try:
-                workflow_workers_path, workflow_session, workflow_policy = _resolve_workflow_session_module_path(
+                workflow_session_path, workflow_session, workflow_policy = _resolve_workflow_session_path(
                     cluster_share_candidate,
                     user=sanitized_user,
                     workflow_name=workflow_id,
-                    project_name=app_state_name,
                     policy=workflow_policy,
                     selected_session=workflow_session,
                     create=False,
@@ -1494,7 +1493,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
             else:
                 workflow_workers_data_path = _workflow_data_path_text(
                     cluster_share_candidate,
-                    workflow_workers_path,
+                    workflow_session_path,
                     env,
                 )
                 cluster_params["workflow_session_policy"] = workflow_policy
@@ -1558,11 +1557,10 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
         workflow_session = _safe_workflow_component(workflow_session_input, "")
         if cluster_share_ready and cluster_share_candidate is not None and not workflow_session_error_shown:
             try:
-                workflow_workers_path, workflow_session, workflow_policy = _resolve_workflow_session_module_path(
+                workflow_session_path, workflow_session, workflow_policy = _resolve_workflow_session_path(
                     cluster_share_candidate,
                     user=sanitized_user,
                     workflow_name=workflow_id,
-                    project_name=app_state_name,
                     policy=workflow_policy,
                     selected_session=workflow_session,
                 )
@@ -1571,7 +1569,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
             else:
                 workflow_workers_data_path = _workflow_data_path_text(
                     cluster_share_candidate,
-                    workflow_workers_path,
+                    workflow_session_path,
                     env,
                 )
         if workflow_workers_data_path:
