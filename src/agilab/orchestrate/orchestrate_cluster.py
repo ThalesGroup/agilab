@@ -49,8 +49,10 @@ POOL_EXECUTOR_ENV = "AGILAB_POOL_EXECUTOR"
 POOL_EXECUTOR_OPTIONS = ("auto", "process", "thread")
 WORKFLOW_SESSION_POLICY_ENV = "AGI_WORKFLOW_SESSION_POLICY"
 WORKFLOW_SESSION_ENV = "AGI_WORKFLOW_SESSION"
+WORKFLOW_ID_ENV = "AGI_WORKFLOW_ID"
 WORKFLOW_SESSION_POLICY_OPTIONS = ("new", "last", "select")
 WORKFLOW_SESSION_DEFAULT_POLICY = "new"
+WORKFLOW_DEFAULT_ID = "workflows"
 WORKFLOW_SESSION_DIR = "workflows"
 WORKFLOW_SESSION_LEGACY_WORKERS_DIR = "workers"
 WORKFLOW_PROJECT_SUFFIXES = ("_project", "-project")
@@ -525,6 +527,7 @@ def _workers_data_path_should_follow_workflow_session(
     user: Any,
     workflow_name: Any,
     project_name: Any = None,
+    legacy_workflow_names: tuple[Any, ...] = (),
 ) -> bool:
     text = _clean_path_text(value)
     if not text:
@@ -538,17 +541,31 @@ def _workers_data_path_should_follow_workflow_session(
     if data_path == cluster_share:
         return True
     module_name = _workflow_module_component(workflow_name if project_name is None else project_name)
-    sessions_root = _workflow_sessions_root(cluster_share, user, workflow_name)
-    legacy_sessions_root = _legacy_workflow_sessions_root(cluster_share, user, workflow_name)
-    return (
-        _path_matches_workflow_session_leaf(data_path, sessions_root, module_name)
-        or _path_matches_workflow_session_leaf(data_path, sessions_root, WORKFLOW_SESSION_LEGACY_WORKERS_DIR)
-        or _path_matches_workflow_session_leaf(data_path, legacy_sessions_root, module_name)
-        or _path_matches_workflow_session_leaf(
-            data_path,
-            legacy_sessions_root,
-            WORKFLOW_SESSION_LEGACY_WORKERS_DIR,
-        )
+    candidate_roots = [
+        _workflow_sessions_root(cluster_share, user, workflow_name),
+        _legacy_workflow_sessions_root(cluster_share, user, workflow_name),
+    ]
+    seen_roots = {root.resolve(strict=False) for root in candidate_roots}
+    for legacy_workflow_name in legacy_workflow_names:
+        for candidate_root in (
+            _workflow_sessions_root(cluster_share, user, legacy_workflow_name),
+            _legacy_workflow_sessions_root(cluster_share, user, legacy_workflow_name),
+        ):
+            resolved_candidate_root = candidate_root.resolve(strict=False)
+            if resolved_candidate_root not in seen_roots:
+                candidate_roots.append(candidate_root)
+                seen_roots.add(resolved_candidate_root)
+    return any(
+        _path_matches_workflow_session_leaf(data_path, candidate_root, module_name)
+        or _path_matches_workflow_session_leaf(data_path, candidate_root, WORKFLOW_SESSION_LEGACY_WORKERS_DIR)
+        for candidate_root in candidate_roots
+    )
+
+
+def _orchestrate_workflow_id(cluster_params: dict[str, Any], env: Any) -> str:
+    return _safe_workflow_component(
+        cluster_params.get("workflow_id") or _env_value(env, WORKFLOW_ID_ENV),
+        WORKFLOW_DEFAULT_ID,
     )
 
 
@@ -1078,6 +1095,8 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
 
     cluster_params = app_settings.setdefault("cluster", {})
     app_state_name = Path(str(env.app)).name if env.app else ""
+    workflow_id = _orchestrate_workflow_id(cluster_params, env)
+    cluster_params["workflow_id"] = workflow_id
     widget_keys = cluster_widget_keys(app_state_name)
 
     boolean_params = ["cython", "pool"]
@@ -1492,13 +1511,13 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
         workflow_session_options: list[str] = []
         if cluster_share_ready and cluster_share_candidate is not None:
             workflow_session_options = _workflow_session_names(
-                _workflow_sessions_root(cluster_share_candidate, sanitized_user, app_state_name)
+                _workflow_sessions_root(cluster_share_candidate, sanitized_user, workflow_id)
             )
             try:
                 workflow_workers_path, workflow_session, workflow_policy = _resolve_workflow_session_module_path(
                     cluster_share_candidate,
                     user=sanitized_user,
-                    workflow_name=app_state_name,
+                    workflow_name=workflow_id,
                     project_name=app_state_name,
                     policy=workflow_policy,
                     selected_session=workflow_session,
@@ -1555,7 +1574,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 st.session_state.pop(workflow_existing_session_key, None)
                 st.info(
                     "No existing workflow session directories found under "
-                    f"`{_workflow_sessions_root(cluster_share_candidate, sanitized_user, app_state_name)}`."
+                    f"`{_workflow_sessions_root(cluster_share_candidate, sanitized_user, workflow_id)}`."
                 )
         else:
             st.session_state.pop(workflow_existing_session_key, None)
@@ -1577,7 +1596,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 workflow_workers_path, workflow_session, workflow_policy = _resolve_workflow_session_module_path(
                     cluster_share_candidate,
                     user=sanitized_user,
-                    workflow_name=app_state_name,
+                    workflow_name=workflow_id,
                     project_name=app_state_name,
                     policy=workflow_policy,
                     selected_session=workflow_session,
@@ -1605,8 +1624,9 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 current_workers_data_path,
                 env,
                 user=sanitized_user,
-                workflow_name=app_state_name,
+                workflow_name=workflow_id,
                 project_name=app_state_name,
+                legacy_workflow_names=(app_state_name,),
             ):
                 cluster_params["workers_data_path"] = workflow_workers_data_path
                 st.session_state[workers_data_path_widget_key] = workflow_workers_data_path
