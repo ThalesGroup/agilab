@@ -82,11 +82,19 @@ def share_root_path(
     except SHARE_ROOT_FALLBACK_EXCEPTIONS:
         pass
 
-    for candidate in (env.agi_share_path_abs, env.agi_share_path):
+    is_worker_env = bool(getattr(env, "is_worker_env", False))
+    candidates = (
+        (env.agi_share_path, True),
+        (env.agi_share_path_abs, False),
+    ) if is_worker_env else (
+        (env.agi_share_path_abs, False),
+        (env.agi_share_path, False),
+    )
+    for candidate, use_runtime_home in candidates:
         if candidate:
             base = path_cls(candidate).expanduser()
             if not base.is_absolute():
-                home = path_cls(env.home_abs).expanduser()
+                home = path_cls.home() if use_runtime_home else path_cls(env.home_abs).expanduser()
                 base = (home / base).expanduser()
             return base
     return path_cls(env.home_abs).expanduser()
