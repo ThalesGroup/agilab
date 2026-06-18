@@ -45,6 +45,21 @@ class _State(dict):
         self[name] = value
 
 
+class _GuardedWidgetState(_State):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        object.__setattr__(self, "_instantiated_widget_keys", set())
+
+    def __setitem__(self, key, value):
+        if key in self._instantiated_widget_keys:
+            raise RuntimeError(f"{key} cannot be modified after widget instantiation")
+        super().__setitem__(key, value)
+
+    def mark_instantiated(self, key: str | None) -> None:
+        if key:
+            self._instantiated_widget_keys.add(key)
+
+
 class _Context:
     def __init__(self, st):
         self._st = st
@@ -150,6 +165,26 @@ class _FakeStreamlit:
 
     def error(self, text):
         self.errors.append(text)
+
+
+class _GuardedFakeStreamlit(_FakeStreamlit):
+    def __init__(self, *, widget_values=None, session_state=None, button_values=None):
+        super().__init__(
+            widget_values=widget_values,
+            session_state=session_state,
+            button_values=button_values,
+        )
+        self.session_state = _GuardedWidgetState(self.session_state)
+
+    def text_input(self, label, *, key=None, value="", **kwargs):
+        result = super().text_input(label, key=key, value=value, **kwargs)
+        self.session_state.mark_instantiated(key)
+        return result
+
+    def text_area(self, label, *, key=None, value="", **kwargs):
+        result = super().text_area(label, key=key, value=value, **kwargs)
+        self.session_state.mark_instantiated(key)
+        return result
 
 
 def test_compute_cluster_mode_uses_expected_bitmask():
@@ -1966,9 +2001,70 @@ def test_render_cluster_settings_ui_replaces_stale_local_workers_data_path(monke
 
     cluster = fake_st.session_state.app_settings["cluster"]
     assert cluster["workers_data_path"] == "clustershare/agi/workflows/demo_project/session-a/workers"
-    assert fake_st.session_state[widget_keys["workers_data_path"]] == (
-        "clustershare/agi/workflows/demo_project/session-a/workers"
+    assert fake_st.session_state[widget_keys["workers_data_path"]] == "clustershare/agi"
+
+
+def test_render_cluster_settings_ui_rewrites_stale_managed_worker_path_without_widget_mutation(
+    monkeypatch, tmp_path
+):
+    app_name = "demo_project"
+    widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
+    cluster_share = tmp_path / "clustershare" / "agi"
+    (cluster_share / "workflows" / "demo_project" / "session-a").mkdir(parents=True)
+    stale_data_path = "clustershare/agi/workflows/demo_project/session-a/workers/old"
+    expected_data_path = "clustershare/agi/workflows/demo_project/session-a/workers"
+    fake_st = _GuardedFakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+            widget_keys["workflow_session"]: "session-a",
+            widget_keys["workers_data_path"]: stale_data_path,
+        },
+        session_state={
+            "app_settings": {
+                "cluster": {
+                    "cluster_enabled": True,
+                    "workflow_session": "session-a",
+                    "workers_data_path": stale_data_path,
+                }
+            },
+            widget_keys["workflow_session"]: "session-a",
+            widget_keys["workers_data_path"]: stale_data_path,
+            "benchmark": False,
+        },
     )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    _disable_lan_defaults(monkeypatch)
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda _raw: None,
+        parse_and_validate_workers=lambda _raw: None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app=app_name,
+        home_abs=tmp_path,
+        is_managed_pc=False,
+        AGI_CLUSTER_SHARE=str(cluster_share),
+        agi_share_path=Path("clustershare/agi"),
+        share_root_path=lambda: cluster_share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["workflow_session"] == "session-a"
+    assert cluster["workers_data_path"] == expected_data_path
+    assert fake_st.session_state[widget_keys["workers_data_path"]] == stale_data_path
 
 
 def test_render_cluster_settings_ui_uses_ssh_key_auth_and_resolved_share(monkeypatch, tmp_path):

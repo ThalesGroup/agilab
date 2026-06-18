@@ -1506,7 +1506,6 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 workflow_name=app_state_name,
             ):
                 cluster_params["workers_data_path"] = workflow_workers_data_path
-                st.session_state[workers_data_path_widget_key] = workflow_workers_data_path
         elif workflow_session:
             cluster_params["workflow_session"] = workflow_session
 
@@ -1519,7 +1518,19 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
             placeholder="/path/to/data",
             help="Path to data directory on workers.",
         )
-        cluster_params["workers_data_path"] = str(workers_data_path_input or "").strip()
+        workers_data_path_value = str(workers_data_path_input or "").strip()
+        if (
+            workflow_workers_data_path
+            and _clean_path_text(workers_data_path_value)
+            and _workers_data_path_should_follow_workflow_session(
+                workers_data_path_value,
+                env,
+                user=sanitized_user,
+                workflow_name=app_state_name,
+            )
+        ):
+            workers_data_path_value = workflow_workers_data_path
+        cluster_params["workers_data_path"] = workers_data_path_value
 
         workers_widget_key = widget_keys["workers"]
         workers_dict = cluster_params.get("workers", {})
