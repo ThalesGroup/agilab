@@ -611,6 +611,13 @@ def test_workers_data_path_regression_rewrites_misplaced_managed_share_values(tm
         workflow_name="workflows",
         project_name="flight_telemetry_project",
     )
+    assert orchestrate_cluster._workers_data_path_should_follow_workflow_session(
+        "clustershare/agi/workflows/flight_telemetry_project/20260618T093102Z-492de776/workers",
+        env,
+        user="agi",
+        workflow_name="workflows",
+        project_name="flight_telemetry_project",
+    )
     assert not orchestrate_cluster._workers_data_path_should_follow_workflow_session(
         "clustershare/agi/workflows/20260618T093102Z-492de776/flight_telemetry/custom-data",
         env,
@@ -1475,12 +1482,12 @@ def test_render_cluster_settings_ui_empty_workflow_session_auto_selects_latest(m
                     "cluster_enabled": True,
                     "workflow_session_policy": "select",
                     "workflow_session": "session-a",
-                    "workers_data_path": "cluster-share/agi/workflows/demo_project/session-a/stale",
+                    "workers_data_path": "cluster-share/agi/workflows/demo_project/session-a/workers",
                 }
             },
             widget_keys["workflow_session_policy"]: "select",
             widget_keys["workflow_session"]: "session-a",
-            widget_keys["workers_data_path"]: "cluster-share/agi/workflows/demo_project/session-a/stale",
+            widget_keys["workers_data_path"]: "cluster-share/agi/workflows/demo_project/session-a/workers",
             "benchmark": False,
         },
     )
