@@ -45,6 +45,21 @@ class _State(dict):
         self[name] = value
 
 
+class _GuardedWidgetState(_State):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        object.__setattr__(self, "_instantiated_widget_keys", set())
+
+    def __setitem__(self, key, value):
+        if key in self._instantiated_widget_keys:
+            raise RuntimeError(f"{key} cannot be modified after widget instantiation")
+        super().__setitem__(key, value)
+
+    def mark_instantiated(self, key: str | None) -> None:
+        if key:
+            self._instantiated_widget_keys.add(key)
+
+
 class _Context:
     def __init__(self, st):
         self._st = st
@@ -150,6 +165,26 @@ class _FakeStreamlit:
 
     def error(self, text):
         self.errors.append(text)
+
+
+class _GuardedFakeStreamlit(_FakeStreamlit):
+    def __init__(self, *, widget_values=None, session_state=None, button_values=None):
+        super().__init__(
+            widget_values=widget_values,
+            session_state=session_state,
+            button_values=button_values,
+        )
+        self.session_state = _GuardedWidgetState(self.session_state)
+
+    def text_input(self, label, *, key=None, value="", **kwargs):
+        result = super().text_input(label, key=key, value=value, **kwargs)
+        self.session_state.mark_instantiated(key)
+        return result
+
+    def text_area(self, label, *, key=None, value="", **kwargs):
+        result = super().text_area(label, key=key, value=value, **kwargs)
+        self.session_state.mark_instantiated(key)
+        return result
 
 
 def test_compute_cluster_mode_uses_expected_bitmask():
@@ -1582,7 +1617,7 @@ def test_render_cluster_settings_ui_rewrites_stale_app_child_workers_data_path(m
     (share / "agi" / "workflows" / "session-a").mkdir(parents=True)
     stale_data_path = "cluster-share/agi/workflows/session-a/flight_trajectory/dataset"
     session_data_path = "cluster-share/agi/workflows/session-a"
-    fake_st = _FakeStreamlit(
+    fake_st = _GuardedFakeStreamlit(
         widget_values={
             widget_keys["cluster_enabled"]: True,
             widget_keys["cython"]: False,
@@ -1633,7 +1668,7 @@ def test_render_cluster_settings_ui_rewrites_stale_app_child_workers_data_path(m
     cluster = fake_st.session_state.app_settings["cluster"]
     assert cluster["workflow_session"] == "session-a"
     assert cluster["workers_data_path"] == session_data_path
-    assert fake_st.session_state[widget_keys["workers_data_path"]] == session_data_path
+    assert fake_st.session_state[widget_keys["workers_data_path"]] == stale_data_path
 
 
 def test_render_cluster_settings_ui_selects_existing_workflow_session_directory(monkeypatch, tmp_path):
