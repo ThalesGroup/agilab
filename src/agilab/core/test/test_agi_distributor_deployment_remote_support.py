@@ -102,6 +102,22 @@ def test_remote_deployment_path_and_probe_helpers(tmp_path):
         )
         == ""
     )
+    local_share = tmp_path / "home" / "clustershare" / "agi"
+    assert deployment_remote_support._scheduler_share_source(
+        local_share,
+        local_share_setting=str(local_share),
+        remote_share="clustershare/agi/workflows/session-123",
+        env=env,
+    ) == (local_share / "workflows" / "session-123").resolve(strict=False)
+    assert (
+        deployment_remote_support._scheduler_share_source(
+            local_share,
+            local_share_setting=str(local_share),
+            remote_share="clustershare/agi/../outside",
+            env=env,
+        )
+        == local_share
+    )
 
     assert deployment_remote_support._parse_version_prefix("10.15.7-extra") == (
         10,
@@ -746,6 +762,37 @@ async def test_prepare_remote_cluster_share_honors_custom_scheduler_ssh_port(tmp
     assert "SCHEDULER_SSH_PORT=2222" in mount_cmd
     assert 'ssh -p "$SCHEDULER_SSH_PORT"' in mount_cmd
     assert 'sshfs -p "$SCHEDULER_SSH_PORT"' in mount_cmd
+
+
+@pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_mounts_matching_workflow_session(tmp_path):
+    scheduler_share = tmp_path / "clustershare" / "agi"
+    workflow_share = "clustershare/agi/workflows/session-123"
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE=str(scheduler_share),
+        envars={},
+        home_abs=tmp_path,
+        user="agi",
+        verbose=0,
+    )
+    ssh_calls: list[str] = []
+
+    class _Agi:
+        _scheduler_ip = "192.168.20.111"
+
+        async def exec_ssh(self, _ip, cmd):
+            ssh_calls.append(cmd)
+            return "ok"
+
+    await deployment_remote_support._prepare_remote_cluster_share(
+        _Agi(), "192.168.20.15", env, workflow_share
+    )
+
+    mount_cmd = next(cmd for cmd in ssh_calls if "SCHEDULER_CLUSTER_SHARE" in cmd)
+    scheduler_session = scheduler_share / "workflows" / "session-123"
+    assert scheduler_session.is_dir()
+    assert f"agi@192.168.20.111:{scheduler_session.as_posix()}" in mount_cmd
+    assert '"$HOME"/clustershare/agi/workflows/session-123' in mount_cmd
 
 
 @pytest.mark.asyncio
