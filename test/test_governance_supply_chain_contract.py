@@ -75,6 +75,10 @@ def test_contributing_documents_enterprise_governance_boundaries() -> None:
         assert fragment in contributing
 
     for fragment in (
+        "## Linked Issue",
+        "Fixes #<!-- issue number; use N/A only when no GitHub issue exists -->",
+        "Use GitHub closing keywords (`Fixes`, `Closes`, or `Resolves`)",
+        "auto-closes when the PR is merged",
         "Stability boundary: runtime core / beta UI / built-in app / learning example / release tooling / agent or IDE automation",
         "DCO/CLA status",
         "Repository-scope changes stay within the stated stability boundary",
