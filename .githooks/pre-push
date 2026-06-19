@@ -16,6 +16,7 @@ DOCS_CHANGED=1
 RELEASE_PROOF_CHANGED=1
 APP_CONTRACTS_CHANGED=1
 AGI_CORE_PROTECTED_CHANGED=1
+AGENT_INSTRUCTIONS_CHANGED=1
 MIXED_SCOPE=0
 SCOPE_COUNT=0
 SCOPE_LIMIT=2
@@ -28,6 +29,7 @@ while IFS='=' read -r key value; do
     RELEASE_PROOF_CHANGED) RELEASE_PROOF_CHANGED="$value" ;;
     APP_CONTRACTS_CHANGED) APP_CONTRACTS_CHANGED="$value" ;;
     AGI_CORE_PROTECTED_CHANGED) AGI_CORE_PROTECTED_CHANGED="$value" ;;
+    AGENT_INSTRUCTIONS_CHANGED) AGENT_INSTRUCTIONS_CHANGED="$value" ;;
     MIXED_SCOPE) MIXED_SCOPE="$value" ;;
     SCOPE_COUNT) SCOPE_COUNT="$value" ;;
     SCOPE_LIMIT) SCOPE_LIMIT="$value" ;;
@@ -78,6 +80,13 @@ if [[ "${RELEASE_PROOF_CHANGED:-1}" == "1" ]]; then
     --quiet
 else
   echo "[agilab pre-push] release-proof inputs unchanged; skipping release-proof guard." >&2
+fi
+
+if [[ "${AGENT_INSTRUCTIONS_CHANGED:-1}" == "1" ]]; then
+  uv --preview-features extra-build-dependencies run python tools/agent_instruction_contract.py \
+    --check
+else
+  echo "[agilab pre-push] agent instruction inputs unchanged; skipping agent instruction guard." >&2
 fi
 
 if [[ "${APP_CONTRACTS_CHANGED:-1}" == "1" ]]; then

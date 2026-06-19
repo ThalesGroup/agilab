@@ -52,6 +52,32 @@ APP_CONTRACT_GUARD_FILES = {
 }
 AGI_CORE_PROTECTED_PREFIXES = ("src/agilab/core/agi-core/",)
 AGI_CORE_PROTECTED_FILES = {"src/agilab/core/agi-core"}
+AGENT_INSTRUCTION_PREFIXES = (
+    ".claude/skills/",
+    ".codex/skills/",
+)
+AGENT_INSTRUCTION_FILES = {
+    "AGENTS.md",
+    "AGENT_CONVENTIONS.md",
+    "AGENT_LEARNINGS.md",
+    "AGENT_SKILLS.md",
+    "agenticweb.md",
+    "agilab-capabilities.json",
+    "agilab-capabilities.schema.json",
+    "agilab-capability-rules.yml",
+    "docs/source/agent-workflows.rst",
+    "llms-full.txt",
+    "llms.txt",
+    "tools/agent_instruction_contract.py",
+    "tools/agent_workflows.md",
+    "tools/agilab_capabilities_lint.py",
+    "tools/agilab_capabilities_manifest.py",
+    "tools/agent_skill_catalog.py",
+    "tools/agenticweb_manifest.py",
+    "tools/codex_skills.py",
+    "tools/generate_skill_badges.py",
+    "tools/sync_agent_skills.py",
+}
 DEFAULT_PUSH_MAX_SCOPES = worktree_scope_guard.DEFAULT_MAX_SCOPES
 PUSH_SCOPE_ALLOWED = worktree_scope_guard.DEFAULT_ALLOWED_SCOPES
 
@@ -66,6 +92,7 @@ class GuardState:
     release_proof_changed: bool
     app_contracts_changed: bool
     agi_core_protected_changed: bool
+    agent_instructions_changed: bool
     mixed_scope: bool = False
     scope_count: int = 0
     scope_limit: int = DEFAULT_PUSH_MAX_SCOPES
@@ -160,6 +187,10 @@ def classify_changed_files(
         _matches(path, prefixes=AGI_CORE_PROTECTED_PREFIXES, files=AGI_CORE_PROTECTED_FILES)
         for path in changed_files
     )
+    agent_instructions_changed = any(
+        _matches(path, prefixes=AGENT_INSTRUCTION_PREFIXES, files=AGENT_INSTRUCTION_FILES)
+        for path in changed_files
+    )
     scope_report = worktree_scope_guard.analyze_scope(
         changed_files,
         max_scopes=max_scopes,
@@ -171,6 +202,7 @@ def classify_changed_files(
         release_proof_changed=release_proof_changed,
         app_contracts_changed=app_contracts_changed,
         agi_core_protected_changed=agi_core_protected_changed,
+        agent_instructions_changed=agent_instructions_changed,
         mixed_scope=scope_report.mixed,
         scope_count=len(scope_report.counted_scopes),
         scope_limit=scope_report.max_scopes,
@@ -184,6 +216,7 @@ def failed_detection_state(error: Exception) -> GuardState:
         release_proof_changed=True,
         app_contracts_changed=True,
         agi_core_protected_changed=True,
+        agent_instructions_changed=True,
         mixed_scope=True,
         detection_failed=True,
         error=str(error),
@@ -200,6 +233,7 @@ def render_shell(state: GuardState) -> str:
         f"RELEASE_PROOF_CHANGED={_shell_bool(state.release_proof_changed)}",
         f"APP_CONTRACTS_CHANGED={_shell_bool(state.app_contracts_changed)}",
         f"AGI_CORE_PROTECTED_CHANGED={_shell_bool(state.agi_core_protected_changed)}",
+        f"AGENT_INSTRUCTIONS_CHANGED={_shell_bool(state.agent_instructions_changed)}",
         f"MIXED_SCOPE={_shell_bool(state.mixed_scope)}",
         f"SCOPE_COUNT={state.scope_count}",
         f"SCOPE_LIMIT={state.scope_limit}",
