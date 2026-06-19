@@ -756,6 +756,9 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "--repo-root .": (
             "PyPI release retention must read selected project versions from the checked-out repo"
         ),
+        "--min-published-releases 11": (
+            "release workflow must defer destructive PyPI pruning until a selected package has more than ten visible releases"
+        ),
         "PYPI_RELEASE_PRUNE_PASSWORD": (
             "workflow must keep PyPI release pruning credentials separate from OIDC upload"
         ),

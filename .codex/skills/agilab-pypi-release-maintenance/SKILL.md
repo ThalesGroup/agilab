@@ -27,7 +27,10 @@ For publication-process optimization checks, inspect the current workflow first:
 `pypi-publish` now makes the release plan package-aware. By default it omits
 selected package versions whose expected PyPI artifacts already exist, so those
 packages do not enter build, upload, provenance, retention, or release-asset
-jobs.
+jobs. The release workflow also defers destructive PyPI retention until a
+selected package has more than ten visible releases; the manual retention tool
+keeps its strict single-current-release default unless an operator passes a
+threshold explicitly.
 
 ## Required Safety Rules
 
@@ -182,9 +185,15 @@ uv --preview-features extra-build-dependencies run python tools/pypi_release_ret
   --packages "agilab agi-core agi-env" \
   --repo-root . \
   --protect-versions-from-projects \
+  --min-published-releases 11 \
   --dry-run \
   --json
 ```
+
+`--min-published-releases 11` matches the public `pypi-publish` workflow: keep
+old releases during normal publication, then prune only when a selected package
+would expose an eleventh release. Omit the threshold for explicit manual cleanup
+when the operator wants strict single-current-release retention now.
 
 Use a single `--protect-version` only for legacy aligned-version cleanup.
 For same-version partial releases, do not hand-copy long package lists. Prefer
@@ -391,6 +400,10 @@ real issue is cleanup, release-plan selection, or package reuse. The public
   explicit package selection, and race conditions between planning and upload.
 - When any expected artifact is missing, the workflow builds, verifies,
   manifests, and publishes that package with Trusted Publishing.
+- Destructive retention is intentionally less frequent than publication: the
+  release workflow passes `--min-published-releases 11`, so PyPI web-login
+  deletion runs only after a selected package accumulates more than ten visible
+  releases.
 
 Do not use deletion/reupload churn to compensate for unchanged package
 publication. Prefer fixing the reuse gate, release-plan matrix, or artifact

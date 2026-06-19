@@ -758,7 +758,7 @@ jobs:
       - name: Install PyPI retention dependencies
         run: python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup requests
 
-      - name: Delete older PyPI releases and keep the current release only
+      - name: Delete older PyPI releases once package history exceeds ten releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -771,6 +771,7 @@ jobs:
             --repo pypi
             --repo-root .
             --protect-versions-from-projects
+            --min-published-releases 11
             --confirm-delete
             --direct-web-only
             --json

@@ -421,10 +421,12 @@ def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_asse
     assert "PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}" in text
     assert "PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}" in text
     assert "PYPI_RETENTION_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}" in text
+    assert "Delete older PyPI releases once package history exceeds ten releases" in text
     assert "python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup requests" in text
     assert "tools/pypi_release_retention.py" in text
     assert "--confirm-delete" in text
     assert "--direct-web-only" in text
+    assert "--min-published-releases 11" in text
     assert "retention_log=\"$(mktemp)\"" in text
     assert "PyPI redirected back to login while opening the release delete page after password/TOTP authentication." in text
     assert "--github-confirm-login-repository \"$GITHUB_REPOSITORY\"" in text

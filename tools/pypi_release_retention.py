@@ -85,7 +85,9 @@ class ReleasePlan:
     protect_version: str
     published_versions: list[str]
     delete_versions: list[str]
+    retained_versions: list[str]
     missing_protected_version: bool
+    retention_skipped_reason: str | None = None
 
 
 def normalize_version(version: str) -> str:
@@ -270,14 +272,33 @@ def fetch_releases(package: str, repo: str, *, timeout: int = 15) -> list[str]:
     return sorted(releases, key=lambda value: Version(value))
 
 
-def build_plan(package: str, repo: str, protect_version: str) -> ReleasePlan:
+def build_plan(
+    package: str,
+    repo: str,
+    protect_version: str,
+    *,
+    min_published_releases: int = 2,
+) -> ReleasePlan:
     protected = Version(normalize_version(protect_version))
     releases = fetch_releases(package, repo)
-    delete_versions = [
+    old_versions = [
         version
         for version in releases
         if Version(normalize_version(version)) != protected
     ]
+    if len(releases) < min_published_releases:
+        delete_versions: list[str] = []
+        retained_versions = old_versions
+        retention_skipped_reason = (
+            f"published release count {len(releases)} is below cleanup threshold "
+            f"{min_published_releases}"
+            if old_versions
+            else None
+        )
+    else:
+        delete_versions = old_versions
+        retained_versions = []
+        retention_skipped_reason = None
     missing_protected = all(
         Version(normalize_version(version)) != protected for version in releases
     )
@@ -286,7 +307,9 @@ def build_plan(package: str, repo: str, protect_version: str) -> ReleasePlan:
         protect_version=str(protected),
         published_versions=releases,
         delete_versions=delete_versions,
+        retained_versions=retained_versions,
         missing_protected_version=missing_protected,
+        retention_skipped_reason=retention_skipped_reason,
     )
 
 
@@ -297,10 +320,19 @@ def wait_for_protected_releases(
     protect_version: str,
     attempts: int,
     retry_delay: float,
+    min_published_releases: int = 2,
 ) -> list[ReleasePlan]:
     latest: list[ReleasePlan] = []
     for attempt in range(1, max(1, attempts) + 1):
-        latest = [build_plan(package, repo, protect_version) for package in packages]
+        latest = [
+            build_plan(
+                package,
+                repo,
+                protect_version,
+                min_published_releases=min_published_releases,
+            )
+            for package in packages
+        ]
         if all(not plan.missing_protected_version for plan in latest):
             return latest
         if attempt < attempts:
@@ -314,11 +346,17 @@ def wait_for_package_protected_releases(
     repo: str,
     attempts: int,
     retry_delay: float,
+    min_published_releases: int = 2,
 ) -> list[ReleasePlan]:
     latest: list[ReleasePlan] = []
     for attempt in range(1, max(1, attempts) + 1):
         latest = [
-            build_plan(package, repo, protect_version)
+            build_plan(
+                package,
+                repo,
+                protect_version,
+                min_published_releases=min_published_releases,
+            )
             for package, protect_version in package_versions.items()
         ]
         if all(not plan.missing_protected_version for plan in latest):
@@ -985,10 +1023,19 @@ def verify_retention(
     protect_version: str,
     attempts: int,
     retry_delay: float,
+    min_published_releases: int = 2,
 ) -> list[ReleasePlan]:
     latest: list[ReleasePlan] = []
     for attempt in range(1, max(1, attempts) + 1):
-        latest = [build_plan(package, repo, protect_version) for package in packages]
+        latest = [
+            build_plan(
+                package,
+                repo,
+                protect_version,
+                min_published_releases=min_published_releases,
+            )
+            for package in packages
+        ]
         failures = [
             plan
             for plan in latest
@@ -1007,11 +1054,17 @@ def verify_package_retention(
     repo: str,
     attempts: int,
     retry_delay: float,
+    min_published_releases: int = 2,
 ) -> list[ReleasePlan]:
     latest: list[ReleasePlan] = []
     for attempt in range(1, max(1, attempts) + 1):
         latest = [
-            build_plan(package, repo, protect_version)
+            build_plan(
+                package,
+                repo,
+                protect_version,
+                min_published_releases=min_published_releases,
+            )
             for package, protect_version in package_versions.items()
         ]
         failures = [
@@ -1040,7 +1093,9 @@ def render_summary(plans: Sequence[ReleasePlan], *, dry_run: bool) -> dict[str, 
                 "protect_version": plan.protect_version,
                 "published_versions": plan.published_versions,
                 "delete_versions": plan.delete_versions,
+                "retained_versions": plan.retained_versions,
                 "missing_protected_version": plan.missing_protected_version,
+                "retention_skipped_reason": plan.retention_skipped_reason,
             }
             for plan in plans
         ],
@@ -1058,7 +1113,11 @@ def append_step_summary(path: Path, summary: dict[str, Any]) -> None:
         "| --- | ---: | ---: | --- |",
     ]
     for package in summary["packages"]:
-        deleted = ", ".join(package["delete_versions"]) or "(none)"
+        if package.get("retention_skipped_reason"):
+            retained = ", ".join(package["retained_versions"]) or "(none)"
+            deleted = f"retained below threshold: {retained}"
+        else:
+            deleted = ", ".join(package["delete_versions"]) or "(none)"
         lines.append(
             "| `{package}` | `{protect}` | `{published}` | {deleted} |".format(
                 package=package["package"],
@@ -1138,6 +1197,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument(
+        "--min-published-releases",
+        type=int,
+        default=2,
+        help=(
+            "Only delete old releases after a package has at least this many "
+            "published releases. The default keeps the existing strict "
+            "single-current-release cleanup behavior."
+        ),
+    )
+    parser.add_argument(
         "--direct-web-only",
         action="store_true",
         help=(
@@ -1179,6 +1248,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.min_published_releases < 2:
+        raise SystemExit("ERROR: --min-published-releases must be at least 2")
     packages = resolve_package_selection(
         package_values=args.package,
         packages_values=args.packages,
@@ -1225,6 +1296,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         repo=args.repo,
         attempts=args.verify_attempts,
         retry_delay=args.retry_delay,
+        min_published_releases=args.min_published_releases,
     )
     missing = [
         f"{plan.package}={plan.protect_version}"
@@ -1330,6 +1402,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             repo=args.repo,
             attempts=args.verify_attempts,
             retry_delay=args.retry_delay,
+            min_published_releases=args.min_published_releases,
         )
     else:
         delete_blocked = False
@@ -1341,10 +1414,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(summary, indent=2, sort_keys=True))
     else:
         for package in summary["packages"]:
-            deleted = ", ".join(package["delete_versions"]) or "(none)"
+            old_versions = package["delete_versions"] or package["retained_versions"]
+            deleted = ", ".join(old_versions) or "(none)"
+            skipped = (
+                f" retention_skipped={package['retention_skipped_reason']}"
+                if package.get("retention_skipped_reason")
+                else ""
+            )
             print(
                 f"{package['package']}: keep={package['protect_version']} "
-                f"published={len(package['published_versions'])} old={deleted}"
+                f"published={len(package['published_versions'])} old={deleted}{skipped}"
             )
     return 0 if summary["success"] or args.dry_run or delete_blocked else 1
 
