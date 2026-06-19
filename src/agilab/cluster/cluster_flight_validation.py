@@ -48,6 +48,14 @@ SSHFS_OPTIONS = (
     "StrictHostKeyChecking=yes",
     "noexec",
 )
+SSHFS_SHARE_BACKEND = "sshfs"
+PREMOUNTED_SHARE_BACKENDS = ("nfs", "ntfs")
+SUPPORTED_SHARE_BACKENDS = (SSHFS_SHARE_BACKEND, *PREMOUNTED_SHARE_BACKENDS)
+SHARE_BACKEND_LABELS = {
+    SSHFS_SHARE_BACKEND: "SSHFS",
+    "nfs": "NFS",
+    "ntfs": "NTFS",
+}
 REMOTE_PATH_PREFIX = 'export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; '
 
 
@@ -71,6 +79,7 @@ class ValidationPlan:
     worker_specs: tuple[WorkerSpec, ...]
     remote_user: str
     scheduler_ssh_port: int
+    cluster_share_backend: str
     remote_cluster_share_premounted: bool
     local_share_setting: str
     local_cluster_share_setting: str
@@ -119,6 +128,33 @@ class ShareSetupSummary:
     location: str
     action: str
     path: str
+
+
+def _normalize_share_backend(value: object = "") -> str:
+    backend = str(value or "").strip().lower() or SSHFS_SHARE_BACKEND
+    if backend not in SUPPORTED_SHARE_BACKENDS:
+        raise ValueError(f"unsupported share setup backend: {backend}")
+    return backend
+
+
+def _share_backend_label(backend: str) -> str:
+    return SHARE_BACKEND_LABELS.get(_normalize_share_backend(backend), backend.upper())
+
+
+def _share_backend_implies_premounted(backend: str) -> bool:
+    return _normalize_share_backend(backend) in PREMOUNTED_SHARE_BACKENDS
+
+
+def _resolve_cluster_share_backend(args: argparse.Namespace) -> str:
+    explicit = str(getattr(args, "cluster_share_backend", "") or "")
+    setup = str(getattr(args, "setup_share", "") or getattr(args, "print_share_setup", "") or "")
+    if explicit and setup and _normalize_share_backend(explicit) != _normalize_share_backend(setup):
+        raise ValueError("--cluster-share-backend must match --setup-share/--print-share-setup")
+    return _normalize_share_backend(explicit or setup)
+
+
+def _share_setup_uses_premounted(plan: ValidationPlan, backend: str) -> bool:
+    return bool(plan.remote_cluster_share_premounted or _share_backend_implies_premounted(backend))
 
 
 def _default_apps_path() -> Path:
@@ -194,6 +230,16 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--cluster-share-backend",
+        choices=SUPPORTED_SHARE_BACKENDS,
+        default="",
+        help=(
+            "Cluster-share backend contract. 'sshfs' mounts the scheduler share on workers; "
+            "'nfs' and 'ntfs' require pre-mounted shared storage and run the sentinel check. "
+            "Defaults to sshfs or the selected --setup-share backend."
+        ),
+    )
+    parser.add_argument(
         "--dataset-rel",
         default=str(DEFAULT_DATASET_REL.relative_to("localshare")),
         help="Dataset path relative to --local-share. Default: flight_cluster_validation/dataset/csv.",
@@ -239,13 +285,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--print-share-setup",
-        choices=("sshfs",),
+        choices=SUPPORTED_SHARE_BACKENDS,
         default="",
         help="Print cluster-share setup commands for the selected mount backend and exit.",
     )
     parser.add_argument(
         "--setup-share",
-        choices=("sshfs",),
+        choices=SUPPORTED_SHARE_BACKENDS,
         default="",
         help="Set up the shared cluster path using the selected backend.",
     )
@@ -350,6 +396,10 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         parser.error("--setup-share already runs the share check")
     if args.setup_share and args.print_share_setup:
         parser.error("--setup-share cannot be combined with --print-share-setup")
+    if args.cluster_share_backend and args.setup_share and args.cluster_share_backend != args.setup_share:
+        parser.error("--cluster-share-backend must match --setup-share")
+    if args.cluster_share_backend and args.print_share_setup and args.cluster_share_backend != args.print_share_setup:
+        parser.error("--cluster-share-backend must match --print-share-setup")
     return args
 
 
@@ -502,6 +552,7 @@ def build_validation_plan(
     output_rel = Path(args.output_rel)
     if output_rel.is_absolute():
         raise ValueError("--output-rel must be relative to the cluster share")
+    cluster_share_backend = _resolve_cluster_share_backend(args)
     return ValidationPlan(
         app=args.app,
         apps_path=Path(args.apps_path).expanduser().resolve(strict=False),
@@ -510,7 +561,11 @@ def build_validation_plan(
         worker_specs=tuple(specs),
         remote_user=remote_user,
         scheduler_ssh_port=int(args.scheduler_ssh_port),
-        remote_cluster_share_premounted=bool(args.remote_cluster_share_premounted),
+        cluster_share_backend=cluster_share_backend,
+        remote_cluster_share_premounted=bool(
+            args.remote_cluster_share_premounted
+            or _share_backend_implies_premounted(cluster_share_backend)
+        ),
         local_share_setting=local_share_setting,
         local_cluster_share_setting=local_cluster_share_setting,
         remote_cluster_share_setting=str(args.remote_cluster_share or "clustershare"),
@@ -580,6 +635,8 @@ def _validate_scheduler_cluster_share_not_reverse_mounted(
     *,
     home: Path | None = None,
 ) -> None:
+    if plan.remote_cluster_share_premounted:
+        return
     cluster_root = local_cluster_share_root(plan, home=home)
     for spec in remote_worker_specs(plan):
         problem = _reverse_sshfs_mount_problem(cluster_root, spec.host)
@@ -733,7 +790,8 @@ def _workers_cli_value(plan: ValidationPlan) -> str:
     return ",".join(values)
 
 
-def _share_check_command(plan: ValidationPlan) -> str:
+def _share_check_command(plan: ValidationPlan, *, backend: str | None = None) -> str:
+    selected_backend = _normalize_share_backend(backend or plan.cluster_share_backend)
     parts = [
         "agilab",
         "doctor",
@@ -748,9 +806,11 @@ def _share_check_command(plan: ValidationPlan) -> str:
         plan.remote_cluster_share_setting,
         "--share-check-only",
     ]
+    if selected_backend != SSHFS_SHARE_BACKEND:
+        parts.extend(["--cluster-share-backend", selected_backend])
     if plan.scheduler_ssh_port != 22:
         parts.extend(["--scheduler-ssh-port", str(plan.scheduler_ssh_port)])
-    if plan.remote_cluster_share_premounted:
+    if _share_setup_uses_premounted(plan, selected_backend):
         parts.append("--remote-cluster-share-premounted")
     return " ".join(shlex.quote(part) for part in parts)
 
@@ -865,20 +925,24 @@ def share_setup_script_lines(
     *,
     local_user: str | None = None,
 ) -> tuple[str, ...]:
-    if backend != "sshfs":
-        raise ValueError(f"unsupported share setup backend: {backend}")
+    backend = _normalize_share_backend(backend)
+    backend_label = _share_backend_label(backend)
+    uses_premounted = _share_setup_uses_premounted(plan, backend)
 
     local_root = local_cluster_share_root(plan)
     lines = [
-        "# AGILAB cluster-share setup using SSHFS",
+        f"# AGILAB cluster-share setup using {backend_label}",
         "# Run these from the scheduler/manager host, then run the share check.",
         "# macOS workers need macFUSE + sshfs; Debian/Ubuntu workers need package sshfs.",
         "set -euo pipefail",
         f"mkdir -p {shlex.quote(str(local_root))}",
     ]
-    if plan.remote_cluster_share_premounted:
-        lines[0] = "# AGILAB cluster-share verification using pre-mounted remote shares"
-        lines[2] = "# Remote workers must already expose the same shared storage at AGI_CLUSTER_SHARE."
+    if uses_premounted:
+        lines[0] = f"# AGILAB cluster-share verification using pre-mounted {backend_label} shares"
+        lines[2] = (
+            "# Remote workers must already expose the same shared storage at "
+            "AGI_CLUSTER_SHARE; AGILAB will verify it instead of mounting with SSHFS."
+        )
         for spec in remote_worker_specs(plan):
             target = _ssh_target(spec, plan)
             lines.extend(
@@ -891,7 +955,7 @@ def share_setup_script_lines(
         lines.extend(
             [
                 "# Validate without running Flight install/compute:",
-                _share_check_command(plan),
+                _share_check_command(plan, backend=backend),
             ]
         )
         return tuple(lines)
@@ -914,7 +978,7 @@ def share_setup_script_lines(
     lines.extend(
         [
             "# Validate without running Flight install/compute:",
-            _share_check_command(plan),
+            _share_check_command(plan, backend=backend),
         ]
     )
     return tuple(lines)
@@ -927,17 +991,18 @@ def apply_share_setup(
     timeout: int,
     local_user: str | None = None,
 ) -> tuple[ShareSetupSummary, ...]:
-    if backend != "sshfs":
-        raise ValueError(f"unsupported share setup backend: {backend}")
+    backend = _normalize_share_backend(backend)
+    uses_premounted = _share_setup_uses_premounted(plan, backend)
 
     _validate_distinct_cluster_share(plan)
-    _validate_scheduler_cluster_share_not_reverse_mounted(plan)
+    if not uses_premounted:
+        _validate_scheduler_cluster_share_not_reverse_mounted(plan)
     local_root = local_cluster_share_root(plan)
     local_root.mkdir(parents=True, exist_ok=True)
     summaries = [
         ShareSetupSummary(location="local", action="mkdir", path=str(local_root)),
     ]
-    if plan.remote_cluster_share_premounted:
+    if uses_premounted:
         for spec in remote_worker_specs(plan):
             target = _ssh_target(spec, plan)
             completed = _run_command(_ssh_argv(target, _remote_env_update_command(plan)), timeout=timeout)
@@ -1216,6 +1281,7 @@ def _configure_process_env(plan: ValidationPlan) -> None:
     os.environ["AGI_LOCAL_SHARE"] = plan.local_share_setting
     os.environ["AGI_CLUSTER_SHARE"] = plan.local_cluster_share_setting
     os.environ["AGILAB_SCHEDULER_SSH_PORT"] = str(plan.scheduler_ssh_port)
+    os.environ["AGILAB_CLUSTER_SHARE_BACKEND"] = plan.cluster_share_backend
     if plan.remote_cluster_share_premounted:
         os.environ["AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED"] = "1"
     else:
@@ -1231,6 +1297,7 @@ def _configure_agi_env_for_cluster_validation(env: Any, plan: ValidationPlan) ->
     env.envars["AGI_CLUSTER_ENABLED"] = "1"
     env.envars["AGI_LOCAL_SHARE"] = plan.local_share_setting
     env.envars["AGI_CLUSTER_SHARE"] = plan.local_cluster_share_setting
+    env.envars["AGILAB_CLUSTER_SHARE_BACKEND"] = plan.cluster_share_backend
     try:
         env._share_root_cache = None
         env.agi_share_path_abs = env.share_root_path()
@@ -1331,6 +1398,7 @@ def _print_plan(plan: ValidationPlan, files: Sequence[Path]) -> None:
     print(f"  workers: {plan.workers}")
     print(f"  ssh user: {plan.remote_user}")
     print(f"  scheduler ssh port: {plan.scheduler_ssh_port}")
+    print(f"  cluster share backend: {plan.cluster_share_backend}")
     print(f"  local input: {plan.local_dataset_dir}")
     print(f"  remote input: $HOME/{plan.dataset_rel_to_home.as_posix()}")
     print(f"  local cluster share: {plan.local_cluster_share_setting}")
@@ -1371,6 +1439,7 @@ def _run_lan_discovery(args: argparse.Namespace) -> dict[str, Any]:
     options = DiscoveryOptions(
         cidrs=parse_cidr_values(args.cidr) if args.cidr else (),
         remote_user=args.remote_user,
+        cluster_share_backend=_resolve_cluster_share_backend(args),
         active=not args.passive_only,
         tcp_timeout=args.discovery_timeout,
         ssh_timeout=args.ssh_probe_timeout,

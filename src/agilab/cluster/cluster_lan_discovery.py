@@ -39,6 +39,7 @@ class _InterfaceIPv4:
 class DiscoveryOptions:
     cidrs: tuple[str, ...] = ()
     remote_user: str = ""
+    cluster_share_backend: str = "sshfs"
     active: bool = True
     port: int = DEFAULT_DISCOVERY_PORT
     tcp_timeout: float = DEFAULT_TCP_TIMEOUT
@@ -326,7 +327,12 @@ def _probe_node(
 
     values = _parse_key_value_lines(completed.stdout)
     reverse = _parse_optional_bool(values.get("reverse_ssh", ""))
-    status, score, errors = _classify(values, tcp_open=tcp_open, reverse_ssh=reverse)
+    status, score, errors = _classify(
+        values,
+        tcp_open=tcp_open,
+        reverse_ssh=reverse,
+        cluster_share_backend=options.cluster_share_backend,
+    )
     return DiscoveryNode(
         host=host,
         ssh_target=ssh_target,
@@ -389,14 +395,16 @@ def _classify(
     *,
     tcp_open: bool | None,
     reverse_ssh: bool | None,
+    cluster_share_backend: str = "sshfs",
 ) -> tuple[str, int, tuple[str, ...]]:
     if not values.get("python3"):
         return "python-missing", 50, ("python3 not found",)
     if not values.get("uv"):
         return "uv-missing", 60, ("uv not found",)
-    if not values.get("sshfs"):
+    needs_sshfs = str(cluster_share_backend or "sshfs").strip().lower() == "sshfs"
+    if needs_sshfs and not values.get("sshfs"):
         return "sshfs-missing", 70, ("sshfs not found",)
-    if reverse_ssh is False:
+    if needs_sshfs and reverse_ssh is False:
         return "reverse-ssh-needed", 80, ("worker cannot ssh back to scheduler",)
     score = 100 if tcp_open is not False else 90
     return "ready", score, ()
