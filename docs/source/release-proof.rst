@@ -18,23 +18,23 @@ Current public release
    * - Item
      - Public evidence
    * - Package version
-     - ``agilab[examples]==2026.06.14.1`` on `PyPI <https://pypi.org/project/agilab/>`__
+     - ``agilab[examples]==2026.06.18`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
-     - `v2026.06.14.1 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.14.1>`__
+     - `v2026.06.18 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.18>`__
    * - Dataset manifest
      - ``13`` tracked dataset files; manifest ``2f602a17b4745f05cf3b2612d720675b7063cabf90164326a25bc080b2396a0f``. Public dataset archive links are listed only when the matching GitHub release tag and assets are live.
    * - Hosted demo
-     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``fa904f398d861b435cd78713784f92647f2fdf73``
+     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``39ba7d7f84bc1811b87ceaa00471ab58bf1bb386``
    * - Public guardrails
      - `repo-guardrails run 27402705440 <https://github.com/ThalesGroup/agilab/actions/runs/27402705440>`__ passed repository guardrails and clean package first-proof jobs
    * - Docs source guard
      - `docs-source-guard run 27405793185 <https://github.com/ThalesGroup/agilab/actions/runs/27405793185>`__ passed docs mirror and release-proof consistency checks
    * - Docs publish
-     - `docs-publish run 27405597054 <https://github.com/ThalesGroup/agilab/actions/runs/27405597054>`__ built the public documentation from the managed docs mirror
+     - `docs-publish run 27788337446 <https://github.com/ThalesGroup/agilab/actions/runs/27788337446>`__ built the public documentation from the managed docs mirror
    * - Coverage
      - `coverage run 27402705475 <https://github.com/ThalesGroup/agilab/actions/runs/27402705475>`__ passed component coverage and badge freshness checks
    * - PyPI publish
-     - `pypi-publish run 27401833940 <https://github.com/ThalesGroup/agilab/actions/runs/27401833940>`__ passed the public release proof workflow gate
+     - `pypi-publish run 27786476047 <https://github.com/ThalesGroup/agilab/actions/runs/27786476047>`__ passed the public release proof workflow gate
 
 What was proved
 ---------------
@@ -43,7 +43,7 @@ What was proved
 
   .. code-block:: bash
 
-     python -m pip install "agilab[examples]==2026.06.14.1"
+     python -m pip install "agilab[examples]==2026.06.18"
      python -m agilab.lab_run first-proof --json --max-seconds 60
 
 - The public GitHub Actions matrix validated the packaged first proof on
@@ -74,7 +74,7 @@ the current source checkout:
    python -m venv .venv
    . .venv/bin/activate
    python -m pip install --upgrade pip
-   python -m pip install "agilab[examples]==2026.06.14.1"
+   python -m pip install "agilab[examples]==2026.06.18"
    python -m agilab.lab_run first-proof --json --max-seconds 60
 
 Use :doc:`quick-start` when you want the fuller source-checkout path with the

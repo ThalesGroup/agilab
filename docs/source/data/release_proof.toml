@@ -20,16 +20,16 @@ related_pages = [
 
 [release]
 package_name = "agilab"
-package_version = "2026.06.14.1"
+package_version = "2026.06.18"
 package_extras = [
   "examples",
 ]
 pypi_url = "https://pypi.org/project/agilab/"
-github_release_tag = "v2026.06.14.1"
-github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.14.1"
+github_release_tag = "v2026.06.18"
+github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.18"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
-hf_space_commit = "fa904f398d861b435cd78713784f92647f2fdf73"
+hf_space_commit = "39ba7d7f84bc1811b87ceaa00471ab58bf1bb386"
 dataset_release_tag = "datasets-2f602a17b4745f05"
 dataset_manifest_sha256 = "2f602a17b4745f05cf3b2612d720675b7063cabf90164326a25bc080b2396a0f"
 dataset_count = 13
@@ -54,8 +54,8 @@ summary = "passed docs mirror and release-proof consistency checks"
 id = "docs-publish"
 label = "Docs publish"
 workflow = "docs-publish"
-run_id = "27405597054"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/27405597054"
+run_id = "27788337446"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/27788337446"
 summary = "built the public documentation from the managed docs mirror"
 
 [[ci_runs]]
@@ -70,8 +70,8 @@ summary = "passed component coverage and badge freshness checks"
 id = "pypi-publish"
 label = "PyPI publish"
 workflow = "pypi-publish"
-run_id = "27401833940"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/27401833940"
+run_id = "27786476047"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/27786476047"
 summary = "passed the public release proof workflow gate"
 
 [proof_command]

@@ -10,9 +10,9 @@ What AGILab is
 --------------
 
 AGILab turns experimental AI/ML notebooks and scripts into executable,
-portable, evidence-backed applications. The codebase splits that path into the
-published core/runtime packages under ``src/agilab/core`` and optional UI,
-page, web, and packaged-app libraries under ``src/agilab/lib``.
+portable, evidence-backed applications that can run locally or on distributed
+workers, while keeping a handoff path to runnable ``agi-core`` notebooks and
+MLflow tracking evidence.
 
 You do not need a cluster to get that core value. The primary adoption path is
 local: turn a notebook or script into a replayable app with evidence,
@@ -38,26 +38,19 @@ That loop is the practical boundary for AGILAB as an ML workbench: it makes
 exploratory work replayable before a team chooses a heavier tracker, registry,
 cluster, or production platform.
 
-It has two primary entry points:
+It has two main user interfaces:
 
-- ``agi-core``: the Python API you can call directly from code or notebooks.
-- ``agilab``: the source checkout / packaged CLI and web UI that helps select
-  projects, install them, run them, and inspect outputs.
+- ``agi-core``: the Python API you can call directly from code or notebooks
+- ``agilab``: the web UI that helps select projects, install them, run them,
+  and inspect outputs
 
-The published package map in this checkout is:
+Shared components include:
 
-- ``src/agilab/core/agi-core`` for the notebook/API runtime.
-- ``src/agilab/core/agi-env`` for headless environment setup and shared runtime
-  helpers.
-- ``src/agilab/core/agi-node`` for worker/runtime packaging.
-- ``src/agilab/core/agi-cluster`` for local and distributed execution.
-- ``src/agilab/lib/agi-gui`` for the Streamlit UI dependency bundle and page
-  helpers.
-- ``src/agilab/lib/agi-pages`` for packaged page bundles.
-- ``src/agilab/lib/agi-web`` for portable, evidence-backed rich web component
-  payloads.
-- ``src/agilab/lib/agi-apps`` plus ``src/agilab/lib/agi-app-*`` projects for
-  packaged application distributions.
+- ``agi-env`` for headless environment setup
+- ``agi-gui`` for the Streamlit UI dependency bundle and page helpers
+- ``agi-web`` for portable, evidence-backed rich web component payloads
+- ``agi-node`` for worker/runtime packaging
+- ``agi-cluster`` for local and distributed execution
 
 Historical note
 ---------------
