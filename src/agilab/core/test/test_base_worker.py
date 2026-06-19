@@ -276,6 +276,28 @@ def test_baseworker_deduplicates_share_leaf_for_any_app_module(tmp_path):
     assert "any_module/any_module" not in resolved.as_posix()
 
 
+def test_baseworker_uses_workflow_session_share_root_for_manager_relative_paths(tmp_path):
+    session_root = (
+        tmp_path / "clustershare" / "agi" / "workflows" / "20260618T093102Z-492de776"
+    )
+    legacy_root = tmp_path / "clustershare" / "agi"
+    env = SimpleNamespace(
+        share_root_path=lambda: session_root,
+        agi_share_path_abs=legacy_root,
+        agi_share_path=Path("clustershare") / "agi",
+        home_abs=tmp_path,
+        _is_managed_pc=False,
+    )
+
+    resolved = BaseWorker._resolve_data_dir(
+        env,
+        Path("flight_trajectory") / "dataset",
+    )
+
+    assert resolved == (session_root / "flight_trajectory" / "dataset").resolve(strict=False)
+    assert "workflows/20260618T093102Z-492de776/flight_trajectory/dataset" in resolved.as_posix()
+
+
 def test_baseworker_collect_share_aliases_and_data_dir_fallbacks(monkeypatch, tmp_path):
     class _BrokenPath:
         def __fspath__(self):

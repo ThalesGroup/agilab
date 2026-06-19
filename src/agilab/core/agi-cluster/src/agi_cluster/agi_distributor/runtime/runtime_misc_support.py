@@ -418,6 +418,47 @@ def normalize_workers_data_path(
     return str(parent)
 
 
+def _absolute_workers_data_share_root(
+    env: Any,
+    workers_data_path: str,
+) -> Path:
+    share_root = Path(workers_data_path).expanduser()
+    if not share_root.is_absolute():
+        env_home = getattr(env, "home_abs", None)
+        base = Path(env_home).expanduser() if env_home else Path.home()
+        share_root = base / share_root
+    try:
+        return share_root.resolve(strict=False)
+    except OSError:
+        return Path(os.path.normpath(str(share_root)))
+
+
+def _apply_workers_data_path_to_env(
+    env: Any,
+    workers_data_path: str | None,
+) -> None:
+    if env is None or workers_data_path is None:
+        return
+    share_text = str(workers_data_path).strip()
+    if not share_text:
+        return
+
+    share_root_abs = _absolute_workers_data_share_root(env, share_text)
+    env.AGI_CLUSTER_SHARE = share_text
+    env.agi_share_path = share_text
+    env.agi_share_path_abs = share_root_abs
+    env._share_root_cache = share_root_abs
+    if isinstance(getattr(env, "envars", None), dict):
+        env.envars["AGI_CLUSTER_SHARE"] = share_text
+
+    share_target_name_fn = getattr(env, "_share_target_name", None)
+    if callable(share_target_name_fn):
+        share_target_name = share_target_name_fn()
+        env.share_target_name = share_target_name
+        env.app_data_rel = share_root_abs / share_target_name
+        env.dataframe_path = env.app_data_rel / "dataframe"
+
+
 def initialize_runtime_state(
     agi_cls: Any,
     env: Any,
@@ -448,6 +489,7 @@ def initialize_runtime_state(
         args=agi_cls._args,
         worker_args=agi_cls._worker_args,
     )
+    _apply_workers_data_path_to_env(env, agi_cls._workers_data_path)
     agi_cls._run_time = {}
 
 
