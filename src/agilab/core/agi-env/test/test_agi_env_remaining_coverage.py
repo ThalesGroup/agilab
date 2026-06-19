@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
+import os
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -11,6 +12,7 @@ import agi_env.agi_env as agi_env_module
 import pytest
 from agi_env import AgiEnv, project_initialization_support
 from agi_env.agi_logger import AgiLogger
+from agi_env.runtime.runtime_bootstrap_support import default_local_share
 
 
 MODULE_PATH = Path("src/agilab/core/agi-env/src/agi_env/agi_env.py").resolve()
@@ -330,6 +332,10 @@ def _prepare_fake_home(tmp_path: Path, monkeypatch, *, env_text: str) -> Path:
     return fake_home
 
 
+def _default_dataset_root(fake_home: Path) -> Path:
+    return fake_home / default_local_share(environ=os.environ) / "demo" / "dataset"
+
+
 def _configure_fake_installed_specs(monkeypatch, site_root: Path):
     agilab_pkg = site_root / "agilab"
     agi_env_pkg = site_root / "agi_env"
@@ -602,7 +608,7 @@ def test_init_preserves_existing_dataset_without_stamp_and_uses_windows_export_b
     worker_dir = app_root / "src" / "demo_worker"
     dataset_archive = worker_dir / "dataset.7z"
     dataset_archive.write_text("archive", encoding="utf-8")
-    dataset_root = fake_home / "localshare" / "agi" / "demo" / "dataset"
+    dataset_root = _default_dataset_root(fake_home)
     dataset_root.mkdir(parents=True)
     (dataset_root / "existing.csv").write_text("value\n", encoding="utf-8")
     mock_logger = mock.Mock()
@@ -644,7 +650,7 @@ def test_init_dataset_stamp_probe_failure_appends_sys_path_and_sets_windows_expo
     worker_dir = app_root / "src" / "demo_worker"
     dataset_archive = worker_dir / "dataset.7z"
     dataset_archive.write_text("archive", encoding="utf-8")
-    dataset_root = fake_home / "localshare" / "agi" / "demo" / "dataset"
+    dataset_root = _default_dataset_root(fake_home)
     dataset_root.mkdir(parents=True)
     (dataset_root / "existing.csv").write_text("value\n", encoding="utf-8")
     stamp_path = dataset_root / ".agilab_dataset_stamp"
