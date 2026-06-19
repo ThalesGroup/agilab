@@ -33,6 +33,7 @@ def _args(**overrides):
         "workers": "jpm@192.168.3.35:2",
         "remote_user": "",
         "scheduler_ssh_port": 22,
+        "cluster_share_backend": "",
         "remote_cluster_share_premounted": False,
         "local_share": "localshare",
         "cluster_share": "",
@@ -232,6 +233,35 @@ def test_parse_args_requires_cluster_and_positive_rows():
             ]
         )
 
+    parsed = cfv._parse_args(
+        [
+            "--cluster",
+            "--scheduler",
+            "127.0.0.1",
+            "--workers",
+            "127.0.0.1",
+            "--cluster-share-backend",
+            "nfs",
+            "--share-check-only",
+        ]
+    )
+    assert parsed.cluster_share_backend == "nfs"
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(
+            [
+                "--cluster",
+                "--scheduler",
+                "127.0.0.1",
+                "--workers",
+                "127.0.0.1",
+                "--cluster-share-backend",
+                "nfs",
+                "--print-share-setup",
+                "sshfs",
+            ]
+        )
+
 
 def test_build_validation_plan_makes_flight_paths_home_relative(tmp_path: Path):
     plan = cfv.build_validation_plan(
@@ -242,6 +272,7 @@ def test_build_validation_plan_makes_flight_paths_home_relative(tmp_path: Path):
 
     assert plan.remote_user == "jpm"
     assert plan.scheduler_ssh_port == 22
+    assert plan.cluster_share_backend == "sshfs"
     assert plan.remote_cluster_share_premounted is False
     assert plan.workers == {"192.168.3.35": 2}
     assert plan.local_dataset_dir == tmp_path / "localshare/flight_cluster_validation/dataset/csv"
@@ -269,6 +300,18 @@ def test_build_validation_plan_reads_env_files_and_serializes_paths(tmp_path: Pa
     assert plan.local_share_setting == "share-in-env"
     assert plan.local_cluster_share_setting == "cluster-in-env"
     assert plan.to_dict()["local_dataset_dir"].endswith("share-in-env/flight_cluster_validation/dataset/csv")
+
+
+def test_build_validation_plan_treats_nfs_and_ntfs_as_premounted_share_backends(tmp_path: Path):
+    for backend in ("nfs", "ntfs"):
+        plan = cfv.build_validation_plan(
+            _args(cluster_share_backend=backend),
+            home=tmp_path,
+            environ={"USER": "agi"},
+        )
+
+        assert plan.cluster_share_backend == backend
+        assert plan.remote_cluster_share_premounted is True
 
 
 def test_remote_env_update_script_enables_cluster_mode_without_clobbering_env(tmp_path: Path):
@@ -659,9 +702,34 @@ def test_share_setup_helpers_cover_scheduler_and_path_variants(tmp_path: Path):
     assert cfv._remote_share_assignment("relative/path") == '"$HOME"/relative/path'
 
     with pytest.raises(ValueError, match="unsupported share setup backend"):
-        cfv.share_setup_script_lines(plan, "nfs")
+        cfv.share_setup_script_lines(plan, "smb")
     with pytest.raises(ValueError, match="unsupported share setup backend"):
-        cfv.apply_share_setup(plan, "nfs", timeout=1)
+        cfv.apply_share_setup(plan, "smb", timeout=1)
+
+
+def test_share_setup_script_lines_verify_premounted_nfs_and_ntfs(tmp_path: Path):
+    for backend, label in (("nfs", "NFS"), ("ntfs", "NTFS")):
+        plan = cfv.build_validation_plan(
+            _args(
+                cluster_share_backend=backend,
+                scheduler="192.168.3.103",
+                workers="jpm@192.168.3.35",
+                cluster_share="/mnt/agilab/scheduler",
+                remote_cluster_share="/mnt/agilab/worker",
+            ),
+            home=tmp_path,
+            environ={"USER": "agi"},
+        )
+
+        script = "\n".join(cfv.share_setup_script_lines(plan, backend, local_user="agi"))
+
+        assert f"pre-mounted {label} shares" in script
+        assert "AGILAB will verify it instead of mounting with SSHFS" in script
+        assert "Pre-mounted AGILAB cluster share" in script
+        assert "--cluster-share-backend " + backend in script
+        assert "--remote-cluster-share-premounted" in script
+        assert "command -v sshfs" not in script
+        assert 'sshfs -p "$SCHEDULER_SSH_PORT"' not in script
 
 
 def test_apply_share_setup_runs_idempotent_remote_commands(tmp_path: Path, monkeypatch):
@@ -782,10 +850,57 @@ def test_apply_share_setup_verifies_premounted_share_without_sshfs(
     assert summaries[-1].path == "/mnt/agilab/shared"
     assert all("sshfs" not in command[-1] for command in commands)
     assert "Pre-mounted AGILAB cluster share" in commands[1][-1]
-    assert "AGILAB cluster-share verification using pre-mounted remote shares" in script
+    assert "AGILAB cluster-share verification using pre-mounted SSHFS shares" in script
     assert "command -v sshfs" not in script
     assert "SCHEDULER_CLUSTER_SHARE" not in script
     assert "--remote-cluster-share-premounted" in script
+
+
+def test_apply_share_setup_verifies_nfs_without_sshfs_or_reverse_mount_guard(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    plan = cfv.build_validation_plan(
+        _args(
+            cluster_share_backend="nfs",
+            scheduler="192.168.3.103",
+            workers="jpm@192.168.3.35",
+            cluster_share=str(tmp_path / "scheduler-share"),
+            remote_cluster_share="/mnt/agilab/worker",
+        ),
+        home=tmp_path,
+        environ={"USER": "agi"},
+    )
+    commands: list[list[str]] = []
+    responses = iter(
+        [
+            subprocess.CompletedProcess([], 0, stdout="/Users/jpm/.agilab/.env\n", stderr=""),
+            subprocess.CompletedProcess([], 0, stdout="/mnt/agilab/worker\n", stderr=""),
+        ]
+    )
+
+    def fake_run(argv, *, timeout=None):
+        commands.append(list(argv))
+        assert timeout == 17
+        return next(responses)
+
+    monkeypatch.setattr(cfv, "_run_command", fake_run)
+    monkeypatch.setattr(
+        cfv,
+        "_reverse_sshfs_mount_problem",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("no reverse guard")),
+    )
+
+    summaries = cfv.apply_share_setup(plan, "nfs", timeout=17, local_user="agi")
+
+    assert [summary.action for summary in summaries] == [
+        "mkdir",
+        "write-env",
+        "check-premounted",
+    ]
+    assert all("sshfs" not in command[-1].lower() for command in commands)
+    assert "Pre-mounted AGILAB cluster share" in commands[1][-1]
 
 
 def test_validation_success_requires_local_visibility_for_remote_runs():
@@ -1079,6 +1194,7 @@ def test_run_lan_discovery_prints_and_serializes(monkeypatch, capsys):
 
     assert payload == {"success": True, "lan_discovery": {"nodes": [{"host": "192.168.3.35"}]}}
     assert reports[0].remote_user == "jpm"
+    assert reports[0].cluster_share_backend == "sshfs"
     assert reports[0].active is False
     assert reports[0].cache_path is None
     assert printed

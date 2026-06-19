@@ -973,6 +973,51 @@ async def test_prepare_remote_cluster_share_accepts_premounted_remote_share_with
 
 
 @pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_treats_nfs_and_ntfs_backends_as_premounted(
+    tmp_path,
+    monkeypatch,
+):
+    for backend in ("nfs", "ntfs"):
+        env = SimpleNamespace(
+            AGI_CLUSTER_SHARE=str(tmp_path / f"scheduler-share-{backend}"),
+            envars={"AGILAB_CLUSTER_SHARE_BACKEND": backend},
+            home_abs=tmp_path,
+            user="agi",
+            verbose=0,
+        )
+        ssh_calls: list[str] = []
+
+        class _AgiNoScheduler:
+            _scheduler_ip = ""
+
+            async def exec_ssh(self, _ip, cmd):
+                ssh_calls.append(cmd)
+                return "ok"
+
+        monkeypatch.setattr(
+            deployment_remote_support,
+            "_reverse_sshfs_mount_problem",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("no reverse guard")),
+        )
+
+        await deployment_remote_support._prepare_remote_cluster_share(
+            _AgiNoScheduler(), "192.168.20.15", env, "clustershare"
+        )
+
+        assert len(ssh_calls) == 2
+        assert "Pre-mounted AGILAB cluster share" in ssh_calls[1]
+        assert "SCHEDULER_SSH_TARGET" not in "\n".join(ssh_calls)
+        assert "sshfs" not in "\n".join(ssh_calls).lower()
+
+
+def test_cluster_share_backend_rejects_unknown_backend():
+    env = SimpleNamespace(envars={"AGILAB_CLUSTER_SHARE_BACKEND": "smb"})
+
+    with pytest.raises(ValueError, match="Unsupported AGILAB cluster-share backend"):
+        deployment_remote_support._remote_cluster_share_premounted(env)
+
+
+@pytest.mark.asyncio
 async def test_deploy_remote_worker_prepins_dependencies_for_legacy_intel_macos(
     tmp_path,
 ):

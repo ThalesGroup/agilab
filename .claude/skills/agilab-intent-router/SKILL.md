@@ -3,7 +3,7 @@ name: agilab-intent-router
 description: Route terse AGILAB operator requests such as "do it", "review AGILAB", "next move", "update repos", "merge it", "check again", "release", and "cluster validation" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-06
+  updated: 2026-06-19
 ---
 
 # AGILAB Intent Router
@@ -61,7 +61,7 @@ Route these patterns before choosing tools:
 |---|---|---|---|
 | `review AGILAB`, `audit AGILAB`, `deep review`, `address this audit` | deep audit | report-first; architecture-readiness gate before final audit; patch only if `fix it` follows | `agilab-deep-audit`, then `agilab-testing` if patching |
 | `do it`, `go on`, `fix it`, `next move` | continue current objective | inherit previous scope | previous active skill plus `plan-before-code` for code changes |
-| `update repos`, `sync repos` | safe repo sync | show command plan first | `agilab-runbook` |
+| `update repos`, `sync repos` | safe repo sync | show command plan first; default AGILAB target set is `agilab` plus sibling `thales_agilab` when present | `agilab-runbook` |
 | `update skill`, `sync skills`, `make future agents do X` | repo skill update | edit `.claude`, sync `.codex`, regenerate index | `skill-creator`, `repo-skill-maintenance` |
 | `ready for release`, `release it`, `badge`, `proof`, `PyPI` | release verification | inspect release workflow/tooling first | `agilab-release-verification` |
 | `docs aligned`, `screenshot docs`, `link added`, `published docs` | docs workflow | canonical docs then mirror | `agilab-docs` |
@@ -78,7 +78,10 @@ Route these patterns before choosing tools:
 - For `fix it` after an audit, convert prioritized findings into a patch plan;
   do not silently patch unrelated findings.
 - For `update repos`, never touch repos outside the current allowlist unless
-  the user names them. Show concrete `git -C` commands before execution.
+  the user names them. In AGILAB maintenance, that allowlist includes the active
+  `agilab` checkout and sibling `thales_agilab` when present. Show concrete
+  `git -C` commands for both before execution, or explicitly report why one is
+  missing, dirty, unsafe, or out of scope.
 - For `do it` after a proposal, execute the proposed action if repo state is
   safe. If state changed unexpectedly, report the changed branch/files first.
 - For combined commands such as `do it; validate; push if clean; merge it; then
