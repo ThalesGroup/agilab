@@ -157,6 +157,11 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   `src/agilab/core/agi-core`, shared installer/build/deploy code, and generic helpers reused across apps/pages.
   Prefer app-local fixes first. If a core edit looks necessary, stop and explain the required files,
   blast radius, and validation plan before making the change.
+- **Higher-model fix review**: when a product or code fix was designed or implemented with model assistance,
+  request a review from a stronger model before closing, pushing, or merging when that is available. The review
+  should challenge root cause, regression chain, blast radius, security risk, and test coverage. If no stronger
+  model is available in the current environment, state that explicitly and still perform the normal local review
+  and validation path.
 - **Docs source of truth**: edit docs in the sibling repo
   `../thales_agilab/docs/source` relative to the active AGILAB checkout.
 - **Generated docs in this repo**: treat `docs/html` (including `docs/html/_sources`)
@@ -192,6 +197,11 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   merge it until the dirty paths are reported and the update plan is adjusted. If a dirty feature
   checkout blocks direct update of a repo's `main`, check whether a clean registered `main` worktree
   exists before omitting that repository from the update.
+- **PR agent metadata**: every AGILAB PR description must include an `Agent Metadata`
+  section with the Tokki version (`tokki --version`, or `not used`/`unavailable`),
+  agent/runtime name and version when exposed, model name, reasoning effort, and
+  whether `/fast` mode was used. Do not infer missing values; write `unknown`,
+  `unavailable`, or `not used` explicitly.
 - **External AGILAB core pointer merges**: when a private app or integration repository
   points `.external/agilab` at a stale AGILAB core branch and GitHub reports that
   the branch has no history in common with current `main`, do not force-merge or

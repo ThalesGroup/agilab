@@ -250,6 +250,11 @@ Use this runbook whenever you:
   that belong to that scope. Direct pushes to `main` are reserved for explicit
   emergency fixes or release-maintenance operations where the user asks for that
   exception.
+- **PR agent metadata**: Every AGILAB PR description must include an `Agent Metadata`
+  section with the Tokki version (`tokki --version`, or `not used`/`unavailable`),
+  agent/runtime name and version when exposed, model name, reasoning effort, and
+  whether `/fast` mode was used. Do not infer missing values; write `unknown`,
+  `unavailable`, or `not used` explicitly.
 - **Dirty-scope guardrail**: Before starting a new task in a dirty checkout, and
   before answering "push", "release", or "all clean", run `./dev scope`. It
   includes untracked non-ignored files by default. If it reports `MIXED`, stop
@@ -478,6 +483,7 @@ Use this runbook whenever you:
   a better fix than the obvious one. Keep the plain repro command as the first discriminator, compare app-local and
   shared-core fixes, and explain why the stronger fix is better. Good one-query wording:
   `Assess the diagnostic below and find the better fix. Keep the plain repro as the first discriminator. Identify the real root cause, regression chain, weak points in the current diagnosis, the better fix, why it is better than the obvious fix, and the regression plan.`
+- **Higher-model fix review**: When a product or code fix was designed or implemented with model assistance, request a review from a stronger model before closing, pushing, or merging when that is available. The review should challenge root cause, regression chain, blast radius, security risk, and test coverage. If no stronger model is available in the current environment, state that explicitly and still perform the normal local review and validation path.
 - **Dependency removal audit**: When removing a dependency from code, check the impact on the corresponding
   `pyproject.toml` files as part of the same change. Remove stale declarations when they are no longer needed,
   or keep them only when there is a clear runtime, packaging, or optional-feature reason.

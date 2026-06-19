@@ -50,6 +50,10 @@ is not a scratchpad or task log.
   step after its safety gate, report the result, and provide the next
   recommendation without requiring a second user round trip unless a real
   blocker needs input.
+- Every AGILAB PR description must include `Agent Metadata`: Tokki version,
+  agent/runtime name and version when exposed, model name, reasoning effort, and
+  whether `/fast` mode was used. If a value is unavailable, write `unknown`,
+  `unavailable`, or `not used` instead of guessing.
 - When asked for token-saving or workflow-saving tactics and a repo-local
   default is clear, do not end with a broad clarification menu. State the
   assumed target, choose the highest-leverage applicable mechanism, and either
@@ -58,6 +62,10 @@ is not a scratchpad or task log.
   Do not expand it into a command-by-command list unless failures, skipped
   checks, release/audit evidence, PR proof, or an explicit user request make the
   details useful.
+- When a product or code fix was designed or implemented with model assistance,
+  request a review from a stronger model before closing, pushing, or merging
+  when that is available. If no stronger model is available, say so explicitly
+  and still run the normal local review and validation path.
 - When a source Streamlit UI is running, do not run plain repo-level `uv run`
   validation commands against the same `.venv`. Use `./dev`, which isolates uv
   subprocesses in `.venv-dev`, or pass an explicit ignored
