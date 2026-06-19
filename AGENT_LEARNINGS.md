@@ -75,3 +75,8 @@ is not a scratchpad or task log.
   `src\agilab\install_apps.ps1` script with explicit `APPS_REPOSITORY` and
   `BUILTIN_APPS`. Do not replace that with root reinstall flows, manual
   `~/.agilab/.env` patching, or hand-written pytest loops.
+- When the user asks to update AGILAB repos, do not silently narrow `repo` to
+  only the current checkout. Treat the default maintenance target set as
+  `agilab` plus sibling `thales_agilab` when present, print both in the command
+  plan, and explicitly report any dirty, missing, or intentionally skipped
+  checkout.
