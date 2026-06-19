@@ -3,7 +3,7 @@ name: agilab-release-verification
 description: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-06
+  updated: 2026-06-19
 ---
 
 # AGILAB Release Verification
@@ -48,6 +48,17 @@ exist on PyPI. Do not summarize a `to publish: 0` or
 artifact-existence result, not the release intent. If all impacted versions
 already exist, say that the impacted package set exists on PyPI and distinguish
 between a normal version-bump release and an asset/proof repair run.
+
+When the recent change landed only in a sibling private app checkout such as
+`../thales_agilab/apps/<app>`, classify that boundary before recommending a
+public AGILAB publish. `release_plan.py` only reasons about paths tracked in
+the public AGILAB checkout. A private app commit such as
+`apps/<app>_project/...` with its own `pyproject.toml` is not an AGILAB PyPI
+package impact unless the change has also been promoted into AGILAB's tracked
+package contract under `src/agilab/lib`, `src/agilab/apps-pages`, or another
+published public package path. In that case, report the private app/project
+package separately and do not dispatch AGILAB PyPI; publish only the relevant
+docs/Pages surface if release-proof docs changed.
 
 State whether Hugging Face sync, release proof refresh, PyPI retention, GitHub
 code release assets, GitHub dataset release assets, and docs updates are
