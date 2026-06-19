@@ -30,6 +30,11 @@ on:
         required: false
         type: boolean
         default: false
+      pypi_retention_min_published_releases:
+        description: "Minimum visible PyPI releases before retention prunes older releases."
+        required: false
+        type: string
+        default: "11"
   push:
     tags:
       - "v*.*.*"
@@ -40,6 +45,7 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.13"
+  PYPI_RETENTION_MIN_PUBLISHED_RELEASES: ${{ github.event.inputs.pypi_retention_min_published_releases || vars.PYPI_RETENTION_MIN_PUBLISHED_RELEASES || '11' }}
 
 jobs:
   release-audit:
@@ -758,7 +764,7 @@ jobs:
       - name: Install PyPI retention dependencies
         run: python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup requests
 
-      - name: Delete older PyPI releases and keep the current release only
+      - name: Delete older PyPI releases once package history exceeds configured threshold
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -767,10 +773,21 @@ jobs:
             echo "PYPI_CONFIRM_READER_TOKEN secret is required to read the temporary PyPI confirmation variable." >&2
             exit 2
           }
+          case "$PYPI_RETENTION_MIN_PUBLISHED_RELEASES" in
+            ''|*[!0-9]*)
+              echo "PYPI_RETENTION_MIN_PUBLISHED_RELEASES must be an integer >= 2." >&2
+              exit 2
+              ;;
+          esac
+          if [[ "$PYPI_RETENTION_MIN_PUBLISHED_RELEASES" -lt 2 ]]; then
+            echo "PYPI_RETENTION_MIN_PUBLISHED_RELEASES must be an integer >= 2." >&2
+            exit 2
+          fi
           args=(
             --repo pypi
             --repo-root .
             --protect-versions-from-projects
+            --min-published-releases "$PYPI_RETENTION_MIN_PUBLISHED_RELEASES"
             --confirm-delete
             --direct-web-only
             --json

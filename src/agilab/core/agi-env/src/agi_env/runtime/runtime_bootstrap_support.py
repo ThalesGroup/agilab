@@ -27,6 +27,11 @@ def default_share_user(*, environ) -> str:
     return safe_user or "user"
 
 
+def default_local_share(*, environ) -> str:
+    """Return the per-user fallback local share root."""
+    return f"localshare/{default_share_user(environ=environ)}"
+
+
 def default_cluster_share(*, environ) -> str:
     """Return the per-user fallback cluster share root."""
     return f"clustershare/{default_share_user(environ=environ)}"
@@ -110,7 +115,11 @@ def resolve_share_runtime_config(
     home_path,
 ) -> ShareRuntimeConfig:
     """Resolve local/cluster share settings and the effective runtime share path."""
-    local_share = envars.get("AGI_LOCAL_SHARE") or environ.get("AGI_LOCAL_SHARE") or "localshare"
+    local_share = (
+        envars.get("AGI_LOCAL_SHARE")
+        or environ.get("AGI_LOCAL_SHARE")
+        or default_local_share(environ=environ)
+    )
     cluster_share = (
         envars.get("AGI_CLUSTER_SHARE")
         or environ.get("AGI_CLUSTER_SHARE")
