@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-18T13:44:57Z",
+  "generated_at_utc": "2026-06-19T11:32:54Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -71,7 +71,7 @@
       "name": "agilab-intent-router",
       "description": "Route terse AGILAB operator requests such as \"do it\", \"review AGILAB\", \"next move\", \"update repos\", \"merge it\", \"check again\", \"release\", and \"cluster validation\" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-06",
+      "updated": "2026-06-19",
       "path": ".codex/skills/agilab-intent-router/SKILL.md",
       "body_preview": "# AGILAB Intent Router\nUse this skill first when a user request is short, ambiguous, or operational.\nThe goal is to classify the request before acting, so terse commands map to the\nright AGILAB workflow instead of defaulting to a shallow answer or wrong repo"
     },
@@ -119,7 +119,7 @@
       "name": "agilab-runbook",
       "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-18",
+      "updated": "2026-06-19",
       "path": ".codex/skills/agilab-runbook/SKILL.md",
       "body_preview": "# AGILab runbook (Agent Skill)\nUse this skill when you need repo-specific \u201chow we do things\u201d guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.\n## AGILab working rules (repo policy)\n- **Use `uv` for all runs** so dependencies resolve in managed envs:"
     },

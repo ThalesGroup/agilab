@@ -300,12 +300,18 @@ Use this runbook whenever you:
   artifact existence; do not summarize `to publish: 0` as "nothing needs publishing."
 - **Repository update command plan**: When the user asks to "update repos", "sync repos", or similar,
   first show the exact command plan as a fenced `bash` block with concrete `git -C <repo>` commands
-  for each checkout. Use the fast path by default: `status --porcelain=v1 --untracked-files=no`,
+  for each checkout. In AGILAB maintenance, the default repo-sync target set is the active
+  `/Users/agi/PycharmProjects/agilab` checkout plus the sibling
+  `/Users/agi/PycharmProjects/thales_agilab` canonical docs/apps checkout when it exists.
+  Include both in the printed plan, or explicitly state why one is out of scope, missing,
+  or unsafe to update. Use the fast path by default: `status --porcelain=v1 --untracked-files=no`,
   `fetch --prune`, `rev-list --left-right --count HEAD...@{u}`, then `merge --ff-only @{u}` only
   for repos that are actually behind. This avoids a redundant fetch from `git pull` and avoids slow
   untracked scans. Group independent repo checks and fetches in parallel when the tooling allows it.
   If a checkout has tracked dirty paths, do not merge it until the dirty paths are reported and the
-  update plan is adjusted.
+  update plan is adjusted. If a dirty feature checkout blocks direct update of a repo's `main`,
+  check whether a clean registered `main` worktree exists before omitting that repository from the
+  update.
 - **Shared-core strict typing**: Use `uv --preview-features extra-build-dependencies run --with mypy python tools/shared_core_strict_typing.py`
   for the curated extracted support-module strict slice. The same check is also available through
   `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile shared-core-typing`.

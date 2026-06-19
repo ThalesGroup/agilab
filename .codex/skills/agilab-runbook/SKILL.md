@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-06-18
+  updated: 2026-06-19
 ---
 
 # AGILab runbook (Agent Skill)
@@ -181,12 +181,17 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   `~/.codex/skills/` or the relevant private repo.
 - **Repository update requests**: when the user asks to "update repos", "sync repos", or similar,
   first show the exact command plan before executing it. The plan should be a fenced `bash` block
-  with concrete `git -C <repo>` commands for each targeted checkout. Use the fast path by default:
+  with concrete `git -C <repo>` commands for each targeted checkout. In AGILAB maintenance, the
+  default target set is the active `agilab` checkout plus the sibling `../thales_agilab` canonical
+  docs/apps checkout when it exists; include both in the printed plan or explicitly say why one is
+  missing, unsafe, or out of scope. Use the fast path by default:
   `status --porcelain=v1 --untracked-files=no`, `fetch --prune`, `rev-list --left-right --count
   HEAD...@{u}`, then `merge --ff-only @{u}` only for repos that are actually behind. This avoids a
   redundant fetch from `git pull` and avoids slow untracked scans. Group independent repo checks and
   fetches in parallel when the tooling allows it. If a checkout has tracked dirty paths, do not
-  merge it until the dirty paths are reported and the update plan is adjusted.
+  merge it until the dirty paths are reported and the update plan is adjusted. If a dirty feature
+  checkout blocks direct update of a repo's `main`, check whether a clean registered `main` worktree
+  exists before omitting that repository from the update.
 - **External AGILAB core pointer merges**: when a private app or integration repository
   points `.external/agilab` at a stale AGILAB core branch and GitHub reports that
   the branch has no history in common with current `main`, do not force-merge or
