@@ -255,6 +255,15 @@ Use this runbook whenever you:
   agent/runtime name and version when exposed, model name, reasoning effort, and
   whether `/fast` mode was used. Do not infer missing values; write `unknown`,
   `unavailable`, or `not used` explicitly.
+- **PR evidence contract**: PR descriptions must stay current through merge.
+  Include `Review Evidence` when model or sub-agent review was used, naming the
+  reviewer model, result, and whether findings were addressed. If sub-agents were
+  used, state their role/model and whether they edited files or reviewed only.
+  Bugfix PRs must include `Repro`, `Root Cause`, and `Regression Test` sections;
+  if automation is impractical, say why and name the closest validation. Any
+  skipped check must include a reason such as `not applicable`, `GitHub skipped`,
+  or `manual validation only`. Before marking a PR ready or merging, update the
+  body if review, CI, validation, or skip status changed after PR creation.
 - **Dirty-scope guardrail**: Before starting a new task in a dirty checkout, and
   before answering "push", "release", or "all clean", run `./dev scope`. It
   includes untracked non-ignored files by default. If it reports `MIXED`, stop
