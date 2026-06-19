@@ -133,6 +133,26 @@ def test_remote_deployment_path_and_probe_helpers(tmp_path):
     )
 
 
+def test_scheduler_share_source_rejects_symlink_escape(tmp_path):
+    env = SimpleNamespace(home_abs=tmp_path)
+    local_share = tmp_path / "clustershare" / "agi"
+    outside = tmp_path / "outside"
+    local_share.mkdir(parents=True)
+    outside.mkdir()
+    try:
+        (local_share / "workflows").symlink_to(outside, target_is_directory=True)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"directory symlinks are not available: {exc}")
+
+    with pytest.raises(RuntimeError, match="outside the configured share root"):
+        deployment_remote_support._scheduler_share_source(
+            local_share,
+            local_share_setting=str(local_share),
+            remote_share="clustershare/agi/workflows/session-123",
+            env=env,
+        )
+
+
 def test_remote_command_helpers_quote_dynamic_arguments():
     command = deployment_remote_support._remote_command(
         "uv",
@@ -796,6 +816,58 @@ async def test_prepare_remote_cluster_share_mounts_matching_workflow_session(tmp
 
 
 @pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_rejects_reverse_sshfs_loop_on_session_source(
+    tmp_path, monkeypatch
+):
+    scheduler_share = tmp_path / "clustershare" / "agi"
+    workflow_share = "clustershare/agi/workflows/session-123"
+    scheduler_session = (scheduler_share / "workflows" / "session-123").resolve(
+        strict=False
+    )
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE=str(scheduler_share),
+        envars={},
+        home_abs=tmp_path,
+        user="agi",
+        verbose=0,
+    )
+    ssh_calls: list[str] = []
+
+    class _Agi:
+        _scheduler_ip = "192.168.20.141"
+
+        async def exec_ssh(self, _ip, cmd):
+            ssh_calls.append(cmd)
+            return "ok"
+
+    def _mount_record(path):
+        if Path(path) != scheduler_session:
+            return None
+        return {
+            "TARGET": scheduler_session.as_posix(),
+            "SOURCE": (
+                "agi@192.168.20.15:/home/agi/clustershare/agi/"
+                "workflows/session-123"
+            ),
+            "FSTYPE": "fuse.sshfs",
+        }
+
+    monkeypatch.setattr(
+        deployment_remote_support,
+        "_local_mount_record_for_path",
+        _mount_record,
+    )
+
+    with pytest.raises(RuntimeError, match="SSHFS loop"):
+        await deployment_remote_support._prepare_remote_cluster_share(
+            _Agi(), "192.168.20.15", env, workflow_share
+        )
+
+    assert ssh_calls == []
+    assert not scheduler_session.exists()
+
+
+@pytest.mark.asyncio
 async def test_prepare_remote_cluster_share_rejects_reverse_sshfs_loop(tmp_path, monkeypatch):
     scheduler_share = tmp_path / "clustershare" / "agi"
     env = SimpleNamespace(
@@ -898,6 +970,51 @@ async def test_prepare_remote_cluster_share_accepts_premounted_remote_share_with
     assert "Pre-mounted AGILAB cluster share" in ssh_calls[1]
     assert "SCHEDULER_SSH_TARGET" not in "\n".join(ssh_calls)
     assert "sshfs" not in "\n".join(ssh_calls)
+
+
+@pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_treats_nfs_and_ntfs_backends_as_premounted(
+    tmp_path,
+    monkeypatch,
+):
+    for backend in ("nfs", "ntfs"):
+        env = SimpleNamespace(
+            AGI_CLUSTER_SHARE=str(tmp_path / f"scheduler-share-{backend}"),
+            envars={"AGILAB_CLUSTER_SHARE_BACKEND": backend},
+            home_abs=tmp_path,
+            user="agi",
+            verbose=0,
+        )
+        ssh_calls: list[str] = []
+
+        class _AgiNoScheduler:
+            _scheduler_ip = ""
+
+            async def exec_ssh(self, _ip, cmd):
+                ssh_calls.append(cmd)
+                return "ok"
+
+        monkeypatch.setattr(
+            deployment_remote_support,
+            "_reverse_sshfs_mount_problem",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("no reverse guard")),
+        )
+
+        await deployment_remote_support._prepare_remote_cluster_share(
+            _AgiNoScheduler(), "192.168.20.15", env, "clustershare"
+        )
+
+        assert len(ssh_calls) == 2
+        assert "Pre-mounted AGILAB cluster share" in ssh_calls[1]
+        assert "SCHEDULER_SSH_TARGET" not in "\n".join(ssh_calls)
+        assert "sshfs" not in "\n".join(ssh_calls).lower()
+
+
+def test_cluster_share_backend_rejects_unknown_backend():
+    env = SimpleNamespace(envars={"AGILAB_CLUSTER_SHARE_BACKEND": "smb"})
+
+    with pytest.raises(ValueError, match="Unsupported AGILAB cluster-share backend"):
+        deployment_remote_support._remote_cluster_share_premounted(env)
 
 
 @pytest.mark.asyncio

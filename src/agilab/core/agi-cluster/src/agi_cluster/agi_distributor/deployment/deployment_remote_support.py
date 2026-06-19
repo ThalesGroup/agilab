@@ -46,6 +46,9 @@ _SSHFS_OPTIONS = (
     "StrictHostKeyChecking=yes",
     "noexec",
 )
+_SSHFS_SHARE_BACKEND = "sshfs"
+_PREMOUNTED_SHARE_BACKENDS = {"nfs", "ntfs"}
+_SUPPORTED_SHARE_BACKENDS = {_SSHFS_SHARE_BACKEND, *_PREMOUNTED_SHARE_BACKENDS}
 _REMOTE_PATH_PREFIX = (
     'export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; '
 )
@@ -119,7 +122,7 @@ def _scheduler_ssh_port(env: Any) -> int:
 
 
 def _remote_cluster_share_premounted(env: Any) -> bool:
-    return _truthy_env(
+    return _cluster_share_backend(env) in _PREMOUNTED_SHARE_BACKENDS or _truthy_env(
         _env_lookup(
             env,
             "AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED",
@@ -128,6 +131,19 @@ def _remote_cluster_share_premounted(env: Any) -> bool:
             "remote_cluster_share_premounted",
         )
     )
+
+
+def _cluster_share_backend(env: Any) -> str:
+    raw = _env_lookup(
+        env,
+        "AGILAB_CLUSTER_SHARE_BACKEND",
+        "AGI_CLUSTER_SHARE_BACKEND",
+        "cluster_share_backend",
+    )
+    backend = str(raw or _SSHFS_SHARE_BACKEND).strip().lower() or _SSHFS_SHARE_BACKEND
+    if backend not in _SUPPORTED_SHARE_BACKENDS:
+        raise ValueError(f"Unsupported AGILAB cluster-share backend: {backend!r}")
+    return backend
 
 
 def _sshfs_options_args() -> str:
@@ -354,7 +370,14 @@ def _scheduler_share_source(
         return local_share
     if ".." in suffix.parts:
         return local_share
-    return local_share.joinpath(*suffix.parts).resolve(strict=False)
+    share_root = local_share.expanduser().resolve(strict=False)
+    candidate = share_root.joinpath(*suffix.parts).resolve(strict=False)
+    if not candidate.is_relative_to(share_root):
+        raise RuntimeError(
+            "Refusing to derive scheduler AGI_CLUSTER_SHARE outside the configured "
+            f"share root: {candidate.as_posix()} is not under {share_root.as_posix()}."
+        )
+    return candidate
 
 
 def _scheduler_host_from_state(agi_cls: Any) -> str:
@@ -478,23 +501,28 @@ async def _prepare_remote_cluster_share(
         or remote_share
     )
     local_share = _resolve_local_share_path(local_share_raw, env)
-    reverse_mount_problem = _reverse_sshfs_mount_problem(local_share, ip)
-    if reverse_mount_problem:
-        raise RuntimeError(reverse_mount_problem)
+    share_backend = _cluster_share_backend(env)
+    share_is_premounted = _remote_cluster_share_premounted(env)
     scheduler_share = _scheduler_share_source(
         local_share,
         local_share_setting=local_share_raw,
         remote_share=remote_share,
         env=env,
     )
+    if not share_is_premounted:
+        for share_source in dict.fromkeys((local_share, scheduler_share)):
+            reverse_mount_problem = _reverse_sshfs_mount_problem(share_source, ip)
+            if reverse_mount_problem:
+                raise RuntimeError(reverse_mount_problem)
     scheduler_share.mkdir(parents=True, exist_ok=True)
 
     remote_share_setting = _home_relative_share_setting(remote_share, env)
     await agi_cls.exec_ssh(ip, _remote_env_update_command(remote_share_setting))
-    if _remote_cluster_share_premounted(env):
+    if share_is_premounted:
         if getattr(env, "verbose", 0) > 0:
             log.info(
-                "Using pre-mounted AGILAB cluster share on remote worker %s at %s",
+                "Using pre-mounted AGILAB cluster share (%s) on remote worker %s at %s",
+                share_backend,
                 ip,
                 remote_share_setting,
             )

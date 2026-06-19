@@ -20,8 +20,8 @@ loaded_path = str(getattr(loaded_agilab, "__file__", ""))
 if loaded_agilab is not None and not loaded_path.startswith(str(SRC_ROOT)):
     sys.modules.pop("agilab", None)
 
-from agilab import cluster_flight_validation as cfv
-from agilab import cluster_lan_discovery as discovery
+from agilab import cluster_flight_validation as cfv  # noqa: E402
+from agilab import cluster_lan_discovery as discovery  # noqa: E402
 
 
 def test_parse_cidr_values_rejects_invalid_network():
@@ -841,6 +841,12 @@ def test_probe_helpers_classify_missing_prerequisites_and_reverse_ssh():
         tcp_open=True,
         reverse_ssh=None,
     ) == ("sshfs-missing", 70, ("sshfs not found",))
+    assert discovery._classify(
+        {"python3": "/usr/bin/python3", "uv": "/usr/local/bin/uv"},
+        tcp_open=True,
+        reverse_ssh=False,
+        cluster_share_backend="nfs",
+    ) == ("ready", 100, ())
     assert discovery._classify(
         {"python3": "python3", "uv": "uv", "sshfs": "sshfs"},
         tcp_open=True,
