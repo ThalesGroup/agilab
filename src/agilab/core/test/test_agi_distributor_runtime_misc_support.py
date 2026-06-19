@@ -585,6 +585,45 @@ def test_initialize_runtime_state_preserves_workflow_session_workers_data_path()
     assert agi_cls._workers_data_path == str(session_root)
 
 
+def test_initialize_runtime_state_rebinds_manager_share_root_to_workflow_session():
+    agi_cls = SimpleNamespace()
+    env = SimpleNamespace(
+        manager_path=Path("/tmp/manager"),
+        target="flight_trajectory_project",
+        verbose=0,
+        home_abs=Path("/home/agi"),
+        AGI_CLUSTER_SHARE="clustershare/agi",
+        agi_share_path="clustershare/agi",
+        agi_share_path_abs=Path("/home/agi/clustershare/agi"),
+        _share_root_cache=Path("/home/agi/clustershare/agi"),
+        _share_target_name=lambda: "flight_trajectory",
+        envars={},
+    )
+    session_root = "clustershare/agi/workflows/20260618T093102Z-492de776"
+
+    runtime_misc_support.initialize_runtime_state(
+        agi_cls,
+        env,
+        workers={"127.0.0.1": 1},
+        verbose=0,
+        rapids_enabled=False,
+        args={"data_in": "flight_trajectory/dataset"},
+        worker_args={"data_in": "flight_trajectory/dataset"},
+        workers_data_path=session_root,
+    )
+
+    expected_root = Path("/home/agi") / session_root
+    assert agi_cls._workers_data_path == session_root
+    assert env.AGI_CLUSTER_SHARE == session_root
+    assert env.agi_share_path == session_root
+    assert env.agi_share_path_abs == expected_root
+    assert env._share_root_cache == expected_root
+    assert env.share_target_name == "flight_trajectory"
+    assert env.app_data_rel == expected_root / "flight_trajectory"
+    assert env.dataframe_path == expected_root / "flight_trajectory" / "dataframe"
+    assert env.envars["AGI_CLUSTER_SHARE"] == session_root
+
+
 def test_initialize_runtime_state_normalizes_windows_module_workers_data_path():
     agi_cls = SimpleNamespace()
     env = SimpleNamespace(

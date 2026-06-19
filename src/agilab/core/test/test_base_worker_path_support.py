@@ -109,6 +109,31 @@ def test_worker_data_dir_deduplicates_share_leaf_for_any_app_module(tmp_path):
     assert "any_module/any_module" not in resolved.as_posix()
 
 
+def test_manager_data_dir_uses_workflow_session_share_root_not_legacy_share(tmp_path):
+    session_root = (
+        tmp_path / "clustershare" / "agi" / "workflows" / "20260618T093102Z-492de776"
+    )
+    legacy_root = tmp_path / "clustershare" / "agi"
+    env = SimpleNamespace(
+        share_root_path=lambda: session_root,
+        agi_share_path_abs=legacy_root,
+        agi_share_path=Path("clustershare") / "agi",
+        home_abs=tmp_path,
+        _is_managed_pc=False,
+    )
+
+    resolved = path_support.resolve_data_dir(
+        env,
+        Path("flight_trajectory") / "dataset",
+        share_root_path_fn=lambda current_env: path_support.share_root_path(current_env),
+        remap_managed_pc_path_fn=lambda value: Path(value),
+        normalized_path_fn=lambda value: Path(value),
+    )
+
+    assert resolved == (session_root / "flight_trajectory" / "dataset").resolve(strict=False)
+    assert "workflows/20260618T093102Z-492de776/flight_trajectory/dataset" in resolved.as_posix()
+
+
 def test_base_worker_path_support_data_dir_aliases_and_home_remap(monkeypatch, tmp_path):
     class _BrokenPath:
         def __fspath__(self):
