@@ -602,7 +602,7 @@ def test_init_preserves_existing_dataset_without_stamp_and_uses_windows_export_b
     worker_dir = app_root / "src" / "demo_worker"
     dataset_archive = worker_dir / "dataset.7z"
     dataset_archive.write_text("archive", encoding="utf-8")
-    dataset_root = fake_home / "localshare" / "demo" / "dataset"
+    dataset_root = fake_home / "localshare" / "agi" / "demo" / "dataset"
     dataset_root.mkdir(parents=True)
     (dataset_root / "existing.csv").write_text("value\n", encoding="utf-8")
     mock_logger = mock.Mock()
@@ -644,7 +644,7 @@ def test_init_dataset_stamp_probe_failure_appends_sys_path_and_sets_windows_expo
     worker_dir = app_root / "src" / "demo_worker"
     dataset_archive = worker_dir / "dataset.7z"
     dataset_archive.write_text("archive", encoding="utf-8")
-    dataset_root = fake_home / "localshare" / "demo" / "dataset"
+    dataset_root = fake_home / "localshare" / "agi" / "demo" / "dataset"
     dataset_root.mkdir(parents=True)
     (dataset_root / "existing.csv").write_text("value\n", encoding="utf-8")
     stamp_path = dataset_root / ".agilab_dataset_stamp"
