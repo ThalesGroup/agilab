@@ -612,7 +612,7 @@ def test_initialize_runtime_state_rebinds_manager_share_root_to_workflow_session
         workers_data_path=session_root,
     )
 
-    expected_root = Path("/home/agi") / session_root
+    expected_root = (Path("/home/agi") / session_root).resolve(strict=False)
     assert agi_cls._workers_data_path == session_root
     assert env.AGI_CLUSTER_SHARE == session_root
     assert env.agi_share_path == session_root
@@ -622,6 +622,47 @@ def test_initialize_runtime_state_rebinds_manager_share_root_to_workflow_session
     assert env.app_data_rel == expected_root / "flight_trajectory"
     assert env.dataframe_path == expected_root / "flight_trajectory" / "dataframe"
     assert env.envars["AGI_CLUSTER_SHARE"] == session_root
+
+
+def test_initialize_runtime_state_preserves_scheduler_share_for_remote_workers_path():
+    agi_cls = SimpleNamespace()
+    scheduler_share = Path("/home/agi/data")
+    env = SimpleNamespace(
+        manager_path=Path("/tmp/manager"),
+        target="flight_trajectory_project",
+        verbose=0,
+        home_abs=Path("/home/agi"),
+        AGI_CLUSTER_SHARE=str(scheduler_share),
+        agi_share_path=str(scheduler_share),
+        agi_share_path_abs=scheduler_share,
+        _share_root_cache=scheduler_share,
+        _share_target_name=lambda: "flight_trajectory",
+        share_target_name="scheduler",
+        app_data_rel=scheduler_share / "scheduler",
+        dataframe_path=scheduler_share / "scheduler" / "dataframe",
+        envars={"AGI_CLUSTER_SHARE": str(scheduler_share)},
+    )
+
+    runtime_misc_support.initialize_runtime_state(
+        agi_cls,
+        env,
+        workers={"192.168.20.15": 1},
+        verbose=0,
+        rapids_enabled=False,
+        args={"data_in": "flight_trajectory/dataset"},
+        worker_args={"data_in": "flight_trajectory/dataset"},
+        workers_data_path="clustershare",
+    )
+
+    assert agi_cls._workers_data_path == "clustershare"
+    assert env.AGI_CLUSTER_SHARE == str(scheduler_share)
+    assert env.agi_share_path == str(scheduler_share)
+    assert env.agi_share_path_abs == scheduler_share
+    assert env._share_root_cache == scheduler_share
+    assert env.share_target_name == "scheduler"
+    assert env.app_data_rel == scheduler_share / "scheduler"
+    assert env.dataframe_path == scheduler_share / "scheduler" / "dataframe"
+    assert env.envars["AGI_CLUSTER_SHARE"] == str(scheduler_share)
 
 
 def test_initialize_runtime_state_normalizes_windows_module_workers_data_path():

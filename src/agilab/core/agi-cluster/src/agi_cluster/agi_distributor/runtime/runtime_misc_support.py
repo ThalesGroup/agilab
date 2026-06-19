@@ -433,6 +433,22 @@ def _absolute_workers_data_share_root(
         return Path(os.path.normpath(str(share_root)))
 
 
+def _workers_data_path_can_rebind_env_share(
+    env: Any,
+    workers_data_path: str,
+) -> bool:
+    current_share = str(getattr(env, "AGI_CLUSTER_SHARE", "") or "").strip()
+    if not current_share:
+        return True
+    workers_share_abs = _absolute_workers_data_share_root(env, workers_data_path)
+    current_share_abs = _absolute_workers_data_share_root(env, current_share)
+    try:
+        workers_share_abs.relative_to(current_share_abs)
+    except ValueError:
+        return False
+    return True
+
+
 def _apply_workers_data_path_to_env(
     env: Any,
     workers_data_path: str | None,
@@ -441,6 +457,8 @@ def _apply_workers_data_path_to_env(
         return
     share_text = str(workers_data_path).strip()
     if not share_text:
+        return
+    if not _workers_data_path_can_rebind_env_share(env, share_text):
         return
 
     share_root_abs = _absolute_workers_data_share_root(env, share_text)
