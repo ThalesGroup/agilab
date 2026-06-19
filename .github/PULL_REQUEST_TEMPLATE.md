@@ -3,6 +3,13 @@
 - What changed?
 - Why was this change needed?
 
+## Linked Issue
+
+- Fixes #<!-- issue number; use N/A only when no GitHub issue exists -->
+
+Use GitHub closing keywords (`Fixes`, `Closes`, or `Resolves`) for bug-fix
+PRs so the linked issue auto-closes when the PR is merged.
+
 ## Scope
 
 - Affected repo areas:

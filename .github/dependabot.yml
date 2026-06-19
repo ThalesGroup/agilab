@@ -25,6 +25,12 @@ updates:
       python-runtime:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: "streamlit"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
 
   - package-ecosystem: "pip"
     directory: "/src/agilab/core/agi-env"
@@ -80,6 +86,12 @@ updates:
     labels:
       - "dependencies"
       - "python"
+    ignore:
+      - dependency-name: "streamlit"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
 
   - package-ecosystem: "pip"
     directory: "/src/agilab/lib/agi-web"
