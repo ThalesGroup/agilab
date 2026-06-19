@@ -2,14 +2,10 @@ AGILab Documentation
 =====================
 
 AGILAB turns experimental AI/ML notebooks and scripts into executable,
-portable, evidence-backed applications that can run locally or on distributed
-workers. Workflows stay portable: export them back to runnable ``agi-core``
-notebooks, keep reproducibility evidence, and hand off tracking evidence to
-MLflow when that integration is enabled. The notebook export is an ``agi-core``
-runtime handoff: you can continue to run the saved project and stage contract
-with only the stable core runtime, without depending on the AGILAB UI or
-distributed worker layer. That stable, production-grade core technology remains
-the smallest supported handoff surface.
+portable, evidence-backed applications. The smallest supported handoff is the
+``agi-core`` notebook/runtime path; the full product adds app packages,
+Streamlit pages, portable ``agi-web`` UI islands, and local or distributed
+workers when the evidence proves the next step is worthwhile.
 
 If you are new to AGILab, choose one route first:
 
@@ -27,24 +23,10 @@ work.
 Golden ML loop
 --------------
 
-AGILAB's strongest workflow is deliberately evidence-first:
-
-1. Import or create a notebook, script, or app project.
-2. Run it through a controlled local environment first.
-3. Capture artifacts plus ``run_manifest.json`` evidence.
-4. Inspect and compare outputs in ANALYSIS, notebook export, MLflow handoff, or
-   proof-pack tools.
-5. Promote the result only when the evidence, package contract, and release
-   proof are coherent.
-
-That loop keeps exploratory ML work replayable before a team moves it into a
-heavier tracker, registry, cluster, or production platform.
-
-AGILAB is not locked to one web frontend. App projects can declare app-owned
-UI surfaces so the same runtime, artifacts, and evidence contract can be opened
-through the local Streamlit UI, a hosted Hugging Face backend, or browser-native
-``agi-web`` UI islands with React-ready component contracts. See
-:doc:`apps-pages` for the ``[app_surface]`` contract and the generic
+AGILAB's evidence-first workflow is summarized in :doc:`introduction`: create
+or import work, run it locally first, capture ``run_manifest.json`` evidence,
+inspect outputs, then promote only when the package and proof contracts agree.
+See :doc:`apps-pages` for app-owned UI surfaces and the generic
 ``agilab app surface`` launcher.
 
 If the local first proof fails, use :doc:`newcomer-troubleshooting` before
@@ -52,7 +34,7 @@ branching into cluster mode, external app repositories, or broader workflows.
 
 For release-level evidence, use :doc:`release-proof`; it points to the
 `latest public GitHub release
-<https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.18>`__,
+<https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.14.1>`__,
 package proof, CI guardrails, and hosted demo status.
 
 This documentation then expands into architecture, service mode, API
