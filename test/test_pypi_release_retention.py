@@ -36,6 +36,49 @@ def test_retention_plan_keeps_only_protected_normalized_version(monkeypatch) -> 
     assert plan.missing_protected_version is False
 
 
+def test_retention_plan_retains_old_versions_below_publish_threshold(monkeypatch) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(
+        module,
+        "fetch_releases",
+        lambda package, repo: ["2026.04.16", "2026.04.17", "2026.05.17"],
+    )
+
+    plan = module.build_plan(
+        "agilab",
+        "pypi",
+        "v2026.05.17",
+        min_published_releases=11,
+    )
+
+    assert plan.delete_versions == []
+    assert plan.retained_versions == ["2026.04.16", "2026.04.17"]
+    assert plan.retention_skipped_reason == (
+        "published release count 3 is below cleanup threshold 11"
+    )
+    assert plan.missing_protected_version is False
+
+
+def test_retention_plan_deletes_old_versions_when_publish_threshold_is_reached(monkeypatch) -> None:
+    module = _load_module()
+    releases = [f"2026.05.{day:02d}" for day in range(1, 12)]
+
+    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: releases)
+
+    plan = module.build_plan(
+        "agilab",
+        "pypi",
+        "2026.05.11",
+        min_published_releases=11,
+    )
+
+    assert plan.delete_versions == releases[:-1]
+    assert plan.retained_versions == []
+    assert plan.retention_skipped_reason is None
+    assert plan.missing_protected_version is False
+
+
 def test_resolve_protect_versions_accepts_disaligned_package_versions() -> None:
     module = _load_module()
 
@@ -232,6 +275,41 @@ def test_main_refuses_to_delete_without_confirmation(monkeypatch, capsys) -> Non
         module.main(["--package", "agilab", "--protect-version", "2026.05.17"])
 
     assert capsys.readouterr().out == ""
+
+
+def test_main_skips_credentials_below_min_published_release_threshold(monkeypatch, capsys) -> None:
+    module = _load_module()
+
+    monkeypatch.setattr(
+        module,
+        "fetch_releases",
+        lambda package, repo: ["2026.04.16", "2026.05.17"],
+    )
+
+    def fail_require_credentials(*args, **kwargs):  # pragma: no cover - must not be called
+        raise AssertionError("credentials should not be requested below threshold")
+
+    monkeypatch.setattr(module, "require_credentials", fail_require_credentials)
+
+    status = module.main(
+        [
+            "--package",
+            "agilab",
+            "--protect-version",
+            "2026.05.17",
+            "--min-published-releases",
+            "11",
+            "--json",
+            "--retry-delay",
+            "0",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert status == 0
+    assert '"success": true' in captured.out
+    assert '"retained_versions": [\n        "2026.04.16"\n      ]' in captured.out
+    assert "below cleanup threshold 11" in captured.out
 
 
 def test_main_retries_until_protected_release_is_visible(monkeypatch, capsys) -> None:
