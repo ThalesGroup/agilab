@@ -162,7 +162,7 @@ workflow dispatch:
 - `publish-library-packages`: publishes selected split packages with PyPI Trusted Publishing.
 - `publish-agilab`: publishes the top-level `agilab` package only when the umbrella package is still selected.
 - `pypi-provenance-evidence`: verifies PyPI attestations only for `provenance_packages` selected by the release plan.
-- `pypi-release-retention`: prunes older public PyPI releases only for selected provenance packages after a selected package has more than ten visible releases; missing current releases or failed cleanup after the threshold is reached are hard failures.
+- `pypi-release-retention`: prunes older public PyPI releases only for selected provenance packages after a selected package exceeds the configured visible-release threshold (`pypi_retention_min_published_releases`, default `11`, or the `PYPI_RETENTION_MIN_PUBLISHED_RELEASES` repository variable for tag runs); missing current releases or failed cleanup after the threshold is reached are hard failures.
 - `publish-release-assets`: uploads release artifacts and supply-chain evidence to GitHub Releases.
 - `publish-dataset-release-assets`: builds a complete tracked-dataset archive, manifest, and checksums from an LFS-materialized checkout, then creates a separate content-addressed `datasets-<manifest-hash>` GitHub Release only when that dataset payload has not already been published. This job is intentionally independent from PyPI package selection; PyPI packages keep their packaged datasets.
 - `sync-hf-space`: deploys the public Hugging Face Space after release assets only when the umbrella `agilab` release is selected.
@@ -305,7 +305,7 @@ PY
 ```
 
 After PyPI pruning, `missing_expected` must be empty. `stale_old_releases`
-can be non-empty when the package is still below the workflow's ten-release
+can be non-empty when the package is still below the workflow's configured
 cleanup threshold. Once threshold-triggered or explicit strict retention runs,
 remaining stale versions are cleanup debt when PyPI web login,
 unrecognized-login confirmation, or reauthentication blocks deletion. Do not
@@ -424,7 +424,7 @@ after the badge/source change.
   deleted version, publish a new corrective `.postN` release for the whole
   package graph before deleting anything else.
 - PyPI retention reports success but old releases remain: first check whether
-  the package is below the workflow's ten-release cleanup threshold. If the
+  the package is below the workflow's configured cleanup threshold. If the
   threshold was reached, confirm whether PyPI required password/TOTP
   reauthentication or unrecognized-login confirmation. OIDC Trusted Publishing
   cannot delete old releases.
@@ -464,7 +464,7 @@ after the badge/source change.
 - If old releases must be deleted manually, use PyPI's project release pages or
   a controlled browser session, then re-run the split-package release truth
   check above.
-- Keep the workflow's ten-release cleanup threshold as a post-publish cleanup
+- Keep the workflow's configured cleanup threshold as a post-publish cleanup
   policy, not as a precondition for publishing the replacement package graph.
   Use explicit manual cleanup only when an operator wants stricter retention for
   a known package set.

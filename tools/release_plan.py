@@ -750,14 +750,26 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "--release-mode": "workflow must pass explicit release intent to the policy gate",
         "pypi-release-retention:": "workflow must prune old PyPI releases after provenance passes",
         "tools/pypi_release_retention.py": "workflow must use the PyPI release retention tool",
+        "pypi_retention_min_published_releases:": (
+            "release workflow must expose the PyPI retention threshold as a dispatch input"
+        ),
+        "PYPI_RETENTION_MIN_PUBLISHED_RELEASES": (
+            "release workflow must pass the configured PyPI retention threshold through the job environment"
+        ),
+        "vars.PYPI_RETENTION_MIN_PUBLISHED_RELEASES": (
+            "release workflow must allow tag releases to override the PyPI retention threshold by repository variable"
+        ),
         "--protect-versions-from-projects": (
             "PyPI release retention must protect each selected package's own project version"
         ),
         "--repo-root .": (
             "PyPI release retention must read selected project versions from the checked-out repo"
         ),
-        "--min-published-releases 11": (
-            "release workflow must defer destructive PyPI pruning until a selected package has more than ten visible releases"
+        "--min-published-releases \"$PYPI_RETENTION_MIN_PUBLISHED_RELEASES\"": (
+            "release workflow must use the configured threshold instead of hard-coding PyPI pruning frequency"
+        ),
+        "must be an integer >= 2": (
+            "release workflow must validate the configured PyPI retention threshold before invoking cleanup"
         ),
         "PYPI_RELEASE_PRUNE_PASSWORD": (
             "workflow must keep PyPI release pruning credentials separate from OIDC upload"
