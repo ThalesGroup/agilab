@@ -333,6 +333,30 @@ def _home_relative_share_setting(value: str, env: Any) -> str:
     return cleaned
 
 
+def _scheduler_share_source(
+    local_share: Path,
+    *,
+    local_share_setting: str,
+    remote_share: str,
+    env: Any,
+) -> Path:
+    configured = PurePosixPath(
+        _home_relative_share_setting(local_share_setting, env).replace("\\", "/")
+    )
+    requested = PurePosixPath(
+        _home_relative_share_setting(remote_share, env).replace("\\", "/")
+    )
+    try:
+        suffix = requested.relative_to(configured)
+    except ValueError:
+        return local_share
+    if str(suffix) in {"", "."}:
+        return local_share
+    if ".." in suffix.parts:
+        return local_share
+    return local_share.joinpath(*suffix.parts).resolve(strict=False)
+
+
 def _scheduler_host_from_state(agi_cls: Any) -> str:
     raw_host = (
         getattr(agi_cls, "_scheduler_ip", None)
@@ -457,7 +481,13 @@ async def _prepare_remote_cluster_share(
     reverse_mount_problem = _reverse_sshfs_mount_problem(local_share, ip)
     if reverse_mount_problem:
         raise RuntimeError(reverse_mount_problem)
-    local_share.mkdir(parents=True, exist_ok=True)
+    scheduler_share = _scheduler_share_source(
+        local_share,
+        local_share_setting=local_share_raw,
+        remote_share=remote_share,
+        env=env,
+    )
+    scheduler_share.mkdir(parents=True, exist_ok=True)
 
     remote_share_setting = _home_relative_share_setting(remote_share, env)
     await agi_cls.exec_ssh(ip, _remote_env_update_command(remote_share_setting))
@@ -480,7 +510,7 @@ async def _prepare_remote_cluster_share(
     mount_cmd = _remote_share_mount_command(
         scheduler_target=scheduler_target,
         scheduler_ssh_port=_scheduler_ssh_port(env),
-        local_share=local_share,
+        local_share=scheduler_share,
         remote_share=remote_share_setting,
     )
     if getattr(env, "verbose", 0) > 0:
