@@ -48,7 +48,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB Installer Skill Use this skill when working on: - `install.sh` / `install.ps1` (root installer) - `src/agilab/install_apps.sh` / `src/agilab/install_apps.ps1` (apps/pages installer)
 - agilab-intent-router: Route terse AGILAB operator requests such as "do it", "review AGILAB", "next move", "update repos", "merge it", "check again", "release", and "cluster validation" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy. (.claude/skills/agilab-intent-router/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-06-06
+  updated: 2026-06-19
   preview: # AGILAB Intent Router Use this skill first when a user request is short, ambiguous, or operational. The goal is to classify the request before acting, so terse commands map to the right AGILAB workflow instead of defaulting to a shallow answer or wrong repo
 - agilab-local-llm: Guidance for using local LLM backends (Ollama/GPT-OSS) inside AGILAB with correctness-first prompts. (.claude/skills/agilab-local-llm/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -72,7 +72,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB Release Verification Use this skill for release readiness, release execution checks, and post-release alignment. Its purpose is to prevent stale plans and false "all good" answers by checking the current code, current workflows, and public surfaces before making
 - agilab-runbook: Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting). (.claude/skills/agilab-runbook/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-06-18
+  updated: 2026-06-19
   preview: # AGILab runbook (Agent Skill) Use this skill when you need repo-specific “how we do things” guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases. ## AGILab working rules (repo policy) - **Use `uv` for all runs** so dependencies resolve in managed envs:
 - agilab-security-review-patterns: Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories. (.claude/skills/agilab-security-review-patterns/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
