@@ -118,9 +118,10 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - whether installer repros are mandatory
   - whether generated artifacts must be refreshed
 - **Diff-aware pre-push guards**: keep `git config core.hooksPath .githooks` enabled. The hook
-  uses `tools/pre_push_changed_files.py` to run docs mirror checks only for docs mirror inputs and
-  release-proof checks only for release-proof inputs. If classification fails, it runs all local
-  guards. Coverage badge freshness remains an explicit `./dev badge` or release/pre-release check.
+  uses `tools/pre_push_changed_files.py` to run docs mirror checks only for docs mirror inputs,
+  release-proof checks only for release-proof inputs, and agent-instruction contract checks only
+  for AGENTS/runbook/skill/discovery inputs. If classification fails, it runs all local guards.
+  Coverage badge freshness remains an explicit `./dev badge` or release/pre-release check.
 - **Public style badge alignment**: keep the code-style/style-guard signal in
   `README.md` and `README.pypi.md` aligned with the actual repository guard. If
   the public badge moves to a Ruff changed-files guard or another style tool,

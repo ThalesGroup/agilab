@@ -22,6 +22,7 @@ def test_classify_source_only_change_skips_docs_and_release_proof_guards():
     assert not state.release_proof_changed
     assert not state.app_contracts_changed
     assert not state.agi_core_protected_changed
+    assert not state.agent_instructions_changed
 
 
 def test_classify_docs_source_change_runs_docs_guard_only():
@@ -90,6 +91,28 @@ def test_classify_infra_scopes_do_not_count_as_mixed_push_scope():
     assert state.scope_count == 0
 
 
+def test_classify_agent_instruction_change_runs_agent_instruction_guard_only():
+    state = pre_push_changed_files.classify_changed_files(["AGENTS.md"])
+
+    assert not state.docs_changed
+    assert not state.release_proof_changed
+    assert not state.app_contracts_changed
+    assert not state.agi_core_protected_changed
+    assert state.agent_instructions_changed
+
+
+def test_classify_agent_skill_change_runs_agent_instruction_guard_only():
+    state = pre_push_changed_files.classify_changed_files(
+        [".codex/skills/agilab-runbook/SKILL.md"]
+    )
+
+    assert not state.docs_changed
+    assert not state.release_proof_changed
+    assert not state.app_contracts_changed
+    assert not state.agi_core_protected_changed
+    assert state.agent_instructions_changed
+
+
 def test_classify_many_product_scopes_blocks_mixed_push_scope():
     state = pre_push_changed_files.classify_changed_files(
         [
@@ -126,6 +149,7 @@ def test_render_shell_is_eval_friendly():
         "RELEASE_PROOF_CHANGED=1",
         "APP_CONTRACTS_CHANGED=0",
         "AGI_CORE_PROTECTED_CHANGED=0",
+        "AGENT_INSTRUCTIONS_CHANGED=0",
         "MIXED_SCOPE=0",
         "SCOPE_COUNT=0",
         "SCOPE_LIMIT=2",

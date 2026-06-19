@@ -327,6 +327,7 @@ Use this runbook whenever you:
   non-infrastructure scopes before docs/release/app-contract checks run; split the work or use
   `AGILAB_ALLOW_MIXED_SCOPE_PUSH=1` only with an explicit reason. It runs docs mirror checks
   only when docs mirror inputs changed, release-proof checks only when release-proof inputs changed,
+  agent-instruction contract checks only when AGENTS/runbook/skill/discovery inputs changed,
   and app-contract checks only when built-in app/package/catalog/docs contract inputs changed.
   If classification fails, it fails safe by running all local guards. Coverage badge freshness is
   intentionally not part of the default bugfix pre-push path; run `./dev badge` or the `badges`

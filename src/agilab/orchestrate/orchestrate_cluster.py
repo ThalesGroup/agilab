@@ -54,6 +54,7 @@ WORKFLOW_SESSION_POLICY_OPTIONS = ("new", "last", "select")
 WORKFLOW_SESSION_DEFAULT_POLICY = "new"
 WORKFLOW_DEFAULT_ID = "workflows"
 WORKFLOW_PROJECT_SUFFIXES = ("_project", "-project")
+GENERATED_WORKFLOW_SESSION_RE = re.compile(r"^\d{8}T\d{6}Z-[0-9a-fA-F]{8}$")
 
 
 @dataclass(frozen=True)
@@ -419,6 +420,29 @@ def _workflow_sessions_root(cluster_share: Path, user: Any, workflow_name: Any) 
     return _workflow_user_root(cluster_share, user) / safe_workflow
 
 
+def _workflow_cluster_share_root(
+    cluster_share: Path,
+    *,
+    user: Any,
+    workflow_name: Any,
+    selected_session: Any = "",
+) -> Path:
+    safe_user = _safe_workflow_component(user, "local-user")
+    safe_workflow = _safe_workflow_component(workflow_name, "default")
+    parts = cluster_share.parts
+    if len(parts) < 3:
+        return cluster_share
+    suffix_user, suffix_workflow, suffix_session = parts[-3:]
+    if suffix_user != safe_user or suffix_workflow != safe_workflow:
+        return cluster_share
+    safe_session = _safe_workflow_component(selected_session, "")
+    if safe_session and suffix_session == safe_session:
+        return Path(*parts[:-2])
+    if GENERATED_WORKFLOW_SESSION_RE.fullmatch(suffix_session):
+        return Path(*parts[:-2])
+    return cluster_share
+
+
 def _list_workflow_sessions(sessions_root: Path) -> list[Path]:
     try:
         entries = [path for path in sessions_root.iterdir() if path.is_dir()]
@@ -471,6 +495,11 @@ def _resolve_workflow_session_path(
 def _workflow_data_path_text(cluster_share: Path, session_path: Path, env: Any) -> str:
     cluster_share_setting = _env_cluster_share_setting(env)
     if cluster_share_setting:
+        setting_path = _resolve_env_relative_path(cluster_share_setting, env)
+        if setting_path is not None and (
+            setting_path == session_path or _path_is_within(setting_path, session_path)
+        ):
+            return _home_relative_share_text(session_path, env) or str(session_path)
         try:
             suffix = session_path.relative_to(cluster_share)
         except ValueError:
@@ -1465,14 +1494,24 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
             and cluster_share_candidate.is_dir()
             and os.access(cluster_share_candidate, os.W_OK)
         )
+        workflow_cluster_share_candidate = (
+            _workflow_cluster_share_root(
+                cluster_share_candidate,
+                user=sanitized_user,
+                workflow_name=workflow_id,
+                selected_session=workflow_session,
+            )
+            if cluster_share_candidate is not None
+            else None
+        )
         workflow_session_options: list[str] = []
-        if cluster_share_ready and cluster_share_candidate is not None:
+        if cluster_share_ready and workflow_cluster_share_candidate is not None:
             workflow_session_options = _workflow_session_names(
-                _workflow_sessions_root(cluster_share_candidate, sanitized_user, workflow_id)
+                _workflow_sessions_root(workflow_cluster_share_candidate, sanitized_user, workflow_id)
             )
             try:
                 workflow_session_path, workflow_session, workflow_policy = _resolve_workflow_session_path(
-                    cluster_share_candidate,
+                    workflow_cluster_share_candidate,
                     user=sanitized_user,
                     workflow_name=workflow_id,
                     policy=workflow_policy,
@@ -1484,7 +1523,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 st.error(f"Could not prepare workflow session under `{cluster_share_candidate}`: {exc}")
             else:
                 workflow_workers_data_path = _workflow_data_path_text(
-                    cluster_share_candidate,
+                    workflow_cluster_share_candidate,
                     workflow_session_path,
                     env,
                 )
@@ -1530,7 +1569,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 st.session_state.pop(workflow_existing_session_key, None)
                 st.info(
                     "No existing workflow session directories found under "
-                    f"`{_workflow_sessions_root(cluster_share_candidate, sanitized_user, workflow_id)}`."
+                    f"`{_workflow_sessions_root(workflow_cluster_share_candidate, sanitized_user, workflow_id)}`."
                 )
         else:
             st.session_state.pop(workflow_existing_session_key, None)
@@ -1547,10 +1586,10 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 ),
             )
         workflow_session = _safe_workflow_component(workflow_session_input, "")
-        if cluster_share_ready and cluster_share_candidate is not None and not workflow_session_error_shown:
+        if cluster_share_ready and workflow_cluster_share_candidate is not None and not workflow_session_error_shown:
             try:
                 workflow_session_path, workflow_session, workflow_policy = _resolve_workflow_session_path(
-                    cluster_share_candidate,
+                    workflow_cluster_share_candidate,
                     user=sanitized_user,
                     workflow_name=workflow_id,
                     policy=workflow_policy,
@@ -1560,7 +1599,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 st.error(f"Could not prepare workflow session under `{cluster_share_candidate}`: {exc}")
             else:
                 workflow_workers_data_path = _workflow_data_path_text(
-                    cluster_share_candidate,
+                    workflow_cluster_share_candidate,
                     workflow_session_path,
                     env,
                 )
@@ -1608,6 +1647,8 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 project_name=app_state_name,
             )
         ):
+            # Keep this as a local/persisted-settings normalization. Streamlit
+            # owns workers_data_path_widget_key after the text_input is created.
             workers_data_path_value = workflow_workers_data_path
         cluster_params["workers_data_path"] = workers_data_path_value
 
