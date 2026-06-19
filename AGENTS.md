@@ -25,6 +25,7 @@ Use this runbook whenever you:
 - **uv everywhere**: Invoke Python entry points through `uv` (`uv --preview-features extra-build-dependencies run python …`,
   `uv --preview-features extra-build-dependencies run --extra ui streamlit …` for source UI launches) so dependencies resolve inside the managed environments that
   ship with AGILab.
+- **Command speed policy**: Use raw `rg`, `sed`, and small file reads for cheap local inspection where wrapper startup would dominate. Use `tokki run -- ...` for Git writes, pushes, merges, tests, builds, installs, network operations, long logs, slow/noisy commands, and any state-changing or policy-sensitive command.
 - **High-frequency command shortcuts**: Use `./dev <shortcut>` for repeated local validation loops.
   The top shortcuts are `impact` for impact validation, `bugfix` for impact plus a fast
   GA-selected regression run, `test` for targeted `pytest -q -o addopts=''`,

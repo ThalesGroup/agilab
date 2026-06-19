@@ -41,6 +41,10 @@ Before configuring distributed workers, make sure the environment is ready:
   root is ``AGI_CLUSTER_SHARE``; remote workers can see the same backing storage
   through an SSHFS mount at **Workers Data Path**. In cluster mode, do not rely
   on ``AGI_LOCAL_SHARE`` as a fallback.
+- For remote workers, **Workers Data Path** is the worker-visible mount target,
+  not a request to rewrite the scheduler-side ``AGI_CLUSTER_SHARE``. If the
+  scheduler already points ``AGI_CLUSTER_SHARE`` at an absolute share root, AGILAB
+  keeps that root and passes the worker-side path separately.
 - The shared-path rule above applies to remote workers. For a local-only Dask
   cluster, where workers are ``127.0.0.1`` or ``localhost``, the scheduler and
   workers share the same local filesystem. ``AGI_CLUSTER_SHARE`` may therefore
@@ -306,7 +310,8 @@ Use these habits to keep distributed runs predictable:
   **Workers Data Path** as the worker-side SSHFS mount target. These paths may
   differ on mixed operating systems, for example a macOS scheduler path mounted
   under a Linux worker home directory, but they must expose the same backing
-  storage after SSHFS is mounted.
+  storage after SSHFS is mounted. Do not use **Workers Data Path** to replace a
+  preconfigured scheduler share root.
 - Keep local-only and remote-worker clusters distinct. Local-only clusters can
   use a local ``AGI_CLUSTER_SHARE`` path directly; remote-worker clusters need a
   worker-visible shared mount target in **Workers Data Path**.
