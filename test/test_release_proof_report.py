@@ -98,8 +98,11 @@ def test_release_proof_refresh_from_local_updates_manifest_and_page(
     assert refreshed["release"]["package_version"] == module._load_project_version(Path.cwd())
     assert refreshed["release"]["github_release_tag"] == "v2026.05.01-2"
     assert refreshed["release"]["github_release_url"].endswith("/releases/tag/v2026.05.01-2")
-    assert refreshed["release"]["dataset_release_tag"].startswith("datasets-")
-    assert "dataset_release_url" not in refreshed["release"]
+    dataset_release_tag = refreshed["release"]["dataset_release_tag"]
+    assert dataset_release_tag.startswith("datasets-")
+    assert refreshed["release"]["dataset_release_url"].endswith(
+        f"/releases/tag/{dataset_release_tag}"
+    )
     assert refreshed["release"]["dataset_count"] > 0
     assert refreshed["release"]["hf_space_commit"] == "test-hf-commit"
     assert (docs_source / "release-proof.rst").read_text(encoding="utf-8") == module.render_release_proof(

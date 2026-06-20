@@ -9,6 +9,7 @@ import sys
 WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
 CODECOV_CONFIG_PATH = Path("codecov.yml")
 AGI_ENV_COVERAGE_CONFIG = Path(".coveragerc.agi-env")
+AGI_CORE_COVERAGE_CONFIG = Path(".coveragerc.agi-core")
 SHARD_PLAN_PATH = Path("tools/coverage_shard_plan.py")
 CODECOV_UPLOADER_KEY_FINGERPRINT = "27034E7FDB850E0BBC2C62FF806BB28AED779869"
 
@@ -88,6 +89,7 @@ def test_core_coverage_uses_importlib_import_mode_for_src_layout() -> None:
     run_block = _agi_core_run_block()
 
     assert "--import-mode=importlib" in run_block
+    assert "--rcfile=.coveragerc.agi-core" in run_block
 
 
 def test_coverage_push_trigger_is_path_filtered_for_cost_control() -> None:
@@ -125,6 +127,13 @@ def test_agi_env_coverage_excludes_ipython_signature_compatibility_line() -> Non
     config_text = AGI_ENV_COVERAGE_CONFIG.read_text(encoding="utf-8")
 
     assert r"_tb_kwargs\['theme_name'\] = 'NoColor'" in config_text
+    assert "if _module is not None:" in config_text
+
+
+def test_agi_core_coverage_excludes_defensive_compat_shim_fallback() -> None:
+    config_text = AGI_CORE_COVERAGE_CONFIG.read_text(encoding="utf-8")
+
+    assert "if _module is not None:" in config_text
 
 
 def test_agi_core_coverage_installs_parquet_engine() -> None:
@@ -200,6 +209,12 @@ def test_agi_gui_coverage_includes_pytorch_playground_app_surface_regressions() 
     run_block = _agi_gui_run_block()
 
     assert "test/test_pytorch_playground_app.py" in run_block
+
+
+def test_agi_gui_coverage_includes_reuse_catalog_regressions() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_reuse_catalog.py" in run_block
 
 
 def test_agi_gui_coverage_uses_parallel_chunk_matrix_profile() -> None:

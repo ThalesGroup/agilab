@@ -1,0 +1,9 @@
+[run]
+branch = true
+source =
+    agi_node
+    agi_cluster
+
+[report]
+exclude_also =
+    if _module is not None:
