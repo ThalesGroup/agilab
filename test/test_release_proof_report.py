@@ -71,6 +71,7 @@ def test_release_proof_refresh_from_local_updates_manifest_and_page(
         return original_text_contains(path, expected)
 
     monkeypatch.setattr(module, "_text_contains", _text_contains)
+    monkeypatch.setattr(module, "_local_tag_exists", lambda _repo_root, _tag: True)
     docs_source = tmp_path / "docs" / "source"
     data_dir = docs_source / "data"
     data_dir.mkdir(parents=True)
