@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-19T17:00:03Z",
+  "generated_at_utc": "2026-06-20T17:30:17Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -1848,8 +1848,6 @@
     {
       "schema": "agilab.notebook_view_sync.v1",
       "sources": [
-        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },

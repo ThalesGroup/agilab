@@ -183,6 +183,10 @@ Use this skill when validating changes.
   - When LAN discovery auto-populates scheduler/workers, test both the discovery
     result and the persisted form fields so the UI cannot show discovered nodes
     without saving executable cluster settings.
+  - When ORCHESTRATE or app forms expose cluster parameters that depend on worker
+    OS or platform capabilities, derive availability from fresh LAN discovery or
+    the local platform as appropriate, reset stale persisted widget values to a
+    safe default, and cover both the pure resolver and the rendered UI options.
 - App settings split:
   - Source `app_settings.toml` files are seeds; mutable settings live in the user workspace.
   - Tests should target the right layer and avoid asserting that runtime writes back into source files.

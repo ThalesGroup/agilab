@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import platform
 from pathlib import Path
 import sys
 from typing import Any
@@ -15,6 +16,13 @@ from execution_pandas.app_args import ExecutionPandasArgs, dump_args, load_args 
 
 
 PAGE_ID = "execution_pandas_project:app_args_form"
+POOL_EXECUTOR_OPTIONS = ("auto", "process", "thread")
+POOL_EXECUTOR_OS_SAFE_OPTIONS = ("auto", "thread")
+POOL_EXECUTOR_LABELS = {
+    "auto": "Auto (ORCHESTRATE setting)",
+    "process": "Process",
+    "thread": "Thread",
+}
 
 
 def _k(name: str) -> str:
@@ -42,6 +50,13 @@ def _safe_rows_per_partition(rows_per_file: int, n_partitions: int) -> int:
     if n_partitions <= 0:
         return 0
     return rows_per_file // n_partitions
+
+
+def _pool_executor_options_for_platform(system: str | None = None) -> tuple[str, ...]:
+    family = (platform.system() if system is None else system).strip().lower()
+    if family.startswith("windows"):
+        return POOL_EXECUTOR_OS_SAFE_OPTIONS
+    return POOL_EXECUTOR_OPTIONS
 
 
 env = _get_env()
@@ -114,15 +129,15 @@ with c10:
         key=_k("kernel_mode"),
     )
 with c11:
+    pool_executor_options = _pool_executor_options_for_platform()
+    pool_executor_key = _k("pool_executor")
+    if st.session_state.get(pool_executor_key) not in pool_executor_options:
+        st.session_state[pool_executor_key] = "auto"
     st.selectbox(
         "Pool executor",
-        options=["auto", "process", "thread"],
-        format_func=lambda value: {
-            "auto": "Auto (ORCHESTRATE setting)",
-            "process": "Process",
-            "thread": "Thread",
-        }[value],
-        key=_k("pool_executor"),
+        options=pool_executor_options,
+        format_func=lambda value: POOL_EXECUTOR_LABELS[value],
+        key=pool_executor_key,
         help=(
             "Only affects pool or Dask runs. Auto follows the ORCHESTRATE "
             "Resources and deployment pool executor setting when it is set."
