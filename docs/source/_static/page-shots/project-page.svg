@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 850" role="img" aria-labelledby="title desc">
+<title id="title">AGILAB project page vector screenshot summary</title>
+<desc id="desc">Screenshot-derived SVG summary generated from project-page.png, sha256 7a2a872a12e0d35f. The PNG remains the canonical raster evidence.</desc>
+<defs><linearGradient id="panelGradient" x1="0" x2="1"><stop offset="0" stop-color="#1f2c2f"/><stop offset="0.55" stop-color="#0f3033"/><stop offset="1" stop-color="#243b24"/></linearGradient></defs>
+<rect x="0" y="0" width="1440" height="850" rx="0" fill="#07111f"/>
+<rect x="0" y="0" width="300" height="850" rx="0" fill="#10293b"/>
+<text x="20" y="46" font-size="26" font-weight="700" fill="#c9d3d7" text-anchor="start">AGI Lab</text>
+<rect x="20" y="77" width="260" height="28" rx="6" fill="#38546c"/>
+<text x="28" y="94" font-size="14" font-weight="800" fill="#f7f7f2" text-anchor="start">PROJECT</text>
+<text x="28" y="128" font-size="14" font-weight="500" fill="#d6dde0" text-anchor="start">ORCHESTRATE</text>
+<text x="28" y="162" font-size="14" font-weight="500" fill="#d6dde0" text-anchor="start">WORKFLOW</text>
+<text x="28" y="196" font-size="14" font-weight="500" fill="#d6dde0" text-anchor="start">ANALYSIS</text>
+<line x1="20" y1="230" x2="280" y2="230" stroke="#4e6572" stroke-width="1" opacity="0.75"/>
+<text x="20" y="273" font-size="16" font-weight="700" fill="#f7f7f2" text-anchor="start">Flight Telemetry</text>
+<rect x="20" y="298" width="260" height="34" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
+<text x="34" y="320" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="start">flight_telemetry_project</text>
+<rect x="224" y="298" width="56" height="34" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
+<text x="252" y="320" font-size="12" font-weight="700" fill="#58a6ff" text-anchor="middle">Edit</text>
+<text x="20" y="358" font-size="13" font-weight="800" fill="#c7cdd0" text-anchor="start">Action</text>
+<rect x="20" y="370" width="260" height="34" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
+<text x="34" y="392" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="start">None</text>
+<text x="20" y="436" font-size="13" font-weight="800" fill="#c7cdd0" text-anchor="start">agi-app</text>
+<text x="20" y="466" font-size="13" font-weight="800" fill="#c7cdd0" text-anchor="start">Catalog page</text>
+<text x="20" y="496" font-size="13" font-weight="800" fill="#c7cdd0" text-anchor="start">Manual requirement</text>
+<text x="20" y="526" font-size="13" font-weight="800" fill="#c7cdd0" text-anchor="start">Environment type</text>
+<text x="16" y="830" font-size="12" font-weight="400" fill="#b9c5ca" text-anchor="start">AGILAB v2026.06.02+dev.95dee1cf7</text>
+<text x="1340" y="34" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Deploy</text>
+<rect x="380" y="120" width="980" height="210" rx="20" fill="url(#panelGradient)" stroke="#4f6471" stroke-width="1"/>
+<line x1="400" y1="135" x2="1328" y2="135" stroke="#cda759" stroke-width="1" opacity="0.8"/>
+<rect x="410" y="210" width="216" height="105" rx="12" fill="#20363b" stroke="#4f6471" stroke-width="1" opacity="0.96"/>
+<rect x="420" y="222" width="4" height="81" rx="2" fill="#7ee6c6"/>
+<text x="428" y="234" font-size="11" font-weight="800" fill="#c7cdd0" text-anchor="start">PROJECT PATH</text>
+<text x="428" y="266" font-size="22" font-weight="800" fill="#7ee6c6" text-anchor="start">ready</text>
+<text x="428" y="297" font-size="12" font-weight="400" fill="#aeb9bd" text-anchor="start">flight_telemetry_project</text>
+<rect x="645" y="210" width="216" height="105" rx="12" fill="#20363b" stroke="#4f6471" stroke-width="1" opacity="0.96"/>
+<rect x="655" y="222" width="4" height="81" rx="2" fill="#7ee6c6"/>
+<text x="663" y="234" font-size="11" font-weight="800" fill="#c7cdd0" text-anchor="start">MANAGER ENV</text>
+<text x="663" y="266" font-size="22" font-weight="800" fill="#7ee6c6" text-anchor="start">ready</text>
+<text x="663" y="297" font-size="12" font-weight="400" fill="#aeb9bd" text-anchor="start">.venv in project</text>
+<rect x="880" y="210" width="216" height="105" rx="12" fill="#20363b" stroke="#4f6471" stroke-width="1" opacity="0.96"/>
+<rect x="890" y="222" width="4" height="81" rx="2" fill="#f4b44d"/>
+<text x="898" y="234" font-size="11" font-weight="800" fill="#c7cdd0" text-anchor="start">WORKER ENV</text>
+<text x="898" y="266" font-size="22" font-weight="800" fill="#f4b44d" text-anchor="start">missing</text>
+<text x="898" y="297" font-size="12" font-weight="400" fill="#aeb9bd" text-anchor="start">.venv in worker</text>
+<rect x="1115" y="210" width="216" height="105" rx="12" fill="#20363b" stroke="#4f6471" stroke-width="1" opacity="0.96"/>
+<rect x="1125" y="222" width="4" height="81" rx="2" fill="#7ee6c6"/>
+<text x="1133" y="234" font-size="11" font-weight="800" fill="#c7cdd0" text-anchor="start">SETTINGS</text>
+<text x="1133" y="266" font-size="22" font-weight="800" fill="#7ee6c6" text-anchor="start">Workspace</text>
+<text x="1133" y="297" font-size="12" font-weight="400" fill="#aeb9bd" text-anchor="start">app_settings.toml</text>
+<rect x="410" y="336" width="216" height="105" rx="12" fill="#20363b" stroke="#4f6471" stroke-width="1" opacity="0.96"/>
+<rect x="420" y="348" width="4" height="81" rx="2" fill="#7ee6c6"/>
+<text x="428" y="360" font-size="11" font-weight="800" fill="#c7cdd0" text-anchor="start">DATA SHARE</text>
+<text x="428" y="392" font-size="22" font-weight="800" fill="#7ee6c6" text-anchor="start">20 MB</text>
+<text x="428" y="423" font-size="12" font-weight="400" fill="#aeb9bd" text-anchor="start">33 files</text>
+<rect x="645" y="336" width="216" height="105" rx="12" fill="#20363b" stroke="#4f6471" stroke-width="1" opacity="0.96"/>
+<rect x="655" y="348" width="4" height="81" rx="2" fill="#7ee6c6"/>
+<text x="663" y="360" font-size="11" font-weight="800" fill="#c7cdd0" text-anchor="start">CLUSTER SHARE</text>
+<text x="663" y="392" font-size="22" font-weight="800" fill="#7ee6c6" text-anchor="start">Configured</text>
+<text x="663" y="423" font-size="12" font-weight="400" fill="#aeb9bd" text-anchor="start">runtime share path</text>
+<rect x="880" y="336" width="216" height="105" rx="12" fill="#20363b" stroke="#4f6471" stroke-width="1" opacity="0.96"/>
+<rect x="890" y="348" width="4" height="81" rx="2" fill="#7ee6c6"/>
+<text x="898" y="360" font-size="11" font-weight="800" fill="#c7cdd0" text-anchor="start">API KEYS</text>
+<text x="898" y="392" font-size="22" font-weight="800" fill="#7ee6c6" text-anchor="start">Configured</text>
+<text x="898" y="423" font-size="12" font-weight="400" fill="#aeb9bd" text-anchor="start">OpenAI</text>
+<rect x="1115" y="336" width="216" height="105" rx="12" fill="#20363b" stroke="#4f6471" stroke-width="1" opacity="0.96"/>
+<rect x="1125" y="348" width="4" height="81" rx="2" fill="#f4b44d"/>
+<text x="1133" y="360" font-size="11" font-weight="800" fill="#c7cdd0" text-anchor="start">RUNS</text>
+<text x="1133" y="392" font-size="22" font-weight="800" fill="#f4b44d" text-anchor="start">0</text>
+<text x="1133" y="423" font-size="12" font-weight="400" fill="#aeb9bd" text-anchor="start">no run logs yet</text>
+<rect x="380" y="462" width="980" height="260" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
+<text x="418" y="488" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Project metrics</text>
+<rect x="412" y="498" width="150" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>
+<text x="487" y="517" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="middle">masked metrics area</text>
+<rect x="380" y="742" width="980" height="260" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
+<text x="418" y="768" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Environment details</text>
+<rect x="412" y="778" width="150" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>
+<text x="487" y="797" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="middle">manager env</text>
+<rect x="587" y="778" width="150" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>
+<text x="662" y="797" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="middle">worker env</text>
+<rect x="762" y="778" width="150" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>
+<text x="837" y="797" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="middle">data share</text>
+</svg>

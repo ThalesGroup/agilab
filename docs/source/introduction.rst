@@ -24,6 +24,20 @@ through one visible workflow: create the app, execute it under controlled
 runtime choices, inspect artifacts and evidence, then export the result to a
 notebook or MLflow handoff when needed.
 
+The flagship loop is:
+
+1. import or create a notebook, script, or app project;
+2. run it through a controlled local environment first;
+3. capture artifacts plus ``run_manifest.json`` evidence;
+4. inspect and compare outputs in ANALYSIS, notebook export, MLflow handoff, or
+   proof-pack tools;
+5. promote the result only when the evidence, package contract, and release
+   proof are coherent.
+
+That loop is the practical boundary for AGILAB as an ML workbench: it makes
+exploratory work replayable before a team chooses a heavier tracker, registry,
+cluster, or production platform.
+
 It has two main user interfaces:
 
 - ``agi-core``: the Python API you can call directly from code or notebooks

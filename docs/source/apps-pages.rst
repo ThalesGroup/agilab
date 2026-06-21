@@ -1,6 +1,6 @@
 :orphan:
 
-Page Bundles
+Page bundles
 ============
 
 This page explains the optional analysis dashboards that AGILab can launch from
@@ -10,9 +10,48 @@ If you are new to AGILab, do not start here. Start with
 :doc:`newcomer-guide`, then use :doc:`explore-help` when you are ready to add
 custom or optional views.
 
+Before creating a new visualization from a notebook or from ANALYSIS, run a
+reuse check:
+
+.. code-block:: sh
+
+   agilab pages suggest "route map with UAV trajectories"
+   agilab reuse suggest --from-notebook path/to/notebook.ipynb
+
+The suggestions come from ``src/agilab/resources/reuse_catalog.toml`` and cover
+both reusable ``view_*`` page bundles and built-in app projects. New maintained
+views must be represented in that catalog so reviewers can see whether the new
+surface reuses, clones, or deliberately differs from an existing one.
+
+When a notebook is open from ANALYSIS, AGILab also refreshes the reuse check
+against the saved notebook file while the Jupyter sidecar is embedded. Save the
+notebook after editing cells to update the suggestions. Set
+``AGILAB_NOTEBOOK_REUSE_REFRESH_SECONDS=0`` to disable that live saved-file
+check.
+
+Before review or release preflight, enforce the same rule from the command line:
+
+.. code-block:: sh
+
+   agilab reuse validate
+   agilab reuse validate --changed
+
+``agilab reuse validate`` checks that every source-controlled page bundle and
+built-in app project is represented in the catalog. ``--changed`` narrows the
+gate to changed page/project paths and fails when a changed surface has a close
+catalog match that is not named in ``checked_against``. Catalog entries must
+declare ``reuse_decision`` (``reuse``, ``extend``, ``clone``, or ``new``) and a
+``reuse_rationale`` so reviewers can distinguish deliberate new work from an
+accidental duplicate.
+
 Page bundles are standalone dashboards that complement the built-in workflow
 pages. In the UI they appear alongside the main pages, but they run in their
 own sidecar web process.
+
+Naming convention:
+
+- ``view_*`` page bundles are the generic app-agnostic sidecars.
+- ``app_ui`` and ``autoencoder_latentspace`` are visible exceptions with their own names because they are not generic sidecars.
 
 Looking for the PyTorch playground, live play/pause training, or loss landscape?
 Use the built-in ``pytorch_playground_project`` app or launch it directly with
@@ -128,6 +167,8 @@ This section summarizes every page bundle shipped under
 ``src/agilab/apps-pages``. Use :doc:`explore-help` to discover, configure, and
 launch them from the UI.
 
+For a visual first pass, open the curated :doc:`apps-pages-gallery`.
+
 ``agi-pages`` is the provider/umbrella package for the default lightweight page
 set. Heavier teaching or framework-specific pages can still be shipped as
 standalone ``agi-page-*`` packages or source-checkout bundles without being
@@ -140,11 +181,13 @@ pulled by the umbrella dependency graph.
      - Package
      - Purpose
      - Packaging status
-   * - ``view_autoencoder_latentspace``
+   * - ``autoencoder_latentspace``
      - ``agi-page-latent-space``
-     - TensorFlow/Keras latent-space projection and autoencoder exploration.
+     - Opt-in TensorFlow/Keras latent-space playground that trains a small
+       autoencoder in-page.
      - Source-checkout opt-in; intentionally outside ``agi-pages`` because it
-       targets Python 3.12 and carries TensorFlow runtime constraints.
+       targets Python 3.12, carries TensorFlow runtime constraints, and is not
+       a generic app-agnostic sidecar.
    * - ``view_barycentric``
      - ``agi-page-simplex-map``
      - Barycentric/simplex visualisation for proportion-style KPI features.
@@ -165,7 +208,7 @@ pulled by the umbrella dependency graph.
      - ``agi-page-live-artifacts``
      - Dynamic artifact, manifest, evidence, and log monitor for active apps.
      - Included in ``agi-pages``.
-   * - ``view_app_ui``
+   * - ``app_ui``
      - ``agi-page-app-ui``
      - Bridge that displays an app-owned Streamlit UI from ANALYSIS.
      - Included in ``agi-pages``.
@@ -341,13 +384,13 @@ Live evidence monitor for app-agnostic exported artifacts.
 - Use it for long-running local or distributed runs that write incremental
   evidence while the app remains responsible for execution.
 
-view_app_ui
-^^^^^^^^^^^
+app_ui
+^^^^^^
 
 Generic bridge for the default app-owned Streamlit UI.
 
-- Input: an active app with ``[app_surface]`` or legacy
-  ``[pages.view_app_ui].entrypoint`` configured in ``app_settings.toml``.
+- Input: an active app with ``[app_surface]`` or ``[pages.app_ui].entrypoint``
+  configured in ``app_settings.toml``.
 - Output: the app-owned UI rendered inside ANALYSIS while the app keeps
   control of training, execution semantics, and evidence artifacts.
 
@@ -378,17 +421,19 @@ Training evidence page for scalar logs and model-training runs.
   artifacts under an app export directory.
 - Output: run selector, scalar trends, and training metadata for comparison.
 
-view_autoencoder_latentspace
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+autoencoder_latentspace
+^^^^^^^^^^^^^^^^^^^^^^^
 
-TensorFlow/Keras latent-space exploration page for Python 3.12 source-checkout
-environments.
+Opt-in TensorFlow/Keras latent-space playground for Python 3.12 source-checkout
+environments. Unlike the default app-agnostic sidecars, this page trains a
+small autoencoder in-page for teaching and exploration.
 
 - Input: embeddings, labels, or autoencoder-ready tabular/image artifacts.
 - Output: latent-space projections, clustering diagnostics, and reconstruction
   exploration.
 - This page remains opt-in because TensorFlow constrains the supported Python
-  range and would make the default page bundle set heavier.
+  range, would make the default page bundle set heavier, and owns an in-page
+  training loop. Keep reproducible training workflows in app projects.
 
 Producer example for distributed runs
 -------------------------------------

@@ -315,6 +315,11 @@ Real PyPI publication must use GitHub OIDC Trusted Publishing. Long-lived PyPI
 API tokens are not part of the normal release path. If a package or repository
 is not configured as a PyPI trusted publisher, the publish workflow should stop
 with an explicit configuration error instead of falling back to a stored token.
+PyPI may still describe an upload as using an API token because the Trusted
+Publishing flow exchanges the GitHub OIDC identity for a short-lived PyPI upload
+token. That upload token is minted by PyPI for the matched project and workflow;
+it is not a stored repository secret, not ``PYPI_API_TOKEN``, not
+``PYPI_TOKEN``, and not ``TWINE_PASSWORD``.
 
 Each PyPI project selected for upload must have a GitHub trusted publisher entry
 matching the release workflow claims exactly. The workflow renders the same contract with
@@ -615,18 +620,19 @@ expected to stop and require an explicit version choice instead.
 Public PyPI ``.postN`` releases are forbidden for new AGILAB
 publications. The ``pypi-publish`` workflow enforces this with
 ``tools/pypi_release_version_policy.py`` and an explicit ``release_mode``:
-``stable`` accepts ``YYYY.MM.DD``, ``hotfix`` accepts ``YYYY.MM.DD.N`` for a
-same-day public fix, ``candidate`` accepts ``YYYY.MM.DDrcN``, and ``repair`` is
-reserved for release-evidence repair flows that must not publish PyPI
-distributions.
+``stable`` accepts ``YYYY.MM.DD``, ``hotfix`` accepts the PyPI package version
+``YYYY.MM.DD.N`` and the GitHub release tag ``vYYYY.MM.DD_N`` for a same-day
+public fix, ``candidate`` accepts ``YYYY.MM.DDrcN``, and ``repair`` is reserved
+for release-evidence repair flows that must not publish PyPI distributions.
 
 The dense April-May 2026 ``.postN`` history records public-beta hardening of the
 split package release pipeline and is kept visible for auditability. It is not
 the target steady-state release rhythm: normal feature or behavior changes
 should advance to a deliberate new date-based release, and same-day public
-hotfixes should use ``release_mode=hotfix`` with ``YYYY.MM.DD.N`` instead of a
-post-release suffix. TestPyPI rehearsals are the exception: retry-oriented ``.postN``
-bumps are allowed there because TestPyPI is often reused during dry runs.
+hotfixes should use ``release_mode=hotfix`` with package version
+``YYYY.MM.DD.N`` and release tag ``vYYYY.MM.DD_N`` instead of a post-release
+suffix. TestPyPI rehearsals are the exception: retry-oriented ``.postN`` bumps
+are allowed there because TestPyPI is often reused during dry runs.
 Release-candidate versions such as
 ``YYYY.MM.DDrc1`` are also acceptable for rehearsal when a public pre-release is
 useful before the final date-based version.

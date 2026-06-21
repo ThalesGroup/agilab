@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1000" role="img" aria-labelledby="title desc">
+<title id="title">AGILAB project create page vector screenshot summary</title>
+<desc id="desc">Screenshot-derived SVG summary generated from project-create-page.png, sha256 ea9dfc70552a9744. The PNG remains the canonical raster evidence.</desc>
+<defs><linearGradient id="panelGradient" x1="0" x2="1"><stop offset="0" stop-color="#1f2c2f"/><stop offset="0.55" stop-color="#0f3033"/><stop offset="1" stop-color="#243b24"/></linearGradient></defs>
+<rect x="0" y="0" width="1440" height="1000" rx="0" fill="#07111f"/>
+<rect x="0" y="0" width="300" height="1000" rx="0" fill="#10293b"/>
+<text x="20" y="46" font-size="26" font-weight="700" fill="#c9d3d7" text-anchor="start">AGI Lab</text>
+<rect x="20" y="77" width="260" height="28" rx="6" fill="#38546c"/>
+<text x="28" y="94" font-size="14" font-weight="800" fill="#f7f7f2" text-anchor="start">PROJECT</text>
+<text x="28" y="128" font-size="14" font-weight="500" fill="#d6dde0" text-anchor="start">ORCHESTRATE</text>
+<text x="28" y="162" font-size="14" font-weight="500" fill="#d6dde0" text-anchor="start">WORKFLOW</text>
+<text x="28" y="196" font-size="14" font-weight="500" fill="#d6dde0" text-anchor="start">ANALYSIS</text>
+<line x1="20" y1="230" x2="280" y2="230" stroke="#4e6572" stroke-width="1" opacity="0.75"/>
+<text x="20" y="273" font-size="16" font-weight="700" fill="#f7f7f2" text-anchor="start">Flight Telemetry</text>
+<rect x="20" y="318" width="260" height="74" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
+<text x="38" y="346" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Install PyPI app</text>
+<rect x="20" y="408" width="260" height="74" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
+<text x="38" y="436" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Export</text>
+<rect x="20" y="498" width="260" height="108" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
+<text x="38" y="526" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Create mode</text>
+<rect x="36" y="536" width="228" height="30" rx="8" fill="#071827" stroke="#58a6ff" stroke-width="1"/>
+<text x="150" y="556" font-size="13" font-weight="500" fill="#58a6ff" text-anchor="middle">Template clone</text>
+<rect x="36" y="570" width="228" height="30" rx="8" fill="#071827" stroke="#58a6ff" stroke-width="1"/>
+<text x="150" y="590" font-size="13" font-weight="500" fill="#58a6ff" text-anchor="middle">From notebook</text>
+<rect x="20" y="622" width="260" height="74" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
+<text x="38" y="650" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Starting point</text>
+<rect x="36" y="660" width="228" height="30" rx="8" fill="#071827" stroke="#58a6ff" stroke-width="1"/>
+<text x="150" y="680" font-size="13" font-weight="500" fill="#58a6ff" text-anchor="middle">flight_telemetry_project</text>
+<rect x="20" y="712" width="260" height="108" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
+<text x="38" y="740" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Environment strategy</text>
+<rect x="36" y="750" width="228" height="30" rx="8" fill="#071827" stroke="#58a6ff" stroke-width="1"/>
+<text x="150" y="770" font-size="13" font-weight="500" fill="#58a6ff" text-anchor="middle">Working clone</text>
+<rect x="36" y="784" width="228" height="30" rx="8" fill="#071827" stroke="#58a6ff" stroke-width="1"/>
+<text x="150" y="804" font-size="13" font-weight="500" fill="#58a6ff" text-anchor="middle">Temporary clone</text>
+<rect x="20" y="836" width="260" height="74" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
+<text x="38" y="864" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">New project base name</text>
+<rect x="36" y="874" width="228" height="30" rx="8" fill="#071827" stroke="#58a6ff" stroke-width="1"/>
+<text x="150" y="894" font-size="13" font-weight="500" fill="#58a6ff" text-anchor="middle"></text>
+<rect x="20" y="926" width="260" height="74" rx="8" fill="#102b3d" stroke="#4f6471" stroke-width="1"/>
+<text x="38" y="954" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Create</text>
+<text x="16" y="980" font-size="12" font-weight="400" fill="#b9c5ca" text-anchor="start">AGILAB v2026.06.02+dev.95dee1cf7</text>
+<text x="1340" y="34" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Deploy</text>
+<text x="380" y="162" font-size="34" font-weight="800" fill="#f7f7f2" text-anchor="start">Create project</text>
+<text x="380" y="202" font-size="14" font-weight="400" fill="#aeb9bd" text-anchor="start">Create a new project from an existing template.</text>
+<rect x="380" y="270" width="520" height="56" rx="12" fill="#172633" stroke="#4f6471" stroke-width="1"/>
+<text x="408" y="305" font-size="18" font-weight="700" fill="#f7f7f2" text-anchor="start">Choose source template</text>
+<line x1="640" y1="332" x2="640" y2="352" stroke="#58a6ff" stroke-width="3"/>
+<rect x="380" y="356" width="520" height="56" rx="12" fill="#172633" stroke="#4f6471" stroke-width="1"/>
+<text x="408" y="391" font-size="18" font-weight="700" fill="#f7f7f2" text-anchor="start">Choose environment strategy</text>
+<line x1="640" y1="418" x2="640" y2="438" stroke="#58a6ff" stroke-width="3"/>
+<rect x="380" y="442" width="520" height="56" rx="12" fill="#172633" stroke="#4f6471" stroke-width="1"/>
+<text x="408" y="477" font-size="18" font-weight="700" fill="#f7f7f2" text-anchor="start">Name project</text>
+<line x1="640" y1="504" x2="640" y2="524" stroke="#58a6ff" stroke-width="3"/>
+<rect x="380" y="528" width="520" height="56" rx="12" fill="#172633" stroke="#4f6471" stroke-width="1"/>
+<text x="408" y="563" font-size="18" font-weight="700" fill="#f7f7f2" text-anchor="start">Create workspace</text>
+<rect x="945" y="282" width="320" height="236" rx="14" fill="#10263a" stroke="#4f6471" stroke-width="1"/>
+<text x="970" y="320" font-size="20" font-weight="800" fill="#f7f7f2" text-anchor="start">Sidebar contract</text>
+<rect x="970" y="350" width="250" height="26" rx="7" fill="#071827" stroke="#58a6ff" stroke-width="1"/>
+<text x="984" y="368" font-size="12" font-weight="600" fill="#58a6ff" text-anchor="start">Create mode</text>
+<rect x="970" y="390" width="250" height="26" rx="7" fill="#071827" stroke="#58a6ff" stroke-width="1"/>
+<text x="984" y="408" font-size="12" font-weight="600" fill="#58a6ff" text-anchor="start">Starting point</text>
+<rect x="970" y="430" width="250" height="26" rx="7" fill="#071827" stroke="#58a6ff" stroke-width="1"/>
+<text x="984" y="448" font-size="12" font-weight="600" fill="#58a6ff" text-anchor="start">Environment strategy</text>
+<rect x="970" y="470" width="250" height="26" rx="7" fill="#071827" stroke="#58a6ff" stroke-width="1"/>
+<text x="984" y="488" font-size="12" font-weight="600" fill="#58a6ff" text-anchor="start">Project name</text>
+</svg>

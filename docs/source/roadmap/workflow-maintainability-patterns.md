@@ -32,6 +32,9 @@ Use these patterns as the default direction for future workflow-page changes.
 - **Registry Pattern**: page bundles, widgets, app templates, reusable snippet
   candidates, and future structured stage templates should move toward typed
   registries instead of repeated discovery rules.
+- **Compatibility Shim Budget**: forwarding modules created during package
+  layout migrations must be inventoried and capped. New shims should be treated
+  as temporary external-compatibility decisions, not as normal architecture.
 
 ## Roadmap Item: Pattern-Gated Workflow Changes
 
@@ -57,6 +60,14 @@ The Pipeline-first slice is now the reference implementation:
 
 ## Current Status
 
+- Compatibility Shim Budget: tracked. The release tree currently carries a
+  measured compatibility-shim baseline, enforced by
+  `tools/compat_shim_inventory.py`, `python tools/local_quality.py --profile quick`,
+  and the focused regression in `apps/test/test_compat_shim_inventory.py`.
+  The current cap is explicit rather than aspirational: no silent growth.
+  Future migration work should lower the cap as legacy imports are retired,
+  while release-safe changes must not delete public forwarding modules without
+  a dedicated deprecation plan.
 - Page State / ViewModel: partially done. Pipeline has a typed
   `PipelinePageState` / ViewModel for visible stages, selected lab, stale
   snippets, lock/run status, logs, and available actions. Orchestrate service

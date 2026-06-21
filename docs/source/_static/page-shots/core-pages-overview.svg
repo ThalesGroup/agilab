@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 850" role="img" aria-labelledby="title desc">
+<title id="title">AGILAB core pages overview vector screenshot summary</title>
+<desc id="desc">Screenshot-derived SVG summary generated from core-pages-overview.png, sha256 c864b5b14e3bf92f. The PNG remains the canonical raster evidence.</desc>
+<defs>
+  <linearGradient id="heroGradient" x1="0" x2="1">
+    <stop offset="0" stop-color="#453f2f"/>
+    <stop offset="0.52" stop-color="#102b34"/>
+    <stop offset="1" stop-color="#294025"/>
+  </linearGradient>
+  <linearGradient id="mapGradient" x1="0" x2="1">
+    <stop offset="0" stop-color="#4b554d"/>
+    <stop offset="1" stop-color="#304d44"/>
+  </linearGradient>
+  <style>
+    .nav { font: 500 13px Arial, sans-serif; fill: #d6dde0; }
+    .link { font: 400 15px Arial, sans-serif; fill: #4fb3ff; text-decoration: underline; }
+    .small { font: 400 13px Arial, sans-serif; fill: #b8c1c5; }
+    .tiny { font: 700 10px Arial, sans-serif; letter-spacing: 1.2px; fill: #ffd889; }
+    .label { font: 800 11px Arial, sans-serif; letter-spacing: 1px; fill: #fff4dd; }
+    .button { font: 800 14px Arial, sans-serif; fill: #f7f7f2; }
+    .code { font: 700 11px monospace; fill: #57d182; }
+  </style>
+</defs>
+<rect x="0" y="0" width="1440" height="850" fill="#07111f"/>
+<rect x="0" y="0" width="300" height="850" fill="#10293b"/>
+<text x="28" y="94" class="nav">PROJECT</text>
+<text x="28" y="128" class="nav">ORCHESTRATE</text>
+<text x="28" y="162" class="nav">WORKFLOW</text>
+<text x="28" y="196" class="nav">ANALYSIS</text>
+<line x1="20" y1="230" x2="280" y2="230" stroke="#4e6572" stroke-width="1" opacity="0.75"/>
+<text x="20" y="272" class="link">Settings</text>
+<text x="20" y="314" class="link">README</text>
+<text x="20" y="356" class="link">Documentation</text>
+<text x="16" y="830" font-size="12" font-weight="400" fill="#b9c5ca">AGILAB v2026.06.02+dev.95dee1cf7</text>
+<text x="1340" y="34" font-size="14" font-weight="700" fill="#f7f7f2">Deploy</text>
+<circle cx="1408" cy="25" r="2.2" fill="#f7f7f2"/>
+<circle cx="1408" cy="31" r="2.2" fill="#f7f7f2"/>
+<circle cx="1408" cy="37" r="2.2" fill="#f7f7f2"/>
+
+<rect x="380" y="138" width="980" height="454" rx="24" fill="url(#heroGradient)" stroke="#5e706b" stroke-width="1.3"/>
+<line x1="396" y1="150" x2="1344" y2="150" stroke="#d1a857" stroke-width="1" opacity="0.75"/>
+<rect x="408" y="166" width="416" height="52" rx="26" fill="#454a49" stroke="#707b79" opacity="0.88"/>
+<text x="421" y="207" font-size="30" font-family="Arial, sans-serif" font-weight="800">
+  <tspan fill="#2096ff">A</tspan><tspan fill="#eeeeee">G</tspan><tspan fill="#e34545">I</tspan><tspan fill="#c7c7c0"> Lab</tspan>
+</text>
+<text x="544" y="196" class="label">AI/ML REPRODUCIBILITY WORKBENCH</text>
+<rect x="891" y="174" width="439" height="36" rx="18" fill="#244142" stroke="#50645f" opacity="0.92"/>
+<text x="903" y="197" font-size="17" font-family="Arial, sans-serif" font-weight="900" fill="#ffd889">BSD 3-CLAUSE</text>
+<text x="1058" y="197" font-size="16" font-family="Arial, sans-serif" fill="#c5ceca">/ 2020-2026 Thales SIX GTS France</text>
+<text x="408" y="235" font-size="16" font-family="Arial, sans-serif" font-weight="900" letter-spacing="4" fill="#ffd889">NOTEBOOK/SCRIPT TO EVIDENCE</text>
+
+<text x="408" y="313" font-size="48" font-family="Arial, sans-serif" font-weight="900" fill="#f7f3e8">
+  <tspan x="408" dy="0">Turn experiments</tspan>
+  <tspan x="408" dy="50">into evidence-</tspan>
+  <tspan x="408" dy="50">backed apps.</tspan>
+</text>
+<text x="408" y="455" font-size="17" font-family="Arial, sans-serif" fill="#d4dcdb">
+  <tspan x="408" dy="0">Import notebooks or scripts, run them locally or</tspan>
+  <tspan x="408" dy="24">distributed, and keep a proof, notebook</tspan>
+  <tspan x="408" dy="24">export, and MLflow handoff.</tspan>
+</text>
+<rect x="408" y="525" width="74" height="38" rx="19" fill="#182633" stroke="#52636b"/>
+<text x="421" y="549" class="button">Import</text>
+<rect x="493" y="525" width="80" height="38" rx="19" fill="#182633" stroke="#52636b"/>
+<text x="505" y="549" class="button">Execute</text>
+<rect x="584" y="525" width="66" height="38" rx="19" fill="#182633" stroke="#52636b"/>
+<text x="597" y="549" class="button">Prove</text>
+<rect x="660" y="525" width="72" height="38" rx="19" fill="#182633" stroke="#52636b"/>
+<text x="674" y="549" class="button">Export</text>
+
+<rect x="822" y="249" width="508" height="284" rx="22" fill="url(#mapGradient)" stroke="#75817a" stroke-width="1.1" opacity="0.95"/>
+<text x="934" y="282" class="label">GENERALIZATION + DIGITAL TWIN MAP</text>
+<line x1="934" y1="315" x2="934" y2="461" stroke="#6c7671" stroke-width="1"/>
+<line x1="862" y1="388" x2="1004" y2="388" stroke="#6c7671" stroke-width="1"/>
+<circle cx="934" cy="388" r="65" fill="#374944" stroke="#8f9a94" stroke-width="1.2"/>
+<circle cx="934" cy="388" r="48" fill="none" stroke="#f45d52" stroke-width="1.5" stroke-dasharray="6 6"/>
+<circle cx="934" cy="388" r="28" fill="none" stroke="#8f9a94"/>
+<circle cx="934" cy="388" r="14" fill="#57d1ad" opacity="0.88"/>
+<circle cx="898" cy="359" r="3.5" fill="none" stroke="#ff6058" stroke-width="2"/>
+<circle cx="906" cy="416" r="3.5" fill="none" stroke="#ff6058" stroke-width="2"/>
+<circle cx="958" cy="430" r="3.5" fill="none" stroke="#ff6058" stroke-width="2"/>
+<path d="M934 388 C951 371, 960 346, 984 345" stroke="#f4b44d" stroke-width="3" fill="none"/>
+<circle cx="984" cy="345" r="12" fill="none" stroke="#f4b44d" stroke-width="3" stroke-dasharray="4 4"/>
+<line x1="950" y1="394" x2="1024" y2="372" stroke="#7ee6c6" stroke-width="3"/>
+<rect x="1031" y="326" width="96" height="76" rx="10" fill="#173b35" stroke="#80bea1"/>
+<text x="1043" y="349" class="tiny">REAL</text>
+<path d="M1044 376 C1060 351, 1081 394, 1098 366" stroke="#f7e7a7" stroke-width="2" fill="none"/>
+<path d="M1045 385 L1098 385 L1115 373" stroke="#7ee6c6" stroke-width="2" fill="none"/>
+<text x="1044" y="420" class="tiny">DIGITAL TWIN</text>
+<text x="1044" y="436" class="tiny">SIMULATE + REALITY</text>
+<rect x="1156" y="333" width="140" height="38" rx="8" fill="#1b3030" stroke="#4f6471"/>
+<text x="1169" y="348" class="label">CONTROLS</text>
+<text x="1169" y="363" class="label">Bias + Variance</text>
+<rect x="1156" y="386" width="140" height="38" rx="8" fill="#1b3030" stroke="#4f6471"/>
+<text x="1169" y="401" class="label">SYMPTOMS</text>
+<text x="1169" y="416" class="label">Underfit &lt;-&gt; Overfit</text>
+<rect x="1156" y="439" width="140" height="46" rx="8" fill="#1b3030" stroke="#4f6471"/>
+<text x="1169" y="455" class="label">DIAGNOSIS</text>
+<text x="1169" y="471" class="label">Train vs Test</text>
+<path d="M1206 461 C1230 446, 1260 446, 1288 459" stroke="#f4b44d" stroke-width="2" fill="none"/>
+<path d="M1206 471 C1234 452, 1265 456, 1288 451" stroke="#7ee6c6" stroke-width="2" fill="none"/>
+<text x="934" y="499" class="tiny">Simulate, run, diagnose, then tune the real workflow</text>
+
+<text x="380" y="626" font-size="16" font-family="Arial, sans-serif" font-weight="800" fill="#f7f7f2">First proof: built-in demo</text>
+<text x="380" y="666" class="small">Recommended path: run the built-in flight telemetry demo, then inspect the generated evidence. Notebook-first paths are below: use AGILAB's included notebook first;</text>
+<text x="380" y="688" class="small">upload your own notebook from PROJECT Create when you are ready.</text>
+<rect x="380" y="711" width="124" height="40" rx="8" fill="#0b1727" stroke="#4f6471"/>
+<text x="393" y="736" class="button">1. INSTALL demo</text>
+<rect x="712" y="711" width="130" height="40" rx="8" fill="#0b1727" stroke="#4f6471"/>
+<text x="726" y="736" class="button">2. EXECUTE demo</text>
+<rect x="1044" y="711" width="131" height="40" rx="8" fill="#0b1727" stroke="#4f6471"/>
+<text x="1058" y="736" class="button">3. OPEN ANALYSIS</text>
+<text x="380" y="782" class="small">Runs ORCHESTRATE <tspan class="code">INSTALL</tspan> for</text>
+<text x="380" y="805" class="code">flight_telemetry_project.</text>
+<text x="712" y="782" class="small">Runs ORCHESTRATE <tspan class="code">EXECUTE</tspan> for the same demo.</text>
+<text x="1044" y="782" class="small">Opens ANALYSIS on <tspan class="code">view_maps</tspan> for the generated</text>
+<text x="1044" y="805" class="small">evidence.</text>
+</svg>
