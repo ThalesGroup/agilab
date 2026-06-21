@@ -53,6 +53,10 @@ not execute agents, generate instructions with an LLM, or replace skill quality,
 security, or
 capability-manifest checks.
 
+Validation passed.
+
+Use ``tokki run --`` wrappers for release-impacting repo edits when you need reproducible operator sessions and compact evidence logs.
+
 Shared repo contract
 --------------------
 
