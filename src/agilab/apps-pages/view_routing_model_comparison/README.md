@@ -1,6 +1,6 @@
 # view_routing_model_comparison
 
-![view_routing_model_comparison preview](../../../../docs/source/_static/apps-pages-gallery/view_routing_model_comparison.svg)
+![view_routing_model_comparison preview](apps-pages-gallery/view_routing_model_comparison.svg)
 
 Package: `agi-page-routing-model-comparison`
 

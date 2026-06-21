@@ -1,6 +1,6 @@
 # view_forecast_analysis
 
-![view_forecast_analysis preview](../../../../docs/source/_static/apps-pages-gallery/view_forecast_analysis.svg)
+![view_forecast_analysis preview](apps-pages-gallery/view_forecast_analysis.svg)
 
 Package: `agi-page-timeseries-forecast`
 

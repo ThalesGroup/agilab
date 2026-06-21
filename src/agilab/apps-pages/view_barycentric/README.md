@@ -1,6 +1,6 @@
 # view_barycentric
 
-![view_barycentric preview](../../../../docs/source/_static/apps-pages-gallery/view_barycentric.svg)
+![view_barycentric preview](apps-pages-gallery/view_barycentric.svg)
 
 Package: `agi-page-simplex-map`
 

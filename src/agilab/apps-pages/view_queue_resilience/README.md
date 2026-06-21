@@ -1,6 +1,6 @@
 # view_queue_resilience
 
-![view_queue_resilience preview](../../../../docs/source/_static/apps-pages-gallery/view_queue_resilience.svg)
+![view_queue_resilience preview](apps-pages-gallery/view_queue_resilience.svg)
 
 Package: `agi-page-queue-health`
 

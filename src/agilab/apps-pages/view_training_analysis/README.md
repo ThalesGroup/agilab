@@ -1,6 +1,6 @@
 # view_training_analysis
 
-![view_training_analysis preview](../../../../docs/source/_static/apps-pages-gallery/view_training_analysis.svg)
+![view_training_analysis preview](apps-pages-gallery/view_training_analysis.svg)
 
 Package: `agi-page-training-report`
 

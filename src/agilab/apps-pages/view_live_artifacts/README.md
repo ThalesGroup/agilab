@@ -1,6 +1,6 @@
 # view_live_artifacts
 
-![view_live_artifacts preview](../../../../docs/source/_static/apps-pages-gallery/view_live_artifacts.svg)
+![view_live_artifacts preview](apps-pages-gallery/view_live_artifacts.svg)
 
 Package: `agi-page-live-artifacts`
 

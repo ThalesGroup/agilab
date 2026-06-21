@@ -1,6 +1,6 @@
 # view_relay_resilience
 
-![view_relay_resilience preview](../../../../docs/source/_static/apps-pages-gallery/view_relay_resilience.svg)
+![view_relay_resilience preview](apps-pages-gallery/view_relay_resilience.svg)
 
 Package: `agi-page-relay-health`
 
