@@ -791,26 +791,9 @@ use this order after the P0-P2 professionalization gates are under control:
      exemptions because they have no concrete merge output yet
    - future apps/templates must opt in when they produce durable worker
      summaries
-5. **Intent-first operator workbench**
-   - draw inspiration from Windows Terminal 1.0's product pattern: one stable
-     host for fragmented execution environments, with profiles, panes, a
-     command palette, preview/stable channels, and explicit launch contracts
-   - adapt the pattern to AGILab instead of copying terminal UI: profiles map
-     to local app, cluster app, notebook, evidence run, worker environment,
-     public demo, and release-proof contexts
-   - let operators open side-by-side panes for `PROJECT`, `ORCHESTRATE`,
-     compact logs, cluster state, evidence artifacts, and replay/proof status
-   - provide a global command palette for actions such as install app, deploy
-     workers, run proof, replay, open artifact, export capsule, and validate
-     release scope
-   - auto-discover useful profiles from apps, notebooks, datasets, workers,
-     recent runs, and release evidence, but keep every discovered action
-     reviewable before execution
-   - keep raw terminal/log behavior out of the default product surface: compact
-     signal-first diagnostics stay the default, while raw logs remain artifacts
-     for explicit debugging
-   - treat this as roadmap work until the profile schema, command registry,
-     pane layout state, and robot evidence exist
+5. **Intent-first operator mode**
+   - valuable, but it benefits from the cleaner evidence, compatibility, and
+     connector contracts above
 6. **Elasticity and active mesh optimization**
    - keep the current public claim bounded: a compact Active Mesh Optimization
      teaching route exists, but it is centralized-policy evidence, not full
@@ -1715,40 +1698,34 @@ Use this rule of thumb:
   next need is portability, SQL/ELK/data-system access, and reliable artefact flow
 - choose **Pinned private-app validation** if the next need is CI/release
   reproducibility for non-public apps without publishing or vendoring their code
-- choose **Intent-first operator workbench** if the next need is a polished
-  profile-and-pane execution surface that brings apps, notebooks, cluster runs,
-  compact logs, and proof/replay actions into one operator workflow
 - choose **DeepWiki/Open-style repository knowledge layer** if the next need is
   faster codebase onboarding, architecture discovery, and repository Q&A without
   turning generated content into official docs
 
-## GitHub roadmap voting
+## Final consolidated poll
 
-Use one public GitHub path: roadmap-labeled issues. Add a thumbs-up reaction to
-an existing roadmap issue when it matches your priority; open a new roadmap
-proposal only when the existing list is missing the work you want to sponsor.
+Use both paths, because they serve different purposes:
 
-1. Browse and upvote roadmap issues:
-   <https://github.com/ThalesGroup/agilab/issues?q=is%3Aissue+label%3Aroadmap>
-2. Submit a missing proposal:
-   <https://github.com/ThalesGroup/agilab/issues/new?template=roadmap-vote.yml>
-3. Use the central roadmap index and discussion hub:
-   <https://github.com/ThalesGroup/agilab/issues/2>
+1. Quick popularity signal in GitHub Discussions
+   - Create or answer a poll: <https://github.com/ThalesGroup/agilab/discussions/new?category=polls>
+   - Browse existing poll discussions: <https://github.com/ThalesGroup/agilab/discussions/categories/polls>
+2. Structured roadmap vote in GitHub Issues
+   - Submit a vote: <https://github.com/ThalesGroup/agilab/issues/new?template=roadmap-vote.yml>
+   - Browse submitted votes: <https://github.com/ThalesGroup/agilab/issues?q=is%3Aissue+in%3Atitle+%22%5BRoadmap+vote%5D%22>
+3. Open roadmap discussion in Issues
+   - Central roadmap thread: <https://github.com/ThalesGroup/agilab/issues/2>
+   - Use this thread if you want visible engineering discussion in the normal issue workflow.
 
-GitHub Discussions polls are no longer the roadmap intake path. Keeping the
-signal on roadmap issues avoids splitting votes across polls, form submissions,
-and central-thread comments.
-
-### Roadmap proposal template
+### Comment template for `issues/2`
 
 ```text
-Proposal: <one roadmap item>
+Vote: <one option>
 Why: <why this matters now>
 Expected value: <product / engineering / user impact>
 Constraints or dependencies: <blocking items, staffing, sequencing>
 ```
 
-### Current GitHub roadmap candidates
+### Current candidate priorities
 
 - P0 release and runtime integrity
 - P1 first-run product experience
@@ -1756,9 +1733,10 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 - P3 security and supply-chain posture
 - P4 team and cluster operation
 - P5 pinned private-app validation for non-public app CI and release checks
-- Multi-app DAG orchestration productization
-- Intent-first operator workbench
-- Data connector facility and connector-aware views
+- Multi-app DAG orchestration productization, once the professional baseline is
+  stable
+- Data connector facility and connector-aware views, once first-run and
+  evidence paths are predictable
 
 If the `roadmap` label is not visible yet in GitHub, the issue form still
 works. The repository workflow will create or update that label on the next
@@ -1775,5 +1753,3 @@ successful run.
 - Grafana Elasticsearch datasource: <https://grafana.com/docs/grafana/latest/datasources/elasticsearch/>
 - Superset Elasticsearch support: <https://superset.apache.org/docs/databases/supported/elasticsearch/>
 - Metabase data sources: <https://www.metabase.com/data-sources/>
-- Windows Terminal 1.0 announcement: <https://devblogs.microsoft.com/commandline/windows-terminal-1-0/>
-- Windows Terminal overview: <https://learn.microsoft.com/windows/terminal/>

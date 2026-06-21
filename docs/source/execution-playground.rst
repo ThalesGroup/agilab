@@ -33,7 +33,7 @@ The two apps are run through the normal AGILAB pages. The benchmark value comes
 from the fact that the same UI flow can drive two different worker families
 without changing the orchestration path.
 
-.. figure:: _static/page-shots/orchestrate-page.svg
+.. figure:: _static/page-shots/orchestrate-page.png
    :alt: ORCHESTRATE page showing deployment toggles and generated execution setup
    :align: center
    :class: page-shot
@@ -152,11 +152,6 @@ Python and Cython:
 .. code-block:: bash
 
    uv --preview-features extra-build-dependencies run python tools/benchmark_execution_pandas_cython_kernel.py --rows 100000 --compute-passes 32 --repeats 3 --warmups 1
-
-To measure the optional type-preprocessor itself, add
-``--compare-preprocess``. That mode compiles the same worker as raw Cython and
-as ``remove_decorators + preprocess_source`` output, validates both against the
-Python implementation, and records typed/skipped counts in the JSON/CSV report.
 
 Latest local evidence on macOS / Python ``3.13.13``:
 

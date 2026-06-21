@@ -1,6 +1,6 @@
 :orphan:
 
-Page bundles
+Page Bundles
 ============
 
 This page has been merged into :doc:`apps-pages`.

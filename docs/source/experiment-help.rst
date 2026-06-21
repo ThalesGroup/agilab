@@ -7,7 +7,7 @@ WORKFLOW
 Page snapshot
 -------------
 
-.. figure:: _static/page-shots/workflow-page.svg
+.. figure:: _static/page-shots/workflow-page.png
    :alt: Screenshot of the WORKFLOW page with assistant controls, lab directory selectors, and dataframe selection.
    :align: center
    :class: diagram-panel diagram-wide

@@ -16,7 +16,7 @@ versioned ``app_settings.toml`` source file on first use.
 Page snapshot
 -------------
 
-.. figure:: _static/page-shots/orchestrate-page.svg
+.. figure:: _static/page-shots/orchestrate-page.png
    :alt: Screenshot of the ORCHESTRATE page showing deployment toggles and the generated install snippet.
    :align: center
    :class: diagram-panel diagram-wide

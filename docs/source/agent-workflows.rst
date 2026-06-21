@@ -18,10 +18,8 @@ needed to work with these executable agent paths against the same repo contract:
 - Claude
 - Aider
 - OpenCode
-- Mistral Vibe
-- Tokki
 
-That does not mean the six tools behave identically. It means the repo now
+That does not mean the four tools behave identically. It means the repo now
 contains a prepared entry path for each of them instead of relying on ad hoc
 local setup.
 
@@ -79,21 +77,8 @@ Then follow the repo rules in:
   validation feedback
 - ``AGENTS.md`` for the full AGILAB runbook and validation rules
 
-When coding through a terminal agent, AGILAB can be used with a local agent
-wrapper such as Tokki when it is available. Keep the AGILAB-facing contract at
-the wrapper boundary: request bounded context, keep terminal evidence concise,
-and do not document wrapper-specific behavior. The AGILAB validation source of
-truth remains ``tools/impact_validate.py``, ``./dev``, and the workflow-parity
-profiles.
-For ad-hoc terminal checks inside an already routed local wrapper session, use
-``tokki run -- <command>`` when it can execute the command faithfully.
-
 The main rule is simple: run the narrowest local proof first, then reproduce
 the real AGILAB path before broader validation.
-When all checks pass, keep final agent replies compact: write
-``Validation passed.`` without listing every command unless the details are
-needed for failures, skipped checks, release or audit evidence, PR proof, or an
-explicit user request.
 
 Use ``AGENT_LEARNINGS.md`` sparingly: add one concrete rule only when the
 correction is reusable and not already covered by the runbooks. Do not use it
@@ -120,59 +105,9 @@ baseline runbooks, matched rules, and recommended repo-managed skills from
 only: it does not execute agents, run tests, or replace
 ``tools/impact_validate.py``.
 
-For a scoped AGILAB context pack that starts from the current project and framework files,
-pass ``--profile agilab``::
-
-   python3 tools/agent_context_router.py \
-     --profile agilab \
-     --files docs/source/agent-workflows.rst src/agilab/agent_run.py \
-     --prompt "update agent evidence docs" \
-     --json
-
-For a smaller local wrapper that expects the bounded token-saving profile,
-pass ``--profile tokki``::
-
-   python3 tools/agent_context_router.py \
-     --profile tokki \
-     --files src/agilab/pages/4_ANALYSIS.py src/agilab/notebooks/notebook_export_support.py \
-     --prompt "fix notebook sync in the analysis page" \
-     --json
-
-The ``context_profile`` block returns bounded baseline files, matched context
-packs, estimated token budget, and follow-up validation commands. The profile
-narrows context selection only; AGILAB validation remains anchored in
-``tools/impact_validate.py``, ``./dev``, and workflow-parity profiles.
-
 Validate the rules with::
 
    python3 tools/agent_context_router.py --check
-
-Demo an agentic workflow
-------------------------
-
-For a live demo, run the provider-neutral helper from the repository root::
-
-   tools/demo_agentic_agilab_workflow.sh --agent codex
-
-The demo is local-first. It does not need to call a hosted LLM to prove the
-workflow. It shows an agentic coding use case where an agent captures the repo
-scope, routes the task through AGILAB's context router, computes the
-impact-validation plan, records the validation as an ``agilab.agent_run.v1``
-evidence manifest, then renders handoff, next-action, validation, and context
-cards that another agent can consume.
-
-Use a custom prompt or another agent label when presenting another path::
-
-   tools/demo_agentic_agilab_workflow.sh \
-      --agent claude \
-      --prompt "review the current app changes and route the proof"
-
-Generated evidence is written under
-``artifacts/demo_media/agentic-workflow/evidence/``, which is ignored by Git.
-The command uses staged, unstaged, and untracked working-tree changes when
-there are local changes; if the tree is clean, it falls back to the diff
-against ``origin/main`` for impact validation and uses the agent workflow docs
-as the context-routing example.
 
 Agent run evidence
 ------------------
@@ -311,7 +246,6 @@ Additional local aliases:
 - ``gpt-oss-local`` -> ``ollama_chat/gpt-oss:20b``
 - ``qwen3-local`` -> ``ollama_chat/qwen3:30b-a3b-instruct-2507-q4_K_M``
 - ``qwen3-coder-local`` -> ``ollama_chat/qwen3-coder:30b-a3b-q4_K_M``
-- ``devstral-local`` -> ``ollama_chat/devstral:latest``
 - ``ministral-local`` -> ``ollama_chat/ministral-3:14b-instruct-2512-q4_K_M``
 - ``phi4-mini-local`` -> ``ollama_chat/phi4-mini:3.8b-q4_K_M``
 
@@ -340,37 +274,13 @@ Default local model path:
 Useful efficient local overrides include ``ollama/gpt-oss:20b``,
 ``ollama/qwen3-coder:30b-a3b-q4_K_M``,
 ``ollama/qwen3:30b-a3b-instruct-2507-q4_K_M``,
-``ollama/devstral:latest``,
 ``ollama/ministral-3:14b-instruct-2512-q4_K_M``, and
 ``ollama/phi4-mini:3.8b-q4_K_M``.
-
-Mistral Vibe
-^^^^^^^^^^^^
-
-Use the wrapper from the repository root::
-
-   ./tools/vibe_workflow.sh chat
-
-For a one-off task::
-
-   ./tools/vibe_workflow.sh exec "Refactor only ... keeping behavior unchanged"
-
-What the repo already provides:
-
-- ``tools/vibe_workflow.sh`` for the standard entry path
-- ``tools/vibe_workflow.md`` for usage details
-
-Vibe provider and model selection stays in Vibe's own configuration. For local
-Devstral, serve the model behind an OpenAI-compatible endpoint and select the
-corresponding Vibe model alias. AGILAB's installer can separately prepare the
-Ollama ``devstral:latest`` family for WORKFLOW with
-``./install.sh --install-local-models devstral``.
 
 Local model prerequisite
 ------------------------
 
 Aider and OpenCode in this repo are prepared for local Ollama-backed models.
-Mistral Vibe can use its own local OpenAI-compatible provider configuration.
 In practice this means:
 
 - keep a local Ollama server running
@@ -379,9 +289,9 @@ In practice this means:
 
 The prepared local families are the same ones already documented elsewhere in
 AGILAB: ``gpt-oss``, ``qwen``, ``deepseek``, ``qwen3``, ``qwen3-coder``,
-``devstral``, ``ministral``, and ``phi4-mini``. If a model is served through
-vLLM or another OpenAI-compatible gateway instead of Ollama, configure the
-AGILAB assistant with ``AGILAB_LLM_BASE_URL`` and ``AGILAB_LLM_MODEL``.
+``ministral``, and ``phi4-mini``. If a model is served through vLLM or another
+OpenAI-compatible gateway instead of Ollama, configure the AGILAB assistant
+with ``AGILAB_LLM_BASE_URL`` and ``AGILAB_LLM_MODEL``.
 
 Where to read the repo-local files
 ----------------------------------
@@ -395,7 +305,6 @@ stay in the repository itself:
 - `docs/CLI_FIRST_WORKFLOW.md <https://github.com/ThalesGroup/agilab/blob/main/docs/CLI_FIRST_WORKFLOW.md>`_
 - `tools/aider_workflow.md <https://github.com/ThalesGroup/agilab/blob/main/tools/aider_workflow.md>`_
 - `tools/opencode_workflow.md <https://github.com/ThalesGroup/agilab/blob/main/tools/opencode_workflow.md>`_
-- `tools/vibe_workflow.md <https://github.com/ThalesGroup/agilab/blob/main/tools/vibe_workflow.md>`_
 
 When not to use this page
 -------------------------

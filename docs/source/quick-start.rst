@@ -137,7 +137,7 @@ machine-readable proof record.
    If you also want AGILAB to bootstrap local Ollama-backed models, rerun the
    installer with the model families you want::
 
-      ./install.sh --install-apps --install-local-models gpt-oss,qwen3-coder,devstral,ministral,phi4-mini
+      ./install.sh --install-apps --install-local-models gpt-oss,qwen3-coder,ministral,phi4-mini
 
    For hardened workstations where downloaded shell installers must not run,
    add ``--no-remote-installers``. The installer will refuse remote bootstrap
@@ -145,11 +145,11 @@ machine-readable proof record.
    for your managed package baseline.
 
    Supported values are ``gpt-oss``, ``qwen``, ``deepseek``, ``qwen3``,
-   ``qwen3-coder``, ``devstral``, ``ministral``, and ``phi4-mini``. The first
-   family in the list becomes the default WORKFLOW local assistant. For
-   example, ``gpt-oss`` selects the Ollama-backed ``gpt-oss:20b`` model and
-   writes the matching ``LAB_LLM_PROVIDER``, ``UOAIC_MODEL``, and
-   ``AGILAB_LLM_*`` values into the AGILAB environment file.
+   ``qwen3-coder``, ``ministral``, and ``phi4-mini``. The first family in the
+   list becomes the default WORKFLOW local assistant. For example, ``gpt-oss``
+   selects the Ollama-backed ``gpt-oss:20b`` model and writes the matching
+   ``LAB_LLM_PROVIDER``, ``UOAIC_MODEL``, and ``AGILAB_LLM_*`` values into the
+   AGILAB environment file.
 
 2. **Launch the app**::
 
@@ -551,8 +551,7 @@ Next steps
 - :doc:`notebook-quickstart` if you intentionally want the ``agi-core``
   notebook path.
 - :doc:`agent-workflows` if you are working inside the AGILAB repository and
-  want the prepared Codex, Claude, Aider, OpenCode, or Mistral Vibe developer
-  paths.
+  want the prepared Codex, Claude, Aider, or OpenCode developer paths.
 - :doc:`cluster` only after the local proof works and you are ready for SSH or
   multi-node execution.
 

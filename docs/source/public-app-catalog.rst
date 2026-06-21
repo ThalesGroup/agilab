@@ -6,17 +6,6 @@ package or source status behind them. It is intentionally more exhaustive than
 the README: the README stays focused on the shortest adoption path, while this
 page is the reference for choosing an app.
 
-Before creating a new project, run:
-
-.. code-block:: sh
-
-   agilab projects suggest "classic sklearn model with metrics"
-   agilab reuse suggest --from-notebook path/to/notebook.ipynb --kind project
-
-The same reuse catalog also covers analysis views, so notebook-first work can
-discover both an existing app project and an existing visualization before it
-turns into a new maintained surface.
-
 Status legend:
 
 - ``PyPI app package``: promoted by the current release plan and installable as
@@ -95,9 +84,7 @@ Status legend:
      - ``agi-app-tescia-diagnostic``
      - PyPI app package
      - Evidence-scored diagnostic and self-evaluation cases with 2026 math
-       coverage, a 12-case 2026 data-scientist interview evaluation spanning
-       modern ML, RAG, agents, LLM evaluation, uncertainty, and token-cost
-       optimization, classroom batch intake, live teacher dashboard artifacts,
+       coverage, classroom batch intake, live teacher dashboard artifacts,
        better-fix selection, and regression-plan evidence.
    * - ``uav_relay_queue_project``
      - ``agi-app-uav-relay-queue``

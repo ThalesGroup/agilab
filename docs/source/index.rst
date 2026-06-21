@@ -24,22 +24,6 @@ The fastest adoption ladder is browser preview, one local first-proof lane,
 evidence manifest, then expansion into package mode, external apps, or cluster
 work.
 
-Golden ML loop
---------------
-
-AGILAB's strongest workflow is deliberately evidence-first:
-
-1. Import or create a notebook, script, or app project.
-2. Run it through a controlled local environment first.
-3. Capture artifacts plus ``run_manifest.json`` evidence.
-4. Inspect and compare outputs in ANALYSIS, notebook export, MLflow handoff, or
-   proof-pack tools.
-5. Promote the result only when the evidence, package contract, and release
-   proof are coherent.
-
-That loop keeps exploratory ML work replayable before a team moves it into a
-heavier tracker, registry, cluster, or production platform.
-
 AGILAB is not locked to one web frontend. App projects can declare app-owned
 UI surfaces so the same runtime, artifacts, and evidence contract can be opened
 through the local Streamlit UI, a hosted Hugging Face backend, or browser-native
@@ -52,7 +36,7 @@ branching into cluster mode, external app repositories, or broader workflows.
 
 For release-level evidence, use :doc:`release-proof`; it points to the
 `latest public GitHub release
-<https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.19>`__,
+<https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.20>`__,
 package proof, CI guardrails, and hosted demo status.
 
 This documentation then expands into architecture, service mode, API
@@ -123,7 +107,6 @@ references, and example projects.
    WORKFLOW page <experiment-help>
    ANALYSIS page <explore-help>
    Page bundles <apps-pages>
-   Page bundle gallery <apps-pages-gallery>
    Portable web components <agi-web>
 
 .. toctree::

@@ -5,7 +5,7 @@ Source package role: `page-bundle`.
 Resolver: `licensecheck 2025.1.0`.
 
 Source manifests:
-- `src/agilab/apps-pages/app_ui/pyproject.toml`
+- `src/agilab/apps-pages/view_app_ui/pyproject.toml`
 
 Extras included: none.
 

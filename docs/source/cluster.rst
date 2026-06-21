@@ -79,39 +79,6 @@ Example placeholders:
 - worker path: ``/path/to/worker/clustershare/agilab-two-node``
 - worker address: ``<worker-user>@<worker-host>``
 
-Workflow session directories
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-ORCHESTRATE isolates cluster run data below the cluster share instead of writing
-directly into the user share root. When cluster mode is enabled and
-``AGI_CLUSTER_SHARE`` is usable, the default **Workers Data Path** becomes:
-
-.. code-block:: text
-
-   <AGI_CLUSTER_SHARE>/<cluster-user>/workflows/<app-name>/<session-id>/workers
-
-This avoids collisions when the same user runs several app workflows on the same
-cluster share. The cluster settings UI exposes two controls:
-
-- **Workflow session policy**: ``new`` creates a fresh session directory when
-  **Workflow session** is empty, ``last`` reuses the newest existing session for
-  the app, and ``select`` uses the named session.
-- **Workflow session**: optional session name. Leave it empty for automatic
-  selection. With ``new`` this creates a session; with ``last`` it reuses the
-  newest session; with ``select`` it uses the newest session when one exists and
-  creates one otherwise. Set a value when you want a stable session such as
-  ``trial-001``.
-
-The same behavior can be preseeded with environment values:
-
-- ``AGI_WORKFLOW_SESSION_POLICY=new|last|select``
-- ``AGI_WORKFLOW_SESSION=<session-id>``
-
-If the cluster share is unavailable and an explicit ``AGI_LOCAL_SHARE`` exists,
-ORCHESTRATE disables cluster mode and points **Workers Data Path** back to the
-local share instead of creating a shadow cluster-share directory. Fix the mounted
-``AGI_CLUSTER_SHARE`` before enabling cluster mode again.
-
 Discover candidate workers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -127,17 +94,6 @@ local private ``/24`` networks. It does not guess passwords. Each reachable node
 is classified by SSH BatchMode auth, operating system, ``python3``, ``uv``,
 ``sshfs``, and reverse SSH back to the scheduler when ``--scheduler`` is
 provided.
-
-Discovery is not a trust decision. Before running ``INSTALL`` or sending files
-to a remote worker, verify each worker host-key fingerprint out of band and pin
-it in the manager user's SSH ``known_hosts`` file. Controller-to-worker SSH and
-SCP default to strict host-key verification using ``~/.ssh/known_hosts``. To use
-a separate file, set ``AGILAB_CLUSTER_SSH_KNOWN_HOSTS=/path/to/known_hosts``.
-For controlled lab bootstrap only, ``AGILAB_CLUSTER_SSH_HOST_KEY_POLICY=accept-new``
-learns an unseen host key into that file on first use; use it only on a trusted
-network after confirming the machine identity. Prefer key-based auth. Password
-auth works, but a wrong or unpinned host-key setup can expose the password to an
-impersonating host.
 
 Windows managers can run discovery when the OpenSSH client is installed; AGILAB
 parses Windows ``ipconfig`` and ``arp -a`` output to find local LAN candidates.
@@ -335,10 +291,6 @@ worker:
    $workerHost = "<worker-host>"
    New-Item -ItemType Directory -Force "$HOME\.ssh" | Out-Null
    ssh-keyscan -H -t ed25519,rsa,ecdsa $workerHost | Out-File -Append -Encoding ascii "$HOME\.ssh\known_hosts"
-
-If you keep cluster host keys outside the default OpenSSH file, set
-``AGILAB_CLUSTER_SSH_KNOWN_HOSTS`` to that file before running AGILAB from
-PowerShell.
 
 Windows as a remote cluster worker is a separate support target and is not
 covered by the automatic SSHFS setup today. The generated remote setup commands

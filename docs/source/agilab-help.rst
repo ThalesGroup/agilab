@@ -38,7 +38,7 @@ sidebar **Settings** link to edit persisted environment variables and runtime
 diagnostics. The general AGILAB documentation link remains available from
 Streamlit's system menu under **Get help**.
 
-.. figure:: _static/page-shots/core-pages-overview.svg
+.. figure:: _static/page-shots/core-pages-overview.png
    :alt: Overview screenshot montage of the PROJECT, ORCHESTRATE, WORKFLOW, and ANALYSIS Streamlit pages.
    :align: center
    :class: diagram-panel diagram-wide
