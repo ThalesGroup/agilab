@@ -1,6 +1,6 @@
 # view_maps_3d
 
-![view_maps_3d preview](../../../../docs/source/_static/apps-pages-gallery/view_maps_3d.svg)
+![view_maps_3d preview](apps-pages-gallery/view_maps_3d.svg)
 
 Package: `agi-page-geospatial-3d`
 

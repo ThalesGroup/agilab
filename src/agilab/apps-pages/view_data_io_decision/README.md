@@ -1,6 +1,6 @@
 # Decision Evidence View
 
-![view_data_io_decision preview](../../../../docs/source/_static/apps-pages-gallery/view_data_io_decision.svg)
+![view_data_io_decision preview](apps-pages-gallery/view_data_io_decision.svg)
 
 Package: `agi-page-decision-evidence`
 

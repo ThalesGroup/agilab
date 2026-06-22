@@ -9,4 +9,5 @@ omit =
 omit =
     src/agilab/core/agi-env/src/agi_env/pagelib.py
 exclude_also =
+    if _module is not None:
     _tb_kwargs\['theme_name'\] = 'NoColor'

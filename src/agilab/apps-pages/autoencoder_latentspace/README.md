@@ -1,6 +1,6 @@
 # autoencoder_latentspace
 
-![autoencoder_latentspace preview](../../../../docs/source/_static/apps-pages-gallery/autoencoder_latentspace.svg)
+![autoencoder_latentspace preview](apps-pages-gallery/autoencoder_latentspace.svg)
 
 Package: `agi-page-latent-space`
 

@@ -1,6 +1,6 @@
 # view_release_decision
 
-![view_release_decision preview](../../../../docs/source/_static/apps-pages-gallery/view_release_decision.svg)
+![view_release_decision preview](apps-pages-gallery/view_release_decision.svg)
 
 Package: `agi-page-promotion-gate`
 

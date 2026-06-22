@@ -227,6 +227,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     combined_node_xml = agi_core_combined[1]
     combined_cluster_xml = agi_core_combined[2]
     assert combined_run.timeout_seconds == 20 * 60
+    assert "--rcfile=.coveragerc.agi-core" in combined_run.argv
     assert combined_run.argv[-2:] == [
         "src/agilab/core/test",
         "src/agilab/core/agi-cluster/test",
@@ -239,11 +240,13 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert _has_with_dependency(combined_cluster_xml.argv, "fastparquet")
     assert "pytest" in combined_run.argv
     assert combined_node_xml.timeout_seconds == 5 * 60
+    assert "--rcfile=.coveragerc.agi-core" in combined_node_xml.argv
     assert "--data-file=.coverage.agi-core-combined" in combined_node_xml.argv
     assert "-o" in combined_node_xml.argv
     assert "coverage-agi-node.xml" in combined_node_xml.argv
     assert "--include=*/agi_node/*" in combined_node_xml.argv
     assert combined_cluster_xml.timeout_seconds == 5 * 60
+    assert "--rcfile=.coveragerc.agi-core" in combined_cluster_xml.argv
     assert "--data-file=.coverage.agi-core-combined" in combined_cluster_xml.argv
     assert "-o" in combined_cluster_xml.argv
     assert "coverage-agi-cluster.xml" in combined_cluster_xml.argv

@@ -23,6 +23,16 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.06.20] - 2026-06-20
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.20
+
+### Changed
+
+- Published AGILAB `2026.06.20` to PyPI for `agi-env`, `agi-gui`, `agi-web`, `agi-page-app-ui`, `agi-page-simplex-map`, `agi-page-decision-evidence`, `agi-page-timeseries-forecast`, `agi-page-inference-report`, `agi-page-live-artifacts`, `agi-page-geospatial-map`, `agi-page-geospatial-3d`, `agi-page-network-map`, `agi-page-routing-model-comparison`, `agi-page-queue-health`, `agi-page-relay-health`, `agi-page-scenario-cockpit`, `agi-page-promotion-gate`, `agi-page-feature-attribution`, `agi-page-training-report`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-pandas-execution`, `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-multi-dag`, `agi-app-weather-forecast`, `agi-app-sklearn-pipeline`, `agi-app-data-quality-gate`, `agi-app-pytorch-playground`, `agi-app-tescia-diagnostic`, `agi-app-uav-queue`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
 ## [2026.06.19] - 2026-06-19
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.19
@@ -734,3 +744,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.06.17]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.17
 [2026.06.18]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.18
 [2026.06.19]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.19
+[2026.06.20]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.20

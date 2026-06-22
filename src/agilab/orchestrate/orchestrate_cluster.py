@@ -1,6 +1,7 @@
 import ipaddress
 import json
 import os
+import platform
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -47,6 +48,7 @@ POOL_MAX_WORKERS_ENV = "AGILAB_POOL_MAX_WORKERS"
 POOL_ITEM_TIMEOUT_ENV = "AGILAB_POOL_ITEM_TIMEOUT"
 POOL_EXECUTOR_ENV = "AGILAB_POOL_EXECUTOR"
 POOL_EXECUTOR_OPTIONS = ("auto", "process", "thread")
+POOL_EXECUTOR_OS_SAFE_OPTIONS = ("auto", "thread")
 WORKFLOW_SESSION_POLICY_ENV = "AGI_WORKFLOW_SESSION_POLICY"
 WORKFLOW_SESSION_ENV = "AGI_WORKFLOW_SESSION"
 WORKFLOW_ID_ENV = "AGI_WORKFLOW_ID"
@@ -202,6 +204,55 @@ def _pool_executor_value(value: Any) -> str:
     if normalized not in POOL_EXECUTOR_OPTIONS:
         return "auto"
     return normalized
+
+
+def _pool_executor_platform_family(value: Any) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "", str(value or "").strip().lower())
+    if not normalized:
+        return ""
+    if normalized in {"nt", "win32"} or normalized.startswith("windows"):
+        return "windows"
+    if normalized.startswith("darwin") or normalized.startswith("macos"):
+        return "darwin"
+    if normalized.startswith("linux"):
+        return "linux"
+    return normalized
+
+
+def _lan_discovery_ready_worker_os_families(cache_path: Path | None) -> tuple[str, ...]:
+    payload = _load_lan_discovery_payload(cache_path)
+    nodes = payload.get("nodes")
+    if not isinstance(nodes, list):
+        return ()
+    families: list[str] = []
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        status = str(node.get("status") or "").strip()
+        if status and status not in LAN_READY_STATUSES:
+            continue
+        raw_os = node.get("os_name") or node.get("os") or node.get("platform") or node.get("system")
+        family = _pool_executor_platform_family(raw_os)
+        if family and family not in families:
+            families.append(family)
+    return tuple(families)
+
+
+def _pool_executor_options_for_cluster_os(
+    cache_path: Path | None,
+    *,
+    local_system: Any | None = None,
+) -> tuple[tuple[str, ...], str]:
+    local_family = _pool_executor_platform_family(platform.system() if local_system is None else local_system)
+    families = set(_lan_discovery_ready_worker_os_families(cache_path))
+    if local_family:
+        families.add(local_family)
+    if "windows" not in families:
+        return POOL_EXECUTOR_OPTIONS, ""
+    return (
+        POOL_EXECUTOR_OS_SAFE_OPTIONS,
+        "Process pool executor is unavailable for Windows cluster nodes; use Auto or Thread.",
+    )
 
 
 def _persist_pool_runtime_env(
@@ -1084,6 +1135,8 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
     workflow_id = _orchestrate_workflow_id(cluster_params, env)
     cluster_params["workflow_id"] = workflow_id
     widget_keys = cluster_widget_keys(app_state_name)
+    env_home = _env_home_path(env)
+    lan_cache_path = _default_lan_discovery_cache_path(env_home)
 
     boolean_params = ["cython", "pool"]
     if env.is_managed_pc:
@@ -1145,20 +1198,30 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 cluster_params["pool_item_timeout"] = item_timeout_value
 
             executor_key = widget_keys["pool_executor"]
+            executor_options, executor_notice = _pool_executor_options_for_cluster_os(lan_cache_path)
             executor_value = _pool_executor_value(cluster_params.get("pool_executor"))
+            if executor_value not in executor_options:
+                executor_value = "auto"
+                cluster_params.pop("pool_executor", None)
+            if st.session_state.get(executor_key) not in (None, *executor_options):
+                st.session_state[executor_key] = "auto"
             if executor_key not in st.session_state:
                 st.session_state[executor_key] = executor_value
             selected_executor = pool_cols[2].selectbox(
                 "Pool executor",
-                POOL_EXECUTOR_OPTIONS,
+                executor_options,
                 key=executor_key,
                 help="Choose auto unless you need to force process or thread execution.",
             )
             executor_value = _pool_executor_value(selected_executor)
+            if executor_value not in executor_options:
+                executor_value = "auto"
             if executor_value == "auto":
                 cluster_params.pop("pool_executor", None)
             else:
                 cluster_params["pool_executor"] = executor_value
+            if executor_notice:
+                st.info(executor_notice)
     else:
         for key in ("pool_max_workers", "pool_item_timeout", "pool_executor"):
             cluster_params.pop(key, None)
@@ -1232,8 +1295,6 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
                 help="Build an advisory worker-count plan from LAN discovery without changing current settings.",
             )
         )
-        env_home = _env_home_path(env)
-        lan_cache_path = _default_lan_discovery_cache_path(env_home)
         lan_clear_clicked = bool(
             lan_action_cols[2].button(
                 "Clear LAN cache",

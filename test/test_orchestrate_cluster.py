@@ -97,6 +97,7 @@ class _FakeStreamlit:
         self.buttons: list[str] = []
         self.number_inputs: list[str] = []
         self.selectboxes: list[str] = []
+        self.selectbox_options: dict[str, tuple[object, ...]] = {}
 
     def _value(self, key, default=""):
         if key in self.widget_values:
@@ -143,6 +144,8 @@ class _FakeStreamlit:
 
     def selectbox(self, label, options, *, key=None, index=0, **_kwargs):
         self.selectboxes.append(label)
+        if key is not None:
+            self.selectbox_options[key] = tuple(options)
         default = options[index]
         result = self._value(key, default)
         if result not in options:
@@ -1157,6 +1160,52 @@ def test_lan_discovery_cluster_defaults_uses_ready_cache_nodes(tmp_path):
     }
 
 
+def test_pool_executor_options_disable_process_for_windows_cluster_node(tmp_path):
+    cache_path = tmp_path / "lan_nodes.json"
+    cache_path.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"host": "192.168.20.15", "status": "ready", "os_name": "Windows"},
+                    {"host": "192.168.20.16", "status": "ready", "os_name": "Linux"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    options, reason = orchestrate_cluster._pool_executor_options_for_cluster_os(
+        cache_path,
+        local_system="Darwin",
+    )
+
+    assert options == ("auto", "thread")
+    assert "Windows" in reason
+
+
+def test_pool_executor_options_keep_process_for_posix_multi_os_cluster(tmp_path):
+    cache_path = tmp_path / "lan_nodes.json"
+    cache_path.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"host": "192.168.20.15", "status": "ready", "os_name": "Linux"},
+                    {"host": "192.168.20.16", "status": "ready", "os_name": "Darwin"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    options, reason = orchestrate_cluster._pool_executor_options_for_cluster_os(
+        cache_path,
+        local_system="Darwin",
+    )
+
+    assert options == orchestrate_cluster.POOL_EXECUTOR_OPTIONS
+    assert reason == ""
+
+
 def test_lan_discovery_cluster_defaults_accepts_explicit_non_private_lan_cache(tmp_path):
     cache_path = tmp_path / "lan_nodes.json"
     cache_path.write_text(
@@ -1438,6 +1487,73 @@ def test_render_cluster_settings_ui_initializes_state_and_persists_cluster_mode(
     assert ("AGILAB_POOL_EXECUTOR", "thread") in writes["env_calls"]
     assert writes["cleared"] is True
     assert writes["write"][0] == env.app_settings_file
+
+
+def test_render_cluster_settings_ui_disables_process_executor_for_windows_lan_node(monkeypatch, tmp_path):
+    cache_path = tmp_path / orchestrate_cluster.LAN_DISCOVERY_CACHE
+    cache_path.parent.mkdir(parents=True)
+    cache_path.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "host": "192.168.20.15",
+                        "status": "ready",
+                        "os_name": "Windows",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake_st = _FakeStreamlit(
+        widget_values={
+            "cluster_cython__demo_project": False,
+            "cluster_pool__demo_project": True,
+            "cluster_rapids__demo_project": False,
+            "cluster_pool_max_workers__demo_project": 0,
+            "cluster_pool_item_timeout__demo_project": 0.0,
+            "cluster_pool_executor__demo_project": "process",
+            "cluster_enabled__demo_project": False,
+        },
+        session_state={
+            "app_settings": {"cluster": {"pool": True, "pool_executor": "process"}},
+            "benchmark": False,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    monkeypatch.setattr(orchestrate_cluster.platform, "system", lambda: "Darwin")
+
+    writes: dict[str, object] = {}
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: {"parsed": raw},
+        write_app_settings_toml=lambda path, settings: writes.setdefault("write", (path, settings)) and settings,
+        clear_load_toml_cache=lambda: writes.setdefault("cleared", True),
+        set_env_var=lambda key, value: writes.setdefault("env_calls", []).append((key, value)),
+        agi_env_envars={"AGILAB_POOL_EXECUTOR": "process"},
+    )
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        agi_share_path=None,
+        share_root_path=lambda: tmp_path / "share",
+        home_abs=tmp_path,
+        user="",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    executor_key = "cluster_pool_executor__demo_project"
+    assert fake_st.selectbox_options[executor_key] == ("auto", "thread")
+    assert fake_st.session_state[executor_key] == "auto"
+    assert "pool_executor" not in cluster
+    assert any("Windows cluster nodes" in info for info in fake_st.infos)
+    assert ("AGILAB_POOL_EXECUTOR", "") in writes["env_calls"]
 
 
 def test_render_cluster_settings_ui_clears_pool_parameters_when_pool_disabled(monkeypatch, tmp_path):

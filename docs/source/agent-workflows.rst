@@ -95,6 +95,14 @@ When all checks pass, keep final agent replies compact: write
 needed for failures, skipped checks, release or audit evidence, PR proof, or an
 explicit user request.
 
+When all checks pass, keep final agent replies compact: write
+``Validation passed.`` without listing every command unless the details are
+needed for failures, skipped checks, release or audit evidence, PR proof, or an
+explicit user request.
+
+For ad-hoc terminal checks inside an already routed local wrapper, use
+``tokki run -- <command>`` when it can execute the command faithfully.
+
 Use ``AGENT_LEARNINGS.md`` sparingly: add one concrete rule only when the
 correction is reusable and not already covered by the runbooks. Do not use it
 as a session transcript, brainstorming log, or replacement for code and tests.

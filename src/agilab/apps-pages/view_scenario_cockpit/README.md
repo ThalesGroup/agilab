@@ -1,6 +1,6 @@
 # view_scenario_cockpit
 
-![view_scenario_cockpit preview](../../../../docs/source/_static/apps-pages-gallery/view_scenario_cockpit.svg)
+![view_scenario_cockpit preview](apps-pages-gallery/view_scenario_cockpit.svg)
 
 Package: `agi-page-scenario-cockpit`
 

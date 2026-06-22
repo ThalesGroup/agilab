@@ -1,7 +1,7 @@
 ---
 agenticweb: "1"
 description: "AGILAB is an open-source AI/ML workbench for reproducible experiments, notebook-to-app workflows, run evidence, proof capsules, and local agent evidence review."
-updated: "2026-06-19"
+updated: "2026-06-20"
 organization:
   name: "AGILAB"
   website: "https://thalesgroup.github.io/agilab"
@@ -243,7 +243,7 @@ x_generated_by:
   command: "python3 tools/agenticweb_manifest.py --apply"
   source_manifest: "agilab-capabilities.json"
   source_schema: "agilab.capabilities.v1"
-  source_version: "2026.06.18"
+  source_version: "2026.06.19"
   boundary: "Discovery only: this file does not prove runtime success, external service reachability, security certification, or production readiness."
 ---
 

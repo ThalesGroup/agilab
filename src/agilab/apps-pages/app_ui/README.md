@@ -1,6 +1,6 @@
 # app_ui
 
-![app_ui preview](../../../../docs/source/_static/apps-pages-gallery/app_ui.svg)
+![app_ui preview](apps-pages-gallery/app_ui.svg)
 
 Package: `agi-page-app-ui`
 

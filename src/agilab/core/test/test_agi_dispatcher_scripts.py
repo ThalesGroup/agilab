@@ -336,6 +336,123 @@ def run(values):
     assert type_preprocess_mod._call_name(type_preprocess_mod.ast.Constant(value=1)) is None
 
 
+def test_cython_type_preprocess_helper_edge_branches(tmp_path, capsys):
+    ast = type_preprocess_mod.ast
+
+    def expr(source: str):
+        return ast.parse(source, mode="eval").body
+
+    assert type_preprocess_mod._is_small_int_literal(expr("+42")) is True
+    assert type_preprocess_mod._static_int_value(expr("True")) is type_preprocess_mod._STATIC_INT_UNKNOWN
+    assert type_preprocess_mod._static_int_value(expr("+3")) == 3
+    assert type_preprocess_mod._static_int_value(expr("-4")) == -4
+    assert type_preprocess_mod._static_int_value(expr("2 + 3")) == 5
+    assert type_preprocess_mod._static_int_value(expr("8 - 3")) == 5
+    assert type_preprocess_mod._static_int_value(expr("2 * 3")) == 6
+    assert type_preprocess_mod._static_int_value(expr("8 // 3")) == 2
+    assert type_preprocess_mod._static_int_value(expr("8 % 3")) == 2
+    assert (
+        type_preprocess_mod._static_int_value(expr("2 ** 1000000"))
+        == type_preprocess_mod._PY_SSIZE_MAX + 1
+    )
+    assert type_preprocess_mod._static_int_value(expr("1 / 0")) is type_preprocess_mod._STATIC_INT_UNKNOWN
+
+    assert type_preprocess_mod._expr_type(expr("1 is 1")) == (
+        "bint",
+        "identity or membership comparison",
+    )
+    assert type_preprocess_mod._expr_type(expr("1 < 2 < 3")) == (
+        "bint",
+        "numeric comparison result",
+    )
+    assert type_preprocess_mod._expr_type(expr("2 ** 3")) == (
+        None,
+        "power expression type is not statically safe",
+    )
+    assert type_preprocess_mod._expr_type(
+        expr("left @ right"),
+        env={"left": "Py_ssize_t", "right": "Py_ssize_t"},
+    ) == (None, "operator is not statically safe")
+    assert type_preprocess_mod._expr_type(
+        expr("left * right"),
+        env={"left": "Py_ssize_t", "right": "Py_ssize_t"},
+    ) == (None, "multiplication requires a small literal operand")
+
+    assert type_preprocess_mod._range_loop_index_candidate(
+        expr("range(stop=5)"),
+        shadowed_builtins=set(),
+    ) == (False, "range() call uses keyword arguments")
+    assert type_preprocess_mod._range_loop_index_candidate(
+        expr("range()"),
+        shadowed_builtins=set(),
+    ) == (False, "range() argument count is invalid")
+
+    pattern_source = """
+match value:
+    case [first, *rest]:
+        pass
+    case {"x": mapped, **remaining}:
+        pass
+    case Point(px, y=py):
+        pass
+    case {"a": a} | {"b": b}:
+        pass
+"""
+    match_node = ast.parse(pattern_source).body[0]
+    bound_names = {
+        name
+        for case in match_node.cases
+        for name in type_preprocess_mod._pattern_bound_names(case.pattern)
+    }
+    assert {"first", "rest", "mapped", "remaining", "px", "py", "a", "b"} <= bound_names
+
+    for source in (
+        "def f(cython):\n    return cython\n",
+        "def cython():\n    return None\n",
+        "try:\n    pass\nexcept Exception as cython:\n    pass\n",
+        "def f():\n    global cython\n",
+        "import math as cython\n",
+        "from math import sin as cython\n",
+        "match value:\n    case cython:\n        pass\n",
+        "match value:\n    case {**cython}:\n        pass\n",
+    ):
+        assert type_preprocess_mod._cython_name_rebound(ast.parse(source)) is True
+
+    preview = type_preprocess_mod.analyze_source(
+        """
+def run(values):
+    holder.value += 1.0
+    from math import sin as sine
+    match values:
+        case [item] if bool(item):
+            result = True
+    return result
+"""
+    )
+    skipped = {item.name: item.reason for item in preview.skipped}
+    assert "value" not in skipped
+    assert skipped["sine"] == "import target is dynamic"
+    assert skipped["item"] == "match capture target is dynamic"
+
+    docstring_source = '"""doc."""\nfrom __future__ import annotations\n\ndef run():\n    total = 1.0\n    return total\n'
+    rendered, _ = type_preprocess_mod.preprocess_source(docstring_source, filename="worker.py")
+    assert rendered.splitlines()[2] == "import cython"
+
+    commented_source = "#!/usr/bin/env python\n# coding: utf-8\n\ndef run():\n    total = 1.0\n    return total\n"
+    rendered, _ = type_preprocess_mod.preprocess_source(commented_source, filename="worker.py")
+    assert rendered.splitlines()[3] == "import cython"
+
+    report = type_preprocess_mod.PreprocessPreview(declarations=(), skipped=()).to_report(
+        output_path="worker.pyx"
+    )
+    assert report["output"] == "worker.pyx"
+
+    plain_path = tmp_path / "plain.py"
+    plain_path.write_text("def run():\n    return object()\n", encoding="utf-8")
+    assert type_preprocess_mod.main([str(plain_path)]) == 0
+    assert "def run():" in capsys.readouterr().out
+
+
 def test_cython_type_preprocess_blocks_reproduced_unsound_bindings():
     source = """
 def run(arr, pair, value):

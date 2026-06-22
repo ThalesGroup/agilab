@@ -1,6 +1,6 @@
 # view_inference_analysis
 
-![view_inference_analysis preview](../../../../docs/source/_static/apps-pages-gallery/view_inference_analysis.svg)
+![view_inference_analysis preview](apps-pages-gallery/view_inference_analysis.svg)
 
 Package: `agi-page-inference-report`
 

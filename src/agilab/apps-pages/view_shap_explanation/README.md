@@ -1,6 +1,6 @@
 # SHAP Explanation View
 
-![view_shap_explanation preview](../../../../docs/source/_static/apps-pages-gallery/view_shap_explanation.svg)
+![view_shap_explanation preview](apps-pages-gallery/view_shap_explanation.svg)
 
 Package: `agi-page-feature-attribution`
 

@@ -23,3 +23,5 @@ omit =
     sitecustomize.py
     __init__.py
     src/__init__.py
+exclude_also =
+    if _module is not None:

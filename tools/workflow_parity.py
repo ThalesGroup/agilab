@@ -1060,6 +1060,7 @@ def _agi_core_combined_profile() -> list[CommandSpec]:
             argv=[
                 *base_argv,
                 "run",
+                "--rcfile=.coveragerc.agi-core",
                 "--data-file=.coverage.agi-core-combined",
                 "--source=agi_node,agi_cluster",
                 "-m",
@@ -1085,6 +1086,7 @@ def _agi_core_combined_profile() -> list[CommandSpec]:
             argv=[
                 *base_argv,
                 "xml",
+                "--rcfile=.coveragerc.agi-core",
                 "--data-file=.coverage.agi-core-combined",
                 "-o",
                 "coverage-agi-node.xml",
@@ -1097,6 +1099,7 @@ def _agi_core_combined_profile() -> list[CommandSpec]:
             argv=[
                 *base_argv,
                 "xml",
+                "--rcfile=.coveragerc.agi-core",
                 "--data-file=.coverage.agi-core-combined",
                 "-o",
                 "coverage-agi-cluster.xml",

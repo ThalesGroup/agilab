@@ -1,6 +1,6 @@
 # view_maps
 
-![view_maps preview](../../../../docs/source/_static/apps-pages-gallery/view_maps.svg)
+![view_maps preview](apps-pages-gallery/view_maps.svg)
 
 Package: `agi-page-geospatial-map`
 

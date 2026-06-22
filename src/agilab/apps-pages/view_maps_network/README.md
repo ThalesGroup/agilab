@@ -1,6 +1,6 @@
 # view_maps_network
 
-![view_maps_network preview](../../../../docs/source/_static/apps-pages-gallery/view_maps_network.svg)
+![view_maps_network preview](apps-pages-gallery/view_maps_network.svg)
 
 Package: `agi-page-network-map`
 
