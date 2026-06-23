@@ -9,6 +9,9 @@ Apps-pages gallery
 **autoencoder_latentspace**
 | _static/apps-pages-gallery/autoencoder_latentspace.svg
 
+Opt-in playground exception for TensorFlow/Keras latent projections; it trains
+a small autoencoder in-page and is not a generic app-agnostic sidecar.
+
 
 **view_barycentric**
 | _static/apps-pages-gallery/view_barycentric.svg
