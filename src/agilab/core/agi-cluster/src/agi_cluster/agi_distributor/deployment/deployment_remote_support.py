@@ -349,35 +349,39 @@ def _home_relative_share_setting(value: str, env: Any) -> str:
     return cleaned
 
 
-def _scheduler_share_source(
-    local_share: Path,
+def _remote_cluster_share_root_setting(
+    remote_share: str,
     *,
     local_share_setting: str,
-    remote_share: str,
     env: Any,
-) -> Path:
-    configured = PurePosixPath(
-        _home_relative_share_setting(local_share_setting, env).replace("\\", "/")
-    )
-    requested = PurePosixPath(
-        _home_relative_share_setting(remote_share, env).replace("\\", "/")
-    )
-    try:
-        suffix = requested.relative_to(configured)
-    except ValueError:
-        return local_share
-    if str(suffix) in {"", "."}:
-        return local_share
-    if ".." in suffix.parts:
-        return local_share
-    share_root = local_share.expanduser().resolve(strict=False)
-    candidate = share_root.joinpath(*suffix.parts).resolve(strict=False)
-    if not candidate.is_relative_to(share_root):
-        raise RuntimeError(
-            "Refusing to derive scheduler AGI_CLUSTER_SHARE outside the configured "
-            f"share root: {candidate.as_posix()} is not under {share_root.as_posix()}."
-        )
-    return candidate
+) -> str:
+    """Return the worker-side AGI_CLUSTER_SHARE root, not a per-run subpath."""
+
+    remote_setting = _home_relative_share_setting(remote_share, env)
+    requested = PurePosixPath(remote_setting.replace("\\", "/"))
+    configured_text = _home_relative_share_setting(local_share_setting, env)
+    configured = PurePosixPath(configured_text.replace("\\", "/"))
+
+    if configured_text and not configured.is_absolute():
+        try:
+            requested.relative_to(configured)
+        except ValueError:
+            pass
+        else:
+            return configured.as_posix()
+
+    user = str(getattr(env, "user", "") or "").strip()
+    requested_parts = tuple(part for part in requested.parts if part not in {"", "."})
+    if (
+        user
+        and not requested.is_absolute()
+        and len(requested_parts) >= 4
+        and requested_parts[0] in {"clustershare", "datashare"}
+        and requested_parts[1] == user
+    ):
+        return PurePosixPath(*requested_parts[:2]).as_posix()
+
+    return remote_setting
 
 
 def _scheduler_host_from_state(agi_cls: Any) -> str:
@@ -503,20 +507,17 @@ async def _prepare_remote_cluster_share(
     local_share = _resolve_local_share_path(local_share_raw, env)
     share_backend = _cluster_share_backend(env)
     share_is_premounted = _remote_cluster_share_premounted(env)
-    scheduler_share = _scheduler_share_source(
-        local_share,
+    remote_share_setting = _remote_cluster_share_root_setting(
+        remote_share,
         local_share_setting=local_share_raw,
-        remote_share=remote_share,
         env=env,
     )
     if not share_is_premounted:
-        for share_source in dict.fromkeys((local_share, scheduler_share)):
-            reverse_mount_problem = _reverse_sshfs_mount_problem(share_source, ip)
-            if reverse_mount_problem:
-                raise RuntimeError(reverse_mount_problem)
-    scheduler_share.mkdir(parents=True, exist_ok=True)
+        reverse_mount_problem = _reverse_sshfs_mount_problem(local_share, ip)
+        if reverse_mount_problem:
+            raise RuntimeError(reverse_mount_problem)
+    local_share.mkdir(parents=True, exist_ok=True)
 
-    remote_share_setting = _home_relative_share_setting(remote_share, env)
     await agi_cls.exec_ssh(ip, _remote_env_update_command(remote_share_setting))
     if share_is_premounted:
         if getattr(env, "verbose", 0) > 0:
@@ -538,7 +539,7 @@ async def _prepare_remote_cluster_share(
     mount_cmd = _remote_share_mount_command(
         scheduler_target=scheduler_target,
         scheduler_ssh_port=_scheduler_ssh_port(env),
-        local_share=scheduler_share,
+        local_share=local_share,
         remote_share=remote_share_setting,
     )
     if getattr(env, "verbose", 0) > 0:
