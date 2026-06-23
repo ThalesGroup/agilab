@@ -3565,6 +3565,8 @@ def test_about_layout_rejects_placeholder_openai_keys():
     assert layout.clean_openai_key("") is None
     assert layout.clean_openai_key(" your-key ") is None
     assert layout.clean_openai_key("sk-XXXX") is None
+    assert layout.clean_openai_key("***") is None
+    assert layout.clean_openai_key("YOUR_API_KEY") is None
     assert layout.clean_openai_key("short") is None
     assert layout.clean_openai_key(" sk-" + "a" * 16 + " ") == "sk-" + "a" * 16
 
