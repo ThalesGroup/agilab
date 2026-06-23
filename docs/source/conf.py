@@ -285,6 +285,7 @@ suppress_warnings = [
 ]
 
 autodoc_mock_imports = [
+    "polars",
     # Prevent heavy optional deps from breaking the build when absent
     "psutil",
     "asyncssh",
