@@ -119,7 +119,9 @@ def test_barycentric_dataframe_selector_avoids_session_state_double_init() -> No
 
     assert len(dataframe_selectboxes) == 1
     keywords = {keyword.arg: keyword for keyword in dataframe_selectboxes[0].keywords}
-    assert isinstance(keywords["key"].value, ast.Constant)
-    assert keywords["key"].value.value == "df_file"
+    key_value = keywords["key"].value
+    assert isinstance(key_value, ast.Name)
+    assert key_value.id == "DF_FILE_KEY"
+    assert 'DF_FILE_KEY = _vb_key("df_file")' in source
     assert "index" not in keywords
     assert "args" not in keywords
