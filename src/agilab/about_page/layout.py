@@ -515,13 +515,11 @@ def display_landing_page(resources_path: Path) -> None:
 
 def clean_openai_key(key: str | None) -> str | None:
     """Return None for missing/placeholder keys to avoid confusing 401s."""
-    if not key:
+    from agilab.security.api_keys import looks_placeholder_secret
+
+    if looks_placeholder_secret(key):
         return None
-    trimmed = key.strip()
-    placeholders = {"your-key", "sk-your-key", "sk-XXXX"}
-    if trimmed in placeholders or len(trimmed) < 12:
-        return None
-    return trimmed
+    return key.strip()
 
 
 def openai_status_banner(env: Any, *, env_file_path: Path) -> None:

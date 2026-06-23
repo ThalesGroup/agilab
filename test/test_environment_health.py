@@ -356,6 +356,7 @@ def test_environment_health_remaining_helper_edges(tmp_path, monkeypatch):
     assert environment_health._looks_placeholder_secret("***") is True
     assert environment_health._looks_placeholder_secret("YOUR_API_KEY") is True
     assert environment_health._looks_placeholder_secret("sk-XXXX") is True
+    assert environment_health._looks_placeholder_secret("…") is True
 
     card, detail = environment_health._api_key_card(
         SimpleNamespace(

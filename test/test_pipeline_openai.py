@@ -127,6 +127,8 @@ def test_make_openai_client_and_model_prefers_azure(monkeypatch):
 
 def test_is_placeholder_api_key_catches_redacted_forms():
     assert pipeline_openai.is_placeholder_api_key("***redacted***") is True
+    assert pipeline_openai.is_placeholder_api_key("None") is True
+    assert pipeline_openai.is_placeholder_api_key("...") is True
     assert pipeline_openai.is_placeholder_api_key("sk-realistic-key-123456") is False
 
 

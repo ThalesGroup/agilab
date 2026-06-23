@@ -13,22 +13,9 @@ _ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 def is_placeholder_api_key(key: Optional[str]) -> bool:
     """True only when clearly missing or visibly redacted."""
-    if not key:
-        return True
-    value = str(key).strip()
-    if not value:
-        return True
+    from agilab.security.api_keys import looks_placeholder_secret
 
-    upper_value = value.upper()
-    if "***" in value or "…" in value:
-        return True
-    if "YOUR-API-KEY" in upper_value or "YOUR_API_KEY" in upper_value:
-        return True
-    if value in {"your-key", "sk-your-key", "sk-XXXX"}:
-        return True
-    if len(value) < 12:
-        return True
-    return False
+    return looks_placeholder_secret(key)
 
 
 def _dotenv_quote(value: str) -> str:
