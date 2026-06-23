@@ -1,5 +1,5 @@
 Apps-pages gallery
-=================
+==================
 
 
 **app_ui**
@@ -68,4 +68,3 @@ Apps-pages gallery
 
 **view_training_analysis**
 | _static/apps-pages-gallery/view_training_analysis.svg
-
