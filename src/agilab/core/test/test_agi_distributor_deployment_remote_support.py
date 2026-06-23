@@ -801,8 +801,9 @@ async def test_prepare_remote_cluster_share_mounts_cluster_share_root_for_workfl
     remote_env_cmd = next(cmd for cmd in ssh_calls if "AGI_CLUSTER_SHARE=" in cmd)
     assert scheduler_share.is_dir()
     assert not scheduler_session.exists()
-    assert "workflows/session-123" not in remote_env_cmd
     assert "clustershare/agi" in remote_env_cmd
+    assert "AGILAB_WORKFLOW_DATA_ROOT=" in remote_env_cmd
+    assert "workflows/session-123" in remote_env_cmd
     assert f"agi@192.168.20.111:{scheduler_share.as_posix()}" in mount_cmd
     assert '"$HOME"/clustershare/agi' in mount_cmd
     assert "workflows/session-123" not in mount_cmd
@@ -1602,10 +1603,13 @@ def test_remote_env_update_command_preserves_other_env_keys():
     # Regression: the command previously truncated the whole remote
     # ~/.agilab/.env with '>' redirection; it must merge instead, replacing
     # only the worker cluster-mode lines.
-    cmd = deployment_remote_support._remote_env_update_command("clustershare")
+    cmd = deployment_remote_support._remote_env_update_command(
+        "clustershare/agi",
+        "clustershare/agi/workflows/session-123",
+    )
 
     assert (
-        "grep -Ev '^(IS_SOURCE_ENV|IS_WORKER_ENV|AGI_CLUSTER_ENABLED|AGI_CLUSTER_SHARE)='"
+        "grep -Ev '^(IS_SOURCE_ENV|IS_WORKER_ENV|AGI_CLUSTER_ENABLED|AGI_CLUSTER_SHARE|AGILAB_WORKFLOW_DATA_ROOT)='"
         in cmd
     )
     assert 'mv "$HOME/.agilab/.env.tmp" "$HOME/.agilab/.env"' in cmd
@@ -1613,6 +1617,8 @@ def test_remote_env_update_command_preserves_other_env_keys():
     assert "IS_WORKER_ENV=" in cmd
     assert "AGI_CLUSTER_ENABLED=" in cmd
     assert "AGI_CLUSTER_SHARE=" in cmd
+    assert "AGILAB_WORKFLOW_DATA_ROOT=" in cmd
+    assert "clustershare/agi/workflows/session-123" in cmd
     assert "AGI_LOCAL_SHARE" not in cmd
     # No direct truncating redirection of the env file itself.
     assert '> "$HOME/.agilab/.env"' not in cmd.replace(

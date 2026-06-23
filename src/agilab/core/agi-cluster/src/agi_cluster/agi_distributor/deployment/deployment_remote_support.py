@@ -410,7 +410,7 @@ def _scheduler_ssh_target(agi_cls: Any, env: Any) -> str:
     return f"{user}@{host}" if user else host
 
 
-def _remote_env_update_command(remote_share: str) -> str:
+def _remote_env_update_command(remote_share: str, workflow_data_root: str | None = None) -> str:
     # Update only worker cluster-mode lines: the remote ~/.agilab/.env holds other
     # operator-managed settings that must be preserved (merge semantics,
     # matching install.sh/write_env_updates).  Remote workers resolve relative
@@ -421,12 +421,13 @@ def _remote_env_update_command(remote_share: str) -> str:
     worker_line = "IS_WORKER_ENV='1'"
     enabled_line = "AGI_CLUSTER_ENABLED='1'"
     share_line = f"AGI_CLUSTER_SHARE={remote_share!r}"
+    workflow_root_line = f"AGILAB_WORKFLOW_DATA_ROOT={(workflow_data_root or remote_share)!r}"
     return (
         'mkdir -p "$HOME/.agilab" && touch "$HOME/.agilab/.env" && '
-        "{ grep -Ev '^(IS_SOURCE_ENV|IS_WORKER_ENV|AGI_CLUSTER_ENABLED|AGI_CLUSTER_SHARE)=' "
+        "{ grep -Ev '^(IS_SOURCE_ENV|IS_WORKER_ENV|AGI_CLUSTER_ENABLED|AGI_CLUSTER_SHARE|AGILAB_WORKFLOW_DATA_ROOT)=' "
         "\"$HOME/.agilab/.env\" || true; "
         f"printf '%s\\n' {quote(source_line)} {quote(worker_line)} "
-        f"{quote(enabled_line)} {quote(share_line)}; }} "
+        f"{quote(enabled_line)} {quote(share_line)} {quote(workflow_root_line)}; }} "
         "> \"$HOME/.agilab/.env.tmp\" && "
         'mv "$HOME/.agilab/.env.tmp" "$HOME/.agilab/.env"'
     )
@@ -518,7 +519,11 @@ async def _prepare_remote_cluster_share(
             raise RuntimeError(reverse_mount_problem)
     local_share.mkdir(parents=True, exist_ok=True)
 
-    await agi_cls.exec_ssh(ip, _remote_env_update_command(remote_share_setting))
+    workflow_data_root_setting = _home_relative_share_setting(remote_share, env)
+    await agi_cls.exec_ssh(
+        ip,
+        _remote_env_update_command(remote_share_setting, workflow_data_root_setting),
+    )
     if share_is_premounted:
         if getattr(env, "verbose", 0) > 0:
             log.info(
