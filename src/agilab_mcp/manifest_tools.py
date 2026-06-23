@@ -11,8 +11,70 @@ from agilab import agent_run, bridge_cli, run_manifest
 from agilab.secret_uri import redact_mapping
 
 
+_ALLOWED_ROOTS_ENV = "AGILAB_MCP_ALLOWED_ROOTS"
+_CONFIGURED_ROOT_ENV_NAMES = (
+    "AGILAB_APPS_ROOT",
+    "AGILAB_LOG_ROOT",
+    "AGILAB_AGENT_LOG_ROOT",
+)
+
+
+def _repo_root() -> Path | None:
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "agilab-capabilities.json").is_file() or (
+            parent / ".git"
+        ).exists():
+            return parent
+    return None
+
+
+def _unique_roots(paths: list[Path]) -> tuple[Path, ...]:
+    roots: list[Path] = []
+    seen: set[str] = set()
+    for path in paths:
+        resolved = path.expanduser().resolve(strict=False)
+        key = str(resolved)
+        if key not in seen:
+            roots.append(resolved)
+            seen.add(key)
+    return tuple(roots)
+
+
+def _configured_read_roots() -> tuple[Path, ...]:
+    roots: list[Path] = []
+    configured = os.environ.get(_ALLOWED_ROOTS_ENV, "")
+    roots.extend(Path(item) for item in configured.split(os.pathsep) if item)
+    for env_name in _CONFIGURED_ROOT_ENV_NAMES:
+        env_value = os.environ.get(env_name)
+        if env_value:
+            roots.append(Path(env_value))
+    repo_root = _repo_root()
+    if repo_root is not None:
+        roots.append(repo_root)
+    roots.append(Path.cwd())
+    home = Path.home()
+    roots.extend((home / "log" / "agents", home / "log" / "execute"))
+    return _unique_roots(roots)
+
+
+def _is_under_root(path: Path, root: Path) -> bool:
+    return path == root or path.is_relative_to(root)
+
+
+def _mcp_read_path(path: str | Path, *, purpose: str) -> Path:
+    resolved = Path(path).expanduser().resolve(strict=False)
+    roots = _configured_read_roots()
+    if any(_is_under_root(resolved, root) for root in roots):
+        return resolved
+    allowed = ", ".join(str(root) for root in roots) or "<none>"
+    raise ValueError(
+        f"MCP path for {purpose} is outside configured read roots: "
+        f"{resolved} (allowed roots: {allowed})"
+    )
+
+
 def list_projects(apps_root: str | Path) -> dict[str, Any]:
-    root = Path(apps_root).expanduser().resolve(strict=False)
+    root = _mcp_read_path(apps_root, purpose="projects root")
     projects = (
         [
             {"name": path.name, "path": str(path)}
@@ -30,7 +92,7 @@ def list_projects(apps_root: str | Path) -> dict[str, Any]:
 
 
 def list_runs(log_root: str | Path) -> dict[str, Any]:
-    root = Path(log_root).expanduser().resolve(strict=False)
+    root = _mcp_read_path(log_root, purpose="run log root")
     runs = (
         [
             {"path": str(path), "parent": str(path.parent)}
@@ -79,7 +141,7 @@ def list_agent_runs(
     if limit < 0:
         raise ValueError("limit must be >= 0")
     root = (
-        Path(log_root).expanduser().resolve(strict=False)
+        _mcp_read_path(log_root, purpose="agent log root")
         if log_root not in (None, "")
         else None
     )
@@ -107,7 +169,7 @@ def list_agent_runs(
 
 
 def read_agent_run(manifest_path: str | Path) -> dict[str, Any]:
-    path = Path(manifest_path).expanduser().resolve(strict=False)
+    path = _mcp_read_path(manifest_path, purpose="agent run manifest")
     manifest = agent_run.load_agent_run_manifest(path)
     summary = agent_run.summarize_agent_run(manifest)
     resolved = summary.manifest_path if str(summary.manifest_path) else path
@@ -119,7 +181,7 @@ def read_agent_run(manifest_path: str | Path) -> dict[str, Any]:
 
 
 def summarize_agent_run(manifest_path: str | Path) -> dict[str, Any]:
-    path = Path(manifest_path).expanduser().resolve(strict=False)
+    path = _mcp_read_path(manifest_path, purpose="agent run manifest")
     summary = agent_run.summarize_agent_run(path)
     return {
         "schema": "agilab.mcp.summarize_agent_run.v1",
@@ -129,7 +191,7 @@ def summarize_agent_run(manifest_path: str | Path) -> dict[str, Any]:
 
 
 def agent_handoff(manifest_path: str | Path) -> dict[str, Any]:
-    path = Path(manifest_path).expanduser().resolve(strict=False)
+    path = _mcp_read_path(manifest_path, purpose="agent run manifest")
     return {
         "schema": "agilab.mcp.agent_handoff.v1",
         "manifest_path": str(path),
@@ -138,7 +200,7 @@ def agent_handoff(manifest_path: str | Path) -> dict[str, Any]:
 
 
 def agent_next_actions(manifest_path: str | Path) -> dict[str, Any]:
-    path = Path(manifest_path).expanduser().resolve(strict=False)
+    path = _mcp_read_path(manifest_path, purpose="agent run manifest")
     return {
         "schema": "agilab.mcp.agent_next_actions.v1",
         "manifest_path": str(path),
@@ -160,7 +222,7 @@ def agent_context(
     if limit < 0:
         raise ValueError("limit must be >= 0")
     root = (
-        Path(log_root).expanduser().resolve(strict=False)
+        _mcp_read_path(log_root, purpose="agent log root")
         if log_root not in (None, "")
         else None
     )
@@ -186,7 +248,7 @@ def agent_lineage(
     run_id: str,
 ) -> dict[str, Any]:
     root = (
-        Path(log_root).expanduser().resolve(strict=False)
+        _mcp_read_path(log_root, purpose="agent log root")
         if log_root not in (None, "")
         else None
     )
@@ -200,8 +262,8 @@ def agent_lineage(
 def compare_agent_runs(
     left_manifest: str | Path, right_manifest: str | Path
 ) -> dict[str, Any]:
-    left = Path(left_manifest).expanduser().resolve(strict=False)
-    right = Path(right_manifest).expanduser().resolve(strict=False)
+    left = _mcp_read_path(left_manifest, purpose="left agent run manifest")
+    right = _mcp_read_path(right_manifest, purpose="right agent run manifest")
     return {
         "schema": "agilab.mcp.compare_agent_runs.v1",
         "left_manifest": str(left),
@@ -211,7 +273,7 @@ def compare_agent_runs(
 
 
 def validate_agent_run(manifest_path: str | Path) -> dict[str, Any]:
-    path = Path(manifest_path).expanduser().resolve(strict=False)
+    path = _mcp_read_path(manifest_path, purpose="agent run manifest")
     return {
         "schema": "agilab.mcp.validate_agent_run.v1",
         "manifest_path": str(path),
@@ -220,7 +282,7 @@ def validate_agent_run(manifest_path: str | Path) -> dict[str, Any]:
 
 
 def read_manifest(manifest_path: str | Path) -> dict[str, Any]:
-    path = Path(manifest_path).expanduser().resolve(strict=False)
+    path = _mcp_read_path(manifest_path, purpose="manifest")
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping):
         raise ValueError(f"Manifest must be a JSON object: {path}")
@@ -232,7 +294,8 @@ def read_manifest(manifest_path: str | Path) -> dict[str, Any]:
 
 
 def summarize_run(manifest_path: str | Path) -> dict[str, Any]:
-    manifest, _, resolved = bridge_cli._load_run_manifest(Path(manifest_path))
+    path = _mcp_read_path(manifest_path, purpose="run manifest")
+    manifest, _, resolved = bridge_cli._load_run_manifest(path)
     return {
         "schema": "agilab.mcp.summarize_run.v1",
         "manifest_path": str(resolved),
@@ -241,7 +304,8 @@ def summarize_run(manifest_path: str | Path) -> dict[str, Any]:
 
 
 def list_artifacts(manifest_path: str | Path) -> dict[str, Any]:
-    manifest, _, resolved = bridge_cli._load_run_manifest(Path(manifest_path))
+    path = _mcp_read_path(manifest_path, purpose="run manifest")
+    manifest, _, resolved = bridge_cli._load_run_manifest(path)
     return {
         "schema": "agilab.mcp.list_artifacts.v1",
         "manifest_path": str(resolved),
@@ -252,8 +316,10 @@ def list_artifacts(manifest_path: str | Path) -> dict[str, Any]:
 def compare_runs(
     left_manifest: str | Path, right_manifest: str | Path
 ) -> dict[str, Any]:
-    left, _, left_path = bridge_cli._load_run_manifest(Path(left_manifest))
-    right, _, right_path = bridge_cli._load_run_manifest(Path(right_manifest))
+    left_input = _mcp_read_path(left_manifest, purpose="left run manifest")
+    right_input = _mcp_read_path(right_manifest, purpose="right run manifest")
+    left, _, left_path = bridge_cli._load_run_manifest(left_input)
+    right, _, right_path = bridge_cli._load_run_manifest(right_input)
     left_summary = run_manifest.manifest_summary(left)
     right_summary = run_manifest.manifest_summary(right)
     return {
@@ -273,8 +339,10 @@ def compare_runs(
 def export_quarto_report(
     manifest_path: str | Path, output_path: str | Path
 ) -> dict[str, Any]:
+    manifest = _mcp_read_path(manifest_path, purpose="run manifest")
+    output = _mcp_read_path(output_path, purpose="report output")
     return bridge_cli.export_quarto_report(
-        Path(manifest_path), Path(output_path), render=False
+        manifest, output, render=False
     )
 
 
@@ -299,7 +367,11 @@ def _capabilities_manifest_path(explicit: str | Path | None = None) -> Path | No
     """
     if explicit is not None:
         candidate = Path(explicit).expanduser()
-        return candidate.resolve() if candidate.is_file() else None
+        return (
+            _mcp_read_path(candidate, purpose="capabilities manifest")
+            if candidate.is_file()
+            else None
+        )
     candidates: list[Path] = []
     env_value = os.environ.get("AGILAB_CAPABILITIES_MANIFEST")
     if env_value:
