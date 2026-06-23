@@ -197,6 +197,8 @@ def test_screenshot_manifest_loader_reports_contract_errors(tmp_path: Path) -> N
 
 def test_docs_page_shot_svg_summaries_do_not_reintroduce_stale_sidebar_labels() -> None:
     manifest = json.loads((DOCS_PAGE_SHOTS / "screenshot_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["root"] == "docs/source/_static/page-shots"
+    assert not manifest["root"].startswith("..")
     stale_sidebar_labels = ("Quick actions", "Reviewed")
 
     checked = []
