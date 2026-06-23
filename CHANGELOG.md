@@ -23,6 +23,21 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.06.23] - 2026-06-23
+
+### Changed
+
+- Prepared AGILAB `2026.06.23` package metadata and internal dependency pins
+  for the post-`2026.06.20` release queue.
+- Hardened worker cluster share-root handling so workflow data paths resolve
+  under the per-run session root instead of the parent cluster share.
+- Improved public documentation quality around generated docs, contribution
+  boundaries, Hugging Face runtime URLs, page-shot manifest portability, and
+  apps-pages gallery/test contracts.
+- Centralized API-key placeholder detection across OpenAI pipeline setup,
+  environment health, and About-page key cleanup so visibly redacted or example
+  secrets are rejected consistently.
+
 ## [2026.06.20] - 2026-06-20
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.20
