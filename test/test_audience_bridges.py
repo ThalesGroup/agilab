@@ -810,7 +810,8 @@ def test_bridge_cli_routes_export_import_init_and_mcp(monkeypatch: pytest.Monkey
     assert "planned" in capsys.readouterr().out
 
 
-def test_mcp_tools_and_jsonrpc(tmp_path: Path) -> None:
+def test_mcp_tools_and_jsonrpc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AGILAB_MCP_ALLOWED_ROOTS", str(tmp_path))
     manifest_path = _write_manifest(tmp_path)
     apps_root = tmp_path / "apps"
     (apps_root / "alpha_project").mkdir(parents=True)
@@ -1147,9 +1148,12 @@ def test_agent_quickstart_returns_bounded_curated_front_door() -> None:
     assert mcp_server.tool_descriptors()[0]["name"] == "agent_quickstart"
 
 
-def test_agent_quickstart_bounds_manifest_lists(tmp_path) -> None:
+def test_agent_quickstart_bounds_manifest_lists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """When the capabilities manifest is large, lists are capped and big sets
     are summarized as counts rather than inlined."""
+    monkeypatch.setenv("AGILAB_MCP_ALLOWED_ROOTS", str(tmp_path))
     manifest = {
         "boundary": {"proves": "discoverable surfaces"},
         "cli_commands": [
@@ -1184,7 +1188,10 @@ def test_agent_quickstart_degrades_without_manifest() -> None:
     assert "note" in payload
 
 
-def test_manifest_tools_reject_invalid_limits_and_manifest_shapes(tmp_path: Path) -> None:
+def test_manifest_tools_reject_invalid_limits_and_manifest_shapes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("AGILAB_MCP_ALLOWED_ROOTS", str(tmp_path))
     with pytest.raises(ValueError, match="limit must be >= 0"):
         manifest_tools.list_agent_runs(log_root=tmp_path, limit=-1)
     with pytest.raises(ValueError, match="limit must be >= 0"):
@@ -1198,6 +1205,29 @@ def test_manifest_tools_reject_invalid_limits_and_manifest_shapes(tmp_path: Path
     manifest.write_text('{"status": "pass"}', encoding="utf-8")
     payload = manifest_tools.read_manifest(manifest)
     assert payload["manifest"]["status"] == "pass"
+
+
+def test_manifest_tools_reject_paths_outside_allowed_roots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    allowed = tmp_path / "allowed"
+    outside = tmp_path / "outside"
+    allowed.mkdir()
+    outside.mkdir()
+    outside_manifest = outside / "run_manifest.json"
+    outside_manifest.write_text('{"status": "pass"}', encoding="utf-8")
+    monkeypatch.setenv("AGILAB_MCP_ALLOWED_ROOTS", str(allowed))
+
+    with pytest.raises(ValueError, match="outside configured read roots"):
+        manifest_tools.read_manifest(outside_manifest)
+    with pytest.raises(ValueError, match="outside configured read roots"):
+        manifest_tools.list_runs(outside)
+    with pytest.raises(ValueError, match="outside configured read roots"):
+        manifest_tools.list_projects(outside)
+    with pytest.raises(ValueError, match="outside configured read roots"):
+        manifest_tools.list_agent_runs(log_root=outside)
+    with pytest.raises(ValueError, match="outside configured read roots"):
+        manifest_tools.agent_quickstart(capabilities_path=outside_manifest)
 
 
 def test_agent_quickstart_discovers_manifest_from_env(
@@ -1219,6 +1249,7 @@ def test_agent_quickstart_discovers_manifest_from_env(
         encoding="utf-8",
     )
     monkeypatch.setenv("AGILAB_CAPABILITIES_MANIFEST", str(manifest))
+    monkeypatch.setenv("AGILAB_MCP_ALLOWED_ROOTS", str(tmp_path))
 
     payload = manifest_tools.agent_quickstart()
 
@@ -1244,7 +1275,10 @@ def test_agent_quickstart_degrades_when_auto_discovery_finds_no_manifest(
     assert "Capabilities manifest not found" in payload["note"]
 
 
-def test_agent_quickstart_reports_bad_manifest_content(tmp_path: Path) -> None:
+def test_agent_quickstart_reports_bad_manifest_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("AGILAB_MCP_ALLOWED_ROOTS", str(tmp_path))
     bad_json = tmp_path / "bad.json"
     bad_json.write_text("{", encoding="utf-8")
     unreadable = manifest_tools.agent_quickstart(capabilities_path=bad_json)

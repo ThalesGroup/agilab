@@ -809,13 +809,14 @@ def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, mon
     monkeypatch.setattr(module, "_hide_parent_sidebar", lambda: sidebar_hides.append("hide"))
     monkeypatch.setattr(module, "_is_hosted_analysis_runtime", lambda _env: False)
     monkeypatch.setattr(module, "_ensure_notebook_sidecar", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(module, "_notebook_sidecar_token", lambda _key: "test-token")
     monkeypatch.setattr(module, "_port_for", lambda _key: 8766)
 
     asyncio.run(module.render_notebook_page(notebook_path))
 
     assert calls == [
         (
-            "http://127.0.0.1:8766/lab/tree/notebooks/lab_stages.ipynb?active_app=flight_telemetry_project&embed=true",
+            "http://127.0.0.1:8766/lab/tree/notebooks/lab_stages.ipynb?active_app=flight_telemetry_project&embed=true&token=test-token",
             {"height": 900},
         )
     ]
@@ -892,6 +893,7 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
 
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_is_port_open", lambda _port: next(port_checks))
+    monkeypatch.setattr(module, "_notebook_sidecar_token", lambda _key: "sidecar-token")
 
     def _fake_exec_bg(_env, cmd, cwd: str, process_env=None):
         commands.append((cmd, cwd, process_env))
@@ -915,8 +917,17 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     assert "lab" in command
     assert "--no-browser" in command
     assert str(notebook_path.resolve()) not in command
+    assert "--ServerApp.token=sidecar-token" in command
+    assert "--ServerApp.token=" not in command
+    assert "--ServerApp.allow_origin=*" not in command
+    assert "--ServerApp.disable_check_xsrf=True" not in command
+    assert any(part.startswith("--ServerApp.allow_origin_pat=") for part in command)
     assert any(part.startswith("--ServerApp.tornado_settings=") for part in command)
-    assert any("frame-ancestors *;" in part for part in command)
+    assert not any("frame-ancestors *;" in part for part in command)
+    assert any(
+        "frame-ancestors http://127.0.0.1:* http://localhost:*;" in part
+        for part in command
+    )
     assert not any("'" in part for part in command)
 
 
