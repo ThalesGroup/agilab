@@ -470,13 +470,17 @@ or publication contract is part of the change.
 Which docs repo should I edit?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Edit the canonical documentation source in the sibling documentation checkout:
-``../thales_agilab/docs/source`` relative to the AGILAB source checkout. The
-public Pages workflow publishes from the mirrored ``agilab/docs/source`` tree,
-so public docs changes need two steps:
+Public contributors can edit ``docs/source`` in the AGILAB checkout they cloned
+from GitHub. Maintainers who work with a separate canonical documentation
+checkout should edit that canonical source first, then sync the public mirror in
+``agilab/docs/source`` before opening or updating the public PR.
 
-1. edit the canonical source in the sibling documentation checkout
-2. sync the public mirror with ``tools/sync_docs_source.py``
+For maintainer mirror syncs, run:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete
+   uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp
 
 Do not edit ``docs/html``. It is generated output only.
 
