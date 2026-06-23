@@ -125,6 +125,15 @@ def test_faq_separates_public_and_maintainer_docs_paths() -> None:
     assert "../thales_agilab/docs/source" not in faq
 
 
+def test_apps_pages_explains_huggingface_runtime_url_role() -> None:
+    docs = (DOCS_SOURCE / "apps-pages.rst").read_text(encoding="utf-8")
+
+    assert "Use the ``*.hf.space`` runtime URL for app-surface backends" in docs
+    assert "preserves the ``active_app`` route" in docs
+    assert "https://huggingface.co/spaces/jpmorard/agilab" in docs
+    assert "release-proof links, and documentation entry points" in docs
+
+
 def test_security_policy_addresses_public_audit_adoption_boundaries() -> None:
     security = Path("SECURITY.md").read_text(encoding="utf-8")
 

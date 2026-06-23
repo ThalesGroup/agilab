@@ -85,6 +85,12 @@ hosted demo or future UI adapters.
    url = "https://jpmorard-agilab.hf.space/?active_app=pytorch_playground_project"
    capabilities = ["hosted-demo", "live-training"]
 
+Use the ``*.hf.space`` runtime URL for app-surface backends because it opens
+the running Space directly and preserves the ``active_app`` route. Use the
+Hugging Face project page, for example
+``https://huggingface.co/spaces/jpmorard/agilab``, for public badges,
+release-proof links, and documentation entry points.
+
 The generic launcher is::
 
    agilab app surface pytorch_playground_project --ui streamlit
