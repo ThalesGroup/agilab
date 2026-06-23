@@ -21,6 +21,7 @@ import hashlib
 import html
 import json
 import re
+import secrets
 import inspect
 from collections.abc import Sequence
 from typing import Any, Union
@@ -2814,11 +2815,31 @@ def _notebook_lab_tree_path(notebook_path: Path, project_root: Path) -> str:
     return quote(rel_path.as_posix(), safe="/")
 
 
+_NOTEBOOK_IFRAME_FRAME_ANCESTORS = (
+    "frame-ancestors http://127.0.0.1:* http://localhost:*;"
+)
+_NOTEBOOK_ALLOW_ORIGIN_PAT = r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$"
+
+
+def _notebook_sidecar_token_key(notebook_key: str) -> str:
+    digest = hashlib.sha256(notebook_key.encode("utf-8")).hexdigest()[:16]
+    return f"notebook_sidecar_token__{digest}"
+
+
+def _notebook_sidecar_token(notebook_key: str) -> str:
+    session_key = _notebook_sidecar_token_key(notebook_key)
+    token = st.session_state.get(session_key)
+    if not isinstance(token, str) or not token:
+        token = secrets.token_urlsafe(32)
+        st.session_state[session_key] = token
+    return token
+
+
 def _notebook_iframe_tornado_settings_arg() -> str:
     """Return Jupyter headers that allow the local Streamlit parent to embed Lab."""
     settings = {
         "headers": {
-            "Content-Security-Policy": "frame-ancestors *;",
+            "Content-Security-Policy": _NOTEBOOK_IFRAME_FRAME_ANCESTORS,
             "X-Frame-Options": "",
         }
     }
@@ -2830,6 +2851,7 @@ def _ensure_notebook_sidecar(
     notebook_path: Path,
     port: int,
     project_root: Path,
+    token: str | None = None,
 ) -> bool:
     """Start a local JupyterLab sidecar rooted at the active project."""
     if _is_port_open(port):
@@ -2845,6 +2867,7 @@ def _ensure_notebook_sidecar(
     env.err_log = err_file
 
     project_home = str(project_root.resolve())
+    sidecar_token = token or _notebook_sidecar_token(notebook_key)
     tornado_settings = _notebook_iframe_tornado_settings_arg()
     run_cmd = [
         *uv,
@@ -2863,10 +2886,9 @@ def _ensure_notebook_sidecar(
         "--ServerApp.ip=127.0.0.1",
         f"--ServerApp.port={port}",
         "--ServerApp.open_browser=False",
-        "--ServerApp.token=",
+        f"--ServerApp.token={sidecar_token}",
         "--ServerApp.password=",
-        "--ServerApp.allow_origin=*",
-        "--ServerApp.disable_check_xsrf=True",
+        f"--ServerApp.allow_origin_pat={_NOTEBOOK_ALLOW_ORIGIN_PAT}",
         f"--ServerApp.root_dir={project_home}",
         f"--ServerApp.tornado_settings={tornado_settings}",
     ]
@@ -3433,8 +3455,9 @@ async def render_notebook_page(notebook_path: Path):
 
     notebook_key = f"{notebook_label}|{project_root.as_posix()}"
     port = _port_for(f"notebook|{notebook_key}")
+    sidecar_token = _notebook_sidecar_token(notebook_key)
     sidecar_ready = _ensure_notebook_sidecar(
-        notebook_key, resolved_notebook, port, project_root
+        notebook_key, resolved_notebook, port, project_root, token=sidecar_token
     )
 
     qp = st.query_params
@@ -3444,6 +3467,7 @@ async def render_notebook_page(notebook_path: Path):
             continue
         extras[key] = value
     extras["embed"] = "true"
+    extras["token"] = sidecar_token
     query = urlencode(extras, doseq=True)
     notebook_url_path = _notebook_lab_tree_path(resolved_notebook, project_root)
     if not sidecar_ready:
@@ -3478,7 +3502,11 @@ async def render_notebook_page(notebook_path: Path):
                 st.code("\n".join(sidecar_attempts), language="bash")
         return
     url = f"http://127.0.0.1:{port}/lab/tree/{notebook_url_path}?{query}"
-    env.logger.info("notebook url: %s", url)
+    env.logger.info(
+        "notebook url: http://127.0.0.1:%s/lab/tree/%s?token=<redacted>",
+        port,
+        notebook_url_path,
+    )
     st.iframe(url, height=900)
 
 
