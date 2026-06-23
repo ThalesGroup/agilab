@@ -2732,6 +2732,13 @@ def test_share_root_resolution_and_mode_helpers(tmp_path: Path, monkeypatch):
     assert env.share_root_path() == fake_home / "clustershare"
     assert env.resolve_share_path(None) == fake_home / "clustershare"
     assert env.resolve_share_path("demo/data") == fake_home / "clustershare" / "demo" / "data"
+    env.AGILAB_WORKFLOW_DATA_ROOT = "clustershare/alice/workflow/session-1"
+    assert env.share_root_path() == fake_home / "clustershare"
+    assert env.workflow_data_root_path() == fake_home / "clustershare" / "alice" / "workflow" / "session-1"
+    assert (
+        env.resolve_share_path("demo/data")
+        == fake_home / "clustershare" / "alice" / "workflow" / "session-1" / "demo" / "data"
+    )
     absolute_share_path = env.resolve_share_path("/tmp/absolute")
     if os.name == "nt":
         assert absolute_share_path.is_absolute()

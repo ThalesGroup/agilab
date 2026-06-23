@@ -585,7 +585,7 @@ def test_initialize_runtime_state_preserves_workflow_session_workers_data_path()
     assert agi_cls._workers_data_path == str(session_root)
 
 
-def test_initialize_runtime_state_rebinds_manager_share_root_to_workflow_session():
+def test_initialize_runtime_state_sets_workflow_data_root_without_rebinding_cluster_share():
     agi_cls = SimpleNamespace()
     env = SimpleNamespace(
         manager_path=Path("/tmp/manager"),
@@ -614,14 +614,18 @@ def test_initialize_runtime_state_rebinds_manager_share_root_to_workflow_session
 
     expected_root = (Path("/home/agi") / session_root).resolve(strict=False)
     assert agi_cls._workers_data_path == session_root
-    assert env.AGI_CLUSTER_SHARE == session_root
-    assert env.agi_share_path == session_root
-    assert env.agi_share_path_abs == expected_root
-    assert env._share_root_cache == expected_root
+    assert env.AGI_CLUSTER_SHARE == "clustershare/agi"
+    assert env.agi_share_path == "clustershare/agi"
+    assert env.agi_share_path_abs == Path("/home/agi/clustershare/agi")
+    assert env._share_root_cache == Path("/home/agi/clustershare/agi")
+    assert env.AGILAB_WORKFLOW_DATA_ROOT == session_root
+    assert env.agi_workflow_data_root == session_root
+    assert env.agi_workflow_data_root_abs == expected_root
     assert env.share_target_name == "flight_trajectory"
     assert env.app_data_rel == expected_root / "flight_trajectory"
     assert env.dataframe_path == expected_root / "flight_trajectory" / "dataframe"
-    assert env.envars["AGI_CLUSTER_SHARE"] == session_root
+    assert env.envars["AGILAB_WORKFLOW_DATA_ROOT"] == session_root
+    assert "AGI_CLUSTER_SHARE" not in env.envars
 
 
 def test_initialize_runtime_state_preserves_scheduler_share_for_remote_workers_path():

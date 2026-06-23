@@ -674,46 +674,62 @@ def _cluster_args_share_root(env: Any, cluster_params: dict[str, Any]) -> Path |
 class _ShareRootOverrideEnv:
     def __init__(self, env: Any, share_root: Path) -> None:
         object.__setattr__(self, "_env", env)
-        object.__setattr__(self, "_share_root", Path(share_root).expanduser())
+        object.__setattr__(self, "_data_root", Path(share_root).expanduser())
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._env, name)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name in {"_env", "_share_root"}:
+        if name in {"_env", "_data_root"}:
             object.__setattr__(self, name, value)
             return
         setattr(self._env, name, value)
 
     @property
     def agi_share_path(self) -> Path:
-        return self._share_root
+        return Path(self.AGI_CLUSTER_SHARE).expanduser()
 
     @property
     def agi_share_path_abs(self) -> Path:
-        return self._share_root
+        candidate = Path(self.AGI_CLUSTER_SHARE).expanduser()
+        if not candidate.is_absolute():
+            candidate = Path(getattr(self._env, "home_abs", Path.home())) / candidate
+        return candidate.resolve(strict=False)
 
     @property
     def AGI_CLUSTER_SHARE(self) -> str:
-        return str(self._share_root)
+        env_vars = getattr(self._env, "envars", None)
+        env_value = getattr(self._env, "AGI_CLUSTER_SHARE", None)
+        if not env_value and isinstance(env_vars, dict):
+            env_value = env_vars.get("AGI_CLUSTER_SHARE")
+        return str(env_value or self._data_root)
+
+    @property
+    def AGILAB_WORKFLOW_DATA_ROOT(self) -> str:
+        return str(self._data_root)
+
+    @property
+    def agi_workflow_data_root(self) -> str:
+        return str(self._data_root)
 
     @property
     def envars(self) -> dict[str, Any]:
         env_vars = getattr(self._env, "envars", None)
         payload = dict(env_vars) if isinstance(env_vars, dict) else {}
-        payload["AGI_CLUSTER_SHARE"] = str(self._share_root)
+        payload["AGI_CLUSTER_SHARE"] = self.AGI_CLUSTER_SHARE
+        payload["AGILAB_WORKFLOW_DATA_ROOT"] = str(self._data_root)
         return payload
 
     def share_root_path(self) -> Path:
-        return self._share_root
+        return self._data_root
 
     def resolve_share_path(self, path: Any = None) -> Path:
         if path in (None, ""):
-            return self._share_root
+            return self._data_root
         candidate = Path(str(path)).expanduser()
         if candidate.is_absolute():
             return candidate.resolve(strict=False)
-        return (self._share_root / candidate).resolve(strict=False)
+        return (self._data_root / candidate).resolve(strict=False)
 
 
 def _app_args_env_for_cluster(env: Any, cluster_params: dict[str, Any]) -> Any:

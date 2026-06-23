@@ -75,6 +75,22 @@ def share_root_path(
     if env is None:
         return None
 
+    for name in ("AGILAB_WORKFLOW_DATA_ROOT", "agi_workflow_data_root", "workflow_data_root"):
+        active_root = getattr(env, name, None)
+        if not active_root and isinstance(getattr(env, "envars", None), dict):
+            active_root = env.envars.get(name)
+        if not active_root:
+            continue
+        try:
+            base = path_cls(active_root).expanduser()
+            if not base.is_absolute():
+                home = getattr(env, "home_abs", None)
+                base_home = path_cls(home).expanduser() if home else path_cls.home()
+                base = base_home / base
+            return base.resolve(strict=False)
+        except SHARE_ROOT_FALLBACK_EXCEPTIONS:
+            continue
+
     try:
         base = path_cls(env.share_root_path()).expanduser()
         if base:
