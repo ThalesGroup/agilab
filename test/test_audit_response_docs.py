@@ -115,6 +115,16 @@ def test_environment_docs_scope_local_secret_persistence() -> None:
     assert "AGILAB_APPS_REPOSITORY_ALLOWLIST" in environment
 
 
+def test_faq_separates_public_and_maintainer_docs_paths() -> None:
+    faq = (DOCS_SOURCE / "faq.rst").read_text(encoding="utf-8")
+
+    assert "Public contributors can edit ``docs/source``" in faq
+    assert "Maintainers who work with a separate canonical documentation" in faq
+    assert "tools/sync_docs_source.py --apply --delete" in faq
+    assert "tools/sync_docs_source.py --verify-stamp" in faq
+    assert "../thales_agilab/docs/source" not in faq
+
+
 def test_security_policy_addresses_public_audit_adoption_boundaries() -> None:
     security = Path("SECURITY.md").read_text(encoding="utf-8")
 
