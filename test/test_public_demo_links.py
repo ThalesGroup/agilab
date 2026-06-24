@@ -158,7 +158,7 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
         "you do not lose your work if the AGILAB UI or distributed runtime is",
         "reviewable run evidence",
         "runnable outside the AGILAB UI as `agi-core` notebooks",
-        "production-grade core technology",
+        "release-gated core runtime handoff technology",
         "AGILAB complements MLflow and production MLOps platforms.",
         "## Core Flow",
         "### Local PyPI Proof",
