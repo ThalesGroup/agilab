@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-24T13:59:02Z",
+  "generated_at_utc": "2026-06-24T21:24:11Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -71,7 +71,7 @@
       "name": "agilab-intent-router",
       "description": "Route terse AGILAB operator requests such as \"do it\", \"review AGILAB\", \"next move\", \"update repos\", \"merge it\", \"check again\", \"release\", and \"cluster validation\" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-19",
+      "updated": "2026-06-24",
       "path": ".codex/skills/agilab-intent-router/SKILL.md",
       "body_preview": "# AGILAB Intent Router\nUse this skill first when a user request is short, ambiguous, or operational.\nThe goal is to classify the request before acting, so terse commands map to the\nright AGILAB workflow instead of defaulting to a shallow answer or wrong repo"
     },

@@ -3,7 +3,7 @@ name: agilab-intent-router
 description: Route terse AGILAB operator requests such as "do it", "review AGILAB", "next move", "update repos", "merge it", "check again", "release", and "cluster validation" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-19
+  updated: 2026-06-24
 ---
 
 # AGILAB Intent Router
@@ -89,6 +89,15 @@ Route these patterns before choosing tools:
   merge step still requires the current PR/branch to be clean, synchronized, and
   passing required checks; stop and report the blocker instead of asking for a
   second `merge it` or `next move` turn.
+- For a terse `merge` on a clean branch that is already tracking a remote
+  feature branch, check `gh pr list --head <branch>` and ahead/behind counts
+  before staging or committing. Treat a clean pushed branch plus open PR as a
+  PR-completion task: update stale validation/check status, wait only for the
+  latest required checks, then merge when GitHub reports the PR is clean.
+- If the user interrupts a merge/check watch with `update skill`, `sync skills`,
+  or `make future agents do X`, stop only the watcher started in this turn and
+  keep the skill update in its own branch/PR unless the user explicitly asks to
+  mix it into the current feature PR.
 - For terminal checks in terse execution chains, prefer `tokki run -- <command>`
   when Tokki can preserve command behavior. Use raw commands for interactive
   flows, exact structured stdout, live streaming logs, or intentionally
