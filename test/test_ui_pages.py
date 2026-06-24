@@ -99,6 +99,32 @@ def _assert_sidebar_link_absent(markdown: str, label: str) -> None:
         )
 
 
+def test_analysis_page_defers_reuse_catalog_import_until_suggestion_report() -> None:
+    analysis_source = Path("src/agilab/pages/4_ANALYSIS.py").read_text(
+        encoding="utf-8"
+    )
+    analysis_tree = ast.parse(analysis_source)
+    eager_reuse_imports = []
+    for node in analysis_tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        value = node.value
+        if not (
+            isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Name)
+            and value.func.id == "import_agilab_module"
+            and value.args
+            and isinstance(value.args[0], ast.Constant)
+            and value.args[0].value == "agilab.reuse_catalog"
+        ):
+            continue
+        eager_reuse_imports.append(node)
+
+    assert eager_reuse_imports == []
+    assert 'def _build_reuse_suggestion_report(*args: Any, **kwargs: Any) -> Any:' in analysis_source
+    assert '_lazy_import_attr("agilab.reuse_catalog", "build_suggestion_report")' in analysis_source
+
+
 def test_primary_pages_keep_homogeneous_support_field_order() -> None:
     """Support fields should not jump above the page's primary content."""
     analysis_source = Path("src/agilab/pages/4_ANALYSIS.py").read_text(
