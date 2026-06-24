@@ -73,6 +73,47 @@ function Set-PersistEnvVar {
     Set-Content -LiteralPath $EnvFile -Value $lines -Encoding UTF8
 }
 
+function Add-DefaultEnvComments {
+    param(
+        [Parameter(Mandatory)][string]$EnvFile,
+        [Parameter(Mandatory)][string]$TemplateFile
+    )
+
+    if (-not (Test-Path -LiteralPath $TemplateFile)) {
+        return
+    }
+
+    $dir = Split-Path -LiteralPath $EnvFile
+    if ($dir) {
+        Ensure-Dir $dir
+    }
+    if (-not (Test-Path -LiteralPath $EnvFile)) {
+        New-Item -ItemType File -Path $EnvFile -Force | Out-Null
+    }
+
+    $existing = @(Get-Content -LiteralPath $EnvFile -ErrorAction SilentlyContinue)
+    $toAppend = New-Object System.Collections.Generic.List[string]
+    foreach ($line in Get-Content -LiteralPath $TemplateFile) {
+        if ($line -notmatch '^\s*#\s*([^=]+)=') {
+            continue
+        }
+        $key = $Matches[1].Trim()
+        $pattern = '^\s*#?\s*' + [regex]::Escape($key) + '\s*='
+        if (-not ($existing | Where-Object { $_ -match $pattern })) {
+            $toAppend.Add($line)
+        }
+    }
+
+    if ($toAppend.Count -gt 0) {
+        Add-Content -LiteralPath $EnvFile -Value ""
+        Add-Content -LiteralPath $EnvFile -Value "# Optional AGILAB settings (commented defaults)"
+        Add-Content -LiteralPath $EnvFile -Value "# Uncomment only the values you want to override."
+        foreach ($line in $toAppend) {
+            Add-Content -LiteralPath $EnvFile -Value $line
+        }
+    }
+}
+
 function Normalize-LocalModelName {
     param([string]$Raw)
     $rawValue = if ($null -eq $Raw) { "" } else { $Raw }
@@ -458,6 +499,8 @@ if ($Source -eq 'local') {
 
 Set-PersistEnvVar -Key "APPS_PATH" -Value $AppsRoot -EnvFile $EnvFile
 Set-LocalLlmSelection -RequestedModels $RequestedLocalModels -EnvFile $EnvFile
+$TemplateEnvFile = Join-Path (Join-Path (Join-Path (Join-Path (Join-Path (Join-Path $RepoRoot "src") "agilab") "core") "agi-env") "src") "agi_env/resources/.agilab/.env"
+Add-DefaultEnvComments -EnvFile $EnvFile -TemplateFile $TemplateEnvFile
 
 Write-Host "===================================="
 Write-Host " MODE:     $Source"

@@ -1050,6 +1050,152 @@ update_environment() {
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
 }
 
+_env_comment_key_exists() {
+    local key="$1"
+    local env_file="$2"
+    awk -v want="$key" '
+        {
+            line = $0
+            sub(/^[ \t]*/, "", line)
+            sub(/^#/, "", line)
+            sub(/^[ \t]*/, "", line)
+            split(line, parts, "=")
+            candidate = parts[1]
+            gsub(/[ \t]/, "", candidate)
+            if (candidate == want) found = 1
+        }
+        END { exit found ? 0 : 1 }
+    ' "$env_file"
+}
+
+append_default_env_comments() {
+    local env_file="$1"
+    local line key added_header=0
+
+    mkdir -p "$(dirname "$env_file")"
+    touch "$env_file"
+
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" != *=* ]] && continue
+        key="${line#\#}"
+        key="${key%%=*}"
+        key="$(printf '%s' "$key" | tr -d '[:space:]')"
+        [[ -z "$key" ]] && continue
+        if ! _env_comment_key_exists "$key" "$env_file"; then
+            if [[ "$added_header" -eq 0 ]]; then
+                {
+                    printf '\n'
+                    echo "# Optional AGILAB settings (commented defaults)"
+                    echo "# Uncomment only the values you want to override."
+                } >> "$env_file"
+                added_header=1
+            fi
+            printf '%s\n' "$line" >> "$env_file"
+        fi
+    done <<'EOF'
+# AGI_PYTHON_VERSION="3.13"
+# 127.0.0.1_PYTHON_VERSION="3.13"
+# AGI_PYTHON_FREE_THREADED="1"
+# IS_SOURCE_ENV="1"
+# IS_WORKER_ENV="0"
+# OPENAI_API_KEY=""
+# OPENAI_BASE_URL=""
+# OPENAI_MODEL="gpt-5.4-mini"
+# AGILAB_DEFAULT_OPENAI_MODEL="gpt-5.4-mini"
+# AZURE_OPENAI_API_KEY=""
+# AZURE_OPENAI_ENDPOINT=""
+# AZURE_OPENAI_API_VERSION=""
+# AZURE_OPENAI_DEPLOYMENT=""
+# MISTRAL_API_KEY=""
+# MISTRAL_BASE_URL="https://api.mistral.ai/v1"
+# MISTRAL_MODEL="mistral-medium-3.5"
+# MISTRAL_REASONING_EFFORT="high"
+# MISTRAL_TEMPERATURE=""
+# MISTRAL_MAX_TOKENS=""
+# MISTRAL_TIMEOUT="120"
+# AGILAB_LLM_BASE_URL="http://127.0.0.1:8000/v1"
+# AGILAB_LLM_MODEL="Qwen/Qwen2.5-Coder-7B-Instruct"
+# AGILAB_LLM_API_KEY="EMPTY"
+# AGILAB_LLM_TEMPERATURE="0.1"
+# AGILAB_LLM_MAX_TOKENS=""
+# AGILAB_LLM_TIMEOUT="120"
+# LAB_LLM_PROVIDER=""
+# UOAIC_MODE=""
+# UOAIC_OLLAMA_ENDPOINT="http://127.0.0.1:11434"
+# UOAIC_MODEL=""
+# APP_DEFAULT="minimal_app_project"
+# APPS_PATH="/path/to/agilab/src/agilab/apps"
+# APPS_REPOSITORY="/path/to/your-apps-repository"
+# AGILAB_DEV_APPS_REPOSITORY=""
+# AGILAB_ALLOW_FLOATING_APPS_REPOSITORY="0"
+# MLFLOW_TRACKING_DIR=".mlflow"
+# AGI_CLUSTER_SHARE="clustershare/<user>"
+# AGI_LOCAL_SHARE="localshare/<user>"
+# AGI_LOG_DIR="log"
+# AGI_EXPORT_DIR="export"
+# AGILAB_LOG_ROOT="log"
+# AGILAB_EXPORT_DIR="export"
+# AGILAB_WORKFLOW_DATA_ROOT=""
+# CLUSTER_CREDENTIALS="agi:2633"
+# AGI_CLUSTER_ENABLED="0"
+# AGI_WORKERS=""
+# AGI_SCHEDULER_IP=""
+# AGI_SSH_KEY_PATH=""
+# AGILAB_SHARE_USER="<user>"
+# AGILAB_CLUSTER_SHARE_BACKEND="sshfs"
+# AGI_CLUSTER_SHARE_BACKEND="sshfs"
+# AGILAB_SCHEDULER_SSH_PORT="22"
+# AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED="0"
+# AGILAB_PREMOUNTED_REMOTE_CLUSTER_SHARE="0"
+# AGILAB_CLUSTER_SHARE_PREMOUNTED="0"
+# AGILAB_CLUSTER_SSH_HOST_KEY_POLICY="strict"
+# AGILAB_CLUSTER_SSH_KNOWN_HOSTS="~/.ssh/known_hosts"
+# AGI_CLUSTER_SSH_HOST_KEY_POLICY="strict"
+# AGI_CLUSTER_SSH_KNOWN_HOSTS="~/.ssh/known_hosts"
+# AGILAB_LAN_CLUSTER_IPS=""
+# AGILAB_LAN_CLUSTER_CREDENTIALS=""
+# AGILAB_LAN_CLUSTER_SSH_KEY_PATH=""
+# TABLE_MAX_ROWS="1000000"
+# AGI_INTERNET_ON="1"
+# AGILAB_UI_HOST="127.0.0.1"
+# AGILAB_PUBLIC_BIND_OK="0"
+# AGILAB_AUTH_REQUIRED="0"
+# AGILAB_PUBLIC_AUTH="0"
+# AGILAB_TLS_TERMINATED="0"
+# AGILAB_PUBLIC_BIND_EVIDENCE=""
+# AGILAB_LINK_COMPATIBLE_VENVS="1"
+# AGILAB_REFRESH_WORKER_ENVS="0"
+# AGILAB_SHARED_WORKER_VENV="1"
+# AGILAB_SHARED_WORKER_VENV_DIR=""
+# AGILAB_VENV_LINK_REPORT="~/.local/share/agilab/venv_link_report.json"
+# AGILAB_POOL_MAX_WORKERS=""
+# AGILAB_POOL_ITEM_TIMEOUT=""
+# AGILAB_POOL_EXECUTOR="auto"
+# AGILAB_RUNTIME_AUTO_INSTALL="0"
+# AGILAB_DISABLE_BACKGROUND_SERVICES="0"
+# AGILAB_DISABLE_HARDWARE_PROBES="0"
+# AGILAB_RUNTIME_DIAGNOSTICS_VERBOSE="0"
+# AGILAB_DEV_OUTPUT="summary"
+# AGILAB_DEV_SUMMARY_LINES="40"
+# AGILAB_DEV_UV_PROJECT_ENVIRONMENT=".venv-dev"
+# AGILAB_DISABLE_UI_DISCOVERY_CACHE="0"
+# AGILAB_DISABLE_ANALYSIS_DISCOVERY_CACHE="0"
+# AGILAB_DISABLE_PAGE_MODULE_CACHE="0"
+# AGILAB_NOTEBOOK_EXPORT_ALLOW_WORKSPACE_SIBLINGS="0"
+# AGILAB_NOTEBOOK_REUSE_REFRESH_SECONDS="8"
+# AGILAB_PIPELINE_LOCK_TTL_SEC="21600"
+# AGILAB_PREVIEW_MAX_SEARCH_FILES="1000"
+# AGILAB_PREVIEW_MAX_FILE_BYTES="26214400"
+# AGILAB_GENERATED_CODE_SANDBOX=""
+# AGILAB_GENERATED_CODE_PROCESS_LIMITS="0"
+# AGILAB_GENERATED_CODE_AUTORUN="0"
+# AGILAB_MCP_ALLOWED_ROOTS=""
+# AGILAB_MCP_ALLOW_CWD="0"
+# AGILAB_KEYRING_SERVICE="agilab"
+# AGILAB_KEYRING_ACCOUNT="<user>"
+EOF
+}
+
 write_env_values() {
     shared_env="$HOME/.local/share/agilab/.env"
     agilab_env="$HOME/.agilab/.env"
@@ -1562,6 +1708,7 @@ backup_existing_project
 copy_project_files
 update_environment
 write_env_values
+append_default_env_comments "$HOME/.agilab/.env"
 install_core
 maybe_run_core_tests
 
