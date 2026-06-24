@@ -122,18 +122,18 @@ check:
 Pull request evidence
 ---------------------
 
-Paste a short evidence block in every pull request:
+Use one short evidence block in every pull request:
 
 .. code-block:: text
 
    Scope:
    Validation:
    Risk area: docs | app | UI | workflow | shared core | security | dependency
+   Touched areas: public docs | dependencies | security | release tooling | generated files | shared core | none
    Generated artifacts updated: yes/no
 
-Also state whether the change touches public documentation, dependencies,
-security, release tooling, generated files, or shared core. These areas need
-more careful review than an app-local or docs-only change.
+If none of the touched areas apply, write ``none``. Those areas need more
+careful review than an app-local or docs-only change.
 
 Review expectations
 -------------------
