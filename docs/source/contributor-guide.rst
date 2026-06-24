@@ -75,7 +75,7 @@ Use the smallest command that proves your change:
    * - Root docs only
      - ``git diff --check``
    * - Sphinx docs source
-     - ``uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete``
+     - mirror sync plus stamp verification
    * - Workflow parity
      - ``uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>``
    * - Skill catalog
@@ -87,6 +87,37 @@ Use the smallest command that proves your change:
 
 Run broader test suites only when the touched area needs them. Do not trigger
 GitHub Actions when the same failure can be reproduced locally.
+
+Documentation quality bar
+-------------------------
+
+Treat public documentation as product surface. Before opening a docs pull
+request, check the page against this quality bar:
+
+- **One reader, one next action**: name the intended reader, then make the next
+  command, page, or proof artifact obvious. Avoid pages that explain many
+  routes without telling the reader which route to start with.
+- **Executable commands**: prefer copy-pasteable commands with the current
+  ``uv --preview-features extra-build-dependencies`` entrypoints. If a command
+  is source-checkout-only, packaged-only, or maintainer-only, label it that way.
+- **Evidence over claims**: link claims about readiness, release status, demos,
+  or reproducibility to the relevant manifest, release proof, robot evidence,
+  or compatibility page. Do not describe roadmap work as shipped behavior.
+- **Public boundary**: keep public docs free of private app names, internal
+  competitive positioning, local-only paths, and unsupported production-safety
+  claims. When AGILAB needs MLflow, Kubeflow, Airflow, SageMaker, or an internal
+  platform for production responsibilities, say so directly.
+- **Source/mirror parity**: edit canonical docs in the sibling
+  ``../thales_agilab/docs/source`` tree, sync this repository's ``docs/source``
+  mirror, verify the mirror stamp, and build the rendered page when layout or
+  links matter. Never hand-edit ``docs/html``.
+- **Screenshots and diagrams**: update source screenshots, SVG diagrams,
+  captions, alt text, and references together. Inspect the rendered page so old
+  UI labels or clipped diagram text cannot survive a source-only edit.
+- **Agent-readable surfaces**: when docs change a command, app, page, schema, or
+  evidence artifact that agents should discover, keep ``llms.txt``,
+  ``agenticweb.md``, and ``agilab-capabilities.json`` aligned through their
+  existing generators or checks.
 
 Pull request evidence
 ---------------------
