@@ -77,9 +77,32 @@ def _import_command(module_name: str, *, extra_paths: Sequence[Path] = ()) -> tu
     return (sys.executable, "-c", code)
 
 
+def _file_import_command(
+    file_path: Path,
+    module_name: str,
+    *,
+    extra_paths: Sequence[Path] = (),
+) -> tuple[str, ...]:
+    paths_literal = repr(_repo_python_paths(extra_paths))
+    code = (
+        "import importlib.util, sys; "
+        f"paths = {paths_literal}; "
+        "[sys.path.insert(0, p) for p in reversed(paths) if p not in sys.path]; "
+        f"path = {str(file_path.resolve())!r}; "
+        f"module_name = {module_name!r}; "
+        "spec = importlib.util.spec_from_file_location(module_name, path); "
+        "assert spec is not None and spec.loader is not None; "
+        "module = importlib.util.module_from_spec(spec); "
+        "sys.modules[module_name] = module; "
+        "spec.loader.exec_module(module)"
+    )
+    return (sys.executable, "-c", code)
+
+
 def scenario_catalog() -> dict[str, PerfScenario]:
     maps_network_src = REPO_ROOT / "src/agilab/apps-pages/view_maps_network/src"
     maps_3d_src = REPO_ROOT / "src/agilab/apps-pages/view_maps_3d/src"
+    streamlit_pages_root = REPO_ROOT / "src/agilab/pages"
     return {
         "orchestrate-execute-import": PerfScenario(
             name="orchestrate-execute-import",
@@ -117,6 +140,46 @@ def scenario_catalog() -> dict[str, PerfScenario]:
             command=_import_command(
                 "view_maps_3d.view_maps_3d",
                 extra_paths=[maps_3d_src],
+            ),
+        ),
+        "ui-project-status-page-import": PerfScenario(
+            name="ui-project-status-page-import",
+            description="PROJECT status Streamlit page module import startup.",
+            command=_file_import_command(
+                streamlit_pages_root / "1_PROJECT_STATUS.py",
+                "agilab_perf_ui_project_status_page",
+            ),
+        ),
+        "ui-project-editor-page-import": PerfScenario(
+            name="ui-project-editor-page-import",
+            description="PROJECT editor Streamlit page module import startup.",
+            command=_file_import_command(
+                streamlit_pages_root / "1_PROJECT.py",
+                "agilab_perf_ui_project_editor_page",
+            ),
+        ),
+        "ui-orchestrate-page-import": PerfScenario(
+            name="ui-orchestrate-page-import",
+            description="ORCHESTRATE Streamlit page module import startup.",
+            command=_file_import_command(
+                streamlit_pages_root / "2_ORCHESTRATE.py",
+                "agilab_perf_ui_orchestrate_page",
+            ),
+        ),
+        "ui-workflow-page-import": PerfScenario(
+            name="ui-workflow-page-import",
+            description="WORKFLOW Streamlit page module import startup.",
+            command=_file_import_command(
+                streamlit_pages_root / "3_WORKFLOW.py",
+                "agilab_perf_ui_workflow_page",
+            ),
+        ),
+        "ui-analysis-page-import": PerfScenario(
+            name="ui-analysis-page-import",
+            description="ANALYSIS Streamlit page module import startup.",
+            command=_file_import_command(
+                streamlit_pages_root / "4_ANALYSIS.py",
+                "agilab_perf_ui_analysis_page",
             ),
         ),
     }
