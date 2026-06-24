@@ -83,6 +83,64 @@ For a deep AGILAB audit, cover these surfaces unless the user narrows scope:
 - Periphery sampling: representative built-in apps, page bundles, and examples
   only after the central architecture is understood.
 
+## Production and evidence-readiness audit prompt
+
+When the user asks for the highest added-value AGILAB prompt, a Tokki-style
+AGILAB production audit, or to send/fix findings from such an audit, use this
+contract instead of a generic bug hunt:
+
+```text
+Load the full AGILAB repo, docs, release proof, package split, built-in apps,
+notebooks, MCP and agent surfaces, Streamlit pages, tests, generated assets,
+Hugging Face/PyPI/GitHub publication state, and current git/GitHub state.
+
+Act as a senior production engineer, open-source product strategist, security
+reviewer, and evidence/reproducibility-readiness reviewer.
+
+Goal: make AGILAB production-grade as a trusted-operator workbench for turning
+AI/ML experiments, notebooks, and agent runs into replayable, attestable
+evidence. Keep claims honest: do not position AGILAB as a fully managed
+production MLOps control plane or regulatory compliance product unless current
+public evidence proves it.
+
+Review for:
+- correctness bugs, performance hot paths, and validation cost
+- broken or misleading user workflows
+- public/private boundary leaks, unsafe executable-content handling, credential
+  exposure, and dependency/provenance gaps
+- wrapper, MCP, agent-skill, generated-discovery, and command-routing drift
+- evidence, proof, replay, release-proof, and artifact-hash misalignment
+- package split, optional extras, built-in app, and app-contract drift
+- docs/code/changelog/README/PyPI/Hugging Face/GitHub state misalignment
+- test gaps around risky behavior, polluted environments, and trust boundaries
+- release/build/reproducibility/SBOM/provenance problems
+- newcomer confusion and open-source product-positioning gaps
+- places where AGILAB's trusted-operator, replayable-evidence story is not
+  clear enough
+
+Then:
+1. List findings by impact.
+2. Fix the top actionable issues directly when the user asks for fixes.
+3. Add or strengthen regression coverage or durable guards.
+4. Regenerate required docs/assets/discovery artifacts.
+5. Run the strongest practical local validation suite for the touched scope.
+6. Commit, push, and use the repo PR/merge policy for the reviewed batch.
+7. End with a concise report: fixed, validation, remaining risks, next
+   highest-value move.
+```
+
+Execution rules:
+
+- Run the prompt as review first; do not patch unless the user asks to fix
+  findings.
+- If using a subagent, pass the prompt and repository target without leaking
+  expected findings or intended fixes.
+- When fixing findings, prioritize deterministic issues with a narrow
+  regression, guard, or generated-artifact check.
+- Keep product language aligned with AGILAB's public evidence posture:
+  replayable and attestable experiment evidence, not overclaimed enterprise
+  production automation.
+
 ## Multi-axis parallel review mode
 
 When the user asks for a Claude-style multi-axis review, a `7 axis` pass, or
