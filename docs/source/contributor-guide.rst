@@ -26,10 +26,10 @@ Run this once from a clean source checkout:
    uv --preview-features extra-build-dependencies sync --group dev
    uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
 
-If the proof fails, do not branch into clusters, private app repositories, or
-large refactors yet. Use :doc:`newcomer-troubleshooting` first, or open a
-GitHub issue with ``[CONTRIBUTOR]`` in the title and include the command plus
-the first failing log lines.
+If the proof fails, stay on the newcomer path: use
+:doc:`newcomer-troubleshooting` or open a GitHub issue with ``[CONTRIBUTOR]``
+in the title, the command you ran, and the first failing log lines. Do not
+jump into clusters, private app repositories, or large refactors yet.
 
 Choose one lane
 ---------------
