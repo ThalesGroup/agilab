@@ -75,7 +75,7 @@ Use the smallest command that proves your change:
    * - Root docs only
      - ``git diff --check``
    * - Sphinx docs source
-     - mirror sync plus stamp verification
+     - ``tools/sync_docs_source.py --verify-stamp`` in the public mirror, after maintainer sync
    * - Workflow parity
      - ``uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>``
    * - Skill catalog
@@ -107,17 +107,17 @@ request, check the page against this quality bar:
   competitive positioning, local-only paths, and unsupported production-safety
   claims. When AGILAB needs MLflow, Kubeflow, Airflow, SageMaker, or an internal
   platform for production responsibilities, say so directly.
-- **Source/mirror parity**: edit canonical docs in the sibling
+- **Source/mirror parity**: external contributors can edit the public docs
+  source in their pull request. Maintainers reconcile the canonical
   ``../thales_agilab/docs/source`` tree, sync this repository's ``docs/source``
   mirror, verify the mirror stamp, and build the rendered page when layout or
   links matter. Never hand-edit ``docs/html``.
 - **Screenshots and diagrams**: update source screenshots, SVG diagrams,
   captions, alt text, and references together. Inspect the rendered page so old
   UI labels or clipped diagram text cannot survive a source-only edit.
-- **Agent-readable surfaces**: when docs change a command, app, page, schema, or
-  evidence artifact that agents should discover, keep ``llms.txt``,
-  ``agenticweb.md``, and ``agilab-capabilities.json`` aligned through their
-  existing generators or checks.
+- **Generated discovery surfaces**: if a docs change alters public commands,
+  pages, schemas, apps, or evidence artifacts, note it in the pull request so
+  maintainers can refresh generated discovery surfaces.
 
 Pull request evidence
 ---------------------
