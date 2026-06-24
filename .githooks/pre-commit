@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [[ "${AGILAB_SKIP_LOCAL_GUARDS:-}" == "1" ]]; then
+  echo "[agilab pre-commit] AGILAB_SKIP_LOCAL_GUARDS=1; skipping local guards." >&2
+  exit 0
+fi
+
+cd "$ROOT_DIR"
+uv --preview-features extra-build-dependencies run python tools/agent_commit_provenance_guard.py \
+  --check-config
