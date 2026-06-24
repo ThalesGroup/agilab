@@ -176,6 +176,17 @@ def test_regress_shortcut_keeps_selector_arguments():
     ]
 
 
+def test_release_shortcut_runs_builtin_app_tests():
+    assert [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "python",
+        "tools/builtin_app_tests.py",
+    ] in agilab_dev.planned_commands(["release"])
+
+
 def test_robust_shortcut_runs_p0_robustness_matrix_by_default():
     assert agilab_dev.planned_commands(["robust"]) == [
         [
@@ -763,6 +774,14 @@ def test_release_shortcut_runs_local_release_guards():
             "python",
             "tools/app_contract_matrix.py",
             "--quiet",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/builtin_app_tests.py",
         ],
         [
             "uv",
