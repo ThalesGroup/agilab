@@ -16,7 +16,6 @@ from datetime import datetime
 
 # Third-Party imports
 import tomllib  # For reading TOML files
-import pandas as pd
 
 # Theme configuration
 os.environ.setdefault(
@@ -1205,7 +1204,7 @@ async def _install_worker_action(
 
 
 @st.cache_data(show_spinner=False)
-def generate_profile_report(df: pd.DataFrame) -> Any:
+def generate_profile_report(df: Any) -> Any:
     env = st.session_state["env"]
     if env.python_version > "3.12":
         from ydata_profiling.profile_report import ProfileReport
@@ -2463,6 +2462,8 @@ async def _render_run_panels(
 
                             date_value = str(raw.pop("date", "") or "").strip()
                             raw = benchmark_rows_with_delta_percent(raw)
+                            import pandas as pd
+
                             benchmark_df = pd.DataFrame.from_dict(raw, orient="index")
 
                             df_nonempty = benchmark_df.dropna(how="all")

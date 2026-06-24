@@ -9,7 +9,6 @@ import importlib.util
 import time
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-import pandas as pd
 import re
 
 os.environ.setdefault(
@@ -49,18 +48,7 @@ _page_project_selector_module = load_local_module(
 )
 switch_to_project_page = _page_project_selector_module.switch_to_project_page
 
-from agi_gui.pagelib import (
-    activate_mlflow,
-    background_services_enabled,
-    find_files,
-    run_agi,
-    load_df,
-    resolve_selected_df_path,
-)
-from agi_gui.file_picker import agi_file_picker
 from agi_env import AgiEnv
-from agi_env.app_provider_registry import app_name_aliases
-from agi_env.pagelib_selection_support import on_df_change as _on_df_change_impl
 
 import_agilab_symbols(
     globals(),
@@ -284,6 +272,61 @@ SAFE_SERVICE_START_TEMPLATE_MARKER = (
     "# AGILAB_AUTO_GENERATED_PIPELINE_SNIPPET: SAFE_SERVICE_START"
 )
 logger = logging.getLogger(__name__)
+
+_LAZY_IMPORT_ATTR_CACHE: Dict[tuple[str, str], Any] = {}
+
+
+def _lazy_import_attr(module_name: str, attr_name: str) -> Any:
+    cache_key = (module_name, attr_name)
+    if cache_key not in _LAZY_IMPORT_ATTR_CACHE:
+        _LAZY_IMPORT_ATTR_CACHE[cache_key] = getattr(
+            importlib.import_module(module_name), attr_name
+        )
+    return _LAZY_IMPORT_ATTR_CACHE[cache_key]
+
+
+def activate_mlflow(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "activate_mlflow")(*args, **kwargs)
+
+
+def background_services_enabled(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "background_services_enabled")(
+        *args, **kwargs
+    )
+
+
+def find_files(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "find_files")(*args, **kwargs)
+
+
+def run_agi(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "run_agi")(*args, **kwargs)
+
+
+def load_df(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "load_df")(*args, **kwargs)
+
+
+def resolve_selected_df_path(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "resolve_selected_df_path")(
+        *args, **kwargs
+    )
+
+
+def agi_file_picker(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.file_picker", "agi_file_picker")(*args, **kwargs)
+
+
+def app_name_aliases(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_env.app_provider_registry", "app_name_aliases")(
+        *args, **kwargs
+    )
+
+
+def _on_df_change_impl(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_env.pagelib_selection_support", "on_df_change")(
+        *args, **kwargs
+    )
 ANSI_ESCAPE_RE = re.compile(r"\x1b[^m]*m")
 
 
@@ -1741,7 +1784,7 @@ def get_df_files(export_abs_path: Path) -> List[Path]:
 @st.cache_data
 def load_df_cached(
     path: Path, nrows: int = 50, with_index: bool = True
-) -> Optional[pd.DataFrame]:
+) -> Optional[Any]:
     return load_df(path, nrows, with_index)
 
 

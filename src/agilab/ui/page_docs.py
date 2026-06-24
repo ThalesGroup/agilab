@@ -16,6 +16,7 @@ _DOCS_LOCAL_ALIASES: dict[str, tuple[str, ...]] = {
     "experiment-help.html": ("experiment_help.html",),
     "explore-help.html": ("views_help.html",),
 }
+_DOCS_MENU_ITEMS_CACHE: dict[tuple[str, str], dict[str, str]] = {}
 
 
 def _docs_candidates(html_file: str) -> tuple[str, ...]:
@@ -50,13 +51,20 @@ def docs_menu_items(
 
 def get_docs_menu_items(*, html_file: str = "agilab-help.html", anchor: str = "") -> dict[str, str]:
     """Return Streamlit menu items with About text and a page-specific docs link."""
+    cache_key = (html_file, anchor)
+    cached = _DOCS_MENU_ITEMS_CACHE.get(cache_key)
+    if cached is not None:
+        return dict(cached)
+
     from agi_env.pagelib_resource_support import about_content_payload
 
-    return docs_menu_items(
+    items = docs_menu_items(
         html_file=html_file,
         anchor=anchor,
         base_items=about_content_payload(),
     )
+    _DOCS_MENU_ITEMS_CACHE[cache_key] = dict(items)
+    return items
 
 
 def _open_remote_docs(html_file: str, anchor: str = "") -> bool:
