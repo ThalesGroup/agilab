@@ -2,8 +2,8 @@
   "file_count": 277,
   "format_version": 1,
   "managed_target": "docs/source",
-  "source_digest_sha256": "1b12da880288b5ccf82115b889aa9c3dfc8bbb3aeade77343f8d1857146e2522",
+  "source_digest_sha256": "617c04e51f4add1e78ef5b4d1ee9f61ec53b15e3010826ecbef4585fdf216166",
   "source_hint": "../thales_agilab/docs/source",
   "sync_tool": "tools/sync_docs_source.py",
-  "target_digest_sha256": "1b12da880288b5ccf82115b889aa9c3dfc8bbb3aeade77343f8d1857146e2522"
+  "target_digest_sha256": "617c04e51f4add1e78ef5b4d1ee9f61ec53b15e3010826ecbef4585fdf216166"
 }

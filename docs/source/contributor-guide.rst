@@ -88,8 +88,8 @@ Use the smallest command that proves your change:
 Run broader test suites only when the touched area needs them. Do not trigger
 GitHub Actions when the same failure can be reproduced locally.
 
-Documentation quality bar
--------------------------
+Docs quality bar
+----------------
 
 Treat public docs as product surface. Before opening a docs pull request,
 check:
