@@ -1,2 +1,9 @@
 agilab
+agilab-clean-worktree
+agilab-validation-shortcuts
+agilab-builtin-apps
+agilab-docs-mirror
+agilab-pr-evidence
+model-free-agilab-validation
+model-free-dev-shortcuts
 model-free-git-push
