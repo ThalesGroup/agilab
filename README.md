@@ -45,7 +45,7 @@ moving it into a heavier tracker, registry, cluster, or production platform.
 That means you do not lose your work if the AGILAB UI or distributed runtime is
 no longer the right interface.
 The stable core runtime remains the smallest supported handoff surface and is
-production-grade core technology.
+release-gated core runtime handoff technology.
 
 ## Agent Entry Point
 

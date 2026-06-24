@@ -231,6 +231,88 @@ def resolve_data_dir(
         return path_cls(os.path.normpath(str(resolved)))
 
 
+def _env_value(env: Any | None, name: str) -> Any:
+    if env is None:
+        return None
+    value = getattr(env, name, None)
+    if value:
+        return value
+    envars = getattr(env, "envars", None)
+    if isinstance(envars, dict):
+        return envars.get(name)
+    return None
+
+
+def _target_relative_path(
+    target: str,
+    leaf: Path | str,
+    *,
+    path_cls: type[Path] = Path,
+) -> Path:
+    leaf_path = path_cls(leaf)
+    if leaf_path == path_cls("."):
+        return path_cls(target) if target else path_cls()
+    return path_cls(target) / leaf_path if target else leaf_path
+
+
+def resolve_artifact_dir(
+    env: Any | None,
+    leaf: Path | str,
+    *,
+    target: str | None = None,
+    path_cls: type[Path] = Path,
+    home_factory: Callable[[], Path] = Path.home,
+) -> Path:
+    """Resolve app evidence artifacts through the shared worker path contract.
+
+    Precedence is explicit export root, runtime share resolver, active workflow
+    share root, then an operator-local ``export`` directory. The final fallback
+    uses ``env.home_abs`` when available so polluted process ``HOME`` values do
+    not silently move evidence.
+    """
+
+    target_text = str(target if target is not None else _env_value(env, "target") or "")
+    relative = _target_relative_path(target_text, leaf, path_cls=path_cls)
+
+    export_root = _env_value(env, "AGILAB_EXPORT_ABS")
+    if export_root:
+        root = path_cls(export_root).expanduser()
+        return root / relative if relative != path_cls() else root
+
+    resolve_share_path = getattr(env, "resolve_share_path", None) if env is not None else None
+    if callable(resolve_share_path):
+        resolved = path_cls(resolve_share_path(relative)).expanduser()
+        return resolved.resolve(strict=False)
+
+    share_root = None
+    has_share_hint = any(
+        _env_value(env, name)
+        for name in (
+            "AGILAB_WORKFLOW_DATA_ROOT",
+            "agi_workflow_data_root",
+            "workflow_data_root",
+            "agi_share_path_abs",
+            "agi_share_path",
+        )
+    )
+    if has_share_hint:
+        share_root = share_root_path(env, path_cls=path_cls)
+    else:
+        share_root_method = getattr(env, "share_root_path", None) if env is not None else None
+        if callable(share_root_method):
+            try:
+                share_root = path_cls(share_root_method()).expanduser().resolve(strict=False)
+            except SHARE_ROOT_FALLBACK_EXCEPTIONS:
+                share_root = None
+    if share_root is not None:
+        root = path_cls(share_root).expanduser()
+        return (root / relative).resolve(strict=False) if relative != path_cls() else root.resolve(strict=False)
+
+    home = _env_value(env, "home_abs") or home_factory()
+    root = path_cls(home).expanduser() / "export"
+    return root / relative if relative != path_cls() else root
+
+
 def relative_to_user_home(path: Path, *, path_cls: type[Path] = Path) -> Path | None:
     parts = path.parts
     if len(parts) >= 3 and parts[1].lower() in {"users", "home"}:

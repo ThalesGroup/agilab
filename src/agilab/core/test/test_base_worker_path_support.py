@@ -136,6 +136,67 @@ def test_manager_data_dir_uses_active_workflow_data_root_not_cluster_share(tmp_p
     assert path_support.share_root_path(env) == session_root.resolve(strict=False)
 
 
+def test_artifact_dir_prefers_export_root_then_share_resolver(tmp_path):
+    export_root = tmp_path / "explicit-export"
+    env = SimpleNamespace(
+        AGILAB_EXPORT_ABS=export_root,
+        target="demo_project",
+        resolve_share_path=lambda relative: tmp_path / "share" / relative,
+        home_abs=tmp_path / "home",
+        _is_managed_pc=False,
+    )
+
+    assert path_support.resolve_artifact_dir(env, "analysis") == export_root / "demo_project" / "analysis"
+
+    env.AGILAB_EXPORT_ABS = None
+    assert path_support.resolve_artifact_dir(env, "analysis") == (
+        tmp_path / "share" / "demo_project" / "analysis"
+    ).resolve(strict=False)
+
+
+def test_artifact_dir_uses_workflow_root_before_process_home(monkeypatch, tmp_path):
+    process_home = tmp_path / "polluted-home"
+    process_home.mkdir()
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: process_home))
+
+    workflow_root = tmp_path / "clustershare" / "workflow-a"
+    env = SimpleNamespace(
+        AGILAB_WORKFLOW_DATA_ROOT=workflow_root,
+        target="demo_project",
+        share_root_path=lambda: tmp_path / "legacy-share",
+        agi_share_path_abs=None,
+        agi_share_path=None,
+        home_abs=tmp_path / "env-home",
+        _is_managed_pc=False,
+    )
+
+    assert path_support.resolve_artifact_dir(env, "analysis") == (
+        workflow_root / "demo_project" / "analysis"
+    ).resolve(strict=False)
+
+
+def test_artifact_dir_local_fallback_uses_env_home_abs(monkeypatch, tmp_path):
+    process_home = tmp_path / "polluted-home"
+    env_home = tmp_path / "env-home"
+    process_home.mkdir()
+    env_home.mkdir()
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: process_home))
+
+    env = SimpleNamespace(
+        target="demo_project",
+        share_root_path=lambda: (_ for _ in ()).throw(OSError("no share")),
+        agi_share_path_abs=None,
+        agi_share_path=None,
+        home_abs=env_home,
+        _is_managed_pc=False,
+    )
+
+    assert path_support.resolve_artifact_dir(env, "analysis") == (
+        env_home / "export" / "demo_project" / "analysis"
+    )
+    assert path_support.resolve_artifact_dir(env, ".") == env_home / "export" / "demo_project"
+
+
 def test_base_worker_path_support_data_dir_aliases_and_home_remap(monkeypatch, tmp_path):
     class _BrokenPath:
         def __fspath__(self):
