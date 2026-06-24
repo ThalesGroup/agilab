@@ -243,21 +243,26 @@ PAGE_LOAD_SMOKE_PAGES = {
     "ABOUT": {
         "route": None,
         "expect_any": ("First proof", "Explore more proof routes"),
+        "budget_seconds": 1.2,
     },
     "PROJECT": {
         "route": "PROJECT",
         "expect_any": ("PROJECT", "Create project", "Notebook"),
+        "budget_seconds": 0.8,
     },
     "WORKFLOW": {
         "route": "WORKFLOW",
         "expect_any": ("WORKFLOW", "Pipeline", "Stages"),
+        "budget_seconds": 0.8,
     },
     "ANALYSIS": {
         "route": "ANALYSIS",
         "expect_any": ("ANALYSIS", "Choose pages", "View:"),
+        "budget_seconds": 1.0,
     },
 }
 DEFAULT_PAGE_LOAD_SMOKE_PAGES = ("ABOUT", "PROJECT", "WORKFLOW", "ANALYSIS")
+PAGE_LOAD_TOTAL_BUDGET_SECONDS = 5.0
 
 
 def resolve_page_load_pages(page_names: Sequence[str] | None) -> tuple[str, ...]:
@@ -270,6 +275,29 @@ def resolve_page_load_pages(page_names: Sequence[str] | None) -> tuple[str, ...]
 
 def _page_load_smoke_route(page_names: Sequence[str]) -> list[str]:
     return [f"{name} first visible render" for name in page_names]
+
+
+def _page_load_budget_warnings(
+    page_steps: Sequence[RobotStep],
+    page_names: Sequence[str],
+) -> list[str]:
+    warnings: list[str] = []
+    total_seconds = sum(step.duration_seconds for step in page_steps if step.success)
+    for page_name, step in zip(page_names, page_steps):
+        if not step.success:
+            continue
+        budget = PAGE_LOAD_SMOKE_PAGES[page_name].get("budget_seconds")
+        if isinstance(budget, (float, int)) and step.duration_seconds > float(budget):
+            warnings.append(
+                f"{page_name} first visible render {step.duration_seconds:.3f}s "
+                f"exceeds advisory budget {float(budget):.3f}s"
+            )
+    if total_seconds > PAGE_LOAD_TOTAL_BUDGET_SECONDS:
+        warnings.append(
+            f"page-load total {total_seconds:.3f}s exceeds advisory budget "
+            f"{PAGE_LOAD_TOTAL_BUDGET_SECONDS:.3f}s"
+        )
+    return warnings
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -1030,6 +1058,7 @@ def run_page_load_smoke(
             context = browser.new_context(viewport={"width": 1440, "height": 1000})
             try:
                 page = context.new_page()
+                page_steps: list[RobotStep] = []
                 for page_name in selected_pages:
                     page_config = PAGE_LOAD_SMOKE_PAGES[page_name]
                     route = page_config["route"]
@@ -1051,15 +1080,15 @@ def run_page_load_smoke(
                         )
                         duration = time.perf_counter() - start
                         if health.success:
-                            steps.append(
-                                RobotStep(
-                                    label,
-                                    True,
-                                    duration,
-                                    "page reached first visible marker",
-                                    page.url,
-                                )
+                            step = RobotStep(
+                                label,
+                                True,
+                                duration,
+                                "page reached first visible marker",
+                                page.url,
                             )
+                            steps.append(step)
+                            page_steps.append(step)
                             continue
                         steps.append(
                             RobotStep(
@@ -1086,6 +1115,17 @@ def run_page_load_smoke(
                             )
                         )
                         return steps
+                budget_warnings = _page_load_budget_warnings(page_steps, selected_pages)
+                if budget_warnings:
+                    steps.append(
+                        RobotStep(
+                            "page-load advisory budget",
+                            True,
+                            0.0,
+                            "WARN: " + "; ".join(budget_warnings),
+                            page.url,
+                        )
+                    )
             finally:
                 context.close()
                 browser.close()
