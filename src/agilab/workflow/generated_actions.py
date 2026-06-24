@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
-
-import pandas as pd
 
 GENERATED_ACTIONS_KIND = "agilab.generated_dataframe_actions"
 GENERATED_ACTIONS_SCHEMA_VERSION = 1
@@ -121,6 +120,24 @@ SAFE_ACTION_CATALOG = (
         "prompt": "Clip numeric values to a safe lower and upper range.",
     },
 )
+
+
+_PANDAS_MODULE: Any | None = None
+
+
+def _pandas() -> Any:
+    global _PANDAS_MODULE
+    if _PANDAS_MODULE is None:
+        _PANDAS_MODULE = importlib.import_module("pandas")
+    return _PANDAS_MODULE
+
+
+class _LazyPandasModule:
+    def __getattr__(self, name: str) -> Any:
+        return getattr(_pandas(), name)
+
+
+pd = _LazyPandasModule()
 
 
 class GeneratedActionError(ValueError):
