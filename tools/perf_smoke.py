@@ -99,6 +99,26 @@ def _file_import_command(
     return (sys.executable, "-c", code)
 
 
+def _browser_core_page_load_command() -> tuple[str, ...]:
+    output_path = REPO_ROOT / "test-results/perf-smoke-ui-browser-core-page-load.json"
+    return (
+        sys.executable,
+        str(REPO_ROOT / "tools/agilab_web_robot.py"),
+        "--page-load-smoke-only",
+        "--page-load-page",
+        "ABOUT",
+        "--page-load-page",
+        "PROJECT",
+        "--page-load-page",
+        "WORKFLOW",
+        "--page-load-page",
+        "ANALYSIS",
+        "--json",
+        "--json-output",
+        str(output_path),
+    )
+
+
 def scenario_catalog() -> dict[str, PerfScenario]:
     maps_network_src = REPO_ROOT / "src/agilab/apps-pages/view_maps_network/src"
     maps_3d_src = REPO_ROOT / "src/agilab/apps-pages/view_maps_3d/src"
@@ -181,6 +201,14 @@ def scenario_catalog() -> dict[str, PerfScenario]:
                 streamlit_pages_root / "4_ANALYSIS.py",
                 "agilab_perf_ui_analysis_page",
             ),
+        ),
+        "ui-browser-core-page-load": PerfScenario(
+            name="ui-browser-core-page-load",
+            description=(
+                "Real-browser first-visible render smoke for ABOUT, PROJECT, "
+                "WORKFLOW, and ANALYSIS."
+            ),
+            command=_browser_core_page_load_command(),
         ),
     }
 

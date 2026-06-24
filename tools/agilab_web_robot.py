@@ -239,6 +239,39 @@ class StreamlitServer:
         return output[-limit:]
 
 
+PAGE_LOAD_SMOKE_PAGES = {
+    "ABOUT": {
+        "route": None,
+        "expect_any": ("First proof", "Explore more proof routes"),
+    },
+    "PROJECT": {
+        "route": "PROJECT",
+        "expect_any": ("PROJECT", "Create project", "Notebook"),
+    },
+    "WORKFLOW": {
+        "route": "WORKFLOW",
+        "expect_any": ("WORKFLOW", "Pipeline", "Stages"),
+    },
+    "ANALYSIS": {
+        "route": "ANALYSIS",
+        "expect_any": ("ANALYSIS", "Choose pages", "View:"),
+    },
+}
+DEFAULT_PAGE_LOAD_SMOKE_PAGES = ("ABOUT", "PROJECT", "WORKFLOW", "ANALYSIS")
+
+
+def resolve_page_load_pages(page_names: Sequence[str] | None) -> tuple[str, ...]:
+    selected = tuple(page_names or DEFAULT_PAGE_LOAD_SMOKE_PAGES)
+    unknown = [name for name in selected if name not in PAGE_LOAD_SMOKE_PAGES]
+    if unknown:
+        raise ValueError(f"unknown page-load smoke page(s): {', '.join(unknown)}")
+    return selected
+
+
+def _page_load_smoke_route(page_names: Sequence[str]) -> list[str]:
+    return [f"{name} first visible render" for name in page_names]
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -308,6 +341,23 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--page-load-smoke-only",
+        action="store_true",
+        help=(
+            "Open selected core Streamlit pages in a real browser and record first "
+            "visible render timings without running the full workflow robot."
+        ),
+    )
+    parser.add_argument(
+        "--page-load-page",
+        action="append",
+        choices=sorted(PAGE_LOAD_SMOKE_PAGES),
+        help=(
+            "Core page to include with --page-load-smoke-only. May be repeated. "
+            "Defaults to ABOUT, PROJECT, WORKFLOW, and ANALYSIS."
+        ),
+    )
+    parser.add_argument(
         "--dev-scope-before-smoke",
         action="store_true",
         help=(
@@ -318,6 +368,10 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
+    parser.add_argument(
+        "--json-output",
+        help="Optional path where the machine-readable JSON payload is written.",
+    )
     parser.add_argument(
         "--print-only",
         action="store_true",
@@ -954,6 +1008,94 @@ def run_browser_robot(
     return steps
 
 
+def run_page_load_smoke(
+    *,
+    base_url: str,
+    active_app_query: str,
+    browser_name: str,
+    headless: bool,
+    timeout: float,
+    page_names: Sequence[str],
+    screenshot_dir: Path | None = None,
+) -> list[RobotStep]:
+    Error, TimeoutError, sync_playwright = _load_playwright()
+    timeout_ms = timeout * 1000.0
+    steps: list[RobotStep] = []
+    selected_pages = resolve_page_load_pages(page_names)
+
+    try:
+        with sync_playwright() as playwright:
+            browser_type = getattr(playwright, browser_name)
+            browser = browser_type.launch(headless=headless)
+            context = browser.new_context(viewport={"width": 1440, "height": 1000})
+            try:
+                page = context.new_page()
+                for page_name in selected_pages:
+                    page_config = PAGE_LOAD_SMOKE_PAGES[page_name]
+                    route = page_config["route"]
+                    target_url = (
+                        build_url(base_url, active_app=active_app_query)
+                        if route is None
+                        else build_page_url(base_url, str(route), active_app=active_app_query)
+                    )
+                    label = f"{page_name} first visible render"
+                    start = time.perf_counter()
+                    try:
+                        page.goto(target_url, wait_until="domcontentloaded", timeout=timeout_ms)
+                        health = assert_page_healthy(
+                            page,
+                            label=label,
+                            expect_any=tuple(page_config["expect_any"]),
+                            timeout_ms=timeout_ms,
+                            screenshot_dir=screenshot_dir,
+                        )
+                        duration = time.perf_counter() - start
+                        if health.success:
+                            steps.append(
+                                RobotStep(
+                                    label,
+                                    True,
+                                    duration,
+                                    "page reached first visible marker",
+                                    page.url,
+                                )
+                            )
+                            continue
+                        steps.append(
+                            RobotStep(
+                                label,
+                                False,
+                                duration,
+                                health.detail,
+                                health.url,
+                            )
+                        )
+                        return steps
+                    except (Error, TimeoutError) as exc:
+                        screenshot = _screenshot(page, screenshot_dir, label)
+                        detail = f"page did not reach first visible marker: {exc}"
+                        if screenshot:
+                            detail += f"; screenshot={screenshot}"
+                        steps.append(
+                            RobotStep(
+                                label,
+                                False,
+                                time.perf_counter() - start,
+                                detail,
+                                getattr(page, "url", target_url),
+                            )
+                        )
+                        return steps
+            finally:
+                context.close()
+                browser.close()
+    except RuntimeError:
+        raise
+    except (Error, TimeoutError) as exc:
+        steps.append(RobotStep("page-load browser", False, 0.0, f"playwright failed: {exc}", base_url))
+    return steps
+
+
 def run_frontend_smoke(
     *,
     base_url: str,
@@ -1058,6 +1200,12 @@ def _print_json(payload: object) -> None:
     print(json.dumps(payload, indent=2))
 
 
+def _write_json_output(payload: object, path: str) -> None:
+    output_path = Path(path).expanduser()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
 def _frontend_smoke_route(*, dev_scope_before_smoke: bool = False) -> list[str]:
     route = ["frontend static assets", "frontend landing hydration"]
     if dev_scope_before_smoke:
@@ -1082,6 +1230,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--timeout must be greater than 0")
     if args.target_seconds <= 0:
         parser.error("--target-seconds must be greater than 0")
+    if args.frontend_smoke_only and args.page_load_smoke_only:
+        parser.error("--frontend-smoke-only and --page-load-smoke-only are mutually exclusive")
+    if args.page_load_page and not args.page_load_smoke_only:
+        parser.error("--page-load-page requires --page-load-smoke-only")
     if args.dev_scope_before_smoke and not args.frontend_smoke_only:
         parser.error("--dev-scope-before-smoke requires --frontend-smoke-only")
     if args.dev_scope_before_smoke and args.url:
@@ -1101,17 +1253,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     if args.print_only:
+        page_load_pages = resolve_page_load_pages(args.page_load_page)
         route = (
+            _page_load_smoke_route(page_load_pages)
+            if args.page_load_smoke_only
+            else (
             _frontend_smoke_route(
                 dev_scope_before_smoke=args.dev_scope_before_smoke
             )
             if args.frontend_smoke_only
             else _full_robot_route()
+            )
         )
         payload = {
             "base_url": base_url,
             "launch_command": launch_command,
             "route": route,
+            "page_load_pages": list(page_load_pages) if args.page_load_smoke_only else None,
             "analysis_view": args.analysis_view,
             "analysis_view_path": (
                 resolve_analysis_view_path(
@@ -1123,6 +1281,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 else None
             ),
         }
+        if args.json_output:
+            _write_json_output(payload, args.json_output)
         if args.json:
             _print_json(payload)
         else:
@@ -1172,6 +1332,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                                     screenshot_dir=screenshot_dir,
                                 )
                             )
+                    elif args.page_load_smoke_only:
+                        steps.extend(
+                            run_page_load_smoke(
+                                base_url=base_url,
+                                active_app_query=active_app_query,
+                                browser_name=args.browser,
+                                headless=not args.headful,
+                                timeout=args.timeout,
+                                page_names=resolve_page_load_pages(args.page_load_page),
+                                screenshot_dir=screenshot_dir,
+                            )
+                        )
                     else:
                         steps.extend(
                             run_browser_robot(
@@ -1207,6 +1379,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                         screenshot_dir=screenshot_dir,
                     )
                 )
+            elif args.page_load_smoke_only:
+                steps.extend(
+                    run_page_load_smoke(
+                        base_url=base_url,
+                        active_app_query=active_app_query,
+                        browser_name=args.browser,
+                        headless=not args.headful,
+                        timeout=args.timeout,
+                        page_names=resolve_page_load_pages(args.page_load_page),
+                        screenshot_dir=screenshot_dir,
+                    )
+                )
             else:
                 steps.extend(
                     run_browser_robot(
@@ -1224,8 +1408,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         steps.append(RobotStep("browser setup", False, 0.0, str(exc), base_url))
 
     summary = summarize_steps(steps, target_seconds=args.target_seconds)
+    payload = asdict(summary)
+    if args.json_output:
+        _write_json_output(payload, args.json_output)
     if args.json:
-        _print_json(asdict(summary))
+        _print_json(payload)
     else:
         print(render_human(summary=summary, launch_command=launch_command, base_url=base_url))
     return 0 if summary.success else 1
