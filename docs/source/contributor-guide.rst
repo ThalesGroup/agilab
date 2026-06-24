@@ -139,8 +139,8 @@ Review expectations
 -------------------
 
 - Pull requests need maintainer review before merge.
-- Shared core, release tooling, security-sensitive, dependency, and packaging
-  changes require review from an owner of that area.
+- Higher-risk areas need owner review: shared core, release tooling, security,
+  dependencies, and packaging.
 - ``main``, release tags, and publication workflows are maintainer-owned.
 - By submitting a pull request, you certify the Developer Certificate of Origin
   1.1 for your contribution. A separate CLA is not required for normal
