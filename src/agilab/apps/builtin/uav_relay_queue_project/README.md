@@ -40,6 +40,12 @@ After the default run works, adjust one relay capacity or routing policy. Delay,
 drops, or relay choice should change while the topology artifacts remain
 readable by `view_maps_network`.
 
+## Example Quality Plan
+
+- Review artifact: Review relay choice, congestion, delay, and drop metrics together before comparing policies.
+- Practice change: Change one relay capacity or packet rate and confirm the selected relay and queue metrics move together.
+- Quality check: A mature run makes policy tradeoffs visible through artifacts instead of only through final route labels.
+
 ## Troubleshooting
 
 If relay views show no data, confirm `EXECUTE` completed and exported queue

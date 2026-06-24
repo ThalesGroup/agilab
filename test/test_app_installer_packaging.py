@@ -2001,3 +2001,22 @@ def test_example_notebooks_use_current_agi_run_request_api() -> None:
                     )
 
     assert not failures, "\n".join(failures)
+
+
+def test_builtin_app_readmes_include_example_quality_plan() -> None:
+    for readme in sorted(BUILTIN_APPS_ROOT.glob("*_project/README.md")):
+        text = readme.read_text(encoding="utf-8")
+        assert "## Example Quality Plan" in text, readme
+        assert "- Review artifact:" in text, readme
+        assert "- Practice change:" in text, readme
+        assert "- Quality check:" in text, readme
+
+
+def test_data_quality_gate_readme_points_to_existing_quality_artifacts() -> None:
+    readme = BUILTIN_APPS_ROOT / "data_quality_gate_project" / "README.md"
+    text = readme.read_text(encoding="utf-8")
+
+    assert "quality_gate_report.json" not in text
+    assert "data_quality_report.md" in text
+    assert "gate_decision.json" in text
+    assert "decision_card.json" in text

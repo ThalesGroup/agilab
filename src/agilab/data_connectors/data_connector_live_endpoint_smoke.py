@@ -11,6 +11,8 @@ from pathlib import Path
 import sqlite3
 from typing import Any, Mapping, Sequence
 from urllib import request
+from urllib.parse import urlparse
+import ipaddress
 
 from agilab.data_connectors.data_connector_cloud import object_storage_target
 from agilab.data_connectors.data_connector_facility import (
@@ -26,6 +28,11 @@ SCHEMA = "agilab.data_connector_live_endpoint_smoke.v1"
 DEFAULT_RUN_ID = "data-connector-live-endpoint-smoke-proof"
 CREATED_AT = "2026-04-25T00:00:34Z"
 UPDATED_AT = "2026-04-25T00:00:34Z"
+LOCAL_HTTP_OPT_IN_ENV = "AGILAB_CONNECTOR_LIVE_SMOKE_ALLOW_LOCAL_HTTP"
+BLOCKED_LINK_LOCAL_METADATA_IPS = {
+    ipaddress.ip_address("169.254.169.254"),
+    ipaddress.ip_address("fd00:ec2::254"),
+}
 
 
 def _connector_target(connector: Mapping[str, Any]) -> str:
@@ -72,8 +79,76 @@ def _probe_sqlite(uri: str) -> tuple[str, str]:
     return "healthy", "sqlite connectivity check passed"
 
 
-def _probe_opensearch(connector: Mapping[str, Any], token: str) -> tuple[str, str]:
+def _origin(url: str) -> tuple[str, str, int | None]:
+    parsed = urlparse(url)
+    return parsed.scheme.lower(), (parsed.hostname or "").lower(), parsed.port
+
+
+def _local_http_allowed() -> bool:
+    return os.getenv(LOCAL_HTTP_OPT_IN_ENV, "").strip().lower() in {"1", "true", "yes"}
+
+
+def _host_is_blocked(host: str, *, allow_local_http: bool) -> str:
+    if not host:
+        return "missing host"
+    lowered = host.lower().strip("[]")
+    if lowered == "localhost" or lowered.endswith(".localhost"):
+        return "" if allow_local_http else "localhost targets require local emulator opt-in"
+    try:
+        address = ipaddress.ip_address(lowered)
+    except ValueError:
+        return ""
+    if address in BLOCKED_LINK_LOCAL_METADATA_IPS:
+        return "metadata-service target is blocked"
+    if address.is_loopback:
+        return "" if allow_local_http else "loopback targets require local emulator opt-in"
+    if address.is_private or address.is_link_local or address.is_unspecified or address.is_multicast:
+        return "non-public IP targets are blocked"
+    return ""
+
+
+def _validate_live_probe_url(url: str, *, allow_local_http: bool = False) -> tuple[bool, str]:
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    if scheme == "https":
+        pass
+    elif scheme == "http" and allow_local_http:
+        pass
+    else:
+        return False, "live endpoint smoke requires https unless local HTTP emulator mode is enabled"
+    blocked_reason = _host_is_blocked(parsed.hostname or "", allow_local_http=allow_local_http)
+    if blocked_reason:
+        return False, blocked_reason
+    return True, "live endpoint target passed URL safety policy"
+
+
+class _SameOriginRedirectHandler(request.HTTPRedirectHandler):
+    def __init__(self, *, allow_local_http: bool = False) -> None:
+        super().__init__()
+        self._allow_local_http = allow_local_http
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
+        if _origin(req.full_url) != _origin(newurl):
+            raise RuntimeError("live endpoint smoke redirect changed origin")
+        ok, reason = _validate_live_probe_url(
+            newurl,
+            allow_local_http=self._allow_local_http,
+        )
+        if not ok:
+            raise RuntimeError(f"live endpoint smoke redirect target refused: {reason}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _live_probe_opener(*, allow_local_http: bool = False):
+    return request.build_opener(_SameOriginRedirectHandler(allow_local_http=allow_local_http))
+
+
+def _probe_opensearch(connector: Mapping[str, Any], token: str) -> tuple[str, str, bool]:
     url = _connector_target(connector)
+    allow_local_http = _local_http_allowed()
+    ok, reason = _validate_live_probe_url(url, allow_local_http=allow_local_http)
+    if not ok:
+        return "skipped", f"unsafe live endpoint target: {reason}", False
     provider = search_index_provider(str(connector.get("provider", "") or "opensearch"))
     label = provider.label if provider is not None else "Search index"
     req = request.Request(
@@ -81,13 +156,14 @@ def _probe_opensearch(connector: Mapping[str, Any], token: str) -> tuple[str, st
         method="HEAD",
         headers={"Authorization": f"Bearer {token}", "User-Agent": "agilab-live-smoke/1"},
     )
-    with request.urlopen(req, timeout=10) as response:
+    opener = _live_probe_opener(allow_local_http=allow_local_http)
+    with opener.open(req, timeout=10) as response:
         status = getattr(response, "status", 200)
     return (
         ("healthy", f"{label} HEAD returned {status}")
         if int(status) < 500
         else ("unhealthy", f"{label} HEAD returned {status}")
-    )
+    ) + (True,)
 
 
 def _smoke_row(
@@ -151,11 +227,10 @@ def _smoke_row(
             status, message = _probe_sqlite(str(connector.get("uri", "") or ""))
             network_probe = False
         elif kind == "opensearch" and credential_env_name:
-            status, message = _probe_opensearch(
+            status, message, network_probe = _probe_opensearch(
                 connector,
                 str(os.environ[credential_env_name]),
             )
-            network_probe = True
         else:
             status, message = "skipped", f"live smoke not implemented for {kind}"
             network_probe = False

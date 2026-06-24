@@ -44,6 +44,12 @@ After the default run works, adjust one route constraint or event severity. The
 selected strategy and decision deltas should change without introducing
 nondeterministic inputs.
 
+## Example Quality Plan
+
+- Review artifact: Review the decision evidence, candidate route summary, and failure-event context before looking at UI charts.
+- Practice change: Change one constraint or failure event and confirm the recommended route and explanation move together.
+- Quality check: A mature run shows decision support as replayable evidence, not as an opaque score or dashboard-only result.
+
 ## Troubleshooting
 
 If the analysis page is empty, confirm the mirrored `data_io_decision` bundle

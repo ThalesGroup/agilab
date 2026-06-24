@@ -57,6 +57,12 @@ change one `student_answer`, or add one diagnostic case with a weaker proposed
 fix. The feedback should identify missing evidence, wrong fix choice, or
 missing discriminator regression tests.
 
+## Example Quality Plan
+
+- Review artifact: Review the structured diagnostic report first: symptoms, assumptions, root cause, fix, and regression evidence.
+- Practice change: Change one symptom or log fragment and confirm the diagnosis updates without losing the required evidence fields.
+- Quality check: A mature run turns support reasoning into auditable artifacts instead of a free-form chat transcript.
+
 ## Troubleshooting
 
 If generated cases fail validation, inspect the schema error and rerun with the

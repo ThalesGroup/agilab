@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-24T06:25:12Z",
+  "generated_at_utc": "2026-06-24T13:59:02Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -31,7 +31,7 @@
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-01",
+      "updated": "2026-06-24",
       "path": ".codex/skills/agilab-docs/SKILL.md",
       "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- Canonical editable docs source is `../thales_agilab/docs/source`."
     },
@@ -47,7 +47,7 @@
       "name": "agilab-example-maturity",
       "description": "Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-31",
+      "updated": "2026-06-24",
       "path": ".codex/skills/agilab-example-maturity/SKILL.md",
       "body_preview": "# AGILAB Example Maturity\n## Goal\nRaise AGILAB packaged examples from internal smoke snippets to external-beta\nexamples: readable, deterministic, copy/paste safe, aligned with docs, and"
     },
@@ -215,7 +215,7 @@
       "name": "repo-skill-maintenance",
       "description": "Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-06",
+      "updated": "2026-06-24",
       "path": ".codex/skills/repo-skill-maintenance/SKILL.md",
       "body_preview": "# Repo Skill Maintenance\nUse this skill when working on the shared skill trees in `agilab`.\nThe goal is to keep one canonical source for shared skills, keep the repo Codex\nmirror valid, and avoid the accidental bulk-sync regressions that can overwrite"
     },

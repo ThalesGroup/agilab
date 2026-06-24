@@ -41,6 +41,12 @@ After the default run works, replace only the weather CSV with a larger local
 snapshot that preserves the expected columns. Metrics and predictions should
 update while the analysis pages still load.
 
+## Example Quality Plan
+
+- Review artifact: Review the legacy notebook import views and forecast artifacts to see what was preserved during migration.
+- Practice change: Change one forecast horizon or input slice and confirm the legacy-shaped outputs still map to AGILAB evidence.
+- Quality check: A mature run teaches migration boundaries: preserve useful notebook behavior while making artifacts replayable.
+
 ## Troubleshooting
 
 If `skforecast` is missing, run the app in its own installed environment rather

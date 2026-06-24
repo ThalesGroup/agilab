@@ -3,7 +3,7 @@ name: repo-skill-maintenance
 description: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-06
+  updated: 2026-06-24
 ---
 
 # Repo Skill Maintenance
@@ -76,16 +76,29 @@ for private-domain skills.
 python3 tools/sync_agent_skills.py --skills <skill-name> [<skill-name> ...]
 ```
 
-5. Validate and regenerate the Codex index once after all intended skill syncs:
+5. Validate and regenerate the Codex index plus public agent discovery surfaces
+   once after all intended skill syncs:
 
 ```bash
 python3 tools/codex_skills.py --root .codex/skills validate --strict
 python3 tools/codex_skills.py --root .codex/skills generate
+python3 tools/agent_skill_catalog.py --apply
+python3 tools/agilab_capabilities_manifest.py --apply
+python3 tools/agenticweb_manifest.py --apply
 ```
 
-6. If a user-managed home skill is being migrated, replace the home copy with a
+6. Check the generated surfaces before committing:
+
+```bash
+python3 tools/agent_skill_catalog.py --check
+python3 tools/agilab_capabilities_manifest.py --check
+python3 tools/agenticweb_manifest.py --check
+python3 tools/agent_instruction_contract.py --check
+```
+
+7. If a user-managed home skill is being migrated, replace the home copy with a
    symlink back to the repo Codex copy instead of keeping two real directories.
-7. Update repo-facing skill docs when the catalog changes:
+8. Update repo-facing skill docs when the catalog changes:
    - `.claude/skills/README.md`
    - `.codex/skills/README.md`
    - root `README.md` if the repo-level agent workflow description changed
@@ -97,6 +110,10 @@ python3 tools/codex_skills.py --root .codex/skills generate
 - When multiple skills are being edited in one pipeline, do not validate and
   regenerate the Codex index after each individual skill. Sync all touched
   skills in one targeted command, then run validation and generation once.
+- Do not treat `.codex/skills/.generated/*` as the only generated output of a
+  skill change. Skill text can also affect `llms-full.txt`,
+  `agilab-capabilities.json`, and `agenticweb.md`; regenerate and check the
+  whole agent discovery surface before push.
 - Do not migrate `~/.codex/skills/.system` into the repo.
 - Do not leave a copied third-party skill with missing repo-required frontmatter
   such as `license`.

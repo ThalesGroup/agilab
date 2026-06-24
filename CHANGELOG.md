@@ -23,6 +23,26 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Security
+
+- Hardened data-connector live endpoint smoke checks so bearer-token probes
+  refuse unsafe schemes, metadata/loopback/private targets, and cross-origin
+  redirects before credentials are attached.
+
+### Changed
+
+- Centralized built-in worker artifact directory resolution through the shared
+  `agi-node` worker path contract so evidence exports honor explicit export
+  roots, runtime share resolvers, and active workflow data roots before local
+  fallback paths.
+- Tightened public README production-boundary wording around the stable
+  `agi-core` handoff surface.
+
+### Fixed
+
+- Corrected the data-quality built-in example README so it points readers to
+  emitted artifacts instead of a nonexistent quality-gate report file.
+
 ## [2026.06.23] - 2026-06-23
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.23

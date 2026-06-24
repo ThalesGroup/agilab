@@ -45,6 +45,12 @@ executor to `thread` for a bounded pool-mode benchmark. The output row counts
 should stay stable while the runtime, kernel metadata, and execution-model label
 change.
 
+## Example Quality Plan
+
+- Review artifact: Review the generated CSV partitions and reducer summary together so the input shape and aggregated pandas result are both visible.
+- Practice change: Change the row count or partition size, then confirm the reducer still reports deterministic totals and partition metadata.
+- Quality check: A mature run proves local-first tabular execution, deterministic artifacts, and a clear pandas baseline for comparison.
+
 ## Troubleshooting
 
 If `INSTALL` fails, rerun the app-local install from `ORCHESTRATE` before

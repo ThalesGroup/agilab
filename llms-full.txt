@@ -28,7 +28,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB Deep Audit Skill Use this skill when the user asks for an AGILAB audit or a review artifact. Do not treat an audit request as a maintenance/fix request unless the user explicitly asks to patch findings.
 - agilab-docs: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks). (.claude/skills/agilab-docs/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-06-01
+  updated: 2026-06-24
   preview: # Docs Skill (AGILAB) Use this skill when editing docs content or docs build tooling for AGILAB. ## Source Of Truth - Canonical editable docs source is `../thales_agilab/docs/source`.
 - agilab-evidence-contracts: Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation. (.claude/skills/agilab-evidence-contracts/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -36,7 +36,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB Evidence Contracts Use this skill when a change affects AGILAB's evidence-first value: proving that an experiment, app run, notebook migration, agent action, or release can be reviewed and replayed. The default stance is simple: a feature is not validated
 - agilab-example-maturity: Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation. (.claude/skills/agilab-example-maturity/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-31
+  updated: 2026-06-24
   preview: # AGILAB Example Maturity ## Goal Raise AGILAB packaged examples from internal smoke snippets to external-beta examples: readable, deterministic, copy/paste safe, aligned with docs, and
 - agilab-huggingface-spaces: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout. (.claude/skills/agilab-huggingface-spaces/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -116,7 +116,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # Plan Before Code Use this skill to force a planning pass before coding. The goal is not paperwork. The goal is to improve sequencing, reduce avoidable edits, and catch bad assumptions before touching files.
 - repo-skill-maintenance: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills. (.claude/skills/repo-skill-maintenance/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-06
+  updated: 2026-06-24
   preview: # Repo Skill Maintenance Use this skill when working on the shared skill trees in `agilab`. The goal is to keep one canonical source for shared skills, keep the repo Codex mirror valid, and avoid the accidental bulk-sync regressions that can overwrite
 - report-qa-docx: Review DOCX reports for missing figures, stale wording, duplicate sections, caption drift, and local consistency issues. Use this skill when a user asks for a quality pass on a Word report, wants to compare exported versus source versions, or needs a review-driven cleanup checklist before delivery. (.claude/skills/report-qa-docx/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)

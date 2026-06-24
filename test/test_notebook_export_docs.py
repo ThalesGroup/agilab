@@ -30,10 +30,11 @@ def test_readme_leads_with_anti_lock_in_notebook_export_value() -> None:
 
     assert "anti-lock-in reproducibility workbench" in headline_window
     assert "executable, portable, evidence-backed apps" in headline_window
-    assert "export it back to an `agi-core` notebook" in compact_headline
+    assert "stable `agi-core` handoff" in headline_window
+    assert "portable handoff path" in headline_window
     assert "you do not lose your work" in headline_window
-    assert "stable, production-grade core technology" in compact_headline
-    assert "runnable outside the AGILAB UI as `agi-core` notebooks" in headline_window
+    assert "stable core runtime remains the smallest supported handoff surface" in compact_headline
+    assert "release-gated core runtime handoff technology" in compact_headline
     assert "reviewable run evidence" in headline_window
 
 
