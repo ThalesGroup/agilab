@@ -259,6 +259,65 @@ def test_build_page_url_targets_streamlit_page_route() -> None:
     assert url == "http://127.0.0.1:8501/ANALYSIS?active_app=flight_telemetry_project"
 
 
+def test_page_load_smoke_pages_default_to_core_ui_pages() -> None:
+    module = _load_module()
+
+    assert module.resolve_page_load_pages(None) == (
+        "ABOUT",
+        "PROJECT",
+        "WORKFLOW",
+        "ANALYSIS",
+    )
+    assert module.resolve_page_load_pages(["WORKFLOW"]) == ("WORKFLOW",)
+
+
+def test_page_load_smoke_print_only_json_reports_route(capsys) -> None:
+    module = _load_module()
+
+    code = module.main(
+        [
+            "--print-only",
+            "--json",
+            "--page-load-smoke-only",
+            "--page-load-page",
+            "WORKFLOW",
+            "--port",
+            "9999",
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["page_load_pages"] == ["WORKFLOW"]
+    assert payload["route"] == ["WORKFLOW first visible render"]
+
+
+def test_page_load_smoke_print_only_writes_json_output(tmp_path: Path) -> None:
+    module = _load_module()
+    output_path = tmp_path / "page-load.json"
+
+    code = module.main(
+        [
+            "--print-only",
+            "--page-load-smoke-only",
+            "--json-output",
+            str(output_path),
+            "--port",
+            "9999",
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["page_load_pages"] == ["ABOUT", "PROJECT", "WORKFLOW", "ANALYSIS"]
+    assert payload["route"] == [
+        "ABOUT first visible render",
+        "PROJECT first visible render",
+        "WORKFLOW first visible render",
+        "ANALYSIS first visible render",
+    ]
+
+
 def test_resolve_local_active_app_accepts_builtin_project_name() -> None:
     module = _load_module()
 
