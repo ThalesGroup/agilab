@@ -24,3 +24,17 @@
 - Codex/Claude rollout logs are huge but the durable signal is small: thread
   metadata, plan, command failures, key counters, final diagnosis. Digest
   session logs into metadata-only summaries instead of rereading transcripts.
+
+## Review / publishing hygiene
+- If `gh pr merge --delete-branch` fails on local worktree ownership of `main`,
+  check the remote PR state before retrying; a remote merge may already have
+  succeeded and only branch cleanup may remain.
+- For commit-provenance questions, inspect author, committer, signature
+  identity, GitHub actor, PR metadata, and timestamps before attributing work.
+- For built-in app quality, verify first-run UX, deterministic sample data,
+  README artifact truth, app-local tests, installer/catalog contract, and clear
+  example value as one gate.
+- When docs name app artifacts, compare the README or quality plan with worker
+  outputs; do not leave users looking for a file the app does not emit.
+- For docs/SVG alignment, compare source SVG, references, captions/alt text,
+  mirror/public copy, and rendered page together before calling it aligned.

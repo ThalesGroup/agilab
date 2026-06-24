@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-01
+  updated: 2026-06-24
 ---
 
 # Docs Skill (AGILAB)
@@ -32,9 +32,10 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
    `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
 3. If the change touches an SVG diagram, validate the SVG as XML, render a local
    preview at the intended docs width, and confirm the referencing `.rst` page
-   still points to the intended file. Do not rely on XML validity alone; inspect
-   the rendered preview for clipped text, overlong labels, hidden cards, and
-   unreadable feedback arrows.
+   still points to the intended file. Treat the source SVG, surrounding wording,
+   captions, alt text, mirrored public copy, and rendered page as one alignment
+   unit. Do not rely on XML validity alone; inspect the rendered preview for
+   clipped text, overlong labels, hidden cards, and unreadable feedback arrows.
 4. If the change touches visible UI behavior, page labels, screenshots, GIFs, or
    screenshot-derived diagrams, refresh the corresponding source screenshot
    assets in the canonical docs tree in the same change. Update captions, alt
@@ -248,4 +249,8 @@ the referenced artifact exists and is current.
 
 - Use consistent naming: “Pages”, “Page bundles”, “Apps-pages” (avoid near-duplicate headings).
 - Keep diagrams (SVG) aligned with wording; remove stale labels when sections are removed.
+- For docs/SVG alignment asks, report whether the source SVG, `.rst`
+  references, captions/alt text, mirror/public copy, and rendered page all
+  agree. Do not call the docs fully aligned after an inspection-only pass if a
+  source or published surface still needs to be updated.
 - Ensure math renders via Sphinx math extension; keep equations in `.. math::` blocks when needed.
