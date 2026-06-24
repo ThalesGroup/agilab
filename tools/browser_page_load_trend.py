@@ -149,6 +149,19 @@ def _fmt_delta(value: float | None) -> str:
     return f"{sign}{value:.4f}s"
 
 
+def _find_regressions(
+    trends: Sequence[PageLoadTrend], max_regression_seconds: float | None
+) -> list[PageLoadTrend]:
+    if max_regression_seconds is None:
+        return []
+    return [
+        trend
+        for trend in trends
+        if trend.delta_seconds is not None
+        and trend.delta_seconds > max_regression_seconds
+    ]
+
+
 def render_markdown(trends: Sequence[PageLoadTrend], *, pattern: str) -> str:
     if not trends:
         return f"No browser page-load artifacts matched `{pattern}`."
@@ -200,6 +213,15 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Exit successfully even when no matching timing samples are found.",
     )
+    parser.add_argument(
+        "--max-regression-seconds",
+        type=float,
+        default=None,
+        help=(
+            "Fail when any latest page timing is slower than the previous sample "
+            "by more than this many seconds. Pages with only one sample are ignored."
+        ),
+    )
     return parser
 
 
@@ -208,14 +230,34 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     if args.limit < 0:
         parser.error("--limit must be >= 0")
+    if args.max_regression_seconds is not None and args.max_regression_seconds < 0:
+        parser.error("--max-regression-seconds must be >= 0")
 
     paths = discover_artifacts(args.pattern, limit=args.limit or None)
     trends = collect_trends(paths)
+    regressions = _find_regressions(trends, args.max_regression_seconds)
     if args.json:
-        print(json.dumps({"pattern": args.pattern, "trends": [asdict(trend) for trend in trends]}, indent=2))
+        payload = {
+            "pattern": args.pattern,
+            "trends": [asdict(trend) for trend in trends],
+        }
+        if args.max_regression_seconds is not None:
+            payload["max_regression_seconds"] = args.max_regression_seconds
+            payload["regressions"] = [asdict(trend) for trend in regressions]
+        print(json.dumps(payload, indent=2))
     else:
         print(render_markdown(trends, pattern=args.pattern))
 
+    if regressions:
+        details = ", ".join(
+            f"{trend.page} {_fmt_delta(trend.delta_seconds)}"
+            for trend in regressions
+        )
+        print(
+            f"Browser page-load regression gate failed: {details}",
+            file=sys.stderr,
+        )
+        return 2
     if not trends and not args.allow_empty:
         return 1
     return 0

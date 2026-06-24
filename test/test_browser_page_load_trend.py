@@ -106,10 +106,80 @@ def test_main_json_and_allow_empty(tmp_path: Path, monkeypatch, capsys) -> None:
     assert {trend["page"] for trend in payload["trends"]} == {"ABOUT", "ANALYSIS", "TOTAL"}
 
 
+def test_main_fails_when_latest_regression_exceeds_threshold(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    module = _load_module()
+    monkeypatch.chdir(tmp_path)
+    artifact_dir = tmp_path / "test-results"
+    artifact_dir.mkdir()
+    first = artifact_dir / "first-page-load.json"
+    second = artifact_dir / "second-page-load.json"
+    _write_artifact(first, about=0.5, analysis=0.7, total=1.5)
+    _write_artifact(second, about=0.9, analysis=0.71, total=2.2)
+    os.utime(first, ns=(100, 100))
+    os.utime(second, ns=(200, 200))
+
+    result = module.main(
+        [
+            "--pattern",
+            "test-results/*page-load*.json",
+            "--max-regression-seconds",
+            "0.2",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert result == 2
+    assert "Browser page-load regression gate failed" in captured.err
+    assert "ABOUT +0.4000s" in captured.err
+    assert "TOTAL +0.7000s" in captured.err
+    assert "ANALYSIS" not in captured.err
+
+
+def test_main_json_reports_regression_gate_result(tmp_path: Path, monkeypatch, capsys) -> None:
+    module = _load_module()
+    monkeypatch.chdir(tmp_path)
+    artifact_dir = tmp_path / "test-results"
+    artifact_dir.mkdir()
+    first = artifact_dir / "first-page-load.json"
+    second = artifact_dir / "second-page-load.json"
+    _write_artifact(first, about=0.5, analysis=0.7, total=1.5)
+    _write_artifact(second, about=0.55, analysis=0.71, total=1.6)
+    os.utime(first, ns=(100, 100))
+    os.utime(second, ns=(200, 200))
+
+    assert (
+        module.main(
+            [
+                "--pattern",
+                "test-results/*page-load*.json",
+                "--json",
+                "--max-regression-seconds",
+                "0.2",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["max_regression_seconds"] == pytest.approx(0.2)
+    assert payload["regressions"] == []
+
+
 def test_main_rejects_negative_limit() -> None:
     module = _load_module()
 
     with pytest.raises(SystemExit) as exc:
         module.main(["--limit", "-1"])
+
+    assert exc.value.code == 2
+
+
+def test_main_rejects_negative_regression_threshold() -> None:
+    module = _load_module()
+
+    with pytest.raises(SystemExit) as exc:
+        module.main(["--max-regression-seconds", "-0.1"])
 
     assert exc.value.code == 2
