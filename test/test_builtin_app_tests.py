@@ -33,6 +33,7 @@ def test_build_pytest_command_uses_app_local_project_and_importlib_mode():
 
     assert command[:10] == [
         "uv",
+        "--no-cache",
         "--preview-features",
         "extra-build-dependencies",
         "run",
@@ -41,8 +42,8 @@ def test_build_pytest_command_uses_app_local_project_and_importlib_mode():
         "--with",
         "pytest",
         "--with",
-        "pytest-asyncio",
     ]
+    assert "pytest-asyncio" in command
     assert "--import-mode=importlib" in command
     assert command[-1] == "test"
 
@@ -68,3 +69,13 @@ def test_subprocess_env_uses_isolated_app_environment(monkeypatch, tmp_path):
     assert "VIRTUAL_ENV" not in env
     assert "UV_RUN_RECURSION_DEPTH" not in env
     assert env["UV_PROJECT_ENVIRONMENT"] == str(tmp_path / "app-envs" / target.name)
+
+
+def test_app_test_env_root_uses_temporary_directory_by_default(monkeypatch):
+    monkeypatch.delenv("AGILAB_BUILTIN_APP_TEST_ENV_ROOT", raising=False)
+
+    with builtin_app_tests.app_test_env_root() as env_root:
+        assert env_root.name.startswith("agilab-builtin-app-tests-")
+        assert env_root.exists()
+
+    assert not env_root.exists()
