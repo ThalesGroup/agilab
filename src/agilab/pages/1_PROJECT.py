@@ -37,7 +37,6 @@ os.environ.setdefault(
 
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
-import tomli_w
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location(
@@ -186,6 +185,14 @@ def resolve_installed_app_project(*args: Any, **kwargs: Any) -> Any:
 def _gitignore_spec_from_lines(patterns: list[str]) -> Any:
     gitignore_spec = _lazy_import_attr("pathspec.gitignore", "GitIgnoreSpec")
     return gitignore_spec.from_lines(patterns)
+
+
+class _LazyTomliWriter:
+    def dump(self, *args: Any, **kwargs: Any) -> Any:
+        return _lazy_import_attr("tomli_w", "dump")(*args, **kwargs)
+
+
+tomli_w = _LazyTomliWriter()
 
 _action_execution_module = import_agilab_module(
     "agilab.action_execution",

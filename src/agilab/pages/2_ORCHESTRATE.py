@@ -334,22 +334,62 @@ import_agilab_symbols(
     fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_support.py",
     fallback_name="agilab_orchestrate_support_fallback",
 )
-# Project Libraries:
-from agi_gui.pagelib import (
-    background_services_enabled,
-    activate_mlflow,
-    init_custom_ui,
-    on_project_change,
-    is_valid_ip,
-    render_dataframe_preview,
-    resolve_active_app,
-)
-
 from agi_env import AgiEnv
-from agi_gui.ui_support import store_last_active_app
-from agi_gui.ux_widgets import compact_choice
 
 logger = logging.getLogger(__name__)
+
+_LAZY_IMPORT_ATTR_CACHE: dict[tuple[str, str], Any] = {}
+
+
+def _lazy_import_attr(module_name: str, attr_name: str) -> Any:
+    cache_key = (module_name, attr_name)
+    if cache_key not in _LAZY_IMPORT_ATTR_CACHE:
+        _LAZY_IMPORT_ATTR_CACHE[cache_key] = getattr(
+            importlib.import_module(module_name), attr_name
+        )
+    return _LAZY_IMPORT_ATTR_CACHE[cache_key]
+
+
+def background_services_enabled(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "background_services_enabled")(
+        *args, **kwargs
+    )
+
+
+def activate_mlflow(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "activate_mlflow")(*args, **kwargs)
+
+
+def init_custom_ui(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "init_custom_ui")(*args, **kwargs)
+
+
+def on_project_change(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "on_project_change")(*args, **kwargs)
+
+
+def is_valid_ip(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "is_valid_ip")(*args, **kwargs)
+
+
+def render_dataframe_preview(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "render_dataframe_preview")(
+        *args, **kwargs
+    )
+
+
+def resolve_active_app(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "resolve_active_app")(*args, **kwargs)
+
+
+def store_last_active_app(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.ui_support", "store_last_active_app")(
+        *args, **kwargs
+    )
+
+
+def compact_choice(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.ux_widgets", "compact_choice")(*args, **kwargs)
 
 FIRST_PROOF_ACTION_QUERY_KEY = "first_proof_action"
 FIRST_PROOF_ORCHESTRATE_ACTIONS = {"install", "run"}
