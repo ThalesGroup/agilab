@@ -93,9 +93,11 @@ is not a scratchpad or task log.
   plan, and explicitly report any dirty, missing, or intentionally skipped
   checkout.
 - When `gh pr merge --delete-branch` fails because another local worktree owns
-  `main`, check the remote PR state before retrying. If the PR already merged,
-  delete the remote feature branch separately and report the local cleanup
-  failure as local-only.
+  `main`, check the remote PR state before retrying. Prefer a remote-only
+  retry from outside the checkout, for example `gh pr merge <n> --repo
+  ThalesGroup/agilab --merge --delete-branch` from `/tmp`; if the PR already
+  merged, delete the remote feature branch separately and report the local
+  cleanup failure as local-only.
 - When auditing commit provenance, do not infer the worker from a signature or
   configured author name alone. Inventory author, committer, signature identity,
   GitHub actor, PR metadata, and timestamps before attributing work.

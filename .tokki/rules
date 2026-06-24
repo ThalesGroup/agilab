@@ -27,8 +27,9 @@
 
 ## Review / publishing hygiene
 - If `gh pr merge --delete-branch` fails on local worktree ownership of `main`,
-  check the remote PR state before retrying; a remote merge may already have
-  succeeded and only branch cleanup may remain.
+  check remote PR state before retrying. Prefer `gh pr merge <n> --repo
+  ThalesGroup/agilab --merge --delete-branch` from `/tmp`; a remote merge may
+  already have succeeded and only branch cleanup may remain.
 - For commit-provenance questions, inspect author, committer, signature
   identity, GitHub actor, PR metadata, and timestamps before attributing work.
 - For built-in app quality, verify first-run UX, deterministic sample data,
