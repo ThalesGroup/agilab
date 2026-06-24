@@ -116,13 +116,6 @@ import_agilab_symbols(
     fallback_path=Path(__file__).resolve().parents[1] / "ui_performance.py",
     fallback_name="agilab_ui_performance_fallback",
 )
-_reuse_catalog_module = import_agilab_module(
-    "agilab.reuse_catalog",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "reuse_catalog.py",
-    fallback_name="agilab_reuse_catalog_analysis_fallback",
-)
-_build_reuse_suggestion_report = _reuse_catalog_module.build_suggestion_report
 import_agilab_symbols(
     globals(),
     "agilab.notebook_export_support",
@@ -166,6 +159,13 @@ def _lazy_import_attr(module_name: str, attr_name: str) -> Any:
             importlib.import_module(module_name), attr_name
         )
     return _LAZY_IMPORT_ATTR_CACHE[cache_key]
+
+
+def _build_reuse_suggestion_report(*args: Any, **kwargs: Any) -> Any:
+    """Load reuse-catalog suggestions only when the ANALYSIS page needs them."""
+    return _lazy_import_attr("agilab.reuse_catalog", "build_suggestion_report")(
+        *args, **kwargs
+    )
 
 
 class _LazyAgiEnv:
