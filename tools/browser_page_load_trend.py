@@ -72,12 +72,11 @@ def _extract_samples(path: Path) -> list[PageLoadSample]:
                 )
             )
 
-    total = payload.get("total_duration_seconds")
-    if isinstance(total, (float, int)):
+    if samples:
         samples.append(
             PageLoadSample(
                 page="TOTAL",
-                seconds=float(total),
+                seconds=sum(sample.seconds for sample in samples),
                 artifact=path.as_posix(),
                 mtime_ns=stat.st_mtime_ns,
             )

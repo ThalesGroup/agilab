@@ -265,6 +265,12 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         default=None,
         help="Bypass git detection and classify this file. Useful for tests/debugging.",
     )
+    parser.add_argument(
+        "--pre-push-spec",
+        type=Path,
+        default=None,
+        help="Read git pre-push stdin records from this file.",
+    )
     return parser.parse_args(argv)
 
 
@@ -272,11 +278,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
 
     try:
-        changed_files = (
-            tuple(args.changed_file)
-            if args.changed_file is not None
-            else changed_files_from_pre_push(sys.stdin.read())
-        )
+        if args.changed_file is not None:
+            changed_files = tuple(args.changed_file)
+        else:
+            pre_push_text = (
+                args.pre_push_spec.read_text(encoding="utf-8")
+                if args.pre_push_spec is not None
+                else sys.stdin.read()
+            )
+            changed_files = changed_files_from_pre_push(pre_push_text)
         state = classify_changed_files(changed_files)
     except Exception as exc:  # pragma: no cover - defensive hook fail-safe
         state = failed_detection_state(exc)

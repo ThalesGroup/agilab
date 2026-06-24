@@ -50,6 +50,39 @@ def _write_artifact(path: Path, *, about: float, analysis: float, total: float) 
     )
 
 
+def test_extract_samples_derive_total_from_page_render_steps(tmp_path: Path) -> None:
+    module = _load_module()
+    artifact = tmp_path / "mixed-page-load.json"
+    _write_artifact(artifact, about=0.4, analysis=0.6, total=10.0)
+
+    trends = {trend.page: trend for trend in module.collect_trends([artifact])}
+
+    assert trends["TOTAL"].latest_seconds == pytest.approx(1.0)
+
+
+def test_extract_samples_ignore_top_level_total_without_page_steps(tmp_path: Path) -> None:
+    module = _load_module()
+    artifact = tmp_path / "failed-page-load.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "success": False,
+                "total_duration_seconds": 9.5,
+                "steps": [
+                    {
+                        "label": "streamlit health",
+                        "success": True,
+                        "duration_seconds": 1.2,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert module.collect_trends([artifact]) == []
+
+
 def test_collect_trends_reports_latest_previous_delta_best_and_worst(tmp_path: Path) -> None:
     module = _load_module()
     first = tmp_path / "first-page-load.json"
@@ -71,7 +104,7 @@ def test_collect_trends_reports_latest_previous_delta_best_and_worst(tmp_path: P
     assert about.artifact == second.as_posix()
 
     total = trends["TOTAL"]
-    assert total.latest_seconds == pytest.approx(2.6)
+    assert total.latest_seconds == pytest.approx(1.4)
     assert total.delta_seconds == pytest.approx(-0.2)
 
 
@@ -86,7 +119,7 @@ def test_render_markdown_includes_core_page_rows(tmp_path: Path) -> None:
     assert "# Browser page-load trend" in markdown
     assert "| ABOUT | 0.6100s | n/a | n/a | 0.6100s | 0.6100s | 1 |" in markdown
     assert "| ANALYSIS | 0.7300s | n/a | n/a | 0.7300s | 0.7300s | 1 |" in markdown
-    assert "| TOTAL | 2.4000s | n/a | n/a | 2.4000s | 2.4000s | 1 |" in markdown
+    assert "| TOTAL | 1.3400s | n/a | n/a | 1.3400s | 1.3400s | 1 |" in markdown
 
 
 def test_main_json_and_allow_empty(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -133,7 +166,7 @@ def test_main_fails_when_latest_regression_exceeds_threshold(
     assert result == 2
     assert "Browser page-load regression gate failed" in captured.err
     assert "ABOUT +0.4000s" in captured.err
-    assert "TOTAL +0.7000s" in captured.err
+    assert "TOTAL +0.4100s" in captured.err
     assert "ANALYSIS" not in captured.err
 
 
