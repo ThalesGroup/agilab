@@ -80,6 +80,9 @@ is not a scratchpad or task log.
   `agilab` plus sibling `thales_agilab` when present, print both in the command
   plan, and explicitly report any dirty, missing, or intentionally skipped
   checkout.
+- Before acting on a stale sibling worktree reported by `./dev audit`, verify
+  it still exists in `git worktree list --porcelain`. If it is missing, stop
+  and ask whether to recreate that branch or continue from the current checkout.
 - On agent-prefixed branches such as `codex/*`, `codex-*`, `claude/*`,
   `aider/*`, `opencode/*`, or `agent/*`, never commit with a human Git
   identity. Run `python3 tools/agent_commit_provenance_guard.py --check-config`
