@@ -40,8 +40,8 @@ Before editing, pick the closest lane:
    :header-rows: 1
 
    * - Lane
-     - Good first scope
-     - First validation
+     - Typical scope
+     - First check
    * - Docs only
      - README, CONTRIBUTING, docs text, screenshots, links
      - ``git diff --check`` plus docs mirror checks if ``docs/source`` changes
@@ -56,10 +56,10 @@ Before editing, pick the closest lane:
      - Matching ``tools/workflow_parity.py --profile <name>``
    * - Shared core
      - ``src/agilab/core/*``, installer/build/deploy, generic runtime helpers
-     - Ask for maintainer approval first, then run the focused core regression plan
+     - Discuss with a maintainer first, then run the focused core regression plan
 
-Prefer docs, app-local, or UI-helper changes for a first pull request. Shared
-core has the highest blast radius because it can affect installation, worker
+For a first pull request, prefer docs, app-local, or UI-helper work. Shared core
+has the highest blast radius because it can affect installation, worker
 packaging, cluster execution, and packaged public examples.
 
 Validation map
