@@ -23,6 +23,7 @@ from agilab.cluster.cluster_lan_discovery import (
     parse_cidr_values,
     print_discovery_report,
 )
+from agilab.environment.env_default_comments import CLUSTER_ENV_DEFAULT_COMMENT_LINES
 
 
 DEFAULT_APP = "flight_telemetry_project"
@@ -819,6 +820,7 @@ def _remote_env_update_script(plan: ValidationPlan) -> str:
     return "\n".join(
         [
             "from pathlib import Path",
+            f"default_comments = {json.dumps(CLUSTER_ENV_DEFAULT_COMMENT_LINES)}",
             "updates = (",
             "    ('IS_SOURCE_ENV', '0'),",
             "    ('IS_WORKER_ENV', '1'),",
@@ -829,11 +831,29 @@ def _remote_env_update_script(plan: ValidationPlan) -> str:
             "env_path = Path.home() / '.agilab' / '.env'",
             "env_path.parent.mkdir(parents=True, exist_ok=True)",
             "lines = []",
+            "existing_keys = set()",
             "if env_path.exists():",
             "    for raw_line in env_path.read_text(encoding='utf-8').splitlines():",
+            "        candidate = raw_line.strip()",
+            "        if candidate.startswith('#'):",
+            "            candidate = candidate[1:].strip()",
+            "        if '=' in candidate:",
+            "            existing_keys.add(candidate.split('=', 1)[0].strip())",
             "        key = raw_line.split('=', 1)[0].strip()",
             "        if key not in update_keys:",
             "            lines.append(raw_line)",
+            "missing_comments = []",
+            "for comment_line in default_comments:",
+            "    key = comment_line.lstrip('#').split('=', 1)[0].strip()",
+            "    if key in update_keys or key in existing_keys:",
+            "        continue",
+            "    missing_comments.append(comment_line)",
+            "if missing_comments:",
+            "    if lines and lines[-1] != '':",
+            "        lines.append('')",
+            "    lines.append('# Optional AGILAB cluster env defaults (commented)')",
+            "    lines.extend(missing_comments)",
+            "    lines.append('')",
             "for key, value in updates:",
             "    lines.append(f'{key}={value!r}')",
             "env_path.write_text('\\n'.join(lines) + '\\n', encoding='utf-8')",
