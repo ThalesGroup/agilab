@@ -92,3 +92,7 @@ is not a scratchpad or task log.
   `agilab` plus sibling `thales_agilab` when present, print both in the command
   plan, and explicitly report any dirty, missing, or intentionally skipped
   checkout.
+- On agent-prefixed branches such as `codex/*`, `codex-*`, `claude/*`,
+  `aider/*`, `opencode/*`, or `agent/*`, never commit with a human Git
+  identity. Run `python3 tools/agent_commit_provenance_guard.py --check-config`
+  before committing; configure an explicit agent identity when needed.

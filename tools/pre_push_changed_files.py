@@ -57,6 +57,8 @@ AGENT_INSTRUCTION_PREFIXES = (
     ".codex/skills/",
 )
 AGENT_INSTRUCTION_FILES = {
+    ".githooks/pre-commit",
+    ".githooks/pre-push",
     "AGENTS.md",
     "AGENT_CONVENTIONS.md",
     "AGENT_LEARNINGS.md",
@@ -68,6 +70,8 @@ AGENT_INSTRUCTION_FILES = {
     "docs/source/agent-workflows.rst",
     "llms-full.txt",
     "llms.txt",
+    "test/test_agent_commit_provenance_guard.py",
+    "tools/agent_commit_provenance_guard.py",
     "tools/agent_instruction_contract.py",
     "tools/agent_workflows.md",
     "tools/agilab_capabilities_lint.py",

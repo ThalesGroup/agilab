@@ -256,6 +256,15 @@ Use this runbook whenever you:
   agent/runtime name and version when exposed, model name, reasoning effort, and
   whether `/fast` mode was used. Do not infer missing values; write `unknown`,
   `unavailable`, or `not used` explicitly.
+- **Agent commit provenance**: Agent-prefixed branches such as `codex/*`,
+  `codex-*`, `claude/*`, `aider/*`, `opencode/*`, and `agent/*` must not use a
+  human Git author or committer identity. Before committing on those branches,
+  run `python3 tools/agent_commit_provenance_guard.py --check-config`; the
+  repo hooks also run this guard at pre-commit and pre-push. If a released
+  commit already has misleading identity metadata, do not rewrite public
+  history; inventory it with `python3 tools/agent_commit_provenance_guard.py
+  --inventory-github --repo ThalesGroup/agilab --json` and add a corrective
+  provenance guard or note.
 - **PR evidence contract**: PR descriptions must stay current through merge.
   Include `Review Evidence` when model or sub-agent review was used, naming the
   reviewer model, result, and whether findings were addressed. If sub-agents were

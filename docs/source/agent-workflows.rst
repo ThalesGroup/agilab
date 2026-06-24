@@ -55,6 +55,19 @@ not execute agents, generate instructions with an LLM, or replace skill quality,
 security, or
 capability-manifest checks.
 
+Agent commit provenance is checked separately::
+
+   python3 tools/agent_commit_provenance_guard.py --check-config
+   python3 tools/agent_commit_provenance_guard.py --inventory-github --repo ThalesGroup/agilab --json
+
+The output uses schema ``agilab.agent_commit_provenance.v1``. On
+agent-prefixed branches such as ``codex/*``, ``codex-*``, ``claude/*``,
+``aider/*``, ``opencode/*``, and ``agent/*``, the guard rejects human Git
+author or committer identities and requires an explicit agent or bot identity.
+The repo hooks run the config check before commits and the pushed-commit check
+before pushes, so agent-authored PRs cannot silently appear as human-authored
+work.
+
 Shared repo contract
 --------------------
 
