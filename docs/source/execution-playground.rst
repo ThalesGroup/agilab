@@ -214,11 +214,13 @@ still the first AGILAB-native acceleration path for typed Python kernels. Use
 Rust/PyO3 when ownership, safety, an existing Rust crate, or a long-lived native
 library justifies the extra wheel and toolchain complexity.
 
-2-node 16-mode matrix
----------------------
+macOS SSH 2-node 16-mode matrix
+-------------------------------
 
-The repository also ships a second helper that benchmarks the full 16-mode
-matrix on 2 Macs over SSH:
+The repository also ships a second helper for one intentionally narrow evidence
+route: the full 16-mode matrix on 2 Macs over SSH. Treat this as
+``macos-ssh-2node`` benchmark evidence, not as portable Linux/macOS/Windows
+cluster validation:
 
 .. code-block:: bash
 
@@ -235,6 +237,9 @@ This run uses:
 - 1 local macOS ARM scheduler/worker
 - 1 remote macOS ARM worker over SSH
 - the same ``16`` partitions, ``100000`` rows per file, and ``32`` compute passes
+
+For portable cluster readiness, use the AGILAB cluster validation and robustness
+tools instead of this macOS-specific benchmark helper.
 
 Mode families
 ^^^^^^^^^^^^^

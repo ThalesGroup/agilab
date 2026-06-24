@@ -419,6 +419,19 @@ def test_ssh_target_defaults_to_agi_and_preserves_explicit_user() -> None:
     assert matrix._ssh_target("bench@192.168.20.130") == "bench@192.168.20.130"
 
 
+def test_mode_matrix_declares_macos_ssh_topology() -> None:
+    assert matrix.TOPOLOGY_ID == "macos-ssh-2node"
+    assert "macOS" in matrix.TOPOLOGY_DESCRIPTION
+    assert "SSH" in matrix.TOPOLOGY_DESCRIPTION
+
+
+def test_mode_matrix_rejects_non_macos_scheduler(monkeypatch) -> None:
+    monkeypatch.setattr(matrix.platform, "system", lambda: "Linux")
+
+    with pytest.raises(RuntimeError, match="macOS SSH 2-node benchmark"):
+        matrix._require_macos_ssh_topology()
+
+
 def test_sync_dataset_to_remote_reuses_consistent_ssh_target(
     tmp_path, monkeypatch
 ) -> None:
