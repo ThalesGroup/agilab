@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-24T06:25:12Z",
+  "generated_at_utc": "2026-06-24T13:19:34Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -801,7 +801,7 @@
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
       "path": ".claude/skills/agilab-docs/SKILL.md",
-      "updated": "2026-06-01"
+      "updated": "2026-06-24"
     },
     {
       "name": "agilab-evidence-contracts",
@@ -813,7 +813,7 @@
       "name": "agilab-example-maturity",
       "description": "Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation.",
       "path": ".claude/skills/agilab-example-maturity/SKILL.md",
-      "updated": "2026-05-31"
+      "updated": "2026-06-24"
     },
     {
       "name": "agilab-huggingface-spaces",
