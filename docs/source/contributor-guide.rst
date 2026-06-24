@@ -4,10 +4,10 @@ Contributor Guide
 This page is for people changing AGILAB itself. If you only want to try the
 product, start with :doc:`quick-start` instead.
 
-Contributor target
-------------------
+Contributor goal
+----------------
 
-Your first contribution should prove three things:
+A good first pull request shows three things:
 
 1. You can reproduce the public first proof.
 2. Your pull request has one clear scope.
@@ -34,7 +34,7 @@ the first failing log lines.
 Choose one lane
 ---------------
 
-Pick the closest lane before editing:
+Before editing, pick the closest lane:
 
 .. list-table::
    :header-rows: 1
@@ -91,13 +91,13 @@ GitHub Actions when the same failure can be reproduced locally.
 Documentation quality bar
 -------------------------
 
-Treat public documentation as product surface. Before opening a docs pull
-request, check the page against this quality bar:
+Treat public docs as product surface. Before opening a docs pull request,
+check:
 
 - **One reader, one next action**: name the intended reader, then make the next
   command, page, or proof artifact obvious. Avoid pages that explain many
   routes without telling the reader which route to start with.
-- **Executable commands**: prefer copy-pasteable commands with the current
+- **Executable commands**: use copy-pasteable commands with the current
   ``uv --preview-features extra-build-dependencies`` entrypoints. If a command
   is source-checkout-only, packaged-only, or maintainer-only, label it that way.
 - **Evidence over claims**: link claims about readiness, release status, demos,
@@ -107,11 +107,11 @@ request, check the page against this quality bar:
   competitive positioning, local-only paths, and unsupported production-safety
   claims. When AGILAB needs MLflow, Kubeflow, Airflow, SageMaker, or an internal
   platform for production responsibilities, say so directly.
-- **Source/mirror parity**: external contributors can edit the public docs
-  source in their pull request. Maintainers reconcile the canonical
-  ``../thales_agilab/docs/source`` tree, sync this repository's ``docs/source``
-  mirror, verify the mirror stamp, and build the rendered page when layout or
-  links matter. Never hand-edit ``docs/html``.
+- **Source/mirror parity**: contributors can edit public docs in their pull
+  request. Maintainers keep the canonical ``../thales_agilab/docs/source`` tree
+  and this repository's ``docs/source`` mirror aligned, verify the mirror stamp,
+  and build the page when layout or links matter. Never hand-edit
+  ``docs/html``.
 - **Screenshots and diagrams**: update source screenshots, SVG diagrams,
   captions, alt text, and references together. Inspect the rendered page so old
   UI labels or clipped diagram text cannot survive a source-only edit.
