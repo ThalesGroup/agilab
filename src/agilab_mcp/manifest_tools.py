@@ -12,6 +12,7 @@ from agilab.secret_uri import redact_mapping
 
 
 _ALLOWED_ROOTS_ENV = "AGILAB_MCP_ALLOWED_ROOTS"
+_ALLOW_CWD_ENV = "AGILAB_MCP_ALLOW_CWD"
 _CONFIGURED_ROOT_ENV_NAMES = (
     "AGILAB_APPS_ROOT",
     "AGILAB_LOG_ROOT",
@@ -40,10 +41,16 @@ def _unique_roots(paths: list[Path]) -> tuple[Path, ...]:
     return tuple(roots)
 
 
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _configured_read_roots() -> tuple[Path, ...]:
     roots: list[Path] = []
     configured = os.environ.get(_ALLOWED_ROOTS_ENV, "")
-    roots.extend(Path(item) for item in configured.split(os.pathsep) if item)
+    explicit_roots = [Path(item) for item in configured.split(os.pathsep) if item]
+    if explicit_roots:
+        return _unique_roots(explicit_roots)
     for env_name in _CONFIGURED_ROOT_ENV_NAMES:
         env_value = os.environ.get(env_name)
         if env_value:
@@ -51,7 +58,8 @@ def _configured_read_roots() -> tuple[Path, ...]:
     repo_root = _repo_root()
     if repo_root is not None:
         roots.append(repo_root)
-    roots.append(Path.cwd())
+    if _env_truthy(_ALLOW_CWD_ENV):
+        roots.append(Path.cwd())
     home = Path.home()
     roots.extend((home / "log" / "agents", home / "log" / "execute"))
     return _unique_roots(roots)

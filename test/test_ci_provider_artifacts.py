@@ -381,6 +381,99 @@ def test_live_gitlab_ci_artifact_index_uses_api_downloads(tmp_path: Path) -> Non
     assert index["summary"]["missing_required_count"] == 3
 
 
+@pytest.mark.parametrize(
+    "gitlab_url",
+    [
+        "http://gitlab.com",
+        "https://attacker.example",
+        "https://localhost",
+        "https://127.0.0.1",
+        "https://169.254.169.254",
+    ],
+)
+def test_live_gitlab_rejects_untrusted_base_urls_before_token_use(
+    tmp_path: Path, gitlab_url: str
+) -> None:
+    requests: list[object] = []
+
+    def fake_urlopen(req: object) -> object:
+        requests.append(req)
+        raise AssertionError("urlopen must not run for untrusted GitLab URLs")
+
+    with pytest.raises(ValueError, match="GitLab"):
+        build_gitlab_ci_artifact_index(
+            project="thales/agilab",
+            pipeline_id="987654321",
+            gitlab_url=gitlab_url,
+            download_dir=tmp_path / "downloads",
+            token="secret-token",
+            urlopen=fake_urlopen,
+        )
+
+    assert requests == []
+
+
+def test_live_gitlab_allows_explicit_enterprise_host(tmp_path: Path) -> None:
+    archive_bytes = io.BytesIO()
+    with ZipFile(archive_bytes, "w") as archive:
+        archive.writestr(
+            "ci/source-checkout-first-proof/run_manifest.json",
+            json.dumps(_sample_payload("run_manifest"), sort_keys=True),
+        )
+    archive_payload = archive_bytes.getvalue()
+    requested_urls: list[str] = []
+    token_headers: list[str | None] = []
+
+    class _Response:
+        def __init__(self, payload: bytes) -> None:
+            self.payload = payload
+
+        def __enter__(self) -> "_Response":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return self.payload
+
+    def fake_urlopen(req: object) -> _Response:
+        headers = getattr(req, "headers", {})
+        token_headers.append(headers.get("Private-token") or headers.get("PRIVATE-TOKEN"))
+        url = str(getattr(req, "full_url"))
+        requested_urls.append(url)
+        if url.endswith("/pipelines/987654321/jobs?scope[]=success&per_page=100&page=1"):
+            return _Response(
+                json.dumps(
+                    [
+                        {
+                            "id": 42,
+                            "name": "public-evidence",
+                            "artifacts_file": {"filename": "public-evidence.zip"},
+                        }
+                    ]
+                ).encode("utf-8")
+            )
+        return _Response(archive_payload)
+
+    index = build_gitlab_ci_artifact_index(
+        project="thales/agilab",
+        pipeline_id="987654321",
+        gitlab_url="https://gitlab.enterprise.example",
+        allowed_gitlab_hosts=("gitlab.enterprise.example",),
+        download_dir=tmp_path / "downloads",
+        token="secret-token",
+        urlopen=fake_urlopen,
+    )
+
+    assert requested_urls == [
+        "https://gitlab.enterprise.example/api/v4/projects/thales%2Fagilab/pipelines/987654321/jobs?scope[]=success&per_page=100&page=1",
+        "https://gitlab.enterprise.example/api/v4/projects/thales%2Fagilab/jobs/42/artifacts",
+    ]
+    assert token_headers == ["secret-token", "secret-token"]
+    assert index["provider"] == "gitlab_ci"
+
+
 def test_provider_archive_edge_cases_cover_validation_and_duplicates(tmp_path: Path) -> None:
     bad_archive = tmp_path / "bad-json.zip"
     with ZipFile(bad_archive, "w") as archive:
