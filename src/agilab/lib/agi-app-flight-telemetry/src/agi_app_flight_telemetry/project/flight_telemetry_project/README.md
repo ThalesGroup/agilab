@@ -49,6 +49,12 @@ one route-centroid marker per aircraft on top of the trajectory points.
 After the default run works, change only the file glob or one input sample. The
 analysis views should update while the reducer contract remains the same.
 
+## Example Quality Plan
+
+- Review artifact: Review the flight trajectory outputs, map-ready artifacts, and notebook import views as one evidence chain.
+- Practice change: Change one vehicle, time window, or anomaly filter and confirm the trajectory and map views still line up.
+- Quality check: A mature run teaches data ingestion, geospatial review, and notebook handoff without requiring private telemetry feeds.
+
 ## Troubleshooting
 
 If `ANALYSIS` shows no map data, confirm that `EXECUTE` produced dataframe

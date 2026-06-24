@@ -80,6 +80,12 @@ After the default run works, change only one thing:
 Keep `seed=2026` for synthetic comparisons so artifact deltas remain easy to
 explain.
 
+## Example Quality Plan
+
+- Review artifact: Review `quality_gate_report.json` first; it is the teaching artifact that explains why a dataset is allowed, warned, or blocked before model work starts.
+- Practice change: Change one threshold or one missing-value count in the seeded input and confirm the gate moves from pass to warn or fail with an actionable reason.
+- Quality check: A mature run leaves a stable gate report, a concise summary, and no hidden dependency on private data or external services.
+
 ## Troubleshooting
 
 If custom CSV inputs fail, first run the defaults again to confirm the app and

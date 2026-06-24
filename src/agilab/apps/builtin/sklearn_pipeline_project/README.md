@@ -40,6 +40,12 @@ The worker writes `metrics.json`, `predictions.csv`, `model.joblib`,
 After the default run works, change only `regularization_c` or `sample_count`.
 Keep `seed=2026` so differences remain easy to explain.
 
+## Example Quality Plan
+
+- Review artifact: Review the model metrics, feature summary, and pipeline view before treating the trained model as useful.
+- Practice change: Change one estimator parameter or split seed and confirm the metrics and saved model metadata change coherently.
+- Quality check: A mature run teaches a familiar scikit-learn workflow with persisted inputs, outputs, and reproducible review points.
+
 ## Troubleshooting
 
 If model artifacts are missing, confirm `RUN` completed after `INSTALL`. If

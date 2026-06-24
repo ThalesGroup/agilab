@@ -41,6 +41,12 @@ After the default run works, replace only the input weather CSV with a larger
 local snapshot that preserves the expected columns. Forecast metrics should
 change while artifact names remain stable.
 
+## Example Quality Plan
+
+- Review artifact: Review forecast artifacts, analysis views, and notebook import metadata as the main evidence chain.
+- Practice change: Change one city, horizon, or weather feature and confirm the forecast output and analysis view remain aligned.
+- Quality check: A mature run shows notebook-to-project packaging with deterministic public data, reviewable outputs, and safe adaptation.
+
 ## Troubleshooting
 
 If `skforecast` is missing, run `INSTALL` for this app and test from the app

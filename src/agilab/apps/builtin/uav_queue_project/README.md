@@ -40,6 +40,12 @@ After the default run works, change only `routing_policy` from `shortest_path`
 to `queue_aware`. Queue hotspots and drops should change while output schemas
 stay stable.
 
+## Example Quality Plan
+
+- Review artifact: Review queue-health, topology, routing, and trajectory artifacts as a single scenario evidence bundle.
+- Practice change: Change one seeded incident or queue pressure value and confirm the routing and health outputs explain the impact.
+- Quality check: A mature run teaches resilience analysis with deterministic scenario inputs and reviewable operational outputs.
+
 ## Troubleshooting
 
 If analysis pages are empty, confirm the queue analysis bundle exists under the

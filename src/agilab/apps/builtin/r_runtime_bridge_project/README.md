@@ -40,6 +40,12 @@ After the default run works, change only the numeric vector in the input JSON.
 The output mean and standard deviation should change while the manifest schema
 stays stable.
 
+## Example Quality Plan
+
+- Review artifact: Review the R stage inputs, outputs, and AGILAB manifest together so the language boundary is explicit.
+- Practice change: Change one R-owned parameter while keeping the AGILAB stage contract fixed and confirm the artifacts still validate.
+- Quality check: A mature run proves existing R logic can stay app-owned while AGILAB owns orchestration and evidence.
+
 ## Troubleshooting
 
 If the run reports missing `Rscript`, install R or put `Rscript` on `PATH`. If
