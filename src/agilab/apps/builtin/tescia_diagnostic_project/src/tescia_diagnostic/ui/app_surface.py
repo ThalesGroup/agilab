@@ -550,7 +550,7 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
     )
 
     catalog_tab, answer_tab, classroom_tab, authoring_tab, coverage_tab = st.tabs(
-        ["Catalog", "Self-evaluation", "Classroom live", "Teacher authoring", "Coverage"]
+        ["Catalog", "Self-check", "Live class", "Authoring", "Coverage"]
     )
 
     with catalog_tab:
