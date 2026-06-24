@@ -31,8 +31,8 @@ If the proof fails, stay on the newcomer path: use
 in the title, the command you ran, and the first failing log lines. Do not
 jump into clusters, private app repositories, or large refactors yet.
 
-Choose one lane
----------------
+Choose a lane
+-------------
 
 Before editing, pick the closest lane:
 
