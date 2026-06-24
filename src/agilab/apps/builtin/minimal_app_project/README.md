@@ -37,6 +37,12 @@ contract. It is intentionally small.
 Copy the project, rename the manager and worker modules, and add one real input
 field before changing the execution contract.
 
+## Example Quality Plan
+
+- Review artifact: Review the manager, worker, settings seed, and output artifact as the smallest complete AGILAB app contract.
+- Practice change: Change one argument default in the form or settings seed and confirm the worker output reflects only that change.
+- Quality check: A mature run remains the copy/paste reference for new app authors: small, deterministic, and easy to diff.
+
 ## Troubleshooting
 
 If a copied app does not appear in `PROJECT`, check the project suffix, root
