@@ -278,21 +278,9 @@ def _mapping_value(envars: Mapping[str, Any], name: str) -> str:
 
 
 def _looks_placeholder_secret(value: str | None) -> bool:
-    if not value:
-        return True
-    cleaned = str(value).strip()
-    if not cleaned:
-        return True
-    upper_value = cleaned.upper()
-    if cleaned in {"EMPTY", "None", "none", "null", "NULL"}:
-        return True
-    if "***" in cleaned or "..." in cleaned:
-        return True
-    if "YOUR-API-KEY" in upper_value or "YOUR_API_KEY" in upper_value:
-        return True
-    if cleaned in {"your-key", "sk-your-key", "sk-XXXX"}:
-        return True
-    return len(cleaned) < 12
+    from agilab.security.api_keys import looks_placeholder_secret
+
+    return looks_placeholder_secret(value)
 
 
 def _api_key_card(env: Any) -> tuple[EnvironmentHealthCard, tuple[str, str]]:

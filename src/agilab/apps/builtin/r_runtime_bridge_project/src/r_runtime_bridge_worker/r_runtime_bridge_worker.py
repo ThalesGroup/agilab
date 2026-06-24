@@ -11,7 +11,7 @@ from typing import Any
 
 import pandas as pd
 
-from agi_node.agi_dispatcher import BaseWorker
+from agi_node.agi_dispatcher import BaseWorker, base_worker_path_support as path_support
 from agi_node.pandas_worker import PandasWorker
 from r_runtime_bridge import RRuntimeBridgeArgs, build_r_runtime_bridge_artifacts
 from r_runtime_bridge.reduction import write_reduce_artifact
@@ -21,15 +21,7 @@ _runtime: dict[str, object] = {}
 
 
 def _artifact_dir(env: object, leaf: str) -> Path:
-    export_root = getattr(env, "AGILAB_EXPORT_ABS", None)
-    target = str(getattr(env, "target", "") or "")
-    relative = Path(target) / leaf if target else Path(leaf)
-    if export_root is not None:
-        return Path(export_root) / relative
-    resolve_share_path = getattr(env, "resolve_share_path", None)
-    if callable(resolve_share_path):
-        return Path(resolve_share_path(relative))
-    return Path.home() / "export" / relative
+    return path_support.resolve_artifact_dir(env, leaf, path_cls=Path, home_factory=Path.home)
 
 
 def _args_with_defaults(value: Any) -> RRuntimeBridgeArgs:

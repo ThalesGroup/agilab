@@ -3,7 +3,7 @@ name: agilab-deep-audit
 description: Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says "review AGILAB", "audit AGILAB", "code review AGILAB", "deep review", "architecture review", "security review", asks for a review document, or asks for comparison-quality critique rather than a quick fix.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-04
+  updated: 2026-06-24
 ---
 
 # AGILAB Deep Audit Skill
@@ -83,6 +83,120 @@ For a deep AGILAB audit, cover these surfaces unless the user narrows scope:
 - Periphery sampling: representative built-in apps, page bundles, and examples
   only after the central architecture is understood.
 
+## Production and evidence-readiness audit prompt
+
+When the user asks for the highest added-value AGILAB prompt, a Tokki-style
+AGILAB production audit, or to send/fix findings from such an audit, use this
+contract instead of a generic bug hunt:
+
+```text
+Load the full AGILAB repo, docs, release proof, package split, built-in apps,
+notebooks, MCP and agent surfaces, Streamlit pages, tests, generated assets,
+Hugging Face/PyPI/GitHub publication state, current git/GitHub state, and
+commit provenance when authorship or attribution matters.
+
+Act as a senior production engineer, open-source product strategist, security
+reviewer, and evidence/reproducibility-readiness reviewer.
+
+Goal: make AGILAB production-grade as a trusted-operator workbench for turning
+AI/ML experiments, notebooks, and agent runs into replayable, attestable
+evidence. Keep claims honest: do not position AGILAB as a fully managed
+production MLOps control plane or regulatory compliance product unless current
+public evidence proves it.
+
+Review for:
+- correctness bugs, performance hot paths, and validation cost
+- broken or misleading user workflows
+- public/private boundary leaks, unsafe executable-content handling, credential
+  exposure, and dependency/provenance gaps
+- wrapper, MCP, agent-skill, generated-discovery, and command-routing drift
+- evidence, proof, replay, release-proof, and artifact-hash misalignment
+- package split, optional extras, built-in app, and app-contract drift
+- docs/code/changelog/README/PyPI/Hugging Face/GitHub state misalignment
+- test gaps around risky behavior, polluted environments, and trust boundaries
+- release/build/reproducibility/SBOM/provenance problems
+- ambiguous commit provenance, including mismatches across author, committer,
+  signature identity, GitHub actor, PR metadata, and timestamps
+- newcomer confusion and open-source product-positioning gaps
+- places where AGILAB's trusted-operator, replayable-evidence story is not
+  clear enough
+
+Then:
+1. List findings by impact.
+2. Fix the top actionable issues directly when the user asks for fixes.
+3. Add or strengthen regression coverage or durable guards.
+4. Regenerate required docs/assets/discovery artifacts.
+5. Run the strongest practical local validation suite for the touched scope.
+6. Commit, push, and use the repo PR/merge policy for the reviewed batch.
+7. End with a concise report: fixed, validation, remaining risks, next
+   highest-value move.
+```
+
+Execution rules:
+
+- Run the prompt as review first; do not patch unless the user asks to fix
+  findings.
+- If using a subagent, pass the prompt and repository target without leaking
+  expected findings or intended fixes.
+- When fixing findings, prioritize deterministic issues with a narrow
+  regression, guard, or generated-artifact check.
+- Keep product language aligned with AGILAB's public evidence posture:
+  replayable and attestable experiment evidence, not overclaimed enterprise
+  production automation.
+
+## Multi-axis parallel review mode
+
+When the user asks for a Claude-style multi-axis review, a `7 axis` pass, or
+asks to inspect pitfalls/speed/correctness/known bugs/source tree/naming/
+deprecations/security/docs alignment/repo status, split the read plan across
+the current review lanes below and merge their evidence before writing
+findings. Treat `7 axis` as historical shorthand for this AGILAB multi-axis
+mode; AGILAB reviews still include security, docs-alignment, and repo-status
+lanes unless the user explicitly narrows the scope. Parallelism here means
+parallel evidence collection and comparison, not parallel edits or speculative
+fixes.
+
+1. **Pitfalls**: hidden state, trust-boundary mistakes, environment pollution,
+   fragile ordering, missing fail-closed behavior, and traps already encoded in
+   `AGENTS.md` or `AGENT_LEARNINGS.md`.
+2. **Speedup**: startup time, validation cost, runtime hot paths, log/token
+   volume, avoidable dependency syncs, and opportunities to parallelize reads or
+   batch work without changing semantics.
+3. **Correctness**: invariants, data-path resolution, scheduler/worker behavior,
+   cross-platform determinism, error handling, and whether tests prove the
+   intended contract instead of only the happy path.
+4. **Known bugs**: match the current diff or audited surface against nearby
+   TODO/FIXME comments, regression tests, issue-shaped guardrails, historical
+   bug-class rules, and release/changelog notes; do not report a remembered bug
+   unless current code still shows the mechanism.
+5. **Source-tree improvement**: duplicated helpers, misplaced generated files,
+   package-boundary drift, docs/source mirror confusion, stale artifacts, and
+   opportunities to move code to the existing owner instead of adding a parallel
+   mechanism.
+6. **Naming**: user-visible labels, config keys, public APIs, app/page names,
+   evidence field names, and test fixtures that could drift semantically or
+   conflict with cross-page action semantics.
+7. **Deprecation**: deprecated Streamlit/Python/package APIs, retired AGILAB
+   helpers, legacy build wrappers, obsolete install paths, and old docs claims
+   that should be migrated, shimmed deliberately, or removed.
+8. **Security**: trust-boundary violations, untrusted content handling,
+   shell/subprocess execution, credential or token exposure, public UI binding,
+   MCP/LLM tool exposure, dependency supply chain, and provenance or artifact
+   verification gaps.
+9. **Docs alignment**: mismatches between code behavior, user-visible UI,
+   README/public docs, canonical docs source, mirrored docs, screenshots,
+   `SECURITY.md`, `CHANGELOG.md`, release proof, and public evidence claims.
+10. **Repo status**: current branch, upstream divergence, staged and unstaged
+   changes, untracked non-ignored files, ignored generated byproducts that could
+   pollute guards, recent commits, author/committer/signature/GitHub actor
+   provenance when relevant, open PR/check state, and whether the checkout is
+   safe for review, patching, push, release, or merge.
+
+For each lane, keep evidence concrete: cite files, line ranges, commands,
+tests, or public artifacts. After the lane read, deduplicate overlapping
+observations into root-cause findings and explicitly mark any lane with no
+actionable finding as `clear` rather than padding the report.
+
 ## Evidence collection pattern
 
 Plan the read pass before opening files. Prefer targeted reads over broad scans:
@@ -90,6 +204,7 @@ Plan the read pass before opening files. Prefer targeted reads over broad scans:
 ```bash
 git status --short --branch --untracked-files=no
 git log --oneline -5
+git log --show-signature --format=fuller -5
 sed -n '1,220p' pyproject.toml
 find src/agilab/core -maxdepth 3 -name pyproject.toml -print
 rg -n "class AgiEnv|__new__|__init__|shell=True|pickle\\.load|eval\\(|exec\\(|subprocess|create_subprocess|AGILAB_PUBLIC_BIND|MCP|FastMCP|security-check|Path\\.home|except Exception|bare except|uv add|command -v sshfs|known_hosts|StrictHostKeyChecking|asyncssh|sshpass|exec_ssh|urlopen|unsafe_allow_html|is_relative_to" src/agilab tools test

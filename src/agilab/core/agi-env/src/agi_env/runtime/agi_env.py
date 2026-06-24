@@ -565,11 +565,35 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def resolve_share_path(self, path: str | Path | None) -> Path:
         """
-        Resolve ``path`` relative to the shared storage root.
+        Resolve ``path`` relative to the active shared data root.
 
-        ``None`` or ``"."`` returns the root itself; absolute inputs pass through unchanged.
+        ``None`` or ``"."`` returns the active data root itself; absolute inputs
+        pass through unchanged. When workflow/session scoping is active,
+        ``AGILAB_WORKFLOW_DATA_ROOT`` is the active data root while
+        ``AGI_CLUSTER_SHARE`` remains the physical cluster-share mount root.
         """
-        return resolve_relative_share_path(path, self.share_root_path())
+        return resolve_relative_share_path(path, self.workflow_data_root_path())
+
+    def workflow_data_root_path(self) -> Path:
+        """Return the active workflow/session data root when configured."""
+
+        raw_value = getattr(self, "AGILAB_WORKFLOW_DATA_ROOT", None) or getattr(
+            self, "agi_workflow_data_root", None
+        )
+        envars = getattr(self, "envars", None)
+        if not raw_value and isinstance(envars, dict):
+            raw_value = envars.get("AGILAB_WORKFLOW_DATA_ROOT")
+        if not raw_value:
+            return self.share_root_path()
+
+        data_root = Path(raw_value).expanduser()
+        if not data_root.is_absolute():
+            base = Path.home()
+            env_home = self.home_abs
+            if env_home and not self.is_worker_env:
+                base = Path(env_home)
+            data_root = Path(base).expanduser() / data_root
+        return data_root.resolve(strict=False)
 
     @classmethod
     def _ensure_defaults(cls):

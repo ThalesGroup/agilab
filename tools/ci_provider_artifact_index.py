@@ -86,6 +86,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pipeline-id", default="", help="GitLab CI pipeline id.")
     parser.add_argument("--gitlab-url", default="https://gitlab.com")
     parser.add_argument(
+        "--allow-gitlab-host",
+        action="append",
+        default=[],
+        metavar="HOST",
+        help=(
+            "Allow a self-managed GitLab host for token-bearing live queries. "
+            "Can be passed multiple times; AGILAB_GITLAB_URL_ALLOWLIST also "
+            "accepts comma-separated hosts."
+        ),
+    )
+    parser.add_argument(
         "--download-dir",
         type=Path,
         default=None,
@@ -137,6 +148,7 @@ def _build_index(args: argparse.Namespace) -> dict[str, object]:
             project=args.project,
             pipeline_id=args.pipeline_id,
             gitlab_url=args.gitlab_url,
+            allowed_gitlab_hosts=tuple(args.allow_gitlab_host or ()),
             download_dir=args.download_dir,
             token=token_from_env(args.token_env),
             workflow=args.workflow,

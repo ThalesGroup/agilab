@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 
 REPORT_PATH = Path("tools/data_connector_live_endpoint_smoke_report.py").resolve()
 CORE_PATH = Path("src/agilab/data_connector_live_endpoint_smoke.py").resolve()
@@ -178,7 +180,11 @@ def test_live_endpoint_smoke_opensearch_success_and_failure_paths(monkeypatch, t
         def __exit__(self, *_args):
             return False
 
-    monkeypatch.setattr(core.request, "urlopen", lambda *_args, **_kwargs: Response())
+    class Opener:
+        def open(self, *_args, **_kwargs):
+            return Response()
+
+    monkeypatch.setattr(core, "_live_probe_opener", lambda **_kwargs: Opener())
 
     healthy = core._smoke_row(
         connector,
@@ -191,10 +197,11 @@ def test_live_endpoint_smoke_opensearch_success_and_failure_paths(monkeypatch, t
     assert healthy["network_probe_executed"] is True
     assert "HEAD returned 204" in healthy["message"]
 
-    def fail_urlopen(*_args, **_kwargs):
-        raise OSError("network down")
+    class FailingOpener:
+        def open(self, *_args, **_kwargs):
+            raise OSError("network down")
 
-    monkeypatch.setattr(core.request, "urlopen", fail_urlopen)
+    monkeypatch.setattr(core, "_live_probe_opener", lambda **_kwargs: FailingOpener())
     unhealthy = core._smoke_row(
         connector,
         execute=True,
@@ -205,6 +212,68 @@ def test_live_endpoint_smoke_opensearch_success_and_failure_paths(monkeypatch, t
     assert unhealthy["execution_status"] == "executed"
     assert unhealthy["network_probe_executed"] is True
     assert unhealthy["message"] == "network down"
+
+
+def test_live_endpoint_smoke_blocks_unsafe_opensearch_targets_before_authorization(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    core = _load_module(CORE_PATH, "data_connector_live_smoke_unsafe_url_core")
+    monkeypatch.setenv("OPENSEARCH_TOKEN", "token-value")
+
+    def fail_if_opened(**_kwargs):
+        raise AssertionError("unsafe target should not build an opener")
+
+    monkeypatch.setattr(core, "_live_probe_opener", fail_if_opened)
+
+    for url in (
+        "file:///tmp/search",
+        "http://169.254.169.254/latest/meta-data",
+        "http://127.0.0.1:9200",
+    ):
+        row = core._smoke_row(
+            {
+                "id": "ops",
+                "kind": "opensearch",
+                "label": "Operations Search",
+                "provider": "opensearch",
+                "url": url,
+                "index": "runs-*",
+                "auth_ref": "env:OPENSEARCH_TOKEN",
+            },
+            execute=True,
+            allowed_connector_ids={"ops"},
+        )
+
+        assert row["status"] == "skipped"
+        assert row["execution_status"] == "skipped"
+        assert row["network_probe_executed"] is False
+        assert "unsafe live endpoint target" in row["message"]
+
+
+def test_live_endpoint_smoke_redirects_must_keep_same_safe_origin() -> None:
+    core = _load_module(CORE_PATH, "data_connector_live_smoke_redirect_policy_core")
+    handler = core._SameOriginRedirectHandler()
+    req = core.request.Request("https://opensearch.example.invalid/runs-*", method="HEAD")
+
+    assert handler.redirect_request(
+        req,
+        None,
+        302,
+        "found",
+        {},
+        "https://opensearch.example.invalid/health",
+    )
+
+    with pytest.raises(RuntimeError, match="redirect changed origin"):
+        handler.redirect_request(
+            req,
+            None,
+            302,
+            "found",
+            {},
+            "https://attacker.example.invalid/health",
+        )
 
 
 def test_live_endpoint_smoke_invalid_catalog_and_relative_persist_path(tmp_path: Path) -> None:

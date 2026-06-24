@@ -461,19 +461,18 @@ def _apply_workers_data_path_to_env(
     if not _workers_data_path_can_rebind_env_share(env, share_text):
         return
 
-    share_root_abs = _absolute_workers_data_share_root(env, share_text)
-    env.AGI_CLUSTER_SHARE = share_text
-    env.agi_share_path = share_text
-    env.agi_share_path_abs = share_root_abs
-    env._share_root_cache = share_root_abs
+    workflow_data_root_abs = _absolute_workers_data_share_root(env, share_text)
+    env.AGILAB_WORKFLOW_DATA_ROOT = share_text
+    env.agi_workflow_data_root = share_text
+    env.agi_workflow_data_root_abs = workflow_data_root_abs
     if isinstance(getattr(env, "envars", None), dict):
-        env.envars["AGI_CLUSTER_SHARE"] = share_text
+        env.envars["AGILAB_WORKFLOW_DATA_ROOT"] = share_text
 
     share_target_name_fn = getattr(env, "_share_target_name", None)
     if callable(share_target_name_fn):
         share_target_name = share_target_name_fn()
         env.share_target_name = share_target_name
-        env.app_data_rel = share_root_abs / share_target_name
+        env.app_data_rel = workflow_data_root_abs / share_target_name
         env.dataframe_path = env.app_data_rel / "dataframe"
 
 

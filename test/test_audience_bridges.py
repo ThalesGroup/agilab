@@ -1230,6 +1230,29 @@ def test_manifest_tools_reject_paths_outside_allowed_roots(
         manifest_tools.agent_quickstart(capabilities_path=outside_manifest)
 
 
+def test_manifest_tools_do_not_allow_launch_cwd_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cwd = tmp_path / "operator-cwd"
+    cwd.mkdir()
+    manifest = cwd / "run_manifest.json"
+    manifest.write_text('{"status": "pass"}', encoding="utf-8")
+
+    monkeypatch.delenv("AGILAB_MCP_ALLOWED_ROOTS", raising=False)
+    monkeypatch.delenv("AGILAB_MCP_ALLOW_CWD", raising=False)
+    monkeypatch.delenv("AGILAB_APPS_ROOT", raising=False)
+    monkeypatch.delenv("AGILAB_LOG_ROOT", raising=False)
+    monkeypatch.delenv("AGILAB_AGENT_LOG_ROOT", raising=False)
+    monkeypatch.chdir(cwd)
+
+    with pytest.raises(ValueError, match="outside configured read roots"):
+        manifest_tools.read_manifest(manifest)
+
+    monkeypatch.setenv("AGILAB_MCP_ALLOW_CWD", "1")
+    payload = manifest_tools.read_manifest(manifest)
+    assert payload["manifest"]["status"] == "pass"
+
+
 def test_agent_quickstart_discovers_manifest_from_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

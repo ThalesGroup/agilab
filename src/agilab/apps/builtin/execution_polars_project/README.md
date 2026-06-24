@@ -41,6 +41,12 @@ After the default run works, change only the partition count. The same logical
 workload should produce a different distribution shape while keeping reducer
 totals stable.
 
+## Example Quality Plan
+
+- Review artifact: Review the same partition and reducer artifacts used by the pandas example so the engine comparison stays fair.
+- Practice change: Change the workload size while keeping the schema fixed, then compare the polars output contract with the pandas project.
+- Quality check: A mature run proves the engine swap changes implementation, not the public artifact shape or learner instructions.
+
 ## Troubleshooting
 
 If polars cannot be imported, run `INSTALL` again for this app instead of using

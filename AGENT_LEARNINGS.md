@@ -92,3 +92,20 @@ is not a scratchpad or task log.
   `agilab` plus sibling `thales_agilab` when present, print both in the command
   plan, and explicitly report any dirty, missing, or intentionally skipped
   checkout.
+- When `gh pr merge --delete-branch` fails because another local worktree owns
+  `main`, check the remote PR state before retrying. If the PR already merged,
+  delete the remote feature branch separately and report the local cleanup
+  failure as local-only.
+- When auditing commit provenance, do not infer the worker from a signature or
+  configured author name alone. Inventory author, committer, signature identity,
+  GitHub actor, PR metadata, and timestamps before attributing work.
+- When a built-in app README, quality plan, or docs page names output
+  artifacts, verify those exact names against worker code and documented
+  outputs before merging. Fix the docs or generation path if the artifact is
+  not actually emitted.
+- Treat built-in app maturity as one gate: first-run UX, deterministic sample
+  data, README artifact truth, app-local tests, installer/catalog contract, and
+  clear example value must align before calling the app example-grade.
+- For docs/SVG alignment, compare editable source, mirrored/public references,
+  captions/alt text, and the rendered page together. Do not call docs aligned
+  from raw SVG validity or source text inspection alone.

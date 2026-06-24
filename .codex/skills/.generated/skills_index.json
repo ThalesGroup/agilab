@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-19T17:00:03Z",
+  "generated_at_utc": "2026-06-24T13:19:34Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -23,7 +23,7 @@
       "name": "agilab-deep-audit",
       "description": "Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says \"review AGILAB\", \"audit AGILAB\", \"code review AGILAB\", \"deep review\", \"architecture review\", \"security review\", asks for a review document, or asks for comparison-quality critique rather than a quick fix.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-04",
+      "updated": "2026-06-24",
       "path": ".codex/skills/agilab-deep-audit/SKILL.md",
       "body_preview": "# AGILAB Deep Audit Skill\nUse this skill when the user asks for an AGILAB audit or a review artifact. Do\nnot treat an audit request as a maintenance/fix request unless the user\nexplicitly asks to patch findings."
     },
@@ -31,7 +31,7 @@
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-01",
+      "updated": "2026-06-24",
       "path": ".codex/skills/agilab-docs/SKILL.md",
       "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- Canonical editable docs source is `../thales_agilab/docs/source`."
     },
@@ -47,7 +47,7 @@
       "name": "agilab-example-maturity",
       "description": "Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-31",
+      "updated": "2026-06-24",
       "path": ".codex/skills/agilab-example-maturity/SKILL.md",
       "body_preview": "# AGILAB Example Maturity\n## Goal\nRaise AGILAB packaged examples from internal smoke snippets to external-beta\nexamples: readable, deterministic, copy/paste safe, aligned with docs, and"
     },

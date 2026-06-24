@@ -182,8 +182,8 @@ Use the smoke validator before a live two-node run:
 .. code-block:: bash
 
    uv --preview-features extra-build-dependencies run python tools/dag_distributed_stage_smoke.py \
-     --scheduler 192.168.20.111:8786 \
-     --workers '{"192.168.20.111": 1, "192.168.20.15": 1}' \
+     --scheduler <scheduler-host>:8786 \
+     --workers '{"<scheduler-host>": 1, "<worker-host>": 1}' \
      --workers-data-path clustershare/agi \
      --compact
 

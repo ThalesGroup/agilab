@@ -110,6 +110,12 @@ After the default run works, change only one learning control:
 The decision boundary and evidence manifest should update while the artifact
 names stay stable.
 
+## Example Quality Plan
+
+- Review artifact: Review the exported training metrics, decision-boundary snapshot, and replay metadata after using the controls.
+- Practice change: Change one model or dataset parameter and confirm the visible boundary and saved metrics explain the same run.
+- Quality check: A mature run keeps interactivity tied to reproducible artifacts so the playground remains inspectable after the session.
+
 ## Troubleshooting
 
 If PyTorch is unavailable, the app returns displayable `missing_torch` evidence

@@ -653,6 +653,106 @@ def test_layout_integrity_result_probe_accepts_clean_geometry() -> None:
     assert "no obvious overflow" in probe.detail
 
 
+def test_layout_integrity_result_probe_ignores_framework_artifacts() -> None:
+    module = _load_module()
+
+    probe = module._layout_integrity_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        issues=[
+            {"kind": "zero_size_control", "label": "INPUT", "detail": "control rendered at 1.0x1.0"},
+            {"kind": "text_overflow", "label": "Install agi-app", "detail": "text width 95px exceeds container 79px"},
+            {
+                "kind": "control_overlap",
+                "label": "view_maps, close by backspace",
+                "detail": "overlaps Selected view_maps by 504.0px2",
+            },
+            {
+                "kind": "control_overlap",
+                "label": "Show/hide columns",
+                "detail": "overlaps Action None by 501.3px2",
+            },
+            {
+                "kind": "control_overlap",
+                "label": "Download as CSV",
+                "detail": "overlaps Action None by 501.3px2",
+            },
+            {
+                "kind": "control_overlap",
+                "label": "Search",
+                "detail": "overlaps Action None by 501.3px2",
+            },
+            {
+                "kind": "control_overlap",
+                "label": "Fullscreen",
+                "detail": "overlaps Action None by 501.3px2",
+            },
+            {
+                "kind": "control_overlap",
+                "label": "INPUT",
+                "detail": "overlaps upload Upload by 1.0px2",
+            },
+            {
+                "kind": "control_overlap",
+                "label": "Coverage",
+                "detail": "overlaps Scroll tabs right by 800.0px2",
+            },
+            {
+                "kind": "horizontal_overflow",
+                "label": "keyboard_double_arrow_left",
+                "detail": "control spans x=-270.0..-242.0 viewport=390",
+            },
+            {
+                "kind": "horizontal_overflow",
+                "label": "Catalog pypi.org",
+                "detail": "control spans x=-263.0..-247.0 viewport=390",
+            },
+        ],
+    )
+
+    assert probe.status == "interacted"
+    assert "ignored 11" in probe.detail
+
+
+def test_layout_integrity_result_probe_ignores_workflow_content_overflow() -> None:
+    module = _load_module()
+
+    probe = module._layout_integrity_result_probe(
+        app_name="flight_telemetry_project",
+        display="WORKFLOW",
+        url="http://demo/WORKFLOW",
+        issues=[
+            {
+                "kind": "text_overflow",
+                "label": "UAV queue to relay handoff MVP",
+                "detail": "text width 479px exceeds container 305px",
+            },
+        ],
+    )
+
+    assert probe.status == "interacted"
+    assert "ignored 1" in probe.detail
+
+
+def test_layout_integrity_result_probe_keeps_actionable_issue_after_filtering() -> None:
+    module = _load_module()
+
+    probe = module._layout_integrity_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        issues=[
+            {"kind": "zero_size_control", "label": "INPUT", "detail": "control rendered at 1.0x1.0"},
+            {"kind": "horizontal_overflow", "label": "RUN", "detail": "control spans outside viewport"},
+        ],
+    )
+
+    assert probe.status == "failed"
+    assert "horizontal_overflow" in probe.detail
+    assert "ignored 1" in probe.detail
+
+
 def test_accessibility_result_probe_reports_first_issue() -> None:
     module = _load_module()
 
@@ -680,6 +780,58 @@ def test_accessibility_result_probe_accepts_clean_semantics() -> None:
 
     assert probe.status == "interacted"
     assert "ARIA references" in probe.detail
+
+
+def test_accessibility_result_probe_ignores_framework_noise() -> None:
+    module = _load_module()
+
+    probe = module._accessibility_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        issues=[
+            {
+                "kind": "contrast_risk",
+                "label": "PROJECT",
+                "detail": "text/background contrast ratio 1.97 is below robot threshold 2.2",
+            },
+            {
+                "kind": "missing_accessible_name",
+                "label": "stNumberInputStepDown",
+                "detail": "visible interactive control has no accessible name",
+            },
+            {
+                "kind": "heading_level_jump",
+                "label": "Runtime diagnostics",
+                "detail": "heading jumps from h2 to h4",
+            },
+        ],
+    )
+
+    assert probe.status == "interacted"
+    assert "ignored 3" in probe.detail
+
+
+def test_accessibility_result_probe_keeps_actionable_issues_after_filtering() -> None:
+    module = _load_module()
+
+    probe = module._accessibility_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        issues=[
+            {
+                "kind": "contrast_risk",
+                "label": "PROJECT",
+                "detail": "text/background contrast ratio 1.97 is below robot threshold 2.2",
+            },
+            {"kind": "missing_accessible_name", "label": "Run now", "detail": "visible control has no name"},
+        ],
+    )
+
+    assert probe.status == "failed"
+    assert "Run now" in probe.detail
+    assert "ignored 1" in probe.detail
 
 
 def test_browser_error_check_probe_records_clean_capture() -> None:
@@ -780,6 +932,25 @@ def test_above_fold_result_probe_accepts_primary_targets() -> None:
 
     assert probe.status == "interacted"
     assert "primary targets visible" in probe.detail
+
+
+def test_above_fold_expected_labels_ignore_app_identity_in_shared_chrome() -> None:
+    module = _load_module()
+
+    assert module._above_fold_expected_labels("ORCHESTRATE", app_name="data_quality_gate_project") == (
+        "ORCHESTRATE",
+        "Deploy",
+    )
+    assert module._above_fold_expected_labels("ANALYSIS", app_name="weather_forecast_project") == (
+        "ANALYSIS",
+    )
+    assert module._above_fold_expected_labels("WORKFLOW", app_name="weather_forecast_project") == (
+        "WORKFLOW",
+    )
+    assert module._above_fold_expected_labels("ANALYSIS", app_name="flight_telemetry_project") == (
+        "ANALYSIS",
+        "view_maps",
+    )
 
 
 def test_above_fold_probe_reports_collector_exception() -> None:

@@ -19,6 +19,21 @@ for the intended use.
 - Out of scope:
 - Commands/evidence used:
 
+Multi-axis parallel pass:
+
+| Axis | Evidence read | Finding status |
+|---|---|---|
+| Pitfalls |  |  |
+| Speedup |  |  |
+| Correctness |  |  |
+| Known bugs |  |  |
+| Source-tree improvement |  |  |
+| Naming |  |  |
+| Deprecation |  |  |
+| Security |  |  |
+| Docs alignment |  |  |
+| Repo status |  |  |
+
 ## Architecture and module topology
 
 Describe the package graph, control/payload/evidence planes, boundary

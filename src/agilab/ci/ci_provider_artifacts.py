@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import os
 from collections.abc import Callable, Mapping, Sequence
@@ -30,6 +31,9 @@ GENERIC_PROVIDER = "generic_download"
 GITLAB_CI_PROVIDER = "gitlab_ci"
 DEFAULT_SOURCE_MACHINE = "github-actions"
 DEFAULT_USER_AGENT = "agilab-ci-provider-artifacts/1"
+DEFAULT_GITLAB_URL = "https://gitlab.com"
+DEFAULT_GITLAB_HOST = "gitlab.com"
+GITLAB_URL_ALLOWLIST_ENV = "AGILAB_GITLAB_URL_ALLOWLIST"
 REQUIRED_PAYLOAD_PATHS = {
     "run_manifest": ("run_manifest.json",),
     "kpi_evidence_bundle": ("kpi_evidence_bundle.json",),
@@ -271,6 +275,89 @@ def _gitlab_headers(token: str | None) -> dict[str, str]:
     return headers
 
 
+def _normalize_gitlab_host(value: str) -> str:
+    raw = value.strip()
+    parsed = parse.urlparse(raw if "://" in raw else f"//{raw}")
+    host = parsed.hostname or raw
+    return host.strip().strip("[]").rstrip(".").lower()
+
+
+def _split_gitlab_hosts(value: str | None) -> tuple[str, ...]:
+    if not value:
+        return ()
+    hosts = []
+    for item in value.split(","):
+        normalized = _normalize_gitlab_host(item)
+        if normalized:
+            hosts.append(normalized)
+    return tuple(hosts)
+
+
+def _configured_gitlab_allowed_hosts(
+    allowed_hosts: Sequence[str] = (),
+) -> set[str]:
+    hosts: set[str] = set()
+    for value in allowed_hosts:
+        hosts.update(_split_gitlab_hosts(value))
+    hosts.update(_split_gitlab_hosts(os.getenv(GITLAB_URL_ALLOWLIST_ENV)))
+    return hosts
+
+
+def _gitlab_literal_ip_is_sensitive(host: str) -> bool:
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return (
+        address.is_loopback
+        or address.is_link_local
+        or address.is_private
+        or address.is_multicast
+        or address.is_reserved
+        or address.is_unspecified
+    )
+
+
+def _gitlab_host_is_sensitive(host: str) -> bool:
+    return (
+        host == "localhost"
+        or host.endswith(".localhost")
+        or _gitlab_literal_ip_is_sensitive(host)
+    )
+
+
+def validate_gitlab_base_url(
+    gitlab_url: str = DEFAULT_GITLAB_URL,
+    *,
+    allowed_hosts: Sequence[str] = (),
+) -> str:
+    """Return a validated GitLab base URL before attaching PRIVATE-TOKEN."""
+
+    base_url = (gitlab_url or DEFAULT_GITLAB_URL).strip().rstrip("/")
+    parsed = parse.urlparse(base_url)
+    if parsed.scheme != "https":
+        raise ValueError("GitLab URL must use https before a token can be sent")
+    if not parsed.netloc or not parsed.hostname:
+        raise ValueError("GitLab URL must include a host")
+    if parsed.username or parsed.password:
+        raise ValueError("GitLab URL must not contain credentials")
+
+    host = _normalize_gitlab_host(parsed.hostname)
+    allowed = _configured_gitlab_allowed_hosts(allowed_hosts)
+    if host != DEFAULT_GITLAB_HOST and host not in allowed:
+        raise ValueError(
+            f"GitLab host is not allowlisted for token use: {host}. "
+            f"Use --allow-gitlab-host or {GITLAB_URL_ALLOWLIST_ENV} for "
+            "self-managed GitLab hosts."
+        )
+    if _gitlab_host_is_sensitive(host) and host not in allowed:
+        raise ValueError(
+            f"GitLab host is local, private, or metadata-like and must be "
+            f"explicitly allowlisted before token use: {host}"
+        )
+    return base_url
+
+
 def _read_json_url(url: str, *, token: str | None, urlopen: UrlOpen) -> dict[str, Any]:
     req = request.Request(url, headers=_github_headers(token))
     with urlopen(req) as response:
@@ -323,7 +410,8 @@ def list_gitlab_ci_artifacts(
     *,
     project: str,
     pipeline_id: str,
-    gitlab_url: str = "https://gitlab.com",
+    gitlab_url: str = DEFAULT_GITLAB_URL,
+    allowed_gitlab_hosts: Sequence[str] = (),
     token: str | None = None,
     urlopen: UrlOpen = request.urlopen,
 ) -> tuple[list[dict[str, Any]], int]:
@@ -333,7 +421,10 @@ def list_gitlab_ci_artifacts(
     query_count = 0
     page = 1
     encoded_project = parse.quote(project, safe="")
-    base_url = gitlab_url.rstrip("/")
+    base_url = validate_gitlab_base_url(
+        gitlab_url,
+        allowed_hosts=allowed_gitlab_hosts,
+    )
     while True:
         url = (
             f"{base_url}/api/v4/projects/{encoded_project}/pipelines/"
@@ -386,7 +477,8 @@ def download_gitlab_ci_artifacts(
     *,
     destination: Path,
     project: str,
-    gitlab_url: str = "https://gitlab.com",
+    gitlab_url: str = DEFAULT_GITLAB_URL,
+    allowed_gitlab_hosts: Sequence[str] = (),
     token: str | None = None,
     urlopen: UrlOpen = request.urlopen,
 ) -> tuple[list[Path], int]:
@@ -397,7 +489,10 @@ def download_gitlab_ci_artifacts(
     paths: list[Path] = []
     download_count = 0
     encoded_project = parse.quote(project, safe="")
-    base_url = gitlab_url.rstrip("/")
+    base_url = validate_gitlab_base_url(
+        gitlab_url,
+        allowed_hosts=allowed_gitlab_hosts,
+    )
     for artifact in artifacts:
         job_id = str(artifact.get("id", "") or "")
         if not job_id:
@@ -483,7 +578,8 @@ def build_gitlab_ci_artifact_index(
     *,
     project: str,
     pipeline_id: str,
-    gitlab_url: str = "https://gitlab.com",
+    gitlab_url: str = DEFAULT_GITLAB_URL,
+    allowed_gitlab_hosts: Sequence[str] = (),
     download_dir: Path | None = None,
     token: str | None = None,
     workflow: str = "",
@@ -494,10 +590,15 @@ def build_gitlab_ci_artifact_index(
 ) -> dict[str, Any]:
     """Query GitLab CI, download job artifacts, and build a harvest index."""
 
+    base_url = validate_gitlab_base_url(
+        gitlab_url,
+        allowed_hosts=allowed_gitlab_hosts,
+    )
     provider_artifacts, provider_query_count = list_gitlab_ci_artifacts(
         project=project,
         pipeline_id=pipeline_id,
-        gitlab_url=gitlab_url,
+        gitlab_url=base_url,
+        allowed_gitlab_hosts=allowed_gitlab_hosts,
         token=token,
         urlopen=urlopen,
     )
@@ -507,7 +608,8 @@ def build_gitlab_ci_artifact_index(
                 provider_artifacts,
                 destination=Path(tmp),
                 project=project,
-                gitlab_url=gitlab_url,
+                gitlab_url=base_url,
+                allowed_gitlab_hosts=allowed_gitlab_hosts,
                 token=token,
                 urlopen=urlopen,
             )
@@ -528,7 +630,8 @@ def build_gitlab_ci_artifact_index(
         provider_artifacts,
         destination=download_dir,
         project=project,
-        gitlab_url=gitlab_url,
+        gitlab_url=base_url,
+        allowed_gitlab_hosts=allowed_gitlab_hosts,
         token=token,
         urlopen=urlopen,
     )

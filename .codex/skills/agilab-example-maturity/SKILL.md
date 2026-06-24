@@ -3,7 +3,7 @@ name: agilab-example-maturity
 description: Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-31
+  updated: 2026-06-24
 ---
 
 # AGILAB Example Maturity
@@ -65,6 +65,8 @@ Treat an example as mature only if all of these are true:
 - It gives a friendly error when `~/.local/share/agilab/.agilab-path` is missing.
 - It is deterministic and local-first: localhost scheduler, one worker, public inputs.
 - It names expected input and output paths in the matching README.
+- It names only output artifacts the app actually emits, and it distinguishes
+  generated outputs from planned or manual quality checks.
 - It gives one safe "change one thing" adaptation step.
 - It contains no orphan scratch snippets, undefined variables, hidden private-app paths, or examples that only work in a developer checkout.
 - It exposes typed or structured inputs, structured outputs, the workflow view,
@@ -85,6 +87,9 @@ For packaged built-in apps and templates, also require:
   example, page, or packaged app uses them
 - package-data patterns in `pyproject.toml` for every file class expected in the
   wheel, and no stale exclude pattern that removes a runtime/UI seed file
+- first-run UX, deterministic sample data, README artifact truth, app-local
+  tests, installer/catalog contract, and clear example value as one quality
+  gate rather than separate best-effort polish items
 
 External/private apps under `src/agilab/apps/<name>_project` are not public
 package assets unless explicitly added to the public distribution. If a local
@@ -194,6 +199,9 @@ contracts include:
   exclude-package-data does not remove files the UI or installer expects
 - preview scripts that depend on app-owned templates fail tests if their
   templates are missing or still duplicated as stale `examples/*.json` payloads
+- every README, quality plan, and docs page names artifacts that the worker or
+  app-local scripts actually emit; tests should fail on documented artifact
+  names that are missing, stale, or only aspirational
 
 ## Validation
 
@@ -244,6 +252,7 @@ Report:
 
 - which examples were changed
 - which packaged app/template assets were added, unhidden, or included in the wheel
+- which documented artifacts were verified against worker outputs
 - which maturity risks were removed
 - which tests passed
 - whether a clean wheel was inspected when packaging changed

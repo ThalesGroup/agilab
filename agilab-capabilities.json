@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-20T17:30:17Z",
+  "generated_at_utc": "2026-06-24T13:19:34Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -10,7 +10,7 @@
     "repository": "https://github.com/ThalesGroup/agilab",
     "documentation": "https://thalesgroup.github.io/agilab/",
     "project": "agilab",
-    "version": "2026.06.19"
+    "version": "2026.06.23"
   },
   "boundary": {
     "proves": "This manifest proves that public AGILAB surfaces are discoverable from checked-in contracts.",
@@ -252,7 +252,7 @@
       "name": "agi-env",
       "role": "runtime-component",
       "status": "PyPI package",
-      "version": "2026.06.19",
+      "version": "2026.06.23",
       "description": "Environment bootstrap package for AGILAB with virtualenv, path, and runtime helpers",
       "project": "src/agilab/core/agi-env",
       "pyproject": "src/agilab/core/agi-env/pyproject.toml",
@@ -263,7 +263,7 @@
       "name": "agi-gui",
       "role": "ui-component",
       "status": "PyPI package",
-      "version": "2026.06.19",
+      "version": "2026.06.23",
       "description": "AGILAB Streamlit UI dependency bundle and compatibility imports",
       "project": "src/agilab/lib/agi-gui",
       "pyproject": "src/agilab/lib/agi-gui/pyproject.toml",
@@ -274,7 +274,7 @@
       "name": "agi-web",
       "role": "ui-component",
       "status": "PyPI package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.23",
       "description": "AGILAB portable web component contract with static Canvas2D/WebGL adapters for Streamlit and HTML",
       "project": "src/agilab/lib/agi-web",
       "pyproject": "src/agilab/lib/agi-web/pyproject.toml",
@@ -285,7 +285,7 @@
       "name": "agi-page-app-ui",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.06.12",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for app-owned interactive Streamlit UIs.",
       "project": "src/agilab/apps-pages/app_ui",
       "pyproject": "src/agilab/apps-pages/app_ui/pyproject.toml",
@@ -296,7 +296,7 @@
       "name": "agi-page-simplex-map",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for simplex projection and barycentric analysis.",
       "project": "src/agilab/apps-pages/view_barycentric",
       "pyproject": "src/agilab/apps-pages/view_barycentric/pyproject.toml",
@@ -307,7 +307,7 @@
       "name": "agi-page-decision-evidence",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for decision evidence review.",
       "project": "src/agilab/apps-pages/view_data_io_decision",
       "pyproject": "src/agilab/apps-pages/view_data_io_decision/pyproject.toml",
@@ -318,7 +318,7 @@
       "name": "agi-page-timeseries-forecast",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for time-series forecast review.",
       "project": "src/agilab/apps-pages/view_forecast_analysis",
       "pyproject": "src/agilab/apps-pages/view_forecast_analysis/pyproject.toml",
@@ -329,7 +329,7 @@
       "name": "agi-page-inference-report",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for inference result reporting.",
       "project": "src/agilab/apps-pages/view_inference_analysis",
       "pyproject": "src/agilab/apps-pages/view_inference_analysis/pyproject.toml",
@@ -340,7 +340,7 @@
       "name": "agi-page-live-artifacts",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for live artifact and evidence monitoring.",
       "project": "src/agilab/apps-pages/view_live_artifacts",
       "pyproject": "src/agilab/apps-pages/view_live_artifacts/pyproject.toml",
@@ -351,7 +351,7 @@
       "name": "agi-page-geospatial-map",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.06.16",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for 2D geospatial map exploration.",
       "project": "src/agilab/apps-pages/view_maps",
       "pyproject": "src/agilab/apps-pages/view_maps/pyproject.toml",
@@ -362,7 +362,7 @@
       "name": "agi-page-geospatial-3d",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.06.16",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for 3D geospatial exploration.",
       "project": "src/agilab/apps-pages/view_maps_3d",
       "pyproject": "src/agilab/apps-pages/view_maps_3d/pyproject.toml",
@@ -373,7 +373,7 @@
       "name": "agi-page-network-map",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for network-aware geospatial analysis.",
       "project": "src/agilab/apps-pages/view_maps_network",
       "pyproject": "src/agilab/apps-pages/view_maps_network/pyproject.toml",
@@ -384,7 +384,7 @@
       "name": "agi-page-routing-model-comparison",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.06.16",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for comparing routing model allocation decisions.",
       "project": "src/agilab/apps-pages/view_routing_model_comparison",
       "pyproject": "src/agilab/apps-pages/view_routing_model_comparison/pyproject.toml",
@@ -395,7 +395,7 @@
       "name": "agi-page-queue-health",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for queue health and resilience evidence.",
       "project": "src/agilab/apps-pages/view_queue_resilience",
       "pyproject": "src/agilab/apps-pages/view_queue_resilience/pyproject.toml",
@@ -406,7 +406,7 @@
       "name": "agi-page-relay-health",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for relay health and resilience evidence.",
       "project": "src/agilab/apps-pages/view_relay_resilience",
       "pyproject": "src/agilab/apps-pages/view_relay_resilience/pyproject.toml",
@@ -417,7 +417,7 @@
       "name": "agi-page-scenario-cockpit",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for scenario evidence comparison.",
       "project": "src/agilab/apps-pages/view_scenario_cockpit",
       "pyproject": "src/agilab/apps-pages/view_scenario_cockpit/pyproject.toml",
@@ -428,7 +428,7 @@
       "name": "agi-page-promotion-gate",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.06.04",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for evidence-cockpit run review and promotion gates.",
       "project": "src/agilab/apps-pages/view_release_decision",
       "pyproject": "src/agilab/apps-pages/view_release_decision/pyproject.toml",
@@ -439,7 +439,7 @@
       "name": "agi-page-feature-attribution",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.05.31",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for feature-attribution evidence.",
       "project": "src/agilab/apps-pages/view_shap_explanation",
       "pyproject": "src/agilab/apps-pages/view_shap_explanation/pyproject.toml",
@@ -450,7 +450,7 @@
       "name": "agi-page-training-report",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.23",
       "description": "AGILAB page bundle for training run reporting.",
       "project": "src/agilab/apps-pages/view_training_analysis",
       "pyproject": "src/agilab/apps-pages/view_training_analysis/pyproject.toml",
@@ -461,7 +461,7 @@
       "name": "agi-pages",
       "role": "page-umbrella",
       "status": "PyPI package",
-      "version": "2026.06.19",
+      "version": "2026.06.23",
       "description": "AGILAB public analysis page umbrella and provider package",
       "project": "src/agilab/lib/agi-pages",
       "pyproject": "src/agilab/lib/agi-pages/pyproject.toml",
@@ -472,7 +472,7 @@
       "name": "agi-node",
       "role": "runtime-component",
       "status": "PyPI package",
-      "version": "2026.06.19",
+      "version": "2026.06.23",
       "description": "Distributed worker orchestration and execution support library for AGILAB",
       "project": "src/agilab/core/agi-node",
       "pyproject": "src/agilab/core/agi-node/pyproject.toml",
@@ -483,7 +483,7 @@
       "name": "agi-cluster",
       "role": "runtime-component",
       "status": "PyPI package",
-      "version": "2026.06.19",
+      "version": "2026.06.23",
       "description": "Distributed cluster orchestration layer for AGILAB workers over local and SSH backends",
       "project": "src/agilab/core/agi-cluster",
       "pyproject": "src/agilab/core/agi-cluster/pyproject.toml",
@@ -494,7 +494,7 @@
       "name": "agi-core",
       "role": "runtime-bundle",
       "status": "PyPI package",
-      "version": "2026.06.19",
+      "version": "2026.06.23",
       "description": "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together",
       "project": "src/agilab/core/agi-core",
       "pyproject": "src/agilab/core/agi-core/pyproject.toml",
@@ -505,7 +505,7 @@
       "name": "agi-app-mission-decision",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.23",
       "description": "Deterministic AGILAB mission-decision workflow with scenario scoring and evidence artifacts",
       "project": "src/agilab/lib/agi-app-mission-decision",
       "pyproject": "src/agilab/lib/agi-app-mission-decision/pyproject.toml",
@@ -516,7 +516,7 @@
       "name": "agi-app-pandas-execution",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.06.04",
+      "version": "2026.06.23",
       "description": "AGILAB Pandas execution benchmark for deterministic worker and reducer validation",
       "project": "src/agilab/lib/agi-app-pandas-execution",
       "pyproject": "src/agilab/lib/agi-app-pandas-execution/pyproject.toml",
@@ -527,7 +527,7 @@
       "name": "agi-app-polars-execution",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.06.04",
+      "version": "2026.06.23",
       "description": "AGILAB Polars execution benchmark for deterministic worker and reducer validation",
       "project": "src/agilab/lib/agi-app-polars-execution",
       "pyproject": "src/agilab/lib/agi-app-polars-execution/pyproject.toml",
@@ -538,7 +538,7 @@
       "name": "agi-app-flight-telemetry",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.06.16",
+      "version": "2026.06.23",
       "description": "AGILAB flight-telemetry ingestion demo with reusable dataframe and map-analysis outputs",
       "project": "src/agilab/lib/agi-app-flight-telemetry",
       "pyproject": "src/agilab/lib/agi-app-flight-telemetry/pyproject.toml",
@@ -549,7 +549,7 @@
       "name": "agi-app-multi-dag",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.06.04",
+      "version": "2026.06.23",
       "description": "AGILAB cross-app DAG preview showing artifact handoffs between demo projects",
       "project": "src/agilab/lib/agi-app-multi-dag",
       "pyproject": "src/agilab/lib/agi-app-multi-dag/pyproject.toml",
@@ -560,7 +560,7 @@
       "name": "agi-app-weather-forecast",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.23",
       "description": "AGILAB weather-forecast notebook-migration demo with forecast analysis artifacts",
       "project": "src/agilab/lib/agi-app-weather-forecast",
       "pyproject": "src/agilab/lib/agi-app-weather-forecast/pyproject.toml",
@@ -571,7 +571,7 @@
       "name": "agi-app-sklearn-pipeline",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.06.04",
+      "version": "2026.06.23",
       "description": "AGILAB scikit-learn pipeline app with model, metrics, predictions, and evidence manifest",
       "project": "src/agilab/lib/agi-app-sklearn-pipeline",
       "pyproject": "src/agilab/lib/agi-app-sklearn-pipeline/pyproject.toml",
@@ -582,7 +582,7 @@
       "name": "agi-app-data-quality-gate",
       "role": "app-project",
       "status": "Release artifact",
-      "version": "2026.06.04",
+      "version": "2026.06.23",
       "description": "AGILAB deterministic data contract, drift, leakage, and promotion gate",
       "project": "src/agilab/lib/agi-app-data-quality-gate",
       "pyproject": "src/agilab/lib/agi-app-data-quality-gate/pyproject.toml",
@@ -593,7 +593,7 @@
       "name": "agi-app-pytorch-playground",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.23",
       "description": "AGILAB PyTorch playground app for reproducible neural-network experiments",
       "project": "src/agilab/lib/agi-app-pytorch-playground",
       "pyproject": "src/agilab/lib/agi-app-pytorch-playground/pyproject.toml",
@@ -604,7 +604,7 @@
       "name": "agi-app-tescia-diagnostic",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.06.05",
+      "version": "2026.06.23",
       "description": "AGILAB TeSciA-style diagnostic workflow with evidence scoring and regression-plan artifacts",
       "project": "src/agilab/lib/agi-app-tescia-diagnostic",
       "pyproject": "src/agilab/lib/agi-app-tescia-diagnostic/pyproject.toml",
@@ -615,7 +615,7 @@
       "name": "agi-app-uav-queue",
       "role": "app-project",
       "status": "Release artifact",
-      "version": "2026.06.04",
+      "version": "2026.06.23",
       "description": "AGILAB UAV queue simulation demo with scenario evidence and network-map artifacts",
       "project": "src/agilab/lib/agi-app-uav-queue",
       "pyproject": "src/agilab/lib/agi-app-uav-queue/pyproject.toml",
@@ -626,7 +626,7 @@
       "name": "agi-app-uav-relay-queue",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.06.14.1",
+      "version": "2026.06.23",
       "description": "AGILAB UAV relay queue simulation demo with routing, delay, and resilience artifacts",
       "project": "src/agilab/lib/agi-app-uav-relay-queue",
       "pyproject": "src/agilab/lib/agi-app-uav-relay-queue/pyproject.toml",
@@ -637,7 +637,7 @@
       "name": "agi-apps",
       "role": "app-umbrella",
       "status": "PyPI package",
-      "version": "2026.06.19",
+      "version": "2026.06.23",
       "description": "AGILAB public app package umbrella and example assets",
       "project": "src/agilab/lib/agi-apps",
       "pyproject": "src/agilab/lib/agi-apps/pyproject.toml",
@@ -648,7 +648,7 @@
       "name": "agilab",
       "role": "top-level-bundle",
       "status": "PyPI package",
-      "version": "2026.06.19",
+      "version": "2026.06.23",
       "description": "AGILAB is a reproducible AI/ML workbench for engineering teams.",
       "project": ".",
       "pyproject": "pyproject.toml",
@@ -662,7 +662,7 @@
       "package": "agi-app-data-quality-gate",
       "status": "Release artifact",
       "source": "src/agilab/lib/agi-app-data-quality-gate",
-      "version": "2026.06.04",
+      "version": "2026.06.23",
       "description": "AGILAB deterministic data contract, drift, leakage, and promotion gate"
     },
     {
@@ -670,7 +670,7 @@
       "package": "agi-app-pandas-execution",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-pandas-execution",
-      "version": "2026.06.04",
+      "version": "2026.06.23",
       "description": "AGILAB Pandas execution benchmark for deterministic worker and reducer validation"
     },
     {
@@ -678,7 +678,7 @@
       "package": "agi-app-polars-execution",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-polars-execution",
-      "version": "2026.06.04",
+      "version": "2026.06.23",
       "description": "AGILAB Polars execution benchmark for deterministic worker and reducer validation"
     },
     {
@@ -686,7 +686,7 @@
       "package": "agi-app-flight-telemetry",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-flight-telemetry",
-      "version": "2026.06.16",
+      "version": "2026.06.23",
       "description": "AGILAB flight-telemetry ingestion demo with reusable dataframe and map-analysis outputs"
     },
     {
@@ -702,7 +702,7 @@
       "package": "agi-app-mission-decision",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-mission-decision",
-      "version": "2026.06.14.1",
+      "version": "2026.06.23",
       "description": "Deterministic AGILAB mission-decision workflow with scenario scoring and evidence artifacts"
     },
     {
@@ -710,7 +710,7 @@
       "package": "agi-app-multi-dag",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-multi-dag",
-      "version": "2026.06.04",
+      "version": "2026.06.23",
       "description": "AGILAB cross-app DAG preview showing artifact handoffs between demo projects"
     },
     {
@@ -718,7 +718,7 @@
       "package": "agi-app-pytorch-playground",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-pytorch-playground",
-      "version": "2026.06.14.1",
+      "version": "2026.06.23",
       "description": "AGILAB PyTorch playground app for reproducible neural-network experiments"
     },
     {
@@ -734,7 +734,7 @@
       "package": "agi-app-sklearn-pipeline",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-sklearn-pipeline",
-      "version": "2026.06.04",
+      "version": "2026.06.23",
       "description": "AGILAB scikit-learn pipeline app with model, metrics, predictions, and evidence manifest"
     },
     {
@@ -742,7 +742,7 @@
       "package": "agi-app-tescia-diagnostic",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-tescia-diagnostic",
-      "version": "2026.06.05",
+      "version": "2026.06.23",
       "description": "AGILAB TeSciA-style diagnostic workflow with evidence scoring and regression-plan artifacts"
     },
     {
@@ -750,7 +750,7 @@
       "package": "agi-app-uav-queue",
       "status": "Release artifact",
       "source": "src/agilab/lib/agi-app-uav-queue",
-      "version": "2026.06.04",
+      "version": "2026.06.23",
       "description": "AGILAB UAV queue simulation demo with scenario evidence and network-map artifacts"
     },
     {
@@ -758,7 +758,7 @@
       "package": "agi-app-uav-relay-queue",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-uav-relay-queue",
-      "version": "2026.06.14.1",
+      "version": "2026.06.23",
       "description": "AGILAB UAV relay queue simulation demo with routing, delay, and resilience artifacts"
     },
     {
@@ -774,7 +774,7 @@
       "package": "agi-app-weather-forecast",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-weather-forecast",
-      "version": "2026.06.14.1",
+      "version": "2026.06.23",
       "description": "AGILAB weather-forecast notebook-migration demo with forecast analysis artifacts"
     }
   ],
@@ -795,13 +795,13 @@
       "name": "agilab-deep-audit",
       "description": "Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says \"review AGILAB\", \"audit AGILAB\", \"code review AGILAB\", \"deep review\", \"architecture review\", \"security review\", asks for a review document, or asks for comparison-quality critique rather than a quick fix.",
       "path": ".claude/skills/agilab-deep-audit/SKILL.md",
-      "updated": "2026-06-04"
+      "updated": "2026-06-24"
     },
     {
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
       "path": ".claude/skills/agilab-docs/SKILL.md",
-      "updated": "2026-06-01"
+      "updated": "2026-06-24"
     },
     {
       "name": "agilab-evidence-contracts",
@@ -813,7 +813,7 @@
       "name": "agilab-example-maturity",
       "description": "Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation.",
       "path": ".claude/skills/agilab-example-maturity/SKILL.md",
-      "updated": "2026-05-31"
+      "updated": "2026-06-24"
     },
     {
       "name": "agilab-huggingface-spaces",
@@ -1757,24 +1757,18 @@
     {
       "schema": "agilab.notebook_export_handoff.v1",
       "sources": [
-        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.md",
-        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.md",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
     {
       "schema": "agilab.notebook_export_manifest.v1",
       "sources": [
-        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
     {
       "schema": "agilab.notebook_export_portability.v1",
       "sources": [
-        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },

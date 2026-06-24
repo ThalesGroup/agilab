@@ -103,20 +103,18 @@ def test_remote_deployment_path_and_probe_helpers(tmp_path):
         == ""
     )
     local_share = tmp_path / "home" / "clustershare" / "agi"
-    assert deployment_remote_support._scheduler_share_source(
-        local_share,
+    assert deployment_remote_support._remote_cluster_share_root_setting(
+        "clustershare/agi/workflows/session-123",
         local_share_setting=str(local_share),
-        remote_share="clustershare/agi/workflows/session-123",
         env=env,
-    ) == (local_share / "workflows" / "session-123").resolve(strict=False)
+    ) == "clustershare/agi"
     assert (
-        deployment_remote_support._scheduler_share_source(
-            local_share,
+        deployment_remote_support._remote_cluster_share_root_setting(
+            "clustershare/agi/../outside",
             local_share_setting=str(local_share),
-            remote_share="clustershare/agi/../outside",
             env=env,
         )
-        == local_share
+        == "clustershare/agi"
     )
 
     assert deployment_remote_support._parse_version_prefix("10.15.7-extra") == (
@@ -133,24 +131,14 @@ def test_remote_deployment_path_and_probe_helpers(tmp_path):
     )
 
 
-def test_scheduler_share_source_rejects_symlink_escape(tmp_path):
-    env = SimpleNamespace(home_abs=tmp_path)
-    local_share = tmp_path / "clustershare" / "agi"
-    outside = tmp_path / "outside"
-    local_share.mkdir(parents=True)
-    outside.mkdir()
-    try:
-        (local_share / "workflows").symlink_to(outside, target_is_directory=True)
-    except (NotImplementedError, OSError) as exc:
-        pytest.skip(f"directory symlinks are not available: {exc}")
+def test_remote_cluster_share_root_setting_strips_default_user_workflow_suffix(tmp_path):
+    env = SimpleNamespace(home_abs=tmp_path, user="agi")
 
-    with pytest.raises(RuntimeError, match="outside the configured share root"):
-        deployment_remote_support._scheduler_share_source(
-            local_share,
-            local_share_setting=str(local_share),
-            remote_share="clustershare/agi/workflows/session-123",
-            env=env,
-        )
+    assert deployment_remote_support._remote_cluster_share_root_setting(
+        "clustershare/agi/workflow-123/session-456",
+        local_share_setting=str(tmp_path / "scheduler-share"),
+        env=env,
+    ) == "clustershare/agi"
 
 
 def test_remote_command_helpers_quote_dynamic_arguments():
@@ -785,7 +773,7 @@ async def test_prepare_remote_cluster_share_honors_custom_scheduler_ssh_port(tmp
 
 
 @pytest.mark.asyncio
-async def test_prepare_remote_cluster_share_mounts_matching_workflow_session(tmp_path):
+async def test_prepare_remote_cluster_share_mounts_cluster_share_root_for_workflow_session(tmp_path):
     scheduler_share = tmp_path / "clustershare" / "agi"
     workflow_share = "clustershare/agi/workflows/session-123"
     env = SimpleNamespace(
@@ -810,20 +798,24 @@ async def test_prepare_remote_cluster_share_mounts_matching_workflow_session(tmp
 
     mount_cmd = next(cmd for cmd in ssh_calls if "SCHEDULER_CLUSTER_SHARE" in cmd)
     scheduler_session = scheduler_share / "workflows" / "session-123"
-    assert scheduler_session.is_dir()
-    assert f"agi@192.168.20.111:{scheduler_session.as_posix()}" in mount_cmd
-    assert '"$HOME"/clustershare/agi/workflows/session-123' in mount_cmd
+    remote_env_cmd = next(cmd for cmd in ssh_calls if "AGI_CLUSTER_SHARE=" in cmd)
+    assert scheduler_share.is_dir()
+    assert not scheduler_session.exists()
+    assert "clustershare/agi" in remote_env_cmd
+    assert "AGILAB_WORKFLOW_DATA_ROOT=" in remote_env_cmd
+    assert "workflows/session-123" in remote_env_cmd
+    assert f"agi@192.168.20.111:{scheduler_share.as_posix()}" in mount_cmd
+    assert '"$HOME"/clustershare/agi' in mount_cmd
+    assert "workflows/session-123" not in mount_cmd
 
 
 @pytest.mark.asyncio
-async def test_prepare_remote_cluster_share_rejects_reverse_sshfs_loop_on_session_source(
+async def test_prepare_remote_cluster_share_rejects_reverse_sshfs_loop_on_share_root(
     tmp_path, monkeypatch
 ):
     scheduler_share = tmp_path / "clustershare" / "agi"
     workflow_share = "clustershare/agi/workflows/session-123"
-    scheduler_session = (scheduler_share / "workflows" / "session-123").resolve(
-        strict=False
-    )
+    scheduler_root = scheduler_share.resolve(strict=False)
     env = SimpleNamespace(
         AGI_CLUSTER_SHARE=str(scheduler_share),
         envars={},
@@ -841,14 +833,11 @@ async def test_prepare_remote_cluster_share_rejects_reverse_sshfs_loop_on_sessio
             return "ok"
 
     def _mount_record(path):
-        if Path(path) != scheduler_session:
+        if Path(path) != scheduler_root:
             return None
         return {
-            "TARGET": scheduler_session.as_posix(),
-            "SOURCE": (
-                "agi@192.168.20.15:/home/agi/clustershare/agi/"
-                "workflows/session-123"
-            ),
+            "TARGET": scheduler_root.as_posix(),
+            "SOURCE": "agi@192.168.20.15:/home/agi/clustershare/agi",
             "FSTYPE": "fuse.sshfs",
         }
 
@@ -864,7 +853,7 @@ async def test_prepare_remote_cluster_share_rejects_reverse_sshfs_loop_on_sessio
         )
 
     assert ssh_calls == []
-    assert not scheduler_session.exists()
+    assert not scheduler_share.exists()
 
 
 @pytest.mark.asyncio
@@ -1614,10 +1603,13 @@ def test_remote_env_update_command_preserves_other_env_keys():
     # Regression: the command previously truncated the whole remote
     # ~/.agilab/.env with '>' redirection; it must merge instead, replacing
     # only the worker cluster-mode lines.
-    cmd = deployment_remote_support._remote_env_update_command("clustershare")
+    cmd = deployment_remote_support._remote_env_update_command(
+        "clustershare/agi",
+        "clustershare/agi/workflows/session-123",
+    )
 
     assert (
-        "grep -Ev '^(IS_SOURCE_ENV|IS_WORKER_ENV|AGI_CLUSTER_ENABLED|AGI_CLUSTER_SHARE)='"
+        "grep -Ev '^(IS_SOURCE_ENV|IS_WORKER_ENV|AGI_CLUSTER_ENABLED|AGI_CLUSTER_SHARE|AGILAB_WORKFLOW_DATA_ROOT)='"
         in cmd
     )
     assert 'mv "$HOME/.agilab/.env.tmp" "$HOME/.agilab/.env"' in cmd
@@ -1625,6 +1617,8 @@ def test_remote_env_update_command_preserves_other_env_keys():
     assert "IS_WORKER_ENV=" in cmd
     assert "AGI_CLUSTER_ENABLED=" in cmd
     assert "AGI_CLUSTER_SHARE=" in cmd
+    assert "AGILAB_WORKFLOW_DATA_ROOT=" in cmd
+    assert "clustershare/agi/workflows/session-123" in cmd
     assert "AGI_LOCAL_SHARE" not in cmd
     # No direct truncating redirection of the env file itself.
     assert '> "$HOME/.agilab/.env"' not in cmd.replace(

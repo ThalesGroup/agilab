@@ -40,6 +40,12 @@ After the default preview works, edit a copy of the DAG template and change one
 artifact handoff. The preview should make the affected downstream stage blocked
 or runnable based on that contract.
 
+## Example Quality Plan
+
+- Review artifact: Review `lab_stages.toml` and the DAG template before execution so the handoff contract is explicit.
+- Practice change: Change one upstream artifact name or stage edge and confirm validation catches the mismatch before runtime.
+- Quality check: A mature run teaches inter-app composition through declared artifacts, not through hidden path conventions.
+
 ## Troubleshooting
 
 If the preview cannot find built-in apps, run AGILAB once from the source or

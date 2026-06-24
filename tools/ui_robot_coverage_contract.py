@@ -178,6 +178,34 @@ class CoverageIssue:
     detail: str
 
 
+def _percentage(covered: int, total: int) -> float:
+    if total <= 0:
+        return 100.0
+    return round((covered / total) * 100.0, 2)
+
+
+def _metric(covered: int, total: int) -> dict[str, int | float]:
+    covered = max(0, min(int(covered), int(total)))
+    total = int(total)
+    return {"covered": covered, "total": total, "percent": _percentage(covered, total)}
+
+
+def _present_count(required: Sequence[str], actual: Sequence[str] | set[str]) -> int:
+    return len(set(required) & set(actual))
+
+
+def _coverage_summary(metrics: dict[str, dict[str, int | float]]) -> dict[str, Any]:
+    covered = sum(int(metric["covered"]) for metric in metrics.values())
+    total = sum(int(metric["total"]) for metric in metrics.values())
+    return {
+        "covered_items": covered,
+        "required_items": total,
+        "coverage_percent": _percentage(covered, total),
+        "target_percent": 100.0,
+        "metrics": metrics,
+    }
+
+
 def _load_module(name: str, path: Path) -> Any:
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
@@ -296,6 +324,43 @@ def apps_page_coverage_issues(public_views: Sequence[str]) -> list[CoverageIssue
             )
         )
     return issues
+
+
+def _apps_page_metric(public_views: Sequence[str]) -> dict[str, int | float]:
+    covered = 0
+    for view in set(public_views):
+        if view in BROWSER_ASSERTED_APPS_PAGES:
+            covered += 1
+            continue
+        disposition = APPS_PAGE_RENDER_ONLY_DISPOSITIONS.get(view)
+        if disposition is None:
+            continue
+        reason, focused_test = disposition
+        focused_path = Path(focused_test)
+        if not focused_path.is_absolute():
+            focused_path = REPO_ROOT / focused_path
+        if reason.strip() and focused_path.is_file():
+            covered += 1
+    return _metric(covered, len(set(public_views)))
+
+
+def _hf_robot_metric(hf_robot_scenarios: dict[str, dict[str, list[str]]]) -> dict[str, int | float]:
+    covered = 0
+    total = 0
+    for scenario_name, requirements in REQUIRED_HF_ROBOT_SCENARIOS.items():
+        actual = hf_robot_scenarios.get(scenario_name, {})
+        total += 1
+        if actual:
+            covered += 1
+        for key in ("pages", "apps_pages", "flags"):
+            required_values = requirements.get(key, ())
+            total += len(required_values)
+            covered += _present_count(required_values, actual.get(key, []))
+        required_actions = tuple(str(value).strip().lower() for value in requirements.get("actions", ()))
+        actual_actions = {str(value).strip().lower() for value in actual.get("actions", [])}
+        total += len(required_actions)
+        covered += _present_count(required_actions, actual_actions)
+    return _metric(covered, total)
 
 
 def evaluate_contract() -> dict[str, Any]:
@@ -795,9 +860,147 @@ def evaluate_contract() -> dict[str, Any]:
             )
         )
 
+    editor_route_covered = 0
+    editor_route_total = 0
+    for route in REQUIRED_EDITOR_ROUTES:
+        route_contract = editor_route_contract.get(route, {})
+        route_scenarios = route_contract.get("scenarios", [])
+        required_text = route_contract.get("required_text", [])
+        forbidden_text = route_contract.get("forbidden_text", [])
+        editor_route_total += 1
+        if route_scenarios:
+            editor_route_covered += 1
+        required_text_values = REQUIRED_EDITOR_ROUTE_TEXT.get(route, ())
+        forbidden_text_values = REQUIRED_EDITOR_ROUTE_FORBIDDEN_TEXT.get(route, ())
+        editor_route_total += len(required_text_values) + len(forbidden_text_values)
+        editor_route_covered += _present_count(required_text_values, required_text)
+        editor_route_covered += _present_count(forbidden_text_values, forbidden_text)
+
+    pytorch_required_text = pytorch_analysis.get("required_text", [])
+    pytorch_required_links = pytorch_analysis.get("required_links", [])
+    pytorch_required_actions = pytorch_analysis.get("required_actions", [])
+    pytorch_forbidden_sidebar_text = pytorch_analysis.get("forbidden_sidebar_text", [])
+    pytorch_flags = pytorch_analysis.get("flags", [])
+    pytorch_metric_total = (
+        3
+        + len(REQUIRED_PYTORCH_ANALYSIS_TEXT)
+        + len(REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_SIDEBAR_TEXT)
+        + len(REQUIRED_PYTORCH_ANALYSIS_LINKS)
+        + len(REQUIRED_PYTORCH_ANALYSIS_ACTIONS)
+        + 1
+    )
+    pytorch_metric_covered = (
+        int(bool(pytorch_analysis))
+        + int("ANALYSIS" in pytorch_analysis.get("pages", []))
+        + int(REQUIRED_PYTORCH_ANALYSIS_APP in pytorch_analysis.get("apps", []))
+        + _present_count(REQUIRED_PYTORCH_ANALYSIS_TEXT, pytorch_required_text)
+        + _present_count(REQUIRED_PYTORCH_ANALYSIS_FORBIDDEN_SIDEBAR_TEXT, pytorch_forbidden_sidebar_text)
+        + _present_count(REQUIRED_PYTORCH_ANALYSIS_LINKS, pytorch_required_links)
+        + _present_count(REQUIRED_PYTORCH_ANALYSIS_ACTIONS, pytorch_required_actions)
+        + int("browser_error_check" in pytorch_flags)
+    )
+
+    orchestrate_pool_metric_total = 2 + len(REQUIRED_ORCHESTRATE_POOL_TEXT) + 1
+    orchestrate_pool_metric_covered = (
+        int(bool(orchestrate_pool))
+        + int("ORCHESTRATE" in orchestrate_pool.get("pages", []))
+        + _present_count(REQUIRED_ORCHESTRATE_POOL_TEXT, orchestrate_pool.get("required_text", []))
+        + int("browser_error_check" in orchestrate_pool.get("flags", []))
+    )
+
+    execution_pandas_pool_metric_total = 3 + len(REQUIRED_EXECUTION_PANDAS_POOL_TEXT) + 1
+    execution_pandas_pool_metric_covered = (
+        int(bool(execution_pandas_pool))
+        + int(REQUIRED_EXECUTION_PANDAS_POOL_APP in execution_pandas_pool.get("apps", []))
+        + int("ORCHESTRATE" in execution_pandas_pool.get("pages", []))
+        + _present_count(REQUIRED_EXECUTION_PANDAS_POOL_TEXT, execution_pandas_pool.get("required_text", []))
+        + int("browser_error_check" in execution_pandas_pool.get("flags", []))
+    )
+
+    configured_apps_pages_total = 1 if configured_apps_pages else 0
+    metrics = {
+        "built_in_app_inventory": _metric(int(bool(built_in_apps)), 1),
+        "built_in_app_matrix": _metric(int(bool(built_in_apps and default_scenarios)), 1),
+        "core_pages": _metric(
+            sum(1 for page in REQUIRED_CORE_PAGES if page_to_scenarios.get(page)),
+            len(REQUIRED_CORE_PAGES),
+        ),
+        "editor_routes": _metric(editor_route_covered, editor_route_total),
+        "configured_apps_pages": _metric(int(bool(configured_scenarios)), configured_apps_pages_total),
+        "high_risk_actions": _metric(
+            sum(1 for action in REQUIRED_HIGH_RISK_ACTIONS if action_to_scenarios.get(action)),
+            len(REQUIRED_HIGH_RISK_ACTIONS),
+        ),
+        "hf_first_proof_apps": _metric(
+            _present_count(REQUIRED_HF_FIRST_PROOF_APPS, hf_first_proof_apps)
+            + len(set(FORBIDDEN_HF_FIRST_PROOF_APPS) - set(hf_first_proof_apps)),
+            len(REQUIRED_HF_FIRST_PROOF_APPS) + len(FORBIDDEN_HF_FIRST_PROOF_APPS),
+        ),
+        "hf_first_proof_pages": _metric(
+            _present_count(REQUIRED_HF_FIRST_PROOF_PAGES, hf_first_proof_pages),
+            len(REQUIRED_HF_FIRST_PROOF_PAGES),
+        ),
+        "apps_pages": _apps_page_metric(public_apps_pages),
+        "hf_robot_scenarios": _hf_robot_metric(hf_robot_scenarios),
+        "hf_visual_smoke_profile": _metric(
+            _present_count(REQUIRED_HF_VISUAL_SMOKE_ROBOT_SCENARIOS, hf_visual_smoke_profile_scenarios)
+            + _present_count(hf_first_proof_apps, hf_visual_smoke_profile_apps),
+            len(REQUIRED_HF_VISUAL_SMOKE_ROBOT_SCENARIOS) + len(hf_first_proof_apps),
+        ),
+        "hf_install_profile": _metric(
+            int("hf-first-proof-install" in hf_install_profile_scenarios)
+            + _present_count(hf_first_proof_apps, hf_install_profile_apps),
+            1 + len(hf_first_proof_apps),
+        ),
+        "ui_robot_matrix_profile": _metric(
+            _present_count(REQUIRED_EDITOR_ROUTE_PROFILE_SCENARIOS, ui_robot_matrix_profile_scenarios)
+            + int(REQUIRED_PYTORCH_ANALYSIS_SCENARIO in ui_robot_matrix_profile_scenarios)
+            + int(REQUIRED_RELEASE_EVIDENCE_SCENARIO in ui_robot_matrix_profile_scenarios)
+            + int(REQUIRED_EXECUTION_PANDAS_POOL_SCENARIO in ui_robot_matrix_profile_scenarios),
+            len(REQUIRED_EDITOR_ROUTE_PROFILE_SCENARIOS) + 3,
+        ),
+        "pytorch_analysis_robot": _metric(pytorch_metric_covered, pytorch_metric_total),
+        "orchestrate_pool_robot": _metric(orchestrate_pool_metric_covered, orchestrate_pool_metric_total),
+        "execution_pandas_pool_robot": _metric(
+            execution_pandas_pool_metric_covered,
+            execution_pandas_pool_metric_total,
+        ),
+        "public_demo_docs": _metric(
+            len(REQUIRED_DEMO_DOC_SNIPPETS) - len(missing_demo_doc_snippets),
+            len(REQUIRED_DEMO_DOC_SNIPPETS),
+        ),
+        "public_demo_ui_apps": _metric(
+            len(REQUIRED_DEMO_UI_APPS) - len(missing_demo_ui_apps),
+            len(REQUIRED_DEMO_UI_APPS),
+        ),
+        "public_demo_apps_pages": _metric(
+            len(REQUIRED_DEMO_UI_PAGES) - len(missing_demo_pages),
+            len(REQUIRED_DEMO_UI_PAGES),
+        ),
+        "public_demo_proofs": _metric(
+            len(REQUIRED_DEMO_PROOF_SCENARIOS) - len(missing_proof_scenarios),
+            len(REQUIRED_DEMO_PROOF_SCENARIOS),
+        ),
+    }
+    summary = _coverage_summary(metrics)
+    if summary["coverage_percent"] < summary["target_percent"]:
+        issues.append(
+            CoverageIssue(
+                "coverage_percent",
+                (
+                    "UI robot deterministic coverage is "
+                    f"{summary['coverage_percent']:.2f}% "
+                    f"({summary['covered_items']}/{summary['required_items']}); expected 100.00%."
+                ),
+            )
+        )
+    summary["issue_count"] = len(issues)
+    summary["status"] = "pass" if not issues else "fail"
+
     return {
         "schema": SCHEMA,
         "success": not issues,
+        "summary": summary,
         "issues": [asdict(issue) for issue in issues],
         "coverage": {
             "built_in_apps": built_in_apps,
@@ -838,9 +1041,15 @@ def evaluate_contract() -> dict[str, Any]:
 
 
 def render_human(payload: dict[str, Any]) -> str:
+    summary = payload.get("summary", {})
     lines = [
         "AGILAB UI robot coverage contract",
         f"verdict: {'PASS' if payload.get('success') else 'FAIL'}",
+        (
+            "coverage: "
+            f"{float(summary.get('coverage_percent', 0.0)):.2f}% "
+            f"({int(summary.get('covered_items', 0))}/{int(summary.get('required_items', 0))})"
+        ),
     ]
     for issue in payload.get("issues", []):
         lines.append(f"- {issue.get('kind')}: {issue.get('detail')}")

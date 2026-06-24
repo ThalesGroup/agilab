@@ -33,6 +33,10 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     assert payload["schema"] == module.SCHEMA
     assert payload["success"] is True
     assert payload["issues"] == []
+    assert payload["summary"]["status"] == "pass"
+    assert payload["summary"]["coverage_percent"] == 100.0
+    assert payload["summary"]["covered_items"] == payload["summary"]["required_items"]
+    assert payload["summary"]["metrics"]["core_pages"] == {"covered": 6, "percent": 100.0, "total": 6}
     for page in module.REQUIRED_CORE_PAGES:
         assert payload["coverage"]["core_pages"][page]
     for action in module.REQUIRED_HIGH_RISK_ACTIONS:
@@ -166,6 +170,7 @@ def test_ui_robot_coverage_contract_json_cli(capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["success"] is True
     assert payload["schema"] == module.SCHEMA
+    assert payload["summary"]["coverage_percent"] == 100.0
     assert payload["coverage"]["hf_robot_scenarios"]
 
 
@@ -246,6 +251,7 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         module.REQUIRED_ORCHESTRATE_POOL_SCENARIO,
         pages="ORCHESTRATE",
         required_text=",".join(module.REQUIRED_ORCHESTRATE_POOL_TEXT),
+        browser_error_check=True,
     )
     execution_pandas_pool = scenario(
         module.REQUIRED_EXECUTION_PANDAS_POOL_SCENARIO,
@@ -371,6 +377,7 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
 
     assert payload["success"] is True
     assert payload["issues"] == []
+    assert payload["summary"]["coverage_percent"] == 100.0
     assert payload["coverage"]["public_demo_contract"]["ui_apps_covered_by"] == "ui-robot-matrix explicit --apps"
     assert payload["coverage"]["ui_robot_matrix_profile_apps"] == sorted(module.REQUIRED_DEMO_UI_APPS)
 
@@ -455,7 +462,9 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
     payload = module.evaluate_contract()
 
     assert payload["success"] is False
+    assert payload["summary"]["coverage_percent"] < 100.0
     details = [issue["detail"] for issue in payload["issues"]]
+    assert any(issue["kind"] == "coverage_percent" for issue in payload["issues"])
     assert (
         "first-proof HF profile is missing public demo apps: "
         "flight_telemetry_project, pytorch_playground_project, weather_forecast_project"
@@ -548,6 +557,7 @@ def test_ui_robot_coverage_contract_reports_empty_public_app_inventory(monkeypat
     payload = module.evaluate_contract()
 
     assert payload["success"] is False
+    assert payload["summary"]["coverage_percent"] < 100.0
     assert {"kind": "built_in_apps", "detail": "no public built-in apps were discovered"} in payload["issues"]
 
 
@@ -713,8 +723,12 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
 
     details = [issue["detail"] for issue in payload["issues"]]
     assert exit_code == 1
-    assert "verdict: FAIL" in capsys.readouterr().out
+    rendered_output = capsys.readouterr().out
+    assert "verdict: FAIL" in rendered_output
+    assert "coverage:" in rendered_output
+    assert payload["summary"]["coverage_percent"] < 100.0
     assert "- core_page:" in rendered
+    assert "- coverage_percent:" in rendered
     assert any("apps declare configured apps-pages" in detail for detail in details)
     assert "default robot matrix has no scenarios for --apps all" in details
     assert "PROJECT_EDITOR is not covered by any default robot scenario" in details

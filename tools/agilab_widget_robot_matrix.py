@@ -560,6 +560,7 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         runtime_isolation="isolated",
         action_button_policy="trial",
         apps="pytorch_playground_project",
+        route_query="current_page=app_ui",
         required_text="PyTorch Playground,Refresh evidence,Synced RUN snippet,Settings",
         forbidden_sidebar_text="Project:",
         required_links="PyTorch Playground=>current_page=app_ui",

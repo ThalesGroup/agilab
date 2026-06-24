@@ -1,7 +1,7 @@
 {
   "created_at": "2026-06-02T14:01:51Z",
   "kind": "agilab.screenshot_manifest",
-  "root": "../thales_agilab/docs/source/_static/page-shots",
+  "root": "docs/source/_static/page-shots",
   "schema": "agilab.screenshot_manifest.v1",
   "schema_version": 1,
   "screenshots": [
