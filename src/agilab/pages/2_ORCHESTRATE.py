@@ -334,8 +334,6 @@ import_agilab_symbols(
     fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_support.py",
     fallback_name="agilab_orchestrate_support_fallback",
 )
-from agi_env import AgiEnv
-
 logger = logging.getLogger(__name__)
 
 _LAZY_IMPORT_ATTR_CACHE: dict[tuple[str, str], Any] = {}
@@ -348,6 +346,14 @@ def _lazy_import_attr(module_name: str, attr_name: str) -> Any:
             importlib.import_module(module_name), attr_name
         )
     return _LAZY_IMPORT_ATTR_CACHE[cache_key]
+
+
+class _LazyAgiEnv:
+    def __getattr__(self, name: str) -> Any:
+        return getattr(_lazy_import_attr("agi_env", "AgiEnv"), name)
+
+
+AgiEnv = _LazyAgiEnv()
 
 
 def background_services_enabled(*args: Any, **kwargs: Any) -> Any:

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 import json
@@ -47,8 +49,6 @@ _page_project_selector_module = load_local_module(
     fallback_name="agilab_page_project_selector_fallback",
 )
 switch_to_project_page = _page_project_selector_module.switch_to_project_page
-
-from agi_env import AgiEnv
 
 import_agilab_symbols(
     globals(),

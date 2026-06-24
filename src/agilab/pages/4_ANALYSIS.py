@@ -151,7 +151,6 @@ import_agilab_symbols(
 # Use modern TOML libraries
 import tomllib  # For reading TOML files (read as binary)
 
-from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_env.process_support import apply_inline_path_export
 
@@ -167,6 +166,14 @@ def _lazy_import_attr(module_name: str, attr_name: str) -> Any:
             importlib.import_module(module_name), attr_name
         )
     return _LAZY_IMPORT_ATTR_CACHE[cache_key]
+
+
+class _LazyAgiEnv:
+    def __getattr__(self, name: str) -> Any:
+        return getattr(_lazy_import_attr("agi_env", "AgiEnv"), name)
+
+
+AgiEnv = _LazyAgiEnv()
 
 
 def on_project_change(*args: Any, **kwargs: Any) -> Any:
