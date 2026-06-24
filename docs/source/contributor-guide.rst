@@ -150,5 +150,5 @@ Review expectations
 Reference
 ---------
 
-The complete repository policy is in the root ``CONTRIBUTING.md`` file. Agent
-and IDE runbooks live in ``AGENTS.md`` and :doc:`agent-workflows`.
+For the full policy, see the root ``CONTRIBUTING.md`` file. For agent and IDE
+workflows, see ``AGENTS.md`` and :doc:`agent-workflows`.
