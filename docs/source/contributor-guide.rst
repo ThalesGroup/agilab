@@ -75,7 +75,7 @@ Use the smallest command that proves your change:
    * - Root docs only
      - ``git diff --check``
    * - Sphinx docs source
-     - ``tools/sync_docs_source.py --verify-stamp`` in the public mirror, after maintainer sync
+     - ``uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`` after maintainer sync
    * - Workflow parity
      - ``uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>``
    * - Skill catalog
@@ -115,9 +115,9 @@ request, check the page against this quality bar:
 - **Screenshots and diagrams**: update source screenshots, SVG diagrams,
   captions, alt text, and references together. Inspect the rendered page so old
   UI labels or clipped diagram text cannot survive a source-only edit.
-- **Generated discovery surfaces**: if a docs change alters public commands,
-  pages, schemas, apps, or evidence artifacts, note it in the pull request so
-  maintainers can refresh generated discovery surfaces.
+- **Generated files**: if a docs change alters public commands, pages, schemas,
+  apps, or evidence artifacts, note it in the pull request so maintainers can
+  refresh generated files.
 
 Pull request evidence
 ---------------------
