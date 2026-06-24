@@ -68,6 +68,12 @@ The repo hooks run the config check before commits and the pushed-commit check
 before pushes, so agent-authored PRs cannot silently appear as human-authored
 work.
 
+.. figure:: diagrams/agent_commit_provenance_guard.svg
+   :alt: Diagram of the AGILAB agent commit provenance guard
+
+   Agent-prefixed branches are checked before commit and before push so the
+   Git author and committer fields stay aligned with PR Agent Metadata.
+
 Shared repo contract
 --------------------
 
