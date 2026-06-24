@@ -979,7 +979,7 @@ async def render_execute_section(
             st.session_state.pop(delete_confirm_key, None)
 
     if controls_visible:
-        st.markdown("#### 5. Run and inspect outputs")
+        st.markdown("## 5. Run and inspect outputs")
         if dag_based_app:
             st.caption("Run the selected DAG workflow. Inspect stage artifacts and run evidence from WORKFLOW.")
         else:
