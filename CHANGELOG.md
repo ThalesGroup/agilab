@@ -25,18 +25,13 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## [2026.06.23] - 2026-06-23
 
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.23
+
 ### Changed
 
-- Prepared AGILAB `2026.06.23` package metadata and internal dependency pins
-  for the post-`2026.06.20` release queue.
-- Hardened worker cluster share-root handling so workflow data paths resolve
-  under the per-run session root instead of the parent cluster share.
-- Improved public documentation quality around generated docs, contribution
-  boundaries, Hugging Face runtime URLs, page-shot manifest portability, and
-  apps-pages gallery/test contracts.
-- Centralized API-key placeholder detection across OpenAI pipeline setup,
-  environment health, and About-page key cleanup so visibly redacted or example
-  secrets are rejected consistently.
+- Published AGILAB `2026.06.23` to PyPI for `agi-env`, `agi-gui`, `agi-web`, `agi-page-app-ui`, `agi-page-simplex-map`, `agi-page-decision-evidence`, `agi-page-timeseries-forecast`, `agi-page-inference-report`, `agi-page-live-artifacts`, `agi-page-geospatial-map`, `agi-page-geospatial-3d`, `agi-page-network-map`, `agi-page-routing-model-comparison`, `agi-page-queue-health`, `agi-page-relay-health`, `agi-page-scenario-cockpit`, `agi-page-promotion-gate`, `agi-page-feature-attribution`, `agi-page-training-report`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-pandas-execution`, `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-multi-dag`, `agi-app-weather-forecast`, `agi-app-sklearn-pipeline`, `agi-app-pytorch-playground`, `agi-app-tescia-diagnostic`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.06.20] - 2026-06-20
 
@@ -760,3 +755,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.06.18]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.18
 [2026.06.19]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.19
 [2026.06.20]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.20
+[2026.06.23]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.23

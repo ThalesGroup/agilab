@@ -18,13 +18,13 @@ Current public release
    * - Item
      - Public evidence
    * - Package version
-     - ``agilab[examples]==2026.06.20`` on `PyPI <https://pypi.org/project/agilab/>`__
+     - ``agilab[examples]==2026.06.23`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
-     - `v2026.06.20 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.20>`__
+     - `v2026.06.23 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.23>`__
    * - Dataset release
      - `datasets-2f602a17b4745f05 <https://github.com/ThalesGroup/agilab/releases/tag/datasets-2f602a17b4745f05>`__ for ``13`` tracked dataset files; manifest ``2f602a17b4745f05cf3b2612d720675b7063cabf90164326a25bc080b2396a0f``
    * - Hosted demo
-     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``203bc41818ccf0ca2f93a0b0d1c5c09d0ddad3cf``
+     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``fd612ba3f34182ca2d9eeed2037964c820ae3204``
    * - Public guardrails
      - `repo-guardrails run 27912098773 <https://github.com/ThalesGroup/agilab/actions/runs/27912098773>`__ passed repository guardrails and clean package first-proof jobs
    * - Docs source guard
@@ -43,7 +43,7 @@ What was proved
 
   .. code-block:: bash
 
-     python -m pip install "agilab[examples]==2026.06.20"
+     python -m pip install "agilab[examples]==2026.06.23"
      python -m agilab.lab_run first-proof --json --max-seconds 60
 
 - The public GitHub Actions matrix validated the packaged first proof on
@@ -74,7 +74,7 @@ the current source checkout:
    python -m venv .venv
    . .venv/bin/activate
    python -m pip install --upgrade pip
-   python -m pip install "agilab[examples]==2026.06.20"
+   python -m pip install "agilab[examples]==2026.06.23"
    python -m agilab.lab_run first-proof --json --max-seconds 60
 
 Use :doc:`quick-start` when you want the fuller source-checkout path with the
