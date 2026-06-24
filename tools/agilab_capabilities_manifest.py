@@ -129,6 +129,15 @@ CLI_COMMANDS: tuple[dict[str, Any], ...] = (
         "evidence_outputs": ["agilab.agent_instruction_contract.v1"],
     },
     {
+        "id": "agent-commit-provenance",
+        "command": "python3 tools/agent_commit_provenance_guard.py --check-config",
+        "kind": "agent-provenance",
+        "maturity": "contract-proof",
+        "description": "Reject human Git author or committer identities on agent-prefixed branches and inventory merged agent PR provenance.",
+        "docs": ["docs/source/agent-workflows.rst"],
+        "evidence_outputs": ["agilab.agent_commit_provenance.v1"],
+    },
+    {
         "id": "data-artifact-lane-contract",
         "command": "python3 tools/data_artifact_lane_contract.py --profile data-analysis --root <bundle> --check",
         "kind": "data-artifact-contract",

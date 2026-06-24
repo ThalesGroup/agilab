@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-24T13:59:02Z",
+  "generated_at_utc": "2026-06-24T15:40:03Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -17,12 +17,12 @@
     "does_not_prove": "It does not prove runtime success, external service reachability, security certification, or production readiness."
   },
   "summary": {
-    "cli_command_count": 12,
+    "cli_command_count": 13,
     "streamlit_page_count": 6,
     "package_count": 37,
     "public_app_count": 15,
     "agent_skill_count": 33,
-    "evidence_schema_count": 225,
+    "evidence_schema_count": 226,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -121,6 +121,19 @@
       ],
       "evidence_outputs": [
         "agilab.agent_instruction_contract.v1"
+      ]
+    },
+    {
+      "id": "agent-commit-provenance",
+      "command": "python3 tools/agent_commit_provenance_guard.py --check-config",
+      "kind": "agent-provenance",
+      "maturity": "contract-proof",
+      "description": "Reject human Git author or committer identities on agent-prefixed branches and inventory merged agent PR provenance.",
+      "docs": [
+        "docs/source/agent-workflows.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.agent_commit_provenance.v1"
       ]
     },
     {
@@ -979,6 +992,16 @@
     }
   ],
   "evidence_schemas": [
+    {
+      "schema": "agilab.agent_commit_provenance.v1",
+      "sources": [
+        "docs/source/agent-workflows.rst",
+        "tools/agent_commit_provenance_guard.py",
+        "tools/agent_instruction_contract.py",
+        "tools/agent_workflows.md",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
     {
       "schema": "agilab.agent_compare.v1",
       "sources": [

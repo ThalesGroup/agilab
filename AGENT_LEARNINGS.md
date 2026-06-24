@@ -50,22 +50,10 @@ is not a scratchpad or task log.
   step after its safety gate, report the result, and provide the next
   recommendation without requiring a second user round trip unless a real
   blocker needs input.
-- Every AGILAB PR description must include `Agent Metadata`: Tokki version,
-  agent/runtime name and version when exposed, model name, reasoning effort, and
-  whether `/fast` mode was used. If a value is unavailable, write `unknown`,
-  `unavailable`, or `not used` instead of guessing.
-- Keep AGILAB PR descriptions evidence-complete through merge: add review
-  evidence and sub-agent disclosure when used, bugfix `Repro` / `Root Cause` /
-  `Regression Test` sections, explicit skipped-check reasons, and refresh the
-  body before ready/merge if review, CI, validation, or skip status changed.
 - When asked for token-saving or workflow-saving tactics and a repo-local
   default is clear, do not end with a broad clarification menu. State the
   assumed target, choose the highest-leverage applicable mechanism, and either
   implement it or name the exact blocker that prevents implementation.
-- When validation succeeds, keep the final close-out terse: `Validation passed.`
-  Do not expand it into a command-by-command list unless failures, skipped
-  checks, release/audit evidence, PR proof, or an explicit user request make the
-  details useful.
 - When a product or code fix was designed or implemented with model assistance,
   request a review from a stronger model before closing, pushing, or merging
   when that is available. If no stronger model is available, say so explicitly
@@ -92,6 +80,10 @@ is not a scratchpad or task log.
   `agilab` plus sibling `thales_agilab` when present, print both in the command
   plan, and explicitly report any dirty, missing, or intentionally skipped
   checkout.
+- On agent-prefixed branches such as `codex/*`, `codex-*`, `claude/*`,
+  `aider/*`, `opencode/*`, or `agent/*`, never commit with a human Git
+  identity. Run `python3 tools/agent_commit_provenance_guard.py --check-config`
+  before committing; configure an explicit agent identity when needed.
 - When `gh pr merge --delete-branch` fails because another local worktree owns
   `main`, check the remote PR state before retrying. Prefer a remote-only
   retry from outside the checkout, for example `gh pr merge <n> --repo

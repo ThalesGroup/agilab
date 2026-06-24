@@ -708,6 +708,20 @@ def _guess_targeted_tests(
     return guessed
 
 
+def _builtin_app_projects_for_paths(paths: Sequence[str]) -> list[str]:
+    projects: list[str] = []
+    for path in paths:
+        parts = Path(path).parts
+        if len(parts) < 5:
+            continue
+        if parts[:4] != ("src", "agilab", "apps", "builtin"):
+            continue
+        project = parts[4]
+        if project.endswith("_project") and project not in projects:
+            projects.append(project)
+    return sorted(projects)
+
+
 def _component_hints(paths: list[str]) -> list[str]:
     components: list[str] = []
     seen: set[str] = set()
@@ -979,6 +993,20 @@ def _analyze_paths_uncached(paths: list[str], test_index: TestIndex) -> ImpactRe
                 commands=[
                     "uv --preview-features extra-build-dependencies run pytest -q -o addopts='' "
                     + " ".join(guessed_tests[:8])
+                ],
+            )
+        )
+
+    builtin_app_projects = _builtin_app_projects_for_paths(paths)
+    if builtin_app_projects:
+        app_args = " ".join(f"--app {project}" for project in builtin_app_projects)
+        actions.append(
+            Action(
+                key="builtin-app-tests",
+                summary="Run built-in app tests in each affected app's own uv project environment.",
+                commands=[
+                    "uv --preview-features extra-build-dependencies run python "
+                    f"tools/builtin_app_tests.py {app_args}"
                 ],
             )
         )

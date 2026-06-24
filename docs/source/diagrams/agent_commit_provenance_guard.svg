@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 560" role="img" aria-labelledby="title desc">
+  <title id="title">AGILAB agent commit provenance guard</title>
+  <desc id="desc">Flow diagram showing how agent-prefixed branches are checked before commit and before push so Codex or other agent work cannot silently use a human Git identity.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f2e8; }
+      .panel { fill: #fffaf0; stroke: #243043; stroke-width: 2; }
+      .bad { fill: #ffe6df; stroke: #b84c2f; stroke-width: 2.5; }
+      .good { fill: #e7f3e8; stroke: #2f7d52; stroke-width: 2.5; }
+      .guard { fill: #e5edf8; stroke: #2d5f91; stroke-width: 2.5; }
+      .title { font: 700 28px "Aptos", "Segoe UI", sans-serif; fill: #243043; }
+      .subtitle { font: 500 17px "Aptos", "Segoe UI", sans-serif; fill: #5e6878; }
+      .label { font: 700 21px "Aptos", "Segoe UI", sans-serif; fill: #243043; }
+      .body { font: 500 17px "Aptos", "Segoe UI", sans-serif; fill: #374255; }
+      .small { font: 600 14px "Aptos", "Segoe UI", sans-serif; fill: #5e6878; }
+      .arrow { stroke: #243043; stroke-width: 3; fill: none; marker-end: url(#arrowhead); }
+      .reject { stroke: #b84c2f; stroke-width: 3; fill: none; marker-end: url(#arrowhead-red); }
+      .ok { stroke: #2f7d52; stroke-width: 3; fill: none; marker-end: url(#arrowhead-green); }
+      .badge { fill: #243043; }
+      .badgeText { font: 700 13px "Aptos", "Segoe UI", sans-serif; fill: #fffaf0; letter-spacing: .4px; }
+    </style>
+    <marker id="arrowhead" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L12,4 L0,8 Z" fill="#243043"/>
+    </marker>
+    <marker id="arrowhead-red" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L12,4 L0,8 Z" fill="#b84c2f"/>
+    </marker>
+    <marker id="arrowhead-green" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto">
+      <path d="M0,0 L12,4 L0,8 Z" fill="#2f7d52"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1280" height="560"/>
+  <text class="title" x="64" y="58">Agent commit provenance guard</text>
+  <text class="subtitle" x="64" y="88">Agent-prefixed branches must carry explicit agent or bot identity, not a human author line.</text>
+
+  <rect class="panel" x="64" y="132" width="260" height="190" rx="18"/>
+  <rect class="badge" x="88" y="154" width="92" height="24" rx="12"/>
+  <text class="badgeText" x="134" y="171" text-anchor="middle">BRANCH</text>
+  <text class="label" x="88" y="206">Agent work starts</text>
+  <text class="body" x="88" y="236">
+    <tspan x="88" dy="0">codex/*, codex-*, claude/*,</tspan>
+    <tspan x="88" dy="24">aider/*, opencode/*, or</tspan>
+    <tspan x="88" dy="24">agent/* marks the work as</tspan>
+    <tspan x="88" dy="24">agent-produced.</tspan>
+  </text>
+
+  <rect class="bad" x="64" y="352" width="260" height="132" rx="18"/>
+  <text class="label" x="88" y="392">Old failure mode</text>
+  <text class="body" x="88" y="422">
+    <tspan x="88" dy="0">Local Git config kept a</tspan>
+    <tspan x="88" dy="24">human name and email, so</tspan>
+    <tspan x="88" dy="24">agent commits looked human.</tspan>
+  </text>
+
+  <rect class="guard" x="400" y="132" width="290" height="190" rx="18"/>
+  <rect class="badge" x="424" y="154" width="104" height="24" rx="12"/>
+  <text class="badgeText" x="476" y="171" text-anchor="middle">PRE-COMMIT</text>
+  <text class="label" x="424" y="206">Config guard</text>
+  <text class="body" x="424" y="236">
+    <tspan x="424" dy="0">Rejects human Git identity</tspan>
+    <tspan x="424" dy="24">before a commit is created</tspan>
+    <tspan x="424" dy="24">on an agent branch.</tspan>
+  </text>
+
+  <rect class="guard" x="400" y="352" width="290" height="132" rx="18"/>
+  <text class="label" x="424" y="392">Required identity</text>
+  <text class="body" x="424" y="422">
+    <tspan x="424" dy="0">AGILAB Codex Agent</tspan>
+    <tspan x="424" dy="24">&lt;codex-agent@users.</tspan>
+    <tspan x="424" dy="24">noreply.github.com&gt;</tspan>
+  </text>
+
+  <rect class="guard" x="766" y="132" width="290" height="190" rx="18"/>
+  <rect class="badge" x="790" y="154" width="94" height="24" rx="12"/>
+  <text class="badgeText" x="837" y="171" text-anchor="middle">PRE-PUSH</text>
+  <text class="label" x="790" y="206">Commit range guard</text>
+  <text class="body" x="790" y="236">
+    <tspan x="790" dy="0">Checks every pushed commit</tspan>
+    <tspan x="790" dy="24">on the agent branch for bad</tspan>
+    <tspan x="790" dy="24">author or committer fields.</tspan>
+  </text>
+
+  <rect class="good" x="766" y="352" width="290" height="132" rx="18"/>
+  <text class="label" x="790" y="392">Clean audit trail</text>
+  <text class="body" x="790" y="422">
+    <tspan x="790" dy="0">PR metadata and Git history</tspan>
+    <tspan x="790" dy="24">now agree that the change is</tspan>
+    <tspan x="790" dy="24">agent-authored.</tspan>
+  </text>
+
+  <rect class="panel" x="1110" y="178" width="110" height="260" rx="18"/>
+  <text class="label" x="1165" y="226" text-anchor="middle">PR</text>
+  <text class="body" x="1165" y="262" text-anchor="middle">
+    <tspan x="1165" dy="0">Agent</tspan>
+    <tspan x="1165" dy="24">Metadata</tspan>
+    <tspan x="1165" dy="42">+</tspan>
+    <tspan x="1165" dy="42">Git</tspan>
+    <tspan x="1165" dy="24">identity</tspan>
+  </text>
+
+  <path class="arrow" d="M324 206 H388"/>
+  <path class="arrow" d="M690 206 H754"/>
+  <path class="ok" d="M1056 418 H1098"/>
+  <path class="reject" d="M324 418 H388"/>
+  <path class="ok" d="M545 352 V324"/>
+  <path class="ok" d="M911 322 V340"/>
+
+  <text class="small" x="356" y="194" text-anchor="middle">check config</text>
+  <text class="small" x="722" y="194" text-anchor="middle">check commits</text>
+  <text class="small" x="356" y="452" text-anchor="middle">reject</text>
+  <text class="small" x="584" y="344" text-anchor="middle">configure</text>
+  <text class="small" x="950" y="344" text-anchor="middle">allow</text>
+</svg>

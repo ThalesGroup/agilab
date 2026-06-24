@@ -55,6 +55,25 @@ not execute agents, generate instructions with an LLM, or replace skill quality,
 security, or
 capability-manifest checks.
 
+Agent commit provenance is checked separately::
+
+   python3 tools/agent_commit_provenance_guard.py --check-config
+   python3 tools/agent_commit_provenance_guard.py --inventory-github --repo ThalesGroup/agilab --json
+
+The output uses schema ``agilab.agent_commit_provenance.v1``. On
+agent-prefixed branches such as ``codex/*``, ``codex-*``, ``claude/*``,
+``aider/*``, ``opencode/*``, and ``agent/*``, the guard rejects human Git
+author or committer identities and requires an explicit agent or bot identity.
+The repo hooks run the config check before commits and the pushed-commit check
+before pushes, so agent-authored PRs cannot silently appear as human-authored
+work.
+
+.. figure:: diagrams/agent_commit_provenance_guard.svg
+   :alt: Diagram of the AGILAB agent commit provenance guard
+
+   Agent-prefixed branches are checked before commit and before push so the
+   Git author and committer fields stay aligned with PR Agent Metadata.
+
 Shared repo contract
 --------------------
 
@@ -90,9 +109,9 @@ For ad-hoc terminal checks inside an already routed local wrapper session, use
 
 The main contributor rule is simple: run the narrowest local proof first, then
 reproduce the real AGILAB path before broader validation. Close-out summaries
-should stay compact when everything is green; reserve command-by-command detail
-for failures, skipped checks, release or audit evidence, PR proof, or explicit
-reviewer requests.
+should stay compact when everything is green: write ``Validation passed.`` and
+reserve command-by-command detail for failures, skipped checks, release or audit
+evidence, PR proof, or explicit reviewer requests.
 
 Use ``AGENT_LEARNINGS.md`` sparingly: add one concrete rule only when the
 correction is reusable and not already covered by the runbooks. Do not use it

@@ -95,6 +95,7 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("agent-learnings", "Agent correction ledger"),
             RequiredTerm("fix-prevention", "Fix prevention close-out"),
             RequiredTerm("tokki-routing", "tokki run --"),
+            RequiredTerm("agent-provenance", "Agent commit provenance"),
         ),
     ),
     FileContract(
@@ -127,6 +128,7 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("contract-command", "python3 tools/agent_instruction_contract.py --check"),
             RequiredTerm("shell-url-quoting", "gh api repos/.../file?ref=main"),
             RequiredTerm("tokki-routing", "tokki run --"),
+            RequiredTerm("agent-provenance", "tools/agent_commit_provenance_guard.py"),
         ),
     ),
     FileContract(
@@ -142,6 +144,7 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("agenticweb", "agenticweb.md"),
             RequiredTerm("compact-validation", "Validation passed."),
             RequiredTerm("tokki-routing", "tokki run --"),
+            RequiredTerm("agent-provenance", "agilab.agent_commit_provenance.v1"),
         ),
     ),
     FileContract(
@@ -157,6 +160,7 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("agenticweb", "agenticweb.md"),
             RequiredTerm("compact-validation", "Validation passed."),
             RequiredTerm("tokki-routing", "tokki run --"),
+            RequiredTerm("agent-provenance", "agilab.agent_commit_provenance.v1"),
         ),
     ),
 )
