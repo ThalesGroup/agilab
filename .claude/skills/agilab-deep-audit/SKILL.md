@@ -78,6 +78,11 @@ For a deep AGILAB audit, cover these surfaces unless the user narrows scope:
 - Cross-platform and tests: Windows/macOS/Linux claims, hermetic `HOME`
   behavior, singleton resets, path separators, process/signal assumptions, and
   CI workflow coverage.
+- Benchmark and performance evidence helpers: verify that scripts and docs
+  declare their exact topology and platform boundary. A lab-specific helper
+  such as a macOS-over-SSH benchmark must not be treated as portable cluster,
+  release, or production evidence unless the code fails closed outside that
+  boundary and tests/docs name the limitation.
 - Packaging and docs: wheel surface, generated artifacts, docs/public mirror,
   release proof, and changelog/public claim alignment.
 - Periphery sampling: representative built-in apps, page bundles, and examples
