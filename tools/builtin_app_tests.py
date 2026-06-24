@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import shlex
 import subprocess
 import sys
+import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 from typing import NamedTuple, Sequence
 
@@ -54,6 +57,7 @@ def build_pytest_command(pytest_args: Sequence[str] = ()) -> list[str]:
         forwarded = list(DEFAULT_PYTEST_ARGS)
     return [
         "uv",
+        "--no-cache",
         "--preview-features",
         "extra-build-dependencies",
         "run",
@@ -70,15 +74,30 @@ def build_pytest_command(pytest_args: Sequence[str] = ()) -> list[str]:
     ]
 
 
-def subprocess_env(target: BuiltinAppTestTarget) -> dict[str, str]:
+def subprocess_env(
+    target: BuiltinAppTestTarget, env_root: Path | None = None
+) -> dict[str, str]:
     """Return an isolated uv environment for one built-in app test target."""
 
     env = os.environ.copy()
     env.pop("VIRTUAL_ENV", None)
     env.pop("UV_RUN_RECURSION_DEPTH", None)
-    env_root = Path(env.get(APP_TEST_ENV_ROOT_ENV, str(DEFAULT_APP_TEST_ENVS_ROOT)))
+    if env_root is None:
+        env_root = Path(env.get(APP_TEST_ENV_ROOT_ENV, str(DEFAULT_APP_TEST_ENVS_ROOT)))
     env["UV_PROJECT_ENVIRONMENT"] = str(env_root / target.name)
     return env
+
+
+@contextlib.contextmanager
+def app_test_env_root() -> Iterator[Path]:
+    """Return the root directory used for this runner invocation's app envs."""
+
+    configured = os.environ.get(APP_TEST_ENV_ROOT_ENV)
+    if configured:
+        yield Path(configured)
+        return
+    with tempfile.TemporaryDirectory(prefix="agilab-builtin-app-tests-") as temp_dir:
+        yield Path(temp_dir)
 
 
 def _selected_targets(
@@ -136,18 +155,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("No built-in app test targets found.", file=sys.stderr)
         return 1
 
-    command = build_pytest_command(args.pytest_args)
     failures: list[str] = []
-    for target in targets:
-        print(f"\n== {target.path.relative_to(REPO_ROOT)} ==", flush=True)
-        if args.dry_run:
-            print(shlex.join(command))
-            continue
-        result = subprocess.run(command, cwd=target.path, check=False, env=subprocess_env(target))
-        if result.returncode:
-            failures.append(target.name)
-            if not args.keep_going:
-                return result.returncode
+    command = build_pytest_command(args.pytest_args)
+    with app_test_env_root() as env_root:
+        for target in targets:
+            print(f"\n== {target.path.relative_to(REPO_ROOT)} ==", flush=True)
+            if args.dry_run:
+                print(shlex.join(command))
+                continue
+            result = subprocess.run(
+                command,
+                cwd=target.path,
+                check=False,
+                env=subprocess_env(target, env_root),
+            )
+            if result.returncode:
+                failures.append(target.name)
+                if not args.keep_going:
+                    return result.returncode
 
     if failures:
         print(f"Failed built-in app test target(s): {', '.join(failures)}", file=sys.stderr)
