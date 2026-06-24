@@ -9,6 +9,9 @@
   run the exact focused tests it selects before broad profiles.
 - Prefer compact `./dev` output. Treat full logs as artifacts and summarize
   only signal: failing command, root cause, path, and next validation.
+- For ambiguous AGILAB work, ask `tools/agent_context_router.py --profile tokki`
+  for compact context before expanding to full repo reads. Impact validation
+  remains the source of truth for tests and artifact refreshes.
 
 ## Built-in apps and docs
 - Built-in app changes need app-local validation through
@@ -19,6 +22,25 @@
 - For docs, SVGs, and public mirror work, update canonical sources first,
   sync/verify the mirror, and compare references, captions, alt text, and
   rendered evidence before calling the docs aligned.
+
+## Release and public proof
+- For release planning, compute the impacted package graph first, then run the
+  same plan with `--skip-existing-pypi`. Do not equate "all artifacts already
+  exist" with "nothing should be released" when a version bump is intended.
+- Keep badges, release proof, docs, PyPI, GitHub Release, and Hugging Face
+  evidence tied to public truth. Do not pre-claim a new release in the badge or
+  proof page before the workflow publishes it and records the proof.
+- After release workflow success, verify the exact selected package set, the
+  GitHub Release assets, release-proof CI run IDs, docs Pages deployment, and
+  `tools/hf_space_smoke.py --json` before saying "all good".
+
+## Tokki model-free routing
+- Use model-free Tokki routes only for deterministic AGILAB checks that are
+  read-only or repo-local validation. Do not add mutating network operations
+  such as HF sync as generic model-free routes; require an explicit reviewed
+  capability for any such opt-in.
+- `tools/hf_space_smoke.py --json` is a read-only public smoke check and is safe
+  as a model-free validation route after releases or HF-alignment asks.
 
 ## Cluster, workers, and generated artifacts
 - If allocation artifacts show all `no_path` or `reject`, first compare them

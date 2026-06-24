@@ -9,6 +9,8 @@ exact ./dev docs
 exact ./dev --print-only docs
 exact ./dev release
 exact ./dev --print-only release
+exact ./dev badge
+exact ./dev --print-only badge
 exact ./dev parallel-stage
 exact ./dev app-contracts
 exact ./dev builtin-app-tests
@@ -16,16 +18,22 @@ exact ./dev maintenance
 exact ./dev memory
 exact ./dev warnings
 exact ./dev audit
+exact ./dev audit --strict
 exact ./dev ui-flow
 exact ./dev bugfix
 exact ./dev flow docs
+exact ./dev flow release-proof
 exact ./dev flow dependency-policy
 exact ./dev flow shared-core-typing
 exact ./dev flow builtin-app-tests
+exact uv --preview-features extra-build-dependencies run python tools/agent_context_router.py --check
+exact uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --check --check-github-runs --compact
+exact uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
 template ./dev impact --only <safe-component>
 template ./dev impact --files <safe-file>
 template ./dev test <safe-file>
 template ./dev flow <safe-component>
+template ./dev release --impact-base-ref <safe-ref>
 template ./dev task-worktree <safe-ref>
 template ./dev bugfix <safe-file>
 template ./dev regress <safe-selector>
