@@ -22,6 +22,8 @@ DEFAULT_PYTEST_ARGS = (
     "--import-mode=importlib",
     "test",
 )
+DEFAULT_APP_TEST_ENVS_ROOT = REPO_ROOT / ".venv-builtin-app-tests"
+APP_TEST_ENV_ROOT_ENV = "AGILAB_BUILTIN_APP_TEST_ENV_ROOT"
 
 
 class BuiltinAppTestTarget(NamedTuple):
@@ -68,11 +70,14 @@ def build_pytest_command(pytest_args: Sequence[str] = ()) -> list[str]:
     ]
 
 
-def subprocess_env() -> dict[str, str]:
-    """Return an environment that lets uv select each app's project environment."""
+def subprocess_env(target: BuiltinAppTestTarget) -> dict[str, str]:
+    """Return an isolated uv environment for one built-in app test target."""
 
     env = os.environ.copy()
     env.pop("VIRTUAL_ENV", None)
+    env.pop("UV_RUN_RECURSION_DEPTH", None)
+    env_root = Path(env.get(APP_TEST_ENV_ROOT_ENV, str(DEFAULT_APP_TEST_ENVS_ROOT)))
+    env["UV_PROJECT_ENVIRONMENT"] = str(env_root / target.name)
     return env
 
 
@@ -138,7 +143,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.dry_run:
             print(shlex.join(command))
             continue
-        result = subprocess.run(command, cwd=target.path, check=False, env=subprocess_env())
+        result = subprocess.run(command, cwd=target.path, check=False, env=subprocess_env(target))
         if result.returncode:
             failures.append(target.name)
             if not args.keep_going:

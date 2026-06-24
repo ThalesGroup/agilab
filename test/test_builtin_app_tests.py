@@ -53,9 +53,18 @@ def test_build_pytest_command_keeps_forwarded_args_after_separator():
     assert command[-2:] == ["-k", "weather"]
 
 
-def test_subprocess_env_removes_active_root_virtualenv(monkeypatch):
+def test_subprocess_env_uses_isolated_app_environment(monkeypatch, tmp_path):
     monkeypatch.setenv("VIRTUAL_ENV", "/repo/.venv")
+    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", "/repo/.venv-dev")
+    monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "1")
+    monkeypatch.setenv("AGILAB_BUILTIN_APP_TEST_ENV_ROOT", str(tmp_path / "app-envs"))
+    target = builtin_app_tests.BuiltinAppTestTarget(
+        name="execution_pandas_project",
+        path=tmp_path / "execution_pandas_project",
+    )
 
-    env = builtin_app_tests.subprocess_env()
+    env = builtin_app_tests.subprocess_env(target)
 
     assert "VIRTUAL_ENV" not in env
+    assert "UV_RUN_RECURSION_DEPTH" not in env
+    assert env["UV_PROJECT_ENVIRONMENT"] == str(tmp_path / "app-envs" / target.name)
