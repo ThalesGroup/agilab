@@ -99,30 +99,38 @@ def _assert_sidebar_link_absent(markdown: str, label: str) -> None:
         )
 
 
-def test_analysis_page_defers_reuse_catalog_import_until_suggestion_report() -> None:
-    analysis_source = Path("src/agilab/pages/4_ANALYSIS.py").read_text(
-        encoding="utf-8"
+def test_analysis_page_defers_reuse_catalog_import_until_suggestion_report(
+    monkeypatch,
+) -> None:
+    module_path = Path("src/agilab/pages/4_ANALYSIS.py").resolve()
+    module_name = "agilab_analysis_lazy_reuse_catalog_test_module"
+    imported: list[str] = []
+    fake_reuse_catalog = types.SimpleNamespace(
+        build_suggestion_report=lambda *args, **kwargs: {"matches": []}
     )
-    analysis_tree = ast.parse(analysis_source)
-    eager_reuse_imports = []
-    for node in analysis_tree.body:
-        if not isinstance(node, ast.Assign):
-            continue
-        value = node.value
-        if not (
-            isinstance(value, ast.Call)
-            and isinstance(value.func, ast.Name)
-            and value.func.id == "import_agilab_module"
-            and value.args
-            and isinstance(value.args[0], ast.Constant)
-            and value.args[0].value == "agilab.reuse_catalog"
-        ):
-            continue
-        eager_reuse_imports.append(node)
+    original_import_module = importlib.import_module
 
-    assert eager_reuse_imports == []
-    assert 'def _build_reuse_suggestion_report(*args: Any, **kwargs: Any) -> Any:' in analysis_source
-    assert '_lazy_import_attr("agilab.reuse_catalog", "build_suggestion_report")' in analysis_source
+    def _tracking_import_module(name: str, package: str | None = None):
+        if name == "agilab.reuse_catalog":
+            imported.append(name)
+            return fake_reuse_catalog
+        return original_import_module(name, package)
+
+    monkeypatch.setattr(importlib, "import_module", _tracking_import_module)
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+
+    try:
+        spec.loader.exec_module(module)
+        assert imported == []
+        assert module._build_reuse_suggestion_report("demo", kind="page") == {
+            "matches": []
+        }
+        assert imported == ["agilab.reuse_catalog"]
+    finally:
+        sys.modules.pop(module_name, None)
 
 
 def test_primary_pages_keep_homogeneous_support_field_order() -> None:
