@@ -1,20 +1,39 @@
 # Repo-local commands that Tokki may execute through `tokki run -- ...`
 # without a model call under the default readonly shell policy.
 exact ./dev scope
+exact ./dev scope --staged
 exact ./dev impact
+exact ./dev --print-only impact
 exact ./dev test
 exact ./dev docs
+exact ./dev --print-only docs
 exact ./dev release
+exact ./dev --print-only release
 exact ./dev parallel-stage
+exact ./dev app-contracts
+exact ./dev builtin-app-tests
 exact ./dev maintenance
 exact ./dev memory
+exact ./dev warnings
+exact ./dev audit
+exact ./dev ui-flow
 exact ./dev bugfix
+exact ./dev flow docs
+exact ./dev flow dependency-policy
+exact ./dev flow shared-core-typing
+exact ./dev flow builtin-app-tests
 template ./dev impact --only <safe-component>
+template ./dev impact --files <safe-file>
+template ./dev test <safe-file>
 template ./dev flow <safe-component>
 template ./dev task-worktree <safe-ref>
 template ./dev bugfix <safe-file>
 template ./dev regress <safe-selector>
 template ./dev parallel-stage <safe-profile>
+template ./dev app-contracts <safe-scope>
+template ./dev builtin-app-tests --app <safe-component>
 template ./dev maintenance <safe-scope>
 template ./dev memory <safe-component>
 template ./dev docs <safe-target>
+template ./dev warnings --newer-than <safe-file>
+template ./dev ui-flow <safe-file>
