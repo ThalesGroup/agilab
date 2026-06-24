@@ -13,8 +13,8 @@ A good first pull request shows three things:
 2. Your pull request has one clear scope.
 3. The validation you ran matches that scope.
 
-Baseline setup
---------------
+Setup
+-----
 
 Run this once from a clean source checkout:
 
