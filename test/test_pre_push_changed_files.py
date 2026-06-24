@@ -141,6 +141,30 @@ def test_pre_push_records_use_remote_sha_as_diff_base():
     assert calls == [["diff", "--name-only", "--diff-filter=ACMR", "remotesha", "localsha"]]
 
 
+def test_main_reads_pre_push_spec_file_for_hook_guard_state(tmp_path, monkeypatch, capsys):
+    spec_file = tmp_path / "pre-push-spec.txt"
+    spec_text = "refs/heads/topic localsha refs/heads/topic remotesha\n"
+    spec_file.write_text(spec_text, encoding="utf-8")
+    seen = []
+
+    def fake_changed_files_from_pre_push(stdin_text):
+        seen.append(stdin_text)
+        return ("docs/source/getting-started.rst",)
+
+    monkeypatch.setattr(
+        pre_push_changed_files,
+        "changed_files_from_pre_push",
+        fake_changed_files_from_pre_push,
+    )
+
+    assert pre_push_changed_files.main(["--pre-push-spec", str(spec_file)]) == 0
+
+    assert seen == [spec_text]
+    output = capsys.readouterr().out
+    assert "DOCS_CHANGED=1" in output
+    assert "CHANGED_COUNT=1" in output
+
+
 def test_render_shell_is_eval_friendly():
     state = pre_push_changed_files.classify_changed_files(["docs/source/release-proof.rst"])
 
