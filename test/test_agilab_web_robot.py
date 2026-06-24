@@ -318,6 +318,77 @@ def test_page_load_smoke_print_only_writes_json_output(tmp_path: Path) -> None:
     ]
 
 
+def test_page_load_budget_warnings_are_advisory() -> None:
+    module = _load_module()
+
+    warnings = module._page_load_budget_warnings(
+        [
+            module.RobotStep(
+                "ABOUT first visible render",
+                True,
+                1.25,
+                "page reached first visible marker",
+                "http://demo/",
+            ),
+            module.RobotStep(
+                "PROJECT first visible render",
+                True,
+                0.25,
+                "page reached first visible marker",
+                "http://demo/PROJECT",
+            ),
+        ],
+        ["ABOUT", "PROJECT"],
+    )
+
+    assert warnings == [
+        "ABOUT first visible render 1.250s exceeds advisory budget 1.200s"
+    ]
+
+
+def test_page_load_budget_warnings_include_total_budget() -> None:
+    module = _load_module()
+
+    warnings = module._page_load_budget_warnings(
+        [
+            module.RobotStep(
+                "ABOUT first visible render",
+                True,
+                1.0,
+                "page reached first visible marker",
+                "http://demo/",
+            ),
+            module.RobotStep(
+                "PROJECT first visible render",
+                True,
+                0.7,
+                "page reached first visible marker",
+                "http://demo/PROJECT",
+            ),
+            module.RobotStep(
+                "WORKFLOW first visible render",
+                True,
+                0.7,
+                "page reached first visible marker",
+                "http://demo/WORKFLOW",
+            ),
+            module.RobotStep(
+                "ANALYSIS first visible render",
+                True,
+                2.7,
+                "page reached first visible marker",
+                "http://demo/ANALYSIS",
+            ),
+        ],
+        ["ABOUT", "PROJECT", "WORKFLOW", "ANALYSIS"],
+    )
+
+    assert warnings == [
+        "ANALYSIS first visible render 2.700s exceeds advisory budget 1.000s",
+        "page-load total 5.100s exceeds advisory budget 5.000s",
+    ]
+
+
 def test_resolve_local_active_app_accepts_builtin_project_name() -> None:
     module = _load_module()
 
