@@ -97,3 +97,62 @@ def test_pre_push_allows_explicit_agent_identity_on_agent_branch(tmp_path: Path)
 
     assert report["status"] == "pass"
     assert report["issues"] == []
+
+
+def test_git_history_inventory_flags_direct_guillaume_local_identity(tmp_path: Path) -> None:
+    module = _load_module()
+    _init_repo(tmp_path)
+    _git(tmp_path, "config", "user.name", "GuillaumeDemets")
+    _git(tmp_path, "config", "user.email", "g.demets02@gmail.com")
+    (tmp_path / "direct.txt").write_text("direct human-looking identity\n", encoding="utf-8")
+    _git(tmp_path, "add", "direct.txt")
+    _git(tmp_path, "commit", "-m", "direct suspect identity")
+
+    report = module.inventory_git_history(
+        tmp_path,
+        ["main"],
+        repo_label="thales_agilab",
+        first_parent=True,
+    )
+
+    assert report["status"] == "fail"
+    assert {issue["field"] for issue in report["issues"]} == {"author", "committer"}
+    assert {issue["rule"] for issue in report["issues"]} == {
+        "direct-history-suspect-human-identity"
+    }
+    assert report["evidence"]["repo_label"] == "thales_agilab"
+
+
+def test_git_history_inventory_ignores_non_suspect_human_identity(tmp_path: Path) -> None:
+    module = _load_module()
+    _init_repo(tmp_path)
+    _git(tmp_path, "config", "user.name", "Jean-Pierre MORARD")
+    _git(tmp_path, "config", "user.email", "jean-pierre.morard@thalesgroup.com")
+    (tmp_path / "human.txt").write_text("human maintainer\n", encoding="utf-8")
+    _git(tmp_path, "add", "human.txt")
+    _git(tmp_path, "commit", "-m", "human maintainer commit")
+
+    report = module.inventory_git_history(tmp_path, ["main"], repo_label="agilab", first_parent=True)
+
+    assert report["status"] == "pass"
+    assert report["issues"] == []
+
+
+def test_git_history_inventory_skips_merges_by_default(tmp_path: Path) -> None:
+    module = _load_module()
+    _init_repo(tmp_path)
+    _git(tmp_path, "switch", "-c", "feature")
+    _git(tmp_path, "config", "user.name", module.DEFAULT_AGENT_NAME)
+    _git(tmp_path, "config", "user.email", module.DEFAULT_AGENT_EMAIL)
+    (tmp_path / "feature.txt").write_text("feature\n", encoding="utf-8")
+    _git(tmp_path, "add", "feature.txt")
+    _git(tmp_path, "commit", "-m", "feature")
+    _git(tmp_path, "switch", "main")
+    _git(tmp_path, "config", "user.name", "GuillaumeDemets")
+    _git(tmp_path, "config", "user.email", "g.demets02@gmail.com")
+    _git(tmp_path, "merge", "--no-ff", "feature", "-m", "suspect merge identity")
+
+    report = module.inventory_git_history(tmp_path, ["main"], repo_label="agilab", first_parent=True)
+
+    assert report["status"] == "pass"
+    assert report["issues"] == []

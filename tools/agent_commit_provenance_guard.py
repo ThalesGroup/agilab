@@ -40,6 +40,10 @@ HUMAN_IDENTITY_TERMS = (
     "jean-pierre.morard@thalesgroup.com",
     "jpmorard",
 )
+SUSPECT_DIRECT_HISTORY_TERMS = (
+    "g.demets02@gmail.com",
+    "guilaumedemets",
+)
 DEFAULT_AGENT_NAME = "AGILAB Codex Agent"
 DEFAULT_AGENT_EMAIL = "codex-agent@users.noreply.github.com"
 
@@ -66,6 +70,16 @@ class Issue:
 class CommitEvidence:
     sha: str
     subject: str
+    author: Identity
+    committer: Identity
+    issues: tuple[Issue, ...]
+
+
+@dataclass(frozen=True)
+class HistoryCommitEvidence:
+    sha: str
+    subject: str
+    parent_count: int
     author: Identity
     committer: Identity
     issues: tuple[Issue, ...]
@@ -109,6 +123,11 @@ def is_agent_identity(identity: Identity) -> bool:
     return any(term in blob for term in AGENT_IDENTITY_TERMS)
 
 
+def is_suspect_direct_history_identity(identity: Identity) -> bool:
+    blob = _identity_blob(identity)
+    return any(term in blob for term in SUSPECT_DIRECT_HISTORY_TERMS)
+
+
 def _identity_issues(*, branch: str, commit: str, field: str, identity: Identity) -> list[Issue]:
     if is_human_identity(identity):
         return [
@@ -143,6 +162,32 @@ def _identity_issues(*, branch: str, commit: str, field: str, identity: Identity
             )
         ]
     return []
+
+
+def _suspect_direct_history_issues(
+    *,
+    repo_label: str,
+    commit: str,
+    field: str,
+    identity: Identity,
+) -> list[Issue]:
+    if not is_suspect_direct_history_identity(identity):
+        return []
+    return [
+        Issue(
+            severity="error",
+            rule="direct-history-suspect-human-identity",
+            branch=repo_label,
+            commit=commit,
+            field=field,
+            name=identity.name,
+            email=identity.email,
+            message=(
+                "direct first-parent history contains a Guillaume/Guilaume local Git identity; "
+                "inventory PR metadata and agent evidence before attributing this work"
+            ),
+        )
+    ]
 
 
 def _branch_from_ref(ref: str) -> str:
@@ -199,6 +244,62 @@ def _commit_evidence(root: Path, branch: str, sha: str) -> CommitEvidence:
 def _rev_list(root: Path, rev_range: str) -> tuple[str, ...]:
     output = _run_git(root, ["rev-list", "--reverse", rev_range], check=False)
     return tuple(line for line in output.splitlines() if line.strip())
+
+
+def _history_rev_list(
+    root: Path,
+    ranges: Iterable[str],
+    *,
+    since: str = "",
+    until: str = "",
+    first_parent: bool = False,
+) -> tuple[str, ...]:
+    args = ["rev-list", "--reverse"]
+    if first_parent:
+        args.append("--first-parent")
+    if since:
+        args.append(f"--since={since}")
+    if until:
+        args.append(f"--until={until}")
+    selected_ranges = tuple(ranges) or ("HEAD",)
+    args.extend(selected_ranges)
+    output = _run_git(root, args, check=False)
+    return tuple(line for line in output.splitlines() if line.strip())
+
+
+def _history_commit_evidence(root: Path, repo_label: str, sha: str) -> HistoryCommitEvidence:
+    fmt = FIELD_SEP.join(["%H", "%s", "%P", "%an", "%ae", "%cn", "%ce"])
+    raw = _run_git(root, ["show", "-s", f"--format={fmt}", sha])
+    full_sha, subject, parents, author_name, author_email, committer_name, committer_email = raw.split(
+        FIELD_SEP
+    )
+    author = Identity(author_name, author_email)
+    committer = Identity(committer_name, committer_email)
+    issues: list[Issue] = []
+    issues.extend(
+        _suspect_direct_history_issues(
+            repo_label=repo_label,
+            commit=full_sha,
+            field="author",
+            identity=author,
+        )
+    )
+    issues.extend(
+        _suspect_direct_history_issues(
+            repo_label=repo_label,
+            commit=full_sha,
+            field="committer",
+            identity=committer,
+        )
+    )
+    return HistoryCommitEvidence(
+        sha=full_sha,
+        subject=subject,
+        parent_count=len([parent for parent in parents.split() if parent.strip()]),
+        author=author,
+        committer=committer,
+        issues=tuple(issues),
+    )
 
 
 def _merge_base(root: Path, local_sha: str, base_ref: str) -> str:
@@ -275,6 +376,42 @@ def check_rev_ranges(
         action="rev-range",
         issues=issues,
         evidence={"branch": branch, "commits": [asdict(commit) for commit in commits]},
+    )
+
+
+def inventory_git_history(
+    root: Path = REPO_ROOT,
+    ranges: Iterable[str] = (),
+    *,
+    repo_label: str = "",
+    since: str = "",
+    until: str = "",
+    first_parent: bool = False,
+    include_merges: bool = False,
+) -> dict[str, Any]:
+    issues: list[Issue] = []
+    commits: list[HistoryCommitEvidence] = []
+    label = repo_label or root.name
+    for sha in _history_rev_list(root, ranges, since=since, until=until, first_parent=first_parent):
+        evidence = _history_commit_evidence(root, label, sha)
+        if evidence.parent_count > 1 and not include_merges:
+            continue
+        commits.append(evidence)
+        issues.extend(evidence.issues)
+    return _build_report(
+        action="git-history-inventory",
+        issues=issues,
+        evidence={
+            "repo_label": label,
+            "root": str(root),
+            "ranges": list(ranges) or ["HEAD"],
+            "since": since,
+            "until": until,
+            "first_parent": first_parent,
+            "include_merges": include_merges,
+            "suspect_direct_history_terms": list(SUSPECT_DIRECT_HISTORY_TERMS),
+            "commits": [asdict(commit) for commit in commits],
+        },
     )
 
 
@@ -414,7 +551,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--rev-range", action="append", default=[], help="Explicit revision range to inspect.")
     parser.add_argument("--branch", default="", help="Agent branch label for --rev-range checks.")
     parser.add_argument("--inventory-github", action="store_true", help="Inventory merged agent PR identities via gh.")
+    parser.add_argument(
+        "--inventory-git-history",
+        action="store_true",
+        help="Inventory local git history for suspect direct Guillaume/Guilaume identity commits.",
+    )
     parser.add_argument("--repo", default="ThalesGroup/agilab", help="GitHub repo for --inventory-github.")
+    parser.add_argument("--repo-label", default="", help="Local repo label for --inventory-git-history.")
+    parser.add_argument("--since", default="", help="History inventory lower date bound, passed to git rev-list.")
+    parser.add_argument("--until", default="", help="History inventory upper date bound, passed to git rev-list.")
+    parser.add_argument("--first-parent", action="store_true", help="Use first-parent traversal for history inventory.")
+    parser.add_argument("--include-merges", action="store_true", help="Include merge commits in history inventory.")
     parser.add_argument("--limit", type=int, default=200, help="Per-prefix PR inventory limit.")
     parser.add_argument(
         "--prefix",
@@ -434,14 +581,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             base_ref=args.base_ref,
         )
         should_fail = True
-    elif args.rev_range:
-        branch = args.branch or _current_branch(root)
-        report = check_rev_ranges(root, args.rev_range, branch=branch)
-        should_fail = True
     elif args.inventory_github:
         prefixes = tuple(args.prefix or ["codex", "claude", "aider", "opencode", "agent"])
         report = inventory_github_prs(repo=args.repo, limit=args.limit, prefixes=prefixes)
         should_fail = args.fail_on_findings
+    elif args.inventory_git_history:
+        report = inventory_git_history(
+            root,
+            args.rev_range,
+            repo_label=args.repo_label,
+            since=args.since,
+            until=args.until,
+            first_parent=args.first_parent,
+            include_merges=args.include_merges,
+        )
+        should_fail = args.fail_on_findings
+    elif args.rev_range:
+        branch = args.branch or _current_branch(root)
+        report = check_rev_ranges(root, args.rev_range, branch=branch)
+        should_fail = True
     else:
         report = check_current_config(root)
         should_fail = True
