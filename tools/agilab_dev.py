@@ -424,6 +424,7 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
             ),
             _uv_dev("ruff", "--version"),
             _uv_python("tools/app_contract_matrix.py", "--quiet"),
+            _uv_python("tools/builtin_app_tests.py"),
             _uv_python(
                 "tools/workflow_parity.py",
                 "--profile",
@@ -576,7 +577,7 @@ High-frequency mappings:
   perf-startup -> Measure startup-sensitive AGILAB import paths with perf_smoke.
   worker-reuse -> Compare worker manifest fingerprints against a deployed-env reuse marker.
   typing    -> Run the forward shared-core ty typing profile. Mypy remains the curated temporary release guard under shared-core-typing.
-  release   -> Run local release guards: AGILAB audit/review, impact, generated PyPI plan, release cadence, PyPI project preflight, trusted publisher contract, Ruff availability, docs, dependency policy, typing, and badge freshness. Pass --release-mode hotfix and --impact-base-ref <tag> for same-day hotfixes.
+  release   -> Run local release guards: AGILAB audit/review, impact, generated PyPI plan, release cadence, PyPI project preflight, trusted publisher contract, Ruff availability, built-in app tests, docs, dependency policy, typing, and badge freshness. Pass --release-mode hotfix and --impact-base-ref <tag> for same-day hotfixes.
   publish-testpypi -> Run the local TestPyPI rehearsal path with the same publisher used by the workflow, defaulting to --dist both, --verbose, --git-reset-on-failure, and --no-pypirc-check. The repo is pinned to testpypi; --repo is rejected.
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.

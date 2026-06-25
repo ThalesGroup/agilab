@@ -38,6 +38,20 @@ and SHA-256 hashes for the checked runbook files. This guards the runbook and
 discovery layer only; it does not execute agents, generate instructions with an
 LLM, or replace skill quality, security, or capability-manifest checks.
 
+Agent commit provenance is checked separately:
+
+```bash
+python3 tools/agent_commit_provenance_guard.py --check-config
+python3 tools/agent_commit_provenance_guard.py --inventory-github --repo ThalesGroup/agilab --json
+```
+
+The output uses schema `agilab.agent_commit_provenance.v1`. On agent-prefixed
+branches such as `codex/*`, `codex-*`, `claude/*`, `aider/*`, `opencode/*`,
+and `agent/*`, the guard rejects human Git author or committer identities and
+requires an explicit agent or bot identity. The repo hooks run the config check
+before commits and the pushed-commit check before pushes, so agent-authored PRs
+cannot silently appear as human-authored work.
+
 The README badge contract is:
 
 - **Skills**: the reviewed skill count
@@ -58,6 +72,12 @@ For ad-hoc terminal checks inside an agent session, prefer
 It is an efficiency and observability layer for agent sessions; the AGILAB
 validation source of truth remains `tools/impact_validate.py`, `./dev`, and the
 workflow-parity profiles.
+
+`AGENTS.md` is intentionally the compact rule index. Keep long operational
+recipes here or in focused skills, then link to them from `AGENTS.md` instead of
+expanding the main runbook. This keeps small-context agents on
+`AGENT_CONVENTIONS.md` while preserving deeper workflows for tasks that need
+them.
 
 Use [AGENT_LEARNINGS.md](../AGENT_LEARNINGS.md) only for reusable corrections:
 when a user, reviewer, or failed validation exposes a repeated agent behavior
@@ -161,8 +181,10 @@ the context-routing example.
 
 ## Skill quality and security scans
 
-Changed repo-managed skills are scanned locally. Run the local check before
-pushing skill changes:
+Changed repo-managed skills are scanned locally. `AGENT_SKILLS.md` lists the
+reviewed skill catalog and maintenance contract, while this workflow guide owns
+the executable scan commands. Run the changed-only local check before pushing
+skill changes:
 
 ```bash
 python tools/agent_skill_quality_guard.py --changed-only --fail-on high

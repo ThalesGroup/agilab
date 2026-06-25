@@ -168,6 +168,29 @@ def test_analyze_paths_adds_install_contract_check_for_install_entrypoint() -> N
     assert "tools/workflow_parity.py --profile installer" in parity.commands[0]
 
 
+def test_analyze_paths_routes_builtin_app_changes_to_app_local_runner() -> None:
+    module = _load_module()
+
+    report = module.analyze_paths(
+        [
+            "src/agilab/apps/builtin/data_quality_gate_project/src/data_quality_gate/reduction.py"
+        ]
+    )
+
+    app_tests = next(
+        action for action in report.required_validations if action.key == "builtin-app-tests"
+    )
+    assert app_tests.commands == [
+        "uv --preview-features extra-build-dependencies run python "
+        "tools/builtin_app_tests.py --app data_quality_gate_project"
+    ]
+    assert all(
+        "src/agilab/apps/builtin/data_quality_gate_project/test" not in command
+        for action in report.required_validations
+        for command in action.commands
+    )
+
+
 def test_analyze_paths_treats_core_installer_as_shared_installer() -> None:
     module = _load_module()
 

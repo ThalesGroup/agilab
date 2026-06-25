@@ -259,6 +259,136 @@ def test_build_page_url_targets_streamlit_page_route() -> None:
     assert url == "http://127.0.0.1:8501/ANALYSIS?active_app=flight_telemetry_project"
 
 
+def test_page_load_smoke_pages_default_to_core_ui_pages() -> None:
+    module = _load_module()
+
+    assert module.resolve_page_load_pages(None) == (
+        "ABOUT",
+        "PROJECT",
+        "WORKFLOW",
+        "ANALYSIS",
+    )
+    assert module.resolve_page_load_pages(["WORKFLOW"]) == ("WORKFLOW",)
+
+
+def test_page_load_smoke_print_only_json_reports_route(capsys) -> None:
+    module = _load_module()
+
+    code = module.main(
+        [
+            "--print-only",
+            "--json",
+            "--page-load-smoke-only",
+            "--page-load-page",
+            "WORKFLOW",
+            "--port",
+            "9999",
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["page_load_pages"] == ["WORKFLOW"]
+    assert payload["route"] == ["WORKFLOW first visible render"]
+
+
+def test_page_load_smoke_print_only_writes_json_output(tmp_path: Path) -> None:
+    module = _load_module()
+    output_path = tmp_path / "page-load.json"
+
+    code = module.main(
+        [
+            "--print-only",
+            "--page-load-smoke-only",
+            "--json-output",
+            str(output_path),
+            "--port",
+            "9999",
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["page_load_pages"] == ["ABOUT", "PROJECT", "WORKFLOW", "ANALYSIS"]
+    assert payload["route"] == [
+        "ABOUT first visible render",
+        "PROJECT first visible render",
+        "WORKFLOW first visible render",
+        "ANALYSIS first visible render",
+    ]
+
+
+def test_page_load_budget_warnings_are_advisory() -> None:
+    module = _load_module()
+
+    warnings = module._page_load_budget_warnings(
+        [
+            module.RobotStep(
+                "ABOUT first visible render",
+                True,
+                1.25,
+                "page reached first visible marker",
+                "http://demo/",
+            ),
+            module.RobotStep(
+                "PROJECT first visible render",
+                True,
+                0.25,
+                "page reached first visible marker",
+                "http://demo/PROJECT",
+            ),
+        ],
+        ["ABOUT", "PROJECT"],
+    )
+
+    assert warnings == [
+        "ABOUT first visible render 1.250s exceeds advisory budget 1.200s"
+    ]
+
+
+def test_page_load_budget_warnings_include_total_budget() -> None:
+    module = _load_module()
+
+    warnings = module._page_load_budget_warnings(
+        [
+            module.RobotStep(
+                "ABOUT first visible render",
+                True,
+                1.0,
+                "page reached first visible marker",
+                "http://demo/",
+            ),
+            module.RobotStep(
+                "PROJECT first visible render",
+                True,
+                0.7,
+                "page reached first visible marker",
+                "http://demo/PROJECT",
+            ),
+            module.RobotStep(
+                "WORKFLOW first visible render",
+                True,
+                0.7,
+                "page reached first visible marker",
+                "http://demo/WORKFLOW",
+            ),
+            module.RobotStep(
+                "ANALYSIS first visible render",
+                True,
+                2.7,
+                "page reached first visible marker",
+                "http://demo/ANALYSIS",
+            ),
+        ],
+        ["ABOUT", "PROJECT", "WORKFLOW", "ANALYSIS"],
+    )
+
+    assert warnings == [
+        "ANALYSIS first visible render 2.700s exceeds advisory budget 1.000s",
+        "page-load total 5.100s exceeds advisory budget 5.000s",
+    ]
+
+
 def test_resolve_local_active_app_accepts_builtin_project_name() -> None:
     module = _load_module()
 

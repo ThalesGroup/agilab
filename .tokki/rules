@@ -1,40 +1,56 @@
-# AGILAB profile rules — reusable agent operating notes for this repo.
-# Surfaced by `tokki rules`; keep each rule short, imperative, and durable.
+# AGILAB profile rules - short repo-local guidance surfaced by Tokki.
 
-## Routing / allocation debugging
-- Before debugging routing model quality, compare generated allocation JSON
-  (allocations_steps.json) against current local AND remote TimeRoutingEnv
-  candidate-path smoke results. If the smoke test finds candidate paths but
-  the artifacts show all no_path/reject, treat it as stale runtime drift:
-  refresh/redeploy worker envs and regenerate artifacts BEFORE retraining or
-  patching model code.
-- If allocation output is all no_path/reject, first run a direct current-env
-  smoke test and verify the deployed worker source matches local source.
-- Useful allocation health counters: no_path, reject, valid_path_count,
-  delivered bandwidth sum, bearer counts, step count, edge count, and
-  candidate-path count from a direct env smoke test.
+## Worktree and validation routing
+- Before push, merge, release, or "next move", inspect current state first:
+  `./dev scope`, PR status, and the authoritative workflow/tooling surface.
+- If `./dev scope` reports mixed dirty scopes, do not keep editing that
+  checkout. Use `./dev task-worktree <branch>` and stage only the intended files.
+- Start non-trivial fixes with `./dev impact` or `./dev impact --files ...`;
+  run the exact focused tests it selects before broad profiles.
+- Prefer compact `./dev` output. Treat full logs as artifacts and summarize
+  only signal: failing command, root cause, path, and next validation.
+- For ambiguous AGILAB work, ask `tools/agent_context_router.py --profile tokki`
+  for compact context before expanding to full repo reads. Impact validation
+  remains the source of truth for tests and artifact refreshes.
 
-## Workers / environments
-- Verify the deployed worker file and venv when local fixes do not show up in
-  generated artifacts — runtime drift, not model logic, is the usual cause.
-- Use explicit Python interpreters for worker/debug commands: python3 or the
-  worker venv's python. Never assume `python` exists locally or remotely.
+## Built-in apps and docs
+- Built-in app changes need app-local validation through
+  `./dev builtin-app-tests --app <project>` or `./dev app-contracts`; root
+  pytest over app tests is suspect because app dependencies are isolated.
+- For app README or quality-plan edits, compare documented artifacts with
+  worker outputs. Do not mention files the app does not emit.
+- For docs, SVGs, and public mirror work, update canonical sources first,
+  sync/verify the mirror, and compare references, captions, alt text, and
+  rendered evidence before calling the docs aligned.
 
-## Token discipline
-- Codex/Claude rollout logs are huge but the durable signal is small: thread
-  metadata, plan, command failures, key counters, final diagnosis. Digest
-  session logs into metadata-only summaries instead of rereading transcripts.
+## Release and public proof
+- For release planning, compute the impacted package graph first, then run the
+  same plan with `--skip-existing-pypi`. Do not equate "all artifacts already
+  exist" with "nothing should be released" when a version bump is intended.
+- Keep badges, release proof, docs, PyPI, GitHub Release, and Hugging Face
+  evidence tied to public truth. Do not pre-claim a new release in the badge or
+  proof page before the workflow publishes it and records the proof.
+- After release workflow success, verify the exact selected package set, the
+  GitHub Release assets, release-proof CI run IDs, docs Pages deployment, and
+  `tools/hf_space_smoke.py --json` before saying "all good".
 
-## Review / publishing hygiene
-- If `gh pr merge --delete-branch` fails on local worktree ownership of `main`,
-  check the remote PR state before retrying; a remote merge may already have
-  succeeded and only branch cleanup may remain.
-- For commit-provenance questions, inspect author, committer, signature
-  identity, GitHub actor, PR metadata, and timestamps before attributing work.
-- For built-in app quality, verify first-run UX, deterministic sample data,
-  README artifact truth, app-local tests, installer/catalog contract, and clear
-  example value as one gate.
-- When docs name app artifacts, compare the README or quality plan with worker
-  outputs; do not leave users looking for a file the app does not emit.
-- For docs/SVG alignment, compare source SVG, references, captions/alt text,
-  mirror/public copy, and rendered page together before calling it aligned.
+## Tokki model-free routing
+- Use model-free Tokki routes only for deterministic AGILAB checks that are
+  read-only or repo-local validation. Do not add mutating network operations
+  such as HF sync as generic model-free routes; require an explicit reviewed
+  capability for any such opt-in.
+- `tools/hf_space_smoke.py --json` is a read-only public smoke check and is safe
+  as a model-free validation route after releases or HF-alignment asks.
+
+## Cluster, workers, and generated artifacts
+- If allocation artifacts show all `no_path` or `reject`, first compare them
+  with fresh local and remote worker smoke results. Runtime or deployed-worker
+  drift is more likely than model quality.
+- Verify deployed worker files and venvs when local fixes do not appear in
+  generated artifacts. Use explicit `python3` or the worker venv Python.
+
+## PR and provenance hygiene
+- For commit-provenance questions, inspect author, committer, signature,
+  GitHub actor, PR metadata, and timestamps before attributing work.
+- If a GitHub merge or branch-delete command fails, re-check remote PR state
+  before retrying; the merge may have succeeded and only cleanup may remain.

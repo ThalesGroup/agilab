@@ -109,6 +109,9 @@ def resolve_docs_path(agilab_pck: Path, html_file: str, *, path_cls=Path) -> Pat
     return None
 
 
+_THEME_CSS_CACHE: dict[tuple[str, int, int], str | None] = {}
+
+
 def read_theme_css(base_path: Path | None = None, *, module_file: str, path_cls=Path) -> str | None:
     """Read theme.css as UTF-8, falling back to lossy binary decode when needed."""
     if base_path is None:
@@ -124,13 +127,27 @@ def read_theme_css(base_path: Path | None = None, *, module_file: str, path_cls=
     if not css_path.exists():
         return None
     try:
-        return css_path.read_text(encoding="utf-8")
+        css_stat = css_path.stat()
+    except (AttributeError, OSError):
+        return None
+    cache_key = (css_path.as_posix(), css_stat.st_mtime_ns, css_stat.st_size)
+    cached = _THEME_CSS_CACHE.get(cache_key)
+    if cached is not None or cache_key in _THEME_CSS_CACHE:
+        return cached
+    try:
+        css = css_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         try:
             with css_path.open("rb") as handle:
-                return handle.read().decode("utf-8", errors="replace")
+                css = handle.read().decode("utf-8", errors="replace")
         except OSError:
-            return None
+            css = None
+    for stale_key in [
+        key for key in _THEME_CSS_CACHE if key[0] == cache_key[0] and key != cache_key
+    ]:
+        _THEME_CSS_CACHE.pop(stale_key, None)
+    _THEME_CSS_CACHE[cache_key] = css
+    return css
 
 
 def read_version_from_pyproject(env, *, toml_module=tomllib, path_cls=Path) -> str | None:

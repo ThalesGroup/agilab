@@ -27,6 +27,7 @@ from collections.abc import Sequence
 from typing import Any, Union
 import asyncio
 import shlex
+import importlib
 import importlib.util
 import traceback
 from urllib.parse import quote, urlencode
@@ -115,13 +116,6 @@ import_agilab_symbols(
     fallback_path=Path(__file__).resolve().parents[1] / "ui_performance.py",
     fallback_name="agilab_ui_performance_fallback",
 )
-_reuse_catalog_module = import_agilab_module(
-    "agilab.reuse_catalog",
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "reuse_catalog.py",
-    fallback_name="agilab_reuse_catalog_analysis_fallback",
-)
-_build_reuse_suggestion_report = _reuse_catalog_module.build_suggestion_report
 import_agilab_symbols(
     globals(),
     "agilab.notebook_export_support",
@@ -149,19 +143,65 @@ import_agilab_symbols(
 
 # Use modern TOML libraries
 import tomllib  # For reading TOML files (read as binary)
-import tomli_w  # For writing TOML files (write as binary)
 
-# Project utilities (unchanged)
-from agi_gui.pagelib import (
-    on_project_change,
-)
-from agi_gui.ux_widgets import compact_choice
-from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_env.process_support import apply_inline_path_export
-from agi_gui.ui_support import load_last_active_app, store_last_active_app
 
 logger = logging.getLogger(__name__)
+
+_LAZY_IMPORT_ATTR_CACHE: dict[tuple[str, str], Any] = {}
+
+
+def _lazy_import_attr(module_name: str, attr_name: str) -> Any:
+    cache_key = (module_name, attr_name)
+    if cache_key not in _LAZY_IMPORT_ATTR_CACHE:
+        _LAZY_IMPORT_ATTR_CACHE[cache_key] = getattr(
+            importlib.import_module(module_name), attr_name
+        )
+    return _LAZY_IMPORT_ATTR_CACHE[cache_key]
+
+
+def _build_reuse_suggestion_report(*args: Any, **kwargs: Any) -> Any:
+    """Load reuse-catalog suggestions only when the ANALYSIS page needs them."""
+    return _lazy_import_attr("agilab.reuse_catalog", "build_suggestion_report")(
+        *args, **kwargs
+    )
+
+
+class _LazyAgiEnv:
+    def __getattr__(self, name: str) -> Any:
+        return getattr(_lazy_import_attr("agi_env", "AgiEnv"), name)
+
+
+AgiEnv = _LazyAgiEnv()
+
+
+def on_project_change(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "on_project_change")(*args, **kwargs)
+
+
+def compact_choice(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.ux_widgets", "compact_choice")(*args, **kwargs)
+
+
+def load_last_active_app(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.ui_support", "load_last_active_app")(
+        *args, **kwargs
+    )
+
+
+def store_last_active_app(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.ui_support", "store_last_active_app")(
+        *args, **kwargs
+    )
+
+
+class _LazyTomliWriter:
+    def dump(self, *args: Any, **kwargs: Any) -> Any:
+        return _lazy_import_attr("tomli_w", "dump")(*args, **kwargs)
+
+
+tomli_w = _LazyTomliWriter()
 
 _ANALYSIS_VIEW_PROFILES = {
     "view_maps": (

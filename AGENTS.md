@@ -26,67 +26,19 @@ Use this runbook whenever you:
   `uv --preview-features extra-build-dependencies run --extra ui streamlit …` for source UI launches) so dependencies resolve inside the managed environments that
   ship with AGILab.
 - **Command speed policy**: Use raw `rg`, `sed`, and small file reads for cheap local inspection where wrapper startup would dominate. Use `tokki run -- ...` for Git writes, pushes, merges, tests, builds, installs, network operations, long logs, slow/noisy commands, and any state-changing or policy-sensitive command.
-- **High-frequency command shortcuts**: Use `./dev <shortcut>` for repeated local validation loops.
-  The top shortcuts are `impact` for impact validation, `bugfix` for impact plus a fast
-  GA-selected regression run, `test` for targeted `pytest -q -o addopts=''`,
-  `lint` for Ruff through the repo dev extra, `regress` for GA-selected fast regression subsets,
-  `robust` for P0 fail-closed robustness scenarios, `parallel-stage` for
-  creating or checking a function + split rule + reducer contract before scaling code,
-  `app-contracts` for
-  built-in app/package/catalog/docs alignment, `audit` for local worktree/docs/release/PyPI
-  state, `builtin-app-tests` for app-local built-in test execution,
-  `warnings` for summarizing validation warning signals from local logs and robot artifacts,
-  `flow` for one or more workflow parity profiles, `ui-flow` for selecting the
-  minimal local UI robot profiles from changed files,
-  `release` for local pre-tag release guards, `badge` for the explicit release/pre-release
-  coverage-badge guard, `maintenance` for long-term extension/evidence/docs/package
-  drift signals, `memory` for path-scoped maintenance-note drift checks,
-  `docs` for docs mirror sync plus stamp verification, `scope` for
-  dirty worktree scope classification, `task-worktree` for clean isolated task
-  worktrees, and
-  `clean` for stale local build/lib duplicate-source cleanup. `impact` tells you what must be validated, `test` runs the
-  narrow pytest slice, `lint` provisions Ruff through `uv --extra dev` so it does not depend
-  on an already-synced local venv, `bugfix` is the default low-load pre-push loop for normal code fixes,
-  `regress` optimizes a likely regression subset from changed files and optional JUnit timings,
-  `robust` runs synthetic bad-state checks for cluster shares, public UI binds,
-  service health gates, evidence manifests, notebook import, app settings, and UI routes,
-  `parallel-stage` captures the intended parallelization contract without changing
-  shared runtime code,
-  `app-contracts` checks built-in app structure, worker manifests, reducer contracts,
-  promoted PyPI package metadata, app catalog entries, and public docs rows; it is also
-  part of the release shortcut and targeted pre-push guards,
-  `builtin-app-tests` runs built-in app tests inside each app's own `uv --project .`
-  environment with pytest importlib mode, avoiding false root-environment dependency
-  failures for app-local packages,
-  `warnings` writes a structured validation-warning report and can fail on
-  unapproved warnings when `--strict` is used; for multi-command validation batches,
-  create a marker file before the batch and pass `--newer-than <marker>` so stale
-  dev logs do not pollute the current warning audit,
-  `audit` is the quick robustness check before handoff between machines,
-  `flow` matches local GitHub workflow profiles, `ui-flow` is the local-first gate
-  before relying on the scheduled full UI robot matrix for browser-heavy frontend changes,
-  `release` starts with the strict AGILAB audit/review,
-  then checks impact, generated PyPI release plan, trusted-publisher contract, Ruff availability,
-  dependency policy, strict typing, docs, and badges before a tag,
-  `badge` checks badge freshness when intentionally requested, `maintenance` reports the
-  extension contract kit, ADRs, docs drift, app/package contracts, Evidence Core docs,
-  release skip-existing behavior, TODO hotspots, generated artifacts, and coverage signal,
-  `memory` checks path-scoped maintenance notes for source drift,
-  `docs` keeps the public mirror aligned, `scope` fails fast when unrelated dirty
-  scopes are mixed, `task-worktree` creates a sibling checkout for one isolated
-  branch, and `clean` dry-runs removal of ignored local build/lib duplicates
-  plus ignored local artifact directories under `src/agilab` unless `--apply`
-  is passed. Use `--print-only` to audit the expanded commands. By default,
-  `./dev` captures stdout/stderr, writes the full stream to ignored
-  `reports/dev-logs/`, and prints a bounded signal summary to stderr so agent
-  turns do not ingest full validation logs. Use `--raw-output` or
-  `AGILAB_DEV_OUTPUT=raw` only when a human or downstream tool needs the old
-  streaming output; use `--summary-lines N` or `AGILAB_DEV_SUMMARY_LINES=N` to
-  adjust the compact signal budget. `./dev` runs its `uv` subprocesses with an
-  isolated default `UV_PROJECT_ENVIRONMENT=.venv-dev` so validation shortcuts do
-  not resync or strip UI packages from the source Streamlit `.venv` while a
-  browser session is running. Override with `AGILAB_DEV_UV_PROJECT_ENVIRONMENT`
-  only when you intentionally want a different ignored validation environment.
+- **High-frequency command shortcuts**: Use `./dev <shortcut>` for repeated
+  local validation loops and `./dev --print-only <shortcut>` when you need the
+  expanded command. Start with `scope`, `impact`, `test`, `lint`, `bugfix`,
+  `regress`, `ui-flow`, `flow`, `docs`, `app-contracts`, `builtin-app-tests`,
+  `release`, `badge`, `maintenance`, `memory`, `warnings`, `robust`,
+  `parallel-stage`, `audit`, `task-worktree`, or `clean` as the task requires.
+  Keep shortcut behavior in `./dev` and workflow references, not duplicated in
+  this runbook. By default, `./dev` captures full logs under ignored
+  `reports/dev-logs/`, prints compact signal summaries, and isolates `uv`
+  subprocesses in `.venv-dev` so validation does not mutate a live Streamlit
+  source environment. Use `--raw-output`, `AGILAB_DEV_OUTPUT=raw`, or
+  `AGILAB_DEV_SUMMARY_LINES` only when a human or downstream tool needs more
+  output.
 - **Upgrade packaged tools first**: Before launching the published CLI with `uvx
   agilab`, run `uv --preview-features extra-build-dependencies tool install --upgrade agilab` to install or pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching
@@ -115,32 +67,16 @@ Use this runbook whenever you:
   confirmation after local validation). When a change maps cleanly to one of the repo workflow
   profiles, prefer `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>`
   over handwritten command variants.
-- **Fix-log regression contract**: When the user requests a fix and provides a
-  corresponding error log, first ask why the failure was not caught by an
-  existing regression test. Identify the real root cause from the log and fix
-  it at the right layer: app-local when the bug is app-specific, shared helper
-  or core only when the failure class is shared, and dependency/configuration
-  policy when the defect is environmental or packaging-related. Avoid masking
-  symptoms with narrow call-site guards when a deeper contract is wrong. Turn
-  the root-cause analysis into a new or tightened regression test that fails on
-  the logged bug and passes with the fix, so the same failure class cannot
-  silently return. For Streamlit/frontend failures involving missing static
-  files, dynamic-import errors, browser console/page errors, failed asset
-  requests, or defects that appear only after another command mutates the live
-  environment, enhance the browser robot or workflow profile so it reproduces
-  that temporal sequence and inspects the asset/dev-log evidence; do not close
-  with unit tests or AppTest alone when those surfaces could not have loaded the
-  failing browser asset. If an automated regression is genuinely not practical,
-  document the reason, the closest manual/robot validation, and the remaining
-  risk before closing the fix.
-- **Fix prevention close-out**: Every issue fix must include a prevention
-  step before handoff. For product or code defects, add or tighten the
-  smallest regression, guard, or validation that would have caught the failure.
-  For agent-process defects, such as a missed command-routing rule or a
-  preventable shell-construction mistake, add or tighten the narrowest durable
-  rule in `AGENT_LEARNINGS.md`, `AGENTS.md`, a repo skill, or tooling. If no
-  durable prevention is practical, state why and name the nearest validation
-  that now covers the risk.
+- **Fix prevention close-out / Bug-class sweep contract**: For logged or
+  reproducible failures, preserve the smallest
+  repro first, identify the root cause, choose the right layer, and add the
+  smallest regression, guard, robot scenario, or validation that would have
+  caught it. Sweep only sibling apps, shared helpers, manifests, or generated
+  artifacts that can plausibly share the same failure class. For browser-only
+  failures, validate the browser/dev-log surface rather than stopping at unit
+  tests or AppTest. For agent-process defects, add or tighten the durable rule in
+  `AGENT_LEARNINGS.md`, `AGENTS.md`, a repo skill, or tooling. If automation is
+  not practical, document why and name the closest manual or robot validation.
 - **Streamlit duplicate-widget triage**: For duplicate element ID errors, first
   check whether the page, app surface, or entrypoint is being executed twice.
   Add stable widget keys for repeated controls, but do not mask duplicate
@@ -176,14 +112,9 @@ Use this runbook whenever you:
   not add active-project labels, chips, or badges above page controls by
   default; project identity belongs in the project selector, the sidebar, or an
   explicitly opened context expander.
-- **Reproduce-before-fix rule**: Before patching a logged failure, preserve the
-  smallest command, test, fixture, or scenario that reproduces the problem. If
-  the failure cannot be reproduced locally, state that explicitly, identify the
-  most likely boundary from the log, and avoid broad speculative edits.
 - **Diagnostic quality rule**: If a failure was slow or ambiguous to diagnose,
   improve the error message, log context, status report, or validation output
-  as part of the fix when practical. A good fix should make the next failure in
-  the same area faster to classify without requiring source-code archaeology.
+  as part of the fix when practical.
 - **Token-budgeted logging rule**: Treat raw stdout/stderr and long tracebacks
   as artifacts, not default prompt/UI payloads. Default visible and agent-facing
   logs to compact signal-first summaries: counts, bounded high-value lines,
@@ -256,6 +187,20 @@ Use this runbook whenever you:
   agent/runtime name and version when exposed, model name, reasoning effort, and
   whether `/fast` mode was used. Do not infer missing values; write `unknown`,
   `unavailable`, or `not used` explicitly.
+- **Agent commit provenance**: Agent-prefixed branches such as `codex/*`,
+  `codex-*`, `claude/*`, `aider/*`, `opencode/*`, and `agent/*` must not use a
+  human Git author or committer identity. Before committing on those branches,
+  run `python3 tools/agent_commit_provenance_guard.py --check-config`; the
+  repo hooks also run this guard at pre-commit and pre-push. If a released
+  commit already has misleading identity metadata, do not rewrite public
+  history; inventory PR-backed agent work with `python3
+  tools/agent_commit_provenance_guard.py --inventory-github --repo
+  ThalesGroup/agilab --json`, inventory direct first-parent history with
+  `python3 tools/agent_commit_provenance_guard.py --inventory-git-history
+  --first-parent --since 2026-06-01 --until '2026-06-24 23:59:59' --json`, and repeat the
+  local-history inventory with `--root /Users/agi/PycharmProjects/thales_agilab
+  --repo-label thales_agilab` when the docs/source sibling repo is in scope.
+  Add a corrective provenance guard or note instead of rewriting public history.
 - **PR evidence contract**: PR descriptions must stay current through merge.
   Include `Review Evidence` when model or sub-agent review was used, naming the
   reviewer model, result, and whether findings were addressed. If sub-agents were
@@ -426,17 +371,6 @@ Use this runbook whenever you:
   UI test only when the default/persisted value changes. Do not preserve
   backward compatibility for the legacy `/workers` layout unless an explicit
   migration request requires it.
-- **Bug-class sweep**: When fixing a bug, first classify the failure class
-  before deciding the sweep scope: app-local contract, shared UI/helper logic,
-  dependency metadata, installer/deploy plumbing, environment pollution, or
-  duplicated form/workflow code. Then inspect only the sibling apps, mirrored
-  forms, shared helpers, manifests, or generated artifacts that can plausibly
-  share that class of failure. Do not turn a one-app bug into an unbounded
-  repository audit, and do not stop at the first symptom when the root cause is
-  shared. If related instances exist, fix them in the same change or clearly
-  document why they are intentionally left out. Put the regression at the layer
-  where the class lives, and summarize the sweep target and result in the
-  close-out.
 - **User-facing rename sweep**: When changing a visible app/page/demo name, title, or major label,
   update the paired tests, README/docs text, and capture scripts in the same change. Grep for both
   the old and new wording before closing the task. When a page title is asserted by tests, prefer a
@@ -585,23 +519,12 @@ Use this runbook whenever you:
 - **App constructor kwargs**: App constructors ignore unknown kwargs when building
   their Pydantic `Args` models. Keep runtime verbosity and logging decisions in
   `AgiEnv(verbose=…)` or logging configs, not app `Args`.
-- **Docs source of truth**: Editable docs sources live in the sibling docs
-  checkout `../thales_agilab/docs/source` relative to the active AGILAB checkout. Treat
-  `docs/source` in this repo as a managed public mirror, not as a second
-  authoring tree.
-- **Docs mirror sync**: Refresh the public mirror with
-  `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
-  after canonical docs edits. Use the same command without `--apply` as a drift
-  check.
-- **Docs mirror stamp**: `docs/.docs_source_mirror_stamp.json` is the guardrail
-  for the managed public mirror. Do not edit it by hand. Refresh it through
-  `tools/sync_docs_source.py --apply --delete`, or CI and Pages publication will
-  fail on a mirror integrity mismatch.
-- **Docs edits**: `docs/html` in this repo is generated local output and is ignored by
-  git. Do not treat `docs/html/_sources/*.txt` as editable source files. Edit docs in
-  `../thales_agilab/docs/source`, then sync the mirror into `docs/source`.
-- **Docs guardrail**: Never stage or commit `docs/html/**`. If generated files appear in
-  status, unstage/remove them from the index and keep only source edits.
+- **Docs source of truth**: Editable docs live in
+  `../thales_agilab/docs/source`; `docs/source` is the managed public mirror and
+  `docs/html` is generated local output. After canonical docs edits, refresh the
+  mirror and stamp with `uv --preview-features extra-build-dependencies run
+  python tools/sync_docs_source.py --apply --delete`. Never hand-edit, stage, or
+  commit `docs/html/**`.
 - **VIRTUAL_ENV warning**: AGILAB-managed PyCharm configs and launch wrappers clear
   `VIRTUAL_ENV` before invoking `uv`, because AGILAB intentionally selects the target
   project `.venv` instead of a stale activated shell. If a direct `uv` command still
@@ -622,256 +545,31 @@ Use this runbook whenever you:
 
 ## GPT-OSS helpers
 
-- Launch the local Responses API with `uv --preview-features extra-build-dependencies run python tools/launch_gpt_oss.py`. Defaults keep the server on `127.0.0.1:8000` using the `gpt-oss-120b` checkpoint and the `transformers` backend. Pass `--print-only` to inspect the command or append extra arguments after `--`.
-- Configure environment overrides (`GPT_OSS_MODEL`, `GPT_OSS_ENDPOINT`, `GPT_OSS_BACKEND`, `GPT_OSS_PORT`, `GPT_OSS_WORKDIR`) before invoking the launcher when you need alternate checkpoints or ports.
-- Condense long task descriptions via `uv --preview-features extra-build-dependencies run python tools/gpt_oss_prompt_helper.py --prompt "..."` or pipe text through stdin. The helper calls GPT-OSS, stores the summary under `~/.cache/agilab/gpt_oss_prompt_cache.json`, and reuses cached briefs until `--force-refresh` is provided.
-- Set `GPT_OSS_CACHE` to move the cache file, `--no-cache` to bypass writes, and `--show-metadata` to display latency and token usage. Cached runs are tagged with the model and endpoint that produced the summary.
-- Use the `./lq` wrapper for quick one-liners (`./lq "Summarise …"`). Prepend options (e.g. `./lq --force-refresh -- "Prompt"`) or run it with no arguments to read from stdin. Add the repo root to your `PATH` if you want `lq` available globally.
+- Use the `agilab-local-llm` skill for local LLM workflow details. Quick entry
+  points are `tools/launch_gpt_oss.py`, `tools/gpt_oss_prompt_helper.py`, and
+  `./lq`; pass `--print-only` or `--help` before changing model, endpoint,
+  backend, port, workdir, cache, or metadata behavior.
 
 ---
 
 ## Agent workflows and maintenance
 
-### 1. Update or add run configurations
-1. Edit the PyCharm run configuration (`.idea/runConfigurations/*.xml`).
-2. Regenerate CLI wrappers: `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`.
-3. Regenerate local VS Code tasks and launches when needed:
-   `uv --preview-features extra-build-dependencies run python tools/generate_vscode_tasks.py`.
-4. Verify the generated scripts under `tools/run_configs/` and commit the changes.
-5. Update the launch matrix in this document when new configs appear.
+Use `tools/agent_workflows.md` for executable agent workflows, context routing,
+skill scans, run evidence, and CLI-first references. Keep this file focused on
+hard operating rules and route to focused skills for details:
 
-### 2. Launch flows
-- **PyCharm (recommended)**: Use the run configurations defined in the launch matrix.
-- **VS Code**: Run `uv --preview-features extra-build-dependencies run python tools/generate_vscode_tasks.py`
-  to materialize `.vscode/tasks.json` and `.vscode/launch.json`. Use `Run Task` for the exact `uv` wrapper parity,
-  or use `Run and Debug` after selecting the matching Python interpreter for `debugpy`.
-- **CLI mirror**: Copy the `How to run` command from the matrix into a shell for quick
-  reproduction outside the IDE.
-- **Streamlit UI**: Use Streamlit commands from the matrix to align with agent-driven
-  flows.
+| Need | Primary source |
+|---|---|
+| Run configuration edits and launch wrappers | `tools/agent_workflows.md`, `.idea/runConfigurations/`, `tools/run_configs/` |
+| Diff impact and generated artifact refresh | `tools/impact_validate.py`, `./dev impact` |
+| Docs publication and screenshots | `agilab-docs` |
+| Installer, app install, and cluster troubleshooting | `agilab-installer`, `agilab-runbook`, `agilab-security-review-patterns` |
+| Release, PyPI, badges, and public proof | `agilab-release-verification`, `./dev release`, `./dev badge` |
+| Local LLM / GPT-OSS helpers | `agilab-local-llm` |
+| Streamlit UI and browser robots | `agilab-streamlit-pages`, `agilab-ui-robot-validation` |
 
-### 3. Troubleshoot installs and cluster runs
-1. Re-run the relevant config while tailing logs via the Streamlit expander or CLI.
-2. Check for connectivity issues (e.g., unreachable SSH hosts): the orchestrator emits
-  concise warnings without full tracebacks.
-3. Confirm `uv` executables exist on remote hosts before reattempting distributed
-  installs.
-4. Document fixes or new failure modes in this runbook so future agents can respond
-  consistently.
-
-### 3b. Diff impact triage
-1. Run `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
-   for staged work, or pass explicit files with `--files ...` when you want to inspect a planned edit
-   before touching the tree.
-2. Treat `shared-core` and `installer` findings as hard gates:
-   - stop for explicit approval if shared core is implicated
-   - reproduce both plain `uv sync --project <app>` and `uv run python src/agilab/apps/install.py <app> --verbose 1`
-     when install plumbing is implicated
-3. Execute the suggested targeted tests before broader suites.
-4. Refresh any required generated artifacts in the same change:
-   - `tools/run_configs/` after run configuration edits
-   - `.codex/skills/.generated/skills_index.*` after shared skill edits
-   - `badges/coverage-*.svg` only for release/pre-release coverage validation or badge tooling changes
-
-### 4. Cluster SSH recovery after node reinstall or host-key rotation
-
-Use this when a cluster node was reinstalled, got a new SSH host key, or lost
-its `~/.ssh` state.
-
-Before touching SSH state, rediscover the worker. Do not reuse a remembered
-worker IP from a previous session:
-
-```bash
-uv --preview-features extra-build-dependencies run --no-sync python tools/cluster_flight_validation.py \
-  --discover-lan \
-  --remote-user "<worker-user>" \
-  --json \
-  --no-discovery-cache
-```
-
-Pick a node whose discovery status is `ready` or whose SSH port is open, then
-set the concrete values for the rest of the recovery:
-
-```bash
-worker_user="<worker-user>"
-worker_ip="<discovered-worker-ip>"
-manager_user="<manager-user>"
-manager_ip="<manager-ip>"
-```
-
-1. Verify the new host key fingerprint out of band before trusting it.
-2. Remove the stale host key locally, then register the new one:
-   ```bash
-   ssh-keygen -R "$worker_ip"
-   ssh-keyscan -H -t ed25519 "$worker_ip" >> ~/.ssh/known_hosts
-   ssh-keygen -F "$worker_ip" -f ~/.ssh/known_hosts
-   ```
-3. Re-bootstrap user auth on the remote node. Preferred path: copy the manager public key:
-   ```bash
-   ssh-copy-id "$worker_user@$worker_ip"
-   ```
-   If `ssh-copy-id` is unavailable, append the public key manually on the remote:
-   ```bash
-   mkdir -p ~/.ssh
-   chmod 700 ~/.ssh
-   printf '%s\n' '<contents of ~/.ssh/id_ed25519.pub>' >> ~/.ssh/authorized_keys
-   chmod 600 ~/.ssh/authorized_keys
-   ```
-4. If public-key auth still fails, confirm the remote SSH daemon allows it:
-   ```bash
-   grep -E '^(PubkeyAuthentication|PasswordAuthentication)' /etc/ssh/sshd_config
-   ```
-   Expected: `PubkeyAuthentication yes`. Password auth can stay enabled as a bootstrap fallback only.
-5. Verify access before rerunning AGILAB:
-   ```bash
-   ssh "$worker_user@$worker_ip" 'echo ok'
-   ```
-6. Recreate cluster-share prerequisites on the reinstalled Linux node:
-   ```bash
-   worker_home="/home/$worker_user"
-   mkdir -p "$worker_home/.agilab" "$worker_home/clustershare" "$worker_home/localshare"
-   cat > "$worker_home/.agilab/.env" <<EOF
-   AGI_CLUSTER_SHARE=$worker_home/clustershare
-   AGI_LOCAL_SHARE=$worker_home/localshare
-   EOF
-   ```
-7. Remount shared cluster storage if this cluster uses SSHFS from the manager to the worker:
-   ```bash
-   worker_home="/home/$worker_user"
-   manager_share="/path/to/manager/clustershare"
-   sudo apt-get update && sudo apt-get install -y sshfs
-   mkdir -p "$worker_home/clustershare"
-   sshfs "$manager_user@$manager_ip:$manager_share" "$worker_home/clustershare"
-   mount | grep clustershare
-   ```
-8. Verify the node can still reach the scheduler/manager peer non-interactively:
-   ```bash
-   ssh "$worker_user@$worker_ip" "ssh -o BatchMode=yes $manager_user@$manager_ip hostname"
-   ```
-9. Only after these SSH and share checks pass, rerun `AGI.install(...)` / cluster pipelines.
-
-### 4b. macOS SSHFS cluster-share recovery
-
-Use this when `agilab doctor --setup-share sshfs --apply` fails before the
-sentinel check on a macOS worker.
-
-1. Check the real remote state from a non-interactive SSH command:
-   ```bash
-   worker_user="<worker-user>"
-   worker_ip="<worker-ip>"
-   ssh "$worker_user@$worker_ip" 'printf "path=%s\n" "$PATH"; command -v sshfs || true; /usr/local/Homebrew/bin/brew --version 2>/dev/null | head -1 || true'
-   ```
-2. On older Intel macOS hosts, Homebrew may exist at `/usr/local/Homebrew/bin/brew`
-   even when `command -v brew` is empty. Use that explicit path before assuming
-   no package manager exists.
-3. Prefer a normal interactive install of FUSE-T SSHFS or macFUSE plus SSHFS:
-   ```bash
-   worker_user="<worker-user>"
-   worker_ip="<worker-ip>"
-   ssh -t "$worker_user@$worker_ip" 'HOMEBREW_NO_AUTO_UPDATE=1 /usr/local/Homebrew/bin/brew install macos-fuse-t/homebrew-cask/fuse-t-sshfs'
-   ```
-   This can require an admin password because it installs a package.
-4. Ensure `sshfs` is visible to non-interactive zsh. If it is installed under
-   `/usr/local/bin` but remote SSH still cannot find it, add a minimal
-   `~/.zshenv` PATH entry for that user:
-   ```bash
-   case ":$PATH:" in
-     *:/usr/local/bin:*) ;;
-     *) export PATH="/usr/local/bin:$PATH" ;;
-   esac
-   ```
-5. Validate reverse SSH from worker to scheduler/manager. SSHFS mounts are
-   created on the worker, so the worker must authenticate back to the scheduler
-   account used in the mount source:
-   ```bash
-   worker_user="<worker-user>"
-   worker_ip="<worker-ip>"
-   manager_user="<manager-user>"
-   manager_ip="<manager-ip>"
-   ssh "$worker_user@$worker_ip" "ssh -o BatchMode=yes $manager_user@$manager_ip hostname"
-   ```
-6. If reverse SSH fails with a host-key error, refresh the manager key on the
-   worker. If it fails with `Permission denied`, add the worker public key to
-   the manager account’s `~/.ssh/authorized_keys`.
-7. Rerun the narrow gate before any full cluster validation:
-   ```bash
-   manager_ip="<manager-ip>"
-   worker_user="<worker-user>"
-   worker_ip="<worker-ip>"
-   local_shared_path="/path/to/local/shared/path"
-   remote_mount_path="/path/to/remote/mount/path"
-   uv --preview-features extra-build-dependencies run agilab doctor \
-     --cluster \
-     --scheduler "$manager_ip" \
-     --workers "$worker_user@$worker_ip" \
-     --cluster-share "$local_shared_path" \
-     --remote-cluster-share "$remote_mount_path" \
-     --share-check-only
-   ```
-
-### 4c. Cluster share variants: pre-mounted shares and custom scheduler SSH ports
-
-Use this when workers already see shared storage through NFS, SMB, site-managed
-SSHFS, Kubernetes volumes, or another external mount, or when the scheduler SSH
-daemon is reachable on a non-default port.
-
-1. For a custom scheduler SSH port, pass `--scheduler-ssh-port <port>` to
-   `agilab doctor --cluster ... --setup-share sshfs --apply`,
-   `--print-share-setup`, `--share-check-only`, and full cluster validation
-   commands. AGILAB propagates the port into remote SSHFS setup through
-   `AGILAB_SCHEDULER_SSH_PORT`.
-2. For pre-mounted worker shares, pass `--remote-cluster-share-premounted` and
-   set `--remote-cluster-share` to the path visible on every worker. AGILAB
-   writes the worker `AGI_CLUSTER_SHARE` setting and verifies that the path is
-   visible and writable, but it does not require worker-to-scheduler SSH or run
-   `sshfs`.
-3. Pre-mounted mode still requires the scheduler local cluster share and every
-   worker remote cluster share to point to the same underlying storage. The
-   share check proves this by writing a scheduler sentinel and reading it from
-   every remote worker before compute runs.
-4. Do not fall back to `localshare` when cluster mode is requested. If the
-   sentinel is not visible from workers, fix the site mount or pass the correct
-   `--remote-cluster-share`; do not silently degrade to local execution.
-
-<details>
-<summary><strong>Launch matrix (auto-sorted from .idea/runConfigurations)</strong></summary>
-
-| Group | Config name | Entry | Args | Workdir | Env | How to run | Interpreter |
-|---|---|---|---|---|---|---|---|
-| agilab | agilab run (dev) | $PROJECT_DIR$/tools/launch_agilab_streamlit.py | --openai-api-key "your-key" --apps-path $PROJECT_DIR$/src/agilab/apps | $PROJECT_DIR$ | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1;IS_SOURCE_ENV=1;STREAMLIT_CONFIG_FILE=$PROJECT_DIR$/src/agilab/resources/config.toml;STREAMLIT_THEME_BASE=dark;STREAMLIT_THEME_PRIMARY_COLOR=#4A90E2;STREAMLIT_THEME_BACKGROUND_COLOR=#08111F;STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR=#102334;STREAMLIT_THEME_TEXT_COLOR=#F7F2E8 | cd $PROJECT_DIR$ && uv run python $PROJECT_DIR$/tools/launch_agilab_streamlit.py --openai-api-key "your-key" --apps-path $PROJECT_DIR$/src/agilab/apps | Project/module SDK |
-| agilab | agilab run (enduser) | streamlit | run .venv/lib/python3.13/site-packages/agilab/main_page.py -- --openai-api-key "your-key" | $PROJECT_DIR$/../agi-space | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1;STREAMLIT_CONFIG_FILE=$PROJECT_DIR$/../agi-space/.venv/lib/python3.13/site-packages/agilab/resources/config.toml;STREAMLIT_THEME_BASE=dark;STREAMLIT_THEME_PRIMARY_COLOR=#4A90E2;STREAMLIT_THEME_BACKGROUND_COLOR=#08111F;STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR=#102334;STREAMLIT_THEME_TEXT_COLOR=#F7F2E8 | cd $PROJECT_DIR$/../agi-space && uv run streamlit run .venv/lib/python3.13/site-packages/agilab/main_page.py -- --openai-api-key "your-key" | uv (agi-space) |
-| agilab | app_script gen | $PROJECT_DIR$/pycharm/gen_app_script.py | $Prompt:Enter app project:builtin/flight_telemetry_project$ |  | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | uv run python $PROJECT_DIR$/pycharm/gen_app_script.py $Prompt:Enter app project:builtin/flight_telemetry_project$ | uv (agi-cluster) |
-| agilab | apps-pages launcher | $PROJECT_DIR$/tools/apps_pages_launcher.py | --active-app $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project | $PROJECT_DIR$ | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$ && uv run python $PROJECT_DIR$/tools/apps_pages_launcher.py --active-app $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project | uv (agilab) |
-| agilab | apps-pages smoke | $PROJECT_DIR$/tools/smoke_preinit.py | --active-app $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project --timeout 20 | $PROJECT_DIR$ | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$ && uv run python $PROJECT_DIR$/tools/smoke_preinit.py --active-app $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project --timeout 20 | uv (agilab) |
-| agilab | builtin/flight_telemetry get_distrib | $USER_HOME$/log/execute/flight_telemetry/AGI_get_flight_telemetry.py |  | $USER_HOME$/log/execute/builtin/flight_telemetry | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $USER_HOME$/log/execute/builtin/flight_telemetry && uv run python $USER_HOME$/log/execute/flight_telemetry/AGI_get_flight_telemetry.py | uv (flight_telemetry_project) |
-| agilab | builtin/flight_telemetry install | $USER_HOME$/log/execute/flight_telemetry/AGI_install_flight_telemetry.py |  | $PROJECT_DIR$ | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$ && uv run python $USER_HOME$/log/execute/flight_telemetry/AGI_install_flight_telemetry.py | uv (agi-cluster) |
-| agilab | builtin/minimal_app get_distrib | $USER_HOME$/log/execute/minimal_app/AGI_get_minimal_app.py |  | $USER_HOME$/log/execute/builtin/minimal_app | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $USER_HOME$/log/execute/builtin/minimal_app && uv run python $USER_HOME$/log/execute/minimal_app/AGI_get_minimal_app.py | uv (minimal_app_project) |
-| agilab | builtin/minimal_app install | $USER_HOME$/log/execute/minimal_app/AGI_install_minimal_app.py |  | $PROJECT_DIR$ | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$ && uv run python $USER_HOME$/log/execute/minimal_app/AGI_install_minimal_app.py | uv (agi-cluster) |
-| agilab | lab_run test | $PROJECT_DIR$/src/agilab/lab_run.py | --openai-api-key "your-key" | $USER_HOME$ | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $USER_HOME$ && uv run python $PROJECT_DIR$/src/agilab/lab_run.py --openai-api-key "your-key" | uv (agilab) |
-| agilab | publish dry-run (testpypi) | $PROJECT_DIR$/tools/pypi_publish.py | --repo testpypi --dry-run --verbose | $PROJECT_DIR$ | VIRTUAL_ENV=;PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1 | cd $PROJECT_DIR$ && uv run python $PROJECT_DIR$/tools/pypi_publish.py --repo testpypi --dry-run --verbose | uv (agilab) |
-| agilab | pypi publish | $PROJECT_DIR$/tools/pypi_publish.py | --repo pypi --verbose --git-tag --git-commit-version --git-reset-on-failure | $PROJECT_DIR$ | VIRTUAL_ENV=;PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1 | cd $PROJECT_DIR$ && uv run python $PROJECT_DIR$/tools/pypi_publish.py --repo pypi --verbose --git-tag --git-commit-version --git-reset-on-failure | uv (agilab) |
-| agilab | run ssh cmd | $PROJECT_DIR$/src/agilab/core/agi-env/test/_test_ssh_cmd.py |  |  | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | uv run python $PROJECT_DIR$/src/agilab/core/agi-env/test/_test_ssh_cmd.py | uv (agi-cluster) |
-| agilab | setup_pycharm | $PROJECT_DIR$/pycharm/setup_pycharm.py |  |  | PYTHONUNBUFFERED=1;VIRTUAL_ENV= | uv run python $PROJECT_DIR$/pycharm/setup_pycharm.py | uv (agilab) |
-| agilab | show depencencies | $PROJECT_DIR$/tools/show_dependencies.py | --repo pypi | $PROJECT_DIR$ | VIRTUAL_ENV=;PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1 | cd $PROJECT_DIR$ && uv run python $PROJECT_DIR$/tools/show_dependencies.py --repo pypi | uv (agilab) |
-| agilab | test agi_distributor |  |  | $PROJECT_DIR$/src/agilab/core/agi-cluster |  | cd $PROJECT_DIR$/src/agilab/core/agi-cluster && uv run python | uv (agi-cluster) |
-| agilab | test agi_env |  |  | $PROJECT_DIR$/src/agilab/core/agi-env/test |  | cd $PROJECT_DIR$/src/agilab/core/agi-env/test && uv run python | uv (agi-env) |
-| agilab | test base_worker |  |  |  |  | uv run python | uv (agi-cluster) |
-| agilab | test dag_worker |  |  |  |  | uv run python | uv (agi-cluster) |
-| agilab | test pandas_worker |  |  | $PROJECT_DIR$/src/agilab/core/agi-cluster |  | cd $PROJECT_DIR$/src/agilab/core/agi-cluster && uv run python | uv (agi-cluster) |
-| agilab | test polars_worker |  |  | $PROJECT_DIR$/src/agilab/core/agi-cluster |  | cd $PROJECT_DIR$/src/agilab/core/agi-cluster && uv run python | uv (agi-cluster) |
-| agilab | test pypi publish | $PROJECT_DIR$/tools/pypi_publish.py | --repo testpypi --verbose --git-reset-on-failure | $PROJECT_DIR$ | VIRTUAL_ENV=;PYTHONUNBUFFERED=1 PYDEVD_USE_FRAME_EVAL=NO;UV_NO_SYNC=1 | cd $PROJECT_DIR$ && uv run python $PROJECT_DIR$/tools/pypi_publish.py --repo testpypi --verbose --git-reset-on-failure | uv (agilab) |
-| agilab | test work_dispatcher |  |  |  |  | uv run python | uv (agi-cluster) |
-| agilab | zip_all | $PROJECT_DIR$/tools/zip_all.py | --dir2zip $FilePrompt$ --follow-app-links --exclude-dir docs --exclude-dir codex | $PROJECT_DIR$ | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$ && uv run python $PROJECT_DIR$/tools/zip_all.py --dir2zip $FilePrompt$ --follow-app-links --exclude-dir docs --exclude-dir codex | uv (agilab) |
-| apps | app install (local) | $PROJECT_DIR$/src/agilab/apps/install.py | $Prompt:selected app:src/agilab/apps/builtin/flight_telemetry_project$ --install-type "1" --verbose 1 | $PROJECT_DIR$ | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$ && uv run python $PROJECT_DIR$/src/agilab/apps/install.py $Prompt:selected app:src/agilab/apps/builtin/flight_telemetry_project$ --install-type "1" --verbose 1 | uv (agi-cluster) |
-| apps | app-test | $PROJECT_DIR$/src/agilab/apps/$Prompt:Enter app path:builtin/flight_telemetry_project$/app_test.py |  |  | VIRTUAL_ENV=;PYTHONUNBUFFERED=1 | uv run python $PROJECT_DIR$/src/agilab/apps/$Prompt:Enter app path:builtin/flight_telemetry_project$/app_test.py | uv (agi-cluster) |
-| apps | builtin/flight_telemetry run | $USER_HOME$/log/execute/flight_telemetry/AGI_run_flight_telemetry.py |  | $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project && uv run python $USER_HOME$/log/execute/flight_telemetry/AGI_run_flight_telemetry.py | uv (flight_telemetry_project) |
-| apps | builtin/minimal_app run | $USER_HOME$/log/execute/minimal_app/AGI_run_minimal_app.py |  | $PROJECT_DIR$/src/agilab/apps/builtin/minimal_app_project | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$/src/agilab/apps/builtin/minimal_app_project && uv run python $USER_HOME$/log/execute/minimal_app/AGI_run_minimal_app.py | uv (minimal_app_project) |
-| components | builtin/flight_telemetry_egg gen | $PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py | --app-path $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project bdist_egg --packages "agent_worker, pandas_worker, polars_worker, dag_worker" -d $USER_HOME$/wenv/flight_telemetry_worker | $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project && uv run python $PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py --app-path $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project bdist_egg --packages "agent_worker, pandas_worker, polars_worker, dag_worker" -d $USER_HOME$/wenv/flight_telemetry_worker | uv (flight_telemetry_project) |
-| components | builtin/flight_telemetry_lib gen | agi_node.agi_dispatcher.build | --app-path $USER_HOME$/wenv/flight_telemetry_worker build_ext --packages "dag_worker, pandas_worker, polars_worker, agent_worker" -b $USER_HOME$/wenv/flight_telemetry_worker | $USER_HOME$/wenv/flight_telemetry_worker | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $USER_HOME$/wenv/flight_telemetry_worker && uv run python agi_node.agi_dispatcher.build --app-path $USER_HOME$/wenv/flight_telemetry_worker build_ext --packages "dag_worker, pandas_worker, polars_worker, agent_worker" -b $USER_HOME$/wenv/flight_telemetry_worker | uv (flight_telemetry_worker) |
-| components | builtin/flight_telemetry_postinstall test | $PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/post_install.py | $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project $USER_HOME$/data/builtin/flight_telemetry | $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project && uv run python $PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/post_install.py $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project $USER_HOME$/data/builtin/flight_telemetry | uv (flight_telemetry_worker) |
-| components | builtin/flight_telemetry_preinstall test | $PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/pre_install.py | remove_decorators --verbose --worker_path $USER_HOME$/wenv/flight_telemetry_worker/src/flight_telemetry_worker/flight_telemetry_worker.py | $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$/src/agilab/apps/builtin/flight_telemetry_project && uv run python $PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/pre_install.py remove_decorators --verbose --worker_path $USER_HOME$/wenv/flight_telemetry_worker/src/flight_telemetry_worker/flight_telemetry_worker.py | uv (flight_telemetry_project) |
-| components | builtin/minimal_app_egg gen | $PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py | --app-path $PROJECT_DIR$/src/agilab/apps/builtin/minimal_app_project bdist_egg --packages "agent_worker, pandas_worker, polars_worker, dag_worker" -d $USER_HOME$/wenv/minimal_app_worker | $PROJECT_DIR$/src/agilab/apps/builtin/minimal_app_project | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$/src/agilab/apps/builtin/minimal_app_project && uv run python $PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py --app-path $PROJECT_DIR$/src/agilab/apps/builtin/minimal_app_project bdist_egg --packages "agent_worker, pandas_worker, polars_worker, dag_worker" -d $USER_HOME$/wenv/minimal_app_worker | uv (minimal_app_project) |
-| components | builtin/minimal_app_lib gen | agi_node.agi_dispatcher.build | --app-path $USER_HOME$/wenv/minimal_app_worker build_ext --packages "dag_worker, pandas_worker, polars_worker, agent_worker" -b $USER_HOME$/wenv/minimal_app_worker | $USER_HOME$/wenv/minimal_app_worker | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $USER_HOME$/wenv/minimal_app_worker && uv run python agi_node.agi_dispatcher.build --app-path $USER_HOME$/wenv/minimal_app_worker build_ext --packages "dag_worker, pandas_worker, polars_worker, agent_worker" -b $USER_HOME$/wenv/minimal_app_worker | uv (minimal_app_worker) |
-| components | builtin/minimal_app_postinstall test | $PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/post_install.py | $PROJECT_DIR$/src/agilab/apps/builtin/minimal_app_project $USER_HOME$/data/builtin/minimal_app | $PROJECT_DIR$/src/agilab/apps/builtin/minimal_app_project | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$/src/agilab/apps/builtin/minimal_app_project && uv run python $PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/post_install.py $PROJECT_DIR$/src/agilab/apps/builtin/minimal_app_project $USER_HOME$/data/builtin/minimal_app | uv (minimal_app_worker) |
-| components | builtin/minimal_app_preinstall test | $PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/pre_install.py | remove_decorators --verbose --worker_path $USER_HOME$/wenv/minimal_app_worker/src/minimal_app_worker/minimal_app_worker.py | $PROJECT_DIR$/src/agilab/apps/builtin/minimal_app_project | VIRTUAL_ENV=;PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$/src/agilab/apps/builtin/minimal_app_project && uv run python $PROJECT_DIR$/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/pre_install.py remove_decorators --verbose --worker_path $USER_HOME$/wenv/minimal_app_worker/src/minimal_app_worker/minimal_app_worker.py | uv (minimal_app_project) |
-</details>
+When a detailed recipe becomes generally useful, put it in the focused skill or
+workflow document and leave only the routing rule here. Regenerate wrappers after
+`.idea/runConfigurations/*.xml` edits, and keep generated or ignored launch
+artifacts out of commits unless the owning tool says they are part of the
+contract.

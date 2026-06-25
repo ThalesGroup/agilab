@@ -9,8 +9,15 @@ if [[ "${AGILAB_SKIP_LOCAL_GUARDS:-}" == "1" ]]; then
 fi
 
 cd "$ROOT_DIR"
+push_spec_file="$(mktemp)"
+trap 'rm -f "$push_spec_file"' EXIT
+cat > "$push_spec_file"
+uv --preview-features extra-build-dependencies run python tools/agent_commit_provenance_guard.py \
+  --pre-push-spec "$push_spec_file"
+
 guard_state="$(
-  uv --preview-features extra-build-dependencies run python tools/pre_push_changed_files.py
+  uv --preview-features extra-build-dependencies run python tools/pre_push_changed_files.py \
+    --pre-push-spec "$push_spec_file"
 )"
 DOCS_CHANGED=1
 RELEASE_PROOF_CHANGED=1

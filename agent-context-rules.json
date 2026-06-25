@@ -26,21 +26,12 @@
       "label": "AGILAB dev context split",
       "description": "Start with the current project and framework, then expand into builtin projects, all projects, and whole-repo context only when the task really needs it.",
       "max_total_tokens": 12000,
-      "baseline_token_budget": 2600,
+      "baseline_token_budget": 1200,
       "max_rule_packs": 3,
       "baseline_files": [
         "AGENT_CONVENTIONS.md",
-        "AGENTS.md",
         "AGENT_SKILLS.md",
-        "src/agilab/main_page.py",
-        "src/agilab/ui",
-        "src/agilab/workflow",
-        "src/agilab/core/agi-env",
-        "src/agilab/core/agi-node",
-        "src/agilab/core/agi-cluster",
-        "src/agilab/core/agi-core",
-        "docs/source/framework-api.rst",
-        "docs/source/architecture.rst"
+        "agent-context-rules.json"
       ],
       "commands": [
         "python3 tools/agent_context_router.py --profile agilab --files <paths> --prompt <task> --json",

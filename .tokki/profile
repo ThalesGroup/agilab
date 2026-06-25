@@ -1,2 +1,16 @@
 agilab
+agilab-clean-worktree
+agilab-validation-shortcuts
+agilab-builtin-apps
+agilab-docs-mirror
+agilab-context-routing
+agilab-release-proof
+agilab-package-publishing
+agilab-huggingface-space
+agilab-pr-evidence
+model-free-agilab-validation
+model-free-dev-shortcuts
+model-free-release-proof
+model-free-workflow-parity
+model-free-hf-smoke
 model-free-git-push

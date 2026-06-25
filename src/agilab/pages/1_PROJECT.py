@@ -12,6 +12,8 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from __future__ import annotations
+
 import os
 import shutil
 import json
@@ -24,6 +26,7 @@ import tomllib
 from pathlib import Path
 import ast
 import re
+import importlib
 import importlib.util
 import sys
 from types import SimpleNamespace
@@ -36,7 +39,6 @@ os.environ.setdefault(
 
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
-import tomli_w
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location(
@@ -57,22 +59,6 @@ _public_bind_guard_module = import_agilab_module(
     fallback_name="agilab_ui_public_bind_guard_fallback",
 )
 _public_bind_guard_module.enforce_public_bind_policy_or_stop(st)
-
-from agi_gui.pagelib import (
-    background_services_enabled,
-    get_classes_name,
-    get_fcts_and_attrs_name,
-    get_templates,
-    get_projects_zip,
-    on_project_change,
-    activate_mlflow,
-)
-from agi_gui.ux_widgets import compact_choice
-from pathspec import PathSpec
-from pathspec.gitignore import GitIgnoreSpec
-from agilab.components.code_editor_component import code_editor
-from agi_env import AgiEnv
-from agi_env.app_provider_registry import resolve_installed_app_project
 
 _code_editor_support_module = import_agilab_module(
     "agilab.code_editor_support",
@@ -135,6 +121,78 @@ _normalize_project_sidebar_actions = (
 _ensure_project_sidebar_session_defaults = (
     _project_sidebar_support_module.ensure_project_sidebar_session_defaults
 )
+
+_LAZY_IMPORT_ATTR_CACHE: dict[tuple[str, str], Any] = {}
+
+
+def _lazy_import_attr(module_name: str, attr_name: str) -> Any:
+    cache_key = (module_name, attr_name)
+    if cache_key not in _LAZY_IMPORT_ATTR_CACHE:
+        _LAZY_IMPORT_ATTR_CACHE[cache_key] = getattr(
+            importlib.import_module(module_name), attr_name
+        )
+    return _LAZY_IMPORT_ATTR_CACHE[cache_key]
+
+
+def background_services_enabled(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "background_services_enabled")(
+        *args, **kwargs
+    )
+
+
+def get_classes_name(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "get_classes_name")(*args, **kwargs)
+
+
+def get_fcts_and_attrs_name(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "get_fcts_and_attrs_name")(
+        *args, **kwargs
+    )
+
+
+def get_templates(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "get_templates")(*args, **kwargs)
+
+
+def get_projects_zip(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "get_projects_zip")(*args, **kwargs)
+
+
+def on_project_change(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "on_project_change")(*args, **kwargs)
+
+
+def activate_mlflow(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.pagelib", "activate_mlflow")(*args, **kwargs)
+
+
+def compact_choice(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr("agi_gui.ux_widgets", "compact_choice")(*args, **kwargs)
+
+
+def code_editor(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr(
+        "agilab.components.code_editor_component", "code_editor"
+    )(*args, **kwargs)
+
+
+def resolve_installed_app_project(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr(
+        "agi_env.app_provider_registry", "resolve_installed_app_project"
+    )(*args, **kwargs)
+
+
+def _gitignore_spec_from_lines(patterns: list[str]) -> Any:
+    gitignore_spec = _lazy_import_attr("pathspec.gitignore", "GitIgnoreSpec")
+    return gitignore_spec.from_lines(patterns)
+
+
+class _LazyTomliWriter:
+    def dump(self, *args: Any, **kwargs: Any) -> Any:
+        return _lazy_import_attr("tomli_w", "dump")(*args, **kwargs)
+
+
+tomli_w = _LazyTomliWriter()
 
 _action_execution_module = import_agilab_module(
     "agilab.action_execution",
@@ -1446,7 +1504,7 @@ def read_gitignore(gitignore_path):
     except FileNotFoundError:
         patterns = []
 
-    return GitIgnoreSpec.from_lines(patterns)
+    return _gitignore_spec_from_lines(patterns)
 
 
 _PROJECT_EDITOR_RESOURCE_FILES = (

@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import csv
 import json
+import platform
 import shlex
 import statistics
 import subprocess
@@ -43,6 +44,9 @@ MODE_NAMES = {
 }
 LOCAL_ONLY_MODES = tuple(range(0, 4)) + tuple(range(8, 12))
 CLUSTER_MODES = tuple(range(4, 8)) + tuple(range(12, 16))
+SUPPORTED_LOCAL_SYSTEM = "Darwin"
+TOPOLOGY_ID = "macos-ssh-2node"
+TOPOLOGY_DESCRIPTION = "1 local macOS scheduler/worker + 1 remote macOS worker over SSH"
 
 
 @dataclass(frozen=True)
@@ -55,6 +59,16 @@ class NodeInfo:
 
 def _ssh_target(host: str) -> str:
     return host if "@" in host else f"agi@{host}"
+
+
+def _require_macos_ssh_topology() -> None:
+    local_system = platform.system()
+    if local_system != SUPPORTED_LOCAL_SYSTEM:
+        raise RuntimeError(
+            "benchmark_execution_mode_matrix.py is scoped to the macOS SSH 2-node benchmark; "
+            f"local platform is {local_system or sys.platform!r}. Use AGILAB's cluster "
+            "validation tools for portable Linux/macOS/Windows cluster evidence."
+        )
 
 
 def _parse_runtime(run_output: Any) -> tuple[str, float]:
@@ -277,6 +291,7 @@ async def run_mode_matrix(
     n_partitions: int,
     repeats: int,
 ) -> dict[str, Any]:
+    _require_macos_ssh_topology()
     local_node = _probe_local_node()
     remote_node = _probe_remote_node(remote_host)
     cluster_workers = {"127.0.0.1": 1, remote_host: 1}
@@ -292,7 +307,8 @@ async def run_mode_matrix(
             "repeats": repeats,
             "scheduler_host": local_node.label,
             "remote_worker_host": remote_node.label,
-            "topology": "1 local macOS scheduler/worker + 1 remote macOS worker over SSH",
+            "topology_id": TOPOLOGY_ID,
+            "topology": TOPOLOGY_DESCRIPTION,
             "nodes": {
                 "local": {
                     "label": local_node.label,

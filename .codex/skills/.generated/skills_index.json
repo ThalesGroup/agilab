@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-24T13:19:34Z",
+  "generated_at_utc": "2026-06-24T13:59:02Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -215,7 +215,7 @@
       "name": "repo-skill-maintenance",
       "description": "Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-06",
+      "updated": "2026-06-24",
       "path": ".codex/skills/repo-skill-maintenance/SKILL.md",
       "body_preview": "# Repo Skill Maintenance\nUse this skill when working on the shared skill trees in `agilab`.\nThe goal is to keep one canonical source for shared skills, keep the repo Codex\nmirror valid, and avoid the accidental bulk-sync regressions that can overwrite"
     },

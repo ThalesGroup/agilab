@@ -30,7 +30,22 @@ def test_scenario_catalog_contains_expected_builtins() -> None:
     assert "orchestrate-execute-import" in scenarios
     assert "runtime-distribution-import" in scenarios
     assert "agi-page-network-map-import" in scenarios
+    assert "ui-project-status-page-import" in scenarios
+    assert "ui-orchestrate-page-import" in scenarios
+    assert "ui-workflow-page-import" in scenarios
+    assert "ui-analysis-page-import" in scenarios
+    assert "ui-browser-core-page-load" in scenarios
     assert scenarios["base-worker-import"].command[0] == sys.executable
+    assert "1_PROJECT_STATUS.py" in " ".join(
+        scenarios["ui-project-status-page-import"].command
+    )
+    browser_command = scenarios["ui-browser-core-page-load"].command
+    assert browser_command[0] == sys.executable
+    assert "agilab_web_robot.py" in browser_command[1]
+    assert "--page-load-smoke-only" in browser_command
+    assert "--json-output" in browser_command
+    for page_name in ("ABOUT", "PROJECT", "WORKFLOW", "ANALYSIS"):
+        assert page_name in browser_command
 
 
 def test_repo_python_paths_deduplicates_extra_paths() -> None:

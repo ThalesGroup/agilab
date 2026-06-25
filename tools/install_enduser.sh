@@ -338,6 +338,54 @@ env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 PY
 }
 
+env_comment_key_exists() {
+  local key="$1"
+  local env_file="$2"
+  awk -v want="$key" '
+    {
+      line = $0
+      sub(/^[ \t]*/, "", line)
+      sub(/^#/, "", line)
+      sub(/^[ \t]*/, "", line)
+      split(line, parts, "=")
+      candidate = parts[1]
+      gsub(/[ \t]/, "", candidate)
+      if (candidate == want) found = 1
+    }
+    END { exit found ? 0 : 1 }
+  ' "$env_file"
+}
+
+append_default_env_comments() {
+  local env_file="$1"
+  local template_file="${REPO_ROOT}/src/agilab/core/agi-env/src/agi_env/resources/.agilab/.env"
+  local line key added_header=0
+
+  [[ -f "$template_file" ]] || return 0
+  mkdir -p "$(dirname "$env_file")"
+  touch "$env_file"
+
+  while IFS= read -r line; do
+    [[ "$line" =~ ^[[:space:]]*# ]] || continue
+    [[ "$line" == *"="* ]] || continue
+    key="${line#\#}"
+    key="${key%%=*}"
+    key="$(printf '%s' "$key" | tr -d '[:space:]')"
+    [[ -z "$key" ]] && continue
+    if ! env_comment_key_exists "$key" "$env_file"; then
+      if [[ "$added_header" -eq 0 ]]; then
+        {
+          printf '\n'
+          echo "# Optional AGILAB settings (commented defaults)"
+          echo "# Uncomment only the values you want to override."
+        } >> "$env_file"
+        added_header=1
+      fi
+      printf '%s\n' "$line" >> "$env_file"
+    fi
+  done < "$template_file"
+}
+
 persist_local_llm_env_for_family() {
   local family="$1"
   local env_file="$2"
@@ -428,6 +476,7 @@ fi
 
 persist_env_var "APPS_PATH" "${APPS_ROOT}" "${ENV_FILE}"
 persist_env_var "IS_SOURCE_ENV" "0" "${ENV_FILE}"
+append_default_env_comments "${ENV_FILE}"
 
 verify_testpypi_versions() {
   local show_script="${SCRIPT_DIR}/show_dependencies.py"

@@ -78,33 +78,38 @@ For a deep AGILAB audit, cover these surfaces unless the user narrows scope:
 - Cross-platform and tests: Windows/macOS/Linux claims, hermetic `HOME`
   behavior, singleton resets, path separators, process/signal assumptions, and
   CI workflow coverage.
+- Benchmark and performance evidence helpers: verify that scripts and docs
+  declare their exact topology and platform boundary. A lab-specific helper
+  such as a macOS-over-SSH benchmark must not be treated as portable cluster,
+  release, or production evidence unless the code fails closed outside that
+  boundary and tests/docs name the limitation.
 - Packaging and docs: wheel surface, generated artifacts, docs/public mirror,
   release proof, and changelog/public claim alignment.
 - Periphery sampling: representative built-in apps, page bundles, and examples
   only after the central architecture is understood.
 
-## Production and evidence-readiness audit prompt
+## Production and evidence-readiness audit mode
 
-When the user asks for the highest added-value AGILAB prompt, a Tokki-style
-AGILAB production audit, or to send/fix findings from such an audit, use this
-contract instead of a generic bug hunt:
+Use this mode for high-value AGILAB production and evidence-readiness audits.
+It is a reusable review contract, not a copied chat prompt or a generic bug
+hunt.
 
 ```text
-Load the full AGILAB repo, docs, release proof, package split, built-in apps,
-notebooks, MCP and agent surfaces, Streamlit pages, tests, generated assets,
-Hugging Face/PyPI/GitHub publication state, current git/GitHub state, and
-commit provenance when authorship or attribution matters.
+Audit scope: full AGILAB repo, docs, release proof, package split, built-in
+apps, notebooks, MCP and agent surfaces, Streamlit pages, tests, generated
+assets, Hugging Face/PyPI/GitHub publication state, current git/GitHub state,
+and commit provenance when authorship or attribution matters.
 
-Act as a senior production engineer, open-source product strategist, security
-reviewer, and evidence/reproducibility-readiness reviewer.
+Reviewer stance: senior production engineering, open-source product strategy,
+security review, and evidence/reproducibility readiness.
 
-Goal: make AGILAB production-grade as a trusted-operator workbench for turning
-AI/ML experiments, notebooks, and agent runs into replayable, attestable
-evidence. Keep claims honest: do not position AGILAB as a fully managed
-production MLOps control plane or regulatory compliance product unless current
-public evidence proves it.
+Review goal: make AGILAB production-grade as a trusted-operator workbench for
+turning AI/ML experiments, notebooks, and agent runs into replayable,
+attestable evidence. Keep claims honest: do not position AGILAB as a fully
+managed production MLOps control plane or regulatory compliance product unless
+current public evidence proves it.
 
-Review for:
+Risk areas:
 - correctness bugs, performance hot paths, and validation cost
 - broken or misleading user workflows
 - public/private boundary leaks, unsafe executable-content handling, credential
@@ -121,7 +126,7 @@ Review for:
 - places where AGILAB's trusted-operator, replayable-evidence story is not
   clear enough
 
-Then:
+Follow-up workflow:
 1. List findings by impact.
 2. Fix the top actionable issues directly when the user asks for fixes.
 3. Add or strengthen regression coverage or durable guards.

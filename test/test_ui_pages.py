@@ -99,6 +99,40 @@ def _assert_sidebar_link_absent(markdown: str, label: str) -> None:
         )
 
 
+def test_analysis_page_defers_reuse_catalog_import_until_suggestion_report(
+    monkeypatch,
+) -> None:
+    module_path = Path("src/agilab/pages/4_ANALYSIS.py").resolve()
+    module_name = "agilab_analysis_lazy_reuse_catalog_test_module"
+    imported: list[str] = []
+    fake_reuse_catalog = types.SimpleNamespace(
+        build_suggestion_report=lambda *args, **kwargs: {"matches": []}
+    )
+    original_import_module = importlib.import_module
+
+    def _tracking_import_module(name: str, package: str | None = None):
+        if name == "agilab.reuse_catalog":
+            imported.append(name)
+            return fake_reuse_catalog
+        return original_import_module(name, package)
+
+    monkeypatch.setattr(importlib, "import_module", _tracking_import_module)
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+
+    try:
+        spec.loader.exec_module(module)
+        assert imported == []
+        assert module._build_reuse_suggestion_report("demo", kind="page") == {
+            "matches": []
+        }
+        assert imported == ["agilab.reuse_catalog"]
+    finally:
+        sys.modules.pop(module_name, None)
+
+
 def test_primary_pages_keep_homogeneous_support_field_order() -> None:
     """Support fields should not jump above the page's primary content."""
     analysis_source = Path("src/agilab/pages/4_ANALYSIS.py").read_text(
