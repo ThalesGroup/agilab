@@ -77,6 +77,11 @@ def render_handoff(tag: str, preflight: dict[str, Any]) -> str:
     if guardrails:
         lines.extend(["- Latest main guardrail run JSON:", "", "```json", guardrails, "```"])
     lines.extend(["", "## Pending trusted publishers", ""])
+    first_publish_packages = " ".join(
+        str(blocker["pypi_project"])
+        for blocker in blockers
+        if blocker.get("pypi_project")
+    )
     if not blockers:
         lines.append("No missing PyPI projects were detected. Dispatch the release workflow directly.")
     else:
@@ -101,15 +106,23 @@ def render_handoff(tag: str, preflight: dict[str, Any]) -> str:
                     "",
                 ]
             )
+    release_dispatch = [
+        "gh workflow run pypi-publish.yaml \\",
+        "  -R ThalesGroup/agilab \\",
+        "  --ref main \\",
+        f"  -f release_tag={tag}",
+    ]
+    if first_publish_packages:
+        release_dispatch[-1] = f"  -f release_tag={tag} \\"
+        release_dispatch.append(
+            f"  -f 'first_publish_packages={first_publish_packages}'"
+        )
     lines.extend(
         [
             "## Release dispatch",
             "",
             "```bash",
-            "gh workflow run pypi-publish.yaml \\",
-            "  -R ThalesGroup/agilab \\",
-            "  --ref main \\",
-            f"  -f release_tag={tag}",
+            *release_dispatch,
             "```",
             "",
             "## Release watch",

@@ -395,6 +395,90 @@ def test_existing_public_project_does_not_require_credentials(monkeypatch, capsy
     assert "PYPI_RELEASE_PRUNE_USERNAME" not in captured.err
 
 
+def test_cleanup_github_confirm_login_variable_uses_delete_helper(
+    monkeypatch,
+    capsys,
+) -> None:
+    module = _load_module()
+    calls: list[dict[str, str]] = []
+
+    def fake_delete(**kwargs):
+        calls.append(kwargs)
+        return True
+
+    monkeypatch.setattr(module, "_delete_github_actions_variable", fake_delete)
+
+    module._cleanup_github_confirm_login_variable(
+        repository="ThalesGroup/agilab",
+        variable="PYPI_CONFIRM_LOGIN_URL",
+        token="secret-token",
+    )
+
+    captured = capsys.readouterr()
+    assert calls == [
+        {
+            "repository": "ThalesGroup/agilab",
+            "variable": "PYPI_CONFIRM_LOGIN_URL",
+            "token": "secret-token",
+        }
+    ]
+    assert "Cleared temporary GitHub Actions variable" in captured.err
+    assert "PYPI_CONFIRM_LOGIN_URL" in captured.err
+    assert "secret-token" not in captured.err
+
+
+def test_main_cleans_confirmation_variable_after_registration(monkeypatch) -> None:
+    module = _load_module()
+    cleanup_calls: list[dict[str, str]] = []
+
+    monkeypatch.setattr(module, "_public_project_exists", lambda _project, _repo: False)
+    monkeypatch.setattr(module, "require_credentials", lambda _user, _password: ("u", "p"))
+    monkeypatch.setattr(module, "resolve_auth_code", lambda _otp, _totp: None)
+    monkeypatch.setattr(
+        module,
+        "_cleanup_github_confirm_login_variable",
+        lambda **kwargs: cleanup_calls.append(kwargs),
+    )
+
+    def fake_register(**kwargs):
+        return module.RegistrationResult(
+            publisher=kwargs["publisher"],
+            registered=True,
+            already_registered=False,
+        )
+
+    monkeypatch.setattr(module, "register_pending_github_publisher", fake_register)
+
+    assert (
+        module.main(
+            [
+                "--project-name",
+                "agi-page-scenario-cockpit",
+                "--environment",
+                "pypi-agi-page-scenario-cockpit",
+                "--github-confirm-login-repository",
+                "ThalesGroup/agilab",
+                "--github-confirm-login-variable",
+                "PYPI_CONFIRM_LOGIN_URL",
+                "--github-token",
+                "reader-token",
+                "--github-confirm-login-cleanup-token",
+                "writer-token",
+                "--delete-github-confirm-login-variable-after-use",
+            ]
+        )
+        == 0
+    )
+
+    assert cleanup_calls == [
+        {
+            "repository": "ThalesGroup/agilab",
+            "variable": "PYPI_CONFIRM_LOGIN_URL",
+            "token": "writer-token",
+        }
+    ]
+
+
 def test_register_rejects_pending_publisher_for_different_project() -> None:
     module = _load_module()
     publisher = module.PendingGitHubPublisher(
@@ -417,6 +501,7 @@ def test_pending_trusted_publisher_workflow_uses_release_web_credentials() -> No
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "workflow_dispatch:" in text
+    assert "permissions:\n  contents: read\n  actions: write" in text
     assert "tools/pypi_pending_trusted_publisher.py" in text
     assert "PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}" in text
     assert "PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}" in text
@@ -427,3 +512,5 @@ def test_pending_trusted_publisher_workflow_uses_release_web_credentials() -> No
     assert "--environment \"${{ inputs.pypi_environment }}\"" in text
     assert "--github-confirm-login-variable \"PYPI_CONFIRM_LOGIN_URL\"" in text
     assert "--github-token \"${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}\"" in text
+    assert "--github-confirm-login-cleanup-token \"$GITHUB_TOKEN\"" in text
+    assert "--delete-github-confirm-login-variable-after-use" in text

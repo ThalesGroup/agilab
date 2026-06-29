@@ -20,6 +20,7 @@ def _load_tool(name: str):
 
 pending_publisher = _load_tool("pypi_pending_trusted_publisher")
 pypi_project_preflight = _load_tool("pypi_project_preflight")
+release_handoff = _load_tool("release_handoff")
 release_handoff_guard = _load_tool("release_handoff_guard")
 release_status = _load_tool("release_status")
 
@@ -98,6 +99,37 @@ def test_pypi_project_preflight_allows_explicit_missing_project_for_first_publis
         == "agi-page-live-artifacts"
     )
     assert report["blockers"] == []
+
+
+def test_release_handoff_dispatch_allowlist_matches_missing_first_publish_projects(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(release_handoff, "_run_text", lambda _command: "")
+
+    text = release_handoff.render_handoff(
+        "v2026.05.26",
+        {
+            "status": "fail",
+            "summary": {"checked": 1, "blockers": 1},
+            "blockers": [
+                {
+                    "status": "missing-project",
+                    "pypi_project": "agi-page-live-artifacts",
+                    "pypi_environment": "pypi-agi-page-live-artifacts",
+                    "version": "2026.05.26",
+                    "pending_publisher_command": (
+                        "gh workflow run pypi-pending-trusted-publisher.yaml "
+                        "-R ThalesGroup/agilab --ref main "
+                        "-f project_name=agi-page-live-artifacts "
+                        "-f pypi_environment=pypi-agi-page-live-artifacts"
+                    ),
+                }
+            ],
+        },
+    )
+
+    assert "pypi-pending-trusted-publisher.yaml" in text
+    assert "-f 'first_publish_packages=agi-page-live-artifacts'" in text
 
 
 def test_pypi_project_preflight_caches_project_version_until_manifest_changes(

@@ -28,7 +28,7 @@ on:
 
 permissions:
   contents: read
-  actions: read
+  actions: write
 
 jobs:
   register:
@@ -66,5 +66,7 @@ jobs:
             --github-confirm-login-variable "PYPI_CONFIRM_LOGIN_URL" \
             --github-confirm-login-timeout 900 \
             --github-token "${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}" \
+            --github-confirm-login-cleanup-token "$GITHUB_TOKEN" \
+            --delete-github-confirm-login-variable-after-use \
             --json \
             --github-step-summary "$GITHUB_STEP_SUMMARY"
