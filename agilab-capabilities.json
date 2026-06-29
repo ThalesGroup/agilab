@@ -594,7 +594,7 @@
     {
       "name": "agi-app-data-quality-gate",
       "role": "app-project",
-      "status": "Release artifact",
+      "status": "PyPI app package",
       "version": "2026.06.23",
       "description": "AGILAB deterministic data contract, drift, leakage, and promotion gate",
       "project": "src/agilab/lib/agi-app-data-quality-gate",
@@ -673,7 +673,7 @@
     {
       "project": "data_quality_gate_project",
       "package": "agi-app-data-quality-gate",
-      "status": "Release artifact",
+      "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-data-quality-gate",
       "version": "2026.06.23",
       "description": "AGILAB deterministic data contract, drift, leakage, and promotion gate"

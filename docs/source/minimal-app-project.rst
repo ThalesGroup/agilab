@@ -7,8 +7,9 @@ Overview
 - Demonstrates the project layout expected by the platform (manager package,
   worker package, ``app_args`` definitions, Analysis configuration) with minimal
   business logic so you can focus on custom code.
-- Ships with blank web forms and prompt files to illustrate where to plug
-  in UI customisation and WORKFLOW prompts.
+- Ships with a small custom Streamlit argument form and an empty
+  ``pre_prompt.json`` prompt seed so copied projects have explicit places for
+  UI customisation and WORKFLOW prompts.
 
 Scientific placeholders
 -----------------------
@@ -25,29 +26,38 @@ data loading, feature extraction, and artifact export around this core loop.
 
 Manager (`minimal_app.minimal_app`)
 -----------------------------------
-- Lightweight subclass of ``BaseWorker`` that shows how to wire argument
-  handling, logging and dataframe export without heavy dependencies.
-- Provides the same ``from_toml`` / ``to_toml`` helpers as production projects so
-  you can reuse the Orchestrate page snippets verbatim.
+- Lightweight ``BaseWorker`` subclass that prepares app-owned shared input and
+  output directories through ``env.resolve_share_path``.
+- Accepts validated ``MinimalAppArgs`` values, supports ``reset_target`` cleanup
+  of the output directory, and keeps ``from_toml`` / ``to_toml`` helpers for the
+  same settings round-trip used by richer apps.
+- Leaves work distribution as a template hook: ``build_distribution`` currently
+  returns empty placeholder structures until a copied project adds real stages.
 
 Args (`minimal_app.app_args`)
 -----------------------------
-- Simple Pydantic model that mirrors the keys present in ``app_settings.toml``.
-- Ideal starting point for capturing new configuration options; extend the model
-  and the web form generated on the Orchestrate page will pick them up.
+- Simple Pydantic model with defaults for ``data_in``, ``data_out``, ``files``,
+  ``nfile``, ``nskip``, ``nread``, and ``reset_target``.
+- ``src/app_settings.toml`` intentionally seeds an empty ``[args]`` table; the
+  runtime loads model defaults, then persists concrete values only after the
+  custom ``src/app_args_form.py`` edits them.
+- The model still migrates legacy ``data_uri`` input into ``data_in`` so older
+  snippets can be adapted without changing the scaffold shape first.
 
 Worker (`minimal_app_worker.minimal_app_worker`)
 ------------------------------------------------
-- Skeleton worker that demonstrates the lifecycle hooks (``start``,
-  ``work_init``, ``run``) required by the distributor.
-- Includes placeholder logic for dataset loading and result persistence—replace
-  with your domain-specific processing stages.
+- Concrete ``MinimalAppWorker`` subclass of ``agi_node.polars_worker.PolarsWorker``.
+- It intentionally adds no domain logic; the class exists so installers and
+  worker deployment can discover a real worker package while copied projects
+  replace the inherited placeholder behavior with domain-specific processing.
 
 Reducer contract status
 -----------------------
-``minimal_app_project`` is template-only. It intentionally does not ship a reducer
-contract because the manager and worker contain placeholders and no concrete
-merge output.
+``minimal_app_project`` is template-only. It intentionally does not ship a
+reducer contract because the manager distribution hook and worker behavior are
+scaffold placeholders and no concrete merge output exists yet. This is an
+explicit reducer exemption for the starter template, not a gap in a promoted
+domain app.
 
 When a cloned project starts producing durable worker summaries, add a
 ``reduction.py`` module, emit ``reduce_summary_worker_<id>.json`` artifacts, and
@@ -57,12 +67,17 @@ starter template as an unfinished built-in app.
 
 Assets & Tests
 --------------
-- ``app_test.py`` ensures the installer and worker skeleton keep working as the
-  template evolves.
-- ``test/_test_*`` modules show how to unit-test managers and workers in
-  isolation.
-- ``app_args_form.py`` provides the optional web form that mirrors the
-  generated UI; tailor it when you need additional validation or widgets.
+- ``README.md`` and ``pyproject.toml`` describe the installable project package
+  and its runtime dependencies.
+- ``src/app_settings.toml`` carries cluster defaults plus the intentionally
+  empty ``[args]`` seed.
+- ``src/app_args_form.py`` is the current custom ORCHESTRATE form for path and
+  small run-control arguments; tailor it when you need additional validation or
+  widgets.
+- ``src/pre_prompt.json`` is currently an empty prompt list.
+- Repo-level tests exercise the installer, clone path, runtime bootstrap, and
+  minimal app environment behavior rather than project-local ``test/_test_*``
+  files.
 
 API Reference
 -------------

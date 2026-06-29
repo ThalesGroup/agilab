@@ -110,15 +110,15 @@ recommended use cases, see :doc:`public-app-catalog`.
 - ``agi-app-uav-queue``
 - ``agi-app-uav-relay-queue``
 
-Ten app payload packages are promoted to PyPI in the current release plan:
+Eleven app payload packages are promoted to PyPI in the current release plan:
 ``agi-app-mission-decision``, ``agi-app-pandas-execution``,
 ``agi-app-polars-execution``, ``agi-app-flight-telemetry``,
 ``agi-app-multi-dag``, ``agi-app-weather-forecast``,
-``agi-app-sklearn-pipeline``, ``agi-app-pytorch-playground``,
-``agi-app-tescia-diagnostic``, and ``agi-app-uav-relay-queue``. The
-remaining app project payloads, ``agi-app-data-quality-gate`` and
-``agi-app-uav-queue``, are also built as wheel and source-distribution
-artifacts and kept in the GitHub Release distribution archive until they are
+``agi-app-sklearn-pipeline``, ``agi-app-data-quality-gate``,
+``agi-app-pytorch-playground``, ``agi-app-tescia-diagnostic``, and
+``agi-app-uav-relay-queue``. The remaining app project payload,
+``agi-app-uav-queue``, is also built as a wheel and source-distribution
+artifact and kept in the GitHub Release distribution archive until it is
 explicitly promoted. Each payload is staged during package build, with local
 virtual environments, compiled artifacts, locks, and generated build outputs
 excluded.
