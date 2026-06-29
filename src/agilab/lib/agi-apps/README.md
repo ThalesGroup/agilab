@@ -9,12 +9,12 @@ distributions. Promoted app payloads now live in focused PyPI packages:
 `agi-app-mission-decision`, `agi-app-pandas-execution`,
 `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-multi-dag`,
 `agi-app-weather-forecast`, `agi-app-sklearn-pipeline`,
-`agi-app-pytorch-playground`, `agi-app-tescia-diagnostic`, and
-`agi-app-uav-relay-queue`.
+`agi-app-data-quality-gate`, `agi-app-pytorch-playground`,
+`agi-app-tescia-diagnostic`, and `agi-app-uav-relay-queue`.
 
-Release-artifact app payloads such as `agi-app-data-quality-gate` remain
-installable from GitHub Release archives until they are explicitly promoted to
-PyPI and pulled by this umbrella.
+Release-artifact app payloads such as `agi-app-uav-queue` remain installable
+from GitHub Release archives until they are explicitly promoted to PyPI and
+pulled by this umbrella.
 
 The umbrella keeps the lightweight `agilab.apps.install` helper and
 `agilab.examples` learning assets. It also bundles `minimal_app_project` as the
