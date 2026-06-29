@@ -26,6 +26,7 @@ try:
     from pypi_release_retention import (
         PYPI_HOSTS,
         PYPI_JSON_URLS,
+        _delete_github_actions_variable,
         _find_form,
         _fresh_totp_code,
         _submit_reauthentication_if_needed,
@@ -41,6 +42,7 @@ except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
     from tools.pypi_release_retention import (
         PYPI_HOSTS,
         PYPI_JSON_URLS,
+        _delete_github_actions_variable,
         _find_form,
         _fresh_totp_code,
         _submit_reauthentication_if_needed,
@@ -295,6 +297,32 @@ def _fetch_github_actions_variable(
         token=token,
     )
     return payload.value if payload else None
+
+
+def _cleanup_github_confirm_login_variable(
+    *,
+    repository: str,
+    variable: str,
+    token: str,
+) -> None:
+    try:
+        deleted = _delete_github_actions_variable(
+            repository=repository,
+            variable=variable,
+            token=token,
+        )
+    except RuntimeError as exc:
+        print(
+            "::warning title=PyPI pending trusted publisher::"
+            f"Unable to clear temporary GitHub Actions variable {variable!r}: {exc}",
+            file=sys.stderr,
+        )
+        return
+    if deleted:
+        print(
+            f"Cleared temporary GitHub Actions variable {variable!r}.",
+            file=sys.stderr,
+        )
 
 
 def _github_variable_is_fresh(
@@ -587,6 +615,22 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument("--github-token", default=os.environ.get("GITHUB_TOKEN"))
+    parser.add_argument(
+        "--github-confirm-login-cleanup-token",
+        default=os.environ.get("GITHUB_TOKEN"),
+        help=(
+            "GitHub token used to delete the temporary confirmation URL variable "
+            "after the registration attempt. Defaults to GITHUB_TOKEN."
+        ),
+    )
+    parser.add_argument(
+        "--delete-github-confirm-login-variable-after-use",
+        action="store_true",
+        help=(
+            "Delete the temporary GitHub Actions confirmation URL variable after "
+            "the registration attempt succeeds or fails."
+        ),
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument(
@@ -607,49 +651,77 @@ def main(argv: Sequence[str] | None = None) -> int:
         environment=args.environment,
     )
 
-    if args.dry_run:
-        result = RegistrationResult(
-            publisher=publisher,
-            registered=False,
-            already_registered=False,
-            dry_run=True,
-        )
-    elif _public_project_exists(publisher.project_name, args.repo):
-        result = _existing_project_result(publisher)
-    else:
-        username, password = require_credentials(args.username, args.password)
-        confirm_provider = None
-        if args.github_confirm_login_variable and args.github_confirm_login_timeout > 0:
-            if not args.github_confirm_login_repository or not args.github_token:
-                raise SystemExit(
-                    "ERROR: GitHub confirmation polling needs GITHUB_REPOSITORY "
-                    "and GITHUB_TOKEN."
-                )
+    cleanup_confirm_variable = False
+    if args.delete_github_confirm_login_variable_after_use:
+        if not args.github_confirm_login_variable:
+            raise SystemExit(
+                "ERROR: GitHub confirmation cleanup needs "
+                "--github-confirm-login-variable."
+            )
+        if (
+            not args.github_confirm_login_repository
+            or not args.github_confirm_login_cleanup_token
+        ):
+            raise SystemExit(
+                "ERROR: GitHub confirmation cleanup needs GITHUB_REPOSITORY "
+                "and GITHUB_TOKEN."
+            )
+        cleanup_confirm_variable = True
 
-            def confirm_provider() -> str | None:
-                print(
-                    "Waiting for PyPI login confirmation URL in GitHub Actions "
-                    f"variable {args.github_confirm_login_variable!r}...",
-                    file=sys.stderr,
-                )
-                return _wait_for_github_confirm_login_url(
-                    repository=args.github_confirm_login_repository,
-                    variable=args.github_confirm_login_variable,
-                    token=args.github_token,
-                    timeout=args.github_confirm_login_timeout,
-                    poll_delay=args.github_confirm_login_poll_delay,
-                    allow_existing=args.allow_existing_github_confirm_login_url,
-                )
+    try:
+        if args.dry_run:
+            result = RegistrationResult(
+                publisher=publisher,
+                registered=False,
+                already_registered=False,
+                dry_run=True,
+            )
+        elif _public_project_exists(publisher.project_name, args.repo):
+            result = _existing_project_result(publisher)
+        else:
+            username, password = require_credentials(args.username, args.password)
+            confirm_provider = None
+            if (
+                args.github_confirm_login_variable
+                and args.github_confirm_login_timeout > 0
+            ):
+                if not args.github_confirm_login_repository or not args.github_token:
+                    raise SystemExit(
+                        "ERROR: GitHub confirmation polling needs GITHUB_REPOSITORY "
+                        "and GITHUB_TOKEN."
+                    )
 
-        result = register_pending_github_publisher(
-            publisher=publisher,
-            repo=args.repo,
-            username=username,
-            password=password,
-            auth_code=resolve_auth_code(args.otp_code, args.totp_secret),
-            confirm_login_url_provider=confirm_provider,
-            project_exists_checker=lambda _project, _repo: False,
-        )
+                def confirm_provider() -> str | None:
+                    print(
+                        "Waiting for PyPI login confirmation URL in GitHub Actions "
+                        f"variable {args.github_confirm_login_variable!r}...",
+                        file=sys.stderr,
+                    )
+                    return _wait_for_github_confirm_login_url(
+                        repository=args.github_confirm_login_repository,
+                        variable=args.github_confirm_login_variable,
+                        token=args.github_token,
+                        timeout=args.github_confirm_login_timeout,
+                        poll_delay=args.github_confirm_login_poll_delay,
+                        allow_existing=args.allow_existing_github_confirm_login_url,
+                    )
+
+            result = register_pending_github_publisher(
+                publisher=publisher,
+                repo=args.repo,
+                username=username,
+                password=password,
+                auth_code=resolve_auth_code(args.otp_code, args.totp_secret),
+                confirm_login_url_provider=confirm_provider,
+                project_exists_checker=lambda _project, _repo: False,
+            )
+    finally:
+        if cleanup_confirm_variable:
+            _cleanup_github_confirm_login_variable(
+                repository=args.github_confirm_login_repository,
+                variable=args.github_confirm_login_variable,
+                token=args.github_confirm_login_cleanup_token,
+            )
 
     summary = render_summary(result)
     if args.json:

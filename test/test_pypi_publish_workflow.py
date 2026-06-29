@@ -121,7 +121,13 @@ def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
     assert 'python-version: ["3.13", "3.14"]' not in text
     assert "Run strict AGILAB audit review" in text
     assert "audit_args=(--strict)" in text
-    assert "--allow-missing-pypi-project" in text
+    assert "first_publish_packages:" in text
+    assert (
+        "FIRST_PUBLISH_PACKAGES: ${{ github.event.inputs.first_publish_packages || '' }}"
+        in text
+    )
+    assert 'audit_args+=(--allow-missing-pypi-project "$FIRST_PUBLISH_PACKAGES")' in text
+    assert 'audit_args+=(--allow-missing-pypi-project "$RELEASE_PACKAGES")' not in text
     assert "tools/agilab_audit.py" in text
     assert text.index("tools/agilab_audit.py") < text.index(
         "Install Playwright browser for frontend smoke"
