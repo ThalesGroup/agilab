@@ -1160,13 +1160,20 @@ def test_page_module_name_is_deterministic_for_resolved_path(tmp_path):
     assert len(relative_name.rsplit("_", 1)[-1]) == 16
 
 
-def test_navigation_pages_reuses_cached_page_list_until_disabled(monkeypatch):
+def test_navigation_pages_reuses_cached_page_list_until_disabled(monkeypatch, request):
     main_page = _import_agilab_module("agilab.main_page")
     main_page._NAVIGATION_PAGE_ROUTES.clear()
     main_page._NAVIGATION_PAGE_CACHE.clear()
     main_page._PAGE_RUNNER_CACHE.clear()
     for key in main_page._PAGE_CACHE_STATS:
         main_page._PAGE_CACHE_STATS[key] = 0
+
+    def cleanup_navigation_cache() -> None:
+        main_page._NAVIGATION_PAGE_ROUTES.clear()
+        main_page._NAVIGATION_PAGE_CACHE.clear()
+        main_page._PAGE_RUNNER_CACHE.clear()
+
+    request.addfinalizer(cleanup_navigation_cache)
     created_pages = []
 
     def fake_page(*args, **kwargs):
