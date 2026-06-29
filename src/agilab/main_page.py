@@ -8,6 +8,7 @@ import asyncio
 import html
 import inspect
 import json
+import hashlib
 import os
 import importlib
 import importlib.resources as importlib_resources
@@ -217,6 +218,25 @@ except _import_guard_module.MixedCheckoutImportError as exc:
     _stop_for_import_guard_error(exc)
 
 _AGILAB_ROOT = Path(__file__).resolve().parent
+_AGILAB_RESOURCES_PATH = _AGILAB_ROOT / "resources"
+_AGILAB_PAGES_ROOT = _AGILAB_ROOT / "pages"
+_NAVIGATION_PAGE_FILES: tuple[Path, ...] = (
+    _AGILAB_PAGES_ROOT / "0_SETTINGS.py",
+    _AGILAB_PAGES_ROOT / "1_PROJECT_STATUS.py",
+    _AGILAB_PAGES_ROOT / "1_PROJECT.py",
+    _AGILAB_PAGES_ROOT / "2_ORCHESTRATE.py",
+    _AGILAB_PAGES_ROOT / "3_WORKFLOW.py",
+    _AGILAB_PAGES_ROOT / "4_ANALYSIS.py",
+)
+_NAVIGATION_PAGE_FILE_NAMES: tuple[str, ...] = tuple(
+    file_path.name for file_path in _NAVIGATION_PAGE_FILES
+)
+_SETTINGS_PAGE_FILE = _NAVIGATION_PAGE_FILES[0]
+_PROJECT_STATUS_PAGE_FILE = _NAVIGATION_PAGE_FILES[1]
+_PROJECT_PAGE_FILE = _NAVIGATION_PAGE_FILES[2]
+_ORCHESTRATE_PAGE_FILE = _NAVIGATION_PAGE_FILES[3]
+_WORKFLOW_PAGE_FILE = _NAVIGATION_PAGE_FILES[4]
+_ANALYSIS_PAGE_FILE = _NAVIGATION_PAGE_FILES[5]
 
 
 class _LazyAgilabModule:
@@ -406,8 +426,35 @@ FIRST_PROOF_HELPER_SCRIPT_PREFIXES = (
     "AGI_get_",
 )
 _NAVIGATION_PAGE_ROUTES: Dict[str, Any] = {}
+_NAVIGATION_PAGE_CACHE: Dict[
+    tuple[tuple[tuple[str, int, int], ...], str],
+    tuple[list[Any], Dict[str, Any]],
+] = {}
 _PAGE_MODULE_CACHE: Dict[Path, tuple[int, int, str, Any]] = {}
+_PAGE_RUNNER_CACHE: Dict[Path, Callable[[], None]] = {}
+_PAGE_MODULE_NAME_CACHE: Dict[str, str] = {}
+_RESOLVED_PAGE_PATH_CACHE: Dict[str, Path] = {}
+_PAGE_CACHE_STATS: Dict[str, int] = {
+    "navigation_hit": 0,
+    "navigation_miss": 0,
+    "page_module_hit": 0,
+    "page_module_miss": 0,
+    "page_runner_hit": 0,
+    "page_runner_miss": 0,
+}
 PAGE_LOAD_TIMING_ENV_KEY = "AGILAB_PAGE_LOAD_TIMING"
+
+
+def _page_caching_disabled() -> bool:
+    return os.environ.get("AGILAB_DISABLE_ALL_PAGE_CACHES", "") == "1"
+
+
+def _record_page_cache_stat(key: str) -> None:
+    """Record cache stats only when UI timing trace output is enabled."""
+
+    if not ui_timing_trace_enabled():
+        return
+    _PAGE_CACHE_STATS[key] += 1
 
 
 def _page_load_timing_enabled(environ: Any = os.environ) -> bool:
@@ -481,7 +528,12 @@ def _render_ui_timing_trace(*, streamlit: Any = st, max_spans: int = 6) -> None:
     if not lines:
         return
     try:
-        streamlit.sidebar.caption("UI trace: " + " | ".join(lines))
+        cache_stats = " | ".join(
+            f"{key}={_PAGE_CACHE_STATS[key]}" for key in sorted(_PAGE_CACHE_STATS)
+        )
+        streamlit.sidebar.caption(
+            "UI trace: " + " | ".join(lines) + " | " + cache_stats
+        )
     except (AttributeError, RuntimeError, TypeError, ValueError):
         logger.info("UI trace: %s", " | ".join(lines))
 
@@ -1010,7 +1062,20 @@ def settings_page(env: Any) -> None:
 
 
 def _about_resources_path() -> Path:
-    return Path(__file__).resolve().parent / "resources"
+    return _AGILAB_RESOURCES_PATH
+
+
+def _navigation_page_signature(
+    page_paths: tuple[Path, ...] = _NAVIGATION_PAGE_FILES,
+) -> tuple[tuple[str, int, int], ...]:
+    signatures: list[tuple[str, int, int]] = []
+    for page_path in page_paths:
+        page_stat = page_path.stat()
+        page_name = page_path.name
+        signatures.append(
+            (page_name, int(page_stat.st_mtime_ns), int(page_stat.st_size))
+        )
+    return tuple(signatures)
 
 
 def _ensure_navigation_environment(
@@ -1114,8 +1179,32 @@ def _render_settings_page_entry() -> None:
 
 def _navigation_pages() -> list[Any]:
     """Return the supported navigation pages."""
-    root = Path(__file__).resolve().parent
-    pages_root = root / "pages"
+    root = _AGILAB_ROOT
+    if (
+        os.environ.get("AGILAB_DISABLE_NAVIGATION_PAGE_CACHE") == "1"
+        or _page_caching_disabled()
+    ):
+        _NAVIGATION_PAGE_ROUTES.clear()
+        _NAVIGATION_PAGE_CACHE.clear()
+    if _page_caching_disabled():
+        _PAGE_MODULE_CACHE.clear()
+        _PAGE_RUNNER_CACHE.clear()
+        _PAGE_MODULE_NAME_CACHE.clear()
+        _RESOLVED_PAGE_PATH_CACHE.clear()
+
+    navigation_signature = (
+        _navigation_page_signature(),
+        str(root),
+    )
+    cached = _NAVIGATION_PAGE_CACHE.get(navigation_signature)
+    if cached is not None:
+        _record_page_cache_stat("navigation_hit")
+        page_list, route_map = cached
+        _NAVIGATION_PAGE_ROUTES.clear()
+        _NAVIGATION_PAGE_ROUTES.update(route_map)
+        return page_list
+    _record_page_cache_stat("navigation_miss")
+
     main_page = st.Page(
         _render_about_page_entry,
         title="ABOUT",
@@ -1124,46 +1213,46 @@ def _navigation_pages() -> list[Any]:
         visibility="hidden",
     )
     settings_nav_page = st.Page(
-        pages_root / "0_SETTINGS.py",
+        _SETTINGS_PAGE_FILE,
         title="SETTINGS",
         url_path="SETTINGS",
         visibility="hidden",
     )
     project_page = st.Page(
-        _page_file_runner(pages_root / "1_PROJECT_STATUS.py"),
+        _page_file_runner(_PROJECT_STATUS_PAGE_FILE),
         title="PROJECT",
         url_path="PROJECT",
     )
     project_editor_page = st.Page(
-        _page_file_runner(pages_root / "1_PROJECT.py"),
+        _page_file_runner(_PROJECT_PAGE_FILE),
         title="PROJECT EDITOR",
         url_path="PROJECT_EDITOR",
         visibility="hidden",
     )
     project_edit_legacy_page = st.Page(
-        _page_file_runner(pages_root / "1_PROJECT.py"),
+        _page_file_runner(_PROJECT_PAGE_FILE),
         title="PROJECT EDITOR",
         url_path="PROJECT_EDIT",
         visibility="hidden",
     )
     project_status_legacy_page = st.Page(
-        _page_file_runner(pages_root / "1_PROJECT_STATUS.py"),
+        _page_file_runner(_PROJECT_STATUS_PAGE_FILE),
         title="PROJECT",
         url_path="PROJECT_STATUS",
         visibility="hidden",
     )
     orchestrate_page = st.Page(
-        _page_file_runner(pages_root / "2_ORCHESTRATE.py"),
+        _page_file_runner(_ORCHESTRATE_PAGE_FILE),
         title="ORCHESTRATE",
         url_path="ORCHESTRATE",
     )
     workflow_page = st.Page(
-        _page_file_runner(pages_root / "3_WORKFLOW.py"),
+        _page_file_runner(_WORKFLOW_PAGE_FILE),
         title="WORKFLOW",
         url_path="WORKFLOW",
     )
     analysis_page = st.Page(
-        _page_file_runner(pages_root / "4_ANALYSIS.py"),
+        _page_file_runner(_ANALYSIS_PAGE_FILE),
         title="ANALYSIS",
         url_path="ANALYSIS",
     )
@@ -1180,7 +1269,7 @@ def _navigation_pages() -> list[Any]:
             "analysis": analysis_page,
         }
     )
-    return [
+    page_list = [
         main_page,
         settings_nav_page,
         project_page,
@@ -1191,24 +1280,48 @@ def _navigation_pages() -> list[Any]:
         workflow_page,
         analysis_page,
     ]
+    _NAVIGATION_PAGE_CACHE[navigation_signature] = (
+        page_list,
+        dict(_NAVIGATION_PAGE_ROUTES),
+    )
+    return page_list
 
 
 def _page_module_name(page_file: Path) -> str:
-    return f"_agilab_streamlit_page_{abs(hash(str(page_file)))}"
+    """Return a deterministic module name for a Streamlit page file."""
+    resolved_page = _resolve_page_path(page_file)
+    resolved_key = str(resolved_page)
+    path_signature = resolved_key
+    digest = hashlib.blake2b(path_signature.encode("utf-8"), digest_size=8).hexdigest()
+    module_name = f"_agilab_streamlit_page_{digest}"
+    if _page_caching_disabled():
+        return module_name
+
+    cached_name = _PAGE_MODULE_NAME_CACHE.get(resolved_key)
+    if cached_name is not None:
+        return cached_name
+    _PAGE_MODULE_NAME_CACHE[resolved_key] = module_name
+    return module_name
 
 
 def _load_page_module(page_file: Path) -> Any:
     """Load a Streamlit page module once per source version to reduce rerun latency."""
-    resolved_page = page_file.resolve()
+    resolved_page = _resolve_page_path(page_file)
     stat = resolved_page.stat()
+    module_cache_disabled = (
+        _page_caching_disabled()
+        or os.environ.get("AGILAB_DISABLE_PAGE_MODULE_CACHE") == "1"
+    )
     cached = _PAGE_MODULE_CACHE.get(resolved_page)
     if (
-        os.environ.get("AGILAB_DISABLE_PAGE_MODULE_CACHE") != "1"
+        not module_cache_disabled
         and cached is not None
         and cached[0] == stat.st_mtime_ns
         and cached[1] == stat.st_size
     ):
+        _record_page_cache_stat("page_module_hit")
         return cached[3]
+    _record_page_cache_stat("page_module_miss")
 
     module_name = cached[2] if cached is not None else _page_module_name(resolved_page)
     spec = importlib.util.spec_from_file_location(module_name, resolved_page)
@@ -1221,21 +1334,37 @@ def _load_page_module(page_file: Path) -> Any:
     except Exception:
         sys.modules.pop(module_name, None)
         raise
-    _PAGE_MODULE_CACHE[resolved_page] = (
-        stat.st_mtime_ns,
-        stat.st_size,
-        module_name,
-        module,
-    )
+    if not module_cache_disabled:
+        _PAGE_MODULE_CACHE[resolved_page] = (
+            stat.st_mtime_ns,
+            stat.st_size,
+            module_name,
+            module,
+        )
     return module
 
 
 def _page_file_runner(page_file: Path) -> Callable[[], None]:
     """Run a guarded Streamlit page file through ``st.Page`` without changing the page contract."""
+    resolved_page = _resolve_page_path(page_file)
+    runner_cache_disabled = (
+        _page_caching_disabled()
+        or os.environ.get("AGILAB_DISABLE_PAGE_RUNNER_CACHE") == "1"
+    )
+    if runner_cache_disabled:
+        _PAGE_RUNNER_CACHE.pop(resolved_page, None)
+
+    cached = _PAGE_RUNNER_CACHE.get(resolved_page)
+    if not runner_cache_disabled and cached is not None:
+        _record_page_cache_stat("page_runner_hit")
+        return cached
+
+    _record_page_cache_stat("page_runner_miss")
+    return_fn: Callable[[], None]
 
     def _run_page() -> None:
         started_at = time.perf_counter()
-        page_label = page_file.stem
+        page_label = resolved_page.stem
         bootstrap_started_at = time.perf_counter()
         if (
             _ensure_navigation_environment(
@@ -1251,13 +1380,15 @@ def _page_file_runner(page_file: Path) -> Callable[[], None]:
             f"{page_label}:bootstrap", bootstrap_started_at, category="bootstrap"
         )
         import_started_at = time.perf_counter()
-        module = _load_page_module(page_file)
+        module = _load_page_module(resolved_page)
         _record_ui_timing_span(
             f"{page_label}:import", import_started_at, category="import"
         )
         main_fn = getattr(module, "main", None)
         if main_fn is None:
-            raise AttributeError(f"Page {page_file} does not expose a main() function")
+            raise AttributeError(
+                f"Page {resolved_page} does not expose a main() function"
+            )
         render_started_at = time.perf_counter()
         if inspect.iscoroutinefunction(main_fn):
             asyncio.run(main_fn())
@@ -1268,8 +1399,27 @@ def _page_file_runner(page_file: Path) -> Callable[[], None]:
         )
         _render_page_load_timing(page_label, started_at)
 
-    _run_page.__name__ = f"run_{page_file.stem}"
-    return _run_page
+    _run_page.__name__ = f"run_{resolved_page.stem}"
+    return_fn = _run_page
+    if not runner_cache_disabled:
+        _PAGE_RUNNER_CACHE[resolved_page] = return_fn
+    return return_fn
+
+
+def _resolve_page_path(page_file: Path) -> Path:
+    """Cache absolute resolved page file paths for rerun-heavy paths."""
+    if _page_caching_disabled():
+        return page_file.resolve()
+
+    page_key = str(page_file)
+    cached = _RESOLVED_PAGE_PATH_CACHE.get(page_key)
+    if cached is not None:
+        return cached
+    resolved = page_file.resolve()
+    resolved_key = str(resolved)
+    _RESOLVED_PAGE_PATH_CACHE[page_key] = resolved
+    _RESOLVED_PAGE_PATH_CACHE.setdefault(resolved_key, resolved)
+    return resolved
 
 
 def main() -> None:
