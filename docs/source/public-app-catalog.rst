@@ -53,7 +53,7 @@ Status legend:
        hashes.
    * - ``data_quality_gate_project``
      - ``agi-app-data-quality-gate``
-     - Release artifact
+     - PyPI app package
      - Production-adjacent data gate for contract, drift, leakage, and
        promotion-decision evidence before training.
    * - ``mission_decision_project``

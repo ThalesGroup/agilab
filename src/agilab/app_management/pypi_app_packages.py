@@ -48,6 +48,7 @@ PROMOTED_PYPI_APP_PACKAGES: tuple[str, ...] = (
     "agi-app-polars-execution",
     "agi-app-pytorch-playground",
     "agi-app-sklearn-pipeline",
+    "agi-app-data-quality-gate",
     "agi-app-tescia-diagnostic",
     "agi-app-uav-relay-queue",
     "agi-app-weather-forecast",

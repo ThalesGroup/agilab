@@ -21,6 +21,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_VERSION = "agilab.audit.v1"
 
 
+def _split_values(values: Sequence[str] | None) -> list[str]:
+    tokens: list[str] = []
+    for value in values or ():
+        tokens.extend(token for token in value.replace(",", " ").split() if token)
+    return tokens
+
+
 def _run(command: list[str], *, cwd: Path = ROOT, timeout: int = 60) -> tuple[int, str, str]:
     try:
         completed = subprocess.run(
@@ -136,7 +143,14 @@ def _command_check(name: str, command: list[str], *, timeout: int = 120) -> dict
     }
 
 
-def build_report(*, fetch: bool = True, network: bool = True) -> dict[str, Any]:
+def build_report(
+    *,
+    fetch: bool = True,
+    network: bool = True,
+    pypi_package_names: Sequence[str] | None = None,
+    pypi_roles: Sequence[str] | None = None,
+    allowed_missing_pypi_projects: Sequence[str] | None = None,
+) -> dict[str, Any]:
     worktree_reports = [
         _audit_worktree(Path(entry["worktree"]), fetch=fetch)
         for entry in _worktrees()
@@ -158,7 +172,15 @@ def build_report(*, fetch: bool = True, network: bool = True) -> dict[str, Any]:
     ]
     pypi_report: dict[str, Any] | None = None
     if network:
-        pypi_report = pypi_preflight_report(repo_root=ROOT)
+        pypi_report = pypi_preflight_report(
+            repo_root=ROOT,
+            package_names=_split_values(pypi_package_names),
+            roles=_split_values(pypi_roles),
+            allowed_missing_projects=[
+                *_split_values(allowed_missing_pypi_projects),
+                *_split_values([os.environ.get("AGILAB_ALLOW_MISSING_PYPI_PROJECTS", "")]),
+            ],
+        )
     warnings = [
         f"{report['path']}: {warning}"
         for report in worktree_reports
@@ -195,10 +217,12 @@ def render_text(report: dict[str, Any]) -> str:
     if report.get("pypi_preflight"):
         summary = report["pypi_preflight"]["summary"]
         lines.append("")
+        allowed_missing = summary.get("allowed_missing_projects", 0)
         lines.append(
             "PyPI preflight: "
             f"{report['pypi_preflight']['status']} "
-            f"({summary['current']}/{summary['checked']} current, {summary['blockers']} blockers)"
+            f"({summary['current']}/{summary['checked']} current, "
+            f"{summary['blockers']} blockers, {allowed_missing} allowed missing)"
         )
     if report["warnings"]:
         lines.append("")
@@ -211,6 +235,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--no-fetch", action="store_true")
     parser.add_argument("--no-network", action="store_true")
+    parser.add_argument("--pypi-package", dest="pypi_packages", action="append")
+    parser.add_argument("--pypi-role", dest="pypi_roles", action="append")
+    parser.add_argument(
+        "--allow-missing-pypi-project",
+        dest="allowed_missing_pypi_projects",
+        action="append",
+        help=(
+            "Allow an explicitly selected missing PyPI project after its pending "
+            "trusted publisher was registered. Matches package or PyPI project name."
+        ),
+    )
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--strict", action="store_true", help="Exit non-zero on warnings.")
     return parser.parse_args(argv)
@@ -218,7 +253,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    report = build_report(fetch=not args.no_fetch, network=not args.no_network)
+    report = build_report(
+        fetch=not args.no_fetch,
+        network=not args.no_network,
+        pypi_package_names=args.pypi_packages,
+        pypi_roles=args.pypi_roles,
+        allowed_missing_pypi_projects=args.allowed_missing_pypi_projects,
+    )
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:

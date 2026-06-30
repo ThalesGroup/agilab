@@ -70,3 +70,55 @@ def test_audit_worktree_reports_missing_path_without_running_git(tmp_path: Path)
     assert report["status"] == "missing worktree path"
     assert report["head"] is None
     assert "missing worktree path; run git worktree prune" in report["warnings"]
+
+
+def test_audit_preflight_accepts_selected_first_publish_project(monkeypatch) -> None:
+    calls = []
+
+    monkeypatch.setattr(agilab_audit, "_worktrees", lambda: [])
+    monkeypatch.setattr(
+        agilab_audit,
+        "_command_check",
+        lambda name, command, timeout=120: {
+            "name": name,
+            "status": "pass",
+            "returncode": 0,
+            "summary": "ok",
+        },
+    )
+
+    def fake_preflight_report(**kwargs):
+        calls.append(kwargs)
+        return {
+            "status": "pass",
+            "summary": {
+                "checked": 1,
+                "current": 0,
+                "to_publish": 0,
+                "allowed_missing_projects": 1,
+                "blockers": 0,
+            },
+        }
+
+    monkeypatch.setattr(agilab_audit, "pypi_preflight_report", fake_preflight_report)
+    monkeypatch.setenv("AGILAB_ALLOW_MISSING_PYPI_PROJECTS", "agi-app-extra")
+
+    report = agilab_audit.build_report(
+        fetch=False,
+        network=True,
+        pypi_package_names=["agi-app-data-quality-gate"],
+        allowed_missing_pypi_projects=["agi-app-data-quality-gate"],
+    )
+
+    assert report["status"] == "pass"
+    assert calls == [
+        {
+            "repo_root": agilab_audit.ROOT,
+            "package_names": ["agi-app-data-quality-gate"],
+            "roles": [],
+            "allowed_missing_projects": [
+                "agi-app-data-quality-gate",
+                "agi-app-extra",
+            ],
+        }
+    ]

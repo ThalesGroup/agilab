@@ -947,7 +947,9 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     assert 'visibility="hidden"' in about_block
     assert 'title="SETTINGS"' in settings_block
     assert 'url_path="SETTINGS"' in settings_block
-    assert 'pages_root / "0_SETTINGS.py"' in source
+    assert "_SETTINGS_PAGE_FILE" in settings_block
+    assert '_PROJECT_STATUS_PAGE_FILE = _NAVIGATION_PAGE_FILES[1]' in source
+    assert '_PROJECT_PAGE_FILE = _NAVIGATION_PAGE_FILES[2]' in source
     assert 'visibility="hidden"' in settings_block
     assert 'page_label="ABOUT"' not in source
     assert 'page_label="MAIN_PAGE"' in source
@@ -963,13 +965,13 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     project_status_legacy_block = source.split("project_status_legacy_page = st.Page(", 1)[1].split(
         "orchestrate_page", 1
     )[0]
-    assert '_page_file_runner(pages_root / "1_PROJECT_STATUS.py")' in project_block
+    assert "_page_file_runner(_PROJECT_STATUS_PAGE_FILE)" in project_block
     assert 'title="PROJECT"' in project_block
     assert 'url_path="PROJECT"' in project_block
-    assert '_page_file_runner(pages_root / "1_PROJECT.py")' in project_editor_block
+    assert "_page_file_runner(_PROJECT_PAGE_FILE)" in project_editor_block
     assert 'url_path="PROJECT_EDITOR"' in project_editor_block
     assert 'visibility="hidden"' in project_editor_block
-    assert '_page_file_runner(pages_root / "1_PROJECT_STATUS.py")' in project_status_legacy_block
+    assert "_page_file_runner(_PROJECT_STATUS_PAGE_FILE)" in project_status_legacy_block
     assert 'url_path="PROJECT_STATUS"' in project_status_legacy_block
     assert 'visibility="hidden"' in project_status_legacy_block
     assert 'visibility="hidden"' in source
@@ -1035,6 +1037,9 @@ def test_orchestrate_page_exposes_analysis_preview_expander(mock_ui_env):
 def test_page_file_runner_caches_modules_until_source_changes(tmp_path, monkeypatch):
     main_page = _import_agilab_module("agilab.main_page")
     main_page._PAGE_MODULE_CACHE.clear()
+    main_page._PAGE_RUNNER_CACHE.clear()
+    main_page._PAGE_MODULE_NAME_CACHE.clear()
+    main_page._RESOLVED_PAGE_PATH_CACHE.clear()
     monkeypatch.setattr(
         main_page, "_about_resources_path", lambda: tmp_path / "resources"
     )
@@ -1042,6 +1047,8 @@ def test_page_file_runner_caches_modules_until_source_changes(tmp_path, monkeypa
         main_page, "_ensure_navigation_environment", lambda *_args, **_kwargs: object()
     )
     monkeypatch.delenv("AGILAB_DISABLE_PAGE_MODULE_CACHE", raising=False)
+    monkeypatch.delenv("AGILAB_DISABLE_PAGE_RUNNER_CACHE", raising=False)
+    monkeypatch.delenv("AGILAB_DISABLE_ALL_PAGE_CACHES", raising=False)
 
     import_counter = tmp_path / "imports.txt"
     call_counter = tmp_path / "calls.txt"
@@ -1066,6 +1073,7 @@ def test_page_file_runner_caches_modules_until_source_changes(tmp_path, monkeypa
 
     write_page("A")
     runner = main_page._page_file_runner(page_file)
+    assert main_page._page_file_runner(page_file) is runner
     runner()
     runner()
 
@@ -1081,6 +1089,126 @@ def test_page_file_runner_caches_modules_until_source_changes(tmp_path, monkeypa
 
     assert import_counter.read_text(encoding="utf-8") == "2"
     assert call_counter.read_text(encoding="utf-8") == "AAB"
+
+
+def test_page_file_runner_cache_can_be_disabled(tmp_path, monkeypatch):
+    main_page = _import_agilab_module("agilab.main_page")
+    main_page._PAGE_RUNNER_CACHE.clear()
+    main_page._RESOLVED_PAGE_PATH_CACHE.clear()
+    monkeypatch.delenv("AGILAB_DISABLE_PAGE_RUNNER_CACHE", raising=False)
+    monkeypatch.delenv("AGILAB_DISABLE_ALL_PAGE_CACHES", raising=False)
+    page_file = tmp_path / "cached_page.py"
+    page_file.write_text("def main():\n    pass\n", encoding="utf-8")
+
+    runner = main_page._page_file_runner(page_file)
+    assert main_page._page_file_runner(page_file) is runner
+
+    monkeypatch.setenv("AGILAB_DISABLE_PAGE_RUNNER_CACHE", "1")
+    assert main_page._page_file_runner(page_file) is not runner
+    assert not main_page._PAGE_RUNNER_CACHE
+
+
+def test_page_module_cache_disable_does_not_store_loaded_module(tmp_path, monkeypatch):
+    main_page = _import_agilab_module("agilab.main_page")
+    main_page._PAGE_MODULE_CACHE.clear()
+    main_page._PAGE_MODULE_NAME_CACHE.clear()
+    main_page._RESOLVED_PAGE_PATH_CACHE.clear()
+    monkeypatch.setenv("AGILAB_DISABLE_PAGE_MODULE_CACHE", "1")
+    monkeypatch.delenv("AGILAB_DISABLE_ALL_PAGE_CACHES", raising=False)
+    page_file = tmp_path / "cold_page.py"
+    page_file.write_text("VALUE = 1\ndef main():\n    pass\n", encoding="utf-8")
+
+    module = main_page._load_page_module(page_file)
+
+    assert module.VALUE == 1
+    assert not main_page._PAGE_MODULE_CACHE
+
+
+def test_all_page_caches_disable_does_not_store_runner_or_module_name(
+    tmp_path, monkeypatch
+):
+    main_page = _import_agilab_module("agilab.main_page")
+    main_page._PAGE_RUNNER_CACHE.clear()
+    main_page._PAGE_MODULE_NAME_CACHE.clear()
+    main_page._RESOLVED_PAGE_PATH_CACHE.clear()
+    monkeypatch.setenv("AGILAB_DISABLE_ALL_PAGE_CACHES", "1")
+    page_file = tmp_path / "cold_page.py"
+    page_file.write_text("def main():\n    pass\n", encoding="utf-8")
+
+    runner = main_page._page_file_runner(page_file)
+    module_name = main_page._page_module_name(page_file)
+
+    assert callable(runner)
+    assert module_name.startswith("_agilab_streamlit_page_")
+    assert not main_page._PAGE_RUNNER_CACHE
+    assert not main_page._PAGE_MODULE_NAME_CACHE
+    assert not main_page._RESOLVED_PAGE_PATH_CACHE
+
+
+def test_page_module_name_is_deterministic_for_resolved_path(tmp_path):
+    main_page = _import_agilab_module("agilab.main_page")
+    main_page._PAGE_MODULE_NAME_CACHE.clear()
+    main_page._RESOLVED_PAGE_PATH_CACHE.clear()
+    page_file = tmp_path / "stable_page.py"
+    page_file.write_text("def main():\n    pass\n", encoding="utf-8")
+
+    relative_name = main_page._page_module_name(page_file)
+    resolved_name = main_page._page_module_name(page_file.resolve())
+
+    assert relative_name == resolved_name
+    assert relative_name.startswith("_agilab_streamlit_page_")
+    assert len(relative_name.rsplit("_", 1)[-1]) == 16
+
+
+def test_navigation_pages_reuses_cached_page_list_until_disabled(monkeypatch, request):
+    main_page = _import_agilab_module("agilab.main_page")
+    main_page._NAVIGATION_PAGE_ROUTES.clear()
+    main_page._NAVIGATION_PAGE_CACHE.clear()
+    main_page._PAGE_RUNNER_CACHE.clear()
+    for key in main_page._PAGE_CACHE_STATS:
+        main_page._PAGE_CACHE_STATS[key] = 0
+
+    def cleanup_navigation_cache() -> None:
+        main_page._NAVIGATION_PAGE_ROUTES.clear()
+        main_page._NAVIGATION_PAGE_CACHE.clear()
+        main_page._PAGE_RUNNER_CACHE.clear()
+
+    request.addfinalizer(cleanup_navigation_cache)
+    created_pages = []
+
+    def fake_page(*args, **kwargs):
+        page = SimpleNamespace(args=args, kwargs=kwargs, index=len(created_pages))
+        created_pages.append(page)
+        return page
+
+    monkeypatch.setattr(main_page.st, "Page", fake_page)
+    monkeypatch.setenv(main_page.UI_TIMING_TRACE_ENV_KEY, "1")
+    monkeypatch.delenv("AGILAB_DISABLE_NAVIGATION_PAGE_CACHE", raising=False)
+    monkeypatch.delenv("AGILAB_DISABLE_ALL_PAGE_CACHES", raising=False)
+
+    pages = main_page._navigation_pages()
+    routes = dict(main_page._NAVIGATION_PAGE_ROUTES)
+    assert main_page._navigation_pages() is pages
+    assert main_page._NAVIGATION_PAGE_ROUTES == routes
+    assert len(created_pages) == len(pages)
+    assert main_page._PAGE_CACHE_STATS["navigation_miss"] == 1
+    assert main_page._PAGE_CACHE_STATS["navigation_hit"] == 1
+
+    monkeypatch.setenv("AGILAB_DISABLE_NAVIGATION_PAGE_CACHE", "1")
+    sentinel_page = main_page._PROJECT_PAGE_FILE.resolve()
+    main_page._PAGE_MODULE_CACHE[sentinel_page] = (1, 1, "sentinel", object())
+    assert main_page._navigation_pages() is not pages
+    assert len(created_pages) == len(pages) * 2
+    assert main_page._PAGE_CACHE_STATS["navigation_miss"] == 2
+    assert sentinel_page in main_page._PAGE_MODULE_CACHE
+
+
+def test_navigation_page_signature_uses_passed_paths(tmp_path):
+    main_page = _import_agilab_module("agilab.main_page")
+    custom_page = tmp_path / "custom_page.py"
+    custom_page.write_text("# custom\n", encoding="utf-8")
+
+    assert main_page._navigation_page_signature((custom_page,))[0][0] == "custom_page.py"
 
 
 def test_main_page_lazy_modules_import_only_on_attribute_access(tmp_path, monkeypatch):
