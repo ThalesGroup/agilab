@@ -1869,6 +1869,30 @@ def _remove_stale_app_ui_selection(active_app_path: Path | None, cfg: dict) -> b
     return changed
 
 
+def _app_ui_selection_allowed(active_app_path: Path | None, cfg: dict) -> bool:
+    return bool(app_surface_config(active_app_path, cfg)) or (
+        _declared_app_ui_page_config(active_app_path) is not None
+    )
+
+
+def _selection_pages_config_without_invalid_app_ui(
+    pages_cfg: dict[str, Any],
+    active_app_path: Path | None,
+    cfg: dict,
+) -> dict[str, Any]:
+    """Return transient selection config that hides stale App UI options."""
+    if _app_ui_selection_allowed(active_app_path, cfg):
+        return pages_cfg
+    selection_cfg = dict(pages_cfg)
+    raw_excluded = selection_cfg.get("excluded_views")
+    excluded = list(raw_excluded) if isinstance(raw_excluded, list) else []
+    for key in _APP_UI_PAGE_KEYS:
+        if key not in excluded:
+            excluded.append(key)
+    selection_cfg["excluded_views"] = excluded
+    return selection_cfg
+
+
 def _migrate_legacy_analysis_page_config(project: str | None, cfg: dict) -> bool:
     """Migrate stale per-user analysis settings after app defaults change."""
     if project not in {"flight", "flight_telemetry_project"}:
@@ -3227,7 +3251,11 @@ async def main():
     pages_cfg = cfg.get("pages", {})
     pages_cfg = pages_cfg if isinstance(pages_cfg, dict) else {}
     surface_config = app_surface_config(active_app_path, cfg)
-    pages_cfg_for_selection = dict(pages_cfg)
+    pages_cfg_for_selection = _selection_pages_config_without_invalid_app_ui(
+        dict(pages_cfg),
+        active_app_path,
+        cfg,
+    )
     for default_key, default_value in configured_default_keys.items():
         pages_cfg_for_selection.setdefault(default_key, default_value)
     if surface_config and _APP_UI_PAGE_KEY in configured_views:
@@ -3388,7 +3416,11 @@ async def main():
         expanded=not selected_views and not selected_notebooks,
     )
 
-    pages_cfg_for_persistence = dict(pages_cfg_for_selection)
+    pages_cfg_for_persistence = _selection_pages_config_without_invalid_app_ui(
+        dict(pages_cfg_for_selection),
+        active_app_path,
+        cfg,
+    )
     selected_view_set = set(selected_views)
     configured_default_views = [
         view_name

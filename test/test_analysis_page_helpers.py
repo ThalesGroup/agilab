@@ -818,6 +818,49 @@ def test_stale_app_ui_selection_without_declared_ui_is_removed(tmp_path: Path):
     assert "view_app_ui" not in cfg["pages"]
 
 
+def test_stale_app_ui_session_selection_without_declared_ui_is_filtered(
+    tmp_path: Path,
+):
+    module = _load_analysis_module()
+    app = tmp_path / "network_sim_project"
+    settings = app / "src" / "app_settings.toml"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(
+        "\n".join(
+            [
+                "[pages]",
+                'view_module = ["tri_gtia_view"]',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    app_ui = tmp_path / "app_ui.py"
+    tri_gtia = tmp_path / "tri_gtia_view.py"
+    app_ui.write_text("", encoding="utf-8")
+    tri_gtia.write_text("", encoding="utf-8")
+    cfg = {"pages": {"view_module": ["tri_gtia_view"]}}
+    pages_cfg = module._selection_pages_config_without_invalid_app_ui(
+        dict(cfg["pages"]),
+        app,
+        cfg,
+    )
+
+    state = module.build_analysis_view_selection_state(
+        pages_cfg=pages_cfg,
+        current_page="main",
+        configured_views=["app_ui", "tri_gtia_view"],
+        resolved_pages={"app_ui": app_ui, "tri_gtia_view": tri_gtia},
+        custom_view_lookup={},
+        session_selection=["app_ui", "tri_gtia_view"],
+        has_session_selection=True,
+    )
+
+    assert "app_ui" not in state.view_names
+    assert state.widget_selection == ("tri_gtia_view",)
+    assert state.selected_views == ("tri_gtia_view",)
+
+
 def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
     project_root = tmp_path / "apps" / "flight_telemetry_project"
