@@ -4,6 +4,7 @@ import asyncio
 import io
 import json
 import urllib.error
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -290,6 +291,50 @@ def test_load_capacity_predictor_returns_signed_trusted_value(tmp_path):
     )
 
     assert loaded == {"size": len(b"pickle-bytes")}
+
+
+def test_load_capacity_predictor_suppresses_only_sklearn_version_warning(
+    monkeypatch, tmp_path
+):
+    class FakeInconsistentVersionWarning(Warning):
+        pass
+
+    model_path = tmp_path / "resources" / "balancer_model.pkl"
+    model_path.parent.mkdir()
+    model_path.write_bytes(b"pickle-bytes")
+    runtime_misc_support.write_capacity_model_manifest(model_path)
+    monkeypatch.setattr(
+        runtime_misc_support,
+        "_sklearn_inconsistent_version_warning",
+        lambda: FakeInconsistentVersionWarning,
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        loaded = runtime_misc_support.load_capacity_predictor(
+            model_path,
+            load_fn=lambda _stream: warnings.warn(
+                "version drift",
+                FakeInconsistentVersionWarning,
+            )
+            or {"ok": True},
+            trusted_root=model_path.parent,
+        )
+
+    assert loaded == {"ok": True}
+    assert caught == []
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        loaded = runtime_misc_support.load_capacity_predictor(
+            model_path,
+            load_fn=lambda _stream: warnings.warn("other warning", UserWarning)
+            or {"ok": True},
+            trusted_root=model_path.parent,
+        )
+
+    assert loaded == {"ok": True}
+    assert [item.category for item in caught] == [UserWarning]
 
 
 def test_load_capacity_predictor_rejects_missing_signature_manifest(tmp_path):
