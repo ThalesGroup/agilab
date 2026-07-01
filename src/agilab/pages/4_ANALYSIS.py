@@ -1813,6 +1813,62 @@ def _migrate_declared_app_surface_config(
     return changed
 
 
+def _remove_stale_app_ui_selection(active_app_path: Path | None, cfg: dict) -> bool:
+    """Drop stale App UI launchers when the active app no longer declares one."""
+    if app_surface_config(active_app_path, cfg):
+        return False
+    if _declared_app_ui_page_config(active_app_path) is not None:
+        return False
+
+    pages = cfg.get("pages")
+    if not isinstance(pages, dict):
+        return False
+
+    changed = False
+    for key in _APP_UI_PAGE_KEYS:
+        if key in pages:
+            del pages[key]
+            changed = True
+
+    raw_modules = pages.get("view_module")
+    if isinstance(raw_modules, list):
+        filtered_modules = [
+            value
+            for value in raw_modules
+            if not (
+                isinstance(value, str)
+                and _normalize_app_ui_page_key(value.strip()) == _APP_UI_PAGE_KEY
+            )
+        ]
+        if filtered_modules != raw_modules:
+            pages["view_module"] = filtered_modules
+            changed = True
+
+    raw_default_view = pages.get("default_view")
+    if (
+        isinstance(raw_default_view, str)
+        and _normalize_app_ui_page_key(raw_default_view.strip()) == _APP_UI_PAGE_KEY
+    ):
+        del pages["default_view"]
+        changed = True
+
+    raw_default_views = pages.get("default_views")
+    if isinstance(raw_default_views, list):
+        filtered_default_views = [
+            value
+            for value in raw_default_views
+            if not (
+                isinstance(value, str)
+                and _normalize_app_ui_page_key(value.strip()) == _APP_UI_PAGE_KEY
+            )
+        ]
+        if filtered_default_views != raw_default_views:
+            pages["default_views"] = filtered_default_views
+            changed = True
+
+    return changed
+
+
 def _migrate_legacy_analysis_page_config(project: str | None, cfg: dict) -> bool:
     """Migrate stale per-user analysis settings after app defaults change."""
     if project not in {"flight", "flight_telemetry_project"}:
@@ -3117,6 +3173,8 @@ async def main():
     if _migrate_declared_app_ui_page_config(active_app_path, cfg):
         migrated_cfg = True
     if _migrate_declared_app_surface_config(active_app_path, cfg):
+        migrated_cfg = True
+    if _remove_stale_app_ui_selection(active_app_path, cfg):
         migrated_cfg = True
     if _migrate_legacy_analysis_page_config(project, cfg):
         migrated_cfg = True
