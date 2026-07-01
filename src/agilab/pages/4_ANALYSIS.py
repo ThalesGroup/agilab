@@ -1996,6 +1996,23 @@ def _consume_legacy_app_ui_route_for_app_surface(
     return True
 
 
+def _consume_invalid_app_ui_route(
+    current_page: str | None,
+    active_app_path: Path | None,
+) -> bool:
+    """Clear app UI deep links for projects that do not declare an app UI."""
+    if not _is_legacy_app_ui_route(current_page):
+        return False
+    if configured_app_surface_entrypoint(active_app_path) is not None:
+        return False
+    if _declared_app_ui_page_config(active_app_path) is not None:
+        return False
+    for key in ("current_page", _APP_SURFACE_HIDE_QUERY_PARAM):
+        if key in st.query_params:
+            del st.query_params[key]
+    return True
+
+
 async def _render_selected_notebook_route(current_notebook: str | None) -> bool:
     """Render a selected notebook route and surface one explicit user-facing failure."""
     if not current_notebook or current_notebook in ("", "main"):
@@ -3224,6 +3241,9 @@ async def main():
             notebook_names=notebook_names,
             notebook_lookup=notebook_lookup,
         )
+
+    if _consume_invalid_app_ui_route(current_page, active_app_path):
+        current_page = None
 
     route_view_path = (
         _resolve_view_path(current_page, resolved_pages, custom_view_lookup)
