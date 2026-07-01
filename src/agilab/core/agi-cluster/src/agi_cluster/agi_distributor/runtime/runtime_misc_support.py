@@ -14,6 +14,7 @@ import sys
 import traceback
 import urllib.error
 import urllib.request
+import warnings
 from datetime import timedelta
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Callable, List, Optional, cast
@@ -42,6 +43,14 @@ _WORKER_RESOLUTION_EXCEPTIONS = (
     ImportError,
     ModuleNotFoundError,
 )
+
+
+def _sklearn_inconsistent_version_warning() -> type[Warning] | None:
+    try:
+        from sklearn.exceptions import InconsistentVersionWarning
+    except Exception:
+        return None
+    return InconsistentVersionWarning
 _RUN_TYPES = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
 
 
@@ -237,7 +246,14 @@ def load_capacity_predictor(
 
     try:
         with open(path.resolve(strict=False), "rb") as stream:
-            return load_fn(stream)
+            inconsistent_version_warning = _sklearn_inconsistent_version_warning()
+            with warnings.catch_warnings():
+                if inconsistent_version_warning is not None:
+                    warnings.filterwarnings(
+                        "ignore",
+                        category=inconsistent_version_warning,
+                    )
+                return load_fn(stream)
     except _CAPACITY_LOAD_EXCEPTIONS as exc:
         if log is not None:
             log.warning("Failed to load capacity model from %s: %s", path, exc)
