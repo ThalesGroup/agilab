@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-06-24T13:59:02Z",
+  "generated_at_utc": "2026-07-01T16:04:06Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -237,7 +237,7 @@
     },
     {
       "name": "slides",
-      "description": "Create and edit presentation slide decks (`.pptx`) with PptxGenJS, bundled layout helpers, and render/validation utilities. Use when tasks involve building a new PowerPoint deck, recreating slides from screenshots/PDFs/reference decks, modifying slide content while preserving editable output, adding charts/diagrams/visuals, or diagnosing layout issues such as overflow, overlaps, and font substitution.",
+      "description": "Create, edit, inspect, or explain presentation slide decks (`.pptx`) with PptxGenJS, bundled layout helpers, and render/validation utilities. Use when tasks involve building a new PowerPoint deck, recreating slides from screenshots/PDFs/reference decks, modifying content while preserving editable output, extracting or explaining a specific slide, adding charts/diagrams/visuals, or diagnosing layout issues such as overflow, overlaps, and font substitution.",
       "license": "Apache-2.0 (see bundled LICENSE.txt)",
       "updated": null,
       "path": ".codex/skills/slides/SKILL.md",

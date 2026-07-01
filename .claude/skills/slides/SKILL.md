@@ -1,6 +1,6 @@
 ---
 name: slides
-description: Create and edit presentation slide decks (`.pptx`) with PptxGenJS, bundled layout helpers, and render/validation utilities. Use when tasks involve building a new PowerPoint deck, recreating slides from screenshots/PDFs/reference decks, modifying slide content while preserving editable output, adding charts/diagrams/visuals, or diagnosing layout issues such as overflow, overlaps, and font substitution.
+description: Create, edit, inspect, or explain presentation slide decks (`.pptx`) with PptxGenJS, bundled layout helpers, and render/validation utilities. Use when tasks involve building a new PowerPoint deck, recreating slides from screenshots/PDFs/reference decks, modifying content while preserving editable output, extracting or explaining a specific slide, adding charts/diagrams/visuals, or diagnosing layout issues such as overflow, overlaps, and font substitution.
 license: Apache-2.0 (see bundled LICENSE.txt)
 ---
 
@@ -50,6 +50,18 @@ Keep work in a task-local directory. Only copy final artifacts to the requested 
 - Match the original aspect ratio before rebuilding layout.
 - Preserve editability where possible: text should stay text, and simple charts should stay native charts.
 - If a reference slide uses raster artwork, use `ensure_raster_image.py` to generate debug PNGs from vector or odd image formats before placing them.
+
+## Inspection-Only Requests
+
+Use inspection-only mode when the user asks to explain, summarize, translate, or
+review a specific slide without asking for edits.
+
+- Do not modify the deck.
+- If the deck is not named and multiple plausible `.pptx` files exist, inspect the most likely local candidates and say which one you used. Ask for clarification only when the choice remains materially ambiguous.
+- For a request such as "slide 17, explain the last sentence", extract the actual slide text from the `.pptx` package instead of relying on memory or filenames.
+- Report whether the requested slide number exists. If it does not, name the deck and slide count.
+- Keep the answer anchored to the exact sentence or phrase being explained, then explain it in the user's language.
+- Use `python-pptx` or direct OOXML/ZIP inspection only for read-only extraction. Do not use `python-pptx` to generate replacement decks.
 
 ## Validation Commands
 
