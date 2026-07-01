@@ -49,6 +49,7 @@ def _sklearn_inconsistent_version_warning() -> type[Warning] | None:
     try:
         from sklearn.exceptions import InconsistentVersionWarning
     except Exception:
+        # third-party optional dependency probe; absence keeps normal load behavior.
         return None
     return InconsistentVersionWarning
 _RUN_TYPES = ["run --no-sync", "sync --dev", "sync --upgrade --dev", "simulate"]
