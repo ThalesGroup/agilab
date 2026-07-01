@@ -719,6 +719,83 @@ def test_pipeline_run_controls_run_all_stages_without_mlflow_tracks_runpy_no_out
     assert releases == [{"path": "lock", "token": "t"}]
 
 
+def test_pipeline_run_controls_missing_mlflow_cli_still_runs_without_tracker(
+    tmp_path, monkeypatch
+):
+    module = _import_pipeline_run_controls()
+    snippet_file = tmp_path / "snippet.py"
+    snippet_file.write_text("print('snippet')", encoding="utf-8")
+    fake_st = _FakeStreamlit(
+        {
+            "page": [0, "", "", "", "", "", 0],
+            "snippet_file": str(snippet_file),
+            "lab_selected_venv": "",
+            "lab_selected_engine": "",
+        }
+    )
+    monkeypatch.setattr(module, "st", fake_st)
+    releases: list[dict] = []
+    run_lab_calls: list[dict] = []
+
+    class MissingMlflowCliError(RuntimeError):
+        pass
+
+    @contextmanager
+    def no_mlflow_tracker(*_args, **_kwargs):
+        yield None
+
+    def fail_build_mlflow_process_env(*_args, **_kwargs):
+        raise AssertionError("MLflow env should not be built without a tracker")
+
+    monkeypatch.setattr(
+        module._pipeline_runtime,
+        "mlflow_tracking_uri",
+        lambda _env: (_ for _ in ()).throw(
+            MissingMlflowCliError("Install `agilab[mlflow]`")
+        ),
+    )
+    monkeypatch.setattr(module._pipeline_runtime, "start_tracker_run", no_mlflow_tracker)
+    monkeypatch.setattr(
+        module._pipeline_runtime,
+        "build_mlflow_process_env",
+        fail_build_mlflow_process_env,
+    )
+    monkeypatch.setattr(
+        module._pipeline_runtime,
+        "label_for_stage_runtime",
+        lambda runtime, *, engine, code: f"{engine}:{runtime or 'default'}",
+    )
+    monkeypatch.setattr(module._pipeline_runtime, "is_valid_runtime_root", lambda _value: False)
+    monkeypatch.setattr(module._pipeline_stages, "normalize_runtime_path", lambda value: str(value or ""))
+    monkeypatch.setattr(module._pipeline_stages, "is_runnable_stage", lambda entry: bool(entry.get("C")))
+    monkeypatch.setattr(module._pipeline_stages, "stage_summary", lambda entry, width=80: entry.get("Q", ""))
+    monkeypatch.setattr(module, "_acquire_pipeline_run_lock", lambda *_args, **_kwargs: {"path": "lock", "token": "t"})
+    monkeypatch.setattr(module, "_refresh_pipeline_run_lock", lambda _handle: None)
+    monkeypatch.setattr(module, "_release_pipeline_run_lock", lambda handle, *_args, **_kwargs: releases.append(handle))
+    monkeypatch.setattr(
+        module,
+        "run_lab",
+        lambda payload, snippet, copilot, **kwargs: run_lab_calls.append(
+            {"payload": payload, "snippet": snippet, "copilot": copilot, "kwargs": kwargs}
+        ) or "",
+    )
+
+    env = SimpleNamespace(app="demo", active_app="", copilot_file=tmp_path / "copilot.py")
+    module.run_all_stages(
+        tmp_path / "lab",
+        "page",
+        tmp_path / "lab_stages.toml",
+        tmp_path / "module.py",
+        env,
+        load_all_stages_fn=lambda *_args: [{"D": "desc", "Q": "question", "M": "model", "C": "print(1)"}],
+        stream_run_command_fn=lambda *_args, **_kwargs: "should not run",
+    )
+
+    assert run_lab_calls[0]["kwargs"] == {"env_overrides": {}}
+    assert any(kind == "success" and "Executed 1 stage." in message for kind, message in fake_st.messages)
+    assert releases == [{"path": "lock", "token": "t"}]
+
+
 def test_pipeline_run_controls_run_all_stages_uses_active_app_for_agi_engine(tmp_path, monkeypatch):
     module = _import_pipeline_run_controls()
     snippet_file = tmp_path / "snippet.py"
