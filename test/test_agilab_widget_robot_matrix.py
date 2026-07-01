@@ -201,6 +201,7 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     all_builtin_orchestrate = module.resolve_scenarios(["isolated-all-builtins-orchestrate-smoke"])[0]
     all_builtin_core_render = module.resolve_scenarios(["isolated-all-builtins-core-render-smoke"])[0]
     pytorch_analysis = module.resolve_scenarios(["isolated-pytorch-playground-analysis"])[0]
+    network_sim_analysis = module.resolve_scenarios(["current-home-network-sim-analysis-no-app-ui-link"])[0]
     above_fold = module.resolve_scenarios(["isolated-above-fold-core-pages"])[0]
     visual_baseline = module.resolve_scenarios(["isolated-visual-baseline-core-pages"])[0]
     hf_visual_smoke = module.resolve_scenarios(["hf-first-proof-visual-smoke"])[0]
@@ -220,6 +221,7 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert all_builtin_orchestrate.name not in default_names
     assert all_builtin_core_render.name not in default_names
     assert pytorch_analysis.name not in default_names
+    assert network_sim_analysis.name not in default_names
     assert above_fold.name not in default_names
     assert visual_baseline.name not in default_names
     assert hf_visual_smoke.name not in default_names
@@ -265,6 +267,13 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert pytorch_analysis.required_links == "PyTorch Playground=>current_page=app_ui"
     assert pytorch_analysis.required_action_labels == "Refresh evidence"
     assert pytorch_analysis.browser_error_check is True
+    assert network_sim_analysis.apps == "network_sim_project"
+    assert network_sim_analysis.pages == "ANALYSIS"
+    assert network_sim_analysis.runtime_isolation == "current-home"
+    assert network_sim_analysis.required_text == "Network Sim"
+    assert network_sim_analysis.forbidden_sidebar_text == "App UI"
+    assert network_sim_analysis.max_action_clicks_per_page == 0
+    assert network_sim_analysis.browser_error_check is True
     assert above_fold.above_fold_check is True
     assert visual_baseline.success_screenshot is True
     assert visual_baseline.visual_mask_dynamic_regions is True
@@ -605,6 +614,33 @@ def test_build_robot_command_covers_pytorch_playground_analysis_text(tmp_path) -
     assert "--browser-error-check" in argv
     assert summary_path == tmp_path / "isolated-pytorch-playground-analysis.json"
     assert progress_path == tmp_path / "isolated-pytorch-playground-analysis.ndjson"
+
+
+def test_build_robot_command_covers_network_sim_analysis_no_app_ui_link(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["current-home-network-sim-analysis-no-app-ui-link"]
+    options = module.MatrixOptions(
+        apps="all",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--apps") + 1] == "network_sim_project"
+    assert argv[argv.index("--pages") + 1] == "ANALYSIS"
+    assert argv[argv.index("--apps-pages") + 1] == "none"
+    assert argv[argv.index("--runtime-isolation") + 1] == "current-home"
+    assert argv[argv.index("--required-text") + 1] == "Network Sim"
+    assert argv[argv.index("--forbidden-sidebar-text") + 1] == "App UI"
+    assert argv[argv.index("--max-action-clicks-per-page") + 1] == "0"
+    assert "--browser-error-check" in argv
+    assert summary_path == tmp_path / "current-home-network-sim-analysis-no-app-ui-link.json"
+    assert progress_path == tmp_path / "current-home-network-sim-analysis-no-app-ui-link.ndjson"
 
 
 def test_build_robot_command_enables_above_fold_check(tmp_path) -> None:

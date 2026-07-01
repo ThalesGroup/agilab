@@ -570,6 +570,26 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         target_seconds=900.0,
         browser_error_check=True,
     ),
+    "current-home-network-sim-analysis-no-app-ui-link": RobotScenario(
+        name="current-home-network-sim-analysis-no-app-ui-link",
+        description=(
+            "Open the locally installed Network Sim ANALYSIS page and assert stale "
+            "App UI launchers are not rendered when the active app declares no "
+            "app UI entrypoint."
+        ),
+        pages="ANALYSIS",
+        apps_pages="none",
+        runtime_isolation="current-home",
+        action_button_policy="trial",
+        apps="network_sim_project",
+        required_text="Network Sim",
+        forbidden_sidebar_text="App UI",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=300.0,
+        target_seconds=600.0,
+        max_action_clicks_per_page=0,
+        browser_error_check=True,
+    ),
     "isolated-above-fold-core-pages": RobotScenario(
         name="isolated-above-fold-core-pages",
         description=(
