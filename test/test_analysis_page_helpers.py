@@ -752,6 +752,38 @@ def test_legacy_view_app_ui_route_opens_declared_app_surface(
     assert module._APP_SURFACE_HIDE_QUERY_PARAM not in fake_st.query_params
 
 
+def test_invalid_app_ui_route_without_declared_ui_is_cleared(
+    tmp_path: Path, monkeypatch
+):
+    module = _load_analysis_module()
+    app = tmp_path / "network_sim_project"
+    settings = app / "src" / "app_settings.toml"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(
+        "\n".join(
+            [
+                "[pages]",
+                'view_module = ["tri_gtia_view"]',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    app_ui_route = tmp_path / "apps-pages" / "app_ui" / "src" / "app_ui" / "app_ui.py"
+    fake_st = SimpleNamespace(
+        query_params={
+            "current_page": str(app_ui_route),
+            module._APP_SURFACE_HIDE_QUERY_PARAM: "true",
+        },
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+
+    assert module._consume_invalid_app_ui_route(str(app_ui_route), app) is True
+    assert "current_page" not in fake_st.query_params
+    assert module._APP_SURFACE_HIDE_QUERY_PARAM not in fake_st.query_params
+
+
 def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
     project_root = tmp_path / "apps" / "flight_telemetry_project"
