@@ -357,7 +357,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     _share_mount_warning_keys: set[tuple[str, str]] = set()
     INDEX_URL="https://test.pypi.org/simple"
     EXTRA_INDEX_URL="https://pypi.org/simple"
-    snippet_tail = "asyncio.get_event_loop().run_until_complete(main())"
+    snippet_tail = "asyncio.run(main())"
     _pythonpath_entries: list[str] = []
 
     def __init__(self,

@@ -784,6 +784,40 @@ def test_invalid_app_ui_route_without_declared_ui_is_cleared(
     assert module._APP_SURFACE_HIDE_QUERY_PARAM not in fake_st.query_params
 
 
+def test_stale_app_ui_selection_without_declared_ui_is_removed(tmp_path: Path):
+    module = _load_analysis_module()
+    app = tmp_path / "network_sim_project"
+    settings = app / "src" / "app_settings.toml"
+    settings.parent.mkdir(parents=True)
+    settings.write_text(
+        "\n".join(
+            [
+                "[pages]",
+                'view_module = ["tri_gtia_view"]',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    cfg = {
+        "pages": {
+            "view_module": ["app_ui", "tri_gtia_view", "view_app_ui"],
+            "default_view": "app_ui",
+            "default_views": ["view_app_ui", "tri_gtia_view"],
+            "app_ui": {"title": "Stale", "entrypoint": "missing.py"},
+            "view_app_ui": {"title": "Legacy", "entrypoint": "missing.py"},
+        }
+    }
+
+    assert module._remove_stale_app_ui_selection(app, cfg) is True
+
+    assert cfg["pages"]["view_module"] == ["tri_gtia_view"]
+    assert cfg["pages"]["default_views"] == ["tri_gtia_view"]
+    assert "default_view" not in cfg["pages"]
+    assert "app_ui" not in cfg["pages"]
+    assert "view_app_ui" not in cfg["pages"]
+
+
 def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
     project_root = tmp_path / "apps" / "flight_telemetry_project"

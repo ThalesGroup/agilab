@@ -54,6 +54,19 @@ PIPELINE_LOCK_FILENAME = "pipeline_run.lock"
 PIPELINE_LOCK_DEFAULT_TTL_SEC = 6 * 3600.0
 
 
+def _is_missing_mlflow_cli_error(exc: BaseException) -> bool:
+    return exc.__class__.__name__ == "MissingMlflowCliError"
+
+
+def _optional_mlflow_tracking_uri(env: AgiEnv) -> str:
+    try:
+        return _pipeline_runtime.mlflow_tracking_uri(env)
+    except RuntimeError as exc:
+        if _is_missing_mlflow_cli_error(exc):
+            return ""
+        raise
+
+
 def _mlflow_parent_payload(
     env: AgiEnv,
     lab_dir: Path,
@@ -66,7 +79,7 @@ def _mlflow_parent_payload(
         "agilab.app": str(getattr(env, "app", "") or ""),
         "agilab.lab": lab_dir.name,
         "agilab.stages_file": str(stages_file),
-        "agilab.tracking_uri": _pipeline_runtime.mlflow_tracking_uri(env),
+        "agilab.tracking_uri": _optional_mlflow_tracking_uri(env),
     }
     params = {
         "sequence": ",".join(str(idx + 1) for idx in sequence),
@@ -639,9 +652,13 @@ def run_all_stages(
                         params=stage_params,
                         nested=bool(pipeline_tracker),
                     ) as stage_tracker:
-                        stage_env = _pipeline_runtime.build_mlflow_process_env(
-                            env,
-                            run_id=stage_tracker.run_id if stage_tracker else None,
+                        stage_env = (
+                            _pipeline_runtime.build_mlflow_process_env(
+                                env,
+                                run_id=stage_tracker.run_id,
+                            )
+                            if stage_tracker
+                            else {}
                         )
                         if stage_tracker:
                             stage_tracker.log_artifacts(
