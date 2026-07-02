@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-02
+  updated: 2026-07-02
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -169,6 +169,13 @@ Use this skill when editing:
   `page_project_selector.py`, lazy-import wrappers, CSS class names, and tests.
   Add or update a negative regression assertion for removed text so tests do
   not encode newly introduced clutter as expected behavior.
+- For visible action renames, update the robot source-of-truth in the same
+  change: `tools/agilab_widget_robot.py`,
+  `tools/agilab_widget_robot_matrix.py`, `tools/agilab_web_robot.py`,
+  `tools/ui_robot_canary.py`, `tools/ui_robot_coverage_contract.py`, and the
+  paired robot/action-contract tests. A page-only rename can leave hosted
+  selected-action profiles, above-fold canaries, and coverage contracts looking
+  for the old label even when the UI tests pass.
 - Prefer page headers with a few read-only KPI cards over status banners that say
   `ready`, `not set`, or `missing` without useful context.
 - Use the same visual semantics across pages:
