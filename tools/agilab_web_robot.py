@@ -968,7 +968,7 @@ def run_browser_robot(
                     assert_page_healthy(
                         page,
                         label="orchestrate page",
-                        expect_any=("ORCHESTRATE", "Deploy workers", "EXECUTE"),
+                        expect_any=("ORCHESTRATE", "Deploy scheduler & workers", "EXECUTE"),
                         timeout_ms=timeout_ms,
                         screenshot_dir=screenshot_dir,
                     ),

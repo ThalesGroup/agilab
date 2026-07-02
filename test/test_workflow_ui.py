@@ -285,11 +285,11 @@ def test_next_best_action_guides_install_execute_and_analysis(tmp_path, monkeypa
     monkeypatch.setattr(
         workflow_ui,
         "_project_install_status",
-        lambda _env: ("Not installed", "run ORCHESTRATE -> Deploy workers", "incomplete"),
+        lambda _env: ("Not installed", "run ORCHESTRATE -> Deploy scheduler & workers", "incomplete"),
     )
     install_action = workflow_ui.project_next_action(env)
     assert install_action["id"] == "install"
-    assert install_action["label"] == "Deploy workers"
+    assert install_action["label"] == "Deploy scheduler & workers"
     assert "AGI.install internally" in install_action["detail"]
 
     monkeypatch.setattr(
@@ -964,7 +964,7 @@ def test_workflow_ui_remaining_render_branches(tmp_path) -> None:
     workflow_ui._download_log_button(SimpleNamespace(), body="logs", key="missing", file_name="run.log")
     workflow_ui.render_action_readiness(
         fake_st,
-        actions=[("Deploy workers", True, ""), ("Run", False, "blocked")],
+        actions=[("Deploy scheduler & workers", True, ""), ("Run", False, "blocked")],
     )
     workflow_ui.render_latest_outputs(fake_st, key_prefix="empty")
     workflow_ui.render_artifact_drawer(fake_st, artifacts=[], key_prefix="empty")
@@ -995,7 +995,7 @@ def test_workflow_ui_remaining_render_branches(tmp_path) -> None:
         duration="2s",
         key_prefix="latest",
     )
-    assert ("caption", "Deploy workers: Ready") in fake_st.events
+    assert ("caption", "Deploy scheduler & workers: Ready") in fake_st.events
     assert ("caption", "Run: blocked") in fake_st.events
     assert ("caption", "Started: 2026-05-17T10:00:00") in fake_st.events
     assert ("caption", "Duration: 2s") in fake_st.events

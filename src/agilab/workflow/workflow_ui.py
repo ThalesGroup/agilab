@@ -400,8 +400,8 @@ def _project_install_status(env: Any | None) -> tuple[str, str, str]:
     if manager_ready and (workerless or worker_ready):
         return "Ready", "manager and worker ready" if not workerless else "manager ready", "ready"
     if manager_exists or worker_exists:
-        return "Incomplete", "rerun Deploy workers before EXECUTE", "incomplete"
-    return "Not installed", "run ORCHESTRATE -> Deploy workers", "incomplete"
+        return "Incomplete", "rerun Deploy scheduler & workers before EXECUTE", "incomplete"
+    return "Not installed", "run ORCHESTRATE -> Deploy scheduler & workers", "incomplete"
 
 
 def _run_history(env: Any | None) -> tuple[str, str, str]:
@@ -483,7 +483,7 @@ def _project_next_action(
     if install_value != "Ready":
         return {
             "id": "install",
-            "label": "Deploy workers",
+            "label": "Deploy scheduler & workers",
             "detail": "Prepare runtime environments before execution; ORCHESTRATE uses AGI.install internally without forcing a local manager reinstall.",
             "url": _project_page_url("ORCHESTRATE", env),
             "type": "primary",

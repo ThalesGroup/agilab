@@ -988,7 +988,7 @@ async def render_execute_section(
     else:
         pending_hidden_action = consume_pending_execute_action(st.session_state)
         if pending_hidden_action:
-            st.error("RUN is not available yet. Run Deploy workers first, then retry RUN.")
+            st.error("RUN is not available yet. Run Deploy scheduler & workers first, then retry RUN.")
 
     pending_action = consume_pending_execute_action(st.session_state)
     run_clicked = pending_action == "run"

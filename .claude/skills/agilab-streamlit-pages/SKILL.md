@@ -159,9 +159,9 @@ Use this skill when editing:
   PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS, SETTINGS, sidebars, and robot click
   labels. Avoid same-label/different-contract collisions; scope labels by
   object and layer, for example `Install agi-app` for package/catalog install
-  and `Deploy workers` for manager/worker environment deployment.
+  and `Deploy scheduler & workers` for manager/worker environment deployment.
 - Preserve stable lower-level API names when product copy changes. In
-  ORCHESTRATE, `Deploy workers` can correctly call `AGI.install`: the API
+  ORCHESTRATE, `Deploy scheduler & workers` can correctly call `AGI.install`: the API
   prepares manager and worker runtime environments and reuses an already-ready
   local manager environment rather than forcing a reinstall.
 - For visible-label cleanup, search every render path before closing the task:

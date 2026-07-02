@@ -66,7 +66,7 @@ def test_ui_robot_action_contract_passes_for_current_ui_surface() -> None:
     assert payload["schema"] == module.SCHEMA
     assert payload["success"] is True
     assert payload["issues"] == []
-    assert actions_by_label["Deploy workers"]["disposition"] == "selected-click"
+    assert actions_by_label["Deploy scheduler & workers"]["disposition"] == "selected-click"
     assert actions_by_label["Install agi-app"]["disposition"] == "ignored"
     assert actions_by_label["Run -> Load -> Export"]["disposition"] == "selected-click"
     assert actions_by_label["Delete"]["disposition"] == "trial-only"

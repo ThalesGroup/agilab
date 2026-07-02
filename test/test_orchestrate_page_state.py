@@ -261,7 +261,7 @@ def test_orchestrate_install_workflow_state_blocks_missing_runtime_root():
 
     assert state.action.enabled is False
     assert state.runtime_root is None
-    assert "Unable to resolve the Deploy workers runtime root" in state.action.disabled_reason
+    assert "Unable to resolve the Deploy scheduler & workers runtime root" in state.action.disabled_reason
 
 
 def test_orchestrate_install_workflow_state_blocks_hidden_or_missing_command(tmp_path):
@@ -301,9 +301,9 @@ def test_orchestrate_install_workflow_state_blocks_hidden_or_missing_command(tmp
     )
 
     assert hidden.action.enabled is False
-    assert hidden.action.disabled_reason == "Deploy workers controls are hidden."
+    assert hidden.action.disabled_reason == "Deploy scheduler & workers controls are hidden."
     assert missing_command.action.enabled is False
-    assert "No Deploy workers command configured" in missing_command.action.disabled_reason
+    assert "No Deploy scheduler & workers command configured" in missing_command.action.disabled_reason
 
 
 def test_orchestrate_distribution_workflow_state_is_ready(tmp_path):

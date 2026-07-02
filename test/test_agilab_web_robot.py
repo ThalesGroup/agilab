@@ -1580,7 +1580,7 @@ class _FakeBrowserPage:
         self.url = url
         self.visited.append(url)
         if "ORCHESTRATE" in url:
-            self.body_text = "ORCHESTRATE Deploy workers EXECUTE"
+            self.body_text = "ORCHESTRATE Deploy scheduler & workers EXECUTE"
         elif "ANALYSIS" in url and "current_page=" in url:
             self.body_text = "View: selected analysis view"
         elif "ANALYSIS" in url:

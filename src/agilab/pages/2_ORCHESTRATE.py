@@ -1246,7 +1246,7 @@ async def _install_worker_action(
                 ),
                 next_action=diagnostic.next_action
                 if diagnostic
-                else "Check deployment logs above, fix the manager environment, then rerun Deploy workers.",
+                else "Check deployment logs above, fix the manager environment, then rerun Deploy scheduler & workers.",
                 data=data,
             )
 
@@ -1319,7 +1319,7 @@ async def _install_worker_action(
             ),
             next_action=diagnostic.next_action
             if diagnostic
-            else "Check deployment logs above, fix the worker environment, then rerun Deploy workers.",
+            else "Check deployment logs above, fix the worker environment, then rerun Deploy scheduler & workers.",
             data=data,
         )
     return ActionResult.success(
@@ -1570,7 +1570,7 @@ def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
             ) or "Manager environment is missing or stale."
         return (
             "Needs deployment",
-            "Manager environment has not been created yet. Run Deploy workers before RUN.",
+            "Manager environment has not been created yet. Run Deploy scheduler & workers before RUN.",
         )
     if manager_ready and worker_ready:
         return (
@@ -1581,7 +1581,7 @@ def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
         if not install_status.get("worker_exists"):
             return (
                 "Needs deployment",
-                "Worker environment has not been created yet. Run Deploy workers before RUN.",
+                "Worker environment has not been created yet. Run Deploy scheduler & workers before RUN.",
             )
         return "Needs deployment", install_status.get(
             "worker_problem"
@@ -1590,7 +1590,7 @@ def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
         if not install_status.get("manager_exists"):
             return (
                 "Needs deployment",
-                "Manager environment has not been created yet. Run Deploy workers before RUN.",
+                "Manager environment has not been created yet. Run Deploy scheduler & workers before RUN.",
             )
         return "Needs deployment", install_status.get(
             "manager_problem"
@@ -1635,7 +1635,7 @@ def _install_block_reason_for_run(
             install_status.get("manager_problem")
             or "Manager environment is missing or stale."
         )
-    return "Manager environment has not been created yet. Run Deploy workers before RUN."
+    return "Manager environment has not been created yet. Run Deploy scheduler & workers before RUN."
 
 
 def _install_status_warning_message(install_status: dict[str, Any]) -> str | None:
@@ -1656,7 +1656,7 @@ def _install_status_warning_message(install_status: dict[str, Any]) -> str | Non
     if not stale_problems:
         return None
     return (
-        "Environment deployment is incomplete or stale. Run Deploy workers before RUN / LOAD / EXPORT. "
+        "Environment deployment is incomplete or stale. Run Deploy scheduler & workers before RUN / LOAD / EXPORT. "
         + " | ".join(stale_problems)
     )
 
@@ -1709,9 +1709,9 @@ def _orchestrate_notebook_document(
     app_name = str(getattr(env, "app", "") or getattr(env, "target", "") or "project")
     snippet_labels = [label for label, _snippet in snippets]
     run_sentence = (
-        "Run cells selectively: Deploy workers prepares manager/worker environments, CHECK distribute previews work, and RUN executes."
+        "Run cells selectively: Deploy scheduler & workers prepares manager/worker environments, CHECK distribute previews work, and RUN executes."
         if "CHECK distribute" in snippet_labels
-        else "Run cells selectively: Deploy workers prepares manager/worker environments and RUN executes."
+        else "Run cells selectively: Deploy scheduler & workers prepares manager/worker environments and RUN executes."
     )
     cells: list[dict[str, Any]] = [
         _orchestrate_notebook_cell(
@@ -1775,11 +1775,11 @@ def _render_orchestrate_notebook_expander(env: Any) -> None:
         if not snippets:
             if supports_distribution_preview(env):
                 st.info(
-                    "No orchestration snippets are available yet. Configure Deploy workers, CHECK distribute, or RUN first."
+                    "No orchestration snippets are available yet. Configure Deploy scheduler & workers, CHECK distribute, or RUN first."
                 )
             else:
                 st.info(
-                    "No orchestration snippets are available yet. Configure Deploy workers or RUN first."
+                    "No orchestration snippets are available yet. Configure Deploy scheduler & workers or RUN first."
                 )
             return
         app_name = str(
@@ -1953,7 +1953,7 @@ async def _render_deployment_panel(
         if not show_install:
             if consume_pending_install_action(st.session_state):
                 st.info(
-                    "Deploy workers is hidden. Re-enable Resources, then retry Deploy workers."
+                    "Deploy scheduler & workers is hidden. Re-enable Resources, then retry Deploy scheduler & workers."
                 )
             return verbose, install_status
 
@@ -2131,7 +2131,7 @@ async def _render_distribution_panel(
 
     with st.expander(f"2. Configure run arguments for {module}", expanded=True):
         st.caption(
-            "Set the input, output, and app-specific parameters passed to Deploy workers, "
+            "Set the input, output, and app-specific parameters passed to Deploy scheduler & workers, "
             "CHECK distribute, RUN, or service mode."
         )
         app_args_form = env.app_args_form
@@ -2414,7 +2414,7 @@ async def _render_distribution_panel(
                     )
                 else:
                     st.caption(
-                        "Unable to resolve the worker environment path. Run Deploy workers, then retry CHECK distribute."
+                        "Unable to resolve the worker environment path. Run Deploy scheduler & workers, then retry CHECK distribute."
                     )
 
 

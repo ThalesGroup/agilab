@@ -195,7 +195,7 @@ def test_classify_runtime_failure_reports_invalid_dataset_archive() -> None:
     assert diagnostic.category == "archive"
     assert diagnostic.title == "Dataset archive is invalid."
     assert "dataset.7z could not be extracted" in diagnostic.detail
-    assert "rerun Deploy workers" in diagnostic.next_action
+    assert "rerun Deploy scheduler & workers" in diagnostic.next_action
 
 
 def test_classify_runtime_failure_reports_dependency_and_scheduler() -> None:

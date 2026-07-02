@@ -180,7 +180,7 @@ def test_opt_in_hf_install_scenario_is_not_part_of_default_all() -> None:
     assert hf_scenario.pages == "ORCHESTRATE"
     assert hf_scenario.apps_pages == "none"
     assert hf_scenario.action_button_policy == "click-selected"
-    assert hf_scenario.click_action_labels == "Deploy workers"
+    assert hf_scenario.click_action_labels == "Deploy scheduler & workers"
     assert hf_scenario.missing_selected_action_policy == "fail"
     assert hf_scenario.action_timeout_seconds == 600.0
 
@@ -392,7 +392,7 @@ def test_build_robot_command_covers_hosted_hf_install_action(tmp_path) -> None:
     assert argv[argv.index("--pages") + 1] == "ORCHESTRATE"
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--action-button-policy") + 1] == "click-selected"
-    assert argv[argv.index("--click-action-labels") + 1] == "Deploy workers"
+    assert argv[argv.index("--click-action-labels") + 1] == "Deploy scheduler & workers"
     assert argv[argv.index("--missing-selected-action-policy") + 1] == "fail"
     assert argv[argv.index("--action-timeout") + 1] == "600.0"
     assert argv[argv.index("--url") + 1] == "https://huggingface.co/spaces/jpmorard/agilab"
@@ -830,7 +830,7 @@ def test_build_robot_command_enables_first_proof_failure_evidence(tmp_path) -> N
     assert argv[argv.index("--pages") + 1] == "ORCHESTRATE,ANALYSIS"
     assert argv[argv.index("--route-query") + 1] == "first_proof_action=install"
     first_proof_actions = argv[argv.index("--click-action-labels") + 1].split(",")
-    assert "Deploy workers" in first_proof_actions
+    assert "Deploy scheduler & workers" in first_proof_actions
     assert "Run -> Load -> Export" in first_proof_actions
     assert "Load output" not in first_proof_actions
     assert "EXPORT dataframe" not in first_proof_actions
