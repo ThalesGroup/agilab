@@ -135,8 +135,14 @@ _INSTALL_LOG_FATAL_PATTERNS: tuple[tuple[str, ...], ...] = (
     ("install finished with errors",),
     ("worker start hook failed",),
     ("connection to", "timed out"),
+    ("connect error",),
+    ("connection error",),
     ("failed to connect",),
     ("connection refused",),
+    ("could not resolve hostname",),
+    ("host is unreachable",),
+    ("network is unreachable",),
+    ("operation timed out",),
     ("no route to host",),
     ("ssh_exchange_identification",),
     ("broken pipe",),
@@ -496,6 +502,32 @@ def build_install_snippet(
                     f"scheduler={_install_scheduler_expr(scheduler)}",
                     f"workers={workers}",
                     f"workers_data_path={workers_data_path}",
+                ),
+            ),
+        ]
+    )
+
+
+def build_manager_install_snippet(
+    *,
+    env: Any,
+    verbose: int,
+    mode: Any,
+) -> str:
+    return "\n".join(
+        [
+            "# Deploy workers manager preinstall.",
+            "# This prepares the local manager before any remote worker contact.",
+            _build_agi_snippet(
+                env=env,
+                verbose=verbose,
+                method="install",
+                arguments=(
+                    "app_env",
+                    f"modes_enabled={mode!r}",
+                    "scheduler=None",
+                    "workers=None",
+                    "workers_data_path=None",
                 ),
             ),
         ]

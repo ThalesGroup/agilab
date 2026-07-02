@@ -52,6 +52,7 @@ import_agilab_symbols(
     {
         "build_distribution_snippet": "build_distribution_snippet",
         "build_install_snippet": "build_install_snippet",
+        "build_manager_install_snippet": "build_manager_install_snippet",
         "build_run_snippet": "build_run_snippet",
         "DEPLOY_WORKERS_AGI_INSTALL_RATIONALE": "DEPLOY_WORKERS_AGI_INSTALL_RATIONALE",
         "available_benchmark_modes": "available_benchmark_modes",
@@ -1174,7 +1175,84 @@ async def _install_worker_action(
     local_log: list[str],
     on_log: Optional[Callable[[], None]] = None,
     workerless: bool = False,
+    manager_install_command: str | None = None,
 ) -> ActionResult:
+    if manager_install_command:
+        manager_stdout = ""
+        manager_stderr = ""
+        manager_error: Exception | None = None
+        _append_log_lines(local_log, "=== Manager environment preinstall ===")
+        try:
+            manager_stdout, manager_stderr = await env.run_agi(
+                manager_install_command,
+                log_callback=lambda message: (
+                    _append_log_lines(local_log, message),
+                    on_log() if on_log is not None else None,
+                ),
+                venv=None,
+            )
+        except (
+            RuntimeError,
+            OSError,
+            TypeError,
+            ValueError,
+            AttributeError,
+            KeyError,
+        ) as exc:
+            manager_error = exc
+            manager_stderr = str(exc)
+            _append_log_lines(local_log, f"ERROR: {manager_stderr}")
+
+        if manager_stderr and manager_error is None:
+            _append_log_lines(local_log, manager_stderr)
+        if manager_stdout:
+            _append_log_lines(local_log, manager_stdout)
+
+        manager_error_flag = manager_error is not None
+        if not manager_error_flag and _log_indicates_install_failure(local_log):
+            manager_error_flag = True
+            if not str(manager_stderr or "").strip():
+                manager_stderr = "Detected manager install failure in logs."
+
+        if manager_error_flag:
+            _append_log_lines(
+                local_log,
+                "❌ Manager environment deployment failed. Check logs above.",
+            )
+            data = {
+                "install_command": install_command,
+                "manager_install_command": manager_install_command,
+                "install_log": tuple(local_log),
+                "stdout": "",
+                "stderr": manager_stderr,
+                "venv": venv,
+            }
+            diagnostic = classify_runtime_failure(
+                "\n".join(str(line) for line in (*local_log, manager_stderr)),
+                phase="install",
+            )
+            if diagnostic is not None:
+                data["failure_category"] = diagnostic.category
+            return ActionResult.error(
+                diagnostic.title
+                if diagnostic
+                else "Manager environment deployment failed.",
+                detail=diagnostic.detail
+                if diagnostic
+                else str(
+                    manager_stderr
+                    or manager_error
+                    or "Manager deployment logs indicate failure."
+                ),
+                next_action=diagnostic.next_action
+                if diagnostic
+                else "Check deployment logs above, fix the manager environment, then rerun Deploy workers.",
+                data=data,
+            )
+
+        _append_log_lines(local_log, "✅ Manager environment ready.")
+        _append_log_lines(local_log, "=== Worker environment deployment ===")
+
     install_stdout = ""
     install_stderr = ""
     install_error: Exception | None = None
@@ -1219,6 +1297,7 @@ async def _install_worker_action(
     _append_log_lines(local_log, status_line)
     data = {
         "install_command": install_command,
+        "manager_install_command": manager_install_command,
         "install_log": tuple(local_log),
         "stdout": install_stdout,
         "stderr": install_stderr,
@@ -1992,8 +2071,17 @@ async def _render_deployment_panel(
             with st.spinner(spinner_label):
                 result = await _install_worker_action(
                     env,
-                    install_command=install_command,
-                    venv=venv,
+            install_command=install_command,
+            manager_install_command=(
+                build_manager_install_snippet(
+                    env=env,
+                    verbose=verbose,
+                    mode=st.session_state.get("mode", 0),
+                ).replace("asyncio.run(main())", getattr(env, "snippet_tail", "asyncio.run(main())"))
+                if enabled and not workerless
+                else None
+            ),
+            venv=venv,
                     local_log=local_log,
                     on_log=_tick_deploy_elapsed,
                     workerless=workerless,
