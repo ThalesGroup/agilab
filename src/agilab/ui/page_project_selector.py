@@ -149,12 +149,14 @@ def render_project_selector(
         target.info("No projects available.")
         return None
 
-    if streamlit.session_state.get(key) not in project_names:
+    selected_project = streamlit.session_state.get(key)
+    if selected_project not in project_names or (
+        current in project_names and selected_project != current
+    ):
+        # Drop stale widget state before render. The selectbox index below
+        # supplies the current project without also assigning this widget key
+        # through Session State, which Streamlit warns about.
         streamlit.session_state.pop(key, None)
-    if current in project_names and streamlit.session_state.get(key) != current:
-        # Sync the widget to the environment before render so stale session
-        # values cannot revert project changes made elsewhere.
-        streamlit.session_state[key] = current
 
     def _emit_change() -> None:
         chosen = streamlit.session_state.get(key)

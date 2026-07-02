@@ -7,8 +7,11 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, MutableMapping, Optional
 
 LOG_DISPLAY_MAX_LINES = 250
-LIVE_LOG_MIN_HEIGHT = 160
-INSTALL_LOG_HEIGHT = 320
+LOG_WINDOW_MIN_LINES = 20
+LOG_LINE_HEIGHT_PX = 20
+LOG_WINDOW_MIN_HEIGHT = LOG_WINDOW_MIN_LINES * LOG_LINE_HEIGHT_PX
+LIVE_LOG_MIN_HEIGHT = LOG_WINDOW_MIN_HEIGHT
+INSTALL_LOG_HEIGHT = LOG_WINDOW_MIN_HEIGHT
 _TRACEBACK_SKIP = {"active": False}
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "security" / "import_guard.py"
