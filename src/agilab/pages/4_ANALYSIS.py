@@ -3194,10 +3194,13 @@ async def main():
     if "pages" not in cfg:
         cfg["pages"] = {}
     migrated_cfg = False
+    analysis_launcher_migrated = False
     if _migrate_declared_app_ui_page_config(active_app_path, cfg):
         migrated_cfg = True
+        analysis_launcher_migrated = True
     if _migrate_declared_app_surface_config(active_app_path, cfg):
         migrated_cfg = True
+        analysis_launcher_migrated = True
     if _remove_stale_app_ui_selection(active_app_path, cfg):
         migrated_cfg = True
     if _migrate_legacy_analysis_page_config(project, cfg):
@@ -3248,6 +3251,8 @@ async def main():
             clone_source_labels[path_str] = label
 
     selection_key = f"view_selection__{project or 'default'}"
+    if analysis_launcher_migrated:
+        st.session_state.pop(selection_key, None)
     pages_cfg = cfg.get("pages", {})
     pages_cfg = pages_cfg if isinstance(pages_cfg, dict) else {}
     surface_config = app_surface_config(active_app_path, cfg)
