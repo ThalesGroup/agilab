@@ -52,6 +52,9 @@ logger = logging.getLogger(__name__)
 PIPELINE_LOCK_SCHEMA = "agilab.pipeline.lock.v1"
 PIPELINE_LOCK_FILENAME = "pipeline_run.lock"
 PIPELINE_LOCK_DEFAULT_TTL_SEC = 6 * 3600.0
+PIPELINE_RUN_LOG_MIN_LINES = 20
+PIPELINE_RUN_LOG_LINE_HEIGHT_PX = 20
+PIPELINE_RUN_LOG_HEIGHT = PIPELINE_RUN_LOG_MIN_LINES * PIPELINE_RUN_LOG_LINE_HEIGHT_PX
 
 
 def _is_missing_mlflow_cli_error(exc: BaseException) -> bool:
@@ -172,7 +175,7 @@ def _push_run_log(index_page: str, message: str, placeholder: Optional[Any] = No
     if placeholder is not None:
         logs = st.session_state.get(f"{index_page}__run_logs", [])
         if logs:
-            placeholder.code("\n".join(logs))
+            placeholder.code("\n".join(logs), height=PIPELINE_RUN_LOG_HEIGHT)
         else:
             placeholder.caption("No runs recorded yet.")
 

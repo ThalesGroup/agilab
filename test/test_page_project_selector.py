@@ -142,6 +142,7 @@ def test_project_selector_edit_button_is_disabled_without_registered_route(monke
     class SelectorHost:
         @staticmethod
         def selectbox(_label, options, *, index=0, **_kwargs):
+            assert "project:selectbox" not in streamlit.session_state
             assert options == ["alpha_project", "beta_project"]
             assert index == 0
             return options[index]
@@ -171,8 +172,9 @@ def test_project_selector_edit_button_is_disabled_without_registered_route(monke
         on_change=changed.append,
     )
 
-    # Stale session value is replaced by the real current project pre-widget.
-    assert streamlit.session_state["project:selectbox"] == "alpha_project"
+    # Stale session value is cleared before render; the widget index supplies
+    # the current project without triggering Streamlit's default/state warning.
+    assert "project:selectbox" not in streamlit.session_state
     assert selection == "alpha_project"
     assert button_kwargs.get("disabled") is True
     # Without a registered route the edit button must not hard-code a page path.

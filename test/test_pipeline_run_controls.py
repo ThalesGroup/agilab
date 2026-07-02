@@ -33,10 +33,12 @@ def _import_pipeline_run_controls():
 class _FakePlaceholder:
     def __init__(self) -> None:
         self.codes: list[str] = []
+        self.code_kwargs: list[dict] = []
         self.captions: list[str] = []
 
-    def code(self, value: str) -> None:
+    def code(self, value: str, **kwargs) -> None:
         self.codes.append(value)
+        self.code_kwargs.append(kwargs)
 
     def caption(self, value: str) -> None:
         self.captions.append(value)
@@ -112,6 +114,7 @@ def test_pipeline_run_controls_payloads_logs_and_log_file_setup(tmp_path, monkey
 
     assert log_file.read_text(encoding="utf-8") == "line one\n"
     assert placeholder.codes[-1].endswith("line one\n")
+    assert placeholder.code_kwargs[-1]["height"] == module.PIPELINE_RUN_LOG_HEIGHT
 
     prepared, error = module._prepare_run_log_file("page", env, "bad prefix !")
     assert error is None

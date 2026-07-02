@@ -1922,7 +1922,11 @@ async def _render_deployment_panel(
             install_expanded = st.session_state.get("_install_logs_expanded", False)
             with st.expander("Deployment logs", expanded=install_expanded):
                 log_placeholder = st.empty()
-                log_placeholder.code(existing_log, language="python")
+                log_placeholder.code(
+                    existing_log,
+                    language="python",
+                    height=INSTALL_LOG_HEIGHT,
+                )
         pending_install_requested = consume_pending_install_action(st.session_state)
         install_requested = st.button(
             ORCHESTRATE_ACTION_LABELS["deploy_workers"],
