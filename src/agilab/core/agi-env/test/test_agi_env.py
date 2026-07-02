@@ -849,7 +849,29 @@ def test_read_agilab_path_wrapper_uses_installation_support(tmp_path, monkeypatc
     assert AgiEnv.read_agilab_path() == install_root
     assert captured["marker_kwargs"]["home"] == fake_home
     assert captured["read_args"][0] == marker
-    assert captured["read_args"][1] == AgiEnv.logger
+    assert captured["read_args"][1] is None
+
+
+def test_read_agilab_path_repairs_stale_marker(tmp_path, monkeypatch):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    marker = fake_home / ".local" / "share" / "agilab" / ".agilab-path"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    stale_root = tmp_path / "stale" / "agilab"
+    marker.write_text(str(stale_root), encoding="utf-8")
+    fallback_root = tmp_path / "current" / "src" / "agilab"
+    (fallback_root / "apps").mkdir(parents=True)
+
+    monkeypatch.setattr(agi_env_module.Path, "home", staticmethod(lambda: fake_home))
+    monkeypatch.setattr(agi_env_module, "read_agilab_installation_marker", lambda _marker: None)
+    monkeypatch.setattr(
+        agi_env_module,
+        "locate_agilab_installation_path",
+        lambda **_kwargs: fallback_root,
+    )
+
+    assert AgiEnv.read_agilab_path() == fallback_root
+    assert marker.read_text(encoding="utf-8").strip() == str(fallback_root)
 
 
 def test_agienv_meta_prefers_instance_attributes_and_class_fallback():

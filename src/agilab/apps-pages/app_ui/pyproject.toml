@@ -15,6 +15,7 @@ keywords = [
 dependencies = [
     "agi-pages>=2026.05.30.post1,<2027.0",
     "agi-gui>=2026.05.21,<2027.0",
+    "plotly>=6.3.0,<7",
 ]
 
 [project.entry-points."agilab.pages"]

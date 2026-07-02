@@ -618,7 +618,27 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             home=Path.home(),
             localappdata=os.getenv("LOCALAPPDATA", ""),
         )
-        return read_agilab_installation_marker(marker, logger=AgiEnv.logger)
+        install_path = read_agilab_installation_marker(marker)
+        if isinstance(install_path, Path):
+            return install_path
+
+        try:
+            fallback = locate_agilab_installation_path(
+                module_file=_public_agi_env_module_file(),
+                find_spec=importlib.util.find_spec,
+            )
+        except Exception:
+            return install_path
+
+        if fallback.exists():
+            try:
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.write_text(f"{fallback}\n", encoding="utf-8")
+            except (OSError, RuntimeError, ValueError):
+                pass
+            return fallback
+
+        return install_path
 
     @staticmethod
     def locate_agilab_installation(verbose=False):
