@@ -548,7 +548,7 @@ async def sync(
                 break
 
             if time_fn() - start_time > timeout:
-                log.error("Timeout waiting for all workers. {remaining} workers missing.")
+                log.error("Timeout waiting for all workers. %s workers missing.", remaining)
                 raise TimeoutError("Timed out waiting for all workers to attach")
             await sleep_fn(_sync_poll_delay(poll_attempt))
             poll_attempt += 1

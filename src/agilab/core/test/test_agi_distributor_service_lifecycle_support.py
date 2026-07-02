@@ -470,6 +470,31 @@ async def test_service_recover_propagates_unexpected_attribute_error(monkeypatch
 
 
 @pytest.mark.asyncio
+async def test_service_recover_propagates_unexpected_value_error(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "target": env.target,
+            "app": env.app,
+            "mode": AGI.DASK_MODE,
+            "run_type": "run --no-sync",
+            "workers": {"127.0.0.1": 1},
+            "args": {"sample": 1},
+        },
+    )
+
+    def _boom(_args):
+        raise ValueError("unexpected service arg mapping")
+
+    monkeypatch.setattr(AGI, "_service_public_args", staticmethod(_boom))
+
+    with pytest.raises(ValueError, match="unexpected service arg mapping"):
+        await AGI._service_recover(env, allow_stale_cleanup=True)
+
+
+@pytest.mark.asyncio
 async def test_service_recover_fails_when_no_workers_attached(monkeypatch):
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     AGI._service_write_state(

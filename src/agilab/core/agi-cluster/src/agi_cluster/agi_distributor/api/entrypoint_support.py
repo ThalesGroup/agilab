@@ -140,6 +140,12 @@ def _connection_error_payload(exc: ConnectionError, *, log: Any = logger) -> Dic
     return {"status": "error", "message": message, "kind": "connection"}
 
 
+def _application_error_payload(exc: BaseException, *, kind: str, log: Any = logger) -> Dict[str, str]:
+    message = str(exc).strip() or "Execution failed."
+    log.error("AGI.run failed (%s): %s", kind, message)
+    return {"status": "error", "message": message, "kind": kind}
+
+
 def _log_unhandled_run_exception(
     exc: Exception,
     *,
@@ -165,13 +171,15 @@ async def _run_main_with_handled_errors(
     try:
         return await agi_cls._main(scheduler)
     except process_error_type as exc:
-        log.error("failed to run \n%s", exc)
-        return None
+        return _application_error_payload(exc, kind="process", log=log)
     except ConnectionError as exc:
         return _connection_error_payload(exc, log=log)
     except ModuleNotFoundError as exc:
-        log.error("failed to load module \n%s", exc)
-        return None
+        return _application_error_payload(
+            exc,
+            kind="module_not_found",
+            log=log,
+        )
     except _AGI_RUN_BOUNDARY_EXCEPTIONS as exc:  # Intentional AGI.run boundary: log and re-raise.
         _log_unhandled_run_exception(
             exc,

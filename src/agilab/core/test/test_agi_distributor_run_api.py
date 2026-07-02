@@ -239,7 +239,7 @@ async def test_agi_run_trains_capacity_when_model_is_missing(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_agi_run_returns_none_on_process_error(monkeypatch):
+async def test_agi_run_returns_process_error_payload(monkeypatch):
     env = _minimal_app_env()
     env.base_worker_cls = "PandasWorker"
 
@@ -257,7 +257,11 @@ async def test_agi_run_returns_none_on_process_error(monkeypatch):
         env,
         request=RunRequest(scheduler="127.0.0.1", workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE),
     )
-    assert result is None
+    assert result == {
+        "status": "error",
+        "message": "process failed",
+        "kind": "process",
+    }
 
 
 @pytest.mark.asyncio
@@ -280,7 +284,7 @@ async def test_agi_run_returns_connection_error_payload(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_agi_run_returns_none_on_module_not_found(monkeypatch):
+async def test_agi_run_returns_module_not_found_payload(monkeypatch):
     env = _minimal_app_env()
     env.base_worker_cls = "PandasWorker"
     monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda *_args, **_kwargs: None))
@@ -289,7 +293,11 @@ async def test_agi_run_returns_none_on_module_not_found(monkeypatch):
         raise ModuleNotFoundError("missing module")
 
     monkeypatch.setattr(AGI, "_main", staticmethod(_missing))
-    assert await AGI.run(env, request=RunRequest(workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE)) is None
+    assert await AGI.run(env, request=RunRequest(workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE)) == {
+        "status": "error",
+        "message": "missing module",
+        "kind": "module_not_found",
+    }
 
 
 @pytest.mark.asyncio

@@ -28,8 +28,6 @@ _SERVICE_RECOVERABLE_EXCEPTIONS = (
     OSError,
     RuntimeError,
     TimeoutError,
-    TypeError,
-    ValueError,
 )
 _SERVICE_BREAK_LOOP_EXCEPTIONS = (
     ConnectionError,

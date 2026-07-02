@@ -467,8 +467,12 @@ async def test_run_main_with_handled_errors_covers_expected_branches(capsys):
         traceback_format_exc_fn=lambda: "tb",
         log=process_log,
     )
-    assert process_result is None
-    assert process_log.error_messages == ["failed to run \nprocess failed"]
+    assert process_result == {
+        "status": "error",
+        "message": "process failed",
+        "kind": "process",
+    }
+    assert process_log.error_messages == ["AGI.run failed (process): process failed"]
 
     connection_log = _FakeLogger()
     connection_result = await entrypoint_support._run_main_with_handled_errors(
@@ -496,8 +500,12 @@ async def test_run_main_with_handled_errors_covers_expected_branches(capsys):
         traceback_format_exc_fn=lambda: "tb",
         log=missing_log,
     )
-    assert missing_result is None
-    assert missing_log.error_messages == ["failed to load module \nmissing module"]
+    assert missing_result == {
+        "status": "error",
+        "message": "missing module",
+        "kind": "module_not_found",
+    }
+    assert missing_log.error_messages == ["AGI.run failed (module_not_found): missing module"]
 
 
 @pytest.mark.asyncio
