@@ -1055,6 +1055,12 @@ def test_log_indicates_install_failure():
         ["worker deploy failed: Process exited with non-zero exit status 2"]
     )
     assert orchestrate_page_support.log_indicates_install_failure(
+        ["Worker 192.168.20.15 connect error: network is unreachable"]
+    )
+    assert orchestrate_page_support.log_indicates_install_failure(
+        ["ssh: connect to host 192.168.20.15 port 22: Operation timed out"]
+    )
+    assert orchestrate_page_support.log_indicates_install_failure(
         ["Failed to extract '/tmp/dataset.7z': not a 7z file"]
     )
     assert not orchestrate_page_support.log_indicates_install_failure([])

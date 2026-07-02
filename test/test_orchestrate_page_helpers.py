@@ -1004,6 +1004,9 @@ def test_orchestrate_page_support_log_filters_and_display_helpers():
     assert orchestrate_page_support.log_indicates_install_failure(
         ["worker deploy failed: Process exited with non-zero exit status 2"]
     )
+    assert orchestrate_page_support.log_indicates_install_failure(
+        ["Worker 192.168.20.15 connect error: network is unreachable"]
+    )
 
     buffer: list[str] = []
     state = {"active": False}
@@ -2175,6 +2178,30 @@ async def test_install_worker_action_reports_log_detected_failure(tmp_path: Path
     assert result.status == "error"
     assert result.detail == "Detected install failure in logs."
     assert "rerun Deploy workers" in str(result.next_action)
+
+
+@pytest.mark.asyncio
+async def test_install_worker_action_reports_unreachable_worker_log(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        log_callback("Worker 192.168.20.15 connect error: network is unreachable")
+        return "None\nProcess finished", ""
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "error"
+    assert result.title == "Worker deployment failed."
+    assert result.detail == "Detected install failure in logs."
+    assert "❌ Worker deployment finished with errors. Check logs above." in result.data["install_log"]
 
 
 @pytest.mark.asyncio
