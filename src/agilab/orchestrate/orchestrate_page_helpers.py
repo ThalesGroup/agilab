@@ -7,11 +7,6 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, MutableMapping, Optional
 
 LOG_DISPLAY_MAX_LINES = 250
-LOG_WINDOW_MIN_LINES = 20
-LOG_LINE_HEIGHT_PX = 20
-LOG_WINDOW_MIN_HEIGHT = LOG_WINDOW_MIN_LINES * LOG_LINE_HEIGHT_PX
-LIVE_LOG_MIN_HEIGHT = LOG_WINDOW_MIN_HEIGHT
-INSTALL_LOG_HEIGHT = LOG_WINDOW_MIN_HEIGHT
 _TRACEBACK_SKIP = {"active": False}
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "security" / "import_guard.py"
@@ -28,6 +23,11 @@ _orchestrate_page_support = import_agilab_module(
     fallback_path=Path(__file__).resolve().parent / "orchestrate_page_support.py",
     fallback_name="agilab_orchestrate_page_support_fallback",
 )
+LOG_WINDOW_MIN_LINES = _orchestrate_page_support.LOG_WINDOW_DEFAULT_LINES
+LOG_LINE_HEIGHT_PX = _orchestrate_page_support.LOG_WINDOW_LINE_HEIGHT_PX
+LOG_WINDOW_MIN_HEIGHT = _orchestrate_page_support.LOG_WINDOW_DEFAULT_HEIGHT
+LIVE_LOG_MIN_HEIGHT = LOG_WINDOW_MIN_HEIGHT
+INSTALL_LOG_HEIGHT = LOG_WINDOW_MIN_HEIGHT
 _append_log_lines_impl = _orchestrate_page_support.append_log_lines
 _display_log_impl = _orchestrate_page_support.display_log
 _init_session_state_impl = _orchestrate_page_support.init_session_state

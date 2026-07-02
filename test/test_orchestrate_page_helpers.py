@@ -1097,6 +1097,16 @@ def test_orchestrate_page_support_log_filters_and_display_helpers():
     assert code_sink.calls[-1][1]["language"] == "text"
 
 
+def test_log_window_helper_constants_match_support_defaults():
+    module = _load_orchestrate_page_helpers_module()
+
+    assert orchestrate_page_support.LOG_WINDOW_DEFAULT_LINES == 20
+    assert module.LOG_WINDOW_MIN_LINES == orchestrate_page_support.LOG_WINDOW_DEFAULT_LINES
+    assert module.LOG_LINE_HEIGHT_PX == orchestrate_page_support.LOG_WINDOW_LINE_HEIGHT_PX
+    assert module.LIVE_LOG_MIN_HEIGHT == orchestrate_page_support.LOG_WINDOW_DEFAULT_HEIGHT
+    assert module.INSTALL_LOG_HEIGHT == orchestrate_page_support.LOG_WINDOW_DEFAULT_HEIGHT
+
+
 def test_orchestrate_page_support_dataframe_state_helpers():
     session_state: dict[str, object] = {
         "loaded_df": {"rows": 1},

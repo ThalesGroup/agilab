@@ -11,6 +11,10 @@ from typing import Any
 from agi_env.snippet_contract import snippet_contract_block
 from agilab.environment.logging_utils import compact_log_view, render_compact_log_view
 
+LOG_WINDOW_DEFAULT_LINES = 20
+LOG_WINDOW_LINE_HEIGHT_PX = 20
+LOG_WINDOW_DEFAULT_HEIGHT = LOG_WINDOW_DEFAULT_LINES * LOG_WINDOW_LINE_HEIGHT_PX
+
 try:
     from packaging.markers import default_environment as _packaging_default_environment
     from packaging.requirements import InvalidRequirement as _PackagingInvalidRequirement
@@ -1202,7 +1206,7 @@ def update_log(
     display_lines = lines[-log_display_max_lines:]
     live_view = "\n".join(display_lines)
     line_count = max(len(display_lines), 1)
-    height_px = min(max(20 * line_count, live_log_min_height), max_log_height)
+    height_px = min(max(LOG_WINDOW_LINE_HEIGHT_PX * line_count, live_log_min_height), max_log_height)
     live_log_placeholder.code(live_view, language="python", height=height_px)
 
 
@@ -1218,7 +1222,7 @@ def display_log(
     error_fn: Callable[[str], Any] = lambda message: None,
     code_fn: Callable[..., Any] = lambda *args, **kwargs: None,
     log_display_max_lines: int = 250,
-    log_display_height: int = 400,
+    log_display_height: int = LOG_WINDOW_DEFAULT_HEIGHT,
 ) -> None:
     """Render combined stdout/stderr logs with warning and error normalization."""
     if not stdout.strip() and "log_text" in session_state:

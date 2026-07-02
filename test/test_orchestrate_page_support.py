@@ -1623,6 +1623,26 @@ def test_update_log_helper_updates_session_state_and_trims_output():
     assert sink.calls[-1][1]["height"] == 160
 
 
+def test_log_window_defaults_render_twenty_lines():
+    code_sink = _CaptureCodeSink()
+
+    assert orchestrate_page_support.LOG_WINDOW_DEFAULT_LINES == 20
+    assert orchestrate_page_support.LOG_WINDOW_LINE_HEIGHT_PX == 20
+    assert orchestrate_page_support.LOG_WINDOW_DEFAULT_HEIGHT == 400
+
+    orchestrate_page_support.display_log(
+        stdout="ready",
+        stderr="",
+        session_state={},
+        strip_ansi_fn=orchestrate_page_support.strip_ansi,
+        filter_warning_messages_fn=lambda text: text,
+        format_log_block_fn=lambda text: text,
+        code_fn=code_sink,
+    )
+
+    assert code_sink.calls[-1][1]["height"] == orchestrate_page_support.LOG_WINDOW_DEFAULT_HEIGHT
+
+
 def test_update_log_helper_renders_empty_message_without_appending_log_text():
     sink = _CaptureCodeSink()
     session_state: dict[str, object] = {}
