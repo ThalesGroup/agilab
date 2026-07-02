@@ -508,6 +508,32 @@ def build_install_snippet(
     )
 
 
+def build_manager_install_snippet(
+    *,
+    env: Any,
+    verbose: int,
+    mode: Any,
+) -> str:
+    return "\n".join(
+        [
+            "# Deploy workers manager preinstall.",
+            "# This prepares the local manager before any remote worker contact.",
+            _build_agi_snippet(
+                env=env,
+                verbose=verbose,
+                method="install",
+                arguments=(
+                    "app_env",
+                    f"modes_enabled={mode!r}",
+                    "scheduler=None",
+                    "workers=None",
+                    "workers_data_path=None",
+                ),
+            ),
+        ]
+    )
+
+
 def build_distribution_snippet(
     *,
     env: Any,

@@ -626,6 +626,16 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
     assert "AGI.deploy" not in install_snippet
     assert "modes_enabled=7" in install_snippet
     assert 'workers_data_path="/tmp/share"' in install_snippet
+    manager_install_snippet = orchestrate_page_support.build_manager_install_snippet(
+        env=env,
+        verbose=3,
+        mode=7,
+    )
+    assert "Deploy workers manager preinstall" in manager_install_snippet
+    assert "modes_enabled=7" in manager_install_snippet
+    assert "scheduler=None" in manager_install_snippet
+    assert "workers=None" in manager_install_snippet
+    assert "workers_data_path=None" in manager_install_snippet
     assert "RunRequest(" in run_snippet
     assert "mode=15" in run_snippet
     assert 'workers_data_path="/tmp/share"' in run_snippet
@@ -2184,8 +2194,13 @@ async def test_install_worker_action_reports_log_detected_failure(tmp_path: Path
 async def test_install_worker_action_reports_unreachable_worker_log(tmp_path: Path):
     module = _load_orchestrate_module()
     local_log: list[str] = []
+    commands: list[str] = []
 
-    async def _run_agi(_cmd, log_callback=None, venv=None):
+    async def _run_agi(cmd, log_callback=None, venv=None):
+        commands.append(cmd)
+        if cmd == "manager install command":
+            log_callback("manager install complete")
+            return "None\nProcess finished", ""
         log_callback("Worker 192.168.20.15 connect error: network is unreachable")
         return "None\nProcess finished", ""
 
@@ -2194,13 +2209,16 @@ async def test_install_worker_action_reports_unreachable_worker_log(tmp_path: Pa
     result = await module._install_worker_action(
         env,
         install_command="install command",
+        manager_install_command="manager install command",
         venv=tmp_path,
         local_log=local_log,
     )
 
+    assert commands == ["manager install command", "install command"]
     assert result.status == "error"
     assert result.title == "Worker deployment failed."
     assert result.detail == "Detected install failure in logs."
+    assert "✅ Manager environment ready." in result.data["install_log"]
     assert "❌ Worker deployment finished with errors. Check logs above." in result.data["install_log"]
 
 
