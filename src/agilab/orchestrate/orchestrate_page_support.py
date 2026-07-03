@@ -63,7 +63,7 @@ ORCHESTRATE_ACTION_LABELS: dict[str, str] = {
     "check_distribute": "CHECK distribute",
     "run": "RUN",
     "run_benchmark": "RUN benchmark",
-    "run_workflow": "RUN workflow",
+    "run_workflow": "RUN orchestration",
     "run_load_export": "Run -> Load -> Export",
     "load_output": "Load output",
     "delete_output": "Delete output",
