@@ -4921,7 +4921,7 @@ def main():
         import traceback
 
         st.caption("Full traceback")
-        st.code(traceback.format_exc(), language="text")
+        st.code(traceback.format_exc(), language="text", height=400)
 
 
 # -------------------- Main Entry Point -------------------- #

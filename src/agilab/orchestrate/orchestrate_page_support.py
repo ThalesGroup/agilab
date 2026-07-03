@@ -1174,7 +1174,7 @@ def update_log(
     is_dask_shutdown_noise_fn: Callable[[str], bool],
     log_display_max_lines: int,
     live_log_min_height: int,
-    max_log_height: int = 500,
+    max_log_height: int = 400,
 ) -> None:
     """Append a cleaned message to accumulated log and refresh live display."""
     if "log_text" not in session_state:

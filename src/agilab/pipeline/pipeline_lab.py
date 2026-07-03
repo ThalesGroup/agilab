@@ -194,6 +194,7 @@ _pinned_expander_module = import_agilab_module(
     fallback_name="agilab_pinned_expander_fallback",
 )
 render_pinnable_code_editor = _pinned_expander_module.render_pinnable_code_editor
+WORKFLOW_RUN_LOG_HEIGHT = 20 * 20
 
 _workflow_ui_module = import_agilab_module(
     "agilab.workflow_ui",
@@ -2775,7 +2776,7 @@ def _render_global_runner_state_view(
             except Exception as exc:
                 st.error("Controlled workflow step execution failed.")
                 st.caption("Full diagnostic")
-                st.code(str(exc), language="text")
+                st.code(str(exc), language="text", height=400)
                 return
             if result.ok:
                 dag_engine.write_state(result.state)
@@ -2789,7 +2790,7 @@ def _render_global_runner_state_view(
             except Exception as exc:
                 st.error("Controlled DAG batch execution failed.")
                 st.caption("Full diagnostic")
-                st.code(str(exc), language="text")
+                st.code(str(exc), language="text", height=400)
                 return
             if result.executed_unit_ids or result.failed_unit_ids:
                 dag_engine.write_state(result.state)
@@ -2959,7 +2960,7 @@ def _render_global_runner_state_panel(
             except Exception as exc:
                 st.error("Project stages DAG preview is unavailable.")
                 st.caption("Full diagnostic")
-                st.code(str(exc), language="text")
+                st.code(str(exc), language="text", height=400)
                 return
             _render_global_runner_state_view(
                 state=state,
@@ -3055,7 +3056,7 @@ def _render_global_runner_state_panel(
             except Exception as exc:
                 st.error("Multi-app plan preview is unavailable.")
                 st.caption("Full diagnostic")
-                st.code(str(exc), language="text")
+                st.code(str(exc), language="text", height=400)
                 return
 
             _render_global_runner_state_view(
@@ -3332,7 +3333,7 @@ def _render_global_runner_state_panel(
         except Exception as exc:
             st.error("Multi-app DAG preview is unavailable.")
             st.caption("Full diagnostic")
-            st.code(str(exc), language="text")
+            st.code(str(exc), language="text", height=400)
             return
 
         _render_global_runner_state_view(
@@ -5314,5 +5315,6 @@ def display_lab_tab(
             source=source,
             empty_message="No runs recorded yet.",
             info_name="Run logs",
+            height=WORKFLOW_RUN_LOG_HEIGHT,
             theme="dark",
         )

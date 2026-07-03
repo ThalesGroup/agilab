@@ -5453,6 +5453,7 @@ def test_display_lab_tab_can_pin_run_logs(monkeypatch, tmp_path):
     assert isinstance(buttons, list)
     assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
     assert editor_calls[-1]["theme"] == "dark"
+    assert editor_calls[-1]["height"] == 400
     assert panels["pipeline_run_logs:demo"]["title"] == "Workflow logs: flight_telemetry_project"
     assert panels["pipeline_run_logs:demo"]["body"] == "line 1\nline 2"
     assert panels["pipeline_run_logs:demo"]["source"] == f"WORKFLOW {log_file}"
