@@ -1851,7 +1851,7 @@ def main() -> None:
         import traceback
 
         st.caption("Full traceback")
-        st.code(traceback.format_exc(), language="text")
+        st.code(traceback.format_exc(), language="text", height=400)
 
 
 if __name__ == "__main__":

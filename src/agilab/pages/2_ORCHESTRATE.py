@@ -455,7 +455,7 @@ def update_log(live_log_placeholder: Any, message: str, max_lines: int = 1000) -
         is_dask_shutdown_noise_fn=is_dask_shutdown_noise,
         log_display_max_lines=LOG_DISPLAY_MAX_LINES,
         live_log_min_height=LIVE_LOG_MIN_HEIGHT,
-        max_log_height=500,
+        max_log_height=LIVE_LOG_MIN_HEIGHT,
     )
     update_log._skip_traceback = bool(_TRACEBACK_SKIP["active"])
     return None
@@ -913,7 +913,7 @@ def display_log(stdout, stderr):
         warning_fn=lambda message: st.warning(message),
         error_fn=lambda message: st.error(message),
         code_fn=lambda *args, **kwargs: st.code(*args, **kwargs),
-        log_display_height=400,
+        log_display_height=INSTALL_LOG_HEIGHT,
     )
 
 
@@ -2931,7 +2931,7 @@ async def main():
         import traceback
 
         st.caption("Full traceback")
-        st.code(traceback.format_exc(), language="text")
+        st.code(traceback.format_exc(), language="text", height=400)
 
 
 if __name__ == "__main__":

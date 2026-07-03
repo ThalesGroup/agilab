@@ -376,13 +376,13 @@ def _render_preview(records: tuple[ArtifactRecord, ...]) -> None:
     st.caption(f"{selected.relative_path} · {format_bytes(selected.size)} · {selected.mtime_iso}")
     if preview.error:
         st.error("Preview unavailable.")
-        st.code(preview.error, language="text")
+        st.code(preview.error, language="text", height=400)
     elif preview.kind == "json":
         st.json(preview.value, expanded=False)
     elif preview.kind == "image":
         st.image(str(preview.value), caption=selected.relative_path)
     elif preview.kind == "text":
-        st.code(str(preview.value), language="text")
+        st.code(str(preview.value), language="text", height=400)
         if preview.truncated:
             st.caption("Showing the latest portion of this file.")
     else:

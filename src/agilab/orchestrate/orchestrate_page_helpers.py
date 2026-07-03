@@ -109,7 +109,7 @@ def update_log(
     is_dask_shutdown_noise_fn: Callable[[str], bool],
     log_display_max_lines: int,
     live_log_min_height: int,
-    max_log_height: int = 500,
+    max_log_height: int = LOG_WINDOW_MIN_HEIGHT,
 ) -> None:
     _update_log_impl(
         session_state,
@@ -320,7 +320,7 @@ def display_log(
     error_fn: Callable[[str], Any] = lambda message: None,
     code_fn: Callable[..., Any] = lambda *args, **kwargs: None,
     log_display_max_lines: int = LOG_DISPLAY_MAX_LINES,
-    log_display_height: int = 400,
+    log_display_height: int = LOG_WINDOW_MIN_HEIGHT,
 ) -> None:
     return _display_log_impl(
         stdout,

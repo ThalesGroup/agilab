@@ -4582,7 +4582,7 @@ def main():
         st.error(f"An error occurred: {e}")
         import traceback
         st.caption("Full traceback")
-        st.code(traceback.format_exc(), language="text")
+        st.code(traceback.format_exc(), language="text", height=400)
 
 def update_var(var_key, widget_key):
     st.session_state[var_key] = st.session_state[widget_key]

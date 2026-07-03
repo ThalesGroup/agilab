@@ -2041,7 +2041,7 @@ async def _render_selected_view_route(current_page: str | None) -> bool:
     ) as exc:
         st.error(f"Failed to render view: {exc}")
         st.caption("Full traceback")
-        st.code(traceback.format_exc(), language="text")
+        st.code(traceback.format_exc(), language="text", height=400)
     return True
 
 
@@ -2110,7 +2110,7 @@ async def _render_selected_notebook_route(current_notebook: str | None) -> bool:
     ) as exc:
         st.error(f"Failed to render notebook: {exc}")
         st.caption("Full traceback")
-        st.code(traceback.format_exc(), language="text")
+        st.code(traceback.format_exc(), language="text", height=400)
     return True
 
 
@@ -3639,13 +3639,17 @@ async def render_notebook_page(notebook_path: Path):
         with st.expander("Notebook sidecar logs", expanded=True):
             if logs.exists():
                 st.code(
-                    logs.read_text(encoding="utf-8", errors="ignore"), language="bash"
+                    logs.read_text(encoding="utf-8", errors="ignore"),
+                    language="bash",
+                    height=400,
                 )
             else:
                 st.write("No log file found.")
             if errors.exists():
                 st.code(
-                    errors.read_text(encoding="utf-8", errors="ignore"), language="bash"
+                    errors.read_text(encoding="utf-8", errors="ignore"),
+                    language="bash",
+                    height=400,
                 )
             else:
                 st.write("No error log file found.")
@@ -3726,13 +3730,17 @@ async def render_view_page(
         with st.expander("Sidecar logs", expanded=True):
             if logs.exists():
                 st.code(
-                    logs.read_text(encoding="utf-8", errors="ignore"), language="bash"
+                    logs.read_text(encoding="utf-8", errors="ignore"),
+                    language="bash",
+                    height=400,
                 )
             else:
                 st.write("No log file found.")
             if errors.exists():
                 st.code(
-                    errors.read_text(encoding="utf-8", errors="ignore"), language="bash"
+                    errors.read_text(encoding="utf-8", errors="ignore"),
+                    language="bash",
+                    height=400,
                 )
             else:
                 st.write("No error log file found.")

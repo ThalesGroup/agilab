@@ -750,7 +750,7 @@ class _Placeholder:
     def caption(self, message):
         self._messages.append(("caption", str(message)))
 
-    def code(self, message, language=None):
+    def code(self, message, language=None, **_kwargs):
         self._messages.append(("code", str(message)))
 
 
@@ -829,7 +829,7 @@ class _FakeStreamlit:
     def error(self, message):
         self.messages.append(("error", str(message)))
 
-    def code(self, message, language=None):
+    def code(self, message, language=None, **_kwargs):
         self.messages.append(("code", str(message)))
 
 
@@ -1275,6 +1275,7 @@ async def test_render_execute_section_can_pin_existing_run_logs(monkeypatch, tmp
     assert isinstance(buttons, list)
     assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
     assert editor_calls[-1]["theme"] == "dark"
+    assert editor_calls[-1]["height"] == deps.install_log_height
     assert panels["orchestrate_run_logs"]["title"] == "Run logs: flight_telemetry_project"
     assert panels["orchestrate_run_logs"]["body"] == "existing log"
     assert panels["orchestrate_run_logs"]["source"] == f"ORCHESTRATE {tmp_path / 'run.log'}"

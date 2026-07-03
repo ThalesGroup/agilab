@@ -556,6 +556,7 @@ async def render_execute_section(
             source=_run_log_source(),
             empty_message="No run logs yet.",
             info_name="Run logs",
+            height=deps.install_log_height,
             theme="dark",
         )
 
@@ -752,10 +753,10 @@ async def render_execute_section(
                     st.info(f"Next: {diagnostic.next_action}")
                 if log_body:
                     st.caption("Full run diagnostic")
-                    st.code(log_body, language="text")
+                    st.code(log_body, language="text", height=deps.install_log_height)
                 if str(stderr or "").strip() and str(stderr).strip() not in log_body:
                     st.caption("Execution error")
-                    st.code(str(stderr), language="text")
+                    st.code(str(stderr), language="text", height=deps.install_log_height)
             elif str(stderr or "").strip():
                 display_log(log_body, stderr)
             else:
