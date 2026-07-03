@@ -514,6 +514,7 @@ def test_runtime_helper_edges_cover_run_id_cleanup_and_metric_failures(tmp_path,
 def test_wrap_code_with_mlflow_resume_uses_env_run_id():
     wrapped = pipeline_runtime.wrap_code_with_mlflow_resume("print('hello')")
 
+    assert 'AGILAB_SNIPPET_API = "agi.snippet.v1"' in wrapped
     assert pipeline_runtime.MLFLOW_STAGE_RUN_ID_ENV in wrapped
     assert "MLFLOW_TRACKING_URI" in wrapped
     assert "mlflow.start_run(run_id=_agilab_run_id)" in wrapped

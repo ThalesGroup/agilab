@@ -483,10 +483,12 @@ def test_view_inference_analysis_resolve_active_app_stops_for_missing_inputs(
 def test_view_inference_analysis_coerces_string_lists_and_resolves_dataset_paths(tmp_path: Path) -> None:
     module = _load_module()
     share_root = tmp_path / "share"
+    local_root = tmp_path / "local"
     export_root = tmp_path / "export"
     custom_root = tmp_path / "custom"
     env = SimpleNamespace(
         target="flight",
+        AGI_LOCAL_SHARE=str(local_root),
         AGILAB_EXPORT_ABS=str(export_root),
         share_root_path=lambda: str(share_root),
     )
@@ -498,6 +500,13 @@ def test_view_inference_analysis_coerces_string_lists_and_resolves_dataset_paths
 
     env.target = ""
     assert module._default_dataset_subpath(env, tmp_path / "demo_project") == "demo/pipeline"
+    assert "AGI_LOCAL_SHARE" in module.BASE_CHOICES
+    assert module._resolve_base_path(env, "AGI_LOCAL_SHARE", "") == local_root
+    env.AGI_LOCAL_SHARE = "relative-local-share"
+    assert module._resolve_base_path(env, "AGI_LOCAL_SHARE", "") == Path.home() / "relative-local-share"
+    env.AGI_LOCAL_SHARE = ""
+    env.envars = {"AGI_LOCAL_SHARE": str(local_root)}
+    assert module._resolve_base_path(env, "AGI_LOCAL_SHARE", "") == local_root
     assert module._resolve_base_path(env, "AGI_CLUSTER_SHARE", "") == share_root
     assert module._resolve_base_path(env, "AGILAB_EXPORT", "") == export_root
     assert export_root.exists()

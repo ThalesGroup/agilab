@@ -12,6 +12,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from agi_env import AgiEnv
 from agi_env import mlflow_store
+from agi_env.snippet_contract import CURRENT_SNIPPET_API, SNIPPET_API_NAME
 
 
 def build_mlflow_process_env(
@@ -453,6 +454,7 @@ def wrap_code_with_mlflow_resume(code: str, *, stage_run_id_env: str) -> str:
     body = code if code.endswith("\n") else code + "\n"
     indented = "".join(f"    {line}\n" for line in body.splitlines()) if body.strip() else "    pass\n"
     return (
+        f"{SNIPPET_API_NAME} = {CURRENT_SNIPPET_API!r}\n"
         "import os\n"
         "_agilab_mlflow = None\n"
         "_agilab_active_run = None\n"

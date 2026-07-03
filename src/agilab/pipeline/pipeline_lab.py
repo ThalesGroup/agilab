@@ -3383,6 +3383,40 @@ class PipelineLabDeps:
     safe_service_template_marker: str
 
 
+def _stale_snippet_path_key(path: object) -> str:
+    try:
+        return str(Path(path).expanduser().resolve(strict=False))
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return str(path)
+
+
+def _stale_snippet_paths_resolved(stale_snippets: list[Path]) -> bool:
+    for path in stale_snippets:
+        try:
+            if Path(path).expanduser().exists():
+                return False
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return False
+    return True
+
+
+def _clear_selected_stale_snippet(stale_snippets: list[Path]) -> None:
+    selected = st.session_state.get("snippet_file")
+    if not selected:
+        return
+    stale_keys = {_stale_snippet_path_key(path) for path in stale_snippets}
+    if _stale_snippet_path_key(selected) in stale_keys:
+        st.session_state.pop("snippet_file", None)
+
+
+def _rerun_after_stale_snippet_cleanup(deps: "PipelineLabDeps") -> None:
+    rerun_fn = getattr(deps, "rerun_fragment_or_app", None)
+    if not callable(rerun_fn):
+        rerun_fn = getattr(st, "rerun", None)
+    if callable(rerun_fn):
+        rerun_fn()
+
+
 def get_existing_snippets(env: AgiEnv, stages_file: Path, deps: "PipelineLabDeps") -> Dict[str, Path]:
     """Discover reusable snippet files and return a label->path mapping."""
     _ensure_safe_service_template = deps.ensure_safe_service_template
@@ -3426,6 +3460,9 @@ def get_existing_snippets(env: AgiEnv, stages_file: Path, deps: "PipelineLabDeps
                 if failed:
                     st.warning(f"Could not delete {len(failed)} stale generated snippet(s).")
                     toast(st, f"Could not delete {len(failed)} stale snippet(s).", state="warning")
+                if not failed and _stale_snippet_paths_resolved(stale_snippets):
+                    _clear_selected_stale_snippet(stale_snippets)
+                    _rerun_after_stale_snippet_cleanup(deps)
         except AttributeError:
             pass
 
