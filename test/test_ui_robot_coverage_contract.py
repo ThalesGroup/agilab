@@ -154,7 +154,7 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "pages": [],
     }
     assert payload["coverage"]["hf_robot_scenarios"]["hf-first-proof-install"] == {
-        "actions": ["deploy workers"],
+        "actions": ["deploy scheduler & workers"],
         "apps_pages": [],
         "flags": [],
         "pages": ["ORCHESTRATE"],
@@ -245,7 +245,7 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
     hf_install = scenario(
         "hf-first-proof-install",
         pages="ORCHESTRATE",
-        click_action_labels="Deploy workers",
+        click_action_labels="Deploy scheduler & workers",
     )
     orchestrate_pool = scenario(
         module.REQUIRED_ORCHESTRATE_POOL_SCENARIO,
@@ -403,7 +403,7 @@ def test_ui_robot_coverage_contract_reports_hf_first_proof_gaps(monkeypatch) -> 
         name="core-selected-actions",
         pages="HOME,PROJECT,PROJECT_EDITOR,ORCHESTRATE,WORKFLOW,ANALYSIS,SETTINGS",
         apps_pages="none",
-        click_action_labels="Deploy workers,CHECK distribute,Run -> Load -> Export",
+        click_action_labels="Deploy scheduler & workers,CHECK distribute,Run -> Load -> Export",
     )
     incomplete_hf_visual = SimpleNamespace(
         name="hf-first-proof-visual-smoke",
@@ -732,8 +732,8 @@ def test_ui_robot_coverage_contract_reports_matrix_and_pytorch_gaps(monkeypatch,
     assert any("apps declare configured apps-pages" in detail for detail in details)
     assert "default robot matrix has no scenarios for --apps all" in details
     assert "PROJECT_EDITOR is not covered by any default robot scenario" in details
-    assert "'Deploy workers' is not covered by a selected-action scenario" in details
-    assert "hf-first-proof-install is missing required actions: deploy workers" in details
+    assert "'Deploy scheduler & workers' is not covered by a selected-action scenario" in details
+    assert "hf-first-proof-install is missing required actions: deploy scheduler & workers" in details
     assert (
         "hf-first-proof-app-pages-visual-smoke is missing required apps-pages: "
         "view_forecast_analysis, view_release_decision"

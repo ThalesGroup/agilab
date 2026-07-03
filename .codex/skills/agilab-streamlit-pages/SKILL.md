@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-02
+  updated: 2026-07-02
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -159,9 +159,9 @@ Use this skill when editing:
   PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS, SETTINGS, sidebars, and robot click
   labels. Avoid same-label/different-contract collisions; scope labels by
   object and layer, for example `Install agi-app` for package/catalog install
-  and `Deploy workers` for manager/worker environment deployment.
+  and `Deploy scheduler & workers` for manager/worker environment deployment.
 - Preserve stable lower-level API names when product copy changes. In
-  ORCHESTRATE, `Deploy workers` can correctly call `AGI.install`: the API
+  ORCHESTRATE, `Deploy scheduler & workers` can correctly call `AGI.install`: the API
   prepares manager and worker runtime environments and reuses an already-ready
   local manager environment rather than forcing a reinstall.
 - For visible-label cleanup, search every render path before closing the task:
@@ -169,6 +169,13 @@ Use this skill when editing:
   `page_project_selector.py`, lazy-import wrappers, CSS class names, and tests.
   Add or update a negative regression assertion for removed text so tests do
   not encode newly introduced clutter as expected behavior.
+- For visible action renames, update the robot source-of-truth in the same
+  change: `tools/agilab_widget_robot.py`,
+  `tools/agilab_widget_robot_matrix.py`, `tools/agilab_web_robot.py`,
+  `tools/ui_robot_canary.py`, `tools/ui_robot_coverage_contract.py`, and the
+  paired robot/action-contract tests. A page-only rename can leave hosted
+  selected-action profiles, above-fold canaries, and coverage contracts looking
+  for the old label even when the UI tests pass.
 - Prefer page headers with a few read-only KPI cards over status banners that say
   `ready`, `not set`, or `missing` without useful context.
 - Use the same visual semantics across pages:

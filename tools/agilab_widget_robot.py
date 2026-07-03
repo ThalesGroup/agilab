@@ -144,11 +144,11 @@ WORKFLOW_RUN_ACTION_LABELS = {
 CURRENT_HOME_PREFLIGHT_ACTION_LABELS = (
     "CHECK distribute",
     "DISTRIBUTE",
-    "Deploy workers",
+    "Deploy scheduler & workers",
     "Run -> Load -> Export",
     "Run now",
 )
-INSTALL_ACTION_LABELS = {"deploy workers"}
+INSTALL_ACTION_LABELS = {"deploy scheduler & workers"}
 INSTALL_POSTCONDITION_ACTION_LABELS = (
     "CHECK distribute",
     "DISTRIBUTE",
@@ -2618,7 +2618,7 @@ def _current_home_worker_import_issue(
     if not worker_root.is_dir():
         return (
             f"installed worker project is missing: {worker_root}. "
-            f"Run Deploy workers for {app_name} before running backend ORCHESTRATE actions."
+            f"Run Deploy scheduler & workers for {app_name} before running backend ORCHESTRATE actions."
         )
 
     command = _worker_python_import_command(worker_root, worker_package)
@@ -2712,7 +2712,7 @@ def current_home_action_preflight_blocker(
             return (
                 "environment_blocked: current-home ORCHESTRATE selected actions were not clicked because "
                 f"the installed worker environment for {app_name} is not ready. {worker_issue} "
-                "Run Deploy workers, then rerun the UI robot before manual RUN / LOAD / EXPORT validation."
+                "Run Deploy scheduler & workers, then rerun the UI robot before manual RUN / LOAD / EXPORT validation."
             )
     return None
 
@@ -3557,13 +3557,13 @@ def _install_postcondition_status(page: Any) -> tuple[bool, str]:  # pragma: no 
     try:
         widgets = page.evaluate(WIDGET_COLLECTOR_JS)
     except Exception as exc:
-        return False, f"Deploy workers completed but follow-up widgets could not be collected: {exc}"
+        return False, f"Deploy scheduler & workers completed but follow-up widgets could not be collected: {exc}"
     enabled_followups: list[str] = []
     for label in INSTALL_POSTCONDITION_ACTION_LABELS:
         if _selected_action_matches(widgets, label, require_enabled=True):
             enabled_followups.append(label)
     if enabled_followups:
-        return True, f"Deploy workers postcondition verified: enabled follow-up action {enabled_followups[0]!r}"
+        return True, f"Deploy scheduler & workers postcondition verified: enabled follow-up action {enabled_followups[0]!r}"
     visible_actions = [
         str(widget.get("label", "")).strip()
         for widget in widgets
@@ -3571,8 +3571,8 @@ def _install_postcondition_status(page: Any) -> tuple[bool, str]:  # pragma: no 
     ]
     if visible_actions:
         preview = ", ".join(repr(label) for label in visible_actions[:6])
-        return False, f"Deploy workers completed but no expected enabled follow-up action was found; visible actions: {preview}"
-    return False, "Deploy workers completed but no action buttons were visible afterward"
+        return False, f"Deploy scheduler & workers completed but no expected enabled follow-up action was found; visible actions: {preview}"
+    return False, "Deploy scheduler & workers completed but no action buttons were visible afterward"
 
 
 def _visible_exception_detail(page: Any) -> str | None:  # pragma: no cover - live browser path
@@ -5608,7 +5608,7 @@ def _above_fold_result_probe(
 
     def _matches_expected(expected_label: str, seen_label: str) -> bool:
         normalized_expected = _normalized_label(expected_label)
-        if normalized_expected == "deploy workers" and seen_label == "install":
+        if normalized_expected == "deploy scheduler & workers" and seen_label == "install":
             return True
         return normalized_expected in seen_label or seen_label in normalized_expected
 

@@ -1732,9 +1732,10 @@ def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui
         at.button(key="run_btn").click().run()
 
     assert not at.exception
-    assert len(calls) == 2
+    assert len(calls) == 3
     assert "AGI.install" in str(calls[0]["code"])
-    assert "AGI.run" in str(calls[1]["code"])
+    assert "AGI.install" in str(calls[1]["code"])
+    assert "AGI.run" in str(calls[2]["code"])
     assert install_success_rendered is True
     assert install_failure_rendered is False
     assert install_log_rendered is True
@@ -1746,7 +1747,7 @@ def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui
         "src/agilab/orchestrate/orchestrate_page_support.py"
     ).read_text(encoding="utf-8")
     assert "DEPLOY_WORKERS_AGI_INSTALL_RATIONALE" in orchestrate_source
-    assert "Deploy workers uses the existing AGI.install API" in orchestrate_support_source
+    assert "Deploy scheduler & workers uses the existing AGI.install API" in orchestrate_support_source
     assert "reuses it instead of" in orchestrate_support_source
     assert "forcing a reinstall" in orchestrate_support_source
     assert any("run completed" in str(item.value) for item in at.code)

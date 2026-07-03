@@ -52,14 +52,14 @@ BENCHMARK_MODE_COLUMN_HELP = (
     "modes pool in-worker whether or not p is set."
 )
 DEPLOY_WORKERS_AGI_INSTALL_RATIONALE = (
-    "Deploy workers uses the existing AGI.install API because that stable "
+    "Deploy scheduler & workers uses the existing AGI.install API because that stable "
     "runtime primitive prepares manager and worker environments. If the local "
     "manager environment is already ready, AGI.install reuses it instead of "
     "forcing a reinstall; the user-facing action is still deployment because "
     "runtime readiness and workers are the goal."
 )
 ORCHESTRATE_ACTION_LABELS: dict[str, str] = {
-    "deploy_workers": "Deploy workers",
+    "deploy_workers": "Deploy scheduler & workers",
     "check_distribute": "CHECK distribute",
     "run": "RUN",
     "run_benchmark": "RUN benchmark",
@@ -489,7 +489,7 @@ def build_install_snippet(
         return _build_workerless_install_snippet(env=env, verbose=verbose)
     return "\n".join(
         [
-            "# Deploy workers intentionally calls AGI.install.",
+            "# Deploy scheduler & workers intentionally calls AGI.install.",
             "# AGI.install is the stable primitive that prepares manager/worker runtimes",
             "# and reuses an already-ready local manager environment.",
             _build_agi_snippet(
@@ -516,7 +516,7 @@ def build_manager_install_snippet(
 ) -> str:
     return "\n".join(
         [
-            "# Deploy workers manager preinstall.",
+            "# Deploy scheduler & workers manager preinstall.",
             "# This prepares the local manager before any remote worker contact.",
             _build_agi_snippet(
                 env=env,

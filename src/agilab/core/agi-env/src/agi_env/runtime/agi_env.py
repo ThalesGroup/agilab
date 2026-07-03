@@ -627,6 +627,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 module_file=_public_agi_env_module_file(),
                 find_spec=importlib.util.find_spec,
             )
+        # best-effort fallback: keep the persisted marker result when source/package
+        # discovery is unavailable in partial installs or constrained runtimes.
         except Exception:
             return install_path
 

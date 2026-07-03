@@ -80,7 +80,7 @@ class _FakePage:
                 "fold": 700,
                 "targets": [
                     {"label": "ORCHESTRATE", "inFold": True},
-                    {"label": "Deploy workers", "inFold": False},
+                    {"label": "Deploy scheduler & workers", "inFold": False},
                 ],
             }
         if self.browser_issues is not None and "console.error" in script:

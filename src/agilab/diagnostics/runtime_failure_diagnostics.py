@@ -76,7 +76,7 @@ def classify_runtime_failure(payload: Any, *, phase: str = "runtime") -> Runtime
                 "or not a valid .7z dataset archive."
             ),
             next_action=(
-                "Restore or regenerate the app dataset archive, then rerun Deploy workers. "
+                "Restore or regenerate the app dataset archive, then rerun Deploy scheduler & workers. "
                 "For a notebook-derived project, recreate it from the packaged notebook if needed."
             ),
         )
@@ -98,7 +98,7 @@ def classify_runtime_failure(payload: Any, *, phase: str = "runtime") -> Runtime
             title="Dependency is missing.",
             detail=f"The runtime could not import `{missing_module}` in the selected environment.",
             next_action=(
-                "Rerun Deploy workers for this project and verify the dependency is declared "
+                "Rerun Deploy scheduler & workers for this project and verify the dependency is declared "
                 "in the manager or worker pyproject."
             ),
         )
@@ -110,7 +110,7 @@ def classify_runtime_failure(payload: Any, *, phase: str = "runtime") -> Runtime
             category="project-state",
             title="Project environment is incomplete.",
             detail="The selected project or worker environment is missing its virtual environment.",
-            next_action="Run Deploy workers for the selected project before RUN.",
+            next_action="Run Deploy scheduler & workers for the selected project before RUN.",
         )
 
     if "worker copy" in normalized or (
@@ -120,7 +120,7 @@ def classify_runtime_failure(payload: Any, *, phase: str = "runtime") -> Runtime
             category="worker-copy",
             title="Worker environment copy is inconsistent.",
             detail="The copied worker environment appears stale or has dependency metadata that no longer matches the source app.",
-            next_action="Remove the stale worker environment for this app, rerun Deploy workers, then retry the action.",
+            next_action="Remove the stale worker environment for this app, rerun Deploy scheduler & workers, then retry the action.",
         )
 
     if (

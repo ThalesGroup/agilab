@@ -517,7 +517,7 @@ def test_orchestrate_action_label_case_policy_is_explicit():
     support = _import_agilab_module("agilab.orchestrate_page_support")
 
     assert support.ORCHESTRATE_ACTION_LABELS == {
-        "deploy_workers": "Deploy workers",
+        "deploy_workers": "Deploy scheduler & workers",
         "check_distribute": "CHECK distribute",
         "run": "RUN",
         "run_benchmark": "RUN benchmark",
@@ -620,7 +620,7 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
     )
 
     assert 'APP = "demo_project"' in install_snippet
-    assert "# Deploy workers intentionally calls AGI.install." in install_snippet
+    assert "# Deploy scheduler & workers intentionally calls AGI.install." in install_snippet
     assert "reuses an already-ready local manager environment" in install_snippet
     assert "AGI.install(" in install_snippet
     assert "AGI.deploy" not in install_snippet
@@ -631,7 +631,7 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
         verbose=3,
         mode=7,
     )
-    assert "Deploy workers manager preinstall" in manager_install_snippet
+    assert "Deploy scheduler & workers manager preinstall" in manager_install_snippet
     assert "modes_enabled=7" in manager_install_snippet
     assert "scheduler=None" in manager_install_snippet
     assert "workers=None" in manager_install_snippet
@@ -685,7 +685,7 @@ def test_orchestrate_notebook_document_exports_current_recipe():
     module = _load_orchestrate_module()
     env = SimpleNamespace(app="demo_project", target="demo")
     snippets = [
-        ("Deploy workers", "print('install')\n"),
+        ("Deploy scheduler & workers", "print('install')\n"),
         ("RUN", "print('run')"),
     ]
 
@@ -699,17 +699,17 @@ def test_orchestrate_notebook_document_exports_current_recipe():
     assert document["nbformat_minor"] == 5
     assert document["metadata"]["agilab"]["schema"] == "agilab.orchestrate_notebook.v1"
     assert document["metadata"]["agilab"]["app"] == "demo_project"
-    assert document["metadata"]["agilab"]["snippet_labels"] == ["Deploy workers", "RUN"]
+    assert document["metadata"]["agilab"]["snippet_labels"] == ["Deploy scheduler & workers", "RUN"]
     assert any(
         "Notebook import remains on the WORKFLOW page" in "".join(cell["source"])
         for cell in document["cells"]
     )
     assert any(
-        "Deploy workers prepares manager/worker environments and RUN executes" in "".join(cell["source"])
+        "Deploy scheduler & workers prepares manager/worker environments and RUN executes" in "".join(cell["source"])
         for cell in document["cells"]
     )
     assert any(
-        "Deploy workers uses the existing AGI.install API" in "".join(cell["source"])
+        "Deploy scheduler & workers uses the existing AGI.install API" in "".join(cell["source"])
         for cell in document["cells"]
     )
     code_cells = [cell for cell in document["cells"] if cell["cell_type"] == "code"]
@@ -726,7 +726,7 @@ def test_orchestrate_notebook_document_mentions_distribute_only_when_present():
     document = module._orchestrate_notebook_document(
         env,
         [
-            ("Deploy workers", "print('install')"),
+            ("Deploy scheduler & workers", "print('install')"),
             ("CHECK distribute", "print('check')"),
             ("RUN", "print('run')"),
         ],
@@ -756,7 +756,7 @@ def test_orchestrate_notebook_snippet_store_and_empty_render(monkeypatch):
     assert fake_st.expanders == [("Notebook", False)]
     assert fake_st.downloads == []
     assert fake_st.infos == [
-        "No orchestration snippets are available yet. Configure Deploy workers or RUN first."
+        "No orchestration snippets are available yet. Configure Deploy scheduler & workers or RUN first."
     ]
 
 
@@ -774,7 +774,7 @@ def test_orchestrate_notebook_empty_render_mentions_distribute_when_worker_exist
     module._render_orchestrate_notebook_expander(env)
 
     assert fake_st.infos == [
-        "No orchestration snippets are available yet. Configure Deploy workers, CHECK distribute, or RUN first."
+        "No orchestration snippets are available yet. Configure Deploy scheduler & workers, CHECK distribute, or RUN first."
     ]
 
 
@@ -798,14 +798,14 @@ def test_orchestrate_notebook_expander_downloads_available_snippets(monkeypatch)
     assert kwargs["key"] == "orchestrate:notebook_download:demo_project"
 
     payload = json.loads(kwargs["data"].decode("utf-8"))
-    assert payload["metadata"]["agilab"]["snippet_labels"] == ["Deploy workers", "RUN"]
+    assert payload["metadata"]["agilab"]["snippet_labels"] == ["Deploy scheduler & workers", "RUN"]
     code_sources = [
         "".join(cell["source"])
         for cell in payload["cells"]
         if cell["cell_type"] == "code"
     ]
     assert code_sources == ["print('install')\n", "print('run')\n"]
-    assert fake_st.captions[-1] == "Includes: Deploy workers, RUN"
+    assert fake_st.captions[-1] == "Includes: Deploy scheduler & workers, RUN"
 
 
 def test_orchestrate_page_support_distribution_plan_helpers():
@@ -1401,7 +1401,7 @@ def test_install_status_warning_skips_first_launch_missing_manager(tmp_path: Pat
     assert label == "Needs deployment"
     assert (
         caption
-        == "Manager environment has not been created yet. Run Deploy workers before RUN."
+        == "Manager environment has not been created yet. Run Deploy scheduler & workers before RUN."
     )
 
 
@@ -1588,7 +1588,7 @@ def test_execute_page_install_refreshes_status_before_run_gate(monkeypatch, tmp_
     assert fake_st.session_state["show_run"] is True
     install_warning_slot = fake_st.placeholders[0]
     assert install_warning_slot.warnings == [
-        "Environment deployment is incomplete or stale. Run Deploy workers before RUN / LOAD / EXPORT. "
+        "Environment deployment is incomplete or stale. Run Deploy scheduler & workers before RUN / LOAD / EXPORT. "
         "missing modules: pathspec, psutil | missing modules: pathspec"
     ]
     assert install_warning_slot.empty_calls == 1
@@ -1982,7 +1982,7 @@ async def test_install_worker_action_workerless_uses_manager_messaging(tmp_path:
 async def test_install_worker_action_reports_success(tmp_path: Path):
     module = _load_orchestrate_module()
     captured: dict[str, object] = {}
-    local_log = ["=== Deploy workers request ==="]
+    local_log = ["=== Deploy scheduler & workers request ==="]
 
     async def _run_agi(cmd, log_callback=None, venv=None):
         captured["cmd"] = cmd
@@ -2006,7 +2006,7 @@ async def test_install_worker_action_reports_success(tmp_path: Path):
     assert result.data["stderr"] == ""
     assert result.data["venv"] == tmp_path
     assert result.data["install_log"] == (
-        "=== Deploy workers request ===",
+        "=== Deploy scheduler & workers request ===",
         "installing worker",
         "None",
         "Process finished",
@@ -2187,7 +2187,7 @@ async def test_install_worker_action_reports_log_detected_failure(tmp_path: Path
 
     assert result.status == "error"
     assert result.detail == "Detected install failure in logs."
-    assert "rerun Deploy workers" in str(result.next_action)
+    assert "rerun Deploy scheduler & workers" in str(result.next_action)
 
 
 @pytest.mark.asyncio
@@ -2252,7 +2252,7 @@ async def test_install_worker_action_classifies_corrupted_dataset_archive(
         "or not a valid .7z dataset archive."
     )
     assert result.data["failure_category"] == "archive"
-    assert "rerun Deploy workers" in str(result.next_action)
+    assert "rerun Deploy scheduler & workers" in str(result.next_action)
     assert "not a 7z file" not in str((result.title, result.detail, result.next_action))
 
 
