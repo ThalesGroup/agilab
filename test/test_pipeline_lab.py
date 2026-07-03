@@ -132,7 +132,7 @@ class _FakeStreamlit:
     def markdown(self, message, **_kwargs):
         self.messages.append(("markdown", str(message)))
 
-    def code(self, message, language=None):
+    def code(self, message, language=None, **_kwargs):
         self.messages.append(("code", str(message)))
 
     def error(self, message):

@@ -750,7 +750,7 @@ class _Placeholder:
     def caption(self, message):
         self._messages.append(("caption", str(message)))
 
-    def code(self, message, language=None):
+    def code(self, message, language=None, **_kwargs):
         self._messages.append(("code", str(message)))
 
 
@@ -829,7 +829,7 @@ class _FakeStreamlit:
     def error(self, message):
         self.messages.append(("error", str(message)))
 
-    def code(self, message, language=None):
+    def code(self, message, language=None, **_kwargs):
         self.messages.append(("code", str(message)))
 
 
