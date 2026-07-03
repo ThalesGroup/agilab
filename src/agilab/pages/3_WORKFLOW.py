@@ -347,6 +347,9 @@ def run_all_stages(
     env: AgiEnv,
     log_placeholder: Optional[Any] = None,
     force_lock_clear: bool = False,
+    pipeline_profile: str = "balanced",
+    pipeline_max_workers: int = 1,
+    pipeline_stage_deps: Optional[Any] = None,
 ) -> None:
     """Execute all stages sequentially, honouring per-stage virtual environments."""
     _run_all_stages_impl(
@@ -365,6 +368,9 @@ def run_all_stages(
         ),
         log_placeholder=log_placeholder,
         force_lock_clear=force_lock_clear,
+        pipeline_profile=pipeline_profile,
+        pipeline_max_workers=pipeline_max_workers,
+        pipeline_stage_deps=pipeline_stage_deps,
     )
 
 

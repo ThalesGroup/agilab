@@ -54,11 +54,13 @@ get_available_virtualenvs = _pipeline_stages_module.get_available_virtualenvs
 _is_displayable_stage = _pipeline_stages_module.is_displayable_stage
 _is_orchestrate_locked_stage = _pipeline_stages_module.is_orchestrate_locked_stage
 _load_sequence_preferences = _pipeline_stages_module.load_sequence_preferences
+_load_automation_preferences = _pipeline_stages_module.load_automation_preferences
 _module_keys = _pipeline_stages_module.module_keys
 _normalize_imported_orchestrate_snippet = _pipeline_stages_module.normalize_imported_orchestrate_snippet
 normalize_runtime_path = _pipeline_stages_module.normalize_runtime_path
 _orchestrate_snippet_source = _pipeline_stages_module.orchestrate_snippet_source
 _persist_sequence_preferences = _pipeline_stages_module.persist_sequence_preferences
+_persist_automation_preferences = _pipeline_stages_module.persist_automation_preferences
 _snippet_source_guidance = _pipeline_stages_module.snippet_source_guidance
 _stage_label_for_multiselect = _pipeline_stages_module.stage_label_for_multiselect
 _stage_summary = _pipeline_stages_module.stage_summary
@@ -186,6 +188,153 @@ delete_pipeline_stage_command = _pipeline_page_state_module.delete_pipeline_stag
 finish_pipeline_run_command = _pipeline_page_state_module.finish_pipeline_run_command
 start_pipeline_run_command = _pipeline_page_state_module.start_pipeline_run_command
 undo_pipeline_delete_command = _pipeline_page_state_module.undo_pipeline_delete_command
+
+_pipeline_run_controls_module = import_agilab_module(
+    "agilab.pipeline_run_controls",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_run_controls.py",
+    fallback_name="agilab_pipeline_run_controls_fallback",
+)
+PIPELINE_AUTOMATION_MANIFEST_FILENAME = _pipeline_run_controls_module.PIPELINE_AUTOMATION_MANIFEST_FILENAME
+PIPELINE_AUTOMATION_PROFILES = _pipeline_run_controls_module.PIPELINE_AUTOMATION_PROFILES
+PIPELINE_AUTOMATION_PROFILE_HELP = _pipeline_run_controls_module.PIPELINE_AUTOMATION_PROFILE_HELP
+PIPELINE_AUTOMATION_PROFILE_LABELS = _pipeline_run_controls_module.PIPELINE_AUTOMATION_PROFILE_LABELS
+build_stage_waves = _pipeline_run_controls_module._build_stage_waves
+infer_stage_dependency_suggestions = _pipeline_run_controls_module.infer_stage_dependency_suggestions
+stage_deps_for_dependency = _pipeline_run_controls_module._stage_deps
+stage_id_for_dependency = _pipeline_run_controls_module._stage_id
+_automation_manifest_output_rows = _pipeline_run_controls_module._automation_manifest_output_rows
+_automation_manifest_output_summary = _pipeline_run_controls_module._automation_manifest_output_summary
+_automation_manifest_stage_summary = _pipeline_run_controls_module._automation_manifest_stage_summary
+_automation_manifest_schema_caption = _pipeline_run_controls_module._automation_manifest_schema_caption
+_automation_manifest_schema_status = _pipeline_run_controls_module._automation_manifest_schema_status
+_automation_manifest_identity_captions = _pipeline_run_controls_module._automation_manifest_identity_captions
+_automation_manifest_duration_label = _pipeline_run_controls_module._automation_manifest_duration_label
+_automation_manifest_error_caption = _pipeline_run_controls_module._automation_manifest_error_caption
+
+
+def _dot_escape(value: object) -> str:
+    return str(value or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+def _short_graph_label(value: object, *, limit: int = 72) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "..."
+
+
+def _workflow_dependency_dot(
+    *,
+    stage_ids_by_idx: Mapping[int, str],
+    deps_by_stage_id: Mapping[str, List[str]],
+    labels_by_stage_id: Mapping[str, str],
+    waves: List[List[int]],
+) -> str:
+    wave_by_idx: Dict[int, int] = {}
+    for wave_number, wave in enumerate(waves, start=1):
+        for idx in wave:
+            wave_by_idx[int(idx)] = wave_number
+    lines = [
+        "digraph workflow_dependencies {",
+        "  graph [rankdir=LR, bgcolor=\"transparent\", pad=\"0.2\", nodesep=\"0.45\", ranksep=\"0.75\"];",
+        "  node [shape=box, style=\"rounded,filled\", fillcolor=\"#F7FAFC\", color=\"#2D3748\", fontname=\"Helvetica\", fontsize=10];",
+        "  edge [color=\"#4A5568\", arrowsize=0.7];",
+    ]
+    for idx in sorted(stage_ids_by_idx):
+        stage_id = stage_ids_by_idx[idx]
+        label = _short_graph_label(labels_by_stage_id.get(stage_id, stage_id))
+        wave_label = f"wave {wave_by_idx.get(idx, '?')}"
+        lines.append(
+            f'  "{_dot_escape(stage_id)}" [label="{_dot_escape(idx + 1)}. {_dot_escape(label)}\\n{_dot_escape(stage_id)} · {_dot_escape(wave_label)}"];'
+        )
+    for stage_id, deps in deps_by_stage_id.items():
+        for dep_id in deps:
+            if dep_id in labels_by_stage_id and stage_id in labels_by_stage_id:
+                lines.append(f'  "{_dot_escape(dep_id)}" -> "{_dot_escape(stage_id)}";')
+    for wave in waves:
+        wave_stage_ids = [stage_ids_by_idx[idx] for idx in wave if idx in stage_ids_by_idx]
+        if len(wave_stage_ids) > 1:
+            same_rank = "; ".join(f'"{_dot_escape(stage_id)}"' for stage_id in wave_stage_ids)
+            lines.append(f"  {{ rank=same; {same_rank}; }}")
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def _load_pipeline_automation_manifest(path: str) -> Dict[str, Any] | None:
+    if not path:
+        return None
+    try:
+        payload = json.loads(Path(path).expanduser().read_text(encoding="utf-8"))
+    except (OSError, RuntimeError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _render_pipeline_automation_manifest_summary(path: str, *, key_prefix: str) -> None:
+    manifest = _load_pipeline_automation_manifest(path)
+    if not manifest:
+        return
+    stage_summary = _automation_manifest_stage_summary(manifest)
+    with st.expander("Latest automation run", expanded=False):
+        status_col, schema_col, profile_col, worker_col, wave_col, duration_col = st.columns(6)
+        status_col.metric("Status", str(manifest.get("status", "") or "unknown"))
+        schema_col.metric("Schema", _automation_manifest_schema_status(manifest))
+        profile_col.metric("Profile", str(manifest.get("profile", "") or "balanced"))
+        worker_col.metric("Workers", int(manifest.get("max_workers", 1) or 1))
+        wave_col.metric("Waves", len(manifest.get("waves", []) if isinstance(manifest.get("waves"), list) else []))
+        duration_col.metric("Duration", _automation_manifest_duration_label(manifest))
+        st.caption(_automation_manifest_schema_caption(manifest))
+        for identity_caption in _automation_manifest_identity_captions(manifest, path=path):
+            st.caption(identity_caption)
+        error_caption = _automation_manifest_error_caption(manifest)
+        if error_caption:
+            st.error(error_caption)
+        stage_col, exec_col, skip_col, fail_col = st.columns(4)
+        stage_col.metric("Stages", stage_summary["stage_count"])
+        exec_col.metric("Executed", stage_summary["executed"])
+        skip_col.metric("Skipped", stage_summary["skipped"])
+        fail_col.metric("Failed", stage_summary["failed"])
+        output_rows = _automation_manifest_output_rows(manifest)
+        if output_rows:
+            output_summary = _automation_manifest_output_summary(manifest)
+            output_col, existing_col, hashed_col, large_col = st.columns(4)
+            output_col.metric("Outputs", output_summary["outputs"])
+            existing_col.metric("Existing", output_summary["existing"])
+            hashed_col.metric("Hashed", output_summary["hashed"])
+            large_col.metric("Too large", output_summary["too_large"])
+            missing_outputs = output_summary["missing"]
+            if missing_outputs:
+                st.caption(f"Declared outputs missing in latest manifest: {missing_outputs}")
+            if st.checkbox(
+                "Show output evidence",
+                key=f"{key_prefix}_automation_manifest_outputs",
+                help="Inspect declared output records stored in the latest automation manifest.",
+            ):
+                st.dataframe(
+                    pd.DataFrame(output_rows),
+                    hide_index=True,
+                    width="stretch",
+                )
+        waves = manifest.get("waves", [])
+        if isinstance(waves, list) and waves:
+            wave_labels = [
+                " + ".join(str(stage_number) for stage_number in wave)
+                for wave in waves
+                if isinstance(wave, list)
+            ]
+            if wave_labels:
+                st.caption(f"Waves: {' -> '.join(wave_labels)}")
+        if st.checkbox(
+            "Show recorded dependency graph",
+            key=f"{key_prefix}_automation_manifest_graph",
+            help="Render the DOT dependency graph stored in the latest automation manifest.",
+        ):
+            dot_text = str(manifest.get("dependency_graph_dot") or "").strip()
+            if dot_text:
+                st.graphviz_chart(dot_text, use_container_width=True)
+            else:
+                st.caption("No dependency graph was recorded in this manifest.")
 
 _pinned_expander_module = import_agilab_module(
     "agilab.pinned_expander",
@@ -4961,6 +5110,209 @@ def display_lab_tab(
     force_run_arm_clicked = False
     force_run_cancel_clicked = False
     force_run_confirm_key = f"{index_page_str}_confirm_force_run"
+    automation_preferences = _load_automation_preferences(module_path, stages_file, env=env)
+    profile_key = f"{index_page_str}__pipeline_profile"
+    profile_options = list(PIPELINE_AUTOMATION_PROFILES)
+    if profile_key not in st.session_state:
+        stored_profile = str(automation_preferences.get("profile", "") or "")
+        st.session_state[profile_key] = stored_profile if stored_profile in profile_options else "balanced"
+    elif st.session_state.get(profile_key) not in profile_options:
+        st.session_state[profile_key] = "balanced"
+    selected_pipeline_profile = st.selectbox(
+        "Pipeline profile",
+        options=profile_options,
+        key=profile_key,
+        format_func=lambda value: PIPELINE_AUTOMATION_PROFILE_LABELS.get(str(value), str(value).title()),
+        help=(
+            "Select a generic automation profile. Stages can opt in with `profiles.<name>` "
+            "overrides, `automation.skip_if_outputs_exist`, and declared `automation.outputs`."
+        ),
+    )
+    st.caption(PIPELINE_AUTOMATION_PROFILE_HELP.get(str(selected_pipeline_profile), "Use the saved workflow stage values."))
+    workers_key = f"{index_page_str}__pipeline_max_workers"
+    if workers_key not in st.session_state:
+        try:
+            stored_workers = int(automation_preferences.get("max_workers", 3) or 3)
+        except (TypeError, ValueError):
+            stored_workers = 3
+        st.session_state[workers_key] = min(max(stored_workers, 1), 8)
+    selected_pipeline_max_workers = int(
+        st.number_input(
+            "Parallel stage workers",
+            min_value=1,
+            max_value=8,
+            step=1,
+            key=workers_key,
+            help=(
+                "Maximum independent AGI stages to run at the same time. "
+                "Only stages with explicit dependencies and subprocess-backed `agi.*` engines are parallelized. "
+                "Parallel stage status is recorded in the automation manifest; nested per-stage MLflow runs "
+                "remain a serial-stage evidence path."
+            ),
+        )
+    )
+    save_automation_settings_clicked = action_button(
+        st,
+        "Save automation settings",
+        key=f"{index_page_str}_save_automation_settings",
+        kind="save",
+        help="Persist the selected pipeline profile and parallel worker cap into the active lab_stages.toml metadata.",
+    )
+    if save_automation_settings_clicked:
+        _persist_automation_preferences(
+            module_path,
+            stages_file,
+            {
+                "profile": str(selected_pipeline_profile),
+                "max_workers": selected_pipeline_max_workers,
+            },
+            env=env,
+        )
+        toast(st, "Automation settings saved.", state="success")
+        _rerun_fragment_or_app()
+        return
+    deps_state_key = f"{index_page_str}__pipeline_stage_deps"
+    deps_state = st.session_state.setdefault(deps_state_key, {})
+    if not isinstance(deps_state, dict):
+        deps_state = {}
+        st.session_state[deps_state_key] = deps_state
+    stage_ids_by_idx = {
+        idx: stage_id_for_dependency(persisted_stages[idx], idx)
+        for idx in final_sequence
+        if 0 <= idx < len(persisted_stages)
+    }
+    stage_labels_by_id = {
+        stage_id: _stage_label_for_multiselect(idx, persisted_stages[idx], env=env)
+        for idx, stage_id in stage_ids_by_idx.items()
+        if 0 <= idx < len(persisted_stages)
+    }
+    with st.expander("Stage dependencies", expanded=False):
+        st.caption(
+            "Declare which selected stages must complete before another stage can run. "
+            "If no dependencies are set, WORKFLOW keeps the legacy sequential order."
+        )
+        suggest_dependencies_clicked = action_button(
+            st,
+            "Suggest dependencies",
+            key=f"{index_page_str}_suggest_stage_dependencies",
+            kind="save",
+            help=(
+                "Infer candidate dependencies from install/pipeline naming and explicit "
+                "data_in/data_out/path literals. Review before saving."
+            ),
+        )
+        if suggest_dependencies_clicked:
+            suggested_deps = infer_stage_dependency_suggestions(
+                [
+                    dict(entry) if isinstance(entry, Mapping) else {}
+                    for entry in persisted_stages
+                ],
+                final_sequence,
+                str(selected_pipeline_profile),
+            )
+            for stage_id, deps in suggested_deps.items():
+                filtered_deps = [dep for dep in deps if dep in stage_labels_by_id and dep != stage_id]
+                deps_state[stage_id] = filtered_deps
+                st.session_state[f"{index_page_str}__pipeline_deps_{stage_id}"] = filtered_deps
+            toast(st, "Dependency suggestions applied. Review and save if correct.", state="success")
+            _rerun_fragment_or_app()
+            return
+        for idx, stage_id in stage_ids_by_idx.items():
+            options = [
+                candidate_id
+                for candidate_idx, candidate_id in stage_ids_by_idx.items()
+                if candidate_idx != idx
+            ]
+            widget_key = f"{index_page_str}__pipeline_deps_{stage_id}"
+            if widget_key not in st.session_state:
+                initial_deps = deps_state.get(stage_id, stage_deps_for_dependency(persisted_stages[idx]))
+                st.session_state[widget_key] = [
+                    str(dep)
+                    for dep in initial_deps
+                    if str(dep) in options
+                ]
+            selected_deps = st.multiselect(
+                f"Stage {idx + 1} depends on",
+                options=options,
+                key=widget_key,
+                format_func=lambda value, labels=stage_labels_by_id: labels.get(str(value), str(value)),
+            )
+            deps_state[stage_id] = [str(dep) for dep in selected_deps]
+        save_dependencies_clicked = action_button(
+            st,
+            "Save dependencies",
+            key=f"{index_page_str}_save_stage_dependencies",
+            kind="save",
+            help="Persist the edited stage ids and dependency lists into the active lab_stages.toml file.",
+        )
+        if save_dependencies_clicked:
+            for idx, stage_id in stage_ids_by_idx.items():
+                if not 0 <= idx < len(persisted_stages):
+                    continue
+                current_entry = persisted_stages[idx]
+                if not isinstance(current_entry, Mapping):
+                    continue
+                updated_entry = dict(current_entry)
+                updated_entry["id"] = stage_id
+                updated_entry["deps"] = list(deps_state.get(stage_id, []))
+                _force_persist_stage(module_path, stages_file, idx, updated_entry)
+            _bump_history_revision()
+            toast(st, "Stage dependencies saved.", state="success")
+            _rerun_fragment_or_app()
+            return
+    preview_stages = [
+        dict(entry) if isinstance(entry, Mapping) else {}
+        for entry in persisted_stages
+    ]
+    for idx, stage_id in stage_ids_by_idx.items():
+        if 0 <= idx < len(preview_stages):
+            preview_stages[idx]["deps"] = list(deps_state.get(stage_id, []))
+    preview_waves, dependency_error, _preview_ids, _preview_deps = build_stage_waves(
+        preview_stages,
+        final_sequence,
+        str(selected_pipeline_profile),
+        dependency_overrides=deps_state,
+    )
+    if dependency_error:
+        st.warning(dependency_error)
+    elif preview_waves:
+        wave_labels = [
+            " + ".join(str(stage_number + 1) for stage_number in wave)
+            for wave in preview_waves
+        ]
+        st.caption(f"Planned execution waves: {' -> '.join(wave_labels)}")
+        if st.checkbox(
+            "Show dependency graph",
+            key=f"{index_page_str}_show_dependency_graph",
+            help="Preview the exact stage dependency graph used to compute execution waves.",
+        ):
+            st.graphviz_chart(
+                _workflow_dependency_dot(
+                    stage_ids_by_idx=stage_ids_by_idx,
+                    deps_by_stage_id=deps_state,
+                    labels_by_stage_id=stage_labels_by_id,
+                    waves=preview_waves,
+                ),
+                use_container_width=True,
+            )
+    last_manifest_file = str(st.session_state.get(f"{index_page_str}__last_pipeline_manifest_file", "") or "")
+    if last_manifest_file:
+        st.caption(f"Last automation manifest: `{last_manifest_file}`")
+        _render_pipeline_automation_manifest_summary(
+            last_manifest_file,
+            key_prefix=index_page_str,
+        )
+    else:
+        st.caption(f"Automation manifests are written as `{PIPELINE_AUTOMATION_MANIFEST_FILENAME}` beside run logs.")
+    last_waves = st.session_state.get(f"{index_page_str}__last_pipeline_waves")
+    if isinstance(last_waves, list) and last_waves:
+        wave_labels = [
+            " + ".join(str(stage_number) for stage_number in wave)
+            for wave in last_waves
+            if isinstance(wave, list)
+        ]
+        if wave_labels:
+            st.caption(f"Last execution waves: {' -> '.join(wave_labels)}")
     run_col, force_col = st.columns(2)
     with run_col:
         run_blocked_reason = page_state.blocked_actions.get(
@@ -4972,8 +5324,8 @@ def display_lab_tab(
             "Run workflow",
             key=f"{index_page_str}_run_all",
             kind="run",
-            help=run_blocked_reason or "Execute every stage sequentially using its saved virtual environment.",
-            disabled=PipelineAction.RUN_PIPELINE not in page_state.available_actions,
+            help=run_blocked_reason or dependency_error or "Execute the selected workflow stages using the planned dependency waves.",
+            disabled=PipelineAction.RUN_PIPELINE not in page_state.available_actions or bool(dependency_error),
         )
     with force_col:
         if lock_state:
@@ -4988,7 +5340,7 @@ def display_lab_tab(
                     key=f"{index_page_str}_force_run_stale",
                     kind="run",
                     help=force_blocked_reason or "Remove the stale workflow lock and start a new run.",
-                    disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
+                    disabled=PipelineAction.FORCE_RUN not in page_state.available_actions or bool(dependency_error),
                 )
             elif st.session_state.get(force_run_confirm_key, False):
                 force_run_clicked = action_button(
@@ -4998,7 +5350,7 @@ def display_lab_tab(
                     kind="run",
                     help=force_blocked_reason
                     or "Remove the current lock and start a new run. Use this only if the previous run is gone.",
-                    disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
+                    disabled=PipelineAction.FORCE_RUN not in page_state.available_actions or bool(dependency_error),
                 )
             else:
                 force_run_arm_clicked = action_button(
@@ -5008,7 +5360,7 @@ def display_lab_tab(
                     kind="destructive",
                     help=force_blocked_reason
                     or "Use only when a previous workflow run was interrupted and left a lock behind.",
-                    disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
+                    disabled=PipelineAction.FORCE_RUN not in page_state.available_actions or bool(dependency_error),
                 )
 
     if run_all_clicked and PipelineAction.RUN_PIPELINE not in page_state.available_actions:
@@ -5019,6 +5371,10 @@ def display_lab_tab(
             )
         )
         run_all_clicked = False
+    if (run_all_clicked or force_run_clicked) and dependency_error:
+        st.warning(dependency_error)
+        run_all_clicked = False
+        force_run_clicked = False
     if force_run_clicked and PipelineAction.FORCE_RUN not in page_state.available_actions:
         st.warning(
             page_state.blocked_actions.get(
@@ -5141,6 +5497,9 @@ def display_lab_tab(
                         env,
                         log_placeholder=run_placeholder,
                         force_lock_clear=bool(start_result.details.get("force_lock_clear")),
+                        pipeline_profile=str(selected_pipeline_profile),
+                        pipeline_max_workers=selected_pipeline_max_workers,
+                        pipeline_stage_deps=deps_state,
                     )
                 except Exception:
                     finish_result = finish_pipeline_run_command(

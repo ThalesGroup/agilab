@@ -622,6 +622,10 @@ def sequence_meta_key(module_key: str) -> str:
     return f"{module_key}__sequence"
 
 
+def automation_meta_key(module_key: str) -> str:
+    return f"{module_key}__automation"
+
+
 def load_sequence_preferences(module: Union[str, Path], stages_file: Path, env: Optional[AgiEnv] = None) -> List[int]:
     """Return the stored execution order for a module, if any."""
     module_key = module_keys(module, env=env)[0]
@@ -640,6 +644,28 @@ def load_sequence_preferences(module: Union[str, Path], stages_file: Path, env: 
     if not isinstance(raw_sequence, list):
         return []
     return [idx for idx in raw_sequence if isinstance(idx, int) and idx >= 0]
+
+
+def load_automation_preferences(
+    module: Union[str, Path],
+    stages_file: Path,
+    env: Optional[AgiEnv] = None,
+) -> Dict[str, Any]:
+    """Return stored WORKFLOW automation preferences for a module, if any."""
+    module_key = module_keys(module, env=env)[0]
+    try:
+        with stages_file.open("rb") as handle:
+            data = tomllib.load(handle)
+    except FileNotFoundError:
+        return {}
+    except tomllib.TOMLDecodeError as exc:
+        logger.warning("Failed to parse automation metadata from %s: %s", stages_file, exc)
+        return {}
+    meta = data.get(LAB_STAGES_META_KEY, {})
+    if not isinstance(meta, dict):
+        return {}
+    raw_preferences = meta.get(automation_meta_key(module_key), {})
+    return dict(raw_preferences) if isinstance(raw_preferences, dict) else {}
 
 
 def persist_sequence_preferences(
@@ -676,6 +702,54 @@ def persist_sequence_preferences(
             tomli_w.dump(_convert_paths_to_strings(prepare_lab_stages_for_write(data)), handle)
     except (OSError, TypeError, ValueError) as exc:
         logger.error("Failed to persist execution sequence to %s: %s", stages_file, exc)
+
+
+def persist_automation_preferences(
+    module: Union[str, Path],
+    stages_file: Path,
+    preferences: Dict[str, Any],
+    env: Optional[AgiEnv] = None,
+) -> None:
+    """Persist WORKFLOW automation preferences alongside the stage contract."""
+    module_key = module_keys(module, env=env)[0]
+    normalized: Dict[str, Any] = {}
+    profile = str(preferences.get("profile", "") or "").strip()
+    if profile:
+        normalized["profile"] = profile
+    try:
+        max_workers = int(preferences.get("max_workers", 0) or 0)
+    except (TypeError, ValueError):
+        max_workers = 0
+    if max_workers > 0:
+        normalized["max_workers"] = max_workers
+    try:
+        if stages_file.exists():
+            with stages_file.open("rb") as handle:
+                data = tomllib.load(handle)
+        else:
+            data = {}
+    except tomllib.TOMLDecodeError as exc:
+        logger.error("Failed to load stages while saving automation metadata: %s", exc)
+        return
+    try:
+        prepare_lab_stages_for_write(data)
+    except ValueError as exc:
+        logger.error("Refusing to persist automation metadata to %s: %s", stages_file, exc)
+        return
+    meta = data.setdefault(LAB_STAGES_META_KEY, {})
+    meta_key = automation_meta_key(module_key)
+    if meta.get(meta_key) == normalized:
+        return
+    if normalized:
+        meta[meta_key] = normalized
+    else:
+        meta.pop(meta_key, None)
+    try:
+        stages_file.parent.mkdir(parents=True, exist_ok=True)
+        with stages_file.open("wb") as handle:
+            tomli_w.dump(_convert_paths_to_strings(prepare_lab_stages_for_write(data)), handle)
+    except (OSError, TypeError, ValueError) as exc:
+        logger.error("Failed to persist automation metadata to %s: %s", stages_file, exc)
 
 
 def is_displayable_stage(entry: Dict[str, Any]) -> bool:
