@@ -10,6 +10,7 @@ import fnmatch
 import html
 import json
 import logging
+import os
 import sys
 import tomllib
 from pathlib import Path
@@ -82,7 +83,7 @@ HEATMAP_MAX_COLUMNS = 2
 BEARER_MAX_COLUMNS = 3
 HEATMAP_GRID_COLOR = "rgba(217, 222, 231, 0.35)"
 
-BASE_CHOICES = ("AGI_CLUSTER_SHARE", "AGILAB_EXPORT", "Custom")
+BASE_CHOICES = ("AGI_LOCAL_SHARE", "AGI_CLUSTER_SHARE", "AGILAB_EXPORT", "Custom")
 AGGREGATIONS = ("mean", "sum", "median", "min", "max", "std", "count")
 STEP_AXIS_CANDIDATES = ("time_index", "decision", "step", "time_idx")
 TIME_AXIS_CANDIDATES = ("time_s", "t_now_s", "time", "t")
@@ -254,7 +255,49 @@ def _default_dataset_subpath(env: AgiEnv, active_app_path: Path) -> str:
     return "pipeline"
 
 
+def _configured_env_path(env: AgiEnv, attr_name: str) -> Path | None:
+    raw_value = getattr(env, attr_name, None)
+    if raw_value is None or not str(raw_value).strip():
+        envars = getattr(env, "envars", {})
+        if isinstance(envars, dict):
+            raw_value = envars.get(attr_name)
+    if raw_value is None or not str(raw_value).strip():
+        return None
+    path = Path(str(raw_value).strip()).expanduser()
+    if not path.is_absolute():
+        path = Path.home() / path
+    return path
+
+
+def _default_local_share_path() -> Path:
+    raw_user = os.environ.get("AGILAB_SHARE_USER") or os.environ.get("USER") or os.environ.get("USERNAME") or "user"
+    safe_user = "".join(ch if ch.isalnum() or ch in "_.-" else "_" for ch in str(raw_user)).strip("_") or "user"
+    return Path.home() / "localshare" / safe_user
+
+
+def _preview_base_path(env: AgiEnv, base_choice: str, custom_base: str = "") -> Path | None:
+    if base_choice == "AGI_LOCAL_SHARE":
+        return _configured_env_path(env, "AGI_LOCAL_SHARE") or _default_local_share_path()
+    if base_choice == "AGI_CLUSTER_SHARE":
+        return Path(env.share_root_path())
+    if base_choice == "AGILAB_EXPORT":
+        return Path(env.AGILAB_EXPORT_ABS)
+    cleaned = custom_base.strip()
+    if not cleaned:
+        return None
+    return Path(cleaned).expanduser()
+
+
+def _base_choice_label(env: AgiEnv, choice: str, custom_base: str = "") -> str:
+    path = _preview_base_path(env, choice, custom_base)
+    if path is None:
+        return choice
+    return f"{choice} ({path})"
+
+
 def _resolve_base_path(env: AgiEnv, base_choice: str, custom_base: str) -> Path | None:
+    if base_choice == "AGI_LOCAL_SHARE":
+        return _configured_env_path(env, "AGI_LOCAL_SHARE") or _default_local_share_path()
     if base_choice == "AGI_CLUSTER_SHARE":
         return Path(env.share_root_path())
     if base_choice == "AGILAB_EXPORT":
@@ -1400,7 +1443,7 @@ def main() -> None:
         st.session_state[ENV_KEY] = env
 
     page_defaults = _get_page_defaults(env)
-    default_base_choice = str(page_defaults.get("dataset_base_choice") or "AGI_CLUSTER_SHARE")
+    default_base_choice = str(page_defaults.get("dataset_base_choice") or page_defaults.get("base_choice") or "AGI_CLUSTER_SHARE")
     if default_base_choice not in BASE_CHOICES:
         default_base_choice = "AGI_CLUSTER_SHARE"
     default_custom_base = str(page_defaults.get("dataset_custom_base") or "")
@@ -1441,7 +1484,12 @@ def main() -> None:
 
     with st.sidebar:
         st.header("Data source")
-        st.selectbox("Base directory", BASE_CHOICES, key=BASE_CHOICE_KEY)
+        st.selectbox(
+            "Base directory",
+            BASE_CHOICES,
+            key=BASE_CHOICE_KEY,
+            format_func=lambda choice: _base_choice_label(env, choice, st.session_state.get(CUSTOM_BASE_KEY, "")),
+        )
         st.text_input("Custom base directory", key=CUSTOM_BASE_KEY)
         st.text_input("Dataset subpath", key=SUBPATH_KEY)
         st.text_area(
@@ -1455,7 +1503,7 @@ def main() -> None:
     glob_patterns = _coerce_str_list(st.session_state[GLOBS_KEY]) or ["**/allocations_steps.json"]
 
     if dataset_root is None:
-        st.warning("Provide a custom base directory or switch back to AGI_CLUSTER_SHARE / AGILAB_EXPORT.")
+        st.warning("Provide a custom base directory or switch back to AGI_LOCAL_SHARE / AGI_CLUSTER_SHARE / AGILAB_EXPORT.")
         st.stop()
 
     st.info(f"Resolved dataset root: `{dataset_root}`")

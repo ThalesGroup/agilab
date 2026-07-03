@@ -652,6 +652,27 @@ def test_pipeline_run_controls_blocks_legacy_agi_run_before_lock(tmp_path, monke
     assert not any("Running stage 1" in line for line in fake_st.session_state["page__run_logs"])
 
 
+def test_pipeline_run_controls_normalizes_legacy_step_request_snippet() -> None:
+    module = _import_pipeline_run_controls()
+    stale_code = (
+        "from agi_cluster.agi_distributor import AGI, RunRequest, StepRequest\n"
+        "steps = [StepRequest(name='demo', args={})]\n"
+        "request = RunRequest(mode=4, steps=steps)\n"
+    )
+
+    normalized, changed = module._normalize_legacy_agi_run_request_code(stale_code)
+
+    assert changed is True
+    assert "StepRequest" not in normalized
+    assert "StageRequest" in normalized
+    assert "stages = [StageRequest" in normalized
+    assert "RunRequest(mode=4, stages=stages)" in normalized
+
+    unchanged, changed = module._normalize_legacy_agi_run_request_code("steps = ['plain runpy loop']\n")
+    assert changed is False
+    assert unchanged == "steps = ['plain runpy loop']\n"
+
+
 def test_pipeline_run_controls_run_all_stages_without_mlflow_tracks_runpy_no_output(tmp_path, monkeypatch):
     module = _import_pipeline_run_controls()
     snippet_file = tmp_path / "snippet.py"

@@ -494,14 +494,19 @@ def test_get_existing_snippets_cleanup_button_deletes_stale_generated_snippets(m
     os.utime(app_settings, (settings_time, settings_time))
     os.utime(stale_snippet, (new_time, new_time))
 
+    reruns = []
     fake_st = _FakeStreamlit(
-        {"clean_stale_snippets_flight_telemetry_project__armed": True},
+        {
+            "snippet_file": str(stale_snippet),
+            "clean_stale_snippets_flight_telemetry_project__armed": True,
+        },
         buttons={"clean_stale_snippets_flight_telemetry_project__confirm": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(runenv=runenv_dir, app_settings_file=app_settings, app="flight_telemetry_project")
     deps = SimpleNamespace(
         ensure_safe_service_template=lambda *_args, **_kwargs: None,
+        rerun_fragment_or_app=lambda: reruns.append("rerun"),
         safe_service_template_filename="unused.py",
         safe_service_template_marker="marker",
     )
@@ -510,6 +515,8 @@ def test_get_existing_snippets_cleanup_button_deletes_stale_generated_snippets(m
 
     assert option_map == {}
     assert not stale_snippet.exists()
+    assert "snippet_file" not in fake_st.session_state
+    assert reruns == ["rerun"]
     assert any(kind == "success" and "Deleted 1 stale" in message for kind, message in fake_st.messages)
 
 

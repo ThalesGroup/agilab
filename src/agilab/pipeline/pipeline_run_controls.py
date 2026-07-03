@@ -70,6 +70,15 @@ def _optional_mlflow_tracking_uri(env: AgiEnv) -> str:
         raise
 
 
+def _normalize_legacy_agi_run_request_code(code: str) -> tuple[str, bool]:
+    """Return code compatible with the current RunRequest/StageRequest API."""
+    if "StepRequest" not in code and not ("RunRequest" in code and re.search(r"\bsteps\b", code)):
+        return code, False
+    normalized = code.replace("StepRequest", "StageRequest")
+    normalized = re.sub(r"\bsteps\b", "stages", normalized)
+    return normalized, normalized != code
+
+
 def _mlflow_parent_payload(
     env: AgiEnv,
     lab_dir: Path,
@@ -589,6 +598,17 @@ def run_all_stages(
                     _refresh_pipeline_run_lock(lock_handle)
                     entry = stages[idx]
                     code = entry.get("C", "")
+                    code, normalized_agi_code = _normalize_legacy_agi_run_request_code(str(code or ""))
+                    if normalized_agi_code:
+                        entry = {**entry, "C": code}
+                        _push_run_log(
+                            index_page_str,
+                            (
+                                f"Stage {idx + 1}: normalized legacy AGI RunRequest snippet "
+                                "from StepRequest/steps to StageRequest/stages."
+                            ),
+                            log_placeholder,
+                        )
                     if not _pipeline_stages.is_runnable_stage(entry):
                         continue
                     _push_run_log(index_page_str, f"Running stage {idx + 1}…", log_placeholder)
