@@ -83,6 +83,112 @@ must be refreshed deliberately.
 For example, if an app renames a runtime argument, older saved snippets that
 still pass the removed name must be regenerated or replaced before they can run.
 
+Pipeline profiles and stage dependencies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``lab_stages.toml`` can remain a plain ordered stage list, but projects that
+need faster replay can opt into explicit single-project workflow automation.
+The contract is additive: older stage files without dependency fields still run
+in their saved sequence.
+
+The WORKFLOW execution controls expose:
+
+* ``Pipeline profile``: chooses the generic automation profile for this run.
+  Built-in profile names are ``balanced``, ``smoke``, ``fast``, ``evidence``,
+  and ``custom``. A stage may declare optional ``profiles.<name>`` overrides;
+  if it does not, AGILAB runs the saved stage exactly as written.
+* ``Parallel stage workers``: caps how many independent ``agi.*`` stages can
+  run at the same time. In-process ``runpy`` stages remain serialized because
+  they share the Streamlit session state.
+* ``Save automation settings``: persists the selected profile and worker cap in
+  the ``lab_stages.toml`` metadata. Opening WORKFLOW or changing the controls
+  does not rewrite the file until you press this button.
+* ``Stage dependencies``: lets you review or edit ``deps`` for the selected
+  stages. ``Suggest dependencies`` derives candidate edges from install/pipeline
+  naming and explicit path literals such as ``data_in`` and ``data_out``. Review
+  the suggestions before pressing ``Save dependencies``.
+* ``Show dependency graph``: previews the exact dependency graph used to compute
+  execution waves.
+
+A dependency-aware stage entry uses stable ids instead of fragile list indices:
+
+.. code-block:: toml
+
+   [[my_project]]
+   id = "prepare_data"
+   deps = []
+   D = "my_app/pipeline"
+   R = "agi.run"
+   C = "..."
+
+   [[my_project]]
+   id = "train_model"
+   deps = ["prepare_data"]
+   D = "my_model/pipeline"
+   R = "agi.run"
+   C = "..."
+
+The runner validates the graph before execution. Duplicate ids, unknown
+dependencies, cycles, or dependencies outside the selected execution sequence
+block the run instead of producing a partial or racy pipeline. When dependencies
+are valid, AGILAB computes topological waves: independent ``agi.*`` stages in
+the same wave may run concurrently, while dependent stages wait for their
+upstream wave.
+
+Stages can also declare an optional output-existence skip rule inside the same
+stage entry:
+
+.. code-block:: toml
+
+   [[my_project]]
+   id = "prepare_data"
+   deps = []
+   D = "my_app/pipeline"
+   R = "agi.run"
+   C = "..."
+   automation = { skip_if_outputs_exist = true, outputs = ["my_app/pipeline"] }
+
+This rule skips a stage only when every declared output exists. It is a
+convenience for fast local iteration, not a full freshness proof: AGILAB does
+not compare input mtimes, dependency hashes, or semantic content for this
+shortcut. Use ``reset_target`` or clear outputs when you need a clean rebuild.
+
+Each workflow run writes a local automation manifest beside the run logs. The
+current schema is ``agilab.pipeline.automation.v2``. The manifest also records
+``agilab.pipeline.automation.v1`` as a compatible schema for readers that only
+need the original profile, wave, stage status, and dependency fields. The
+manifest records the selected profile, worker cap, stage ids, dependencies,
+computed waves, per-stage status, declared output records, and a DOT dependency
+graph. Output records include resolved paths, existence, file or directory
+classification, size and mtime when available, and a SHA-256 for regular files
+up to the bounded manifest hashing limit. Larger files and directories are
+classified instead of hashed so workflow logging stays cheap. When MLflow
+tracking is available, the parent run also stores the automation metadata and
+dependency graph as text artifacts. The ``pipeline_metadata/automation.json``
+artifact records schema, compatible reader schemas, producer, producer version,
+local-only scope, workflow source, app, target, profile, run id, max workers,
+dependency waves, stage ids, and stage dependencies. For parallel waves, the
+automation manifest is the per-stage evidence source; nested MLflow stage runs
+remain a serial-stage evidence path. The ``Latest automation run`` expander
+summarizes the same manifest with a ``Schema`` KPI for reader compatibility
+status (``current``, ``compatible legacy``, ``unknown``, or ``unsupported``),
+the detailed schema caption, compatible reader schemas, producer, producer version, run id, automation profile, max workers,
+local-only scope, workflow source, app, target, lab directory, stages file,
+stages file SHA-256, start timestamp, finish timestamp, run duration, run
+error, stage counts, wave count, ``run_manifest_path`` for the immutable
+per-run manifest, ``manifest_path`` as the compatibility alias for that same
+per-run file, ``latest_manifest_path`` for the rolling latest-manifest alias,
+manifest SHA-256, declared output count, existing output count, hashed output
+count, and oversized-output count. Use
+``Show output evidence`` in that expander to inspect the manifest rows for each
+declared output: stage, status, specification, resolved path, existence, file
+kind, size, hash status, and SHA-256 when available.
+
+   The MLflow parent run also records ``pipeline_metadata/sequence.json`` with
+   schema ``agilab.pipeline.sequence.v2``. That artifact keeps the selected
+   sequence for legacy readers and adds the effective automation profile, run id,
+   max worker setting, dependency waves, stage ids, and stage dependencies so the
+   tracker evidence matches the actual waved execution plan.
+
 Workflow graph scopes
 ~~~~~~~~~~~~~~~~~~~~~
 The **Workflow graph** expander is the transition path from a single-project
@@ -269,14 +375,16 @@ MLflow tracking
 WORKFLOW execution and MLflow tracking now share the same runtime contract:
 
 .. figure:: diagrams/pipeline_mlflow_tracking.svg
-   :alt: Diagram showing one parent MLflow run for the whole workflow and one nested run per executed stage.
+   :alt: Diagram showing one parent MLflow run for the workflow and nested stage runs for serial stage execution.
    :align: center
    :class: diagram-panel diagram-standard
 
-   WORKFLOW creates one parent MLflow run per execution, then one nested run per stage, while both in-process and subprocess paths write to the same tracking store exposed by the MLflow UI.
+   WORKFLOW creates one parent MLflow run per execution. Serial stages create nested MLflow runs, while parallel waves record per-stage status in the automation manifest and attach workflow-level metadata to the parent run.
 
 * ``Run pipeline`` creates one parent MLflow run for the whole lab execution.
-* Every executed stage becomes a nested MLflow run with its own metadata.
+* Serial executed stages become nested MLflow runs with their own metadata.
+* Parallel ready waves intentionally use the automation manifest for per-stage
+  status, stdout, failure, and dependency evidence.
 * The tracked metadata comes from ``lab_stages.toml`` and includes the stage
   description, prompt/question, selected model, execution engine, and runtime.
 * Captured stdout, the executed snippet, the run log, and produced dataframe
@@ -304,8 +412,10 @@ domain metrics:
    tracker.log_artifact("reports/confusion_matrix.png")
 
 The tracking store is the directory configured by ``MLFLOW_TRACKING_DIR``.
-Subprocess-based stages receive the same ``MLFLOW_TRACKING_URI`` as in-process
-stages, so both execution paths are visible from the same MLflow UI.
+Serial subprocess-based stages receive the same ``MLFLOW_TRACKING_URI`` as
+in-process stages, so both serial execution paths are visible from the same
+MLflow UI. For parallel stage waves, use the latest automation manifest in
+WORKFLOW as the detailed per-stage execution view.
 
 HISTORY
 ~~~~~~~

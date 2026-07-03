@@ -481,11 +481,10 @@ renders cleanly on narrower viewports.
 - **Positioning note**: modern Airflow already supports dynamic task mapping
   and dynamic DAG generation, so it remains stronger when the core need is
   task-level orchestration semantics inside a scheduler-first platform.
-  AGILab can express dynamic behavior inside generated or custom Python stages,
-  but it does not yet expose the same kind of first-class runtime pipeline-stage
-  expansion in **WORKFLOW**. Its strength is elsewhere: experiment packaging,
-  managed execution environments, distributed research workloads, and
-  app-centric user workflows.
+  AGILab now supports dependency-aware WORKFLOW waves for saved lab stages, but
+  it remains scoped to experiment packaging, managed execution environments,
+  distributed research workloads, and app-centric user workflows rather than
+  replacing a scheduler-first orchestration platform.
 
 Selection guide
 ---------------
