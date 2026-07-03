@@ -521,7 +521,7 @@ def test_orchestrate_action_label_case_policy_is_explicit():
         "check_distribute": "CHECK distribute",
         "run": "RUN",
         "run_benchmark": "RUN benchmark",
-        "run_workflow": "RUN workflow",
+        "run_workflow": "RUN orchestration",
         "run_load_export": "Run -> Load -> Export",
         "load_output": "Load output",
         "delete_output": "Delete output",
