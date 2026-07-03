@@ -39,6 +39,14 @@ Use this skill when editing:
 
 - Custom `app_args_form.py` views are app UI, not apps-pages. Use them when an
   app needs persisted execution fields in ORCHESTRATE.
+- For custom `app_args_form.py` views, do a field-consistency pass before
+  closing the change: compare the app `ArgsModel`, seed `app_settings.toml`,
+  guided-mode widgets, preview-helper inputs, and persisted candidate payload.
+  Runtime-relevant args must either be visible in the guided form or explicitly
+  documented as intentionally advanced; do not leave required execution fields
+  available only through generic edit mode. Preview helpers should consume the
+  current widget value for any exposed field, not the stale `defaults_model`
+  value.
 - For compact app-specific controls, use `agi_env.streamlit_args.render_form`
   with an explicit container such as `st.sidebar`:
   `render_form(defaults_model, container=st.sidebar)`.
