@@ -43,6 +43,16 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 - Corrected the data-quality built-in example README so it points readers to
   emitted artifacts instead of a nonexistent quality-gate report file.
 
+## [2026.07.04] - 2026-07-04
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.04
+
+### Changed
+
+- Published AGILAB `2026.07.04` to PyPI for `agi-env`, `agi-gui`, `agi-page-app-ui`, `agi-page-simplex-map`, `agi-page-inference-report`, `agi-page-live-artifacts`, `agi-page-geospatial-map`, `agi-page-geospatial-3d`, `agi-page-network-map`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-pytorch-playground`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
 ## [2026.06.24] - 2026-06-24
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.24
@@ -787,3 +797,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.06.20]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.20
 [2026.06.23]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.23
 [2026.06.24]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.24
+[2026.07.04]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.04
