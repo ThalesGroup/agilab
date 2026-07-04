@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-07-02
+  updated: 2026-07-04
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -346,6 +346,24 @@ Use this skill when editing:
 
 ## WORKFLOW Assistant UX
 
+- For WORKFLOW cockpit or preflight changes, keep the decision model
+  Streamlit-free and app-agnostic. It should answer the operator questions
+  before any run starts: can this workflow run now, which stages can reuse
+  current outputs, which stale stages should rerun, which missing inputs or
+  model-artifact issues block execution, and what the fastest safe plan is.
+- Treat data consistency and model compatibility as first-class preflight
+  evidence. Missing inputs and dependency errors are blockers; reusable outputs
+  are cached/skipped; inputs newer than outputs trigger a stale rerun; model
+  version mismatches are blockers; missing model sidecar metadata or feature
+  schema are warnings.
+- Render cockpit/preflight output with product-facing labels such as `Run
+  readiness`, `Autopilot`, `Recommended actions`, `Expected outputs`, and
+  `Fastest safe plan`. Avoid exposing internal DAG jargon when the user is
+  deciding whether to run, reuse, or repair the workflow.
+- Prefer pure helper regressions for cockpit preflight logic: missing input
+  blocker, cached output reuse, stale output rerun, dependency error, model
+  version mismatch, and missing feature-schema warning. Add Streamlit/AppTest
+  coverage only when widget state, keys, or visible page wiring changes.
 - Default generated dataframe work to a safe-action mode: the model returns a
   versioned JSON action contract, AGILAB validates it, and the UI displays the
   deterministic pandas code derived from that contract.
