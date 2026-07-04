@@ -9,11 +9,13 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 
 PIPELINE_WORKFLOW_INSIGHTS_SCHEMA = "agilab.pipeline.workflow_insights.v1"
+PIPELINE_AUTOPILOT_PREFLIGHT_SCHEMA = "agilab.pipeline.autopilot_preflight.v1"
 _MODEL_SUFFIXES = {".joblib", ".pkl", ".pickle", ".pt", ".pth", ".onnx", ".zip"}
 _METADATA_SUFFIXES = {".json", ".toml", ".yaml", ".yml"}
 _PATH_LITERAL_RE = re.compile(
@@ -289,6 +291,316 @@ def build_evidence_score(
     return {"score": score, "label": label, "reasons": reasons, "gaps": gaps, "output_summary": output_summary}
 
 
+def _stage_engine(stage: Mapping[str, Any]) -> str:
+    for key in ("R", "engine", "runtime_engine"):
+        value = _clean_text(stage.get(key))
+        if value:
+            return value
+    return "runpy"
+
+
+def _output_rows_by_stage(data_availability: Mapping[str, Any]) -> dict[int, list[Mapping[str, Any]]]:
+    rows_by_stage: dict[int, list[Mapping[str, Any]]] = {}
+    for row in data_availability.get("rows", []):
+        if not isinstance(row, Mapping) or row.get("kind") != "output":
+            continue
+        try:
+            stage_number = int(row.get("stage", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if stage_number:
+            rows_by_stage.setdefault(stage_number, []).append(row)
+    return rows_by_stage
+
+
+def _input_rows_by_stage(data_availability: Mapping[str, Any]) -> dict[int, list[Mapping[str, Any]]]:
+    rows_by_stage: dict[int, list[Mapping[str, Any]]] = {}
+    for row in data_availability.get("rows", []):
+        if not isinstance(row, Mapping) or row.get("kind") != "input":
+            continue
+        try:
+            stage_number = int(row.get("stage", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if stage_number:
+            rows_by_stage.setdefault(stage_number, []).append(row)
+    return rows_by_stage
+
+
+def _manifest_stage_statuses(manifest: Mapping[str, Any] | None) -> dict[int, str]:
+    statuses: dict[int, str] = {}
+    if not manifest:
+        return statuses
+    raw_stages = manifest.get("stages") or manifest.get("stage_results") or []
+    if not isinstance(raw_stages, list):
+        return statuses
+    for entry in raw_stages:
+        if not isinstance(entry, Mapping):
+            continue
+        raw_stage = entry.get("stage") or entry.get("stage_index") or entry.get("index")
+        try:
+            stage_number = int(raw_stage)
+        except (TypeError, ValueError):
+            continue
+        if stage_number <= 0:
+            stage_number += 1
+        status = _clean_text(entry.get("status") or entry.get("state") or entry.get("result"))
+        if status:
+            statuses[stage_number] = status
+    return statuses
+
+
+def _artifact_mtime(row: Mapping[str, Any]) -> float | None:
+    raw_path = _clean_text(row.get("resolved_path"))
+    if not raw_path:
+        return None
+    try:
+        return Path(raw_path).stat().st_mtime
+    except OSError:
+        return None
+
+
+def _stage_is_stale(
+    stage_number: int,
+    inputs_by_stage: Mapping[int, Sequence[Mapping[str, Any]]],
+    outputs_by_stage: Mapping[int, Sequence[Mapping[str, Any]]],
+) -> bool:
+    input_times = [_artifact_mtime(row) for row in inputs_by_stage.get(stage_number, [])]
+    output_times = [_artifact_mtime(row) for row in outputs_by_stage.get(stage_number, [])]
+    input_times = [value for value in input_times if value is not None]
+    output_times = [value for value in output_times if value is not None]
+    return bool(input_times and output_times and max(input_times) > min(output_times))
+
+
+def _model_version_issues(
+    model_artifacts: Sequence[Mapping[str, Any]],
+    *,
+    current_versions: Mapping[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    current_versions = current_versions or {}
+    version_key_map = {
+        "sklearn_version": "sklearn_version",
+        "scikit_learn_version": "sklearn_version",
+        "torch_version": "torch_version",
+        "stable_baselines3_version": "stable_baselines3_version",
+        "mlflow_version": "mlflow_version",
+    }
+    issues: list[dict[str, Any]] = []
+    for artifact in model_artifacts:
+        metadata = artifact.get("metadata")
+        metadata_map = metadata if isinstance(metadata, Mapping) else {}
+        artifact_path = _clean_text(artifact.get("path") or artifact.get("name"))
+        if artifact.get("metadata_status") != "versioned":
+            issues.append(
+                {
+                    "severity": "warning",
+                    "path": artifact_path,
+                    "issue": "missing model metadata",
+                    "recommendation": "Add sidecar metadata with library versions, feature schema, and input dimensions.",
+                }
+            )
+            continue
+        for metadata_key, current_key in version_key_map.items():
+            recorded = _clean_text(metadata_map.get(metadata_key))
+            current = _clean_text(current_versions.get(current_key))
+            if recorded and current and recorded != current:
+                issues.append(
+                    {
+                        "severity": "blocker",
+                        "path": artifact_path,
+                        "issue": f"{metadata_key} mismatch",
+                        "recorded": recorded,
+                        "current": current,
+                        "recommendation": "Retrain/re-export the model or run with a compatible environment before executing dependent stages.",
+                    }
+                )
+        if not any(key in metadata_map for key in ("feature_schema", "features", "input_dim", "n_features_in_", "observation_shape")):
+            issues.append(
+                {
+                    "severity": "warning",
+                    "path": artifact_path,
+                    "issue": "missing feature shape/schema metadata",
+                    "recommendation": "Record feature schema or input dimensions to prevent tensor-shape regressions.",
+                }
+            )
+    return issues
+
+
+def _installed_package_version(package_name: str) -> str:
+    try:
+        return package_version(package_name)
+    except PackageNotFoundError:
+        return ""
+
+
+def _current_model_library_versions() -> dict[str, str]:
+    candidates = {
+        "sklearn_version": "scikit-learn",
+        "torch_version": "torch",
+        "stable_baselines3_version": "stable-baselines3",
+        "mlflow_version": "mlflow",
+    }
+    versions: dict[str, str] = {}
+    for key, package_name in candidates.items():
+        installed = _installed_package_version(package_name)
+        if installed:
+            versions[key] = installed
+    return versions
+
+
+def build_autopilot_preflight(
+    *,
+    stages: Sequence[Mapping[str, Any]],
+    sequence: Sequence[int],
+    quality: Mapping[str, Any],
+    data_availability: Mapping[str, Any],
+    model_artifacts: Sequence[Mapping[str, Any]],
+    manifest: Mapping[str, Any] | None = None,
+    current_versions: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Build a deterministic preflight plan for running the selected workflow."""
+
+    blockers: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    actions: list[dict[str, Any]] = []
+    stage_plan: list[dict[str, Any]] = []
+    missing_inputs = data_availability.get("missing_inputs", [])
+    missing_outputs = data_availability.get("missing_outputs", [])
+    outputs_by_stage = _output_rows_by_stage(data_availability)
+    inputs_by_stage = _input_rows_by_stage(data_availability)
+    manifest_statuses = _manifest_stage_statuses(manifest)
+
+    if quality.get("dependency_error"):
+        blockers.append(
+            {
+                "kind": "dependency",
+                "stage": "",
+                "reason": str(quality.get("dependency_error") or "Invalid workflow dependencies."),
+                "action": "Fix dependency ids or cycles before running.",
+            }
+        )
+    for row in missing_inputs if isinstance(missing_inputs, list) else []:
+        if not isinstance(row, Mapping):
+            continue
+        blockers.append(
+            {
+                "kind": "missing-input",
+                "stage": row.get("stage", ""),
+                "reason": f"Input `{row.get('path', '')}` is missing.",
+                "action": "Generate the upstream stage, select an existing artifact, or fix the configured path.",
+            }
+        )
+    for issue in _model_version_issues(model_artifacts, current_versions=current_versions):
+        target = blockers if issue.get("severity") == "blocker" else warnings
+        target.append({"kind": "model-compatibility", **issue})
+
+    for idx in sequence:
+        if not 0 <= int(idx) < len(stages):
+            continue
+        stage_number = int(idx) + 1
+        stage = stages[int(idx)]
+        output_rows = list(outputs_by_stage.get(stage_number, []))
+        input_rows = list(inputs_by_stage.get(stage_number, []))
+        missing_input_count = sum(1 for row in input_rows if row.get("status") == "missing")
+        present_output_count = sum(1 for row in output_rows if row.get("status") == "present")
+        missing_output_count = sum(1 for row in output_rows if row.get("status") == "missing")
+        stale = _stage_is_stale(stage_number, inputs_by_stage, outputs_by_stage)
+        engine = _stage_engine(stage)
+        manifest_status = manifest_statuses.get(stage_number, "")
+        if missing_input_count:
+            decision = "blocked"
+            reason = f"{missing_input_count} input artifact(s) missing"
+            action = "generate-upstream"
+        elif output_rows and present_output_count == len(output_rows) and not stale:
+            decision = "skip"
+            reason = "declared outputs are already present"
+            action = "reuse-latest-valid-artifact"
+        elif stale:
+            decision = "run"
+            reason = "inputs are newer than declared outputs"
+            action = "rerun-stale-stage"
+        elif missing_output_count:
+            decision = "run"
+            reason = f"{missing_output_count} declared output artifact(s) missing"
+            action = "run-stage"
+        else:
+            decision = "run"
+            reason = "no reusable output evidence found"
+            action = "run-stage"
+        if engine == "runpy" and decision == "run" and len(sequence) > 1:
+            warnings.append(
+                {
+                    "kind": "runtime",
+                    "stage": stage_number,
+                    "reason": "runpy stage executes in-process and may serialize an otherwise parallel wave.",
+                    "action": "Use agi.run for subprocess-backed parallel execution when appropriate.",
+                }
+            )
+        stage_plan.append(
+            {
+                "stage": stage_number,
+                "engine": engine,
+                "decision": decision,
+                "reason": reason,
+                "autopilot_action": action,
+                "manifest_status": manifest_status,
+                "outputs_present": present_output_count,
+                "outputs_missing": missing_output_count,
+            }
+        )
+        actions.append(
+            {
+                "stage": stage_number,
+                "action": action,
+                "decision": decision,
+                "reason": reason,
+            }
+        )
+
+    runnable_stages = [row["stage"] for row in stage_plan if row["decision"] == "run"]
+    skipped_stages = [row["stage"] for row in stage_plan if row["decision"] == "skip"]
+    blocked_stages = [row["stage"] for row in stage_plan if row["decision"] == "blocked"]
+    ready = not blockers and not blocked_stages
+    if blockers:
+        status = "blocked"
+    elif runnable_stages:
+        status = "ready"
+    else:
+        status = "cached"
+    fastest_plan = {
+        "critical_steps": int(quality.get("critical_steps", 0) or 0),
+        "parallel_width": int(quality.get("parallel_width", 0) or 0),
+        "runnable_stages": runnable_stages,
+        "skipped_stages": skipped_stages,
+        "blocked_stages": blocked_stages,
+        "expected_outputs": [
+            row
+            for row in data_availability.get("rows", [])
+            if isinstance(row, Mapping) and row.get("kind") == "output"
+        ],
+        "estimated_duration": "unknown",
+    }
+    return {
+        "schema": PIPELINE_AUTOPILOT_PREFLIGHT_SCHEMA,
+        "status": status,
+        "ready": ready,
+        "summary": {
+            "stage_count": len(stage_plan),
+            "runnable": len(runnable_stages),
+            "skipped": len(skipped_stages),
+            "blocked": len(blocked_stages),
+            "warnings": len(warnings),
+            "blockers": max(len(blockers), len(blocked_stages)),
+        },
+        "blockers": blockers,
+        "warnings": warnings,
+        "actions": actions,
+        "stage_plan": stage_plan,
+        "fastest_plan": fastest_plan,
+        "missing_outputs": missing_outputs,
+    }
+
+
 def _load_json(path: Path) -> Mapping[str, Any] | None:
     try:
         if path.stat().st_size > 512 * 1024:
@@ -422,6 +734,7 @@ def build_workflow_cockpit_model(
     manifest: Mapping[str, Any] | None = None,
     pandas_paths: Sequence[Path] = (),
     dependency_error: str | None = None,
+    current_versions: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     quality = build_workflow_quality(
         stages,
@@ -440,6 +753,15 @@ def build_workflow_cockpit_model(
         manifest=manifest,
         model_artifacts=model_artifacts,
     )
+    autopilot = build_autopilot_preflight(
+        stages=stages,
+        sequence=sequence,
+        quality=quality,
+        data_availability=data_availability,
+        model_artifacts=model_artifacts,
+        manifest=manifest,
+        current_versions=current_versions or _current_model_library_versions(),
+    )
     return {
         "schema": PIPELINE_WORKFLOW_INSIGHTS_SCHEMA,
         "quality": quality,
@@ -447,4 +769,5 @@ def build_workflow_cockpit_model(
         "models": model_artifacts,
         "pandas": pandas_compat,
         "evidence": evidence,
+        "autopilot": autopilot,
     }
