@@ -2015,3 +2015,21 @@ def test_workflow_parity_module_entrypoint_lists_profiles(monkeypatch, capsys) -
 
     listed = json.loads(capsys.readouterr().out)
     assert "skills" in listed
+
+
+def test_workflow_parity_modernization_profiles_are_registered() -> None:
+    module = _load_module()
+    args = SimpleNamespace(
+        components=None,
+        skills=None,
+        app_path=None,
+        worker_copy=None,
+    )
+
+    profiles = module._profile_commands(args)
+
+    assert profiles["uv-preflight"][0].argv == ["python", "tools/uv_version_preflight.py"]
+    assert profiles["pandas-compat"][0].argv == ["python", "tools/pandas_compat_audit.py"]
+    descriptions = module._profile_descriptions()
+    assert "uv binary" in descriptions["uv-preflight"]
+    assert "pandas 3" in descriptions["pandas-compat"]

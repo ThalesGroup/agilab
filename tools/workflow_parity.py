@@ -184,6 +184,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "shared-core-typing",
             "ty-typing",
             "dependency-policy",
+            "uv-preflight",
+            "pandas-compat",
             "release-proof",
             "security-adoption",
             "production-readiness",
@@ -310,6 +312,8 @@ def _profile_descriptions() -> dict[str, str]:
         "shared-core-typing": "Run the curated temporary strict mypy release guard for shared core.",
         "ty-typing": "Run the forward shared-core strict ty type-check slice.",
         "dependency-policy": "Run dependency hygiene checks for runtime and release manifests.",
+        "uv-preflight": "Check that the active uv binary is new enough for AGILAB workflow tooling.",
+        "pandas-compat": "Run a static pandas 3 / Copy-on-Write compatibility risk audit.",
         "release-proof": "Run expensive release-proof gates such as fresh-clone first-proof install validation.",
         "security-adoption": (
             "Write an advisory security-check JSON artifact; set "
@@ -359,6 +363,8 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "shared-core-typing": _shared_core_typing_profile(),
         "ty-typing": _shared_core_ty_typing_profile(),
         "dependency-policy": _dependency_policy_profile(),
+        "uv-preflight": _uv_preflight_profile(),
+        "pandas-compat": _pandas_compat_profile(),
         "release-proof": _release_proof_profile(),
         "security-adoption": _security_adoption_profile(),
         "production-readiness": _production_readiness_profile(),
@@ -1505,6 +1511,30 @@ def _dependency_policy_profile() -> list[CommandSpec]:
     ]
 
 
+def _uv_preflight_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="uv version preflight",
+            argv=[
+                "python",
+                "tools/uv_version_preflight.py",
+            ],
+        )
+    ]
+
+
+def _pandas_compat_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="pandas compatibility audit",
+            argv=[
+                "python",
+                "tools/pandas_compat_audit.py",
+            ],
+        )
+    ]
+
+
 def _release_proof_uv_python() -> str:
     explicit_python = os.environ.get("AGILAB_RELEASE_PROOF_PYTHON")
     if explicit_python:
@@ -2512,6 +2542,8 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
         "release-proof",
         "security-adoption",
         "production-readiness",
+        "uv-preflight",
+        "pandas-compat",
         "ty-typing",
         "ui-robot-matrix",
         "ui-robot-contract",

@@ -1874,13 +1874,28 @@ def filter_edges(df, edge_columns, allowed_edge_pairs: set[tuple[str, str]] | No
 # ----------------------------
 # Optional edges loader (from synthetic topology export)
 # ----------------------------
+def _read_parquet_frame(path: Path) -> pd.DataFrame:
+    """Read Parquet with an optional Polars streaming fast path."""
+
+    try:
+        import polars as pl  # type: ignore[import-not-found]
+
+        lazy_frame = pl.scan_parquet(str(path))
+        try:
+            return lazy_frame.collect(engine="streaming").to_pandas()
+        except TypeError:
+            return lazy_frame.collect(streaming=True).to_pandas()
+    except Exception:
+        return pd.read_parquet(path)
+
+
 def load_edges_file(path: Path) -> dict[str, list[tuple[int, int]]]:
     path = path.expanduser()
     if not path.exists():
         return {}
     try:
         if path.suffix.lower() in {".parquet", ".pq", ".parq"}:
-            df = pd.read_parquet(path)
+            df = _read_parquet_frame(path)
         else:
             read_kwargs = {}
             if path.suffix.lower() in {".jsonl", ".ndjson"}:
@@ -2037,7 +2052,7 @@ def _load_traj_file(path_str: str) -> pd.DataFrame:
         return pd.DataFrame()
     if p.suffix.lower() in {".parquet", ".pq", ".parq"}:
         try:
-            return pd.read_parquet(p)
+            return _read_parquet_frame(p)
         except Exception:
             return pd.DataFrame()
     try:
@@ -2712,6 +2727,7 @@ def create_network_graph(
             annotations=role_annotations,
             legend=dict(x=1, y=1, traceorder="normal", font=dict(size=15)),
             hovermode="closest",
+        clickmode="event+select",
             autosize=True,
             height=700,
             margin=dict(b=90, l=5, r=5, t=0),
