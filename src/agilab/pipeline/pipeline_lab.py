@@ -419,20 +419,27 @@ def _render_workflow_cockpit(
     data = model["data"]
     models = model["models"]
     pandas_compat = model["pandas"]
+    autopilot = model["autopilot"]
     with st.expander("Workflow cockpit", expanded=True):
         st.caption(
             "Preflight view for execution waves, evidence health, data availability, "
-            "model artifact metadata, and pandas compatibility risk."
+            "model artifact metadata, pandas compatibility risk, and the fastest safe run plan."
         )
-        quality_col, evidence_col, data_col, model_col, pandas_col = st.columns(5)
+        quality_col, evidence_col, data_col, model_col, pandas_col, autopilot_col = st.columns(6)
         quality_col.metric("Waves", quality["wave_count"])
         evidence_col.metric("Evidence", f"{evidence['score']}/100", evidence["label"])
         data_col.metric("Data paths", data["total"], f"{data['missing']} missing")
         model_col.metric("Model artifacts", len(models))
         pandas_col.metric("Pandas risks", pandas_compat["total"])
+        autopilot_summary = autopilot.get("summary", {})
+        autopilot_col.metric(
+            "Autopilot",
+            str(autopilot.get("status", "unknown")).title(),
+            f"{int(autopilot_summary.get('blockers', 0) or 0)} blockers",
+        )
 
-        tab_quality, tab_evidence, tab_data, tab_models, tab_pandas = st.tabs(
-            ["Execution", "Evidence", "Data", "Models", "Pandas 3"]
+        tab_quality, tab_autopilot, tab_evidence, tab_data, tab_models, tab_pandas = st.tabs(
+            ["Execution", "Autopilot", "Evidence", "Data", "Models", "Pandas 3"]
         )
         with tab_quality:
             q_col1, q_col2, q_col3, q_col4 = st.columns(4)
@@ -449,6 +456,72 @@ def _render_workflow_cockpit(
                     pd.DataFrame(waits),
                     key=f"{key_prefix}_cockpit_waits",
                     page_size=25,
+                    hide_index=True,
+                    width="stretch",
+                )
+        with tab_autopilot:
+            fastest_plan = autopilot.get("fastest_plan", {})
+            a_col1, a_col2, a_col3, a_col4, a_col5, a_col6 = st.columns(6)
+            autopilot_status = str(autopilot.get("status", "unknown"))
+            readiness_label = "Ready" if autopilot_status == "ready" else autopilot_status.title()
+            a_col1.metric("Run readiness", readiness_label)
+            a_col2.metric("Runnable", int(autopilot_summary.get("runnable", 0) or 0))
+            a_col3.metric("Skipped", int(autopilot_summary.get("skipped", 0) or 0))
+            a_col4.metric("Blocked", int(autopilot_summary.get("blockers", 0) or 0))
+            a_col5.metric("Critical path", int(fastest_plan.get("critical_steps", 0) or 0))
+            a_col6.metric("Max parallel", int(fastest_plan.get("parallel_width", 0) or 0))
+            blockers = autopilot.get("blockers", [])
+            warnings = autopilot.get("warnings", [])
+            if blockers:
+                st.error("Autopilot blocked this run until the listed preflight issues are resolved.")
+                render_paginated_dataframe(
+                    st,
+                    pd.DataFrame(blockers),
+                    key=f"{key_prefix}_cockpit_autopilot_blockers",
+                    page_size=25,
+                    hide_index=True,
+                    width="stretch",
+                )
+            if warnings:
+                st.warning("Autopilot found warnings that may reduce reproducibility or parallel speed.")
+                render_paginated_dataframe(
+                    st,
+                    pd.DataFrame(warnings),
+                    key=f"{key_prefix}_cockpit_autopilot_warnings",
+                    page_size=25,
+                    hide_index=True,
+                    width="stretch",
+                )
+            stage_plan = autopilot.get("stage_plan", [])
+            if stage_plan:
+                st.caption("Fastest safe plan: reuse cached outputs, rerun stale stages, and block unsafe inputs/models.")
+                render_paginated_dataframe(
+                    st,
+                    pd.DataFrame(stage_plan),
+                    key=f"{key_prefix}_cockpit_autopilot_plan",
+                    page_size=50,
+                    hide_index=True,
+                    width="stretch",
+                )
+            actions = autopilot.get("actions", [])
+            if actions:
+                st.caption("Recommended actions")
+                render_paginated_dataframe(
+                    st,
+                    pd.DataFrame(actions),
+                    key=f"{key_prefix}_cockpit_autopilot_actions",
+                    page_size=50,
+                    hide_index=True,
+                    width="stretch",
+                )
+            expected_outputs = fastest_plan.get("expected_outputs", [])
+            if expected_outputs:
+                st.caption("Expected outputs")
+                render_paginated_dataframe(
+                    st,
+                    pd.DataFrame(expected_outputs),
+                    key=f"{key_prefix}_cockpit_autopilot_outputs",
+                    page_size=50,
                     hide_index=True,
                     width="stretch",
                 )
