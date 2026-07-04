@@ -51,11 +51,21 @@ def _legacy_name_for_target(target_name: str) -> str:
     return target_name
 
 
+def _sync_agi_gui_alias(current_name: str, module: ModuleType) -> None:
+    if not current_name.startswith("agi_env."):
+        return
+    alias_name = "agi_gui." + current_name.partition(".")[2]
+    if alias_name in sys.modules:
+        sys.modules[alias_name] = module
+
+
 def _execute_target_in_current_module(current_name: str, target_name: str) -> ModuleType | None:
     current_module = sys.modules.get(current_name)
     spec = importlib.util.find_spec(target_name)
     if current_module is None or spec is None or spec.origin is None:
-        return importlib.import_module(target_name)
+        module = importlib.import_module(target_name)
+        _sync_agi_gui_alias(current_name, module)
+        return module
     target_package = target_name.rpartition(".")[0]
     current_module.__dict__["__file__"] = spec.origin
     current_module.__dict__["__package__"] = target_package
@@ -65,6 +75,7 @@ def _execute_target_in_current_module(current_name: str, target_name: str) -> Mo
         "exec",
     )
     exec(source, current_module.__dict__)
+    _sync_agi_gui_alias(current_name, current_module)
     return None
 
 
@@ -96,4 +107,5 @@ def activate_compat_module(current_name: str, target_name: str) -> ModuleType | 
             current_module.__dict__[key] = value
     current_module.__dict__["_COMPAT_TARGET_MODULE"] = module
     current_module.__class__ = _CompatModule
+    _sync_agi_gui_alias(current_name, current_module)
     return None

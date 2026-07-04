@@ -332,7 +332,7 @@ def _render_pipeline_automation_manifest_summary(path: str, *, key_prefix: str) 
         ):
             dot_text = str(manifest.get("dependency_graph_dot") or "").strip()
             if dot_text:
-                st.graphviz_chart(dot_text, use_container_width=True)
+                st.graphviz_chart(dot_text, width="stretch")
             else:
                 st.caption("No dependency graph was recorded in this manifest.")
 
@@ -5136,21 +5136,25 @@ def display_lab_tab(
         except (TypeError, ValueError):
             stored_workers = 3
         st.session_state[workers_key] = min(max(stored_workers, 1), 8)
-    selected_pipeline_max_workers = int(
-        st.number_input(
-            "Parallel stage workers",
-            min_value=1,
-            max_value=8,
-            step=1,
-            key=workers_key,
-            help=(
-                "Maximum independent AGI stages to run at the same time. "
-                "Only stages with explicit dependencies and subprocess-backed `agi.*` engines are parallelized. "
-                "Parallel stage status is recorded in the automation manifest; nested per-stage MLflow runs "
-                "remain a serial-stage evidence path."
-            ),
+    if hasattr(st, "number_input"):
+        selected_pipeline_max_workers = int(
+            st.number_input(
+                "Parallel stage workers",
+                min_value=1,
+                max_value=8,
+                step=1,
+                key=workers_key,
+                help=(
+                    "Maximum independent AGI stages to run at the same time. "
+                    "Only stages with explicit dependencies and subprocess-backed `agi.*` engines are parallelized. "
+                    "Parallel stage status is recorded in the automation manifest; nested per-stage MLflow runs "
+                    "remain a serial-stage evidence path."
+                ),
+            )
         )
-    )
+    else:
+        selected_pipeline_max_workers = int(st.session_state.get(workers_key, 3) or 3)
+    selected_pipeline_max_workers = min(max(selected_pipeline_max_workers, 1), 8)
     save_automation_settings_clicked = action_button(
         st,
         "Save automation settings",
@@ -5293,7 +5297,7 @@ def display_lab_tab(
                     labels_by_stage_id=stage_labels_by_id,
                     waves=preview_waves,
                 ),
-                use_container_width=True,
+                width="stretch",
             )
     last_manifest_file = str(st.session_state.get(f"{index_page_str}__last_pipeline_manifest_file", "") or "")
     if last_manifest_file:

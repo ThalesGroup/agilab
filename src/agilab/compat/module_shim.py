@@ -109,4 +109,19 @@ def activate_compat_module(
             current_module.__dict__[key] = value
     current_module.__dict__["_AGILAB_COMPAT_TARGET_MODULE"] = module
     current_module.__class__ = _CompatModule
+    caller_globals = sys._getframe(1).f_globals
+    if caller_globals is not current_module.__dict__:
+        caller_metadata = {
+            "__name__": caller_globals.get("__name__"),
+            "__package__": caller_globals.get("__package__"),
+            "__loader__": caller_globals.get("__loader__"),
+            "__spec__": caller_globals.get("__spec__"),
+            "__file__": caller_globals.get("__file__"),
+            "__cached__": caller_globals.get("__cached__"),
+        }
+        caller_globals.update(module.__dict__)
+        for key, value in caller_metadata.items():
+            if value is not None:
+                caller_globals[key] = value
+        caller_globals["_AGILAB_COMPAT_TARGET_MODULE"] = module
     return None

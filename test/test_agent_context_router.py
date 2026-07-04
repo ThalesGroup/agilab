@@ -117,17 +117,8 @@ def test_recommend_context_can_emit_agilab_profile_packs() -> None:
     assert profile["id"] == "agilab"
     assert profile["baseline_files"] == [
         "AGENT_CONVENTIONS.md",
-        "AGENTS.md",
         "AGENT_SKILLS.md",
-        "src/agilab/main_page.py",
-        "src/agilab/ui",
-        "src/agilab/workflow",
-        "src/agilab/core/agi-env",
-        "src/agilab/core/agi-node",
-        "src/agilab/core/agi-cluster",
-        "src/agilab/core/agi-core",
-        "docs/source/framework-api.rst",
-        "docs/source/architecture.rst",
+        "agent-context-rules.json",
     ]
     pack_ids = [pack["rule_id"] for pack in profile["matched_packs"]]
     assert "builtin-project" in pack_ids

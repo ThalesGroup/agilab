@@ -72,7 +72,7 @@ from .domain.exports import (
     write_correction_index,
     write_correction_sheet,
 )
-from .runtime.reduction import (
+from .reduction import (
     REDUCE_ARTIFACT_FILENAME_TEMPLATE,
     REDUCE_ARTIFACT_NAME,
     REDUCER_NAME,

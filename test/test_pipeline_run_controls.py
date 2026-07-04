@@ -728,14 +728,15 @@ def test_pipeline_run_controls_run_all_stages_without_mlflow_tracks_runpy_no_out
         stream_run_command_fn=lambda *_args, **_kwargs: "should not run",
     )
 
-    assert run_lab_calls == [
-        {
-            "payload": ["desc", "question", "print(1)"],
-            "snippet": str(snippet_file),
-            "copilot": env.copilot_file,
-            "kwargs": {"env_overrides": {}},
-        }
-    ]
+    assert len(run_lab_calls) == 1
+    assert run_lab_calls[0]["payload"] == ["desc", "question", "print(1)"]
+    assert run_lab_calls[0]["snippet"] == str(snippet_file)
+    assert run_lab_calls[0]["copilot"] == env.copilot_file
+    env_overrides = run_lab_calls[0]["kwargs"]["env_overrides"]
+    assert env_overrides["AGILAB_PIPELINE_PROFILE"] == "balanced"
+    assert env_overrides["AGILAB_PIPELINE_STAGE_INDEX"] == "1"
+    assert env_overrides["AGILAB_PIPELINE_RUN_ID"]
+    assert env_overrides["AGILAB_PIPELINE_MANIFEST"].endswith(".json")
     assert any(kind == "success" and "Executed 1 stage." in message for kind, message in fake_st.messages)
     assert any("runpy executed (no captured stdout)" in line for line in fake_st.session_state["page__run_logs"])
     assert fake_st.session_state["page"][0] == 7
@@ -815,7 +816,11 @@ def test_pipeline_run_controls_missing_mlflow_cli_still_runs_without_tracker(
         stream_run_command_fn=lambda *_args, **_kwargs: "should not run",
     )
 
-    assert run_lab_calls[0]["kwargs"] == {"env_overrides": {}}
+    env_overrides = run_lab_calls[0]["kwargs"]["env_overrides"]
+    assert env_overrides["AGILAB_PIPELINE_PROFILE"] == "balanced"
+    assert env_overrides["AGILAB_PIPELINE_STAGE_INDEX"] == "1"
+    assert env_overrides["AGILAB_PIPELINE_RUN_ID"]
+    assert env_overrides["AGILAB_PIPELINE_MANIFEST"].endswith(".json")
     assert any(kind == "success" and "Executed 1 stage." in message for kind, message in fake_st.messages)
     assert releases == [{"path": "lock", "token": "t"}]
 

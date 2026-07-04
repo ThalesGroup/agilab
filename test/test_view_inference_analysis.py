@@ -1557,7 +1557,9 @@ def test_view_inference_analysis_main_stops_when_dataset_root_is_unresolved(monk
     with pytest.raises(_FakeStop):
         module.main()
 
-    assert fake_st.warnings == ["Provide a custom base directory or switch back to AGI_CLUSTER_SHARE / AGILAB_EXPORT."]
+    assert fake_st.warnings == [
+        "Provide a custom base directory or switch back to AGI_LOCAL_SHARE / AGI_CLUSTER_SHARE / AGILAB_EXPORT."
+    ]
 
 
 def test_view_inference_analysis_main_stops_when_no_allocation_files_match(

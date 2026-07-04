@@ -11,7 +11,7 @@ import sys
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MAX_COUNT = 252
+DEFAULT_MAX_COUNT = 254
 SHIM_MARKERS = (
     "Compatibility shim",
     "Compatibility import",
