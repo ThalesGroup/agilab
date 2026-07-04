@@ -26,15 +26,15 @@ Current public release
    * - Hosted demo
      - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``13a8e17badf51c87c4acbd99a3b88b360e7521ab``
    * - Public guardrails
-     - `repo-guardrails run 28115253807 <https://github.com/ThalesGroup/agilab/actions/runs/28115253807>`__ passed repository guardrails and clean package first-proof jobs
+     - `repo-guardrails run 28707372130 <https://github.com/ThalesGroup/agilab/actions/runs/28707372130>`__ passed repository guardrails and clean package first-proof jobs
    * - Docs source guard
-     - `docs-source-guard run 28115253719 <https://github.com/ThalesGroup/agilab/actions/runs/28115253719>`__ passed docs mirror and release-proof consistency checks
+     - `docs-source-guard run 28706985578 <https://github.com/ThalesGroup/agilab/actions/runs/28706985578>`__ passed docs mirror and release-proof consistency checks
    * - Docs publish
-     - `docs-publish run 28115253710 <https://github.com/ThalesGroup/agilab/actions/runs/28115253710>`__ built the public documentation from the managed docs mirror
+     - `docs-publish run 28708045395 <https://github.com/ThalesGroup/agilab/actions/runs/28708045395>`__ built the public documentation from the managed docs mirror
    * - Coverage
-     - `coverage run 28114104330 <https://github.com/ThalesGroup/agilab/actions/runs/28114104330>`__ passed component coverage and badge freshness checks
+     - `coverage run 28707372124 <https://github.com/ThalesGroup/agilab/actions/runs/28707372124>`__ passed component coverage and badge freshness checks
    * - PyPI publish
-     - `pypi-publish run 28114310650 <https://github.com/ThalesGroup/agilab/actions/runs/28114310650>`__ passed the public release proof workflow gate
+     - `pypi-publish run 28707499103 <https://github.com/ThalesGroup/agilab/actions/runs/28707499103>`__ passed the public release proof workflow gate
 
 What was proved
 ---------------
