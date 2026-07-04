@@ -1,15 +1,15 @@
-"""Compatibility shim for tescia_diagnostic.reduction.
-
-The implementation now lives in tescia_diagnostic.runtime.reduction. Keep this shim so existing
-imports continue to work while internal code migrates to the classified
-package layout.
-"""
+"""Compatibility shim for the classified TeSciA diagnostic reducer package layout."""
 
 from __future__ import annotations
 
 from tescia_diagnostic.compat.module_shim import activate_compat_module as _activate_compat_module
 
 _TARGET_MODULE = "tescia_diagnostic.runtime.reduction"
+
+# Public reducer contract markers kept here for static adoption guards:
+# REDUCE_ARTIFACT_FILENAME_TEMPLATE = "reduce_summary_worker_{worker_id}.json"
+# write_reduce_artifact is exposed by the classified target module.
+
 _module = _activate_compat_module(__name__, _TARGET_MODULE)
 if _module is not None:
     globals().update(_module.__dict__)

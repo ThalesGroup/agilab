@@ -454,7 +454,7 @@ def wrap_code_with_mlflow_resume(code: str, *, stage_run_id_env: str) -> str:
     body = code if code.endswith("\n") else code + "\n"
     indented = "".join(f"    {line}\n" for line in body.splitlines()) if body.strip() else "    pass\n"
     return (
-        f"{SNIPPET_API_NAME} = {CURRENT_SNIPPET_API!r}\n"
+        f'{SNIPPET_API_NAME} = "{CURRENT_SNIPPET_API}"\n'
         "import os\n"
         "_agilab_mlflow = None\n"
         "_agilab_active_run = None\n"

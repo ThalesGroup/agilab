@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-02T16:13:53Z",
+  "generated_at_utc": "2026-07-03T18:36:22Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 15,
     "agent_skill_count": 33,
-    "evidence_schema_count": 226,
+    "evidence_schema_count": 228,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1944,7 +1944,20 @@
       ]
     },
     {
+      "schema": "agilab.pipeline.automation.v1",
+      "sources": [
+        "docs/source/experiment-help.rst",
+        "src/agilab/pipeline/pipeline_run_controls.py"
+      ]
+    },
+    {
       "schema": "agilab.pipeline.lock.v1",
+      "sources": [
+        "src/agilab/pipeline/pipeline_run_controls.py"
+      ]
+    },
+    {
+      "schema": "agilab.pipeline.sequence.v1",
       "sources": [
         "src/agilab/pipeline/pipeline_run_controls.py"
       ]
@@ -2179,25 +2192,25 @@
       "schema": "agilab.reuse_catalog.v1",
       "sources": [
         "src/agilab/resources/reuse_catalog.toml",
-        "src/agilab/reuse_catalog.py"
+        "src/agilab/reuse/reuse_catalog.py"
       ]
     },
     {
       "schema": "agilab.reuse_catalog_validation.v1",
       "sources": [
-        "src/agilab/reuse_catalog.py"
+        "src/agilab/reuse/reuse_catalog.py"
       ]
     },
     {
       "schema": "agilab.reuse_changed_validation.v1",
       "sources": [
-        "src/agilab/reuse_catalog.py"
+        "src/agilab/reuse/reuse_catalog.py"
       ]
     },
     {
       "schema": "agilab.reuse_suggestions.v1",
       "sources": [
-        "src/agilab/reuse_catalog.py"
+        "src/agilab/reuse/reuse_catalog.py"
       ]
     },
     {

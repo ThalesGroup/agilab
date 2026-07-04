@@ -26,7 +26,16 @@ from .domain.core import (
     default_contract,
 )
 from .runtime.data_quality_gate import DataQualityGate, DataQualityGateApp
-from .runtime.reduction import DATA_QUALITY_GATE_REDUCE_CONTRACT
+from .reduction import (
+    DATA_QUALITY_GATE_REDUCE_CONTRACT,
+    REDUCE_ARTIFACT_FILENAME_TEMPLATE,
+    REDUCE_ARTIFACT_NAME,
+    REDUCER_NAME,
+    build_reduce_artifact,
+    partial_from_gate_summary,
+    reduce_artifact_path,
+    write_reduce_artifact,
+)
 
 __all__ = [
     "ArgsModel",
@@ -38,17 +47,24 @@ __all__ = [
     "DataQualityGateApp",
     "DataQualityGateArgs",
     "DataQualityGateArgsTD",
+    "REDUCE_ARTIFACT_FILENAME_TEMPLATE",
+    "REDUCE_ARTIFACT_NAME",
+    "REDUCER_NAME",
     "SCHEMA",
     "THRESHOLDS",
     "THRESHOLDS_SCHEMA",
     "build_data_quality_gate_artifacts",
+    "build_reduce_artifact",
     "default_contract",
     "dump_args",
     "ensure_defaults",
     "filter_arg_overrides",
     "load_args",
     "merge_args",
+    "partial_from_gate_summary",
+    "reduce_artifact_path",
     "safe_reset_path",
     "share_root_from_env",
     "validate_relative_data_out",
+    "write_reduce_artifact",
 ]

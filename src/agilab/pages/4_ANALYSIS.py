@@ -2024,6 +2024,18 @@ def _configured_notebook_options(
     return _dedupe_preserve_order(options)
 
 
+def _render_code_block(body: str, *, language: str, height: int | None = None) -> None:
+    if height is None:
+        st.code(body, language=language)
+        return
+    try:
+        st.code(body, language=language, height=height)
+    except TypeError as exc:
+        if "height" not in str(exc):
+            raise
+        st.code(body, language=language)
+
+
 async def _render_selected_view_route(current_page: str | None) -> bool:
     """Render a selected analysis view route and surface one explicit user-facing failure."""
     if not current_page or current_page in ("", "main"):
@@ -2041,7 +2053,7 @@ async def _render_selected_view_route(current_page: str | None) -> bool:
     ) as exc:
         st.error(f"Failed to render view: {exc}")
         st.caption("Full traceback")
-        st.code(traceback.format_exc(), language="text", height=400)
+        _render_code_block(traceback.format_exc(), language="text", height=400)
     return True
 
 

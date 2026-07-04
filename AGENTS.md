@@ -568,6 +568,13 @@ hard operating rules and route to focused skills for details:
 | Local LLM / GPT-OSS helpers | `agilab-local-llm` |
 | Streamlit UI and browser robots | `agilab-streamlit-pages`, `agilab-ui-robot-validation` |
 
+For cluster recovery, rediscover worker candidates instead of pinning a remembered
+LAN address:
+
+```bash
+uv --preview-features extra-build-dependencies run --no-sync python tools/cluster_flight_validation.py --discover-lan --json --no-discovery-cache
+```
+
 When a detailed recipe becomes generally useful, put it in the focused skill or
 workflow document and leave only the routing rule here. Regenerate wrappers after
 `.idea/runConfigurations/*.xml` edits, and keep generated or ignored launch

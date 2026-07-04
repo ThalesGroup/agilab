@@ -989,7 +989,7 @@ def _pipeline_manifest_paths(
         run_path = Path(log_file_path).expanduser().with_suffix(".pipeline_manifest.json")
         return run_path, latest_path
     app_name = str(getattr(env, "app", "") or getattr(env, "target", "") or "agilab")
-    log_dir_candidate = env.runenv or (Path.home() / "log" / "execute" / app_name)
+    log_dir_candidate = getattr(env, "runenv", None) or (Path.home() / "log" / "execute" / app_name)
     latest_path = Path(log_dir_candidate).expanduser() / PIPELINE_AUTOMATION_MANIFEST_FILENAME
     return latest_path.with_name(f"pipeline_automation_{run_id}.json"), latest_path
 
@@ -1310,7 +1310,7 @@ def _prepare_run_log_file(
     app_name = str(getattr(env, "app", "") or "agilab")
     raw_prefix = (prefix or "run").strip()
     safe_prefix = re.sub(r"[^A-Za-z0-9_-]+", "_", raw_prefix).strip("_") or "run"
-    log_dir_candidate = env.runenv or (Path.home() / "log" / "execute" / app_name)
+    log_dir_candidate = getattr(env, "runenv", None) or (Path.home() / "log" / "execute" / app_name)
     try:
         log_dir_path = Path(log_dir_candidate).expanduser()
         log_dir_path.mkdir(parents=True, exist_ok=True)
