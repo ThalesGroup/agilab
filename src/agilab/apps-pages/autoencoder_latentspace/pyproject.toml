@@ -21,7 +21,7 @@ dependencies = [
     "sqlalchemy>=2.0.43,<3",
     "keras>=3.11.3,<4",
     "tensorflow>=2.20,<2.21",
-    "scikit-learn>=1.7.2,<2",
+    "scikit-learn>=1.9,<2",
 ]
 
 [project.entry-points."agilab.pages"]

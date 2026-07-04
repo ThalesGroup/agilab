@@ -19,7 +19,7 @@ dependencies = [
     "agi-node>=2026.05.12.post3,<2027.0",
     "ipython>=9.0,<10",
     "networkx>=3.6.1,<4",
-    "plotly>=6.3.0,<7",
+    "plotly>=6.8,<7",
     "matplotlib>=3.10.0,<4",
     "sqlalchemy>=2.0.43,<3",
 ]

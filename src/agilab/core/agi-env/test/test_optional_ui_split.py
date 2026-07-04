@@ -97,8 +97,8 @@ def test_agi_gui_declares_streamlit_ui_runtime() -> None:
         if _requirement_name(dependency) == "streamlit"
     ]
     assert len(streamlit_dependencies) == 1
-    assert _requirement_has_lower_bound_at_least(streamlit_dependencies[0], "1.57")
-    assert _requirement_has_upper_bound_below(streamlit_dependencies[0], "1.58")
+    assert _requirement_has_lower_bound_at_least(streamlit_dependencies[0], "1.58")
+    assert _requirement_has_upper_bound_below(streamlit_dependencies[0], "1.59")
     assert "watchdog" in {_requirement_name(dependency) for dependency in dependencies}
 
 

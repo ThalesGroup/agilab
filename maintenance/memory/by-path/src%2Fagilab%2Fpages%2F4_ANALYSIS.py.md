@@ -1,9 +1,9 @@
 ---
 schema: agilab.maintenance_memory.v1
 source: src/agilab/pages/4_ANALYSIS.py
-source_sha256: 4f273bf47b7e91391add2693f80f0d3c0c956ff01cd1aa660ff2d4e0b970464a
+source_sha256: 9973a3df5422bc4797f2990a7818dfac9f64af79dc1ba09561807ed24aa6636b
 title: ANALYSIS page AgiEnv singleton contract
-verified_commit: d26e4466dbb6400a8fc976acf9f58e753aa93361
+verified_commit: 6db6152bee29da669f2098045a061025ac4bcd83
 ---
 
 # ANALYSIS page AgiEnv singleton contract

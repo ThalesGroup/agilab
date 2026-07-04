@@ -1,0 +1,96 @@
+from __future__ import annotations
+
+import importlib
+import json
+from pathlib import Path
+
+
+insights = importlib.import_module("agilab.pipeline_workflow_insights")
+
+
+def test_workflow_cockpit_model_scores_data_models_and_waits(tmp_path: Path) -> None:
+    data_root = tmp_path / "localshare" / "agi"
+    input_dir = data_root / "flight_trajectory" / "pipeline"
+    output_dir = data_root / "network_sim" / "pipeline"
+    model_dir = data_root / "sb3_trainer" / "pipeline"
+    input_dir.mkdir(parents=True)
+    output_dir.mkdir(parents=True)
+    model_dir.mkdir(parents=True)
+    (input_dir / "traj.parquet").write_text("data", encoding="utf-8")
+    (output_dir / "summary.json").write_text("{}", encoding="utf-8")
+    model_path = model_dir / "policy.pkl"
+    model_path.write_text("model", encoding="utf-8")
+    model_path.with_suffix(".json").write_text(
+        json.dumps({"sklearn_version": "1.9.0", "n_features_in_": 42}),
+        encoding="utf-8",
+    )
+    stages = [
+        {
+            "id": "flight_export",
+            "data_out": "flight_trajectory/pipeline/traj.parquet",
+            "automation": {"outputs": ["flight_trajectory/pipeline/traj.parquet"]},
+        },
+        {
+            "id": "network_build",
+            "deps": ["flight_export"],
+            "C": "AGI.run(data_in='flight_trajectory/pipeline/traj.parquet', data_out='network_sim/pipeline/summary.json')",
+        },
+    ]
+
+    model = insights.build_workflow_cockpit_model(
+        stages=stages,
+        sequence=[0, 1],
+        waves=[[0], [1]],
+        stage_ids={0: "flight_export", 1: "network_build"},
+        stage_deps={"flight_export": [], "network_build": ["flight_export"]},
+        roots=[data_root],
+        manifest={"status": "success", "outputs": [{"exists": True, "sha256": "abc"}]},
+        pandas_paths=[],
+    )
+
+    assert model["quality"]["waits"][1]["waits_for"] == ["flight_export"]
+    assert model["data"]["missing"] == 0
+    assert any(item["metadata_status"] == "versioned" for item in model["models"])
+    assert model["evidence"]["score"] >= 85
+    assert model["evidence"]["label"] == "strong"
+
+
+def test_workflow_cockpit_model_reports_missing_data_and_pandas_risks(tmp_path: Path) -> None:
+    source = tmp_path / "page.py"
+    source.write_text(
+        "import pandas as pd\n"
+        "df.drop(columns=['x'], inplace=True)\n"
+        "df[df.a > 1]['b'] = 2\n",
+        encoding="utf-8",
+    )
+    stages = [
+        {
+            "id": "needs_data",
+            "data_in": "missing/input.parquet",
+            "C": "AGI.run(data_out='generated/output.parquet')",
+        }
+    ]
+
+    model = insights.build_workflow_cockpit_model(
+        stages=stages,
+        sequence=[0],
+        waves=[[0]],
+        stage_ids={0: "needs_data"},
+        stage_deps={"needs_data": []},
+        roots=[tmp_path],
+        manifest=None,
+        pandas_paths=[source],
+    )
+
+    assert model["data"]["missing"] == 2
+    assert "Generate or select upstream input artifacts" in model["data"]["recommendations"][0]
+    assert model["pandas"]["by_kind"]["inplace"] == 1
+    assert model["pandas"]["by_kind"]["chained-assignment"] == 1
+    assert "Run the workflow once" in model["evidence"]["gaps"][0]
+
+
+def test_pipeline_workflow_insights_root_shim_exports_schema() -> None:
+    shim = importlib.import_module("agilab.pipeline_workflow_insights")
+    classified = importlib.import_module("agilab.pipeline.pipeline_workflow_insights")
+
+    assert shim.PIPELINE_WORKFLOW_INSIGHTS_SCHEMA == classified.PIPELINE_WORKFLOW_INSIGHTS_SCHEMA

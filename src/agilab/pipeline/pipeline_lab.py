@@ -42,6 +42,23 @@ _code_editor_support_module = import_agilab_module(
 )
 normalize_custom_buttons = _code_editor_support_module.normalize_custom_buttons
 
+_streamlit_compat_module = import_agilab_module(
+    "agilab.ui.streamlit_compat",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "ui" / "streamlit_compat.py",
+    fallback_name="agilab_streamlit_compat_fallback",
+)
+render_paginated_dataframe = _streamlit_compat_module.render_paginated_dataframe
+streamlit_fragment = _streamlit_compat_module.streamlit_fragment
+
+_workflow_insights_module = import_agilab_module(
+    "agilab.pipeline_workflow_insights",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_workflow_insights.py",
+    fallback_name="agilab_pipeline_workflow_insights_fallback",
+)
+build_workflow_cockpit_model = _workflow_insights_module.build_workflow_cockpit_model
+
 _pipeline_stages_module = import_agilab_module(
     "agilab.pipeline_stages",
     current_file=__file__,
@@ -311,8 +328,11 @@ def _render_pipeline_automation_manifest_summary(path: str, *, key_prefix: str) 
                 key=f"{key_prefix}_automation_manifest_outputs",
                 help="Inspect declared output records stored in the latest automation manifest.",
             ):
-                st.dataframe(
+                render_paginated_dataframe(
+                    st,
                     pd.DataFrame(output_rows),
+                    key=f"{key_prefix}_automation_manifest_outputs_table",
+                    page_size=100,
                     hide_index=True,
                     width="stretch",
                 )
@@ -335,6 +355,162 @@ def _render_pipeline_automation_manifest_summary(path: str, *, key_prefix: str) 
                 st.graphviz_chart(dot_text, width="stretch")
             else:
                 st.caption("No dependency graph was recorded in this manifest.")
+
+
+def _workflow_cockpit_roots(env: AgiEnv, lab_dir: Path, stages_file: Path) -> List[Path]:
+    roots: List[Path] = [lab_dir, stages_file.parent]
+    for attr in ("runenv", "localshare", "cluster_share", "share_path"):
+        raw = getattr(env, attr, None)
+        if raw:
+            roots.append(Path(str(raw)).expanduser())
+    app_name = str(getattr(env, "app", "") or "").removesuffix("_project")
+    localshare_root = Path.home() / "localshare" / "agi"
+    roots.append(localshare_root)
+    if app_name:
+        roots.append(localshare_root / app_name)
+    unique: List[Path] = []
+    seen: set[str] = set()
+    for root in roots:
+        root_text = str(root)
+        if root_text not in seen:
+            seen.add(root_text)
+            unique.append(root)
+    return unique
+
+
+def _workflow_cockpit_pandas_paths() -> List[Path]:
+    repo_root = Path(__file__).resolve().parents[3]
+    return [
+        repo_root / "src" / "agilab" / "pipeline",
+        repo_root / "src" / "agilab" / "pages",
+        repo_root / "src" / "agilab" / "apps-pages",
+    ]
+
+
+@streamlit_fragment(st, parallel=True)
+def _render_workflow_cockpit(
+    *,
+    key_prefix: str,
+    env: AgiEnv,
+    lab_dir: Path,
+    stages_file: Path,
+    stages: List[Mapping[str, Any]],
+    sequence: List[int],
+    waves: List[List[int]],
+    stage_ids_by_idx: Mapping[int, str],
+    deps_by_stage_id: Mapping[str, List[str]],
+    manifest_path: str,
+    dependency_error: str | None,
+) -> None:
+    manifest = _load_pipeline_automation_manifest(manifest_path) if manifest_path else None
+    model = build_workflow_cockpit_model(
+        stages=stages,
+        sequence=sequence,
+        waves=waves,
+        stage_ids=stage_ids_by_idx,
+        stage_deps=deps_by_stage_id,
+        roots=_workflow_cockpit_roots(env, lab_dir, stages_file),
+        manifest=manifest,
+        pandas_paths=_workflow_cockpit_pandas_paths(),
+        dependency_error=dependency_error,
+    )
+    quality = model["quality"]
+    evidence = model["evidence"]
+    data = model["data"]
+    models = model["models"]
+    pandas_compat = model["pandas"]
+    with st.expander("Workflow cockpit", expanded=True):
+        st.caption(
+            "Preflight view for execution waves, evidence health, data availability, "
+            "model artifact metadata, and pandas compatibility risk."
+        )
+        quality_col, evidence_col, data_col, model_col, pandas_col = st.columns(5)
+        quality_col.metric("Waves", quality["wave_count"])
+        evidence_col.metric("Evidence", f"{evidence['score']}/100", evidence["label"])
+        data_col.metric("Data paths", data["total"], f"{data['missing']} missing")
+        model_col.metric("Model artifacts", len(models))
+        pandas_col.metric("Pandas risks", pandas_compat["total"])
+
+        tab_quality, tab_evidence, tab_data, tab_models, tab_pandas = st.tabs(
+            ["Execution", "Evidence", "Data", "Models", "Pandas 3"]
+        )
+        with tab_quality:
+            q_col1, q_col2, q_col3, q_col4 = st.columns(4)
+            q_col1.metric("Stages", quality["stage_count"])
+            q_col2.metric("Critical path", quality["critical_steps"])
+            q_col3.metric("Max parallel", quality["parallel_width"])
+            q_col4.metric("Saved steps", quality["saved_steps"])
+            if quality["dependency_error"]:
+                st.warning(str(quality["dependency_error"]))
+            waits = quality.get("waits", [])
+            if waits:
+                render_paginated_dataframe(
+                    st,
+                    pd.DataFrame(waits),
+                    key=f"{key_prefix}_cockpit_waits",
+                    page_size=25,
+                    hide_index=True,
+                    width="stretch",
+                )
+        with tab_evidence:
+            if evidence["reasons"]:
+                st.caption("Positive evidence: " + "; ".join(str(item) for item in evidence["reasons"]))
+            if evidence["gaps"]:
+                for gap in evidence["gaps"]:
+                    st.warning(str(gap))
+            output_summary = evidence.get("output_summary", {})
+            out_col1, out_col2, out_col3 = st.columns(3)
+            out_col1.metric("Declared outputs", int(output_summary.get("outputs", 0) or 0))
+            out_col2.metric("Existing outputs", int(output_summary.get("existing", 0) or 0))
+            out_col3.metric("Hashed outputs", int(output_summary.get("hashed", 0) or 0))
+        with tab_data:
+            for recommendation in data.get("recommendations", []):
+                st.caption(str(recommendation))
+            rows = data.get("rows", [])
+            if rows:
+                render_paginated_dataframe(
+                    st,
+                    pd.DataFrame(rows),
+                    key=f"{key_prefix}_cockpit_data",
+                    page_size=50,
+                    hide_index=True,
+                    width="stretch",
+                )
+            else:
+                st.info("No declared data paths were found in the selected workflow stages.")
+        with tab_models:
+            if models:
+                render_paginated_dataframe(
+                    st,
+                    pd.DataFrame(models),
+                    key=f"{key_prefix}_cockpit_models",
+                    page_size=25,
+                    hide_index=True,
+                    width="stretch",
+                )
+            else:
+                st.info("No model artifacts found near the workflow roots.")
+            st.caption(
+                "Versioned model sidecars should include library versions, feature schema, "
+                "and input dimensions to prevent stale-pickle or tensor-shape regressions."
+            )
+        with tab_pandas:
+            by_kind = pandas_compat.get("by_kind", {})
+            if by_kind:
+                st.caption("Risk categories: " + ", ".join(f"{key}: {value}" for key, value in sorted(by_kind.items())))
+            findings = pandas_compat.get("findings", [])
+            if findings:
+                render_paginated_dataframe(
+                    st,
+                    pd.DataFrame(findings),
+                    key=f"{key_prefix}_cockpit_pandas",
+                    page_size=50,
+                    hide_index=True,
+                    width="stretch",
+                )
+            else:
+                st.success("No pandas 3 / Copy-on-Write risk patterns found in the scanned workflow UI paths.")
+            st.caption("For a repo-wide audit, run `python tools/pandas_compat_audit.py`.")
 
 _pinned_expander_module = import_agilab_module(
     "agilab.pinned_expander",
@@ -2005,14 +2181,29 @@ def _render_workflow_evidence_graph(graph_path: str | Path) -> None:
         issues = details.get("issues", [])
         if issues:
             st.warning("; ".join(str(issue) for issue in issues))
+        graph_key = hashlib.sha1(str(graph_path).encode("utf-8")).hexdigest()[:12]
         node_rows = details.get("node_rows", [])
         if node_rows:
             st.markdown("**Nodes**")
-            st.dataframe(pd.DataFrame(node_rows), hide_index=True, width="stretch")
+            render_paginated_dataframe(
+                st,
+                pd.DataFrame(node_rows),
+                key=f"workflow_evidence_graph_nodes_{graph_key}",
+                page_size=100,
+                hide_index=True,
+                width="stretch",
+            )
         edge_rows = details.get("edge_rows", [])
         if edge_rows:
             st.markdown("**Edges**")
-            st.dataframe(pd.DataFrame(edge_rows), hide_index=True, width="stretch")
+            render_paginated_dataframe(
+                st,
+                pd.DataFrame(edge_rows),
+                key=f"workflow_evidence_graph_edges_{graph_key}",
+                page_size=100,
+                hide_index=True,
+                width="stretch",
+            )
 
 
 def _render_workflow_run_evidence(state_path: Path) -> None:
@@ -2844,7 +3035,14 @@ def _render_global_runner_state_view(
     workplan_rows = _multi_app_dag_workplan_rows_for_display(state)
     if workplan_rows:
         st.caption("Multi-app plan")
-        st.dataframe(workplan_rows, hide_index=True, width="stretch")
+        render_paginated_dataframe(
+            st,
+            workplan_rows,
+            key=f"{index_page_str}_global_runner_workplan",
+            page_size=100,
+            hide_index=True,
+            width="stretch",
+        )
     else:
         st.caption(GLOBAL_DAG_EMPTY_STATE)
     _render_project_stage_snippet_preview(
@@ -2863,12 +3061,26 @@ def _render_global_runner_state_view(
     )
     if show_artifacts:
         st.caption("Output handoffs")
-        st.dataframe(artifact_rows, hide_index=True, width="stretch")
+        render_paginated_dataframe(
+            st,
+            artifact_rows,
+            key=f"{index_page_str}_global_runner_artifacts",
+            page_size=100,
+            hide_index=True,
+            width="stretch",
+        )
 
     history_rows = _multi_app_dag_execution_history_rows(state)
     if history_rows:
         st.caption("Execution history")
-        st.dataframe(history_rows, hide_index=True, width="stretch")
+        render_paginated_dataframe(
+            st,
+            history_rows,
+            key=f"{index_page_str}_global_runner_history",
+            page_size=100,
+            hide_index=True,
+            width="stretch",
+        )
     else:
         st.caption("Execution history: no step has been started yet.")
 
@@ -2890,7 +3102,14 @@ def _render_global_runner_state_view(
             if stage_backend == GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED:
                 st.caption("Distributed stage request preview")
                 if distributed_request_preview_rows:
-                    st.dataframe(distributed_request_preview_rows, hide_index=True, width="stretch")
+                    render_paginated_dataframe(
+                        st,
+                        distributed_request_preview_rows,
+                        key=f"{index_page_str}_global_runner_distributed_preview",
+                        page_size=100,
+                        hide_index=True,
+                        width="stretch",
+                    )
                 else:
                     st.warning(
                         "Distributed backend is selected, but the active ORCHESTRATE cluster settings "
@@ -3297,7 +3516,14 @@ def _render_global_runner_state_panel(
         selected_stage_rows = _selected_stage_rows(selected_stage_ids, stage_options)
         nodes_value = selected_stage_rows
         if selected_stage_rows:
-            st.dataframe(_workplan_step_rows(selected_stage_rows), hide_index=True, width="stretch")
+            render_paginated_dataframe(
+                st,
+                _workplan_step_rows(selected_stage_rows),
+                key=f"{index_page_str}_visual_editor_steps",
+                page_size=100,
+                hide_index=True,
+                width="stretch",
+            )
         else:
             st.warning("Select at least two steps to create a valid multi-app plan.")
 
@@ -3320,7 +3546,14 @@ def _render_global_runner_state_panel(
         )
         produces_value = _selected_artifact_rows(selected_artifact_keys, artifact_options)
         if produces_value:
-            st.dataframe(_workplan_output_rows(produces_value), hide_index=True, width="stretch")
+            render_paginated_dataframe(
+                st,
+                _workplan_output_rows(produces_value),
+                key=f"{index_page_str}_visual_editor_outputs",
+                page_size=100,
+                hide_index=True,
+                width="stretch",
+            )
         else:
             st.warning("Select at least one output before adding step inputs.")
 
@@ -3353,12 +3586,26 @@ def _render_global_runner_state_panel(
         edges_value = _selected_handoff_rows(selected_need_keys, need_options)
         consumes_value = _consumes_rows_from_handoffs(edges_value, selected_artifact_options)
         if edges_value:
-            st.dataframe(_workplan_need_rows(edges_value), hide_index=True, width="stretch")
+            render_paginated_dataframe(
+                st,
+                _workplan_need_rows(edges_value),
+                key=f"{index_page_str}_visual_editor_inputs",
+                page_size=100,
+                hide_index=True,
+                width="stretch",
+            )
         else:
             st.warning("Select at least one step input to create a cross-app plan.")
         if consumes_value:
             st.caption("Technical input records are created from selected uses.")
-            st.dataframe(consumes_value, hide_index=True, width="stretch")
+            render_paginated_dataframe(
+                st,
+                consumes_value,
+                key=f"{index_page_str}_visual_editor_consumes",
+                page_size=100,
+                hide_index=True,
+                width="stretch",
+            )
 
         visual_payload = _multi_app_dag_payload_from_visual_editor(
             base_payload,
@@ -5317,6 +5564,25 @@ def display_lab_tab(
         ]
         if wave_labels:
             st.caption(f"Last execution waves: {' -> '.join(wave_labels)}")
+    cockpit_deps_by_stage_id = {
+        str(_preview_ids.get(idx, stage_ids_by_idx.get(idx, f"stage_{idx + 1}"))): [
+            str(dep) for dep in _preview_deps.get(idx, [])
+        ]
+        for idx in final_sequence
+    }
+    _render_workflow_cockpit(
+        key_prefix=index_page_str,
+        env=env,
+        lab_dir=lab_dir,
+        stages_file=stages_file,
+        stages=preview_stages,
+        sequence=final_sequence,
+        waves=preview_waves,
+        stage_ids_by_idx=_preview_ids,
+        deps_by_stage_id=cockpit_deps_by_stage_id,
+        manifest_path=last_manifest_file,
+        dependency_error=dependency_error,
+    )
     run_col, force_col = st.columns(2)
     with run_col:
         run_blocked_reason = page_state.blocked_actions.get(

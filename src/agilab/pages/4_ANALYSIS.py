@@ -118,6 +118,16 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.ui.streamlit_compat",
+    {
+        "streamlit_fragment": "streamlit_fragment",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "ui" / "streamlit_compat.py",
+    fallback_name="agilab_streamlit_compat_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.notebook_export_support",
     {
         "notebook_view_sync_status": "notebook_view_sync_status",
@@ -3572,12 +3582,11 @@ def _render_notebook_reuse_suggestion_panel(notebook_path: Path) -> None:
 
 def _render_notebook_reuse_suggestions(notebook_path: Path) -> None:
     run_every = _notebook_reuse_refresh_run_every()
-    fragment = getattr(st, "fragment", None)
-    if run_every is None or not callable(fragment):
+    if run_every is None:
         _render_notebook_reuse_suggestion_panel(notebook_path)
         return
 
-    @fragment(run_every=run_every)
+    @streamlit_fragment(st, run_every=run_every, parallel=True)
     def _reuse_suggestion_fragment() -> None:
         _render_notebook_reuse_suggestion_panel(notebook_path)
 

@@ -84,7 +84,12 @@ def test_pipeline_run_controls_payloads_logs_and_log_file_setup(tmp_path, monkey
 
     assert run_name == "demo:lab:pipeline"
     assert tags["agilab.tracking_uri"] == "sqlite:///mlflow.db"
-    assert params == {"sequence": "1,3", "stage_count": 2}
+    assert params["sequence"] == "1,3"
+    assert params["stage_count"] == 2
+    assert params["profile"] == "balanced"
+    assert params["max_workers"] == 1
+    assert params["wave_count"] == 0
+    assert params["agilab_version"]
     assert json.loads(text_artifacts["pipeline_metadata/sequence.json"])["sequence"] == [1, 3]
 
     stage_name, stage_tags, stage_params, stage_artifacts = module._mlflow_stage_payload(

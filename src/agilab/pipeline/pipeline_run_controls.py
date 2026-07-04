@@ -1114,6 +1114,7 @@ def _mlflow_parent_payload(
     run_name = f"{env.app or 'agilab'}:{lab_dir.name}:pipeline"
     tags = {
         "agilab.component": "pipeline",
+        "agilab.mlflow.evidence_schema": "workflow.v2",
         "agilab.app": str(getattr(env, "app", "") or ""),
         "agilab.lab": lab_dir.name,
         "agilab.stages_file": str(stages_file),
@@ -1122,6 +1123,10 @@ def _mlflow_parent_payload(
     params = {
         "sequence": ",".join(str(idx + 1) for idx in sequence),
         "stage_count": len(sequence),
+        "profile": profile or "balanced",
+        "max_workers": max_workers or 1,
+        "wave_count": len(waves or []),
+        "agilab_version": _pipeline_automation_producer_version(),
     }
     text_artifacts = {
         "pipeline_metadata/sequence.json": json.dumps(
@@ -1228,6 +1233,7 @@ def _mlflow_stage_payload(
     run_name = f"{env.app or 'agilab'}:{lab_dir.name}:stage_{stage_index + 1}"
     tags = {
         "agilab.component": "pipeline-stage",
+        "agilab.mlflow.evidence_schema": "workflow.stage.v2",
         "agilab.app": str(getattr(env, "app", "") or ""),
         "agilab.lab": lab_dir.name,
         "agilab.stages_file": str(stages_file),
