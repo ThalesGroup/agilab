@@ -351,7 +351,7 @@ def run_all_stages(
     pipeline_max_workers: int = 1,
     pipeline_stage_deps: Optional[Any] = None,
 ) -> None:
-    """Execute all stages sequentially, honouring per-stage virtual environments."""
+    """Execute selected stages with dependency-aware waves and per-stage virtual environments."""
     _run_all_stages_impl(
         lab_dir,
         index_page_str,
