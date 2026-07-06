@@ -4069,7 +4069,8 @@ path = "../sat_trajectory_project"
     )
     assert "sb3_trainer_project" not in overlay_sources
     assert any(
-        "sync --project" in cmd
+        "sync " in cmd
+        and "--project" in cmd
         and "--active --no-install-project" in cmd
         and str(staged_overlay_root) in cmd
         for cmd, _ in commands
