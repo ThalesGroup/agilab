@@ -215,6 +215,45 @@ jobs:
           echo "GitHub Actions CI runs repository guardrails plus a minimal first-proof command contract."
           echo "Run local workflow parity profiles before push for full test coverage."
 
+  base-python-compat:
+    name: base-python-compat (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13", "3.14"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.10.7"
+
+      - name: Validate base package import
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run --no-project \
+            --python "${{ matrix.python-version }}" \
+            --with-editable . \
+            python - <<'PY'
+          import sys
+          import agilab.lab_run
+
+          expected = tuple(map(int, "${{ matrix.python-version }}".split(".")))
+          if sys.version_info[:2] != expected:
+              raise SystemExit(
+                  f"expected Python {expected}, got {sys.version_info[:2]}"
+              )
+          print(f"base package import ok on Python {sys.version.split()[0]}")
+          PY
+
   clean-public-install:
     name: clean-public-install (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
