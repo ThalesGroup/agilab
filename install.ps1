@@ -592,13 +592,13 @@ function Test-SymlinkPrivilege {
 function Select-PythonVersion {
     Write-Info "Choosing Python version..."
     if ($NonInteractiveMode) {
-        $requested = if (-not [string]::IsNullOrWhiteSpace($env:AGI_PYTHON_VERSION)) { $env:AGI_PYTHON_VERSION } else { "3.13" }
+        $requested = if (-not [string]::IsNullOrWhiteSpace($env:AGI_PYTHON_VERSION)) { $env:AGI_PYTHON_VERSION } else { "3.14" }
         Write-Info "Non-interactive mode; defaulting Python version to $requested"
     } else {
-        $requested = Read-Host "Enter Python major version [3.13]"
+        $requested = Read-Host "Enter Python major version [3.14]"
     }
     if ([string]::IsNullOrWhiteSpace($requested)) {
-        $requested = "3.13"
+        $requested = "3.14"
     }
     Write-Info "You selected Python version $requested"
 
@@ -791,8 +791,8 @@ function Add-DefaultEnvComments {
 
     $existing = @(Get-Content -LiteralPath $EnvFile -ErrorAction SilentlyContinue)
     $defaults = @(
-        '# AGI_PYTHON_VERSION="3.13"',
-        '# 127.0.0.1_PYTHON_VERSION="3.13"',
+        '# AGI_PYTHON_VERSION="3.14"',
+        '# 127.0.0.1_PYTHON_VERSION="3.14"',
         '# AGI_PYTHON_FREE_THREADED="1"',
         '# IS_SOURCE_ENV="1"',
         '# IS_WORKER_ENV="0"',

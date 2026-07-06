@@ -192,7 +192,7 @@ def _configure_worker_python_runtime(
     pythonpath_entries = env_obj._collect_pythonpath_entries()
     env_obj._configure_pythonpath(pythonpath_entries)
 
-    env_obj.python_version = envars.get("AGI_PYTHON_VERSION", "3.13")
+    env_obj.python_version = envars.get("AGI_PYTHON_VERSION", "3.14")
     env_obj.pyvers_worker = env_obj.python_version
     requested_free_threading = bool(parse_int_env_value_fn(envars, "AGI_PYTHON_FREE_THREADED", 0))
     env_obj.is_free_threading_available = (

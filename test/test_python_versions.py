@@ -100,7 +100,7 @@ def test_main_collects_supported_versions(tmp_path, capsys):
 
     captured = capsys.readouterr()
     versions = json.loads(captured.out)
-    expected = ["3.10", "3.11", "3.12", "3.13", "3.8", "3.9"]
+    expected = ["3.10", "3.11", "3.12", "3.13", "3.14", "3.8", "3.9"]
     assert versions == expected
     assert "No python requirement" in captured.err
 

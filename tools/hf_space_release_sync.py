@@ -169,7 +169,7 @@ COPY --chown=1000:1000 uv_config.toml ./uv_config.toml
 COPY --chown=1000:1000 docker/install.sh ./install.sh
 COPY --chown=1000:1000 seed_hf_app_settings.py ./seed_hf_app_settings.py
 
-ENV AGI_PYTHON_VERSION="3.13.9"
+ENV AGI_PYTHON_VERSION="3.14"
 ENV AGI_PYTHON_FREE_THREADED="0"
 ENV UV_CACHE_DIR="/tmp/uv-cache"
 ENV CLUSTER_CREDENTIALS="user:password"

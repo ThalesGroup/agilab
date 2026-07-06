@@ -911,17 +911,17 @@ install_dependencies() {
 choose_python_version() {
     echo -e "${BLUE}Choosing Python version...${NC}"
     if (( NON_INTERACTIVE )); then
-        PYTHON_VERSION="${AGI_PYTHON_VERSION:-3.13}"
+        PYTHON_VERSION="${AGI_PYTHON_VERSION:-3.14}"
         echo "Non-interactive mode; defaulting Python version to $PYTHON_VERSION"
     else
         if [[ -t 0 ]]; then
-            read -p "Enter Python major version [3.13]: " PYTHON_VERSION
+            read -p "Enter Python major version [3.14]: " PYTHON_VERSION
         else
-            PYTHON_VERSION="${AGI_PYTHON_VERSION:-3.13}"
+            PYTHON_VERSION="${AGI_PYTHON_VERSION:-3.14}"
             echo "Non-interactive shell; defaulting Python version to $PYTHON_VERSION"
         fi
     fi
-    PYTHON_VERSION=${PYTHON_VERSION:-3.13}
+    PYTHON_VERSION=${PYTHON_VERSION:-3.14}
     echo "You selected Python version $PYTHON_VERSION"
     available_python_versions=$($UV python list | grep -F -- "$PYTHON_VERSION" | grep -v "freethreaded")
     python_array=()
@@ -1093,8 +1093,8 @@ append_default_env_comments() {
             printf '%s\n' "$line" >> "$env_file"
         fi
     done <<'EOF'
-# AGI_PYTHON_VERSION="3.13"
-# 127.0.0.1_PYTHON_VERSION="3.13"
+# AGI_PYTHON_VERSION="3.14"
+# 127.0.0.1_PYTHON_VERSION="3.14"
 # AGI_PYTHON_FREE_THREADED="1"
 # IS_SOURCE_ENV="1"
 # IS_WORKER_ENV="0"

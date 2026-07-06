@@ -4,7 +4,7 @@ from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 import json
 
-CANDIDATE_VERSIONS = [f"3.{i}" for i in range(6, 14)]  # 3.6 to 3.13
+CANDIDATE_VERSIONS = [f"3.{i}" for i in range(6, 15)]  # 3.6 to 3.14
 
 def extract_requires_python(path):
     with open(path, "rb") as stream:
