@@ -33,6 +33,7 @@ apps_repository="${APPS_REPOSITORY:-}"
 install_apps_value=""
 install_apps_value_set=0
 declare -a forwarded_args=()
+forwarded_args_count=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -65,7 +66,8 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --test-apps|--apps-test|--link-compatible-venvs|--no-link-compatible-venvs)
-      forwarded_args+=("$1")
+      forwarded_args[$forwarded_args_count]="$1"
+      forwarded_args_count=$((forwarded_args_count + 1))
       shift
       ;;
     --active-checkout)
@@ -145,4 +147,7 @@ if (( install_apps_value_set )) && [[ -n "$install_apps_value" ]]; then
 fi
 
 cd "$active_source"
-exec ./install_apps.sh "${forwarded_args[@]}"
+if [[ "$forwarded_args_count" -gt 0 ]]; then
+  exec ./install_apps.sh "${forwarded_args[@]}"
+fi
+exec ./install_apps.sh
