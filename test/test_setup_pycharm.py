@@ -690,6 +690,13 @@ def test_tracked_run_configs_use_valid_uv_sdk_bindings() -> None:
             problems.append(f"{path.name}: IS_MODULE_SDK={options.get('IS_MODULE_SDK')!r}")
         if config.get("type") == "PythonConfigurationType" and envs.get("VIRTUAL_ENV") != "":
             problems.append(f"{path.name}: VIRTUAL_ENV must be cleared for uv run")
+        if (
+            config.get("type") == "tests"
+            and options.get("SDK_NAME") == "uv (agi-cluster)"
+            and "$PROJECT_DIR$/src/agilab/core/test/" in options.get("_new_target", "")
+            and options.get("WORKING_DIRECTORY") != "$PROJECT_DIR$/src/agilab/core/agi-cluster"
+        ):
+            problems.append(f"{path.name}: core agi-cluster pytest config has wrong working directory")
         if "wenv/builtin" in option_values:
             problems.append(f"{path.name}: stale builtin worker path")
 
