@@ -4229,6 +4229,54 @@ def test_display_lab_tab_revert_restores_previous_snapshot(monkeypatch, tmp_path
     assert reruns == ["fragment"]
 
 
+def test_hydrate_pipeline_page_run_state_recovers_reload_from_lock_log(tmp_path):
+    log_file = tmp_path / "pipeline_20260706_120000_000001.log"
+    log_file.write_text(
+        "Run workflow started... logs will be saved to pipeline.log\n"
+        "Running stage 1...\n"
+        "Running stage 2...\n",
+        encoding="utf-8",
+    )
+    session_state: dict[str, Any] = {}
+    lock_state = {
+        "is_stale": False,
+        "owner_text": "pid 123",
+        "payload": {"log_file_path": str(log_file)},
+    }
+
+    result = pipeline_lab._hydrate_pipeline_page_run_state_from_disk(
+        "demo",
+        SimpleNamespace(runenv=tmp_path, app="demo_project", target="demo_project"),
+        session_state,
+        lambda _env: lock_state,
+    )
+
+    assert result["status"] == "running"
+    assert result["loaded_lines"] == 3
+    assert result["log_file"] == str(log_file)
+    assert session_state["demo__last_run_status"] == "running"
+    assert session_state["demo__last_run_log_file"] == str(log_file)
+    assert session_state["demo__run_logs"][-1] == "Running stage 2..."
+    assert "Reconnected" in session_state["demo__run_state_hydrated_notice"]
+
+
+def test_hydrate_pipeline_page_run_state_respects_cleared_page_logs(tmp_path):
+    log_file = tmp_path / "pipeline_20260706_120000_000001.log"
+    log_file.write_text("Running stage 1...\n", encoding="utf-8")
+    session_state: dict[str, Any] = {"demo__run_logs": []}
+
+    result = pipeline_lab._hydrate_pipeline_page_run_state_from_disk(
+        "demo",
+        SimpleNamespace(runenv=tmp_path, app="demo_project", target="demo_project"),
+        session_state,
+        lambda _env: None,
+    )
+
+    assert result["loaded_lines"] == 0
+    assert session_state["demo__run_logs"] == []
+    assert session_state["demo__last_run_log_file"] == str(log_file)
+
+
 def test_display_lab_tab_run_pipeline_and_delete_all(monkeypatch, tmp_path):
     run_calls = []
     remove_calls = []

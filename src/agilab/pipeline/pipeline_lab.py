@@ -2036,6 +2036,129 @@ def _latest_run_log_file(run_log_dir: Path) -> Path | None:
     return sorted(candidates, key=_sort_key)[-1]
 
 
+def _latest_pipeline_page_log_file(run_log_dir: Path | None) -> Path | None:
+    if run_log_dir is None:
+        return None
+    candidates: list[Path] = []
+    try:
+        expanded = run_log_dir.expanduser()
+        for pattern in ("pipeline_*.log", "stage_*.log", "run_*.log"):
+            candidates.extend(path for path in expanded.glob(pattern) if path.is_file())
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+    if not candidates:
+        return None
+
+    def _sort_key(path: Path) -> tuple[float, str]:
+        try:
+            return path.stat().st_mtime, path.name
+        except OSError:
+            return 0.0, path.name
+
+    return sorted(candidates, key=_sort_key)[-1]
+
+
+def _read_pipeline_page_log_tail(log_file: Path, *, max_lines: int = 200) -> list[str]:
+    try:
+        lines = log_file.expanduser().read_text(
+            encoding="utf-8",
+            errors="replace",
+        ).splitlines()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return []
+    return lines[-max_lines:]
+
+
+def _pipeline_page_log_from_lock(lock_state: Mapping[str, Any] | None) -> Path | None:
+    if not isinstance(lock_state, Mapping):
+        return None
+    payload = lock_state.get("payload")
+    if not isinstance(payload, Mapping):
+        return None
+    raw_path = str(payload.get("log_file_path") or "").strip()
+    if not raw_path:
+        return None
+    try:
+        candidate = Path(raw_path).expanduser()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+    return candidate if candidate.is_file() else None
+
+
+def _infer_pipeline_page_log_status(
+    lines: list[str],
+    lock_state: Mapping[str, Any] | None,
+) -> str:
+    if isinstance(lock_state, Mapping) and not lock_state.get("is_stale"):
+        return "running"
+    tail = "\n".join(lines[-25:]).lower()
+    if not tail:
+        return ""
+    if "traceback" in tail or "run workflow failed" in tail or "command failed" in tail:
+        return "failed"
+    if "run workflow completed" in tail:
+        return "complete"
+    return ""
+
+
+def _hydrate_pipeline_page_run_state_from_disk(
+    index_page: str,
+    env: Any,
+    session_state: Any,
+    inspect_pipeline_run_lock: Callable[..., Any] | None,
+) -> dict[str, Any]:
+    run_logs_key = f"{index_page}__run_logs"
+    last_log_key = f"{index_page}__last_run_log_file"
+    last_status_key = f"{index_page}__last_run_status"
+
+    fresh_run_logs = run_logs_key not in session_state
+    lock_state = inspect_pipeline_run_lock(env) if callable(inspect_pipeline_run_lock) else None
+    lock_state = dict(lock_state) if isinstance(lock_state, Mapping) else None
+    log_file = _pipeline_page_log_from_lock(lock_state)
+    if log_file is None:
+        existing_log = str(session_state.get(last_log_key) or "").strip()
+        if existing_log:
+            try:
+                existing_path = Path(existing_log).expanduser()
+            except (OSError, RuntimeError, TypeError, ValueError):
+                existing_path = None
+            if existing_path is not None and existing_path.is_file():
+                log_file = existing_path
+    if log_file is None:
+        log_file = _latest_pipeline_page_log_file(_workflow_run_log_dir(env))
+
+    loaded_lines: list[str] = []
+    if log_file is not None:
+        session_state.setdefault(last_log_key, str(log_file))
+        if fresh_run_logs:
+            loaded_lines = _read_pipeline_page_log_tail(log_file)
+            if loaded_lines:
+                session_state[run_logs_key] = loaded_lines
+
+    lines_for_status = loaded_lines
+    if not lines_for_status:
+        raw_logs = session_state.get(run_logs_key, [])
+        if isinstance(raw_logs, list):
+            lines_for_status = [str(line) for line in raw_logs]
+        elif isinstance(raw_logs, tuple):
+            lines_for_status = [str(line) for line in raw_logs]
+    inferred_status = _infer_pipeline_page_log_status(lines_for_status, lock_state)
+    if inferred_status == "running" or (inferred_status and not session_state.get(last_status_key)):
+        session_state[last_status_key] = inferred_status
+
+    active_lock = bool(lock_state and not lock_state.get("is_stale"))
+    if active_lock and fresh_run_logs and (loaded_lines or log_file is not None):
+        session_state[f"{index_page}__run_state_hydrated_notice"] = (
+            "Reconnected to an in-progress workflow run from the saved lock and log file."
+        )
+    return {
+        "lock_state": lock_state,
+        "log_file": str(log_file) if log_file is not None else "",
+        "loaded_lines": len(loaded_lines),
+        "status": session_state.get(last_status_key, ""),
+    }
+
+
 def _format_duration_seconds(value: Any) -> str:
     try:
         seconds = float(value)
@@ -4383,6 +4506,12 @@ def display_lab_tab(
     run_logs_key = f"{index_page_str}__run_logs"
     run_placeholder_key = f"{index_page_str}__run_placeholder"
     delete_undo_key = f"{index_page_str}__undo_delete_snapshot"
+    _hydrate_pipeline_page_run_state_from_disk(
+        index_page_str,
+        env,
+        st.session_state,
+        _inspect_pipeline_run_lock,
+    )
     st.session_state.setdefault(run_logs_key, [])
     expander_state_key = f"{safe_prefix}_expander_open"
     expander_state: Dict[int, bool] = st.session_state.setdefault(expander_state_key, {})
@@ -5408,6 +5537,12 @@ def display_lab_tab(
             _persist_sequence_preferences(module_path, stages_file, final_sequence)
 
     page_state = _build_page_state(include_lock=True)
+    hydrated_notice = st.session_state.pop(
+        f"{index_page_str}__run_state_hydrated_notice",
+        "",
+    )
+    if hydrated_notice:
+        st.info(hydrated_notice)
     if page_state.stale_stage_refs and page_state.run_disabled_reason:
         st.warning(page_state.run_disabled_reason)
 
