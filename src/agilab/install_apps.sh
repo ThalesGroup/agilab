@@ -1332,7 +1332,7 @@ for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
     if page_sync_is_fresh "$page_dir"; then
         echo -e "${GREEN}✓ '$page' page environment already up to date.${NC}"
     else
-        if ${UV_PREVIEW[@]} sync --project . --preview-features python-upgrade; then
+        if ${UV_PREVIEW[@]} sync -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --project . --preview-features python-upgrade; then
             write_page_sync_stamp "$page_dir"
         else
             status=$?
