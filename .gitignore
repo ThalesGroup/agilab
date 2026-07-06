@@ -141,6 +141,10 @@ src/agilab/apps/builtin/*/src/**/*.pyx
 !src/agilab/apps/builtin/uav_relay_queue_project/**
 !src/agilab/apps/builtin/data_io_2026_project/
 !src/agilab/apps/builtin/data_io_2026_project/**
+# Generated local app/page environments should never appear as source changes,
+# including when an external app checkout is copied without its nested .gitignore.
+src/agilab/apps-pages/*/.venv/
+src/agilab/apps/builtin/*/.venv/
 _fcas_work
 .vscode/
 # Generated demo media: keep only lightweight upload metadata in Git.
