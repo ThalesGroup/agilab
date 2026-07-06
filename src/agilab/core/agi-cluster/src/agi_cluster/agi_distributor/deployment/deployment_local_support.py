@@ -1391,6 +1391,7 @@ async def deploy_local_worker(
             worker_core_add_specs,
             offline_flag=offline_flag,
             prefix=worker_extra_indexes,
+            python_spec=pyvers_worker_uv_spec,
         )
         for index, cmd_worker in enumerate(worker_core_add_commands):
             stage_name = f"worker-core-add-{index}"

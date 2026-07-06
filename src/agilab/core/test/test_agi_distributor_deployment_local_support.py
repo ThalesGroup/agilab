@@ -1637,12 +1637,13 @@ def test_build_worker_core_add_commands_marks_local_projects_editable(tmp_path):
         [str(env_project), str(node_project)],
         offline_flag="--offline ",
         prefix="PIP_INDEX_URL=https://test.pypi.org/simple; ",
+        python_spec="3.14.6+gil",
     )
 
     assert commands == [
         (
             "PIP_INDEX_URL=https://test.pypi.org/simple; "
-            f'uv --offline --project {wenv} add --editable "{env_project}" "{node_project}"'
+            f'uv --offline --project {wenv} add --python 3.14.6+gil --editable "{env_project}" "{node_project}"'
         )
     ]
 
