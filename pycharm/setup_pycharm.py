@@ -985,6 +985,15 @@ class JdkTable:
         elif not changed_any:
             logging.info("Associated project already up to date for SDK %s", name)
 
+    def __jdk_home_exists(self, jdk: ET.Element) -> bool:
+        home = self.__jdk_home(jdk).strip()
+        if not home:
+            return False
+        try:
+            return self.__expand_jetbrains_path(home).exists()
+        except OSError:
+            return False
+
     def prune_uv_names(self, keep_names: Iterable[str]) -> None:
         keep = set(keep_names)
 
@@ -1005,13 +1014,23 @@ class JdkTable:
                 name = self.__jdk_name(jdk)
                 sdk_type = self.__jdk_type(jdk)
 
-                if sdk_type == self.sdk_type and name.startswith("uv (") and name not in keep:
-                    comp.remove(jdk)
-                    removed += 1
+                if sdk_type != self.sdk_type or not name.startswith("uv (") or name in keep:
+                    continue
+
+                if self.__jdk_home_exists(jdk):
+                    continue
+
+                comp.remove(jdk)
+                removed += 1
 
             if removed:
                 write_xml(tree, table)
-                logging.info("Pruned %d SDK(s) in %s, kept: %s", removed, table, sorted(keep))
+                logging.info(
+                    "Pruned %d stale SDK(s) in %s, kept active or valid SDKs: %s",
+                    removed,
+                    table,
+                    sorted(keep),
+                )
 
 
 class Project:

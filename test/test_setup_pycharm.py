@@ -133,6 +133,55 @@ def test_jdk_table_rewrites_stale_uv_venv_path(tmp_path: Path) -> None:
     assert additional.get("UV_VENV_PATH") == str(current_root / ".venv")
 
 
+def test_prune_uv_names_keeps_valid_sibling_checkout_sdks_and_removes_stale(
+    tmp_path: Path,
+) -> None:
+    active_root = _make_agilab_source_root(tmp_path / "agilab")
+    sibling_root = _make_agilab_source_root(tmp_path / "agilab-src")
+    sibling_python = sibling_root / ".venv" / "bin" / "python"
+    sibling_python.parent.mkdir(parents=True)
+    sibling_python.write_text("", encoding="utf-8")
+    missing_python = tmp_path / "missing" / ".venv" / "bin" / "python"
+    jdk_table = tmp_path / "jdk.table.xml"
+    jdk_table.write_text(
+        f"""<?xml version="1.0" encoding="UTF-8"?>
+<application>
+    <component name="ProjectJdkTable">
+        <jdk version="2">
+            <name value="uv (agilab)" />
+            <type value="Python SDK" />
+            <homePath value="{active_root / ".venv" / "bin" / "python"}" />
+        </jdk>
+        <jdk version="2">
+            <name value="uv (agilab-src)" />
+            <type value="Python SDK" />
+            <homePath value="{sibling_python}" />
+        </jdk>
+        <jdk version="2">
+            <name value="uv (stale-checkout)" />
+            <type value="Python SDK" />
+            <homePath value="{missing_python}" />
+        </jdk>
+    </component>
+</application>
+""",
+        encoding="utf-8",
+    )
+
+    table = setup_pycharm.JdkTable.__new__(setup_pycharm.JdkTable)
+    table.sdk_type = "Python SDK"
+    table.jdk_tables = [jdk_table]
+
+    table.prune_uv_names(["uv (agilab)"])
+
+    root = ET.parse(jdk_table).getroot()
+    names = [
+        jdk.find("name").get("value")
+        for jdk in root.findall("./component[@name='ProjectJdkTable']/jdk")
+    ]
+    assert names == ["uv (agilab)", "uv (agilab-src)"]
+
+
 def test_ensure_agilab_path_marker_rewrites_stale_checkout_marker(
     tmp_path: Path,
     monkeypatch,
