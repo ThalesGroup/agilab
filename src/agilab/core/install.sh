@@ -10,6 +10,22 @@ set -o pipefail
 UV_PREVIEW=(uv --preview-features extra-build-dependencies)
 CORE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+python_uv_spec_for_version() {
+    local version="${1:-}"
+    case "$version" in
+        3.14|3.14.*)
+            if [[ "$version" == *+* ]]; then
+                printf '%s\n' "$version"
+            else
+                printf '%s+gil\n' "$version"
+            fi
+            ;;
+        *)
+            printf '%s\n' "$version"
+            ;;
+    esac
+}
+
 #source "$HOME/.local/bin/env"
 source "$HOME/.local/share/agilab/.env"
 normalize_agi_python_version() {
@@ -40,8 +56,10 @@ if ! AGI_PYTHON_VERSION="$(normalize_agi_python_version "$AGI_PYTHON_VERSION")";
     exit 1
 fi
 AGI_PYTHON_FREE_THREADED=0
+AGI_PYTHON_UV_SPEC="${AGI_PYTHON_UV_SPEC:-$(python_uv_spec_for_version "$AGI_PYTHON_VERSION")}"
 export AGI_PYTHON_VERSION
 export AGI_PYTHON_FREE_THREADED
+export AGI_PYTHON_UV_SPEC
 
 BLUE='\033[1;34m'
 GREEN='\033[1;32m'
@@ -83,7 +101,7 @@ link_compatible_core_venvs() {
 
     mkdir -p -- "$(dirname "$VENV_LINK_REPORT")"
     echo -e "${BLUE}Linking compatible core virtual environments...${NC}"
-    if "${UV_PREVIEW[@]}" run -p "$AGI_PYTHON_VERSION" --no-project --with packaging python "$linker" \
+    if "${UV_PREVIEW[@]}" run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --no-project --with packaging python "$linker" \
         --apply \
         --report "$VENV_LINK_REPORT" \
         --root "$CORE_DIR"; then
@@ -125,12 +143,12 @@ run_pytest_tracked() {
 }
 
 ensure_pip_if_missing() {
-    if ${UV_PREVIEW[@]} run -p "$AGI_PYTHON_VERSION" python -c "import pip" >/dev/null 2>&1; then
+    if ${UV_PREVIEW[@]} run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" python -c "import pip" >/dev/null 2>&1; then
         echo -e "${GREEN}pip already available.${NC}"
         return
     fi
     echo -e "${YELLOW}pip missing; bootstrapping with ensurepip...${NC}"
-    ${UV_PREVIEW[@]} run -p "$AGI_PYTHON_VERSION" python -m ensurepip
+    ${UV_PREVIEW[@]} run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" python -m ensurepip
 }
 
 remove_incompatible_project_venv() {
@@ -207,36 +225,36 @@ prompt_for_continuation() {
 
 echo -e "${BLUE}Installing agi-env...${NC}"
 pushd "$CORE_DIR/agi-env" > /dev/null
-echo "${UV_PREVIEW[*]} sync -p $AGI_PYTHON_VERSION --dev"
+echo "${UV_PREVIEW[*]} sync -p ${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION} --dev"
 remove_incompatible_project_venv "$PWD" "agi-env"
-${UV_PREVIEW[@]} sync -p "$AGI_PYTHON_VERSION" --dev
+${UV_PREVIEW[@]} sync -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --dev
 ensure_pip_if_missing
 ${UV_PREVIEW[@]} pip install --upgrade --no-deps -e .
 popd > /dev/null
 
 echo -e "${BLUE}Installing agi-node...${NC}"
 pushd "$CORE_DIR/agi-node" > /dev/null
-echo "${UV_PREVIEW[*]} sync -p $AGI_PYTHON_VERSION --dev"
+echo "${UV_PREVIEW[*]} sync -p ${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION} --dev"
 remove_incompatible_project_venv "$PWD" "agi-node"
-${UV_PREVIEW[@]} sync -p "$AGI_PYTHON_VERSION" --dev
+${UV_PREVIEW[@]} sync -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --dev
 ensure_pip_if_missing
 ${UV_PREVIEW[@]} pip install --upgrade --no-deps -e . -e ../agi-env
 popd > /dev/null
 
 echo -e "${BLUE}Installing agi-cluster...${NC}"
 pushd "$CORE_DIR/agi-cluster" > /dev/null
-echo "${UV_PREVIEW[*]} sync -p $AGI_PYTHON_VERSION --dev"
+echo "${UV_PREVIEW[*]} sync -p ${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION} --dev"
 remove_incompatible_project_venv "$PWD" "agi-cluster"
-${UV_PREVIEW[@]} sync -p "$AGI_PYTHON_VERSION" --dev
+${UV_PREVIEW[@]} sync -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --dev
 ensure_pip_if_missing
 ${UV_PREVIEW[@]} pip install --upgrade --no-deps -e . -e ../agi-node -e ../agi-env
 popd > /dev/null
 
 echo -e "${BLUE}Installing agi-core...${NC}"
 pushd "$CORE_DIR/agi-core" > /dev/null
-echo "${UV_PREVIEW[*]} sync -p $AGI_PYTHON_VERSION --dev"
+echo "${UV_PREVIEW[*]} sync -p ${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION} --dev"
 remove_incompatible_project_venv "$PWD" "agi-core"
-${UV_PREVIEW[@]} sync -p "$AGI_PYTHON_VERSION" --dev
+${UV_PREVIEW[@]} sync -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --dev
 ensure_pip_if_missing
 ${UV_PREVIEW[@]} pip install --upgrade --no-deps -e ../agi-env -e ../agi-node -e ../agi-cluster -e .
 popd > /dev/null

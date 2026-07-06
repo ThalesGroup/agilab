@@ -366,7 +366,12 @@ async def _run_local_worker(
     else:
         uv_worker = getattr(env, "uv_worker", env.uv)
         pyvers_worker = getattr(env, "pyvers_worker", None)
-        python_selector = f" --python {_remote_path(str(pyvers_worker))}" if pyvers_worker else ""
+        pyvers_worker_uv_spec = (
+            getattr(env, "pyvers_worker_uv_spec", None)
+            or getattr(env, "python_uv_spec", None)
+            or pyvers_worker
+        )
+        python_selector = f" --python {_remote_path(str(pyvers_worker_uv_spec))}" if pyvers_worker_uv_spec else ""
         manager_apps_path = _manager_apps_path(env)
         manager_app = _manager_app_name(env)
         # Use POSIX-style separators so the embedded ``Path(...)`` literal stays

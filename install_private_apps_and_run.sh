@@ -6,7 +6,13 @@ APPS_REPO="${APPS_REPO:-}"
 
 export AGI_PYTHON_VERSION="${AGI_PYTHON_VERSION:-3.14.6}"
 export AGI_PYTHON_FREE_THREADED=0
-export UV_PYTHON_PREFERENCE="${UV_PYTHON_PREFERENCE:-only-system}"
+if [[ -z "${AGI_PYTHON_UV_SPEC:-}" ]]; then
+  case "$AGI_PYTHON_VERSION" in
+    3.14|3.14.*) AGI_PYTHON_UV_SPEC="${AGI_PYTHON_VERSION}+gil" ;;
+    *) AGI_PYTHON_UV_SPEC="$AGI_PYTHON_VERSION" ;;
+  esac
+fi
+export AGI_PYTHON_UV_SPEC
 export AGILAB_REFRESH_WORKER_ENVS="${AGILAB_REFRESH_WORKER_ENVS:-1}"
 
 if [[ ! -d "$CHECKOUT" ]]; then
@@ -21,7 +27,7 @@ fi
 
 cd "$CHECKOUT"
 
-uv --preview-features extra-build-dependencies run --no-project -p "$AGI_PYTHON_VERSION" python - <<'PY'
+uv --preview-features extra-build-dependencies run --no-project -p "$AGI_PYTHON_UV_SPEC" python - <<'PY'
 import sys
 
 print("Using Python:", sys.executable)

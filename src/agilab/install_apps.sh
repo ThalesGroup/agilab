@@ -135,6 +135,22 @@ START_TIME=$(date +%s)
 
 UV_PREVIEW=(uv --preview-features extra-build-dependencies)
 
+python_uv_spec_for_version() {
+  local version="${1:-}"
+  case "$version" in
+    3.14|3.14.*)
+      if [[ "$version" == *+* ]]; then
+        printf '%s\n' "$version"
+      else
+        printf '%s+gil\n' "$version"
+      fi
+      ;;
+    *)
+      printf '%s\n' "$version"
+      ;;
+  esac
+}
+
 normalize_agi_python_version() {
   local raw="${1:-3.14}"
   raw="$(printf '%s' "$raw" | sed -E 's/^[[:space:]]+//;s/[[:space:]]+$//')"
@@ -172,7 +188,9 @@ normalize_agi_python_version() {
 if ! AGI_PYTHON_VERSION="$(normalize_agi_python_version "${AGI_PYTHON_VERSION:-3.14}")"; then
   exit 1
 fi
+AGI_PYTHON_UV_SPEC="${AGI_PYTHON_UV_SPEC:-$(python_uv_spec_for_version "$AGI_PYTHON_VERSION")}"
 export AGI_PYTHON_VERSION
+export AGI_PYTHON_UV_SPEC
 
 configure_uv_link_mode() {
   local requested="${AGILAB_UV_LINK_MODE:-${UV_LINK_MODE:-hardlink}}"
@@ -547,7 +565,7 @@ check_data_mount() {
   DATA_URI_PATH=""
 
   if ! output=$(
-    "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/agi-cluster python - "$app_path" <<'PY' 2>&1
+    "${UV_PREVIEW[@]}" -q run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --project ../core/agi-cluster python - "$app_path" <<'PY' 2>&1
 from pathlib import Path
 import sys
 from agi_env import AgiEnv
@@ -788,7 +806,7 @@ link_compatible_venvs() {
 
   mkdir -p -- "$(dirname "$VENV_LINK_REPORT")"
   echo -e "${BLUE}Linking compatible virtual environments...${NC}"
-  if "${UV_PREVIEW[@]}" run -p "$AGI_PYTHON_VERSION" --no-project --with packaging python "$linker" \
+  if "${UV_PREVIEW[@]}" run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --no-project --with packaging python "$linker" \
     --apply \
     --report "$VENV_LINK_REPORT" \
     "${root_args[@]}"; then
@@ -1370,8 +1388,8 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
 	    echo "reuse wenv/$worker_env_name (set AGILAB_REFRESH_WORKER_ENVS=1 to rebuild)"
 	  fi
 
-  echo "${UV_PREVIEW[@]} -q run -p \"$AGI_PYTHON_VERSION\" --project ../core/agi-cluster python install.py \"${AGILAB_REPO}/apps/$app_dir_rel\""
-  if "${UV_PREVIEW[@]}" -q run -p "$AGI_PYTHON_VERSION" --project ../core/agi-cluster python install.py \
+  echo "${UV_PREVIEW[@]} -q run -p \"${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}\" --project ../core/agi-cluster python install.py \"${AGILAB_REPO}/apps/$app_dir_rel\""
+  if "${UV_PREVIEW[@]}" -q run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --project ../core/agi-cluster python install.py \
     "${AGILAB_REPO}/apps/$app_dir_rel"; then
       echo -e "${GREEN}✓ '$app_name' successfully installed.${NC}"
       if (( DO_TEST_APPS )); then
@@ -1379,8 +1397,8 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
         if pushd -- "$app_dir_rel" >/dev/null; then
         ran_app_test=0
         if [[ -f app_test.py ]]; then
-          echo "${UV_PREVIEW[@]} run -p \"$AGI_PYTHON_VERSION\" ${CORE_EDITABLE_PACKAGES[*]} python app_test.py"
-          "${UV_PREVIEW[@]}" run -p "$AGI_PYTHON_VERSION" "${CORE_EDITABLE_PACKAGES[@]}" python app_test.py
+          echo "${UV_PREVIEW[@]} run -p \"${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}\" ${CORE_EDITABLE_PACKAGES[*]} python app_test.py"
+          "${UV_PREVIEW[@]}" run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" "${CORE_EDITABLE_PACKAGES[@]}" python app_test.py
           ran_app_test=1
         else
             if app_has_collectable_pytests .; then
@@ -1440,7 +1458,7 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
       popd >/dev/null
       continue
     fi
-    if "${UV_PREVIEW[@]}" run -p "$AGI_PYTHON_VERSION" "${CORE_EDITABLE_PACKAGES[@]}" --project . --with pytest --with pytest-cov pytest; then
+    if "${UV_PREVIEW[@]}" run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" "${CORE_EDITABLE_PACKAGES[@]}" --project . --with pytest --with pytest-cov pytest; then
       echo -e "${GREEN}✓ pytest succeeded for '$app_name'.${NC}"
       else
         rc=$?

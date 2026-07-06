@@ -123,6 +123,7 @@ async def prepare_local_env(
     env = agi_cls.env
     wenv_abs = env.wenv_abs
     pyvers = env.python_version
+    pyvers_uv_spec = getattr(env, "python_uv_spec", None) or pyvers
     ip = "127.0.0.1"
     hw_rapids_capable = agi_cls._hardware_supports_rapids() and agi_cls._rapids_enabled
     env.hw_rapids_capable = hw_rapids_capable
@@ -180,11 +181,11 @@ async def prepare_local_env(
             except RuntimeError as exc:
                 log.warning("Failed to update uv (skipping self update): %s", exc)
 
-        if await _local_uv_python_available(uv, pyvers, wenv_abs.parent, run_fn=run_fn):
+        if await _local_uv_python_available(uv, pyvers_uv_spec, wenv_abs.parent, run_fn=run_fn):
             log.info("Python interpreter '%s' is already available to uv; skipping install.", pyvers)
         else:
             try:
-                await run_fn(f"{uv} python install {shlex.quote(str(pyvers))}", wenv_abs.parent)
+                await run_fn(f"{uv} python install {shlex.quote(str(pyvers_uv_spec))}", wenv_abs.parent)
             except RuntimeError as exc:
                 if "No download found for request" in str(exc):
                     log.warning(
