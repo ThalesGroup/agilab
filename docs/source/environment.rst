@@ -25,7 +25,7 @@ rather than shown as one of the workflow pages.
      - ``flight_telemetry_project``
      - App loaded when no explicit project is provided.
    * - ``AGI_PYTHON_VERSION``
-     - ``3.13``
+     - ``3.14``
      - Default Python version passed to ``uv`` for the manager environment and as the fallback worker version when no host-specific override is set.
    * - ``<worker-host>_PYTHON_VERSION``
      - unset

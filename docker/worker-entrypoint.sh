@@ -10,7 +10,7 @@ fi
 mkdir -p /root/.agilab /root/.local/share/agilab
 cat > /root/.agilab/.env <<EOF
 CLUSTER_CREDENTIALS="${CLUSTER_CREDENTIALS:-root:password}"
-AGI_PYTHON_VERSION="${AGI_PYTHON_VERSION:-3.13.9}"
+AGI_PYTHON_VERSION="${AGI_PYTHON_VERSION:-3.14}"
 AGI_PYTHON_FREE_THREADED="${AGI_PYTHON_FREE_THREADED:-0}"
 AGI_CLUSTER_SHARE="/root/clustershare"
 AGI_LOCAL_SHARE="/root/localshare"

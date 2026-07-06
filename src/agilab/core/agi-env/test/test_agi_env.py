@@ -322,7 +322,7 @@ def test_blank_env_assignments_are_treated_as_unset_globally(tmp_path: Path, mon
     assert env.AGILAB_LOG_ABS == fake_home / "log"
     assert env.AGILAB_EXPORT_ABS == fake_home / "export"
     assert env.MLFLOW_TRACKING_DIR == fake_home / ".mlflow"
-    assert env.python_version == "3.13"
+    assert env.python_version == "3.14"
     assert env.user == getpass.getuser()
     assert env.scheduler_ip == "127.0.0.1"
     assert "OPENAI_MODEL" not in env.envars

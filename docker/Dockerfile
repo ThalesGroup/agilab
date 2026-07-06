@@ -40,7 +40,7 @@ COPY pyproject.toml ./pyproject.toml
 COPY uv_config.toml ./uv_config.toml
 COPY docker/install.sh ./install.sh
 
-ENV AGI_PYTHON_VERSION="3.13.9"
+ENV AGI_PYTHON_VERSION="3.14"
 ENV AGI_PYTHON_FREE_THREADED="0"
 ENV CLUSTER_CREDENTIALS="root:password"
 ENV OPENAI_API_KEY="dummykey"
