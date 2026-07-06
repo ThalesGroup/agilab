@@ -16,6 +16,12 @@ declare -a BUILTIN_APPS=(
 )
 declare -a REPOSITORY_APPS=()
 declare -a INVALID_REPOSITORY_APPS=()
+CALLER_APPS_REPOSITORY_SET=0
+CALLER_APPS_REPOSITORY=""
+if [[ "${APPS_REPOSITORY+x}" == x ]]; then
+  CALLER_APPS_REPOSITORY_SET=1
+  CALLER_APPS_REPOSITORY="$APPS_REPOSITORY"
+fi
 
 declare -a DEFAULT_APPS_ORDER=(
   flight_telemetry_project
@@ -99,6 +105,7 @@ declare -a SKIPPED_APP_TESTS=()
 DATA_CHECK_MESSAGE=""
 DATA_URI_PATH=""
 PROMPT_FOR_APPS=1
+NON_INTERACTIVE=0
 FORCE_APP_SELECTION=0
 FORCE_ALL_APPS=0
 ALL_APPS_SENTINEL="${INSTALL_ALL_SENTINEL:-__AGILAB_ALL_APPS__}"
@@ -113,6 +120,9 @@ INSTALLED_APPS_FILE="${INSTALLED_APPS_FILE:-$HOME/.local/share/agilab/installed_
 # Load env + normalize Python version
 # shellcheck source=/dev/null
 source "$HOME/.local/share/agilab/.env"
+if (( CALLER_APPS_REPOSITORY_SET )); then
+  APPS_REPOSITORY="$CALLER_APPS_REPOSITORY"
+fi
 
 # Colors for output
 RED='\033[1;31m'
@@ -241,6 +251,41 @@ discover_repo_dir() {
 
 resolve_physical_dir() {
   (cd "$1" >/dev/null 2>&1 && pwd -P)
+}
+
+resolve_cli_path_arg() {
+  local raw="$1"
+  case "$raw" in
+    "~") printf '%s\n' "$HOME" ;;
+    "~/"*) printf '%s/%s\n' "$HOME" "${raw#"~/"}" ;;
+    /*) printf '%s\n' "$raw" ;;
+    *) printf '%s/%s\n' "$(pwd -P)" "$raw" ;;
+  esac
+}
+
+set_install_apps_selection_from_cli() {
+  local raw="${1:-select}"
+  local lower_val
+
+  lower_val="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')"
+  case "$lower_val" in
+    ""|select|picker|prompt)
+      BUILTIN_APPS_FROM_ENV=""
+      PROMPT_FOR_APPS=1
+      ;;
+    all)
+      BUILTIN_APPS_FROM_ENV="$ALL_APPS_SENTINEL"
+      PROMPT_FOR_APPS=0
+      ;;
+    builtin|built-in)
+      BUILTIN_APPS_FROM_ENV="$BUILTIN_ONLY_SENTINEL"
+      PROMPT_FOR_APPS=0
+      ;;
+    *)
+      BUILTIN_APPS_FROM_ENV="$raw"
+      PROMPT_FOR_APPS=0
+      ;;
+  esac
 }
 
 is_truthy() {
@@ -509,12 +554,18 @@ PY
 
 usage() {
   cat <<'EOF'
-Usage: install_apps.sh [--test-apps]
+Usage: install_apps.sh [--apps-repository <path>] [--install-apps [app1,app2,...|all|builtin|select]] [--test-apps]
+  --apps-repository <path>
+                   Install apps/pages from a source app repository
+  --install-apps [selection]
+                   App selection: all, builtin, select, or a comma/space-separated app list
   --test-apps      Run pytest for each app after installation (implies --install-apps)
   --link-compatible-venvs
                    Link app/page/worker venvs to compatible larger envs after install (default)
   --no-link-compatible-venvs
                    Disable compatible venv linking
+  --non-interactive, --yes, -y
+                   Do not prompt; use defaults unless --install-apps supplies a selection
   --help           Show this message and exit
 EOF
 }
@@ -522,9 +573,42 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --apps-repository)
+      if [[ -z "${2-}" || "${2}" == --* ]]; then
+        echo -e "${RED}Error:${NC} --apps-repository requires a path" >&2
+        usage
+        exit 1
+      fi
+      APPS_REPOSITORY="$(resolve_cli_path_arg "$2")"
+      if [[ -e "$APPS_REPOSITORY" ]]; then
+        APPS_REPOSITORY="$(resolve_physical_dir "$APPS_REPOSITORY")"
+      fi
+      shift 2
+      continue
+      ;;
+    --apps-repository=*)
+      APPS_REPOSITORY="$(resolve_cli_path_arg "${1#*=}")"
+      if [[ -e "$APPS_REPOSITORY" ]]; then
+        APPS_REPOSITORY="$(resolve_physical_dir "$APPS_REPOSITORY")"
+      fi
+      ;;
+    --install-apps)
+      if [[ -n "${2-}" && "${2}" != --* ]]; then
+        set_install_apps_selection_from_cli "$2"
+        shift 2
+      else
+        set_install_apps_selection_from_cli select
+        shift
+      fi
+      continue
+      ;;
+    --install-apps=*)
+      set_install_apps_selection_from_cli "${1#*=}"
+      ;;
     --test-apps) DO_TEST_APPS=1;;
     --link-compatible-venvs) LINK_COMPATIBLE_VENVS=1;;
     --no-link-compatible-venvs) LINK_COMPATIBLE_VENVS=0;;
+    --non-interactive|--yes|-y) NON_INTERACTIVE=1;;
     --help|-h) usage; exit 0;;
     *)
       echo -e "${RED}Error:${NC} Unknown option '$1'" >&2
@@ -969,7 +1053,9 @@ fi
 
 # Offer an interactive picker when we still need confirmation.
 if (( PROMPT_FOR_APPS )); then
-  if [[ -t 0 ]]; then
+  if (( NON_INTERACTIVE )); then
+    echo -e "${YELLOW}Non-interactive mode enabled; installing default apps: ${INCLUDED_APPS_UNIQ[*]}.${NC}"
+  elif [[ -t 0 ]]; then
     declare -a PROMPT_APPS=()
     if (( ${#ALL_APPS[@]} )); then
       PROMPT_APPS=("${ALL_APPS[@]}")
@@ -980,17 +1066,28 @@ if (( PROMPT_FOR_APPS )); then
     for idx in "${!PROMPT_APPS[@]}"; do
       app="${PROMPT_APPS[$idx]}"
       marker="[ ]"
+      source_label="builtin"
+      if in_list "$app" "${REPOSITORY_APPS[@]}" && ! in_list "$app" "${BUILTIN_APPS[@]}"; then
+        source_label="repository"
+      fi
       if [[ " ${INCLUDED_APPS_UNIQ[*]} " == *" ${app} "* ]]; then
         marker="[x]"
       fi
-      printf "  %2d) %s %s\n" $((idx + 1)) "$marker" "$app"
+      printf "  %2d) %s %-32s %s\n" $((idx + 1)) "$marker" "$app" "($source_label)"
     done
-    read -rp "Numbers/ranges (1 3-5, blank = defaults): " selection
+    read -rp "Numbers/ranges/names, all, none (blank = defaults): " selection
     if [[ -n "$selection" ]]; then
       selection="${selection//,/ }"
       declare -a picked=()
-      for token in $selection; do
-        if [[ "$token" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+      selection_lower="$(printf '%s' "$selection" | tr '[:upper:]' '[:lower:]')"
+      if [[ "$selection_lower" == "all" ]]; then
+        picked=("${PROMPT_APPS[@]}")
+      elif [[ "$selection_lower" == "none" ]]; then
+        picked=()
+        INCLUDED_APPS_UNIQ=()
+      else
+        for token in $selection; do
+          if [[ "$token" =~ ^([0-9]+)-([0-9]+)$ ]]; then
           start=${BASH_REMATCH[1]}
           end=${BASH_REMATCH[2]}
           if (( end < start )); then
@@ -1012,10 +1109,13 @@ if (( PROMPT_FOR_APPS )); then
           else
             echo -e "${YELLOW}Ignoring out-of-range selection: $token${NC}"
           fi
+          elif in_list "$token" "${PROMPT_APPS[@]}"; then
+            picked+=("$token")
         else
           echo -e "${YELLOW}Ignoring invalid selection: $token${NC}"
         fi
-      done
+        done
+      fi
       if (( ${#picked[@]} )); then
         declare -a unique_picked=()
         for item in "${picked[@]}"; do
