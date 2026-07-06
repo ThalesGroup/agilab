@@ -42,6 +42,22 @@ export PATH="$HOME/.local/bin:$PATH"
 
 UV="uv --preview-features extra-build-dependencies"
 
+python_uv_spec_for_version() {
+    local version="${1:-}"
+    case "$version" in
+        3.14|3.14.*)
+            if [[ "$version" == *+* ]]; then
+                printf '%s\n' "$version"
+            else
+                printf '%s+gil\n' "$version"
+            fi
+            ;;
+        *)
+            printf '%s\n' "$version"
+            ;;
+    esac
+}
+
 configure_uv_link_mode() {
     local requested="${AGILAB_UV_LINK_MODE:-${UV_LINK_MODE:-hardlink}}"
     case "$requested" in
@@ -747,7 +763,7 @@ refresh_launch_matrix() {
     pushd "$AGI_INSTALL_PATH" > /dev/null || return 0
     if [[ -f "tools/refresh_launch_matrix.py" ]]; then
         # Best-effort; do not fail install if this step errors
-        $UV run -p "$AGI_PYTHON_VERSION" python tools/refresh_launch_matrix.py --inplace \
+        $UV run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" python tools/refresh_launch_matrix.py --inplace \
           && echo -e "${GREEN}Launch Matrix updated in AGENTS.md.${NC}" \
           || warn "Launch Matrix refresh skipped (tooling not available)."
     else
@@ -922,12 +938,25 @@ choose_python_version() {
         fi
     fi
     PYTHON_VERSION=${PYTHON_VERSION:-3.14}
+    if [[ "$PYTHON_VERSION" == *freethreaded* \
+       || "$PYTHON_VERSION" =~ (^|[^[:alnum:]])python3\.[0-9]+t([^[:alnum:]]|$) \
+       || "$PYTHON_VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) ]]; then
+        echo -e "${RED}Unsupported Python selection '$PYTHON_VERSION'. AGILAB installs require a standard GIL Python interpreter; freethreaded Python can force native builds for binary packages such as Polars.${NC}"
+        echo -e "${YELLOW}Use AGI_PYTHON_VERSION=3.14.6 or AGI_PYTHON_VERSION=3.13.14.${NC}"
+        exit 1
+    fi
     echo "You selected Python version $PYTHON_VERSION"
     available_python_versions=$($UV python list | grep -F -- "$PYTHON_VERSION" | grep -v "freethreaded")
     python_array=()
     while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
         python_array+=("$line")
     done <<< "$available_python_versions"
+    if (( ${#python_array[@]} == 0 )); then
+        echo -e "${RED}No standard CPython interpreter found for '$PYTHON_VERSION'. Freethreaded interpreters are intentionally excluded.${NC}"
+        echo -e "${YELLOW}Install a standard interpreter with: uv python install $PYTHON_VERSION${NC}"
+        exit 1
+    fi
 
     for idx in "${!python_array[@]}"; do
         if [[ "${python_array[$idx]}" == *"$PYTHON_VERSION"* ]]; then
@@ -968,22 +997,43 @@ choose_python_version() {
     fi
 
     chosen_python=$(echo "$chosen_python" | cut -d '-' -f2)
-    if $UV python list | grep "$chosen_python" | grep -q "freethreaded"; then
-        echo -e "${YELLOW}Freethreaded version available.${NC}"
-        chosen_python_free="${chosen_python}+freethreaded"
-        if ! echo "$installed_pythons" | grep -q "$chosen_python_free"; then
-            echo -e "${YELLOW}Installing $chosen_python_free...${NC}"
-            $UV python install "$chosen_python_free"
-            echo -e "${GREEN}Python version ($chosen_python_free) is now installed.${NC}"
-        else
-            echo -e "${GREEN}Python version ($chosen_python_free) is already installed.${NC}"
-        fi
-        AGI_PYTHON_FREE_THREADED=1
-    fi
+    AGI_PYTHON_FREE_THREADED=0
 
     AGI_PYTHON_VERSION="$chosen_python"
+    AGI_PYTHON_UV_SPEC="$(python_uv_spec_for_version "$AGI_PYTHON_VERSION")"
     export AGI_PYTHON_FREE_THREADED
     export AGI_PYTHON_VERSION
+    export AGI_PYTHON_UV_SPEC
+}
+
+remove_incompatible_project_venv() {
+    local project_dir="$1"
+    local label="${2:-$1}"
+    local venv_dir="$project_dir/.venv"
+    local venv_python="$venv_dir/bin/python"
+    [[ -x "$venv_python" ]] || return 0
+
+    local status
+    status="$("$venv_python" - "$AGI_PYTHON_VERSION" <<'PY' 2>/dev/null || true
+import sys
+
+expected = sys.argv[1]
+expected_parts = expected.split(".")
+current_parts = [str(sys.version_info.major), str(sys.version_info.minor), str(sys.version_info.micro)]
+abi_flags = getattr(sys, "abiflags", "")
+gil_enabled = getattr(sys, "_is_gil_enabled", lambda: True)()
+if "t" in abi_flags or gil_enabled is False:
+    print("freethreaded")
+elif current_parts[: len(expected_parts)] != expected_parts:
+    print("version")
+else:
+    print("ok")
+PY
+)"
+    [[ "$status" == "ok" ]] && return 0
+
+    echo -e "${YELLOW}Removing incompatible virtual environment for ${label}: ${venv_dir} (${status:-unreadable}; expected Python ${AGI_PYTHON_VERSION}).${NC}"
+    rm -rf -- "$venv_dir"
 }
 
 
@@ -1036,6 +1086,7 @@ update_environment() {
         echo "CLUSTER_CREDENTIALS=\"$cluster_credentials\""
         echo "AGI_PYTHON_VERSION=\"$AGI_PYTHON_VERSION\""
         echo "AGI_PYTHON_FREE_THREADED=\"$AGI_PYTHON_FREE_THREADED\""
+        echo "AGI_PYTHON_UV_SPEC=\"${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}\""
         echo "APPS_REPOSITORY=\"$APPS_REPOSITORY\""
         echo "AGI_CLUSTER_SHARE=\"$AGI_CLUSTER_SHARE\""
         echo "AGI_LOCAL_SHARE=\"$AGI_LOCAL_SHARE\""
@@ -1248,7 +1299,7 @@ install_core() {
 run_core_tests() {
     local repo_root="$AGI_INSTALL_PATH"
     local -a failures=()
-    local -a uv_run=(uv --preview-features extra-build-dependencies run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade)
+    local -a uv_run=(uv --preview-features extra-build-dependencies run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --no-sync --preview-features python-upgrade)
 
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${BLUE}RUNNING CORE TEST SUITES${NC}"
@@ -1259,7 +1310,8 @@ run_core_tests() {
     # Ensure the repo root virtual environment is populated before running pytest/coverage.
     # `uv run --no-sync` assumes dependencies are already installed.
     echo -e "${BLUE}Syncing repository environment for core tests...${NC}"
-    $UV sync -p "$AGI_PYTHON_VERSION" --preview-features python-upgrade
+    remove_incompatible_project_venv "$repo_root" "repository root"
+    $UV sync -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --preview-features python-upgrade
 
     if ! "${uv_run[@]}" -m pytest src/agilab/core/agi-env/test --cov=src/agilab/core/agi-env/src/agi_env --cov-report=term-missing --cov-report=xml:coverage-agi-env.xml; then
         failures+=("agi-env tests")
@@ -1296,7 +1348,7 @@ run_root_tests() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
     pushd "$repo_root" > /dev/null
-    if ! $UV run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade -m pytest src/agilab/test --cov=src/agilab --cov-report=term-missing --cov-report=xml:coverage-agilab.xml; then
+    if ! $UV run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --no-sync --preview-features python-upgrade -m pytest src/agilab/test --cov=src/agilab --cov-report=term-missing --cov-report=xml:coverage-agilab.xml; then
         echo -e "${RED}Agilab unit tests failed. Aborting install.${NC}"
         popd > /dev/null
         exit 1
@@ -1333,7 +1385,7 @@ run_repository_tests_with_coverage() {
         has_app_filter=1
         echo -e "${BLUE}App coverage limited to installed set from ${installed_apps_file}.${NC}"
     fi
-    local -a uv_cmd=(uv --preview-features extra-build-dependencies run -p "$AGI_PYTHON_VERSION" --no-sync --preview-features python-upgrade)
+    local -a uv_cmd=(uv --preview-features extra-build-dependencies run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --no-sync --preview-features python-upgrade)
     local extra_pythonpath="${repo_root}/src/agilab/core/agi-env/src:${repo_root}/src/agilab/core/agi-node/src:${repo_root}/src/agilab/core/agi-cluster/src"
     local repo_pythonpath="$repo_root"
     if [[ -n "$extra_pythonpath" ]]; then
@@ -1489,7 +1541,7 @@ install_enduser() {
 install_pycharm_script() {
     rm -f .idea/workspace.xml
     echo -e "${BLUE}Patching PyCharm workspace.xml interpreter settings...${NC}"
-    $UV run -p "$AGI_PYTHON_VERSION" python pycharm/setup_pycharm.py || warn "pycharm/install-apps-script.py failed or not found; continuing."
+    $UV run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" python pycharm/setup_pycharm.py || warn "pycharm/install-apps-script.py failed or not found; continuing."
 }
 
 resolve_cli_path_arg() {
@@ -1714,7 +1766,8 @@ maybe_run_core_tests
 
 echo -e "${BLUE}Installing agilab (repo root)...${NC}"
 pushd "$AGI_INSTALL_PATH" > /dev/null
-$UV sync -p "$AGI_PYTHON_VERSION" --preview-features python-upgrade
+remove_incompatible_project_venv "$AGI_INSTALL_PATH" "repository root"
+$UV sync -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --preview-features python-upgrade
 $UV pip install --upgrade --no-deps \
     -e src/agilab/core/agi-env \
     -e src/agilab/core/agi-node \

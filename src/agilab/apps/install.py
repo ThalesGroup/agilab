@@ -591,7 +591,12 @@ def _workerless_uv_sync_command(env: AgiEnv) -> list[str]:
         "--project",
         str(Path(getattr(env, "active_app", "")).expanduser()),
     ]
-    python_version = str(getattr(env, "python_version", "") or os.environ.get("AGI_PYTHON_VERSION", "")).strip()
+    python_version = str(
+        getattr(env, "python_uv_spec", "")
+        or os.environ.get("AGI_PYTHON_UV_SPEC", "")
+        or getattr(env, "python_version", "")
+        or os.environ.get("AGI_PYTHON_VERSION", "")
+    ).strip()
     if python_version:
         command.extend(["-p", python_version])
     return command

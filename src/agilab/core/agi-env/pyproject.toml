@@ -38,6 +38,7 @@ keywords = [
 
 dependencies = [
     "pathspec>=1.1,<2",
+    "charset-normalizer<3.4.8; python_version >= '3.14' and python_version < '3.15'",
     "psutil>=7,<8",
     "py7zr>=1.1,<1.2",
     "pydantic>=2.11,<2.14",

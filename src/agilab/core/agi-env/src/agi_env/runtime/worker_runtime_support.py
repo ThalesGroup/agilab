@@ -10,6 +10,13 @@ from typing import Any, Callable
 import tomlkit
 
 
+def _default_python_uv_spec(version: str) -> str:
+    version = str(version or "").strip()
+    if version.startswith("3.14") and "+" not in version:
+        return f"{version}+gil"
+    return version
+
+
 def _refresh_worker_paths(env_obj: Any, *, target: str, target_worker: str) -> None:
     env_obj.app_src = env_obj.active_app / "src"
     env_obj.manager_pyproject = env_obj.active_app / "pyproject.toml"
@@ -193,7 +200,11 @@ def _configure_worker_python_runtime(
     env_obj._configure_pythonpath(pythonpath_entries)
 
     env_obj.python_version = envars.get("AGI_PYTHON_VERSION", "3.14")
+    env_obj.python_uv_spec = envars.get("AGI_PYTHON_UV_SPEC") or _default_python_uv_spec(
+        env_obj.python_version
+    )
     env_obj.pyvers_worker = env_obj.python_version
+    env_obj.pyvers_worker_uv_spec = env_obj.python_uv_spec
     requested_free_threading = bool(parse_int_env_value_fn(envars, "AGI_PYTHON_FREE_THREADED", 0))
     env_obj.is_free_threading_available = (
         requested_free_threading and python_supports_free_threading_fn()

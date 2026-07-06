@@ -68,6 +68,20 @@ def _write_editable_direct_url(
     )
 
 
+def _has_worker_core_add_command(
+    commands: list[tuple[str, Path]],
+    wenv_abs: Path,
+    *projects: Path,
+) -> bool:
+    return any(
+        " add " in cmd
+        and "--editable" in cmd
+        and str(wenv_abs) in cmd
+        and all(f'"{project}"' in cmd for project in projects)
+        for cmd, _ in commands
+    )
+
+
 def test_editable_install_cache_path_lives_outside_project_venv(tmp_path):
     cache_path = deployment_local_support._editable_install_cache_path(tmp_path)
 
@@ -1637,12 +1651,13 @@ def test_build_worker_core_add_commands_marks_local_projects_editable(tmp_path):
         [str(env_project), str(node_project)],
         offline_flag="--offline ",
         prefix="PIP_INDEX_URL=https://test.pypi.org/simple; ",
+        python_spec="3.14.6+gil",
     )
 
     assert commands == [
         (
             "PIP_INDEX_URL=https://test.pypi.org/simple; "
-            f'uv --offline --project {wenv} add --editable "{env_project}" "{node_project}"'
+            f'uv --offline --project {wenv} add --python 3.14.6+gil --editable "{env_project}" "{node_project}"'
         )
     ]
 
@@ -3106,15 +3121,13 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     expected_prefix = "../" * relative_levels + "_uv_sources"
     assert pth_content == expected_prefix
     assert agi_cls._install_done_local is True
-    assert any(
-        f'add --editable "{env_project}" "{node_project}"' in cmd
-        and str(wenv_abs) in cmd
-        for cmd, _ in commands
-    )
-    assert not any(
-        f'add --editable "{env_project}" "{node_project}" "{cluster_project}"' in cmd
-        and str(wenv_abs) in cmd
-        for cmd, _ in commands
+    assert _has_worker_core_add_command(commands, wenv_abs, env_project, node_project)
+    assert not _has_worker_core_add_command(
+        commands,
+        wenv_abs,
+        env_project,
+        node_project,
+        cluster_project,
     )
     manager_python = _venv_python(app_path)
     assert not any(
@@ -3393,11 +3406,7 @@ async def test_deploy_local_worker_preserves_existing_dependency_ranges(
     manager_toml = (app_path / "pyproject.toml").read_text(encoding="utf-8")
     assert "scipy>=1.15.2,<1.17" in manager_toml
     assert "scipy==1.16.1" not in manager_toml
-    assert any(
-        f'add --editable "{env_project}" "{node_project}"' in cmd
-        and str(wenv_abs) in cmd
-        for cmd, _ in commands
-    )
+    assert _has_worker_core_add_command(commands, wenv_abs, env_project, node_project)
     assert any("sync --project" in cmd for cmd, _ in commands)
 
 
@@ -3544,11 +3553,7 @@ async def test_deploy_local_worker_infers_repo_root_to_avoid_rewriting_source_ap
     assert "py7zr" in manager_toml
     assert "pip>=1" not in manager_toml
     assert "scipy==1.16.1" not in manager_toml
-    assert any(
-        f'add --editable "{env_project}" "{node_project}"' in cmd
-        and str(wenv_abs) in cmd
-        for cmd, _ in commands
-    )
+    assert _has_worker_core_add_command(commands, wenv_abs, env_project, node_project)
 
 
 @pytest.mark.asyncio
@@ -3668,11 +3673,7 @@ async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
         f'uv --offline --project "{agi_node}" build --wheel' in cmd
         for cmd, _ in commands
     )
-    assert any(
-        f'uv --offline --project {wenv_abs} add --editable "{agi_env}" "{agi_node}"'
-        in cmd
-        for cmd, _ in commands
-    )
+    assert _has_worker_core_add_command(commands, wenv_abs, agi_env, agi_node)
     worker_python = _venv_python(wenv_abs)
     assert any(
         f'uv --offline venv --allow-existing --python 3.13 "{wenv_abs / ".venv"}"'
@@ -4088,11 +4089,7 @@ path = "../sat_trajectory_project"
         f'pip install --python "{manager_python}" --upgrade "{cluster_project}"' in cmd
         for cmd, _ in commands
     )
-    assert any(
-        f'add --editable "{env_project}" "{node_project}"' in cmd
-        and str(wenv_abs) in cmd
-        for cmd, _ in commands
-    )
+    assert _has_worker_core_add_command(commands, wenv_abs, env_project, node_project)
 
 
 @pytest.mark.asyncio

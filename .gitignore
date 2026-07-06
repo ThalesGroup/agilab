@@ -8,6 +8,7 @@ coverage-*.xml
 .DS_store
 
 # Python virtual environments and build artifacts
+.venv
 .venv/
 .venv*/
 dist/

@@ -83,6 +83,7 @@ def _build_worker_core_add_commands(
     *,
     offline_flag: str = "",
     prefix: str = "",
+    python_spec: str | None = None,
 ) -> list[str]:
     editable_specs = []
     normal_specs = []
@@ -92,17 +93,18 @@ def _build_worker_core_add_commands(
         else:
             normal_specs.append(spec)
     commands = []
+    python_arg = f"--python {python_spec} " if python_spec else ""
 
     if editable_specs:
         quoted_specs = " ".join(f'"{spec}"' for spec in editable_specs)
         commands.append(
-            f"{prefix}{uv_worker} {offline_flag}--project {wenv_abs} add --editable {quoted_specs}"
+            f"{prefix}{uv_worker} {offline_flag}--project {wenv_abs} add {python_arg}--editable {quoted_specs}"
         )
 
     if normal_specs:
         quoted_specs = " ".join(f'"{spec}"' for spec in normal_specs)
         commands.append(
-            f"{prefix}{uv_worker} {offline_flag}--project {wenv_abs} add {quoted_specs}"
+            f"{prefix}{uv_worker} {offline_flag}--project {wenv_abs} add {python_arg}{quoted_specs}"
         )
 
     return commands

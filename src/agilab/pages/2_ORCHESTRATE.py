@@ -296,6 +296,7 @@ import_agilab_symbols(
     "agilab.orchestrate_execute",
     {
         "OrchestrateExecuteDeps": "OrchestrateExecuteDeps",
+        "profile_report_disabled_reason_for_python": "profile_report_disabled_reason_for_python",
         "render_execute_section": "render_execute_section",
     },
     current_file=__file__,
@@ -1331,15 +1332,15 @@ async def _install_worker_action(
 @st.cache_data(show_spinner=False)
 def generate_profile_report(df: Any) -> Any:
     env = st.session_state["env"]
-    if env.python_version > "3.12":
-        from ydata_profiling.profile_report import ProfileReport
-
-        return ProfileReport(df, minimal=True)
-    else:
-        st.info(
-            f"Function not available with this version of Python {env.python_version}."
-        )
+    disabled_reason = profile_report_disabled_reason_for_python(
+        getattr(env, "python_version", "")
+    )
+    if disabled_reason:
+        st.info(disabled_reason)
         return None
+    from ydata_profiling.profile_report import ProfileReport
+
+    return ProfileReport(df, minimal=True)
 
 
 # ===========================

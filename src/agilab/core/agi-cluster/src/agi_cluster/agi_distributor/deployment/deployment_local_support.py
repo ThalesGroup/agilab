@@ -127,6 +127,14 @@ def _shell_arg(value: Any) -> str:
     return shlex.quote(str(value))
 
 
+def _worker_python_uv_spec(env: Any, fallback: str | None) -> str | None:
+    return (
+        getattr(env, "pyvers_worker_uv_spec", None)
+        or getattr(env, "python_uv_spec", None)
+        or fallback
+    )
+
+
 def _compose_worker_post_install_tool(local_env_prefix: str, uv_worker: Any) -> str:
     uv_fragment = str(uv_worker or "").strip()
     local_prefix = str(local_env_prefix or "").strip()
@@ -1265,6 +1273,7 @@ async def deploy_local_worker(
 
     uv_worker = resolver_env_prefix + cmd_prefix + env.uv_worker
     pyvers_worker = env.pyvers_worker
+    pyvers_worker_uv_spec = _worker_python_uv_spec(env, pyvers_worker)
 
     worker_extra_indexes = ""
     if (
@@ -1382,6 +1391,7 @@ async def deploy_local_worker(
             worker_core_add_specs,
             offline_flag=offline_flag,
             prefix=worker_extra_indexes,
+            python_spec=pyvers_worker_uv_spec,
         )
         for index, cmd_worker in enumerate(worker_core_add_commands):
             stage_name = f"worker-core-add-{index}"
@@ -1446,13 +1456,13 @@ async def deploy_local_worker(
         )
     if hw_rapids_capable:
         cmd_worker = (
-            f"{worker_extra_indexes}{uv_worker} {offline_flag}{run_type} --python {pyvers_worker} "
+            f"{worker_extra_indexes}{uv_worker} {offline_flag}{run_type} --python {pyvers_worker_uv_spec} "
             f'--config-file uv_config.toml --project "{wenv_abs}"'
         )
     else:
         cmd_worker = (
             f"{worker_extra_indexes}{uv_worker} {offline_flag}{run_type} {options_worker} "
-            f'--python {pyvers_worker} --project "{wenv_abs}"'
+            f'--python {pyvers_worker_uv_spec} --project "{wenv_abs}"'
         )
 
     if env.verbose > 0:
@@ -1699,7 +1709,7 @@ async def deploy_local_worker(
             post_install_sync_args,
             _worker_post_install_run_overlay_args(env),
             f"--project {_shell_arg(wenv_abs)}",
-            f"--python {_shell_arg(pyvers_worker)}",
+            f"--python {_shell_arg(pyvers_worker_uv_spec)}",
             "python",
             "-m",
             _shell_arg(env.post_install_rel),
