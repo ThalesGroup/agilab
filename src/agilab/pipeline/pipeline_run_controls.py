@@ -1482,6 +1482,9 @@ def _acquire_pipeline_run_lock(
         "created_at": now,
         "heartbeat_at": now,
     }
+    log_file_path = str(st.session_state.get(f"{index_page}__run_log_file") or "")
+    if log_file_path:
+        payload["log_file_path"] = log_file_path
 
     if force and not _clear_pipeline_run_lock(
         env,
