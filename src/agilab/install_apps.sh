@@ -520,6 +520,7 @@ page_sync_fingerprint() {
   local page_dir="$1"
   local rel file
   printf 'python=%s\n' "${AGI_PYTHON_VERSION:-}"
+  printf 'python-sync-spec=%s\n' "$(page_sync_python_spec "$page_dir")"
   for rel in pyproject.toml uv.lock uv.toml; do
     file="$page_dir/$rel"
     if [[ -f "$file" ]]; then
@@ -529,6 +530,52 @@ page_sync_fingerprint() {
       printf '%s:missing\n' "$rel"
     fi
   done
+}
+
+page_sync_python_spec() {
+  local page_dir="$1"
+  local pyproject="$page_dir/pyproject.toml"
+  local requires_python=""
+  local selected_major="" selected_minor=""
+  local exact_re='==[[:space:]]*([0-9]+)\.([0-9]+)'
+  local upper_re='<[[:space:]]*([0-9]+)\.([0-9]+)'
+
+  if [[ -f "$pyproject" ]]; then
+    requires_python="$(
+      sed -n -E 's/^[[:space:]]*requires-python[[:space:]]*=[[:space:]]*"([^"]*)".*/\1/p' "$pyproject" | head -n 1
+    )"
+  fi
+
+  if [[ "${AGI_PYTHON_VERSION:-}" =~ ^([0-9]+)\.([0-9]+) ]]; then
+    selected_major="${BASH_REMATCH[1]}"
+    selected_minor="${BASH_REMATCH[2]}"
+  fi
+
+  if [[ -n "$requires_python" && "$requires_python" =~ $exact_re ]]; then
+    local exact_major="${BASH_REMATCH[1]}"
+    local exact_minor="${BASH_REMATCH[2]}"
+    if [[ -n "$selected_major" && "${exact_major}.${exact_minor}" != "${selected_major}.${selected_minor}" ]]; then
+      printf '%s.%s\n' "$exact_major" "$exact_minor"
+      return 0
+    fi
+  fi
+
+  if [[ -n "$requires_python" && "$requires_python" =~ $upper_re ]]; then
+    if [[ -n "$selected_major" ]]; then
+      local upper_major="${BASH_REMATCH[1]}"
+      local upper_minor="${BASH_REMATCH[2]}"
+      if (( selected_major > upper_major || (selected_major == upper_major && selected_minor >= upper_minor) )); then
+        if (( upper_minor > 0 )); then
+          printf '%s.%s\n' "$upper_major" "$((upper_minor - 1))"
+        elif (( upper_major > 0 )); then
+          printf '%s\n' "$((upper_major - 1))"
+        fi
+        return 0
+      fi
+    fi
+  fi
+
+  printf '%s\n' "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}"
 }
 
 page_sync_is_fresh() {
@@ -1332,7 +1379,12 @@ for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
     if page_sync_is_fresh "$page_dir"; then
         echo -e "${GREEN}✓ '$page' page environment already up to date.${NC}"
     else
-        if ${UV_PREVIEW[@]} sync -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --project . --preview-features python-upgrade; then
+        page_python_spec="$(page_sync_python_spec "$page_dir")"
+        page_python_args=()
+        if [[ -n "$page_python_spec" ]]; then
+            page_python_args=(-p "$page_python_spec")
+        fi
+        if ${UV_PREVIEW[@]} sync "${page_python_args[@]}" --project . --preview-features python-upgrade; then
             write_page_sync_stamp "$page_dir"
         else
             status=$?

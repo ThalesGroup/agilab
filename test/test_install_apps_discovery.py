@@ -222,6 +222,11 @@ printf 'PROMPT_FOR_APPS=%s\n' "$PROMPT_FOR_APPS"
 
 def _run_normalize_agi_python_version(raw: str, *, free_threaded: str = "0") -> subprocess.CompletedProcess[str]:
     script_text = INSTALL_APPS_SH.read_text(encoding="utf-8")
+    python_uv_spec_body = _extract_function(
+        script_text,
+        "python_uv_spec_for_version",
+        "normalize_agi_python_version",
+    )
     function_body = _extract_function(
         script_text,
         "normalize_agi_python_version",
@@ -232,6 +237,7 @@ set -euo pipefail
 RED=""
 NC=""
 AGI_PYTHON_FREE_THREADED="$2"
+{python_uv_spec_body}
 {function_body}
 normalize_agi_python_version "$1"
 """
@@ -241,6 +247,42 @@ normalize_agi_python_version "$1"
         capture_output=True,
         text=True,
     )
+
+
+def _run_page_sync_python_spec(
+    page_dir: Path,
+    *,
+    agi_python_version: str = "3.14.6",
+    agi_python_uv_spec: str = "3.14.6+gil",
+) -> str:
+    script_text = INSTALL_APPS_SH.read_text(encoding="utf-8")
+    function_body = _extract_function(
+        script_text,
+        "page_sync_python_spec",
+        "page_sync_is_fresh",
+    )
+    bash_script = f"""#!/usr/bin/env bash
+set -euo pipefail
+AGI_PYTHON_VERSION="$2"
+AGI_PYTHON_UV_SPEC="$3"
+{function_body}
+page_sync_python_spec "$1"
+"""
+    completed = subprocess.run(
+        [
+            "bash",
+            "-c",
+            bash_script,
+            "page_sync_python_spec_test",
+            str(page_dir),
+            agi_python_version,
+            agi_python_uv_spec,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.strip()
 
 
 def test_page_discovery_keeps_only_installable_entrypoint_projects(tmp_path: Path) -> None:
@@ -253,6 +295,34 @@ def test_page_discovery_keeps_only_installable_entrypoint_projects(tmp_path: Pat
     (pages_root / "view_notes").mkdir(parents=True)
 
     assert _run_discover_page_projects(pages_root) == ["view_demo"]
+
+
+@pytest.mark.parametrize(
+    ("requires_python", "expected"),
+    [
+        (">=3.11", "3.14.6+gil"),
+        ("==3.14.*", "3.14.6+gil"),
+        ("==3.12.*", "3.12"),
+        (">=3.11,<3.14", "3.13"),
+    ],
+)
+def test_page_sync_python_spec_respects_page_python_requirements(
+    tmp_path: Path,
+    requires_python: str,
+    expected: str,
+) -> None:
+    page_dir = tmp_path / "view_demo"
+    _write_page_project(page_dir)
+    pyproject = page_dir / "pyproject.toml"
+    pyproject.write_text(
+        pyproject.read_text(encoding="utf-8").replace(
+            'requires-python = ">=3.11"',
+            f'requires-python = "{requires_python}"',
+        ),
+        encoding="utf-8",
+    )
+
+    assert _run_page_sync_python_spec(page_dir) == expected
 
 
 def test_app_discovery_accepts_declared_workerless_projects(tmp_path: Path) -> None:

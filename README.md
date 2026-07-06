@@ -278,6 +278,12 @@ but the ORCHESTRATE dataframe `STATS report` action is disabled on Python 3.14
 because the optional `ydata-profiling` stack currently depends on `numba`, which
 supports Python `<3.14`. Use Python 3.13 when that profiling report is required:
 
+When `AGI_PYTHON_VERSION` resolves to Python 3.14, AGILAB passes a `+gil` uv
+selector internally so app managers, workers, and broadly compatible page bundles
+avoid CPython 3.14 freethreaded builds. Page bundles with stricter
+`requires-python` metadata, such as `==3.12.*`, receive a compatible selector
+such as `3.12` instead of being forced onto the global 3.14 runtime.
+
 ```bash
 AGI_PYTHON_VERSION=3.13.14 APPS_REPO="/path/to/private-or-external-apps-repo" ./install_private_apps_and_run.sh
 ```

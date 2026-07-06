@@ -390,6 +390,12 @@ For an external apps repository available on your machine::
       --test-apps \
       --test-core
 
+When ``AGI_PYTHON_VERSION`` resolves to Python 3.14, the source installer uses
+the matching uv ``+gil`` selector for app managers, workers, and page bundles
+whose ``requires-python`` range accepts that runtime. Page bundles that pin or
+cap Python differently, for example ``==3.12.*``, receive a compatible selector
+such as ``3.12`` instead of being forced onto the global runtime.
+
 For a trusted app project published as a PyPI ``agi-app-*`` package, use either
 the web UI or the packaged CLI. In the UI, open ``PROJECT``, expand
 ``agi-app from PyPI``, choose a promoted catalog ``agi-app`` or enter an exact
