@@ -189,6 +189,37 @@ validate_apps_repository_policy "$1"
     )
 
 
+def _run_install_apps_selection_from_cli(raw: str) -> dict[str, str]:
+    script_text = INSTALL_APPS_SH.read_text(encoding="utf-8")
+    function_body = _extract_function(
+        script_text,
+        "set_install_apps_selection_from_cli",
+        "is_truthy",
+    )
+    bash_script = f"""#!/usr/bin/env bash
+set -euo pipefail
+ALL_APPS_SENTINEL="__AGILAB_ALL_APPS__"
+BUILTIN_ONLY_SENTINEL="__AGILAB_BUILTIN_APPS__"
+BUILTIN_APPS_FROM_ENV="initial"
+PROMPT_FOR_APPS=1
+{function_body}
+set_install_apps_selection_from_cli "$1"
+printf 'BUILTIN_APPS_FROM_ENV=%s\n' "$BUILTIN_APPS_FROM_ENV"
+printf 'PROMPT_FOR_APPS=%s\n' "$PROMPT_FOR_APPS"
+"""
+    completed = subprocess.run(
+        ["bash", "-c", bash_script, "install_apps_selection_test", raw],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    result: dict[str, str] = {}
+    for line in completed.stdout.splitlines():
+        key, value = line.split("=", 1)
+        result[key] = value
+    return result
+
+
 def test_page_discovery_keeps_only_installable_entrypoint_projects(tmp_path: Path) -> None:
     pages_root = tmp_path / "apps-pages"
     _write_page_project(pages_root / "view_demo")
@@ -298,3 +329,33 @@ def test_validate_apps_repository_policy_requires_allowlist_in_strict_mode(tmp_p
 
     assert result.returncode == 1
     assert "AGILAB_APPS_REPOSITORY_ALLOWLIST" in result.stderr
+
+
+def test_install_apps_preserves_caller_apps_repository_over_env_file() -> None:
+    text = INSTALL_APPS_SH.read_text(encoding="utf-8")
+
+    snapshot = text.index("CALLER_APPS_REPOSITORY_SET=0")
+    source_env = text.index('source "$HOME/.local/share/agilab/.env"')
+    restore = text.index('APPS_REPOSITORY="$CALLER_APPS_REPOSITORY"')
+
+    assert snapshot < source_env < restore
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected_value", "expected_prompt"),
+    [
+        ("all", "__AGILAB_ALL_APPS__", "0"),
+        ("builtin", "__AGILAB_BUILTIN_APPS__", "0"),
+        ("select", "", "1"),
+        ("flight_trajectory_project,ilp_project", "flight_trajectory_project,ilp_project", "0"),
+    ],
+)
+def test_install_apps_cli_selection_normalization(
+    raw: str,
+    expected_value: str,
+    expected_prompt: str,
+) -> None:
+    result = _run_install_apps_selection_from_cli(raw)
+
+    assert result["BUILTIN_APPS_FROM_ENV"] == expected_value
+    assert result["PROMPT_FOR_APPS"] == expected_prompt

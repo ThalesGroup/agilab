@@ -1073,6 +1073,35 @@ def test_dependency_module_and_pth_import_roots_cover_edge_branches(monkeypatch,
     assert deployment_local_support._pth_import_roots(site_packages) == ()
 
 
+def test_worker_post_install_sync_args_only_skips_when_modules_are_ready(tmp_path):
+    worker_project = tmp_path / "worker"
+    _write_venv_python(worker_project, python_version="3.13.14")
+    site_packages = deployment_local_support._project_site_packages_dir(
+        worker_project,
+        python_version="3.13.14",
+    )
+    site_packages.mkdir(parents=True, exist_ok=True)
+
+    assert (
+        deployment_local_support._worker_post_install_run_sync_args(
+            worker_project,
+            ("geopy",),
+            python_version="3.13.14",
+        )
+        == ""
+    )
+
+    (site_packages / "geopy").mkdir()
+    assert (
+        deployment_local_support._worker_post_install_run_sync_args(
+            worker_project,
+            ("geopy",),
+            python_version="3.13.14",
+        )
+        == "--no-sync"
+    )
+
+
 def test_editable_install_support_edge_cases(tmp_path):
     cache_path = tmp_path / "editable-cache.json"
     assert deployment_editable_install_support._load_editable_install_cache(cache_path) == {
@@ -2125,6 +2154,28 @@ def test_compose_worker_post_install_tool_keeps_export_prefix_separate():
         "AGI_CLUSTER_ENABLED=0 UV_INDEX_URL=https://mirror.example/simple uv --quiet"
     )
     assert "export 'PATH=" not in command
+
+
+def test_worker_post_install_run_overlay_args_empty_for_packaged_install():
+    assert (
+        deployment_local_support._worker_post_install_run_overlay_args(
+            SimpleNamespace(is_source_env=False, agi_env="/src/agi-env", agi_node="/src/agi-node")
+        )
+        == ""
+    )
+
+
+def test_worker_post_install_run_overlay_args_adds_source_core_editables():
+    command = deployment_local_support._worker_post_install_run_overlay_args(
+        SimpleNamespace(
+            is_source_env=True,
+            agi_env=Path("/repo/src/agilab/core/agi-env"),
+            agi_node=Path("/repo/src/agilab/core/agi-node"),
+        )
+    )
+
+    assert "--with-editable /repo/src/agilab/core/agi-env" in command
+    assert "--with-editable /repo/src/agilab/core/agi-node" in command
 
 
 def test_infer_repo_root_from_runtime_returns_none_for_short_path():

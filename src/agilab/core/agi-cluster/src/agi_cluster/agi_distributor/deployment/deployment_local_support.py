@@ -144,6 +144,36 @@ def _compose_worker_post_install_tool(local_env_prefix: str, uv_worker: Any) -> 
     return " ".join(part for part in (local_prefix, uv_fragment) if part)
 
 
+def _worker_post_install_run_overlay_args(env: Any) -> str:
+    if not getattr(env, "is_source_env", False):
+        return ""
+    args: list[str] = []
+    for source_path in (
+        getattr(env, "agi_env", None),
+        getattr(env, "agi_node", None),
+    ):
+        if source_path:
+            args.append(f"--with-editable {_shell_arg(source_path)}")
+    return " ".join(args)
+
+
+def _worker_post_install_run_sync_args(
+    worker_venv_project: Path,
+    modules: tuple[str, ...],
+    *,
+    python_version: str | None = None,
+) -> str:
+    if _project_venv_matches(worker_venv_project, python_version=python_version) and (
+        _project_venv_has_modules(
+            worker_venv_project,
+            modules,
+            python_version=python_version,
+        )
+    ):
+        return "--no-sync"
+    return ""
+
+
 def _force_remove(
     path: Path, *, env_logger: Any | None = None, os_name: str = os.name
 ) -> None:
@@ -1652,10 +1682,30 @@ async def deploy_local_worker(
         _local_worker_post_install_env_prefix(agi_cls),
         uv_worker,
     )
-    post_install_cmd = (
-        f"{post_install_tool} run --no-sync --project {_shell_arg(wenv_abs)} "
-        f"--python {_shell_arg(pyvers_worker)} python -m {_shell_arg(env.post_install_rel)} "
-        f"{_shell_arg(env.active_app)}"
+    post_install_sync_args = _worker_post_install_run_sync_args(
+        worker_venv_project,
+        worker_probe_modules(),
+        python_version=pyvers_worker,
+    )
+    if not post_install_sync_args and env.verbose > 0:
+        log.info(
+            "Worker post-install will allow uv sync because the worker venv "
+            "is missing required probe modules."
+        )
+    post_install_cmd = " ".join(
+        part
+        for part in (
+            f"{post_install_tool} run",
+            post_install_sync_args,
+            _worker_post_install_run_overlay_args(env),
+            f"--project {_shell_arg(wenv_abs)}",
+            f"--python {_shell_arg(pyvers_worker)}",
+            "python",
+            "-m",
+            _shell_arg(env.post_install_rel),
+            _shell_arg(env.active_app),
+        )
+        if part
     )
 
     started_at = time.perf_counter()
