@@ -609,11 +609,19 @@ agilab first-proof --json --max-seconds 60
 ## App Repository Updates
 
 When `APPS_REPOSITORY` points at an external apps repository, rerun the
-installer after app changes:
+app-only installer after app changes:
 
 ```bash
-./install.sh --non-interactive --apps-repository /path/to/apps-repository --install-apps all
+./install_apps.sh --apps-repository /path/to/apps-repository --install-apps all
+./install_apps.sh --apps-repository /path/to/apps-repository --install-apps app_a_project,app_b_project
 ```
+
+`--install-apps all` installs all discoverable apps, `--install-apps builtin`
+limits the install to bundled public apps, and a comma-separated value installs
+only the named apps. The wrapper delegates to the active source checkout's
+existing `src/agilab/install_apps.sh` implementation, so use root
+`./install.sh` only when you also need root installer side effects such as
+environment setup, dataset seeding, or install-time root/core tests.
 
 During an update, the apps repository is treated as the source of truth. If the
 target app/page already exists as a real directory instead of a symlink, AGILAB
