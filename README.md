@@ -232,6 +232,39 @@ uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui
 agilab
 ```
 
+### Source Checkout With External Apps
+
+When running AGILAB from a source checkout, `--install-apps` installs the
+bundled public apps by default. To install apps from a separate private or
+external apps repository, pass that repository root explicitly. The repository
+root should contain `apps/` and/or `apps-pages/`.
+
+For a new source checkout:
+
+```bash
+CHECKOUT="${AGILAB_CHECKOUT:-$HOME/agilab-src}"
+APPS_REPO="/path/to/private-or-external-apps-repo"
+
+git clone https://github.com/ThalesGroup/agilab.git "$CHECKOUT"
+cd "$CHECKOUT"
+./install.sh --apps-repository "$APPS_REPO" --install-apps all
+uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
+```
+
+To add those apps after AGILAB is already installed, rerun only the app
+installer:
+
+```bash
+CHECKOUT="${AGILAB_CHECKOUT:-$HOME/agilab-src}"
+APPS_REPO="/path/to/private-or-external-apps-repo"
+
+cd "$CHECKOUT/src/agilab"
+APPS_REPOSITORY="$APPS_REPO" \
+AGILAB_DEV_APPS_REPOSITORY=1 \
+BUILTIN_APPS=__AGILAB_ALL_APPS__ \
+./install_apps.sh
+```
+
 For a zero-install browser preview, open the public
 [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab). It opens the
 lightweight `flight_telemetry_project` path by default and exposes the

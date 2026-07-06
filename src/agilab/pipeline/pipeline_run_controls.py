@@ -1643,7 +1643,7 @@ def run_all_stages(
     pipeline_max_workers: int = 1,
     pipeline_stage_deps: Mapping[str, List[str]] | None = None,
 ) -> None:
-    """Execute all stages sequentially, honouring per-stage virtual environments."""
+    """Execute selected stages with dependency-aware waves and per-stage virtual environments."""
     if log_placeholder is None:
         log_placeholder = _get_run_placeholder(index_page_str)
     pipeline_profile = _normalize_pipeline_profile(pipeline_profile)
