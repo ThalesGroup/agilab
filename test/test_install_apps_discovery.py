@@ -220,6 +220,29 @@ printf 'PROMPT_FOR_APPS=%s\n' "$PROMPT_FOR_APPS"
     return result
 
 
+def _run_normalize_agi_python_version(raw: str, *, free_threaded: str = "0") -> subprocess.CompletedProcess[str]:
+    script_text = INSTALL_APPS_SH.read_text(encoding="utf-8")
+    function_body = _extract_function(
+        script_text,
+        "normalize_agi_python_version",
+        "configure_uv_link_mode",
+    )
+    bash_script = f"""#!/usr/bin/env bash
+set -euo pipefail
+RED=""
+NC=""
+AGI_PYTHON_FREE_THREADED="$2"
+{function_body}
+normalize_agi_python_version "$1"
+"""
+    return subprocess.run(
+        ["bash", "-c", bash_script, "normalize_agi_python_version_test", raw, free_threaded],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
 def test_page_discovery_keeps_only_installable_entrypoint_projects(tmp_path: Path) -> None:
     pages_root = tmp_path / "apps-pages"
     _write_page_project(pages_root / "view_demo")
@@ -359,3 +382,40 @@ def test_install_apps_cli_selection_normalization(
 
     assert result["BUILTIN_APPS_FROM_ENV"] == expected_value
     assert result["PROMPT_FOR_APPS"] == expected_prompt
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("3.14", "3.14"),
+        ("3.14.6-macos-aarch64-none", "3.14.6"),
+        ("cpython-3.13.14-macos-aarch64-none", "3.13.14"),
+        ("/opt/homebrew/bin/python3.14", "3.14"),
+    ],
+)
+def test_install_apps_python_version_normalization_accepts_standard_interpreters(
+    raw: str,
+    expected: str,
+) -> None:
+    result = _run_normalize_agi_python_version(raw)
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == expected
+
+
+@pytest.mark.parametrize(
+    ("raw", "free_threaded"),
+    [
+        ("3.14.6+freethreaded-macos-aarch64-none", "0"),
+        ("/Users/agi/.local/bin/python3.14t", "0"),
+        ("3.14.6", "1"),
+    ],
+)
+def test_install_apps_python_version_normalization_rejects_freethreaded_interpreters(
+    raw: str,
+    free_threaded: str,
+) -> None:
+    result = _run_normalize_agi_python_version(raw, free_threaded=free_threaded)
+
+    assert result.returncode == 1
+    assert "standard GIL Python interpreter" in result.stderr

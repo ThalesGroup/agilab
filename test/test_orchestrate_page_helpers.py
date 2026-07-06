@@ -266,6 +266,24 @@ def test_orchestrate_page_raises_mixed_checkout_error(monkeypatch, tmp_path):
         _load_orchestrate_module_with_mixed_checkout(monkeypatch, stale_root)
 
 
+def test_orchestrate_stats_report_is_disabled_on_unsupported_python_versions():
+    module = _load_orchestrate_module()
+
+    assert module.profile_report_disabled_reason_for_python("3.13.14") == ""
+    assert "requires Python 3.13" in module.profile_report_disabled_reason_for_python(
+        "3.12.11"
+    )
+    assert "disabled on Python 3.14" in module.profile_report_disabled_reason_for_python(
+        "3.14.6"
+    )
+
+    execute_source = Path("src/agilab/orchestrate/orchestrate_execute.py").read_text(
+        encoding="utf-8"
+    )
+    assert "stats_button_enabled" in execute_source
+    assert "disabled=not stats_button_enabled" in execute_source
+
+
 def test_page_helpers_delegate_scheduler_worker_and_safe_eval(monkeypatch):
     module = _load_orchestrate_page_helpers_module()
     captured = {}

@@ -135,6 +135,45 @@ START_TIME=$(date +%s)
 
 UV_PREVIEW=(uv --preview-features extra-build-dependencies)
 
+normalize_agi_python_version() {
+  local raw="${1:-3.14}"
+  raw="$(printf '%s' "$raw" | sed -E 's/^[[:space:]]+//;s/[[:space:]]+$//')"
+  [[ -n "$raw" ]] || raw="3.14"
+
+  case "${AGI_PYTHON_FREE_THREADED:-0}" in
+    1|true|TRUE|yes|YES|on|ON)
+      echo -e "${RED}Unsupported AGI_PYTHON_VERSION '${raw}': install_apps.sh requires a standard GIL Python interpreter. Freethreaded Python can force native dependency builds for binary-heavy packages such as Polars. Re-run with AGI_PYTHON_VERSION=3.14.6 or AGI_PYTHON_VERSION=3.13.14.${NC}" >&2
+      return 1
+      ;;
+  esac
+
+  if [[ "$raw" == *freethreaded* \
+     || "$raw" =~ (^|[^[:alnum:]])python3\.[0-9]+t([^[:alnum:]]|$) \
+     || "$raw" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) ]]; then
+    echo -e "${RED}Unsupported AGI_PYTHON_VERSION '${raw}': install_apps.sh requires a standard GIL Python interpreter. Freethreaded Python can force native dependency builds for binary-heavy packages such as Polars. Re-run with AGI_PYTHON_VERSION=3.14.6 or AGI_PYTHON_VERSION=3.13.14.${NC}" >&2
+    return 1
+  fi
+
+  local normalized=""
+  if [[ "$raw" =~ ^([0-9]+\.[0-9]+(\.[0-9]+)?)([^0-9].*)?$ ]]; then
+    normalized="${BASH_REMATCH[1]}"
+  elif [[ "$raw" =~ cpython-([0-9]+\.[0-9]+(\.[0-9]+)?)([^0-9].*)?$ ]]; then
+    normalized="${BASH_REMATCH[1]}"
+  elif [[ "$raw" =~ python([0-9]+\.[0-9]+(\.[0-9]+)?)([^0-9].*)?$ ]]; then
+    normalized="${BASH_REMATCH[1]}"
+  else
+    echo -e "${RED}Invalid AGI_PYTHON_VERSION '${raw}'. Expected versions like 3.14, 3.14.6, or 3.13.14.${NC}" >&2
+    return 1
+  fi
+
+  printf '%s\n' "$normalized"
+}
+
+if ! AGI_PYTHON_VERSION="$(normalize_agi_python_version "${AGI_PYTHON_VERSION:-3.14}")"; then
+  exit 1
+fi
+export AGI_PYTHON_VERSION
+
 configure_uv_link_mode() {
   local requested="${AGILAB_UV_LINK_MODE:-${UV_LINK_MODE:-hardlink}}"
   case "$requested" in
@@ -158,7 +197,6 @@ export AGILAB_SHARED_WORKER_VENV="${AGILAB_SHARED_WORKER_VENV:-1}"
 BUILTIN_PAGES_FROM_ENV="${BUILTIN_PAGES-}"
 BUILTIN_APPS_FROM_ENV="${BUILTIN_APPS_ENV-}"
 
-AGI_PYTHON_VERSION=$(echo "${AGI_PYTHON_VERSION:-}" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
 AGILAB_REPO="$(cat "$HOME/.local/share/agilab/.agilab-path")"
 VENV_LINK_REPORT="${AGILAB_VENV_LINK_REPORT:-$HOME/.local/share/agilab/venv_link_report.json}"
 APPS_REPOSITORY="${APPS_REPOSITORY:-}"

@@ -317,7 +317,7 @@ dev = [
     "simpy>=4.1,<5",
     "twine",
     "wheel",
-    "ydata-profiling",
+    "ydata-profiling; python_version < '3.14'",
     "genbadge[coverage]",
     "pypi-cleanup",
 ]

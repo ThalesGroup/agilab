@@ -251,6 +251,14 @@ cd "$CHECKOUT"
 uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
 ```
 
+For repeat source-checkout installs, the repository also provides a wrapper that
+keeps the Python interpreter selection explicit, refreshes generated worker
+environments, installs the external apps repository, and then starts Streamlit:
+
+```bash
+APPS_REPO="/path/to/private-or-external-apps-repo" ./install_private_apps_and_run.sh
+```
+
 To add those apps after AGILAB is already installed, rerun only the app
 installer:
 
@@ -263,6 +271,15 @@ APPS_REPOSITORY="$APPS_REPO" \
 AGILAB_DEV_APPS_REPOSITORY=1 \
 BUILTIN_APPS=__AGILAB_ALL_APPS__ \
 ./install_apps.sh
+```
+
+Python 3.14 is supported for the main source install and worker runtime paths,
+but the ORCHESTRATE dataframe `STATS report` action is disabled on Python 3.14
+because the optional `ydata-profiling` stack currently depends on `numba`, which
+supports Python `<3.14`. Use Python 3.13 when that profiling report is required:
+
+```bash
+AGI_PYTHON_VERSION=3.13.14 APPS_REPO="/path/to/private-or-external-apps-repo" ./install_private_apps_and_run.sh
 ```
 
 For a zero-install browser preview, open the public

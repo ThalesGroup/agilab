@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import stat
 import importlib
@@ -76,6 +77,31 @@ def _require_matplotlib(import_module_fn=importlib.import_module):
         _MATPLOTLIB_IMPORT_ERROR = exc
         raise RuntimeError(_matplotlib_unavailable_message()) from exc
     return plt
+
+
+def _major_minor_python_version(python_version: Any) -> tuple[int, int] | None:
+    match = re.match(r"\s*(\d+)\.(\d+)", str(python_version or ""))
+    if not match:
+        return None
+    return int(match.group(1)), int(match.group(2))
+
+
+def profile_report_disabled_reason_for_python(python_version: Any) -> str:
+    version = _major_minor_python_version(python_version)
+    if version is None:
+        return ""
+    if version < (3, 13):
+        return (
+            f"Stats report requires Python 3.13 with ydata-profiling; "
+            f"current Python is {python_version}."
+        )
+    if version >= (3, 14):
+        return (
+            "Stats report is disabled on Python 3.14 because ydata-profiling "
+            "depends on numba, which currently supports Python <3.14. "
+            "Use Python 3.13 for this report."
+        )
+    return ""
 
 
 def _is_networkx_graph(value: object) -> bool:
@@ -1426,6 +1452,17 @@ async def render_execute_section(
                 key="input_df_export_file_main",
             )
             st.session_state.df_export_file = export_file_input.strip()
+            profile_disabled_reason = profile_report_disabled_reason_for_python(
+                getattr(env, "python_version", "")
+            )
+            stats_button_enabled = (
+                artifact_state.stats_action.enabled and not profile_disabled_reason
+            )
+            stats_button_help = (
+                artifact_state.stats_action.disabled_reason
+                or profile_disabled_reason
+                or "Generate a dataframe statistics report."
+            )
 
             action_col_stats, action_col_export = st.columns([1, 1])
             with action_col_stats:
@@ -1433,8 +1470,9 @@ async def render_execute_section(
                     ORCHESTRATE_ACTION_LABELS["stats_report"],
                     key="stats_report_main",
                     type="primary",
-                    disabled=not artifact_state.stats_action.enabled,
+                    disabled=not stats_button_enabled,
                     width="stretch",
+                    help=stats_button_help,
                 )
             with action_col_export:
                 export_clicked_manual = st.button(

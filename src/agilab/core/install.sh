@@ -12,8 +12,36 @@ CORE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 #source "$HOME/.local/bin/env"
 source "$HOME/.local/share/agilab/.env"
-AGI_PYTHON_VERSION=$(echo "$AGI_PYTHON_VERSION" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
+normalize_agi_python_version() {
+    local raw="${1:-3.14}"
+    raw="$(printf '%s' "$raw" | sed -E 's/^[[:space:]]+//;s/[[:space:]]+$//')"
+    [[ -n "$raw" ]] || raw="3.14"
+
+    if [[ "$raw" == *freethreaded* \
+       || "$raw" =~ (^|[^[:alnum:]])python3\.[0-9]+t([^[:alnum:]]|$) \
+       || "$raw" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) ]]; then
+        echo "Unsupported AGI_PYTHON_VERSION '${raw}': AGILAB core installs require a standard GIL Python interpreter." >&2
+        return 1
+    fi
+
+    if [[ "$raw" =~ ^([0-9]+\.[0-9]+(\.[0-9]+)?)([^0-9].*)?$ ]]; then
+        printf '%s\n' "${BASH_REMATCH[1]}"
+    elif [[ "$raw" =~ cpython-([0-9]+\.[0-9]+(\.[0-9]+)?)([^0-9].*)?$ ]]; then
+        printf '%s\n' "${BASH_REMATCH[1]}"
+    elif [[ "$raw" =~ python([0-9]+\.[0-9]+(\.[0-9]+)?)([^0-9].*)?$ ]]; then
+        printf '%s\n' "${BASH_REMATCH[1]}"
+    else
+        echo "Invalid AGI_PYTHON_VERSION '${raw}'. Expected versions like 3.14, 3.14.6, or 3.13.14." >&2
+        return 1
+    fi
+}
+
+if ! AGI_PYTHON_VERSION="$(normalize_agi_python_version "$AGI_PYTHON_VERSION")"; then
+    exit 1
+fi
+AGI_PYTHON_FREE_THREADED=0
 export AGI_PYTHON_VERSION
+export AGI_PYTHON_FREE_THREADED
 
 BLUE='\033[1;34m'
 GREEN='\033[1;32m'
@@ -105,6 +133,36 @@ ensure_pip_if_missing() {
     ${UV_PREVIEW[@]} run -p "$AGI_PYTHON_VERSION" python -m ensurepip
 }
 
+remove_incompatible_project_venv() {
+    local project_dir="$1"
+    local label="${2:-$1}"
+    local venv_dir="$project_dir/.venv"
+    local venv_python="$venv_dir/bin/python"
+    [[ -x "$venv_python" ]] || return 0
+
+    local status
+    status="$("$venv_python" - "$AGI_PYTHON_VERSION" <<'PY' 2>/dev/null || true
+import sys
+
+expected = sys.argv[1]
+expected_parts = expected.split(".")
+current_parts = [str(sys.version_info.major), str(sys.version_info.minor), str(sys.version_info.micro)]
+abi_flags = getattr(sys, "abiflags", "")
+gil_enabled = getattr(sys, "_is_gil_enabled", lambda: True)()
+if "t" in abi_flags or gil_enabled is False:
+    print("freethreaded")
+elif current_parts[: len(expected_parts)] != expected_parts:
+    print("version")
+else:
+    print("ok")
+PY
+)"
+    [[ "$status" == "ok" ]] && return 0
+
+    echo -e "${YELLOW}Removing incompatible virtual environment for ${label}: ${venv_dir} (${status:-unreadable}; expected Python ${AGI_PYTHON_VERSION}).${NC}"
+    rm -rf -- "$venv_dir"
+}
+
 # Function to prompt user about test failures
 prompt_for_continuation() {
     if [ ${#FAILED_TEST_SUITES[@]} -eq 0 ]; then
@@ -150,6 +208,7 @@ prompt_for_continuation() {
 echo -e "${BLUE}Installing agi-env...${NC}"
 pushd "$CORE_DIR/agi-env" > /dev/null
 echo "${UV_PREVIEW[*]} sync -p $AGI_PYTHON_VERSION --dev"
+remove_incompatible_project_venv "$PWD" "agi-env"
 ${UV_PREVIEW[@]} sync -p "$AGI_PYTHON_VERSION" --dev
 ensure_pip_if_missing
 ${UV_PREVIEW[@]} pip install --upgrade --no-deps -e .
@@ -158,6 +217,7 @@ popd > /dev/null
 echo -e "${BLUE}Installing agi-node...${NC}"
 pushd "$CORE_DIR/agi-node" > /dev/null
 echo "${UV_PREVIEW[*]} sync -p $AGI_PYTHON_VERSION --dev"
+remove_incompatible_project_venv "$PWD" "agi-node"
 ${UV_PREVIEW[@]} sync -p "$AGI_PYTHON_VERSION" --dev
 ensure_pip_if_missing
 ${UV_PREVIEW[@]} pip install --upgrade --no-deps -e . -e ../agi-env
@@ -166,6 +226,7 @@ popd > /dev/null
 echo -e "${BLUE}Installing agi-cluster...${NC}"
 pushd "$CORE_DIR/agi-cluster" > /dev/null
 echo "${UV_PREVIEW[*]} sync -p $AGI_PYTHON_VERSION --dev"
+remove_incompatible_project_venv "$PWD" "agi-cluster"
 ${UV_PREVIEW[@]} sync -p "$AGI_PYTHON_VERSION" --dev
 ensure_pip_if_missing
 ${UV_PREVIEW[@]} pip install --upgrade --no-deps -e . -e ../agi-node -e ../agi-env
@@ -174,6 +235,7 @@ popd > /dev/null
 echo -e "${BLUE}Installing agi-core...${NC}"
 pushd "$CORE_DIR/agi-core" > /dev/null
 echo "${UV_PREVIEW[*]} sync -p $AGI_PYTHON_VERSION --dev"
+remove_incompatible_project_venv "$PWD" "agi-core"
 ${UV_PREVIEW[@]} sync -p "$AGI_PYTHON_VERSION" --dev
 ensure_pip_if_missing
 ${UV_PREVIEW[@]} pip install --upgrade --no-deps -e ../agi-env -e ../agi-node -e ../agi-cluster -e .
