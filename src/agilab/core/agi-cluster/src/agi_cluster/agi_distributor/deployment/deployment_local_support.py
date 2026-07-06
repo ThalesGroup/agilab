@@ -135,6 +135,10 @@ def _worker_python_uv_spec(env: Any, fallback: str | None) -> str | None:
     )
 
 
+def _manager_python_uv_spec(env: Any, fallback: str | None) -> str | None:
+    return getattr(env, "python_uv_spec", None) or fallback
+
+
 def _compose_worker_post_install_tool(local_env_prefix: str, uv_worker: Any) -> str:
     uv_fragment = str(uv_worker or "").strip()
     local_prefix = str(local_env_prefix or "").strip()
@@ -1023,6 +1027,12 @@ async def deploy_local_worker(
     uv = resolver_env_prefix + cmd_prefix + env.uv
     offline_flag = _uv_offline_flag(envars)
     pyvers = env.python_version
+    pyvers_manager_uv_spec = _manager_python_uv_spec(env, pyvers)
+    manager_python_arg = (
+        f" --python {_shell_arg(pyvers_manager_uv_spec)}"
+        if pyvers_manager_uv_spec
+        else ""
+    )
     stage_cache_enabled = _deploy_stage_cache_enabled(getattr(env, "envars", {}))
     stage_cache_path = _deploy_stage_cache_path(wenv_abs)
     stage_cache_state = (
@@ -1126,12 +1136,12 @@ async def deploy_local_worker(
             )
             if hw_rapids_capable:
                 cmd_manager = (
-                    f"{extra_indexes}{uv} {offline_flag}{run_type} --config-file uv_config.toml "
+                    f"{extra_indexes}{uv} {offline_flag}{run_type}{manager_python_arg} --config-file uv_config.toml "
                     f"--project '{manager_sync_project}' --active --no-install-project"
                 )
             else:
                 cmd_manager = (
-                    f"{extra_indexes}{uv} {offline_flag}{run_type} --project '{manager_sync_project}' "
+                    f"{extra_indexes}{uv} {offline_flag}{run_type}{manager_python_arg} --project '{manager_sync_project}' "
                     f"--active --no-install-project"
                 )
             if env.verbose > 0:
@@ -1139,10 +1149,10 @@ async def deploy_local_worker(
             await run_fn(cmd_manager, app_path)
     else:
         if hw_rapids_capable:
-            cmd_manager = f"{extra_indexes}{uv} {offline_flag}{run_type} --config-file uv_config.toml --project '{app_path}'"
+            cmd_manager = f"{extra_indexes}{uv} {offline_flag}{run_type}{manager_python_arg} --config-file uv_config.toml --project '{app_path}'"
         else:
             cmd_manager = (
-                f"{extra_indexes}{uv} {offline_flag}{run_type} --project '{app_path}'"
+                f"{extra_indexes}{uv} {offline_flag}{run_type}{manager_python_arg} --project '{app_path}'"
             )
         if env.verbose > 0:
             log.info(f"Installing manager: {cmd_manager}")

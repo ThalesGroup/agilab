@@ -27,6 +27,9 @@ rather than shown as one of the workflow pages.
    * - ``AGI_PYTHON_VERSION``
      - ``3.14``
      - Default Python version passed to ``uv`` for the manager environment and as the fallback worker version when no host-specific override is set.
+   * - ``AGI_PYTHON_UV_SPEC``
+     - derived from ``AGI_PYTHON_VERSION``
+     - Exact uv interpreter selector used by installer sync commands. For Python 3.14 this defaults to the standard GIL build, for example ``3.14+gil``, while page bundles with stricter ``requires-python`` metadata receive a compatible selector such as ``3.12`` for ``==3.12.*``.
    * - ``<worker-host>_PYTHON_VERSION``
      - unset
      - Optional worker-specific Python version override written per host (for example ``127.0.0.1_PYTHON_VERSION=3.13``). Use this when workers must run a different Python version than the manager side.

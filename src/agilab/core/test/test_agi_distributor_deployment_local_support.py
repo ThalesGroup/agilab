@@ -2953,7 +2953,8 @@ async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localho
         for cmd, _ in commands
     )
     assert any(
-        "uv sync --config-file uv_config.toml --project" in cmd and str(app_path) in cmd
+        "uv sync --python 3.13 --config-file uv_config.toml --project" in cmd
+        and str(app_path) in cmd
         for cmd, _ in commands
     )
     assert any(
@@ -4068,7 +4069,8 @@ path = "../sat_trajectory_project"
     )
     assert "sb3_trainer_project" not in overlay_sources
     assert any(
-        "sync --project" in cmd
+        "sync " in cmd
+        and "--project" in cmd
         and "--active --no-install-project" in cmd
         and str(staged_overlay_root) in cmd
         for cmd, _ in commands
