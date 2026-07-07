@@ -369,17 +369,22 @@ def render_page_context(*args: Any, **kwargs: Any) -> Any:
 
 # --- minimal session-state safety (add this block) ---
 def _pre_render_reset() -> None:
+    session_state = getattr(st, "session_state", None)
+    if session_state is None:
+        return
     # If last run asked for a reset, clear BEFORE widgets are created this run
-    if st.session_state.pop("env_editor_reset", False):
-        st.session_state["env_editor_new_key"] = ""
-        st.session_state["env_editor_new_value"] = ""
+    if session_state.pop("env_editor_reset", False):
+        session_state["env_editor_new_key"] = ""
+        session_state["env_editor_new_value"] = ""
 
 
 # One-time safe defaults (ok to run every time)
-st.session_state.setdefault("env_editor_new_key", "")
-st.session_state.setdefault("env_editor_new_value", "")
-st.session_state.setdefault("env_editor_reset", False)
-st.session_state.setdefault("env_editor_feedback", None)
+_SESSION_STATE = getattr(st, "session_state", None)
+if _SESSION_STATE is not None:
+    _SESSION_STATE.setdefault("env_editor_new_key", "")
+    _SESSION_STATE.setdefault("env_editor_new_value", "")
+    _SESSION_STATE.setdefault("env_editor_reset", False)
+    _SESSION_STATE.setdefault("env_editor_feedback", None)
 
 _LAZY_IMPORT_ATTR_CACHE: Dict[tuple[str, str], Any] = {}
 
