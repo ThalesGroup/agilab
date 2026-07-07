@@ -98,11 +98,23 @@ def test_streamlit_page_config_is_owned_by_bootstrap() -> None:
         Path("src/agilab/bridge_cli.py"),
         Path("src/agilab/lib/agi-pages/src/agi_pages/runtime.py"),
     }
+    ignored_parts = {
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".venv",
+        "__pycache__",
+        "build",
+        "dist",
+        "site-packages",
+    }
     direct_calls: list[str] = []
     for path in Path("src").rglob("*.py"):
         if path in allowed:
             continue
-        source = path.read_text(encoding="utf-8")
+        if any(part in ignored_parts for part in path.parts):
+            continue
+        source = path.read_text(encoding="utf-8", errors="ignore")
         if ".set_page_config" in source:
             direct_calls.append(path.as_posix())
 

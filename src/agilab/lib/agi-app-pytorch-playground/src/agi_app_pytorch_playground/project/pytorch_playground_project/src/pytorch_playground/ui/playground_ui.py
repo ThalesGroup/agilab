@@ -49,8 +49,9 @@ def _configure_page(streamlit: Any, **config: Any) -> None:
         from agilab.ui.page_bootstrap import configure_page_config
     except (ImportError, ModuleNotFoundError):
         getattr(streamlit, "set_page_config")(**config)
-    else:
-        configure_page_config(streamlit, **config)
+        return
+
+    configure_page_config(streamlit, **config)
 
 
 def _prepend_sys_path(path: Path) -> None:
