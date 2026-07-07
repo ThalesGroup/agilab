@@ -30,6 +30,88 @@ configure_uv_link_mode() {
 configure_uv_link_mode
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+python_uv_spec_for_version() {
+  local version="${1:-}"
+  case "$version" in
+    3.14|3.14.*)
+      if [[ "$version" == *+* ]]; then
+        printf '%s\n' "$version"
+      else
+        printf '%s+gil\n' "$version"
+      fi
+      ;;
+    *)
+      printf '%s\n' "$version"
+      ;;
+  esac
+}
+
+normalize_python_selection() {
+  local raw="${AGI_PYTHON_VERSION:-3.14}"
+  [[ -n "$raw" ]] || raw="3.14"
+  if [[ "$raw" == *freethreaded* \
+     || "$raw" =~ (^|[^[:alnum:]])python3\.[0-9]+t([^[:alnum:]]|$) \
+     || "$raw" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) ]]; then
+    echo -e "${RED}[error] Unsupported AGI_PYTHON_VERSION '${raw}': end-user installs require a standard GIL Python interpreter. Freethreaded Python can force native builds for binary packages such as Polars.${NC}" >&2
+    exit 1
+  fi
+  if [[ "${AGI_PYTHON_FREE_THREADED:-0}" == "1" ]]; then
+    echo -e "${RED}[error] Unsupported AGI_PYTHON_FREE_THREADED=1: end-user installs require a standard GIL Python interpreter.${NC}" >&2
+    exit 1
+  fi
+  AGI_PYTHON_VERSION="${raw%%+*}"
+  AGI_PYTHON_FREE_THREADED=0
+  local desired_uv_spec
+  desired_uv_spec="$(python_uv_spec_for_version "$AGI_PYTHON_VERSION")"
+  if [[ -z "${AGI_PYTHON_UV_SPEC:-}" || "${AGI_PYTHON_UV_SPEC}" == "${AGI_PYTHON_VERSION}" ]]; then
+    AGI_PYTHON_UV_SPEC="$desired_uv_spec"
+  fi
+  if [[ "$AGI_PYTHON_UV_SPEC" == *freethreaded* \
+     || "$AGI_PYTHON_UV_SPEC" =~ (^|[^[:alnum:]])python3\.[0-9]+t([^[:alnum:]]|$) \
+     || "$AGI_PYTHON_UV_SPEC" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) ]]; then
+    echo -e "${RED}[error] Unsupported AGI_PYTHON_UV_SPEC '${AGI_PYTHON_UV_SPEC}': end-user installs require a standard GIL Python interpreter.${NC}" >&2
+    exit 1
+  fi
+  export AGI_PYTHON_VERSION
+  export AGI_PYTHON_FREE_THREADED
+  export AGI_PYTHON_UV_SPEC
+}
+
+remove_incompatible_enduser_venv() {
+  local venv_python="${VENV}/bin/python"
+  [[ -x "$venv_python" ]] || return 0
+
+  local status
+  status="$("$venv_python" - "$AGI_PYTHON_VERSION" <<'PY' 2>/dev/null || true
+import sys
+
+expected = sys.argv[1].split(".")
+current = [str(sys.version_info.major), str(sys.version_info.minor), str(sys.version_info.micro)]
+abi_flags = getattr(sys, "abiflags", "")
+gil_enabled = getattr(sys, "_is_gil_enabled", lambda: True)()
+if "t" in abi_flags or gil_enabled is False:
+    print("freethreaded")
+elif current[: len(expected)] != expected:
+    print("version")
+else:
+    print("ok")
+PY
+)"
+  [[ "$status" == "ok" ]] && return 0
+
+  echo -e "${YELLOW}[warn] Removing incompatible end-user virtual environment: ${VENV} (${status:-unreadable}; expected Python ${AGI_PYTHON_VERSION}).${NC}" >&2
+  rm -rf -- "$VENV"
+}
+
+ensure_enduser_venv() {
+  normalize_python_selection
+  remove_incompatible_enduser_venv
+  if [[ ! -x "${VENV}/bin/python" ]]; then
+    echo -e "${BLUE}[info] Creating end-user virtual environment with Python ${AGI_PYTHON_UV_SPEC}.${NC}"
+    "${UV_PREVIEW[@]}" venv --python "${AGI_PYTHON_UV_SPEC}" "$VENV"
+  fi
+}
+
 run_remote_shell_installer() {
   local url="$1"
   local label="$2"
@@ -594,6 +676,7 @@ case "${SOURCE}" in
     }
 
     [[ -n "${AGI_INSTALL_PATH:-}" && -d "${AGI_INSTALL_PATH}" ]] || { echo -e "${RED}Error: Missing or invalid install path: ${AGI_INSTALL_PATH}${NC}" >&2; exit 1; }
+    ensure_enduser_venv
 
     # OPTIMIZATION 3: Create lock file ONCE at repo root if it doesn't exist
     pushd "${AGI_INSTALL_ROOT}" >/dev/null
@@ -637,7 +720,7 @@ case "${SOURCE}" in
 
     # Install all at once instead of one-by-one, including runtime dependencies.
     if [[ ${#INSTALL_PATHS[@]} -gt 0 ]]; then
-      ${UV_PREVIEW[@]} pip install --upgrade --reinstall --refresh --no-cache "${INSTALL_PATHS[@]}"
+      ${UV_PREVIEW[@]} pip install --python "${VENV}/bin/python" --upgrade --reinstall --refresh --no-cache "${INSTALL_PATHS[@]}"
     fi
     ;;
 
