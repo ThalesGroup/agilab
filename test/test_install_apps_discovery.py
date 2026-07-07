@@ -249,6 +249,45 @@ normalize_agi_python_version "$1"
     )
 
 
+def _run_normalize_agi_python_uv_spec(
+    raw: str,
+    *,
+    agi_python_version: str = "3.14.6",
+) -> subprocess.CompletedProcess[str]:
+    script_text = INSTALL_APPS_SH.read_text(encoding="utf-8")
+    python_uv_spec_body = _extract_function(
+        script_text,
+        "python_uv_spec_for_version",
+        "normalize_agi_python_version",
+    )
+    function_body = _extract_function(
+        script_text,
+        "normalize_agi_python_uv_spec",
+        "run_with_agilab_python_env",
+    )
+    bash_script = f"""#!/usr/bin/env bash
+set -euo pipefail
+RED=""
+NC=""
+{python_uv_spec_body}
+{function_body}
+normalize_agi_python_uv_spec "$1" "$2"
+"""
+    return subprocess.run(
+        [
+            "bash",
+            "-c",
+            bash_script,
+            "normalize_agi_python_uv_spec_test",
+            raw,
+            agi_python_version,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
 def _run_page_sync_python_spec(
     page_dir: Path,
     *,
@@ -283,6 +322,47 @@ page_sync_python_spec "$1"
         text=True,
     )
     return completed.stdout.strip()
+
+
+@pytest.mark.parametrize(
+    ("raw", "version", "expected"),
+    [
+        ("", "3.14.6", "3.14.6+gil"),
+        ("3.14.6", "3.14.6", "3.14.6+gil"),
+        ("3.14.6+gil", "3.14.6", "3.14.6+gil"),
+        ("3.13.14", "3.13.14", "3.13.14"),
+    ],
+)
+def test_install_apps_python_uv_spec_uses_gil_python_for_314(
+    raw: str,
+    version: str,
+    expected: str,
+) -> None:
+    completed = _run_normalize_agi_python_uv_spec(
+        raw,
+        agi_python_version=version,
+    )
+
+    assert completed.returncode == 0
+    assert completed.stdout.strip() == expected
+
+
+def test_install_apps_rejects_freethreaded_uv_spec_and_cleans_app_test_env() -> None:
+    rejected = _run_normalize_agi_python_uv_spec(
+        "3.14.6+freethreaded",
+        agi_python_version="3.14.6",
+    )
+    script_text = INSTALL_APPS_SH.read_text(encoding="utf-8")
+
+    assert rejected.returncode != 0
+    assert "standard GIL Python interpreter" in rejected.stderr
+    assert "run_with_agilab_python_env" in script_text
+    assert "-u VIRTUAL_ENV" in script_text
+    assert "-u UV_PROJECT_ENVIRONMENT" in script_text
+    assert "-u UV_RUN_RECURSION_DEPTH" in script_text
+    assert 'UV_PYTHON="${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}"' in script_text
+    assert 'run_with_agilab_python_env "${UV_PREVIEW[@]}" run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" "${CORE_EDITABLE_PACKAGES[@]}" python app_test.py' in script_text
+    assert 'run_with_agilab_python_env "${UV_PREVIEW[@]}" run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" "${CORE_EDITABLE_PACKAGES[@]}" --project . --with pytest --with pytest-cov pytest' in script_text
 
 
 def test_page_discovery_keeps_only_installable_entrypoint_projects(tmp_path: Path) -> None:
