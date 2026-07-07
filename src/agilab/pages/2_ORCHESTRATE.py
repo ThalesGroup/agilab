@@ -1005,7 +1005,7 @@ def load_toml_file(file_path: str | Path) -> dict[str, Any]:
 
 
 @st.cache_data(show_spinner=False)
-def load_distribution(file_path: str | Path) -> tuple[list[str], list[Any], list[Any]]:
+def load_distribution(file_path: str | Path) -> tuple[list[str], list[Any], list[Any], str, str, str]:
     with open(file_path, "r") as f:
         data = json.load(f)
     workers = [
@@ -1013,7 +1013,17 @@ def load_distribution(file_path: str | Path) -> tuple[list[str], list[Any], list
         for ip, count in data.get("workers", {}).items()
         for i in range(1, count + 1)
     ]
-    return workers, data.get("work_plan_metadata", []), data.get("work_plan", [])
+    partition_key = str(data.get("partition_key") or "Partition")
+    weights_key = str(data.get("nb_unit") or data.get("weights_key") or "Units")
+    weights_unit = str(data.get("weights_unit") or "Unit")
+    return (
+        workers,
+        data.get("work_plan_metadata", []),
+        data.get("work_plan", []),
+        partition_key,
+        weights_key,
+        weights_unit,
+    )
 
 
 def _apply_distribution_plan_action(
@@ -1098,19 +1108,21 @@ async def _check_distribution_action(
     *,
     cmd: str,
     project_path: Path,
-    on_log: Optional[Callable[[], None]] = None,
+    on_log: Optional[Callable[[str], None]] = None,
 ) -> ActionResult:
     dist_log: list[str] = []
     runtime_root = orchestrate_snippet_runtime_root(env, project_path)
     command = cmd.replace("asyncio.run(main())", env.snippet_tail)
 
+    def _append_distribution_log(message: str) -> None:
+        _append_log_lines(dist_log, message)
+        if on_log is not None:
+            on_log(message)
+
     try:
         stdout, stderr = await env.run_agi(
             command,
-            log_callback=lambda message: (
-                _append_log_lines(dist_log, message),
-                on_log() if on_log is not None else None,
-            ),
+            log_callback=_append_distribution_log,
             venv=runtime_root,
         )
     except (
@@ -1121,7 +1133,7 @@ async def _check_distribution_action(
         AttributeError,
         KeyError,
     ) as exc:
-        _append_log_lines(dist_log, f"ERROR: {exc}")
+        _append_distribution_log(f"ERROR: {exc}")
         return ActionResult.error(
             "Distribution build failed.",
             detail=str(exc),
@@ -1134,9 +1146,9 @@ async def _check_distribution_action(
         )
 
     if stderr:
-        _append_log_lines(dist_log, stderr)
+        _append_distribution_log(stderr)
     if stdout:
-        _append_log_lines(dist_log, stdout)
+        _append_distribution_log(stdout)
 
     data = {
         "command": command,
@@ -1174,14 +1186,14 @@ async def _install_worker_action(
     install_command: str,
     venv: Any,
     local_log: list[str],
-    on_log: Optional[Callable[[], None]] = None,
+    on_log: Optional[Callable[[str], None]] = None,
     workerless: bool = False,
     manager_install_command: str | None = None,
 ) -> ActionResult:
     def _append_install_log(message: str) -> None:
         _append_log_lines(local_log, message)
         if on_log is not None:
-            on_log()
+            on_log(message)
 
     if manager_install_command:
         manager_stdout = ""
@@ -2000,11 +2012,7 @@ async def _render_deployment_panel(
             install_expanded = st.session_state.get("_install_logs_expanded", False)
             with st.expander("Deployment logs", expanded=install_expanded):
                 log_placeholder = st.empty()
-                log_placeholder.code(
-                    existing_log,
-                    language="python",
-                    height=INSTALL_LOG_HEIGHT,
-                )
+                update_log(log_placeholder, "")
         pending_install_requested = consume_pending_install_action(st.session_state)
         install_requested = st.button(
             ORCHESTRATE_ACTION_LABELS["deploy_workers"],
@@ -2036,11 +2044,7 @@ async def _render_deployment_panel(
                 log_placeholder.empty()
                 for line in context_lines:
                     _append_log_lines(local_log, line)
-            log_placeholder.code(
-                "\n".join(local_log[-LOG_DISPLAY_MAX_LINES:]),
-                language="python",
-                height=INSTALL_LOG_HEIGHT,
-            )
+                    update_log(log_placeholder, line)
             elapsed_started = _orchestrate_start_action_elapsed(
                 st.session_state,
                 "orchestrate_deploy_workers",
@@ -2053,15 +2057,8 @@ async def _render_deployment_panel(
                 started_monotonic=elapsed_started,
             )
 
-            def _refresh_deploy_log() -> None:
-                log_placeholder.code(
-                    "\n".join(local_log[-LOG_DISPLAY_MAX_LINES:]),
-                    language="python",
-                    height=INSTALL_LOG_HEIGHT,
-                )
-
-            def _tick_deploy_progress() -> None:
-                _refresh_deploy_log()
+            def _tick_deploy_progress(message: str) -> None:
+                update_log(log_placeholder, message)
                 _orchestrate_update_action_elapsed_status(
                     elapsed_placeholder,
                     st.session_state,
@@ -2102,15 +2099,12 @@ async def _render_deployment_panel(
                     started_monotonic=elapsed_started,
                 )
                 with log_expander:
-                    log_placeholder.code(
-                        "\n".join(
-                            result.data.get("install_log", local_log)[
-                                -LOG_DISPLAY_MAX_LINES:
-                            ]
-                        ),
-                        language="python",
-                        height=INSTALL_LOG_HEIGHT,
-                    )
+                    final_install_log = result.data.get("install_log", local_log)
+                    if final_install_log:
+                        st.session_state["log_text"] = (
+                            "\n".join(str(line) for line in final_install_log) + "\n"
+                        )
+                    update_log(log_placeholder, "")
                 render_action_result(st, result)
                 if result.status == "success":
                     st.session_state["show_run"] = True
@@ -2278,7 +2272,8 @@ async def _render_distribution_panel(
                     started_monotonic=elapsed_started,
                 )
 
-                def _tick_distribution_elapsed() -> None:
+                def _tick_distribution_progress(message: str) -> None:
+                    update_log(live_log_placeholder, message)
                     _orchestrate_update_action_elapsed_status(
                         elapsed_placeholder,
                         st.session_state,
@@ -2288,11 +2283,12 @@ async def _render_distribution_panel(
                     )
 
                 with st.spinner("Building distribution..."):
+                    clear_log()
                     result = await _check_distribution_action(
                         env,
                         cmd=cmd,
                         project_path=project_path,
-                        on_log=_tick_distribution_elapsed,
+                        on_log=_tick_distribution_progress,
                     )
                 _orchestrate_finish_action_elapsed(
                     elapsed_placeholder,
@@ -2303,11 +2299,11 @@ async def _render_distribution_panel(
                     started_monotonic=elapsed_started,
                 )
                 dist_log = list(result.data.get("dist_log", ()))
-                live_log_placeholder.code(
-                    "\n".join(dist_log[-LOG_DISPLAY_MAX_LINES:]),
-                    language="python",
-                    height=LIVE_LOG_MIN_HEIGHT,
-                )
+                if dist_log:
+                    st.session_state["log_text"] = (
+                        "\n".join(str(line) for line in dist_log) + "\n"
+                    )
+                update_log(live_log_placeholder, "")
                 render_action_result(st, result)
                 if result.status == "success":
                     st.session_state.preview_tree = True
@@ -2316,12 +2312,14 @@ async def _render_distribution_panel(
             if st.session_state.get("preview_tree"):
                 dist_tree_path = distribution_state.distribution_path
                 if dist_tree_path is not None and dist_tree_path.exists():
-                    workers, work_plan_metadata, work_plan = load_distribution(
-                        dist_tree_path
-                    )
-                    partition_key = "Partition"
-                    weights_key = "Units"
-                    weights_unit = "Unit"
+                    (
+                        workers,
+                        work_plan_metadata,
+                        work_plan,
+                        partition_key,
+                        weights_key,
+                        weights_unit,
+                    ) = load_distribution(dist_tree_path)
                     tabs = st.tabs(["Tree", "Workload"])
                     with tabs[0]:
                         if is_dag_worker_base(getattr(env, "base_worker_cls", None)):
