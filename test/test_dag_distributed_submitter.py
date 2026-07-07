@@ -4,6 +4,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -497,6 +498,61 @@ def test_stage_subprocess_runner_generates_isolated_agilab_run_script(monkeypatc
     assert result["stdout_tail"] == '{"result": "ok"}\n'
     assert result["stdout_log"].endswith("distributed_stage.stdout.log")
     assert result["stderr_log"].endswith("distributed_stage.stderr.log")
+
+
+def test_stage_subprocess_runner_streams_worker_logs_before_completion(monkeypatch, tmp_path: Path) -> None:
+    class _Recorder:
+        def __init__(self) -> None:
+            self.text = ""
+
+        def write(self, text: str) -> None:
+            self.text += text
+
+        def flush(self) -> None:
+            pass
+
+    stdout_recorder = _Recorder()
+    stderr_recorder = _Recorder()
+    streamed_before_return: dict[str, bool] = {}
+
+    def _fake_run(command, **kwargs):
+        kwargs["stdout"].write("live worker stdout\n")
+        kwargs["stdout"].flush()
+        kwargs["stderr"].write("live worker stderr\n")
+        kwargs["stderr"].flush()
+        time.sleep(0.05)
+        streamed_before_return["stdout"] = "live worker stdout" in stdout_recorder.text
+        streamed_before_return["stderr"] = "live worker stderr" in stderr_recorder.text
+        kwargs["stdout"].write('{"result": "ok"}\n')
+        kwargs["stdout"].flush()
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(dag_distributed_submitter.subprocess, "run", _fake_run)
+    monkeypatch.setattr(dag_distributed_submitter.sys, "stdout", stdout_recorder)
+    monkeypatch.setattr(dag_distributed_submitter.sys, "stderr", stderr_recorder)
+    monkeypatch.setattr(dag_distributed_submitter, "_REMOTE_LOG_STREAM_INTERVAL_SECONDS", 0.01)
+    config = dag_distributed_submitter.DagDistributedStageConfig(
+        scheduler="192.168.20.111:8786",
+        workers={"192.168.20.111": 1},
+        workers_data_path="clustershare/agi",
+        mode=7,
+        verbose=1,
+    )
+
+    result = dag_distributed_submitter.run_agilab_stage_subprocess(
+        config=config,
+        repo_root=tmp_path,
+        run_root=tmp_path / "run",
+        apps_path=tmp_path / "src/agilab/apps/builtin",
+        app_name="flight_telemetry_project",
+        request_payload={"params": {}, "stages": []},
+        timestamp="2026-05-07T00:00:00Z",
+    )
+
+    assert streamed_before_return == {"stdout": True, "stderr": True}
+    assert "live worker stdout" in stdout_recorder.text
+    assert "live worker stderr" in stderr_recorder.text
+    assert result["stdout_tail"].endswith('{"result": "ok"}\n')
 
 
 @pytest.mark.parametrize(

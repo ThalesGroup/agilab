@@ -5,10 +5,11 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, TextIO
 
 from agilab.orchestrate.orchestrate_page_support import compute_run_mode
 
@@ -31,6 +32,7 @@ class DagDistributedStageConfig:
 
 
 DagStageRunner = Callable[..., Mapping[str, Any]]
+_REMOTE_LOG_STREAM_INTERVAL_SECONDS = 0.5
 
 
 def load_dag_distributed_settings(env: Any, app_settings: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -272,15 +274,30 @@ def run_agilab_stage_subprocess(
         "w",
         encoding="utf-8",
     ) as stderr_handle:
-        completed = subprocess.run(
-            command,
-            cwd=repo_root,
-            env=os.environ.copy(),
-            text=True,
-            stdout=stdout_handle,
-            stderr=stderr_handle,
-            check=False,
+        log_offsets = {str(stdout_path): 0, str(stderr_path): 0}
+        stop_log_tee = threading.Event()
+        log_tee_thread = threading.Thread(
+            target=_run_worker_log_file_tee,
+            args=(stdout_path, stderr_path, log_offsets, stop_log_tee),
+            daemon=True,
         )
+        log_tee_thread.start()
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=repo_root,
+                env=os.environ.copy(),
+                text=True,
+                stdout=stdout_handle,
+                stderr=stderr_handle,
+                check=False,
+            )
+        finally:
+            stdout_handle.flush()
+            stderr_handle.flush()
+            stop_log_tee.set()
+            log_tee_thread.join(timeout=_REMOTE_LOG_STREAM_INTERVAL_SECONDS + 1.0)
+            _tee_worker_log_file_updates(stdout_path, stderr_path, log_offsets)
     stdout_tail = _tail_file(stdout_path)
     stderr_tail = _tail_file(stderr_path)
     payload = {
@@ -305,6 +322,40 @@ def run_agilab_stage_subprocess(
             f"Distributed DAG stage `{app_name}` failed: {_tail(failure_detail, max_chars=4000)}"
         )
     return payload
+
+
+def _run_worker_log_file_tee(
+    stdout_path: Path,
+    stderr_path: Path,
+    offsets: dict[str, int],
+    stop_event: threading.Event,
+) -> None:
+    """Forward appended worker log-file content while the stage process runs."""
+    while not stop_event.wait(_REMOTE_LOG_STREAM_INTERVAL_SECONDS):
+        _tee_worker_log_file_updates(stdout_path, stderr_path, offsets)
+
+
+def _tee_worker_log_file_updates(stdout_path: Path, stderr_path: Path, offsets: dict[str, int]) -> None:
+    _tee_log_file_update(stdout_path, sys.stdout, offsets)
+    _tee_log_file_update(stderr_path, sys.stderr, offsets)
+
+
+def _tee_log_file_update(path: Path, stream: TextIO, offsets: dict[str, int]) -> None:
+    key = str(path)
+    offset = offsets.get(key, 0)
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as log_file:
+            log_file.seek(offset)
+            text = log_file.read()
+            offsets[key] = log_file.tell()
+    except OSError:
+        return
+    if text:
+        try:
+            stream.write(text)
+            stream.flush()
+        except (OSError, ValueError):
+            return
 
 
 def _stage_result_failure(stdout_tail: str) -> str | None:
