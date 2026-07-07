@@ -1,0 +1,18 @@
+[project]
+name = "agi-page-tri-gtia"
+version = "2026.06.30"
+description = "AGILAB page bundle for NetworkSim TRI/GTIA TTL visibility analysis."
+readme = { text = "AGILAB page bundle for NetworkSim TRI/GTIA TTL visibility analysis.", content-type = "text/markdown" }
+requires-python = ">=3.11"
+dependencies = [
+    "agi-pages>=2026.05.30.post1,<2027.0",
+    "pandas>=2.3.0,<4",
+    "plotly>=6.8,<7",
+    "streamlit>=1.58,<1.59",
+]
+
+[project.entry-points."agilab.pages"]
+view_tri_gtia = "view_tri_gtia:bundle_root"
+
+[tool.uv.sources]
+agi-pages = { path = "../../lib/agi-pages", editable = true }
