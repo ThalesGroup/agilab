@@ -27,8 +27,14 @@ def resolve_uv_binary() -> str | None:
     return None
 
 
-def build_streamlit_command(root: Path, app_args: list[str], uv_bin: str) -> list[str]:
-    return [
+def build_streamlit_command(
+    root: Path,
+    app_args: list[str],
+    uv_bin: str,
+    *,
+    no_sync: bool = False,
+) -> list[str]:
+    command = [
         uv_bin,
         "--preview-features",
         "extra-build-dependencies",
@@ -36,20 +42,26 @@ def build_streamlit_command(root: Path, app_args: list[str], uv_bin: str) -> lis
         "--extra",
         "ui",
         "python",
-        "-m",
-        "streamlit",
+        str(root / "tools" / "streamlit_cli_compat.py"),
         "run",
         str(root / "src" / "agilab" / "main_page.py"),
         "--",
         *app_args,
     ]
+    if no_sync:
+        command.insert(command.index("python"), "--no-sync")
+    return command
 
 
 def build_child_environment(environ: Mapping[str, str]) -> dict[str, str]:
     child_env = dict(environ)
-    for key in ("UV_NO_SYNC", "UV_RUN_RECURSION_DEPTH", "UV_PROJECT_ENVIRONMENT", "VIRTUAL_ENV"):
+    for key in ("UV_RUN_RECURSION_DEPTH", "UV_PROJECT_ENVIRONMENT", "VIRTUAL_ENV"):
         child_env.pop(key, None)
     return child_env
+
+
+def uv_no_sync_enabled(environ: Mapping[str, str]) -> bool:
+    return environ.get("UV_NO_SYNC", "").strip().lower() not in {"", "0", "false", "no"}
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -73,7 +85,12 @@ def main(argv: list[str] | None = None) -> int:
         print("Unable to locate uv. Install uv or add it to PATH before launching AGILAB.", file=sys.stderr)
         return 127
 
-    command = build_streamlit_command(repo_root(), args.app_args, uv_bin)
+    command = build_streamlit_command(
+        repo_root(),
+        args.app_args,
+        uv_bin,
+        no_sync=uv_no_sync_enabled(os.environ),
+    )
     if args.print_command:
         print(shlex.join(command))
         return 0

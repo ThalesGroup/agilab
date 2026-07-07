@@ -30,8 +30,7 @@ def test_build_streamlit_command_enables_ui_extra() -> None:
         "--extra",
         "ui",
         "python",
-        "-m",
-        "streamlit",
+        "/repo/tools/streamlit_cli_compat.py",
         "run",
         "/repo/src/agilab/main_page.py",
         "--",
@@ -42,7 +41,24 @@ def test_build_streamlit_command_enables_ui_extra() -> None:
     ]
 
 
-def test_child_environment_removes_parent_uv_sync_controls() -> None:
+def test_build_streamlit_command_can_preserve_no_sync_launches() -> None:
+    root = Path("/repo")
+
+    command = launch_agilab_streamlit.build_streamlit_command(root, [], "/usr/bin/uv", no_sync=True)
+
+    assert command[:8] == [
+        "/usr/bin/uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "--extra",
+        "ui",
+        "--no-sync",
+        "python",
+    ]
+
+
+def test_child_environment_removes_parent_uv_recursion_controls_but_keeps_no_sync() -> None:
     child_env = launch_agilab_streamlit.build_child_environment(
         {
             "UV_NO_SYNC": "1",
@@ -53,7 +69,14 @@ def test_child_environment_removes_parent_uv_sync_controls() -> None:
         }
     )
 
-    assert child_env == {"IS_SOURCE_ENV": "1"}
+    assert child_env == {"UV_NO_SYNC": "1", "IS_SOURCE_ENV": "1"}
+
+
+def test_uv_no_sync_enabled_parses_truthy_values() -> None:
+    assert launch_agilab_streamlit.uv_no_sync_enabled({"UV_NO_SYNC": "1"}) is True
+    assert launch_agilab_streamlit.uv_no_sync_enabled({"UV_NO_SYNC": "true"}) is True
+    assert launch_agilab_streamlit.uv_no_sync_enabled({"UV_NO_SYNC": "0"}) is False
+    assert launch_agilab_streamlit.uv_no_sync_enabled({}) is False
 
 
 def test_parse_args_preserves_streamlit_args_after_launcher_flag() -> None:
@@ -84,6 +107,7 @@ def test_main_print_command_uses_ui_extra(monkeypatch, capsys, tmp_path: Path) -
 
     output = capsys.readouterr().out.strip()
     assert "--extra ui" in output
+    assert "tools/streamlit_cli_compat.py" in output
     assert str(tmp_path / "src" / "agilab" / "main_page.py") in output
     assert "--server.port 8502" in output
 
