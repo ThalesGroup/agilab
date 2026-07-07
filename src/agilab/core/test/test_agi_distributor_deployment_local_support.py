@@ -2964,7 +2964,7 @@ async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localho
     )
     wenv_token = wenv_abs.as_posix()
     assert any(
-        f"--project {wenv_token}" in cmd and "add 'dask[distributed]'" in cmd
+        f"--project {wenv_token}" in cmd and "add -p 3.13 'dask[distributed]'" in cmd
         for cmd, _ in commands
     )
     assert not any(

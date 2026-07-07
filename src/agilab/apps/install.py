@@ -591,15 +591,19 @@ def _workerless_uv_sync_command(env: AgiEnv) -> list[str]:
         "--project",
         str(Path(getattr(env, "active_app", "")).expanduser()),
     ]
-    python_version = str(
+    python_version = _install_python_uv_spec(env)
+    if python_version:
+        command.extend(["-p", python_version])
+    return command
+
+
+def _install_python_uv_spec(env: AgiEnv) -> str:
+    return str(
         getattr(env, "python_uv_spec", "")
         or os.environ.get("AGI_PYTHON_UV_SPEC", "")
         or getattr(env, "python_version", "")
         or os.environ.get("AGI_PYTHON_VERSION", "")
     ).strip()
-    if python_version:
-        command.extend(["-p", python_version])
-    return command
 
 
 def _child_uv_env() -> dict[str, str]:
@@ -657,7 +661,11 @@ def _compute_install_fingerprint(
         "is_source_env": bool(getattr(env, "is_source_env", False)),
         "post_install_rel": str(getattr(env, "post_install_rel", "")),
         "python_version": str(getattr(env, "python_version", "")),
+        "python_uv_spec": _install_python_uv_spec(env),
         "pyvers_worker": str(getattr(env, "pyvers_worker", "")),
+        "pyvers_worker_uv_spec": str(
+            getattr(env, "pyvers_worker_uv_spec", "") or _install_python_uv_spec(env)
+        ),
         "uv": str(getattr(env, "uv", "")),
         "uv_worker": str(getattr(env, "uv_worker", "")),
         "uv_version": _uv_version(getattr(env, "uv", "uv")),

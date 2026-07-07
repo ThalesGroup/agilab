@@ -1508,6 +1508,7 @@ async def deploy_local_worker(
         cmd_worker = deployment_dask_support.dask_runtime_install_command(
             uv_worker,
             wenv_abs,
+            pyvers=pyvers_worker_uv_spec,
             offline_flag=offline_flag,
         )
         if env.verbose > 0:
