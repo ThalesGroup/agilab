@@ -77,7 +77,12 @@ def configure_page_config(
     if initial_sidebar_state is not None:
         config["initial_sidebar_state"] = initial_sidebar_state
 
-    streamlit.set_page_config(**config)
+    set_page_config = getattr(streamlit, "set_page_config", None)
+    if not callable(set_page_config):
+        _mark_page_configured(streamlit)
+        return False
+
+    set_page_config(**config)
     _mark_page_configured(streamlit)
     return True
 
