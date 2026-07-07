@@ -1178,18 +1178,20 @@ async def _install_worker_action(
     workerless: bool = False,
     manager_install_command: str | None = None,
 ) -> ActionResult:
+    def _append_install_log(message: str) -> None:
+        _append_log_lines(local_log, message)
+        if on_log is not None:
+            on_log()
+
     if manager_install_command:
         manager_stdout = ""
         manager_stderr = ""
         manager_error: Exception | None = None
-        _append_log_lines(local_log, "=== Manager environment preinstall ===")
+        _append_install_log("=== Manager environment preinstall ===")
         try:
             manager_stdout, manager_stderr = await env.run_agi(
                 manager_install_command,
-                log_callback=lambda message: (
-                    _append_log_lines(local_log, message),
-                    on_log() if on_log is not None else None,
-                ),
+                log_callback=_append_install_log,
                 venv=None,
             )
         except (
@@ -1202,12 +1204,12 @@ async def _install_worker_action(
         ) as exc:
             manager_error = exc
             manager_stderr = str(exc)
-            _append_log_lines(local_log, f"ERROR: {manager_stderr}")
+            _append_install_log(f"ERROR: {manager_stderr}")
 
         if manager_stderr and manager_error is None:
-            _append_log_lines(local_log, manager_stderr)
+            _append_install_log(manager_stderr)
         if manager_stdout:
-            _append_log_lines(local_log, manager_stdout)
+            _append_install_log(manager_stdout)
 
         manager_error_flag = manager_error is not None
         if not manager_error_flag and _log_indicates_install_failure(local_log):
@@ -1216,8 +1218,7 @@ async def _install_worker_action(
                 manager_stderr = "Detected manager install failure in logs."
 
         if manager_error_flag:
-            _append_log_lines(
-                local_log,
+            _append_install_log(
                 "❌ Manager environment deployment failed. Check logs above.",
             )
             data = {
@@ -1251,8 +1252,8 @@ async def _install_worker_action(
                 data=data,
             )
 
-        _append_log_lines(local_log, "✅ Manager environment ready.")
-        _append_log_lines(local_log, "=== Worker environment deployment ===")
+        _append_install_log("✅ Manager environment ready.")
+        _append_install_log("=== Worker environment deployment ===")
 
     install_stdout = ""
     install_stderr = ""
@@ -1260,10 +1261,7 @@ async def _install_worker_action(
     try:
         install_stdout, install_stderr = await env.run_agi(
             install_command,
-            log_callback=lambda message: (
-                _append_log_lines(local_log, message),
-                on_log() if on_log is not None else None,
-            ),
+            log_callback=_append_install_log,
             venv=None,
         )
     except (
@@ -1276,12 +1274,12 @@ async def _install_worker_action(
     ) as exc:
         install_error = exc
         install_stderr = str(exc)
-        _append_log_lines(local_log, f"ERROR: {install_stderr}")
+        _append_install_log(f"ERROR: {install_stderr}")
 
     if install_stderr and install_error is None:
-        _append_log_lines(local_log, install_stderr)
+        _append_install_log(install_stderr)
     if install_stdout:
-        _append_log_lines(local_log, install_stdout)
+        _append_install_log(install_stdout)
 
     error_flag = install_error is not None
     if not error_flag and _log_indicates_install_failure(local_log):
@@ -1295,7 +1293,7 @@ async def _install_worker_action(
         status_line = "✅ Manager environment ready."
     else:
         status_line = "✅ Worker deployment complete."
-    _append_log_lines(local_log, status_line)
+    _append_install_log(status_line)
     data = {
         "install_command": install_command,
         "manager_install_command": manager_install_command,
@@ -2055,7 +2053,15 @@ async def _render_deployment_panel(
                 started_monotonic=elapsed_started,
             )
 
-            def _tick_deploy_elapsed() -> None:
+            def _refresh_deploy_log() -> None:
+                log_placeholder.code(
+                    "\n".join(local_log[-LOG_DISPLAY_MAX_LINES:]),
+                    language="python",
+                    height=INSTALL_LOG_HEIGHT,
+                )
+
+            def _tick_deploy_progress() -> None:
+                _refresh_deploy_log()
                 _orchestrate_update_action_elapsed_status(
                     elapsed_placeholder,
                     st.session_state,
@@ -2082,9 +2088,9 @@ async def _render_deployment_panel(
                 if enabled and not workerless
                 else None
             ),
-            venv=venv,
+                    venv=venv,
                     local_log=local_log,
-                    on_log=_tick_deploy_elapsed,
+                    on_log=_tick_deploy_progress,
                     workerless=workerless,
                 )
                 _orchestrate_finish_action_elapsed(

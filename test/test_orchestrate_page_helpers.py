@@ -2033,6 +2033,38 @@ async def test_install_worker_action_reports_success(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_install_worker_action_refreshes_visible_log_during_worker_deploy(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+    live_snapshots: list[tuple[str, ...]] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        assert log_callback is not None
+        log_callback("Remote worker 192.168.20.15 installing dependencies")
+        assert live_snapshots
+        assert live_snapshots[-1] == (
+            "Remote worker 192.168.20.15 installing dependencies",
+        )
+        return "deploy complete", ""
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+        on_log=lambda: live_snapshots.append(tuple(local_log)),
+    )
+
+    assert result.status == "success"
+    assert live_snapshots[0] == (
+        "Remote worker 192.168.20.15 installing dependencies",
+    )
+    assert live_snapshots[-1][-1] == "✅ Worker deployment complete."
+
+
+@pytest.mark.asyncio
 async def test_install_worker_action_reports_success_with_empty_output(tmp_path: Path):
     module = _load_orchestrate_module()
     local_log: list[str] = []
