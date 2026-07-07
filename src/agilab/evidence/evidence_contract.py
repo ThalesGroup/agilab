@@ -19,7 +19,7 @@ import zipfile
 
 try:
     import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback.
+except ModuleNotFoundError:  # pragma: no cover - pre-stdlib tomllib fallback.
     tomllib = None  # type: ignore[assignment]
 
 from agilab import run_manifest
@@ -542,7 +542,7 @@ def load_policy(policy_path: Path | None) -> dict[str, Any]:
         payload = json.loads(text)
     elif policy_path.suffix.lower() in {".toml", ".tml"}:
         if tomllib is None:
-            raise RuntimeError("TOML policy files require Python 3.11 or newer.")
+            raise RuntimeError("TOML policy files require Python 3.12 or newer.")
         payload = tomllib.loads(text)
     else:
         raise ValueError("Policy file must be JSON or TOML.")
@@ -1587,7 +1587,7 @@ def load_trust_policy(policy_path: Path | None) -> dict[str, Any]:
         payload = json.loads(text)
     elif policy_path.suffix.lower() in {".toml", ".tml"}:
         if tomllib is None:
-            raise RuntimeError("TOML trust policies require Python 3.11 or newer.")
+            raise RuntimeError("TOML trust policies require Python 3.12 or newer.")
         payload = tomllib.loads(text)
     else:
         raise ValueError("Trust policy file must be JSON or TOML.")

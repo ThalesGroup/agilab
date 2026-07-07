@@ -3,7 +3,7 @@ name = "data_quality_gate_project"
 version = "2026.05.30.post1"
 description = "Built-in AGILAB data contract and drift gate app with promotion evidence"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 authors = [
     { name = "Jean-Pierre Morard" }
 ]

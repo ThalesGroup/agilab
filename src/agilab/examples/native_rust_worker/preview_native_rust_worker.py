@@ -24,7 +24,7 @@ build-backend = "maturin"
 [project]
 name = "agilab-native-worker-demo"
 version = "0.1.0"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 description = "Optional Rust/PyO3 hot-kernel demo for an AGILAB worker."
 readme = "README.md"
 

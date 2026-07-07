@@ -3,7 +3,7 @@ name = "agi-page-feature-attribution"
 version = "2026.06.23"
 description = "AGILAB page bundle for feature-attribution evidence."
 readme = { text = "AGILAB page bundle for feature-attribution evidence.", content-type = "text/markdown" }
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 keywords = [
     "agilab",
     "thalesgroup",

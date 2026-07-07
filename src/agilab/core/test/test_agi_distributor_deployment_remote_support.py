@@ -1019,7 +1019,7 @@ async def test_deploy_remote_worker_prepins_dependencies_for_legacy_intel_macos(
         wenv_rel=Path("worker_env"),
         dist_rel=Path("worker_env/dist"),
         dist_abs=dist_abs,
-        pyvers_worker="3.11",
+        pyvers_worker="3.12",
         envars={},
         uv_worker="uv",
         is_source_env=False,
@@ -1071,7 +1071,7 @@ async def test_deploy_remote_worker_prepins_dependencies_for_legacy_intel_macos(
     )
 
     assert "pyarrow==17.0.0" in ssh_calls[pin_index]
-    assert "add -p 3.11" in ssh_calls[pin_index]
+    assert "add -p 3.12" in ssh_calls[pin_index]
     assert pin_index < core_index
 
 

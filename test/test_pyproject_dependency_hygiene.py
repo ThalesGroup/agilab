@@ -138,6 +138,26 @@ def _project_pyprojects() -> list[Path]:
     ]
 
 
+def test_python_support_floor_is_312_or_newer() -> None:
+    violations: list[str] = []
+    for path in _project_pyprojects():
+        project = _load_pyproject(path).get("project", {})
+        requires_python = str(project.get("requires-python", ""))
+        floor = _requires_python_floor(requires_python) if requires_python else None
+        classifiers = set(project.get("classifiers", []))
+        rel = path.relative_to(REPO_ROOT)
+
+        if floor is not None and floor < (3, 12):
+            violations.append(f"{rel}: requires-python={requires_python}")
+        if "Programming Language :: Python :: 3.11" in classifiers:
+            violations.append(f"{rel}: declares Python 3.11 classifier")
+
+    root_project = _load_pyproject(REPO_ROOT / "pyproject.toml")["project"]
+    assert root_project["requires-python"].startswith(">=3.12")
+    assert "Programming Language :: Python :: 3.12" in root_project["classifiers"]
+    assert violations == []
+
+
 def test_root_requires_python_matches_published_classifiers() -> None:
     project = _load_pyproject(REPO_ROOT / "pyproject.toml")["project"]
     classifiers = set(project.get("classifiers", []))

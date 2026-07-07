@@ -264,15 +264,15 @@ async def prepare_cluster_env(
             if deployment_remote_support._is_legacy_intel_macos(system, machine, product_version):
                 legacy_intel_macos_ips.add(ip)
 
-    if legacy_intel_macos_ips and pyvers_worker != "3.11":
+    if legacy_intel_macos_ips and pyvers_worker != "3.12":
         log.warning(
-            "Detected legacy Intel macOS worker(s) %s; selecting Python 3.11 for all worker environments instead of %s",
+            "Detected legacy Intel macOS worker(s) %s; selecting Python 3.12 for all worker environments instead of %s",
             ", ".join(sorted(legacy_intel_macos_ips)),
             pyvers_worker,
         )
-        pyvers_worker = "3.11"
-        env.pyvers_worker = "3.11"
-        env.python_version = "3.11"
+        pyvers_worker = "3.12"
+        env.pyvers_worker = "3.12"
+        env.python_version = "3.12"
         env.uv_worker = env.uv
 
     for ip in list_ip:

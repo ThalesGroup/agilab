@@ -429,10 +429,10 @@ async def test_prepare_cluster_env_legacy_intel_macos_selects_python_311(tmp_pat
         log=mock.Mock(),
     )
 
-    assert env.pyvers_worker == "3.11"
-    assert env.python_version == "3.11"
+    assert env.pyvers_worker == "3.12"
+    assert env.python_version == "3.12"
     assert env.uv_worker == "uv"
-    assert any("python install 3.11" in cmd for _, cmd in remote_cmds)
+    assert any("python install 3.12" in cmd for _, cmd in remote_cmds)
     assert not any("python install 3.13" in cmd for _, cmd in remote_cmds)
     assert any(item[2] == "wenv" for item in sent)
 

@@ -307,10 +307,8 @@ def test_link_helpers_cover_symlink_and_junction_fallbacks(monkeypatch, tmp_path
         "symlink",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("no symlink")),
     )
-    monkeypatch.setattr(project_clone_support.os, "name", "posix")
-    assert project_clone_support._try_link_directory(source, dest) is False
+    assert project_clone_support._try_link_directory(source, dest, os_name="posix") is False
 
-    monkeypatch.setattr(project_clone_support.os, "name", "nt")
     run_calls = []
 
     def _fake_run(cmd, **kwargs):
@@ -318,7 +316,7 @@ def test_link_helpers_cover_symlink_and_junction_fallbacks(monkeypatch, tmp_path
         return object()
 
     monkeypatch.setattr(project_clone_support.subprocess, "run", _fake_run)
-    assert project_clone_support._try_link_directory(source, dest) is True
+    assert project_clone_support._try_link_directory(source, dest, os_name="nt") is True
     assert run_calls[0][0][:3] == ["cmd", "/c", "mklink"]
 
     monkeypatch.setattr(
@@ -328,7 +326,7 @@ def test_link_helpers_cover_symlink_and_junction_fallbacks(monkeypatch, tmp_path
             project_clone_support.subprocess.CalledProcessError(1, "mklink")
         ),
     )
-    assert project_clone_support._try_link_directory(source, dest) is False
+    assert project_clone_support._try_link_directory(source, dest, os_name="nt") is False
 
 
 def test_try_link_symlink_falls_back_to_resolved_directory_or_false(monkeypatch, tmp_path: Path):
@@ -601,7 +599,6 @@ def test_clone_directory_uses_windows_junction_when_venv_symlink_is_denied(tmp_p
     spec = GitIgnoreSpec.from_lines([])
     calls: list[list[str]] = []
 
-    monkeypatch.setattr(project_clone_support.os, "name", "nt", raising=False)
     monkeypatch.setattr(
         project_clone_support.os,
         "symlink",
@@ -624,6 +621,11 @@ def test_clone_directory_uses_windows_junction_when_venv_symlink_is_denied(tmp_p
         ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
         content_renamer_cls=lambda _rename_map: type("NoOpRenamer", (), {"visit": lambda self, tree: tree})(),
         replace_content_fn=lambda text, _mapping: text,
+        link_directory_fn=lambda source, dest: project_clone_support._try_link_directory(
+            source,
+            dest,
+            os_name="nt",
+        ),
     )
 
     assert calls == [
@@ -639,7 +641,6 @@ def test_clone_directory_skips_venv_when_windows_linking_is_unavailable(tmp_path
     (source_root / ".venv").mkdir()
     spec = GitIgnoreSpec.from_lines([])
 
-    monkeypatch.setattr(project_clone_support.os, "name", "nt", raising=False)
     monkeypatch.setattr(
         project_clone_support.os,
         "symlink",
@@ -660,6 +661,11 @@ def test_clone_directory_skips_venv_when_windows_linking_is_unavailable(tmp_path
         ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
         content_renamer_cls=lambda _rename_map: type("NoOpRenamer", (), {"visit": lambda self, tree: tree})(),
         replace_content_fn=lambda text, _mapping: text,
+        link_directory_fn=lambda source, dest: project_clone_support._try_link_directory(
+            source,
+            dest,
+            os_name="nt",
+        ),
     )
 
     assert not (dest_root / ".venv").exists()

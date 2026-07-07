@@ -23,7 +23,7 @@ def _write_project(
     project: Path,
     dependencies: list[str],
     *,
-    requires_python: str = ">=3.11",
+    requires_python: str = ">=3.12",
     dynamic_dependencies: bool = False,
 ) -> None:
     project.mkdir(parents=True)

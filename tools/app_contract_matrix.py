@@ -59,6 +59,8 @@ PAYLOAD_EXCLUDED_DIRS = frozenset(
 PAYLOAD_EXCLUDED_FILES = frozenset({".DS_Store", ".gitignore", ".lock", "uv.lock"})
 PAYLOAD_EXCLUDED_FILE_PREFIXES = (".coverage",)
 PAYLOAD_EXCLUDED_SUFFIXES = frozenset({".c", ".pid", ".pyc", ".pyo", ".pyx", ".so"})
+PYTORCH_PLAYGROUND_APP_PACKAGE = "agi-app-pytorch-playground"
+PYTORCH_PLAYGROUND_PROJECT = "pytorch_playground_project"
 REQUIRED_PROJECT_URL_KEYS = frozenset(
     {
         "Documentation",
@@ -1082,6 +1084,44 @@ def _global_checks(
             "any checked-in embedded app payloads match the generated built-in source payload",
             evidence=(str(APP_PROJECT_BUILD_SUPPORT_REL), "src/agilab/lib/agi-app-*"),
             details={"errors": payload_drift_errors},
+        )
+    )
+    pytorch_package_path = package_specs.get(PYTORCH_PLAYGROUND_APP_PACKAGE)
+    pytorch_package_import = pytorch_package_path and Path(pytorch_package_path).name.replace("-", "_")
+    pytorch_embedded_payload = (
+        Path(pytorch_package_path) / "src" / str(pytorch_package_import) / "project" / PYTORCH_PLAYGROUND_PROJECT
+        if pytorch_package_path and pytorch_package_import
+        else None
+    )
+    pytorch_payload_ok = (
+        package_to_project.get(PYTORCH_PLAYGROUND_APP_PACKAGE) == PYTORCH_PLAYGROUND_PROJECT
+        and PYTORCH_PLAYGROUND_APP_PACKAGE not in payload_contract_errors
+        and PYTORCH_PLAYGROUND_APP_PACKAGE not in payload_drift_errors
+        and bool(pytorch_embedded_payload)
+        and (repo_root / pytorch_embedded_payload).is_dir()
+    )
+    checks.append(
+        _check(
+            "pytorch_playground_payload_is_generated_from_builtin_source",
+            "PyTorch playground payload is generated from built-in source",
+            pytorch_payload_ok,
+            "the checked-in PyTorch app payload is a generated package snapshot of the built-in project",
+            evidence=(
+                str(APP_PROJECT_BUILD_SUPPORT_REL),
+                str(BUILTIN_APPS_REL / PYTORCH_PLAYGROUND_PROJECT),
+                _relative(repo_root, repo_root / pytorch_embedded_payload) if pytorch_embedded_payload else "",
+            ),
+            details={
+                "package": PYTORCH_PLAYGROUND_APP_PACKAGE,
+                "project": package_to_project.get(PYTORCH_PLAYGROUND_APP_PACKAGE),
+                "embedded_payload": (
+                    _relative(repo_root, repo_root / pytorch_embedded_payload)
+                    if pytorch_embedded_payload
+                    else None
+                ),
+                "contract_error": payload_contract_errors.get(PYTORCH_PLAYGROUND_APP_PACKAGE),
+                "drift_error": payload_drift_errors.get(PYTORCH_PLAYGROUND_APP_PACKAGE),
+            },
         )
     )
 

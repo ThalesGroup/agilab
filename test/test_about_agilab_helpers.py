@@ -3153,7 +3153,7 @@ def test_visible_env_editor_keys_keeps_template_order_and_adds_worker_overrides(
         {"type": "entry", "key": "OPENAI_API_KEY", "value": "dummy"},
         {"type": "entry", "key": "127.0.0.1_PYTHON_VERSION", "value": "3.12"},
         {"type": "entry", "key": "10.0.0.5_CMD_PREFIX", "value": "ssh"},
-        {"type": "entry", "key": "worker-a_PYTHON_VERSION", "value": "3.11"},
+        {"type": "entry", "key": "worker-a_PYTHON_VERSION", "value": "3.12"},
     ]
 
     assert about_agilab._visible_env_editor_keys(template_keys, existing_entries) == [
@@ -3294,7 +3294,7 @@ def test_handle_data_root_failure_renders_share_recovery_paths(tmp_path, monkeyp
 def test_render_env_editor_saves_updates_and_redacted_preview(tmp_path, monkeypatch):
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "AGI_PYTHON_VERSION=3.11\n"
+        "AGI_PYTHON_VERSION=3.12\n"
         "OPENAI_API_KEY=old-secret\n"
         "AGI_CLUSTER_SHARE=oldshare\n",
         encoding="utf-8",
@@ -3366,7 +3366,7 @@ def test_render_env_editor_save_branches_for_new_secret_duplicate_key_and_errors
     env_editor = about_agilab._about_env_editor
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "# AGI_CLUSTER_SHARE=oldshare\nAGI_PYTHON_VERSION=3.11\n", encoding="utf-8"
+        "# AGI_CLUSTER_SHARE=oldshare\nAGI_PYTHON_VERSION=3.12\n", encoding="utf-8"
     )
     template_file = tmp_path / "template.env"
     template_file.write_text(
@@ -3425,7 +3425,7 @@ def test_render_env_editor_save_branches_for_new_secret_duplicate_key_and_errors
     )
 
     error_file = tmp_path / "error.env"
-    error_file.write_text("AGI_PYTHON_VERSION=3.11\n", encoding="utf-8")
+    error_file.write_text("AGI_PYTHON_VERSION=3.12\n", encoding="utf-8")
     fake_st = _FakeStreamlit(button_values={"Save .env": True})
     fake_st.session_state["env_editor_val_AGI_PYTHON_VERSION"] = "3.12"
     monkeypatch.setattr(about_agilab, "st", fake_st)

@@ -2,7 +2,7 @@
 version = "2026.07.04"
 name = "agi-env"
 description = "Environment bootstrap package for AGILAB with virtualenv, path, and runtime helpers"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 readme = "README.md"
 authors = [
     { name = "Jean-Pierre Morard" }
@@ -15,7 +15,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -38,7 +37,7 @@ keywords = [
 
 dependencies = [
     "pathspec>=1.1,<2",
-    "charset-normalizer<3.4.8; python_version >= '3.14' and python_version < '3.15'",
+    "charset-normalizer>=3.4,<3.4.8; python_version >= '3.14' and python_version < '3.15'",
     "psutil>=7,<8",
     "py7zr>=1.1,<1.2",
     "pydantic>=2.11,<2.14",
