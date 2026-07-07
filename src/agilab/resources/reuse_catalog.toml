@@ -131,9 +131,9 @@ reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend
 checked_against = []
 
 [[page]]
-id = "tri_gtia_view"
+id = "view_tri_gtia"
 title = "TRI/GTIA visibility"
-package = "tri-gtia-view"
+package = "agi-page-tri-gtia"
 purpose = "Launches the NetworkSim TRI/GTIA TTL visibility analysis page from ANALYSIS."
 when_to_use = "Use for NetworkSim projects that export TRI/GTIA visibility evidence and need the existing domain-specific dashboard."
 inputs = ["NetworkSim active app", "TRI/GTIA TTL visibility artifacts", "network_sim.tri_gtia_view entrypoint"]

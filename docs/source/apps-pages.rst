@@ -230,8 +230,8 @@ pulled by the umbrella dependency graph.
      - ``agi-page-network-map``
      - Network-aware geospatial topology and route inspection.
      - Included in ``agi-pages``.
-   * - ``tri_gtia_view``
-     - ``tri-gtia-view``
+   * - ``view_tri_gtia``
+     - ``agi-page-tri-gtia``
      - NetworkSim TRI/GTIA TTL visibility analysis launcher.
      - Source-checkout opt-in for NetworkSim projects.
    * - ``view_routing_model_comparison``
@@ -303,7 +303,7 @@ Network topology viewer synchronised with geographic views.
   the normal sidebar stays focused on choices rather than long filesystem
   strings.
 
-tri_gtia_view
+view_tri_gtia
 ^^^^^^^^^^^^^
 
 NetworkSim-specific TRI/GTIA TTL visibility launcher.

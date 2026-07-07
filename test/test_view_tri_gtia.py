@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 PAGE_PATH = Path(
-    "src/agilab/apps-pages/tri_gtia_view/src/tri_gtia_view/tri_gtia_view.py"
+    "src/agilab/apps-pages/view_tri_gtia/src/view_tri_gtia/view_tri_gtia.py"
 )
 
 
@@ -24,7 +24,7 @@ def _load_bundle(*, call_log: list[bool]) -> object:
     sys.modules["network_sim.tri_gtia_view"] = fake_bundle
 
     spec = importlib.util.spec_from_file_location(
-        "tri_gtia_view_test_module", PAGE_PATH
+        "view_tri_gtia_test_module", PAGE_PATH
     )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -32,7 +32,7 @@ def _load_bundle(*, call_log: list[bool]) -> object:
     return module
 
 
-def test_tri_gtia_view_launches_network_sim_entrypoint() -> None:
+def test_view_tri_gtia_launches_network_sim_entrypoint() -> None:
     call_log: list[bool] = []
     try:
         module = _load_bundle(call_log=call_log)

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
   <title id="title">TRI GTIA View preview</title>
-  <desc id="desc">Preview thumbnail for tri_gtia_view, package tri-gtia-view.</desc>
+  <desc id="desc">Preview thumbnail for view_tri_gtia, package agi-page-tri-gtia.</desc>
   <defs>
     <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0" stop-color="#f8fafc"/>
