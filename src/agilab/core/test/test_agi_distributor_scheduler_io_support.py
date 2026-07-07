@@ -125,6 +125,56 @@ def test_get_scheduler_accepts_explicit_string_endpoint():
     assert agi_cls._scheduler == "192.168.0.10:9012"
 
 
+def test_get_scheduler_uses_scheduler_port_range_first_port_as_default():
+    env = SimpleNamespace(envars={"AGILAB_DASK_SCHEDULER_PORT_RANGE": "8786:8790"})
+    agi_cls = SimpleNamespace(_workers={"10.0.0.2": 2}, _scheduler=None, env=env)
+    ip, port = scheduler_io_support.get_scheduler(
+        agi_cls,
+        None,
+        gethostbyname_fn=lambda _host: "127.0.0.1",
+    )
+    assert (ip, port) == ("10.0.0.2", 8786)
+    assert agi_cls._scheduler == "10.0.0.2:8786"
+
+
+def test_get_scheduler_explicit_port_wins_over_scheduler_port_range():
+    env = SimpleNamespace(envars={"AGILAB_DASK_SCHEDULER_PORT_RANGE": "8786:8790"})
+    agi_cls = SimpleNamespace(_workers={"10.0.0.2": 2}, _scheduler=None, env=env)
+    ip, port = scheduler_io_support.get_scheduler(
+        agi_cls,
+        "192.168.0.10:9999",
+        gethostbyname_fn=lambda _host: "127.0.0.1",
+    )
+    assert (ip, port) == ("192.168.0.10", 9999)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("8786", (8786, 8786)),
+        ("8786:8790", (8786, 8790)),
+        (" 8786 : 8790 ", (8786, 8790)),
+    ],
+)
+def test_scheduler_port_range_accepts_valid_values(raw, expected):
+    env = SimpleNamespace(envars={"AGILAB_DASK_SCHEDULER_PORT_RANGE": raw})
+    assert scheduler_io_support.scheduler_port_range(env) == expected
+
+
+@pytest.mark.parametrize("raw", ["abc", "8790:8786", "0", "70000", "1:2:3"])
+def test_scheduler_port_range_rejects_invalid_values(raw):
+    env = SimpleNamespace(envars={"AGILAB_DASK_SCHEDULER_PORT_RANGE": raw})
+    with pytest.raises(ValueError, match="Invalid dask scheduler port range"):
+        scheduler_io_support.scheduler_port_range(env)
+
+
+def test_scheduler_port_range_defaults_to_none(monkeypatch):
+    monkeypatch.delenv("AGILAB_DASK_SCHEDULER_PORT_RANGE", raising=False)
+    monkeypatch.delenv("DASK_SCHEDULER_PORT_RANGE", raising=False)
+    env = SimpleNamespace(envars={})
+    assert scheduler_io_support.scheduler_port_range(env) is None
+
+
 def test_get_scheduler_explicit_endpoint_port_wins_over_default_port():
     agi_cls = SimpleNamespace(_workers={"10.0.0.2": 2}, _scheduler=None)
     ip, port = scheduler_io_support.get_scheduler(

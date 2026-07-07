@@ -11,6 +11,7 @@ from agi_cluster.agi_distributor import background_jobs_support
 from agi_cluster.agi_distributor import deployment_remote_support
 from agi_cluster.agi_distributor import runtime_misc_support
 from agi_cluster.agi_distributor.api.worker_cli_support import resolve_worker_cli_path
+from agi_cluster.agi_distributor.runtime import scheduler_io_support
 from agi_cluster.agi_distributor.run_request_support import RunRequest
 
 
@@ -480,15 +481,47 @@ async def _prepare_scheduler_nodes(
 
 
 async def _ensure_local_scheduler_port(agi_cls: Any, *, log: Any = logger) -> None:
-    # The scheduler port is deterministic (default 8786 or an explicit
-    # scheduler="ip:port"): never swap it for a random one, as firewall rules
-    # may only allow the configured port.
+    # The scheduler port is deterministic (default 8786, the first port of
+    # AGILAB_DASK_SCHEDULER_PORT_RANGE, or an explicit scheduler="ip:port"):
+    # never swap it for a random one, as firewall rules may only allow the
+    # configured ports. When the port is busy, only the remaining ports of the
+    # configured range are tried.
     released = await agi_cls._wait_for_port_release(agi_cls._scheduler_ip, agi_cls._scheduler_port)
-    if not released:
+    if released:
+        return
+
+    port_range = scheduler_io_support.scheduler_port_range(agi_cls.env)
+    in_range = port_range is not None and port_range[0] <= agi_cls._scheduler_port <= port_range[1]
+    if in_range:
+        for candidate in range(port_range[0], port_range[1] + 1):
+            if candidate == agi_cls._scheduler_port:
+                continue
+            if await agi_cls._wait_for_port_release(
+                agi_cls._scheduler_ip, candidate, timeout=0.5
+            ):
+                log.info(
+                    "Scheduler port %s:%s is busy; falling back to port %s from range %s:%s",
+                    agi_cls._scheduler_ip,
+                    agi_cls._scheduler_port,
+                    candidate,
+                    port_range[0],
+                    port_range[1],
+                )
+                agi_cls._scheduler_port = candidate
+                agi_cls._scheduler = f"{agi_cls._scheduler_ip}:{candidate}"
+                return
+
+    busy = f"{agi_cls._scheduler_ip}:{agi_cls._scheduler_port}"
+    if in_range:
         raise RuntimeError(
-            f"Scheduler port {agi_cls._scheduler_ip}:{agi_cls._scheduler_port} is still busy. "
-            "Free the port or configure another one with AGI.run(..., scheduler='ip:port')."
+            f"Scheduler port {busy} and every fallback in range "
+            f"{port_range[0]}:{port_range[1]} are busy. Free a port or widen "
+            "AGILAB_DASK_SCHEDULER_PORT_RANGE."
         )
+    raise RuntimeError(
+        f"Scheduler port {busy} is still busy. "
+        "Free the port or configure another one with AGI.run(..., scheduler='ip:port')."
+    )
 
 
 async def _resolve_scheduler_cmd_prefix(

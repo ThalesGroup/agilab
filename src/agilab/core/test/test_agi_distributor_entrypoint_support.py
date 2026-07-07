@@ -76,6 +76,62 @@ async def test_ensure_local_scheduler_port_raises_when_port_busy(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_ensure_local_scheduler_port_falls_back_within_range(monkeypatch):
+    AGI._scheduler_ip = "127.0.0.1"
+    AGI._scheduler_port = 8780
+    AGI._scheduler = "127.0.0.1:8780"
+    AGI.env = SimpleNamespace(
+        envars={"AGILAB_DASK_SCHEDULER_PORT_RANGE": "8780:8790"}
+    )
+
+    async def _busy_until_8782(_ip, port, **_kwargs):
+        return port == 8782
+
+    monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_busy_until_8782))
+
+    await entrypoint_support._ensure_local_scheduler_port(AGI)
+
+    assert AGI._scheduler_port == 8782
+    assert AGI._scheduler == "127.0.0.1:8782"
+
+
+@pytest.mark.asyncio
+async def test_ensure_local_scheduler_port_raises_when_whole_range_busy(monkeypatch):
+    AGI._scheduler_ip = "127.0.0.1"
+    AGI._scheduler_port = 8780
+    AGI._scheduler = "127.0.0.1:8780"
+    AGI.env = SimpleNamespace(
+        envars={"AGILAB_DASK_SCHEDULER_PORT_RANGE": "8780:8790"}
+    )
+
+    async def _still_busy(*_args, **_kwargs):
+        return False
+
+    monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_still_busy))
+
+    with pytest.raises(RuntimeError, match="fallback in range 8780:8790"):
+        await entrypoint_support._ensure_local_scheduler_port(AGI)
+
+
+@pytest.mark.asyncio
+async def test_ensure_local_scheduler_port_no_fallback_outside_range(monkeypatch):
+    AGI._scheduler_ip = "127.0.0.1"
+    AGI._scheduler_port = 9999
+    AGI._scheduler = "127.0.0.1:9999"
+    AGI.env = SimpleNamespace(
+        envars={"AGILAB_DASK_SCHEDULER_PORT_RANGE": "8780:8790"}
+    )
+
+    async def _still_busy(*_args, **_kwargs):
+        return False
+
+    monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_still_busy))
+
+    with pytest.raises(RuntimeError, match="still busy"):
+        await entrypoint_support._ensure_local_scheduler_port(AGI)
+
+
+@pytest.mark.asyncio
 async def test_start_scheduler_local_keeps_configured_port_and_connects(monkeypatch, tmp_path):
     cluster_pck = tmp_path / "cluster"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)

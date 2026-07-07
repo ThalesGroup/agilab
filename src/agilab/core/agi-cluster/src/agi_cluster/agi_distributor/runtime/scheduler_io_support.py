@@ -6,11 +6,13 @@ import time
 from contextlib import redirect_stdout
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
+from agi_cluster.agi_distributor.deployment import deployment_remote_support
+
 
 logger = logging.getLogger(__name__)
 
 # Dask's standard scheduler port. Kept fixed so firewall rules stay valid;
-# override with AGI.run(..., scheduler="ip:port").
+# override with AGI.run(..., scheduler="ip:port") or a scheduler port range.
 DEFAULT_SCHEDULER_PORT = 8786
 
 _DECODE_BYTES_EXCEPTIONS = (UnicodeDecodeError,)
@@ -87,13 +89,47 @@ def find_free_port(
     raise RuntimeError("No free port found in the specified range.")
 
 
+def scheduler_port_range(env: Any) -> Optional[Tuple[int, int]]:
+    """Optional fixed port range for the dask scheduler (firewall pinning).
+
+    Accepts a single port ("8786") or an inclusive range ("8786:8790"). The
+    range's first port becomes the default scheduler port; the remaining ports
+    are fallbacks when it is busy. An explicit AGI.run(..., scheduler="ip:port")
+    still wins.
+    """
+    raw = deployment_remote_support._env_lookup(
+        env,
+        "AGILAB_DASK_SCHEDULER_PORT_RANGE",
+        "DASK_SCHEDULER_PORT_RANGE",
+        "dask_scheduler_port_range",
+    )
+    if raw in (None, ""):
+        return None
+    text = str(raw).strip()
+    parts = text.split(":")
+    if len(parts) not in (1, 2):
+        raise ValueError(f"Invalid dask scheduler port range: {raw!r}")
+    try:
+        ports = [int(part.strip()) for part in parts]
+    except ValueError as exc:
+        raise ValueError(f"Invalid dask scheduler port range: {raw!r}") from exc
+    if any(not 1 <= port <= 65535 for port in ports):
+        raise ValueError(f"Invalid dask scheduler port range: {raw!r}")
+    if len(ports) == 1:
+        return ports[0], ports[0]
+    if ports[0] > ports[1]:
+        raise ValueError(f"Invalid dask scheduler port range: {raw!r}")
+    return ports[0], ports[1]
+
+
 def get_scheduler(
     agi_cls: Any,
     ip_sched: Optional[Union[str, Dict[str, int]]] = None,
     *,
     gethostbyname_fn: Callable[[str], str] = socket.gethostbyname,
 ) -> Tuple[str, int]:
-    port = DEFAULT_SCHEDULER_PORT
+    port_range = scheduler_port_range(getattr(agi_cls, "env", None))
+    port = port_range[0] if port_range else DEFAULT_SCHEDULER_PORT
     if not ip_sched:
         if agi_cls._workers:
             ip = list(agi_cls._workers)[0]
