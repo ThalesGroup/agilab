@@ -75,7 +75,7 @@
         {
           "id": "stale_mount_recovery",
           "description": "Simulate an existing stale mount and verify remount logic.",
-          "automated": false,
+          "automated": true,
           "discriminator": true
         }
       ],
@@ -1329,7 +1329,7 @@
         {
           "id": "engine_choice_decision_record",
           "description": "Require a decision row that states why local pandas, Dask, Ray Data, or Spark was selected.",
-          "automated": false,
+          "automated": true,
           "discriminator": true
         }
       ],
@@ -1436,7 +1436,7 @@
         {
           "id": "post_deploy_drift_monitor",
           "description": "Record retrieval corpus version, model version, and live failure-rate drift thresholds.",
-          "automated": false,
+          "automated": true,
           "discriminator": true
         }
       ],
@@ -1636,7 +1636,7 @@
         {
           "id": "agentic_escalation_decision_record",
           "description": "Require a decision record that states when graph traversal or agent planning is justified.",
-          "automated": false,
+          "automated": true,
           "discriminator": true
         }
       ],
@@ -2150,7 +2150,7 @@
         {
           "id": "data_strategy_ablation_matrix",
           "description": "Compare baseline, augmentation, active-learning selection, and self-supervised or transfer-learning paths before accepting a bigger model.",
-          "automated": false,
+          "automated": true,
           "discriminator": true
         }
       ],
@@ -2253,7 +2253,7 @@
         {
           "id": "license_and_safety_gate",
           "description": "Require recorded license compatibility and safety-probe results before promotion.",
-          "automated": false,
+          "automated": true,
           "discriminator": true
         }
       ],

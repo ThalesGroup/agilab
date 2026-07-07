@@ -600,7 +600,7 @@ def test_tescia_diagnostic_selects_evidence_backed_fix(monkeypatch) -> None:
     assert "regression-plan" in report["catalog"]["topic_tags"]
     assert report["selected_fix"]["id"] == "mount_scheduler_share_with_sshfs"
     assert report["evidence_quality"] >= 0.85
-    assert report["regression_coverage"] >= 0.75
+    assert report["regression_coverage"] == 1.0
     assert report["case_quality_score"] >= 85.0
     assert 85.0 <= report["student_score"] <= 100.0
     assert report["self_evaluation"]["status"] == "submitted"
@@ -609,6 +609,20 @@ def test_tescia_diagnostic_selects_evidence_backed_fix(monkeypatch) -> None:
     assert report["self_evaluation"]["student"]["selected_fix_id"] == "mount_scheduler_share_with_sshfs"
     assert report["self_evaluation"]["feedback"] == ["Answer is aligned with the reference diagnostic contract."]
     assert "SSH login success proves the shared data path is usable." in report["weak_assumptions"]
+
+
+def test_tescia_sample_cases_have_complete_regression_coverage(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic import regression_coverage
+
+    incomplete = {
+        str(case["case_id"]): regression_coverage(case)
+        for case in _load_cases()
+        if regression_coverage(case) != 1.0
+    }
+
+    assert incomplete == {}
 
 
 def test_tescia_data_scientist_2026_cases_are_scored_and_current(monkeypatch) -> None:

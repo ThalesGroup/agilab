@@ -45,6 +45,12 @@ a small autoencoder in-page and is not a generic app-agnostic sidecar.
 | _static/apps-pages-gallery/view_maps_network.svg
 
 
+**tri_gtia_view**
+| _static/apps-pages-gallery/tri_gtia_view.svg
+
+NetworkSim TRI/GTIA TTL visibility launcher for domain-specific evidence.
+
+
 **view_queue_resilience**
 | _static/apps-pages-gallery/view_queue_resilience.svg
 

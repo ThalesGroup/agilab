@@ -30,7 +30,7 @@ Every shipped view bundle has a local README, a source-controlled preview, direc
 | [![view_queue_resilience preview](apps-pages-gallery/view_queue_resilience.svg)](view_queue_resilience)<br>**view_queue_resilience**<br>Reviews queue occupancy, packet events, routing summaries, and run metadata. | [![view_relay_resilience preview](apps-pages-gallery/view_relay_resilience.svg)](view_relay_resilience)<br>**view_relay_resilience**<br>Compares relay queue health, route usage, and exported node motion traces. |
 | [![view_release_decision preview](apps-pages-gallery/view_release_decision.svg)](view_release_decision)<br>**view_release_decision**<br>Builds an evidence cockpit for candidate/baseline review and promotion gates. | [![view_routing_model_comparison preview](apps-pages-gallery/view_routing_model_comparison.svg)](view_routing_model_comparison)<br>**view_routing_model_comparison**<br>Compares baseline and candidate routing allocation decisions. |
 | [![view_scenario_cockpit preview](apps-pages-gallery/view_scenario_cockpit.svg)](view_scenario_cockpit)<br>**view_scenario_cockpit**<br>Packages baseline/candidate scenario evidence and promotion-gate deltas. | [![view_shap_explanation preview](apps-pages-gallery/view_shap_explanation.svg)](view_shap_explanation)<br>**view_shap_explanation**<br>Displays local feature-attribution evidence without depending on a specific explainer runtime. |
-| [![view_training_analysis preview](apps-pages-gallery/view_training_analysis.svg)](view_training_analysis)<br>**view_training_analysis**<br>Browses scalar training runs from TensorBoard logs or AGILAB training-history CSVs. |  |
+| [![view_training_analysis preview](apps-pages-gallery/view_training_analysis.svg)](view_training_analysis)<br>**view_training_analysis**<br>Browses scalar training runs from TensorBoard logs or AGILAB training-history CSVs. | [![tri_gtia_view preview](apps-pages-gallery/tri_gtia_view.svg)](tri_gtia_view)<br>**tri_gtia_view**<br>Launches NetworkSim TRI/GTIA TTL visibility analysis from ANALYSIS. |
 
 Quick start (dev checkout):
 
@@ -87,6 +87,10 @@ Quick start (dev checkout):
 - app_ui
   - uv run streamlit run src/agilab/apps-pages/app_ui/src/app_ui/app_ui.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
   - Generic bridge for app-owned Streamlit UIs declared in `[pages.app_ui]`. The page stays app-agnostic; the active app owns the UI entrypoint, controls, execution semantics, and evidence artifacts.
+
+- tri_gtia_view
+  - uv run streamlit run src/agilab/apps-pages/tri_gtia_view/src/tri_gtia_view/tri_gtia_view.py -- --active-app src/agilab/apps/builtin/network_sim_project
+  - NetworkSim-specific TRI/GTIA TTL visibility launcher. It delegates the domain dashboard to `network_sim.tri_gtia_view` while keeping AGILAB page-bundle discovery and quality checks.
 
 Notes
 - The `--active-app` points to a `*_project` folder (e.g., `src/agilab/apps/builtin/flight_telemetry_project`).

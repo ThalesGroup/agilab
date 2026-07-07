@@ -230,6 +230,10 @@ pulled by the umbrella dependency graph.
      - ``agi-page-network-map``
      - Network-aware geospatial topology and route inspection.
      - Included in ``agi-pages``.
+   * - ``tri_gtia_view``
+     - ``tri-gtia-view``
+     - NetworkSim TRI/GTIA TTL visibility analysis launcher.
+     - Source-checkout opt-in for NetworkSim projects.
    * - ``view_routing_model_comparison``
      - ``agi-page-routing-model-comparison``
      - Routing-model allocation comparison for candidate/baseline decisions.
@@ -298,6 +302,18 @@ Network topology viewer synchronised with geographic views.
 - UI convention: the resolved data path is kept under ``Resolved data path`` so
   the normal sidebar stays focused on choices rather than long filesystem
   strings.
+
+tri_gtia_view
+^^^^^^^^^^^^^
+
+NetworkSim-specific TRI/GTIA TTL visibility launcher.
+
+- Input: an active ``network_sim_project`` with ``network_sim.tri_gtia_view``
+  available in its source tree.
+- Output: the NetworkSim TRI/GTIA visibility dashboard opened through AGILAB
+  page-bundle discovery.
+- This page is intentionally a thin launcher so the domain implementation stays
+  owned by the NetworkSim app while the AGILAB page contract remains testable.
 
 view_routing_model_comparison
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
