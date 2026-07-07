@@ -298,6 +298,34 @@ def test_baseworker_uses_workflow_session_share_root_for_manager_relative_paths(
     assert "workflows/20260618T093102Z-492de776/flight_trajectory/dataset" in resolved.as_posix()
 
 
+def test_baseworker_data_in_falls_back_to_physical_share_root(tmp_path):
+    session_root = tmp_path / "clustershare" / "agi" / "workflows" / "run-1"
+    physical_root = tmp_path / "clustershare" / "agi"
+    seeded_input = physical_root / "uav_relay_queue" / "scenarios"
+    seeded_input.mkdir(parents=True)
+
+    env = SimpleNamespace(
+        AGILAB_WORKFLOW_DATA_ROOT=session_root,
+        share_root_path=lambda: physical_root,
+        agi_share_path_abs=physical_root,
+        agi_share_path=Path("clustershare") / "agi",
+        home_abs=tmp_path,
+        _is_managed_pc=False,
+    )
+
+    assert BaseWorker._resolve_data_dir(
+        env,
+        Path("uav_relay_queue") / "scenarios",
+    ) == seeded_input.resolve(strict=False)
+
+    session_input = session_root / "uav_relay_queue" / "scenarios"
+    session_input.mkdir(parents=True)
+    assert BaseWorker._resolve_data_dir(
+        env,
+        Path("uav_relay_queue") / "scenarios",
+    ) == session_input.resolve(strict=False)
+
+
 def test_baseworker_collect_share_aliases_and_data_dir_fallbacks(monkeypatch, tmp_path):
     class _BrokenPath:
         def __fspath__(self):
