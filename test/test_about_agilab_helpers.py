@@ -768,6 +768,37 @@ def test_page_bootstrap_configure_page_chrome_sets_docs_title_and_theme(tmp_path
     ]
 
 
+def test_page_bootstrap_configure_page_config_is_once_per_session() -> None:
+    events: list[dict[str, object]] = []
+    fake_st = SimpleNamespace(
+        session_state={},
+        set_page_config=lambda **kwargs: events.append(kwargs),
+    )
+
+    assert page_bootstrap.configure_page_config(
+        fake_st, page_title="AGILab", layout="wide"
+    )
+    assert not page_bootstrap.configure_page_config(
+        fake_st, page_title="Ignored", layout="centered"
+    )
+
+    assert events == [{"page_title": "AGILab", "layout": "wide"}]
+    assert fake_st.session_state[page_bootstrap.PAGE_CONFIGURED_STATE_KEY] is True
+
+
+def test_ui_session_key_registry_covers_page_bootstrap_keys() -> None:
+    from agilab.ui.session_keys import SessionKeys
+
+    keys = {key.name: key for key in SessionKeys.all()}
+
+    assert keys[page_bootstrap.PAGE_ENV_REALIGNED_STATE_KEY].owner == (
+        "agilab.ui.page_bootstrap"
+    )
+    assert keys[page_bootstrap.PAGE_CONFIGURED_STATE_KEY].owner == (
+        "agilab.ui.page_bootstrap"
+    )
+
+
 def test_page_bootstrap_render_page_header_orders_shared_sidebar_context():
     events: list[tuple[str, object]] = []
     fake_st = SimpleNamespace()

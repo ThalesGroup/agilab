@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlencode
 from agi_env.agi_logger import AgiLogger
+from agilab.ui.page_bootstrap import configure_page_config
 
 try:
     from agilab.ui.ui_performance import (
@@ -1114,7 +1115,8 @@ def _ensure_navigation_environment(
 
 
 def _render_navigation_page_shell(resources_path: Path) -> None:
-    st.set_page_config(
+    configure_page_config(
+        st,
         page_title="AGILab",
         menu_items=get_about_content(),
         layout="wide",

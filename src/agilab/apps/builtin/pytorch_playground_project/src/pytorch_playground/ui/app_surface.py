@@ -12,6 +12,16 @@ _SCRIPT_DIR = Path(__file__).resolve().parents[1]
 _LAST_MANIFEST_SESSION_KEY = "pytorch_playground_last_manifest"
 
 
+def _configure_page(streamlit: Any, **config: Any) -> None:
+    try:
+        from agilab.ui.page_bootstrap import configure_page_config
+    except (ImportError, ModuleNotFoundError):
+        getattr(streamlit, "set_page_config")(**config)
+        return
+
+    configure_page_config(streamlit, **config)
+
+
 def _prepend_sys_path(path: Path) -> None:
     entry = str(path)
     sys.path[:] = [existing for existing in sys.path if existing != entry]
@@ -67,7 +77,7 @@ def _render_dependency_import_error(
 
     root = container or st
     if configure_page:
-        st.set_page_config(page_title="PyTorch Playground", layout="wide")
+        _configure_page(st, page_title="PyTorch Playground", layout="wide")
         st.title("PyTorch Playground")
     root.error("PyTorch Playground scientific dependencies are not importable.")
     root.caption(f"{type(exc).__name__}: {exc}")
@@ -255,7 +265,7 @@ def _render_missing_evidence(paths: list[Path], *, configure_page: bool = True) 
     import streamlit as st
 
     if configure_page:
-        st.set_page_config(page_title="PyTorch Playground", layout="wide")
+        _configure_page(st, page_title="PyTorch Playground", layout="wide")
         st.title("PyTorch Playground")
     st.info(
         "No exported PyTorch evidence found yet. Run the app once from ORCHESTRATE, then return to ANALYSIS."
@@ -521,7 +531,8 @@ def _render_full_surface(
 
     if container is None:
         embedded = _query_param_is_truthy("embed")
-        st.set_page_config(
+        _configure_page(
+            st,
             page_title=getattr(playground_ui, "PAGE_TITLE", "PyTorch Playground"),
             layout="wide",
             initial_sidebar_state="collapsed" if embedded else "auto",

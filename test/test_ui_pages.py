@@ -92,6 +92,23 @@ def _assert_sidebar_active_view(markdown: str, label: str, view_name: str) -> No
         assert any(fragment in markdown for fragment in fragments)
 
 
+def test_streamlit_page_config_is_owned_by_bootstrap() -> None:
+    allowed = {
+        Path("src/agilab/ui/page_bootstrap.py"),
+        Path("src/agilab/bridge_cli.py"),
+        Path("src/agilab/lib/agi-pages/src/agi_pages/runtime.py"),
+    }
+    direct_calls: list[str] = []
+    for path in Path("src").rglob("*.py"):
+        if path in allowed:
+            continue
+        source = path.read_text(encoding="utf-8")
+        if ".set_page_config" in source:
+            direct_calls.append(path.as_posix())
+
+    assert direct_calls == []
+
+
 def _assert_sidebar_link_absent(markdown: str, label: str) -> None:
     for fragment in _sidebar_link_fragments(label):
         assert fragment not in markdown, (
