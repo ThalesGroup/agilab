@@ -7,7 +7,7 @@ requires-python = ">=3.13"
 authors = [
     { name = "Jean-Pierre Morard" }
 ]
-dependencies = ["agi-env>=2026.05.31", "agi-node>=2026.05.31", "pandas>=2.3.0,<4", "pydantic>=2.12,<2.13", "streamlit>=1.58,<1.59"]
+dependencies = ["agi-env>=2026.05.31", "agi-node>=2026.05.31", "pandas>=2.3.0,<4", "pydantic>=2.12,<2.13", "streamlit>=1.57,<1.58"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"

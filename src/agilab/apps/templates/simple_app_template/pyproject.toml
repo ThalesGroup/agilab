@@ -11,7 +11,7 @@ authors = [
 dependencies = [
     "agi-env>=2026.05.25,<2027.0",
     "pydantic>=2.12,<2.13",
-    "streamlit>=1.58,<1.59",
+    "streamlit>=1.57,<1.58",
 ]
 
 [dependency-groups]

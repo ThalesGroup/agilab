@@ -14,7 +14,7 @@ dependencies = [
     "fireducks>=1.4.4,<2",
     "pydantic>=2.12,<2.13",
     "py7zr>=1.1,<1.2",
-    "streamlit>=1.58,<1.59",
+    "streamlit>=1.57,<1.58",
 ]
 
 [dependency-groups]
