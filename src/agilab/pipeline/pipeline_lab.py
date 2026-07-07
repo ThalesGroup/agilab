@@ -359,6 +359,12 @@ def _render_pipeline_automation_manifest_summary(path: str, *, key_prefix: str) 
 
 def _workflow_cockpit_roots(env: AgiEnv, lab_dir: Path, stages_file: Path) -> List[Path]:
     roots: List[Path] = [lab_dir, stages_file.parent]
+    workflow_root_path = getattr(env, "workflow_data_root_path", None)
+    if callable(workflow_root_path):
+        try:
+            roots.append(Path(workflow_root_path()).expanduser())
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
     for attr in ("runenv", "localshare", "cluster_share", "share_path"):
         raw = getattr(env, attr, None)
         if raw:
@@ -368,6 +374,26 @@ def _workflow_cockpit_roots(env: AgiEnv, lab_dir: Path, stages_file: Path) -> Li
     roots.append(localshare_root)
     if app_name:
         roots.append(localshare_root / app_name)
+    unique: List[Path] = []
+    seen: set[str] = set()
+    for root in roots:
+        root_text = str(root)
+        if root_text not in seen:
+            seen.add(root_text)
+            unique.append(root)
+    return unique
+
+
+def _workflow_cockpit_input_roots(env: AgiEnv, lab_dir: Path, stages_file: Path) -> List[Path]:
+    roots: List[Path] = list(_workflow_cockpit_roots(env, lab_dir, stages_file))
+    for method_name in ("workflow_data_root_path", "share_root_path"):
+        method = getattr(env, method_name, None)
+        if callable(method):
+            try:
+                roots.append(Path(method()).expanduser())
+            except (OSError, RuntimeError, TypeError, ValueError):
+                pass
+
     unique: List[Path] = []
     seen: set[str] = set()
     for root in roots:
@@ -410,6 +436,7 @@ def _render_workflow_cockpit(
         stage_ids=stage_ids_by_idx,
         stage_deps=deps_by_stage_id,
         roots=_workflow_cockpit_roots(env, lab_dir, stages_file),
+        input_roots=_workflow_cockpit_input_roots(env, lab_dir, stages_file),
         manifest=manifest,
         pandas_paths=_workflow_cockpit_pandas_paths(),
         dependency_error=dependency_error,

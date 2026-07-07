@@ -136,6 +136,44 @@ def test_manager_data_dir_uses_active_workflow_data_root_not_cluster_share(tmp_p
     assert path_support.share_root_path(env) == session_root.resolve(strict=False)
 
 
+def test_input_data_dir_falls_back_to_physical_share_when_session_input_missing(tmp_path):
+    session_root = tmp_path / "clustershare" / "agi" / "workflows" / "run-1"
+    physical_root = tmp_path / "clustershare" / "agi"
+    seeded_input = physical_root / "uav_relay_queue" / "scenarios"
+    seeded_input.mkdir(parents=True)
+
+    env = SimpleNamespace(
+        AGILAB_WORKFLOW_DATA_ROOT=session_root,
+        share_root_path=lambda: physical_root,
+        agi_share_path_abs=physical_root,
+        agi_share_path=Path("clustershare") / "agi",
+        home_abs=tmp_path,
+        _is_managed_pc=False,
+    )
+
+    resolved = path_support.resolve_data_dir(
+        env,
+        Path("uav_relay_queue") / "scenarios",
+        share_root_path_fn=lambda current_env: path_support.share_root_path(current_env),
+        remap_managed_pc_path_fn=lambda value: Path(value),
+        normalized_path_fn=lambda value: Path(value),
+    )
+
+    assert resolved == seeded_input.resolve(strict=False)
+
+    session_input = session_root / "uav_relay_queue" / "scenarios"
+    session_input.mkdir(parents=True)
+    resolved = path_support.resolve_data_dir(
+        env,
+        Path("uav_relay_queue") / "scenarios",
+        share_root_path_fn=lambda current_env: path_support.share_root_path(current_env),
+        remap_managed_pc_path_fn=lambda value: Path(value),
+        normalized_path_fn=lambda value: Path(value),
+    )
+
+    assert resolved == session_input.resolve(strict=False)
+
+
 def test_artifact_dir_prefers_export_root_then_share_resolver(tmp_path):
     export_root = tmp_path / "explicit-export"
     env = SimpleNamespace(

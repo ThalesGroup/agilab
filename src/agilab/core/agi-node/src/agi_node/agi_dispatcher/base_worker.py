@@ -204,6 +204,10 @@ class BaseWorker(ArtifactContract, abc.ABC):
     def _share_root_path(env: AgiEnv | None) -> Path | None:
         return path_support.share_root_path(env, path_cls=Path)
 
+    @staticmethod
+    def _physical_share_root_path(env: AgiEnv | None) -> Path | None:
+        return path_support.physical_share_root_path(env, path_cls=Path)
+
     @classmethod
     def _resolve_data_dir(
         cls,

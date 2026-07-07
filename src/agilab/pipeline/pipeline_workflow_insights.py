@@ -148,6 +148,8 @@ def build_data_availability(
     stages: Sequence[Mapping[str, Any]],
     sequence: Sequence[int],
     roots: Sequence[Path],
+    *,
+    input_roots: Sequence[Path] | None = None,
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for idx in sequence:
@@ -155,7 +157,8 @@ def build_data_availability(
             continue
         stage = stages[int(idx)]
         for spec in stage_path_specs(stage):
-            existing = _first_existing_path(spec["path"], roots)
+            spec_roots = input_roots if spec["kind"] == "input" and input_roots is not None else roots
+            existing = _first_existing_path(spec["path"], spec_roots)
             rows.append(
                 {
                     "stage": int(idx) + 1,
@@ -731,6 +734,7 @@ def build_workflow_cockpit_model(
     stage_ids: Mapping[int, str],
     stage_deps: Mapping[str, Sequence[str]],
     roots: Sequence[Path],
+    input_roots: Sequence[Path] | None = None,
     manifest: Mapping[str, Any] | None = None,
     pandas_paths: Sequence[Path] = (),
     dependency_error: str | None = None,
@@ -744,7 +748,12 @@ def build_workflow_cockpit_model(
         stage_deps,
         dependency_error=dependency_error,
     )
-    data_availability = build_data_availability(stages, sequence, roots)
+    data_availability = build_data_availability(
+        stages,
+        sequence,
+        roots,
+        input_roots=input_roots,
+    )
     model_artifacts = discover_model_artifacts(roots)
     pandas_compat = audit_pandas_compat(pandas_paths) if pandas_paths else {"total": 0, "by_kind": {}, "findings": [], "truncated": False}
     evidence = build_evidence_score(

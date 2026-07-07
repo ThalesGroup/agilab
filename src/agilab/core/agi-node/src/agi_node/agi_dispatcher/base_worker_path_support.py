@@ -116,6 +116,44 @@ def share_root_path(
     return path_cls(env.home_abs).expanduser()
 
 
+def physical_share_root_path(
+    env: Any | None,
+    *,
+    path_cls: type[Path] = Path,
+) -> Path | None:
+    """Return the physical cluster/share root, ignoring workflow-session scoping."""
+
+    if env is None:
+        return None
+
+    share_root_method = getattr(env, "share_root_path", None)
+    if callable(share_root_method):
+        try:
+            return path_cls(share_root_method()).expanduser().resolve(strict=False)
+        except SHARE_ROOT_FALLBACK_EXCEPTIONS:
+            pass
+
+    for candidate, use_runtime_home in (
+        (getattr(env, "agi_share_path_abs", None), False),
+        (getattr(env, "agi_share_path", None), bool(getattr(env, "is_worker_env", False))),
+    ):
+        if not candidate:
+            continue
+        try:
+            base = path_cls(candidate).expanduser()
+            if not base.is_absolute():
+                if use_runtime_home:
+                    home = path_cls.home()
+                else:
+                    home_abs = getattr(env, "home_abs", None)
+                    home = path_cls(home_abs).expanduser() if home_abs else path_cls.home()
+                base = home / base
+            return base.resolve(strict=False)
+        except SHARE_ROOT_FALLBACK_EXCEPTIONS:
+            continue
+    return None
+
+
 def _relative_share_prefixes(
     env: Any | None,
     share_base: Path,
@@ -195,6 +233,13 @@ def _resolve_relative_data_path(
     return path_cls(share_base).expanduser() / raw
 
 
+def _path_exists(path: Path) -> bool:
+    try:
+        return path.exists()
+    except OSError:
+        return False
+
+
 def resolve_data_dir(
     env: Any | None,
     data_path: Path | str | None,
@@ -211,13 +256,31 @@ def resolve_data_dir(
     raw = path_cls(str(data_path)).expanduser()
     if not raw.is_absolute():
         base = share_root_path_fn(env) or home_factory()
-        raw = _resolve_relative_data_path(
+        session_candidate = _resolve_relative_data_path(
             raw,
             path_cls(base).expanduser(),
             env,
             path_cls=path_cls,
             home_factory=home_factory,
         )
+        raw = session_candidate
+
+        physical_base = physical_share_root_path(env, path_cls=path_cls)
+        if physical_base is not None:
+            try:
+                same_base = path_cls(base).expanduser().resolve(strict=False) == physical_base
+            except SHARE_ROOT_FALLBACK_EXCEPTIONS:
+                same_base = False
+            if not same_base:
+                physical_candidate = _resolve_relative_data_path(
+                    path_cls(str(data_path)).expanduser(),
+                    physical_base,
+                    env,
+                    path_cls=path_cls,
+                    home_factory=home_factory,
+                )
+                if not _path_exists(session_candidate) and _path_exists(physical_candidate):
+                    raw = physical_candidate
 
     remapped = remap_managed_pc_path_fn(raw)
     try:
