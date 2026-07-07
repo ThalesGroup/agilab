@@ -534,7 +534,7 @@ def test_worker_manifests_do_not_depend_on_streamlit() -> None:
 
 
 def test_streamlit_runtime_allows_validated_latest_1x() -> None:
-    """Streamlit runtime stays inside the currently validated latest 1.x window."""
+    """Streamlit runtime accepts the latest validated Streamlit 1.x releases."""
     pyprojects = [
         REPO_ROOT / "pyproject.toml",
         *(REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml"),
@@ -561,7 +561,7 @@ def test_streamlit_runtime_allows_validated_latest_1x() -> None:
                 if requirement.name.lower() != "streamlit":
                     continue
                 specifier_text = str(requirement.specifier)
-                if ">=1.57" not in specifier_text or "<1.58" not in specifier_text:
+                if ">=1.58" not in specifier_text or "<2" not in specifier_text:
                     violations.append(f"{pyproject.relative_to(REPO_ROOT)}: {requirement}")
 
     assert violations == []
