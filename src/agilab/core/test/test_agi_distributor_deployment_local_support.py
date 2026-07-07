@@ -2237,6 +2237,56 @@ def test_update_pyproject_dependencies_filters_to_worker_sources(tmp_path):
     assert "pip==24.0" not in content
 
 
+def test_normalize_worker_requires_python_floor_raises_stale_lower_bound(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """
+[project]
+name = "flight-trajectory-worker"
+requires-python = ">=3.11,<3.15"
+dependencies = ["agi-env", "agi-node"]
+""".strip(),
+        encoding="utf-8",
+    )
+
+    changed = deployment_local_support._normalize_worker_requires_python_floor(pyproject)
+
+    assert changed is True
+    content = pyproject.read_text(encoding="utf-8")
+    assert 'requires-python = ">=3.12,<3.15"' in content
+
+
+def test_normalize_worker_requires_python_floor_bootstraps_missing_value(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text("[project]\nname='worker'\n", encoding="utf-8")
+
+    changed = deployment_local_support._normalize_worker_requires_python_floor(pyproject)
+
+    assert changed is True
+    content = pyproject.read_text(encoding="utf-8")
+    assert 'requires-python = ">=3.12"' in content
+
+
+def test_normalize_worker_requires_python_floor_preserves_exact_app_requirement(
+    tmp_path,
+):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """
+[project]
+name = "autoencoder-latentspace-worker"
+requires-python = "==3.12.*"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    changed = deployment_local_support._normalize_worker_requires_python_floor(pyproject)
+
+    assert changed is False
+    content = pyproject.read_text(encoding="utf-8")
+    assert 'requires-python = "==3.12.*"' in content
+
+
 def test_update_pyproject_dependencies_skips_invalid_existing_specs(tmp_path):
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
