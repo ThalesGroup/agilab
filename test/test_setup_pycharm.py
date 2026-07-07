@@ -546,13 +546,31 @@ ui = ["agi-gui", "streamlit", "tomli_w"]
                 "ui",
                 "--extra",
                 "mlflow",
-                "--preview-features",
-                "python-upgrade",
             ],
             root,
             True,
         )
     ]
+
+
+def test_bootstrap_project_venv_does_not_run_uv_python_upgrade(tmp_path: Path, monkeypatch) -> None:
+    project = tmp_path / "demo_project"
+    project.mkdir()
+    python_path = project / ".venv" / "bin" / "python"
+    calls: list[tuple[list[str], Path, bool]] = []
+
+    monkeypatch.setattr(setup_pycharm, "_find_uv_binary", lambda: "/usr/bin/uv")
+    monkeypatch.setattr(setup_pycharm, "venv_python_for", lambda _project_dir: python_path)
+
+    def fake_run(argv, cwd, check):
+        calls.append((argv, cwd, check))
+        return subprocess.CompletedProcess(argv, 0)
+
+    monkeypatch.setattr(setup_pycharm.subprocess, "run", fake_run)
+
+    assert setup_pycharm._bootstrap_project_venv(project) == python_path
+    assert calls == [(["/usr/bin/uv", "sync", "--project", "."], project, True)]
+    assert "python-upgrade" not in calls[0][0]
 
 
 def test_ensure_project_ui_environment_skips_when_ui_modules_import(tmp_path: Path, monkeypatch) -> None:

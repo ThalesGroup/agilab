@@ -490,6 +490,12 @@ def test_root_installer_installs_local_core_packages_without_dependency_resoluti
     assert "$UV pip install -e src/agilab/core/agi-env" not in root_text
 
 
+def test_root_installer_does_not_run_uv_python_upgrade_by_default() -> None:
+    root_text = INSTALL_SH.read_text(encoding="utf-8")
+
+    assert "python-upgrade" not in root_text
+
+
 def test_shell_installers_stage_remote_scripts_before_execution() -> None:
     root_text = INSTALL_SH.read_text(encoding="utf-8")
     enduser_text = INSTALL_ENDUSER_SH.read_text(encoding="utf-8")
