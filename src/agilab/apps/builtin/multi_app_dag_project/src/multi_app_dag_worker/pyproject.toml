@@ -1,7 +1,7 @@
 [project]
 name = "multi_app_dag_worker"
 version = "2026.05.30.post1"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = ["agi-env>=2026.05.31", "agi-node>=2026.05.31", "polars>=1.35,<2"]
 
 [tool.uv.sources]

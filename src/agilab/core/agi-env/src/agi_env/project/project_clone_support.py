@@ -137,7 +137,7 @@ def _ensure_git_lfs_dataset_payloads(source_root: Path, logger: Any) -> None:
         )
 
 
-def _try_link_directory(source: Path, dest: Path) -> bool:
+def _try_link_directory(source: Path, dest: Path, *, os_name: str | None = None) -> bool:
     """Best-effort directory link with a Windows junction fallback."""
 
     try:
@@ -146,7 +146,7 @@ def _try_link_directory(source: Path, dest: Path) -> bool:
     except FileExistsError:
         return True
     except OSError:
-        if os.name != "nt":
+        if (os_name or os.name) != "nt":
             return False
     try:
         subprocess.run(
@@ -391,6 +391,7 @@ def clone_directory(
     ensure_dir_fn: Callable[[str | Path], Path],
     content_renamer_cls: type[Any],
     replace_content_fn: Callable[[str, dict[str, str]], str],
+    link_directory_fn: Callable[[Path, Path], bool] = _try_link_directory,
 ) -> None:
     """Recursively clone a directory while applying filename/content renames."""
 
@@ -417,7 +418,7 @@ def clone_directory(
 
         if item.is_dir():
             if item.name == ".venv":
-                _try_link_directory(item, dst)
+                link_directory_fn(item, dst)
             else:
                 clone_directory(
                     item,
@@ -428,6 +429,7 @@ def clone_directory(
                     ensure_dir_fn=ensure_dir_fn,
                     content_renamer_cls=content_renamer_cls,
                     replace_content_fn=replace_content_fn,
+                    link_directory_fn=link_directory_fn,
                 )
             continue
 

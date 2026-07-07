@@ -3,7 +3,7 @@ name = "agi-page-queue-health"
 version = "2026.06.23"
 description = "AGILAB page bundle for queue health and resilience evidence."
 readme = { text = "AGILAB page bundle for queue health and resilience evidence.", content-type = "text/markdown" }
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 keywords = [
     "agilab",
     "thalesgroup",

@@ -2,7 +2,7 @@
 version = "2026.06.24"
 name = "agi-app-mission-decision"
 description = "Deterministic AGILAB mission-decision workflow with scenario scoring and evidence artifacts"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 readme = "README.md"
 authors = [
     { name = "Jean-Pierre Morard" }
@@ -15,7 +15,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Operating System :: MacOS",

@@ -40,7 +40,7 @@ agi-core
 
   - **Language Support:**
 
-    - Pure Python on Python 3.11+
+    - Pure Python on Python 3.12+
     - Cython ahead-of-execution compilation for supported worker kernels
 
   - **Deployment Modes:**

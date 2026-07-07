@@ -117,10 +117,6 @@ BROWSER_ASSERTED_APPS_PAGES = REQUIRED_HF_FIRST_PROOF_PAGES + ("app_ui",)
 # enforces that every public view is either browser-asserted or listed here with a test that
 # exists, so a new view cannot ship with zero coverage and a dropped focused test is caught.
 APPS_PAGE_RENDER_ONLY_DISPOSITIONS: dict[str, tuple[str, str]] = {
-    "view_tri_gtia": (
-        "TRI/GTIA visibility page is a thin launcher into network_sim.tri_gtia_view.main",
-        "test/test_view_tri_gtia.py",
-    ),
     "autoencoder_latentspace": (
         "latent-space plots render only with a trained autoencoder artifact",
         "test/test_autoencoder_latentspace.py",

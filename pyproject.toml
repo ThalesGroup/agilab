@@ -2,7 +2,7 @@
 version = "2026.07.04"
 name = "agilab"
 description = "AGILAB is a reproducible AI/ML workbench for engineering teams."
-requires-python = ">=3.11,<3.15"
+requires-python = ">=3.12,<3.15"
 readme = "README.pypi.md"
 authors = [
     { name = "Jean-Pierre Morard" }
@@ -15,7 +15,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",

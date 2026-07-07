@@ -133,7 +133,7 @@ planned partition count should increase for splittable files.
 
 ## Troubleshooting
 
-- If `tomllib` is unavailable, use Python 3.11 or newer.
+- If `tomllib` is unavailable, use Python 3.12 or newer.
 - If the preview says the contract is invalid, check that `schema`, `split`,
   `partition_strategy`, and `target_partitions` still match the README.
 - If you want real execution, first wire the contract into an AGILAB app or

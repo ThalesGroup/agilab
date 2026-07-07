@@ -38,7 +38,7 @@ def _write_page_project(page_dir: Path, *, entrypoint: bool = True, source: bool
         "[project]",
         f'name = "{page_dir.name.replace("_", "-")}"',
         'version = "0.1.0"',
-        'requires-python = ">=3.11"',
+        'requires-python = ">=3.12"',
     ]
     if entrypoint:
         pyproject_lines.extend(
@@ -89,7 +89,7 @@ def _write_app_project(app_dir: Path, *, worker: bool = True, workerless: bool =
         "[project]",
         f'name = "{app_dir.name.replace("_", "-")}"',
         'version = "0.1.0"',
-        'requires-python = ">=3.11"',
+        'requires-python = ">=3.12"',
     ]
     if workerless:
         pyproject_lines.extend(["", "[tool.agilab.app]", 'runtime = "local"', "workerless = true"])
@@ -300,10 +300,10 @@ def test_page_discovery_keeps_only_installable_entrypoint_projects(tmp_path: Pat
 @pytest.mark.parametrize(
     ("requires_python", "expected"),
     [
-        (">=3.11", "3.14.6+gil"),
+        (">=3.12", "3.14.6+gil"),
         ("==3.14.*", "3.14.6+gil"),
         ("==3.12.*", "3.12"),
-        (">=3.11,<3.14", "3.13"),
+        (">=3.12,<3.14", "3.13"),
     ],
 )
 def test_page_sync_python_spec_respects_page_python_requirements(
@@ -316,7 +316,7 @@ def test_page_sync_python_spec_respects_page_python_requirements(
     pyproject = page_dir / "pyproject.toml"
     pyproject.write_text(
         pyproject.read_text(encoding="utf-8").replace(
-            'requires-python = ">=3.11"',
+            'requires-python = ">=3.12"',
             f'requires-python = "{requires_python}"',
         ),
         encoding="utf-8",

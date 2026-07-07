@@ -3,7 +3,7 @@ version = "2026.07.04"
 name = "agi-core"
 description = "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 authors = [{ name = "Jean-Pierre Morard" }]
 maintainers = [{ name = "Jean-Pierre Morard" }]
 license = "BSD-3-Clause"
@@ -12,7 +12,6 @@ classifiers = [
   "Intended Audience :: Developers",
   "Development Status :: 4 - Beta",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",

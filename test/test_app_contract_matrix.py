@@ -80,7 +80,7 @@ def _seed_builtin_project(
                 f'name = "{name}"',
                 'version = "1.0.0"',
                 f'description = "{description}"',
-                'requires-python = ">=3.11"',
+                'requires-python = ">=3.12"',
                 'dependencies = ["agi-env>=1", "agi-node>=1"]',
                 *metadata_lines,
                 "",
@@ -126,6 +126,7 @@ def test_app_contract_matrix_passes_current_repo():
     assert "page_bundle_pyprojects_match_package_contract" in check_ids
     assert "app_packages_use_generated_payload_contract" in check_ids
     assert "checked_in_app_payloads_match_generated_payloads" in check_ids
+    assert "pytorch_playground_payload_is_generated_from_builtin_source" in check_ids
     assert "apps_pages_root_keeps_asset_bundle_shape" in check_ids
     assert "apps_pages_catalog_matches_page_contract" in check_ids
     assert "apps_pages_quality_bar" in check_ids

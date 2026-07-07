@@ -3,7 +3,7 @@ name = "minimal_app_project"
 version = "2026.05.30.post1"
 description = "Built-in AGILab example app template (minimal manager + worker)"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 authors = [
     { name = "Jean-Pierre Morard" }
 ]

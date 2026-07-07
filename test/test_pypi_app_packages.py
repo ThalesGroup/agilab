@@ -88,7 +88,7 @@ def test_fetch_metadata_and_preflight_reads_wheel_entry_points(monkeypatch):
         "info": {
             "version": "2026.5.18",
             "summary": "Weather app",
-            "requires_python": ">=3.11",
+            "requires_python": ">=3.12",
             "requires_dist": ["agi-core>=2026.05.13,<2027.0"],
             "package_url": "https://pypi.org/project/agi-app-weather-forecast/",
             "maintainer": "AGILAB",

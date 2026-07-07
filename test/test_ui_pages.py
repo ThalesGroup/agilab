@@ -1606,7 +1606,7 @@ def test_execute_page_hides_distribution_preview_for_workerless_app(mock_ui_env)
     manager_dir = project_dir / "src" / "workerless"
     manager_dir.mkdir(parents=True)
     (project_dir / "pyproject.toml").write_text(
-        "[project]\nname = 'workerless-project'\nrequires-python = '>=3.11'\n"
+        "[project]\nname = 'workerless-project'\nrequires-python = '>=3.12'\n"
         "\n[tool.agilab.app]\nruntime = 'local'\nworkerless = true\n",
         encoding="utf-8",
     )

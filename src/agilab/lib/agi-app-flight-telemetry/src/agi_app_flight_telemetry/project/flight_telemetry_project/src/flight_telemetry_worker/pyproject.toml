@@ -2,7 +2,7 @@
 name = "flight_telemetry_project"
 version = "2026.05.30.post1"
 description = ""
-requires-python = ">=3.11,<3.15"
+requires-python = ">=3.12,<3.15"
 readme = "README.md"
 dependencies = ["agi-env>=2026.05.31", "agi-node>=2026.05.31", "polars>=1.35,<2", "pydantic>=2.12,<2.13"]
 

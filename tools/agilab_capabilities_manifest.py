@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-try:  # Python 3.11+
+try:  # stdlib tomllib
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - exercised on older local python3 launchers.
     tomllib = None  # type: ignore[assignment]
