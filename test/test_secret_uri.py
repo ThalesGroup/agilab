@@ -157,6 +157,8 @@ def test_redaction_helpers_remove_secret_values_and_secret_refs() -> None:
     payload = {
         "OPENAI_API_KEY": "sk-real-secret",
         "safe": "value",
+        "neutral_model_id": "prefix sk-proj-abcdefghijklmnopqrstuvwxyz1234567890 suffix",
+        "neutral_header": "Bearer github_pat_abcdefghijklmnopqrstuvwxyz1234567890",
         "nested": {"token_ref": "env://OPENAI_API_KEY"},
         "items": ["TOKEN=abc123", standalone, {"password": "abc123"}],
     }
@@ -170,6 +172,8 @@ def test_redaction_helpers_remove_secret_values_and_secret_refs() -> None:
 
     assert redacted["OPENAI_API_KEY"] == "<redacted>"
     assert redacted["safe"] == "value"
+    assert redacted["neutral_model_id"] == "prefix <redacted> suffix"
+    assert redacted["neutral_header"] == "Bearer <redacted>"
     assert redacted["nested"]["token_ref"] == "<redacted>"
     assert redacted["items"][0] == "TOKEN=<redacted>"
     assert redacted["items"][1] == "Bearer <redacted> and <redacted>"

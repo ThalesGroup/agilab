@@ -205,6 +205,8 @@ def redact_mapping(values: Mapping[str, Any]) -> dict[str, Any]:
                 redact_mapping(item) if isinstance(item, Mapping) else redact_text(item)
                 for item in value
             ]
+        elif isinstance(value, str):
+            redacted[key_text] = redact_text(value)
         else:
-            redacted[key_text] = redact_text(value) if is_secret_uri(value) else value
+            redacted[key_text] = value
     return redacted

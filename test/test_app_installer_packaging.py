@@ -551,6 +551,12 @@ def test_install_state_cache_hits_only_when_fingerprint_and_venvs_match(
         "install fingerprint unchanged",
     )
 
+    env.python_uv_spec = "3.13+gil"
+    hit, reason = module._install_state_matches(env, modes_enabled=6, scheduler="127.0.0.1")
+    assert hit is False
+    assert reason == "install fingerprint changed"
+    env.python_uv_spec = ""
+
     (app_path / "pyproject.toml").write_text(
         "[project]\nname='demo-project'\ndependencies=['numpy']\n",
         encoding="utf-8",
