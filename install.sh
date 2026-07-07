@@ -1299,7 +1299,7 @@ install_core() {
 run_core_tests() {
     local repo_root="$AGI_INSTALL_PATH"
     local -a failures=()
-    local -a uv_run=(uv --preview-features extra-build-dependencies run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --no-sync --preview-features python-upgrade)
+    local -a uv_run=(uv --preview-features extra-build-dependencies run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --no-sync)
 
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${BLUE}RUNNING CORE TEST SUITES${NC}"
@@ -1311,7 +1311,7 @@ run_core_tests() {
     # `uv run --no-sync` assumes dependencies are already installed.
     echo -e "${BLUE}Syncing repository environment for core tests...${NC}"
     remove_incompatible_project_venv "$repo_root" "repository root"
-    $UV sync -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --preview-features python-upgrade
+    $UV sync -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}"
 
     if ! "${uv_run[@]}" -m pytest src/agilab/core/agi-env/test --cov=src/agilab/core/agi-env/src/agi_env --cov-report=term-missing --cov-report=xml:coverage-agi-env.xml; then
         failures+=("agi-env tests")
@@ -1348,7 +1348,7 @@ run_root_tests() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
     pushd "$repo_root" > /dev/null
-    if ! $UV run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --no-sync --preview-features python-upgrade -m pytest src/agilab/test --cov=src/agilab --cov-report=term-missing --cov-report=xml:coverage-agilab.xml; then
+    if ! $UV run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --no-sync -m pytest src/agilab/test --cov=src/agilab --cov-report=term-missing --cov-report=xml:coverage-agilab.xml; then
         echo -e "${RED}Agilab unit tests failed. Aborting install.${NC}"
         popd > /dev/null
         exit 1
@@ -1385,7 +1385,7 @@ run_repository_tests_with_coverage() {
         has_app_filter=1
         echo -e "${BLUE}App coverage limited to installed set from ${installed_apps_file}.${NC}"
     fi
-    local -a uv_cmd=(uv --preview-features extra-build-dependencies run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --no-sync --preview-features python-upgrade)
+    local -a uv_cmd=(uv --preview-features extra-build-dependencies run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --no-sync)
     local extra_pythonpath="${repo_root}/src/agilab/core/agi-env/src:${repo_root}/src/agilab/core/agi-node/src:${repo_root}/src/agilab/core/agi-cluster/src"
     local repo_pythonpath="$repo_root"
     if [[ -n "$extra_pythonpath" ]]; then
@@ -1767,7 +1767,7 @@ maybe_run_core_tests
 echo -e "${BLUE}Installing agilab (repo root)...${NC}"
 pushd "$AGI_INSTALL_PATH" > /dev/null
 remove_incompatible_project_venv "$AGI_INSTALL_PATH" "repository root"
-$UV sync -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --preview-features python-upgrade
+$UV sync -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}"
 $UV pip install --upgrade --no-deps \
     -e src/agilab/core/agi-env \
     -e src/agilab/core/agi-node \

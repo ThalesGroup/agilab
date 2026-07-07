@@ -274,7 +274,7 @@ def _bootstrap_project_venv(project_dir: Path) -> Optional[Path]:
 
     try:
         subprocess.run(
-            [uv_bin, "sync", "--project", ".", "--preview-features", "python-upgrade"],
+            [uv_bin, "sync", "--project", "."],
             cwd=project_dir,
             check=True,
         )
@@ -376,7 +376,6 @@ def ensure_project_ui_environment(cfg: Config) -> Optional[Path]:
     sync_args = [uv_bin, "sync", "--project", "."]
     for extra in extras:
         sync_args.extend(["--extra", extra])
-    sync_args.extend(["--preview-features", "python-upgrade"])
     try:
         subprocess.run(
             sync_args,
