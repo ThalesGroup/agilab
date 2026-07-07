@@ -185,10 +185,40 @@ normalize_agi_python_version() {
   printf '%s\n' "$normalized"
 }
 
+normalize_agi_python_uv_spec() {
+  local raw="${1:-}"
+  local python_version="${2:-${AGI_PYTHON_VERSION:-3.14}}"
+  local desired_uv_spec
+  desired_uv_spec="$(python_uv_spec_for_version "$python_version")"
+  raw="$(printf '%s' "$raw" | sed -E 's/^[[:space:]]+//;s/[[:space:]]+$//')"
+  if [[ -z "$raw" || "$raw" == "$python_version" ]]; then
+    raw="$desired_uv_spec"
+  fi
+  if [[ "$raw" == *freethreaded* \
+     || "$raw" =~ (^|[^[:alnum:]])python3\.[0-9]+t([^[:alnum:]]|$) \
+     || "$raw" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) ]]; then
+    echo -e "${RED}Unsupported AGI_PYTHON_UV_SPEC '${raw}': install_apps.sh requires a standard GIL Python interpreter.${NC}" >&2
+    return 1
+  fi
+  printf '%s\n' "$raw"
+}
+
+run_with_agilab_python_env() {
+  env \
+    -u VIRTUAL_ENV \
+    -u CONDA_PREFIX \
+    -u UV_PROJECT_ENVIRONMENT \
+    -u UV_RUN_RECURSION_DEPTH \
+    UV_PYTHON="${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" \
+    "$@"
+}
+
 if ! AGI_PYTHON_VERSION="$(normalize_agi_python_version "${AGI_PYTHON_VERSION:-3.14}")"; then
   exit 1
 fi
-AGI_PYTHON_UV_SPEC="${AGI_PYTHON_UV_SPEC:-$(python_uv_spec_for_version "$AGI_PYTHON_VERSION")}"
+if ! AGI_PYTHON_UV_SPEC="$(normalize_agi_python_uv_spec "${AGI_PYTHON_UV_SPEC:-}" "$AGI_PYTHON_VERSION")"; then
+  exit 1
+fi
 export AGI_PYTHON_VERSION
 export AGI_PYTHON_UV_SPEC
 
@@ -1449,8 +1479,8 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
         if pushd -- "$app_dir_rel" >/dev/null; then
         ran_app_test=0
         if [[ -f app_test.py ]]; then
-          echo "${UV_PREVIEW[@]} run -p \"${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}\" ${CORE_EDITABLE_PACKAGES[*]} python app_test.py"
-          "${UV_PREVIEW[@]}" run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" "${CORE_EDITABLE_PACKAGES[@]}" python app_test.py
+          echo "env -u VIRTUAL_ENV -u CONDA_PREFIX -u UV_PROJECT_ENVIRONMENT -u UV_RUN_RECURSION_DEPTH UV_PYTHON=\"${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}\" ${UV_PREVIEW[*]} run -p \"${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}\" ${CORE_EDITABLE_PACKAGES[*]} python app_test.py"
+          run_with_agilab_python_env "${UV_PREVIEW[@]}" run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" "${CORE_EDITABLE_PACKAGES[@]}" python app_test.py
           ran_app_test=1
         else
             if app_has_collectable_pytests .; then
@@ -1510,7 +1540,7 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
       popd >/dev/null
       continue
     fi
-    if "${UV_PREVIEW[@]}" run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" "${CORE_EDITABLE_PACKAGES[@]}" --project . --with pytest --with pytest-cov pytest; then
+    if run_with_agilab_python_env "${UV_PREVIEW[@]}" run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" "${CORE_EDITABLE_PACKAGES[@]}" --project . --with pytest --with pytest-cov pytest; then
       echo -e "${GREEN}✓ pytest succeeded for '$app_name'.${NC}"
       else
         rc=$?
