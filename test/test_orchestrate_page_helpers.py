@@ -223,6 +223,39 @@ def test_orchestrate_readiness_cards_use_compact_path_captions(tmp_path):
     assert module._compact_path_caption("short status") == "short status"
 
 
+def test_orchestrate_workplan_chunk_rendering_accepts_rich_chunk_records():
+    module = _load_orchestrate_module()
+
+    assert module._workplan_chunk_partition_and_size(
+        ("trajectory_a", 12, "worker", "file", "sat", "orbit", "start", "end", "meta"),
+        fallback_label="fallback",
+    ) == ("trajectory_a", 12)
+    assert module._workplan_chunk_partition_and_size(
+        {"partition": "trajectory_b", "work_items": 9, "ignored": "metadata"},
+        fallback_label="fallback",
+    ) == ("trajectory_b", 9)
+    assert module._workplan_chunk_partition_and_size(
+        ("trajectory_c",),
+        fallback_label="fallback",
+    ) == ("trajectory_c", "?")
+
+
+def test_orchestrate_deployment_log_cache_stays_separate_from_run_log(monkeypatch):
+    module = _load_orchestrate_module()
+    fake_st = SimpleNamespace(session_state={"log_text": "run log after execute"})
+    monkeypatch.setattr(module, "st", fake_st)
+
+    sink = _CaptureCodeSink()
+    module._refresh_deployment_log(sink, ["deploy line 1", "", "deploy line 2"])
+
+    assert fake_st.session_state["log_text"] == "run log after execute"
+    assert (
+        fake_st.session_state[module.DEPLOYMENT_LOG_CACHE_KEY]
+        == "deploy line 1\ndeploy line 2"
+    )
+    assert sink.calls[-1][0][0] == "deploy line 1\ndeploy line 2"
+
+
 def test_page_helpers_rerun_fragment_or_app_falls_back_on_streamlit_api_error():
     module = _load_orchestrate_page_helpers_module()
     calls: list[tuple[str, object | None]] = []
