@@ -11,7 +11,7 @@ import json
 import logging
 from pathlib import Path
 import importlib
-from typing import Any, Callable, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 from datetime import datetime
 
 # Third-Party imports
@@ -402,6 +402,7 @@ def compact_choice(*args: Any, **kwargs: Any) -> Any:
 FIRST_PROOF_ACTION_QUERY_KEY = "first_proof_action"
 FIRST_PROOF_ORCHESTRATE_ACTIONS = {"install", "run"}
 FIRST_PROOF_SAFE_CLUSTER_FLAGS = ("cluster_enabled", "cython", "pool", "rapids")
+DEPLOYMENT_LOG_CACHE_KEY = "deployment_log_cache"
 
 
 # ===========================
@@ -478,6 +479,50 @@ def _append_log_lines(buffer: list[str], payload: str) -> None:
         traceback_state=_TRACEBACK_SKIP,
         is_dask_shutdown_noise_fn=is_dask_shutdown_noise,
     )
+
+
+def _deployment_log_text(log_lines: Sequence[Any]) -> str:
+    return "\n".join(str(line) for line in log_lines if str(line).strip())
+
+
+def _refresh_deployment_log(
+    log_placeholder: Any,
+    log_lines: Sequence[Any],
+    *,
+    height: int = INSTALL_LOG_HEIGHT,
+) -> None:
+    log_text = _deployment_log_text(log_lines)
+    st.session_state[DEPLOYMENT_LOG_CACHE_KEY] = log_text
+    log_placeholder.code(
+        "\n".join(log_text.splitlines()[-LOG_DISPLAY_MAX_LINES:]),
+        language="python",
+        height=height,
+    )
+
+
+def _workplan_chunk_partition_and_size(chunk: Any, fallback_label: str) -> tuple[str, Any]:
+    if isinstance(chunk, Mapping):
+        partition = fallback_label
+        for key in ("partition", "id", "name", "label"):
+            value = chunk.get(key)
+            if value not in (None, ""):
+                partition = value
+                break
+        size = "?"
+        for key in ("size", "units", "weight", "work_items", "size_kb", "items"):
+            value = chunk.get(key)
+            if value not in (None, ""):
+                size = value
+                break
+        return str(partition), size
+
+    if isinstance(chunk, Sequence) and not isinstance(chunk, (str, bytes, bytearray)):
+        if len(chunk) >= 2:
+            return str(chunk[0]), chunk[1]
+        if len(chunk) == 1:
+            return str(chunk[0]), "?"
+
+    return fallback_label, "?"
 
 
 def _log_indicates_install_failure(lines: list[str]) -> bool:
@@ -2007,12 +2052,12 @@ async def _render_deployment_panel(
         if not install_state.action.enabled:
             st.caption(install_state.action.disabled_reason)
 
-        existing_log = st.session_state.get("log_text", "").strip()
+        existing_log = st.session_state.get(DEPLOYMENT_LOG_CACHE_KEY, "").strip()
         if existing_log:
             install_expanded = st.session_state.get("_install_logs_expanded", False)
             with st.expander("Deployment logs", expanded=install_expanded):
                 log_placeholder = st.empty()
-                update_log(log_placeholder, "")
+                _refresh_deployment_log(log_placeholder, existing_log.splitlines())
         pending_install_requested = consume_pending_install_action(st.session_state)
         install_requested = st.button(
             ORCHESTRATE_ACTION_LABELS["deploy_workers"],
@@ -2032,6 +2077,7 @@ async def _render_deployment_panel(
             st.session_state["_install_logs_expanded"] = True
             _reset_traceback_skip()
             clear_log()
+            st.session_state[DEPLOYMENT_LOG_CACHE_KEY] = ""
             venv = install_state.runtime_root
             install_command = install_state.install_command
             context_lines = install_state.context_lines
@@ -2044,7 +2090,7 @@ async def _render_deployment_panel(
                 log_placeholder.empty()
                 for line in context_lines:
                     _append_log_lines(local_log, line)
-                    update_log(log_placeholder, line)
+                    _refresh_deployment_log(log_placeholder, local_log)
             elapsed_started = _orchestrate_start_action_elapsed(
                 st.session_state,
                 "orchestrate_deploy_workers",
@@ -2058,7 +2104,7 @@ async def _render_deployment_panel(
             )
 
             def _tick_deploy_progress(message: str) -> None:
-                update_log(log_placeholder, message)
+                _refresh_deployment_log(log_placeholder, local_log)
                 _orchestrate_update_action_elapsed_status(
                     elapsed_placeholder,
                     st.session_state,
@@ -2100,11 +2146,7 @@ async def _render_deployment_panel(
                 )
                 with log_expander:
                     final_install_log = result.data.get("install_log", local_log)
-                    if final_install_log:
-                        st.session_state["log_text"] = (
-                            "\n".join(str(line) for line in final_install_log) + "\n"
-                        )
-                    update_log(log_placeholder, "")
+                    _refresh_deployment_log(log_placeholder, final_install_log)
                 render_action_result(st, result)
                 if result.status == "success":
                     st.session_state["show_run"] = True
@@ -2372,7 +2414,10 @@ async def _render_distribution_panel(
                     count = 0
                     for i, chunks in enumerate(work_plan_metadata):
                         for j, chunk in enumerate(chunks):
-                            partition, size = chunk
+                            partition, size = _workplan_chunk_partition_and_size(
+                                chunk,
+                                fallback_label=f"{i + 1}.{j + 1}",
+                            )
                             with cols[0 if count % ncols == 0 else 2]:
                                 b1, b2 = st.columns(2)
                                 b1.text(
@@ -2449,6 +2494,7 @@ async def _render_run_panels(
         st.session_state[prev_app_key] = env.app
         st.session_state["run_log_cache"] = ""
         st.session_state.pop("log_text", None)
+        st.session_state.pop(DEPLOYMENT_LOG_CACHE_KEY, None)
         st.session_state.pop("_benchmark_expand", None)
         st.session_state.pop("_force_export_open", None)
     st.session_state.setdefault("run_log_cache", "")
@@ -2768,6 +2814,7 @@ async def page() -> None:
         st.session_state["args_serialized"] = ""
         st.session_state["run_log_cache"] = ""
         st.session_state.pop("log_text", None)
+        st.session_state.pop(DEPLOYMENT_LOG_CACHE_KEY, None)
         st.session_state.pop("service_log_cache", None)
         st.session_state.pop("service_status_cache", None)
         st.session_state.pop("_service_logs_expanded", None)
