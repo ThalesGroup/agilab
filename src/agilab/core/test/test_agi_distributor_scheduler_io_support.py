@@ -70,16 +70,15 @@ def test_get_default_local_ip_returns_fallback_on_failure():
     )
 
 
-def test_get_scheduler_uses_workers_first_ip_and_random_port():
+def test_get_scheduler_uses_workers_first_ip_and_default_port():
     agi_cls = SimpleNamespace(_workers={"10.0.0.2": 2}, _scheduler=None)
     ip, port = scheduler_io_support.get_scheduler(
         agi_cls,
         None,
-        find_free_port_fn=lambda: 6123,
         gethostbyname_fn=lambda _host: "127.0.0.1",
     )
-    assert (ip, port) == ("10.0.0.2", 6123)
-    assert agi_cls._scheduler == "10.0.0.2:6123"
+    assert (ip, port) == ("10.0.0.2", 8786)
+    assert agi_cls._scheduler == "10.0.0.2:8786"
 
 
 def test_get_scheduler_uses_localhost_when_no_workers_are_defined():
@@ -87,11 +86,10 @@ def test_get_scheduler_uses_localhost_when_no_workers_are_defined():
     ip, port = scheduler_io_support.get_scheduler(
         agi_cls,
         None,
-        find_free_port_fn=lambda: 6123,
         gethostbyname_fn=lambda _host: "127.0.0.1",
     )
-    assert (ip, port) == ("127.0.0.1", 6123)
-    assert agi_cls._scheduler == "127.0.0.1:6123"
+    assert (ip, port) == ("127.0.0.1", 8786)
+    assert agi_cls._scheduler == "127.0.0.1:8786"
 
 
 def test_get_scheduler_accepts_dict_with_explicit_port():
@@ -99,7 +97,6 @@ def test_get_scheduler_accepts_dict_with_explicit_port():
     ip, port = scheduler_io_support.get_scheduler(
         agi_cls,
         {"10.1.1.1": 7788},
-        find_free_port_fn=lambda: 6000,
         gethostbyname_fn=lambda _host: "127.0.0.1",
     )
     assert (ip, port) == ("10.1.1.1", 7788)
@@ -111,23 +108,31 @@ def test_get_scheduler_accepts_explicit_string_ip():
     ip, port = scheduler_io_support.get_scheduler(
         agi_cls,
         "192.168.0.10",
-        find_free_port_fn=lambda: 7001,
         gethostbyname_fn=lambda _host: "127.0.0.1",
     )
-    assert (ip, port) == ("192.168.0.10", 7001)
-    assert agi_cls._scheduler == "192.168.0.10:7001"
+    assert (ip, port) == ("192.168.0.10", 8786)
+    assert agi_cls._scheduler == "192.168.0.10:8786"
 
 
 def test_get_scheduler_accepts_explicit_string_endpoint():
     agi_cls = SimpleNamespace(_workers={"10.0.0.2": 2}, _scheduler=None)
     ip, port = scheduler_io_support.get_scheduler(
         agi_cls,
-        "tcp://agi@192.168.0.10:8786",
-        find_free_port_fn=lambda: 7001,
+        "tcp://agi@192.168.0.10:9012",
         gethostbyname_fn=lambda _host: "127.0.0.1",
     )
-    assert (ip, port) == ("192.168.0.10", 8786)
-    assert agi_cls._scheduler == "192.168.0.10:8786"
+    assert (ip, port) == ("192.168.0.10", 9012)
+    assert agi_cls._scheduler == "192.168.0.10:9012"
+
+
+def test_get_scheduler_explicit_endpoint_port_wins_over_default_port():
+    agi_cls = SimpleNamespace(_workers={"10.0.0.2": 2}, _scheduler=None)
+    ip, port = scheduler_io_support.get_scheduler(
+        agi_cls,
+        "192.168.0.10:9999",
+        gethostbyname_fn=lambda _host: "127.0.0.1",
+    )
+    assert (ip, port) == ("192.168.0.10", 9999)
 
 
 def test_get_scheduler_accepts_bracketed_ipv6_endpoint():
@@ -135,7 +140,6 @@ def test_get_scheduler_accepts_bracketed_ipv6_endpoint():
     ip, port = scheduler_io_support.get_scheduler(
         agi_cls,
         "[2001:db8::1]:8786",
-        find_free_port_fn=lambda: 7001,
         gethostbyname_fn=lambda _host: "127.0.0.1",
     )
     assert (ip, port) == ("2001:db8::1", 8786)
@@ -148,21 +152,18 @@ def test_get_scheduler_rejects_invalid_bracketed_and_out_of_range_endpoints():
         scheduler_io_support.get_scheduler(
             agi_cls,
             "[2001:db8::1",
-            find_free_port_fn=lambda: 6000,
             gethostbyname_fn=lambda _host: "127.0.0.1",
         )
     with pytest.raises(ValueError, match="Scheduler address is not valid"):
         scheduler_io_support.get_scheduler(
             agi_cls,
             "[2001:db8::1]bad",
-            find_free_port_fn=lambda: 6000,
             gethostbyname_fn=lambda _host: "127.0.0.1",
         )
     with pytest.raises(ValueError, match="Scheduler port is not valid"):
         scheduler_io_support.get_scheduler(
             agi_cls,
             "192.168.0.10:70000",
-            find_free_port_fn=lambda: 6000,
             gethostbyname_fn=lambda _host: "127.0.0.1",
         )
 
@@ -173,7 +174,6 @@ def test_get_scheduler_rejects_invalid_endpoint_port():
         scheduler_io_support.get_scheduler(
             agi_cls,
             "192.168.0.10:notaport",
-            find_free_port_fn=lambda: 6000,
             gethostbyname_fn=lambda _host: "127.0.0.1",
         )
 
@@ -184,7 +184,6 @@ def test_get_scheduler_rejects_invalid_type():
         scheduler_io_support.get_scheduler(
             agi_cls,
             42,
-            find_free_port_fn=lambda: 6000,
             gethostbyname_fn=lambda _host: "127.0.0.1",
         )
 

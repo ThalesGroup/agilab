@@ -37,14 +37,45 @@ def _sync_poll_delay(attempt: int) -> float:
     return _SYNC_POLL_DELAYS_SECONDS[attempt]
 
 
+def _worker_port_range(env: Any) -> str | None:
+    """Optional fixed listen-port range for dask workers (firewall pinning).
+
+    Accepts a single port ("9000") or an inclusive range ("9000:9100"), the
+    same syntax as `dask worker --worker-port`.
+    """
+    raw = deployment_remote_support._env_lookup(
+        env,
+        "AGILAB_DASK_WORKER_PORT_RANGE",
+        "DASK_WORKER_PORT_RANGE",
+        "dask_worker_port_range",
+    )
+    if raw in (None, ""):
+        return None
+    text = str(raw).strip()
+    parts = text.split(":")
+    if len(parts) not in (1, 2):
+        raise ValueError(f"Invalid dask worker port range: {raw!r}")
+    try:
+        ports = [int(part.strip()) for part in parts]
+    except ValueError as exc:
+        raise ValueError(f"Invalid dask worker port range: {raw!r}") from exc
+    if any(not 1 <= port <= 65535 for port in ports):
+        raise ValueError(f"Invalid dask worker port range: {raw!r}")
+    if len(ports) == 2 and ports[0] > ports[1]:
+        raise ValueError(f"Invalid dask worker port range: {raw!r}")
+    return ":".join(str(port) for port in ports)
+
+
 def _local_dask_worker_command(
     uv_cmd: str,
     wenv_abs: Path,
     scheduler: str,
     pid_file: str,
     *,
+    worker_port: str | None = None,
     os_name: str = os.name,
 ) -> list[str]:
+    port_args = ["--worker-port", worker_port] if worker_port else []
     dask_exe = project_virtualenv_script_path(wenv_abs, "dask", os_name=os_name)
     if dask_exe.exists():
         return [
@@ -52,6 +83,7 @@ def _local_dask_worker_command(
             "worker",
             f"tcp://{scheduler}",
             "--no-nanny",
+            *port_args,
             "--pid-file",
             str(wenv_abs / pid_file),
         ]
@@ -65,6 +97,7 @@ def _local_dask_worker_command(
         "worker",
         f"tcp://{scheduler}",
         "--no-nanny",
+        *port_args,
         "--pid-file",
         str(wenv_abs / pid_file),
     ]
@@ -98,14 +131,17 @@ def _remote_dask_worker_command(
     wenv_rel: Path | str,
     scheduler: str,
     pid_file: str,
+    worker_port: str | None = None,
 ) -> str:
     uv_parts = " ".join(shlex.quote(part) for part in shlex.split(str(uv_cmd), posix=True))
     worker_path = wenv_rel if isinstance(wenv_rel, PurePath) else Path(wenv_rel)
+    port_clause = f"--worker-port {shlex.quote(worker_port)} " if worker_port else ""
     return (
         f"{_remote_prefix(cmd_prefix)}"
         f"{_remote_prefix(dask_env)}"
         f"{uv_parts} --project {_remote_path(worker_path)} run --no-sync "
         f"dask worker {shlex.quote(f'tcp://{scheduler}')} --no-nanny "
+        f"{port_clause}"
         f"--pid-file {_remote_path(worker_path.parent / pid_file)}"
     )
 
@@ -449,6 +485,8 @@ async def start(
             launch_errors.append(exc)
             log.error(f"Remote worker launch failed: {exc}")
 
+    worker_port = _worker_port_range(env)
+
     for i, (ip, n) in enumerate(agi_cls._workers.items()):
         is_local = env.is_local(ip)
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
@@ -471,6 +509,7 @@ async def start(
                         wenv_abs,
                         agi_cls._scheduler,
                         pid_file,
+                        worker_port=worker_port,
                     )
                     process_env = background_jobs_support.background_env_from_prefixes(cmd_prefix, dask_env)
                     agi_cls._exec_bg(local_cmd, str(wenv_abs), env=process_env)
@@ -483,6 +522,7 @@ async def start(
                         wenv_rel=wenv_rel,
                         scheduler=agi_cls._scheduler,
                         pid_file=pid_file,
+                        worker_port=worker_port,
                     )
                     launch_task = create_task_fn(agi_cls.exec_ssh_async(ip, remote_cmd))
                     if hasattr(launch_task, "add_done_callback"):

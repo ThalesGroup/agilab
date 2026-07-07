@@ -43,7 +43,40 @@ def _reset_agi_entrypoint_state():
 
 
 @pytest.mark.asyncio
-async def test_start_scheduler_local_switches_port_and_connects(monkeypatch, tmp_path):
+async def test_ensure_local_scheduler_port_keeps_port_when_released(monkeypatch):
+    AGI._mode_auto = True
+    AGI._scheduler_ip = "127.0.0.1"
+    AGI._scheduler_port = 8786
+    AGI._scheduler = "127.0.0.1:8786"
+
+    async def _released(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_released))
+
+    await entrypoint_support._ensure_local_scheduler_port(AGI)
+
+    assert AGI._scheduler_port == 8786
+    assert AGI._scheduler == "127.0.0.1:8786"
+
+
+@pytest.mark.asyncio
+async def test_ensure_local_scheduler_port_raises_when_port_busy(monkeypatch):
+    AGI._scheduler_ip = "127.0.0.1"
+    AGI._scheduler_port = 8786
+    AGI._scheduler = "127.0.0.1:8786"
+
+    async def _still_busy(*_args, **_kwargs):
+        return False
+
+    monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_still_busy))
+
+    with pytest.raises(RuntimeError, match="still busy"):
+        await entrypoint_support._ensure_local_scheduler_port(AGI)
+
+
+@pytest.mark.asyncio
+async def test_start_scheduler_local_keeps_configured_port_and_connects(monkeypatch, tmp_path):
     cluster_pck = tmp_path / "cluster"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
     (cluster_pck / "agi_distributor" / "cli.py").write_text(
@@ -90,7 +123,7 @@ async def test_start_scheduler_local_switches_port_and_connects(monkeypatch, tmp
         return None
 
     async def _fake_port_release(*_args, **_kwargs):
-        return False
+        return True
 
     monkeypatch.setattr(
         AGI,
@@ -121,7 +154,7 @@ async def test_start_scheduler_local_switches_port_and_connects(monkeypatch, tmp
     )
 
     assert ok is True
-    assert AGI._scheduler_port == 8899
+    assert AGI._scheduler_port == 8786
     assert AGI._dask_client == "fake-client"
     assert AGI._install_done is True
     assert calls["bg"][0][0][:5] == [

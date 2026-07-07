@@ -480,21 +480,14 @@ async def _prepare_scheduler_nodes(
 
 
 async def _ensure_local_scheduler_port(agi_cls: Any, *, log: Any = logger) -> None:
+    # The scheduler port is deterministic (default 8786 or an explicit
+    # scheduler="ip:port"): never swap it for a random one, as firewall rules
+    # may only allow the configured port.
     released = await agi_cls._wait_for_port_release(agi_cls._scheduler_ip, agi_cls._scheduler_port)
     if not released:
-        new_port = agi_cls.find_free_port()
-        log.warning(
-            "Scheduler port %s:%s still busy. Switching scheduler port to %s.",
-            agi_cls._scheduler_ip,
-            agi_cls._scheduler_port,
-            new_port,
-        )
-        agi_cls._scheduler_port = new_port
-        agi_cls._scheduler = f"{agi_cls._scheduler_ip}:{agi_cls._scheduler_port}"
-    elif agi_cls._mode_auto:
-        new_port = agi_cls.find_free_port()
-        agi_cls._scheduler_ip, agi_cls._scheduler_port = agi_cls._get_scheduler(
-            {agi_cls._scheduler_ip: new_port}
+        raise RuntimeError(
+            f"Scheduler port {agi_cls._scheduler_ip}:{agi_cls._scheduler_port} is still busy. "
+            "Free the port or configure another one with AGI.run(..., scheduler='ip:port')."
         )
 
 

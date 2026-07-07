@@ -9,6 +9,10 @@ from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
+# Dask's standard scheduler port. Kept fixed so firewall rules stay valid;
+# override with AGI.run(..., scheduler="ip:port").
+DEFAULT_SCHEDULER_PORT = 8786
+
 _DECODE_BYTES_EXCEPTIONS = (UnicodeDecodeError,)
 _READ_STDERR_RETRY_EXCEPTIONS = (OSError, RuntimeError)
 
@@ -87,10 +91,9 @@ def get_scheduler(
     agi_cls: Any,
     ip_sched: Optional[Union[str, Dict[str, int]]] = None,
     *,
-    find_free_port_fn: Callable[[], int],
     gethostbyname_fn: Callable[[str], str] = socket.gethostbyname,
 ) -> Tuple[str, int]:
-    port = find_free_port_fn()
+    port = DEFAULT_SCHEDULER_PORT
     if not ip_sched:
         if agi_cls._workers:
             ip = list(agi_cls._workers)[0]

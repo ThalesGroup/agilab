@@ -571,7 +571,6 @@ class AGI:
         return scheduler_io_support.get_scheduler(
             AGI,
             ip_sched,
-            find_free_port_fn=AGI.find_free_port,
             gethostbyname_fn=socket.gethostbyname,
         )
 

@@ -223,6 +223,64 @@ def test_local_dask_worker_command_can_target_windows_layout(tmp_path):
     assert "--no-sync" not in command
 
 
+def test_local_dask_worker_command_pins_worker_port_range(tmp_path):
+    command = runtime_distribution_support._local_dask_worker_command(
+        "uv",
+        tmp_path / "wenv",
+        "127.0.0.1:8786",
+        "worker.pid",
+        worker_port="9000:9100",
+    )
+
+    port_idx = command.index("--worker-port")
+    assert command[port_idx + 1] == "9000:9100"
+
+
+def test_remote_dask_worker_command_pins_worker_port_range():
+    command = runtime_distribution_support._remote_dask_worker_command(
+        cmd_prefix="",
+        dask_env="",
+        uv_cmd="uv",
+        wenv_rel="wenv/app_worker",
+        scheduler="172.16.40.2:8786",
+        pid_file="worker.pid",
+        worker_port="9000:9100",
+    )
+
+    assert "--worker-port 9000:9100" in command
+    assert command.index("--worker-port") < command.index("--pid-file")
+
+
+def test_remote_dask_worker_command_omits_worker_port_by_default():
+    command = runtime_distribution_support._remote_dask_worker_command(
+        cmd_prefix="",
+        dask_env="",
+        uv_cmd="uv",
+        wenv_rel="wenv/app_worker",
+        scheduler="172.16.40.2:8786",
+        pid_file="worker.pid",
+    )
+
+    assert "--worker-port" not in command
+
+
+@pytest.mark.parametrize("raw", ["9000", "9000:9100", " 9000 : 9100 "])
+def test_worker_port_range_accepts_valid_values(raw):
+    env = SimpleNamespace(envars={"AGILAB_DASK_WORKER_PORT_RANGE": raw})
+    assert runtime_distribution_support._worker_port_range(env) == raw.replace(" ", "")
+
+
+@pytest.mark.parametrize("raw", ["abc", "9100:9000", "0", "70000", "1:2:3"])
+def test_worker_port_range_rejects_invalid_values(raw):
+    env = SimpleNamespace(envars={"AGILAB_DASK_WORKER_PORT_RANGE": raw})
+    with pytest.raises(ValueError):
+        runtime_distribution_support._worker_port_range(env)
+
+
+def test_worker_port_range_defaults_to_none():
+    assert runtime_distribution_support._worker_port_range(SimpleNamespace(envars={})) is None
+
+
 @pytest.mark.asyncio
 async def test_start_launches_workers_and_uploads_eggs(monkeypatch, tmp_path):
     wenv_abs = tmp_path / "worker_env"
