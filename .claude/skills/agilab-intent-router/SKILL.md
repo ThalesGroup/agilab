@@ -3,7 +3,7 @@ name: agilab-intent-router
 description: Route terse AGILAB operator requests such as "do it", "review AGILAB", "next move", "update repos", "merge it", "check again", "release", and "cluster validation" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-19
+  updated: 2026-07-07
 ---
 
 # AGILAB Intent Router
@@ -82,6 +82,22 @@ Route these patterns before choosing tools:
   `agilab` checkout and sibling `thales_agilab` when present. Show concrete
   `git -C` commands for both before execution, or explicitly report why one is
   missing, dirty, unsafe, or out of scope.
+- For `merge <branch>` when the branch may belong to a sibling checkout, verify
+  the actual repository, PR state, remote branch, and commit ancestry before
+  acting. If the PR is already merged and the branch tip is an ancestor of the
+  target remote main, report the merge as complete even if a stale local branch
+  remains checked out. Treat deleting that local branch, switching branches, or
+  cleaning a dirty checkout as a separate cleanup operation that requires an
+  explicit non-destructive plan or explicit discard approval.
+- For `all clean?` and follow-up cleanup requests such as `clean it`, report
+  remote alignment, working-tree status, stashes, registered worktrees, and
+  local branch refs separately before deleting anything. If cleanup is
+  requested, preserve recoverability first: archive dirty worktree diffs,
+  untracked files, stash patches, and local non-main branch refs in an
+  out-of-repo cleanup archive or bundle, then remove stale worktrees, gone
+  branches, and temporary stashes only after the archive exists. Finish by
+  rerunning the same final-state stack so the close-out distinguishes the active
+  checkout from the wider workspace.
 - For `do it` after a proposal, execute the proposed action if repo state is
   safe. If state changed unexpectedly, report the changed branch/files first.
 - For combined commands such as `do it; validate; push if clean; merge it; then
