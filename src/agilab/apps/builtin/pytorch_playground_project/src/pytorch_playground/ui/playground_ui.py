@@ -44,6 +44,16 @@ except Exception:  # pragma: no cover - workers import evidence helpers without 
     st = _StreamlitStub()  # type: ignore[assignment]
 
 
+def _configure_page(streamlit: Any, **config: Any) -> None:
+    try:
+        from agilab.ui.page_bootstrap import configure_page_config
+    except (ImportError, ModuleNotFoundError):
+        getattr(streamlit, "set_page_config")(**config)
+        return
+
+    configure_page_config(streamlit, **config)
+
+
 def _prepend_sys_path(path: Path) -> None:
     entry = str(path)
     sys.path[:] = [existing for existing in sys.path if existing != entry]
@@ -2688,7 +2698,7 @@ def main(
     compact: bool = False,
 ) -> None:
     if configure_page:
-        st.set_page_config(page_title=PAGE_TITLE, layout="wide")
+        _configure_page(st, page_title=PAGE_TITLE, layout="wide")
     render_logo()
     _render_page_styles()
     active_app = _resolve_active_app()

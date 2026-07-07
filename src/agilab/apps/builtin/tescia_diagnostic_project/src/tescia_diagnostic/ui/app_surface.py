@@ -508,9 +508,11 @@ def _safe_page_config() -> None:
     import streamlit as st
 
     try:
-        st.set_page_config(page_title="TeSciA", layout="wide")
-    except Exception:
-        pass
+        from agilab.ui.page_bootstrap import configure_page_config
+    except (ImportError, ModuleNotFoundError):
+        getattr(st, "set_page_config")(page_title="TeSciA", layout="wide")
+    else:
+        configure_page_config(st, page_title="TeSciA", layout="wide")
 
 
 def _render_configure_surface() -> None:

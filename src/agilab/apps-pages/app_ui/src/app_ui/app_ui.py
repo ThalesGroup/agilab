@@ -23,10 +23,7 @@ PAGE_KEY = "app_ui"
 
 
 def _safe_page_config() -> None:
-    try:
-        configure_streamlit_page(st, title="App UI")
-    except Exception:
-        pass
+    configure_streamlit_page(st, title="App UI")
 
 
 def _ensure_repo_on_path() -> None:

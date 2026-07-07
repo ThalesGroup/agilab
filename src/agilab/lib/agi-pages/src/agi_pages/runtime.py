@@ -174,6 +174,7 @@ def configure_streamlit_page(
     page_title: str | None = None,
     layout: str = "wide",
     initial_sidebar_state: str | None = None,
+    menu_items: dict[str, str] | None = None,
 ) -> None:
     """Configure a Streamlit analysis page with consistent defaults."""
 
@@ -183,7 +184,14 @@ def configure_streamlit_page(
     }
     if initial_sidebar_state is not None:
         config["initial_sidebar_state"] = initial_sidebar_state
-    streamlit.set_page_config(**config)
+    if menu_items is not None:
+        config["menu_items"] = menu_items
+    try:
+        from agilab.ui.page_bootstrap import configure_page_config
+    except (ImportError, ModuleNotFoundError):
+        getattr(streamlit, "set_page_config")(**config)
+    else:
+        configure_page_config(streamlit, **config)
 
 
 def render_streamlit_page_header(

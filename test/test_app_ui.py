@@ -241,9 +241,16 @@ def test_app_ui_main_runs_configured_entrypoint_and_reports_errors(
     assert ("error", "Failed to render app UI: render boom") in fake_st.messages
 
 
-def test_app_ui_safe_page_config_suppresses_streamlit_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_app_ui_safe_page_config_skips_when_already_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     module = _load_module()
-    fake_st = SimpleNamespace(set_page_config=lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("late config")))
+    fake_st = SimpleNamespace(
+        session_state={"_agilab_page_configured": True},
+        set_page_config=lambda **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("late config")
+        ),
+    )
     monkeypatch.setattr(module, "st", fake_st)
 
     module._safe_page_config()

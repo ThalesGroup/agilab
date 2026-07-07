@@ -1236,6 +1236,8 @@ def test_tescia_app_surface_import_path_and_safe_config_fallbacks(monkeypatch) -
     assert str(APP_SRC) in sys.path
 
     class FailingConfigStreamlit:
+        session_state = {"_agilab_page_configured": True}
+
         def set_page_config(self, *_args, **_kwargs):
             raise RuntimeError("already configured")
 

@@ -78,6 +78,7 @@ import_agilab_symbols(
     globals(),
     "agilab.page_bootstrap",
     {
+        "configure_page_config": "configure_page_config",
         "configure_page_chrome": "configure_page_chrome",
         "render_page_header": "render_page_header",
     },
@@ -2899,7 +2900,6 @@ async def _render_view_page_inline(view_path: Path, active_app: str) -> None:
     module_name = f"agilab_analysis_inline_{resolved_view.stem}_{_short_page_token(resolved_view)}"
     module_dir = str(resolved_view.parent)
     original_argv = list(sys.argv)
-    original_set_page_config = getattr(st, "set_page_config", None)
     inserted_path = False
     sys.modules.pop(module_name, None)
 
@@ -2908,7 +2908,6 @@ async def _render_view_page_inline(view_path: Path, active_app: str) -> None:
         inserted_path = True
 
     try:
-        st.set_page_config = lambda *args, **kwargs: None
         sys.argv = [resolved_view.name]
         if active_app:
             sys.argv.extend(["--active-app", active_app])
@@ -2929,8 +2928,6 @@ async def _render_view_page_inline(view_path: Path, active_app: str) -> None:
                 await result
     finally:
         sys.argv = original_argv
-        if original_set_page_config is not None:
-            st.set_page_config = original_set_page_config
         if inserted_path:
             try:
                 sys.path.remove(module_dir)

@@ -2097,7 +2097,7 @@ def test_render_view_page_uses_inline_rendering_in_hf_space(tmp_path: Path, monk
 def test_render_view_page_inline_executes_page_main_with_active_app(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
     fake_streamlit = types.ModuleType("streamlit")
-    fake_streamlit.session_state = {}
+    fake_streamlit.session_state = {"_agilab_page_configured": True}
     fake_streamlit.error = lambda *_args, **_kwargs: None
     fake_streamlit.info = lambda *_args, **_kwargs: None
     fake_streamlit.warning = lambda *_args, **_kwargs: None
@@ -2117,13 +2117,14 @@ def test_render_view_page_inline_executes_page_main_with_active_app(tmp_path: Pa
         """
 import argparse
 import streamlit as st
+from agi_pages.runtime import configure_streamlit_page
 
 def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--active-app", required=True)
     args, _ = parser.parse_known_args()
     st.session_state["inline_active_app"] = args.active_app
-    st.set_page_config(layout="wide")
+    configure_streamlit_page(st, title="Inline view")
 """,
         encoding="utf-8",
     )

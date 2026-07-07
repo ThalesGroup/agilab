@@ -7,7 +7,10 @@ import importlib.util
 from pathlib import Path
 from typing import Any, Callable
 
-PAGE_ENV_REALIGNED_STATE_KEY = "_agilab_page_env_realigned"
+from agilab.ui.session_keys import SessionKeys
+
+PAGE_ENV_REALIGNED_STATE_KEY = SessionKeys.PAGE_ENV_REALIGNED.name
+PAGE_CONFIGURED_STATE_KEY = SessionKeys.PAGE_CONFIGURED.name
 
 
 def _default_page_title(page_label: str) -> str:
@@ -15,6 +18,68 @@ def _default_page_title(page_label: str) -> str:
     if not clean_label:
         return "AGILab"
     return f"AGILab {clean_label}"
+
+
+def _session_state_get(session_state: Any, key: str) -> Any:
+    try:
+        return session_state.get(key)
+    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _session_state_set(session_state: Any, key: str, value: Any) -> None:
+    try:
+        session_state[key] = value
+    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+        try:
+            setattr(session_state, key, value)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            pass
+
+
+def _page_configured(streamlit: Any) -> bool:
+    session_state = getattr(streamlit, "session_state", None)
+    if session_state is not None and bool(
+        _session_state_get(session_state, PAGE_CONFIGURED_STATE_KEY)
+    ):
+        return True
+    return bool(getattr(streamlit, PAGE_CONFIGURED_STATE_KEY, False))
+
+
+def _mark_page_configured(streamlit: Any) -> None:
+    session_state = getattr(streamlit, "session_state", None)
+    if session_state is not None:
+        _session_state_set(session_state, PAGE_CONFIGURED_STATE_KEY, True)
+    try:
+        setattr(streamlit, PAGE_CONFIGURED_STATE_KEY, True)
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        pass
+
+
+def configure_page_config(
+    streamlit: Any,
+    *,
+    page_title: str,
+    layout: str = "wide",
+    menu_items: dict[str, str] | None = None,
+    initial_sidebar_state: str | None = None,
+) -> bool:
+    """Configure Streamlit once through the AGILAB page bootstrap contract."""
+    if _page_configured(streamlit):
+        return False
+
+    config: dict[str, Any] = {
+        "page_title": page_title,
+        "layout": layout,
+    }
+    if menu_items is not None:
+        config["menu_items"] = menu_items
+    if initial_sidebar_state is not None:
+        config["initial_sidebar_state"] = initial_sidebar_state
+
+    streamlit.set_page_config(**config)
+    _mark_page_configured(streamlit)
+    return True
 
 
 def _safe_resolved_path(value: Any) -> Path | None:
@@ -239,7 +304,8 @@ def configure_page_chrome(
 
         inject_theme = _inject_theme
 
-    streamlit.set_page_config(
+    configure_page_config(
+        streamlit,
         page_title=page_title or _default_page_title(page_label),
         layout=layout,
         menu_items=get_docs_menu_items(html_file=docs_html_file),

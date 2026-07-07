@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import streamlit as st
+from agi_pages.runtime import configure_streamlit_page
 
 try:
     from agi_env import AgiEnv
@@ -73,7 +74,9 @@ def _dataset_root(env: Any) -> Path | None:
 
 
 def _render_page_chrome() -> None:
-    st.set_page_config(
+    configure_streamlit_page(
+        st,
+        title=PAGE_TITLE,
         page_title=PAGE_TITLE,
         layout=PAGE_LAYOUT,
         menu_items=get_docs_menu_items(html_file=PAGE_HELP_HTML),
