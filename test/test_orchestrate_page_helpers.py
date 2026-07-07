@@ -1715,6 +1715,57 @@ def test_clear_cached_distribution_calls_clear_when_available():
     assert called["count"] == 1
 
 
+def test_load_distribution_returns_complete_distribution_contract(tmp_path: Path):
+    module = _load_orchestrate_module()
+    dist_tree = tmp_path / "distribution_tree.json"
+    dist_tree.write_text(
+        json.dumps(
+            {
+                "workers": {"10.0.0.1": 2, "10.0.0.2": 1},
+                "work_plan_metadata": [[["A", 2]], [["B", 3]], []],
+                "work_plan": [[["a.csv"]], [["b.csv"]], []],
+                "partition_key": "plane",
+                "nb_unit": "files",
+                "weights_unit": "KB",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert module.load_distribution(str(dist_tree)) == (
+        ["10.0.0.1-1", "10.0.0.1-2", "10.0.0.2-1"],
+        [[["A", 2]], [["B", 3]], []],
+        [[["a.csv"]], [["b.csv"]], []],
+        "plane",
+        "files",
+        "KB",
+    )
+
+
+def test_load_distribution_keeps_legacy_distribution_defaults(tmp_path: Path):
+    module = _load_orchestrate_module()
+    dist_tree = tmp_path / "distribution_tree.json"
+    dist_tree.write_text(
+        json.dumps(
+            {
+                "workers": {"127.0.0.1": 1},
+                "work_plan_metadata": [],
+                "work_plan": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert module.load_distribution(str(dist_tree)) == (
+        ["127.0.0.1-1"],
+        [],
+        [],
+        "Partition",
+        "Units",
+        "Unit",
+    )
+
+
 @pytest.mark.asyncio
 async def test_check_distribution_action_reports_success_and_uses_source_checkout_runtime(
     tmp_path: Path,
@@ -2037,6 +2088,7 @@ async def test_install_worker_action_refreshes_visible_log_during_worker_deploy(
     module = _load_orchestrate_module()
     local_log: list[str] = []
     live_snapshots: list[tuple[str, ...]] = []
+    live_messages: list[str] = []
 
     async def _run_agi(_cmd, log_callback=None, venv=None):
         assert log_callback is not None
@@ -2054,10 +2106,14 @@ async def test_install_worker_action_refreshes_visible_log_during_worker_deploy(
         install_command="install command",
         venv=tmp_path,
         local_log=local_log,
-        on_log=lambda: live_snapshots.append(tuple(local_log)),
+        on_log=lambda message: (
+            live_messages.append(message),
+            live_snapshots.append(tuple(local_log)),
+        ),
     )
 
     assert result.status == "success"
+    assert live_messages[0] == "Remote worker 192.168.20.15 installing dependencies"
     assert live_snapshots[0] == (
         "Remote worker 192.168.20.15 installing dependencies",
     )
