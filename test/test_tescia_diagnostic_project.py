@@ -586,6 +586,62 @@ def test_tescia_app_args_reject_invalid_generation_config(monkeypatch) -> None:
     assert args.include_submission_inbox is True
 
 
+def test_tescia_submission_inbox_stays_workflow_scoped_when_global_inbox_exists(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic import TesciaDiagnostic, TesciaDiagnosticArgs
+    from tescia_diagnostic.ui.app_surface import classroom_submission_inbox_dir
+
+    physical_root = tmp_path / "share"
+    workflow_root = physical_root / "workflows" / "run-001"
+    global_cases = physical_root / "tescia_diagnostic" / "cases"
+    global_inbox = physical_root / "tescia_diagnostic" / "submissions"
+    global_cases.mkdir(parents=True)
+    global_inbox.mkdir(parents=True)
+
+    class WorkflowEnv(_FakeEnv):
+        def __init__(self) -> None:
+            super().__init__(tmp_path)
+            self.agi_share_path = physical_root
+            self.agi_share_path_abs = physical_root
+            self.AGILAB_WORKFLOW_DATA_ROOT = workflow_root
+
+        def share_root_path(self) -> Path:
+            return workflow_root
+
+        def resolve_share_path(self, value) -> Path:
+            path = Path(value).expanduser()
+            if path.is_absolute():
+                return path
+            return workflow_root / path
+
+        def resolve_share_input_path(self, value) -> Path:
+            workflow_path = self.resolve_share_path(value)
+            physical_path = physical_root / Path(value)
+            if not workflow_path.exists() and physical_path.exists():
+                return physical_path
+            return workflow_path
+
+    env = WorkflowEnv()
+    args = TesciaDiagnosticArgs(
+        data_in=Path("tescia_diagnostic/cases"),
+        data_out=Path("tescia_diagnostic/reports"),
+        submission_inbox=Path("tescia_diagnostic/submissions"),
+    )
+
+    app = TesciaDiagnostic(env, args=args)
+
+    assert app.args.data_in == global_cases
+    assert app.args.submission_inbox == workflow_root / "tescia_diagnostic" / "submissions"
+    assert app.args.submission_inbox.is_dir()
+    assert app.args.submission_inbox != global_inbox
+    relative_args = TesciaDiagnosticArgs(submission_inbox=Path("tescia_diagnostic/submissions"))
+    assert classroom_submission_inbox_dir(env=env, args_model=relative_args) == app.args.submission_inbox
+
+
 def test_tescia_diagnostic_selects_evidence_backed_fix(monkeypatch) -> None:
     monkeypatch.syspath_prepend(str(APP_SRC))
 
