@@ -273,9 +273,7 @@ def classroom_submission_inbox_dir(
     inbox = Path(str(getattr(runtime_args, "submission_inbox", "tescia_diagnostic/submissions")))
     if inbox.is_absolute():
         return inbox
-    resolver = getattr(runtime_env, "resolve_share_input_path", None) or getattr(
-        runtime_env, "resolve_share_path", None
-    )
+    resolver = getattr(runtime_env, "resolve_share_path", None)
     if callable(resolver):
         return Path(resolver(inbox))
     return Path(inbox).expanduser().resolve()
