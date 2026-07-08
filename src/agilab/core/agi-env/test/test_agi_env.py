@@ -2769,6 +2769,51 @@ def test_share_root_resolution_and_mode_helpers(tmp_path: Path, monkeypatch):
         assert absolute_share_path == Path("/tmp/absolute").resolve(strict=False)
 
 
+def test_resolve_share_input_path_falls_back_to_share_root(tmp_path: Path, monkeypatch):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    env = object.__new__(AgiEnv)
+    env._share_root_cache = None
+    env.agi_share_path = "clustershare"
+    env.home_abs = fake_home
+    env.is_worker_env = False
+    env.target = "demo_project"
+    env.app = "demo_project"
+    env.AGILAB_WORKFLOW_DATA_ROOT = "clustershare/alice/workflow/session-1"
+
+    workflow_root = fake_home / "clustershare" / "alice" / "workflow" / "session-1"
+    share_root = fake_home / "clustershare"
+
+    # Dataset only present at the physical share root -> fallback kicks in.
+    (share_root / "flight_telemetry" / "dataset").mkdir(parents=True)
+    assert (
+        env.resolve_share_input_path("flight_telemetry/dataset")
+        == share_root / "flight_telemetry" / "dataset"
+    )
+
+    # Workflow-scoped copy wins when it exists.
+    (workflow_root / "flight_telemetry" / "dataset").mkdir(parents=True)
+    assert (
+        env.resolve_share_input_path("flight_telemetry/dataset")
+        == workflow_root / "flight_telemetry" / "dataset"
+    )
+
+    # Missing everywhere -> keep the workflow-scoped resolution (same as
+    # resolve_share_path) so error messages point at the active data root.
+    assert (
+        env.resolve_share_input_path("missing/dataset")
+        == workflow_root / "missing" / "dataset"
+    )
+
+    # Outputs must not be affected: resolve_share_path stays workflow-scoped.
+    assert (
+        env.resolve_share_path("flight_telemetry/dataset")
+        == workflow_root / "flight_telemetry" / "dataset"
+    )
+
+
 def test_share_root_resolution_worker_uses_runtime_home_and_init_honours_share_override(tmp_path: Path, monkeypatch):
     fake_home = tmp_path / "worker-home"
     fake_home.mkdir()

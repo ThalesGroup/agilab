@@ -49,8 +49,14 @@ def _resolve_optional_share_path(env: object, value: Path | None) -> Path | None
     if value is None:
         return None
     path = Path(value).expanduser()
-    if not path.is_absolute() and callable(getattr(env, "resolve_share_path", None)):
-        path = Path(env.resolve_share_path(path))
+    if not path.is_absolute():
+        # Inputs may be pre-existing files under the cluster share root; prefer
+        # resolve_share_input_path (workflow root with share-root fallback).
+        resolver = getattr(env, "resolve_share_input_path", None) or getattr(
+            env, "resolve_share_path", None
+        )
+        if callable(resolver):
+            path = Path(resolver(path))
     return path
 
 

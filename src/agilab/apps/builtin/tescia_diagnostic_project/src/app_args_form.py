@@ -387,7 +387,8 @@ else:
     else:
         st.info("No changes to save.")
 
-    resolved_data_in = env.resolve_share_path(validated.data_in)
+    _resolve_input = getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
+    resolved_data_in = _resolve_input(validated.data_in)
     resolved_data_out = env.resolve_share_path(validated.data_out)
     resolved_submission_inbox = env.resolve_share_path(validated.submission_inbox)
     if not any(resolved_data_in.glob(validated.files)):
