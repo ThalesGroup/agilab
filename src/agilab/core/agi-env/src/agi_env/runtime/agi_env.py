@@ -574,6 +574,25 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         """
         return resolve_relative_share_path(path, self.workflow_data_root_path())
 
+    def resolve_share_input_path(self, path: str | Path | None) -> Path:
+        """
+        Resolve an *input* data path, preferring the workflow data root.
+
+        Pre-existing datasets live under the physical cluster share
+        (``AGI_CLUSTER_SHARE``) and are not copied into each workflow/session
+        root: when the workflow-scoped path does not exist, fall back to the
+        same relative path under the share root if it exists there. Output
+        paths must keep using :meth:`resolve_share_path` so workflow isolation
+        is preserved.
+        """
+        resolved = self.resolve_share_path(path)
+        if resolved.exists():
+            return resolved
+        fallback = resolve_relative_share_path(path, self.share_root_path())
+        if fallback != resolved and fallback.exists():
+            return fallback
+        return resolved
+
     def workflow_data_root_path(self) -> Path:
         """Return the active workflow/session data root when configured."""
 

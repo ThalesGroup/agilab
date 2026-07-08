@@ -66,7 +66,11 @@ class FlightTelemetry(BaseWorker):
             except ValidationError as exc:
                 raise ValueError(f"Invalid FlightTelemetry arguments: {exc}") from exc
         self.args = parsed_args
-        self.args.data_in = env.resolve_share_path(self.args.data_in)
+        # Inputs are pre-existing datasets: fall back to the cluster share root
+        # when they are not present under the workflow data root. Outputs stay
+        # workflow-scoped.
+        resolve_input = getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
+        self.args.data_in = resolve_input(self.args.data_in)
         self.args.data_out = env.resolve_share_path(self.args.data_out)
         self.data_out = self.args.data_out
 

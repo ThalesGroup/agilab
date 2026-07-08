@@ -323,7 +323,8 @@ else:
         st.info("No changes to save.")
 
     if validated.data_source == "file":
-        resolved_data_in = env.resolve_share_path(validated.data_in)
+        _resolve_input = getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
+        resolved_data_in = _resolve_input(validated.data_in)
         resolved_data_out = env.resolve_share_path(validated.data_out)
         if not resolved_data_in.exists():
             if _is_huggingface_space(env) and _is_default_file_seed(validated.data_in):
