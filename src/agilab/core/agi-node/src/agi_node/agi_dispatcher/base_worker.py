@@ -290,6 +290,21 @@ class BaseWorker(ArtifactContract, abc.ABC):
         )
 
     @classmethod
+    def resolve_generated_artifact_path(
+        cls,
+        data_in_root: Path | str,
+        data_out_root: Path | str,
+        artifact_path: Path | str,
+    ) -> Path:
+        return path_support.resolve_generated_artifact_path(
+            data_in_root,
+            data_out_root,
+            artifact_path,
+            normalized_path_fn=cls._normalized_path,
+            path_cls=Path,
+        )
+
+    @classmethod
     def resolve_input_folder(
         cls,
         env: AgiEnv | None,

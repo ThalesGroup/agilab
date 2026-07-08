@@ -174,6 +174,47 @@ def test_input_data_dir_falls_back_to_physical_share_when_session_input_missing(
     assert resolved == session_input.resolve(strict=False)
 
 
+def test_generated_artifact_path_uses_output_root_not_dataset(tmp_path):
+    dataset_root = tmp_path / "flight_trajectory" / "dataset"
+    output_root = tmp_path / "flight_trajectory" / "dataframe"
+    dataset_root.mkdir(parents=True)
+    output_root.mkdir(parents=True)
+
+    assert path_support.resolve_generated_artifact_path(
+        dataset_root,
+        output_root,
+        "waypoints_split/001.geojson",
+        normalized_path_fn=lambda value: Path(value).expanduser(),
+    ) == (output_root / "waypoints_split" / "001.geojson").resolve(strict=False)
+
+    assert path_support.resolve_generated_artifact_path(
+        dataset_root,
+        output_root,
+        Path("dataset") / "waypoints.geojson",
+        normalized_path_fn=lambda value: Path(value).expanduser(),
+    ) == (output_root / "waypoints.geojson").resolve(strict=False)
+
+    assert path_support.resolve_generated_artifact_path(
+        dataset_root,
+        output_root,
+        dataset_root / "CloudMapIvdl.npz",
+        normalized_path_fn=lambda value: Path(value).expanduser(),
+    ) == (output_root / "CloudMapIvdl.npz").resolve(strict=False)
+
+
+def test_generated_artifact_path_rejects_output_root_inside_dataset(tmp_path):
+    dataset_root = tmp_path / "link_sim" / "dataset"
+    output_root = dataset_root / "generated"
+
+    with pytest.raises(ValueError, match="read-only data_in"):
+        path_support.resolve_generated_artifact_path(
+            dataset_root,
+            output_root,
+            "CloudMapSat.npz",
+            normalized_path_fn=lambda value: Path(value).expanduser(),
+        )
+
+
 def test_artifact_dir_prefers_export_root_then_share_resolver(tmp_path):
     export_root = tmp_path / "explicit-export"
     env = SimpleNamespace(

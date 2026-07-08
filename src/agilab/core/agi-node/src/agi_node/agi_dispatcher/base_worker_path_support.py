@@ -294,6 +294,69 @@ def resolve_data_dir(
         return path_cls(os.path.normpath(str(resolved)))
 
 
+def _safe_resolved_path(path: Path, *, path_cls: type[Path] = Path) -> Path:
+    try:
+        return path.expanduser().resolve(strict=False)
+    except PATH_FALLBACK_EXCEPTIONS:
+        return path_cls(os.path.normpath(str(path.expanduser())))
+
+
+def _path_is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
+def resolve_generated_artifact_path(
+    data_in_root: Path | str,
+    data_out_root: Path | str,
+    artifact_path: Path | str,
+    *,
+    normalized_path_fn: Callable[[Path | str], Path] | None = None,
+    path_cls: type[Path] = Path,
+) -> Path:
+    """Resolve generated content under ``data_out`` instead of read-only input data.
+
+    Relative artifact paths are anchored under ``data_out_root``. If a caller
+    accidentally passes a path already rooted under ``data_in_root`` or prefixed
+    by the dataset leaf, the dataset prefix is replaced with ``data_out_root``.
+    The final path must not remain under ``data_in_root``.
+    """
+
+    if artifact_path is None:
+        raise ValueError("artifact_path must be provided")
+
+    normalize = normalized_path_fn or (lambda value: path_cls(value).expanduser())
+    data_in = _safe_resolved_path(normalize(data_in_root), path_cls=path_cls)
+    data_out = _safe_resolved_path(normalize(data_out_root), path_cls=path_cls)
+    raw = path_cls(str(artifact_path)).expanduser()
+
+    if raw == path_cls("."):
+        candidate = data_out
+    elif raw.is_absolute():
+        resolved_raw = _safe_resolved_path(raw, path_cls=path_cls)
+        if _path_is_relative_to(resolved_raw, data_in):
+            relative = resolved_raw.relative_to(data_in)
+            candidate = data_out / relative
+        else:
+            candidate = resolved_raw
+    else:
+        parts = tuple(part for part in raw.parts if part not in {"", "."})
+        if parts and parts[0] == data_in.name:
+            raw = path_cls(*parts[1:]) if len(parts) > 1 else path_cls(".")
+        candidate = data_out if raw == path_cls(".") else data_out / raw
+
+    resolved = _safe_resolved_path(candidate, path_cls=path_cls)
+    if _path_is_relative_to(resolved, data_in):
+        raise ValueError(
+            "Generated artifact path resolves under read-only data_in: "
+            f"{resolved} (data_in={data_in}, data_out={data_out})"
+        )
+    return resolved
+
+
 def _env_value(env: Any | None, name: str) -> Any:
     if env is None:
         return None

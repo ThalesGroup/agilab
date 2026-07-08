@@ -326,6 +326,28 @@ def test_baseworker_data_in_falls_back_to_physical_share_root(tmp_path):
     ) == session_input.resolve(strict=False)
 
 
+def test_baseworker_generated_artifact_path_uses_data_out(tmp_path):
+    dataset_root = tmp_path / "flight_trajectory" / "dataset"
+    output_root = tmp_path / "flight_trajectory" / "dataframe"
+    dataset_root.mkdir(parents=True)
+    output_root.mkdir(parents=True)
+
+    relative = BaseWorker.resolve_generated_artifact_path(
+        dataset_root,
+        output_root,
+        Path("dataset") / "waypoints_split" / "001.geojson",
+    )
+    absolute = BaseWorker.resolve_generated_artifact_path(
+        dataset_root,
+        output_root,
+        dataset_root / "waypoints.geojson",
+    )
+
+    assert relative == (output_root / "waypoints_split" / "001.geojson").resolve(strict=False)
+    assert absolute == (output_root / "waypoints.geojson").resolve(strict=False)
+    assert "dataset" not in relative.relative_to(output_root).parts
+
+
 def test_baseworker_collect_share_aliases_and_data_dir_fallbacks(monkeypatch, tmp_path):
     class _BrokenPath:
         def __fspath__(self):
