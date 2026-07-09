@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-07T17:22:43Z",
+  "generated_at_utc": "2026-07-09T16:46:01Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -127,7 +127,7 @@
       "name": "agilab-security-review-patterns",
       "description": "Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-04",
+      "updated": "2026-07-09",
       "path": ".codex/skills/agilab-security-review-patterns/SKILL.md",
       "body_preview": "# AGILAB Security Review Patterns\nUse this skill to review AGILAB changes through a security-hardening lens before\nmerge, release, or public documentation. It is a review workflow, not a pentest\nclaim. Keep findings tied to concrete files, commands, and user impact."
     },
