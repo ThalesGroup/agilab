@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-07T17:22:43Z",
+  "generated_at_utc": "2026-07-09T16:46:01Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -886,7 +886,7 @@
       "name": "agilab-security-review-patterns",
       "description": "Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.",
       "path": ".claude/skills/agilab-security-review-patterns/SKILL.md",
-      "updated": "2026-06-04"
+      "updated": "2026-07-09"
     },
     {
       "name": "agilab-streamlit-pages",

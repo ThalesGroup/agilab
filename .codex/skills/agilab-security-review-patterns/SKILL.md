@@ -3,7 +3,7 @@ name: agilab-security-review-patterns
 description: Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-04
+  updated: 2026-07-09
 ---
 
 # AGILAB Security Review Patterns
@@ -47,6 +47,16 @@ claim. Keep findings tied to concrete files, commands, and user impact.
   missing trust context fail closed and add a regression for that default.
 - **Cluster shares**: cluster mode must require a usable shared path distinct
   from local-only paths; do not silently degrade to local execution.
+- **Share-root path confinement**: app UI fields such as `data_in`,
+  `data_out`, inbox directories, service configs, and workflow artifact paths
+  are untrusted input even when they come from `app_args_form.py`. Do not let
+  absolute paths pass through verbatim, and do not accept `..` traversal after a
+  simple join. The shared resolver layer should expand and resolve the share
+  root and candidate path, then require `candidate.is_relative_to(share_root)`;
+  app-local forms should only add defaults or display helpers unless the app has
+  a genuinely local path contract. When hardening a generic resolver, sweep
+  sibling forms for settings paths and artifact-root joins that depend on CWD or
+  allow an absolute target component to replace the intended export root.
 - **SSH host identity**: cluster transport must verify the remote host key.
   Flag `known_hosts=None` (asyncssh), `StrictHostKeyChecking=no`, and
   `UserKnownHostsFile=/dev/null` (scp/ssh) in
