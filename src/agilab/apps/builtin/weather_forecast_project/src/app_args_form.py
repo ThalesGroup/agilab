@@ -39,7 +39,7 @@ def _load_current_args(settings_path: Path) -> WeatherForecastArgs:
 
 
 env = _get_env()
-settings_path = Path(env.app_settings_file)
+settings_path = Path(env.app_settings_file).resolve(strict=False)
 current_args = _load_current_args(settings_path)
 current_payload = current_args.model_dump(mode="json")
 
@@ -47,8 +47,15 @@ try:
     share_root = env.share_root_path()
 except Exception:
     share_root = None
+artifact_target = str(
+    getattr(env, "target", "") or getattr(env, "app", "") or "weather_forecast_project"
+)
+export_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export")).resolve(
+    strict=False
+)
+artifact_target = Path(artifact_target).name
 
-artifact_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export")) / env.target / "forecast_analysis"
+artifact_root = export_root / artifact_target / "forecast_analysis"
 
 st.caption(
     "This app turns the notebook migration pilot into a reproducible AGILAB workflow. "

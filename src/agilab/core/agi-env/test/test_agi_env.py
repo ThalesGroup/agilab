@@ -2761,12 +2761,8 @@ def test_share_root_resolution_and_mode_helpers(tmp_path: Path, monkeypatch):
         env.resolve_share_path("demo/data")
         == fake_home / "clustershare" / "alice" / "workflow" / "session-1" / "demo" / "data"
     )
-    absolute_share_path = env.resolve_share_path("/tmp/absolute")
-    if os.name == "nt":
-        assert absolute_share_path.is_absolute()
-        assert absolute_share_path.parts[-2:] == ("tmp", "absolute")
-    else:
-        assert absolute_share_path == Path("/tmp/absolute").resolve(strict=False)
+    with pytest.raises(ValueError, match="share root"):
+        env.resolve_share_path("/tmp/absolute")
 
 
 def test_resolve_share_input_path_falls_back_to_share_root(tmp_path: Path, monkeypatch):
