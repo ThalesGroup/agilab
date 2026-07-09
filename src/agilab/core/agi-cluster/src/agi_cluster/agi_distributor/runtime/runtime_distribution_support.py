@@ -37,11 +37,19 @@ def _sync_poll_delay(attempt: int) -> float:
     return _SYNC_POLL_DELAYS_SECONDS[attempt]
 
 
+# Default listen-port range pinned on dask workers so clean installs stay
+# firewall-friendly (the client connects INBOUND to each worker's listen
+# port). Override with AGILAB_DASK_WORKER_PORT_RANGE; set it to "ephemeral"
+# to restore OS-assigned random ports.
+DEFAULT_WORKER_PORT_RANGE = "9000:9100"
+
+
 def _worker_port_range(env: Any) -> str | None:
-    """Optional fixed listen-port range for dask workers (firewall pinning).
+    """Fixed listen-port range for dask workers (firewall pinning).
 
     Accepts a single port ("9000") or an inclusive range ("9000:9100"), the
-    same syntax as `dask worker --worker-port`.
+    same syntax as `dask worker --worker-port`. Defaults to
+    :data:`DEFAULT_WORKER_PORT_RANGE`; the value "ephemeral" disables pinning.
     """
     raw = deployment_remote_support._env_lookup(
         env,
@@ -50,8 +58,10 @@ def _worker_port_range(env: Any) -> str | None:
         "dask_worker_port_range",
     )
     if raw in (None, ""):
-        return None
+        return DEFAULT_WORKER_PORT_RANGE
     text = str(raw).strip()
+    if text.lower() == "ephemeral":
+        return None
     parts = text.split(":")
     if len(parts) not in (1, 2):
         raise ValueError(f"Invalid dask worker port range: {raw!r}")

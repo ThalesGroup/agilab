@@ -277,8 +277,18 @@ def test_worker_port_range_rejects_invalid_values(raw):
         runtime_distribution_support._worker_port_range(env)
 
 
-def test_worker_port_range_defaults_to_none():
-    assert runtime_distribution_support._worker_port_range(SimpleNamespace(envars={})) is None
+def test_worker_port_range_defaults_to_pinned_range(monkeypatch):
+    monkeypatch.delenv("AGILAB_DASK_WORKER_PORT_RANGE", raising=False)
+    monkeypatch.delenv("DASK_WORKER_PORT_RANGE", raising=False)
+    assert (
+        runtime_distribution_support._worker_port_range(SimpleNamespace(envars={}))
+        == runtime_distribution_support.DEFAULT_WORKER_PORT_RANGE
+    )
+
+
+def test_worker_port_range_ephemeral_disables_pinning():
+    env = SimpleNamespace(envars={"AGILAB_DASK_WORKER_PORT_RANGE": "ephemeral"})
+    assert runtime_distribution_support._worker_port_range(env) is None
 
 
 @pytest.mark.asyncio

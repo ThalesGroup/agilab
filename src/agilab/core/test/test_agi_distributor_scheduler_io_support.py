@@ -77,8 +77,8 @@ def test_get_scheduler_uses_workers_first_ip_and_default_port():
         None,
         gethostbyname_fn=lambda _host: "127.0.0.1",
     )
-    assert (ip, port) == ("10.0.0.2", 8786)
-    assert agi_cls._scheduler == "10.0.0.2:8786"
+    assert (ip, port) == ("10.0.0.2", 8780)
+    assert agi_cls._scheduler == "10.0.0.2:8780"
 
 
 def test_get_scheduler_uses_localhost_when_no_workers_are_defined():
@@ -88,8 +88,8 @@ def test_get_scheduler_uses_localhost_when_no_workers_are_defined():
         None,
         gethostbyname_fn=lambda _host: "127.0.0.1",
     )
-    assert (ip, port) == ("127.0.0.1", 8786)
-    assert agi_cls._scheduler == "127.0.0.1:8786"
+    assert (ip, port) == ("127.0.0.1", 8780)
+    assert agi_cls._scheduler == "127.0.0.1:8780"
 
 
 def test_get_scheduler_accepts_dict_with_explicit_port():
@@ -110,8 +110,8 @@ def test_get_scheduler_accepts_explicit_string_ip():
         "192.168.0.10",
         gethostbyname_fn=lambda _host: "127.0.0.1",
     )
-    assert (ip, port) == ("192.168.0.10", 8786)
-    assert agi_cls._scheduler == "192.168.0.10:8786"
+    assert (ip, port) == ("192.168.0.10", 8780)
+    assert agi_cls._scheduler == "192.168.0.10:8780"
 
 
 def test_get_scheduler_accepts_explicit_string_endpoint():
@@ -168,11 +168,11 @@ def test_scheduler_port_range_rejects_invalid_values(raw):
         scheduler_io_support.scheduler_port_range(env)
 
 
-def test_scheduler_port_range_defaults_to_none(monkeypatch):
+def test_scheduler_port_range_defaults_to_pinned_range(monkeypatch):
     monkeypatch.delenv("AGILAB_DASK_SCHEDULER_PORT_RANGE", raising=False)
     monkeypatch.delenv("DASK_SCHEDULER_PORT_RANGE", raising=False)
     env = SimpleNamespace(envars={})
-    assert scheduler_io_support.scheduler_port_range(env) is None
+    assert scheduler_io_support.scheduler_port_range(env) == (8780, 8790)
 
 
 def test_get_scheduler_explicit_endpoint_port_wins_over_default_port():

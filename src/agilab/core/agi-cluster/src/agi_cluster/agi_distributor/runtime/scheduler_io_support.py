@@ -11,9 +11,12 @@ from agi_cluster.agi_distributor.deployment import deployment_remote_support
 
 logger = logging.getLogger(__name__)
 
-# Dask's standard scheduler port. Kept fixed so firewall rules stay valid;
-# override with AGI.run(..., scheduler="ip:port") or a scheduler port range.
-DEFAULT_SCHEDULER_PORT = 8786
+# Default scheduler port range, pinned so firewall rules stay valid on clean
+# installs. The first port is the default; the rest are fallbacks when it is
+# busy. Override with AGILAB_DASK_SCHEDULER_PORT_RANGE or an explicit
+# AGI.run(..., scheduler="ip:port").
+DEFAULT_SCHEDULER_PORT_RANGE = "8780:8790"
+DEFAULT_SCHEDULER_PORT = 8780
 
 _DECODE_BYTES_EXCEPTIONS = (UnicodeDecodeError,)
 _READ_STDERR_RETRY_EXCEPTIONS = (OSError, RuntimeError)
@@ -90,12 +93,13 @@ def find_free_port(
 
 
 def scheduler_port_range(env: Any) -> Optional[Tuple[int, int]]:
-    """Optional fixed port range for the dask scheduler (firewall pinning).
+    """Fixed port range for the dask scheduler (firewall pinning).
 
     Accepts a single port ("8786") or an inclusive range ("8786:8790"). The
     range's first port becomes the default scheduler port; the remaining ports
-    are fallbacks when it is busy. An explicit AGI.run(..., scheduler="ip:port")
-    still wins.
+    are fallbacks when it is busy. Defaults to
+    :data:`DEFAULT_SCHEDULER_PORT_RANGE`; an explicit
+    AGI.run(..., scheduler="ip:port") still wins.
     """
     raw = deployment_remote_support._env_lookup(
         env,
@@ -104,7 +108,7 @@ def scheduler_port_range(env: Any) -> Optional[Tuple[int, int]]:
         "dask_scheduler_port_range",
     )
     if raw in (None, ""):
-        return None
+        raw = DEFAULT_SCHEDULER_PORT_RANGE
     text = str(raw).strip()
     parts = text.split(":")
     if len(parts) not in (1, 2):
