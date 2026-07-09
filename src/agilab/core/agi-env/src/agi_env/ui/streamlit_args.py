@@ -11,6 +11,7 @@ from annotated_types import Ge, Le, MultipleOf
 
 from agi_env.ui._optional_ui import require_streamlit
 from agi_env.project.app_args import prefer_persisted_value
+from agi_env.shares.share_runtime_support import resolve_share_path
 
 st = require_streamlit()
 
@@ -159,14 +160,10 @@ def render_form(model: BaseModel, *, container: Any | None = None) -> dict[str, 
 
 
 def resolve_shared_path(env, path_value: str | Path) -> Path:
-    """Resolve ``path_value`` relative to ``env.share_root_path()`` when needed."""
-
-    candidate = Path(str(path_value)).expanduser()
-    if candidate.is_absolute():
-        return candidate
+    """Resolve ``path_value`` inside ``env.share_root_path()``."""
 
     share_root = Path(env.share_root_path()).expanduser()
-    return (share_root / candidate).expanduser()
+    return resolve_share_path(path_value, share_root)
 
 
 def ensure_shared_directory(
@@ -183,7 +180,11 @@ def ensure_shared_directory(
     the helper attempts to ``mkdir -p`` the directory before reporting errors.
     """
 
-    target = resolve_shared_path(env, path_value)
+    try:
+        target = resolve_shared_path(env, path_value)
+    except (OSError, TypeError, ValueError) as exc:
+        fallback = Path(str(path_value)).expanduser()
+        return fallback, False, f"Unable to resolve {description} inside the AGI share path: {exc}"
     created = False
 
     if target.is_dir():

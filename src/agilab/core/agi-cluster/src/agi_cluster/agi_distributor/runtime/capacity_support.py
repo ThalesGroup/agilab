@@ -56,6 +56,33 @@ def _worker_host(worker: Any) -> str:
     return value
 
 
+def _worker_count_for_host(workers: Mapping[str, int] | None, host: str) -> int | None:
+    if not workers:
+        return None
+    if host in workers:
+        return int(workers[host])
+    localhost_aliases = {"localhost", "127.0.0.1", "::1"}
+    if host in localhost_aliases:
+        for alias in localhost_aliases:
+            if alias in workers:
+                return int(workers[alias])
+    return None
+
+
+def _feature_scalar(value: Any) -> Any:
+    if isinstance(value, (list, tuple)) and len(value) == 1:
+        return value[0]
+    return value
+
+
+def _benchmark_result_or_raise(run: Any, *, mode: int | str, variant: str) -> str:
+    if isinstance(run, str):
+        return run
+    raise RuntimeError(
+        f"Benchmark {variant} mode {mode} did not return a timing string; got {type(run).__name__}."
+    )
+
+
 def _node_count(workers: Mapping[str, int] | None) -> int:
     if not workers:
         return 1
@@ -378,8 +405,13 @@ async def benchmark(
                 env,
                 request=request.with_execution(mode=run_mode),
             )
-            if isinstance(run, str):
-                await _record(run, mode, nodes=1, variant="local", node="local")
+            await _record(
+                _benchmark_result_or_raise(run, mode=mode, variant="local"),
+                mode,
+                nodes=1,
+                variant="local",
+                node="local",
+            )
 
         if dask_modes:
             await agi_cls._benchmark_dask_modes(
@@ -444,16 +476,16 @@ async def benchmark_dask_modes(
             agi_cls._mode = run_mode
             run = await agi_cls._distribute()
             agi_cls._update_capacity()
-            if isinstance(run, str):
-                mode_token, runtime_float = _parse_run_timing(run)
-                runs[mode] = {
-                    "variant": "cluster",
-                    "nodes": cluster_node_count,
-                    "node": "cluster",
-                    "mode": mode_token,
-                    "timing": humanize.precisedelta(timedelta(seconds=runtime_float)),
-                    "seconds": runtime_float,
-                }
+            run_text = _benchmark_result_or_raise(run, mode=mode, variant="cluster")
+            mode_token, runtime_float = _parse_run_timing(run_text)
+            runs[mode] = {
+                "variant": "cluster",
+                "nodes": cluster_node_count,
+                "node": "cluster",
+                "mode": mode_token,
+                "timing": humanize.precisedelta(timedelta(seconds=runtime_float)),
+                "seconds": runtime_float,
+            }
         if include_best_single_node:
             best_host = _best_single_node_host(agi_cls, workers_dict)
             best_workers = {best_host: 1} if best_host else {}
@@ -506,16 +538,20 @@ async def benchmark_dask_modes(
                         agi_cls._rapids_enabled = rapids_capable or previous_rapids_enabled
                         run = await agi_cls._distribute()
                         agi_cls._update_capacity()
-                        if isinstance(run, str):
-                            mode_token, runtime_float = _parse_run_timing(run)
-                            runs[f"{mode}:best-node"] = {
-                                "variant": "best-node",
-                                "nodes": 1,
-                                "node": best_host,
-                                "mode": mode_token,
-                                "timing": humanize.precisedelta(timedelta(seconds=runtime_float)),
-                                "seconds": runtime_float,
-                            }
+                        run_text = _benchmark_result_or_raise(
+                            run,
+                            mode=mode,
+                            variant="best-node",
+                        )
+                        mode_token, runtime_float = _parse_run_timing(run_text)
+                        runs[f"{mode}:best-node"] = {
+                            "variant": "best-node",
+                            "nodes": 1,
+                            "node": best_host,
+                            "mode": mode_token,
+                            "timing": humanize.precisedelta(timedelta(seconds=runtime_float)),
+                            "seconds": runtime_float,
+                        }
                 finally:
                     env.hw_rapids_capable = previous_hw_rapids_capable
                     agi_cls._rapids_enabled = previous_rapids_enabled
@@ -561,9 +597,30 @@ async def calibration(agi_cls: Any, log: Any = logger) -> None:
 
     for worker, info in agi_cls.workers_info.items():
         ipport = worker.split("/")[-1]
-        values = list(agi_cls.workers_info[worker].values())
-        values.insert(0, [agi_cls._workers[ipport.split(":")[0]]])
-        data = np.array(values).reshape(1, 6)
+        if not isinstance(info, dict):
+            log.warning(
+                "Skipping capacity prediction for Dask worker %s: missing worker info.",
+                ipport,
+            )
+            continue
+        host = _worker_host(ipport)
+        worker_count = _worker_count_for_host(agi_cls._workers, host)
+        if worker_count is None:
+            log.warning(
+                "Skipping capacity prediction for Dask worker %s: host %s is absent from worker config.",
+                ipport,
+                host,
+            )
+            continue
+        values = [_feature_scalar(value) for value in info.values()]
+        if len(values) != 5:
+            log.warning(
+                "Skipping capacity prediction for Dask worker %s: expected 5 feature values, got %s.",
+                ipport,
+                len(values),
+            )
+            continue
+        data = np.array([[worker_count, *values]], dtype=float)
         agi_cls._capacity[ipport] = agi_cls._capacity_predictor.predict(data)[0]
         info["label"] = agi_cls._capacity[ipport]
         workers_info[ipport] = info
@@ -685,15 +742,29 @@ def update_capacity(agi_cls: Any) -> None:
         worker_rt = data["run_time"]
         for other_worker, other_data in current_state.items():
             if other_worker != worker:
+                if worker_rt <= 0:
+                    logger.warning(
+                        "Skipping capacity runtime adjustment for %s: non-positive run_time=%s.",
+                        worker,
+                        worker_rt,
+                    )
+                    continue
                 other_rt = other_data["run_time"]
                 delta = worker_rt - other_rt
                 workers_rt[worker]["label"] -= (
                     0.1 * worker_cap * delta / worker_rt / (len(current_state) - 1)
                 )
             else:
-                workers_rt[worker]["nb_workers"] = int(
-                    agi_cls._workers[worker.split(":")[0]]
-                )
+                host = _worker_host(worker)
+                worker_count = _worker_count_for_host(agi_cls._workers, host)
+                if worker_count is None:
+                    logger.warning(
+                        "Skipping capacity update for %s: host %s is absent from worker config.",
+                        worker,
+                        host,
+                    )
+                    return
+                workers_rt[worker]["nb_workers"] = worker_count
 
     for worker_name, data in workers_rt.items():
         del data["run_time"]

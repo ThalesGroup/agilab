@@ -1011,6 +1011,7 @@ _BLOCKED_DUNDER_ATTRS = frozenset({
     "__globals__", "__code__", "__func__", "__self__",
     "__builtins__", "__import__", "__loader__", "__spec__",
 })
+_BLOCKED_ATTRS = frozenset({"mro"})
 
 _BLOCKED_MODULES = frozenset({
     "os", "sys", "subprocess", "shutil", "signal", "socket",
@@ -1058,7 +1059,11 @@ def _validate_code_safety(code: str) -> None:
 
         # Block access to dangerous dunder attributes
         if isinstance(node, ast.Attribute):
-            if node.attr in _BLOCKED_DUNDER_ATTRS:
+            if (
+                node.attr in _BLOCKED_DUNDER_ATTRS
+                or node.attr in _BLOCKED_ATTRS
+                or (node.attr.startswith("__") and node.attr.endswith("__"))
+            ):
                 raise _UnsafeCodeError(
                     f"Access to '{node.attr}' is not allowed."
                 )
@@ -1066,6 +1071,11 @@ def _validate_code_safety(code: str) -> None:
             if isinstance(node.value, ast.Name) and node.value.id in _BLOCKED_MODULES:
                 raise _UnsafeCodeError(
                     f"Access to module '{node.value.id}' is not allowed."
+                )
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            if node.id in _BLOCKED_MODULES:
+                raise _UnsafeCodeError(
+                    f"Access to module '{node.id}' is not allowed."
                 )
 
 

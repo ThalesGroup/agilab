@@ -151,10 +151,11 @@ def _archive_size_mb(archive_path: Path) -> float | None:
 
 
 def _archive_member_names(archive: Any) -> list[str] | None:
-    getnames = getattr(archive, "getnames", None)
-    if not callable(getnames):
-        return None
-    return [str(name) for name in getnames()]
+    for method_name in ("getnames", "namelist"):
+        getnames = getattr(archive, method_name, None)
+        if callable(getnames):
+            return [str(name) for name in getnames()]
+    return None
 
 
 def _archive_member_target(dest: Path, member_name: str) -> Path:
@@ -181,6 +182,12 @@ def _validate_archive_members_stay_within_dest(archive: Any, dest: Path) -> None
         target = _archive_member_target(resolved_dest, member_name)
         if not target.is_relative_to(resolved_dest):
             raise RuntimeError(f"Unsafe archive member path in '{member_name}'")
+
+
+def validate_archive_members_stay_within_dest(archive: Any, dest: Path) -> None:
+    """Public wrapper for archive preflight before ``extractall``."""
+
+    _validate_archive_members_stay_within_dest(archive, dest)
 
 
 def _write_dataset_stamp(archive_path: Path, stamp_path: Path) -> None:

@@ -70,8 +70,7 @@ def test_ui_state_support_persist_global_state_ignores_dump_errors(tmp_path):
         dump_payload_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("boom")),
     )
 
-    assert state_file.exists()
-    assert state_file.read_bytes() == b""
+    assert not state_file.exists()
 
 
 def test_ui_state_support_normalizes_existing_paths(tmp_path):

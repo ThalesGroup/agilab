@@ -17,6 +17,7 @@ from agi_env import AgiEnv
 import agi_env.agi_env as agi_env_module
 from agi_env import data_archive_support
 from agi_env import project_clone_support
+from agi_env.shares import share_mount_support
 
 from agi_env.agi_logger import AgiLogger
 from agi_env.defaults import get_default_openai_model
@@ -477,6 +478,7 @@ def test_cluster_enabled_from_process_env_when_app_src_invalid(tmp_path: Path, m
     monkeypatch.setenv("AGI_CLUSTER_ENABLED", "1")
     monkeypatch.setenv("AGI_CLUSTER_SHARE", str(share_dir / "cluster_shared"))
     (share_dir / "cluster_shared").mkdir(exist_ok=True, parents=True)
+    monkeypatch.setattr(share_mount_support, "is_mounted", lambda *_args, **_kwargs: True)
 
     fake_apps = tmp_path / "apps"
     bad_app = fake_apps / "broken_project"
@@ -552,6 +554,7 @@ def test_cluster_enabled_from_apps_repository_when_app_src_invalid(tmp_path: Pat
     cluster_share = fake_home / "cluster_share"
     cluster_share.mkdir()
     monkeypatch.setenv("AGI_CLUSTER_SHARE", str(cluster_share))
+    monkeypatch.setattr(share_mount_support, "is_mounted", lambda *_args, **_kwargs: True)
 
     fake_apps = tmp_path / "apps"
     bad_app = fake_apps / app_name
@@ -1212,6 +1215,7 @@ def test_init_worker_install_type_detects_wenv_apps_path(tmp_path: Path, monkeyp
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setenv("AGI_CLUSTER_ENABLED", "0")
     monkeypatch.setenv("AGILAB_SHARE_USER", "worker-user")
+    monkeypatch.setattr(share_mount_support, "is_mounted", lambda *_args, **_kwargs: True)
 
     site_root = tmp_path / "site-packages"
     _configure_fake_installed_specs(monkeypatch, site_root)
@@ -2761,12 +2765,8 @@ def test_share_root_resolution_and_mode_helpers(tmp_path: Path, monkeypatch):
         env.resolve_share_path("demo/data")
         == fake_home / "clustershare" / "alice" / "workflow" / "session-1" / "demo" / "data"
     )
-    absolute_share_path = env.resolve_share_path("/tmp/absolute")
-    if os.name == "nt":
-        assert absolute_share_path.is_absolute()
-        assert absolute_share_path.parts[-2:] == ("tmp", "absolute")
-    else:
-        assert absolute_share_path == Path("/tmp/absolute").resolve(strict=False)
+    with pytest.raises(ValueError, match="share root"):
+        env.resolve_share_path("/tmp/absolute")
 
 
 def test_resolve_share_input_path_falls_back_to_share_root(tmp_path: Path, monkeypatch):

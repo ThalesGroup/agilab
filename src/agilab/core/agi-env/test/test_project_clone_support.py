@@ -139,14 +139,22 @@ def test_copy_existing_projects_noops_for_same_tree_and_skips_non_directory_cand
     )
     assert not logger.info.called
 
-    dst_apps = tmp_path / "dst"
-    copy_existing_projects(
-        src_apps,
-        dst_apps,
-        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
-        logger=logger,
-    )
-    assert not (dst_apps / "ghost_project").exists()
+
+def test_cleanup_rename_refuses_to_overwrite_existing_target(tmp_path: Path):
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "old.py").write_text("old", encoding="utf-8")
+    (root / "new.py").write_text("new", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="Refusing to overwrite"):
+        cleanup_rename(
+            root,
+            {"old": "new"},
+            replace_content_fn=lambda text, _rename_map: text,
+        )
+
+    assert (root / "old.py").exists()
+    assert (root / "new.py").read_text(encoding="utf-8") == "new"
 
 
 def test_copy_existing_projects_handles_operational_failures_and_propagates_runtime_bug(tmp_path: Path, monkeypatch):

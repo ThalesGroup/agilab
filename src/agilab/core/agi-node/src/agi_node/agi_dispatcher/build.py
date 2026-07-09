@@ -40,6 +40,7 @@ def _inject_shared_site_packages(*, source_file: str | Path = __file__) -> None:
 _inject_shared_site_packages()
 
 from agi_env import AgiEnv  # noqa: E402
+from agi_env.data_archive_support import validate_archive_members_stay_within_dest  # noqa: E402
 from agi_env.cython_build_config import (  # noqa: E402
     CYTHON_ANNOTATE_ENV,
     CYTHON_BUILD_REQUIREMENT,
@@ -494,6 +495,7 @@ def _unpack_worker_eggs(
     for egg in dist_dir.glob("*.egg"):
         log.info(f"Unpacking {egg} -> {dest_src}")
         with zip_cls(egg, "r") as zf:
+            validate_archive_members_stay_within_dest(zf, dest_src)
             zf.extractall(dest_src)
     _remove_top_level_ui_modules(dest_src, log=log)
 

@@ -163,6 +163,31 @@ def test_diagnose_data_directory_uses_lazy_pagelib_import(tmp_path, monkeypatch)
     assert streamlit_args.diagnose_data_directory(target) == "diagnosed:dataset"
 
 
+def test_resolve_shared_path_rejects_absolute_and_parent_escape(tmp_path):
+    share_root = tmp_path / "share"
+    share_root.mkdir()
+    env = SimpleNamespace(share_root_path=lambda: share_root)
+
+    assert streamlit_args.resolve_shared_path(env, "dataset") == share_root / "dataset"
+    with pytest.raises(ValueError, match="share root"):
+        streamlit_args.resolve_shared_path(env, tmp_path / "outside")
+    with pytest.raises(ValueError, match="share root"):
+        streamlit_args.resolve_shared_path(env, "../outside")
+
+
+def test_ensure_shared_directory_does_not_create_escaped_path(tmp_path):
+    share_root = tmp_path / "share"
+    share_root.mkdir()
+    env = SimpleNamespace(share_root_path=lambda: share_root)
+
+    target, created, error = streamlit_args.ensure_shared_directory(env, "../outside")
+
+    assert target == Path("../outside").expanduser()
+    assert created is False
+    assert error and "inside the AGI share path" in error
+    assert not (tmp_path / "outside").exists()
+
+
 def test_load_args_state_reads_settings(tmp_path, dummy_streamlit):
     settings_path = tmp_path / "app_settings.toml"
     settings_path.write_text(
@@ -271,7 +296,7 @@ def test_load_args_state_warns_on_validation_error(tmp_path, dummy_streamlit):
 def test_resolve_shared_path_handles_absolute_and_relative(tmp_path):
     share_root = tmp_path / "share"
     env = SimpleNamespace(share_root_path=lambda: share_root)
-    absolute = (tmp_path / "absolute").resolve()
+    absolute = (share_root / "absolute").resolve()
 
     resolved_abs = streamlit_args.resolve_shared_path(env, absolute)
     resolved_rel = streamlit_args.resolve_shared_path(env, "nested/path")

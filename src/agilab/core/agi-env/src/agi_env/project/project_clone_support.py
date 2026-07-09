@@ -476,6 +476,11 @@ def cleanup_rename(
 ) -> None:
     """Rename remaining basename leftovers and rewrite text references."""
 
+    def _rename_without_overwrite(path: Path, target: Path) -> None:
+        if target.exists() or target.is_symlink():
+            raise FileExistsError(f"Refusing to overwrite existing clone path: {target}")
+        path.rename(target)
+
     simple_map = {old: new for old, new in rename_map.items() if "/" not in old}
     sorted_simple = sorted(simple_map.items(), key=lambda kv: len(kv[0]), reverse=True)
 
@@ -484,11 +489,11 @@ def cleanup_rename(
         for old, new in sorted_simple:
             if old_name == old or old_name == f"{old}_worker" or old_name == f"{old}_project":
                 new_name = old_name.replace(old, new, 1)
-                path.rename(path.with_name(new_name))
+                _rename_without_overwrite(path, path.with_name(new_name))
                 break
             if path.is_file() and old_name.startswith(old + "."):
                 new_name = new + old_name[len(old):]
-                path.rename(path.with_name(new_name))
+                _rename_without_overwrite(path, path.with_name(new_name))
                 break
 
     text_suffixes = {".py", ".toml", ".md", ".txt", ".json", ".yaml", ".yml"}

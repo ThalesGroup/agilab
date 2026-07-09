@@ -15,6 +15,8 @@ import threading
 import time
 import faulthandler
 
+from agi_env.data_archive_support import validate_archive_members_stay_within_dest
+
 faulthandler.enable()
 
 USAGE = """
@@ -263,6 +265,7 @@ def unzip(wenv=None):
         for e in eggs:
             logger.info(f"Extracting {e}")
             with zipfile.ZipFile(e) as zf:
+                validate_archive_members_stay_within_dest(zf, root_src)
                 zf.extractall(root_src)
         logger.info(f"Unzipped: {eggs}")
     except _UNZIP_EXCEPTIONS as e:

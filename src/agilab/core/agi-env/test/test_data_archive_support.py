@@ -107,6 +107,18 @@ def test_unzip_data_rejects_archive_member_path_traversal(tmp_path: Path):
     assert extracted is False
 
 
+def test_archive_member_validation_supports_zip_namelist(tmp_path: Path):
+    class _UnsafeZip:
+        def namelist(self):
+            return ["good.txt", "../escape.txt"]
+
+    with pytest.raises(RuntimeError, match="Unsafe archive member path"):
+        data_archive_support.validate_archive_members_stay_within_dest(
+            _UnsafeZip(),
+            tmp_path / "dest",
+        )
+
+
 def test_py7zr_archive_error_resolution_handles_missing_package_exceptions_attr():
     class _ArchiveError(Exception):
         pass

@@ -17,6 +17,7 @@ from agi_env import AgiEnv
 
 
 logger = logging.getLogger(__name__)
+SSH_STREAM_READ_LIMIT_BYTES = 2 * 1024 * 1024
 
 _KNOWN_HOSTS_ENV_NAMES = (
     "AGILAB_CLUSTER_SSH_KNOWN_HOSTS",
@@ -623,6 +624,15 @@ def _stream_text(payload: Any) -> str:
     return str(payload or "")
 
 
+async def _read_stream_bounded(stream: Any, *, limit: int = SSH_STREAM_READ_LIMIT_BYTES) -> Any:
+    payload = await stream.read(limit + 1)
+    if len(payload or b"") > limit:
+        raise ConnectionError(
+            f"Remote command output exceeded {limit} bytes; rerun with an explicit log artifact."
+        )
+    return payload
+
+
 async def exec_ssh_async(agi_cls: Any, ip: str, cmd: str, *, log: Any = logger) -> str:
     """Execute a remote command via SSH and return the last non-empty stdout line.
 
@@ -636,11 +646,11 @@ async def exec_ssh_async(agi_cls: Any, ip: str, cmd: str, *, log: Any = logger) 
         stderr_stream = getattr(process, "stderr", None)
         if stderr_stream is not None:
             stdout, stderr = await asyncio.gather(
-                process.stdout.read(),
-                stderr_stream.read(),
+                _read_stream_bounded(process.stdout),
+                _read_stream_bounded(stderr_stream),
             )
         else:
-            stdout = await process.stdout.read()
+            stdout = await _read_stream_bounded(process.stdout)
             stderr = ""
         result = await process.wait()
 
@@ -666,7 +676,12 @@ async def exec_ssh_async(agi_cls: Any, ip: str, cmd: str, *, log: Any = logger) 
 async def close_all_connections(agi_cls: Any) -> None:
     """Close and drop every cached SSH connection."""
 
-    for conn in agi_cls._ssh_connections.values():
-        conn.close()
-        await conn.wait_closed()
-    agi_cls._ssh_connections.clear()
+    try:
+        for conn in list(agi_cls._ssh_connections.values()):
+            conn.close()
+            try:
+                await conn.wait_closed()
+            except (asyncssh.Error, OSError, RuntimeError):
+                logger.warning("SSH connection did not close cleanly", exc_info=True)
+    finally:
+        agi_cls._ssh_connections.clear()

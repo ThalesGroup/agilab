@@ -26,6 +26,7 @@ except ImportError:  # pragma: no cover - script execution fallback
 bootstrap_core_source_paths(source_file=__file__)
 
 from agi_env import AgiEnv
+from agi_env.data_archive_support import validate_archive_members_stay_within_dest
 
 
 def _usage() -> None:
@@ -136,6 +137,7 @@ def _extract_archive(archive: Path, dest: Path) -> None:
         return
     dest.mkdir(parents=True, exist_ok=True)
     with py7zr.SevenZipFile(archive, mode="r") as zf:
+        validate_archive_members_stay_within_dest(zf, dest)
         zf.extractall(path=dest)
 
 

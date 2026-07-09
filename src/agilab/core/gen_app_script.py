@@ -3,6 +3,9 @@ import sys
 import xml.etree.ElementTree as ET
 import filecmp
 import tempfile
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 if len(sys.argv) < 2:
     print("Usage: script.py <replacement_name>")
@@ -16,13 +19,13 @@ if not app:
 print(f"Replacement name: {app}")
 
 template_paths = [
-    'pycharm/_template_app_lib_worker.xml',
-    'pycharm/_template_app_egg_manager.xml',
-    'pycharm/_template_app_run.xml',
-    'pycharm/_template_app_test_manager.xml'
+    REPO_ROOT / 'pycharm/_template_app_lib_worker.xml',
+    REPO_ROOT / 'pycharm/_template_app_egg_manager.xml',
+    REPO_ROOT / 'pycharm/_template_app_run.xml',
+    REPO_ROOT / 'pycharm/_template_app_test_manager.xml'
 ]
 
-output_dir = os.path.join(os.getcwd(), '.idea', 'runConfigurations')
+output_dir = REPO_ROOT / '.idea' / 'runConfigurations'
 os.makedirs(output_dir, exist_ok=True)
 
 for tpl in template_paths:
@@ -39,7 +42,7 @@ for tpl in template_paths:
 
     # derive output filename
     base = os.path.basename(tpl).replace('_template_app', f'_{app}')
-    out_path = os.path.join(output_dir, base)
+    out_path = output_dir / base
 
     # --- idempotency check ----------------
     if os.path.exists(out_path):

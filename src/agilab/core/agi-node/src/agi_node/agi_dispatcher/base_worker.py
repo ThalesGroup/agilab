@@ -74,6 +74,31 @@ def _safe_getuser() -> str:
         return ""
 
 
+def _run_awaitable_blocking(awaitable: Any) -> Any:
+    """Synchronously wait for an awaitable even when this thread has an event loop."""
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(awaitable)
+
+    result: list[Any] = []
+    errors: list[BaseException] = []
+
+    def _runner() -> None:
+        try:
+            result.append(asyncio.run(awaitable))
+        except BaseException as exc:  # pragma: no cover - re-raised in caller thread
+            errors.append(exc)
+
+    thread = threading.Thread(target=_runner, name="agilab-worker-awaitable", daemon=True)
+    thread.start()
+    thread.join()
+    if errors:
+        raise errors[0]
+    return result[0] if result else None
+
+
 class BaseWorker(ArtifactContract, abc.ABC):
     """
     class BaseWorker v1.0
@@ -605,27 +630,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
                 _write_heartbeat("running")
                 result = _run_once()
                 if inspect.isawaitable(result):
-                    # Decide the execution path *before* consuming the
-                    # awaitable: a RuntimeError raised inside the worker's own
-                    # coroutine must propagate as-is, not be confused with
-                    # "asyncio.run() cannot be called from a running event
-                    # loop" (re-awaiting a consumed coroutine would mask the
-                    # real failure).
-                    try:
-                        asyncio.get_running_loop()
-                    except RuntimeError:
-                        running_loop = None
-                    else:
-                        running_loop = True
-
-                    if running_loop is None:
-                        result = asyncio.run(result)
-                    else:
-                        loop = asyncio.new_event_loop()
-                        try:
-                            result = loop.run_until_complete(result)
-                        finally:
-                            loop.close()
+                    result = _run_awaitable_blocking(result)
 
                 if result is False:
                     break
@@ -844,22 +849,32 @@ class BaseWorker(ArtifactContract, abc.ABC):
         normalized_input = self.normalize_dataset_path(input_path)
 
         base_parent = input_path.parent
+        share_root = type(self)._share_root_path(env)
+        output_root = base_parent
         if target_path is None:
             output_path = base_parent / target_subdir
         else:
             candidate = Path(str(target_path)).expanduser()
             if not candidate.is_absolute():
-                share_root = type(self)._share_root_path(env)
                 has_nested_segments = len(candidate.parts) > 1
                 if has_nested_segments:
                     anchor = share_root or base_parent.parent or base_parent
                 else:
                     anchor = base_parent
+                output_root = Path(anchor)
                 candidate = (Path(anchor) / candidate).expanduser()
+            else:
+                output_root = share_root or base_parent
             try:
                 output_path = candidate.resolve(strict=False)
             except (OSError, RuntimeError):
                 output_path = Path(os.path.normpath(str(candidate)))
+        confinement_root = share_root or output_root
+        output_path = type(self)._ensure_path_within(
+            output_path,
+            Path(confinement_root),
+            description="setup_data_directories target_path",
+        )
 
         normalized_output = normalize_path(output_path)
         if os.name != "nt":
@@ -940,7 +955,11 @@ class BaseWorker(ArtifactContract, abc.ABC):
         Raises:
             None
         """
-        path = os.path.join(BaseWorker.expand(path1), path2)
+        path2_obj = Path(str(path2)).expanduser()
+        if path2_obj.is_absolute() or PureWindowsPath(str(path2)).is_absolute():
+            raise ValueError(f"path2 must be relative, got {path2!r}")
+
+        path = os.path.join(BaseWorker.expand(path1), str(path2_obj))
 
         if os.name != "nt":
             path = path.replace("\\", "/")
@@ -1010,7 +1029,27 @@ class BaseWorker(ArtifactContract, abc.ABC):
         return runtime_support.is_cython_installed(env)
 
     @staticmethod
-    async def _run(env=None, workers={"127.0.0.1": 1}, mode=0, verbose=None, args=None):
+    def _ensure_path_within(path: Path, root: Path | None, *, description: str) -> Path:
+        path = path.expanduser()
+        try:
+            resolved = path.resolve(strict=False)
+        except (OSError, RuntimeError):
+            resolved = Path(os.path.normpath(str(path)))
+        if root is None:
+            return resolved
+        root = root.expanduser()
+        try:
+            resolved_root = root.resolve(strict=False)
+        except (OSError, RuntimeError):
+            resolved_root = Path(os.path.normpath(str(root)))
+        if not resolved.is_relative_to(resolved_root):
+            raise ValueError(
+                f"{description} must stay inside {resolved_root}, got {path}."
+            )
+        return resolved
+
+    @staticmethod
+    async def _run(env=None, workers=None, mode=0, verbose=None, args=None):
         """
         :param app:
         :param workers:
@@ -1023,6 +1062,8 @@ class BaseWorker(ArtifactContract, abc.ABC):
             env = BaseWorker.env
         else:
             BaseWorker.env = env
+        if workers is None:
+            workers = {"127.0.0.1": 1}
 
         def _load_dispatcher():
             from .agi_dispatcher import (
@@ -1171,8 +1212,14 @@ class BaseWorker(ArtifactContract, abc.ABC):
         worker_idx = payload.get(
             "worker_idx", worker_id if worker_id is not None else 0
         )
+        if not isinstance(worker_idx, int) or worker_idx < 0:
+            raise ValueError(f"Invalid worker_idx in chunk payload: {worker_idx!r}")
 
         if isinstance(total_workers, int) and total_workers > 0:
+            if worker_idx >= total_workers:
+                raise ValueError(
+                    f"Invalid worker_idx {worker_idx}; total_workers={total_workers}"
+                )
             reconstructed_len = max(total_workers, worker_idx + 1)
         else:
             reconstructed_len = worker_idx + 1

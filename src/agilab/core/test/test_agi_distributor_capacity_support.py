@@ -276,7 +276,7 @@ async def test_benchmark_raises_when_no_runs(monkeypatch, tmp_path):
     monkeypatch.setattr(AGI, "run", staticmethod(_non_str_run))
     monkeypatch.setattr(AGI, "_benchmark_dask_modes", staticmethod(lambda *_a, **_k: None))
 
-    with pytest.raises(RuntimeError, match="No ordered runs available"):
+    with pytest.raises(RuntimeError, match="did not return a timing string"):
         await capacity_support.benchmark(AGI, env, request=RunRequest(mode=[0]))
 
 
@@ -756,6 +756,54 @@ async def test_calibration_fallback_when_predictor_has_no_data():
 
 
 @pytest.mark.asyncio
+async def test_calibration_skips_unknown_dask_host_and_uses_uniform_fallback():
+    class _Client:
+        def run(self, *_args, **_kwargs):
+            return {
+                "tcp://10.0.0.99:8787": {
+                    "ram_total": [10.0],
+                    "ram_available": [5.0],
+                    "cpu_count": [4.0],
+                    "cpu_frequency": [2.5],
+                    "network_speed": [1.0],
+                }
+            }
+
+        def gather(self, payload):
+            return payload
+
+    AGI._dask_client = _Client()
+    AGI._dask_workers = ["10.0.0.99:8787"]
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._capacity_predictor = SimpleNamespace(predict=lambda _x: [4.0])
+
+    await capacity_support.calibration(AGI)
+
+    assert AGI._capacity == {"10.0.0.99:8787": 1.0}
+    assert AGI.workers_info["10.0.0.99:8787"]["label"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_calibration_skips_missing_worker_info_and_uses_uniform_fallback():
+    class _Client:
+        def run(self, *_args, **_kwargs):
+            return {"tcp://10.0.0.2:8787": None}
+
+        def gather(self, payload):
+            return payload
+
+    AGI._dask_client = _Client()
+    AGI._dask_workers = ["10.0.0.2:8787"]
+    AGI._workers = {"10.0.0.2": 1}
+    AGI._capacity_predictor = SimpleNamespace(predict=lambda _x: [4.0])
+
+    await capacity_support.calibration(AGI)
+
+    assert AGI._capacity == {"10.0.0.2:8787": 1.0}
+    assert AGI.workers_info["10.0.0.2:8787"]["label"] == 1.0
+
+
+@pytest.mark.asyncio
 async def test_calibration_fallback_uses_localhost_when_no_workers_exist():
     class _Client:
         def run(self, *_args, **_kwargs):
@@ -851,6 +899,41 @@ def test_update_capacity_adjusts_against_other_workers(tmp_path, monkeypatch):
 
     assert Path(AGI._capacity_data_file).exists()
     assert train_calls["count"] == 1
+
+
+def test_update_capacity_ignores_zero_runtime_adjustment(tmp_path, monkeypatch):
+    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
+    AGI.workers_info = {
+        "127.0.0.1:8787": {
+            "nb_workers": 1,
+            "ram_total": 10.0,
+            "ram_available": 5.0,
+            "cpu_count": 4.0,
+            "cpu_frequency": 2.5,
+            "network_speed": 1.0,
+            "label": 1.0,
+        },
+        "10.0.0.2:8788": {
+            "nb_workers": 1,
+            "ram_total": 20.0,
+            "ram_available": 10.0,
+            "cpu_count": 8.0,
+            "cpu_frequency": 3.0,
+            "network_speed": 2.0,
+            "label": 2.0,
+        },
+    }
+    AGI._run_time = [
+        {"127.0.0.1:8787": 0.0},
+        {"10.0.0.2:8788": 1.0},
+    ]
+    AGI._capacity_data_file = str(tmp_path / "capacity.csv")
+    AGI.env = SimpleNamespace(home_abs=str(tmp_path))
+    monkeypatch.setattr(AGI, "_train_capacity", staticmethod(lambda _path: None))
+
+    capacity_support.update_capacity(AGI)
+
+    assert Path(AGI._capacity_data_file).exists()
 
 
 def test_update_capacity_writes_utf8_capacity_csv_for_polars(tmp_path, monkeypatch):

@@ -328,6 +328,24 @@ def test_import_project_action_reports_invalid_archive(tmp_path: Path):
     assert not result.data["target_dir"].exists()
 
 
+def test_import_project_action_rejects_zip_slip_member(tmp_path: Path):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    _write_project_archive(
+        export_root / "demo_project.zip",
+        {"../escape.txt": "bad"},
+    )
+    env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
+
+    result = module._import_project_action(env, project_zip="demo_project.zip")
+
+    assert result.status == "error"
+    assert "could not be imported" in result.title
+    assert "Unsafe archive member path" in str(result.detail)
+    assert not (tmp_path / "escape.txt").exists()
+
+
 def test_import_project_action_imports_archive_and_runs_clean(tmp_path: Path, monkeypatch):
     module = _load_project_module()
     export_root = tmp_path / "exports"

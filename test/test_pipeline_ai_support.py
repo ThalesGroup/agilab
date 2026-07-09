@@ -589,6 +589,13 @@ def test_validate_code_safety_rejects_blocked_dunder_attr():
         pipeline_ai_support._validate_code_safety("x = 1\nx.__class__")
 
 
+def test_validate_code_safety_rejects_blocked_module_name_and_mro():
+    with pytest.raises(pipeline_ai_support._UnsafeCodeError, match="Access to module 'os' is not allowed"):
+        pipeline_ai_support._validate_code_safety("x = os")
+    with pytest.raises(pipeline_ai_support._UnsafeCodeError, match="Access to 'mro' is not allowed"):
+        pipeline_ai_support._validate_code_safety("type(1).mro()")
+
+
 def test_exec_code_on_df_blocks_unsafe_code():
     updated, error = pipeline_ai_support._exec_code_on_df("os.system('echo hi')", pd.DataFrame({"x": [1]}))
     assert updated is None

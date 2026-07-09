@@ -52,6 +52,22 @@ _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_module = _import_guard_module.import_agilab_module
 
+_data_archive_support_module = import_agilab_module(
+    "agi_env.data_archive_support",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1]
+    / "core"
+    / "agi-env"
+    / "src"
+    / "agi_env"
+    / "project"
+    / "data_archive_support.py",
+    fallback_name="agi_env_data_archive_support_fallback",
+)
+validate_archive_members_stay_within_dest = (
+    _data_archive_support_module.validate_archive_members_stay_within_dest
+)
+
 _public_bind_guard_module = import_agilab_module(
     "agilab.ui_public_bind_guard",
     current_file=__file__,
@@ -1790,6 +1806,7 @@ def _import_project_action(
 
     try:
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            validate_archive_members_stay_within_dest(zip_ref, target_dir)
             zip_ref.extractall(target_dir)
         if clean:
             clean_project(target_dir)

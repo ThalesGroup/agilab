@@ -33,10 +33,14 @@ class _FakeProc:
         self.stderr = _FakeStream(stderr_lines)
         self.returncode = returncode
         self.wait_calls = 0
+        self.kill_calls = 0
 
     async def wait(self):
         self.wait_calls += 1
         return self.returncode
+
+    def kill(self):
+        self.kill_calls += 1
 
     async def communicate(self):
         stdout = b"".join(line for line in [*self.stdout._lines] if line)
@@ -119,6 +123,42 @@ def test_spawn_process_propagates_unexpected_exec_bug(tmp_path: Path, monkeypatc
                 shell_executable="/bin/bash",
             )
         )
+
+
+def test_run_wait_false_tracks_background_wait(tmp_path: Path, monkeypatch):
+    proc = _FakeProc()
+
+    async def _fake_spawn(*_args, **_kwargs):
+        return proc
+
+    monkeypatch.setattr(execution_support, "_spawn_process", _fake_spawn)
+
+    async def _case():
+        assert await execution_support.run("echo ok", tmp_path, cwd=tmp_path, wait=False) == 0
+        assert proc.wait_calls == 0
+        await asyncio.sleep(0)
+        assert proc.wait_calls == 1
+
+    asyncio.run(_case())
+
+
+def test_run_kills_spawned_process_on_wrapped_stream_error(tmp_path: Path, monkeypatch):
+    proc = _FakeProc()
+
+    async def _fake_spawn(*_args, **_kwargs):
+        return proc
+
+    async def _raise_stream_error(*_args, **_kwargs):
+        raise ValueError("stream failed")
+
+    monkeypatch.setattr(execution_support, "_spawn_process", _fake_spawn)
+    monkeypatch.setattr(execution_support, "_stream_process_output", _raise_stream_error)
+
+    with pytest.raises(RuntimeError, match="Command execution error"):
+        asyncio.run(execution_support.run("echo ok", tmp_path, cwd=tmp_path))
+
+    assert proc.kill_calls == 1
+    assert proc.wait_calls == 1
 
 
 def test_stream_process_output_collects_lines_and_waits_for_proc():

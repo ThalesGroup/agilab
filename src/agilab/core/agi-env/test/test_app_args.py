@@ -13,6 +13,7 @@ from agi_env.app_args import (
     model_to_payload,
     prefer_persisted_value,
 )
+from agi_env.runtime.atomic_write_support import atomic_write_bytes
 
 
 class ExampleModel(BaseModel):
@@ -110,6 +111,21 @@ def test_dump_model_to_toml_creates_file_and_section(tmp_path: Path):
     data = tomllib.loads(settings.read_text())
     assert data["__meta__"] == {"schema": "agilab.app_settings.v1", "version": 1}
     assert data["args"] == {"foo": 7, "bar": "written"}
+
+
+def test_atomic_write_bytes_preserves_existing_file_on_writer_failure(tmp_path: Path):
+    settings = tmp_path / "config.toml"
+    settings.write_text("original", encoding="utf-8")
+
+    def _broken_writer(handle):
+        handle.write(b"partial")
+        raise OSError("disk full")
+
+    with pytest.raises(OSError, match="disk full"):
+        atomic_write_bytes(settings, _broken_writer)
+
+    assert settings.read_text(encoding="utf-8") == "original"
+    assert list(tmp_path.glob(".config.toml.*.tmp")) == []
 
 
 def test_dump_model_to_toml_respects_create_missing_flag(tmp_path: Path):

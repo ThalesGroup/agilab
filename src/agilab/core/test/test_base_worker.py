@@ -1131,10 +1131,23 @@ def test_baseworker_loop_accepts_stop_event_without_base_polling(monkeypatch):
     assert waits == []
 
 
+def test_run_awaitable_blocking_inside_running_loop():
+    async def _worker_coro():
+        await asyncio.sleep(0)
+        return "ok"
+
+    async def _caller():
+        return base_worker_mod._run_awaitable_blocking(_worker_coro())
+
+    assert asyncio.run(_caller()) == "ok"
+
+
 def test_baseworker_path_and_subprocess_helpers(monkeypatch, tmp_path):
     expanded = BaseWorker.expand("folder/demo.csv", base_directory=tmp_path)
     assert expanded == str((tmp_path / "folder" / "demo.csv").resolve())
     assert Path(BaseWorker._join(str(tmp_path), "child.txt")).name == "child.txt"
+    with pytest.raises(ValueError, match="path2 must be relative"):
+        BaseWorker._join(str(tmp_path), str(tmp_path / "outside.txt"))
 
     monkeypatch.setattr(
         BaseWorker, "expand", staticmethod(lambda value: str(tmp_path / value))
@@ -1158,6 +1171,18 @@ def test_baseworker_expand_chunk():
     assert reconstructed == [[], ["a"], []]
     assert chunk_len == 1
     assert total_workers == 3
+
+
+def test_baseworker_expand_chunk_rejects_invalid_worker_idx():
+    payload = {
+        "__agi_worker_chunk__": True,
+        "chunk": [1],
+        "total_workers": 1,
+        "worker_idx": 3,
+    }
+
+    with pytest.raises(ValueError, match="worker_idx"):
+        BaseWorker._expand_chunk(payload, worker_id=0)
 
 
 def test_baseworker_args_namespace_mapping_helpers():
@@ -1389,6 +1414,45 @@ def test_baseworker_setup_data_directories_logs_rmtree_failures(monkeypatch, tmp
 
     assert result.output_path == output_dir
     assert any("Error removing directory" in message for message in infos)
+
+
+def test_baseworker_setup_data_directories_rejects_reset_target_escape(monkeypatch, tmp_path):
+    worker = DummyWorker()
+    share_root = tmp_path / "share"
+    input_dir = share_root / "flight_trajectory" / "pipeline"
+    input_dir.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    env = SimpleNamespace(
+        AGI_LOCAL_SHARE=tmp_path / "localshare",
+        home_abs=tmp_path / "home",
+        target="demo",
+        _is_managed_pc=False,
+        share_root_path=lambda: share_root,
+        agi_share_path_abs=share_root,
+        agi_share_path=Path("clustershare"),
+        AGILAB_SHARE_HINT=None,
+        AGILAB_SHARE_REL=None,
+    )
+    worker.env = env
+
+    rmtree_calls: list[object] = []
+    monkeypatch.setattr(
+        base_worker_mod.shutil,
+        "rmtree",
+        lambda *args, **_kwargs: rmtree_calls.append(args),
+    )
+
+    with pytest.raises(ValueError, match="target_path must stay inside"):
+        worker.setup_data_directories(
+            source_path=Path("flight_trajectory/pipeline"),
+            target_path=outside,
+            reset_target=True,
+        )
+
+    assert rmtree_calls == []
+    assert outside.exists()
 
 
 def test_baseworker_onerror_handles_permission_and_non_permission(

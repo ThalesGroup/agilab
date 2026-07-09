@@ -20,6 +20,7 @@ from agi_env.cython_build_config import (
     cython_pyx_stamp_line,
 )
 from agi_node.agi_dispatcher import build as build_mod
+from agi_node.agi_dispatcher import cli as cli_mod
 from agi_node.agi_dispatcher import cython_type_preprocess as type_preprocess_mod
 from agi_node.agi_dispatcher import post_install as post_mod
 from agi_node.agi_dispatcher import pre_install as pre_mod
@@ -1102,6 +1103,36 @@ def test_post_extract_archive_uses_py7zr_extractall(monkeypatch, tmp_path):
     post_mod._extract_archive(archive, dest)
 
     assert extracted == {"path": archive, "mode": "r", "dest": dest}
+
+
+def test_post_extract_archive_rejects_traversal_before_extract(monkeypatch, tmp_path):
+    archive = tmp_path / "dataset.7z"
+    archive.write_text("placeholder", encoding="utf-8")
+    extracted = False
+
+    class _Archive:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def getnames(self):
+            return ["ok.csv", "../escape.txt"]
+
+        def extractall(self, *, path):
+            nonlocal extracted
+            extracted = True
+
+    monkeypatch.setattr(post_mod.py7zr, "SevenZipFile", _Archive)
+
+    with pytest.raises(RuntimeError, match="Unsafe archive member path"):
+        post_mod._extract_archive(archive, tmp_path / "dataset")
+
+    assert extracted is False
 
 
 def test_post_extract_archive_missing_file_is_noop_and_large_folder_handles_stat_error(tmp_path, monkeypatch):
@@ -2480,6 +2511,30 @@ def test_unpack_worker_eggs_uses_default_zipfile_and_logger(tmp_path):
     assert any("mkdir" in line for line in log_lines)
     assert any("Unpacking" in line for line in log_lines)
     assert any("Removed UI-only worker artifact" in line for line in log_lines)
+
+
+def test_unpack_worker_eggs_rejects_traversal_before_extract(tmp_path):
+    dist_dir = tmp_path / "dist"
+    dest_src = tmp_path / "src"
+    dist_dir.mkdir()
+    egg_path = dist_dir / "demo_worker-0.1.0.egg"
+    with ZipFile(egg_path, "w") as zf:
+        zf.writestr("../escape.py", "boom\n")
+
+    with pytest.raises(RuntimeError, match="Unsafe archive member path"):
+        build_mod._unpack_worker_eggs(dist_dir=dist_dir, dest_src=dest_src)
+
+    assert not (tmp_path / "escape.py").exists()
+
+
+def test_cli_unzip_rejects_traversal_before_extract(tmp_path):
+    egg_path = tmp_path / "demo_worker-0.1.0.egg"
+    with ZipFile(egg_path, "w") as zf:
+        zf.writestr("../escape.py", "boom\n")
+
+    with pytest.raises(RuntimeError, match="Unsafe archive member path"):
+        cli_mod.unzip(wenv=tmp_path)
+    assert not (tmp_path / "escape.py").exists()
 
 
 def test_purge_top_level_ui_build_artifacts_removes_stale_build_cache(tmp_path):

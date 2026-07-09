@@ -846,7 +846,7 @@ class _FakeStream:
     def __init__(self, payload):
         self._payload = payload
 
-    async def read(self):
+    async def read(self, _limit=-1):
         return self._payload
 
 
@@ -898,6 +898,45 @@ async def test_exec_ssh_async_and_close_all_connections():
     assert agi_cls._ssh_connections == {}
     assert conn.closed is True
     assert conn.waited is True
+
+
+@pytest.mark.asyncio
+async def test_exec_ssh_async_rejects_unbounded_output():
+    class _Conn:
+        async def create_process(self, _cmd):
+            return _FakeAsyncProc(
+                stdout=b"x" * (transport_support.SSH_STREAM_READ_LIMIT_BYTES + 1),
+            )
+
+    @asynccontextmanager
+    async def _conn_ctx(_ip):
+        yield _Conn()
+
+    agi_cls = SimpleNamespace(get_ssh_connection=_conn_ctx)
+
+    with pytest.raises(ConnectionError, match="output exceeded"):
+        await transport_support.exec_ssh_async(agi_cls, "10.0.0.2", "run")
+
+
+@pytest.mark.asyncio
+async def test_close_all_connections_clears_cache_when_wait_closed_raises():
+    class _Conn:
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+        async def wait_closed(self):
+            raise RuntimeError("close failed")
+
+    conn = _Conn()
+    agi_cls = SimpleNamespace(_ssh_connections={"10.0.0.2": conn})
+
+    await transport_support.close_all_connections(agi_cls)
+
+    assert conn.closed is True
+    assert agi_cls._ssh_connections == {}
 
 
 @pytest.mark.asyncio
