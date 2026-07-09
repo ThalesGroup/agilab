@@ -151,10 +151,17 @@ def _render_self_evaluation_contract() -> None:
 
 
 env = _get_env()
-settings_path = Path(env.app_settings_file)
+settings_path = Path(env.app_settings_file).resolve(strict=False)
 current_args = _load_current_args(settings_path)
 current_payload = current_args.model_dump(mode="json")
-artifact_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export")) / env.target / "tescia_diagnostic"
+artifact_target = str(
+    getattr(env, "target", "") or getattr(env, "app", "") or "tescia_diagnostic_project"
+)
+export_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export")).resolve(
+    strict=False
+)
+artifact_target = Path(artifact_target).name
+artifact_root = export_root / artifact_target / "tescia_diagnostic"
 
 st.caption(
     "Turn a TeSciA-style diagnostic into repeatable evidence: symptom, evidence quality, "

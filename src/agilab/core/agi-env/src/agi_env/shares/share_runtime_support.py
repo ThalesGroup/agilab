@@ -22,15 +22,23 @@ def share_target_name(target: str | None, app: str | None, *, default: str = "ap
 
 
 def resolve_share_path(path: str | Path | None, share_root: Path) -> Path:
-    """Resolve ``path`` relative to ``share_root``."""
+    """Resolve ``path`` relative to ``share_root`` with share-root confinement."""
 
     if path in (None, "", "."):
-        return share_root
+        return share_root.resolve(strict=False)
 
     candidate = Path(path).expanduser()
     if candidate.is_absolute():
-        return candidate.resolve(strict=False)
-    return (share_root / candidate).resolve(strict=False)
+        resolved = candidate.resolve(strict=False)
+    else:
+        resolved = (share_root / candidate).resolve(strict=False)
+
+    share_root_resolved = share_root.resolve(strict=False)
+    if not resolved.is_relative_to(share_root_resolved):
+        raise ValueError(
+            f"Path must stay inside the configured share root {share_root_resolved!r}, got {path!r}."
+        )
+    return resolved
 
 
 def mode_to_str(mode: int, *, hw_rapids_capable: bool = False) -> str:
