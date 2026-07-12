@@ -1,6 +1,6 @@
 agilab
 agilab-clean-worktree
-repo-update-on-launch-clean-only
+repo-update-on-launch
 agilab-validation-shortcuts
 agilab-builtin-apps
 agilab-docs-mirror
