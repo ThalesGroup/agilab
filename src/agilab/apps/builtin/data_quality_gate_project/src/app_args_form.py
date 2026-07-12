@@ -47,6 +47,10 @@ export_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export")).re
     strict=False
 )
 artifact_target = Path(artifact_target).name
+if artifact_target in {"", ".", ".."}:
+    # Path("..").name keeps a bare ".." which would escape one level above the
+    # export root; fall back to the project default so the artifact stays confined.
+    artifact_target = "data_quality_gate_project"
 
 artifact_root = export_root / artifact_target / "data_quality_gate"
 st.caption(

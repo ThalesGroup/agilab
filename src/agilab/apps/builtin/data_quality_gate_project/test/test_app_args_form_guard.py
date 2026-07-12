@@ -34,14 +34,17 @@ def _apply_target_guard(raw_target: str, export_root: Path) -> Path:
 
     export_root = export_root.resolve(strict=False)
     artifact_target = Path(raw_target).name
+    if artifact_target in {"", ".", ".."}:
+        artifact_target = "data_quality_gate_project"
     return export_root / artifact_target / "data_quality_gate"
 
 
 def test_guard_source_still_normalises_target_name() -> None:
-    """The guard line must remain in the shipped source (fails if removed)."""
+    """The guard lines must remain in the shipped source (fails if removed)."""
 
     source = APP_ARGS_FORM.read_text(encoding="utf-8")
     assert "artifact_target = Path(artifact_target).name" in source
+    assert 'if artifact_target in {"", ".", ".."}:' in source
     assert 'export_root / artifact_target / "data_quality_gate"' in source
 
 
@@ -52,6 +55,9 @@ def test_guard_source_still_normalises_target_name() -> None:
         "../../../root/.ssh/authorized_keys",
         "/etc/passwd",
         "a/../../b",
+        "..",
+        ".",
+        "",
     ],
 )
 def test_traversal_target_cannot_escape_export_root(
