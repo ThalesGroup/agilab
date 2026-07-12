@@ -151,7 +151,10 @@ Python and Cython:
 
 .. code-block:: bash
 
-   uv --preview-features extra-build-dependencies run python tools/benchmark_execution_pandas_cython_kernel.py --rows 100000 --compute-passes 32 --repeats 3 --warmups 1
+   uv --preview-features extra-build-dependencies run python tools/benchmark_execution_pandas_cython_kernel.py --rows 100000 --compute-passes 32 --repeats 3 --warmups 1 --json-out docs/source/data/execution_pandas_typed_kernel_benchmark.json --csv-out docs/source/data/execution_pandas_typed_kernel_benchmark.csv
+
+The ``--json-out`` and ``--csv-out`` paths above are the committed benchmark
+artifacts rendered on this page, so this exact command regenerates them.
 
 To measure the optional type-preprocessor itself, add
 ``--compare-preprocess``. That mode compiles the same worker as raw Cython and
