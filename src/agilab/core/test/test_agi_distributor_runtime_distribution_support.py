@@ -1853,3 +1853,107 @@ def test_clean_job_respects_cond_and_verbosity():
 
     runtime_distribution_support.clean_job(AGI, False)
     assert jobs.flush_calls == 2
+
+
+def test_rapids_mode_bit_does_not_collide_with_install_mode():
+    # Regression: RAPIDS_MODE used to be 16, colliding with _INSTALL_MODE
+    # (0b01 << DASK_MODE == 16), so AGI.DASK_MODE | AGI.RAPIDS_MODE silently
+    # selected the install/sync path. The rapids run bit is 8.
+    assert AGI.RAPIDS_MODE == (AGI._RAPIDS_SET ^ AGI._RAPIDS_RESET) == 8
+    assert AGI.RAPIDS_MODE != AGI._INSTALL_MODE
+    combined = AGI.DASK_MODE | AGI.RAPIDS_MODE
+    # Not on the simulate branch, not >= install, but still a dask run.
+    assert (combined & AGI._DEPLOYEMENT_MASK) != AGI._SIMULATE_MODE
+    assert combined < AGI._INSTALL_MODE
+    assert combined & AGI.DASK_MODE
+
+
+@pytest.mark.asyncio
+async def test_main_dask_rapids_run_resolves_to_distribute_not_install(monkeypatch):
+    # Regression: DASK_MODE | RAPIDS_MODE must run the distribute pipeline, not
+    # the install/deploy branch.
+    class _Jobs:
+        def flush(self):
+            return None
+
+    calls = []
+
+    async def _fake_start(_scheduler):
+        calls.append("start")
+        return None
+
+    async def _fake_distribute():
+        calls.append("distribute")
+        return "rapids-run-result"
+
+    async def _fake_stop():
+        calls.append("stop")
+        return None
+
+    async def _fake_deploy(_scheduler):
+        calls.append("deploy")
+        return None
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_fake_start))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_fake_distribute))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_fake_stop))
+    monkeypatch.setattr(AGI, "_deploy_application", staticmethod(_fake_deploy))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(lambda: calls.append("update_capacity")))
+    monkeypatch.setattr(AGI, "_clean_job", staticmethod(lambda cond: None))
+
+    AGI._mode = AGI.DASK_MODE | AGI.RAPIDS_MODE
+    result = await runtime_distribution_support.main(
+        AGI,
+        "127.0.0.1",
+        background_job_manager_factory=lambda: _Jobs(),
+    )
+
+    assert result == "rapids-run-result"
+    assert calls == ["start", "distribute", "update_capacity", "stop"]
+    assert "deploy" not in calls
+
+
+@pytest.mark.asyncio
+async def test_main_dask_run_stops_cluster_when_distribute_raises(monkeypatch):
+    # Regression: a raising _distribute used to skip _stop(), leaking the
+    # scheduler/workers/ports/SSH connections. main() must always run _stop().
+    class _Jobs:
+        def flush(self):
+            return None
+
+    calls = []
+
+    async def _fake_start(_scheduler):
+        calls.append("start")
+        return None
+
+    async def _fake_distribute():
+        calls.append("distribute")
+        raise RuntimeError("distribute exploded")
+
+    async def _fake_stop():
+        calls.append("stop")
+        return None
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_fake_start))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_fake_distribute))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_fake_stop))
+    monkeypatch.setattr(
+        AGI,
+        "_update_capacity",
+        staticmethod(lambda: calls.append("update_capacity")),
+    )
+    monkeypatch.setattr(AGI, "_clean_job", staticmethod(lambda cond: None))
+
+    AGI._mode = AGI.DASK_MODE
+
+    with pytest.raises(RuntimeError, match="distribute exploded"):
+        await runtime_distribution_support.main(
+            AGI,
+            "127.0.0.1",
+            background_job_manager_factory=lambda: _Jobs(),
+        )
+
+    # _update_capacity is skipped because distribute failed, but _stop must run.
+    assert "stop" in calls
+    assert "update_capacity" not in calls

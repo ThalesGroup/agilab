@@ -808,19 +808,26 @@ async def main(
             lambda: agi_cls._start(scheduler),
             time_fn=time_fn,
         )
-        res = await _run_timed_phase(
-            agi_cls,
-            "distribute",
-            lambda: agi_cls._distribute(),
-            time_fn=time_fn,
-        )
-        agi_cls._update_capacity()
-        await _run_timed_phase(
-            agi_cls,
-            "stop-dask",
-            lambda: agi_cls._stop(),
-            time_fn=time_fn,
-        )
+        try:
+            res = await _run_timed_phase(
+                agi_cls,
+                "distribute",
+                lambda: agi_cls._distribute(),
+                time_fn=time_fn,
+            )
+            agi_cls._update_capacity()
+        finally:
+            # Always tear the cluster down (dask client shutdown, worker
+            # retirement, SSH/connection cleanup) even when _distribute or
+            # _update_capacity raise; otherwise scheduler/workers/ports and
+            # SSH connections leak. _stop() still honors the _mode_auto
+            # benchmark skip internally.
+            await _run_timed_phase(
+                agi_cls,
+                "stop-dask",
+                lambda: agi_cls._stop(),
+                time_fn=time_fn,
+            )
     else:
         res = await agi_cls._run()
 

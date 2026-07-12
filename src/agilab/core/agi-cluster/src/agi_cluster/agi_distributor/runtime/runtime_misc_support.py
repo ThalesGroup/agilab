@@ -19,6 +19,15 @@ from datetime import timedelta
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Callable, List, Optional, cast
 
+# NOTE: The capacity-model manifest is an *integrity* control, not an
+# authenticity/signing control. It is an unsigned sha256 co-located with the
+# model file, so it only detects accidental corruption or truncation of a
+# pickle the operator already trusts on disk. It cannot prove *who* produced
+# the model. The authenticity guarantee comes from the permission gate in
+# _capacity_model_trust_error (trusted-root containment + owner-only writable,
+# no shared-group/world write, verified ownership on Windows), which must keep
+# a hostile actor from planting a malicious pickle in the first place. Do not
+# treat manifest verification alone as a defense against a tampered model.
 CAPACITY_MODEL_MANIFEST_SCHEMA = "agilab.capacity_model_manifest.v1"
 CAPACITY_MODEL_HASH_ALGORITHM = "sha256"
 _CAPACITY_LOAD_EXCEPTIONS = (
@@ -263,6 +272,33 @@ def load_capacity_predictor(
         return None
 
 
+def _posix_group_is_user_private(stat_result: os.stat_result) -> bool:
+    """Return True when the file's group is the current user's private group.
+
+    A "user-private group" (the common Linux default where each user has a
+    same-named group with only that user as a member) is not a meaningful
+    escalation surface, so group-write on such a group is tolerated. Any other
+    (shared) group with write permission is rejected.
+    """
+    try:
+        import grp
+        import pwd
+
+        euid = os.geteuid()
+        user_record = pwd.getpwuid(euid)
+        # Group matches the user's own primary group.
+        if stat_result.st_gid == user_record.pw_gid:
+            return True
+        group_record = grp.getgrgid(stat_result.st_gid)
+        members = set(group_record.gr_mem)
+        members.discard(user_record.pw_name)
+        # Private group: only the owning user (already excluded) is a member.
+        return not members
+    except (ImportError, KeyError, OSError, AttributeError):
+        # Cannot verify group membership; treat as shared (not private).
+        return False
+
+
 def _capacity_model_trust_error(model_path: Path, trusted_root: Path) -> str | None:
     path = Path(model_path).expanduser().resolve(strict=False)
     root = Path(trusted_root).expanduser().resolve(strict=False)
@@ -270,12 +306,32 @@ def _capacity_model_trust_error(model_path: Path, trusted_root: Path) -> str | N
         return f"path is outside trusted resource root {root}"
 
     try:
-        mode = path.stat().st_mode
+        stat_result = path.stat()
     except OSError as exc:
         return f"cannot stat model file: {exc}"
+    mode = stat_result.st_mode
 
-    if os.name != "nt" and mode & stat.S_IWOTH:
+    if os.name == "nt":
+        # POSIX permission bits are not authoritative on Windows; verify the
+        # file is owned by the current user instead of skipping the gate. If
+        # ownership cannot be determined, refuse to load rather than trust a
+        # pickle we cannot attribute.
+        try:
+            owner_sid = path.owner()
+        except (OSError, NotImplementedError, AttributeError) as exc:
+            return f"cannot verify model file ownership on Windows: {exc}"
+        try:
+            current_user = getpass.getuser()
+        except OSError as exc:
+            return f"cannot determine current Windows user: {exc}"
+        if owner_sid and current_user and owner_sid.split("\\")[-1].lower() != current_user.lower():
+            return f"model file is owned by {owner_sid}, not the current user"
+        return None
+
+    if mode & stat.S_IWOTH:
         return "model file is world-writable"
+    if mode & stat.S_IWGRP and not _posix_group_is_user_private(stat_result):
+        return "model file is group-writable by a shared group"
     return None
 
 

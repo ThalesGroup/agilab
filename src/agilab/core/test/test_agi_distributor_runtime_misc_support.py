@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import os
 import urllib.error
 import warnings
 from pathlib import Path
@@ -517,6 +518,85 @@ def test_load_capacity_predictor_rejects_world_writable_trusted_model(tmp_path):
 
     assert loaded is None
     assert calls == {"load": 0, "retrain": 1}
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX group-write semantics")
+def test_load_capacity_predictor_rejects_group_writable_shared_group_model(
+    tmp_path, monkeypatch
+):
+    # Regression: a group-writable model on a shared POSIX host used to be fed
+    # straight into pickle.load. Only owner-writable (or user-private-group)
+    # files should be trusted.
+    model_path = tmp_path / "resources" / "balancer_model.pkl"
+    model_path.parent.mkdir()
+    model_path.write_bytes(b"pickle-bytes")
+    model_path.chmod(0o660)  # rw for owner and group, group-writable
+    calls = {"load": 0, "retrain": 0, "warnings": []}
+    log = SimpleNamespace(
+        warning=lambda message, path, exc: calls["warnings"].append(str(exc))
+    )
+
+    # Force the "shared group" verdict so the test does not depend on the CI
+    # runner's actual group membership.
+    monkeypatch.setattr(
+        runtime_misc_support,
+        "_posix_group_is_user_private",
+        lambda _stat_result: False,
+    )
+
+    try:
+        loaded = runtime_misc_support.load_capacity_predictor(
+            model_path,
+            load_fn=lambda _stream: calls.__setitem__("load", calls["load"] + 1),
+            retrain_fn=lambda: calls.__setitem__("retrain", calls["retrain"] + 1),
+            log=log,
+            trusted_root=model_path.parent,
+        )
+    finally:
+        model_path.chmod(0o600)
+
+    assert loaded is None
+    assert calls["load"] == 0
+    assert calls["retrain"] == 1
+    assert any("group-writable" in warning for warning in calls["warnings"])
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX group-write semantics")
+def test_load_capacity_predictor_allows_group_writable_user_private_group(
+    tmp_path, monkeypatch
+):
+    # A user-private group (only the owning user is a member) is not an
+    # escalation surface, so group-write on it stays loadable.
+    model_path = tmp_path / "resources" / "balancer_model.pkl"
+    model_path.parent.mkdir()
+    model_path.write_bytes(b"pickle-bytes")
+    runtime_misc_support.write_capacity_model_manifest(model_path)
+    model_path.chmod(0o660)
+    calls = {"load": 0}
+
+    monkeypatch.setattr(
+        runtime_misc_support,
+        "_posix_group_is_user_private",
+        lambda _stat_result: True,
+    )
+
+    try:
+        assert (
+            runtime_misc_support._capacity_model_trust_error(
+                model_path, model_path.parent
+            )
+            is None
+        )
+        loaded = runtime_misc_support.load_capacity_predictor(
+            model_path,
+            load_fn=lambda _stream: calls.__setitem__("load", calls["load"] + 1) or "ok",
+            trusted_root=model_path.parent,
+        )
+    finally:
+        model_path.chmod(0o600)
+
+    assert loaded == "ok"
+    assert calls["load"] == 1
 
 
 def test_bootstrap_capacity_predictor_sets_paths_and_logs_missing_model(tmp_path):

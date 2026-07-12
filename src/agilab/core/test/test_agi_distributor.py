@@ -136,7 +136,11 @@ def test_mode_constants_exposed():
     assert AGI.PYTHON_MODE == 1
     assert AGI.CYTHON_MODE == 2
     assert AGI.DASK_MODE == 4
-    assert AGI.RAPIDS_MODE == 16
+    # RAPIDS_MODE is the rapids run bit (8), derived from the rapids set/reset
+    # masks. It previously collided with _INSTALL_MODE (0b01 << DASK_MODE == 16),
+    # which made AGI.DASK_MODE | AGI.RAPIDS_MODE take the install/sync path.
+    assert AGI.RAPIDS_MODE == (AGI._RAPIDS_SET ^ AGI._RAPIDS_RESET) == 8
+    assert AGI.RAPIDS_MODE != AGI._INSTALL_MODE
 
 
 def test_is_local():
