@@ -55,7 +55,8 @@ What was proved
   release UI robot matrix evidence, including app/page/widget counts and zero
   detected UI failures for that run. Use ``tools/ui_robot_coverage_contract.py
   --json`` and the local ``ui-robot-matrix`` profile to verify the current
-  checkout after apps are added or removed.
+  checkout after apps are added or removed. Pinned UI robot evidence: run
+  ``25577485125``, commit ``2a36df530b48``, generated ``2026-05-08T20:34:30Z``.
 - The public demo scope includes the lightweight ``flight_telemetry_project``
   and ``weather_forecast_project`` routes documented in :doc:`agilab-demo` and
   aligned with the packaged examples catalog.
