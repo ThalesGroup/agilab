@@ -32,15 +32,15 @@ rather than shown as one of the workflow pages.
      - Exact uv interpreter selector used by installer sync commands. For Python 3.14 this defaults to the standard GIL build, for example ``3.14+gil``, while page bundles with stricter ``requires-python`` metadata receive a compatible selector such as ``3.12`` for ``==3.12.*``.
    * - ``<worker-host>_PYTHON_VERSION``
      - unset
-     - Recorded deployment fact written per host by the installers (for example ``127.0.0.1_PYTHON_VERSION=3.13``). It documents the Python version provisioned on that worker; workers themselves read ``AGI_PYTHON_VERSION`` at runtime, so editing this key does not switch a worker's interpreter on its own.
+     - Optional worker-specific Python version override written per host (for example ``127.0.0.1_PYTHON_VERSION=3.13``). Use this when workers must run a different Python version than the manager side.
    * - ``AGI_PYTHON_FREE_THREADED``
      - ``0``
      - Enables free-threaded Python if both the environment and worker declare support. Either the
        string ``"1"`` or a truthy value activates it.
    * - ``TABLE_MAX_ROWS``
-     - ``1000000``
+     - ``1000``
      - Maximum number of rows shown in web data previews.
-   * - ``GUI_SAMPLING``
+   * - ``TABLE_SAMPLING``
      - ``20``
      - Sample size used when previewing large tables.
    * - ``CLUSTER_CREDENTIALS``
