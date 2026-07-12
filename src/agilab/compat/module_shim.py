@@ -65,6 +65,14 @@ def _execute_target_in_current_module(
         "exec",
     )
     exec(source, target_namespace)
+    # Register the executed target so a later ``import target_name`` reuses this
+    # namespace instead of re-running the module body (double execution would
+    # duplicate module-level state). Guard on absence to avoid clobbering an
+    # in-progress import of ``target_name``.
+    if target_name not in sys.modules:
+        executed = ModuleType(target_name)
+        executed.__dict__.update(target_namespace)
+        sys.modules[target_name] = executed
     return None
 
 
@@ -76,6 +84,10 @@ def activate_compat_module(
     The helper keeps ``import agilab.<legacy>`` working after moving the real
     module into a classified subpackage. When a shim is executed as a module,
     it delegates to the target module with ``__main__`` semantics.
+
+    TODO: emit a ``DeprecationWarning`` for external callers of the legacy path
+    once the internal call sites have migrated. Adding it now would spam every
+    first-party import that still routes through these shims.
     """
 
     if current_name == "__main__":

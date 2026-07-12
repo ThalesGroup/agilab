@@ -898,3 +898,28 @@ def test_pipeline_run_controls_run_all_stages_uses_active_app_for_agi_engine(tmp
         for line in fake_st.session_state["page__run_logs"]
     )
     assert releases == [{"path": "lock", "token": "t"}]
+
+
+def test_utc_timestamp_is_timezone_aware_utc_with_legacy_z_format(monkeypatch):
+    import re
+    from datetime import datetime, timezone
+
+    module = _import_pipeline_run_controls()
+
+    class _FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            # Return a fixed aware UTC instant regardless of local tz.
+            aware = datetime(2026, 7, 12, 8, 30, 15, 123456, tzinfo=timezone.utc)
+            return aware if tz is None else aware.astimezone(tz)
+
+    monkeypatch.setattr(module, "datetime", _FixedDateTime)
+
+    stamp = module._utc_timestamp()
+
+    # Historic naive "...Z" second-precision format must be preserved so existing
+    # manifests/captions stay stable after dropping deprecated datetime.utcnow().
+    assert stamp == "2026-07-12T08:30:15Z"
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", stamp)
+    # No timezone offset leaked into the string.
+    assert "+00:00" not in stamp

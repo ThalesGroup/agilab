@@ -1025,7 +1025,9 @@ def open_new_tab(url):
     Example:
         open_new_tab('http://www.example.com')
     """
-    js = f"window.open('{url}');"
+    # JSON-encode the URL so it is emitted as a safely quoted/escaped JS string
+    # literal, preventing quote or script injection when the URL is untrusted.
+    js = f"window.open({json.dumps(str(url))});"
     # Inject the JavaScript into the Streamlit app
     st.markdown(f"<script>{js}</script>", unsafe_allow_html=True)
 

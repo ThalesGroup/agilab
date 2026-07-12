@@ -4,6 +4,7 @@ import ast
 import importlib
 import importlib.util
 import io
+import json
 import os
 import sqlite3
 import subprocess
@@ -2106,7 +2107,7 @@ def test_pagelib_io_helpers_cover_ports_browser_json_and_run_agi(monkeypatch, tm
     assert pagelib._focus_existing_docs_tab("http://example/docs") is False
 
     pagelib.open_new_tab("http://example/docs")
-    assert calls == [("<script>window.open('http://example/docs');</script>", True)]
+    assert calls == [('<script>window.open("http://example/docs");</script>', True)]
 
     warnings.clear()
     assert pagelib.run_agi([], path=".") is None
@@ -2144,6 +2145,25 @@ def test_pagelib_io_helpers_cover_ports_browser_json_and_run_agi(monkeypatch, tm
     with pytest.raises(RuntimeError, match="stop"):
         pagelib.run_agi("print('x')", path=tmp_path / "missing-project")
     assert any("Please do an install first" in message for message in infos)
+
+
+def test_open_new_tab_escapes_url_to_prevent_script_injection(monkeypatch):
+    calls: list[tuple[str, bool]] = []
+    fake_st = SimpleNamespace(
+        markdown=lambda text, unsafe_allow_html=False: calls.append((text, unsafe_allow_html)),
+    )
+    monkeypatch.setattr(pagelib, "st", fake_st)
+
+    malicious = "http://x'});alert('xss');//"
+    pagelib.open_new_tab(malicious)
+
+    assert len(calls) == 1
+    text, unsafe = calls[0]
+    assert unsafe is True
+    # The raw single-quote break-out sequence must never survive verbatim inside
+    # the emitted <script> block; json.dumps escapes it into a string literal.
+    assert "');alert('xss" not in text
+    assert text == f"<script>window.open({json.dumps(malicious)});</script>"
 
 
 def test_activate_mlflow_and_gpt_oss_cover_no_env_and_runtime_failures(monkeypatch, tmp_path):

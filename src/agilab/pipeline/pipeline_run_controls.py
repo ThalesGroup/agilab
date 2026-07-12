@@ -10,7 +10,7 @@ import subprocess
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
@@ -91,7 +91,9 @@ def _pipeline_automation_producer_version() -> str:
 
 
 def _utc_timestamp() -> str:
-    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    # Use a timezone-aware UTC clock (datetime.utcnow() is deprecated) while
+    # preserving the historic naive "...Z" string format consumed downstream.
+    return datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec="seconds") + "Z"
 
 
 def _safe_file_sha256(path: Path) -> str:
