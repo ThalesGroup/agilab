@@ -35,6 +35,12 @@ RUN_MODE_LABELS: tuple[str, ...] = (
     "14: rapids and dask and cython (pools in-worker)",
     "15: rapids and dask and pool and cython",
 )
+# Keep in sync with the canonical scheduler default in
+# agi_cluster.agi_distributor.runtime.scheduler_io_support.DEFAULT_SCHEDULER_PORT
+# (moved from 8786 to 8780 in commit 7fe662f99). Imported lazily elsewhere; the
+# distributor package is heavy, so the UI mirrors the literal to avoid importing
+# it at module load.
+DEFAULT_SCHEDULER_PORT = 8780
 LAN_DISCOVERY_CACHE = Path(".agilab") / "lan_nodes.json"
 LAN_READY_STATUSES = {"ready"}
 LAN_UI_TCP_TIMEOUT = 0.15
@@ -321,7 +327,14 @@ def _cluster_credentials_value(user: str, *, password: str = "", use_ssh_key: bo
 
 def _is_empty_scheduler(value: Any) -> bool:
     normalized = str(value or "").strip().lower()
-    return normalized in {"", "none", "local", "localhost", "127.0.0.1", "127.0.0.1:8786"}
+    return normalized in {
+        "",
+        "none",
+        "local",
+        "localhost",
+        "127.0.0.1",
+        f"127.0.0.1:{DEFAULT_SCHEDULER_PORT}",
+    }
 
 
 def _is_empty_workers(value: Any) -> bool:
@@ -810,7 +823,7 @@ def _lan_discovery_cluster_defaults(
     local_hosts = payload.get("local_hosts")
     scheduler_host = _select_lan_scheduler_host(local_hosts)
     if scheduler_host:
-        defaults["scheduler"] = f"{scheduler_host}:8786"
+        defaults["scheduler"] = f"{scheduler_host}:{DEFAULT_SCHEDULER_PORT}"
 
     nodes = payload.get("nodes")
     workers: dict[str, int] = {}
@@ -1407,7 +1420,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
             scheduler_input = st.text_input(
                 "Scheduler IP Address",
                 key=scheduler_widget_key,
-                placeholder="e.g., 192.168.0.100 or 192.168.0.100:8786",
+                placeholder=f"e.g., 192.168.0.100 or 192.168.0.100:{DEFAULT_SCHEDULER_PORT}",
                 help="Provide a scheduler IP address (optionally with :PORT).",
             )
         with user_col:

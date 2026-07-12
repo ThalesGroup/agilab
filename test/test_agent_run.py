@@ -1106,6 +1106,25 @@ def test_agent_run_defaults_and_helper_error_paths(tmp_path: Path, monkeypatch: 
     }
 
 
+def test_default_log_root_honors_canonical_agi_log_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _load_module()
+
+    # AGI_LOG_DIR is the documented canonical name and must be honored.
+    monkeypatch.delenv("AGILAB_LOG_ABS", raising=False)
+    monkeypatch.setenv("AGI_LOG_DIR", str(tmp_path / "canonical-log"))
+    assert module._default_log_root() == tmp_path / "canonical-log"
+
+    # AGI_LOG_DIR wins over the internal AGILAB_LOG_ABS alias when both are set.
+    monkeypatch.setenv("AGILAB_LOG_ABS", str(tmp_path / "internal-log"))
+    assert module._default_log_root() == tmp_path / "canonical-log"
+
+    # AGILAB_LOG_ABS remains an alias when the canonical name is absent.
+    monkeypatch.delenv("AGI_LOG_DIR", raising=False)
+    assert module._default_log_root() == tmp_path / "internal-log"
+
+
 def test_agent_run_parser_validation_errors(tmp_path: Path) -> None:
     module = _load_module()
 

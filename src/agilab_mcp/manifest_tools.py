@@ -14,6 +14,10 @@ from agilab.secret_uri import redact_mapping
 _ALLOWED_ROOTS_ENV = "AGILAB_MCP_ALLOWED_ROOTS"
 _ALLOW_CWD_ENV = "AGILAB_MCP_ALLOW_CWD"
 _CONFIGURED_ROOT_ENV_NAMES = (
+    # Canonical documented names come first; the AGILAB_*_ROOT names remain as
+    # aliases so existing MCP deployments keep working.
+    "APPS_PATH",
+    "AGI_LOG_DIR",
     "AGILAB_APPS_ROOT",
     "AGILAB_LOG_ROOT",
     "AGILAB_AGENT_LOG_ROOT",
