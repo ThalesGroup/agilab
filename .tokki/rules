@@ -5,6 +5,10 @@
   `./dev scope`, PR status, and the authoritative workflow/tooling surface.
 - If `./dev scope` reports mixed dirty scopes, do not keep editing that
   checkout. Use `./dev task-worktree <branch>` and stage only the intended files.
+- The profile enables `repo-update-on-launch` (autostash): Tokki runs
+  `git pull --ff-only --autostash` on launch even with a dirty tracked tree.
+  Commit or stash intended work before launching an agent so an unexpected
+  autostash/pull does not reorder or conflict with in-progress changes.
 - Start non-trivial fixes with `./dev impact` or `./dev impact --files ...`;
   run the exact focused tests it selects before broad profiles.
 - Prefer compact `./dev` output. Treat full logs as artifacts and summarize
@@ -41,6 +45,12 @@
   capability for any such opt-in.
 - `tools/hf_space_smoke.py --json` is a read-only public smoke check and is safe
   as a model-free validation route after releases or HF-alignment asks.
+- Model-free docs routing must use `./dev --print-only docs`, never `./dev docs`
+  (which runs `sync_docs_source.py --apply --delete` and mutates/prunes the
+  mirror). Do not allowlist `./dev docs`, `./dev task-worktree`, or
+  `./dev parallel-stage` as model-free: they sync-delete files, create
+  worktrees/branches, or write `parallel_stage.toml`. Keep the allowlist to
+  read-only or `--output`-gated commands.
 
 ## Cluster, workers, and generated artifacts
 - If allocation artifacts show all `no_path` or `reject`, first compare them
