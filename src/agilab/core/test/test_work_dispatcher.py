@@ -487,6 +487,17 @@ def test_make_chunks_fastest_uses_float_capacity_normalized_lpt():
     assert normalized_loads == pytest.approx([2.0, 2.0])
 
 
+def test_make_chunks_fastest_does_not_mutate_caller_subsets():
+    # Regression: the LPT scheduler used to sort the caller-supplied ``subsets``
+    # list in place, mutating shared caller state.
+    subsets = [("a", 1), ("b", 3), ("c", 2)]
+    original = list(subsets)
+
+    WorkDispatcher._make_chunks_fastest(subsets, [1.0, 1.0])
+
+    assert subsets == original
+
+
 @pytest.mark.parametrize("capacities", [[0], [-1], [float("inf")], [float("nan")]])
 def test_make_chunks_rejects_invalid_capacities(capacities):
     with pytest.raises(ValueError, match="worker capacities must be finite positive values"):
@@ -609,6 +620,65 @@ async def test_load_module_requests_install_when_explicitly_enabled(monkeypatch,
         }
     ]
     assert len(import_calls) == 2
+
+
+def test_missing_module_name_preserves_case():
+    # Regression: PyPI/dist names are case-sensitive, so the auto-install name
+    # must keep the original casing instead of being lowercased.
+    exc = ModuleNotFoundError("No module named 'PyYAML'", name="PyYAML")
+    assert WorkDispatcher._missing_module_name(exc) == "PyYAML"
+
+    fallback = ModuleNotFoundError("No module named 'MixedCasePkg'")
+    assert WorkDispatcher._missing_module_name(fallback) == "MixedCasePkg"
+
+
+@pytest.mark.asyncio
+async def test_load_module_uses_case_preserving_name_for_install(monkeypatch, tmp_path):
+    import_calls = []
+
+    def fake_import(name):
+        import_calls.append(name)
+        if len(import_calls) == 1:
+            raise ModuleNotFoundError("No module named 'MixedCasePkg'", name="MixedCasePkg")
+        return "module"
+
+    recorded: list[tuple[str, Path]] = []
+
+    async def fake_run(cmd, app_path):
+        recorded.append((cmd, app_path))
+
+    monkeypatch.setattr(dispatcher_module.importlib, "import_module", fake_import)
+    monkeypatch.setattr(dispatcher_module.AgiEnv, "run", fake_run)
+    monkeypatch.setenv("AGILAB_RUNTIME_AUTO_INSTALL", "1")
+
+    env = SimpleNamespace(uv="uv", active_app=tmp_path)
+
+    result = await WorkDispatcher._load_module("demo", env=env)
+
+    assert result == "module"
+    assert recorded == [("uv add --upgrade MixedCasePkg", tmp_path)]
+
+
+@pytest.mark.asyncio
+async def test_load_module_refuses_install_for_unsafe_module_name(monkeypatch, tmp_path):
+    # Regression: the auto-install command is shell-routed, so a module name
+    # carrying shell metacharacters must be refused instead of interpolated.
+    def fake_import(_name):
+        raise ModuleNotFoundError(
+            "No module named 'evil; rm -rf ~'", name="evil; rm -rf ~"
+        )
+
+    async def fake_run(_cmd, _app_path):  # pragma: no cover - must not run
+        raise AssertionError("unsafe module name must not reach the shell")
+
+    monkeypatch.setattr(dispatcher_module.importlib, "import_module", fake_import)
+    monkeypatch.setattr(dispatcher_module.AgiEnv, "run", fake_run)
+    monkeypatch.setenv("AGILAB_RUNTIME_AUTO_INSTALL", "1")
+
+    env = SimpleNamespace(uv="uv", active_app=tmp_path)
+
+    with pytest.raises(ModuleNotFoundError):
+        await WorkDispatcher._load_module("demo", env=env)
 
 
 @pytest.mark.asyncio

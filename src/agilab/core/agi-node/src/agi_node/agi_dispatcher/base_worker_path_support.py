@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import uuid
 from contextlib import suppress
 from pathlib import Path
@@ -301,9 +302,23 @@ def _safe_resolved_path(path: Path, *, path_cls: type[Path] = Path) -> Path:
         return path_cls(os.path.normpath(str(path.expanduser())))
 
 
+def _normcased_path(path: Path) -> Path:
+    """Return ``path`` with each part case-folded for the local platform.
+
+    ``os.path.normcase`` handles Windows; ``casefold`` additionally catches
+    case-variant spellings on macOS' case-insensitive-but-case-preserving
+    filesystem (where ``normcase`` is a no-op) so a ``.../DATASET/x`` spelling
+    cannot alias a read-only ``.../dataset`` input tree.
+    """
+
+    if os.name == "posix" and sys.platform != "darwin":
+        return path
+    return type(path)(*(os.path.normcase(part).casefold() for part in path.parts))
+
+
 def _path_is_relative_to(path: Path, parent: Path) -> bool:
     try:
-        path.relative_to(parent)
+        _normcased_path(path).relative_to(_normcased_path(parent))
         return True
     except ValueError:
         return False
@@ -338,15 +353,37 @@ def resolve_generated_artifact_path(
     elif raw.is_absolute():
         resolved_raw = _safe_resolved_path(raw, path_cls=path_cls)
         if _path_is_relative_to(resolved_raw, data_in):
-            relative = resolved_raw.relative_to(data_in)
-            candidate = data_out / relative
+            # Use the case-normalised split so a case-variant spelling of the
+            # data_in prefix (e.g. .../DATASET) still yields the correct
+            # remainder instead of raising on ``relative_to``.
+            remainder_parts = resolved_raw.parts[len(data_in.parts):]
+            relative = path_cls(*remainder_parts) if remainder_parts else path_cls(".")
+            candidate = data_out if relative == path_cls(".") else data_out / relative
         else:
             candidate = resolved_raw
     else:
         parts = tuple(part for part in raw.parts if part not in {"", "."})
+        if ".." in parts:
+            raise ValueError(
+                "Relative artifact path must not contain '..' parts: "
+                f"{artifact_path}"
+            )
         if parts and parts[0] == data_in.name:
-            raw = path_cls(*parts[1:]) if len(parts) > 1 else path_cls(".")
+            parts = parts[1:]
+        raw = path_cls(*parts) if parts else path_cls(".")
         candidate = data_out if raw == path_cls(".") else data_out / raw
+        resolved = _safe_resolved_path(candidate, path_cls=path_cls)
+        if not _path_is_relative_to(resolved, data_out):
+            raise ValueError(
+                "Relative artifact path escapes data_out: "
+                f"{resolved} (data_out={data_out})"
+            )
+        if _path_is_relative_to(resolved, data_in):
+            raise ValueError(
+                "Generated artifact path resolves under read-only data_in: "
+                f"{resolved} (data_in={data_in}, data_out={data_out})"
+            )
+        return resolved
 
     resolved = _safe_resolved_path(candidate, path_cls=path_cls)
     if _path_is_relative_to(resolved, data_in):
