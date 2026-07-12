@@ -264,6 +264,10 @@ async def prepare_cluster_env(
             if deployment_remote_support._is_legacy_intel_macos(system, machine, product_version):
                 legacy_intel_macos_ips.add(ip)
 
+    # Persist the probe result so deploy_remote_worker can reuse it instead of
+    # re-running the platform probe over SSH once per worker in the same flow.
+    agi_cls._legacy_intel_macos_ips = set(legacy_intel_macos_ips)
+
     if legacy_intel_macos_ips and pyvers_worker != "3.12":
         log.warning(
             "Detected legacy Intel macOS worker(s) %s; selecting Python 3.12 for all worker environments instead of %s",

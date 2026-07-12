@@ -246,6 +246,79 @@ async def test_remote_deployment_mount_and_platform_error_edges(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_legacy_intel_macos_specs_reuse_cached_probe_result():
+    # Regression (#31): when prepare_cluster_env already probed the worker
+    # platform and recorded the legacy Intel macOS IPs, deploy_remote_worker
+    # must reuse that result instead of re-running the SSH probe per worker.
+    probe_calls: list[str] = []
+
+    class _Agi:
+        _legacy_intel_macos_ips = {"10.0.0.9"}
+
+        async def exec_ssh(self, _ip, cmd):
+            probe_calls.append(cmd)
+            return "Darwin\nx86_64\n10.15.7\n"
+
+    agi = _Agi()
+
+    # Cached legacy IP: specs returned without any SSH probe.
+    specs = await deployment_remote_support._legacy_intel_macos_dependency_specs(
+        agi, "10.0.0.9"
+    )
+    assert specs == deployment_remote_support._LEGACY_INTEL_MACOS_DEPENDENCY_SPECS
+
+    # IP not in the cached set: not legacy, still no SSH probe.
+    assert (
+        await deployment_remote_support._legacy_intel_macos_dependency_specs(
+            agi, "10.0.0.10"
+        )
+        == ()
+    )
+    assert probe_calls == []
+
+
+def test_env_lookup_warns_on_conflicting_aliases(monkeypatch):
+    # Regression (#17): first-match precedence is preserved, but conflicting
+    # alias values for the same setting emit a one-time warning naming the
+    # effective source.
+    deployment_remote_support._ALIAS_CONFLICT_WARNED.clear()
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        deployment_remote_support.logger,
+        "warning",
+        lambda message, *args: warnings.append(message % args if args else message),
+    )
+
+    env = SimpleNamespace(envars={"PRIMARY": "8022", "SECONDARY": "9022"})
+    resolved = deployment_remote_support._env_lookup(env, "PRIMARY", "SECONDARY")
+
+    # First-match precedence unchanged.
+    assert resolved == "8022"
+    assert len(warnings) == 1
+    assert "PRIMARY" in warnings[0]
+    assert "8022" in warnings[0]
+    assert "9022" in warnings[0]
+
+    # Repeated lookups with the same conflict do not re-warn.
+    deployment_remote_support._env_lookup(env, "PRIMARY", "SECONDARY")
+    assert len(warnings) == 1
+
+
+def test_env_lookup_no_warning_when_aliases_agree(monkeypatch):
+    deployment_remote_support._ALIAS_CONFLICT_WARNED.clear()
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        deployment_remote_support.logger,
+        "warning",
+        lambda message, *args: warnings.append(message % args if args else message),
+    )
+
+    env = SimpleNamespace(envars={"PRIMARY": "8022", "SECONDARY": "8022"})
+    assert deployment_remote_support._env_lookup(env, "PRIMARY", "SECONDARY") == "8022"
+    assert warnings == []
+
+
+@pytest.mark.asyncio
 async def test_prepare_remote_cluster_share_logs_premounted_verbose_path(tmp_path):
     env = SimpleNamespace(
         AGI_CLUSTER_SHARE=str(tmp_path / "scheduler-share"),

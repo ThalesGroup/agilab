@@ -435,6 +435,12 @@ async def test_prepare_cluster_env_legacy_intel_macos_selects_python_311(tmp_pat
     assert any("python install 3.12" in cmd for _, cmd in remote_cmds)
     assert not any("python install 3.13" in cmd for _, cmd in remote_cmds)
     assert any(item[2] == "wenv" for item in sent)
+    # Regression (#31): the platform probe result is persisted on agi_cls so
+    # deploy_remote_worker can reuse it instead of probing each worker twice.
+    assert agi_cls._legacy_intel_macos_ips == {"10.0.0.2"}
+    # The platform probe is executed exactly once per worker in this flow.
+    probe_cmd = deployment_remote_support._remote_platform_probe_command()
+    assert sum(1 for _, cmd in remote_cmds if cmd == probe_cmd) == 1
 
 
 @pytest.mark.asyncio

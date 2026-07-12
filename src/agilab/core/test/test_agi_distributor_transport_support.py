@@ -936,3 +936,143 @@ async def test_exec_ssh_async_raises_on_nonzero_exit_and_flags_project_errors():
     with pytest.raises(ConnectionError):
         await transport_support.exec_ssh_async(agi_cls, "10.0.0.2", "run worker")
     assert agi_cls._worker_init_error is True
+
+
+@pytest.mark.asyncio
+async def test_exec_ssh_suppresses_success_stderr_when_not_verbose(monkeypatch):
+    # Regression (#30): a successful remote command that writes progress to
+    # stderr (e.g. uv install output) must not be logged at INFO unless verbose
+    # is enabled, so default installs stay quiet.
+    class _Result:
+        stdout = b"done\n"
+        stderr = b"Resolved 42 packages in 3s\n"
+
+    class _Conn:
+        async def run(self, _cmd, check=True):
+            return _Result()
+
+    @asynccontextmanager
+    async def _ok_connection(_ip):
+        yield _Conn()
+
+    info_messages: list[str] = []
+    monkeypatch.setattr(transport_support.AgiEnv, "verbose", 0, raising=False)
+    monkeypatch.setattr(transport_support.AgiEnv, "debug", False, raising=False)
+
+    text = await transport_support.exec_ssh(
+        SimpleNamespace(get_ssh_connection=_ok_connection),
+        "10.0.0.2",
+        "uv sync",
+        log=SimpleNamespace(
+            info=lambda message, *args: info_messages.append(
+                message % args if args else message
+            ),
+            error=lambda *_args, **_kwargs: None,
+        ),
+    )
+
+    # stderr is still returned to the caller, only the INFO log is suppressed.
+    assert "Resolved 42 packages" in text
+    assert not any("Resolved 42 packages" in entry for entry in info_messages)
+
+
+@pytest.mark.asyncio
+async def test_exec_ssh_logs_success_stderr_when_verbose(monkeypatch):
+    # Complement of the above: with verbose enabled the stderr is surfaced.
+    class _Result:
+        stdout = b"done\n"
+        stderr = b"Resolved 42 packages in 3s\n"
+
+    class _Conn:
+        async def run(self, _cmd, check=True):
+            return _Result()
+
+    @asynccontextmanager
+    async def _ok_connection(_ip):
+        yield _Conn()
+
+    info_messages: list[str] = []
+    monkeypatch.setattr(transport_support.AgiEnv, "verbose", 1, raising=False)
+    monkeypatch.setattr(transport_support.AgiEnv, "debug", False, raising=False)
+
+    await transport_support.exec_ssh(
+        SimpleNamespace(get_ssh_connection=_ok_connection),
+        "10.0.0.2",
+        "uv sync",
+        log=SimpleNamespace(
+            info=lambda message, *args: info_messages.append(
+                message % args if args else message
+            ),
+            error=lambda *_args, **_kwargs: None,
+        ),
+    )
+
+    assert any("Resolved 42 packages" in entry for entry in info_messages)
+
+
+@pytest.mark.parametrize(
+    ("policy_value", "expected"),
+    [
+        ("no", "accept-new"),
+        ("No", "accept-new"),
+        ("off", "accept-new"),
+        ("yes", "strict"),
+        ("strict", "strict"),
+        ("accept-new", "accept-new"),
+    ],
+)
+def test_cluster_ssh_host_key_policy_accepts_openssh_style_values(policy_value, expected):
+    # Regression (#38): OpenSSH-style "no"/"off" must map to accept-new (TOFU)
+    # instead of hard-failing; "yes" keeps mapping to strict.
+    env = SimpleNamespace(envars={"AGILAB_CLUSTER_SSH_HOST_KEY_POLICY": policy_value})
+    assert transport_support._cluster_ssh_host_key_policy(env) == expected
+
+
+def test_cluster_ssh_host_key_policy_defaults_to_strict_and_rejects_unknown():
+    assert transport_support._cluster_ssh_host_key_policy(SimpleNamespace(envars={})) == "strict"
+    env = SimpleNamespace(envars={"AGILAB_CLUSTER_SSH_HOST_KEY_POLICY": "ask"})
+    with pytest.raises(ValueError, match="Invalid cluster SSH host-key policy"):
+        transport_support._cluster_ssh_host_key_policy(env)
+
+
+@pytest.mark.asyncio
+async def test_close_all_connections_evicts_connect_locks_for_current_loop(monkeypatch):
+    # Regression (#28): _SSH_CONNECT_LOCKS keyed by id(loop) used to grow
+    # unbounded; close_all_connections now evicts the current loop's entries.
+    transport_support._SSH_CONNECT_LOCKS.clear()
+    monkeypatch.setattr(
+        transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False)
+    )
+
+    class _Conn:
+        def __init__(self):
+            self.closed = False
+
+        def is_closed(self):
+            return self.closed
+
+        def close(self):
+            self.closed = True
+
+        async def wait_closed(self):
+            return None
+
+    async def _fake_connect(*_args, **_kwargs):
+        return _Conn()
+
+    monkeypatch.setattr(transport_support.asyncssh, "connect", _fake_connect)
+
+    agi_cls = SimpleNamespace(
+        env=SimpleNamespace(user="alice", password="secret", ssh_key_path=None, envars={}),
+        _ssh_connections={},
+    )
+
+    async with transport_support.get_ssh_connection(agi_cls, "10.0.0.55"):
+        pass
+
+    loop_id = id(asyncio.get_running_loop())
+    assert any(key[0] == loop_id for key in transport_support._SSH_CONNECT_LOCKS)
+
+    await transport_support.close_all_connections(agi_cls)
+
+    assert not any(key[0] == loop_id for key in transport_support._SSH_CONNECT_LOCKS)
