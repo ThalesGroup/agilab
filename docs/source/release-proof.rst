@@ -53,7 +53,11 @@ What was proved
   pinned or supplied separately.
 - The checked-in ``docs/source/data/ui_robot_evidence.json`` records the pinned
   release UI robot matrix evidence, including app/page/widget counts and zero
-  detected UI failures for that run. Use ``tools/ui_robot_coverage_contract.py
+  detected UI failures for that run. This pinned evidence is from
+  ``ui-robot-matrix`` run ``25577485125`` on ``main`` at head SHA
+  ``2a36df530b48ce992fdd1c388d47ab0f46b5239a``, created ``2026-05-08T20:18:44Z``
+  (evidence generated ``2026-05-08T20:34:30Z``); check the age against the
+  current release before relying on it. Use ``tools/ui_robot_coverage_contract.py
   --json`` and the local ``ui-robot-matrix`` profile to verify the current
   checkout after apps are added or removed.
 - The public demo scope includes the lightweight ``flight_telemetry_project``

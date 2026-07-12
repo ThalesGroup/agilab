@@ -62,6 +62,48 @@ def test_cython_kernel_benchmark_csv_rows_report_speedup() -> None:
     assert rows[1]["rows_per_second"] == "200"
 
 
+def test_committed_benchmark_csv_matches_json_via_tool_helpers(tmp_path) -> None:
+    """The committed CSV must be reproducible from the committed JSON.
+
+    This is a fast, no-compile consistency guard: it loads the checked-in
+    benchmark JSON, feeds it back through the tool's own ``_rows_for_csv`` and
+    ``_write_csv`` helpers, and asserts the regenerated CSV equals the committed
+    CSV. Row order is compared keyed by runtime because the committed JSON sorts
+    its ``runtimes`` keys, which is independent of the CSV row layout.
+    """
+
+    import csv as _csv
+
+    data_dir = REPO_ROOT / "docs" / "source" / "data"
+    json_path = data_dir / "execution_pandas_typed_kernel_benchmark.json"
+    csv_path = data_dir / "execution_pandas_typed_kernel_benchmark.csv"
+
+    results = json.loads(json_path.read_text(encoding="utf-8"))
+
+    regenerated = tmp_path / "regenerated.csv"
+    cython_kernel._write_csv(regenerated, results)
+
+    with csv_path.open(newline="", encoding="utf-8") as fh:
+        committed_reader = _csv.DictReader(fh)
+        committed_fieldnames = committed_reader.fieldnames
+        committed_rows = {row["runtime"]: dict(row) for row in committed_reader}
+    with regenerated.open(newline="", encoding="utf-8") as fh:
+        regen_reader = _csv.DictReader(fh)
+        regen_fieldnames = regen_reader.fieldnames
+        regen_rows = {row["runtime"]: dict(row) for row in regen_reader}
+
+    assert regen_fieldnames == committed_fieldnames
+    assert regen_rows == committed_rows
+
+    # Also assert the derived helper rows agree with the committed CSV values so
+    # a drift between the committed JSON and CSV would fail here before release.
+    helper_rows = {row["runtime"]: row for row in cython_kernel._rows_for_csv(results)}
+    assert set(helper_rows) == set(committed_rows)
+    for runtime, committed in committed_rows.items():
+        for field in committed_fieldnames:
+            assert helper_rows[runtime][field] == committed[field]
+
+
 def test_cython_kernel_benchmark_writes_lf_csv(tmp_path) -> None:
     results = {
         "environment": {"rows": 100},

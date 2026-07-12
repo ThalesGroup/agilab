@@ -44,8 +44,9 @@ moving it into a heavier tracker, registry, cluster, or production platform.
 
 That means you do not lose your work if the AGILAB UI or distributed runtime is
 no longer the right interface.
-The stable core runtime remains the smallest supported handoff surface and is
-release-gated core runtime handoff technology.
+The stable `agi-core` runtime is the smallest supported handoff surface:
+exported projects keep running on `agi-core` alone, without the AGILAB UI or the
+distributed worker layer.
 
 ## Agent Entry Point
 
@@ -64,6 +65,12 @@ and compact capability overview. The same entry point is advertised by the MCP
   <a href="https://opensource.org/licenses/BSD-3-Clause"><img src="https://img.shields.io/badge/License-BSD%203--Clause-blue.svg" alt="License: BSD 3-Clause" /></a>
   <a href="https://thalesgroup.github.io/agilab"><img src="https://img.shields.io/badge/Docs-online-brightgreen.svg" alt="Docs" /></a>
 </p>
+
+<sub>The <em>release proof</em>, <em>supply chain</em>, and <em>first proof</em>
+badges above are static labels that link to the
+<a href="https://thalesgroup.github.io/agilab/release-proof.html">release-proof page</a>;
+they do not reflect live CI state. For live status, see the workflow badges
+below.</sub>
 
 <p>
   <a href="https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml"><img src="https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main" alt="Repo guardrails" /></a>

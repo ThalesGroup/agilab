@@ -72,7 +72,8 @@ runner environment variables:
 
 - ``AGILAB_ACTIVE_APP``
 - ``AGILAB_EXECUTION_BACKEND=kubernetes-job``
-- ``AGILAB_EXPORT_DIR``
+- ``AGI_EXPORT_DIR`` (the export root the runtime actually reads;
+  ``AGILAB_EXPORT_DIR`` is emitted alongside it as a one-release alias)
 
 Artifact handoff
 ----------------
