@@ -1148,3 +1148,194 @@ async def test_prepare_cluster_env_fallback_installer_and_no_download(tmp_path):
     assert any("python install 3.13" in cmd for _, cmd in cmds)
     assert any(item[2] == "wenv" for item in sent)
     assert any(any(file["name"] == "cli.py" for file in items) for _, items, _ in sent)
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_multi_ip_runs_every_step_and_writes_env_in_order(tmp_path):
+    # Finding #6 regression: per-node work now overlaps across workers, but every
+    # per-node step must still run for every IP and set_env_var writes must land
+    # deterministically in stable (sorted) IP order.
+    env = _build_cluster_env(tmp_path)
+    worker_ips = {"10.0.0.5": 1, "10.0.0.2": 1, "10.0.0.9": 1}
+    agi_cls = _build_agi(env, workers=worker_ips)
+    sent = []
+    remote_cmds = []
+    kill_ips = []
+    clean_ips = []
+    env_writes = []
+
+    async def _fake_detect(_ip):
+        return 'export PATH="$HOME/.local/bin:$PATH"; '
+
+    async def _fake_exec(ip, cmd):
+        remote_cmds.append((ip, cmd))
+        if "--version" in cmd:
+            return "uv 0.6.0"
+        if "python find" in cmd:
+            raise RuntimeError("not found")
+        return "ok"
+
+    async def _fake_kill(ip, **_kwargs):
+        kill_ips.append(ip)
+
+    async def _fake_clean(ip, **_kwargs):
+        clean_ips.append(ip)
+
+    def _record_set_env(key, value=None):
+        env_writes.append((key, value))
+        env.envars[key] = value
+
+    await deployment_prepare_support.prepare_cluster_env(
+        agi_cls,
+        "127.0.0.1",
+        envar_truthy_fn=_truthy,
+        detect_export_cmd_fn=_fake_detect,
+        ensure_optional_extras_fn=lambda *_a, **_k: None,
+        stage_uv_sources_fn=lambda **_kwargs: [],
+        run_exec_ssh_fn=_fake_exec,
+        send_files_fn=_recording_send(sent),
+        kill_fn=_fake_kill,
+        clean_dirs_fn=_fake_clean,
+        set_env_var_fn=_record_set_env,
+        log=mock.Mock(),
+    )
+
+    expected_ips = {"10.0.0.5", "10.0.0.2", "10.0.0.9"}
+
+    # (a) every per-node step ran for every IP.
+    probe_cmd = deployment_remote_support._remote_platform_probe_command()
+    for ip in expected_ips:
+        ip_cmds = [cmd for cmd_ip, cmd in remote_cmds if cmd_ip == ip]
+        assert any(cmd == probe_cmd for cmd in ip_cmds), ip
+        assert any("--version" in cmd for cmd in ip_cmds), ip
+        assert any("python find" in cmd for cmd in ip_cmds), ip
+        assert any("python install 3.13" in cmd for cmd in ip_cmds), ip
+    assert set(kill_ips) == expected_ips
+    assert set(clean_ips) == expected_ips
+    # cli.py + staged pyproject sent to every worker.
+    wenv_ips = {ip for ip, _items, remote_path in sent if remote_path == "wenv"}
+    assert wenv_ips == expected_ips
+
+    # (b) CMD_PREFIX env writes happen in stable, sorted IP order.
+    cmd_prefix_ips = [
+        key[: -len("_CMD_PREFIX")]
+        for key, _value in env_writes
+        if key.endswith("_CMD_PREFIX")
+    ]
+    assert cmd_prefix_ips == sorted(expected_ips)
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_multi_ip_failure_propagates_and_cancels_siblings(tmp_path):
+    # Finding #6 regression: a failure on one worker must still propagate and,
+    # like deploy_application, cancel sibling per-node tasks rather than leaving
+    # them running unobserved.
+    import asyncio
+
+    env = _build_cluster_env(tmp_path)
+    worker_ips = {"10.0.0.2": 1, "10.0.0.3": 1}
+    agi_cls = _build_agi(env, workers=worker_ips)
+
+    release_sibling = asyncio.Event()
+    sibling_cancelled = {"value": False}
+
+    async def _fake_detect(_ip):
+        return ""
+
+    async def _fake_exec(ip, cmd):
+        if "--version" in cmd:
+            return "uv 0.6.0"
+        if "python find" in cmd:
+            raise RuntimeError("not found")
+        # The unlucky worker fails hard during its python install step.
+        if ip == "10.0.0.2" and "python install" in cmd:
+            raise RuntimeError("boom on worker install")
+        # The sibling worker parks on an event that never fires, so if the
+        # gather does not cancel it the test would hang -- proving cancellation.
+        if ip == "10.0.0.3" and "python install" in cmd:
+            try:
+                await release_sibling.wait()
+            except asyncio.CancelledError:
+                sibling_cancelled["value"] = True
+                raise
+        return "ok"
+
+    async def _noop(*_args, **_kwargs):
+        return None
+
+    with pytest.raises(RuntimeError, match="boom on worker install"):
+        await deployment_prepare_support.prepare_cluster_env(
+            agi_cls,
+            "127.0.0.1",
+            envar_truthy_fn=_truthy,
+            detect_export_cmd_fn=_fake_detect,
+            ensure_optional_extras_fn=lambda *_a, **_k: None,
+            stage_uv_sources_fn=lambda **_kwargs: [],
+            run_exec_ssh_fn=_fake_exec,
+            send_files_fn=_recording_send([]),
+            kill_fn=_noop,
+            clean_dirs_fn=_noop,
+            set_env_var_fn=lambda key, value=None: env.envars.__setitem__(key, value),
+            log=mock.Mock(),
+        )
+
+    assert sibling_cancelled["value"] is True
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_multi_ip_legacy_probe_seen_before_install(tmp_path):
+    # Finding #6 regression: loop-1 probes are gathered concurrently, but the
+    # cross-node legacy-Intel-macOS decision must still see EVERY probe before
+    # loop-2 begins installing, so all workers get Python 3.12.
+    env = _build_cluster_env(tmp_path)
+    env.python_version = "3.13"
+    env.uv_worker = "PYTHON_GIL=0 uv"
+    worker_ips = {"10.0.0.2": 1, "10.0.0.3": 1}
+    agi_cls = _build_agi(env, workers=worker_ips)
+    remote_cmds = []
+
+    async def _fake_detect(_ip):
+        return 'export PATH="$HOME/.local/bin:$PATH"; '
+
+    async def _fake_exec(ip, cmd):
+        remote_cmds.append((ip, cmd))
+        if cmd == deployment_remote_support._remote_platform_probe_command():
+            # Only one worker is legacy Intel macOS; the decision is cross-node.
+            if ip == "10.0.0.3":
+                return "Darwin\nx86_64\n10.15.8"
+            return "Linux\nx86_64\n"
+        if "--version" in cmd:
+            return "uv 0.6.0"
+        if "python find" in cmd:
+            raise RuntimeError("not found")
+        return "ok"
+
+    async def _noop(*_args, **_kwargs):
+        return None
+
+    await deployment_prepare_support.prepare_cluster_env(
+        agi_cls,
+        "127.0.0.1",
+        envar_truthy_fn=_truthy,
+        detect_export_cmd_fn=_fake_detect,
+        ensure_optional_extras_fn=lambda *_a, **_k: None,
+        stage_uv_sources_fn=lambda **_kwargs: [],
+        run_exec_ssh_fn=_fake_exec,
+        send_files_fn=_recording_send([]),
+        kill_fn=_noop,
+        clean_dirs_fn=_noop,
+        set_env_var_fn=lambda key, value=None: env.envars.__setitem__(key, value),
+        log=mock.Mock(),
+    )
+
+    assert env.pyvers_worker == "3.12"
+    assert agi_cls._legacy_intel_macos_ips == {"10.0.0.3"}
+    # Every worker (legacy or not) installs 3.12, never 3.13.
+    install_by_ip = {}
+    for ip, cmd in remote_cmds:
+        if "python install" in cmd:
+            install_by_ip.setdefault(ip, []).append(cmd)
+    assert set(install_by_ip) == {"10.0.0.2", "10.0.0.3"}
+    for ip, cmds in install_by_ip.items():
+        assert all("python install 3.12" in cmd for cmd in cmds), ip
+    assert not any("python install 3.13" in cmd for _ip, cmd in remote_cmds)
