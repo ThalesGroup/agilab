@@ -20,6 +20,12 @@ def test_share_runtime_helpers_cover_target_path_modes_and_ip_validation(tmp_pat
 
     assert share_runtime_module.mode_to_str(0b0111, hw_rapids_capable=False) == "_dcp"
     assert share_runtime_module.mode_to_str(0b0111, hw_rapids_capable=True) == "rdcp"
+    # Bit 8 (r) already set: rapids-capable must OR, not add (arithmetic + 8
+    # would carry into higher bits and corrupt the label).
+    assert share_runtime_module.mode_to_str(0b1111, hw_rapids_capable=False) == "rdcp"
+    assert share_runtime_module.mode_to_str(0b1111, hw_rapids_capable=True) == "rdcp"
+    # r|p already set: rapids-capable is idempotent and leaves the label intact.
+    assert share_runtime_module.mode_to_str(0b1001, hw_rapids_capable=True) == "r__p"
     # Bitmask must match AGI constants and mode_to_str: p=1, c=2, d=4, r=8.
     assert share_runtime_module.mode_to_int("pc") == 0b0011
     assert share_runtime_module.mode_to_int("p") == 1

@@ -131,11 +131,13 @@ def test_change_app_rejects_empty_name_and_missing_apps_path(monkeypatch):
         env.change_app("demo_project")
 
 
-def test_change_app_cleans_stale_destination_after_init_failure(tmp_path: Path):
+def test_change_app_preserves_preexisting_destination_after_init_failure(tmp_path: Path):
     apps_root = tmp_path / "apps"
     apps_root.mkdir()
-    stale_target = apps_root / "demo_project"
-    stale_target.mkdir()
+    existing_target = apps_root / "demo_project"
+    existing_target.mkdir()
+    keep = existing_target / "keep.py"
+    keep.write_text("# user data\n")
 
     env = object.__new__(AgiEnv)
     env.app = str(apps_root / "flight_telemetry_project")
@@ -147,7 +149,56 @@ def test_change_app_cleans_stale_destination_after_init_failure(tmp_path: Path):
         with pytest.raises(RuntimeError, match="boom"):
             env.change_app("demo_project")
 
-    assert not stale_target.exists()
+    # A pre-existing project directory (with user data) must survive a failed reinit.
+    assert existing_target.exists()
+    assert keep.exists()
+
+
+def test_change_app_cleans_only_created_destination_after_init_failure(tmp_path: Path):
+    apps_root = tmp_path / "apps"
+    apps_root.mkdir()
+    created_target = apps_root / "demo_project"  # does NOT exist before the switch
+
+    env = object.__new__(AgiEnv)
+    env.app = str(apps_root / "flight_telemetry_project")
+
+    def _failing_init(self, *args, **kwargs):
+        # Simulate a clone that materialised the destination before failing.
+        created_target.mkdir(exist_ok=True)
+        raise RuntimeError("boom")
+
+    with mock.patch.object(AgiEnv, "__init__", _failing_init, create=True):
+        with pytest.raises(RuntimeError, match="boom"):
+            env.change_app("demo_project")
+
+    # A destination created during the failed switch is cleaned up.
+    assert not created_target.exists()
+
+
+def test_change_app_success_inside_outer_except_does_not_delete(tmp_path: Path):
+    apps_root = tmp_path / "apps"
+    apps_root.mkdir()
+    target = apps_root / "demo_project"
+    target.mkdir()
+    keep = target / "keep.py"
+    keep.write_text("# user data\n")
+
+    env = object.__new__(AgiEnv)
+    env.app = str(apps_root / "flight_telemetry_project")
+
+    def _ok_init(self, *args, **kwargs):
+        self.app = "demo_project"
+
+    with mock.patch.object(AgiEnv, "__init__", _ok_init, create=True):
+        try:
+            raise RuntimeError("outer")
+        except RuntimeError:
+            # A successful change_app called while an outer exception is being
+            # handled must not delete the freshly activated project.
+            env.change_app("demo_project")
+
+    assert target.exists()
+    assert keep.exists()
 
 def test_humanize_validation_errors(env):
     from pydantic import BaseModel, ValidationError, constr
@@ -378,7 +429,6 @@ def test_user_workspace_app_settings_override_source_cluster_toggle(tmp_path: Pa
     (fake_app / "src" / "app_settings.toml").write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
 
     AgiEnv.reset()
-    AgiEnv._share_mount_warning_keys.clear()
 
     mock_logger = mock.Mock()
     with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), mock.patch.object(
@@ -422,7 +472,6 @@ def test_cluster_share_missing_raises_for_cluster_enabled_app(tmp_path: Path, mo
     monkeypatch.setenv("HOME", str(fake_home))
 
     AgiEnv.reset()
-    AgiEnv._share_mount_warning_keys.clear()
 
     mock_logger = mock.Mock()
     with mock.patch.object(AgiLogger, "configure", return_value=mock_logger):
@@ -454,7 +503,6 @@ def test_cluster_enabled_raises_when_app_src_invalid(tmp_path: Path, monkeypatch
     (bad_app / "src").write_text("broken")
 
     AgiEnv.reset()
-    AgiEnv._share_mount_warning_keys.clear()
 
     mock_logger = mock.Mock()
     with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), mock.patch.object(
@@ -484,7 +532,6 @@ def test_cluster_enabled_from_process_env_when_app_src_invalid(tmp_path: Path, m
     (bad_app / "src").write_text("broken")
 
     AgiEnv.reset()
-    AgiEnv._share_mount_warning_keys.clear()
     mock_logger = mock.Mock()
     with mock.patch.object(AgiEnv, "_init_apps", lambda self: None), mock.patch.object(
         AgiLogger, "configure", return_value=mock_logger
@@ -559,7 +606,6 @@ def test_cluster_enabled_from_apps_repository_when_app_src_invalid(tmp_path: Pat
     (bad_app / "src").write_text("broken")
 
     AgiEnv.reset()
-    AgiEnv._share_mount_warning_keys.clear()
 
     mock_logger = mock.Mock()
     with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), mock.patch.object(
@@ -960,6 +1006,42 @@ def test_agienv_constructor_treats_verbose_debug_as_cosmetic(env, monkeypatch):
 def test_agienv_constructor_rejects_conflicting_reinitialization(env):
     with pytest.raises(RuntimeError, match="already initialised with a different configuration"):
         AgiEnv(apps_path=env.apps_path, app="other_project", verbose=env.verbose)
+
+
+def test_reinit_failure_leaves_singleton_uninitialized(monkeypatch):
+    from agi_env.runtime import agi_env_instance_initialization as init_module
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("reinit boom")
+
+    # Fail immediately after the START-of-init flag reset (_load_environment is
+    # the first step run after _reset_bootstrap_flags).
+    monkeypatch.setattr(init_module, "_load_environment", _boom)
+
+    env = object.__new__(AgiEnv)
+    env._agilab_initialized = True
+    env._agilab_init_signature = ("stale", "signature")
+
+    with pytest.raises(RuntimeError, match="reinit boom"):
+        init_module.initialize_agi_env_instance(
+            env,
+            apps_path=None,
+            app="minimal_app_project",
+            active_app_override=None,
+            verbose=0,
+            debug=False,
+            python_variante="",
+            init_signature=("new", "signature"),
+            load_dotenv_values_fn=lambda *a, **k: {},
+            optional_agi_pages_bundles_root_fn=lambda: None,
+            ensure_dir_fn=lambda p: Path(p),
+            module_logger=mock.Mock(),
+        )
+
+    # A reinit that raises midway must NOT leave a half-initialised singleton the
+    # constructor guard would accept; the flags are cleared at the START.
+    assert env._agilab_initialized is False
+    assert env._agilab_init_signature is None
 
 
 def test_agienv_for_app_reuses_matching_singleton(env, monkeypatch):
@@ -2810,6 +2892,41 @@ def test_resolve_share_input_path_falls_back_to_share_root(tmp_path: Path, monke
     )
 
 
+def test_resolve_share_input_path_accepts_absolute_share_path_outside_workflow(
+    tmp_path: Path, monkeypatch
+):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    env = object.__new__(AgiEnv)
+    env._share_root_cache = None
+    env.agi_share_path = "clustershare"
+    env.home_abs = fake_home
+    env.is_worker_env = False
+    env.target = "demo_project"
+    env.app = "demo_project"
+    env.AGILAB_WORKFLOW_DATA_ROOT = "clustershare/alice/workflow/session-1"
+
+    share_root = fake_home / "clustershare"
+    # Absolute input under the physical cluster share but OUTSIDE the workflow
+    # data root: resolve_share_path raises ValueError, so resolve_share_input_path
+    # must fall back to the physical share root instead of propagating the error.
+    abs_input = share_root / "flight_telemetry" / "dataset"
+    abs_input.mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="share root"):
+        env.resolve_share_path(abs_input)
+
+    assert env.resolve_share_input_path(abs_input) == abs_input
+
+    # An absolute path escaping the physical share root entirely must still raise.
+    outside = tmp_path / "outside" / "dataset"
+    outside.mkdir(parents=True)
+    with pytest.raises(ValueError, match="share root"):
+        env.resolve_share_input_path(outside)
+
+
 def test_share_root_resolution_worker_uses_runtime_home_and_init_honours_share_override(tmp_path: Path, monkeypatch):
     fake_home = tmp_path / "worker-home"
     fake_home.mkdir()
@@ -3276,14 +3393,21 @@ def test_is_local_and_has_admin_rights_helpers(monkeypatch):
 
 def test_reset_clears_runtime_class_caches():
     AgiEnv._ip_local_cache = {"127.0.0.1", "::1", "192.168.10.10"}
-    AgiEnv._share_mount_warning_keys = {("/tmp/local", "/tmp/cluster")}
     AgiEnv._pythonpath_entries = ["/tmp/project/src"]
+    # Pre-init class-level defaults that _ensure_defaults / set_env_var may
+    # populate must be dropped by reset() so a fresh bootstrap starts clean.
+    type.__setattr__(AgiEnv, "envars", {"AGI_STALE": "1"})
+    type.__setattr__(AgiEnv, "resources_path", Path("/tmp/stale-agilab"))
+    type.__setattr__(AgiEnv, "logger", mock.Mock())
 
     AgiEnv.reset()
 
     assert AgiEnv._ip_local_cache == {"127.0.0.1", "::1"}
-    assert AgiEnv._share_mount_warning_keys == set()
     assert AgiEnv._pythonpath_entries == []
+    assert not hasattr(AgiEnv, "_share_mount_warning_keys")
+    assert AgiEnv.envars == {}
+    assert AgiEnv.resources_path == Path.home() / ".agilab"
+    assert AgiEnv.logger is None
 
 
 def test_create_symlink_windows_hits_success_and_failure_branches(tmp_path: Path, monkeypatch):

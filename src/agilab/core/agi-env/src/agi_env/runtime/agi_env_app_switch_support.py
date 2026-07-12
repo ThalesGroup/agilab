@@ -1,8 +1,11 @@
 """App switching method for the ``AgiEnv`` singleton."""
 
+import logging
 import shutil
-import sys
 from pathlib import Path
+
+
+logger = logging.getLogger(__name__)
 
 
 def change_app(env, app):
@@ -21,6 +24,10 @@ def change_app(env, app):
         raise RuntimeError("apps_path is not configured on AgiEnv")
 
     active_app = apps_path / requested_name
+    # Never delete a project directory that already existed before this switch:
+    # change_app is called on pre-existing targets (project selection, page load),
+    # and only owns cleanup of a destination it materialises during a failed clone.
+    existed_before = active_app.exists()
     env_cls = type(env)
     try:
         env_cls.__init__(
@@ -30,9 +37,16 @@ def change_app(env, app):
             verbose=env_cls.verbose,
             _agilab_reinitialize=True,
         )
-    finally:
-        if sys.exc_info()[0] is not None and active_app.exists():
+    except BaseException:
+        # Catch only THIS reinit's failure — probing sys.exc_info() would also
+        # fire for an unrelated exception being handled in an outer frame.
+        if not existed_before and active_app.exists():
+            logger.warning(
+                "change_app: removing partially created project %s after failed reinit",
+                active_app,
+            )
             shutil.rmtree(active_app, ignore_errors=True)
+        raise
 
 
 def _app_name(value):

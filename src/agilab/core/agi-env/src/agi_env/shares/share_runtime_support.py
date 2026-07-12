@@ -46,7 +46,9 @@ def mode_to_str(mode: int, *, hw_rapids_capable: bool = False) -> str:
 
     chars = ["p", "c", "d", "r"]
     reversed_chars = reversed(list(enumerate(chars)))
-    normalized_mode = mode + 8 if hw_rapids_capable else mode
+    # Bitwise OR so a rapids-capable host does not corrupt the label when bit 8
+    # is already set on ``mode`` (arithmetic ``+ 8`` would carry into higher bits).
+    normalized_mode = mode | 8 if hw_rapids_capable else mode
     return "".join(
         "_" if (normalized_mode & (1 << i)) == 0 else v for i, v in reversed_chars
     )
