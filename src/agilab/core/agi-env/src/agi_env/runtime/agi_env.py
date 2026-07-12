@@ -58,6 +58,7 @@ from agi_env.project.app_settings_support import (
 )
 from agi_env.runtime.env_config_support import (
     load_dotenv_values as _load_dotenv_values,
+    remove_env_keys,
     write_env_updates,
 )
 from agi_env.runtime.agi_env_app_switch_support import change_app as _agi_env_change_app
@@ -717,6 +718,80 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         AgiEnv._ensure_defaults()
         env_file = AgiEnv.resources_path / ".env"
         write_env_updates(env_file, updates)
+
+    @staticmethod
+    def _remove_env_file(keys) -> list[str]:
+        """Remove ``keys`` from the persistent ``~/.agilab/.env`` file."""
+        AgiEnv._ensure_defaults()
+        env_file = AgiEnv.resources_path / ".env"
+        return remove_env_keys(env_file, keys)
+
+    @classmethod
+    def prune_node_env_keys(cls, current_ips) -> list[str]:
+        """Evict persisted per-node probe keys for IPs not in ``current_ips``.
+
+        Cluster deployment funnels per-node probe results through
+        :func:`set_env_var` using three key shapes keyed by worker IP:
+
+        - a bare-IP key (e.g. ``"192.168.1.5"``) whose value is a RAPIDS
+          capability sentinel (``"hw_rapids_capable"`` / ``"no_rapids_hw"``);
+        - ``"{ip}_CMD_PREFIX"``;
+        - ``"{ip}_PYTHON_VERSION"``.
+
+        These accrete forever, so on DHCP reuse or a hardware swap a later run
+        can trust a stale entry, and the bare-IP keys leak into ``os.environ``
+        for child processes. This helper removes every such key whose IP is not
+        present in ``current_ips`` from :attr:`envars`, ``os.environ`` and the
+        persistent ``~/.agilab/.env`` file. Keys for current IPs and any
+        non-node keys (anything whose leading token is not a valid IPv4 address)
+        are left untouched, preserving the read/write contract that the
+        deployment writers/readers rely on.
+
+        This method is intentionally NOT wired into deployment here (that is a
+        cross-module change). Deployment install should call it with the current
+        worker set, e.g. ``AgiEnv.prune_node_env_keys(set(current_worker_ips))``,
+        once the live worker list is known.
+
+        Returns the list of keys that were pruned.
+        """
+        cls._ensure_defaults()
+
+        def _ip_prefix(key: str) -> str | None:
+            """Return the IP a per-node key belongs to, or ``None`` when not one."""
+            if not isinstance(key, str) or not key:
+                return None
+            if is_valid_ipv4_address(key):
+                return key  # bare-IP capability sentinel key
+            head, sep, _tail = key.partition("_")
+            if sep and is_valid_ipv4_address(head):
+                return head  # "{ip}_CMD_PREFIX" / "{ip}_PYTHON_VERSION" / etc.
+            return None
+
+        keep_ips = {str(ip) for ip in (current_ips or set())}
+
+        # Collect stale keys from both the persisted mapping and os.environ so
+        # bare-IP keys that leaked into the process environment are cleaned up
+        # even if they are missing from ``envars``.
+        candidate_keys: set[str] = set()
+        envars = cls.envars if isinstance(cls.envars, dict) else {}
+        candidate_keys.update(str(k) for k in envars.keys())
+        candidate_keys.update(str(k) for k in os.environ.keys())
+
+        stale_keys: list[str] = []
+        for key in candidate_keys:
+            ip = _ip_prefix(key)
+            if ip is not None and ip not in keep_ips:
+                stale_keys.append(key)
+
+        if not stale_keys:
+            return []
+
+        for key in stale_keys:
+            envars.pop(key, None)
+            os.environ.pop(key, None)
+
+        cls._remove_env_file(stale_keys)
+        return sorted(stale_keys)
 
     def _init_resources(self, resources_src):
         """Replicate ``resources_src`` into the managed ``.agilab`` tree."""

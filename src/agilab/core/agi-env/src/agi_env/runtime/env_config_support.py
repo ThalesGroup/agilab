@@ -6,7 +6,7 @@ import os
 from collections.abc import Mapping
 from pathlib import Path
 
-from dotenv import dotenv_values, set_key
+from dotenv import dotenv_values, set_key, unset_key
 
 ENV_MAPPING_EXCEPTIONS = (AttributeError, TypeError)
 
@@ -59,3 +59,23 @@ def write_env_updates(env_file: Path, updates: dict[str, object]) -> None:
     env_file.parent.mkdir(parents=True, exist_ok=True)
     for key, value in updates.items():
         set_key(str(env_file), key, str(value), quote_mode="never")
+
+
+def remove_env_keys(env_file: Path, keys) -> list[str]:
+    """Remove ``keys`` from a dotenv file, returning the keys that were present.
+
+    Counterpart to :func:`write_env_updates`, which only ever adds. Missing
+    files and missing keys are treated as no-ops (``unset_key`` handles both
+    without raising), so callers can prune stale entries idempotently.
+    """
+
+    if not env_file.exists():
+        return []
+    removed: list[str] = []
+    for key in keys:
+        # ``unset_key`` returns ``(True, key)`` only when the key existed and was
+        # rewritten out; ``(None, key)`` when the file/key was absent.
+        result, _ = unset_key(str(env_file), key, quote_mode="never")
+        if result:
+            removed.append(key)
+    return removed
