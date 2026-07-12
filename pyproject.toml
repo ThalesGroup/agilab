@@ -44,6 +44,12 @@ keywords = [
     "agentic-ai",
     "free-threaded-python",
 ]
+# Base runtime carries only stdlib-removal back-compat shims for Python >= 3.13:
+# `legacy-cgi` restores the removed `cgi` module (needed transitively by htmlmin,
+# used via ydata-profiling's HTML export) and `standard-imghdr` restores the removed
+# `imghdr` module (imported by ydata-profiling). The base package does not import them
+# directly; they exist so py>=3.13 report/profiling consumers keep working. See
+# [tool.uv.extra-build-dependencies] below for the matching build-time wiring.
 dependencies = ["legacy-cgi>=2.6.4,<3; python_version >= '3.13'", "standard-imghdr>=3.13.0,<4; python_version >= '3.13'"]
 
 [project.urls]
