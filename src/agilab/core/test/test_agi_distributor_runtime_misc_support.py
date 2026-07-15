@@ -499,6 +499,105 @@ def test_load_capacity_predictor_rejects_model_outside_trusted_root(tmp_path):
     assert "outside trusted resource root" in calls["warnings"][0][2]
 
 
+def test_windows_capacity_model_owner_error_accepts_matching_sid(tmp_path):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+
+    error = runtime_misc_support._windows_capacity_model_owner_error(
+        model_path,
+        identities_fn=lambda _path: (
+            "S-1-5-21-1000",
+            ("S-1-5-21-1000",),
+            "DOMAIN\\runner",
+        ),
+    )
+
+    assert error is None
+
+
+def test_windows_capacity_model_owner_error_rejects_mismatched_sid(tmp_path):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+
+    error = runtime_misc_support._windows_capacity_model_owner_error(
+        model_path,
+        identities_fn=lambda _path: (
+            "S-1-5-21-2000",
+            ("S-1-5-21-1000",),
+            "DOMAIN\\other",
+        ),
+    )
+
+    assert error == "model file is owned by DOMAIN\\other, not the current Windows token"
+
+
+def test_windows_capacity_model_owner_error_accepts_token_default_owner(tmp_path):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+
+    error = runtime_misc_support._windows_capacity_model_owner_error(
+        model_path,
+        identities_fn=lambda _path: (
+            "S-1-5-32-544",
+            ("S-1-5-21-1000", "S-1-5-32-544"),
+            "BUILTIN\\Administrators",
+        ),
+    )
+
+    assert error is None
+
+
+def test_windows_capacity_model_owner_error_fails_closed_on_lookup_error(tmp_path):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+
+    def _raise_lookup(_path):
+        raise OSError("access denied")
+
+    error = runtime_misc_support._windows_capacity_model_owner_error(
+        model_path,
+        identities_fn=_raise_lookup,
+    )
+
+    assert error == "cannot verify model file ownership on Windows: access denied"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="native Windows ownership semantics")
+def test_windows_capacity_model_owner_error_accepts_current_user_file(tmp_path):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+
+    assert runtime_misc_support._windows_capacity_model_owner_error(model_path) is None
+
+
+def test_load_capacity_predictor_rejects_windows_owner_mismatch(
+    tmp_path, monkeypatch
+):
+    model_path = tmp_path / "resources" / "balancer_model.pkl"
+    model_path.parent.mkdir()
+    model_path.write_bytes(b"pickle-bytes")
+    runtime_misc_support.write_capacity_model_manifest(model_path)
+    calls = {"load": 0, "retrain": 0}
+
+    monkeypatch.setattr(runtime_misc_support, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(
+        runtime_misc_support,
+        "_windows_capacity_model_owner_error",
+        lambda _path: "model file owner SID does not match the current Windows user",
+    )
+
+    loaded = runtime_misc_support.load_capacity_predictor(
+        model_path,
+        load_fn=lambda _stream: calls.__setitem__("load", calls["load"] + 1),
+        retrain_fn=lambda: calls.__setitem__("retrain", calls["retrain"] + 1),
+        trusted_root=model_path.parent,
+    )
+
+    assert loaded is None
+    assert calls == {"load": 0, "retrain": 1}
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX world-write semantics")
 def test_load_capacity_predictor_rejects_world_writable_trusted_model(tmp_path):
     model_path = tmp_path / "resources" / "balancer_model.pkl"
     model_path.parent.mkdir()
