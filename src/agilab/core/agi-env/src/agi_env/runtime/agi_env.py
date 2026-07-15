@@ -315,7 +315,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             # singleton exists). Resetting them to their sentinels forces a clean
             # rebuild on the next bootstrap instead of leaking stale state.
             type.__setattr__(cls, "envars", {})
-            type.__setattr__(cls, "resources_path", Path.home() / ".agilab")
+            type.__setattr__(cls, "resources_path", None)
             type.__setattr__(cls, "logger", None)
     install_type: int | None = None  # deprecated: derived from flags for backward compatibility
     apps_path: Path | None = None

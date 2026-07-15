@@ -788,6 +788,7 @@ async def test_prepare_cluster_env_offline_missing_uv_raises_environment_error(t
             send_files_fn=lambda *_a, **_k: None,
             kill_fn=lambda *_a, **_k: None,
             clean_dirs_fn=lambda *_a, **_k: None,
+            set_env_var_fn=lambda key, value=None: env.envars.__setitem__(key, value),
             log=log,
         )
 
@@ -859,6 +860,7 @@ async def test_prepare_cluster_env_powershell_connection_error_bubbles(tmp_path)
             send_files_fn=lambda *_a, **_k: None,
             kill_fn=lambda *_a, **_k: None,
             clean_dirs_fn=lambda *_a, **_k: None,
+            set_env_var_fn=lambda key, value=None: env.envars.__setitem__(key, value),
             log=mock.Mock(),
         )
 
@@ -933,6 +935,7 @@ async def test_prepare_cluster_env_python_install_unknown_error_bubbles(tmp_path
             send_files_fn=lambda *_a, **_k: None,
             kill_fn=lambda *_a, **_k: None,
             clean_dirs_fn=lambda *_a, **_k: None,
+            set_env_var_fn=lambda key, value=None: env.envars.__setitem__(key, value),
             process_error_type=_ProcError,
             log=mock.Mock(),
         )

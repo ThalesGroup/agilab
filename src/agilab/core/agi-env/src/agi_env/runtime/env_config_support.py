@@ -65,17 +65,29 @@ def remove_env_keys(env_file: Path, keys) -> list[str]:
     """Remove ``keys`` from a dotenv file, returning the keys that were present.
 
     Counterpart to :func:`write_env_updates`, which only ever adds. Missing
-    files and missing keys are treated as no-ops (``unset_key`` handles both
-    without raising), so callers can prune stale entries idempotently.
+    files and missing keys are treated as no-ops, so callers can prune stale
+    entries idempotently without making python-dotenv emit missing-key warnings.
     """
 
     if not env_file.exists():
         return []
+    present_keys = [str(key) for key in dotenv_values(dotenv_path=env_file)]
+    case_insensitive = os.name == "nt"
     removed: list[str] = []
-    for key in keys:
-        # ``unset_key`` returns ``(True, key)`` only when the key existed and was
-        # rewritten out; ``(None, key)`` when the file/key was absent.
-        result, _ = unset_key(str(env_file), key, quote_mode="never")
-        if result:
-            removed.append(key)
+    for requested_key in keys:
+        requested = str(requested_key)
+        matching_keys = [
+            present
+            for present in present_keys
+            if (
+                present.casefold() == requested.casefold()
+                if case_insensitive
+                else present == requested
+            )
+        ]
+        for actual_key in matching_keys:
+            result, _ = unset_key(str(env_file), actual_key, quote_mode="never")
+            if result:
+                removed.append(actual_key)
+            present_keys.remove(actual_key)
     return removed

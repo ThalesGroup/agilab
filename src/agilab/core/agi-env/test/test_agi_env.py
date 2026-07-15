@@ -1,6 +1,7 @@
 import asyncio
 import ast
 import getpass
+import logging
 import os
 import shlex
 import shutil
@@ -3406,8 +3407,22 @@ def test_reset_clears_runtime_class_caches():
     assert AgiEnv._pythonpath_entries == []
     assert not hasattr(AgiEnv, "_share_mount_warning_keys")
     assert AgiEnv.envars == {}
-    assert AgiEnv.resources_path == Path.home() / ".agilab"
+    assert AgiEnv.resources_path is None
     assert AgiEnv.logger is None
+
+    AgiEnv._ensure_defaults()
+    assert AgiEnv.resources_path == Path.home() / ".agilab"
+
+
+def test_reset_keeps_resources_path_lazy_while_path_factory_is_patched(monkeypatch):
+    class _PathWithoutHome:
+        pass
+
+    monkeypatch.setattr(agi_env_module, "Path", _PathWithoutHome)
+
+    AgiEnv.reset()
+
+    assert AgiEnv.resources_path is None
 
 
 def test_create_symlink_windows_hits_success_and_failure_branches(tmp_path: Path, monkeypatch):
@@ -3455,18 +3470,27 @@ def test_create_symlink_windows_hits_success_and_failure_branches(tmp_path: Path
 
 
 def _prime_home_for_env_file(tmp_path: Path, monkeypatch) -> Path:
-    """Point HOME at a fresh tmp home and reset AgiEnv so resources_path follows."""
+    """Point HOME at a fresh tmp home and reset lazy AGILAB defaults."""
 
     fake_home = tmp_path / "fake_home"
     (fake_home / ".agilab").mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("HOME", str(fake_home))
-    # reset() recomputes resources_path = Path.home() / ".agilab" against the
-    # freshly patched HOME so set_env_var writes into the tmp dotenv file.
+    # reset() restores a lazy sentinel; set_env_var resolves it against the
+    # freshly patched HOME before writing into the tmp dotenv file.
     AgiEnv.reset()
     return fake_home
 
 
-def test_remove_env_keys_removes_present_keys_and_ignores_absent(tmp_path: Path):
+def _set_test_env_var(monkeypatch, key: str, value: str) -> None:
+    """Persist a test value while registering failure-safe process cleanup."""
+
+    monkeypatch.setenv(key, value)
+    AgiEnv.set_env_var(key, value)
+
+
+def test_remove_env_keys_removes_present_keys_and_ignores_absent(
+    tmp_path: Path, caplog
+):
     from agi_env.runtime.env_config_support import remove_env_keys, write_env_updates
 
     env_file = tmp_path / ".env"
@@ -3475,9 +3499,14 @@ def test_remove_env_keys_removes_present_keys_and_ignores_absent(tmp_path: Path)
         {"KEEP": "1", "192.168.0.1_CMD_PREFIX": "prefix", "192.168.0.1": "hw_rapids_capable"},
     )
 
-    removed = remove_env_keys(env_file, ["192.168.0.1_CMD_PREFIX", "192.168.0.1", "MISSING"])
+    with caplog.at_level(logging.WARNING, logger="dotenv.main"):
+        removed = remove_env_keys(
+            env_file,
+            ["192.168.0.1_CMD_PREFIX", "192.168.0.1", "MISSING"],
+        )
 
     assert set(removed) == {"192.168.0.1_CMD_PREFIX", "192.168.0.1"}
+    assert not [record for record in caplog.records if "MISSING" in record.message]
     contents = env_file.read_text(encoding="utf-8")
     assert "KEEP" in contents
     assert "192.168.0.1_CMD_PREFIX" not in contents
@@ -3494,6 +3523,23 @@ def test_remove_env_keys_missing_file_is_noop(tmp_path: Path):
     assert not env_file.exists()
 
 
+def test_remove_env_keys_matches_windows_dotenv_keys_case_insensitively(
+    tmp_path: Path, monkeypatch, caplog
+):
+    from agi_env.runtime import env_config_support
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("Mixed_Node_Key=value\n", encoding="utf-8")
+    monkeypatch.setattr(env_config_support, "os", SimpleNamespace(name="nt"))
+
+    with caplog.at_level(logging.WARNING, logger="dotenv.main"):
+        removed = env_config_support.remove_env_keys(env_file, ["MIXED_NODE_KEY"])
+
+    assert removed == ["Mixed_Node_Key"]
+    assert env_file.read_text(encoding="utf-8") == ""
+    assert caplog.records == []
+
+
 def test_prune_node_env_keys_removes_stale_and_keeps_current(tmp_path: Path, monkeypatch):
     fake_home = _prime_home_for_env_file(tmp_path, monkeypatch)
     env_file = fake_home / ".agilab" / ".env"
@@ -3502,15 +3548,15 @@ def test_prune_node_env_keys_removes_stale_and_keeps_current(tmp_path: Path, mon
     current_ip = "10.0.0.1"
 
     # Stale per-node keys across all three shapes.
-    AgiEnv.set_env_var(stale_ip, "hw_rapids_capable")  # bare-IP capability sentinel
-    AgiEnv.set_env_var(f"{stale_ip}_CMD_PREFIX", "stale-prefix")
-    AgiEnv.set_env_var(f"{stale_ip}_PYTHON_VERSION", "3.11")
+    _set_test_env_var(monkeypatch, stale_ip, "hw_rapids_capable")
+    _set_test_env_var(monkeypatch, f"{stale_ip}_CMD_PREFIX", "stale-prefix")
+    _set_test_env_var(monkeypatch, f"{stale_ip}_PYTHON_VERSION", "3.11")
     # Current per-node keys that must survive.
-    AgiEnv.set_env_var(current_ip, "no_rapids_hw")
-    AgiEnv.set_env_var(f"{current_ip}_CMD_PREFIX", "live-prefix")
-    AgiEnv.set_env_var(f"{current_ip}_PYTHON_VERSION", "3.14")
+    _set_test_env_var(monkeypatch, current_ip, "no_rapids_hw")
+    _set_test_env_var(monkeypatch, f"{current_ip}_CMD_PREFIX", "live-prefix")
+    _set_test_env_var(monkeypatch, f"{current_ip}_PYTHON_VERSION", "3.14")
     # A non-node key that must never be touched.
-    AgiEnv.set_env_var("OPENAI_MODEL", "gpt-x")
+    _set_test_env_var(monkeypatch, "OPENAI_MODEL", "gpt-x")
 
     removed = AgiEnv.prune_node_env_keys({current_ip})
 
@@ -3546,11 +3592,6 @@ def test_prune_node_env_keys_removes_stale_and_keeps_current(tmp_path: Path, mon
     assert f"{current_ip}_CMD_PREFIX" in contents
     assert "OPENAI_MODEL" in contents
 
-    # Clean up process env leakage created by this test.
-    for key in (current_ip, f"{current_ip}_CMD_PREFIX", f"{current_ip}_PYTHON_VERSION", "OPENAI_MODEL"):
-        os.environ.pop(key, None)
-
-
 def test_prune_node_env_keys_removes_leaked_os_environ_only_keys(tmp_path: Path, monkeypatch):
     """Bare-IP keys that leaked into os.environ but not envars are still pruned."""
 
@@ -3574,9 +3615,9 @@ def test_prune_node_env_keys_empty_current_ips_removes_all_node_keys(tmp_path: P
     fake_home = _prime_home_for_env_file(tmp_path, monkeypatch)
     env_file = fake_home / ".agilab" / ".env"
 
-    AgiEnv.set_env_var("192.0.2.10", "hw_rapids_capable")
-    AgiEnv.set_env_var("192.0.2.10_CMD_PREFIX", "p")
-    AgiEnv.set_env_var("NON_NODE_KEY", "value")
+    _set_test_env_var(monkeypatch, "192.0.2.10", "hw_rapids_capable")
+    _set_test_env_var(monkeypatch, "192.0.2.10_CMD_PREFIX", "p")
+    _set_test_env_var(monkeypatch, "NON_NODE_KEY", "value")
 
     removed = AgiEnv.prune_node_env_keys(set())
 
@@ -3587,14 +3628,11 @@ def test_prune_node_env_keys_empty_current_ips_removes_all_node_keys(tmp_path: P
     assert "NON_NODE_KEY" in contents
     assert "192.0.2.10_CMD_PREFIX" not in contents
 
-    os.environ.pop("NON_NODE_KEY", None)
-
-
 def test_prune_node_env_keys_noop_when_nothing_stale(tmp_path: Path, monkeypatch):
     _prime_home_for_env_file(tmp_path, monkeypatch)
 
-    AgiEnv.set_env_var("203.0.113.7", "no_rapids_hw")
-    AgiEnv.set_env_var("SOME_GLOBAL", "x")
+    _set_test_env_var(monkeypatch, "203.0.113.7", "no_rapids_hw")
+    _set_test_env_var(monkeypatch, "SOME_GLOBAL", "x")
 
     removed = AgiEnv.prune_node_env_keys({"203.0.113.7"})
 
@@ -3602,23 +3640,20 @@ def test_prune_node_env_keys_noop_when_nothing_stale(tmp_path: Path, monkeypatch
     assert AgiEnv.envars["203.0.113.7"] == "no_rapids_hw"
     assert AgiEnv.envars["SOME_GLOBAL"] == "x"
 
-    os.environ.pop("203.0.113.7", None)
-    os.environ.pop("SOME_GLOBAL", None)
-
-
 def test_prune_node_env_keys_ignores_non_ip_underscore_keys(tmp_path: Path, monkeypatch):
     """Keys like 'FOO_CMD_PREFIX' whose head is not an IPv4 must be preserved."""
 
     _prime_home_for_env_file(tmp_path, monkeypatch)
 
-    AgiEnv.set_env_var("FOO_CMD_PREFIX", "not-a-node-key")
-    AgiEnv.set_env_var("999.999.999.999_CMD_PREFIX", "invalid-ip-head")
+    _set_test_env_var(monkeypatch, "FOO_CMD_PREFIX", "not-a-node-key")
+    _set_test_env_var(
+        monkeypatch,
+        "999.999.999.999_CMD_PREFIX",
+        "invalid-ip-head",
+    )
 
     removed = AgiEnv.prune_node_env_keys(set())
 
     assert removed == []
     assert AgiEnv.envars["FOO_CMD_PREFIX"] == "not-a-node-key"
     assert AgiEnv.envars["999.999.999.999_CMD_PREFIX"] == "invalid-ip-head"
-
-    os.environ.pop("FOO_CMD_PREFIX", None)
-    os.environ.pop("999.999.999.999_CMD_PREFIX", None)
