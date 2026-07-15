@@ -387,6 +387,204 @@ def test_routing_model_comparison_loads_and_summarizes_allocations(
     assert "latency_over_target_ms" in failures.columns
 
 
+def test_routing_model_comparison_filters_to_active_demand_schedule(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    base = tmp_path / "pipeline"
+    _write_allocations(
+        base / "trainer_fcas_routing_ilp" / "allocations_steps.json",
+        [
+            {
+                "source_label": "active-source",
+                "destination_label": "active-destination",
+                "bandwidth": 10.0,
+                "delivered_bandwidth": 10.0,
+                "active": True,
+            },
+            {
+                "source_label": "inactive-source",
+                "destination_label": "inactive-destination",
+                "bandwidth": 20.0,
+                "delivered_bandwidth": 0.0,
+                "active": False,
+            },
+            {
+                "source_label": "active-unrouted-source",
+                "destination_label": "active-unrouted-destination",
+                "bandwidth": 5.0,
+                "delivered_bandwidth": 0.0,
+                "routed": False,
+                "active": True,
+            },
+        ],
+    )
+    _write_allocations(
+        base / "trainer_fcas_routing_ppo_gnn" / "allocations_steps.json",
+        [
+            {
+                "source_label": "active-source",
+                "destination_label": "active-destination",
+                "bandwidth": 10.0,
+                "delivered_bandwidth": 5.0,
+            },
+            {
+                "source_label": "inactive-source",
+                "destination_label": "inactive-destination",
+                "bandwidth": 20.0,
+                "delivered_bandwidth": 0.0,
+            },
+            {
+                "source_label": "unknown-source",
+                "destination_label": "unknown-destination",
+                "bandwidth": 30.0,
+                "delivered_bandwidth": 30.0,
+            },
+        ],
+    )
+
+    alloc_df = module.load_allocations(module.available_file_signatures(base))
+    failures = module.build_failure_table(module.add_latency_targets(alloc_df.copy()))
+
+    assert len(alloc_df) == 4
+    assert set(alloc_df["model"]) == {"ILP", "PPO-GNN"}
+    assert set(alloc_df["source_label"]) == {
+        "active-source",
+        "active-unrouted-source",
+        "unknown-source",
+    }
+    assert alloc_df["requested_mbps"].sum() == 55.0
+    assert alloc_df.loc[alloc_df["source_label"] == "active-source", "active"].all()
+    assert "active-unrouted-source" in set(failures["source_label"])
+    assert "inactive-source" not in set(failures["source_label"])
+
+
+def test_routing_model_comparison_retains_legacy_rows_without_active_evidence(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    base = tmp_path / "pipeline"
+    _write_allocations(
+        base / "trainer_fcas_routing_ilp" / "allocations_steps.json",
+        [
+            {
+                "source_label": "legacy-source",
+                "destination_label": "legacy-destination",
+                "bandwidth": 10.0,
+                "delivered_bandwidth": 10.0,
+            }
+        ],
+    )
+
+    alloc_df = module.load_allocations(module.available_file_signatures(base))
+
+    assert len(alloc_df) == 1
+    assert alloc_df.iloc[0]["source_label"] == "legacy-source"
+    assert alloc_df["active"].isna().all()
+
+
+def test_routing_model_comparison_matches_duplicate_demands_by_occurrence(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    base = tmp_path / "pipeline"
+    ilp_path = base / "trainer_fcas_routing_ilp" / "allocations_steps.json"
+    ppo_path = base / "trainer_fcas_routing_ppo_gnn" / "allocations_steps.json"
+    ilp_path.parent.mkdir(parents=True)
+    ppo_path.parent.mkdir(parents=True)
+    common_pair = {
+        "source_label": "duplicate-source",
+        "destination_label": "duplicate-destination",
+    }
+    ilp_path.write_text(
+        json.dumps(
+            [
+                {
+                    "time_index": 0,
+                    "allocations": [
+                        {**common_pair, "bandwidth": 1.0, "active": True},
+                        {**common_pair, "bandwidth": 2.0, "active": False},
+                    ],
+                },
+                {
+                    "time_index": 1,
+                    "allocations": [
+                        {**common_pair, "bandwidth": 1.0, "active": False},
+                        {**common_pair, "bandwidth": 2.0, "active": True},
+                    ],
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    ppo_path.write_text(
+        json.dumps(
+            [
+                {
+                    "time_index": time_index,
+                    "allocations": [
+                        {**common_pair, "bandwidth": 1.0},
+                        {**common_pair, "bandwidth": 2.0},
+                    ],
+                }
+                for time_index in (0, 1)
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    alloc_df = module.load_allocations(module.available_file_signatures(base))
+    bandwidths_by_model_and_time = {
+        key: values.tolist()
+        for key, values in alloc_df.groupby(["model", "time_index"], observed=False)[
+            "requested_mbps"
+        ]
+    }
+
+    assert bandwidths_by_model_and_time == {
+        ("ILP", 0): [1.0],
+        ("ILP", 1): [2.0],
+        ("PPO-GNN", 0): [1.0],
+        ("PPO-GNN", 1): [2.0],
+    }
+
+
+def test_routing_model_comparison_excludes_conflicting_active_evidence(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    base = tmp_path / "pipeline"
+    conflicting = {
+        "source_label": "conflict-source",
+        "destination_label": "conflict-destination",
+        "bandwidth": 10.0,
+    }
+    _write_allocations(
+        base / "trainer_fcas_routing_ilp" / "allocations_steps.json",
+        [{**conflicting, "active": False}],
+    )
+    _write_allocations(
+        base / "trainer_fcas_routing_path_ac" / "allocations_steps.json",
+        [{**conflicting, "active": True}],
+    )
+    _write_allocations(
+        base / "trainer_fcas_routing_ppo_gnn" / "allocations_steps.json",
+        [
+            conflicting,
+            {
+                "source_label": "legacy-source",
+                "destination_label": "legacy-destination",
+                "bandwidth": 5.0,
+            },
+        ],
+    )
+
+    alloc_df = module.load_allocations(module.available_file_signatures(base))
+
+    assert alloc_df["source_label"].tolist() == ["legacy-source"]
+    assert alloc_df.attrs[module.ACTIVE_DEMAND_CONFLICT_ATTR] == 1
+
+
 def test_routing_model_comparison_figures_handle_empty_and_visible_models() -> None:
     module = _load_module()
     alloc_df = pd.DataFrame(
@@ -639,6 +837,38 @@ def test_routing_model_comparison_main_renders_pipeline(
     )
 
 
+def test_routing_model_comparison_main_requests_wide_layout(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_module()
+    app = tmp_path / "apps" / "routing_app"
+    app.mkdir(parents=True)
+    streamlit = _StreamlitStub(pipeline_text="")
+    env = type("Env", (), {"agi_share_path_abs": ""})()
+    page_configs: list[dict[str, object]] = []
+
+    monkeypatch.setattr(module, "st", streamlit)
+    monkeypatch.setattr(
+        module,
+        "configure_streamlit_page",
+        lambda _streamlit, **kwargs: page_configs.append(kwargs),
+    )
+    monkeypatch.setattr(
+        module, "render_streamlit_page_header", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(module, "_ensure_app_scoped_env", lambda: env)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: app)
+
+    module.main()
+
+    assert page_configs == [
+        {
+            "title": "Routing Model Comparison",
+            "layout": "wide",
+        }
+    ]
+
+
 def test_routing_model_comparison_main_renders_without_missing_files_or_model_filter(
     monkeypatch,
     tmp_path: Path,
@@ -716,7 +946,7 @@ def test_routing_model_comparison_main_stops_when_loaded_data_is_empty(
         module.main()
 
     assert any(
-        name == "warning" and "No allocation data was loaded" in args[0]
+        name == "warning" and "No active-demand allocation data was loaded" in args[0]
         for name, args in streamlit.calls
     )
 
