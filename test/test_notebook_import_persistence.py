@@ -239,7 +239,7 @@ def test_notebook_import_merge_matches_existing_stage_id_alias(monkeypatch, tmp_
     assert stored["demo_project"][0]["C"] == "print('new')\n"
 
 
-def test_same_origin_roundtrip_positionally_updates_idless_stages(
+def test_same_origin_idless_roundtrip_accepts_manual_notebook_source_edit(
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(pipeline_editor, "st", _quiet_streamlit())
@@ -268,6 +268,9 @@ C = "print('second')"
             artifact_dir=str(module_dir),
         ),
     )
+    intro = "".join(notebook["cells"][0]["source"])
+    assert "Notebook source edits are accepted" in intro
+    assert "refresh the export or add an explicit stage ID" in intro
     first_source_cell = next(
         cell
         for cell in notebook["cells"]

@@ -573,6 +573,7 @@ def test_supervisor_notebook_enforces_existing_output_skip(
 
 def test_supervisor_notebook_invalid_profile_falls_back_to_balanced(
     tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     notebook = build_notebook_document(
         {
@@ -596,3 +597,63 @@ def test_supervisor_notebook_invalid_profile_falls_back_to_balanced(
     exec("".join(notebook["cells"][1]["source"]), namespace)
 
     assert namespace["run_agilab_stage"](0) is None
+    assert (
+        "Unknown automation profile 'invalid'; defaulting to 'balanced'"
+        in caplog.text
+    )
+
+
+def test_supervisor_notebook_deep_merges_nested_profile_overrides(
+    tmp_path: Path,
+) -> None:
+    notebook = build_notebook_document(
+        {
+            "__meta__": {f"{MODULE_NAME}__automation": {"profile": "fast"}},
+            MODULE_NAME: [
+                {
+                    "id": "nested-profile",
+                    "C": "print('base code')\n",
+                    "automation": {
+                        "runner": {
+                            "retry": {
+                                "policy": {
+                                    "attempts": 2,
+                                    "backoff": {"seconds": 1, "jitter": True},
+                                }
+                            }
+                        }
+                    },
+                    "automation_profiles": {
+                        "fast": {
+                            "automation": {
+                                "runner": {
+                                    "retry": {
+                                        "policy": {
+                                            "backoff": {"seconds": 5},
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                }
+            ],
+        },
+        tmp_path / "lab_stages.toml",
+        export_context=NotebookExportContext(
+            project_name=MODULE_NAME,
+            module_path=MODULE_NAME,
+            artifact_dir=str(tmp_path / "artifacts"),
+        ),
+    )
+    namespace: dict[str, Any] = {}
+    exec("".join(notebook["cells"][1]["source"]), namespace)
+
+    effective = namespace["_stage_with_selected_profile"](
+        namespace["AGILAB_NOTEBOOK_EXPORT"]["stages"][0]
+    )
+    retry_policy = effective["automation"]["runner"]["retry"]["policy"]
+    assert retry_policy == {
+        "attempts": 2,
+        "backoff": {"seconds": 5, "jitter": True},
+    }

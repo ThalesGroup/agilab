@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import logging
 import os
 import shlex
 import sys
@@ -16,6 +17,9 @@ import tomllib
 from agi_env.app_provider_registry import app_name_aliases
 
 from agilab.ui.page_bundle_registry import discover_page_bundle
+
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_NOTEBOOK_EXPORT_MODE = "supervisor"
@@ -895,8 +899,17 @@ def _stage_execution_controls(stage: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _normalized_automation_profile(value: Any) -> str:
-    normalized = str(value or "balanced").strip().lower()
-    return normalized if normalized in NOTEBOOK_AUTOMATION_PROFILES else "balanced"
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return "balanced"
+    normalized = raw_value.lower()
+    if normalized in NOTEBOOK_AUTOMATION_PROFILES:
+        return normalized
+    logger.warning(
+        "Unknown automation profile %r; defaulting to 'balanced'",
+        value,
+    )
+    return "balanced"
 
 
 def _deep_merge_metadata(
@@ -954,7 +967,14 @@ def notebook_stage_fingerprint(
     module_index: int,
     stage: Any,
 ) -> str:
-    """Fingerprint the export-time stage semantics used for safe legacy upserts."""
+    """Fingerprint export-time semantics used to guard ID-less stage upserts.
+
+    The source module and index locate the legacy stage candidate. This digest,
+    which includes source, dependencies, and execution controls, proves that the
+    persisted candidate has not changed since export. Edits inside the exported
+    notebook are intentionally not part of this comparison: they are the update
+    payload that may replace an otherwise unchanged target stage.
+    """
     payload = {
         "module": str(module),
         "module_index": int(module_index),
@@ -3458,6 +3478,7 @@ def build_notebook_document(
                     "- Use `run_agilab_stage(i)` or `run_agilab_pipeline()` to execute workflow stages in their recorded runtime.",
                     "- Disabled/skipped stages and output-skip rules remain enforced by the exported runner helpers.",
                     "- The selected automation profile is applied; module max_workers is preserved for re-import, while notebook pipeline execution stays sequential.",
+                    "- ID-less stages can be re-imported only while the stage at the recorded module/index still matches its export fingerprint. Notebook source edits are accepted; if the AGILAB target changed, refresh the export or add an explicit stage ID.",
                     "- The code cells below stay readable/editable, but they do not replace the recorded per-stage environment.",
                 ]
             ),

@@ -669,6 +669,11 @@ def _merge_notebook_import_stage_entries(
             continue
         source_position = _notebook_stage_source_position(imported_copy)
         if not imported_id and allow_upsert and source_position is not None:
+            # ID-less stages need a compound identity: module + export-time index
+            # selects the candidate, while the semantic fingerprint (including
+            # source and dependencies) proves the persisted target did not drift.
+            # The imported notebook source may differ intentionally; it is the
+            # replacement payload and is applied only after this target-side check.
             source_module, source_index = source_position
             if source_position in used_source_positions:
                 raise ValueError(
