@@ -4,11 +4,14 @@
 
 Package: `agi-page-routing-model-comparison`
 
-Compares baseline and candidate routing allocation decisions.
+Compares baseline and candidate routing allocation decisions, including aligned
+source-destination demand matrices for served bandwidth, unmet bandwidth,
+unrouted decisions, and routed latency.
 
 ## When To Use It
 
-Use when routing models need allocation deltas, failure inspection, and side-by-side decision evidence.
+Use when routing models need allocation deltas, failure inspection,
+source-destination hotspots, and side-by-side decision evidence.
 
 ## Expected Inputs
 

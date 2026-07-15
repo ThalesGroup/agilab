@@ -14,11 +14,28 @@
   <rect x="52" y="54" width="536" height="252" rx="18" fill="#ffffff" filter="url(#shadow)"/>
   <rect x="52" y="54" width="536" height="58" rx="18" fill="#0d9488"/>
   <text x="84" y="91" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="700" fill="#ffffff">Routing Model Comparison</text>
-  <text x="84" y="136" font-family="Inter, Arial, sans-serif" font-size="13" fill="#334155">Compares baseline and candidate routing allocation decisions.</text>
-  <g fill="none" stroke="#0d9488" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity=".95">
-    <circle cx="150" cy="232" r="14"/><circle cx="310" cy="138" r="14"/><circle cx="500" cy="232" r="14"/><path d="M164 226 L296 146 L324 146 L486 226"/><path d="M164 244 C260 292 390 292 486 244" opacity=".45"/>
+  <text x="84" y="136" font-family="Inter, Arial, sans-serif" font-size="12" fill="#334155">Source-destination matrices expose delivery, unmet demand, and latency hotspots.</text>
+  <g stroke="#cbd5e1" stroke-width="1">
+    <rect x="88" y="158" width="136" height="118" rx="10" fill="#f8fafc"/>
+    <rect x="252" y="158" width="136" height="118" rx="10" fill="#f8fafc"/>
+    <rect x="416" y="158" width="136" height="118" rx="10" fill="#f8fafc"/>
   </g>
-  <g font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#0f172a">
-    <text x="132" y="314" class="pill">Baseline</text><text x="292" y="314" class="pill">Candidate</text><text x="452" y="314" class="pill">Delta</text>
+  <g transform="translate(105 176)">
+    <rect width="28" height="22" rx="3" fill="#ccfbf1"/><rect x="36" width="28" height="22" rx="3" fill="#5eead4"/><rect x="72" width="28" height="22" rx="3" fill="#0f766e"/>
+    <rect y="30" width="28" height="22" rx="3" fill="#99f6e4"/><rect x="36" y="30" width="28" height="22" rx="3" fill="#14b8a6"/><rect x="72" y="30" width="28" height="22" rx="3" fill="#115e59"/>
+    <rect y="60" width="28" height="22" rx="3" fill="#f0fdfa"/><rect x="36" y="60" width="28" height="22" rx="3" fill="#2dd4bf"/><rect x="72" y="60" width="28" height="22" rx="3" fill="#134e4a"/>
+  </g>
+  <g transform="translate(269 176)">
+    <rect width="28" height="22" rx="3" fill="#fff7ed"/><rect x="36" width="28" height="22" rx="3" fill="#fdba74"/><rect x="72" width="28" height="22" rx="3" fill="#c2410c"/>
+    <rect y="30" width="28" height="22" rx="3" fill="#ffedd5"/><rect x="36" y="30" width="28" height="22" rx="3" fill="#fb923c"/><rect x="72" y="30" width="28" height="22" rx="3" fill="#9a3412"/>
+    <rect y="60" width="28" height="22" rx="3" fill="#fed7aa"/><rect x="36" y="60" width="28" height="22" rx="3" fill="#f97316"/><rect x="72" y="60" width="28" height="22" rx="3" fill="#7c2d12"/>
+  </g>
+  <g transform="translate(433 176)">
+    <rect width="28" height="22" rx="3" fill="#eef2ff"/><rect x="36" width="28" height="22" rx="3" fill="#a5b4fc"/><rect x="72" width="28" height="22" rx="3" fill="#4338ca"/>
+    <rect y="30" width="28" height="22" rx="3" fill="#e0e7ff"/><rect x="36" y="30" width="28" height="22" rx="3" fill="#818cf8"/><rect x="72" y="30" width="28" height="22" rx="3" fill="#3730a3"/>
+    <rect y="60" width="28" height="22" rx="3" fill="#c7d2fe"/><rect x="36" y="60" width="28" height="22" rx="3" fill="#6366f1"/><rect x="72" y="60" width="28" height="22" rx="3" fill="#312e81"/>
+  </g>
+  <g font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle">
+    <text x="156" y="300">Delivered ratio</text><text x="320" y="300">Unmet ratio</text><text x="484" y="300">Latency</text>
   </g>
 </svg>
