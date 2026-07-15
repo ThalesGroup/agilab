@@ -30,6 +30,13 @@ APP_SCOPE_KEY = f"{PAGE_KEY}_active_app_path"
 MIN_MEANINGFUL_DELIVERY_MBPS = 1e-9
 FULFILLED_THRESHOLD = 0.99
 TIME_STEP_S = 60.0
+ACTIVE_DEMAND_KEY_COLUMNS = (
+    "time_index",
+    "source_label",
+    "destination_label",
+)
+ACTIVE_DEMAND_OCCURRENCE_COLUMN = "_active_demand_occurrence"
+ACTIVE_DEMAND_CONFLICT_ATTR = "active_demand_schedule_conflicts"
 
 MODEL_FILES = {
     "ILP": "trainer_fcas_routing_ilp/allocations_steps.json",
@@ -295,6 +302,7 @@ def load_allocations(file_signatures: tuple[tuple[str, str, int], ...]) -> pd.Da
                         "demand": f"{source_label} -> {destination_label}",
                         "requested_mbps": requested,
                         "delivered_mbps": delivered,
+                        "active": safe_bool(allocation.get("active")),
                         "satisfaction_ratio": satisfaction,
                         "routed": routed,
                         "outcome": demand_outcome(routed, satisfaction),
@@ -311,7 +319,88 @@ def load_allocations(file_signatures: tuple[tuple[str, str, int], ...]) -> pd.Da
                         ),
                     }
                 )
-    return pd.DataFrame(rows)
+    return filter_active_demands(pd.DataFrame(rows))
+
+
+def filter_active_demands(alloc_df: pd.DataFrame) -> pd.DataFrame:
+    """Exclude inactive demand-time pairs using the shared model schedule.
+
+    Some routing exporters, notably older PPO-GNN outputs, omit the per-row
+    ``active`` flag. The ILP and Path-AC artifacts carry the same demand
+    schedule, so their explicit flags are broadcast by time/source/destination
+    and stable duplicate-demand occurrence before filtering. Conflicting model
+    evidence is excluded, while unmatched legacy rows are retained rather than
+    having activity inferred from routing or delivery.
+    """
+
+    if alloc_df.empty or "active" not in alloc_df.columns:
+        return alloc_df
+    indexed = alloc_df.copy()
+    indexed[ACTIVE_DEMAND_OCCURRENCE_COLUMN] = indexed.groupby(
+        ["model", *ACTIVE_DEMAND_KEY_COLUMNS],
+        sort=False,
+        dropna=False,
+        observed=False,
+    ).cumcount()
+    reference_columns = [
+        *ACTIVE_DEMAND_KEY_COLUMNS,
+        ACTIVE_DEMAND_OCCURRENCE_COLUMN,
+    ]
+    explicit_rows = indexed.loc[
+        indexed["active"].notna(),
+        [*reference_columns, "active"],
+    ]
+    if explicit_rows.empty:
+        return alloc_df.copy()
+
+    reference_bounds = (
+        explicit_rows.groupby(
+            reference_columns,
+            as_index=False,
+            observed=False,
+            dropna=False,
+        )["active"]
+        .agg(["min", "max"])
+        .reset_index()
+    )
+    conflict_mask = reference_bounds["min"] != reference_bounds["max"]
+    conflict_keys = reference_bounds.loc[conflict_mask, reference_columns]
+    active_reference = reference_bounds.loc[
+        ~conflict_mask,
+        [*reference_columns, "min"],
+    ].rename(columns={"min": "_active_reference"})
+    resolved = indexed.merge(
+        active_reference,
+        on=reference_columns,
+        how="left",
+        validate="many_to_one",
+    )
+    resolved = resolved.merge(
+        conflict_keys.assign(_active_reference_conflict=True),
+        on=reference_columns,
+        how="left",
+        validate="many_to_one",
+    )
+    resolved["active"] = resolved["active"].where(
+        resolved["active"].notna(),
+        resolved["_active_reference"],
+    )
+    keep_mask = ~resolved["_active_reference_conflict"].eq(True) & (
+        resolved["active"].isna() | resolved["active"].eq(True)
+    )
+    filtered = (
+        resolved.loc[keep_mask]
+        .drop(
+            columns=[
+                "_active_reference",
+                "_active_reference_conflict",
+                ACTIVE_DEMAND_OCCURRENCE_COLUMN,
+            ]
+        )
+        .reset_index(drop=True)
+    )
+    filtered.attrs[ACTIVE_DEMAND_CONFLICT_ATTR] = len(conflict_keys)
+    return filtered
 
 
 def add_latency_targets(alloc_df: pd.DataFrame) -> pd.DataFrame:
@@ -916,7 +1005,11 @@ def _format_summary(summary_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
-    configure_streamlit_page(st, title="Routing Model Comparison")
+    configure_streamlit_page(
+        st,
+        title="Routing Model Comparison",
+        layout="wide",
+    )
     env = _ensure_app_scoped_env()
     active_app_path = _resolve_active_app()
     settings = _load_app_settings(active_app_path)
@@ -968,9 +1061,16 @@ def main() -> None:
             st.write("\n".join(missing_files))
 
     alloc_df = load_allocations(file_signatures)
+    active_schedule_conflicts = int(alloc_df.attrs.get(ACTIVE_DEMAND_CONFLICT_ATTR, 0))
+    if active_schedule_conflicts:
+        st.warning(
+            f"Excluded {active_schedule_conflicts:,} demand-time pair(s) because "
+            "model artifacts disagree on whether they are active. Regenerate the "
+            "routing model outputs together before comparing them."
+        )
     if alloc_df.empty:
         st.warning(
-            "No allocation data was loaded from the selected pipeline directory."
+            "No active-demand allocation data was loaded from the selected pipeline directory."
         )
         st.stop()
 
@@ -981,6 +1081,8 @@ def main() -> None:
         st.warning("No allocation rows match the selected model filter.")
         st.stop()
 
+    has_active_evidence = alloc_df["active"].notna().any()
+    has_legacy_activity = alloc_df["active"].isna().any()
     summary_df = build_summary(alloc_df)
     models = [model for model in MODEL_ORDER if model in set(alloc_df["model"])]
 
@@ -992,7 +1094,20 @@ def main() -> None:
     with summary_tab:
         st.subheader("Model Summary")
         st.dataframe(_format_summary(summary_df), width="stretch")
-        st.caption(f"Loaded {len(alloc_df):,} allocation decisions from {base_dir}.")
+        if has_active_evidence and not has_legacy_activity:
+            st.caption(
+                f"Loaded {len(alloc_df):,} active-demand allocation decisions from {base_dir}."
+            )
+        elif has_active_evidence:
+            st.caption(
+                f"Loaded {len(alloc_df):,} in-scope allocation decisions from {base_dir}. "
+                "The active-demand schedule was applied where available; unmatched legacy rows were retained."
+            )
+        else:
+            st.caption(
+                f"Loaded {len(alloc_df):,} allocation decisions from {base_dir}. "
+                "Rows without activity evidence were retained for legacy compatibility."
+            )
 
     with dashboard_tab:
         st.plotly_chart(
