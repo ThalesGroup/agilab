@@ -67,10 +67,27 @@ def _check_result(
     }
 
 
-def sample_lab_stages() -> dict[str, list[dict[str, Any]]]:
+def sample_lab_stages() -> dict[str, Any]:
     return {
+        "__meta__": {
+            "schema": "agilab.lab_stages.v1",
+            "version": 1,
+            f"{MODULE_NAME}__sequence": [0, 1],
+            f"{MODULE_NAME}__automation": {
+                "profile": "evidence",
+                "max_workers": 2,
+            },
+        },
         MODULE_NAME: [
             {
+                "id": "seed_inputs",
+                "label": "Seed round-trip inputs",
+                "kind": "data",
+                "produces": ["artifacts/roundtrip_input.csv"],
+                "automation": {
+                    "skip_if_outputs_exist": False,
+                    "outputs": ["artifacts/roundtrip_input.csv"],
+                },
                 "D": "Seed notebook round-trip inputs",
                 "Q": "Create a compact dataframe and persist it for the next stage.",
                 "M": "gpt-5.5",
@@ -82,8 +99,19 @@ def sample_lab_stages() -> dict[str, list[dict[str, Any]]]:
                     "df.to_csv(artifact, index=False)\n"
                 ),
                 "R": "runpy",
+                "NB_CELL_ID": "cell-7",
+                "NB_CELL_INDEX": 7,
+                "NB_CONTEXT_IDS": ["markdown-6"],
+                "NB_EXECUTION_MODE": "not_executed_import",
+                "NB_EXECUTION_COUNT": 2,
+                "NB_SOURCE_NOTEBOOK": "notebooks/source/roundtrip.ipynb",
             },
             {
+                "id": "summarize_output",
+                "label": "Summarize round-trip output",
+                "kind": "evidence",
+                "depends_on": ["seed_inputs"],
+                "produces": ["artifacts/roundtrip_summary.json"],
                 "D": "Summarize notebook round-trip output",
                 "Q": "Read the imported artifact and declare the JSON summary path.",
                 "M": "",
@@ -94,12 +122,18 @@ def sample_lab_stages() -> dict[str, list[dict[str, Any]]]:
                     "Path(summary_path).write_text(json.dumps(summary), encoding='utf-8')\n"
                 ),
                 "R": "runpy",
+                "NB_CELL_ID": "cell-10",
+                "NB_CELL_INDEX": 10,
+                "NB_CONTEXT_IDS": ["markdown-9"],
+                "NB_EXECUTION_MODE": "not_executed_import",
+                "NB_EXECUTION_COUNT": 3,
+                "NB_SOURCE_NOTEBOOK": "notebooks/source/roundtrip.ipynb",
             },
         ]
     }
 
 
-def _write_toml(path: Path, payload: dict[str, list[dict[str, Any]]]) -> Path:
+def _write_toml(path: Path, payload: dict[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as stream:
         tomli_w.dump(payload, stream)
@@ -144,11 +178,23 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
 
 def _stage_projection(entry: dict[str, Any]) -> dict[str, Any]:
     return {
+        "id": entry.get("id", ""),
+        "label": entry.get("label", ""),
+        "kind": entry.get("kind", ""),
+        "depends_on": entry.get("depends_on", []),
+        "produces": entry.get("produces", []),
+        "automation": entry.get("automation", {}),
         "D": entry.get("D", ""),
         "Q": entry.get("Q", ""),
         "M": entry.get("M", ""),
         "C": entry.get("C", ""),
         "R": entry.get("R", ""),
+        "NB_CELL_ID": entry.get("NB_CELL_ID", ""),
+        "NB_CELL_INDEX": entry.get("NB_CELL_INDEX", 0),
+        "NB_CONTEXT_IDS": entry.get("NB_CONTEXT_IDS", []),
+        "NB_EXECUTION_MODE": entry.get("NB_EXECUTION_MODE", ""),
+        "NB_EXECUTION_COUNT": entry.get("NB_EXECUTION_COUNT"),
+        "NB_SOURCE_NOTEBOOK": entry.get("NB_SOURCE_NOTEBOOK", ""),
     }
 
 
@@ -199,6 +245,13 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
     preview_reloaded = tomllib.loads(preview_path.read_text(encoding="utf-8"))
     original_stages = [_stage_projection(stage) for stage in _project_stages(original_lab_stages)]
     preview_stages = [_stage_projection(stage) for stage in _project_stages(preview_reloaded)]
+    automation_key = f"{MODULE_NAME}__automation"
+    original_automation = original_lab_stages.get("__meta__", {}).get(
+        automation_key, {}
+    )
+    preview_automation = preview_reloaded.get("__meta__", {}).get(
+        automation_key, {}
+    )
     state = proof.notebook_import
     summary = state.get("summary", {})
     source = state.get("source", {})
@@ -235,13 +288,16 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
             "notebook_roundtrip_lab_stages_fields",
             "Notebook round-trip lab_stages fields",
             original_stages == preview_stages
+            and original_automation == preview_automation
             and preview_reloaded == preview
             and Path(preview_path).is_file(),
-            "lab_stages preview preserves D/Q/M/C/R fields through export/import",
+            "lab_stages preview preserves stage graph, automation, code, and notebook provenance through export/import",
             evidence=[str(original_path), str(preview_path)],
             details={
                 "original_stages": original_stages,
                 "preview_stages": preview_stages,
+                "original_automation": original_automation,
+                "preview_automation": preview_automation,
             },
         ),
         _check_result(
@@ -255,7 +311,7 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
                 for reference in state.get("artifact_references", [])
                 if isinstance(reference, dict)
             },
-            "round-trip import preserves env hints and artifact references",
+            "round-trip import re-infers environment hints and artifact references from stage source",
             evidence=[str(notebook_path)],
             details={
                 "env_hints": state.get("env_hints", []),
@@ -283,6 +339,7 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
             "supervisor_stage_count": summary.get("supervisor_stage_count"),
             "pipeline_stage_count": summary.get("pipeline_stage_count"),
             "lab_stages_round_trip_ok": original_stages == preview_stages,
+            "automation_round_trip_ok": original_automation == preview_automation,
             "env_hint_count": summary.get("env_hint_count"),
             "artifact_reference_count": summary.get("artifact_reference_count"),
             "original_lab_stages_path": str(original_path),

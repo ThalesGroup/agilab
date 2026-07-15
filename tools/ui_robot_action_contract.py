@@ -98,6 +98,11 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
         "conditional conflict-resolution action that only appears after an import conflict",
         ("test/test_project_clone_policy.py",),
     ),
+    "Overwrite notebook exports from current stages": (
+        "trial-only",
+        "explicitly replaces edited notebook exports; generic robots verify the control without firing the overwrite",
+        ("test/test_notebook_export_overwrite.py",),
+    ),
     "Rebuild Universal Offline knowledge base": (
         "ignored",
         "requires a local knowledge-base rebuild outside the deterministic UI robot environment",

@@ -676,7 +676,15 @@ def _render_notebook_actions(
             type="ipynb",
             key=key,
             on_change=on_preview_notebook_import,
-            args=(key, import_module_dir, index_page_str, view_manifest_dir),
+            args=(
+                key,
+                import_module_dir,
+                index_page_str,
+                view_manifest_dir,
+                stages_file,
+                _module_keys(module_path)[0],
+                project_name,
+            ),
         )
         render_notebook_import_preview(
             import_module_dir,
@@ -705,6 +713,31 @@ def _render_notebook_actions(
             )
         else:
             st.caption("No notebook export is available for this pipeline yet.")
+        overwrite_confirmed = st.checkbox(
+            "Confirm replacement of edited notebook exports",
+            value=False,
+            key=index_page_str + "confirm_notebook_export_overwrite",
+            help=(
+                "Enable only after notebook edits have been downloaded or re-imported. "
+                "The next action replaces both the pipeline export and its PyCharm mirror."
+            ),
+        )
+        if st.button(
+            "Overwrite notebook exports from current stages",
+            key=index_page_str + "regenerate_notebook",
+            disabled=not overwrite_confirmed,
+            help=(
+                "Explicitly replace the current notebook export and its PyCharm mirror. "
+                "Download or re-import notebook edits first if you still need them."
+            ),
+        ):
+            regenerated = refresh_notebook_export(
+                stages_file,
+                export_context=export_context,
+                force=True,
+            )
+            if regenerated is not None:
+                st.success("Notebook export regenerated from the current stage contract.")
 
 
 def load_all_stages(

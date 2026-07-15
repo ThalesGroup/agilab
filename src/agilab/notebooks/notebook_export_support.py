@@ -29,6 +29,23 @@ PYCHARM_NOTEBOOK_MIRROR_ROOT = "exported_notebooks"
 PROJECT_NOTEBOOK_MIRROR_DIR = "notebooks"
 ALLOW_WORKSPACE_SIBLING_APPS_ENV = "AGILAB_NOTEBOOK_EXPORT_ALLOW_WORKSPACE_SIBLINGS"
 APPS_REPOSITORY_ENV_KEYS = ("APPS_REPOSITORY",)
+STAGE_EXECUTION_CONTROL_KEYS = (
+    "automation",
+    "enabled",
+    "skip",
+    "skip_if_outputs_exist",
+    "skip_if_outputs_current",
+    "outputs",
+    "output_paths",
+    "inputs",
+    "input_paths",
+    "profiles",
+    "pipeline_profiles",
+    "automation_profiles",
+)
+NOTEBOOK_AUTOMATION_PROFILES = frozenset(
+    {"balanced", "smoke", "fast", "evidence", "custom"}
+)
 
 PYCHARM_NOTEBOOK_SITECUSTOMIZE = """\
 from __future__ import annotations
@@ -847,7 +864,109 @@ def _build_plain_notebook(toml_data: Dict[str, Any]) -> Dict[str, Any]:
 def _metadata_string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
-    return [str(item) for item in value if str(item)]
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _stage_dependency_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    return _metadata_string_list(value)
+
+
+def _metadata_value(value: Any) -> Any:
+    """Return a JSON/TOML-safe copy of structured stage metadata."""
+    if isinstance(value, Mapping):
+        return {str(key): _metadata_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_metadata_value(item) for item in value]
+    if isinstance(value, Path):
+        return str(value)
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    return str(value)
+
+
+def _stage_execution_controls(stage: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: _metadata_value(stage[key])
+        for key in STAGE_EXECUTION_CONTROL_KEYS
+        if key in stage
+    }
+
+
+def _normalized_automation_profile(value: Any) -> str:
+    normalized = str(value or "balanced").strip().lower()
+    return normalized if normalized in NOTEBOOK_AUTOMATION_PROFILES else "balanced"
+
+
+def _deep_merge_metadata(
+    base: Mapping[str, Any],
+    override: Mapping[str, Any],
+) -> dict[str, Any]:
+    merged = {str(key): _metadata_value(value) for key, value in base.items()}
+    for key, value in override.items():
+        normalized_key = str(key)
+        current = merged.get(normalized_key)
+        if isinstance(current, Mapping) and isinstance(value, Mapping):
+            merged[normalized_key] = _deep_merge_metadata(current, value)
+        else:
+            merged[normalized_key] = _metadata_value(value)
+    return merged
+
+
+def _stage_with_profile(
+    stage: Mapping[str, Any],
+    profile: str,
+) -> dict[str, Any]:
+    for key in ("profiles", "pipeline_profiles", "automation_profiles"):
+        profile_map = stage.get(key)
+        if not isinstance(profile_map, Mapping):
+            continue
+        override = profile_map.get(profile)
+        if isinstance(override, Mapping):
+            return _deep_merge_metadata(stage, override)
+    return _deep_merge_metadata(stage, {})
+
+
+def _stage_semantic_payload(stage: Any) -> dict[str, Any]:
+    if isinstance(stage, str):
+        return {"C": stage}
+    if not isinstance(stage, Mapping):
+        return {"value": _metadata_value(stage)}
+    payload = {
+        key: _metadata_value(stage.get(key))
+        for key in ("id", "stage_id", "label", "kind", "D", "Q", "M", "C", "R", "E")
+        if key in stage
+    }
+    payload["depends_on"] = _stage_dependency_list(
+        stage.get(
+            "deps",
+            stage.get("depends_on", stage.get("dependencies", [])),
+        )
+    )
+    payload["produces"] = _metadata_string_list(stage.get("produces", []))
+    payload.update(_stage_execution_controls(stage))
+    return payload
+
+
+def notebook_stage_fingerprint(
+    module: str,
+    module_index: int,
+    stage: Any,
+) -> str:
+    """Fingerprint the export-time stage semantics used for safe legacy upserts."""
+    payload = {
+        "module": str(module),
+        "module_index": int(module_index),
+        "stage": _stage_semantic_payload(stage),
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _notebook_import_metadata_from_stage(raw_stage: Mapping[str, Any]) -> dict[str, Any]:
@@ -887,6 +1006,13 @@ def _notebook_import_metadata_from_stage(raw_stage: Mapping[str, Any]) -> dict[s
     if runtime_role:
         metadata["runtime_role"] = runtime_role
 
+    raw_execution_count = raw_stage.get("NB_EXECUTION_COUNT")
+    if raw_execution_count not in (None, ""):
+        try:
+            metadata["execution_count"] = int(raw_execution_count)
+        except (TypeError, ValueError):
+            metadata["execution_count"] = str(raw_execution_count)
+
     return metadata
 
 
@@ -902,14 +1028,118 @@ def _stage_runtime_role(stage: Mapping[str, Any]) -> str:
     return _runtime_role_from_engine(stage.get("runtime", ""))
 
 
-def _stage_records(toml_data: Dict[str, Any]) -> list[dict[str, Any]]:
+def _module_stage_indices(
+    toml_data: Mapping[str, Any],
+    module: str,
+    stages: Sequence[Any],
+) -> list[int]:
+    """Return the effective saved execution order for one module."""
+    meta = toml_data.get("__meta__", {})
+    raw_sequence = meta.get(f"{module}__sequence", []) if isinstance(meta, Mapping) else []
+    ordered: list[int] = []
+    if isinstance(raw_sequence, list):
+        for raw_index in raw_sequence:
+            if not isinstance(raw_index, int) or isinstance(raw_index, bool):
+                continue
+            if 0 <= raw_index < len(stages) and raw_index not in ordered:
+                ordered.append(raw_index)
+    ordered.extend(index for index in range(len(stages)) if index not in ordered)
+    return ordered
+
+
+def _topologically_order_stage_records(
+    records: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Keep saved order as the tie-break while enforcing a valid stage graph."""
+    ordered_records = list(records)
+    records_by_id: dict[str, dict[str, Any]] = {}
+    for record in ordered_records:
+        stage_id = str(
+            record.get("effective_stage_id", record.get("stage_id", "")) or ""
+        )
+        if stage_id in records_by_id:
+            raise ValueError(f"Duplicate workflow stage ID {stage_id!r} in notebook export.")
+        records_by_id[stage_id] = record
+    known_ids = set(records_by_id)
+    for record in ordered_records:
+        stage_id = str(
+            record.get("effective_stage_id", record.get("stage_id", "")) or ""
+        )
+        missing = [
+            dependency
+            for dependency in _metadata_string_list(
+                record.get("effective_depends_on", record.get("depends_on", []))
+            )
+            if dependency not in known_ids
+        ]
+        if missing:
+            raise ValueError(
+                f"Workflow stage {stage_id!r} depends on missing stage ID(s): "
+                f"{', '.join(missing)}."
+            )
+    emitted: set[str] = set()
+    remaining = list(ordered_records)
+    result: list[dict[str, Any]] = []
+    while remaining:
+        ready_offset = next(
+            (
+                offset
+                for offset, record in enumerate(remaining)
+                if all(
+                    dependency in emitted
+                    for dependency in _metadata_string_list(
+                        record.get(
+                            "effective_depends_on",
+                            record.get("depends_on", []),
+                        )
+                    )
+                )
+            ),
+            None,
+        )
+        if ready_offset is None:
+            blocked = ", ".join(
+                str(
+                    record.get(
+                        "effective_stage_id",
+                        record.get("stage_id", ""),
+                    )
+                    or "(unnamed stage)"
+                )
+                for record in remaining
+            )
+            raise ValueError(
+                "Workflow stage dependencies contain a cycle or self-dependency: "
+                f"{blocked}."
+            )
+        record = remaining.pop(ready_offset)
+        result.append(record)
+        stage_id = str(
+            record.get("effective_stage_id", record.get("stage_id", "")) or ""
+        )
+        emitted.add(stage_id)
+    for index, record in enumerate(result):
+        record["index"] = index
+    return result
+
+
+def _stage_records(
+    toml_data: Dict[str, Any],
+    *,
+    module_key: str | None = None,
+    profile: str = "balanced",
+) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     global_index = 0
     for module, stages in toml_data.items():
         if module == "__meta__" or not isinstance(stages, list):
             continue
-        for module_index, raw_stage in enumerate(stages):
+        if module_key is not None and str(module) != module_key:
+            continue
+        for module_index in _module_stage_indices(toml_data, str(module), stages):
+            raw_stage = stages[module_index]
             if isinstance(raw_stage, dict):
+                effective_stage = _stage_with_profile(raw_stage, profile)
                 code_text = str(raw_stage.get("C", "") or "")
                 description = str(raw_stage.get("D", "") or "")
                 question = str(raw_stage.get("Q", "") or "")
@@ -917,6 +1147,35 @@ def _stage_records(toml_data: Dict[str, Any]) -> list[dict[str, Any]]:
                 runtime = str(raw_stage.get("R", "") or "")
                 env_root = _normalize_path(raw_stage.get("E", ""))
                 notebook_import = _notebook_import_metadata_from_stage(raw_stage)
+                explicit_stage_id = str(
+                    raw_stage.get("id", "") or raw_stage.get("stage_id", "") or ""
+                ).strip()
+                label = str(raw_stage.get("label", "") or "")
+                kind = str(raw_stage.get("kind", "") or "")
+                depends_on = _stage_dependency_list(
+                    raw_stage.get(
+                        "deps",
+                        raw_stage.get(
+                            "depends_on", raw_stage.get("dependencies", [])
+                        ),
+                    )
+                )
+                produces = _metadata_string_list(raw_stage.get("produces", []))
+                execution_controls = _stage_execution_controls(raw_stage)
+                effective_stage_id = str(
+                    effective_stage.get("id", "")
+                    or effective_stage.get("stage_id", "")
+                    or f"stage_{module_index + 1}"
+                ).strip()
+                effective_depends_on = _stage_dependency_list(
+                    effective_stage.get(
+                        "deps",
+                        effective_stage.get(
+                            "depends_on",
+                            effective_stage.get("dependencies", []),
+                        ),
+                    )
+                )
             elif isinstance(raw_stage, str):
                 code_text = raw_stage
                 description = ""
@@ -925,6 +1184,14 @@ def _stage_records(toml_data: Dict[str, Any]) -> list[dict[str, Any]]:
                 runtime = ""
                 env_root = ""
                 notebook_import = {}
+                explicit_stage_id = ""
+                label = ""
+                kind = ""
+                depends_on = []
+                produces = []
+                execution_controls = {}
+                effective_stage_id = f"stage_{module_index + 1}"
+                effective_depends_on = []
             else:
                 continue
             if not code_text:
@@ -932,10 +1199,19 @@ def _stage_records(toml_data: Dict[str, Any]) -> list[dict[str, Any]]:
             runtime_role = _normalize_notebook_runtime_role(
                 notebook_import.get("runtime_role", "")
             ) or _runtime_role_from_engine(runtime)
+            stage_id = explicit_stage_id or f"supervisor-stage-{global_index + 1}"
             record = {
                 "index": global_index,
                 "module": str(module),
                 "module_index": module_index,
+                "stage_id": stage_id,
+                "stage_id_explicit": bool(explicit_stage_id),
+                "effective_stage_id": effective_stage_id,
+                "label": label,
+                "kind": kind,
+                "depends_on": depends_on,
+                "effective_depends_on": effective_depends_on,
+                "produces": produces,
                 "description": description,
                 "question": question,
                 "model": model,
@@ -943,12 +1219,57 @@ def _stage_records(toml_data: Dict[str, Any]) -> list[dict[str, Any]]:
                 "runtime_role": runtime_role,
                 "env": env_root,
                 "code": code_text,
+                "source_stage_fingerprint": notebook_stage_fingerprint(
+                    str(module), module_index, raw_stage
+                ),
             }
+            record.update(execution_controls)
             if notebook_import:
                 record["notebook_import"] = notebook_import
             records.append(record)
             global_index += 1
-    return records
+    return _topologically_order_stage_records(records)
+
+
+def _export_module_key(
+    toml_data: Mapping[str, Any],
+    export_context: NotebookExportContext,
+) -> str:
+    modules = [
+        str(key)
+        for key, value in toml_data.items()
+        if key != "__meta__" and isinstance(value, list)
+    ]
+    requested_module = str(export_context.module_path or "").strip()
+    candidates = [requested_module]
+    if requested_module:
+        candidates.append(Path(requested_module).as_posix())
+    else:
+        candidates.append(str(export_context.project_name or "").strip())
+    if not modules:
+        empty_module = next((candidate for candidate in candidates if candidate), "")
+        if empty_module:
+            return empty_module
+    for candidate in candidates:
+        if candidate and candidate in modules:
+            return candidate
+    if len(modules) == 1:
+        return modules[0]
+    raise ValueError(
+        "Unable to identify the active workflow module for notebook export. "
+        f"Requested {export_context.module_path!r}; available modules: {', '.join(modules) or '(none)'}."
+    )
+
+
+def _module_automation_preferences(
+    toml_data: Mapping[str, Any],
+    module_key: str,
+) -> dict[str, Any]:
+    metadata = toml_data.get("__meta__", {})
+    if not isinstance(metadata, Mapping):
+        return {}
+    raw = metadata.get(f"{module_key}__automation", {})
+    return _metadata_value(raw) if isinstance(raw, Mapping) else {}
 
 
 def _cell_id(*parts: Any) -> str:
@@ -1050,6 +1371,21 @@ def _stage_cell_manifest_records(notebook_data: Mapping[str, Any]) -> list[dict[
             ),
             "env": str(stage_cell.get("env", "") or ""),
         }
+        if bool(stage_cell.get("stage_id_explicit", False)):
+            record["stage_id_explicit"] = True
+        source_stage_fingerprint = str(
+            stage_cell.get("source_stage_fingerprint", "") or ""
+        )
+        if source_stage_fingerprint:
+            record["source_stage_fingerprint"] = source_stage_fingerprint
+        for key in ("label", "stage_kind"):
+            value = str(stage_cell.get(key, "") or "")
+            if value:
+                record[key] = value
+        for key in ("depends_on", "produces"):
+            values = _metadata_string_list(stage_cell.get(key, []))
+            if values:
+                record[key] = values
         notebook_import = stage_cell.get("notebook_import", {})
         if isinstance(notebook_import, Mapping) and notebook_import:
             record["notebook_import"] = dict(notebook_import)
@@ -1098,7 +1434,7 @@ def _stage_source_hashes(metadata: Mapping[str, Any]) -> list[dict[str, Any]]:
         source = str(stage.get("code", "") or "")
         record = {
             "stage_index": stage_index,
-            "stage_id": f"supervisor-stage-{stage_index + 1}",
+            "stage_id": str(stage.get("stage_id", "") or f"supervisor-stage-{stage_index + 1}"),
             "module": str(stage.get("module", "") or ""),
             "module_index": stage.get("module_index"),
             "source_sha256": _sha256_text(source),
@@ -1123,9 +1459,18 @@ def _stage_manifest_records(metadata: Mapping[str, Any]) -> list[dict[str, Any]]
         runtime = str(stage.get("runtime", "") or "")
         record = {
             "stage_index": stage_index,
-            "stage_id": f"supervisor-stage-{stage_index + 1}",
+            "stage_id": str(stage.get("stage_id", "") or f"supervisor-stage-{stage_index + 1}"),
+            "stage_id_explicit": bool(stage.get("stage_id_explicit", False)),
+            "effective_stage_id": str(stage.get("effective_stage_id", "") or ""),
             "module": str(stage.get("module", "") or ""),
             "module_index": stage.get("module_index"),
+            "label": str(stage.get("label", "") or ""),
+            "kind": str(stage.get("kind", "") or ""),
+            "depends_on": _metadata_string_list(stage.get("depends_on", [])),
+            "effective_depends_on": _metadata_string_list(
+                stage.get("effective_depends_on", [])
+            ),
+            "produces": _metadata_string_list(stage.get("produces", [])),
             "description": str(stage.get("description", "") or ""),
             "question": str(stage.get("question", "") or ""),
             "model": str(stage.get("model", "") or ""),
@@ -1133,10 +1478,14 @@ def _stage_manifest_records(metadata: Mapping[str, Any]) -> list[dict[str, Any]]
             "runtime_role": _stage_runtime_role(stage),
             "env": str(stage.get("env", "") or ""),
             "source_hash": _sha256_text(str(stage.get("code", "") or ""))[:16],
+            "source_stage_fingerprint": str(
+                stage.get("source_stage_fingerprint", "") or ""
+            ),
         }
         notebook_import = stage.get("notebook_import", {})
         if isinstance(notebook_import, Mapping) and notebook_import:
             record["notebook_import"] = dict(notebook_import)
+        record.update(_stage_execution_controls(stage))
         records.append(record)
     return records
 
@@ -2681,12 +3030,123 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             return code_text or ""
 
 
+        def _stage_automation(stage):
+            raw = stage.get("automation")
+            automation = dict(raw) if isinstance(raw, dict) else {{}}
+            for key in (
+                "enabled",
+                "skip",
+                "skip_if_outputs_exist",
+                "skip_if_outputs_current",
+                "outputs",
+                "output_paths",
+                "inputs",
+                "input_paths",
+            ):
+                if key in stage and key not in automation:
+                    automation[key] = stage[key]
+            return automation
+
+
+        def _deep_merge_stage_mapping(base, override):
+            merged = dict(base)
+            for key, value in override.items():
+                if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                    merged[key] = _deep_merge_stage_mapping(merged[key], value)
+                else:
+                    merged[key] = value
+            return merged
+
+
+        def _stage_with_selected_profile(stage):
+            module_automation = AGILAB_NOTEBOOK_EXPORT.get("module_automation", {{}})
+            profile = str(module_automation.get("profile", "balanced") or "balanced").strip().lower()
+            if profile not in {{"balanced", "smoke", "fast", "evidence", "custom"}}:
+                profile = "balanced"
+            for key in ("profiles", "pipeline_profiles", "automation_profiles"):
+                profile_map = stage.get(key)
+                if not isinstance(profile_map, dict):
+                    continue
+                override = profile_map.get(profile)
+                if isinstance(override, dict):
+                    effective = _deep_merge_stage_mapping(stage, override)
+                    if "C" in effective:
+                        effective["code"] = effective["C"]
+                    if "R" in effective:
+                        effective["runtime"] = effective["R"]
+                    if "E" in effective:
+                        effective["env"] = effective["E"]
+                    return effective
+            return dict(stage)
+
+
+        def _truthy_stage_flag(value):
+            if isinstance(value, bool):
+                return value
+            return str(value or "").strip().lower() in {{"1", "true", "yes", "on"}}
+
+
+        def _iter_stage_path_values(value):
+            if isinstance(value, str):
+                return [value] if value.strip() else []
+            if isinstance(value, dict):
+                paths = []
+                for key in sorted(value, key=str):
+                    paths.extend(_iter_stage_path_values(value[key]))
+                return paths
+            if isinstance(value, (list, tuple)):
+                paths = []
+                for item in value:
+                    paths.extend(_iter_stage_path_values(item))
+                return paths
+            return []
+
+
+        def _stage_output_paths(stage, workdir):
+            automation = _stage_automation(stage)
+            raw_values = []
+            for key in ("outputs", "output_paths"):
+                raw_values.extend(_iter_stage_path_values(automation.get(key)))
+            paths = []
+            for raw_value in raw_values:
+                path = Path(raw_value).expanduser()
+                paths.append(path if path.is_absolute() else workdir / path)
+            return paths
+
+
+        def _stage_skip_reason(stage, workdir):
+            automation = _stage_automation(stage)
+            if stage.get("enabled") is False or automation.get("enabled") is False:
+                return "disabled by the AGILAB stage contract"
+            if stage.get("skip") is True or automation.get("skip") is True:
+                return "skipped by the AGILAB stage contract"
+            skip_outputs = automation.get(
+                "skip_if_outputs_exist",
+                automation.get("skip_if_outputs_current"),
+            )
+            outputs = _stage_output_paths(stage, workdir)
+            if _truthy_stage_flag(skip_outputs) and outputs and all(path.exists() for path in outputs):
+                return "all declared output artifacts already exist"
+            return ""
+
+
         def run_agilab_stage(stage_index, *, check=True, capture_output=True, code_override=None):
             stages = AGILAB_NOTEBOOK_EXPORT.get("stages", [])
-            stage = stages[stage_index]
+            base_stage = stages[stage_index]
+            stage = _stage_with_selected_profile(base_stage)
             workdir = Path(AGILAB_NOTEBOOK_EXPORT.get("artifact_dir") or ".").expanduser()
             workdir.mkdir(parents=True, exist_ok=True)
-            code_text = code_override if code_override is not None else (stage.get("code") or "")
+            skip_reason = _stage_skip_reason(stage, workdir)
+            if skip_reason:
+                print(f"== Skipping AGILAB stage {{stage_index}}: {{skip_reason}} ==")
+                return None
+            base_code = base_stage.get("code") or ""
+            effective_code = stage.get("code") or ""
+            code_text = (
+                code_override
+                if code_override is not None and code_override != base_code
+                else effective_code
+            )
             script_text = _stage_script_text(stage, code_text)
             stage_for_python = dict(stage)
             stage_for_python["code"] = code_text
@@ -2833,20 +3293,33 @@ def _stage_cell_metadata(stage: dict[str, Any], *, kind: str) -> dict[str, Any]:
         "schema": NOTEBOOK_EXPORT_STAGE_CELL_SCHEMA,
         "kind": kind,
         "stage_index": stage_index,
-        "stage_id": f"supervisor-stage-{stage_index + 1}",
+        "stage_id": str(stage.get("stage_id", "") or f"supervisor-stage-{stage_index + 1}"),
+        "stage_id_explicit": bool(stage.get("stage_id_explicit", False)),
+        "effective_stage_id": str(stage.get("effective_stage_id", "") or ""),
         "module": str(stage.get("module", "") or ""),
         "module_index": int(stage.get("module_index", 0) or 0),
+        "label": str(stage.get("label", "") or ""),
+        "stage_kind": str(stage.get("kind", "") or ""),
+        "depends_on": _metadata_string_list(stage.get("depends_on", [])),
+        "effective_depends_on": _metadata_string_list(
+            stage.get("effective_depends_on", [])
+        ),
+        "produces": _metadata_string_list(stage.get("produces", [])),
         "description": str(stage.get("description", "") or ""),
         "question": str(stage.get("question", "") or ""),
         "model": str(stage.get("model", "") or ""),
         "runtime": runtime,
         "env": str(stage.get("env", "") or ""),
+        "source_stage_fingerprint": str(
+            stage.get("source_stage_fingerprint", "") or ""
+        ),
     }
     if runtime_role:
         stage_cell["runtime_role"] = runtime_role
     notebook_import = stage.get("notebook_import", {})
     if isinstance(notebook_import, Mapping) and notebook_import:
         stage_cell["notebook_import"] = dict(notebook_import)
+    stage_cell.update(_stage_execution_controls(stage))
 
     agilab_payload: dict[str, Any] = {
         "schema": NOTEBOOK_EXPORT_SCHEMA,
@@ -2938,7 +3411,16 @@ def build_notebook_document(
     if export_context is None:
         return _build_plain_notebook(toml_data)
 
-    stage_records = _stage_records(toml_data)
+    module_key = _export_module_key(toml_data, export_context)
+    module_automation = _module_automation_preferences(toml_data, module_key)
+    selected_profile = _normalized_automation_profile(
+        module_automation.get("profile", "balanced")
+    )
+    stage_records = _stage_records(
+        toml_data,
+        module_key=module_key,
+        profile=selected_profile,
+    )
     payload = {
         "schema": NOTEBOOK_EXPORT_SCHEMA,
         "version": NOTEBOOK_EXPORT_SCHEMA_VERSION,
@@ -2955,6 +3437,8 @@ def build_notebook_document(
         "allow_workspace_sibling_apps": export_context.allow_workspace_sibling_apps,
         "related_pages": [asdict(page) for page in export_context.related_pages],
         "view_sync": dict(export_context.view_sync or {}),
+        "module_key": module_key,
+        "module_automation": module_automation,
         "stages": stage_records,
         "stages_file": str(Path(toml_path)),
     }
@@ -2972,6 +3456,8 @@ def build_notebook_document(
                     f"- Export mode: `{export_context.export_mode}`",
                     "- First run `validate_agilab_export()` to check local paths before executing workflow code.",
                     "- Use `run_agilab_stage(i)` or `run_agilab_pipeline()` to execute workflow stages in their recorded runtime.",
+                    "- Disabled/skipped stages and output-skip rules remain enforced by the exported runner helpers.",
+                    "- The selected automation profile is applied; module max_workers is preserved for re-import, while notebook pipeline execution stays sequential.",
                     "- The code cells below stay readable/editable, but they do not replace the recorded per-stage environment.",
                 ]
             ),
@@ -2990,9 +3476,20 @@ def build_notebook_document(
                         f"## Stage {stage['index']}: {stage.get('description') or '(no description)'}",
                         "",
                         f"- Module key: `{stage.get('module')}`",
+                        f"- Stage ID: `{stage.get('stage_id')}`",
+                        f"- Effective profile stage ID: `{stage.get('effective_stage_id')}`",
                         f"- Question: `{stage.get('question') or ''}`",
                         f"- Runtime: `{stage.get('runtime') or 'runpy'}`",
                         f"- Environment root: `{stage.get('env') or '(current kernel / controller default)'}`",
+                        (
+                            "- Dependencies: "
+                            + ", ".join(
+                                f"`{dependency}`"
+                                for dependency in stage.get("effective_depends_on", [])
+                            )
+                            if stage.get("effective_depends_on")
+                            else "- Dependencies: `(none)`"
+                        ),
                         *_stage_notebook_import_context_lines(stage),
                         "",
                         "- Edit the next cell if you want to override the saved stage source.",

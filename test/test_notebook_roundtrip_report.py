@@ -30,6 +30,7 @@ def test_notebook_roundtrip_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["supervisor_stage_count"] == 2
     assert report["summary"]["pipeline_stage_count"] == 2
     assert report["summary"]["lab_stages_round_trip_ok"] is True
+    assert report["summary"]["automation_round_trip_ok"] is True
     assert report["summary"]["env_hint_count"] == 3
     assert report["summary"]["artifact_reference_count"] == 3
     assert Path(report["summary"]["original_lab_stages_path"]).is_file()
@@ -73,3 +74,7 @@ def test_notebook_pipeline_import_reads_supervisor_metadata(tmp_path: Path) -> N
         "runpy",
         "runpy",
     ]
+    assert preview["__meta__"]["notebook_roundtrip_project__automation"] == {
+        "profile": "evidence",
+        "max_workers": 2,
+    }
