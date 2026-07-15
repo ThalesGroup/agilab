@@ -44,6 +44,20 @@ ARTIFACT_SUFFIXES = (
     ".txt",
     ".toml",
 )
+STAGE_EXECUTION_CONTROL_KEYS = (
+    "automation",
+    "enabled",
+    "skip",
+    "skip_if_outputs_exist",
+    "skip_if_outputs_current",
+    "outputs",
+    "output_paths",
+    "inputs",
+    "input_paths",
+    "profiles",
+    "pipeline_profiles",
+    "automation_profiles",
+)
 
 
 def _dump_toml(payload: Mapping[str, Any], stream: Any) -> None:
@@ -681,6 +695,28 @@ def _supervisor_context_text(stage: Mapping[str, Any]) -> str:
     return "\n\n".join(part for part in parts if part)
 
 
+def _supervisor_stage_value(
+    stage: Mapping[str, Any],
+    stage_cell: Mapping[str, Any],
+    key: str,
+    default: Any = None,
+) -> Any:
+    value = stage_cell.get(key)
+    if value not in (None, "", []):
+        return value
+    return stage.get(key, default)
+
+
+def _supervisor_notebook_import_metadata(
+    stage: Mapping[str, Any],
+    stage_cell: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    for candidate in (stage_cell.get("notebook_import"), stage.get("notebook_import")):
+        if isinstance(candidate, Mapping):
+            return candidate
+    return {}
+
+
 def _build_from_supervisor_metadata(
     *,
     notebook: Mapping[str, Any],
@@ -700,7 +736,17 @@ def _build_from_supervisor_metadata(
         stage_order = stage_offset + 1
         source_override = source_overrides.get(stage_offset)
         stage_cell_metadata = source_override.stage_cell_metadata if source_override is not None else {}
-        source_cell_index = source_override.source_cell_index if source_override is not None else stage_order
+        export_source_cell_index = (
+            source_override.source_cell_index if source_override is not None else stage_order
+        )
+        notebook_import_metadata = _supervisor_notebook_import_metadata(
+            stage, stage_cell_metadata
+        )
+        source_cell_index = _coerce_nonnegative_int(
+            notebook_import_metadata.get("source_cell_index")
+        )
+        if source_cell_index is None:
+            source_cell_index = export_source_cell_index
         source = source_override.source if source_override is not None else str(stage.get("code", "") or "")
         if not source.strip():
             continue
@@ -725,15 +771,69 @@ def _build_from_supervisor_metadata(
             runtime_role = normalize_notebook_runtime_role(stage_cell_metadata.get("runtime_role"))
         if not runtime_role:
             runtime_role = normalize_notebook_runtime_role(runtime)
+        explicit_stage_id = bool(
+            _supervisor_stage_value(
+                stage, stage_cell_metadata, "stage_id_explicit", False
+            )
+        )
+        stage_id = str(
+            _supervisor_stage_value(stage, stage_cell_metadata, "stage_id", "") or ""
+        ).strip()
+        if not explicit_stage_id or not stage_id:
+            stage_id = f"supervisor-stage-{stage_order}"
+            explicit_stage_id = False
+        original_context_ids = _string_list(notebook_import_metadata.get("context_ids", []))
+        context_ids = original_context_ids or [context_id]
+        if original_context_ids:
+            context_blocks.pop()
+            existing_context_ids = {
+                str(block.get("id", "") or "") for block in context_blocks
+            }
+            for original_context_id in original_context_ids:
+                if original_context_id in existing_context_ids:
+                    continue
+                context_blocks.append(
+                    {
+                        "id": original_context_id,
+                        "source_cell_index": 0,
+                        "source_lines": context_text.splitlines(keepends=True),
+                        "text": context_text,
+                    }
+                )
+                existing_context_ids.add(original_context_id)
+        raw_execution_count = notebook_import_metadata.get("execution_count")
+        execution_count = _coerce_nonnegative_int(raw_execution_count)
         stage_payload = {
-            "id": f"supervisor-stage-{stage_order}",
+            "id": stage_id,
+            "stage_id_explicit": explicit_stage_id,
+            "source_module": str(
+                _supervisor_stage_value(
+                    stage, stage_cell_metadata, "module", ""
+                )
+                or ""
+            ),
+            "source_module_index": _coerce_nonnegative_int(
+                _supervisor_stage_value(
+                    stage, stage_cell_metadata, "module_index"
+                )
+            ),
+            "source_stage_fingerprint": str(
+                _supervisor_stage_value(
+                    stage,
+                    stage_cell_metadata,
+                    "source_stage_fingerprint",
+                    "",
+                )
+                or ""
+            ),
             "order": len(pipeline_stages) + 1,
             "source_cell_index": source_cell_index,
+            "export_source_cell_index": export_source_cell_index,
             "cell_type": "code",
-            "execution_count": None,
+            "execution_count": execution_count,
             "source_lines": source.splitlines(keepends=True),
             "source_hash": _hash_source(source),
-            "context_ids": [context_id],
+            "context_ids": context_ids,
             "env_hints": env_hints,
             "artifact_references": artifact_references,
             "runnable": True,
@@ -742,6 +842,22 @@ def _build_from_supervisor_metadata(
             "model": str(stage.get("model", "") or ""),
             "runtime": runtime,
             "env": env,
+            "label": str(
+                _supervisor_stage_value(stage, stage_cell_metadata, "label", "") or ""
+            ),
+            "kind": str(
+                _supervisor_stage_value(stage, stage_cell_metadata, "stage_kind", "")
+                or stage.get("kind", "")
+                or ""
+            ),
+            "depends_on": _string_list(
+                _supervisor_stage_value(
+                    stage, stage_cell_metadata, "depends_on", []
+                )
+            ),
+            "produces": _string_list(
+                _supervisor_stage_value(stage, stage_cell_metadata, "produces", [])
+            ),
             "pipeline_mapping": {
                 "format": "lab_stages.toml-preview",
                 "description_field": "D",
@@ -752,6 +868,25 @@ def _build_from_supervisor_metadata(
                 "environment_field": "E",
             },
         }
+        for key in STAGE_EXECUTION_CONTROL_KEYS:
+            value = _supervisor_stage_value(
+                stage, stage_cell_metadata, key, None
+            )
+            if value is not None:
+                stage_payload[key] = copy.deepcopy(value)
+        original_cell_id = str(notebook_import_metadata.get("cell_id", "") or "")
+        if original_cell_id:
+            stage_payload["notebook_cell_id"] = original_cell_id
+        original_execution_mode = str(
+            notebook_import_metadata.get("execution_mode", "") or ""
+        )
+        if original_execution_mode:
+            stage_payload["notebook_execution_mode"] = original_execution_mode
+        original_source_notebook = str(
+            notebook_import_metadata.get("source_notebook", "") or ""
+        )
+        if original_source_notebook:
+            stage_payload["notebook_source_notebook"] = original_source_notebook
         if runtime_role:
             stage_payload["runtime_role"] = runtime_role
         pipeline_stages.append(stage_payload)
@@ -792,11 +927,19 @@ def _build_from_supervisor_metadata(
             "context_block_count": len(context_blocks),
             "env_hint_count": len(env_hints_unique),
             "artifact_reference_count": len(all_artifact_references),
-            "execution_count_present_count": 0,
+            "execution_count_present_count": sum(
+                1 for stage in pipeline_stages if stage.get("execution_count") is not None
+            ),
             "stage_ids": [stage["id"] for stage in pipeline_stages],
             "context_ids": [block["id"] for block in context_blocks],
         },
         "pipeline_stages": pipeline_stages,
+        "module_key": str(payload.get("module_key", "") or ""),
+        "module_automation": (
+            copy.deepcopy(payload.get("module_automation", {}))
+            if isinstance(payload.get("module_automation", {}), Mapping)
+            else {}
+        ),
         "context_blocks": context_blocks,
         "env_hints": env_hints_unique,
         "artifact_references": all_artifact_references,
@@ -809,6 +952,8 @@ def _build_from_supervisor_metadata(
             "extracts_environment_hints": True,
             "extracts_artifact_references": True,
             "preserves_lab_stages_fields": True,
+            "preserves_stage_graph": True,
+            "preserves_notebook_import_lineage": True,
         },
     }
 
@@ -1002,7 +1147,7 @@ def build_lab_stages_preview(
     notebook_import: Mapping[str, Any],
     *,
     module_name: str = "notebook_import_project",
-) -> dict[str, list[dict[str, Any]]]:
+) -> dict[str, Any]:
     """Project imported notebook metadata into AGILAB lab_stages TOML entries."""
     module_name = str(module_name or "lab_stages")
     contexts = _context_lookup(notebook_import)
@@ -1027,6 +1172,15 @@ def build_lab_stages_preview(
             for context_id in stage.get("context_ids", [])
             if str(context_id)
         ]
+        stage_execution_mode = str(
+            stage.get("notebook_execution_mode", "") or execution_mode
+        )
+        stage_source_notebook = str(
+            stage.get("notebook_source_notebook", "") or source_notebook
+        )
+        notebook_cell_id = str(
+            stage.get("notebook_cell_id", "") or stage.get("id", "")
+        )
         entry: dict[str, Any] = {
             "D": str(stage.get("description", "") or "")
             or _context_summary(context_ids, contexts),
@@ -1034,14 +1188,43 @@ def build_lab_stages_preview(
             or _default_imported_stage_question(stage),
             "C": code,
             "M": str(stage.get("model", "") or ""),
-            "NB_CELL_ID": str(stage.get("id", "")),
+            "NB_CELL_ID": notebook_cell_id,
             "NB_CELL_INDEX": int(stage.get("source_cell_index", 0) or 0),
             "NB_CONTEXT_IDS": context_ids,
             "NB_ENV_HINTS": _stage_env_hints(stage),
             "NB_ARTIFACT_REFERENCES": _artifact_paths(stage),
-            "NB_EXECUTION_MODE": execution_mode,
-            "NB_SOURCE_NOTEBOOK": source_notebook,
+            "NB_EXECUTION_MODE": stage_execution_mode,
+            "NB_SOURCE_NOTEBOOK": stage_source_notebook,
         }
+        source_module = str(stage.get("source_module", "") or "").strip()
+        if source_module:
+            entry["NB_SOURCE_MODULE"] = source_module
+        source_module_index = _coerce_nonnegative_int(
+            stage.get("source_module_index")
+        )
+        if source_module_index is not None:
+            entry["NB_SOURCE_MODULE_INDEX"] = source_module_index
+        source_stage_fingerprint = str(
+            stage.get("source_stage_fingerprint", "") or ""
+        ).strip()
+        if source_stage_fingerprint:
+            entry["NB_SOURCE_STAGE_FINGERPRINT"] = source_stage_fingerprint
+        if bool(stage.get("stage_id_explicit", False)):
+            stage_id = str(stage.get("id", "") or "").strip()
+            if stage_id:
+                entry["id"] = stage_id
+        label = str(stage.get("label", "") or "")
+        if label:
+            entry["label"] = label
+        kind = str(stage.get("kind", "") or "")
+        if kind:
+            entry["kind"] = kind
+        depends_on = _string_list(stage.get("depends_on", []))
+        if depends_on:
+            entry["depends_on"] = depends_on
+        produces = _string_list(stage.get("produces", []))
+        if produces:
+            entry["produces"] = produces
         runtime_role = normalize_notebook_runtime_role(stage.get("runtime_role"))
         if runtime_role:
             entry["NB_RUNTIME_ROLE"] = runtime_role
@@ -1054,8 +1237,17 @@ def build_lab_stages_preview(
         env = str(stage.get("env", "") or "")
         if env:
             entry["E"] = env
+        for key in STAGE_EXECUTION_CONTROL_KEYS:
+            if key in stage:
+                entry[key] = copy.deepcopy(stage[key])
         entries.append(entry)
-    return {module_name: entries}
+    result: dict[str, Any] = {module_name: entries}
+    module_automation = notebook_import.get("module_automation", {})
+    if isinstance(module_automation, Mapping) and module_automation:
+        result["__meta__"] = {
+            f"{module_name}__automation": copy.deepcopy(dict(module_automation))
+        }
+    return result
 
 
 def build_notebook_artifact_contract(notebook_import: Mapping[str, Any]) -> dict[str, Any]:
@@ -1213,8 +1405,15 @@ def build_notebook_import_contract(
         contract_stages.append(
             {
                 "id": str(stage.get("id", "") or ""),
+                "stage_id_explicit": bool(stage.get("stage_id_explicit", False)),
+                "source_module": str(stage.get("source_module", "") or ""),
                 "order": int(stage.get("order", 0) or 0),
                 "source_cell_index": int(stage.get("source_cell_index", 0) or 0),
+                "notebook_cell_id": str(stage.get("notebook_cell_id", "") or ""),
+                "label": str(stage.get("label", "") or ""),
+                "kind": str(stage.get("kind", "") or ""),
+                "depends_on": _string_list(stage.get("depends_on", [])),
+                "produces": _string_list(stage.get("produces", [])),
                 "description": str(stage.get("description", "") or ""),
                 "question": str(stage.get("question", "") or ""),
                 "context_ids": list(stage.get("context_ids", []) or []),
@@ -1347,6 +1546,8 @@ def build_notebook_import_pipeline_view(
         )
 
     stage_node_ids: list[str] = []
+    stage_node_by_id: dict[str, str] = {}
+    dependency_edges: list[tuple[str, str]] = []
     stages = notebook_import.get("pipeline_stages", [])
     for stage in stages if isinstance(stages, list) else []:
         if not isinstance(stage, dict):
@@ -1356,6 +1557,11 @@ def build_notebook_import_pipeline_view(
             continue
         node_id = _safe_node_id("cell", stage_id)
         stage_node_ids.append(node_id)
+        stage_node_by_id[stage_id] = node_id
+        dependency_edges.extend(
+            (dependency, stage_id)
+            for dependency in _string_list(stage.get("depends_on", []))
+        )
         context_ids = [str(context_id) for context_id in stage.get("context_ids", []) if str(context_id)]
         label = (
             str(stage.get("description", "") or "")
@@ -1372,6 +1578,10 @@ def build_notebook_import_pipeline_view(
                 "role": "pipeline_stage",
                 "source_cell_index": int(stage.get("source_cell_index", 0) or 0),
                 "source_cell_id": stage_id,
+                "stage_id_explicit": bool(stage.get("stage_id_explicit", False)),
+                "stage_kind": str(stage.get("kind", "") or ""),
+                "depends_on": _string_list(stage.get("depends_on", [])),
+                "produces": _string_list(stage.get("produces", [])),
                 "context_ids": context_ids,
                 "env_hints": _stage_env_hints(stage),
                 "artifact_references": artifact_paths,
@@ -1405,6 +1615,12 @@ def build_notebook_import_pipeline_view(
                 add_edge(artifact_node_id, node_id, "artifact_input", artifact=path)
             if role in {"output", "input_output", "unknown"}:
                 add_edge(node_id, artifact_node_id, "artifact_output", artifact=path)
+
+    for dependency_id, stage_id in dependency_edges:
+        dependency_node_id = stage_node_by_id.get(dependency_id)
+        stage_node_id = stage_node_by_id.get(stage_id)
+        if dependency_node_id and stage_node_id:
+            add_edge(dependency_node_id, stage_node_id, "depends_on")
 
     analysis_consumes: list[str] = []
     if isinstance(artifact_contract, dict):

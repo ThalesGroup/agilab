@@ -92,6 +92,8 @@ notebook_export_json_text = _notebook_export_support_module.notebook_export_json
 notebook_export_handoff_path = _notebook_export_support_module.notebook_export_handoff_path
 notebook_export_manifest_path = _notebook_export_support_module.notebook_export_manifest_path
 verify_notebook_export_manifest = _notebook_export_support_module.verify_notebook_export_manifest
+notebook_view_sync_status = _notebook_export_support_module.notebook_view_sync_status
+notebook_stage_fingerprint = _notebook_export_support_module.notebook_stage_fingerprint
 pycharm_notebook_mirror_path = _notebook_export_support_module.pycharm_notebook_mirror_path
 pycharm_notebook_sitecustomize_text = _notebook_export_support_module.pycharm_notebook_sitecustomize_text
 
@@ -114,6 +116,7 @@ write_notebook_import_view_plan = _notebook_pipeline_import_module.write_noteboo
 
 logger = logging.getLogger(__name__)
 NOTEBOOK_IMPORT_ALL_CELLS = "__all__"
+NOTEBOOK_IMPORT_WRITE_MODES = frozenset({"merge", "replace"})
 NOTEBOOK_IMPORT_RUNTIME_ROLE_LABELS = {
     "": "Select runtime role",
     "manager": "Manager (local runpy)",
@@ -563,11 +566,314 @@ def _notebook_import_string_list(value: Any, limit: int = 5) -> str:
     return ", ".join(visible) + suffix
 
 
-def _notebook_import_toml_preview_text(preview: Dict[str, Any]) -> str:
+def _notebook_import_target_signature(stages_file: Path) -> str:
+    path = Path(stages_file)
+    if not path.exists():
+        return "missing"
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _notebook_stage_identity(entry: Any) -> str:
+    if not isinstance(entry, Mapping):
+        return ""
+    return str(entry.get("id") or entry.get("stage_id") or "").strip()
+
+
+def _notebook_stage_dependencies(entry: Any) -> list[str]:
+    if not isinstance(entry, Mapping):
+        return []
+    raw = entry.get("deps", entry.get("depends_on", entry.get("dependencies", [])))
+    if isinstance(raw, str):
+        return [raw.strip()] if raw.strip() else []
+    if isinstance(raw, Iterable) and not isinstance(raw, Mapping):
+        return [str(item).strip() for item in raw if str(item).strip()]
+    return []
+
+
+def _notebook_stage_source_position(entry: Any) -> tuple[str, int] | None:
+    if not isinstance(entry, Mapping):
+        return None
+    source_module = str(entry.get("NB_SOURCE_MODULE", "") or "").strip()
+    raw_index = entry.get("NB_SOURCE_MODULE_INDEX")
+    if not source_module or not isinstance(raw_index, int) or isinstance(raw_index, bool):
+        return None
+    return source_module, raw_index
+
+
+def _notebook_import_is_same_origin(preview: Mapping[str, Any]) -> bool:
+    notebook_import = preview.get("notebook_import", {})
+    if not isinstance(notebook_import, Mapping):
+        return False
+    source = notebook_import.get("source", {})
+    if not isinstance(source, Mapping):
+        return False
+    source_project = str(source.get("project_name", "") or "").strip()
+    target_project = str(preview.get("target_project_name", "") or "").strip()
+    if (
+        source.get("import_mode") != "agilab_supervisor_metadata"
+        or not source_project
+        or source_project != target_project
+    ):
+        return False
+    stages = notebook_import.get("pipeline_stages", [])
+    source_modules = {
+        str(stage.get("source_module", "") or "").strip()
+        for stage in stages
+        if isinstance(stage, Mapping) and str(stage.get("source_module", "") or "").strip()
+    }
+    return bool(source_modules) and source_modules == {
+        str(preview.get("module", "") or "").strip()
+    }
+
+
+def _merge_notebook_import_stage_entries(
+    current_entries: list[Any],
+    imported_entries: list[Any],
+    *,
+    allow_upsert: bool,
+    module_key: str,
+) -> list[Any]:
+    """Append imported stages, or safely update verified same-origin stages."""
+    merged = copy.deepcopy(current_entries)
+    existing_by_id: dict[str, int] = {}
+    duplicate_ids: set[str] = set()
+    for index, entry in enumerate(merged):
+        stage_id = _notebook_stage_identity(entry)
+        if not stage_id:
+            continue
+        if stage_id in existing_by_id:
+            duplicate_ids.add(stage_id)
+        else:
+            existing_by_id[stage_id] = index
+    used_source_positions: set[tuple[str, int]] = set()
+    for imported_entry in imported_entries:
+        imported_copy = copy.deepcopy(imported_entry)
+        imported_id = _notebook_stage_identity(imported_copy)
+        if imported_id and imported_id in existing_by_id:
+            if imported_id in duplicate_ids:
+                raise ValueError(
+                    f"Cannot import stage {imported_id!r}: module {module_key!r} "
+                    "already contains duplicate matching stage IDs."
+                )
+            if not allow_upsert:
+                raise ValueError(
+                    f"Notebook stage ID {imported_id!r} collides with an existing stage in "
+                    f"module {module_key!r}. Only a verified same-project supervisor "
+                    "round-trip can update a stage by ID."
+                )
+            index = existing_by_id[imported_id]
+            current_entry = merged[index]
+            updated = dict(current_entry) if isinstance(current_entry, dict) else {}
+            updated.update(imported_copy)
+            merged[index] = updated
+            continue
+        source_position = _notebook_stage_source_position(imported_copy)
+        if not imported_id and allow_upsert and source_position is not None:
+            # ID-less stages need a compound identity: module + export-time index
+            # selects the candidate, while the semantic fingerprint (including
+            # source and dependencies) proves the persisted target did not drift.
+            # The imported notebook source may differ intentionally; it is the
+            # replacement payload and is applied only after this target-side check.
+            source_module, source_index = source_position
+            if source_position in used_source_positions:
+                raise ValueError(
+                    "Cannot import notebook stages: duplicate source position "
+                    f"{source_module}[{source_index}]."
+                )
+            used_source_positions.add(source_position)
+            if source_module != module_key:
+                raise ValueError(
+                    f"Cannot positionally update module {module_key!r} from notebook "
+                    f"module {source_module!r}."
+                )
+            if not 0 <= source_index < len(merged):
+                raise ValueError(
+                    f"Cannot positionally update notebook stage {source_module}[{source_index}]: "
+                    "the original stage no longer exists. Refresh the export or add an explicit stage ID."
+                )
+            current_entry = merged[source_index]
+            current_id = _notebook_stage_identity(current_entry)
+            if current_id:
+                raise ValueError(
+                    f"Cannot positionally update notebook stage {source_module}[{source_index}]: "
+                    f"the current stage now has explicit ID {current_id!r}. Refresh the export."
+                )
+            expected_fingerprint = str(
+                imported_copy.get("NB_SOURCE_STAGE_FINGERPRINT", "") or ""
+            ).strip()
+            if not expected_fingerprint:
+                raise ValueError(
+                    f"Cannot positionally update notebook stage {source_module}[{source_index}]: "
+                    "the export has no stage identity fingerprint. Refresh the export or add an explicit stage ID."
+                )
+            current_fingerprint = notebook_stage_fingerprint(
+                module_key,
+                source_index,
+                current_entry,
+            )
+            if current_fingerprint != expected_fingerprint:
+                raise ValueError(
+                    f"Cannot positionally update notebook stage {source_module}[{source_index}]: "
+                    "the current stage no longer matches the exported stage identity. Refresh the export."
+                )
+            updated = dict(current_entry) if isinstance(current_entry, dict) else {}
+            updated.update(imported_copy)
+            merged[source_index] = updated
+            continue
+        if not imported_id and allow_upsert:
+            raise ValueError(
+                "Cannot safely update an ID-less same-project notebook stage without "
+                "a verified source module, position, and stage identity fingerprint. "
+                "Refresh the export or add an explicit stage ID."
+            )
+        if imported_id:
+            existing_by_id[imported_id] = len(merged)
+        merged.append(imported_copy)
+    return merged
+
+
+def _validate_notebook_import_dependencies(
+    imported: Mapping[str, Any],
+    persisted: Mapping[str, Any],
+) -> None:
+    for module_key, imported_entries in imported.items():
+        if module_key == "__meta__" or not isinstance(imported_entries, list):
+            continue
+        persisted_entries = persisted.get(module_key, [])
+        if not isinstance(persisted_entries, list):
+            continue
+        identities: dict[str, int] = {}
+        dependencies_by_id: dict[str, list[str]] = {}
+        for index, entry in enumerate(persisted_entries):
+            stage_id = _notebook_stage_identity(entry)
+            dependencies = _notebook_stage_dependencies(entry)
+            if not stage_id:
+                if dependencies:
+                    raise ValueError(
+                        f"Stage {index + 1} in module {module_key!r} declares dependencies "
+                        "but has no explicit stage ID."
+                    )
+                continue
+            if stage_id in identities:
+                raise ValueError(
+                    f"Duplicate workflow stage ID {stage_id!r} in module {module_key!r} "
+                    f"on stages {identities[stage_id] + 1} and {index + 1}."
+                )
+            identities[stage_id] = index
+            dependencies_by_id[stage_id] = list(dict.fromkeys(dependencies))
+
+        available_ids = set(identities)
+        for stage_id, dependencies in dependencies_by_id.items():
+            missing = [dependency for dependency in dependencies if dependency not in available_ids]
+            if missing:
+                raise ValueError(
+                    f"Imported stage {stage_id!r} depends on missing stage ID(s): "
+                    f"{', '.join(missing)}. Import its prerequisites or add them first."
+                )
+
+        completed: set[str] = set()
+        remaining = list(dependencies_by_id)
+        while remaining:
+            ready = [
+                stage_id
+                for stage_id in remaining
+                if all(
+                    dependency in completed
+                    for dependency in dependencies_by_id[stage_id]
+                )
+            ]
+            if not ready:
+                raise ValueError(
+                    "Workflow stage dependencies contain a cycle or self-dependency in "
+                    f"module {module_key!r}: {', '.join(remaining)}."
+                )
+            for stage_id in ready:
+                remaining.remove(stage_id)
+                completed.add(stage_id)
+
+
+def _notebook_import_content_for_write(
+    preview: Dict[str, Any],
+    stages_file: Path,
+    *,
+    write_mode: str | None = None,
+) -> Dict[str, Any]:
+    mode = str(write_mode or preview.get("write_mode", "merge") or "merge")
+    if mode not in NOTEBOOK_IMPORT_WRITE_MODES:
+        raise ValueError(
+            f"Unsupported notebook import write mode {mode!r}; "
+            f"expected one of {sorted(NOTEBOOK_IMPORT_WRITE_MODES)}."
+        )
     toml_content = preview.get("toml_content", {})
     if not isinstance(toml_content, dict):
-        return ""
-    prepared = _prepare_lab_stages_for_write(copy.deepcopy(toml_content))
+        raise TypeError("Notebook import preview TOML content must be a mapping.")
+    imported = copy.deepcopy(toml_content)
+    if mode == "replace" or not Path(stages_file).exists():
+        prepared = _prepare_lab_stages_for_write(imported)
+        _validate_notebook_import_dependencies(imported, prepared)
+        return prepared
+
+    with Path(stages_file).open("rb") as stream:
+        current = tomllib.load(stream)
+    merged = copy.deepcopy(current)
+    for key, imported_value in imported.items():
+        if key == "__meta__" and isinstance(imported_value, dict):
+            current_meta = merged.get("__meta__", {})
+            meta = dict(current_meta) if isinstance(current_meta, dict) else {}
+            meta.update(copy.deepcopy(imported_value))
+            merged["__meta__"] = meta
+        elif isinstance(imported_value, list):
+            current_entries = merged.get(key, [])
+            if current_entries is not None and not isinstance(current_entries, list):
+                raise ValueError(
+                    f"Cannot merge notebook stages into non-list TOML key {key!r}."
+                )
+            previous_count = len(current_entries or [])
+            merged_entries = _merge_notebook_import_stage_entries(
+                list(current_entries or []),
+                imported_value,
+                allow_upsert=_notebook_import_is_same_origin(preview),
+                module_key=str(key),
+            )
+            merged[key] = merged_entries
+            meta = merged.get("__meta__", {})
+            sequence_key = f"{key}__sequence"
+            if isinstance(meta, dict) and isinstance(meta.get(sequence_key), list):
+                sequence = [
+                    index
+                    for index in meta[sequence_key]
+                    if isinstance(index, int)
+                    and not isinstance(index, bool)
+                    and 0 <= index < len(merged_entries)
+                ]
+                sequence.extend(
+                    index
+                    for index in range(previous_count, len(merged_entries))
+                    if index not in sequence
+                )
+                meta[sequence_key] = sequence
+        elif key not in merged:
+            merged[key] = copy.deepcopy(imported_value)
+    prepared = _prepare_lab_stages_for_write(merged)
+    _validate_notebook_import_dependencies(imported, prepared)
+    return prepared
+
+
+def _notebook_import_toml_preview_text(
+    preview: Dict[str, Any],
+    stages_file: Path | None = None,
+    *,
+    write_mode: str | None = None,
+) -> str:
+    if stages_file is None:
+        toml_content = preview.get("toml_content", {})
+        if not isinstance(toml_content, dict):
+            return ""
+        prepared = _prepare_lab_stages_for_write(copy.deepcopy(toml_content))
+    else:
+        prepared = _notebook_import_content_for_write(
+            preview, stages_file, write_mode=write_mode
+        )
     return tomli_w.dumps(convert_paths_to_strings(prepared))
 
 
@@ -588,7 +894,14 @@ def _notebook_import_write_preview_text(
         _notebook_import_stage_identity(stage, index)
         for index, stage in enumerate(_notebook_import_stages(preview), start=1)
     ]
-    proposed_text = _notebook_import_toml_preview_text(preview)
+    try:
+        proposed_text = _notebook_import_toml_preview_text(preview, stages_file)
+    except (OSError, TypeError, ValueError, tomllib.TOMLDecodeError) as exc:
+        return (
+            "Notebook import cannot be written yet.\n\n"
+            f"Reason: {exc}\n\n"
+            "Resolve the collision or missing dependency, then refresh the preview."
+        )
     try:
         current_text = Path(stages_file).read_text(encoding="utf-8")
     except OSError:
@@ -709,6 +1022,10 @@ def _notebook_import_blocking_detail(preflight: Any) -> str:
 def build_notebook_import_preview(
     uploaded_file: Any,
     module_dir: Path,
+    *,
+    stages_file: Path | None = None,
+    module_name: str | None = None,
+    target_project_name: str | None = None,
 ) -> Dict[str, Any] | None:
     """Build notebook import preview data without writing lab_stages.toml."""
     if not uploaded_file:
@@ -727,7 +1044,7 @@ def build_notebook_import_preview(
         _emit_streamlit_message("error", "Invalid notebook format: expected a JSON object.")
         return None
 
-    module = _notebook_import_module_name(module_dir)
+    module = str(module_name or "").strip() or _notebook_import_module_name(module_dir)
     source_name = str(getattr(uploaded_file, "name", "") or "uploaded.ipynb")
     try:
         notebook_import = build_notebook_pipeline_import(
@@ -744,7 +1061,7 @@ def build_notebook_import_preview(
     except (TypeError, ValueError) as exc:
         _emit_streamlit_message("error", f"Invalid notebook format: {exc}")
         return None
-    return {
+    preview = {
         "source_name": source_name,
         "source_signature": hashlib.sha256(file_content.encode("utf-8")).hexdigest()[:16],
         "module": module,
@@ -753,7 +1070,22 @@ def build_notebook_import_preview(
         "notebook_import": notebook_import,
         "preflight": preflight,
         "contract": contract,
+        "write_mode": "merge",
+        "target_project_name": str(
+            target_project_name or Path(module_dir).name or ""
+        ),
     }
+    if stages_file is not None:
+        try:
+            preview["target_stages_signature"] = _notebook_import_target_signature(
+                Path(stages_file)
+            )
+        except OSError as exc:
+            _emit_streamlit_message(
+                "error", f"Unable to inspect the current stage contract: {exc}"
+            )
+            return None
+    return preview
 
 
 def write_notebook_import_preview(
@@ -762,11 +1094,22 @@ def write_notebook_import_preview(
     stages_file: Path,
     *,
     view_manifest_dir: Path | None = None,
+    write_mode: str | None = None,
 ) -> int:
     """Persist a previously built notebook import preview."""
     module_dir = Path(module_dir)
     stages_file = Path(stages_file)
-    toml_content = preview.get("toml_content", {})
+    expected_signature = preview.get("target_stages_signature")
+    if expected_signature is not None:
+        current_signature = _notebook_import_target_signature(stages_file)
+        if current_signature != str(expected_signature):
+            raise ValueError(
+                "lab_stages.toml changed after the notebook import preview was built; "
+                "review the refreshed diff before importing."
+            )
+    toml_content = _notebook_import_content_for_write(
+        preview, stages_file, write_mode=write_mode
+    )
     preflight = preview.get("preflight", {})
     notebook_import = preview.get("notebook_import", {})
     module = str(preview.get("module", "") or _notebook_import_module_name(module_dir))
@@ -794,7 +1137,7 @@ def write_notebook_import_preview(
     replaced_any = False
     try:
         with open(temp_stages_file, "wb") as toml_file:
-            tomli_w.dump(convert_paths_to_strings(_prepare_lab_stages_for_write(toml_content)), toml_file)
+            tomli_w.dump(convert_paths_to_strings(toml_content), toml_file)
         write_notebook_import_contract(
             temp_contract_path,
             notebook_import,
@@ -1303,17 +1646,61 @@ def _write_pycharm_sitecustomize(notebook_path: Path) -> None:
     _atomic_write_text(sitecustomize_path, pycharm_notebook_sitecustomize_text())
 
 
+def _notebook_export_overwrite_blocker(
+    notebook_paths: Iterable[Path | None],
+) -> tuple[Path, str] | None:
+    seen: set[Path] = set()
+    for raw_path in notebook_paths:
+        if raw_path is None:
+            continue
+        path = Path(raw_path)
+        if path in seen or not path.exists():
+            continue
+        seen.add(path)
+        try:
+            status = notebook_view_sync_status(path)
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.warning(
+                "Preserving unreadable notebook export %s: %s",
+                path,
+                bound_log_value(exc, LOG_DETAIL_LIMIT),
+            )
+            return path, "Notebook verification could not read this export, so it was treated as unverified."
+        state = str(status.get("state", "unverified") or "unverified")
+        if state in {"notebook_changed", "both_changed", "unverified"}:
+            return path, str(status.get("summary", "") or "Notebook edits were detected.")
+    return None
+
+
 def toml_to_notebook(
     toml_data: Dict[str, Any],
     toml_path: Path,
     export_context: Any | None = None,
-) -> None:
-    """Convert TOML stage data to a Jupyter notebook file."""
-    notebook_data = build_notebook_document(toml_data, toml_path, export_context=export_context)
+    *,
+    force: bool = False,
+) -> Path | None:
+    """Convert TOML stages to a notebook without overwriting edited exports."""
     notebook_path = toml_path.with_suffix(".ipynb")
     pycharm_path = resolve_pycharm_notebook_path(toml_path, export_context=export_context)
     sitecustomize_path = pycharm_path.parent / "sitecustomize.py" if pycharm_path is not None else None
+    blocker = None if force else _notebook_export_overwrite_blocker((notebook_path, pycharm_path))
+    if blocker is not None:
+        edited_path, detail = blocker
+        _emit_streamlit_message(
+            "warning",
+            (
+                f"Preserved edited notebook export at {edited_path}. {detail} "
+                "Re-import its edited stage cells before regenerating the export."
+            ),
+        )
+        return notebook_path if notebook_path.exists() else None
+
     try:
+        notebook_data = build_notebook_document(
+            toml_data,
+            toml_path,
+            export_context=export_context,
+        )
         _write_notebook_json(
             notebook_data,
             notebook_path,
@@ -1326,10 +1713,10 @@ def toml_to_notebook(
             "Error saving notebook in toml_to_notebook: %s",
             bound_log_value(e, LOG_DETAIL_LIMIT),
         )
-        return
+        return None
 
     if pycharm_path is None:
-        return
+        return notebook_path
     if pycharm_path != notebook_path:
         try:
             _write_notebook_json(
@@ -1340,11 +1727,12 @@ def toml_to_notebook(
             )
         except (OSError, TypeError, ValueError) as exc:
             logger.warning("Unable to write PyCharm notebook mirror %s: %s", pycharm_path, exc)
-            return
+            return notebook_path
     try:
         _write_pycharm_sitecustomize(pycharm_path)
     except (OSError, TypeError, ValueError) as exc:
         logger.warning("Unable to write PyCharm notebook sitecustomize for %s: %s", pycharm_path, exc)
+    return notebook_path
 
 
 def save_query(
@@ -1569,6 +1957,9 @@ def on_preview_notebook_import(
     module_dir: Path,
     index_page: str,
     view_manifest_dir: Path | None = None,
+    stages_file: Path | None = None,
+    module_name: str | None = None,
+    target_project_name: str | None = None,
 ) -> None:
     """Build a notebook import preview from the sidebar uploader without writing files."""
     uploaded_file = st.session_state.get(key)
@@ -1581,7 +1972,13 @@ def on_preview_notebook_import(
         st.session_state.pop(preview_key, None)
         return
 
-    preview = build_notebook_import_preview(uploaded_file, module_dir)
+    preview = build_notebook_import_preview(
+        uploaded_file,
+        module_dir,
+        stages_file=stages_file,
+        module_name=module_name,
+        target_project_name=target_project_name,
+    )
     if preview is None:
         st.session_state.pop(preview_key, None)
         return
@@ -1772,6 +2169,8 @@ def render_notebook_import_preview(
 def refresh_notebook_export(
     stages_file: Path,
     export_context: Any | None = None,
+    *,
+    force: bool = False,
 ) -> Path | None:
     """Rebuild the notebook export for a given stage contract and return its path."""
     if not stages_file.exists():
@@ -1786,8 +2185,13 @@ def refresh_notebook_export(
         )
         logger.error("Unable to load stage contract %s for notebook export: %s", stages_file, exc)
         return None
-    toml_to_notebook(stages, stages_file, export_context=export_context)
-    return stages_file.with_suffix(".ipynb")
+    result = toml_to_notebook(
+        stages,
+        stages_file,
+        export_context=export_context,
+        force=force,
+    )
+    return result
 
 
 def on_import_notebook(

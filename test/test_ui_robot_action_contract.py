@@ -73,6 +73,7 @@ def test_ui_robot_action_contract_passes_for_current_ui_surface() -> None:
     assert "Export" not in actions_by_label
     assert actions_by_label["Apply"]["disposition"] == "trial-only"
     assert actions_by_label["Overwrite"]["disposition"] == "ignored"
+    assert actions_by_label["Overwrite notebook exports from current stages"]["disposition"] == "trial-only"
     assert actions_by_label["Rebuild Universal Offline knowledge base"]["disposition"] == "ignored"
     assert actions_by_label["Reset"]["disposition"] == "trial-only"
     assert actions_by_label["Train / refresh"]["disposition"] == "trial-only"
