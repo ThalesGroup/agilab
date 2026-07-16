@@ -240,11 +240,6 @@ _ANALYSIS_VIEW_PROFILES = {
         "Compare training runs, metrics, tags, and learning curves.",
         "Use after SB3, GA, or PPO training produces run artifacts.",
     ),
-    "view_inference_analysis": (
-        "Inference evidence",
-        "Inspect routed demand, latency, bearer mix, and delivered traffic.",
-        "Use after inference or network simulation exports allocations.",
-    ),
     "view_live_artifacts": (
         "Live artifacts",
         "Watch manifests, logs, exported evidence, and lightweight files while a run is producing output.",
