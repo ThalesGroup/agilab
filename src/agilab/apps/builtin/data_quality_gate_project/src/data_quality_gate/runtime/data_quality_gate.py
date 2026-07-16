@@ -19,8 +19,6 @@ from .app_args import (
     filter_arg_overrides,
     load_args,
     merge_args,
-    safe_reset_path,
-    share_root_from_env,
 )
 
 logger = logging.getLogger(__name__)
@@ -57,9 +55,29 @@ class DataQualityGate(BaseWorker):
         except ValueError as exc:
             raise ValueError(f"Invalid DataQualityGate data_out path: {exc}") from exc
 
-        if self.args.reset_target and self.data_out.exists():
-            reset_path = safe_reset_path(self.data_out, share_root=share_root_from_env(env), label="data_out")
-            shutil.rmtree(reset_path, ignore_errors=True, onerror=WorkDispatcher._onerror)
+        resolve_input = getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
+        protected_inputs: list[Path] = []
+        for value in (
+            self.args.baseline_csv,
+            self.args.candidate_csv,
+            self.args.contract_json,
+            self.args.thresholds_json,
+        ):
+            if value is None:
+                continue
+            protected_path = Path(value).expanduser()
+            protected_path = Path(resolve_input(protected_path))
+            protected_inputs.append(protected_path)
+
+        if self.args.reset_target:
+            reset_path = self._safe_share_reset_path(
+                env,
+                self.data_out,
+                protected_paths=protected_inputs,
+                label="data_out",
+            )
+            if reset_path.exists():
+                shutil.rmtree(reset_path, ignore_errors=True, onerror=WorkDispatcher._onerror)
         self.data_out.mkdir(parents=True, exist_ok=True)
         self.analysis_artifact_dir.mkdir(parents=True, exist_ok=True)
 

@@ -75,6 +75,72 @@ def _feature_scalar(value: Any) -> Any:
     return value
 
 
+_CAPACITY_UPDATE_FEATURES = (
+    "ram_total",
+    "ram_available",
+    "cpu_count",
+    "cpu_frequency",
+    "network_speed",
+    "label",
+)
+
+
+def _positive_feature_scalar(value: Any) -> float | None:
+    try:
+        number = float(_feature_scalar(value))
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(number) or number <= 0:
+        return None
+    return number
+
+
+def _capacity_update_row(
+    agi_cls: Any,
+    worker: str,
+    info: Any,
+    run_time: Any,
+) -> dict[str, Any] | None:
+    if not isinstance(info, Mapping):
+        logger.warning(
+            "Skipping capacity update for %s: worker feature row is missing.",
+            worker,
+        )
+        return None
+
+    host = _worker_host(worker)
+    worker_count = _worker_count_for_host(agi_cls._workers, host)
+    if worker_count is None or worker_count <= 0:
+        logger.warning(
+            "Skipping capacity update for %s: host %s is absent from worker config or has no workers.",
+            worker,
+            host,
+        )
+        return None
+
+    row: dict[str, Any] = {"nb_workers": worker_count}
+    for feature in _CAPACITY_UPDATE_FEATURES:
+        value = _positive_feature_scalar(info.get(feature))
+        if value is None:
+            logger.warning(
+                "Skipping capacity update for %s: feature %s is missing, non-finite, or non-positive.",
+                worker,
+                feature,
+            )
+            return None
+        row[feature] = value
+
+    runtime_value = _positive_feature_scalar(run_time)
+    if runtime_value is None:
+        logger.warning(
+            "Skipping capacity update for %s: run_time is missing, non-finite, or non-positive.",
+            worker,
+        )
+        return None
+    row["run_time"] = runtime_value
+    return row
+
+
 def _benchmark_result_or_raise(run: Any, *, mode: int | str, variant: str) -> str:
     if isinstance(run, str):
         return run
@@ -708,7 +774,7 @@ def train_capacity(agi_cls: Any, train_home: Path, log: Any = logger) -> None:
 
 
 def update_capacity(agi_cls: Any) -> None:
-    workers_rt = {}
+    workers_rt: dict[str, dict[str, Any]] = {}
     balancer_cols = [
         "nb_workers",
         "ram_total",
@@ -722,12 +788,16 @@ def update_capacity(agi_cls: Any) -> None:
     for wrt in agi_cls._run_time:
         if isinstance(wrt, str):
             return
+        if not isinstance(wrt, Mapping) or not wrt:
+            logger.warning("Skipping malformed capacity run-time row: %r", wrt)
+            continue
 
-        worker = list(wrt.keys())[0]
-        for worker_name, info in agi_cls.workers_info.items():
-            if worker_name == worker:
-                info["run_time"] = wrt[worker]
-                workers_rt[worker_name] = info
+        worker_key = next(iter(wrt))
+        worker = str(worker_key)
+        info = agi_cls.workers_info.get(worker)
+        row = _capacity_update_row(agi_cls, worker, info, wrt[worker_key])
+        if row is not None:
+            workers_rt[worker] = row
 
     if not workers_rt:
         # No per-worker run-time feedback was collected for this run; there is
@@ -736,46 +806,19 @@ def update_capacity(agi_cls: Any) -> None:
         return
 
     current_state = deepcopy(workers_rt)
-    unresolved_workers: set[str] = set()
 
     for worker, data in workers_rt.items():
         worker_cap = data["label"]
         worker_rt = data["run_time"]
         for other_worker, other_data in current_state.items():
             if other_worker != worker:
-                if worker_rt <= 0:
-                    logger.warning(
-                        "Skipping capacity runtime adjustment for %s: non-positive run_time=%s.",
-                        worker,
-                        worker_rt,
-                    )
-                    continue
                 other_rt = other_data["run_time"]
                 delta = worker_rt - other_rt
                 workers_rt[worker]["label"] -= (
                     0.1 * worker_cap * delta / worker_rt / (len(current_state) - 1)
                 )
-            else:
-                host = _worker_host(worker)
-                worker_count = _worker_count_for_host(agi_cls._workers, host)
-                if worker_count is None:
-                    logger.warning(
-                        "Skipping capacity update for %s: host %s is absent from worker config.",
-                        worker,
-                        host,
-                    )
-                    # Drop only this worker's row from the balancer CSV/retrain
-                    # instead of aborting the whole batch for every worker.
-                    unresolved_workers.add(worker)
-                    break
-                workers_rt[worker]["nb_workers"] = worker_count
 
-    for worker in unresolved_workers:
-        del workers_rt[worker]
-
-    if not workers_rt:
-        return
-
+    appended_rows = 0
     for worker_name, data in workers_rt.items():
         del data["run_time"]
         df = pl.DataFrame(data)
@@ -795,7 +838,12 @@ def update_capacity(agi_cls: Any) -> None:
                     include_header=False,
                     line_terminator="\r",
                 )
+            appended_rows += 1
         else:
-            raise RuntimeError(f"{worker_name} workers BaseWorker.do_works failed")
+            logger.warning(
+                "Skipping capacity update for %s: adjusted label is non-finite or non-positive.",
+                worker_name,
+            )
 
-    agi_cls._train_capacity(Path(agi_cls.env.home_abs))
+    if appended_rows:
+        agi_cls._train_capacity(Path(agi_cls.env.home_abs))

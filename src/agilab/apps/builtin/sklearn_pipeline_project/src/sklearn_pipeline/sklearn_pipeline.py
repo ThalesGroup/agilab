@@ -19,8 +19,6 @@ from .app_args import (
     filter_arg_overrides,
     load_args,
     merge_args,
-    safe_reset_path,
-    share_root_from_env,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,7 +56,7 @@ class SklearnPipeline(BaseWorker):
             raise ValueError(f"Invalid SklearnPipeline data_out path: {exc}") from exc
 
         if self.args.reset_target and self.data_out.exists():
-            reset_path = safe_reset_path(self.data_out, share_root=share_root_from_env(env), label="data_out")
+            reset_path = self._safe_share_reset_path(env, self.data_out, label="data_out")
             shutil.rmtree(reset_path, ignore_errors=True, onerror=WorkDispatcher._onerror)
         self.data_out.mkdir(parents=True, exist_ok=True)
         self.analysis_artifact_dir.mkdir(parents=True, exist_ok=True)

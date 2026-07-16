@@ -3,7 +3,7 @@ name: agilab-security-review-patterns
 description: Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-07-09
+  updated: 2026-07-16
 ---
 
 # AGILAB Security Review Patterns
@@ -57,6 +57,33 @@ claim. Keep findings tied to concrete files, commands, and user impact.
   a genuinely local path contract. When hardening a generic resolver, sweep
   sibling forms for settings paths and artifact-root joins that depend on CWD or
   allow an absolute target component to replace the intended export root.
+- **Worker-side revalidation and destructive resets**: manager or UI validation
+  is not a worker trust boundary. Workers must pass relative *and absolute*
+  `data_in`/`data_out` values through the canonical resolver before use; never
+  skip validation merely because `Path.is_absolute()` is true. Before
+  `rmtree`, replacement, or reset, require a guarded reset helper that rejects
+  the share/workflow root itself as well as paths outside it, including
+  case-variant or symlink spellings that alias the root on the active
+  filesystem. Treat a physical-share input fallback as read-only: outputs must
+  remain under the active workflow root, and no reset target may overlap a
+  protected input tree or source file in either direction. Regress an absolute
+  sibling escape, `data_out='.'`, input/output ancestor and descendant overlap,
+  physical-input fallback, and a platform-supported alias of the root with
+  reset enabled.
+- **Remote worker mount targets**: `Workers Data Path` is the worker-side mount
+  target and may intentionally differ from the scheduler-side
+  `AGI_CLUSTER_SHARE` (including an explicit POSIX mount such as
+  `/mnt/agilab`). Do not incorrectly confine it beneath the scheduler's local
+  path. Validate the target as a root selection instead: reject parent
+  traversal, NULs, filesystem-root, worker-home-root, and exact sensitive
+  operating-system-root spellings, drive-relative paths, and unsupported
+  Windows/UNC forms before local directory creation, form-state persistence,
+  remote `.env` mutation, or SSHFS commands. Allow dedicated descendants such
+  as `/mnt/agilab`, not the ambient root `/mnt` itself.
+  Persist cluster-mode environment values only after the pre-mounted-share
+  check or SSHFS mount succeeds so a failed deployment cannot leave a worker
+  enabled against local fallback storage. Regress that invalid targets and
+  failed mount prerequisites cause no remote environment mutation.
 - **SSH host identity**: cluster transport must verify the remote host key.
   Flag `known_hosts=None` (asyncssh), `StrictHostKeyChecking=no`, and
   `UserKnownHostsFile=/dev/null` (scp/ssh) in
@@ -70,7 +97,9 @@ claim. Keep findings tied to concrete files, commands, and user impact.
   `conn.run`, scp/ssh argv) must be argument vectors or `shlex.quote`d. Flag
   f-string interpolation of paths, versions, share settings, or a node's probe
   output into a command string sent to another host. Add regressions with shell
-  metacharacters for fixed command builders.
+  metacharacters for fixed command builders. When an async task spawns a local
+  or remote process, cancellation is also a cleanup boundary: terminate/close
+  and reap the process under repeated cancellation before re-raising.
 - **Connector SSRF**: outbound fetches (`urllib.request.urlopen`, `requests`,
   `httpx`) on connector/config-supplied URLs must enforce an https scheme
   allowlist, block link-local/metadata ranges (`169.254.0.0/16`, `::1`,
@@ -87,6 +116,16 @@ claim. Keep findings tied to concrete files, commands, and user impact.
 - **Installer changes**: compare source manifests with copied worker manifests
   before patching app dependencies. Treat manifest rewriting as shared install
   risk.
+- **Transactional imports and refreshes**: never delete a live project or
+  dataset before an incoming archive has been opened, preflighted, and fully
+  extracted. Stage beneath the confined destination, then swap atomically with
+  rollback and cleanup; regress corrupt, unsafe, partial-write, and swap-failure
+  cases against an existing marker.
+- **Generated dataframe code**: pandas and numpy expose nested modules, dynamic
+  dependency import helpers, evaluators, and file-backed constructors. Inspect
+  complete attribute chains and block those entry points, but keep the explicit
+  contract that AST filtering reduces accidents and is not process/container
+  isolation.
 - **Publishing**: Trusted Publishing, release evidence, provenance, and
   skip-existing behavior must match the workflow contract before claiming
   publication.

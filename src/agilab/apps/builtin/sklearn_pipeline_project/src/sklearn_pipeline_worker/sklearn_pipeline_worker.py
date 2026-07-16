@@ -16,8 +16,6 @@ from agi_node.pandas_worker import PandasWorker
 from sklearn_pipeline import (
     SklearnPipelineArgs,
     build_sklearn_pipeline_artifacts,
-    safe_reset_path,
-    share_root_from_env,
 )
 from sklearn_pipeline.reduction import write_reduce_artifact
 
@@ -63,20 +61,23 @@ class SklearnPipelineWorker(PandasWorker):
     def start(self):
         global _runtime
         self.args = _args_with_defaults(self.args)
-        data_out = Path(self.args.data_out).expanduser()
-        if not data_out.is_absolute() and callable(getattr(self.env, "resolve_share_path", None)):
-            data_out = Path(self.env.resolve_share_path(data_out))
+        data_out = path_support.resolve_share_output_path(self.env, self.args.data_out)
         self.args.data_out = data_out
         self.data_out = data_out
         if self.args.reset_target and self.data_out.exists():
-            reset_path = safe_reset_path(self.data_out, share_root=share_root_from_env(self.env), label="data_out")
+            share_root = path_support.resolve_share_output_path(self.env, ".")
+            reset_path = path_support.safe_reset_path(
+                self.data_out,
+                roots=(share_root,),
+                label="data_out",
+            )
             shutil.rmtree(reset_path, ignore_errors=True)
         self.data_out.mkdir(parents=True, exist_ok=True)
         self.artifact_dir = _artifact_dir(self.env, "sklearn_pipeline")
         if self.args.reset_target and self.artifact_dir.exists():
-            reset_path = safe_reset_path(
+            reset_path = path_support.safe_reset_path(
                 self.artifact_dir,
-                share_root=_artifact_reset_root(self.env),
+                roots=(_artifact_reset_root(self.env),),
                 label="artifact_dir",
             )
             shutil.rmtree(reset_path, ignore_errors=True)

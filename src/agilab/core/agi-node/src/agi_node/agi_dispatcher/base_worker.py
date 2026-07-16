@@ -252,6 +252,35 @@ class BaseWorker(ArtifactContract, abc.ABC):
             home_factory=Path.home,
         )
 
+    @classmethod
+    def _resolved_data_roots(cls, env: AgiEnv | None) -> list[Path]:
+        return path_support.resolved_data_roots(
+            env,
+            share_root_path_fn=cls._share_root_path,
+            remap_managed_pc_path_fn=lambda value: cls._remap_managed_pc_path(
+                value, env=env
+            ),
+            normalized_path_fn=cls._normalized_path,
+            path_cls=Path,
+            home_factory=Path.home,
+        )
+
+    @staticmethod
+    def _safe_share_reset_path(
+        env: AgiEnv | None,
+        path: Path | str,
+        *,
+        protected_paths: Iterable[Path | str] = (),
+        label: str = "path",
+    ) -> Path:
+        share_root = path_support.resolve_share_output_path(env, ".")
+        return path_support.safe_reset_path(
+            path,
+            roots=(share_root,),
+            protected_paths=protected_paths,
+            label=label,
+        )
+
     @staticmethod
     def _relative_to_user_home(path: Path) -> Path | None:
         return path_support.relative_to_user_home(path, path_cls=Path)
@@ -376,11 +405,38 @@ class BaseWorker(ArtifactContract, abc.ABC):
     ) -> Path:
         """Create (and optionally reset) a deterministic output directory."""
 
-        target = Path(normalize_path(Path(root) / subdir))
+        root_path = Path(str(root)).expanduser()
+        subdir_path = Path(str(subdir)).expanduser()
+        windows_root = PureWindowsPath(str(root))
+        windows_subdir = PureWindowsPath(str(subdir))
+        if windows_root.drive and not windows_root.root:
+            raise ValueError(f"output root must not be drive-relative, got {root!r}")
+        if ".." in root_path.parts or ".." in windows_root.parts:
+            raise ValueError(f"output root must not contain parent traversal, got {root!r}")
+        if (
+            subdir_path.is_absolute()
+            or windows_subdir.is_absolute()
+            or windows_subdir.drive
+        ):
+            raise ValueError(f"output subdir must be relative, got {subdir!r}")
+        if ".." in subdir_path.parts or ".." in windows_subdir.parts:
+            raise ValueError(
+                f"output subdir must not contain parent traversal, got {subdir!r}"
+            )
 
+        env = getattr(self, "env", None)
+        target = path_support.resolve_share_output_path(env, root_path / subdir_path)
+        share_root = path_support.resolve_share_output_path(env, ".")
+
+        if clean:
+            reset_path = path_support.safe_reset_path(
+                target,
+                roots=(share_root,),
+                label="output directory",
+            )
         if clean and target.exists():
             try:
-                shutil.rmtree(target, ignore_errors=True, onerror=self._onerror)
+                shutil.rmtree(reset_path, ignore_errors=True, onerror=self._onerror)
             except (OSError, RuntimeError) as exc:  # pragma: no cover - defensive guard
                 logger.warning(
                     "Issue while cleaning output directory %s: %s", target, exc
@@ -849,32 +905,54 @@ class BaseWorker(ArtifactContract, abc.ABC):
         normalized_input = self.normalize_dataset_path(input_path)
 
         base_parent = input_path.parent
-        share_root = type(self)._share_root_path(env)
-        output_root = base_parent
+        trusted_roots = type(self)._resolved_data_roots(env)
+        source_roots = [
+            root
+            for root in trusted_roots
+            if path_support._path_is_relative_to(input_path, root)
+        ]
+        if not source_roots:
+            raise ValueError(
+                f"setup_data_directories source_path has no trusted data root: {input_path}"
+            )
+        source_root = max(source_roots, key=lambda root: len(root.parts))
+        workflow_root = trusted_roots[0]
+        source_is_workflow_scoped = path_support._path_is_relative_to(
+            input_path, workflow_root
+        )
+        if source_is_workflow_scoped:
+            output_parent = base_parent
+        else:
+            source_relative = path_support._relative_path_under(input_path, source_root)
+            output_parent = workflow_root / source_relative.parent
         if target_path is None:
-            output_path = base_parent / target_subdir
+            output_path = output_parent / target_subdir
         else:
             candidate = Path(str(target_path)).expanduser()
             if not candidate.is_absolute():
                 has_nested_segments = len(candidate.parts) > 1
                 if has_nested_segments:
-                    anchor = share_root or base_parent.parent or base_parent
+                    anchor = workflow_root
                 else:
-                    anchor = base_parent
-                output_root = Path(anchor)
+                    anchor = output_parent
                 candidate = (Path(anchor) / candidate).expanduser()
-            else:
-                output_root = share_root or base_parent
             try:
                 output_path = candidate.resolve(strict=False)
             except (OSError, RuntimeError):
                 output_path = Path(os.path.normpath(str(candidate)))
-        confinement_root = output_root
         output_path = type(self)._ensure_path_within(
             output_path,
-            Path(confinement_root),
+            Path(workflow_root),
             description="setup_data_directories target_path",
         )
+        if reset_target and (
+            path_support._path_is_relative_to(input_path, output_path)
+            or path_support._path_is_relative_to(output_path, input_path)
+        ):
+            raise ValueError(
+                "setup_data_directories reset target must not overlap "
+                f"source_path: target={output_path}, source={input_path}"
+            )
 
         normalized_output = normalize_path(output_path)
         if os.name != "nt":
@@ -894,8 +972,14 @@ class BaseWorker(ArtifactContract, abc.ABC):
         try:
             if reset_target:
                 try:
+                    reset_path = path_support.safe_reset_path(
+                        output_path,
+                        roots=(workflow_root,),
+                        protected_paths=(input_path,),
+                        label="setup_data_directories target_path",
+                    )
                     shutil.rmtree(
-                        normalized_output, ignore_errors=True, onerror=self._onerror
+                        reset_path, ignore_errors=True, onerror=self._onerror
                     )
                 except (OSError, RuntimeError) as exc:
                     logger.info("Error removing directory: %s", exc)
@@ -904,18 +988,15 @@ class BaseWorker(ArtifactContract, abc.ABC):
             if os.name != "nt":
                 normalized_output = normalized_output.replace("\\", "/")
         except OSError:
-            fallback_base = None
-            if env:
-                if env.AGI_LOCAL_SHARE:
-                    fallback_base = Path(env.AGI_LOCAL_SHARE).expanduser()
-                else:
-                    fallback_base = Path(env.home_abs)
-            if fallback_base is None:
-                fallback_base = Path.home()
             fallback_target = env.target if env else Path(normalized_output).name
-            fallback = fallback_base / fallback_target  # ty: ignore[unsupported-operator]
+            fallback = type(self)._ensure_path_within(
+                Path(workflow_root) / str(fallback_target) / target_subdir,
+                Path(workflow_root),
+                description="setup_data_directories fallback output",
+            )
             try:
-                fallback = _ensure_output_dir(fallback / target_subdir)
+                fallback = _ensure_output_dir(fallback)
+                output_path = fallback
                 normalized_output = normalize_path(fallback)
                 if os.name != "nt":
                     normalized_output = normalized_output.replace("\\", "/")
@@ -956,14 +1037,26 @@ class BaseWorker(ArtifactContract, abc.ABC):
             None
         """
         path2_obj = Path(str(path2)).expanduser()
-        if path2_obj.is_absolute() or PureWindowsPath(str(path2)).is_absolute():
+        windows_path2 = PureWindowsPath(str(path2))
+        if (
+            path2_obj.is_absolute()
+            or windows_path2.is_absolute()
+            or windows_path2.drive
+        ):
             raise ValueError(f"path2 must be relative, got {path2!r}")
+        if ".." in path2_obj.parts or ".." in windows_path2.parts:
+            raise ValueError(f"path2 must not contain parent traversal, got {path2!r}")
 
-        path = os.path.join(BaseWorker.expand(path1), str(path2_obj))
+        base = Path(BaseWorker.expand(path1)).expanduser()
+        path = BaseWorker._ensure_path_within(
+            base / path2_obj,
+            base,
+            description="joined path",
+        )
 
         if os.name != "nt":
-            path = path.replace("\\", "/")
-        return path
+            return str(path).replace("\\", "/")
+        return str(path)
 
     @staticmethod
     def _get_logs_and_result(func, *args, verbosity=logging.CRITICAL, **kwargs):
@@ -1042,7 +1135,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
             resolved_root = root.resolve(strict=False)
         except (OSError, RuntimeError):
             resolved_root = Path(os.path.normpath(str(root)))
-        if not resolved.is_relative_to(resolved_root):
+        if not path_support._path_is_relative_to(resolved, resolved_root):
             raise ValueError(
                 f"{description} must stay inside {resolved_root}, got {path}."
             )

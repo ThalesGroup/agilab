@@ -18,6 +18,7 @@ Contract notes:
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,10 +27,17 @@ from typing import Any
 import pytest
 
 ROOT = Path(__file__).resolve().parents[4]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+VERIFY_MODULE_PATH = ROOT / "tools" / "cython_worker_verify.py"
+VERIFY_MODULE_NAME = "_agilab_cython_worker_verify_test_support"
+_verify_spec = importlib.util.spec_from_file_location(
+    VERIFY_MODULE_NAME,
+    VERIFY_MODULE_PATH,
+)
+assert _verify_spec and _verify_spec.loader
+verify = importlib.util.module_from_spec(_verify_spec)
+sys.modules[VERIFY_MODULE_NAME] = verify
+_verify_spec.loader.exec_module(verify)
 
-from tools import cython_worker_verify as verify  # noqa: E402
 from agi_node.agi_dispatcher.cython_type_preprocess import preprocess_source  # noqa: E402
 
 

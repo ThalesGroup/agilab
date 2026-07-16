@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import os
-import sys
 import uuid
 from contextlib import suppress
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Callable, Iterable
 
 PATH_FALLBACK_EXCEPTIONS = (OSError, TypeError, ValueError)
@@ -101,20 +100,26 @@ def share_root_path(
 
     is_worker_env = bool(getattr(env, "is_worker_env", False))
     candidates = (
-        (env.agi_share_path, True),
-        (env.agi_share_path_abs, False),
+        (getattr(env, "agi_share_path", None), True),
+        (getattr(env, "agi_share_path_abs", None), False),
     ) if is_worker_env else (
-        (env.agi_share_path_abs, False),
-        (env.agi_share_path, False),
+        (getattr(env, "agi_share_path_abs", None), False),
+        (getattr(env, "agi_share_path", None), False),
     )
     for candidate, use_runtime_home in candidates:
         if candidate:
             base = path_cls(candidate).expanduser()
             if not base.is_absolute():
-                home = path_cls.home() if use_runtime_home else path_cls(env.home_abs).expanduser()
+                home_abs = getattr(env, "home_abs", None)
+                home = (
+                    path_cls.home()
+                    if use_runtime_home or not home_abs
+                    else path_cls(home_abs).expanduser()
+                )
                 base = (home / base).expanduser()
             return base
-    return path_cls(env.home_abs).expanduser()
+    home_abs = getattr(env, "home_abs", None)
+    return path_cls(home_abs).expanduser() if home_abs else path_cls.home()
 
 
 def physical_share_root_path(
@@ -241,6 +246,62 @@ def _path_exists(path: Path) -> bool:
         return False
 
 
+def _reject_windows_drive_relative_path(value: Path | str, *, description: str) -> None:
+    """Reject ``C:foo``-style paths whose meaning depends on ambient drive state."""
+
+    windows_path = PureWindowsPath(str(value))
+    if windows_path.drive and not windows_path.root:
+        raise ValueError(
+            f"{description} must not use a Windows drive-relative path: {value}"
+        )
+
+
+def _resolved_data_roots_from_values(
+    roots: Iterable[Path | str | None],
+    *,
+    remap_managed_pc_path_fn: Callable[[Path | str], Path],
+    normalized_path_fn: Callable[[Path | str], Path],
+    path_cls: type[Path] = Path,
+) -> list[Path]:
+    resolved_roots: list[Path] = []
+    for root in roots:
+        if root is None:
+            continue
+        remapped = remap_managed_pc_path_fn(root)
+        try:
+            normalized = normalized_path_fn(remapped)
+        except PATH_FALLBACK_EXCEPTIONS:
+            normalized = path_cls(remapped).expanduser()
+        resolved_root = _safe_resolved_path(
+            path_cls(normalized),
+            path_cls=path_cls,
+        )
+        if resolved_root not in resolved_roots:
+            resolved_roots.append(resolved_root)
+    return resolved_roots
+
+
+def resolved_data_roots(
+    env: Any | None,
+    *,
+    share_root_path_fn: Callable[[Any | None], Path | None],
+    remap_managed_pc_path_fn: Callable[[Path | str], Path],
+    normalized_path_fn: Callable[[Path | str], Path],
+    path_cls: type[Path] = Path,
+    home_factory: Callable[[], Path] = Path.home,
+) -> list[Path]:
+    """Return the trusted workflow and physical-share roots for worker data."""
+
+    workflow_root = share_root_path_fn(env) or home_factory()
+    physical_root = physical_share_root_path(env, path_cls=path_cls)
+    return _resolved_data_roots_from_values(
+        (workflow_root, physical_root),
+        remap_managed_pc_path_fn=remap_managed_pc_path_fn,
+        normalized_path_fn=normalized_path_fn,
+        path_cls=path_cls,
+    )
+
+
 def resolve_data_dir(
     env: Any | None,
     data_path: Path | str | None,
@@ -254,28 +315,37 @@ def resolve_data_dir(
     if data_path is None:
         raise ValueError("data_path must be provided to resolve a dataset directory")
 
+    _reject_windows_drive_relative_path(data_path, description="data_path")
     raw = path_cls(str(data_path)).expanduser()
+    windows_raw = PureWindowsPath(str(data_path))
+    if not raw.is_absolute() and (
+        ".." in raw.parts or ".." in windows_raw.parts
+    ):
+        raise ValueError(f"data_path must not contain parent traversal: {data_path}")
+    workflow_root = share_root_path_fn(env) or home_factory()
+    physical_root = physical_share_root_path(env, path_cls=path_cls)
     if not raw.is_absolute():
-        base = share_root_path_fn(env) or home_factory()
         session_candidate = _resolve_relative_data_path(
             raw,
-            path_cls(base).expanduser(),
+            path_cls(workflow_root).expanduser(),
             env,
             path_cls=path_cls,
             home_factory=home_factory,
         )
         raw = session_candidate
 
-        physical_base = physical_share_root_path(env, path_cls=path_cls)
-        if physical_base is not None:
+        if physical_root is not None:
             try:
-                same_base = path_cls(base).expanduser().resolve(strict=False) == physical_base
+                same_base = (
+                    path_cls(workflow_root).expanduser().resolve(strict=False)
+                    == physical_root
+                )
             except SHARE_ROOT_FALLBACK_EXCEPTIONS:
                 same_base = False
             if not same_base:
                 physical_candidate = _resolve_relative_data_path(
                     path_cls(str(data_path)).expanduser(),
-                    physical_base,
+                    physical_root,
                     env,
                     path_cls=path_cls,
                     home_factory=home_factory,
@@ -289,10 +359,20 @@ def resolve_data_dir(
     except PATH_FALLBACK_EXCEPTIONS:
         resolved = path_cls(remapped).expanduser()
 
-    try:
-        return resolved.resolve(strict=False)
-    except OSError:
-        return path_cls(os.path.normpath(str(resolved)))
+    resolved = _safe_resolved_path(path_cls(resolved), path_cls=path_cls)
+    allowed_roots = _resolved_data_roots_from_values(
+        (workflow_root, physical_root),
+        remap_managed_pc_path_fn=remap_managed_pc_path_fn,
+        normalized_path_fn=normalized_path_fn,
+        path_cls=path_cls,
+    )
+    if not any(_path_is_relative_to(resolved, root) for root in allowed_roots):
+        roots = ", ".join(str(root) for root in allowed_roots)
+        raise ValueError(
+            "data_path must stay inside an AGILAB workflow/share root "
+            f"({roots}), got {resolved}."
+        )
+    return resolved
 
 
 def _safe_resolved_path(path: Path, *, path_cls: type[Path] = Path) -> Path:
@@ -302,26 +382,132 @@ def _safe_resolved_path(path: Path, *, path_cls: type[Path] = Path) -> Path:
         return path_cls(os.path.normpath(str(path.expanduser())))
 
 
-def _normcased_path(path: Path) -> Path:
-    """Return ``path`` with each part case-folded for the local platform.
+def _path_is_relative_to(path: Path, parent: Path) -> bool:
+    """Return whether ``path`` is confined by ``parent`` on the actual filesystem.
 
-    ``os.path.normcase`` handles Windows; ``casefold`` additionally catches
-    case-variant spellings on macOS' case-insensitive-but-case-preserving
-    filesystem (where ``normcase`` is a no-op) so a ``.../DATASET/x`` spelling
-    cannot alias a read-only ``.../dataset`` input tree.
+    Exact path components are authoritative even when the host platform normally
+    uses case-insensitive paths. Case aliases are accepted only when an existing
+    ancestor can prove identity with ``samefile``. This keeps aliases working on
+    default macOS/Windows volumes without authorizing distinct case variants on
+    case-sensitive volumes or directories.
     """
 
-    if os.name == "posix" and sys.platform != "darwin":
-        return path
-    return type(path)(*(os.path.normcase(part).casefold() for part in path.parts))
-
-
-def _path_is_relative_to(path: Path, parent: Path) -> bool:
-    try:
-        _normcased_path(path).relative_to(_normcased_path(parent))
+    resolved_path = _safe_resolved_path(path, path_cls=type(path))
+    resolved_parent = _safe_resolved_path(parent, path_cls=type(parent))
+    parent_parts = resolved_parent.parts
+    if resolved_path.parts[: len(parent_parts)] == parent_parts:
         return True
-    except ValueError:
+
+    try:
+        parent_exists = resolved_parent.exists()
+    except OSError:
+        parent_exists = False
+    if not parent_exists:
         return False
+
+    candidate = resolved_path
+    while True:
+        try:
+            if candidate.exists() and candidate.samefile(resolved_parent):
+                return True
+        except (OSError, ValueError):
+            pass
+        next_candidate = candidate.parent
+        if next_candidate == candidate:
+            return False
+        candidate = next_candidate
+
+
+def _relative_path_under(path: Path, parent: Path) -> Path:
+    """Return a relative suffix using the same filesystem identity policy."""
+
+    resolved_path = _safe_resolved_path(path, path_cls=type(path))
+    resolved_parent = _safe_resolved_path(parent, path_cls=type(parent))
+    parent_parts = resolved_parent.parts
+    if resolved_path.parts[: len(parent_parts)] == parent_parts:
+        return type(path)(*resolved_path.parts[len(parent_parts) :])
+
+    suffix_parts: list[str] = []
+    candidate = resolved_path
+    while True:
+        try:
+            if candidate.exists() and candidate.samefile(resolved_parent):
+                return type(path)(*reversed(suffix_parts))
+        except (OSError, ValueError):
+            pass
+        next_candidate = candidate.parent
+        if next_candidate == candidate:
+            raise ValueError(f"{resolved_path} is not inside {resolved_parent}")
+        suffix_parts.append(candidate.name)
+        candidate = next_candidate
+
+
+def resolve_share_output_path(
+    env: Any | None,
+    output_path: Path | str,
+    *,
+    path_cls: type[Path] = Path,
+) -> Path:
+    """Resolve an output through the runtime resolver and verify its returned root."""
+
+    if output_path is None:
+        raise ValueError("output_path must be provided")
+    _reject_windows_drive_relative_path(output_path, description="output_path")
+    resolver = getattr(env, "resolve_share_path", None) if env is not None else None
+    if not callable(resolver):
+        raise ValueError(
+            "output_path requires an environment with a canonical resolve_share_path"
+        )
+
+    root = _safe_resolved_path(path_cls(resolver(path_cls("."))), path_cls=path_cls)
+    resolved = _safe_resolved_path(
+        path_cls(resolver(path_cls(str(output_path)).expanduser())),
+        path_cls=path_cls,
+    )
+    if not _path_is_relative_to(resolved, root):
+        raise ValueError(
+            f"output_path must stay inside the active share root {root}, got {resolved}."
+        )
+    return resolved
+
+
+def safe_reset_path(
+    path: Path | str,
+    *,
+    roots: Iterable[Path | str],
+    protected_paths: Iterable[Path | str] = (),
+    label: str = "path",
+    path_cls: type[Path] = Path,
+) -> Path:
+    """Validate a destructive reset target against one or more trusted roots."""
+
+    target = _safe_resolved_path(path_cls(path), path_cls=path_cls)
+    if target == path_cls(target.anchor):
+        raise ValueError(f"{label} reset target must not be the filesystem root")
+
+    resolved_roots = [
+        _safe_resolved_path(path_cls(root), path_cls=path_cls) for root in roots
+    ]
+    if not resolved_roots:
+        raise ValueError(f"{label} reset requires a trusted confinement root")
+    for root in resolved_roots:
+        if _path_is_relative_to(target, root) and _path_is_relative_to(root, target):
+            raise ValueError(f"{label} reset target must not be the confinement root")
+    if not any(_path_is_relative_to(target, root) for root in resolved_roots):
+        roots_text = ", ".join(str(root) for root in resolved_roots)
+        raise ValueError(
+            f"{label} reset target must stay under a trusted root ({roots_text}), got {target}"
+        )
+
+    for protected_path in protected_paths:
+        protected = _safe_resolved_path(path_cls(protected_path), path_cls=path_cls)
+        if _path_is_relative_to(protected, target) or _path_is_relative_to(
+            target, protected
+        ):
+            raise ValueError(
+                f"{label} reset target must not overlap protected input {protected}"
+            )
+    return target
 
 
 def resolve_generated_artifact_path(
@@ -346,6 +532,7 @@ def resolve_generated_artifact_path(
     normalize = normalized_path_fn or (lambda value: path_cls(value).expanduser())
     data_in = _safe_resolved_path(normalize(data_in_root), path_cls=path_cls)
     data_out = _safe_resolved_path(normalize(data_out_root), path_cls=path_cls)
+    _reject_windows_drive_relative_path(artifact_path, description="artifact_path")
     raw = path_cls(str(artifact_path)).expanduser()
 
     if raw == path_cls("."):
@@ -386,6 +573,11 @@ def resolve_generated_artifact_path(
         return resolved
 
     resolved = _safe_resolved_path(candidate, path_cls=path_cls)
+    if not _path_is_relative_to(resolved, data_out):
+        raise ValueError(
+            "Generated artifact path must stay under data_out: "
+            f"{resolved} (data_out={data_out})"
+        )
     if _path_is_relative_to(resolved, data_in):
         raise ValueError(
             "Generated artifact path resolves under read-only data_in: "

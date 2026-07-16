@@ -79,15 +79,21 @@ class FlightTelemetry(BaseWorker):
 
         if getattr(self.args, "reset_target", False):
             try:
-                if self.data_out.exists():
+                reset_path = self._safe_share_reset_path(
+                    env,
+                    self.data_out,
+                    protected_paths=(self.args.data_in,),
+                    label="data_out",
+                )
+                if reset_path.exists():
                     shutil.rmtree(
-                        self.data_out,
+                        reset_path,
                         ignore_errors=True,
                         onerror=WorkDispatcher._onerror,
                     )
                 logger.info(f"mkdir {self.data_out}")
                 self.data_out.mkdir(parents=True, exist_ok=True)
-            except Exception as exc:  # pragma: no cover - defensive guard
+            except (OSError, RuntimeError) as exc:  # pragma: no cover - defensive guard
                 logger.warning(
                     "Issue while trying to reset dataframe directory %s: %s",
                     self.data_out,

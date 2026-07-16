@@ -156,6 +156,20 @@ async def _kill_and_wait(proc: asyncio.subprocess.Process) -> None:
         await asyncio.wait_for(proc.wait(), timeout=5)
 
 
+async def _kill_and_wait_shielded(proc: asyncio.subprocess.Process) -> None:
+    """Reap ``proc`` before propagating cancellation, even if cancelled again."""
+
+    cleanup_task = asyncio.create_task(_kill_and_wait(proc))
+    while not cleanup_task.done():
+        try:
+            await asyncio.shield(cleanup_task)
+        except asyncio.CancelledError:
+            # Preserve cancellation for the caller, but do not let repeated
+            # cancellation interrupt ownership cleanup for the child process.
+            continue
+    await cleanup_task
+
+
 def _track_background_wait(proc: asyncio.subprocess.Process) -> None:
     task = asyncio.create_task(proc.wait())
     add_done_callback = getattr(task, "add_done_callback", None)
@@ -282,6 +296,10 @@ async def run(
                 include_diagnostic_hint=True,
             )
         return "\n".join(result)
+    except asyncio.CancelledError:
+        if proc is not None:
+            await _kill_and_wait_shielded(proc)
+        raise
     except asyncio.TimeoutError as err:
         if proc is not None:
             await _kill_and_wait(proc)
@@ -341,6 +359,9 @@ async def run_bg(
             ),
             timeout=timeout,
         )
+    except asyncio.CancelledError:
+        await _kill_and_wait_shielded(proc)
+        raise
     except asyncio.TimeoutError as err:
         await _kill_and_wait(proc)
         raise RuntimeError(f"Timeout expired for command: {cmd}") from err

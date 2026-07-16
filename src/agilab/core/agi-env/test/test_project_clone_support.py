@@ -92,6 +92,40 @@ def test_copy_existing_projects_merges_nested_projects(tmp_path: Path):
     assert (dst_apps / "group" / "alpha_project" / "main.py").exists()
 
 
+def test_copy_existing_projects_rejects_nested_destination_symlink_escape(
+    tmp_path: Path,
+):
+    src_apps = tmp_path / "src"
+    dst_apps = tmp_path / "dst"
+    source_project = src_apps / "group" / "alpha_project"
+    source_project.mkdir(parents=True)
+    (source_project / "main.py").write_text("safe\n", encoding="utf-8")
+    dst_apps.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    marker = outside / "important.txt"
+    marker.write_text("keep", encoding="utf-8")
+    try:
+        (dst_apps / "group").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are unavailable on this filesystem")
+
+    with pytest.raises(
+        project_clone_support.ProjectPathConfinementError,
+        match="destination parent must stay within",
+    ):
+        copy_existing_projects(
+            src_apps,
+            dst_apps,
+            ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True)
+            or Path(path),
+            logger=mock.Mock(),
+        )
+
+    assert marker.read_text(encoding="utf-8") == "keep"
+    assert not (outside / "alpha_project").exists()
+
+
 def test_copy_existing_projects_uses_sorted_project_order_when_rglob_varies(tmp_path: Path, monkeypatch):
     src_apps = tmp_path / "src"
     dst_apps = tmp_path / "dst"
@@ -224,7 +258,9 @@ def test_copy_existing_projects_propagates_unexpected_copytree_bug(tmp_path: Pat
         )
 
 
-def test_copy_existing_projects_swallow_unsupported_operation_from_resolve(tmp_path: Path, monkeypatch):
+def test_copy_existing_projects_fails_closed_when_destination_cannot_resolve(
+    tmp_path: Path, monkeypatch
+):
     src_apps = tmp_path / "src"
     dst_apps = tmp_path / "dst"
     nested = src_apps / "group" / "alpha_project"
@@ -240,14 +276,19 @@ def test_copy_existing_projects_swallow_unsupported_operation_from_resolve(tmp_p
 
     monkeypatch.setattr(Path, "resolve", _unsupported_resolve, raising=False)
 
-    copy_existing_projects(
-        src_apps,
-        dst_apps,
-        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
-        logger=logger,
-    )
+    with pytest.raises(
+        project_clone_support.ProjectPathConfinementError,
+        match="Cannot verify project copy destination parent root confinement",
+    ):
+        copy_existing_projects(
+            src_apps,
+            dst_apps,
+            ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True)
+            or Path(path),
+            logger=logger,
+        )
 
-    assert (dst_apps / "group" / "alpha_project" / "main.py").exists()
+    assert not (dst_apps / "group" / "alpha_project" / "main.py").exists()
 
 
 def test_git_lfs_helpers_cover_error_edges(tmp_path: Path, monkeypatch):
@@ -487,7 +528,9 @@ def test_clone_project_ignores_unreadable_gitignore_and_continues(tmp_path: Path
     assert logger.debug.called
 
 
-def test_clone_directory_and_cleanup_rename_cover_symlink_archive_syntax_and_text_paths(tmp_path: Path, monkeypatch):
+def test_clone_directory_and_cleanup_rename_cover_symlink_archive_syntax_and_text_paths(
+    tmp_path: Path,
+):
     source_root = tmp_path / "source"
     source_root.mkdir()
     dest_root = tmp_path / "dest"
@@ -506,11 +549,6 @@ def test_clone_directory_and_cleanup_rename_cover_symlink_archive_syntax_and_tex
     text_file = source_root / "flight.txt"
     text_file.write_text("flight project", encoding="utf-8")
 
-    monkeypatch.setattr(
-        "agi_env.project_clone_support.os.readlink",
-        lambda path: (_ for _ in ()).throw(OSError("readlink failed")) if Path(path) == link_path else str(link_target),
-    )
-
     clone_directory(
         source_root,
         dest_root,
@@ -523,6 +561,7 @@ def test_clone_directory_and_cleanup_rename_cover_symlink_archive_syntax_and_tex
     )
 
     assert (dest_root / "link.txt").is_symlink()
+    assert (dest_root / "link.txt").resolve() == (dest_root / "target.txt").resolve()
     assert (dest_root / ".venv").is_symlink()
     assert (dest_root / "demo.zip").read_bytes() == b"zip"
     assert "def broken" in (dest_root / "demo.py").read_text(encoding="utf-8")
@@ -543,6 +582,65 @@ def test_clone_directory_and_cleanup_rename_cover_symlink_archive_syntax_and_tex
     assert (cleanup_root / "demo").exists()
     assert (cleanup_root / "demo_project").exists()
     assert (cleanup_root / "demo.txt").read_text(encoding="utf-8") == "demo text"
+
+
+def test_cleanup_rename_never_rewrites_through_symlinks(tmp_path: Path):
+    root = tmp_path / "clone"
+    root.mkdir()
+    outside_file = tmp_path / "outside.md"
+    outside_file.write_text("flight secret", encoding="utf-8")
+    outside_dir = tmp_path / "outside-dir"
+    outside_dir.mkdir()
+    nested_outside = outside_dir / "nested.md"
+    nested_outside.write_text("flight nested secret", encoding="utf-8")
+    try:
+        (root / "linked-file.md").symlink_to(outside_file)
+        (root / "linked-dir").symlink_to(outside_dir, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks are unavailable on this filesystem")
+    local = root / "local.md"
+    local.write_text("flight local", encoding="utf-8")
+
+    cleanup_rename(
+        root,
+        {"flight": "demo"},
+        replace_content_fn=lambda text, _mapping: text.replace("flight", "demo"),
+    )
+
+    assert local.read_text(encoding="utf-8") == "demo local"
+    assert outside_file.read_text(encoding="utf-8") == "flight secret"
+    assert nested_outside.read_text(encoding="utf-8") == "flight nested secret"
+
+
+def test_clone_directory_rejects_external_source_symlink(tmp_path: Path):
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    secret = tmp_path / "id_rsa"
+    secret.write_text("private-key", encoding="utf-8")
+    try:
+        (source_root / "credentials.txt").symlink_to(secret)
+    except OSError:
+        pytest.skip("symlinks are unavailable on this filesystem")
+    dest_root = tmp_path / "dest"
+
+    with pytest.raises(
+        project_clone_support.ProjectPathConfinementError,
+        match="project source symlink.*must stay within",
+    ):
+        clone_directory(
+            source_root,
+            dest_root,
+            {},
+            GitIgnoreSpec.from_lines([]),
+            source_root,
+            ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True)
+            or Path(path),
+            content_renamer_cls=ContentRenamer,
+            replace_content_fn=replace_text_content,
+        )
+
+    assert secret.read_text(encoding="utf-8") == "private-key"
+    assert not (dest_root / "credentials.txt").exists()
 
 
 def test_clone_directory_rewrites_valid_python_with_stdlib_ast_unparse(tmp_path: Path):

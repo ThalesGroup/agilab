@@ -25,6 +25,10 @@ GIT_LFS_POINTER_SIGNATURE = b"version https://git-lfs.github.com/spec/v1"
 GIT_LFS_PULL_TIMEOUT_SECONDS = 5 * 60
 
 
+class ProjectPathConfinementError(ValueError):
+    """Raised when a clone path cannot be proven confined to its trusted tree."""
+
+
 def _ast_to_source(tree: ast.AST) -> str:
     ast.fix_missing_locations(tree)
     source = ast.unparse(tree)
@@ -36,6 +40,127 @@ def _safe_resolve(path: Path, *, strict: bool = False) -> Path:
         return path.resolve(strict=strict)
     except PATH_RESOLVE_EXCEPTIONS:
         return path
+
+
+def _resolve_for_confinement(path: Path, *, label: str) -> Path:
+    """Resolve a security-sensitive path, failing closed on probe errors."""
+
+    try:
+        return path.expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, UnsupportedOperation) as exc:
+        raise ProjectPathConfinementError(
+            f"Cannot verify {label} confinement for {path}: {exc}"
+        ) from exc
+
+
+def _relative_path_within(path: Path, root: Path, *, label: str) -> Path:
+    """Return ``path`` relative to ``root`` using actual filesystem identity."""
+
+    resolved_root = _resolve_for_confinement(root, label=f"{label} root")
+    resolved_path = _resolve_for_confinement(path, label=label)
+    root_parts = resolved_root.parts
+    if resolved_path.parts[: len(root_parts)] == root_parts:
+        return Path(*resolved_path.parts[len(root_parts) :])
+
+    suffix_parts: list[str] = []
+    candidate = resolved_path
+    while True:
+        try:
+            if candidate.exists() and candidate.samefile(resolved_root):
+                return Path(*reversed(suffix_parts))
+        except (OSError, ValueError):
+            pass
+        parent = candidate.parent
+        if parent == candidate:
+            raise ProjectPathConfinementError(
+                f"{label} must stay within {resolved_root}, got {resolved_path}"
+            )
+        suffix_parts.append(candidate.name)
+        candidate = parent
+
+
+def _validate_copy_destination(dst_apps: Path, dst_item: Path) -> None:
+    """Prove both the destination parent and entry remain below ``dst_apps``."""
+
+    _relative_path_within(
+        dst_item.parent,
+        dst_apps,
+        label="project copy destination parent",
+    )
+    _relative_path_within(
+        dst_item,
+        dst_apps,
+        label="project copy destination",
+    )
+
+
+def _renamed_relative_path(
+    relative: Path,
+    rename_map: dict[str, str],
+    *,
+    file_target: bool = False,
+) -> Path:
+    """Apply the clone's component and optional file-stem renames."""
+
+    parts = list(relative.parts)
+    for idx, segment in enumerate(parts):
+        for old, new in sorted(rename_map.items(), key=lambda item: -len(item[0])):
+            if segment == old:
+                parts[idx] = new
+                break
+    renamed = Path(*parts)
+    if file_target and renamed.stem in rename_map:
+        renamed = renamed.with_name(rename_map[renamed.stem] + renamed.suffix)
+    return renamed
+
+
+def _clone_confined_symlink(
+    item: Path,
+    dst: Path,
+    *,
+    source_root: Path,
+    dest_root: Path,
+    rename_map: dict[str, str],
+    link_directory_fn: Callable[[Path, Path], bool],
+) -> None:
+    """Remap a source-confined symlink into the cloned destination tree."""
+
+    target = _resolve_for_confinement(item, label="project source symlink")
+    target_relative = _relative_path_within(
+        target,
+        source_root,
+        label=f"project source symlink {item}",
+    )
+    target_is_directory = item.is_dir()
+    cloned_target = dest_root / _renamed_relative_path(
+        target_relative,
+        rename_map,
+        file_target=not target_is_directory,
+    )
+    relative_target = os.path.relpath(cloned_target, start=dst.parent)
+    try:
+        os.symlink(relative_target, dst, target_is_directory=target_is_directory)
+    except FileExistsError:
+        return
+    except OSError:
+        if target_is_directory:
+            link_directory_fn(cloned_target, dst)
+
+
+def _tree_entries_without_following_symlink_dirs(root: Path) -> list[Path]:
+    """Return tree entries without ever descending through directory symlinks."""
+
+    entries: list[Path] = []
+    for current, dirnames, filenames in os.walk(root, topdown=True, followlinks=False):
+        current_path = Path(current)
+        dirnames.sort()
+        filenames.sort()
+        entries.extend(current_path / name for name in dirnames)
+        entries.extend(current_path / name for name in filenames)
+        dirnames[:] = [
+            name for name in dirnames if not (current_path / name).is_symlink()
+        ]
+    return entries
 
 
 def _is_git_lfs_pointer_file(path: Path) -> bool:
@@ -252,6 +377,7 @@ def copy_existing_projects(
 
         rel = item.relative_to(src_apps)
         dst_item = dst_apps / rel
+        _validate_copy_destination(dst_apps, dst_item)
         if dst_item.is_symlink():
             try:
                 dst_item.unlink()
@@ -401,19 +527,21 @@ def clone_directory(
         if not is_venv_dir and spec.match_file(rel + ("/" if item.is_dir() else "")):
             continue
 
-        parts = rel.split("/")
-        for idx, seg in enumerate(parts):
-            for old, new in sorted(rename_map.items(), key=lambda kv: -len(kv[0])):
-                if seg == old:
-                    parts[idx] = new
-                    break
-
-        new_rel = "/".join(parts)
-        dst = dest_dir / new_rel
+        dst = dest_dir / _renamed_relative_path(Path(rel), rename_map)
         ensure_dir_fn(dst.parent)
 
         if item.is_symlink():
-            _try_link_symlink(item, dst)
+            if item.name == ".venv":
+                _try_link_symlink(item, dst)
+            else:
+                _clone_confined_symlink(
+                    item,
+                    dst,
+                    source_root=source_root,
+                    dest_root=dest_dir,
+                    rename_map=rename_map,
+                    link_directory_fn=link_directory_fn,
+                )
             continue
 
         if item.is_dir():
@@ -484,7 +612,11 @@ def cleanup_rename(
     simple_map = {old: new for old, new in rename_map.items() if "/" not in old}
     sorted_simple = sorted(simple_map.items(), key=lambda kv: len(kv[0]), reverse=True)
 
-    for path in sorted(root.rglob("*"), key=lambda candidate: len(candidate.parts), reverse=True):
+    for path in sorted(
+        _tree_entries_without_following_symlink_dirs(root),
+        key=lambda candidate: len(candidate.parts),
+        reverse=True,
+    ):
         old_name = path.name
         for old, new in sorted_simple:
             if old_name == old or old_name == f"{old}_worker" or old_name == f"{old}_project":
@@ -497,8 +629,12 @@ def cleanup_rename(
                 break
 
     text_suffixes = {".py", ".toml", ".md", ".txt", ".json", ".yaml", ".yml"}
-    for file in root.rglob("*"):
-        if not file.is_file() or file.suffix.lower() not in text_suffixes:
+    for file in _tree_entries_without_following_symlink_dirs(root):
+        if (
+            file.is_symlink()
+            or not file.is_file()
+            or file.suffix.lower() not in text_suffixes
+        ):
             continue
         text = file.read_text(encoding="utf-8")
         new_text = replace_content_fn(text, rename_map)

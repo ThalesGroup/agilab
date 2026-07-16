@@ -584,6 +584,120 @@ def test_validate_code_safety_rejects_blocked_module_attribute():
         pipeline_ai_support._validate_code_safety("os.system('echo hi')")
 
 
+def test_validate_code_safety_rejects_nested_exposed_module_chain():
+    with pytest.raises(pipeline_ai_support._UnsafeCodeError, match="module 'io'"):
+        pipeline_ai_support._validate_code_safety("result = pd.io.common.os.listdir('/')")
+
+    updated, error = pipeline_ai_support._exec_code_on_df(
+        "df['root_entries'] = repr(pd.io.common.os.listdir('/'))",
+        pd.DataFrame({"x": [1]}),
+    )
+    assert updated is None
+    assert "Safety check failed" in error
+
+
+def test_validate_code_safety_rejects_dynamic_module_resolver_escape():
+    code = (
+        "df['root_entries'] = repr("
+        "pd.compat._optional.import_optional_dependency('os').listdir('/'))"
+    )
+    with pytest.raises(
+        pipeline_ai_support._UnsafeCodeError,
+        match="import_optional_dependency",
+    ):
+        pipeline_ai_support._validate_code_safety(code)
+
+    updated, error = pipeline_ai_support._exec_code_on_df(
+        code,
+        pd.DataFrame({"x": [1]}),
+    )
+    assert updated is None
+    assert "Safety check failed" in error
+
+
+@pytest.mark.parametrize(
+    "code",
+    (
+        "x = np.load('/tmp/payload.npy')",
+        "x = np.fromregex('/tmp/payload.txt', r'(.*)', [('value', 'U10')])",
+        "np.save('/tmp/payload.npy', df)",
+        "x = np.memmap('/tmp/payload.bin')",
+        "x = np.ctypeslib.load_library('payload', '.')",
+        "x = np.lib.npyio.NpzFile('/tmp/payload.npz')",
+        "x = pd.ExcelFile('/tmp/payload.xlsx')",
+        "df.to_markdown(buf='/tmp/payload.md')",
+        "df.to_string('/tmp/payload.txt')",
+        "df.plot().figure.canvas.print_png('/tmp/payload.png')",
+        "x = np.lib.npyio.DataSource().open('/tmp/payload')",
+    ),
+)
+def test_validate_code_safety_rejects_numpy_and_pandas_path_entrypoints(code):
+    with pytest.raises(pipeline_ai_support._UnsafeCodeError):
+        pipeline_ai_support._validate_code_safety(code)
+
+
+def test_validate_code_safety_rejects_aliased_io_entrypoint():
+    code = "reader = np.fromfile\ndf['size'] = len(reader('/etc/hosts'))"
+
+    with pytest.raises(
+        pipeline_ai_support._UnsafeCodeError,
+        match="I/O method 'fromfile'",
+    ):
+        pipeline_ai_support._validate_code_safety(code)
+
+
+def test_validate_code_safety_allows_static_compute_expressions():
+    query_code = "df = df.query('x > 1')"
+    pipeline_ai_support._validate_code_safety(query_code)
+    updated, error = pipeline_ai_support._exec_code_on_df(
+        query_code,
+        pd.DataFrame({"x": [1, 2, 3]}),
+    )
+    assert error == ""
+    assert updated is not None
+    assert updated["x"].tolist() == [2, 3]
+
+    eval_code = "df['constant'] = pd.eval('1 + 1')"
+    pipeline_ai_support._validate_code_safety(eval_code)
+    updated, error = pipeline_ai_support._exec_code_on_df(
+        eval_code,
+        pd.DataFrame({"x": [1]}),
+    )
+    assert error == ""
+    assert updated is not None
+    assert updated["constant"].tolist() == [2]
+
+
+def test_validate_code_safety_allows_bufferless_text_rendering():
+    code = "df['preview'] = df.to_string(buf=None, index=False)"
+
+    pipeline_ai_support._validate_code_safety(code)
+    updated, error = pipeline_ai_support._exec_code_on_df(
+        code,
+        pd.DataFrame({"x": [1]}),
+    )
+
+    assert error == ""
+    assert updated is not None
+    assert "x" in updated.loc[0, "preview"]
+
+
+@pytest.mark.parametrize(
+    "code",
+    (
+        "expr = 'x > 0'\ndf = df.query(expr)",
+        "df = df.query('@pd.read_csv(\"/etc/hosts\")')",
+        "x = pd.eval('abs(-1)')",
+        "x = pd.eval('x + 1', local_dict={'x': 1})",
+        "df = df.query('x > 0', **{})",
+        "renderer = df.to_string\ndf['preview'] = renderer()",
+    ),
+)
+def test_validate_code_safety_rejects_dynamic_expression_and_buffer_aliases(code):
+    with pytest.raises(pipeline_ai_support._UnsafeCodeError):
+        pipeline_ai_support._validate_code_safety(code)
+
+
 def test_validate_code_safety_rejects_blocked_dunder_attr():
     with pytest.raises(pipeline_ai_support._UnsafeCodeError, match="Access to '__class__' is not allowed"):
         pipeline_ai_support._validate_code_safety("x = 1\nx.__class__")

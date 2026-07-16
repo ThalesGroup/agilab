@@ -182,8 +182,17 @@ class TesciaDiagnosticWorker(PandasWorker):
             summaries.append(summary)
             stem = _sanitize_slug(str(summary["case_id"]))
             run_root = root / stem
-            if run_root.exists() and bool(getattr(self._current_args(), "reset_target", False)):
-                shutil.rmtree(run_root)
+            if bool(getattr(self._current_args(), "reset_target", False)):
+                source_file = summary.get("source_file")
+                protected_paths = (source_file,) if source_file else ()
+                reset_path = path_support.safe_reset_path(
+                    run_root,
+                    roots=(root,),
+                    protected_paths=protected_paths,
+                    label="TeSciA artifact directory",
+                )
+                if reset_path.exists():
+                    shutil.rmtree(reset_path)
             run_root.mkdir(parents=True, exist_ok=True)
             _write_json(run_root / f"{stem}_diagnostic_report.json", report)
             _write_csv(run_root / f"{stem}_diagnostic_summary.csv", [summary])

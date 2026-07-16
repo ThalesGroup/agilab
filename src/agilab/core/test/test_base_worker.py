@@ -28,6 +28,20 @@ class DummyWorker(BaseWorker):
         pass
 
 
+def _output_env(share_root: Path) -> SimpleNamespace:
+    def _resolve_share_path(value: Path | str) -> Path:
+        path = Path(value)
+        return path if path.is_absolute() else share_root / path
+
+    return SimpleNamespace(
+        resolve_share_path=_resolve_share_path,
+        _is_managed_pc=False,
+        agi_share_path=share_root,
+        agi_share_path_abs=share_root,
+        home_abs=share_root.parent,
+    )
+
+
 def teardown_function(_fn):
     BaseWorker._worker_id = None
     BaseWorker._insts = {}
@@ -37,6 +51,7 @@ def teardown_function(_fn):
 
 def test_prepare_output_dir_creates_directory(tmp_path):
     worker = DummyWorker()
+    worker.env = _output_env(tmp_path)
     target = worker.prepare_output_dir(
         tmp_path, subdir="payload", attribute="custom_attr", clean=True
     )
@@ -44,6 +59,26 @@ def test_prepare_output_dir_creates_directory(tmp_path):
     assert target.exists()
     assert target.name == "payload"
     assert worker.custom_attr == target
+
+
+def test_prepare_output_dir_rejects_escape_and_root_reset(tmp_path):
+    share_root = tmp_path / "share"
+    share_root.mkdir()
+    marker = share_root / "important.txt"
+    marker.write_text("keep", encoding="utf-8")
+    worker = DummyWorker()
+    worker.env = _output_env(share_root)
+
+    with pytest.raises(ValueError, match="parent traversal"):
+        worker.prepare_output_dir(".", subdir="..")
+    with pytest.raises(ValueError, match="subdir must be relative"):
+        worker.prepare_output_dir(".", subdir=str(tmp_path / "outside"))
+    with pytest.raises(ValueError, match="active share root"):
+        worker.prepare_output_dir(tmp_path / "outside", subdir="payload")
+    with pytest.raises(ValueError, match="confinement root"):
+        worker.prepare_output_dir(".", subdir=".", clean=True)
+
+    assert marker.read_text(encoding="utf-8") == "keep"
 
 
 def test_setup_args_requires_args():
@@ -87,6 +122,7 @@ def test_setup_args_applies_defaults_and_creates_output(tmp_path):
         managed_pc_path_fields = ("data_path",)
 
     worker = ConfigWorker()
+    worker.env = _output_env(tmp_path)
     args = SimpleNamespace(data_path=tmp_path / "data")
 
     processed = worker.setup_args(
@@ -532,6 +568,29 @@ def test_baseworker_path_helper_utilities_cover_share_and_home_cases(tmp_path):
     assert {"share", "clustershare", "link_sim"} <= aliases
 
 
+def test_baseworker_safe_share_reset_rejects_share_root(tmp_path):
+    share_root = tmp_path / "share"
+    target = share_root / "app" / "evidence"
+
+    def _resolve_share_path(value):
+        candidate = Path(value)
+        return candidate if candidate.is_absolute() else share_root / candidate
+
+    env = SimpleNamespace(resolve_share_path=_resolve_share_path)
+
+    assert BaseWorker._safe_share_reset_path(
+        env,
+        target,
+        label="data_out",
+    ) == target.resolve(strict=False)
+    with pytest.raises(ValueError, match="confinement root"):
+        BaseWorker._safe_share_reset_path(
+            env,
+            share_root,
+            label="data_out",
+        )
+
+
 def test_baseworker_candidate_roots_and_expand_helpers(tmp_path, monkeypatch):
     share_root = tmp_path / "share"
     dataset_root = tmp_path / "runtime" / "dataset"
@@ -936,6 +995,7 @@ def test_baseworker_prepare_output_dir_and_setup_args_parent_branch(
     monkeypatch, tmp_path
 ):
     worker = DummyWorker()
+    worker.env = _output_env(tmp_path)
     target = tmp_path / "root" / "payload"
     target.mkdir(parents=True)
     (target / "old.txt").write_text("stale", encoding="utf-8")
@@ -963,6 +1023,7 @@ def test_baseworker_prepare_output_dir_and_setup_args_parent_branch(
         args_ensure_defaults = staticmethod(lambda args, env=None: args)
 
     parent_worker = ParentWorker()
+    parent_worker.env = _output_env(tmp_path)
     args = SimpleNamespace(data_path=tmp_path / "dataset" / "inputs" / "file.csv")
     processed = parent_worker.setup_args(
         args,
@@ -1148,6 +1209,10 @@ def test_baseworker_path_and_subprocess_helpers(monkeypatch, tmp_path):
     assert Path(BaseWorker._join(str(tmp_path), "child.txt")).name == "child.txt"
     with pytest.raises(ValueError, match="path2 must be relative"):
         BaseWorker._join(str(tmp_path), str(tmp_path / "outside.txt"))
+    with pytest.raises(ValueError, match="parent traversal"):
+        BaseWorker._join(str(tmp_path), "../outside.txt")
+    with pytest.raises(ValueError, match="path2 must be relative"):
+        BaseWorker._join(str(tmp_path), "C:outside.txt")
 
     monkeypatch.setattr(
         BaseWorker, "expand", staticmethod(lambda value: str(tmp_path / value))
@@ -1247,6 +1312,52 @@ def test_baseworker_setup_data_directories_and_info(monkeypatch, tmp_path):
     assert info["cpu_frequency"] == [3.2]
     assert info["ram_total"] == [8.0]
     assert info["ram_available"] == [4.0]
+
+
+@pytest.mark.parametrize(
+    ("target_path", "target_subdir", "output_leaf"),
+    (
+        (None, "dataframe", "dataframe"),
+        (Path("results"), "unused", "results"),
+    ),
+)
+def test_setup_data_directories_keeps_physical_fallback_inputs_read_only(
+    tmp_path, target_path, target_subdir, output_leaf
+):
+    worker = DummyWorker()
+    physical_root = tmp_path / "share"
+    workflow_root = physical_root / "workflows" / "run-1"
+    input_dir = physical_root / "app" / "dataset"
+    input_dir.mkdir(parents=True)
+    physical_output = physical_root / "app" / output_leaf
+    physical_output.mkdir(parents=True)
+    marker = physical_output / "keep.txt"
+    marker.write_text("keep", encoding="utf-8")
+    env = SimpleNamespace(
+        AGILAB_WORKFLOW_DATA_ROOT=workflow_root,
+        AGI_LOCAL_SHARE=physical_root,
+        home_abs=tmp_path,
+        target="demo",
+        _is_managed_pc=False,
+        share_root_path=lambda: physical_root,
+        agi_share_path_abs=physical_root,
+        agi_share_path=Path("share"),
+        AGILAB_SHARE_HINT=None,
+        AGILAB_SHARE_REL=None,
+    )
+    worker.env = env
+
+    result = worker.setup_data_directories(
+        source_path=Path("app/dataset"),
+        target_path=target_path,
+        target_subdir=target_subdir,
+        reset_target=True,
+    )
+
+    assert result.input_path == input_dir.resolve(strict=False)
+    assert result.output_path == workflow_root / "app" / output_leaf
+    assert result.output_path.is_dir()
+    assert marker.read_text(encoding="utf-8") == "keep"
 
 
 def test_safe_getuser_returns_empty_string_when_user_lookup_fails(monkeypatch):
@@ -1359,7 +1470,7 @@ def test_baseworker_setup_data_directories_falls_back_when_output_unavailable(
         target_subdir="output",
     )
 
-    expected_fallback = fallback_base / "demo" / "output"
+    expected_fallback = share_root / "demo" / "output"
     # On Windows the helper keeps native separators in ``normalized_output`` so
     # downstream callers can pass it back to ``Path`` without translation.
     expected_native = (
@@ -1367,6 +1478,7 @@ def test_baseworker_setup_data_directories_falls_back_when_output_unavailable(
     )
 
     assert result.input_path == input_dir.resolve()
+    assert result.output_path == expected_fallback
     assert result.normalized_output == expected_native
     assert worker.data_out == expected_native
     assert expected_fallback.is_dir()
@@ -1455,6 +1567,103 @@ def test_baseworker_setup_data_directories_rejects_reset_target_escape(monkeypat
     assert outside.exists()
 
 
+@pytest.mark.parametrize(
+    "source_factory",
+    (
+        lambda share_root, _outside: Path("../outside/pipeline"),
+        lambda _share_root, outside: outside / "pipeline",
+    ),
+)
+def test_baseworker_setup_data_directories_rejects_untrusted_source_before_reset(
+    monkeypatch, tmp_path, source_factory
+):
+    worker = DummyWorker()
+    share_root = tmp_path / "share"
+    outside = tmp_path / "outside"
+    victim_output = outside / "output"
+    victim_output.mkdir(parents=True)
+    marker = victim_output / "important_result.csv"
+    marker.write_text("keep", encoding="utf-8")
+
+    env = SimpleNamespace(
+        AGI_LOCAL_SHARE=tmp_path / "localshare",
+        home_abs=tmp_path / "home",
+        target="demo",
+        _is_managed_pc=False,
+        share_root_path=lambda: share_root,
+        agi_share_path_abs=share_root,
+        agi_share_path=Path("share"),
+        AGILAB_SHARE_HINT=None,
+        AGILAB_SHARE_REL=None,
+    )
+    worker.env = env
+
+    rmtree_calls: list[object] = []
+    monkeypatch.setattr(
+        base_worker_mod.shutil,
+        "rmtree",
+        lambda *args, **_kwargs: rmtree_calls.append(args),
+    )
+
+    with pytest.raises(ValueError, match="parent traversal|data_path must stay inside"):
+        worker.setup_data_directories(
+            source_path=source_factory(share_root, outside),
+            target_subdir="output",
+            reset_target=True,
+        )
+
+    assert rmtree_calls == []
+    assert marker.read_text(encoding="utf-8") == "keep"
+
+
+@pytest.mark.parametrize(
+    "target_factory",
+    (
+        lambda _input_dir: Path("."),
+        lambda input_dir: input_dir,
+        lambda input_dir: input_dir / "generated",
+    ),
+)
+def test_baseworker_setup_data_directories_rejects_reset_target_containing_source(
+    monkeypatch, tmp_path, target_factory
+):
+    worker = DummyWorker()
+    share_root = tmp_path / "share"
+    input_dir = share_root / "flight_trajectory" / "pipeline"
+    input_dir.mkdir(parents=True)
+    marker = input_dir / "important_input.csv"
+    marker.write_text("keep", encoding="utf-8")
+    env = SimpleNamespace(
+        AGI_LOCAL_SHARE=tmp_path / "localshare",
+        home_abs=tmp_path / "home",
+        target="demo",
+        _is_managed_pc=False,
+        share_root_path=lambda: share_root,
+        agi_share_path_abs=share_root,
+        agi_share_path=Path("share"),
+        AGILAB_SHARE_HINT=None,
+        AGILAB_SHARE_REL=None,
+    )
+    worker.env = env
+
+    rmtree_calls: list[object] = []
+    monkeypatch.setattr(
+        base_worker_mod.shutil,
+        "rmtree",
+        lambda *args, **_kwargs: rmtree_calls.append(args),
+    )
+
+    with pytest.raises(ValueError, match="must not overlap source_path"):
+        worker.setup_data_directories(
+            source_path=Path("flight_trajectory/pipeline"),
+            target_path=target_factory(input_dir),
+            reset_target=True,
+        )
+
+    assert rmtree_calls == []
+    assert marker.read_text(encoding="utf-8") == "keep"
+
+
 def test_baseworker_onerror_handles_permission_and_non_permission(
     tmp_path, monkeypatch
 ):
@@ -1517,7 +1726,7 @@ def test_baseworker_onerror_logs_oserror_from_retry(tmp_path, monkeypatch):
     assert any("warning failed to grant write access" in message for message in errors)
 
 
-def test_baseworker_setup_data_directories_fallback_to_home_and_failure(
+def test_baseworker_setup_data_directories_fallback_within_workflow_and_failure(
     monkeypatch, tmp_path
 ):
     worker = DummyWorker()
@@ -1539,7 +1748,7 @@ def test_baseworker_setup_data_directories_fallback_to_home_and_failure(
     worker.env = env
 
     requested_output = input_dir.parent / "reports"
-    fallback_output = env.home_abs / "demo" / "output"
+    fallback_output = share_root / "demo" / "output"
     original_mkdir = Path.mkdir
 
     def _patched_mkdir(self, *args, **kwargs):

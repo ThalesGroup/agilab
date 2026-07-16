@@ -1,7 +1,12 @@
 import streamlit as st
 from pydantic import ValidationError
 
-from agi_env.streamlit_args import load_args_state, persist_args, render_form
+from agi_env.streamlit_args import (
+    load_args_state,
+    persist_args,
+    render_form,
+    resolve_app_args_share_paths,
+)
 import simple_app as args_module
 from simple_app import SimpleAppArgs as ArgsModel
 
@@ -25,10 +30,14 @@ def render() -> None:
 
     try:
         parsed = ArgsModel(**form_values)
+        resolve_app_args_share_paths(env, parsed)
     except ValidationError as exc:
         messages = env.humanize_validation_errors(exc)
         st.warning("\n".join(messages))
         st.session_state.pop("is_args_from_ui", None)
+        return
+    except ValueError as exc:
+        st.error(str(exc))
         return
 
     persist_args(

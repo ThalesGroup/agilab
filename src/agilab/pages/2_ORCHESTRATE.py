@@ -752,6 +752,12 @@ def _cluster_args_share_root(env: Any, cluster_params: dict[str, Any]) -> Path |
         if text.lower() in {"", "none", "local", "localshare"}:
             continue
         try:
+            from agi_env.shares.share_runtime_support import validate_worker_share_root
+
+            validate_worker_share_root(text)
+        except ValueError:
+            continue
+        try:
             candidate = _resolve_share_candidate(
                 text, getattr(env, "home_abs", Path.home())
             )
@@ -816,12 +822,14 @@ class _ShareRootOverrideEnv:
         return self._data_root
 
     def resolve_share_path(self, path: Any = None) -> Path:
-        if path in (None, ""):
-            return self._data_root
-        candidate = Path(str(path)).expanduser()
-        if candidate.is_absolute():
-            return candidate.resolve(strict=False)
-        return (self._data_root / candidate).resolve(strict=False)
+        from agi_env.shares.share_runtime_support import resolve_share_path
+
+        return resolve_share_path(path, self._data_root)
+
+    def resolve_share_input_path(self, path: Any = None) -> Path:
+        from agi_env.shares.share_runtime_support import resolve_share_input_path
+
+        return resolve_share_input_path(path, self._data_root, self.agi_share_path_abs)
 
 
 def _app_args_env_for_cluster(env: Any, cluster_params: dict[str, Any]) -> Any:

@@ -9,6 +9,7 @@ from typing import Any
 
 import streamlit as st
 from pydantic import ValidationError
+from agi_env.streamlit_args import resolve_app_args_share_paths
 
 _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
@@ -296,7 +297,8 @@ if isinstance(datemin_value, date) and isinstance(datemax_value, date) and datem
     )
 
 try:
-    validated = FlightArgs(**candidate)
+    validated = apply_source_defaults(FlightArgs(**candidate))
+    resolved_paths = resolve_app_args_share_paths(env, validated)
 except ValidationError as exc:
     st.error("Invalid Flight parameters:")
     if hasattr(env, "humanize_validation_errors"):
@@ -304,8 +306,9 @@ except ValidationError as exc:
             st.markdown(msg)
     else:
         st.code(str(exc))
+except ValueError as exc:
+    st.error(str(exc))
 else:
-    validated = apply_source_defaults(validated)
     validated_payload = validated.to_toml_payload()
 
     if validated_payload != current_payload:
@@ -323,19 +326,14 @@ else:
         st.info("No changes to save.")
 
     if validated.data_source == "file":
-        _resolve_input = getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
-        try:
-            resolved_data_in = _resolve_input(validated.data_in)
-            resolved_data_out = env.resolve_share_path(validated.data_out)
-        except ValueError as exc:
-            st.error(f"Invalid data_in/data_out path: {exc}")
-        else:
-            if not resolved_data_in.exists():
-                if _is_huggingface_space(env) and _is_default_file_seed(validated.data_in):
-                    st.info(
-                        "The public Hugging Face Space does not bundle the raw Flight dataset. "
-                        "Set a mounted or uploaded data directory before running the Flight step."
-                    )
-                else:
-                    st.warning(f"Input directory does not exist: `{resolved_data_in}`")
-            st.caption(f"Resolved input: `{resolved_data_in}`  •  output: `{resolved_data_out}`")
+        resolved_data_in = resolved_paths["data_in"]
+        resolved_data_out = resolved_paths["data_out"]
+        if not resolved_data_in.exists():
+            if _is_huggingface_space(env) and _is_default_file_seed(validated.data_in):
+                st.info(
+                    "The public Hugging Face Space does not bundle the raw Flight dataset. "
+                    "Set a mounted or uploaded data directory before running the Flight step."
+                )
+            else:
+                st.warning(f"Input directory does not exist: `{resolved_data_in}`")
+        st.caption(f"Resolved input: `{resolved_data_in}`  •  output: `{resolved_data_out}`")

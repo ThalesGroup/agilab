@@ -268,6 +268,28 @@ def test_flight_manager_file_inventory_error_and_absolute_display(monkeypatch, t
         raw.get_data_from_files()
 
 
+def test_flight_manager_rejects_share_root_reset(monkeypatch, tmp_path):
+    Flight, _ = _import_flight_modules(monkeypatch)
+    from flight_telemetry.flight_args import FlightArgs
+
+    env = _FakeEnv(tmp_path / "share")
+    env.share_root.mkdir(parents=True)
+    marker = env.share_root / "important.txt"
+    marker.write_text("keep", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="confinement root"):
+        Flight(
+            env,
+            args=FlightArgs(
+                data_in="flight_telemetry/dataset",
+                data_out=".",
+                reset_target=True,
+            ),
+        )
+
+    assert marker.read_text(encoding="utf-8") == "keep"
+
+
 def test_flight_manager_builds_typed_file_inventory(monkeypatch, tmp_path):
     Flight, _ = _import_flight_modules(monkeypatch)
     monkeypatch.setenv("HOME", str(tmp_path))

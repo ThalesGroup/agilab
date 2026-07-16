@@ -856,8 +856,8 @@ def test_update_capacity_success_and_guard_paths(tmp_path, monkeypatch):
 
     AGI.workers_info["127.0.0.1:8787"]["label"] = 0.0
     AGI._run_time = [{"127.0.0.1:8787": 2.0}]
-    with pytest.raises(RuntimeError, match="workers BaseWorker.do_works failed"):
-        capacity_support.update_capacity(AGI)
+    capacity_support.update_capacity(AGI)
+    assert train_calls["count"] == 1
 
 
 def test_update_capacity_adjusts_against_other_workers(tmp_path, monkeypatch):
@@ -898,6 +898,65 @@ def test_update_capacity_adjusts_against_other_workers(tmp_path, monkeypatch):
     capacity_support.update_capacity(AGI)
 
     assert Path(AGI._capacity_data_file).exists()
+    assert train_calls["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_calibration_fallback_worker_does_not_penalize_valid_capacity_row(
+    tmp_path,
+    monkeypatch,
+):
+    class _Client:
+        def run(self, *_args, **_kwargs):
+            return {}
+
+        def gather(self, payload):
+            return payload
+
+    valid_worker = "127.0.0.1:8787"
+    stale_worker = "10.0.0.2:8788"
+    AGI._dask_client = _Client()
+    AGI._dask_workers = [valid_worker, stale_worker]
+    AGI._workers = {"127.0.0.1": 1, "10.0.0.2": 1}
+    AGI._capacity_predictor = SimpleNamespace(predict=lambda _data: [1.0])
+
+    await capacity_support.calibration(AGI)
+
+    assert AGI.workers_info == {
+        valid_worker: {"label": 1.0},
+        stale_worker: {"label": 1.0},
+    }
+    AGI.workers_info[valid_worker].update(
+        {
+            "ram_total": 10.0,
+            "ram_available": 5.0,
+            "cpu_count": 4.0,
+            "cpu_frequency": 2.5,
+            "network_speed": 1.0,
+        }
+    )
+    AGI._run_time = [
+        {valid_worker: 2.0},
+        {stale_worker: 1.0},
+    ]
+    AGI._capacity_data_file = str(tmp_path / "capacity.csv")
+    AGI.env = SimpleNamespace(home_abs=str(tmp_path))
+    train_calls = {"count": 0}
+    monkeypatch.setattr(
+        AGI,
+        "_train_capacity",
+        staticmethod(
+            lambda _path: train_calls.__setitem__(
+                "count", train_calls["count"] + 1
+            )
+        ),
+    )
+
+    capacity_support.update_capacity(AGI)
+
+    rows = Path(AGI._capacity_data_file).read_text(encoding="utf-8").splitlines()
+    assert len(rows) == 1
+    assert float(rows[0].split(",")[-1]) == 1.0
     assert train_calls["count"] == 1
 
 

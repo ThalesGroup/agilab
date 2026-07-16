@@ -16,8 +16,6 @@ from agi_node.pandas_worker import PandasWorker
 from data_quality_gate import (
     DataQualityGateArgs,
     build_data_quality_gate_artifacts,
-    safe_reset_path,
-    share_root_from_env,
 )
 from data_quality_gate.reduction import write_reduce_artifact
 
@@ -49,14 +47,14 @@ def _resolve_optional_share_path(env: object, value: Path | None) -> Path | None
     if value is None:
         return None
     path = Path(value).expanduser()
-    if not path.is_absolute():
-        # Inputs may be pre-existing files under the cluster share root; prefer
-        # resolve_share_input_path (workflow root with share-root fallback).
-        resolver = getattr(env, "resolve_share_input_path", None) or getattr(
-            env, "resolve_share_path", None
-        )
-        if callable(resolver):
-            path = Path(resolver(path))
+    # Inputs may be pre-existing files under the cluster share root; prefer
+    # resolve_share_input_path (workflow root with share-root fallback). Route
+    # absolute values through it too so confinement validation is never skipped.
+    resolver = getattr(env, "resolve_share_input_path", None) or getattr(
+        env, "resolve_share_path", None
+    )
+    if callable(resolver):
+        path = Path(resolver(path))
     return path
 
 
@@ -78,27 +76,44 @@ class DataQualityGateWorker(PandasWorker):
     def start(self):
         global _runtime
         self.args = _args_with_defaults(self.args)
-        data_out = Path(self.args.data_out).expanduser()
-        if not data_out.is_absolute() and callable(getattr(self.env, "resolve_share_path", None)):
-            data_out = Path(self.env.resolve_share_path(data_out))
+        data_out = path_support.resolve_share_output_path(self.env, self.args.data_out)
         self.args.data_out = data_out
         self.args.baseline_csv = _resolve_optional_share_path(self.env, self.args.baseline_csv)
         self.args.candidate_csv = _resolve_optional_share_path(self.env, self.args.candidate_csv)
         self.args.contract_json = _resolve_optional_share_path(self.env, self.args.contract_json)
         self.args.thresholds_json = _resolve_optional_share_path(self.env, self.args.thresholds_json)
+        protected_inputs = tuple(
+            path
+            for path in (
+                self.args.baseline_csv,
+                self.args.candidate_csv,
+                self.args.contract_json,
+                self.args.thresholds_json,
+            )
+            if path is not None
+        )
         self.data_out = data_out
-        if self.args.reset_target and self.data_out.exists():
-            reset_path = safe_reset_path(self.data_out, share_root=share_root_from_env(self.env), label="data_out")
-            shutil.rmtree(reset_path, ignore_errors=True)
+        if self.args.reset_target:
+            share_root = path_support.resolve_share_output_path(self.env, ".")
+            reset_path = path_support.safe_reset_path(
+                self.data_out,
+                roots=(share_root,),
+                protected_paths=protected_inputs,
+                label="data_out",
+            )
+            if reset_path.exists():
+                shutil.rmtree(reset_path, ignore_errors=True)
         self.data_out.mkdir(parents=True, exist_ok=True)
         self.artifact_dir = _artifact_dir(self.env, "data_quality_gate")
-        if self.args.reset_target and self.artifact_dir.exists():
-            reset_path = safe_reset_path(
+        if self.args.reset_target:
+            reset_path = path_support.safe_reset_path(
                 self.artifact_dir,
-                share_root=_artifact_reset_root(self.env),
+                roots=(_artifact_reset_root(self.env),),
+                protected_paths=protected_inputs,
                 label="artifact_dir",
             )
-            shutil.rmtree(reset_path, ignore_errors=True)
+            if reset_path.exists():
+                shutil.rmtree(reset_path, ignore_errors=True)
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
         self.pool_vars = {"args": self.args}
         _runtime = self.pool_vars

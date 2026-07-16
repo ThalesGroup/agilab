@@ -27,10 +27,12 @@ Share directory resolution
 ``AgiEnv.agi_share_path_abs``.
 The path is derived from environment settings using the following precedence:
 
-1. ``AGI_CLUSTER_SHARE`` from the current process environment, then ``.env``.
+1. ``AGI_CLUSTER_SHARE`` from the persisted ``.env`` configuration, then the
+   current process environment when the persisted value is unset or blank.
 2. ``AGI_CLUSTER_SHARE`` fallback ``clustershare/<user>`` when no explicit
    cluster share is configured.
-3. ``AGI_LOCAL_SHARE`` (default ``~/localshare``) when cluster mode is disabled.
+3. ``AGI_LOCAL_SHARE`` (default ``~/localshare/<user>``) when cluster mode is
+   disabled.
 
 The ``<user>`` segment is derived from ``AGILAB_SHARE_USER``, then ``USER``,
 then ``USERNAME``, and is sanitised before being used as a path component.
@@ -45,6 +47,8 @@ The behaviour differs depending on whether cluster mode is enabled:
   from ``AGI_LOCAL_SHARE``. The implicit fallback is ``clustershare/<user>``;
   if you override it in a multi-user deployment, keep the override per-user
   rather than pointing several operators at the same writable directory.
+  The scheduler source must also be a dedicated directory; filesystem, home,
+  and exact operating-system roots are rejected before remote fan-out.
   Missing or read-only shares now raise immediately instead of silently
   degrading to a local path.
 * **Cluster mode disabled** – ``AgiEnv`` uses ``AGI_LOCAL_SHARE`` for local
@@ -55,12 +59,32 @@ The behaviour differs depending on whether cluster mode is enabled:
   must already be mounted and writable on the remote host. When an absolute
   path under ``/Users/<user>`` or ``/home/<user>`` is provided, the leading
   segments are stripped so the worker can re-root the remainder under its own
-  home directory or mount point.
+  home directory or mount point. An explicit worker mount target must name a
+  dedicated directory such as ``/mnt/agilab``: filesystem roots, worker-home
+  roots, and exact operating-system directories such as ``/mnt``, ``/var``,
+  or ``/tmp`` are rejected before AGILAB creates a directory, mounts SSHFS, or
+  updates the worker environment.
 
 Because the worker value stays relative, it will fail fast if
 ``agi_share_path``
 is not mounted. This makes data provenance explicit and avoids hidden copies of
 datasets on remote machines.
+
+Workflow/session data root
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``AGILAB_WORKFLOW_DATA_ROOT`` optionally narrows the active data namespace for
+one workflow or cluster run without changing the physical
+``AGI_CLUSTER_SHARE`` mount root. AGILAB normally manages this value for
+workflow sessions and writes the corresponding worker-side value during remote
+deployment; it is not intended as a second global share setting.
+
+Relative values resolve under the runtime user's home directory. Output paths
+are confined to this workflow root. Input paths prefer the workflow root and
+may fall back to the same relative dataset path under the physical share root
+when that pre-existing dataset is not copied into the workflow directory.
+Absolute input and output values are still accepted only when the applicable
+resolver confirms they remain inside one of those declared roots.
 
 Per-user cluster-share isolation is part of that contract: each user should
 resolve to their own share root so one operator's datasets and cluster-visible

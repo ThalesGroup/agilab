@@ -29,6 +29,7 @@ import re
 import importlib
 import importlib.util
 import sys
+import tempfile
 from types import SimpleNamespace
 from typing import Any
 
@@ -1693,6 +1694,31 @@ def _cleanup_module_artifacts(app_name, target_name, errors):
 # -------------------- Project Export Handler -------------------- #
 
 
+def _project_export_path_is_confined(path: Path, root: Path) -> bool:
+    """Return whether an export path resolves within the selected project."""
+
+    try:
+        resolved_root = root.resolve(strict=False)
+        resolved_path = path.resolve(strict=False)
+    except (OSError, RuntimeError):
+        return False
+    root_parts = resolved_root.parts
+    if resolved_path.parts[: len(root_parts)] == root_parts:
+        return True
+
+    candidate = resolved_path
+    while True:
+        try:
+            if candidate.exists() and candidate.samefile(resolved_root):
+                return True
+        except (OSError, ValueError):
+            pass
+        parent = candidate.parent
+        if parent == candidate:
+            return False
+        candidate = parent
+
+
 def _export_project_action(env: AgiEnv) -> ActionResult:
     input_dir = Path(env.active_app)
     if not input_dir.exists():
@@ -1710,16 +1736,45 @@ def _export_project_action(env: AgiEnv) -> ActionResult:
     )
     spec = read_gitignore(gitignore_path)
 
-    with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as out:
-        for root, _, files in os.walk(input_dir):
-            rel_root = os.path.relpath(root, input_dir)
-            if spec.match_file(rel_root):
-                continue
-            for file in files:
-                source_path = Path(root) / file
-                relative_file_path = os.path.relpath(source_path, input_dir)
-                if not spec.match_file(relative_file_path):
+    try:
+        with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as out:
+            for root, directories, files in os.walk(input_dir, followlinks=False):
+                rel_root = os.path.relpath(root, input_dir)
+                if spec.match_file(rel_root):
+                    continue
+                for directory in directories:
+                    directory_path = Path(root) / directory
+                    relative_directory = os.path.relpath(directory_path, input_dir)
+                    if spec.match_file(relative_directory + "/"):
+                        continue
+                    if directory_path.is_symlink() and not _project_export_path_is_confined(
+                        directory_path, input_dir
+                    ):
+                        raise ValueError(
+                            "Project export refused external directory symlink: "
+                            f"{relative_directory}"
+                        )
+                for file in files:
+                    source_path = Path(root) / file
+                    relative_file_path = os.path.relpath(source_path, input_dir)
+                    if spec.match_file(relative_file_path):
+                        continue
+                    if source_path.is_symlink() and not _project_export_path_is_confined(
+                        source_path, input_dir
+                    ):
+                        raise ValueError(
+                            "Project export refused external file symlink: "
+                            f"{relative_file_path}"
+                        )
                     out.write(source_path, relative_file_path)
+    except (OSError, RuntimeError, ValueError) as exc:
+        output_zip.unlink(missing_ok=True)
+        return ActionResult.error(
+            f"Project '{env.app}' could not be exported safely.",
+            detail=str(exc),
+            next_action="Remove external symlinks from the project and retry.",
+            data={"app": env.app, "input_dir": input_dir, "output_zip": output_zip},
+        )
 
     app_zip = env.app + ".zip"
     return ActionResult.success(
@@ -1769,7 +1824,36 @@ def _import_project_action(
             next_action="Choose an exported project zip from the sidebar.",
         )
 
-    zip_path = env.export_apps / selected_archive
+    archive_name = Path(selected_archive)
+    if (
+        archive_name.is_absolute()
+        or archive_name.name != selected_archive
+        or "/" in selected_archive
+        or "\\" in selected_archive
+        or archive_name.suffix.lower() != ".zip"
+    ):
+        return ActionResult.error(
+            f"Project archive selection '{selected_archive}' is unsafe.",
+            next_action="Choose a zip listed in the project export directory.",
+            data={"project_zip": selected_archive},
+        )
+
+    try:
+        export_root = Path(env.export_apps).resolve(strict=False)
+        zip_path = (export_root / archive_name.name).resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        return ActionResult.error(
+            f"Project archive '{selected_archive}' could not be resolved safely.",
+            detail=str(exc),
+            next_action="Check the project export directory and retry.",
+            data={"project_zip": selected_archive},
+        )
+    if zip_path.parent != export_root:
+        return ActionResult.error(
+            f"Project archive selection '{selected_archive}' is unsafe.",
+            next_action="Choose a zip stored directly in the project export directory.",
+            data={"project_zip": selected_archive, "zip_path": zip_path},
+        )
     if not zip_path.exists():
         return ActionResult.error(
             f"Project archive '{selected_archive}' does not exist.",
@@ -1777,9 +1861,36 @@ def _import_project_action(
             data={"project_zip": selected_archive, "zip_path": zip_path},
         )
 
-    import_target = Path(selected_archive).stem
-    target_dir = env.apps_path / import_target
-    if target_dir.exists():
+    import_target = archive_name.stem
+    try:
+        apps_root = Path(env.apps_path).resolve(strict=False)
+        target_dir = apps_root / import_target
+        target_is_symlink = target_dir.is_symlink()
+        resolved_target = target_dir.resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        return ActionResult.error(
+            f"Project target for '{selected_archive}' could not be resolved safely.",
+            detail=str(exc),
+            next_action="Rename the archive to a regular project name and retry.",
+            data={"project_zip": selected_archive, "import_target": import_target},
+        )
+    if (
+        import_target in {"", ".", ".."}
+        or target_is_symlink
+        or target_dir.parent != apps_root
+        or resolved_target.parent != apps_root
+    ):
+        return ActionResult.error(
+            f"Project target name '{import_target}' is unsafe.",
+            next_action="Rename the archive to a regular project name and retry.",
+            data={
+                "project_zip": selected_archive,
+                "import_target": import_target,
+                "target_dir": target_dir,
+            },
+        )
+    target_exists = target_dir.exists() or target_dir.is_symlink()
+    if target_exists:
         if not overwrite:
             return ActionResult.warning(
                 f"Project '{import_target}' already exists.",
@@ -1790,26 +1901,81 @@ def _import_project_action(
                     "target_dir": target_dir,
                 },
             )
-        try:
-            shutil.rmtree(target_dir)
-        except OSError as exc:
-            return ActionResult.error(
-                f"Project '{import_target}' is not removable.",
-                detail=str(exc),
-                next_action="Check filesystem permissions, then retry the import.",
-                data={
-                    "project_zip": selected_archive,
-                    "import_target": import_target,
-                    "target_dir": target_dir,
-                },
-            )
 
+    target_dir.parent.mkdir(parents=True, exist_ok=True)
+    staging_root = Path(
+        tempfile.mkdtemp(prefix=f".{import_target}.import-", dir=target_dir.parent)
+    )
+    staged_dir = staging_root / import_target
+    backup_dir = staging_root.with_name(f"{staging_root.name}-previous")
+    target_moved = False
     try:
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            validate_archive_members_stay_within_dest(zip_ref, target_dir)
-            zip_ref.extractall(target_dir)
+            validate_archive_members_stay_within_dest(zip_ref, staged_dir)
+            zip_ref.extractall(staged_dir)
+        if not staged_dir.exists():
+            raise ValueError("Project archive did not contain any project files")
         if clean:
-            clean_project(target_dir)
+            clean_project(staged_dir)
+
+        if target_exists:
+            try:
+                target_dir.replace(backup_dir)
+            except OSError as exc:
+                return ActionResult.error(
+                    f"Project '{import_target}' is not removable.",
+                    detail=str(exc),
+                    next_action="Check filesystem permissions, then retry the import.",
+                    data={
+                        "project_zip": selected_archive,
+                        "import_target": import_target,
+                        "target_dir": target_dir,
+                    },
+                )
+            target_moved = True
+        try:
+            staged_dir.replace(target_dir)
+        except BaseException as exc:
+            if target_moved:
+                try:
+                    backup_dir.replace(target_dir)
+                    target_moved = False
+                except OSError as rollback_exc:
+                    return ActionResult.error(
+                        f"Project '{import_target}' import and automatic rollback failed.",
+                        detail=(
+                            f"Import swap failed: {exc}. The previous project remains at "
+                            f"{backup_dir}, but could not be restored: {rollback_exc}"
+                        ),
+                        next_action=(
+                            f"Preserve {backup_dir}, fix filesystem permissions, then move it "
+                            f"back to {target_dir}."
+                        ),
+                        data={
+                            "project_zip": selected_archive,
+                            "import_target": import_target,
+                            "target_dir": target_dir,
+                            "backup_dir": backup_dir,
+                            "zip_path": zip_path,
+                        },
+                    )
+            raise
+
+        if target_moved:
+            try:
+                shutil.rmtree(backup_dir)
+            except OSError as exc:
+                return ActionResult.success(
+                    f"Project '{import_target}' successfully imported.",
+                    detail=f"Previous project backup remains at {backup_dir}: {exc}",
+                    data={
+                        "project_zip": selected_archive,
+                        "import_target": import_target,
+                        "target_dir": target_dir,
+                        "backup_dir": backup_dir,
+                    },
+                )
+            target_moved = False
     except (OSError, RuntimeError, ValueError, zipfile.BadZipFile) as exc:
         return ActionResult.error(
             f"Project archive '{selected_archive}' could not be imported.",
@@ -1822,6 +1988,8 @@ def _import_project_action(
                 "zip_path": zip_path,
             },
         )
+    finally:
+        shutil.rmtree(staging_root, ignore_errors=True)
 
     if not target_dir.exists():
         return ActionResult.error(

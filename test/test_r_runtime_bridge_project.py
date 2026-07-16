@@ -196,6 +196,13 @@ def test_r_runtime_bridge_manager_round_trips_settings(tmp_path):
     assert work_plan == [[["r_runtime_bridge"]], [], []]
     assert metadata[0] == [{"run": "r_runtime_bridge", "work_items": 1}]
 
+    share_root = tmp_path / "share"
+    marker = share_root / "important.txt"
+    marker.write_text("keep", encoding="utf-8")
+    with pytest.raises(ValueError, match="confinement root"):
+        RRuntimeBridge(env, data_out=Path("."), reset_target=True)
+    assert marker.read_text(encoding="utf-8") == "keep"
+
     settings = tmp_path / "settings.toml"
     manager.to_toml(settings)
     reloaded = RRuntimeBridge.from_toml(env, settings, timeout_seconds=30)
@@ -299,6 +306,40 @@ def test_r_runtime_bridge_worker_exports_reduce_and_analysis_artifacts(
     assert (worker.data_out / "reduce_summary_worker_4.json").is_file()
     assert (worker.artifact_dir / "output.json").is_file()
     assert (worker.artifact_dir / "reduce_summary_worker_4.json").is_file()
+
+
+def test_r_runtime_bridge_worker_rejects_absolute_output_outside_share(tmp_path):
+    import r_runtime_bridge_worker.r_runtime_bridge_worker as worker_mod
+
+    share_root = tmp_path / "share"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    marker = outside / "important.txt"
+    marker.write_text("keep", encoding="utf-8")
+
+    class FakeEnv(SimpleNamespace):
+        target = "r_runtime_bridge_project"
+        active_app = APP_ROOT
+
+        def resolve_share_path(self, value):
+            candidate = Path(value)
+            return candidate if candidate.is_absolute() else self.share_root / candidate
+
+    worker = worker_mod.RRuntimeBridgeWorker()
+    worker.env = FakeEnv(
+        share_root=share_root,
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+    )
+    worker.args = {
+        "data_out": outside,
+        "script_path": "scripts/summarize.R",
+        "reset_target": True,
+    }
+
+    with pytest.raises(ValueError, match="active share root"):
+        worker.start()
+
+    assert marker.read_text(encoding="utf-8") == "keep"
 
 
 def test_r_runtime_bridge_actual_rscript_contract_when_available(tmp_path):

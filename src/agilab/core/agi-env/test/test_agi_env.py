@@ -1869,7 +1869,13 @@ def test_unzip_data_handles_missing_archive_existing_dataset_and_force_refresh(t
     monkeypatch.setattr(agi_env_module.py7zr, "SevenZipFile", _FakeSevenZip)
 
     env.unzip_data(archive, "dataset/demo", force_extract=True)
-    assert removed == [dataset]
+    assert len(removed) == 2
+    assert any(path.name.endswith(".rollback") for path in removed)
+    assert any(
+        path.name.startswith(".agilab-dataset-refresh-")
+        and not path.name.endswith(".rollback")
+        for path in removed
+    )
     assert (dataset / "payload.txt").exists()
 
 
@@ -1919,7 +1925,21 @@ def test_unzip_data_skips_for_owner_mismatch_parent_failure_and_refresh_permissi
     dataset = refresh_env.agi_share_path_abs / "dataset" / "demo" / "dataset"
     dataset.mkdir(parents=True)
 
+    class _FakeSevenZip:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def extractall(self, path):
+            (Path(path) / "dataset").mkdir(parents=True, exist_ok=True)
+
     monkeypatch.setattr(agi_env_module, "_ensure_dir", original_ensure_dir)
+    monkeypatch.setattr(agi_env_module.py7zr, "SevenZipFile", _FakeSevenZip)
     monkeypatch.setattr(agi_env_module.shutil, "rmtree", lambda *_a, **_k: (_ for _ in ()).throw(PermissionError("busy")))
     refresh_env.unzip_data(archive, "dataset/demo", force_extract=True)
     assert dataset.exists()

@@ -4,7 +4,10 @@ from typing import Any, List, Tuple
 
 import py7zr
 
-from agi_env.data_archive_support import ensure_py7zr_package_compatibility
+from agi_env.data_archive_support import (
+    ensure_py7zr_package_compatibility,
+    validate_archive_members_stay_within_dest,
+)
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
 from .fireducks_app_args import (
@@ -102,6 +105,7 @@ class FireducksApp(BaseWorker):
 
             logger.info("Extracting data archive from %s to %s", data_src, data_in)
             with py7zr.SevenZipFile(data_src, mode="r") as archive:
+                validate_archive_members_stay_within_dest(archive, data_in)
                 archive.extractall(path=data_in)
         except Exception as exc:  # pragma: no cover - defensive guard
             logger.error("Failed to initialize data directory: %s", exc)

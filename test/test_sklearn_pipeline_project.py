@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -18,6 +19,9 @@ from sklearn_pipeline import (  # noqa: E402
     safe_reset_path,
 )
 from sklearn_pipeline.reduction import partial_from_sklearn_summary  # noqa: E402
+from sklearn_pipeline_worker.sklearn_pipeline_worker import (  # noqa: E402
+    SklearnPipelineWorker,
+)
 
 
 @pytest.mark.parametrize(
@@ -93,6 +97,36 @@ def test_sklearn_pipeline_safe_reset_path_stays_under_share_root(tmp_path: Path)
         safe_reset_path(share_root, share_root=share_root, label="data_out")
     with pytest.raises(ValueError, match="under"):
         safe_reset_path(tmp_path / "outside", share_root=share_root, label="data_out")
+
+
+def test_sklearn_pipeline_worker_rejects_absolute_output_outside_share(
+    tmp_path: Path,
+) -> None:
+    share_root = tmp_path / "share"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    marker = outside / "important.txt"
+    marker.write_text("keep", encoding="utf-8")
+
+    def _resolve_share_path(value: str | Path) -> Path:
+        candidate = Path(value)
+        return candidate if candidate.is_absolute() else share_root / candidate
+
+    worker = SklearnPipelineWorker()
+    worker.env = SimpleNamespace(
+        resolve_share_path=_resolve_share_path,
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+        target="sklearn_pipeline_project",
+    )
+    worker.args = SklearnPipelineArgs.model_construct(
+        data_out=outside,
+        reset_target=True,
+    )
+
+    with pytest.raises(ValueError, match="active share root"):
+        worker.start()
+
+    assert marker.read_text(encoding="utf-8") == "keep"
 
 
 def test_sklearn_pipeline_artifact_summary_matches_persisted_file(tmp_path: Path) -> None:

@@ -175,6 +175,65 @@ def test_resolve_shared_path_rejects_absolute_and_parent_escape(tmp_path):
         streamlit_args.resolve_shared_path(env, "../outside")
 
 
+def test_resolve_app_args_share_paths_uses_input_and_output_resolvers(tmp_path):
+    class DataArgs(BaseModel):
+        data_in: Path
+        data_out: Path
+        submission_inbox: Path
+
+    calls: list[tuple[str, Path]] = []
+
+    class Env:
+        def resolve_share_input_path(self, value):
+            calls.append(("input", Path(value)))
+            return tmp_path / "physical" / Path(value)
+
+        def resolve_share_path(self, value):
+            calls.append(("output", Path(value)))
+            return tmp_path / "workflow" / Path(value)
+
+    resolved = streamlit_args.resolve_app_args_share_paths(
+        Env(),
+        DataArgs(
+            data_in=Path("demo/input"),
+            data_out=Path("demo/output"),
+            submission_inbox=Path("demo/inbox"),
+        ),
+    )
+
+    assert resolved == {
+        "data_in": tmp_path / "physical/demo/input",
+        "data_out": tmp_path / "workflow/demo/output",
+        "submission_inbox": tmp_path / "workflow/demo/inbox",
+    }
+    assert calls == [
+        ("input", Path("demo/input")),
+        ("output", Path("demo/output")),
+        ("output", Path("demo/inbox")),
+    ]
+
+
+@pytest.mark.parametrize("escaped", ["../outside", "/tmp/outside"])
+def test_resolve_app_args_share_paths_reports_field_before_persistence(
+    escaped, tmp_path
+):
+    class DataArgs(BaseModel):
+        data_out: Path
+
+    share_root = tmp_path / "share"
+    share_root.mkdir()
+    env = SimpleNamespace(
+        resolve_share_path=lambda value: streamlit_args.resolve_share_path(
+            SimpleNamespace(share_root_path=lambda: share_root), value
+        )
+    )
+
+    with pytest.raises(ValueError, match="Invalid data_out path"):
+        streamlit_args.resolve_app_args_share_paths(
+            env, DataArgs(data_out=Path(escaped))
+        )
+
+
 def test_ensure_shared_directory_does_not_create_escaped_path(tmp_path):
     share_root = tmp_path / "share"
     share_root.mkdir()

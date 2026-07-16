@@ -53,6 +53,171 @@ def test_build_selection_prioritizes_direct_impact_tests() -> None:
     )
 
 
+def test_package_local_test_is_required_and_cannot_be_budget_pruned() -> None:
+    module = _load_module()
+    changed = (
+        "src/agilab/apps/builtin/execution_pandas_project/"
+        "src/execution_pandas/execution_pandas.py"
+    )
+    direct_test = (
+        "src/agilab/apps/builtin/execution_pandas_project/"
+        "test/test_execution_pandas_project.py"
+    )
+    report = module.impact_validate.ImpactReport(
+        files=[changed],
+        overall_risk="low",
+        risk_zones=[],
+        push_gates=[],
+        artifact_actions=[],
+        required_validations=[],
+        guessed_tests=[],
+    )
+    context = module.ValidationContext(
+        files=(changed,),
+        impact_report=report,
+        timings={direct_test: 30.0, "test/test_builtin_app_tests.py": 0.1},
+        test_files=(direct_test, "test/test_builtin_app_tests.py"),
+        default_estimates={direct_test: 30.0, "test/test_builtin_app_tests.py": 0.1},
+    )
+
+    result = module.build_selection(
+        [changed],
+        timings=context.timings,
+        budget_seconds=0.1,
+        population=8,
+        generations=4,
+        seed=1,
+        context=context,
+    )
+
+    assert result.required_tests == (direct_test,)
+    assert direct_test in result.selected_tests
+
+
+def test_generic_app_path_tokens_do_not_select_unrelated_package_tests() -> None:
+    module = _load_module()
+    changed = (
+        "src/agilab/apps/builtin/execution_pandas_project/"
+        "src/execution_pandas/execution_pandas.py"
+    )
+    direct_test = (
+        "src/agilab/apps/builtin/execution_pandas_project/"
+        "test/test_execution_pandas_project.py"
+    )
+    unrelated_test = (
+        "src/agilab/apps/builtin/weather_forecast_project/"
+        "test/test_weather_forecast_project.py"
+    )
+    report = module.impact_validate.ImpactReport(
+        files=[changed],
+        overall_risk="low",
+        risk_zones=[],
+        push_gates=[],
+        artifact_actions=[],
+        required_validations=[],
+        guessed_tests=[],
+    )
+    context = module.ValidationContext(
+        files=(changed,),
+        impact_report=report,
+        timings={},
+        test_files=(direct_test, unrelated_test),
+        default_estimates={direct_test: 1.0, unrelated_test: 1.0},
+    )
+
+    candidates = module.build_candidates(changed, {}, context=context)
+
+    assert [candidate.path for candidate in candidates] == [direct_test]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected_optional_args"),
+    (
+        ("from streamlit.testing.v1 import AppTest\n", ("--extra", "ui")),
+        ("from agi_env import streamlit_args\n", ("--extra", "ui")),
+        (
+            "from agi_env.ui.streamlit_args import render_form\n",
+            ("--extra", "ui"),
+        ),
+        ("import pytest\n", ()),
+    ),
+)
+def test_pytest_command_adds_ui_extra_only_for_streamlit_tests(
+    monkeypatch, tmp_path: Path, source: str, expected_optional_args: tuple[str, ...]
+) -> None:
+    module = _load_module()
+    test_path = Path("test/test_selected.py")
+    selected = tmp_path / test_path
+    selected.parent.mkdir(parents=True)
+    selected.write_text(source, encoding="utf-8")
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    command = module._pytest_command((test_path.as_posix(),))
+
+    pytest_index = command.index("pytest")
+    assert command[4:pytest_index] == expected_optional_args
+    assert command[-1] == test_path.as_posix()
+
+
+def test_pytest_command_adds_only_external_selected_app_dependencies(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_module()
+    root_test = Path("test/test_selected.py")
+    selected_root_test = tmp_path / root_test
+    selected_root_test.parent.mkdir(parents=True)
+    selected_root_test.write_text("import pytest\n", encoding="utf-8")
+    app_root = (
+        tmp_path
+        / "src"
+        / "agilab"
+        / "apps"
+        / "builtin"
+        / "weather_forecast_project"
+    )
+    app_root.mkdir(parents=True)
+    (app_root / "pyproject.toml").write_text(
+        """[project]
+name = "weather_forecast_project"
+version = "1"
+dependencies = [
+  "agi-env>=1",
+  "pandas>=2.3,<4",
+  "skforecast>=0.19,<0.20; python_version >= '3.12'",
+]
+
+[tool.uv.sources]
+agi-env = { path = "../../../core/agi-env", editable = true }
+""",
+        encoding="utf-8",
+    )
+    app_test = (
+        "src/agilab/apps/builtin/weather_forecast_project/"
+        "test/test_weather_forecast_project.py"
+    )
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    command = module._pytest_command((root_test.as_posix(), app_test))
+
+    pytest_index = command.index("pytest")
+    assert command[:4] == (
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+    )
+    assert command[4:pytest_index] == (
+        "--extra",
+        "ui",
+        "--with",
+        "pandas>=2.3,<4",
+        "--with",
+        "skforecast>=0.19,<0.20; python_version >= '3.12'",
+    )
+    assert "agi-env>=1" not in command
+    assert command[-2:] == (root_test.as_posix(), app_test)
+
+
 def test_orchestrate_gui_change_stays_in_gui_regression_slice() -> None:
     module = _load_module()
 
@@ -480,7 +645,7 @@ def test_score_test_covers_special_surfaces() -> None:
         assert expected_reason in reasons
 
 
-def test_prune_to_budget_keeps_required_when_required_already_exceeds_budget() -> None:
+def test_prune_to_budget_drops_optional_when_required_already_exceeds_budget() -> None:
     module = _load_module()
     required = module.TestCandidate(
         "test/test_required.py",
@@ -497,8 +662,7 @@ def test_prune_to_budget_keeps_required_when_required_already_exceeds_budget() -
     )
 
     assert module._prune_to_budget([required, optional], budget_seconds=3.0) == [
-        required,
-        optional,
+        required
     ]
 
 
@@ -599,6 +763,10 @@ def test_discover_test_files_uses_git_and_caches_result(tmp_path: Path, monkeypa
             "test/helper.py",
             "src/agilab/core/test/test_core.py",
             "src/agilab/core/test/fixture.py",
+            "src/agilab/apps/builtin/demo_project/test/test_demo_project.py",
+            "src/agilab/core/agi-cluster/test/test_cluster.py",
+            "src/agilab/core/tools/test_codegen.py",
+            "src/agilab/lib/agi-web/test/test_web.py",
             "docs/test_docs.py",
         ]
 
@@ -606,7 +774,14 @@ def test_discover_test_files_uses_git_and_caches_result(tmp_path: Path, monkeypa
 
     files = module._discover_test_files(cache_path=cache_path)
 
-    assert files == ["src/agilab/core/test/test_core.py", "test/test_alpha.py"]
+    assert files == [
+        "src/agilab/apps/builtin/demo_project/test/test_demo_project.py",
+        "src/agilab/core/agi-cluster/test/test_cluster.py",
+        "src/agilab/core/test/test_core.py",
+        "src/agilab/core/tools/test_codegen.py",
+        "src/agilab/lib/agi-web/test/test_web.py",
+        "test/test_alpha.py",
+    ]
     assert calls == [
         [
             "ls-files",
@@ -759,13 +934,13 @@ def test_main_json_output_for_explicit_files(capsys, tmp_path: Path) -> None:
     assert exit_code == 0
     assert payload["files"] == ["src/agilab/pipeline_mistral.py"]
     assert "test/test_pipeline_mistral.py" in payload["selected_tests"]
-    assert payload["command"][:5] == [
+    assert payload["command"][:4] == [
         "uv",
         "--preview-features",
         "extra-build-dependencies",
         "run",
-        "pytest",
     ]
+    assert "pytest" in payload["command"]
 
 
 def test_render_human_includes_selected_tests_and_empty_message() -> None:

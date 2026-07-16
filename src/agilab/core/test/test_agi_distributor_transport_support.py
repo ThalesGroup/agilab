@@ -323,6 +323,62 @@ async def test_run_scp_command_times_out_hung_transfer(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_run_scp_command_cancellation_kills_and_reaps_process(
+    monkeypatch,
+    tmp_path,
+):
+    communicate_started = asyncio.Event()
+    never_finishes = asyncio.Event()
+    reap_started = asyncio.Event()
+    finish_reap = asyncio.Event()
+
+    class _HungProc:
+        returncode = None
+
+        def __init__(self):
+            self.killed = False
+            self.reaped = False
+
+        async def communicate(self):
+            communicate_started.set()
+            await never_finishes.wait()
+
+        def kill(self):
+            self.killed = True
+
+        async def wait(self):
+            reap_started.set()
+            await finish_reap.wait()
+            self.reaped = True
+
+    process = _HungProc()
+
+    async def _fake_subproc(*_cmd, **_kwargs):
+        return process
+
+    monkeypatch.setattr(transport_support.asyncio, "create_subprocess_exec", _fake_subproc)
+
+    task = asyncio.create_task(
+        transport_support._run_scp_command(
+            ["scp", "x", "y"],
+            local_path=tmp_path / "x",
+            remote="user@host:y",
+        )
+    )
+    await communicate_started.wait()
+    task.cancel()
+    await reap_started.wait()
+    task.cancel()
+    finish_reap.set()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert process.killed is True
+    assert process.reaped is True
+
+
+@pytest.mark.asyncio
 async def test_get_ssh_connection_serializes_concurrent_connects(monkeypatch):
     # Regression: concurrent callers used to race and leak all but the last
     # opened connection; now they share one in-flight connect per IP.
@@ -844,10 +900,12 @@ async def test_exec_ssh_success_and_error_paths():
 
 class _FakeStream:
     def __init__(self, payload):
-        self._payload = payload
+        self._chunks = list(payload) if isinstance(payload, list) else [payload]
+        first = self._chunks[0] if self._chunks else b""
+        self._eof = b"" if isinstance(first, bytes) else ""
 
     async def read(self, _limit=-1):
-        return self._payload
+        return self._chunks.pop(0) if self._chunks else self._eof
 
 
 class _FakeAsyncProc:
@@ -901,6 +959,29 @@ async def test_exec_ssh_async_and_close_all_connections():
 
 
 @pytest.mark.asyncio
+async def test_exec_ssh_async_consumes_multichunk_streams_to_eof():
+    process = _FakeAsyncProc(
+        stdout=[b"alpha\n", b"beta\n"],
+        stderr=[b"progress\n", b"late failure [ProjectError]\n"],
+    )
+
+    class _Conn:
+        async def create_process(self, _cmd):
+            return process
+
+    @asynccontextmanager
+    async def _conn_ctx(_ip):
+        yield _Conn()
+
+    agi_cls = SimpleNamespace(get_ssh_connection=_conn_ctx, _worker_init_error=False)
+
+    last_line = await transport_support.exec_ssh_async(agi_cls, "10.0.0.2", "run")
+
+    assert last_line == "beta"
+    assert agi_cls._worker_init_error is True
+
+
+@pytest.mark.asyncio
 async def test_exec_ssh_async_rejects_unbounded_output():
     class _Conn:
         async def create_process(self, _cmd):
@@ -916,6 +997,115 @@ async def test_exec_ssh_async_rejects_unbounded_output():
 
     with pytest.raises(ConnectionError, match="output exceeded"):
         await transport_support.exec_ssh_async(agi_cls, "10.0.0.2", "run")
+
+
+@pytest.mark.asyncio
+async def test_exec_ssh_async_rejects_cumulative_overflow_and_stops_process():
+    class _TrackedProc(_FakeAsyncProc):
+        def __init__(self):
+            super().__init__(
+                stdout=[
+                    b"x" * transport_support.SSH_STREAM_READ_LIMIT_BYTES,
+                    b"y",
+                ]
+            )
+            self.terminated = False
+            self.closed = False
+            self.waited_closed = False
+
+        def terminate(self):
+            self.terminated = True
+
+        def close(self):
+            self.closed = True
+
+        async def wait_closed(self):
+            self.waited_closed = True
+
+    process = _TrackedProc()
+
+    class _Conn:
+        async def create_process(self, _cmd):
+            return process
+
+    @asynccontextmanager
+    async def _conn_ctx(_ip):
+        yield _Conn()
+
+    agi_cls = SimpleNamespace(get_ssh_connection=_conn_ctx)
+
+    with pytest.raises(ConnectionError, match="output exceeded"):
+        await transport_support.exec_ssh_async(agi_cls, "10.0.0.2", "run")
+
+    assert process.terminated is True
+    assert process.closed is True
+    assert process.waited_closed is True
+
+
+@pytest.mark.asyncio
+async def test_exec_ssh_async_cancellation_stops_and_awaits_process():
+    read_started = asyncio.Event()
+    never_finishes = asyncio.Event()
+    cleanup_started = asyncio.Event()
+    finish_cleanup = asyncio.Event()
+
+    class _BlockingStream:
+        async def read(self, _limit=-1):
+            read_started.set()
+            await never_finishes.wait()
+            return b""
+
+    class _TrackedProc:
+        def __init__(self):
+            self.stdout = _BlockingStream()
+            self.stderr = None
+            self.terminated = False
+            self.closed = False
+            self.waited_closed = False
+
+        async def wait(self):
+            raise AssertionError("the blocked stream must be cancelled before wait")
+
+        def terminate(self):
+            self.terminated = True
+
+        def close(self):
+            self.closed = True
+
+        async def wait_closed(self):
+            cleanup_started.set()
+            await finish_cleanup.wait()
+            self.waited_closed = True
+
+    process = _TrackedProc()
+
+    class _Conn:
+        async def create_process(self, _cmd):
+            return process
+
+    @asynccontextmanager
+    async def _conn_ctx(_ip):
+        yield _Conn()
+
+    task = asyncio.create_task(
+        transport_support.exec_ssh_async(
+            SimpleNamespace(get_ssh_connection=_conn_ctx),
+            "10.0.0.2",
+            "run",
+        )
+    )
+    await read_started.wait()
+    task.cancel()
+    await cleanup_started.wait()
+    task.cancel()
+    finish_cleanup.set()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert process.terminated is True
+    assert process.closed is True
+    assert process.waited_closed is True
 
 
 @pytest.mark.asyncio

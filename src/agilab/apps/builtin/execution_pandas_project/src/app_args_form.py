@@ -7,6 +7,7 @@ from typing import Any
 
 import streamlit as st
 from pydantic import ValidationError
+from agi_env.streamlit_args import resolve_app_args_share_paths
 
 _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
@@ -168,6 +169,7 @@ candidate: dict[str, Any] = {
 
 try:
     validated = ExecutionPandasArgs(**candidate)
+    resolve_app_args_share_paths(env, validated)
 except ValidationError as exc:
     st.error("Invalid Execution Pandas parameters:")
     if hasattr(env, "humanize_validation_errors"):
@@ -175,6 +177,8 @@ except ValidationError as exc:
             st.markdown(msg)
     else:
         st.code(str(exc))
+except ValueError as exc:
+    st.error(str(exc))
 else:
     validated_payload = validated.model_dump(mode="json")
     if validated_payload != current_payload:

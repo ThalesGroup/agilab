@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -70,6 +74,71 @@ def test_capability_manifest_exposes_public_surfaces() -> None:
     assert commands["regulatory-readiness-report"]["evidence_outputs"] == [
         "agilab.regulatory_readiness.v1"
     ]
+
+
+def test_schema_scan_excludes_gitignored_workspace_artifacts(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_module()
+    tracked = tmp_path / "tracked.py"
+    ignored = tmp_path / "lab_stages.notebook_export.json"
+    tracked.write_text('SCHEMA = "agilab.tracked_evidence.v1"\n', encoding="utf-8")
+    ignored.write_text(
+        '{"schema": "agilab.ignored_workspace_artifact.v1"}\n',
+        encoding="utf-8",
+    )
+    (tmp_path / ".gitignore").write_text(
+        "lab_stages.notebook_export.json\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "add", ".gitignore", tracked.name],
+        cwd=tmp_path,
+        check=True,
+    )
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "SCHEMA_SCAN_ROOTS", (tmp_path,))
+    monkeypatch.setattr(module, "SCHEMA_SCAN_FILES", ())
+
+    schemas = {row["schema"] for row in module.collect_evidence_schemas()}
+
+    assert "agilab.tracked_evidence.v1" in schemas
+    assert "agilab.ignored_workspace_artifact.v1" not in schemas
+
+
+def test_schema_scan_fails_closed_when_git_inventory_fails(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_module()
+    (tmp_path / ".git").mkdir()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=1,
+            stdout=b"",
+            stderr=b"fatal: inventory unavailable",
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="inventory unavailable"):
+        module._git_visible_paths()
+
+
+def test_schema_scan_without_git_metadata_uses_source_tree_fallback(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    def unexpected_run(*args, **kwargs):
+        raise AssertionError("Git must not be called for a source tree without .git")
+
+    monkeypatch.setattr(module.subprocess, "run", unexpected_run)
+
+    assert module._git_visible_paths() is None
 
 
 def test_checked_in_capability_manifest_is_current() -> None:

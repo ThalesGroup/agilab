@@ -2319,11 +2319,15 @@ def test_tescia_worker_helper_and_empty_paths(monkeypatch, tmp_path) -> None:
     assert _sanitize_slug("  ") == "tescia_case"
 
     worker = TesciaDiagnosticWorker()
-    worker.args = {"data_in": tmp_path / "in", "data_out": tmp_path / "out", "reset_target": False}
     worker.env = _FakeEnv(tmp_path)
+    worker.args = {
+        "data_in": worker.env.share_root_path() / "in",
+        "data_out": worker.env.share_root_path() / "out",
+        "reset_target": False,
+    }
     worker._worker_id = 0
     worker.start()
-    assert Path(worker._current_args().data_in) == tmp_path / "in"
+    assert Path(worker._current_args().data_in) == worker.env.share_root_path() / "in"
     worker.pool_init({"args": {"minimum_evidence_confidence": 0.1}})
     assert worker._current_args().minimum_evidence_confidence == 0.1
     assert worker.work_init() is None
@@ -2333,17 +2337,19 @@ def test_tescia_worker_helper_and_empty_paths(monkeypatch, tmp_path) -> None:
     assert (tmp_path / "empty_bundle").is_dir()
 
     class ArgsObject:
-        def __init__(self) -> None:
-            self.data_in = tmp_path / "in2"
-            self.data_out = tmp_path / "out2"
+        def __init__(self, share_root: Path) -> None:
+            self.data_in = share_root / "in2"
+            self.data_out = share_root / "out2"
             self.reset_target = False
 
     object_worker = TesciaDiagnosticWorker()
-    object_worker.args = ArgsObject()
     object_worker.env = _FakeEnv(tmp_path / "object_worker")
+    object_worker.args = ArgsObject(object_worker.env.share_root_path())
     object_worker._worker_id = 0
     object_worker.start()
-    assert Path(object_worker._current_args().data_out) == tmp_path / "out2"
+    assert Path(object_worker._current_args().data_out) == (
+        object_worker.env.share_root_path() / "out2"
+    )
 
 
 def test_tescia_worker_rejects_invalid_json_and_classroom_batches(monkeypatch, tmp_path) -> None:

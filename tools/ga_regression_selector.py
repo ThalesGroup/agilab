@@ -10,6 +10,7 @@ import re
 import shlex
 import subprocess
 import sys
+import tomllib
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
 from functools import lru_cache
@@ -27,9 +28,9 @@ DEFAULT_TEST_INDEX_CACHE_PATH = (
 DEFAULT_TEST_ROOTS = (
     "test",
     "src/agilab/test",
-    "src/agilab/lib/agi-gui/test",
-    "src/agilab/core/test",
-    "src/agilab/core/agi-env/test",
+    "src/agilab/apps",
+    "src/agilab/lib",
+    "src/agilab/core",
 )
 EXACT_FAST_PATH_MAX_OPTIONAL = 12
 GA_STAGNATION_GENERATIONS = 12
@@ -53,7 +54,23 @@ COMMON_TOKENS = {
     "core",
     "env",
     "state",
+    "apps",
+    "builtin",
 }
+UI_TEST_DEPENDENCY_PATTERNS = (
+    re.compile(
+        r"^\s*(?:from\s+streamlit(?:\.|\s)|import\s+streamlit(?:\.|\s|$))",
+        re.MULTILINE,
+    ),
+    re.compile(
+        r"^\s*(?:"
+        r"from\s+agi_env(?:\.ui)?\s+import\s+streamlit_args\b|"
+        r"from\s+agi_env(?:\.ui)?\.streamlit_args\s+import\s+|"
+        r"import\s+agi_env(?:\.ui)?\.streamlit_args(?:\s|$)"
+        r")",
+        re.MULTILINE,
+    ),
+)
 
 
 @dataclass(frozen=True)
@@ -129,8 +146,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Bypass the selector's local test metadata cache.",
     )
     parser.add_argument("--json", action="store_true", help="Emit JSON.")
-    parser.add_argument("--print-command", action="store_true", help="Print only the selected pytest command.")
-    parser.add_argument("--run", action="store_true", help="Run the selected pytest command.")
+    parser.add_argument(
+        "--print-command",
+        action="store_true",
+        help="Print only the selected regression command.",
+    )
+    parser.add_argument("--run", action="store_true", help="Run the selected regression command.")
     return parser
 
 
@@ -472,6 +493,49 @@ def _is_allowed_candidate(path: str, changed_files: Sequence[str], guessed_tests
     return True
 
 
+def _package_local_required_tests(
+    test_files: Sequence[str],
+    changed_files: Sequence[str],
+) -> set[str]:
+    """Return tests in the changed package's checked-in local test home."""
+
+    changed_parts = [Path(path).parts for path in changed_files]
+    groups: dict[tuple[str, ...], list[str]] = {}
+    for test_file in test_files:
+        parts = Path(test_file).parts
+        prefix: tuple[str, ...] | None = None
+        if "test" in parts:
+            test_index = parts.index("test")
+            candidate = parts[:test_index]
+            if len(candidate) >= 4:
+                prefix = candidate
+        elif len(parts) >= 5:
+            prefix = parts[:-1]
+        if prefix is not None:
+            groups.setdefault(prefix, []).append(test_file)
+
+    required: set[str] = set()
+    for package_prefix, local_tests in groups.items():
+        local_changes = [
+            current
+            for current in changed_parts
+            if current[: len(package_prefix)] == package_prefix
+        ]
+        if not local_changes:
+            continue
+        package_key = package_prefix[-1].removesuffix("_project").lower()
+        for test_file in local_tests:
+            test_key = Path(test_file).stem.removeprefix("test_").lower()
+            direct_name_match = any(
+                Path(*current).stem.lower() in test_key
+                or test_key in Path(*current).stem.lower()
+                for current in local_changes
+            )
+            if len(local_tests) == 1 or direct_name_match or package_key in test_key:
+                required.add(test_file)
+    return required
+
+
 def _module_to_test_path(classname: str) -> str | None:
     module = classname.split("[", 1)[0]
     if not module:
@@ -486,6 +550,115 @@ def _module_to_test_path(classname: str) -> str | None:
             if (REPO_ROOT / fallback).exists():
                 return fallback
     return None
+
+
+def _selected_tests_require_ui(test_paths: Sequence[str]) -> bool:
+    """Return whether selected tests declare a known optional-UI dependency."""
+
+    for test_path in test_paths:
+        try:
+            source = (REPO_ROOT / test_path).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if any(pattern.search(source) for pattern in UI_TEST_DEPENDENCY_PATTERNS):
+            return True
+    return False
+
+
+def _builtin_app_project(test_path: str) -> Path | None:
+    """Return the project owning a selected built-in app test."""
+
+    parts = Path(test_path).parts
+    prefix = ("src", "agilab", "apps", "builtin")
+    if len(parts) < 7 or parts[:4] != prefix or parts[5] != "test":
+        return None
+    project_name = parts[4]
+    project_root = REPO_ROOT.joinpath(*parts[:5])
+    if (
+        not project_name.endswith("_project")
+        or not (project_root / "pyproject.toml").is_file()
+    ):
+        return None
+    return project_root
+
+
+def _normalized_dependency_name(requirement: str) -> str:
+    match = re.match(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)", requirement)
+    if match is None:
+        return ""
+    return re.sub(r"[-_.]+", "-", match.group(1)).lower()
+
+
+def _builtin_app_dependencies(selected_tests: Sequence[str]) -> tuple[str, ...]:
+    """Return external dependencies declared by selected built-in app projects."""
+
+    dependencies: list[str] = []
+    seen_dependencies: set[str] = set()
+    seen_projects: set[Path] = set()
+    for test_path in selected_tests:
+        project_root = _builtin_app_project(test_path)
+        if project_root is None or project_root in seen_projects:
+            continue
+        seen_projects.add(project_root)
+        try:
+            project_data = tomllib.loads(
+                (project_root / "pyproject.toml").read_text(encoding="utf-8")
+            )
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        project = project_data.get("project")
+        declared = project.get("dependencies") if isinstance(project, dict) else None
+        if not isinstance(declared, list):
+            continue
+        tool = project_data.get("tool")
+        uv = tool.get("uv") if isinstance(tool, dict) else None
+        sources = uv.get("sources") if isinstance(uv, dict) else None
+        local_names = (
+            {_normalized_dependency_name(str(name)) for name in sources}
+            if isinstance(sources, dict)
+            else set()
+        )
+        for dependency in declared:
+            if not isinstance(dependency, str):
+                continue
+            normalized_name = _normalized_dependency_name(dependency)
+            if not normalized_name or normalized_name in local_names:
+                continue
+            if dependency not in seen_dependencies:
+                dependencies.append(dependency)
+                seen_dependencies.add(dependency)
+    return tuple(dependencies)
+
+
+def _pytest_command(selected_tests: Sequence[str]) -> tuple[str, ...]:
+    if not selected_tests:
+        return ()
+    has_builtin_app_test = any(
+        _builtin_app_project(path) is not None for path in selected_tests
+    )
+    optional_args = (
+        ("--extra", "ui")
+        if has_builtin_app_test or _selected_tests_require_ui(selected_tests)
+        else ()
+    )
+    dependency_args = tuple(
+        argument
+        for dependency in _builtin_app_dependencies(selected_tests)
+        for argument in ("--with", dependency)
+    )
+    return (
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        *optional_args,
+        *dependency_args,
+        "pytest",
+        "-q",
+        "-o",
+        "addopts=",
+        *selected_tests,
+    )
 
 
 def _load_json_timings(path: Path) -> dict[str, float]:
@@ -786,6 +959,10 @@ def build_candidates(
             test_files, cache_path=cache_path, use_cache=use_cache
         )
     guessed_tests = set(impact.guessed_tests)
+    required_tests = guessed_tests | _package_local_required_tests(
+        test_files,
+        changed_files,
+    )
     candidates: list[TestCandidate] = []
     changed_tokens = (
         frozenset().union(*(_tokens(changed) for changed in changed_files))
@@ -793,15 +970,15 @@ def build_candidates(
         else frozenset()
     )
     for path in test_files:
-        if not _is_allowed_candidate(path, changed_files, guessed_tests):
+        if not _is_allowed_candidate(path, changed_files, required_tests):
             continue
         score, reasons = _score_test(
             path,
             changed_files,
-            guessed_tests,
+            required_tests,
             changed_tokens=changed_tokens,
         )
-        if score <= 1.0 and path not in guessed_tests:
+        if score <= 1.0 and path not in required_tests:
             continue
         if path in timings:
             estimate = timings[path]
@@ -815,7 +992,7 @@ def build_candidates(
                 score=score,
                 estimated_seconds=max(0.05, estimate),
                 reasons=tuple(dict.fromkeys(reasons)),
-                required=path in guessed_tests,
+                required=path in required_tests,
             )
         )
     return sorted(candidates, key=lambda item: (-item.required, -item.score, item.estimated_seconds, item.path))
@@ -981,11 +1158,15 @@ def select_tests(
     return _selected_from_genome(best, optional, required, budget_seconds)
 
 
-def _prune_to_budget(selected: Sequence[TestCandidate], budget_seconds: float) -> list[TestCandidate]:
+def _prune_to_budget(
+    selected: Sequence[TestCandidate], budget_seconds: float
+) -> list[TestCandidate]:
     kept = list(selected)
-    required_seconds = sum(candidate.estimated_seconds for candidate in kept if candidate.required)
+    required_seconds = sum(
+        candidate.estimated_seconds for candidate in kept if candidate.required
+    )
     if required_seconds >= budget_seconds:
-        return kept
+        return [candidate for candidate in kept if candidate.required]
     while sum(candidate.estimated_seconds for candidate in kept) > budget_seconds:
         optional = [candidate for candidate in kept if not candidate.required]
         if not optional:
@@ -1036,19 +1217,7 @@ def build_selection(
         max_candidates=max_candidates,
     )
     selected_tests = tuple(candidate.path for candidate in selected)
-    command = ()
-    if selected_tests:
-        command = (
-            "uv",
-            "--preview-features",
-            "extra-build-dependencies",
-            "run",
-            "pytest",
-            "-q",
-            "-o",
-            "addopts=",
-            *selected_tests,
-        )
+    command = _pytest_command(selected_tests)
     return SelectionResult(
         files=tuple(selection_files),
         selected_tests=selected_tests,

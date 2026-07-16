@@ -56,20 +56,28 @@ class RRuntimeBridgeWorker(PandasWorker):
     def start(self):
         global _runtime
         self.args = _args_with_defaults(self.args)
-        data_out = Path(self.args.data_out).expanduser()
-        if not data_out.is_absolute() and callable(
-            getattr(self.env, "resolve_share_path", None)
-        ):
-            data_out = Path(self.env.resolve_share_path(data_out))
+        data_out = path_support.resolve_share_output_path(self.env, self.args.data_out)
         self.args.data_out = data_out
         self.data_out = data_out
         if self.args.reset_target and self.data_out.exists():
-            shutil.rmtree(self.data_out, ignore_errors=True)
+            share_root = path_support.resolve_share_output_path(self.env, ".")
+            reset_path = path_support.safe_reset_path(
+                self.data_out,
+                roots=(share_root,),
+                label="data_out",
+            )
+            shutil.rmtree(reset_path, ignore_errors=True)
         self.data_out.mkdir(parents=True, exist_ok=True)
 
         self.artifact_dir = _artifact_dir(self.env, "r_runtime_bridge")
         if self.args.reset_target and self.artifact_dir.exists():
-            shutil.rmtree(self.artifact_dir, ignore_errors=True)
+            artifact_root = _artifact_dir(self.env, ".")
+            reset_path = path_support.safe_reset_path(
+                self.artifact_dir,
+                roots=(artifact_root,),
+                label="artifact_dir",
+            )
+            shutil.rmtree(reset_path, ignore_errors=True)
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
 
         self.script_path = self._resolve_script_path(self.args.script_path)

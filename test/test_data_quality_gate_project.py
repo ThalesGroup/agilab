@@ -16,6 +16,7 @@ if str(APP_SRC) not in sys.path:
 
 from data_quality_gate import (  # noqa: E402
     CONTRACT_SCHEMA,
+    DataQualityGate,
     DataQualityGateArgs,
     THRESHOLDS_SCHEMA,
     build_data_quality_gate_artifacts,
@@ -254,6 +255,112 @@ def test_data_quality_gate_worker_runs_csv_gate_and_mirrors_analysis_artifacts(t
     assert (evidence_root / "run_manifest.json").is_file()
     assert (evidence_root / "data_quality_dashboard.html").is_file()
     assert (Path(env.AGILAB_EXPORT_ABS) / "data_quality_gate_project/data_quality_gate/run_manifest.json").is_file()
+
+
+def test_data_quality_gate_worker_rejects_absolute_output_outside_share(
+    tmp_path: Path,
+) -> None:
+    env = _make_env(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    marker = outside / "important.txt"
+    marker.write_text("keep", encoding="utf-8")
+    worker = DataQualityGateWorker()
+    worker.env = env
+    worker.args = DataQualityGateArgs.model_construct(
+        data_out=outside,
+        reset_target=True,
+    )
+
+    with pytest.raises(ValueError, match="active share root"):
+        worker.start()
+
+    assert marker.read_text(encoding="utf-8") == "keep"
+
+
+def test_data_quality_gate_manager_rejects_reset_containing_input(tmp_path: Path) -> None:
+    env = _make_env(tmp_path)
+    input_root = Path(env.AGI_LOCAL_SHARE) / "data_quality_gate/input"
+    input_root.mkdir(parents=True)
+    baseline = input_root / "baseline.csv"
+    baseline.write_text("customer_id,target\n1,0\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must not overlap protected input"):
+        DataQualityGate(
+            env,
+            args=DataQualityGateArgs(
+                data_out="data_quality_gate",
+                baseline_csv="data_quality_gate/input/baseline.csv",
+                reset_target=True,
+            ),
+        )
+
+    assert baseline.read_text(encoding="utf-8") == "customer_id,target\n1,0\n"
+
+
+def test_data_quality_gate_worker_rejects_reset_containing_input(tmp_path: Path) -> None:
+    env = _make_env(tmp_path)
+    input_root = Path(env.AGI_LOCAL_SHARE) / "data_quality_gate/input"
+    input_root.mkdir(parents=True)
+    baseline = input_root / "baseline.csv"
+    baseline.write_text("customer_id,target\n1,0\n", encoding="utf-8")
+    worker = DataQualityGateWorker()
+    worker.env = env
+    worker.args = DataQualityGateArgs(
+        data_out="data_quality_gate",
+        baseline_csv="data_quality_gate/input/baseline.csv",
+        reset_target=True,
+    )
+
+    with pytest.raises(ValueError, match="must not overlap protected input"):
+        worker.start()
+
+    assert baseline.read_text(encoding="utf-8") == "customer_id,target\n1,0\n"
+
+
+@pytest.mark.parametrize("surface", ("manager", "worker"))
+def test_data_quality_gate_validates_absolute_inputs_with_canonical_resolver(
+    monkeypatch, tmp_path: Path, surface: str
+) -> None:
+    env = _make_env(tmp_path)
+    outside = tmp_path / "outside.csv"
+    calls: list[Path] = []
+
+    def _resolve_share_input_path(value: str | Path) -> Path:
+        candidate = Path(value)
+        calls.append(candidate)
+        if candidate.is_absolute() and not candidate.is_relative_to(
+            Path(env.AGI_LOCAL_SHARE)
+        ):
+            raise ValueError("input escapes share")
+        return env.resolve_share_path(candidate)
+
+    env.resolve_share_input_path = _resolve_share_input_path
+    args = DataQualityGateArgs.model_construct(
+        data_out=Path("data_quality_gate/evidence"),
+        baseline_csv=outside,
+        reset_target=False,
+    )
+
+    with pytest.raises(ValueError, match="input escapes share"):
+        if surface == "manager":
+            # Patch the globals used by this exact class method. Other broad-suite
+            # tests reload compatibility modules, so the current sys.modules entry
+            # can be a different module object from DataQualityGate.__init__'s
+            # defining globals.
+            monkeypatch.setitem(
+                DataQualityGate.__init__.__globals__,
+                "ensure_defaults",
+                lambda args, **_: args,
+            )
+            DataQualityGate(env, args=args)
+        else:
+            worker = DataQualityGateWorker()
+            worker.env = env
+            worker.args = args
+            worker.start()
+
+    assert calls == [outside]
 
 
 def test_data_quality_gate_reduce_artifact_matches_public_contract(tmp_path: Path) -> None:

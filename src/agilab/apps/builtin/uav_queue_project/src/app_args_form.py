@@ -6,6 +6,7 @@ from typing import Any
 
 import streamlit as st
 from pydantic import ValidationError
+from agi_env.streamlit_args import resolve_app_args_share_paths
 
 _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
@@ -142,6 +143,7 @@ if data_out_raw:
 
 try:
     validated = UavQueueArgs(**candidate)
+    resolved_paths = resolve_app_args_share_paths(env, validated)
 except ValidationError as exc:
     st.error("Invalid UAV queue parameters:")
     if hasattr(env, "humanize_validation_errors"):
@@ -149,6 +151,8 @@ except ValidationError as exc:
             st.markdown(msg)
     else:
         st.code(str(exc))
+except ValueError as exc:
+    st.error(str(exc))
 else:
     validated_payload = validated.model_dump(mode="json")
     if validated_payload != current_payload:
@@ -170,19 +174,14 @@ else:
     else:
         st.info("No changes to save.")
 
-    _resolve_input = getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
-    try:
-        resolved_data_in = _resolve_input(validated.data_in)
-        resolved_data_out = env.resolve_share_path(validated.data_out)
-    except ValueError as exc:
-        st.error(f"Invalid data_in/data_out path: {exc}")
-    else:
-        if not any(resolved_data_in.glob(validated.files)):
-            st.info("No matching scenario file exists yet. The bundled sample scenario will be seeded on first run.")
-        st.caption(
-            f"Resolved input: `{resolved_data_in}`  •  results: `{resolved_data_out}`  •  "
-            f"analysis artifacts: `{artifact_root}`"
-        )
+    resolved_data_in = resolved_paths["data_in"]
+    resolved_data_out = resolved_paths["data_out"]
+    if not any(resolved_data_in.glob(validated.files)):
+        st.info("No matching scenario file exists yet. The bundled sample scenario will be seeded on first run.")
+    st.caption(
+        f"Resolved input: `{resolved_data_in}`  •  results: `{resolved_data_out}`  •  "
+        f"analysis artifacts: `{artifact_root}`"
+    )
     st.caption(
         "The default sample is tuned to create a queue hotspot on `relay_a` under "
         "`shortest_path`, then improve when you switch to `queue_aware`."

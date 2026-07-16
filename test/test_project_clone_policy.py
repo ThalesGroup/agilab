@@ -251,6 +251,31 @@ def test_export_project_action_creates_zip_and_honors_gitignore(tmp_path: Path):
         assert sorted(archive.namelist()) == [".gitignore", "keep.txt"]
 
 
+def test_export_project_action_rejects_external_file_symlink(tmp_path: Path):
+    module = _load_project_module()
+    project_root = tmp_path / "demo_project"
+    project_root.mkdir()
+    secret = tmp_path / "id_rsa"
+    secret.write_text("private-key", encoding="utf-8")
+    try:
+        (project_root / "credentials.txt").symlink_to(secret)
+    except OSError:
+        pytest.skip("symlinks are unavailable on this filesystem")
+    export_root = tmp_path / "exports"
+    env = SimpleNamespace(
+        app="demo_project",
+        active_app=project_root,
+        export_apps=export_root,
+    )
+
+    result = module._export_project_action(env)
+
+    assert result.status == "error"
+    assert "external file symlink" in str(result.detail)
+    assert not (export_root / "demo_project.zip").exists()
+    assert secret.read_text(encoding="utf-8") == "private-key"
+
+
 def test_export_project_action_reports_missing_gitignore(tmp_path: Path):
     module = _load_project_module()
     project_root = tmp_path / "demo_project"
@@ -311,21 +336,131 @@ def test_import_project_action_reports_missing_archive(tmp_path: Path):
     assert result.data["zip_path"] == tmp_path / "exports" / "missing_project.zip"
 
 
+@pytest.mark.parametrize("archive_name", ["..zip", "...zip"])
+def test_import_project_action_rejects_target_stems_outside_apps_root(
+    tmp_path: Path,
+    archive_name: str,
+):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    existing_project = apps_root / "existing_project"
+    existing_project.mkdir(parents=True)
+    marker = existing_project / "keep.txt"
+    marker.write_text("keep", encoding="utf-8")
+    _write_project_archive(export_root / archive_name, {"new.txt": "new"})
+
+    result = module._import_project_action(
+        SimpleNamespace(export_apps=export_root, apps_path=apps_root),
+        project_zip=archive_name,
+        overwrite=True,
+    )
+
+    assert result.status == "error"
+    assert "unsafe" in result.title
+    assert marker.read_text(encoding="utf-8") == "keep"
+    assert not list(tmp_path.glob(".*.import-*"))
+
+
+def test_import_project_action_rejects_archive_outside_export_root(tmp_path: Path):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    export_root.mkdir()
+    outside_archive = tmp_path / "outside.zip"
+    _write_project_archive(outside_archive, {"new.txt": "new"})
+    apps_root = tmp_path / "apps"
+    existing_project = apps_root / "existing_project"
+    existing_project.mkdir(parents=True)
+    marker = existing_project / "keep.txt"
+    marker.write_text("keep", encoding="utf-8")
+
+    result = module._import_project_action(
+        SimpleNamespace(export_apps=export_root, apps_path=apps_root),
+        project_zip=str(outside_archive),
+        overwrite=True,
+    )
+
+    assert result.status == "error"
+    assert "unsafe" in result.title
+    assert marker.read_text(encoding="utf-8") == "keep"
+
+
+def test_import_project_action_rejects_archive_symlink_outside_export_root(tmp_path: Path):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    export_root.mkdir()
+    outside_archive = tmp_path / "outside.zip"
+    _write_project_archive(outside_archive, {"new.txt": "new"})
+    archive_link = export_root / "linked.zip"
+    try:
+        archive_link.symlink_to(outside_archive)
+    except OSError:
+        pytest.skip("file symlinks are unavailable on this filesystem")
+    apps_root = tmp_path / "apps"
+
+    result = module._import_project_action(
+        SimpleNamespace(export_apps=export_root, apps_path=apps_root),
+        project_zip=archive_link.name,
+        overwrite=True,
+    )
+
+    assert result.status == "error"
+    assert "unsafe" in result.title
+    assert not apps_root.exists()
+
+
+def test_import_project_action_rejects_existing_project_symlink_target(tmp_path: Path):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    _write_project_archive(export_root / "alias.zip", {"new.txt": "new"})
+    apps_root = tmp_path / "apps"
+    real_project = apps_root / "real_project"
+    real_project.mkdir(parents=True)
+    marker = real_project / "keep.txt"
+    marker.write_text("keep", encoding="utf-8")
+    alias = apps_root / "alias"
+    try:
+        alias.symlink_to(real_project, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are unavailable on this filesystem")
+
+    result = module._import_project_action(
+        SimpleNamespace(export_apps=export_root, apps_path=apps_root),
+        project_zip="alias.zip",
+        overwrite=True,
+    )
+
+    assert result.status == "error"
+    assert "unsafe" in result.title
+    assert alias.is_symlink()
+    assert marker.read_text(encoding="utf-8") == "keep"
+    assert not (real_project / "new.txt").exists()
+
+
 def test_import_project_action_reports_invalid_archive(tmp_path: Path):
     module = _load_project_module()
     export_root = tmp_path / "exports"
     export_root.mkdir()
     (export_root / "demo_project.zip").write_text("not a zip", encoding="utf-8")
     apps_root = tmp_path / "apps"
+    target_dir = apps_root / "demo_project"
+    target_dir.mkdir(parents=True)
+    marker = target_dir / "existing.txt"
+    marker.write_text("keep", encoding="utf-8")
     env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
 
-    result = module._import_project_action(env, project_zip="demo_project.zip")
+    result = module._import_project_action(
+        env,
+        project_zip="demo_project.zip",
+        overwrite=True,
+    )
 
     assert result.status == "error"
     assert result.title == "Project archive 'demo_project.zip' could not be imported."
     assert "valid exported project zip" in str(result.next_action)
-    assert result.data["target_dir"] == apps_root / "demo_project"
-    assert not result.data["target_dir"].exists()
+    assert result.data["target_dir"] == target_dir
+    assert marker.read_text(encoding="utf-8") == "keep"
+    assert not list(apps_root.glob(".demo_project.import-*"))
 
 
 def test_import_project_action_rejects_zip_slip_member(tmp_path: Path):
@@ -336,14 +471,73 @@ def test_import_project_action_rejects_zip_slip_member(tmp_path: Path):
         export_root / "demo_project.zip",
         {"../escape.txt": "bad"},
     )
+    target_dir = apps_root / "demo_project"
+    target_dir.mkdir(parents=True)
+    marker = target_dir / "existing.txt"
+    marker.write_text("keep", encoding="utf-8")
     env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
 
-    result = module._import_project_action(env, project_zip="demo_project.zip")
+    result = module._import_project_action(
+        env,
+        project_zip="demo_project.zip",
+        overwrite=True,
+    )
 
     assert result.status == "error"
     assert "could not be imported" in result.title
     assert "Unsafe archive member path" in str(result.detail)
     assert not (tmp_path / "escape.txt").exists()
+    assert marker.read_text(encoding="utf-8") == "keep"
+    assert not list(apps_root.glob(".demo_project.import-*"))
+
+
+def test_import_project_action_preserves_existing_project_after_partial_extract(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    export_root.mkdir()
+    archive_path = export_root / "demo_project.zip"
+    archive_path.write_bytes(b"placeholder")
+    apps_root = tmp_path / "apps"
+    target_dir = apps_root / "demo_project"
+    target_dir.mkdir(parents=True)
+    marker = target_dir / "existing.txt"
+    marker.write_text("keep", encoding="utf-8")
+
+    class _PartialArchive:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def namelist(self):
+            return ["new.txt"]
+
+        def extractall(self, path):
+            path = Path(path)
+            path.mkdir(parents=True)
+            (path / "new.txt").write_text("partial", encoding="utf-8")
+            raise OSError("mid-extraction failure")
+
+    monkeypatch.setattr(module.zipfile, "ZipFile", _PartialArchive)
+
+    result = module._import_project_action(
+        SimpleNamespace(export_apps=export_root, apps_path=apps_root),
+        project_zip="demo_project.zip",
+        overwrite=True,
+    )
+
+    assert result.status == "error"
+    assert "mid-extraction failure" in str(result.detail)
+    assert marker.read_text(encoding="utf-8") == "keep"
+    assert not (target_dir / "new.txt").exists()
+    assert not list(apps_root.glob(".demo_project.import-*"))
 
 
 def test_import_project_action_imports_archive_and_runs_clean(tmp_path: Path, monkeypatch):
@@ -372,7 +566,9 @@ def test_import_project_action_imports_archive_and_runs_clean(tmp_path: Path, mo
     assert result.data["target_dir"] == target_dir
     assert (target_dir / "README.md").read_text(encoding="utf-8") == "demo"
     assert (target_dir / "src" / "demo.py").read_text(encoding="utf-8") == "print('ok')\n"
-    assert cleaned == [target_dir]
+    assert len(cleaned) == 1
+    assert cleaned[0].name == "demo_project"
+    assert cleaned[0].parent.name.startswith(".demo_project.import-")
 
 
 def test_import_project_action_requires_overwrite_for_existing_project(tmp_path: Path):
@@ -418,6 +614,87 @@ def test_import_project_action_overwrites_existing_project(tmp_path: Path):
     assert (target_dir / "new.txt").read_text(encoding="utf-8") == "new"
 
 
+def test_import_project_action_rolls_back_when_atomic_swap_fails(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    target_dir = apps_root / "demo_project"
+    target_dir.mkdir(parents=True)
+    marker = target_dir / "existing.txt"
+    marker.write_text("keep", encoding="utf-8")
+    _write_project_archive(export_root / "demo_project.zip", {"new.txt": "new"})
+    original_replace = Path.replace
+
+    def _fail_staged_swap(path: Path, destination: Path):
+        destination = Path(destination)
+        if (
+            path.name == "demo_project"
+            and path.parent.name.startswith(".demo_project.import-")
+            and destination == target_dir
+        ):
+            raise OSError("swap failed")
+        return original_replace(path, destination)
+
+    monkeypatch.setattr(Path, "replace", _fail_staged_swap)
+
+    result = module._import_project_action(
+        SimpleNamespace(export_apps=export_root, apps_path=apps_root),
+        project_zip="demo_project.zip",
+        overwrite=True,
+    )
+
+    assert result.status == "error"
+    assert "swap failed" in str(result.detail)
+    assert marker.read_text(encoding="utf-8") == "keep"
+    assert not (target_dir / "new.txt").exists()
+    assert not list(apps_root.glob(".demo_project.import-*"))
+
+
+def test_import_project_action_reports_backup_when_rollback_fails(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    target_dir = apps_root / "demo_project"
+    target_dir.mkdir(parents=True)
+    marker = target_dir / "existing.txt"
+    marker.write_text("keep", encoding="utf-8")
+    _write_project_archive(export_root / "demo_project.zip", {"new.txt": "new"})
+    original_replace = Path.replace
+
+    def _fail_install_and_rollback(path: Path, destination: Path):
+        destination = Path(destination)
+        if destination == target_dir and (
+            path.parent.name.startswith(".demo_project.import-")
+            or path.name.endswith("-previous")
+        ):
+            if path.name.endswith("-previous"):
+                raise OSError("rollback locked")
+            raise OSError("swap failed")
+        return original_replace(path, destination)
+
+    monkeypatch.setattr(Path, "replace", _fail_install_and_rollback)
+
+    result = module._import_project_action(
+        SimpleNamespace(export_apps=export_root, apps_path=apps_root),
+        project_zip="demo_project.zip",
+        overwrite=True,
+    )
+
+    backup_dir = Path(result.data["backup_dir"])
+    assert result.status == "error"
+    assert "automatic rollback failed" in result.title
+    assert "rollback locked" in str(result.detail)
+    assert str(backup_dir) in str(result.next_action)
+    assert not target_dir.exists()
+    assert (backup_dir / "existing.txt").read_text(encoding="utf-8") == "keep"
+
+
 def test_import_project_action_reports_unremovable_existing_project(
     tmp_path: Path,
     monkeypatch,
@@ -430,11 +707,14 @@ def test_import_project_action_reports_unremovable_existing_project(
     _write_project_archive(export_root / "demo_project.zip", {"new.txt": "new"})
     env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
 
-    def _raise_unremovable(path: Path) -> None:
-        assert path == target_dir
-        raise OSError("locked")
+    original_replace = Path.replace
 
-    monkeypatch.setattr(module.shutil, "rmtree", _raise_unremovable)
+    def _raise_unremovable(path: Path, destination: Path):
+        if path == target_dir:
+            raise OSError("locked")
+        return original_replace(path, destination)
+
+    monkeypatch.setattr(Path, "replace", _raise_unremovable)
 
     result = module._import_project_action(
         env,
@@ -447,6 +727,7 @@ def test_import_project_action_reports_unremovable_existing_project(
     assert result.detail == "locked"
     assert "filesystem permissions" in str(result.next_action)
     assert result.data["target_dir"] == target_dir
+    assert target_dir.exists()
 
 
 def test_create_project_clone_action_creates_project_and_reports_strategy(tmp_path: Path):

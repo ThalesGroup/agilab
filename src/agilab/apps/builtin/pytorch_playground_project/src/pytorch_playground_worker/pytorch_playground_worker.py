@@ -21,10 +21,8 @@ from pytorch_playground.core import (
     _evidence_artifact_files,
     _empty_loss_landscape,
     _json_bytes,
-    _loss_landscape,
     _loss_landscape_from_trained,
     _loss_landscape_summary,
-    _train_playground,
     _train_playground_core,
 )
 from pytorch_playground.reduction import write_reduce_artifact
@@ -79,13 +77,17 @@ class PytorchPlaygroundWorker(PandasWorker):
     def start(self):
         global _runtime
         self.args = _args_with_defaults(self.args)
-        data_out = Path(self.args.data_out).expanduser()
-        if not data_out.is_absolute() and callable(getattr(self.env, "resolve_share_path", None)):
-            data_out = Path(self.env.resolve_share_path(data_out))
+        data_out = path_support.resolve_share_output_path(self.env, self.args.data_out)
         self.args.data_out = data_out
         self.data_out = data_out
         if self.args.reset_target and self.data_out.exists():
-            shutil.rmtree(self.data_out, ignore_errors=True)
+            share_root = path_support.resolve_share_output_path(self.env, ".")
+            reset_path = path_support.safe_reset_path(
+                self.data_out,
+                roots=(share_root,),
+                label="data_out",
+            )
+            shutil.rmtree(reset_path, ignore_errors=True)
         self.data_out.mkdir(parents=True, exist_ok=True)
         self.artifact_dir = _artifact_dir(self.env, "pytorch_playground")
         self.artifact_dir.mkdir(parents=True, exist_ok=True)

@@ -39,6 +39,11 @@ EXPECTED_SOURCE_PAYLOAD_DIFFS = {Path("pytorch_playground_worker/pyproject.toml"
 RUN_BUTTON_KEY = "pytorch_playground:refresh_evidence:pytorch_playground_project"
 
 
+def _resolve_under(root: Path, value: str | Path) -> Path:
+    candidate = Path(value)
+    return candidate if candidate.is_absolute() else root / candidate
+
+
 def _load_module():
     spec = importlib.util.spec_from_file_location("pytorch_playground_app_test_module", MODULE_PATH)
     assert spec is not None and spec.loader is not None
@@ -3422,6 +3427,17 @@ def test_pytorch_playground_manager_initialization_and_toml_edges(
     assert manager.analysis_artifact_dir == tmp_path / "export" / "custom_target" / "pytorch_playground"
     assert manager.as_dict()["sample_count"] == 96
 
+    share_root = tmp_path / "share"
+    marker = share_root / "important.txt"
+    marker.write_text("keep", encoding="utf-8")
+    with pytest.raises(ValueError, match="confinement root"):
+        manager_module.PytorchPlayground(
+            FakeEnv(),
+            data_out=Path("."),
+            reset_target=True,
+        )
+    assert marker.read_text(encoding="utf-8") == "keep"
+
     settings_path = tmp_path / "settings.toml"
     manager.to_toml(settings_path)
     loaded = manager_module.PytorchPlayground.from_toml(
@@ -3726,6 +3742,7 @@ def test_pytorch_playground_app_args_form_renders_wide_sidebar_and_snippets(
         active_app=tmp_path / "apps" / "pytorch_playground_project",
         apps_path=tmp_path / "apps",
         AGILAB_EXPORT_ABS=tmp_path / "export",
+        resolve_share_path=lambda value: _resolve_under(tmp_path / "share", value),
     )
     wide_container = FakeContainer()
     form_module.render(env=env, container=wide_container, wide=True, compact=False)
@@ -3892,6 +3909,7 @@ def test_pytorch_playground_app_args_form_remaining_edge_paths(
         target="target",
         AGILAB_EXPORT_ABS=tmp_path / "export",
         humanize_validation_errors=lambda exc: [f"humanized: {type(exc).__name__}"],
+        resolve_share_path=lambda value: _resolve_under(tmp_path / "share", value),
     )
     fake_st.session_state["env"] = env
     assert form_module._get_env() is env
@@ -4044,7 +4062,11 @@ def test_pytorch_playground_worker_exports_evidence_without_torch(
         grid_size=12,
         reset_target=True,
     ).model_dump(mode="json")
-    worker.env = SimpleNamespace(target="pytorch_playground_project", AGILAB_EXPORT_ABS=tmp_path / "export")
+    worker.env = SimpleNamespace(
+        target="pytorch_playground_project",
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+        resolve_share_path=lambda value: _resolve_under(tmp_path, value),
+    )
     worker._worker_id = 0
 
     worker.start()
@@ -4055,6 +4077,40 @@ def test_pytorch_playground_worker_exports_evidence_without_torch(
     assert manifest["app"] == "pytorch_playground_project"
     assert (tmp_path / "out" / "pytorch_playground_evidence.zip").is_file()
     assert (tmp_path / "export" / "pytorch_playground_project" / "pytorch_playground" / "manifest.json").is_file()
+
+
+def test_pytorch_playground_worker_rejects_absolute_output_outside_share(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.syspath_prepend(str(PROJECT_SRC.resolve()))
+    worker_module = importlib.import_module(
+        "pytorch_playground_worker.pytorch_playground_worker"
+    )
+    share_root = tmp_path / "share"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    marker = outside / "important.txt"
+    marker.write_text("keep", encoding="utf-8")
+
+    worker = worker_module.PytorchPlaygroundWorker.__new__(
+        worker_module.PytorchPlaygroundWorker
+    )
+    worker.args = {
+        "data_out": outside,
+        "reset_target": True,
+        "sample_count": 96,
+    }
+    worker.env = SimpleNamespace(
+        target="pytorch_playground_project",
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+        resolve_share_path=lambda value: _resolve_under(share_root, value),
+    )
+
+    with pytest.raises(ValueError, match="active share root"):
+        worker.start()
+
+    assert marker.read_text(encoding="utf-8") == "keep"
 
 
 def test_pytorch_playground_worker_helper_and_dispatch_edges(
@@ -4214,7 +4270,11 @@ def test_pytorch_playground_worker_helper_and_dispatch_edges(
         landscape_span=0.2,
         sample_count=64,
     )
-    landscape_worker.env = SimpleNamespace(target="", AGILAB_EXPORT_ABS=tmp_path / "landscape-export")
+    landscape_worker.env = SimpleNamespace(
+        target="",
+        AGILAB_EXPORT_ABS=tmp_path / "landscape-export",
+        resolve_share_path=lambda value: _resolve_under(tmp_path, value),
+    )
     landscape_worker._worker_id = 2
     landscape_worker.start()
     landscape_summary = landscape_worker.work_pool("pytorch_playground")
@@ -4248,7 +4308,11 @@ def test_pytorch_playground_worker_exports_real_torch_evidence_when_available(
         landscape_span=0.2,
         reset_target=True,
     ).model_dump(mode="json")
-    worker.env = SimpleNamespace(target="pytorch_playground_project", AGILAB_EXPORT_ABS=tmp_path / "export")
+    worker.env = SimpleNamespace(
+        target="pytorch_playground_project",
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+        resolve_share_path=lambda value: _resolve_under(tmp_path, value),
+    )
     worker._worker_id = 0
 
     worker.start()

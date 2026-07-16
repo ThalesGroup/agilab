@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 import shutil
 import sys
@@ -8,6 +9,11 @@ import tomllib
 
 import pytest
 from streamlit.testing.v1 import AppTest
+
+from agi_env.shares.share_runtime_support import (
+    resolve_share_input_path,
+    resolve_share_path,
+)
 
 
 APP_ARGS_FORM_ROOT = Path("src/agilab")
@@ -71,6 +77,18 @@ class _BuiltinFormEnv(SimpleNamespace):
         return [str(item) for item in exc.errors()]
 
 
+class _StrictBuiltinFormEnv(_BuiltinFormEnv):
+    def resolve_share_path(self, value):
+        return resolve_share_path(value, self.share_root)
+
+    def resolve_share_input_path(self, value):
+        return resolve_share_input_path(
+            value,
+            self.share_root,
+            getattr(self, "physical_share_root", self.share_root),
+        )
+
+
 def _app_args_forms() -> list[Path]:
     paths: set[Path] = set()
     for pattern in APP_ARGS_FORM_PATTERNS:
@@ -80,6 +98,34 @@ def _app_args_forms() -> list[Path]:
 
 def _builtin_app_args_forms() -> list[Path]:
     return sorted(Path("src/agilab/apps/builtin").glob("*_project/src/app_args_form.py"))
+
+
+BUILTIN_SHARED_OUTPUT_FORMS = tuple(
+    path
+    for path in _builtin_app_args_forms()
+    if "data_out" in path.read_text(encoding="utf-8")
+)
+
+
+TEMPLATE_SHARED_PATH_FORMS = (
+    (Path("src/agilab/apps/templates/dag_app_template/src/app_args_form.py"), "Data In"),
+    (
+        Path("src/agilab/apps/templates/fireducks_app_template/src/app_args_form.py"),
+        "Data In",
+    ),
+    (
+        Path("src/agilab/apps/templates/pandas_app_template/src/app_args_form.py"),
+        "Data In",
+    ),
+    (
+        Path("src/agilab/apps/templates/polars_app_template/src/app_args_form.py"),
+        "Data In",
+    ),
+    (
+        Path("src/agilab/apps/templates/simple_app_template/src/app_args_form.py"),
+        "Data Out",
+    ),
+)
 
 
 def _app_name_from_form(form_path: Path) -> str:
@@ -245,6 +291,113 @@ def _make_builtin_env(form_path: Path, settings_file: Path, tmp_path: Path) -> _
         share_root=tmp_path / "share",
         target=app_name,
     )
+
+
+def _make_strict_builtin_env(
+    form_path: Path, settings_file: Path, tmp_path: Path
+) -> _StrictBuiltinFormEnv:
+    payload = vars(_make_builtin_env(form_path, settings_file, tmp_path)).copy()
+    return _StrictBuiltinFormEnv(**payload)
+
+
+def test_strict_builtin_form_env_matches_physical_input_fallback(tmp_path: Path) -> None:
+    physical_root = tmp_path / "cluster"
+    workflow_root = physical_root / "workflow" / "session"
+    workflow_dataset = workflow_root / "workflow" / "dataset"
+    shared_dataset = physical_root / "shared" / "dataset"
+    workflow_dataset.mkdir(parents=True)
+    shared_dataset.mkdir(parents=True)
+    env = _StrictBuiltinFormEnv(
+        share_root=workflow_root,
+        physical_share_root=physical_root,
+    )
+
+    assert env.resolve_share_input_path("workflow/dataset") == workflow_dataset
+    assert env.resolve_share_input_path("shared/dataset") == shared_dataset
+    assert env.resolve_share_input_path(shared_dataset) == shared_dataset
+    with pytest.raises(ValueError, match="share root"):
+        env.resolve_share_input_path(tmp_path / "outside")
+
+
+def _builtin_data_out_widget_key(form_path: Path, env: _BuiltinFormEnv) -> str:
+    app_name = _app_name_from_form(form_path)
+    if app_name == "pytorch_playground_project":
+        return f"pytorch_playground_args:{env.active_app}:data_out"
+    return f"{app_name}:app_args_form:data_out"
+
+
+@pytest.mark.parametrize(
+    "form_path",
+    BUILTIN_SHARED_OUTPUT_FORMS,
+    ids=lambda path: _app_name_from_form(path),
+)
+def test_builtin_app_args_forms_reject_escaped_output_before_persisting(
+    form_path: Path,
+    tmp_path: Path,
+) -> None:
+    settings_file = _seed_settings_for_form(form_path, tmp_path)
+    env = _make_strict_builtin_env(form_path, settings_file, tmp_path)
+    env.share_root.mkdir(parents=True)
+    outside = tmp_path / "outside-share"
+    outside.mkdir()
+    (env.share_root / "escape-link").symlink_to(outside, target_is_directory=True)
+
+    _clear_form_package_modules(form_path)
+    at = AppTest.from_file(str(form_path), default_timeout=30)
+    at.session_state["env"] = env
+    at.session_state["_env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    at.run()
+    assert not at.exception
+
+    settings_before = settings_file.read_bytes()
+    args_before = copy.deepcopy(dict(at.session_state["app_settings"]["args"]))
+    at.text_input(key=_builtin_data_out_widget_key(form_path, env)).set_value(
+        "escape-link/escaped-output"
+    )
+    at.run()
+
+    assert not at.exception
+    assert any("Invalid data_out path" in str(item.value) for item in at.error)
+    assert settings_file.read_bytes() == settings_before
+    assert dict(at.session_state["app_settings"]["args"]) == args_before
+    assert not any("Saved to" in str(item.value) for item in at.success)
+    assert not any("Resolved" in str(item.value) for item in at.caption)
+
+
+@pytest.mark.parametrize(
+    ("form_path", "field_label"),
+    TEMPLATE_SHARED_PATH_FORMS,
+    ids=lambda value: value.parent.parent.name if isinstance(value, Path) else value,
+)
+def test_template_app_args_forms_reject_escaped_paths_before_persisting(
+    form_path: Path,
+    field_label: str,
+    tmp_path: Path,
+) -> None:
+    settings_file = _seed_settings_for_form(form_path, tmp_path)
+    env = _make_strict_builtin_env(form_path, settings_file, tmp_path)
+
+    _clear_form_package_modules(form_path)
+    at = AppTest.from_file(str(form_path), default_timeout=30)
+    at.session_state["env"] = env
+    at.session_state["_env"] = env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    at.run()
+    assert not at.exception
+
+    settings_before = settings_file.read_bytes()
+    args_before = copy.deepcopy(dict(at.session_state["app_settings"]["args"]))
+    field = next(item for item in at.text_input if item.label == field_label)
+    field.set_value("../escaped-data")
+    at.run()
+
+    field_name = "data_out" if field_label == "Data Out" else "data_in"
+    assert not at.exception
+    assert any(f"Invalid {field_name} path" in str(item.value) for item in at.error)
+    assert settings_file.read_bytes() == settings_before
+    assert dict(at.session_state["app_settings"]["args"]) == args_before
+    assert not at.success
 
 
 def test_flight_app_args_form_reports_invalid_date_range_without_saving(tmp_path: Path) -> None:

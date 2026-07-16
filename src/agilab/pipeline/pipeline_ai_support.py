@@ -269,7 +269,8 @@ def ollama_readiness(
         )
 
     if model_fetcher is None:
-        model_fetcher = lambda base: fetch_ollama_models(base, timeout_s=0.5)
+        def model_fetcher(base: str) -> list[str]:
+            return fetch_ollama_models(base, timeout_s=0.5)
 
     try:
         available = tuple(model_fetcher(normalized_endpoint))
@@ -1035,11 +1036,139 @@ _BLOCKED_IO_METHODS = frozenset({
     "to_pickle", "to_csv", "to_parquet", "to_json", "to_sql", "to_hdf",
     "to_feather", "to_excel", "to_stata", "to_orc", "to_xml", "to_gbq",
     "to_clipboard",
+    # numpy file/memory-map and native-library entry points
+    "load", "loadtxt", "genfromtxt", "fromfile", "fromregex", "memmap", "open_memmap",
+    "save", "savez", "savez_compressed", "savetxt", "tofile", "dump",
+    "load_library",
+    # pandas wrapper objects that open caller-selected paths during construction
+    "ExcelFile", "ExcelWriter", "HDFStore", "NpzFile",
+    # nested evaluators, dynamic import helpers, file-like methods, and common
+    # sinks reachable from objects returned by exposed pandas/numpy helpers
+    "import_optional_dependency", "open",
+    "savefig", "imsave", "unlink", "rmdir", "mkdir", "makedirs",
+    "print_figure", "print_png", "print_jpg", "print_jpeg", "print_tif",
+    "print_tiff", "print_raw", "print_rgba", "print_pdf", "print_ps",
+    "print_eps", "print_svg", "print_svgz", "print_webp",
+    "chmod", "chown",
+})
+
+_BUFFER_OUTPUT_METHODS = frozenset({
+    "to_html", "to_latex", "to_markdown", "to_string",
+})
+_STATIC_EXPRESSION_METHODS = frozenset({"eval", "query"})
+_UNSAFE_EXPRESSION_NODES = (
+    ast.Attribute,
+    ast.Call,
+    ast.Lambda,
+    ast.ListComp,
+    ast.SetComp,
+    ast.DictComp,
+    ast.GeneratorExp,
+)
+_UNSAFE_EXPRESSION_RESOLVER_KWARGS = frozenset({
+    "global_dict", "level", "local_dict", "resolvers", "target",
 })
 
 
 class _UnsafeCodeError(Exception):
     """Raised when LLM-generated code fails the safety audit."""
+
+
+def _attribute_chain(node: ast.Attribute) -> tuple[str, ...]:
+    """Return a static ``name.attr...`` chain, or an empty tuple if dynamic."""
+
+    parts: list[str] = []
+    current: ast.expr = node
+    while isinstance(current, ast.Attribute):
+        parts.append(current.attr)
+        current = current.value
+    if not isinstance(current, ast.Name):
+        return ()
+    parts.append(current.id)
+    return tuple(reversed(parts))
+
+
+def _is_none_literal(node: ast.expr) -> bool:
+    return isinstance(node, ast.Constant) and node.value is None
+
+
+def _call_expression_node(node: ast.Call) -> ast.expr | None:
+    if node.args:
+        if len(node.args) > 1 or any(keyword.arg == "expr" for keyword in node.keywords):
+            return None
+        return node.args[0]
+    expression_keywords = [
+        keyword.value for keyword in node.keywords if keyword.arg == "expr"
+    ]
+    if len(expression_keywords) != 1:
+        return None
+    return expression_keywords[0]
+
+
+def _validate_static_expression_call(node: ast.Call, method: str) -> None:
+    expression_node = _call_expression_node(node)
+    if not (
+        isinstance(expression_node, ast.Constant)
+        and isinstance(expression_node.value, str)
+    ):
+        raise _UnsafeCodeError(
+            f"Call to '{method}' requires one static expression string."
+        )
+
+    expression = expression_node.value
+    if "@" in expression or "__" in expression:
+        raise _UnsafeCodeError(
+            f"Call to '{method}' contains an unsafe expression resolver."
+        )
+    try:
+        expression_tree = ast.parse(expression, filename="<pipeline_expression>", mode="eval")
+    except SyntaxError as exc:
+        raise _UnsafeCodeError(
+            f"Call to '{method}' contains an unsupported expression: {exc}"
+        ) from exc
+    if any(isinstance(item, _UNSAFE_EXPRESSION_NODES) for item in ast.walk(expression_tree)):
+        raise _UnsafeCodeError(
+            f"Call to '{method}' contains a call, attribute, lambda, or comprehension."
+        )
+
+    for keyword in node.keywords:
+        if keyword.arg is None or keyword.arg in _UNSAFE_EXPRESSION_RESOLVER_KWARGS:
+            raise _UnsafeCodeError(
+                f"Call to '{method}' uses an unsafe dynamic resolver."
+            )
+
+
+def _validate_buffer_output_call(node: ast.Call, method: str) -> None:
+    if node.args and not _is_none_literal(node.args[0]):
+        raise _UnsafeCodeError(
+            f"Call to '{method}' cannot write to an output buffer or path."
+        )
+    for keyword in node.keywords:
+        if keyword.arg is None:
+            raise _UnsafeCodeError(
+                f"Call to '{method}' cannot use dynamic keyword arguments."
+            )
+        if keyword.arg == "buf" and not _is_none_literal(keyword.value):
+            raise _UnsafeCodeError(
+                f"Call to '{method}' cannot write to an output buffer or path."
+            )
+
+
+def _validated_conditional_attribute_ids(tree: ast.AST) -> set[int]:
+    """Validate direct conditional calls and return their attribute node IDs."""
+
+    validated: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        method = node.func.attr
+        if method in _STATIC_EXPRESSION_METHODS:
+            _validate_static_expression_call(node, method)
+            validated.add(id(node.func))
+        elif method in _BUFFER_OUTPUT_METHODS:
+            _validate_buffer_output_call(node, method)
+            validated.add(id(node.func))
+    return validated
 
 
 def _validate_code_safety(code: str) -> None:
@@ -1052,6 +1181,8 @@ def _validate_code_safety(code: str) -> None:
         tree = ast.parse(code, filename="<lab_step>")
     except SyntaxError as exc:
         raise _UnsafeCodeError(f"Syntax error in generated code: {exc}") from exc
+
+    validated_conditional_attrs = _validated_conditional_attribute_ids(tree)
 
     for node in ast.walk(tree):
         # Block all import statements
@@ -1084,6 +1215,17 @@ def _validate_code_safety(code: str) -> None:
 
         # Block access to dangerous dunder attributes
         if isinstance(node, ast.Attribute):
+            if node.attr in _BLOCKED_IO_METHODS:
+                raise _UnsafeCodeError(
+                    f"Access to I/O method '{node.attr}' is not allowed in pipeline code."
+                )
+            if (
+                node.attr in _STATIC_EXPRESSION_METHODS | _BUFFER_OUTPUT_METHODS
+                and id(node) not in validated_conditional_attrs
+            ):
+                raise _UnsafeCodeError(
+                    f"Access to conditional method '{node.attr}' must be a direct, validated call."
+                )
             if (
                 node.attr in _BLOCKED_DUNDER_ATTRS
                 or node.attr in _BLOCKED_ATTRS
@@ -1092,10 +1234,17 @@ def _validate_code_safety(code: str) -> None:
                 raise _UnsafeCodeError(
                     f"Access to '{node.attr}' is not allowed."
                 )
-            # Block access to known dangerous modules via attribute chains
-            if isinstance(node.value, ast.Name) and node.value.id in _BLOCKED_MODULES:
+            # Pandas and numpy expose imported modules several levels below
+            # their public roots (for example ``pd.io.common.os``). Inspect the
+            # complete static chain rather than only the immediate receiver.
+            chain = _attribute_chain(node)
+            blocked_chain_part = next(
+                (part for part in chain if part in _BLOCKED_MODULES),
+                None,
+            )
+            if blocked_chain_part is not None:
                 raise _UnsafeCodeError(
-                    f"Access to module '{node.value.id}' is not allowed."
+                    f"Access to module '{blocked_chain_part}' is not allowed."
                 )
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
             if node.id in _BLOCKED_MODULES:

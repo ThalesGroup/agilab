@@ -55,15 +55,22 @@ class MinimalApp(BaseWorker):
 
         reset_target = getattr(self.args, "reset_target", False)
         try:
-            if reset_target and self.data_out.exists():
-                shutil.rmtree(
+            if reset_target:
+                reset_path = self._safe_share_reset_path(
+                    env,
                     self.data_out,
-                    ignore_errors=True,
-                    onerror=WorkDispatcher._onerror,
+                    protected_paths=(self.args.data_in,),
+                    label="data_out",
                 )
+                if reset_path.exists():
+                    shutil.rmtree(
+                        reset_path,
+                        ignore_errors=True,
+                        onerror=WorkDispatcher._onerror,
+                    )
             logger.info(f"mkdir {self.data_out}")
             self.data_out.mkdir(parents=True, exist_ok=True)
-        except Exception as exc:  # pragma: no cover - defensive guard
+        except (OSError, RuntimeError) as exc:  # pragma: no cover - defensive guard
             logger.warning(
                 "Issue while preparing dataframe directory %s: %s",
                 self.data_out,

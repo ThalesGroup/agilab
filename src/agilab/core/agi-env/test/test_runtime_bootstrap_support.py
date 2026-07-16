@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from agi_env.env_config_support import clean_envar_value
 from agi_env.runtime_bootstrap_support import (
     default_cluster_share,
     default_local_share,
@@ -305,6 +306,26 @@ def test_resolve_share_runtime_config_applies_share_dir_override(tmp_path):
     assert result.cluster_share == "cluster_mount"
     assert result.agi_share_path == "cluster_mount"
     assert envars["AGI_CLUSTER_SHARE"] == "cluster_mount"
+
+
+def test_resolve_share_runtime_config_prefers_persisted_cluster_share(tmp_path):
+    envars = {"AGI_CLUSTER_SHARE": "persisted-share"}
+
+    result = resolve_share_runtime_config(
+        envars=envars,
+        environ={"AGI_CLUSTER_SHARE": "process-share"},
+        is_worker_env=False,
+        resolve_workspace_settings_fn=lambda: None,
+        find_source_settings_fn=lambda: None,
+        clean_envar_value_fn=clean_envar_value,
+        resolve_cluster_enabled_fn=lambda **_kwargs: True,
+        resolve_runtime_share_path_fn=lambda **kwargs: kwargs["cluster_share"],
+        env_path=tmp_path / ".env",
+        home_path=tmp_path,
+    )
+
+    assert result.cluster_share == "persisted-share"
+    assert result.agi_share_path == "persisted-share"
 
 
 def test_resolve_share_runtime_config_ignores_unsettable_override(tmp_path):
