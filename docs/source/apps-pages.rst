@@ -206,10 +206,6 @@ pulled by the umbrella dependency graph.
      - ``agi-page-timeseries-forecast``
      - Forecast metrics and prediction review for time-series workflows.
      - Included in ``agi-pages``.
-   * - ``view_inference_analysis``
-     - ``agi-page-inference-report``
-     - Allocation and inference-result comparison across exported runs.
-     - Included in ``agi-pages``.
    * - ``view_live_artifacts``
      - ``agi-page-live-artifacts``
      - Dynamic artifact, manifest, evidence, and log monitor for active apps.
@@ -369,16 +365,6 @@ Forecast evidence page for time-series prediction workflows.
 - Input: ``forecast_metrics.json`` and ``forecast_predictions.csv`` from the
   selected export directory.
 - Output: metric summaries, forecast/prediction overlays, and run metadata.
-
-view_inference_analysis
-^^^^^^^^^^^^^^^^^^^^^^^
-
-Inference and allocation comparison page for producer-agnostic result exports.
-
-- Input: ``allocations_steps`` files in JSON, JSONL/NDJSON, CSV, or parquet
-  form.
-- Output: side-by-side run metrics, delivered-bandwidth aggregates, and
-  allocation charts.
 
 view_live_artifacts
 ^^^^^^^^^^^^^^^^^^^

@@ -66,19 +66,6 @@ reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend
 checked_against = []
 
 [[page]]
-id = "view_inference_analysis"
-title = "Inference analysis"
-package = "agi-page-inference-report"
-purpose = "Compares allocation and inference-result metrics across exported runs."
-when_to_use = "Use when several allocation exports need side-by-side diagnostics for load, routing, latency, bearer mix, and flows."
-inputs = ["allocations_steps.json", "allocations_steps.csv", "allocations_steps.parquet", "inference metrics"]
-tags = ["inference", "allocation", "latency", "routing", "comparison", "diagnostics"]
-reuse_policy = "Prefer this page before creating another side-by-side allocation or inference-result comparison."
-reuse_decision = "reuse"
-reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
-checked_against = []
-
-[[page]]
 id = "view_live_artifacts"
 title = "Live artifacts"
 package = "agi-page-live-artifacts"

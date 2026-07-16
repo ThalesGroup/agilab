@@ -5,7 +5,6 @@ Source package role: `page-bundle`.
 Resolver: `licensecheck 2025.1.0`.
 
 Source manifests:
-- `src/agilab/apps-pages/view_inference_analysis/pyproject.toml`
 
 Extras included: none.
 

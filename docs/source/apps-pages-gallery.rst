@@ -25,10 +25,6 @@ a small autoencoder in-page and is not a generic app-agnostic sidecar.
 | _static/apps-pages-gallery/view_forecast_analysis.svg
 
 
-**view_inference_analysis**
-| _static/apps-pages-gallery/view_inference_analysis.svg
-
-
 **view_live_artifacts**
 | _static/apps-pages-gallery/view_live_artifacts.svg
 

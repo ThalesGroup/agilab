@@ -1360,7 +1360,6 @@ def test_public_apps_pages_discovers_view_entrypoints() -> None:
         "view_barycentric.py",
         "view_data_io_decision.py",
         "view_forecast_analysis.py",
-        "view_inference_analysis.py",
         "view_live_artifacts.py",
         "view_maps.py",
         "view_maps_3d.py",
