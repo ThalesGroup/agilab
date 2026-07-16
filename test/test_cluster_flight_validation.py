@@ -332,8 +332,13 @@ def test_remote_env_update_script_enables_cluster_mode_without_clobbering_env(tm
         environ={"USER": "agi"},
     )
 
+    script = cfv._remote_env_update_script(plan)
+    assert 'env_path.name + ".lock"' in script
+    assert "tempfile.mkstemp" in script
+    assert "os.replace" in script
+
     subprocess.run(
-        [sys.executable, "-c", cfv._remote_env_update_script(plan)],
+        [sys.executable, "-c", script],
         check=True,
         env={**os.environ, "HOME": str(tmp_path)},
         text=True,

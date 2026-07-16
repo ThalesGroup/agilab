@@ -241,6 +241,7 @@ async def prepare_cluster_env(
     send_files_fn: Callable[..., Any],
     kill_fn: Callable[..., Any],
     clean_dirs_fn: Callable[..., Any],
+    acquire_remote_target_lease_fn: Optional[Callable[..., Any]] = None,
     mkdtemp_fn: Callable[..., str] = mkdtemp,
     process_error_type: type[BaseException] = ProcessError,
     set_env_var_fn: Callable[..., Any] = AgiEnv.set_env_var,
@@ -415,6 +416,8 @@ async def prepare_cluster_env(
 
         await send_files_fn(env, ip, [resolve_worker_cli_path(env)], wenv_rel.parent)
 
+        if acquire_remote_target_lease_fn is not None:
+            await acquire_remote_target_lease_fn(ip, cmd_prefix=cmd_prefix)
         await kill_fn(ip, force=True)
         await clean_dirs_fn(ip)
 

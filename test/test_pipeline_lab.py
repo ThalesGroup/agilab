@@ -1562,7 +1562,10 @@ def test_global_runner_panel_real_run_executes_controlled_queue_stage(monkeypatc
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     calls: list[Path] = []
 
-    def _fake_queue_run(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+    def _fake_queue_run(
+        *, repo_root: Path, run_root: Path, idempotency_token: str
+    ) -> dict[str, object]:
+        assert idempotency_token.endswith(":queue_baseline")
         calls.append(run_root)
         run_root.mkdir(parents=True, exist_ok=True)
         return {
@@ -1603,7 +1606,10 @@ def test_global_runner_panel_real_run_executes_active_app_template_queue_stage(m
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     calls: list[Path] = []
 
-    def _fake_queue_run(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+    def _fake_queue_run(
+        *, repo_root: Path, run_root: Path, idempotency_token: str
+    ) -> dict[str, object]:
+        assert idempotency_token.endswith(":queue_baseline")
         calls.append(run_root)
         run_root.mkdir(parents=True, exist_ok=True)
         return {
@@ -1688,7 +1694,9 @@ def test_global_runner_panel_runs_ready_batch_with_distributed_backend(monkeypat
         artifact: dict[str, object],
         execution_contract: dict[str, object],
         timestamp: str,
+        idempotency_token: str,
     ) -> dict[str, object]:
+        assert idempotency_token.endswith(f":{unit['id']}")
         submissions.append(str(unit["id"]))
         return {
             "summary_metrics_path": "flight/distributed-summary.json",
@@ -1829,7 +1837,14 @@ def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatc
     pipeline_lab.write_runner_state(state_path, state)
     relay_calls: list[dict[str, object]] = []
 
-    def _fake_relay_run(*, repo_root: Path, run_root: Path, queue_result: dict[str, object]) -> dict[str, object]:
+    def _fake_relay_run(
+        *,
+        repo_root: Path,
+        run_root: Path,
+        queue_result: dict[str, object],
+        idempotency_token: str,
+    ) -> dict[str, object]:
+        assert idempotency_token.endswith(":relay_followup")
         relay_calls.append({"run_root": run_root, "queue_result": queue_result})
         return {
             "summary_metrics_path": "relay/summary.json",
@@ -2873,7 +2888,7 @@ def test_pipeline_lab_remaining_multi_app_dag_helper_edges(monkeypatch, tmp_path
         def distributed_stage_supported(self):
             return False
 
-        def dispatch_next_runnable(self, _state):
+        def dispatch_next_runnable_transaction(self, _state):
             return SimpleNamespace(ok=False, message="No preview step.")
 
     preview_state = {
@@ -3110,6 +3125,38 @@ def test_pipeline_lab_rebuilds_stale_synced_pipeline_state(monkeypatch, tmp_path
     assert any(event["kind"] == "run_stale" for event in state["events"])
 
 
+def test_project_preview_writer_rejects_stale_state_before_publishing_evidence(
+    monkeypatch,
+    tmp_path,
+):
+    lab_dir = tmp_path / "lab"
+    state_path = lab_dir / ".agilab" / pipeline_lab.GLOBAL_RUNNER_STATE_FILENAME
+    observed = {"generation": 1, "run_status": "planned"}
+    completed = {"generation": 2, "run_status": "completed"}
+    replacement = {"generation": 3, "run_status": "planned"}
+    pipeline_lab.write_runner_state(state_path, observed)
+    observed_revision = pipeline_lab.runner_state_revision(observed)
+    pipeline_lab.write_runner_state(state_path, completed)
+    evidence_calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        pipeline_lab,
+        "write_workflow_run_evidence",
+        lambda **kwargs: evidence_calls.append(kwargs),
+    )
+
+    with pytest.raises(pipeline_lab.RunnerStateConflictError, match="another session"):
+        pipeline_lab._write_pipeline_stages_runner_state_with_evidence(
+            state_path,
+            replacement,
+            lab_dir=lab_dir,
+            trigger={"surface": "workflow", "action": "project_stages_state_written"},
+            expected_revision=observed_revision,
+        )
+
+    assert pipeline_lab.load_runner_state(state_path) == completed
+    assert evidence_calls == []
+
+
 def test_global_runner_state_view_covers_live_action_failure_branches(monkeypatch, tmp_path):
     base_state = {
         "summary": {
@@ -3144,27 +3191,34 @@ def test_global_runner_state_view_covers_live_action_failure_branches(monkeypatc
         def distributed_stage_supported(self):
             return self._distributed
 
-        def run_next_controlled_stage(self, _state):
+        def run_next_controlled_stage_transaction(self, _state):
             if isinstance(self._run_next, BaseException):
                 raise self._run_next
-            return self._run_next or SimpleNamespace(ok=False, message="No stage is ready.", state=base_state)
+            result = self._run_next or SimpleNamespace(
+                ok=False,
+                message="No stage is ready.",
+                state=base_state,
+            )
+            if result.ok:
+                self.written.append(result.state)
+            return result
 
-        def run_ready_controlled_stages(self, _state, *, execution_backend):
+        def run_ready_controlled_stages_transaction(self, _state, *, execution_backend):
             if isinstance(self._run_ready, BaseException):
                 raise self._run_ready
-            return self._run_ready or SimpleNamespace(
+            result = self._run_ready or SimpleNamespace(
                 ok=True,
                 message="No batch work.",
                 state=base_state,
                 executed_unit_ids=(),
                 failed_unit_ids=(),
             )
+            if result.executed_unit_ids or result.failed_unit_ids:
+                self.written.append(result.state)
+            return result
 
-        def dispatch_next_runnable(self, _state):
+        def dispatch_next_runnable_transaction(self, _state):
             return self._dispatch or SimpleNamespace(ok=False, message="No preview step.")
-
-        def write_state(self, state):
-            self.written.append(state)
 
     def _render(fake_st, engine):
         monkeypatch.setattr(pipeline_lab, "st", fake_st)
@@ -3182,6 +3236,19 @@ def test_global_runner_state_view_covers_live_action_failure_branches(monkeypatc
     _render(run_next_error_st, _Engine(run_next=RuntimeError("boom")))
     assert ("error", "Controlled workflow step execution failed.") in run_next_error_st.messages
     assert ("code", "boom") in run_next_error_st.messages
+
+    stale_state_st = _FakeStreamlit(buttons={"demo_global_runner_run_next_stage": True})
+    stale_state_error = pipeline_lab.RunnerStateConflictError(
+        tmp_path / ".agilab" / "runner_state.json",
+        expected_revision="old",
+        actual_revision="new",
+    )
+    _render(stale_state_st, _Engine(run_next=stale_state_error))
+    assert (
+        "warning",
+        "Workflow state changed in another session. Reloading the latest state.",
+    ) in stale_state_st.messages
+    assert ("rerun", "called") in stale_state_st.messages
 
     run_next_warning_st = _FakeStreamlit(buttons={"demo_global_runner_run_next_stage": True})
     _render(run_next_warning_st, _Engine(run_next=SimpleNamespace(ok=False, message="No stage.", state=base_state)))

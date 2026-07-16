@@ -24,8 +24,7 @@ from pandas.api.types import is_integer_dtype, is_numeric_dtype
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-import tomllib as _toml
-from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
 
 try:
     import tomli_w as _toml_writer  # type: ignore[import-not-found]
@@ -362,8 +361,7 @@ def _load_map_defaults(env: AgiEnv) -> dict[str, float]:
     """Read custom map settings from app_settings.toml when available."""
 
     try:
-        with open(env.app_settings_file, "rb") as fh:
-            data = _toml.load(fh)
+        data = read_app_settings(env.app_settings_file)
     except FileNotFoundError:
         data = {}
     map_cfg = data.get("ui", {}).get(
@@ -380,11 +378,10 @@ def _load_map_defaults(env: AgiEnv) -> dict[str, float]:
 def _load_view_maps_settings(env: AgiEnv) -> tuple[dict, dict]:
     """Return the full TOML payload and the view_maps subsection."""
     try:
-        with open(env.app_settings_file, "rb") as fh:
-            data = _toml.load(fh)
+        data = read_app_settings(env.app_settings_file)
     except FileNotFoundError:
         data = {}
-    except (OSError, _toml.TOMLDecodeError):
+    except (OSError, ValueError):
         data = {}
     view_section = data.get("view_maps")
     if not isinstance(view_section, dict):
@@ -392,13 +389,29 @@ def _load_view_maps_settings(env: AgiEnv) -> tuple[dict, dict]:
     return data, view_section
 
 
-def _persist_view_maps_settings(env: AgiEnv, base_settings: dict, view_settings: dict) -> dict:
+def _persist_view_maps_settings(
+    env: AgiEnv,
+    base_settings: dict,
+    view_settings: dict,
+    owned_keys: tuple[str, ...],
+) -> dict:
     """Write the updated view_maps settings back to disk."""
     payload = dict(base_settings) if isinstance(base_settings, dict) else {}
     payload["view_maps"] = view_settings
+    if not owned_keys:
+        return payload
     try:
-        with open(env.app_settings_file, "wb") as fh:
-            _dump_toml_payload(prepare_app_settings_for_write(payload), fh)
+        latest, _ = update_app_settings_owned(
+            env.app_settings_file,
+            payload,
+            owned_paths=tuple(("view_maps", key) for key in owned_keys),
+            dump_fn=_dump_toml_payload,
+        )
+        merged = dict(payload)
+        merged.update(
+            (key, value) for key, value in latest.items() if key != "__meta__"
+        )
+        return merged
     except (OSError, RuntimeError):
         pass
     return payload
@@ -475,7 +488,9 @@ def page(env):
     st.session_state["_view_maps_last_datadir"] = str(datadir)
     if view_settings.get("datadir") != st.session_state["datadir"]:
         view_settings["datadir"] = st.session_state["datadir"]
-        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
+        full_settings = _persist_view_maps_settings(
+            env, full_settings, view_settings, ("datadir",)
+        )
     datadir_widget_key = _vm_key("input_datadir")
     if st.session_state.get(datadir_widget_key) != st.session_state["datadir"]:
         st.session_state[datadir_widget_key] = st.session_state["datadir"]
@@ -820,7 +835,9 @@ def page(env):
     )
     if overlay_default != show_coordinate_overlay:
         view_settings["show_coordinate_overlay"] = show_coordinate_overlay
-        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
+        full_settings = _persist_view_maps_settings(
+            env, full_settings, view_settings, ("show_coordinate_overlay",)
+        )
 
     overlay_lat_col = None
     overlay_lon_col = None
@@ -870,7 +887,9 @@ def page(env):
             }.items():
                 if view_settings.get(setting_name) != setting_value:
                     view_settings[setting_name] = setting_value
-                    full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
+                    full_settings = _persist_view_maps_settings(
+                        env, full_settings, view_settings, (setting_name,)
+                    )
         else:
             st.sidebar.caption("No coordinate columns available for overlay.")
 
@@ -900,7 +919,9 @@ def page(env):
     )
     if view_settings.get("unique_threshold", 10) != unique_threshold:
         view_settings["unique_threshold"] = int(unique_threshold)
-        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
+        full_settings = _persist_view_maps_settings(
+            env, full_settings, view_settings, ("unique_threshold",)
+        )
 
     range_default = int(view_settings.get("range_threshold", 200))
     range_threshold_key = _vm_key("range_threshold")
@@ -918,7 +939,9 @@ def page(env):
     )
     if view_settings.get("range_threshold", 200) != range_threshold:
         view_settings["range_threshold"] = int(range_threshold)
-        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
+        full_settings = _persist_view_maps_settings(
+            env, full_settings, view_settings, ("range_threshold",)
+        )
 
     # Loop through numeric columns and classify them based on the unique value count.
     for col in numeric_cols:
@@ -1126,16 +1149,18 @@ def page(env):
         "long",
         "coltype",
     ]
-    mutated = False
+    changed_keys: list[str] = []
     for key in persist_keys:
         val = st.session_state.get(key)
         if val is None:
             continue
         if view_settings.get(key) != val:
             view_settings[key] = val
-            mutated = True
-    if mutated:
-        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
+            changed_keys.append(key)
+    if changed_keys:
+        full_settings = _persist_view_maps_settings(
+            env, full_settings, view_settings, tuple(changed_keys)
+        )
 
 # -------------------- Main Application Entry -------------------- #
 def main():
@@ -1173,7 +1198,7 @@ def main():
         st.session_state["app"] = app
 
         _render_app_page_context(app, active_app)
-        env = getattr(AgiEnv, "for_app", AgiEnv)(
+        env = AgiEnv.session_for_app(
             apps_path=active_app.parent,
             app=app,
             verbose=1,

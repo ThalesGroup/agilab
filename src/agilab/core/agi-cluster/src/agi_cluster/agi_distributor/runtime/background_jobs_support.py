@@ -1,12 +1,15 @@
 import os
+import secrets
 import shlex
 import subprocess
+import time
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Mapping, Protocol, Sequence, cast
 
 _NORMALIZE_CWD_EXCEPTIONS = (OSError, RuntimeError, TypeError)
 _SHELL_METACHARS = frozenset(";&|<>\n\r`$")
+BACKGROUND_JOB_TOKEN_ENV = "AGILAB_BACKGROUND_JOB_TOKEN"
 
 
 class _ProcessLike(Protocol):
@@ -17,10 +20,20 @@ class _ProcessLike(Protocol):
 class BackgroundProcessJob:
     """Minimal job record for detached subprocess launches."""
 
-    def __init__(self, process: _ProcessLike):
+    def __init__(
+        self,
+        process: _ProcessLike,
+        *,
+        ownership_token: str | None = None,
+        process_group_id: int | None = None,
+        ownership_started_at: float | None = None,
+    ) -> None:
         self.process = process
         self.result = process
         self.num: int | None = None
+        self.ownership_token = ownership_token
+        self.process_group_id = process_group_id
+        self.ownership_started_at = ownership_started_at
 
 
 class BackgroundProcessManager:
@@ -32,6 +45,9 @@ class BackgroundProcessManager:
         self.running: list[BackgroundProcessJob] = []
         self.completed: list[BackgroundProcessJob] = []
         self.dead: list[BackgroundProcessJob] = []
+        # Keep launch ownership independently from transient execution state.
+        # A wrapper may exit while a descendant in its process group survives.
+        self.owned: list[BackgroundProcessJob] = []
 
     @staticmethod
     def _normalize_cwd(cwd: str | Path | None) -> str | None:
@@ -77,20 +93,41 @@ class BackgroundProcessManager:
         process_env = os.environ.copy()
         if env:
             process_env.update({str(key): str(value) for key, value in env.items() if value is not None})
+        ownership_token = secrets.token_hex(16)
+        ownership_started_at = time.time()
+        process_env[BACKGROUND_JOB_TOKEN_ENV] = ownership_token
+        process_group_options: dict[str, object]
+        if os.name == "nt":
+            process_group_options = {
+                "creationflags": int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+            }
+        else:
+            process_group_options = {"start_new_session": True}
         proc = cast(
             _ProcessLike,
             subprocess.Popen(
                 self._command_argv(cmd),
                 shell=False,
                 cwd=self._normalize_cwd(cwd),
-                start_new_session=True,
                 env=process_env,
+                **process_group_options,
             ),
         )
-        job = BackgroundProcessJob(proc)
+        process_group_id = None
+        if os.name != "nt":
+            process_pid = getattr(proc, "pid", None)
+            if isinstance(process_pid, int) and process_pid > 0:
+                process_group_id = process_pid
+        job = BackgroundProcessJob(
+            proc,
+            ownership_token=ownership_token,
+            process_group_id=process_group_id,
+            ownership_started_at=ownership_started_at,
+        )
         job.num = self._current_job_id
         self._current_job_id += 1
         self.running.append(job)
+        self.owned.append(job)
         self.all[job.num] = job
         return job
 

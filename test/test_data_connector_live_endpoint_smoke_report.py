@@ -160,6 +160,11 @@ def test_live_endpoint_smoke_covers_target_and_credential_edge_cases(tmp_path: P
 
 def test_live_endpoint_smoke_opensearch_success_and_failure_paths(monkeypatch, tmp_path: Path) -> None:
     core = _load_module(CORE_PATH, "data_connector_live_smoke_opensearch_core")
+    monkeypatch.setattr(
+        core,
+        "_resolve_host_addresses",
+        lambda _host: [core.ipaddress.ip_address("93.184.216.34")],
+    )
     connector = {
         "id": "ops",
         "kind": "opensearch",
@@ -251,8 +256,13 @@ def test_live_endpoint_smoke_blocks_unsafe_opensearch_targets_before_authorizati
         assert "unsafe live endpoint target" in row["message"]
 
 
-def test_live_endpoint_smoke_redirects_must_keep_same_safe_origin() -> None:
+def test_live_endpoint_smoke_redirects_must_keep_same_safe_origin(monkeypatch) -> None:
     core = _load_module(CORE_PATH, "data_connector_live_smoke_redirect_policy_core")
+    monkeypatch.setattr(
+        core,
+        "_resolve_host_addresses",
+        lambda _host: [core.ipaddress.ip_address("93.184.216.34")],
+    )
     handler = core._SameOriginRedirectHandler()
     req = core.request.Request("https://opensearch.example.invalid/runs-*", method="HEAD")
 

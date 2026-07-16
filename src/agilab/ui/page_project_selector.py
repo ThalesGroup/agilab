@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from agilab.ui.ui_performance import path_stat_signature, ui_discovery_cache_enabled
 
 NAVIGATION_PAGE_ROUTES_ATTR = "_NAVIGATION_PAGE_ROUTES"
+NAVIGATION_PAGE_ROUTES_SESSION_KEY = "_agilab_navigation_page_routes"
 PROJECT_EDITOR_ROUTE_ID = "project_editor"
 PROJECT_EDITOR_PAGE_PATH = Path("pages/1_PROJECT.py")
 PROJECT_ROUTE_ID = PROJECT_EDITOR_ROUTE_ID
@@ -102,12 +104,20 @@ def _refresh_project_names(streamlit: Any, projects: Iterable[Any]) -> list[str]
         return _unique_project_names(projects)
 
 
-def _registered_navigation_page(route_id: str) -> Any | None:
+def _registered_navigation_page(route_id: str, streamlit: Any | None = None) -> Any | None:
     """Return a registered ``st.Page`` object from the active main navigation run."""
+    session_state = getattr(streamlit, "session_state", None)
+    if session_state is not None:
+        try:
+            session_routes = session_state.get(NAVIGATION_PAGE_ROUTES_SESSION_KEY)
+        except (AttributeError, RuntimeError, TypeError):
+            session_routes = None
+        if isinstance(session_routes, Mapping) and session_routes.get(route_id) is not None:
+            return session_routes[route_id]
     for module_name in MAIN_NAVIGATION_MODULES:
         module = sys.modules.get(module_name)
         routes = getattr(module, NAVIGATION_PAGE_ROUTES_ATTR, None)
-        if isinstance(routes, dict) and routes.get(route_id) is not None:
+        if isinstance(routes, Mapping) and routes.get(route_id) is not None:
             return routes[route_id]
     return None
 
@@ -115,7 +125,7 @@ def _registered_navigation_page(route_id: str) -> Any | None:
 def switch_to_project_page(streamlit: Any, *, active_app: str | None = None) -> bool:
     """Switch to PROJECT_EDITOR using the registered ``st.navigation`` page only."""
     switch_page = getattr(streamlit, "switch_page", None)
-    project_page = _registered_navigation_page(PROJECT_ROUTE_ID)
+    project_page = _registered_navigation_page(PROJECT_ROUTE_ID, streamlit)
     if not callable(switch_page) or project_page is None:
         return False
     if active_app is not None:

@@ -100,6 +100,34 @@ async def test_clean_nodes_runs_local_and_remote_cleanup():
 
 
 @pytest.mark.asyncio
+async def test_clean_nodes_does_not_delete_remote_runtime_after_failed_stop():
+    deleted = []
+
+    async def _failed_stop(*, list_ip, force=True):
+        raise RuntimeError(f"survivor on {sorted(list_ip)} force={force}")
+
+    async def _delete_dirs(*, list_ip):
+        deleted.append(set(list_ip))
+
+    agi_cls = SimpleNamespace(
+        _workers={"10.0.0.2": 1},
+        _get_scheduler=lambda _addr=None: ("10.0.0.2", 8786),
+        _clean_dirs_local=lambda: None,
+        _clean_remote_procs=_failed_stop,
+        _clean_remote_dirs=_delete_dirs,
+    )
+
+    with pytest.raises(RuntimeError, match="survivor"):
+        await deployment_orchestration_support.clean_nodes(
+            agi_cls,
+            "10.0.0.2:8786",
+            is_local_fn=lambda _ip: False,
+        )
+
+    assert deleted == []
+
+
+@pytest.mark.asyncio
 async def test_deploy_application_calls_local_and_remote_workers():
     calls = {"local": [], "remote": [], "todo": []}
     env = SimpleNamespace(

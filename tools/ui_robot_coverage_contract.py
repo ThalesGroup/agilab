@@ -129,10 +129,6 @@ APPS_PAGE_RENDER_ONLY_DISPOSITIONS: dict[str, tuple[str, str]] = {
         "decision panels render only after the artifact directory and pipeline exist",
         "test/test_view_data_io_decision.py",
     ),
-    "view_inference_analysis": (
-        "diagnostics render only when an active project and inference runs are passed in",
-        "test/test_view_inference_analysis.py",
-    ),
     "view_live_artifacts": (
         "manifest candidates render only when live artifacts are present",
         "test/test_view_live_artifacts.py",

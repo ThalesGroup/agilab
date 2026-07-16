@@ -620,10 +620,15 @@ def test_view_maps_3d_page_bootstrap_reuses_active_app_argument(monkeypatch, tmp
         GUI_SAMPLING=4,
     )
 
-    def _fake_agi_env(apps_path, app, verbose):
-        return fake_env
+    class _FakeAgiEnv:
+        @classmethod
+        def session_for_app(cls, *, apps_path, app, verbose):
+            assert apps_path == active_app.parent
+            assert app == active_app.name
+            assert verbose == 1
+            return fake_env
 
-    monkeypatch.setattr(module, "AgiEnv", _fake_agi_env)
+    monkeypatch.setattr(module, "AgiEnv", _FakeAgiEnv)
     monkeypatch.setattr(module.sys, "argv", ["view_maps_3d.py", "--active-app", str(active_app)])
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_list_dataset_files", lambda *_args, **_kwargs: [])
@@ -993,7 +998,8 @@ def test_view_maps_3d_bootstrap_active_app_edge_cases(monkeypatch, tmp_path) -> 
     app_dir.mkdir(parents=True)
 
     class _BrokenAgiEnv:
-        def __init__(self, **_kwargs) -> None:
+        @classmethod
+        def session_for_app(cls, **_kwargs):
             raise RuntimeError("no env")
 
     monkeypatch.setattr(module, "AgiEnv", _BrokenAgiEnv)
@@ -1134,7 +1140,7 @@ def test_view_maps_3d_page_handles_persist_and_default_color_fallbacks(monkeypat
     module.page()
 
     assert settings_path.exists()
-    assert settings_path.read_text(encoding="utf-8") == ""
+    assert settings_path.read_text(encoding="utf-8") == 'view_maps_3d = "bad"\n'
     assert fake_st.session_state[module._vm3d_key("table_max_rows")] >= 10
     assert any(fake_st.calls["pydeck_chart"])
 

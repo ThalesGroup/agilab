@@ -24,6 +24,8 @@ os.environ.setdefault(
 )
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
+from agi_env.app_settings_support import read_app_settings
+from agi_env.ui.sidecar_registry import isolated_import_process_state
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location(
@@ -328,6 +330,7 @@ import_agilab_symbols(
         "fstype_for_path": "_fstype_for_path",
         "macos_autofs_hint": "_macos_autofs_hint",
         "mount_table": "_mount_table",
+        "owned_app_settings_payload": "_owned_app_settings_payload",
         "parse_benchmark": "parse_benchmark",
         "sanitize_for_toml": "_sanitize_for_toml",
         "write_app_settings_toml": "_write_app_settings_toml",
@@ -356,6 +359,38 @@ class _LazyAgiEnv:
 
 
 AgiEnv = _LazyAgiEnv()
+
+
+def _active_app_import_scope(env: Any):
+    app_src = Path(env.active_app).expanduser().resolve(strict=False) / "src"
+    return isolated_import_process_state(
+        prepend_paths=(app_src,),
+        module_roots=(app_src,),
+    )
+
+
+def _load_flight_args_payload(env: Any) -> dict[str, Any]:
+    with _active_app_import_scope(env):
+        from flight_telemetry import apply_source_defaults, load_args_from_toml
+
+        args_model = apply_source_defaults(load_args_from_toml(env.app_settings_file))
+        return args_model.to_toml_payload()
+
+
+def _persist_flight_args_payload(
+    env: Any,
+    args_input: dict[str, Any],
+) -> dict[str, Any]:
+    with _active_app_import_scope(env):
+        from flight_telemetry import (
+            apply_source_defaults,
+            dump_args_to_toml,
+            FlightArgs,
+        )
+
+        parsed_args = apply_source_defaults(FlightArgs(**args_input))
+        dump_args_to_toml(parsed_args, env.app_settings_file)
+        return parsed_args.to_toml_payload()
 
 
 def background_services_enabled(*args: Any, **kwargs: Any) -> Any:
@@ -1006,12 +1041,7 @@ def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None
 
     if env.app == "flight_telemetry_project":
         try:
-            from flight_telemetry import apply_source_defaults, load_args_from_toml
-
-            args_model = apply_source_defaults(
-                load_args_from_toml(env.app_settings_file)
-            )
-            app_settings["args"] = args_model.to_toml_payload()
+            app_settings["args"] = _load_flight_args_payload(env)
         except (
             ImportError,
             AttributeError,
@@ -1048,8 +1078,7 @@ def load_toml_file(file_path: str | Path) -> dict[str, Any]:
     file_path = Path(file_path)
     if file_path.exists():
         try:
-            with file_path.open("rb") as f:
-                return tomllib.load(f)
+            return read_app_settings(file_path)
         except tomllib.TOMLDecodeError as exc:
             st.warning(f"Invalid TOML detected in {file_path.name}: {exc}")
             logger.warning("Failed to parse %s: %s", file_path, exc)
@@ -1503,22 +1532,15 @@ def render_generic_ui() -> None:
         st.session_state["args_input"] = args_input
         app_settings_file = env.app_settings_file
         if env.app == "flight_telemetry_project":
-            try:
-                from flight_telemetry import (
-                    apply_source_defaults,
-                    dump_args_to_toml,
-                    FlightArgs,
-                )
-                from pydantic import ValidationError
+            from pydantic import ValidationError
 
-                parsed_args = FlightArgs(**args_input)
+            try:
+                persisted_args = _persist_flight_args_payload(env, args_input)
             except ValidationError as exc:
                 messages = env.humanize_validation_errors(exc)
                 st.warning("\n".join(messages))
             else:
-                parsed_args = apply_source_defaults(parsed_args)
-                dump_args_to_toml(parsed_args, app_settings_file)
-                st.session_state.app_settings["args"] = parsed_args.to_toml_payload()
+                st.session_state.app_settings["args"] = persisted_args
         else:
             existing_app_settings = load_toml_file(app_settings_file)
             existing_app_settings.setdefault("args", {})
@@ -1526,7 +1548,7 @@ def render_generic_ui() -> None:
             existing_app_settings["args"] = args_input
             st.session_state.app_settings = _write_app_settings_toml(
                 app_settings_file,
-                existing_app_settings,
+                _owned_app_settings_payload(existing_app_settings, ("args",)),
             )
 
     if st.session_state.get("args_remove_arg"):

@@ -4,13 +4,19 @@ from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import json
+import os
 from pathlib import Path
 import re
 import shlex
 import subprocess
 from typing import Any, Callable, Mapping, Protocol
 
+from .dag_idempotency import (
+    DagExternalExecutionUncertainError,
+    execute_idempotently as _execute_idempotently,
+    fsync_directory,
+    write_json_atomic,
+)
 from .dag_execution_registry import (
     CONTROLLED_CONTRACT_ADAPTER,
     CONTROLLED_CONTRACT_RUNNER_STATUS,
@@ -29,6 +35,7 @@ GLOBAL_DAG_CONTRACT_EXECUTION_SCOPE = "controlled_contract_dag_stage"
 GLOBAL_DAG_DISTRIBUTED_EXECUTION_SCOPE = "controlled_contract_dag_stage_distributed"
 DAG_STAGE_BACKEND_LOCAL = "local"
 DAG_STAGE_BACKEND_DISTRIBUTED = "distributed"
+_DURABLE_CLAIM_RECEIPT = object()
 
 
 def _now_iso() -> str:
@@ -61,12 +68,49 @@ class DagExecutionContext:
     stage_run_fns: Mapping[str, Callable[..., Mapping[str, Any]]] | None = None
     stage_submit_fn: Callable[..., Mapping[str, Any]] | None = None
     now_fn: Callable[[], str] = _now_iso
+    execution_attempt_id: str = ""
+    persist_execution_claim_fn: Callable[[Mapping[str, Any]], object] | None = None
 
 
-class DagExecutionAdapter(Protocol):
+def _persist_execution_claim(context: DagExecutionContext, state: dict[str, Any]) -> None:
+    """Persist the running claim before invoking any external execution boundary."""
+
+    _refresh_summary(state)
+    if context.persist_execution_claim_fn is None:
+        raise RuntimeError(
+            "Controlled DAG execution requires a durable claim persistence callback; "
+            "use the runner-state transaction API."
+        )
+    receipt = context.persist_execution_claim_fn(state)
+    if receipt is not _DURABLE_CLAIM_RECEIPT:
+        raise RuntimeError(
+            "Controlled DAG execution did not receive a durable claim receipt; "
+            "use the runner-state transaction API."
+        )
+
+
+def _unit_idempotency_token(context: DagExecutionContext, unit_id: str) -> str:
+    attempt_id = str(context.execution_attempt_id).strip()
+    if not attempt_id:
+        raise RuntimeError(
+            f"Controlled DAG stage `{unit_id}` requires a durable execution attempt and idempotency token."
+        )
+    return f"{attempt_id}:{unit_id}"
+
+
+def _unit_persisted_idempotency_token(unit: Mapping[str, Any]) -> str:
+    attempt = unit.get("execution_attempt")
+    token = str(attempt.get("idempotency_token", "")).strip() if isinstance(attempt, Mapping) else ""
+    if not token:
+        unit_id = str(unit.get("id", "")).strip() or "stage"
+        raise RuntimeError(f"Controlled DAG stage `{unit_id}` is missing its persisted idempotency token.")
+    return token
+
+
+class _DagExecutionAdapter(Protocol):
     adapter_id: str
 
-    def run_next(
+    def _run_next_uncommitted(
         self,
         state: Mapping[str, Any],
         context: DagExecutionContext,
@@ -74,10 +118,10 @@ class DagExecutionAdapter(Protocol):
         ...
 
 
-class UavQueueToRelayExecutionAdapter:
+class _UavQueueToRelayExecutionAdapter:
     adapter_id = UAV_QUEUE_ADAPTER
 
-    def run_next(
+    def _run_next_uncommitted(
         self,
         state: Mapping[str, Any],
         context: DagExecutionContext,
@@ -85,10 +129,10 @@ class UavQueueToRelayExecutionAdapter:
         return _run_next_uav_queue_to_relay_stage(state, context=context)
 
 
-class ControlledContractDagExecutionAdapter:
+class _ControlledContractDagExecutionAdapter:
     adapter_id = CONTROLLED_CONTRACT_ADAPTER
 
-    def run_next(
+    def _run_next_uncommitted(
         self,
         state: Mapping[str, Any],
         context: DagExecutionContext,
@@ -96,14 +140,14 @@ class ControlledContractDagExecutionAdapter:
         return _run_next_controlled_contract_dag_stage(state, context=context)
 
 
-DAG_EXECUTION_ADAPTERS_BY_ID: Mapping[str, DagExecutionAdapter] = {
-    UavQueueToRelayExecutionAdapter.adapter_id: UavQueueToRelayExecutionAdapter(),
-    ControlledContractDagExecutionAdapter.adapter_id: ControlledContractDagExecutionAdapter(),
+_DAG_EXECUTION_ADAPTERS_BY_ID: Mapping[str, _DagExecutionAdapter] = {
+    _UavQueueToRelayExecutionAdapter.adapter_id: _UavQueueToRelayExecutionAdapter(),
+    _ControlledContractDagExecutionAdapter.adapter_id: _ControlledContractDagExecutionAdapter(),
 }
 
 
 def registered_execution_adapter_ids() -> tuple[str, ...]:
-    return tuple(sorted(DAG_EXECUTION_ADAPTERS_BY_ID))
+    return tuple(sorted(_DAG_EXECUTION_ADAPTERS_BY_ID))
 
 
 def run_next_adapter_stage(
@@ -111,17 +155,50 @@ def run_next_adapter_stage(
     state: Mapping[str, Any],
     context: DagExecutionContext,
 ) -> DagStageExecutionResult:
-    adapter = DAG_EXECUTION_ADAPTERS_BY_ID.get(adapter_id)
+    """Reject public execution that cannot own the runner-state transaction."""
+
+    del adapter_id, state, context
+    raise RuntimeError(
+        "Direct DAG adapter execution is disabled; use "
+        "DagRunEngine.run_next_controlled_stage() so the durable claim and "
+        "CAS finalization cannot be bypassed."
+    )
+
+
+def _run_next_adapter_stage_uncommitted(
+    adapter_id: str,
+    state: Mapping[str, Any],
+    context: DagExecutionContext,
+) -> DagStageExecutionResult:
+    adapter = _DAG_EXECUTION_ADAPTERS_BY_ID.get(adapter_id)
     if adapter is None:
         return DagStageExecutionResult(
             ok=False,
             message=f"No DAG execution adapter is registered for `{adapter_id}`.",
             state=dict(state),
         )
-    return adapter.run_next(state, context)
+    return adapter._run_next_uncommitted(state, context)
 
 
 def run_ready_adapter_stages(
+    adapter_id: str,
+    state: Mapping[str, Any],
+    context: DagExecutionContext,
+    *,
+    max_workers: int | None = None,
+    execution_backend: str = DAG_STAGE_BACKEND_LOCAL,
+) -> DagBatchExecutionResult:
+    """Reject public batch execution that cannot own the state transaction."""
+
+    del adapter_id, state, context, max_workers, execution_backend
+    raise RuntimeError(
+        "Direct DAG adapter batch execution is disabled; use "
+        "DagRunEngine.run_ready_controlled_stages() so the durable claim and "
+        "CAS finalization cannot be bypassed."
+    )
+
+
+def _run_ready_adapter_stages_uncommitted(
     adapter_id: str,
     state: Mapping[str, Any],
     context: DagExecutionContext,
@@ -137,7 +214,7 @@ def run_ready_adapter_stages(
             execution_backend=execution_backend,
         )
 
-    result = run_next_adapter_stage(adapter_id, state, context)
+    result = _run_next_adapter_stage_uncommitted(adapter_id, state, context)
     if result.ok:
         return DagBatchExecutionResult(
             ok=True,
@@ -275,8 +352,29 @@ def _run_next_uav_queue_to_relay_stage(
     relay_status = str(relay.get("dispatch_status", ""))
     timestamp = context.now_fn()
     if queue_status == "runnable":
+        idempotency_token = _unit_idempotency_token(context, QUEUE_UNIT_ID)
+        _mark_controlled_stage_running(
+            mutable_state,
+            queue,
+            timestamp=timestamp,
+            execution_mode="real_app_entry",
+            operator_message=f"{QUEUE_UNIT_ID} is running through the controlled AGILAB app entrypoint.",
+            event_detail=f"{QUEUE_UNIT_ID} claimed before controlled AGILAB app execution",
+            execution_attempt_id=context.execution_attempt_id,
+            idempotency_token=idempotency_token,
+        )
+        _persist_execution_claim(context, mutable_state)
         run_root = _real_run_root(context.lab_dir, QUEUE_UNIT_ID)
-        result = dict(run_queue_fn(repo_root=context.repo_root, run_root=run_root))
+        result = _execute_idempotently(
+            run_root=run_root,
+            unit_id=QUEUE_UNIT_ID,
+            idempotency_token=idempotency_token,
+            callback=lambda: run_queue_fn(
+                repo_root=context.repo_root,
+                run_root=run_root,
+                idempotency_token=idempotency_token,
+            ),
+        )
         _mark_controlled_stage_execution(
             mutable_state,
             queue,
@@ -302,9 +400,31 @@ def _run_next_uav_queue_to_relay_stage(
     if relay_status in {"runnable", "blocked"} and "queue_metrics" in available_artifact_ids(mutable_state):
         if relay_status == "blocked":
             _unblock_relay_after_queue(mutable_state, timestamp=timestamp)
+        idempotency_token = _unit_idempotency_token(context, RELAY_UNIT_ID)
+        _mark_controlled_stage_running(
+            mutable_state,
+            relay,
+            timestamp=timestamp,
+            execution_mode="real_app_entry",
+            operator_message=f"{RELAY_UNIT_ID} is running through the controlled AGILAB app entrypoint.",
+            event_detail=f"{RELAY_UNIT_ID} claimed before controlled AGILAB app execution",
+            execution_attempt_id=context.execution_attempt_id,
+            idempotency_token=idempotency_token,
+        )
+        _persist_execution_claim(context, mutable_state)
         run_root = _real_run_root(context.lab_dir, RELAY_UNIT_ID)
         queue_result = _queue_result_for_relay(mutable_state)
-        result = dict(run_relay_fn(repo_root=context.repo_root, run_root=run_root, queue_result=queue_result))
+        result = _execute_idempotently(
+            run_root=run_root,
+            unit_id=RELAY_UNIT_ID,
+            idempotency_token=idempotency_token,
+            callback=lambda: run_relay_fn(
+                repo_root=context.repo_root,
+                run_root=run_root,
+                queue_result=queue_result,
+                idempotency_token=idempotency_token,
+            ),
+        )
         _mark_controlled_stage_execution(
             mutable_state,
             relay,
@@ -358,6 +478,15 @@ def _run_next_controlled_contract_dag_stage(
         artifact_id = artifact["artifact"]
         artifact_kind = artifact["kind"]
         artifact_path_key = _artifact_path_result_key(artifact_kind)
+        idempotency_token = _unit_idempotency_token(context, unit_id)
+        _mark_controlled_stage_running(
+            mutable_state,
+            unit,
+            timestamp=timestamp,
+            execution_attempt_id=context.execution_attempt_id,
+            idempotency_token=idempotency_token,
+        )
+        _persist_execution_claim(context, mutable_state)
         try:
             result = _contract_stage_result(
                 context,
@@ -365,6 +494,8 @@ def _run_next_controlled_contract_dag_stage(
                 artifact=artifact,
                 timestamp=timestamp,
             )
+        except DagExternalExecutionUncertainError:
+            raise
         except RuntimeError as exc:
             _mark_controlled_stage_failure(
                 mutable_state,
@@ -456,6 +587,7 @@ def _run_ready_controlled_contract_dag_stages(
             failure_messages_by_unit_id[unit_id] = contract_issue
             continue
         artifact = _primary_contract_artifact(mutable_state, unit)
+        idempotency_token = _unit_idempotency_token(context, unit_id)
         _mark_controlled_stage_running(
             mutable_state,
             unit,
@@ -463,6 +595,8 @@ def _run_ready_controlled_contract_dag_stages(
             execution_mode=_stage_backend_execution_mode(backend),
             operator_message=_stage_backend_running_message(unit_id, backend),
             event_detail=_stage_backend_dispatch_detail(unit_id, backend),
+            execution_attempt_id=context.execution_attempt_id,
+            idempotency_token=idempotency_token,
         )
         jobs.append(
             (
@@ -474,7 +608,9 @@ def _run_ready_controlled_contract_dag_stages(
         )
 
     results_by_unit_id: dict[str, dict[str, Any]] = {}
+    uncertain_errors: list[DagExternalExecutionUncertainError] = []
     if jobs:
+        _persist_execution_claim(context, mutable_state)
         worker_count = max(1, min(max_workers or len(jobs), len(jobs)))
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = {
@@ -491,8 +627,16 @@ def _run_ready_controlled_contract_dag_stages(
             for future, unit_id in futures.items():
                 try:
                     results_by_unit_id[unit_id] = dict(future.result())
+                except DagExternalExecutionUncertainError as exc:
+                    uncertain_errors.append(exc)
                 except Exception as exc:
                     failure_messages_by_unit_id[unit_id] = str(exc)
+
+    if uncertain_errors:
+        # Every batch unit remains under the durable top-level claim. Even units
+        # whose callback returned cannot be finalized independently once one
+        # sibling side effect has an unknown outcome.
+        raise uncertain_errors[0]
 
     executed_unit_ids: list[str] = []
     for unit, artifact, artifact_kind, artifact_path_key in jobs:
@@ -651,11 +795,14 @@ def _distributed_stage_result(
             "Use the local contract backend or provide a stage submitter."
         )
     unit_id = str(unit.get("id", "")).strip() or "stage"
+    idempotency_token = _unit_persisted_idempotency_token(unit)
     contract = _unit_execution_contract(unit)
     run_root = _real_run_root(context.lab_dir, unit_id)
-    run_root.mkdir(parents=True, exist_ok=True)
-    result = dict(
-        submitter(
+    result = _execute_idempotently(
+        run_root=run_root,
+        unit_id=unit_id,
+        idempotency_token=idempotency_token,
+        callback=lambda: submitter(
             repo_root=context.repo_root,
             lab_dir=context.lab_dir,
             run_root=run_root,
@@ -663,7 +810,8 @@ def _distributed_stage_result(
             artifact=dict(artifact),
             execution_contract=contract,
             timestamp=timestamp,
-        )
+            idempotency_token=idempotency_token,
+        ),
     )
     result.setdefault("execution_contract", contract)
     result.setdefault("stage_backend", DAG_STAGE_BACKEND_DISTRIBUTED)
@@ -678,15 +826,48 @@ def _contract_stage_result(
     timestamp: str,
 ) -> dict[str, Any]:
     unit_id = str(unit.get("id", "")).strip() or "stage"
+    idempotency_token = _unit_persisted_idempotency_token(unit)
+    run_root = _real_run_root(context.lab_dir, unit_id)
+    return _execute_idempotently(
+        run_root=run_root,
+        unit_id=unit_id,
+        idempotency_token=idempotency_token,
+        callback=lambda: _contract_stage_result_once(
+            context,
+            unit=unit,
+            artifact=artifact,
+            timestamp=timestamp,
+            idempotency_token=idempotency_token,
+            run_root=run_root,
+        ),
+    )
+
+
+def _contract_stage_result_once(
+    context: DagExecutionContext,
+    *,
+    unit: Mapping[str, Any],
+    artifact: Mapping[str, str],
+    timestamp: str,
+    idempotency_token: str,
+    run_root: Path,
+) -> dict[str, Any]:
+    unit_id = str(unit.get("id", "")).strip() or "stage"
     artifact_id = str(artifact.get("artifact", "")).strip() or f"{unit_id}_contract_artifact"
     artifact_kind = str(artifact.get("kind", "")).strip() or _contract_artifact_kind(artifact_id, "")
     artifact_path = str(artifact.get("path", "")).strip()
     contract = _unit_execution_contract(unit)
-    run_root = _real_run_root(context.lab_dir, unit_id)
     runner = _stage_contract_runner(context, unit_id=unit_id, contract=contract)
     if runner is not None:
-        result = dict(runner(repo_root=context.repo_root, run_root=run_root))
+        result = dict(
+            runner(
+                repo_root=context.repo_root,
+                run_root=run_root,
+                idempotency_token=idempotency_token,
+            )
+        )
         result.setdefault("execution_contract", contract)
+        result.setdefault("idempotency_token", idempotency_token)
         return result
 
     run_root.mkdir(parents=True, exist_ok=True)
@@ -694,8 +875,21 @@ def _contract_stage_result(
     command = _contract_command(contract)
     command_result: dict[str, Any] = {}
     if command:
-        command_result = _run_contract_command(command, run_root=run_root)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+        if output_path.is_dir():
+            raise RuntimeError(f"Controlled contract artifact path is a directory: {output_path}")
+        try:
+            output_path.unlink()
+        except FileNotFoundError:
+            pass
+        else:
+            # A retry must prove that its command produced the declared output;
+            # retaining a prior attempt's file would make evidence/token state lie.
+            fsync_directory(output_path.parent)
+        command_result = _run_contract_command(
+            command,
+            run_root=run_root,
+            idempotency_token=idempotency_token,
+        )
     artifact_payload = {
         "schema": "agilab.dag_contract_stage_result.v1",
         "unit_id": unit_id,
@@ -704,15 +898,19 @@ def _contract_stage_result(
         "created_at": timestamp,
         "execution_mode": "controlled_contract_stage_execution",
         "execution_contract": contract,
+        "idempotency_token": idempotency_token,
         **command_result,
     }
-    if not output_path.exists():
-        output_path.write_text(json.dumps(artifact_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if not command or not output_path.exists():
+        # Fallback evidence belongs to this attempt. Reset/retry reuses the run
+        # root, so preserving a previous token would make state and evidence lie.
+        write_json_atomic(output_path, artifact_payload)
     result = {
         "contract_artifact_path": str(output_path),
         "reduce_artifact_path": str(output_path),
         "summary_metrics_path": str(output_path),
         "execution_contract": contract,
+        "idempotency_token": idempotency_token,
         "summary_metrics": {
             "contract_artifacts": 1,
             "stage_completed": 1,
@@ -782,9 +980,43 @@ def _stage_contract_runner(
     return stage_run_fns.get(entrypoint) if entrypoint else None
 
 
-def _run_contract_command(command: list[str], *, run_root: Path) -> dict[str, Any]:
+def _run_contract_command(
+    command: list[str],
+    *,
+    run_root: Path,
+    idempotency_token: str,
+) -> dict[str, Any]:
+    return _execute_idempotently(
+        run_root=run_root,
+        unit_id="contract-command",
+        idempotency_token=idempotency_token,
+        scope="contract-command",
+        callback=lambda: _run_contract_command_once(
+            command,
+            run_root=run_root,
+            idempotency_token=idempotency_token,
+        ),
+    )
+
+
+def _run_contract_command_once(
+    command: list[str],
+    *,
+    run_root: Path,
+    idempotency_token: str,
+) -> dict[str, Any]:
     try:
-        completed = subprocess.run(command, cwd=run_root, text=True, capture_output=True, check=False, timeout=300)
+        command_env = os.environ.copy()
+        command_env["AGILAB_IDEMPOTENCY_TOKEN"] = idempotency_token
+        completed = subprocess.run(
+            command,
+            cwd=run_root,
+            env=command_env,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=300,
+        )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("Controlled contract command timed out after 300 seconds.") from exc
     if completed.returncode:
@@ -966,11 +1198,14 @@ def _mark_controlled_stage_running(
     execution_mode: str = "contract_adapter",
     operator_message: str | None = None,
     event_detail: str | None = None,
+    execution_attempt_id: str = "",
+    idempotency_token: str = "",
 ) -> None:
     unit_id = str(unit.get("id", ""))
     previous_status = str(unit.get("dispatch_status", ""))
     unit["dispatch_status"] = "running"
     unit["execution_mode"] = execution_mode
+    state["updated_at"] = timestamp
     timestamps = unit.setdefault("timestamps", {})
     if isinstance(timestamps, dict):
         timestamps.setdefault("created_at", state.get("created_at", timestamp))
@@ -982,6 +1217,14 @@ def _mark_controlled_stage_running(
         "message": operator_message or f"{unit_id} is running through the controlled DAG contract adapter.",
         "blocked_by_artifacts": [],
     }
+    if execution_attempt_id:
+        unit["execution_attempt"] = {
+            "id": execution_attempt_id,
+            "idempotency_token": idempotency_token,
+            "status": "running",
+            "started_at": timestamp,
+            "recovery_policy": "explicit_recovery_required_before_retry",
+        }
     _append_event(
         state,
         timestamp=timestamp,
@@ -1025,6 +1268,10 @@ def _mark_controlled_stage_execution(
         "message": operator_message or f"{unit_id} executed through the controlled AGILAB app entrypoint.",
         "blocked_by_artifacts": [],
     }
+    execution_attempt = unit.get("execution_attempt")
+    if isinstance(execution_attempt, dict):
+        execution_attempt["status"] = "completed"
+        execution_attempt["completed_at"] = timestamp
     unit[execution_payload_key] = result
     produces: list[dict[str, Any]] = []
     artifact_attached = False
@@ -1132,6 +1379,10 @@ def _mark_controlled_stage_failure(
         "message": message,
         "blocked_by_artifacts": [],
     }
+    execution_attempt = unit.get("execution_attempt")
+    if isinstance(execution_attempt, dict):
+        execution_attempt["status"] = "failed"
+        execution_attempt["completed_at"] = timestamp
     _append_event(
         state,
         timestamp=timestamp,
@@ -1141,6 +1392,67 @@ def _mark_controlled_stage_failure(
         to_status="failed",
         detail=message,
     )
+
+
+def recover_execution_attempt(
+    state: Mapping[str, Any],
+    *,
+    unit_id: str,
+    idempotency_token: str,
+    timestamp: str,
+) -> dict[str, Any]:
+    """Mark one exact ambiguous unit claim failed after explicit operator recovery."""
+
+    mutable_state = deepcopy(dict(state))
+    active = mutable_state.get("active_execution")
+    unit_tokens = active.get("unit_tokens") if isinstance(active, dict) else None
+    recorded_token = (
+        str(unit_tokens.get(unit_id, "")).strip()
+        if isinstance(unit_tokens, Mapping)
+        else ""
+    )
+    if not recorded_token or recorded_token != idempotency_token:
+        raise ValueError(f"Active execution token does not match unit `{unit_id}`.")
+    unit = _dag_unit(mutable_state, unit_id)
+    if not isinstance(unit, dict):
+        raise ValueError(f"Active execution unit `{unit_id}` is missing from runner state.")
+    attempt = unit.get("execution_attempt")
+    unit_token = str(attempt.get("idempotency_token", "")).strip() if isinstance(attempt, dict) else ""
+    if unit.get("dispatch_status") != "running" or unit_token != idempotency_token:
+        raise ValueError(f"Unit `{unit_id}` no longer has the claimed running token.")
+
+    _mark_controlled_stage_failure(
+        mutable_state,
+        unit,
+        timestamp=timestamp,
+        message=(
+            f"Execution attempt for {unit_id} was explicitly recovered with its exact "
+            "idempotency token; reset is required before retry."
+        ),
+        execution_mode=str(unit.get("execution_mode", "contract_adapter")),
+    )
+    recovered_attempt = unit.get("execution_attempt")
+    if isinstance(recovered_attempt, dict):
+        recovered_attempt["status"] = "recovered_failed"
+        recovered_attempt["recovered_at"] = timestamp
+    remaining_tokens = dict(unit_tokens) if isinstance(unit_tokens, Mapping) else {}
+    remaining_tokens.pop(unit_id, None)
+    if remaining_tokens and isinstance(active, dict):
+        active["unit_tokens"] = remaining_tokens
+        active["status"] = "recovery_required"
+    else:
+        mutable_state.pop("active_execution", None)
+    _append_event(
+        mutable_state,
+        timestamp=timestamp,
+        kind="unit_recovered",
+        unit_id=unit_id,
+        from_status="running",
+        to_status="failed",
+        detail=f"operator recovered exact idempotency token {idempotency_token}",
+    )
+    _refresh_summary(mutable_state)
+    return mutable_state
 
 
 def _unblock_unit_when_artifacts_available(

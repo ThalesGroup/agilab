@@ -199,6 +199,7 @@ def test_resolve_mlflow_tracking_dir_falls_back_to_home(tmp_path):
 def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
     calls = {}
     _patch_mlflow_cli(monkeypatch)
+    monkeypatch.setattr(pagelib, "DEFAULT_SIDECAR_REGISTRY", None)
 
     class FakeSessionState(dict):
         def __getattr__(self, name):
@@ -273,6 +274,7 @@ def test_activate_mlflow_migrates_legacy_filestore(tmp_path, monkeypatch):
     (tracking_dir / "meta.yaml").write_text("legacy", encoding="utf-8")
     migrate = {}
     _patch_mlflow_cli(monkeypatch)
+    monkeypatch.setattr(pagelib, "DEFAULT_SIDECAR_REGISTRY", None)
 
     class FakeSessionState(dict):
         def __getattr__(self, name):
@@ -324,6 +326,7 @@ def test_activate_mlflow_migrates_legacy_filestore(tmp_path, monkeypatch):
 
 
 def test_activate_mlflow_reports_port_start_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr(pagelib, "DEFAULT_SIDECAR_REGISTRY", None)
     errors = []
     _patch_mlflow_cli(monkeypatch)
 

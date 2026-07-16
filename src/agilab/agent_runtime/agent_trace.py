@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import tempfile
 import time
 from typing import Any, Mapping, Sequence
 
@@ -180,63 +181,252 @@ def _lock_is_stale(path: Path, *, now: float | None = None) -> bool:
 def _clear_stale_lock(path: Path) -> bool:
     if not _lock_is_stale(path):
         return False
+    handle = path.open("a+b")
     try:
-        path.unlink()
-    except FileNotFoundError:
+        if not _try_lock_handle(handle):
+            return False
+        _rewrite_locked_handle(handle, {})
         return True
     except OSError:
         return False
-    return True
+    finally:
+        _unlock_handle(handle)
+        handle.close()
+
+
+def _try_lock_handle(handle) -> bool:
+    if os.name == "nt":  # pragma: no cover - exercised on Windows CI
+        import msvcrt
+
+        try:
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() == 0:
+                handle.write(b"\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            return True
+        except OSError:
+            return False
+    import fcntl
+
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except (BlockingIOError, OSError):
+        return False
+
+
+def _unlock_handle(handle) -> None:
+    try:
+        if os.name == "nt":  # pragma: no cover - exercised on Windows CI
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
+
+
+def _rewrite_locked_handle(handle, payload: Mapping[str, Any]) -> None:
+    encoded = (json.dumps(dict(payload), sort_keys=True) + "\n").encode("utf-8")
+    handle.seek(0)
+    handle.truncate(0)
+    handle.write(encoded)
+    handle.flush()
+    os.fsync(handle.fileno())
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(tmp_path, path)
+        _fsync_directory(path.parent)
+    finally:
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _validate_trace_run_identity(
+    payload: Mapping[str, Any],
+    *,
+    expected_run_id: str,
+    meta_path: Path,
+) -> None:
+    """Reject missing or mismatched ownership before reusing a trace."""
+
+    existing_run_id = str(payload.get("run_id") or "")
+    if not existing_run_id:
+        raise FileExistsError(
+            f"Agent trace metadata is invalid and cannot be resumed: {meta_path}"
+        )
+    if existing_run_id != expected_run_id:
+        raise FileExistsError(
+            f"Agent trace directory belongs to run {existing_run_id!r}, "
+            f"not {expected_run_id!r}: {meta_path.parent}"
+        )
+
+
+def _fsync_directory(path: Path) -> None:
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
 
 
 @contextmanager
 def _event_file_lock(path: Path):
     lock_path = path.with_name(path.name + ".lock")
     deadline = time.monotonic() + LOCK_TIMEOUT_SECONDS
-    fd: int | None = None
-    while fd is None:
-        try:
-            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            payload = {
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock_path.open("a+b")
+    while not _try_lock_handle(handle):
+        if time.monotonic() >= deadline:
+            handle.close()
+            raise TimeoutError(f"Timed out waiting for agent trace lock: {lock_path}")
+        time.sleep(0.01)
+    try:
+        _rewrite_locked_handle(
+            handle,
+            {
                 "host": socket.gethostname(),
                 "pid": os.getpid(),
                 "created_at": utc_now(),
-            }
-            os.write(fd, json.dumps(payload, sort_keys=True).encode("utf-8"))
-        except FileExistsError:
-            if _clear_stale_lock(lock_path):
-                continue
-            if time.monotonic() >= deadline:
-                raise TimeoutError(f"Timed out waiting for agent trace lock: {lock_path}")
-            time.sleep(0.01)
+            },
+        )
+    except BaseException:
+        _unlock_handle(handle)
+        handle.close()
+        raise
     try:
         yield
     finally:
-        os.close(fd)
         try:
-            lock_path.unlink()
-        except FileNotFoundError:
-            pass
+            _rewrite_locked_handle(handle, {})
+        finally:
+            _unlock_handle(handle)
+            handle.close()
+
+
+trace_file_lock = _event_file_lock
+
+
+def repair_jsonl_tail(path: Path | str) -> Path | None:
+    """Repair only an unterminated JSONL tail while its file lock is held.
+
+    A complete JSON value which merely lacks its final newline is preserved.
+    An invalid suffix is copied to a unique quarantine artifact and removed
+    from the live stream before a later append can be concatenated onto it.
+    """
+
+    candidate = Path(path).expanduser()
+    if not candidate.exists() or candidate.stat().st_size == 0:
+        return None
+    with candidate.open("r+b") as handle:
+        handle.seek(0, os.SEEK_END)
+        end = handle.tell()
+        handle.seek(end - 1)
+        if handle.read(1) == b"\n":
+            return None
+
+        start = end
+        while start > 0:
+            start -= 1
+            handle.seek(start)
+            if handle.read(1) == b"\n":
+                start += 1
+                break
+        handle.seek(start)
+        tail = handle.read(end - start)
+        try:
+            decoded = tail.decode("utf-8")
+            payload = json.loads(decoded)
+            if not isinstance(payload, Mapping):
+                raise ValueError("JSONL records must be objects")
+        except (UnicodeDecodeError, ValueError):
+            fd, quarantine_name = tempfile.mkstemp(
+                prefix=f".{candidate.name}.partial.",
+                suffix=".jsonl",
+                dir=candidate.parent,
+            )
+            quarantine_path = Path(quarantine_name)
+            try:
+                with os.fdopen(fd, "wb") as quarantine:
+                    quarantine.write(tail)
+                    quarantine.flush()
+                    os.fsync(quarantine.fileno())
+            except BaseException:
+                try:
+                    quarantine_path.unlink()
+                except FileNotFoundError:
+                    pass
+                raise
+            handle.seek(start)
+            handle.truncate()
+            handle.flush()
+            os.fsync(handle.fileno())
+            _fsync_directory(candidate.parent)
+            return quarantine_path
+
+        handle.seek(0, os.SEEK_END)
+        handle.write(b"\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+        return None
 
 
 def load_trace_events(path: Path | str) -> list[AgentTraceEvent]:
-    """Load events from an ``agent_events.ndjson`` file or a trace directory."""
+    """Load trace events, tolerating only an unterminated crash tail."""
 
     candidate = Path(path).expanduser()
     events_path = candidate / EVENTS_FILENAME if candidate.is_dir() else candidate
     if not events_path.exists():
         return []
 
+    raw = events_path.read_bytes()
+    has_unterminated_tail = bool(raw) and not raw.endswith(b"\n")
+    encoded_lines = raw.splitlines()
     events: list[AgentTraceEvent] = []
-    for line in events_path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
+    for index, encoded_line in enumerate(encoded_lines):
+        if not encoded_line.strip():
             continue
         try:
-            payload = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(payload, dict):
+            payload = json.loads(encoded_line.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            if has_unterminated_tail and index == len(encoded_lines) - 1:
+                break
+            raise ValueError(
+                f"Invalid agent trace JSONL record {index + 1}: {events_path}"
+            ) from exc
+        if not isinstance(payload, dict):
+            raise ValueError(
+                f"Agent trace JSONL record {index + 1} must be an object: {events_path}"
+            )
+        try:
             events.append(_event_from_mapping(payload))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Invalid agent trace event record {index + 1}: {events_path}"
+            ) from exc
     return events
 
 
@@ -277,24 +467,39 @@ class AgentTraceStore:
 
         self.root.mkdir(parents=True, exist_ok=True)
         self.tool_output_dir.mkdir(parents=True, exist_ok=True)
-        if self.meta_path.exists():
-            return _read_json(self.meta_path)
+        with _event_file_lock(self.events_path):
+            if self.meta_path.exists():
+                existing = _read_json(self.meta_path)
+                _validate_trace_run_identity(
+                    existing,
+                    expected_run_id=self.run_id,
+                    meta_path=self.meta_path,
+                )
+                return existing
 
-        payload: dict[str, Any] = {
-            "schema": TRACE_SCHEMA,
-            "run_id": self.run_id,
-            "agent": self.agent,
-            "label": self.label,
-            "provider": self.provider,
-            "model": self.model,
-            "created_at": utc_now(),
-            "events": str(self.events_path),
-            "tool_output_dir": str(self.tool_output_dir),
-            "metadata": redact_mapping(metadata or {}),
-        }
-        self.meta_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        self.events_path.touch(exist_ok=True)
-        return payload
+            if self.events_path.exists() and self.events_path.stat().st_size:
+                raise FileExistsError(
+                    f"Agent trace events exist without ownership metadata and cannot be resumed: {self.events_path}"
+                )
+
+            payload: dict[str, Any] = {
+                "schema": TRACE_SCHEMA,
+                "run_id": self.run_id,
+                "agent": self.agent,
+                "label": self.label,
+                "provider": self.provider,
+                "model": self.model,
+                "created_at": utc_now(),
+                "events": str(self.events_path),
+                "tool_output_dir": str(self.tool_output_dir),
+                "metadata": redact_mapping(metadata or {}),
+            }
+            _atomic_write_text(
+                self.meta_path,
+                json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            )
+            self.events_path.touch(exist_ok=True)
+            return payload
 
     def append(
         self,
@@ -312,6 +517,12 @@ class AgentTraceStore:
             self.initialize()
 
         with _event_file_lock(self.events_path):
+            _validate_trace_run_identity(
+                _read_json(self.meta_path),
+                expected_run_id=self.run_id,
+                meta_path=self.meta_path,
+            )
+            repair_jsonl_tail(self.events_path)
             sequence = _last_event_sequence(self.events_path) + 1
             record = AgentTraceEvent(
                 schema=TRACE_SCHEMA,
@@ -325,6 +536,8 @@ class AgentTraceStore:
             )
             with self.events_path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(asdict(record), sort_keys=True) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
         return record
 
 

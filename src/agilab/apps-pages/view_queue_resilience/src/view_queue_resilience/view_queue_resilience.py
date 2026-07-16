@@ -100,7 +100,7 @@ configure_streamlit_page(st, title=PAGE_TITLE)
 active_app_path = _resolve_active_app()
 app_scope_changed = _reset_app_scoped_session_defaults(active_app_path)
 if "env" not in st.session_state or app_scope_changed:
-    env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+    env = AgiEnv.session_for_app(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
     env.init_done = True
     st.session_state["env"] = env
 else:

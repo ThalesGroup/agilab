@@ -180,12 +180,13 @@ def test_view_data_io_decision_full_page_renders_artifact_evidence(monkeypatch, 
     fake_agi_env = ModuleType("agi_env")
 
     class _FakeAgiEnv:
-        for_app = None
-
         def __init__(self, **kwargs):
             self.__dict__.update(kwargs)
 
-    _FakeAgiEnv.for_app = _FakeAgiEnv
+        @classmethod
+        def session_for_app(cls, **kwargs):
+            return cls(**kwargs)
+
     fake_agi_env.AgiEnv = _FakeAgiEnv
 
     fake_pagelib = ModuleType("agi_gui.pagelib")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -54,7 +55,7 @@ def test_adapter_registry_exposes_uav_queue_to_relay_adapter():
 
 
 def test_adapter_dispatch_reports_unknown_adapter(tmp_path):
-    result = dag_execution_adapters.run_next_adapter_stage(
+    result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
         "missing-adapter",
         {"units": []},
         dag_execution_adapters.DagExecutionContext(repo_root=Path.cwd(), lab_dir=tmp_path),
@@ -66,7 +67,7 @@ def test_adapter_dispatch_reports_unknown_adapter(tmp_path):
 
 
 def test_ready_adapter_dispatch_reports_unknown_adapter(tmp_path):
-    result = dag_execution_adapters.run_ready_adapter_stages(
+    result = dag_execution_adapters._run_ready_adapter_stages_uncommitted(
         "missing-adapter",
         {"units": []},
         dag_execution_adapters.DagExecutionContext(repo_root=Path.cwd(), lab_dir=tmp_path),
@@ -74,6 +75,44 @@ def test_ready_adapter_dispatch_reports_unknown_adapter(tmp_path):
 
     assert not result.ok
     assert "No DAG execution adapter is registered" in result.message
+
+
+def test_public_adapter_entrypoints_cannot_accept_a_forged_claim_receipt(tmp_path):
+    callback_count = 0
+
+    def _unexpected_callback(**_kwargs):
+        nonlocal callback_count
+        callback_count += 1
+        return {}
+
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        run_queue_fn=_unexpected_callback,
+        execution_attempt_id="forged-receipt",
+        persist_execution_claim_fn=lambda _state: (
+            dag_execution_adapters._DURABLE_CLAIM_RECEIPT
+        ),
+    )
+    with pytest.raises(RuntimeError, match="Direct DAG adapter execution is disabled"):
+        dag_execution_adapters.run_next_adapter_stage(
+            "uav_queue_to_relay_controlled",
+            {"units": []},
+            context,
+        )
+    with pytest.raises(RuntimeError, match="Direct DAG adapter batch execution is disabled"):
+        dag_execution_adapters.run_ready_adapter_stages(
+            "controlled_contract_dag",
+            {"units": []},
+            context,
+        )
+    assert not hasattr(dag_execution_adapters, "UavQueueToRelayExecutionAdapter")
+    assert not hasattr(dag_execution_adapters, "ControlledContractDagExecutionAdapter")
+    assert not hasattr(dag_execution_adapters, "DAG_EXECUTION_ADAPTERS_BY_ID")
+    for adapter in dag_execution_adapters._DAG_EXECUTION_ADAPTERS_BY_ID.values():
+        assert not hasattr(adapter, "run_next")
+
+    assert callback_count == 0
 
 
 def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path):
@@ -135,11 +174,19 @@ def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path)
         repo_root=Path.cwd(),
         lab_dir=tmp_path,
         now_fn=lambda: "2026-05-07T00:00:00Z",
+        execution_attempt_id="contract-sequence",
+        persist_execution_claim_fn=lambda _state: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
     )
 
-    first = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", state, context)
-    second = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", first.state, context)
-    third = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", second.state, context)
+    first = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "controlled_contract_dag", state, context
+    )
+    second = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "controlled_contract_dag", first.state, context
+    )
+    third = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "controlled_contract_dag", second.state, context
+    )
 
     assert first.ok
     assert first.executed_unit_id == "extract_context"
@@ -171,7 +218,13 @@ def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path)
 def test_controlled_contract_adapter_uses_entrypoint_runner(tmp_path):
     calls: list[Path] = []
 
-    def _runner(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+    def _runner(
+        *,
+        repo_root: Path,
+        run_root: Path,
+        idempotency_token: str,
+    ) -> dict[str, object]:
+        assert idempotency_token == "custom-runner:extract_context"
         calls.append(run_root)
         return {
             "summary_metrics_path": "alpha/summary.json",
@@ -211,9 +264,13 @@ def test_controlled_contract_adapter_uses_entrypoint_runner(tmp_path):
         lab_dir=tmp_path,
         stage_run_fns={"alpha.extract_context": _runner},
         now_fn=lambda: "2026-05-07T00:00:00Z",
+        execution_attempt_id="custom-runner",
+        persist_execution_claim_fn=lambda _state: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
     )
 
-    result = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", state, context)
+    result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "controlled_contract_dag", state, context
+    )
 
     assert result.ok
     assert calls == [tmp_path / ".agilab" / "multi_app_dag_real_runs" / "extract_context"]
@@ -260,9 +317,13 @@ def test_controlled_contract_adapter_runs_declared_command(tmp_path):
         repo_root=Path.cwd(),
         lab_dir=tmp_path,
         now_fn=lambda: "2026-05-07T00:00:00Z",
+        execution_attempt_id="command-runner",
+        persist_execution_claim_fn=lambda _state: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
     )
 
-    result = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", state, context)
+    result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "controlled_contract_dag", state, context
+    )
 
     assert result.ok
     artifact_path = tmp_path / ".agilab" / "multi_app_dag_real_runs" / "extract_context" / "context" / "context.json"
@@ -284,7 +345,7 @@ def test_controlled_contract_adapter_rejects_stage_without_execution_contract(tm
         "summary": {},
     }
 
-    result = dag_execution_adapters.run_next_adapter_stage(
+    result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
         "controlled_contract_dag",
         state,
         dag_execution_adapters.DagExecutionContext(repo_root=Path.cwd(), lab_dir=tmp_path),
@@ -295,7 +356,7 @@ def test_controlled_contract_adapter_rejects_stage_without_execution_contract(tm
 
 
 def test_uav_queue_adapter_reports_missing_required_stages(tmp_path):
-    result = dag_execution_adapters.run_next_adapter_stage(
+    result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
         "uav_queue_to_relay_controlled",
         {"units": [{"id": "queue_baseline", "dispatch_status": "runnable"}]},
         dag_execution_adapters.DagExecutionContext(repo_root=Path.cwd(), lab_dir=tmp_path),
@@ -330,7 +391,9 @@ def test_uav_queue_adapter_runs_blocked_relay_from_available_artifact(tmp_path):
         repo_root: Path,
         run_root: Path,
         queue_result: dict[str, object],
+        idempotency_token: str,
     ) -> dict[str, object]:
+        assert idempotency_token == "relay-run:relay_followup"
         relay_calls.append({"run_root": run_root, "queue_result": queue_result})
         return {
             "summary_metrics_path": "relay/summary.json",
@@ -338,7 +401,7 @@ def test_uav_queue_adapter_runs_blocked_relay_from_available_artifact(tmp_path):
             "summary_metrics": {"packets_generated": 2, "packets_delivered": 2},
         }
 
-    result = dag_execution_adapters.run_next_adapter_stage(
+    result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
         "uav_queue_to_relay_controlled",
         state,
         dag_execution_adapters.DagExecutionContext(
@@ -346,6 +409,8 @@ def test_uav_queue_adapter_runs_blocked_relay_from_available_artifact(tmp_path):
             lab_dir=tmp_path,
             run_relay_fn=_relay_run,
             now_fn=lambda: "2026-05-07T00:00:00Z",
+            execution_attempt_id="relay-run",
+            persist_execution_claim_fn=lambda _state: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
         ),
     )
 
@@ -372,7 +437,7 @@ def test_uav_queue_adapter_reports_no_ready_stage(tmp_path):
         "summary": {},
     }
 
-    result = dag_execution_adapters.run_next_adapter_stage(
+    result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
         "uav_queue_to_relay_controlled",
         state,
         dag_execution_adapters.DagExecutionContext(repo_root=Path.cwd(), lab_dir=tmp_path),
@@ -398,7 +463,7 @@ def test_controlled_contract_adapter_reports_no_ready_stage(tmp_path):
         "summary": {},
     }
 
-    result = dag_execution_adapters.run_next_adapter_stage(
+    result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
         "controlled_contract_dag",
         state,
         dag_execution_adapters.DagExecutionContext(repo_root=Path.cwd(), lab_dir=tmp_path),
@@ -409,7 +474,7 @@ def test_controlled_contract_adapter_reports_no_ready_stage(tmp_path):
     assert result.state["run_status"] == "completed"
 
 
-def test_controlled_contract_adapter_records_command_failure(tmp_path):
+def test_controlled_contract_command_failure_requires_exact_token_recovery(tmp_path):
     state = {
         "created_at": "2026-05-07T00:00:00Z",
         "units": [
@@ -427,35 +492,48 @@ def test_controlled_contract_adapter_records_command_failure(tmp_path):
         "summary": {},
     }
 
-    result = dag_execution_adapters.run_next_adapter_stage(
-        "controlled_contract_dag",
-        state,
-        dag_execution_adapters.DagExecutionContext(
-            repo_root=Path.cwd(),
-            lab_dir=tmp_path,
-            now_fn=lambda: "2026-05-07T00:00:00Z",
-        ),
-    )
-
-    assert not result.ok
-    assert "Controlled contract command failed (3): bad command" in result.message
-    unit = result.state["units"][0]
-    assert unit["dispatch_status"] == "failed"
-    assert unit["operator_ui"]["message"] == result.message
-    assert result.state["run_status"] == "failed"
+    with pytest.raises(
+        dag_execution_adapters.DagExternalExecutionUncertainError,
+        match=r"Controlled contract command failed \(3\): bad command",
+    ):
+        dag_execution_adapters._run_next_adapter_stage_uncommitted(
+            "controlled_contract_dag",
+            state,
+            dag_execution_adapters.DagExecutionContext(
+                repo_root=Path.cwd(),
+                lab_dir=tmp_path,
+                now_fn=lambda: "2026-05-07T00:00:00Z",
+                execution_attempt_id="command-failure",
+                persist_execution_claim_fn=lambda _state: (
+                    dag_execution_adapters._DURABLE_CLAIM_RECEIPT
+                ),
+            ),
+        )
 
 
 def test_controlled_contract_adapter_uses_unit_id_runner_before_entrypoint_runner(tmp_path):
     calls: list[str] = []
 
-    def _unit_runner(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+    def _unit_runner(
+        *,
+        repo_root: Path,
+        run_root: Path,
+        idempotency_token: str,
+    ) -> dict[str, object]:
+        del repo_root, run_root, idempotency_token
         calls.append("unit")
         return {
             "summary_metrics_path": "unit/summary.json",
             "summary_metrics": {"stage_completed": 1, "runner": "unit"},
         }
 
-    def _entrypoint_runner(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+    def _entrypoint_runner(
+        *,
+        repo_root: Path,
+        run_root: Path,
+        idempotency_token: str,
+    ) -> dict[str, object]:
+        del repo_root, run_root, idempotency_token
         calls.append("entrypoint")
         return {
             "summary_metrics_path": "entrypoint/summary.json",
@@ -477,7 +555,7 @@ def test_controlled_contract_adapter_uses_unit_id_runner_before_entrypoint_runne
         "summary": {},
     }
 
-    result = dag_execution_adapters.run_next_adapter_stage(
+    result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
         "controlled_contract_dag",
         state,
         dag_execution_adapters.DagExecutionContext(
@@ -488,6 +566,8 @@ def test_controlled_contract_adapter_uses_unit_id_runner_before_entrypoint_runne
                 "alpha.extract_context": _entrypoint_runner,
             },
             now_fn=lambda: "2026-05-07T00:00:00Z",
+            execution_attempt_id="runner-priority",
+            persist_execution_claim_fn=lambda _state: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
         ),
     )
 
@@ -512,13 +592,15 @@ def test_controlled_contract_adapter_sanitizes_unsafe_artifact_path(tmp_path):
         "summary": {},
     }
 
-    result = dag_execution_adapters.run_next_adapter_stage(
+    result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
         "controlled_contract_dag",
         state,
         dag_execution_adapters.DagExecutionContext(
             repo_root=Path.cwd(),
             lab_dir=tmp_path,
             now_fn=lambda: "2026-05-07T00:00:00Z",
+            execution_attempt_id="unsafe-path",
+            persist_execution_claim_fn=lambda _state: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
         ),
     )
 
@@ -612,7 +694,7 @@ def test_run_ready_contract_batch_marks_invalid_runnable_stage_failure(tmp_path)
         "artifacts": [],
     }
 
-    result = dag_execution_adapters.run_ready_adapter_stages(
+    result = dag_execution_adapters._run_ready_adapter_stages_uncommitted(
         "controlled_contract_dag",
         state,
         dag_execution_adapters.DagExecutionContext(
@@ -634,7 +716,11 @@ def test_run_contract_command_timeout_and_state_mutation_edges(monkeypatch, tmp_
 
     monkeypatch.setattr(dag_execution_adapters.subprocess, "run", _raise_timeout)
     with pytest.raises(RuntimeError, match="timed out"):
-        dag_execution_adapters._run_contract_command(["demo"], run_root=tmp_path)
+        dag_execution_adapters._run_contract_command(
+            ["demo"],
+            run_root=tmp_path,
+            idempotency_token="timeout:demo",
+        )
 
     state = {"events": "bad", "artifacts": "bad", "created_at": "created"}
     events = dag_execution_adapters._events(state)
@@ -684,3 +770,129 @@ def test_relay_queue_result_and_provenance_edge_paths():
     )
     assert provenance_state["provenance"]["real_executed_unit_ids"] == ["alpha"]
     assert provenance_state["provenance"]["controlled_executed_unit_ids"] == ["alpha"]
+
+
+def test_idempotency_ledger_reuses_completed_result_without_repeating_callback(tmp_path):
+    callback_count = 0
+
+    def _callback() -> dict[str, object]:
+        nonlocal callback_count
+        callback_count += 1
+        return {"summary_metrics": {"stage_completed": 1}}
+
+    first = dag_execution_adapters._execute_idempotently(
+        run_root=tmp_path / "run",
+        unit_id="queue_context",
+        idempotency_token="duplicate-attempt:queue_context",
+        callback=_callback,
+    )
+    second = dag_execution_adapters._execute_idempotently(
+        run_root=tmp_path / "run",
+        unit_id="queue_context",
+        idempotency_token="duplicate-attempt:queue_context",
+        callback=_callback,
+    )
+
+    assert callback_count == 1
+    assert first == second
+    assert second["idempotency_token"] == "duplicate-attempt:queue_context"
+
+
+def test_idempotency_ledger_hierarchy_failure_aborts_before_callback(monkeypatch, tmp_path):
+    callback_count = 0
+
+    def _callback() -> dict[str, object]:
+        nonlocal callback_count
+        callback_count += 1
+        return {}
+
+    idempotency_module = sys.modules[
+        dag_execution_adapters._execute_idempotently.__module__
+    ]
+    monkeypatch.setattr(
+        idempotency_module,
+        "_ensure_directory_hierarchy_durable",
+        lambda _path: False,
+    )
+
+    with pytest.raises(OSError, match="ledger directory"):
+        dag_execution_adapters._execute_idempotently(
+            run_root=tmp_path / "new" / "run",
+            unit_id="queue_context",
+            idempotency_token="non-durable:queue_context",
+            callback=_callback,
+        )
+
+    assert callback_count == 0
+
+
+@pytest.mark.parametrize("with_command", [False, True])
+def test_fallback_contract_artifact_is_replaced_with_retry_token(tmp_path, with_command):
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+    )
+    artifact = {
+        "artifact": "context_artifact",
+        "kind": "contract_artifact",
+        "path": "context/context.json",
+    }
+
+    def _unit(token: str) -> dict[str, object]:
+        contract: dict[str, object] = {"entrypoint": "alpha.extract_context"}
+        if with_command:
+            contract["command"] = [sys.executable, "-c", "pass"]
+        return {
+            "id": "extract_context",
+            "execution_contract": contract,
+            "execution_attempt": {"idempotency_token": token},
+        }
+
+    first = dag_execution_adapters._contract_stage_result(
+        context,
+        unit=_unit("attempt-one:extract_context"),
+        artifact=artifact,
+        timestamp="2026-05-07T00:00:00Z",
+    )
+    output_path = Path(first["contract_artifact_path"])
+    assert json.loads(output_path.read_text(encoding="utf-8"))["idempotency_token"] == (
+        "attempt-one:extract_context"
+    )
+
+    second = dag_execution_adapters._contract_stage_result(
+        context,
+        unit=_unit("attempt-two:extract_context"),
+        artifact=artifact,
+        timestamp="2026-05-07T00:00:01Z",
+    )
+
+    assert Path(second["contract_artifact_path"]) == output_path
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["idempotency_token"] == "attempt-two:extract_context"
+    assert payload["created_at"] == "2026-05-07T00:00:01Z"
+
+
+def test_external_execution_claim_fails_closed_without_persistence_callback(tmp_path):
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        execution_attempt_id="unsafe-direct-call",
+    )
+
+    with pytest.raises(RuntimeError, match="runner-state transaction API"):
+        dag_execution_adapters._persist_execution_claim(
+            context,
+            {"units": [], "events": [], "artifacts": []},
+        )
+
+    no_op_context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        execution_attempt_id="unsafe-no-op-callback",
+        persist_execution_claim_fn=lambda _state: None,
+    )
+    with pytest.raises(RuntimeError, match="durable claim receipt"):
+        dag_execution_adapters._persist_execution_claim(
+            no_op_context,
+            {"units": [], "events": [], "artifacts": []},
+        )

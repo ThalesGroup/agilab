@@ -2,7 +2,7 @@
 
 CANONICAL COPY of the AGILAB module-shim mechanism. Divergent lineages exist at:
   - src/agilab/compat/module_shim.py
-  - src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/compat/module_shim.py
+  - the shared cluster distributor compatibility layer
   - per-app copies under src/agilab/apps/**/compat/module_shim.py
 The shared ``_CompatModule`` proxy must stay structurally identical across all
 copies modulo the per-package sentinel constant name. This is enforced by

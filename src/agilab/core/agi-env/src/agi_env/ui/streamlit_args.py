@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import tomllib
 from pathlib import Path
 from typing import Any, Callable, Literal, get_args, get_origin
 
@@ -10,7 +9,8 @@ from pydantic import BaseModel, ValidationError
 from annotated_types import Ge, Le, MultipleOf
 
 from agi_env.ui._optional_ui import require_streamlit
-from agi_env.project.app_args import prefer_persisted_value
+from agi_env.project.app_args import prefer_persisted_value as prefer_persisted_value
+from agi_env.project.app_settings_support import read_app_settings
 from agi_env.shares.share_runtime_support import resolve_share_path
 
 st = require_streamlit()
@@ -29,8 +29,7 @@ def load_args_state(
     app_settings = st.session_state.get("app_settings")
     if not app_settings or not st.session_state.get("is_args_from_ui"):
         if settings_path.exists():
-            with settings_path.open("rb") as handle:
-                app_settings = tomllib.load(handle)
+            app_settings = read_app_settings(settings_path)
         else:
             app_settings = {}
         st.session_state.app_settings = app_settings

@@ -5,8 +5,10 @@ import hashlib
 import json
 import logging
 import os
+import posixpath
 import socket
 import subprocess
+import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -152,7 +154,15 @@ def _apply_stage_profile(entry: Mapping[str, Any], profile: str) -> tuple[Dict[s
 
 def _stage_automation(entry: Mapping[str, Any]) -> Dict[str, Any]:
     automation = _mapping_payload(entry.get("automation"))
-    for key in ("skip_if_outputs_exist", "skip_if_outputs_current", "outputs", "output_paths", "inputs", "input_paths"):
+    for key in (
+        "skip_if_outputs_exist",
+        "skip_if_outputs_current",
+        "outputs",
+        "output_paths",
+        "inputs",
+        "input_paths",
+        "parallel_safe",
+    ):
         if key in entry and key not in automation:
             automation[key] = entry[key]
     return automation
@@ -568,12 +578,12 @@ def _literal_stage_paths(entry: Mapping[str, Any]) -> List[str]:
 
 def _stage_declared_outputs(entry: Mapping[str, Any]) -> List[str]:
     outputs: List[str] = []
-    d_value = _normalize_dependency_path(entry.get("D", ""))
+    d_value = _normalize_output_path_spec(entry.get("D", ""))
     if d_value and not d_value.endswith("/install"):
         outputs.append(d_value)
     automation = _stage_automation(entry)
     for item in _iter_path_specs(automation.get("outputs", automation.get("output_paths", []))):
-        normalized = _normalize_dependency_path(item)
+        normalized = _normalize_output_path_spec(item)
         if normalized:
             outputs.append(normalized)
     code = str(entry.get("C", "") or "")
@@ -584,10 +594,103 @@ def _stage_declared_outputs(entry: Mapping[str, Any]) -> List[str]:
         r"['\"]output_dir['\"]\s*:\s*(['\"])(?P<path>[^'\"]+)\1",
     ):
         for match in re.finditer(pattern, code):
-            normalized = _normalize_dependency_path(match.group("path"))
+            normalized = _normalize_output_path_spec(match.group("path"))
             if normalized:
                 outputs.append(normalized)
     return sorted(set(outputs))
+
+
+def _parallel_output_leaf_values(value: Any) -> tuple[List[str], bool]:
+    """Return explicit output leaves and whether the declaration is incomplete."""
+
+    if isinstance(value, (str, Path)):
+        text = str(value).strip()
+        return ([text], False) if text else ([], True)
+    if isinstance(value, Mapping):
+        if not value:
+            return [], True
+        values: List[str] = []
+        invalid = False
+        for key in sorted(value, key=str):
+            nested, nested_invalid = _parallel_output_leaf_values(value[key])
+            values.extend(nested)
+            invalid = invalid or nested_invalid
+        return values, invalid
+    if isinstance(value, (list, tuple, set)):
+        if not value:
+            return [], True
+        values = []
+        invalid = False
+        items = sorted(value, key=str) if isinstance(value, set) else value
+        for item in items:
+            nested, nested_invalid = _parallel_output_leaf_values(item)
+            values.extend(nested)
+            invalid = invalid or nested_invalid
+        return values, invalid
+    return [], True
+
+
+def _is_static_parallel_output_spec(raw: str) -> bool:
+    """Return whether an output root is one literal path, not a runtime pattern."""
+
+    text = str(raw or "").strip().strip("\"'")
+    if not text or "://" in text or "`" in text:
+        return False
+    if any(marker in text for marker in ("$", "{", "}", "*", "?", "[", "]")):
+        return False
+    if re.search(r"%[A-Za-z_][A-Za-z0-9_]*%", text):
+        return False
+    return bool(_normalize_output_path_spec(text))
+
+
+def _stage_parallel_output_contract(
+    entry: Mapping[str, Any],
+    *,
+    env: AgiEnv | None = None,
+    stages_file: Path | None = None,
+) -> tuple[List[str], Optional[str]]:
+    """Validate the explicit, exhaustive output-root contract for parallel AGI work."""
+
+    automation = _stage_automation(entry)
+    if not _truthy_pipeline_flag(automation.get("parallel_safe")):
+        return [], (
+            "set `automation.parallel_safe = true` only after listing every output root "
+            "in `automation.outputs`"
+        )
+
+    raw_values: List[str] = []
+    invalid = False
+    found_declaration = False
+    for key in ("outputs", "output_paths"):
+        if key not in automation:
+            continue
+        found_declaration = True
+        values, values_invalid = _parallel_output_leaf_values(automation.get(key))
+        raw_values.extend(values)
+        invalid = invalid or values_invalid
+    if not found_declaration or invalid or not raw_values:
+        return [], (
+            "`automation.parallel_safe = true` requires a non-empty, complete "
+            "`automation.outputs` list of literal output roots"
+        )
+
+    output_specs: List[str] = []
+    for raw in raw_values:
+        if not _is_static_parallel_output_spec(raw):
+            return [], (
+                f"parallel output root `{raw}` is dynamic or invalid; declare one literal "
+                "path root in `automation.outputs`"
+            )
+        normalized = _normalize_output_path_spec(raw)
+        if env is not None and stages_file is not None:
+            try:
+                resolved = _resolve_stage_output_path(normalized, env=env, stages_file=stages_file)
+            except (OSError, RuntimeError, TypeError, ValueError):
+                resolved = None
+            if resolved is None:
+                return [], f"parallel output root `{raw}` could not be resolved to a canonical path"
+        output_specs.append(normalized)
+    return sorted(set(output_specs)), None
 
 
 def _path_depends_on_output(path: str, output: str) -> bool:
@@ -642,6 +745,9 @@ def _build_stage_waves(
     sequence: List[int],
     profile: str,
     dependency_overrides: Mapping[str, List[str]] | None = None,
+    *,
+    env: AgiEnv | None = None,
+    stages_file: Path | None = None,
 ) -> tuple[List[List[int]], Optional[str], Dict[int, str], Dict[int, List[str]]]:
     dependency_overrides = dependency_overrides or {}
     entries_by_idx: Dict[int, Dict[str, Any]] = {}
@@ -687,11 +793,118 @@ def _build_stage_waves(
         if not ready:
             cycle_ids = ", ".join(ids_by_idx.get(idx, f"stage_{idx + 1}") for idx in remaining)
             return [], f"Workflow stage dependencies contain a cycle or unresolved chain: {cycle_ids}.", ids_by_idx, deps_by_idx
+        output_conflict = _parallel_wave_output_conflict(
+            ready,
+            entries_by_idx=entries_by_idx,
+            stage_ids=ids_by_idx,
+            env=env,
+            stages_file=stages_file,
+        )
+        if output_conflict:
+            return [], output_conflict, ids_by_idx, deps_by_idx
         waves.append(ready)
         for idx in ready:
             remaining.remove(idx)
             completed.add(ids_by_idx[idx])
     return waves, None, ids_by_idx, deps_by_idx
+
+
+def _normalized_output_parts(path: str) -> tuple[str, ...]:
+    """Return lexical POSIX path parts used for declared-output conflict checks."""
+
+    normalized = posixpath.normpath(str(path or "").replace("\\", "/").strip())
+    if not normalized or normalized == ".":
+        return (".",)
+    parts = tuple(part for part in normalized.split("/") if part)
+    return tuple(part.casefold() for part in parts)
+
+
+def _canonical_declared_output(
+    path: str,
+    *,
+    env: AgiEnv | None,
+    stages_file: Path | None,
+) -> str:
+    """Resolve declared outputs against the workflow root when context is available."""
+
+    if env is not None and stages_file is not None:
+        try:
+            resolved = _resolve_stage_output_path(path, env=env, stages_file=stages_file)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            resolved = None
+        if resolved is not None:
+            return resolved.as_posix()
+    return posixpath.normpath(str(path or "").replace("\\", "/").strip())
+
+
+def _declared_outputs_overlap(
+    left: str,
+    right: str,
+    *,
+    env: AgiEnv | None = None,
+    stages_file: Path | None = None,
+) -> bool:
+    """Return whether two declared output paths are equal or nested."""
+
+    left_raw = str(left or "").replace("\\", "/").strip()
+    right_raw = str(right or "").replace("\\", "/").strip()
+    if not left_raw or not right_raw:
+        return False
+    left_text = _canonical_declared_output(left_raw, env=env, stages_file=stages_file)
+    right_text = _canonical_declared_output(right_raw, env=env, stages_file=stages_file)
+    if left_text.startswith("/") != right_text.startswith("/"):
+        return False
+    left_parts = _normalized_output_parts(left_text)
+    right_parts = _normalized_output_parts(right_text)
+    if left_parts == (".",) or right_parts == (".",):
+        return True
+    common = min(len(left_parts), len(right_parts))
+    return left_parts[:common] == right_parts[:common]
+
+
+def _parallel_wave_output_conflict(
+    wave: List[int],
+    *,
+    entries_by_idx: Mapping[int, Mapping[str, Any]],
+    stage_ids: Mapping[int, str],
+    env: AgiEnv | None,
+    stages_file: Path | None,
+) -> Optional[str]:
+    """Describe a conflicting explicit parallel-output pair in one wave."""
+
+    for position, left_idx in enumerate(wave):
+        left_outputs, left_error = _stage_parallel_output_contract(
+            entries_by_idx.get(left_idx, {}),
+            env=env,
+            stages_file=stages_file,
+        )
+        if left_error:
+            continue
+        for right_idx in wave[position + 1 :]:
+            right_outputs, right_error = _stage_parallel_output_contract(
+                entries_by_idx.get(right_idx, {}),
+                env=env,
+                stages_file=stages_file,
+            )
+            if right_error:
+                continue
+            for left_output in left_outputs:
+                for right_output in right_outputs:
+                    if _declared_outputs_overlap(
+                        left_output,
+                        right_output,
+                        env=env,
+                        stages_file=stages_file,
+                    ):
+                        left_id = stage_ids.get(left_idx, f"stage_{left_idx + 1}")
+                        right_id = stage_ids.get(right_idx, f"stage_{right_idx + 1}")
+                        return (
+                            "Parallel workflow stages declare overlapping output paths: "
+                            f"`{left_id}` writes `{left_output}` and `{right_id}` writes "
+                            f"`{right_output}`. Add a dependency to serialize these stages "
+                            "or use disjoint outputs."
+                        )
+    return None
 
 
 def _dot_escape(value: object) -> str:
@@ -793,6 +1006,51 @@ def _run_stage_subprocess(
     return output
 
 
+def _parallel_agi_wave_ineligibility_reason(
+    stages: List[Dict[str, Any]],
+    wave: List[int],
+    *,
+    profile: str,
+    env: AgiEnv,
+    stages_file: Path,
+    selected_map: Mapping[int, str],
+    engine_map: Mapping[int, str],
+    default_runtime: str,
+) -> Optional[str]:
+    if len(wave) < 2:
+        return "the wave contains fewer than two stages"
+    for idx in wave:
+        entry, _override = _apply_stage_profile(stages[idx], profile)
+        stage_id = _stage_id(entry, idx)
+        if _stage_disabled(entry):
+            return f"stage `{stage_id}` is disabled or skipped"
+        skip_current, _outputs = _should_skip_current_outputs(entry, env=env, stages_file=stages_file)
+        if skip_current:
+            return f"stage `{stage_id}` is already satisfied by its output-skip rule"
+        _parallel_outputs, contract_error = _stage_parallel_output_contract(
+            entry,
+            env=env,
+            stages_file=stages_file,
+        )
+        if contract_error:
+            return f"stage `{stage_id}` has no complete parallel output contract: {contract_error}"
+        code, _normalized = _normalize_legacy_agi_run_request_code(str(entry.get("C", "") or ""))
+        candidate = {**entry, "C": code}
+        if not _pipeline_stages.is_runnable_stage(candidate):
+            return f"stage `{stage_id}` is not runnable"
+        engine, runtime_root = _resolve_stage_engine_runtime(
+            candidate,
+            env=env,
+            idx=idx,
+            selected_map=selected_map,
+            engine_map=engine_map,
+            default_runtime=default_runtime,
+        )
+        if not engine.startswith("agi.") or not runtime_root:
+            return f"stage `{stage_id}` does not use an explicit AGI runtime"
+    return None
+
+
 def _parallel_agi_wave_eligible(
     stages: List[Dict[str, Any]],
     wave: List[int],
@@ -804,30 +1062,16 @@ def _parallel_agi_wave_eligible(
     engine_map: Mapping[int, str],
     default_runtime: str,
 ) -> bool:
-    if len(wave) < 2:
-        return False
-    for idx in wave:
-        entry, _override = _apply_stage_profile(stages[idx], profile)
-        if _stage_disabled(entry):
-            return False
-        skip_current, _outputs = _should_skip_current_outputs(entry, env=env, stages_file=stages_file)
-        if skip_current:
-            return False
-        code, _normalized = _normalize_legacy_agi_run_request_code(str(entry.get("C", "") or ""))
-        candidate = {**entry, "C": code}
-        if not _pipeline_stages.is_runnable_stage(candidate):
-            return False
-        engine, runtime_root = _resolve_stage_engine_runtime(
-            candidate,
-            env=env,
-            idx=idx,
-            selected_map=selected_map,
-            engine_map=engine_map,
-            default_runtime=default_runtime,
-        )
-        if not engine.startswith("agi.") or not runtime_root:
-            return False
-    return True
+    return _parallel_agi_wave_ineligibility_reason(
+        stages,
+        wave,
+        profile=profile,
+        env=env,
+        stages_file=stages_file,
+        selected_map=selected_map,
+        engine_map=engine_map,
+        default_runtime=default_runtime,
+    ) is None
 
 
 def _run_parallel_agi_wave(
@@ -1375,6 +1619,85 @@ def _read_pipeline_lock_payload(path: Path) -> Dict[str, Any]:
     return {}
 
 
+def _try_pipeline_file_lock(fd: int) -> bool:
+    """Acquire an exclusive non-blocking OS lock on ``fd``."""
+
+    if os.name == "nt":  # pragma: no cover - exercised on Windows CI
+        import msvcrt
+
+        try:
+            if os.fstat(fd).st_size == 0:
+                os.write(fd, b"\n")
+                os.fsync(fd)
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            return True
+        except OSError:
+            return False
+    import fcntl
+
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except (BlockingIOError, OSError):
+        return False
+
+
+def _unlock_pipeline_file(fd: int) -> None:
+    """Release the OS lock held on ``fd``."""
+
+    if os.name == "nt":  # pragma: no cover - exercised on Windows CI
+        import msvcrt
+
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        return
+    import fcntl
+
+    fcntl.flock(fd, fcntl.LOCK_UN)
+
+
+def _write_pipeline_lock_payload(fd: int, payload: Mapping[str, Any]) -> None:
+    """Rewrite lock metadata on the holder's stable, locked inode."""
+
+    encoded = (json.dumps(dict(payload), indent=2, sort_keys=True) + "\n").encode("utf-8")
+    os.lseek(fd, 0, os.SEEK_SET)
+    os.ftruncate(fd, 0)
+    offset = 0
+    while offset < len(encoded):
+        offset += os.write(fd, encoded[offset:])
+    os.fsync(fd)
+
+
+def _stop_pipeline_lock_heartbeat(lock_handle: Mapping[str, Any]) -> None:
+    stop = lock_handle.get("heartbeat_stop")
+    thread = lock_handle.get("heartbeat_thread")
+    if isinstance(stop, threading.Event):
+        stop.set()
+    if isinstance(thread, threading.Thread) and thread is not threading.current_thread():
+        thread.join(timeout=2.0)
+
+
+def _start_pipeline_lock_heartbeat(lock_handle: Dict[str, Any]) -> None:
+    """Keep lock metadata fresh for the complete workflow lifetime."""
+
+    stop = threading.Event()
+    interval = max(0.05, min(_pipeline_lock_ttl_seconds() / 3.0, 30.0))
+
+    def _heartbeat() -> None:
+        while not stop.wait(interval):
+            _refresh_pipeline_run_lock(lock_handle)
+
+    thread = threading.Thread(
+        target=_heartbeat,
+        name="agilab-pipeline-lock-heartbeat",
+        daemon=True,
+    )
+    lock_handle["heartbeat_stop"] = stop
+    lock_handle["heartbeat_thread"] = thread
+    thread.start()
+
+
 def _pipeline_lock_owner_text(payload: Dict[str, Any], age_sec: Optional[float]) -> str:
     """Format a concise lock owner description for logs and UI."""
     owner_host = str(payload.get("host", "?"))
@@ -1412,6 +1735,8 @@ def _inspect_pipeline_run_lock(env: AgiEnv) -> Optional[Dict[str, Any]]:
     if not lock_path.exists():
         return None
     payload = _read_pipeline_lock_payload(lock_path)
+    if not payload:
+        return None
     try:
         age_sec: Optional[float] = max(time.time() - lock_path.stat().st_mtime, 0.0)
     except OSError:
@@ -1441,26 +1766,43 @@ def _clear_pipeline_run_lock(
     *,
     reason: str,
 ) -> bool:
-    """Remove the current workflow lock, if any, and log why."""
-    lock_state = _inspect_pipeline_run_lock(env)
-    if not lock_state:
-        return True
-    lock_path = Path(lock_state["path"])
+    """Clear inactive metadata without unlinking the stable lock inode."""
+    lock_path = _pipeline_lock_path(env)
+    fd: Optional[int] = None
+    locked = False
     try:
-        lock_path.unlink()
+        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+        if not _try_pipeline_file_lock(fd):
+            lock_state = _inspect_pipeline_run_lock(env)
+            owner_text = str((lock_state or {}).get("owner_text") or "unknown")
+            msg = (
+                "Refusing to clear a live workflow lock. "
+                f"Owner: {owner_text}. Wait for that run to finish or stop its verified process."
+            )
+            st.warning(msg)
+            _push_run_log(index_page, msg, placeholder)
+            return False
+        locked = True
+        _write_pipeline_lock_payload(fd, {})
         _push_run_log(
             index_page,
-            f"Removed workflow lock ({reason}): {lock_path}",
+            f"Cleared inactive workflow lock metadata ({reason}): {lock_path}",
             placeholder,
         )
         return True
-    except FileNotFoundError:
-        return True
     except OSError as exc:
-        msg = f"Unable to remove workflow lock `{lock_path}`: {exc}"
+        msg = f"Unable to clear workflow lock `{lock_path}`: {exc}"
         st.error(msg)
         _push_run_log(index_page, msg, placeholder)
         return False
+    finally:
+        if fd is not None:
+            if locked:
+                try:
+                    _unlock_pipeline_file(fd)
+                except OSError:
+                    logger.debug("Failed to unlock workflow lock %s", lock_path, exc_info=True)
+            os.close(fd)
 
 
 def _acquire_pipeline_run_lock(
@@ -1497,12 +1839,30 @@ def _acquire_pipeline_run_lock(
         return None
 
     for _ in range(2):
+        fd: Optional[int] = None
         try:
-            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            with os.fdopen(fd, "w", encoding="utf-8") as stream:
-                json.dump(payload, stream, indent=2)
-            _push_run_log(index_page, f"Workflow lock acquired: {lock_path}", placeholder)
-            return {"path": lock_path, "token": token}
+            fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+            if not _try_pipeline_file_lock(fd):
+                os.close(fd)
+                fd = None
+                raise FileExistsError(lock_path)
+            _write_pipeline_lock_payload(fd, payload)
+            handle: Dict[str, Any] = {
+                "path": lock_path,
+                "token": token,
+                "fd": fd,
+                "payload": payload,
+                "io_lock": threading.Lock(),
+            }
+            try:
+                _start_pipeline_lock_heartbeat(handle)
+                _push_run_log(index_page, f"Workflow lock acquired: {lock_path}", placeholder)
+            except BaseException:
+                _stop_pipeline_lock_heartbeat(handle)
+                handle["fd"] = None
+                raise
+            fd = None
+            return handle
         except FileExistsError:
             lock_state = _inspect_pipeline_run_lock(env) or {
                 "path": lock_path,
@@ -1532,6 +1892,13 @@ def _acquire_pipeline_run_lock(
             st.error(msg)
             _push_run_log(index_page, msg, placeholder)
             return None
+        finally:
+            if fd is not None:
+                try:
+                    _unlock_pipeline_file(fd)
+                except OSError:
+                    pass
+                os.close(fd)
 
     msg = f"Unable to acquire workflow lock after stale cleanup retries: {lock_path}"
     st.warning(msg)
@@ -1545,21 +1912,19 @@ def _refresh_pipeline_run_lock(lock_handle: Optional[Dict[str, Any]]) -> None:
         return
     lock_path_raw = lock_handle.get("path")
     token = lock_handle.get("token")
-    if not lock_path_raw or not token:
+    fd = lock_handle.get("fd")
+    payload = lock_handle.get("payload")
+    if not lock_path_raw or not token or not isinstance(fd, int) or not isinstance(payload, dict):
         return
     lock_path = Path(lock_path_raw)
-    if not lock_path.exists():
-        return
-
-    payload = _read_pipeline_lock_payload(lock_path)
     if payload.get("token") != token:
         return
-    payload["heartbeat_at"] = time.time()
-    tmp_path = lock_path.with_suffix(lock_path.suffix + ".tmp")
+    io_lock = lock_handle.get("io_lock")
+    guard = io_lock if isinstance(io_lock, type(threading.Lock())) else threading.Lock()
     try:
-        with open(tmp_path, "w", encoding="utf-8") as stream:
-            json.dump(payload, stream, indent=2)
-        os.replace(tmp_path, lock_path)
+        with guard:
+            payload["heartbeat_at"] = time.time()
+            _write_pipeline_lock_payload(fd, payload)
     except (OSError, TypeError, ValueError):
         logger.debug("Failed to refresh workflow lock heartbeat for %s", lock_path, exc_info=True)
 
@@ -1574,21 +1939,35 @@ def _release_pipeline_run_lock(
         return
     lock_path_raw = lock_handle.get("path")
     token = lock_handle.get("token")
-    if not lock_path_raw or not token:
+    fd = lock_handle.get("fd")
+    if not lock_path_raw or not token or not isinstance(fd, int):
         return
     lock_path = Path(lock_path_raw)
+    _stop_pipeline_lock_heartbeat(lock_handle)
+    io_lock = lock_handle.get("io_lock")
+    guard = io_lock if isinstance(io_lock, type(threading.Lock())) else threading.Lock()
+    release_error: Optional[OSError] = None
     try:
-        if not lock_path.exists():
-            return
-        payload = _read_pipeline_lock_payload(lock_path)
-        if payload and payload.get("token") != token:
-            return
-        lock_path.unlink()
-        _push_run_log(index_page, f"Workflow lock released: {lock_path}", placeholder)
-    except FileNotFoundError:
-        return
+        with guard:
+            payload = lock_handle.get("payload")
+            if isinstance(payload, dict) and payload.get("token") == token:
+                _write_pipeline_lock_payload(fd, {})
     except OSError as exc:
-        logger.debug("Failed to release workflow lock %s: %s", lock_path, exc)
+        release_error = exc
+    finally:
+        try:
+            _unlock_pipeline_file(fd)
+        except OSError as exc:
+            release_error = release_error or exc
+        try:
+            os.close(fd)
+        except OSError as exc:
+            release_error = release_error or exc
+        lock_handle["fd"] = None
+    if release_error is None:
+        _push_run_log(index_page, f"Workflow lock released: {lock_path}", placeholder)
+    else:
+        logger.debug("Failed to release workflow lock %s: %s", lock_path, release_error)
 
 
 def _format_legacy_stage_refs(stale_stages: List[Dict[str, Any]]) -> str:
@@ -1703,6 +2082,8 @@ def run_all_stages(
         sequence,
         pipeline_profile,
         dependency_overrides=pipeline_stage_deps,
+        env=env,
+        stages_file=stages_file,
     )
     if dependency_error:
         st.error(dependency_error)
@@ -1789,9 +2170,9 @@ def run_all_stages(
                         target_base = target_base.parent
                     target_base.mkdir(parents=True, exist_ok=True)
                     default_runtime = st.session_state.get("lab_selected_venv", "")
-                    if (
-                        pipeline_max_workers > 1
-                        and _parallel_agi_wave_eligible(
+                    parallel_ineligibility = None
+                    if pipeline_max_workers > 1 and len(wave) > 1:
+                        parallel_ineligibility = _parallel_agi_wave_ineligibility_reason(
                             stages,
                             wave,
                             profile=pipeline_profile,
@@ -1801,6 +2182,10 @@ def run_all_stages(
                             engine_map=engine_map,
                             default_runtime=default_runtime,
                         )
+                    if (
+                        pipeline_max_workers > 1
+                        and len(wave) > 1
+                        and parallel_ineligibility is None
                     ):
                         _push_run_log(
                             index_page_str,
@@ -1824,6 +2209,12 @@ def run_all_stages(
                             log_placeholder=log_placeholder,
                         )
                         continue
+                    if parallel_ineligibility:
+                        _push_run_log(
+                            index_page_str,
+                            f"Wave {wave_number}: serialized because {parallel_ineligibility}.",
+                            log_placeholder,
+                        )
                     for idx in wave:
                         _refresh_pipeline_run_lock(lock_handle)
                         base_entry = stages[idx]

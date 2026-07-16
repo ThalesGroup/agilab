@@ -1222,7 +1222,7 @@ async def test_launch_scheduler_process_local_logs_background_result(
         "[project]\nname='app'\n", encoding="utf-8"
     )
 
-    calls = {"info": []}
+    calls = {"info": [], "bg": []}
     AGI.env = SimpleNamespace(
         active_app=app_path,
         wenv_rel=Path("worker"),
@@ -1237,7 +1237,12 @@ async def test_launch_scheduler_process_local_logs_background_result(
     AGI._scheduler_port = 8786
     monkeypatch.setattr(AGI, "_dask_env_prefix", staticmethod(lambda: ""))
     monkeypatch.setattr(
-        AGI, "_exec_bg", staticmethod(lambda *_args, **_kwargs: "started")
+        AGI,
+        "_exec_bg",
+        staticmethod(
+            lambda command, *_args, **_kwargs: calls["bg"].append(command)
+            or "started"
+        ),
     )
 
     log = SimpleNamespace(
@@ -1258,6 +1263,8 @@ async def test_launch_scheduler_process_local_logs_background_result(
     )
 
     assert "started" in calls["info"]
+    pid_index = calls["bg"][0].index("--pid-file") + 1
+    assert calls["bg"][0][pid_index] == str(AGI.env.wenv_abs / "dask_scheduler.pid")
 
 
 @pytest.mark.asyncio
@@ -1312,6 +1319,7 @@ async def test_launch_scheduler_process_remote_sends_pyproject_and_starts_async_
     assert calls["send"][0][1] == app_path / "pyproject.toml"
     assert calls["send"][0][2] == Path("worker") / "pyproject.toml"
     assert calls["tasks"][0][0] == "exec_ssh_async"
+    assert "--pid-file worker/dask_scheduler.pid" in calls["tasks"][0][2]
 
 
 @pytest.mark.asyncio

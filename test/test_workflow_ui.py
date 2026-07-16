@@ -264,6 +264,18 @@ def test_workflow_link_buttons_do_not_require_key_support(monkeypatch) -> None:
     ) in fake_st.events
 
 
+def test_navigation_page_slug_uses_registered_page_url_path(monkeypatch) -> None:
+    route = SimpleNamespace(url_path="PROJECT_EDIT_SESSION")
+    monkeypatch.setattr(
+        sys.modules["__main__"],
+        "_NAVIGATION_PAGE_ROUTES",
+        {"project_editor": route},
+        raising=False,
+    )
+
+    assert workflow_ui._navigation_page_slug("PROJECT_EDITOR") == "PROJECT_EDIT_SESSION"
+
+
 def test_project_widget_key_is_scoped_by_page_and_project() -> None:
     env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_worker")
 

@@ -126,7 +126,8 @@ def test_agent_trace_store_clears_stale_append_lock(tmp_path: Path) -> None:
     event = store.append("session_start", message="after stale lock")
 
     assert event.sequence == 1
-    assert not lock_path.exists()
+    assert lock_path.exists()
+    assert module._read_lock_payload(lock_path) == {}
     assert module.load_trace_events(tmp_path)[0].message == "after stale lock"
 
 
@@ -171,15 +172,19 @@ def test_agent_trace_rejects_unknown_events_and_validates_sequence(tmp_path: Pat
     assert any("expected sequence 2" in issue for issue in issues)
 
 
-def test_load_trace_events_ignores_invalid_lines(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "corrupt_record",
+    ["{not-json", json.dumps(["not", "an", "event"])],
+)
+def test_load_trace_events_rejects_corrupt_interior_records(
+    tmp_path: Path,
+    corrupt_record: str,
+) -> None:
     module = _load_module()
     events_path = tmp_path / module.EVENTS_FILENAME
     events_path.write_text(
         "\n".join(
             [
-                "",
-                "{not-json",
-                json.dumps(["not", "an", "event"]),
                 json.dumps(
                     {
                         "schema": module.TRACE_SCHEMA,
@@ -192,8 +197,49 @@ def test_load_trace_events_ignores_invalid_lines(tmp_path: Path) -> None:
                         "metadata": {},
                     }
                 ),
+                corrupt_record,
+                json.dumps(
+                    {
+                        "schema": module.TRACE_SCHEMA,
+                        "event": "session_end",
+                        "run_id": "run",
+                        "sequence": 2,
+                        "created_at": "later",
+                        "status": "pass",
+                        "message": "",
+                        "metadata": {},
+                    }
+                ),
+                "",
             ]
         ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="record 2"):
+        module.load_trace_events(tmp_path)
+
+
+def test_load_trace_events_tolerates_only_invalid_unterminated_tail(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    events_path = tmp_path / module.EVENTS_FILENAME
+    events_path.write_text(
+        json.dumps(
+            {
+                "schema": module.TRACE_SCHEMA,
+                "event": "session_start",
+                "run_id": "run",
+                "sequence": 1,
+                "created_at": "now",
+                "status": "running",
+                "message": "",
+                "metadata": {},
+            }
+        )
+        + "\n"
+        + '{"schema":',
         encoding="utf-8",
     )
 
@@ -287,26 +333,61 @@ def test_agent_trace_event_lock_timeout_and_finally_edges(tmp_path: Path, monkey
     events_path = tmp_path / module.EVENTS_FILENAME
     events_path.touch()
     lock_path = events_path.with_name(events_path.name + ".lock")
-    lock_path.write_text("{}", encoding="utf-8")
-
     monotonic_values = iter([0.0, module.LOCK_TIMEOUT_SECONDS + 1.0])
     monkeypatch.setattr(module.time, "monotonic", lambda: next(monotonic_values))
     monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
-    monkeypatch.setattr(module, "_clear_stale_lock", lambda _path: False)
+    monkeypatch.setattr(module, "_try_lock_handle", lambda _handle: False)
 
     with pytest.raises(TimeoutError, match="Timed out waiting"):
         with module._event_file_lock(events_path):
             pass
 
-    lock_path.unlink()
+    monkeypatch.setattr(module, "_try_lock_handle", lambda _handle: True)
     monkeypatch.setattr(module.time, "monotonic", lambda: 0.0)
-    original_unlink = module.Path.unlink
-
-    def unlink_missing(self):
-        if self == lock_path:
-            raise FileNotFoundError
-        return original_unlink(self)
-
-    monkeypatch.setattr(module.Path, "unlink", unlink_missing)
     with module._event_file_lock(events_path):
         assert lock_path.exists()
+    assert module._read_lock_payload(lock_path) == {}
+
+
+def test_agent_trace_rejects_mismatched_run_identity(tmp_path: Path) -> None:
+    module = _load_module()
+    first = module.AgentTraceStore(tmp_path, run_id="first-run", agent="codex")
+    first.initialize()
+
+    with pytest.raises(FileExistsError, match="belongs to run"):
+        module.AgentTraceStore(tmp_path, run_id="second-run", agent="codex").initialize()
+
+    with pytest.raises(FileExistsError, match="belongs to run"):
+        module.AgentTraceStore(tmp_path, run_id="second-run", agent="codex").append(
+            "session_start"
+        )
+
+    assert module.load_trace_events(tmp_path) == []
+
+
+def test_agent_trace_quarantines_crash_partial_tail_before_next_append(tmp_path: Path) -> None:
+    module = _load_module()
+    store = module.AgentTraceStore(tmp_path, run_id="run", agent="codex")
+    first = store.append("session_start")
+    with store.events_path.open("ab") as handle:
+        handle.write(b'{"partial"')
+
+    second = store.append("session_end", status="pass")
+
+    assert (first.sequence, second.sequence) == (1, 2)
+    assert [event.sequence for event in module.load_trace_events(tmp_path)] == [1, 2]
+    quarantined = list(tmp_path.glob(f".{module.EVENTS_FILENAME}.partial.*.jsonl"))
+    assert len(quarantined) == 1
+    assert quarantined[0].read_bytes() == b'{"partial"'
+    assert store.events_path.read_bytes().endswith(b"\n")
+
+
+def test_agent_trace_meta_publication_rolls_back_on_replace_failure(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module.os, "replace", lambda *_args: (_ for _ in ()).throw(OSError("replace failed")))
+
+    with pytest.raises(OSError, match="replace failed"):
+        module.AgentTraceStore(tmp_path, run_id="run", agent="codex").initialize()
+
+    assert not (tmp_path / module.META_FILENAME).exists()
+    assert list(tmp_path.glob(f".{module.META_FILENAME}.*.tmp")) == []

@@ -576,8 +576,11 @@ def test_page_persistence_tolerates_invalid_settings_and_write_failures(monkeypa
         lambda X_train, ndim, ndim_inter, ndim_middle: SimpleNamespace(layers=["enc1", "enc2", "latent", "dec1", "dec2"]),
     )
     monkeypatch.setattr(module, "__bary_visualisation", lambda *args, **kwargs: None)
-    monkeypatch.setattr(module.Path, "mkdir", lambda *args, **kwargs: None, raising=False)
-    monkeypatch.setattr(module, "open", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk full")), raising=False)
+    monkeypatch.setattr(
+        module,
+        "_dump_toml_payload",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("disk full")),
+    )
     monkeypatch.setattr(
         module,
         "st",
@@ -779,6 +782,10 @@ def test_main_resets_page_state_when_active_app_changes(monkeypatch, tmp_path: P
             self.projects = ["new_autoencoder_project"]
             self.app_settings_file = tmp_path / "new_settings.toml"
             self.init_done = False
+
+        @classmethod
+        def session_for_app(cls, *, apps_path, app, verbose):
+            return cls(apps_path, app, verbose)
 
     session_state = _State(
         {

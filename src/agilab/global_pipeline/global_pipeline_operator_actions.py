@@ -195,11 +195,13 @@ def build_operator_actions(
     queue_result = run_queue_baseline_app(
         repo_root=repo_root,
         run_root=action_workspace / "retry_queue_baseline",
+        idempotency_token=queue_retry_action_id,
     )
     relay_result = run_relay_followup_app(
         repo_root=repo_root,
         run_root=action_workspace / "partial_rerun_relay_followup",
         queue_result=queue_result,
+        idempotency_token=relay_partial_action_id,
     )
     queue_metrics = queue_result.get("summary_metrics", {})
     relay_metrics = relay_result.get("summary_metrics", {})

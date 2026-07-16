@@ -65,3 +65,25 @@ def test_load_env_file_map_ignores_assignments_without_key(tmp_path: Path):
 
 def test_load_env_file_map_returns_empty_mapping_for_missing_file(tmp_path: Path):
     assert load_env_file_map(tmp_path / "missing.env") == {}
+
+
+def test_load_env_file_map_retries_windows_sharing_violation(tmp_path: Path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("READY=1\n", encoding="utf-8")
+    real_read_text = Path.read_text
+    attempts = 0
+
+    def _transient_read_text(path: Path, *args, **kwargs):
+        nonlocal attempts
+        if path == env_file:
+            attempts += 1
+            if attempts == 1:
+                raise PermissionError("sharing violation")
+        return real_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(env_file_utils, "_is_windows", lambda: True)
+    monkeypatch.setattr(env_file_utils.time, "sleep", lambda _delay: None)
+    monkeypatch.setattr(Path, "read_text", _transient_read_text)
+
+    assert load_env_file_map(env_file) == {"READY": "1"}
+    assert attempts == 2

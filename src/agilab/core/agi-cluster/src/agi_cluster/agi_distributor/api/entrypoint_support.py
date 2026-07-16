@@ -572,7 +572,7 @@ async def _launch_scheduler_process(
             "--dashboard-address",
             ":0",
             "--pid-file",
-            str(wenv_abs.parent / "dask_scheduler.pid"),
+            str(wenv_abs / "dask_scheduler.pid"),
         ]
         process_env = background_jobs_support.background_env_from_prefixes(local_prefix, dask_env)
         log.info("Starting dask scheduler locally: %s", shlex.join(local_cmd))
@@ -617,9 +617,32 @@ async def _launch_scheduler_process(
         "--dashboard-address",
         ":0",
         "--pid-file",
-        "dask_scheduler.pid",
+        wenv_rel / "dask_scheduler.pid",
     )
-    create_task_fn(agi_cls.exec_ssh_async(agi_cls._scheduler_ip, remote_scheduler_cmd))
+    scheduler_tasks = getattr(agi_cls, "_scheduler_launch_tasks", None)
+    if not isinstance(scheduler_tasks, set):
+        scheduler_tasks = set()
+        agi_cls._scheduler_launch_tasks = scheduler_tasks
+    scheduler_errors = getattr(agi_cls, "_scheduler_launch_errors", None)
+    if not isinstance(scheduler_errors, list):
+        scheduler_errors = []
+        agi_cls._scheduler_launch_errors = scheduler_errors
+
+    scheduler_task = create_task_fn(
+        agi_cls.exec_ssh_async(agi_cls._scheduler_ip, remote_scheduler_cmd)
+    )
+    scheduler_tasks.add(scheduler_task)
+
+    def _on_scheduler_launch_done(task: Any) -> None:
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            scheduler_errors.append(exc)
+            log.error("Remote scheduler launch failed: %s", exc)
+
+    if hasattr(scheduler_task, "add_done_callback"):
+        scheduler_task.add_done_callback(_on_scheduler_launch_done)
 
 
 async def start_scheduler(
@@ -656,6 +679,9 @@ async def start_scheduler(
     )
 
     await sleep_fn(1)
+    scheduler_errors = getattr(agi_cls, "_scheduler_launch_errors", None) or []
+    if scheduler_errors:
+        raise scheduler_errors[0]
     try:
         client = await agi_cls._connect_scheduler_with_retry(
             agi_cls._scheduler,
@@ -669,6 +695,10 @@ async def start_scheduler(
         if isinstance(exc, RuntimeError):
             raise
         raise RuntimeError("Failed to instantiate Dask Client") from exc
+
+    scheduler_errors = getattr(agi_cls, "_scheduler_launch_errors", None) or []
+    if scheduler_errors:
+        raise scheduler_errors[0]
 
     agi_cls._install_done = True
     if agi_cls._worker_init_error:

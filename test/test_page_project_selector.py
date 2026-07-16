@@ -291,6 +291,32 @@ def test_registered_navigation_page_prefers_main_module_route(monkeypatch) -> No
     assert module._registered_navigation_page(module.PROJECT_ROUTE_ID) is main_route
 
 
+def test_switch_to_project_page_prefers_current_session_page(monkeypatch) -> None:
+    module = _load_module()
+    current_page = SimpleNamespace(url_path="PROJECT_EDITOR")
+    other_session_page = SimpleNamespace(url_path="PROJECT_EDIT")
+    switched: list[object] = []
+    monkeypatch.setattr(
+        sys.modules["__main__"],
+        "_NAVIGATION_PAGE_ROUTES",
+        {module.PROJECT_ROUTE_ID: other_session_page},
+        raising=False,
+    )
+    streamlit = SimpleNamespace(
+        session_state={
+            module.NAVIGATION_PAGE_ROUTES_SESSION_KEY: {
+                module.PROJECT_ROUTE_ID: current_page
+            }
+        },
+        query_params={},
+        switch_page=switched.append,
+    )
+
+    assert module.switch_to_project_page(streamlit, active_app="alpha_project") is True
+    assert streamlit.query_params == {"active_app": "alpha_project"}
+    assert switched == [current_page]
+
+
 def test_registered_navigation_page_ignores_missing_or_invalid_routes(monkeypatch) -> None:
     module = _load_module()
 

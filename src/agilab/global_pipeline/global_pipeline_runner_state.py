@@ -1,17 +1,23 @@
 # BSD 3-Clause License
 #
 # Copyright (c) 2026, Jean-Pierre Morard, THALES SIX GTS France SAS
-"""Read-only runner-state helpers for AGILAB global pipeline DAGs."""
+"""Runner-state helpers for AGILAB global pipeline DAGs."""
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
 import json
+import os
 from pathlib import Path
 import sys
-from typing import Any, Mapping
+import tempfile
+import threading
+import time
+from typing import Any, Callable, Iterator, Mapping, TypeVar
 
 _src_root = Path(__file__).resolve().parents[1]
 if str(_src_root) not in sys.path:
@@ -23,7 +29,10 @@ if _agilab_pkg is not None:
     if package_path not in package_paths:
         _agilab_pkg.__path__ = [*package_paths, package_path]
 
-from agilab.global_pipeline.global_pipeline_execution_plan import ExecutionPlan, build_execution_plan
+from agilab.global_pipeline.global_pipeline_execution_plan import (  # noqa: E402
+    ExecutionPlan,
+    build_execution_plan,
+)
 
 
 SCHEMA = "agilab.global_pipeline_runner_state.v1"
@@ -37,6 +46,85 @@ FAILED_STATUS = "failed"
 PLANNED_STATUS = "planned"
 PERSISTENCE_FORMAT = "json"
 DEFAULT_RUN_ID = "multi-app-dag-runner-state"
+MISSING_RUNNER_STATE_REVISION = "<missing-runner-state>"
+_WINDOWS_FILE_SHARING_RETRY_TIMEOUT_SECONDS = 0.5
+_WINDOWS_FILE_SHARING_RETRY_INTERVAL_SECONDS = 0.01
+_RUNNER_STATE_LOCK_TIMEOUT_SECONDS = 5.0
+_RUNNER_STATE_LOCK_RETRY_INTERVAL_SECONDS = 0.05
+_T = TypeVar("_T")
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def _run_with_windows_file_sharing_retry(operation: Callable[[], _T]) -> _T:
+    """Retry only transient Windows sharing denials for mutable runner state."""
+
+    deadline = time.monotonic() + _WINDOWS_FILE_SHARING_RETRY_TIMEOUT_SECONDS
+    while True:
+        try:
+            return operation()
+        except PermissionError:
+            if not _is_windows():
+                raise
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise
+            time.sleep(min(_WINDOWS_FILE_SHARING_RETRY_INTERVAL_SECONDS, remaining))
+
+
+class RunnerStateConflictError(RuntimeError):
+    """Raised before a stale runner-state snapshot can overwrite newer state."""
+
+    def __init__(self, path: Path, *, expected_revision: str, actual_revision: str) -> None:
+        self.path = path
+        self.expected_revision = expected_revision
+        self.actual_revision = actual_revision
+        super().__init__(
+            f"Runner state changed in another session: {path}; expected revision "
+            f"{expected_revision}, found {actual_revision}. Reload the workflow state and retry."
+        )
+
+
+class RunnerStateDurabilityError(RuntimeError):
+    """Raised when a pre-execution claim cannot be proven crash-durable."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        super().__init__(
+            f"Runner-state claim was replaced at {path}, but its directory could not be fsynced. "
+            "External execution was aborted; recover the recorded attempt explicitly before retrying."
+        )
+
+
+class RunnerStateRecoveryRequiredError(RuntimeError):
+    """Raised when an ambiguous execution claim must be recovered explicitly."""
+
+    def __init__(self, path: Path, *, attempt_id: str) -> None:
+        self.path = path
+        self.attempt_id = attempt_id
+        super().__init__(
+            f"Runner state {path} contains active attempt {attempt_id!r}. "
+            "Recover that exact attempt before reset, source switch, preview dispatch, or another run."
+        )
+
+
+class RunnerStateAttemptConflictError(RuntimeError):
+    """Raised when recovery or finalization presents the wrong attempt token."""
+
+    def __init__(self, path: Path, *, expected_attempt_id: str, actual_attempt_id: str) -> None:
+        self.path = path
+        self.expected_attempt_id = expected_attempt_id
+        self.actual_attempt_id = actual_attempt_id
+        super().__init__(
+            f"Runner-state attempt changed at {path}; expected {expected_attempt_id!r}, "
+            f"found {actual_attempt_id!r}. Reload the state before recovery or finalization."
+        )
+
+
+_RUNNER_STATE_THREAD_LOCKS: dict[Path, threading.RLock] = {}
+_RUNNER_STATE_THREAD_LOCKS_GUARD = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -410,15 +498,403 @@ def build_persisted_runner_state(
     return _refresh_persisted_summary(state)
 
 
-def write_runner_state(path: Path, state: Mapping[str, Any]) -> Path:
+def runner_state_revision(state: Mapping[str, Any]) -> str:
+    """Return a deterministic revision used for optimistic state checks."""
+
+    payload = json.dumps(
+        state,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def load_runner_state_snapshot(path: Path) -> tuple[dict[str, Any] | None, str]:
+    """Load one atomic state snapshot and its revision, including a missing-file token."""
+
+    try:
+        state = load_runner_state(path)
+    except FileNotFoundError:
+        return None, MISSING_RUNNER_STATE_REVISION
+    return state, runner_state_revision(state)
+
+
+def runner_state_active_attempt(state: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Return the durable active-execution claim, when one is present."""
+
+    active = state.get("active_execution")
+    if not isinstance(active, Mapping):
+        return None
+    attempt_id = str(active.get("attempt_id", "")).strip()
+    if not attempt_id:
+        return None
+    return dict(active)
+
+
+def _runner_state_thread_lock(path: Path) -> threading.RLock:
+    key = path.expanduser().resolve(strict=False)
+    with _RUNNER_STATE_THREAD_LOCKS_GUARD:
+        return _RUNNER_STATE_THREAD_LOCKS.setdefault(key, threading.RLock())
+
+
+def _runner_state_lock_path(path: Path) -> Path:
+    return path.with_name(f".{path.name}.lock")
+
+
+def _ensure_directory_hierarchy_durable(path: Path) -> bool:
+    """Create a directory tree and durably retain every new parent entry."""
+
+    target = path.expanduser()
+    missing: list[Path] = []
+    cursor = target
+    while not cursor.exists():
+        missing.append(cursor)
+        parent = cursor.parent
+        if parent == cursor:
+            break
+        cursor = parent
+    if cursor.exists() and not cursor.is_dir():
+        raise NotADirectoryError(cursor)
+
+    durable = True
+    if missing:
+        for directory in reversed(missing):
+            directory.mkdir(exist_ok=True)
+            if not directory.is_dir():
+                raise NotADirectoryError(directory)
+            # The directory flush covers its initial contents; the parent flush
+            # makes the new directory entry survive a power loss.
+            durable = _fsync_runner_state_directory(directory) and durable
+            durable = _fsync_runner_state_directory(directory.parent) and durable
+    else:
+        # A prior best-effort write may have created this entry without proving
+        # it durable. Re-establish that proof before a strict execution claim.
+        durable = _fsync_runner_state_directory(target) and durable
+        if target.parent != target:
+            durable = _fsync_runner_state_directory(target.parent) and durable
+    return durable
+
+
+@contextmanager
+def _exclusive_runner_state_lock(
+    path: Path,
+    *,
+    require_directory_fsync: bool = False,
+) -> Iterator[None]:
+    """Hold the stable per-state process and cross-process writer lock."""
+
+    state_path = path.expanduser()
+    hierarchy_durable = _ensure_directory_hierarchy_durable(state_path.parent)
+    if require_directory_fsync and not hierarchy_durable:
+        raise RunnerStateDurabilityError(state_path)
+    lock_path = _runner_state_lock_path(state_path)
+    thread_lock = _runner_state_thread_lock(lock_path)
+    thread_locked = thread_lock.acquire(timeout=_RUNNER_STATE_LOCK_TIMEOUT_SECONDS)
+    if not thread_locked:
+        raise TimeoutError(
+            f"Timed out waiting for runner-state lock {lock_path}. "
+            "Another session may still be updating this workflow; retry after it finishes."
+        )
+    try:
+        handle = lock_path.open("a+b")
+        locked = False
+        try:
+            if os.name == "nt":  # pragma: no cover - exercised on Windows CI
+                import msvcrt
+
+                if lock_path.stat().st_size == 0:
+                    handle.write(b"\n")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                def _try_lock() -> None:
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                def _try_lock() -> None:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+            deadline = time.monotonic() + _RUNNER_STATE_LOCK_TIMEOUT_SECONDS
+            while True:
+                try:
+                    _try_lock()
+                    locked = True
+                    break
+                except OSError as exc:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError(
+                            f"Timed out waiting for runner-state lock {lock_path}. "
+                            "Another session may still be updating this workflow; "
+                            "retry after it finishes."
+                        ) from exc
+                    time.sleep(min(_RUNNER_STATE_LOCK_RETRY_INTERVAL_SECONDS, remaining))
+            yield
+        finally:
+            try:
+                if locked and os.name == "nt":  # pragma: no cover - exercised on Windows CI
+                    import msvcrt
+
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                elif locked:
+                    import fcntl
+
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            finally:
+                handle.close()
+    finally:
+        thread_lock.release()
+
+
+def _fsync_runner_state_directory(path: Path) -> bool:
+    if os.name == "nt":  # pragma: no cover - exercised on Windows CI
+        return _flush_windows_directory(path)
+    try:
+        directory_fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        # The atomic replace has already committed. Directory fsync is a best-effort
+        # durability hardening step and must not report the committed state as failed.
+        return False
+    durable = True
+    try:
+        try:
+            os.fsync(directory_fd)
+        except OSError:
+            # Keep post-rename semantics unambiguous: callers may continue to publish
+            # evidence for the state that is now visible at ``path``.
+            durable = False
+    finally:
+        try:
+            os.close(directory_fd)
+        except OSError:
+            pass
+    return durable
+
+
+def _flush_windows_directory(path: Path) -> bool:
+    """Flush rename metadata through a Windows directory handle or fail closed."""
+
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        create_file = kernel32.CreateFileW
+        create_file.argtypes = (
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.LPVOID,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.HANDLE,
+        )
+        create_file.restype = wintypes.HANDLE
+        close_handle = kernel32.CloseHandle
+        close_handle.argtypes = (wintypes.HANDLE,)
+        close_handle.restype = wintypes.BOOL
+        flush_file_buffers = kernel32.FlushFileBuffers
+        flush_file_buffers.argtypes = (wintypes.HANDLE,)
+        flush_file_buffers.restype = wintypes.BOOL
+
+        handle = create_file(
+            str(path),
+            0x40000000,  # GENERIC_WRITE is required by FlushFileBuffers
+            0x00000001 | 0x00000002 | 0x00000004,  # share read/write/delete
+            None,
+            3,  # OPEN_EXISTING
+            0x02000000,  # FILE_FLAG_BACKUP_SEMANTICS for directory handles
+            None,
+        )
+        invalid_handle = ctypes.c_void_p(-1).value
+        if handle in (None, invalid_handle):
+            return False
+        try:
+            return bool(flush_file_buffers(handle))
+        finally:
+            close_handle(handle)
+    except (AttributeError, OSError, TypeError, ValueError):
+        return False
+
+
+def _write_runner_state_atomic(
+    path: Path,
+    state: Mapping[str, Any],
+    *,
+    require_directory_fsync: bool = False,
+) -> Path:
     path = path.expanduser()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    hierarchy_durable = _ensure_directory_hierarchy_durable(path.parent)
+    if require_directory_fsync and not hierarchy_durable:
+        raise RunnerStateDurabilityError(path)
+    text = json.dumps(state, indent=2, sort_keys=True) + "\n"
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    tmp_path = Path(tmp_name)
+    try:
+        if path.exists():
+            os.chmod(tmp_path, path.stat().st_mode & 0o777)
+        stream = os.fdopen(fd, "w", encoding="utf-8")
+        fd = -1
+        with stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        _run_with_windows_file_sharing_retry(lambda: os.replace(tmp_path, path))
+        directory_durable = _fsync_runner_state_directory(path.parent)
+        if require_directory_fsync and not directory_durable:
+            raise RunnerStateDurabilityError(path)
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
     return path
 
 
+def _raise_runner_state_conflict(
+    path: Path,
+    *,
+    expected_revision: str,
+    actual_revision: str,
+) -> None:
+    if actual_revision != expected_revision:
+        raise RunnerStateConflictError(
+            path,
+            expected_revision=expected_revision,
+            actual_revision=actual_revision,
+        )
+
+
+@dataclass
+class RunnerStateTransaction:
+    """A locked runner-state snapshot that may be committed with CAS semantics."""
+
+    path: Path
+    state: dict[str, Any]
+    revision: str
+    _active: bool = True
+
+    def commit(
+        self,
+        state: Mapping[str, Any],
+        *,
+        require_directory_fsync: bool = False,
+    ) -> Path:
+        if not self._active:
+            raise RuntimeError("Runner-state transaction is no longer active.")
+        current = load_runner_state(self.path)
+        actual_revision = runner_state_revision(current)
+        _raise_runner_state_conflict(
+            self.path,
+            expected_revision=self.revision,
+            actual_revision=actual_revision,
+        )
+        path = _write_runner_state_atomic(
+            self.path,
+            state,
+            require_directory_fsync=require_directory_fsync,
+        )
+        self.state = dict(state)
+        self.revision = runner_state_revision(state)
+        return path
+
+
+@contextmanager
+def runner_state_transaction(
+    path: Path,
+    *,
+    expected_revision: str | None = None,
+) -> Iterator[RunnerStateTransaction]:
+    """Lock, reload, and optionally reject a stale runner-state revision."""
+
+    state_path = path.expanduser()
+    with _exclusive_runner_state_lock(state_path):
+        state = load_runner_state(state_path)
+        revision = runner_state_revision(state)
+        if expected_revision is not None:
+            _raise_runner_state_conflict(
+                state_path,
+                expected_revision=expected_revision,
+                actual_revision=revision,
+            )
+        transaction = RunnerStateTransaction(
+            path=state_path,
+            state=state,
+            revision=revision,
+        )
+        try:
+            yield transaction
+        finally:
+            transaction._active = False
+
+
+@contextmanager
+def runner_state_write_transaction(
+    path: Path,
+    state: Mapping[str, Any],
+    *,
+    expected_revision: str | None = None,
+    require_directory_fsync: bool = False,
+) -> Iterator[Path]:
+    """Atomically write state under the stable runner-state lock.
+
+    ``MISSING_RUNNER_STATE_REVISION`` is an explicit compare-and-swap token for
+    first creation. A normal revision protects reset and source-replacement
+    writers from overwriting a state changed while they waited for the lock.
+    """
+
+    state_path = path.expanduser()
+    with _exclusive_runner_state_lock(
+        state_path,
+        require_directory_fsync=require_directory_fsync,
+    ):
+        if expected_revision is not None:
+            _current, actual_revision = load_runner_state_snapshot(state_path)
+            _raise_runner_state_conflict(
+                state_path,
+                expected_revision=expected_revision,
+                actual_revision=actual_revision,
+            )
+        written_path = _write_runner_state_atomic(
+            state_path,
+            state,
+            require_directory_fsync=require_directory_fsync,
+        )
+        yield written_path
+
+
+def write_runner_state(
+    path: Path,
+    state: Mapping[str, Any],
+    *,
+    expected_revision: str | None = None,
+) -> Path:
+    """Atomically write runner state after an optional revision check."""
+
+    state_path = path.expanduser()
+    with _exclusive_runner_state_lock(state_path):
+        if expected_revision is not None:
+            current = load_runner_state(state_path)
+            _raise_runner_state_conflict(
+                state_path,
+                expected_revision=expected_revision,
+                actual_revision=runner_state_revision(current),
+            )
+        return _write_runner_state_atomic(state_path, state)
+
+
 def load_runner_state(path: Path) -> dict[str, Any]:
-    state = json.loads(path.expanduser().read_text(encoding="utf-8"))
+    state_path = path.expanduser()
+    state = json.loads(
+        _run_with_windows_file_sharing_retry(
+            lambda: state_path.read_text(encoding="utf-8")
+        )
+    )
     if not isinstance(state, dict):
         raise ValueError(f"runner state must be a JSON object: {path}")
     return state
@@ -575,6 +1051,7 @@ __all__ = [
     "COMPLETED_STATUS",
     "DEFAULT_RUN_ID",
     "FAILED_STATUS",
+    "MISSING_RUNNER_STATE_REVISION",
     "PERSISTENCE_FORMAT",
     "PLANNED_STATUS",
     "RUNNER_MODE",
@@ -582,6 +1059,10 @@ __all__ = [
     "RUNNABLE_STATUS",
     "RUN_STATUS",
     "RunnerDispatchResult",
+    "RunnerStateAttemptConflictError",
+    "RunnerStateConflictError",
+    "RunnerStateDurabilityError",
+    "RunnerStateRecoveryRequiredError",
     "RunnerState",
     "RunnerStateIssue",
     "RunnerStatePersistenceProof",
@@ -590,6 +1071,11 @@ __all__ = [
     "build_runner_state",
     "dispatch_next_runnable",
     "load_runner_state",
+    "load_runner_state_snapshot",
     "persist_runner_state",
+    "runner_state_revision",
+    "runner_state_active_attempt",
+    "runner_state_transaction",
+    "runner_state_write_transaction",
     "write_runner_state",
 ]

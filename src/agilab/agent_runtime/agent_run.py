@@ -10,8 +10,10 @@ import json
 import os
 import platform
 import re
+import socket
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
@@ -32,6 +34,7 @@ TRACE_KIND = "agilab.agent_run.v1"
 MANIFEST_FILENAME = "agent_run_manifest.json"
 STDOUT_FILENAME = "stdout.txt"
 STDERR_FILENAME = "stderr.txt"
+RUN_CLAIM_FILENAME = ".agent_run.claim.json"
 DEFAULT_TIMEOUT_SECONDS = 30 * 60
 SECRET_NAME_RE = re.compile(r"(SECRET|TOKEN|PASSWORD|PASSWD|KEY|CREDENTIAL|AUTH)", re.IGNORECASE)
 SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -118,6 +121,20 @@ class AgentRunSummary:
     duration_seconds: float
     tags: tuple[str, ...] = ()
     metadata: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass
+class _AgentRunTransaction:
+    """Mutable state needed to close an already-claimed run after an error."""
+
+    started_at: str
+    started: float
+    phase: str = "setup"
+    stdout: str = ""
+    stderr: str = ""
+    permission: dict[str, object] | None = None
+    trace_store: AgentTraceStore | None = None
+    trace_initialized: bool = False
 
 
 def _utc_now() -> str:
@@ -410,10 +427,353 @@ def _environment_payload(cwd: Path) -> dict[str, object]:
 
 def _artifact_paths(output_dir: Path) -> dict[str, Path]:
     return {
+        "claim": output_dir / RUN_CLAIM_FILENAME,
         "manifest": output_dir / MANIFEST_FILENAME,
         "stdout": output_dir / STDOUT_FILENAME,
         "stderr": output_dir / STDERR_FILENAME,
     }
+
+
+def _fsync_directory(path: Path) -> None:
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Publish one fixed-name run artifact without exposing partial content."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(tmp_path, path)
+        _fsync_directory(path.parent)
+    finally:
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _claim_agent_run_output(config: AgentRunConfig) -> Path:
+    """Exclusively and permanently claim one evidence directory for one command."""
+
+    config.output_dir.mkdir(parents=True, exist_ok=True)
+    claim_path = config.output_dir / RUN_CLAIM_FILENAME
+    if claim_path.exists():
+        raise FileExistsError(
+            f"Agent run output is already claimed; choose a new --run-id or --output-dir: {config.output_dir}"
+        )
+    reserved = [
+        config.output_dir / name
+        for name in (
+            MANIFEST_FILENAME,
+            STDOUT_FILENAME,
+            STDERR_FILENAME,
+            "agent_trace_meta.json",
+            "agent_events.ndjson",
+        )
+        if (config.output_dir / name).exists()
+    ]
+    if reserved:
+        raise FileExistsError(
+            "Agent run output already contains evidence and cannot be resumed implicitly: "
+            + ", ".join(str(path) for path in reserved)
+        )
+    payload = {
+        "schema": "agilab.agent_run.claim.v1",
+        "run_id": config.run_id,
+        "agent": config.agent,
+        "host": socket.gethostname(),
+        "pid": os.getpid(),
+        "claimed_at": _utc_now(),
+    }
+    try:
+        fd = os.open(claim_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise FileExistsError(
+            f"Agent run output is already claimed; choose a new --run-id or --output-dir: {config.output_dir}"
+        ) from exc
+    try:
+        encoded = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+        offset = 0
+        while offset < len(encoded):
+            offset += os.write(fd, encoded[offset:])
+        os.fsync(fd)
+    except BaseException:
+        os.close(fd)
+        # Once O_EXCL succeeds, retain the claim even if its fsync/write fails.
+        # Reuse would risk overlapping a run whose ownership publication was
+        # interrupted; operators must choose a fresh evidence directory.
+        raise
+    os.close(fd)
+    _fsync_directory(config.output_dir)
+    return claim_path
+
+
+def _terminal_evidence_semantics(exc: BaseException) -> tuple[int, str, str]:
+    """Return shell code, evidence reason, and status for an abrupt exit."""
+
+    if isinstance(exc, KeyboardInterrupt):
+        return 130, "operator_cancelled", "fail"
+    if isinstance(exc, SystemExit):
+        code = exc.code
+        if code is None:
+            return 0, "system_exit", "pass"
+        if isinstance(code, int) and 0 <= code <= 255:
+            return code, "system_exit", "pass" if code == 0 else "fail"
+        return 1, "system_exit", "fail"
+    if isinstance(exc, FileNotFoundError):
+        return 127, "execution_infrastructure_error", "fail"
+    if isinstance(exc, PermissionError):
+        return 126, "execution_infrastructure_error", "fail"
+    return 125, "execution_infrastructure_error", "fail"
+
+
+def _ensure_atomic_failure_artifact(path: Path, text: str) -> None:
+    """Publish terminal evidence, retaining an already-published artifact.
+
+    The normal atomic writer is retried because replace failures can be
+    transient. If replacement remains unavailable and the fixed-name artifact
+    does not exist yet, an atomic rename from a fully fsynced temporary file is
+    used without overwriting any evidence which may already have committed.
+    """
+
+    last_error: OSError | None = None
+    for _attempt in range(2):
+        try:
+            _atomic_write_text(path, text)
+            return
+        except OSError as exc:
+            last_error = exc
+
+    if path.exists():
+        return
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".terminal.tmp", dir=path.parent)
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.rename(tmp_path, path)
+        _fsync_directory(path.parent)
+    except OSError as exc:
+        raise OSError(f"Could not publish terminal agent-run evidence: {path}") from (last_error or exc)
+    finally:
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _safe_file_payload(path: Path) -> dict[str, object]:
+    try:
+        return _file_payload(path)
+    except OSError as exc:
+        return {
+            "path": str(path),
+            "exists": path.exists(),
+            "error": redact_text(str(exc)),
+        }
+
+
+def _safe_trace_artifact_payload(output_dir: Path) -> dict[str, object]:
+    try:
+        return trace_artifact_payload(output_dir)
+    except (OSError, TypeError, ValueError) as exc:
+        events_path = output_dir / "agent_events.ndjson"
+        return {
+            "schema": "agilab.agent_trace.v1",
+            "meta": str(output_dir / "agent_trace_meta.json"),
+            "events": str(events_path),
+            "tool_output_dir": str(output_dir / "tool-output"),
+            "event_count": 0,
+            "event_types": [],
+            "exists": events_path.exists(),
+            "error": redact_text(str(exc)),
+        }
+
+
+def _record_terminal_agent_run_failure(
+    config: AgentRunConfig,
+    transaction: _AgentRunTransaction,
+    exc: BaseException,
+    *,
+    perf_counter: Callable[[], float],
+) -> AgentRunResult:
+    """Close an exclusively claimed run with durable failure evidence."""
+
+    artifacts = _artifact_paths(config.output_dir)
+    returncode, termination_reason, status = _terminal_evidence_semantics(exc)
+    finished_at = _utc_now()
+    try:
+        duration_seconds = max(0.0, perf_counter() - transaction.started)
+    except Exception:
+        duration_seconds = 0.0
+
+    error_type = type(exc).__name__
+    error_message = redact_text(str(exc)) or error_type
+    terminal_message = (
+        f"Agent run terminated during {transaction.phase}: {error_type}: {error_message}"
+    )
+    stderr = "\n".join(part for part in (transaction.stderr.rstrip(), terminal_message) if part)
+
+    trace_recorded = False
+    trace_error = ""
+    if config.trace_enabled:
+        trace_store = transaction.trace_store or AgentTraceStore(
+            config.output_dir,
+            run_id=config.run_id,
+            agent=config.agent,
+            label=config.label,
+            provider=config.provider,
+            model=config.model,
+        )
+        try:
+            if not transaction.trace_initialized:
+                trace_store.initialize(
+                    {
+                        "tags": list(config.tags),
+                        "permission_level": config.permission_level,
+                        "provider": config.provider,
+                        "model": config.model,
+                    }
+                )
+            if status != "pass":
+                trace_store.append(
+                    "error",
+                    status=status,
+                    message=terminal_message,
+                    metadata={
+                        "phase": transaction.phase,
+                        "error_type": error_type,
+                        "returncode": returncode,
+                        "termination_reason": termination_reason,
+                    },
+                )
+            trace_store.append(
+                "session_end",
+                status=status,
+                message="agent runner terminated before returning a completed process",
+                metadata={
+                    "returncode": returncode,
+                    "termination_reason": termination_reason,
+                },
+            )
+            trace_recorded = True
+        except Exception as trace_exc:
+            trace_error = redact_text(str(trace_exc)) or type(trace_exc).__name__
+
+    _ensure_atomic_failure_artifact(artifacts["stdout"], transaction.stdout)
+    _ensure_atomic_failure_artifact(artifacts["stderr"], stderr)
+
+    permission = transaction.permission or {
+        "action": _command_permission_action(config),
+        "allowed": False,
+        "tier": "unresolved",
+        "level": config.permission_level,
+        "reason": "permission resolution did not complete before the run terminated",
+    }
+    events = [
+        _event_payload(
+            1,
+            "agent.run.started",
+            timestamp=transaction.started_at,
+            status="running",
+            protocol_adapters=list(config.protocol_adapters),
+            capabilities=list(config.capabilities),
+        ),
+        _event_payload(
+            2,
+            "agent.run.terminated",
+            timestamp=finished_at,
+            status=status,
+            phase=transaction.phase,
+            error_type=error_type,
+            termination_reason=termination_reason,
+            returncode=returncode,
+        ),
+        _event_payload(
+            3,
+            "agent.artifacts.written",
+            timestamp=finished_at,
+            status=status,
+            artifacts=["stdout", "stderr"],
+        ),
+    ]
+    manifest: dict[str, object] = {
+        "schema_version": 1,
+        "kind": TRACE_KIND,
+        "run_id": config.run_id,
+        "agent": config.agent,
+        "label": config.label,
+        "status": status,
+        "returncode": returncode,
+        "command": _command_payload(config),
+        "context": _context_payload(config),
+        "protocols": _protocol_payload(config),
+        "permission": permission,
+        "environment": _environment_payload(config.cwd),
+        "timing": {
+            "started_at": transaction.started_at,
+            "finished_at": finished_at,
+            "duration_seconds": duration_seconds,
+            "timeout_seconds": config.timeout_seconds,
+        },
+        "termination": {
+            "schema": "agilab.agent_run.termination.v1",
+            "reason": termination_reason,
+            "phase": transaction.phase,
+            "error_type": error_type,
+            "message": error_message,
+            "trace_recorded": trace_recorded,
+            "trace_error": trace_error or None,
+        },
+        "artifacts": {
+            "claim": _safe_file_payload(artifacts["claim"]),
+            "manifest": str(artifacts["manifest"]),
+            "stdout": _safe_file_payload(artifacts["stdout"]),
+            "stderr": _safe_file_payload(artifacts["stderr"]),
+            "agent_trace": _safe_trace_artifact_payload(config.output_dir),
+        },
+        "events": events,
+        "notes": [
+            {
+                "execution_infrastructure_error": (
+                    "The command did not reach normal completion because AGILAB encountered an execution infrastructure error."
+                ),
+                "operator_cancelled": (
+                    "The caller cancelled the agent run before the runner returned a completed process."
+                ),
+                "system_exit": (
+                    "The runner raised SystemExit before returning a completed process; status and returncode preserve that exit."
+                ),
+            }[termination_reason],
+            "The exclusive output claim remains permanent; retry with a new run id or output directory.",
+            "Command arguments are redacted by default; argv_sha256 preserves comparison without exposing prompts.",
+            "Command output artifacts are redacted by default; pass --include-raw-output only for safe local diagnostics.",
+        ],
+    }
+    _ensure_atomic_failure_artifact(
+        artifacts["manifest"],
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+    )
+    return AgentRunResult(manifest=manifest, returncode=returncode)
 
 
 def _command_permission_action(config: AgentRunConfig) -> str:
@@ -542,6 +902,7 @@ def build_planned_manifest(config: AgentRunConfig) -> dict[str, object]:
             "timeout_seconds": config.timeout_seconds,
         },
         "artifacts": {
+            "claim": str(artifacts["claim"]),
             "manifest": str(artifacts["manifest"]),
             "stdout": str(artifacts["stdout"]),
             "stderr": str(artifacts["stderr"]),
@@ -575,11 +936,53 @@ def run_agent_command(
     perf_counter: Callable[[], float] = time.perf_counter,
 ) -> AgentRunResult:
     """Execute an agent command and write a local trace manifest."""
-    config.output_dir.mkdir(parents=True, exist_ok=True)
+
+    transaction = _AgentRunTransaction(started_at=_utc_now(), started=0.0)
+    _claim_agent_run_output(config)
+    try:
+        transaction.started = perf_counter()
+        return _run_claimed_agent_command(
+            config,
+            transaction=transaction,
+            runner=runner,
+            perf_counter=perf_counter,
+        )
+    except BaseException as exc:
+        if isinstance(exc, Exception):
+            return _record_terminal_agent_run_failure(
+                config,
+                transaction,
+                exc,
+                perf_counter=perf_counter,
+            )
+        try:
+            _record_terminal_agent_run_failure(
+                config,
+                transaction,
+                exc,
+                perf_counter=perf_counter,
+            )
+        except BaseException:
+            # Terminal evidence is best-effort during interpreter-level
+            # cancellation; never replace the caller's original interrupt.
+            pass
+        raise
+
+
+def _run_claimed_agent_command(
+    config: AgentRunConfig,
+    *,
+    transaction: _AgentRunTransaction,
+    runner: Callable[..., subprocess.CompletedProcess[str]],
+    perf_counter: Callable[[], float],
+) -> AgentRunResult:
+    """Execute a command after its output directory has been claimed."""
+
     artifacts = _artifact_paths(config.output_dir)
     stdout_path = artifacts["stdout"]
     stderr_path = artifacts["stderr"]
     manifest_path = artifacts["manifest"]
+    transaction.phase = "trace setup"
     trace_store = AgentTraceStore(
         config.output_dir,
         run_id=config.run_id,
@@ -588,6 +991,7 @@ def run_agent_command(
         provider=config.provider,
         model=config.model,
     )
+    transaction.trace_store = trace_store
     if config.trace_enabled:
         trace_store.initialize(
             {
@@ -597,12 +1001,15 @@ def run_agent_command(
                 "model": config.model,
             }
         )
+        transaction.trace_initialized = True
 
     env = os.environ.copy()
     env.update(config.env_overrides)
-    started_at = _utc_now()
-    started = perf_counter()
+    started_at = transaction.started_at
+    started = transaction.started
+    transaction.phase = "permission resolution"
     permission = _permission_payload(config)
+    transaction.permission = permission
     events: list[dict[str, object]] = [
         _event_payload(
             1,
@@ -615,6 +1022,7 @@ def run_agent_command(
     ]
     timed_out = False
     if config.trace_enabled:
+        transaction.phase = "trace start"
         trace_store.append(
             "session_start",
             message=config.label,
@@ -647,10 +1055,13 @@ def run_agent_command(
         stderr = str(permission["reason"])
         if permission.get("confirmation_token"):
             stderr += f"\nconfirmation_token={permission['confirmation_token']}"
+        transaction.stdout = stdout
+        transaction.stderr = stderr
         duration_seconds = perf_counter() - started
         finished_at = _utc_now()
-        stdout_path.write_text(stdout, encoding="utf-8")
-        stderr_path.write_text(stderr, encoding="utf-8")
+        transaction.phase = "artifact publication"
+        _atomic_write_text(stdout_path, stdout)
+        _atomic_write_text(stderr_path, stderr)
         events.append(
             _event_payload(
                 2,
@@ -670,12 +1081,14 @@ def run_agent_command(
             )
         )
         if config.trace_enabled:
+            transaction.phase = "terminal trace publication"
             trace_store.append(
                 "session_end",
                 status="denied",
                 message="agent run denied by permission policy",
                 metadata={"returncode": returncode},
             )
+        transaction.phase = "manifest assembly"
         manifest: dict[str, object] = {
             "schema_version": 1,
             "kind": TRACE_KIND,
@@ -696,6 +1109,7 @@ def run_agent_command(
                 "timeout_seconds": config.timeout_seconds,
             },
             "artifacts": {
+                "claim": _file_payload(artifacts["claim"]),
                 "manifest": str(manifest_path),
                 "stdout": _file_payload(stdout_path),
                 "stderr": _file_payload(stderr_path),
@@ -710,9 +1124,11 @@ def run_agent_command(
                 "Agent trace events are stored as append-only NDJSON when trace_enabled is true.",
             ],
         }
-        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        transaction.phase = "manifest publication"
+        _atomic_write_text(manifest_path, json.dumps(manifest, indent=2, sort_keys=True) + "\n")
         return AgentRunResult(manifest=manifest, returncode=returncode)
 
+    transaction.phase = "command launch"
     try:
         proc = runner(
             list(config.command),
@@ -735,6 +1151,8 @@ def run_agent_command(
         stdout = raw_stdout if isinstance(raw_stdout, str) else raw_stdout.decode("utf-8", "replace")
         stderr = raw_stderr if isinstance(raw_stderr, str) else raw_stderr.decode("utf-8", "replace")
         stderr = (stderr + f"\nTimed out after {config.timeout_seconds:.0f}s").strip()
+    transaction.stdout = redact_text(stdout) if config.redact_output else stdout
+    transaction.stderr = redact_text(stderr) if config.redact_output else stderr
     duration_seconds = perf_counter() - started
     finished_at = _utc_now()
     events.append(
@@ -748,10 +1166,11 @@ def run_agent_command(
         )
     )
 
-    output_stdout = redact_text(stdout) if config.redact_output else stdout
-    output_stderr = redact_text(stderr) if config.redact_output else stderr
-    stdout_path.write_text(output_stdout, encoding="utf-8")
-    stderr_path.write_text(output_stderr, encoding="utf-8")
+    output_stdout = transaction.stdout
+    output_stderr = transaction.stderr
+    transaction.phase = "artifact publication"
+    _atomic_write_text(stdout_path, output_stdout)
+    _atomic_write_text(stderr_path, output_stderr)
     status = "pass" if returncode == 0 else "timeout" if timed_out else "fail"
     events.append(
         _event_payload(
@@ -763,6 +1182,7 @@ def run_agent_command(
         )
     )
     if config.trace_enabled:
+        transaction.phase = "terminal trace publication"
         trace_store.append(
             "command_done",
             status=status,
@@ -779,6 +1199,7 @@ def run_agent_command(
             message=f"agent run {status}",
             metadata={"returncode": returncode},
         )
+    transaction.phase = "manifest assembly"
     manifest: dict[str, object] = {
         "schema_version": 1,
         "kind": TRACE_KIND,
@@ -799,6 +1220,7 @@ def run_agent_command(
             "timeout_seconds": config.timeout_seconds,
         },
         "artifacts": {
+            "claim": _file_payload(artifacts["claim"]),
             "manifest": str(manifest_path),
             "stdout": _file_payload(stdout_path),
             "stderr": _file_payload(stderr_path),
@@ -813,7 +1235,8 @@ def run_agent_command(
             "Agent trace events are stored as append-only NDJSON when trace_enabled is true.",
         ],
     }
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    transaction.phase = "manifest publication"
+    _atomic_write_text(manifest_path, json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return AgentRunResult(manifest=manifest, returncode=returncode)
 
 
@@ -1765,6 +2188,67 @@ def validate_agent_run(manifest_or_path: dict[str, object] | Path | str) -> dict
         fail("kind", f"unsupported manifest kind: {manifest.get('kind')!r}")
     if summary.status not in {"planned", "pass", "fail", "timeout", "denied"}:
         fail("status", f"unsupported status: {summary.status!r}")
+    termination = manifest.get("termination")
+    terminal_trace_unavailable = False
+    if termination is not None:
+        if not isinstance(termination, dict):
+            fail("termination", "agent run termination evidence must be an object")
+        else:
+            if termination.get("schema") != "agilab.agent_run.termination.v1":
+                fail("termination_schema", "agent run termination evidence schema is invalid")
+            termination_reason = str(termination.get("reason") or "")
+            valid_termination_reasons = {
+                "execution_infrastructure_error",
+                "operator_cancelled",
+                "system_exit",
+            }
+            if termination_reason not in valid_termination_reasons:
+                fail("termination_reason", "agent run termination reason is invalid")
+            if termination_reason == "system_exit":
+                expected_status = "pass" if summary.returncode == 0 else "fail"
+                if summary.returncode is None:
+                    fail("termination_returncode", "system exit termination requires a returncode")
+                elif summary.status != expected_status:
+                    fail(
+                        "termination_status",
+                        "system exit termination status must match its returncode",
+                    )
+                if termination.get("error_type") != "SystemExit":
+                    fail("termination_error_type", "system exit termination must name SystemExit")
+            elif termination_reason == "operator_cancelled":
+                if summary.status != "fail" or summary.returncode != 130:
+                    fail(
+                        "termination_status",
+                        "operator cancellation must have fail status and returncode 130",
+                    )
+                if termination.get("error_type") != "KeyboardInterrupt":
+                    fail(
+                        "termination_error_type",
+                        "operator cancellation must name KeyboardInterrupt",
+                    )
+            else:
+                if summary.status != "fail":
+                    fail(
+                        "termination_status",
+                        "execution infrastructure termination must have fail status",
+                    )
+                if summary.returncode is None or summary.returncode == 0:
+                    fail(
+                        "termination_returncode",
+                        "execution infrastructure termination requires a non-zero returncode",
+                    )
+            if not str(termination.get("phase") or ""):
+                fail("termination_phase", "execution infrastructure termination phase is missing")
+            if not str(termination.get("error_type") or ""):
+                fail("termination_error_type", "execution infrastructure error type is missing")
+            if not isinstance(termination.get("trace_recorded"), bool):
+                fail("termination_trace_state", "execution infrastructure trace state must be boolean")
+            if termination.get("trace_recorded") is False:
+                terminal_trace_unavailable = (
+                    termination.get("schema") == "agilab.agent_run.termination.v1"
+                    and termination_reason in valid_termination_reasons
+                )
+                warn("termination_trace", "terminal trace evidence could not be recorded; manifest evidence is authoritative")
     if summary.manifest_path and not summary.manifest_path.exists():
         fail("manifest_path", f"manifest artifact path is missing: {summary.manifest_path}")
     if summary.status != "planned":
@@ -1776,6 +2260,27 @@ def validate_agent_run(manifest_or_path: dict[str, object] | Path | str) -> dict
             fail("stderr_path", "stderr artifact path is missing from manifest")
         elif not summary.stderr_path.exists():
             fail("stderr_exists", f"stderr artifact does not exist: {summary.stderr_path}")
+        artifacts = manifest.get("artifacts", {})
+        artifact_map = artifacts if isinstance(artifacts, dict) else {}
+        # The ownership claim was added without changing TRACE_KIND, so valid
+        # v1 manifests written before the claim existed remain readable. Once a
+        # manifest declares a claim, however, fail closed on every claim error.
+        if "claim" in artifact_map:
+            claim_path = _path_from_artifact(artifact_map.get("claim"))
+            if not claim_path:
+                fail("claim_path", "agent run ownership claim path is invalid")
+            elif not claim_path.exists():
+                fail("claim_exists", f"agent run ownership claim does not exist: {claim_path}")
+            else:
+                try:
+                    claim_payload = json.loads(claim_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    fail("claim_payload", f"agent run ownership claim is invalid: {claim_path}")
+                else:
+                    if not isinstance(claim_payload, dict) or claim_payload.get("schema") != "agilab.agent_run.claim.v1":
+                        fail("claim_schema", f"agent run ownership claim schema is invalid: {claim_path}")
+                    elif str(claim_payload.get("run_id") or "") != summary.run_id:
+                        fail("claim_run_id", f"agent run ownership claim does not match run_id: {claim_path}")
 
     command = manifest.get("command", {})
     command_map = command if isinstance(command, dict) else {}
@@ -1786,10 +2291,16 @@ def validate_agent_run(manifest_or_path: dict[str, object] | Path | str) -> dict
 
     if summary.trace_events_path:
         if summary.trace_events_path.exists():
-            trace_events = load_trace_events(summary.trace_events_path.parent)
-            for issue in validate_event_sequence(trace_events):
-                fail("trace_sequence", issue)
-        else:
+            try:
+                trace_events = load_trace_events(summary.trace_events_path.parent)
+            except (OSError, TypeError, ValueError) as exc:
+                if not terminal_trace_unavailable:
+                    fail("trace_events_invalid", str(exc))
+            else:
+                if not terminal_trace_unavailable:
+                    for issue in validate_event_sequence(trace_events):
+                        fail("trace_sequence", issue)
+        elif not terminal_trace_unavailable:
             fail("trace_events_exists", f"trace events file does not exist: {summary.trace_events_path}")
     else:
         warn("trace_events_path", "trace events path is missing from manifest")

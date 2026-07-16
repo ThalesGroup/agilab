@@ -4,15 +4,17 @@ import os
 import re
 import subprocess
 import sys
+from copy import deepcopy
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Mapping, MutableMapping, Optional
 
 import tomli_w
 from agi_env.app_settings_support import (
     app_settings_contract_error,
     ensure_app_settings_metadata,
     sanitize_app_settings_for_toml,
+    update_app_settings_owned,
 )
 
 
@@ -22,8 +24,165 @@ def sanitize_for_toml(obj: Any) -> Any:
     return sanitize_app_settings_for_toml(obj)
 
 
+class OwnedAppSettingsPayload(dict):
+    """A normal settings snapshot carrying its precise writer ownership paths."""
+
+    def __init__(
+        self,
+        payload: dict,
+        owned_paths: tuple[tuple[str, ...], ...],
+        *,
+        default_paths: tuple[tuple[str, ...], ...] = (),
+        preserved_paths: tuple[tuple[str, ...], ...] = (),
+    ):
+        super().__init__(payload)
+        self.owned_paths = owned_paths
+        self.default_paths = default_paths
+        self.preserved_paths = preserved_paths
+
+
+def owned_app_settings_payload(
+    payload: dict,
+    *owned_paths: tuple[str, ...],
+    default_paths: tuple[tuple[str, ...], ...] = (),
+    preserved_paths: tuple[tuple[str, ...], ...] = (),
+) -> OwnedAppSettingsPayload:
+    """Annotate a snapshot without changing two-argument writer adapters."""
+
+    normalized_owned_paths = tuple(tuple(path) for path in owned_paths)
+    normalized_default_paths = tuple(tuple(path) for path in default_paths)
+    normalized_preserved_paths = tuple(tuple(path) for path in preserved_paths)
+    if not normalized_owned_paths and not normalized_default_paths:
+        raise ValueError(
+            "At least one app-settings ownership or default path is required."
+        )
+    return OwnedAppSettingsPayload(
+        payload,
+        normalized_owned_paths,
+        default_paths=normalized_default_paths,
+        preserved_paths=normalized_preserved_paths,
+    )
+
+
+_MISSING_APP_SETTINGS_VALUE = object()
+
+
+def changed_app_settings_paths(
+    before: Mapping[str, Any],
+    after: Mapping[str, Any],
+    *,
+    prefix: tuple[str, ...] = (),
+) -> tuple[tuple[str, ...], ...]:
+    """Return the leaf ownership paths changed between two settings snapshots."""
+
+    def _changed_paths(
+        before_value: Any,
+        after_value: Any,
+        path: tuple[str, ...],
+    ) -> list[tuple[str, ...]]:
+        if before_value is _MISSING_APP_SETTINGS_VALUE and isinstance(
+            after_value, Mapping
+        ):
+            before_value = {}
+        if before_value == after_value:
+            return []
+        if isinstance(before_value, Mapping) and isinstance(after_value, Mapping):
+            changed: list[tuple[str, ...]] = []
+            for child_key in sorted(set(before_value) | set(after_value)):
+                if not isinstance(child_key, str) or not child_key:
+                    raise ValueError(
+                        "App-settings ownership paths require non-empty string keys."
+                    )
+                changed.extend(
+                    _changed_paths(
+                        before_value.get(child_key, _MISSING_APP_SETTINGS_VALUE),
+                        after_value.get(child_key, _MISSING_APP_SETTINGS_VALUE),
+                        (*path, child_key),
+                    )
+                )
+            return changed
+        if not path:
+            raise ValueError("App-settings ownership paths cannot be empty.")
+        return [path]
+
+    return tuple(_changed_paths(before, after, prefix))
+
+
+def reconcile_untouched_widget_values(
+    session_state: MutableMapping[str, Any],
+    *,
+    baseline_key: str,
+    desired_values: Mapping[str, Any],
+) -> None:
+    """Refresh widgets that still equal this session's prior rendered values.
+
+    Streamlit widget state survives reruns independently from a settings snapshot.
+    When a locked settings write merges another session's leaves, unchanged widget
+    values must follow that merged snapshot before the widgets are instantiated;
+    otherwise a later no-op rerun can falsely claim and restore stale values.
+    """
+
+    previous = session_state.get(baseline_key)
+    previous = previous if isinstance(previous, Mapping) else {}
+    for widget_key, desired_value in desired_values.items():
+        if widget_key not in session_state:
+            session_state[widget_key] = deepcopy(desired_value)
+            continue
+        if widget_key in previous and session_state[widget_key] == previous[widget_key]:
+            session_state[widget_key] = deepcopy(desired_value)
+
+
+def remember_rendered_widget_values(
+    session_state: MutableMapping[str, Any],
+    *,
+    baseline_key: str,
+    widget_keys: Mapping[str, Any] | tuple[str, ...],
+) -> None:
+    """Remember values rendered by this session for next-rerun reconciliation."""
+
+    keys = tuple(widget_keys)
+    session_state[baseline_key] = {
+        key: deepcopy(session_state[key]) for key in keys if key in session_state
+    }
+
+
+def _preserve_app_settings_paths(
+    latest: dict[str, Any],
+    session_snapshot: Mapping[str, Any],
+    paths: tuple[tuple[str, ...], ...],
+) -> dict[str, Any]:
+    """Overlay explicitly session-owned values onto a persisted write result."""
+
+    result = deepcopy(latest)
+    for path in paths:
+        if not path or any(not isinstance(part, str) or not part for part in path):
+            raise ValueError(
+                "Preserved app-settings paths must contain non-empty strings."
+            )
+        source: Any = session_snapshot
+        for part in path:
+            if not isinstance(source, Mapping) or part not in source:
+                source = _MISSING_APP_SETTINGS_VALUE
+                break
+            source = source[part]
+        if source is _MISSING_APP_SETTINGS_VALUE:
+            continue
+        target = result
+        for part in path[:-1]:
+            child = target.get(part)
+            if not isinstance(child, dict):
+                child = {}
+                target[part] = child
+            target = child
+        target[path[-1]] = deepcopy(source)
+    return result
+
+
 def write_app_settings_toml(settings_path: Path, payload: dict) -> dict:
-    """Persist ``payload`` after converting it to a TOML-serializable object."""
+    """Transactionally persist the explicitly owned portion of ``payload``."""
+    owned_paths = getattr(payload, "owned_paths", tuple((key,) for key in payload))
+    default_paths = getattr(payload, "default_paths", ())
+    preserved_paths = getattr(payload, "preserved_paths", ())
     sanitized = sanitize_app_settings_for_toml(payload)
     if not isinstance(sanitized, dict):
         raise ValueError("app_settings.toml payload must be a TOML table.")
@@ -31,9 +190,28 @@ def write_app_settings_toml(settings_path: Path, payload: dict) -> dict:
     if error:
         raise ValueError(error)
     sanitized = ensure_app_settings_metadata(sanitized)
-    with open(settings_path, "wb") as file:
-        tomli_w.dump(sanitized, file)
-    return sanitized
+    def _prepare_latest(latest: dict[str, Any]) -> dict[str, Any]:
+        prepared = sanitize_app_settings_for_toml(latest)
+        if not isinstance(prepared, dict):
+            raise ValueError("app_settings.toml payload must be a TOML table.")
+        latest_error = app_settings_contract_error(prepared)
+        if latest_error:
+            raise ValueError(latest_error)
+        return ensure_app_settings_metadata(prepared)
+
+    latest, _ = update_app_settings_owned(
+        settings_path,
+        sanitized,
+        owned_paths=owned_paths,
+        default_paths=default_paths,
+        dump_fn=tomli_w.dump,
+        prepare_fn=_prepare_latest,
+    )
+    return _preserve_app_settings_paths(
+        latest,
+        sanitized,
+        preserved_paths,
+    )
 
 
 SHARED_FILESYSTEM_TYPES: set[str] = {

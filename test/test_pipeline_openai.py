@@ -91,6 +91,30 @@ def test_persist_env_var_refuses_env_symlink(monkeypatch, tmp_path):
         pipeline_openai.persist_env_var("OPENAI_API_KEY", "created-key")
 
 
+def test_persist_env_var_applies_update_to_latest_disjoint_content(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    env_file = tmp_path / ".agilab" / ".env"
+    env_file.parent.mkdir(parents=True)
+    env_file.write_text('# comment\nEXISTING="quoted value"\n', encoding="utf-8")
+    real_update = pipeline_openai.update_env_file_text
+
+    def _interleaved_update(path, update, **kwargs):
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write('MISTRAL_API_KEY="concurrent"\n')
+        return real_update(path, update, **kwargs)
+
+    monkeypatch.setattr(pipeline_openai, "update_env_file_text", _interleaved_update)
+
+    pipeline_openai.persist_env_var("OPENAI_API_KEY", "new-key")
+
+    assert env_file.read_text(encoding="utf-8") == (
+        '# comment\nEXISTING="quoted value"\n'
+        'MISTRAL_API_KEY="concurrent"\nOPENAI_API_KEY="new-key"\n'
+    )
+
+
 def test_make_openai_client_and_model_prefers_azure(monkeypatch):
     captured = {}
 

@@ -11,7 +11,6 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
 import sys
 import importlib
 import logging
@@ -41,9 +40,8 @@ _ensure_repo_on_path()
 
 from agi_pages.runtime import active_app_scope_value, render_streamlit_page_header, reset_scoped_session_state
 from agi_env import AgiEnv
-from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
 from agi_gui.pagelib import load_df, sidebar_views, initialize_csv_files, _dump_toml_payload
-import tomllib as _toml
 
 logger = logging.getLogger(__name__)
 
@@ -83,9 +81,6 @@ def _ae_key(name: str) -> str:
 
 
 render_streamlit_page_header(st, title=":chart_with_downwards_trend: Dimension Reduction", show_logo=False)
-
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-
 
 # Function to lazily import plotly
 def lazy_import_plotly():
@@ -512,9 +507,8 @@ def page(env):
     settings_path = Path(env.app_settings_file)
     persisted = {}
     try:
-        with open(settings_path, "rb") as fh:
-            persisted = _toml.load(fh)
-    except (OSError, _toml.TOMLDecodeError):
+        persisted = read_app_settings(settings_path)
+    except (OSError, ValueError):
         logger.debug("Unable to load autoencoder_latentspace settings from %s", settings_path, exc_info=True)
         persisted = {}
     raw_view_settings = {}
@@ -658,18 +652,22 @@ def page(env):
         "df_file": st.session_state.get("df_file", ""),
         "coltype": st.session_state.get("coltype", ""),
     }
-    mutated = False
+    changed_keys: list[str] = []
     for k, v in persist_keys.items():
         if view_settings.get(k) != v and v not in (None, ""):
             view_settings[k] = v
-            mutated = True
-    if mutated:
+            changed_keys.append(k)
+    if changed_keys:
         persisted[PAGE_KEY] = view_settings
         persisted.pop(LEGACY_PAGE_KEY, None)
         try:
-            settings_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(settings_path, "wb") as fh:
-                _dump_toml_payload(prepare_app_settings_for_write(persisted), fh)
+            persisted, _ = update_app_settings_owned(
+                settings_path,
+                persisted,
+                owned_paths=tuple((PAGE_KEY, key) for key in changed_keys)
+                + ((LEGACY_PAGE_KEY,),),
+                dump_fn=_dump_toml_payload,
+            )
         except Exception:
             logger.warning(
                 "Unable to persist autoencoder_latentspace settings to %s",
@@ -708,7 +706,7 @@ def main():
         st.session_state["apps_path"] = str(active_app.parent)
         st.session_state["app"] = app
 
-        env = getattr(AgiEnv, "for_app", AgiEnv)(
+        env = AgiEnv.session_for_app(
             apps_path=active_app.parent,
             app=app,
             verbose=1,

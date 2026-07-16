@@ -13,22 +13,20 @@ def test_background_process_manager_tracks_running_completed_and_dead_jobs(monke
     popen_calls: list[dict[str, object]] = []
 
     class FakeProcess:
-        def __init__(self, status):
+        def __init__(self, status, pid):
             self._status = status
+            self.pid = pid
 
         def poll(self):
             return self._status
 
-    processes = [FakeProcess(None), FakeProcess(0), FakeProcess(3)]
+    processes = [FakeProcess(None, 101), FakeProcess(0, 102), FakeProcess(3, 103)]
 
-    def fake_popen(cmd, shell, cwd, start_new_session, env):
+    def fake_popen(cmd, **kwargs):
         popen_calls.append(
             {
                 "cmd": cmd,
-                "shell": shell,
-                "cwd": cwd,
-                "start_new_session": start_new_session,
-                "env": env,
+                **kwargs,
             }
         )
         return processes.pop(0)
@@ -47,11 +45,28 @@ def test_background_process_manager_tracks_running_completed_and_dead_jobs(monke
     assert popen_calls[0]["shell"] is False
     assert popen_calls[0]["cwd"] == str(tmp_path)
     assert popen_calls[2]["cwd"] is None
+    ownership_tokens = {
+        popen_call["env"][background_jobs_support.BACKGROUND_JOB_TOKEN_ENV]
+        for popen_call in popen_calls
+    }
+    assert len(ownership_tokens) == 3
+    if os.name == "nt":
+        assert popen_calls[0]["creationflags"] == getattr(
+            background_jobs_support.subprocess,
+            "CREATE_NEW_PROCESS_GROUP",
+            0,
+        )
+        assert running.process_group_id is None
+    else:
+        assert popen_calls[0]["start_new_session"] is True
+        assert running.process_group_id == running.process.pid
     assert manager.result(running.num) is running.process
     assert manager.result(completed.num) is completed.process
     assert manager.result(dead.num) is None
     assert completed in manager.completed
     assert dead in manager.dead
+    assert manager.owned == [running, completed, dead]
+    assert isinstance(running.ownership_started_at, float)
 
     manager.flush()
 
@@ -60,6 +75,7 @@ def test_background_process_manager_tracks_running_completed_and_dead_jobs(monke
     assert running.num in manager.all
     assert manager.completed == []
     assert manager.dead == []
+    assert manager.owned == [running, completed, dead]
 
 
 def test_background_process_manager_normalize_cwd_handles_invalid_values():
@@ -122,7 +138,14 @@ def test_background_job_manager_uses_subprocess_and_real_directories_only(monkey
     assert calls[0][0] == ["echo", "test"]
     assert calls[0][1]["shell"] is False
     assert calls[0][1]["cwd"] is None
-    assert calls[0][1]["start_new_session"] is True
+    if os.name == "nt":
+        assert calls[0][1]["creationflags"] == getattr(
+            background_jobs_support.subprocess,
+            "CREATE_NEW_PROCESS_GROUP",
+            0,
+        )
+    else:
+        assert calls[0][1]["start_new_session"] is True
     assert calls[1][1]["cwd"] == str(tmp_path)
     assert jobs.result(second.num) is second.result
 

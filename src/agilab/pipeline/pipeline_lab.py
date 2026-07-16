@@ -685,6 +685,9 @@ _dag_run_engine_module = import_agilab_module(
     fallback_name="agilab_dag_run_engine_fallback",
 )
 DagRunEngine = _dag_run_engine_module.DagRunEngine
+RunnerStateConflictError = _dag_run_engine_module.RunnerStateConflictError
+RunnerStateAttemptConflictError = _dag_run_engine_module.RunnerStateAttemptConflictError
+RunnerStateRecoveryRequiredError = _dag_run_engine_module.RunnerStateRecoveryRequiredError
 MultiAppDagBatchExecutionResult = _dag_run_engine_module.DagBatchExecutionResult
 MultiAppDagStageExecutionResult = _dag_run_engine_module.DagStageExecutionResult
 GLOBAL_DAG_QUEUE_UNIT_ID = _dag_run_engine_module.GLOBAL_DAG_QUEUE_UNIT_ID
@@ -702,6 +705,7 @@ controlled_real_run_supported = _dag_run_engine_module.controlled_real_run_suppo
 dispatch_next_runnable = _dag_run_engine_module.dispatch_next_runnable
 execution_history_rows = _dag_run_engine_module.execution_history_rows
 load_runner_state = _dag_run_engine_module.load_runner_state
+load_runner_state_snapshot = _dag_run_engine_module.load_runner_state_snapshot
 persist_runner_state = _dag_run_engine_module.persist_runner_state
 repo_relative_text_for_dag = _dag_run_engine_module.repo_relative_text
 run_multi_app_dag_queue_baseline_app = _dag_run_engine_module.run_multi_app_dag_queue_baseline_app
@@ -709,6 +713,9 @@ run_multi_app_dag_relay_followup_app = _dag_run_engine_module.run_multi_app_dag_
 run_next_controlled_multi_app_dag_stage = _dag_run_engine_module.run_next_controlled_stage
 run_ready_controlled_multi_app_dag_stages = _dag_run_engine_module.run_ready_controlled_stages
 runner_state_dag_matches = _dag_run_engine_module.runner_state_dag_matches
+runner_state_active_attempt = _dag_run_engine_module.runner_state_active_attempt
+runner_state_revision = _dag_run_engine_module.runner_state_revision
+runner_state_write_transaction = _dag_run_engine_module.runner_state_write_transaction
 write_runner_state = _dag_run_engine_module.write_runner_state
 
 _workflow_run_manifest_module = import_agilab_module(
@@ -3107,8 +3114,14 @@ def _write_pipeline_stages_runner_state_with_evidence(
     *,
     lab_dir: Path,
     trigger: Mapping[str, Any],
+    expected_revision: str | None = None,
 ) -> Path:
-    written_path = write_runner_state(state_path, state)
+    with runner_state_write_transaction(
+        state_path,
+        state,
+        expected_revision=expected_revision,
+    ) as written_path:
+        pass
     write_workflow_run_evidence(
         state=state,
         state_path=written_path,
@@ -3131,14 +3144,22 @@ def _load_or_create_pipeline_stages_runner_state(
     reset: bool = False,
 ) -> tuple[dict[str, Any], Path]:
     state_path = lab_dir / ".agilab" / GLOBAL_RUNNER_STATE_FILENAME
+    observed_state, observed_revision = load_runner_state_snapshot(state_path)
+    if observed_state is not None:
+        active = runner_state_active_attempt(observed_state)
+        if active is not None:
+            raise RunnerStateRecoveryRequiredError(
+                state_path,
+                attempt_id=str(active.get("attempt_id", "")),
+            )
     evidence = _pipeline_stages_execution_evidence(
         index_page=index_page,
         session_state=session_state,
         stages_file=stages_file,
         stage_count=len(pipeline_stages),
     )
-    if state_path.is_file() and not reset:
-        state = load_runner_state(state_path)
+    if observed_state is not None and not reset:
+        state = observed_state
         if _pipeline_stages_state_matches(
             state,
             stages_file=stages_file,
@@ -3173,6 +3194,7 @@ def _load_or_create_pipeline_stages_runner_state(
                 stale_state,
                 lab_dir=lab_dir,
                 trigger={"surface": "workflow", "action": "project_stages_stale"},
+                expected_revision=observed_revision,
             )
             return stale_state, state_path
 
@@ -3199,6 +3221,7 @@ def _load_or_create_pipeline_stages_runner_state(
         state,
         lab_dir=lab_dir,
         trigger={"surface": "workflow", "action": "project_stages_state_written"},
+        expected_revision=observed_revision,
     )
     return state, state_path
 
@@ -3307,6 +3330,46 @@ def _render_global_runner_state_view(
     else:
         st.caption("Execution history: no step has been started yet.")
 
+    active_attempt = runner_state_active_attempt(state)
+    if active_attempt is not None:
+        attempt_id = str(active_attempt.get("attempt_id", ""))
+        unit_tokens = active_attempt.get("unit_tokens")
+        token_rows = dict(unit_tokens) if isinstance(unit_tokens, Mapping) else {}
+        st.warning(
+            "This workflow has a durable execution claim whose final outcome is unknown. "
+            "Do not reset or switch plans until each exact unit token is explicitly recovered."
+        )
+        st.caption(f"Attempt: `{attempt_id}`")
+        for unit_id, token_value in sorted(token_rows.items()):
+            token = str(token_value)
+            recover_clicked = action_button(
+                st,
+                f"Recover {unit_id}",
+                key=f"{index_page_str}_global_runner_recover_{_multi_app_dag_source_token(token)}",
+                kind="reset",
+                help=(
+                    "Acknowledge that this exact token may already have produced a side effect, "
+                    "mark it failed, and require a separate reset before retry."
+                ),
+            )
+            if not recover_clicked:
+                continue
+            try:
+                dag_engine.recover_execution_attempt_transaction(
+                    state,
+                    unit_id=str(unit_id),
+                    idempotency_token=token,
+                )
+            except (RunnerStateAttemptConflictError, RunnerStateConflictError) as exc:
+                st.warning("The recovery token changed in another session. Reloading the latest state.")
+                st.caption(str(exc))
+                st.rerun()
+                return
+            st.success(f"Recovered `{unit_id}`. Reset the plan explicitly before retrying it.")
+            st.rerun()
+            return
+        return
+
     real_run_supported = real_run_support.supported
     if real_run_supported:
         stage_backend = GLOBAL_DAG_STAGE_BACKEND_LOCAL
@@ -3363,28 +3426,47 @@ def _render_global_runner_state_view(
             )
         if run_stage_clicked:
             try:
-                result = dag_engine.run_next_controlled_stage(state)
+                result = dag_engine.run_next_controlled_stage_transaction(state)
+            except RunnerStateRecoveryRequiredError as exc:
+                st.warning("An active workflow attempt must be recovered before changing this preview.")
+                st.caption(str(exc))
+                return
+            except RunnerStateConflictError as exc:
+                st.warning("Workflow state changed in another session. Reloading the latest state.")
+                st.caption(str(exc))
+                st.rerun()
+                return
             except Exception as exc:
                 st.error("Controlled workflow step execution failed.")
                 st.caption("Full diagnostic")
                 st.code(str(exc), language="text", height=400)
                 return
             if result.ok:
-                dag_engine.write_state(result.state)
                 st.success(result.message)
                 st.rerun()
             else:
                 st.warning(result.message)
         if run_ready_clicked:
             try:
-                result = dag_engine.run_ready_controlled_stages(state, execution_backend=stage_backend)
+                result = dag_engine.run_ready_controlled_stages_transaction(
+                    state,
+                    execution_backend=stage_backend,
+                )
+            except RunnerStateRecoveryRequiredError as exc:
+                st.warning("An active workflow attempt must be recovered before reset or source switch.")
+                st.caption(str(exc))
+                return
+            except RunnerStateConflictError as exc:
+                st.warning("Workflow state changed in another session. Reloading the latest state.")
+                st.caption(str(exc))
+                st.rerun()
+                return
             except Exception as exc:
                 st.error("Controlled DAG batch execution failed.")
                 st.caption("Full diagnostic")
                 st.code(str(exc), language="text", height=400)
                 return
             if result.executed_unit_ids or result.failed_unit_ids:
-                dag_engine.write_state(result.state)
                 if result.ok:
                     st.success(result.message)
                 else:
@@ -3417,9 +3499,14 @@ def _render_global_runner_state_view(
         disabled=dispatch_disabled,
     )
     if dispatch_clicked:
-        result = dag_engine.dispatch_next_runnable(state)
+        try:
+            result = dag_engine.dispatch_next_runnable_transaction(state)
+        except RunnerStateConflictError as exc:
+            st.warning("Workflow state changed in another session. Reloading the latest state.")
+            st.caption(str(exc))
+            st.rerun()
+            return
         if result.ok:
-            dag_engine.write_state(result.state)
             st.success(result.message)
             st.rerun()
         else:
@@ -3548,6 +3635,11 @@ def _render_global_runner_state_panel(
                     session_state=st.session_state,
                     reset=reset_clicked,
                 )
+            except RunnerStateConflictError as exc:
+                st.warning("Workflow state changed in another session. Reloading the latest state.")
+                st.caption(str(exc))
+                st.rerun()
+                return
             except Exception as exc:
                 st.error("Project stages DAG preview is unavailable.")
                 st.caption("Full diagnostic")
@@ -3644,6 +3736,11 @@ def _render_global_runner_state_panel(
                     reset=reset_clicked,
                 )
                 dag_engine = _multi_app_dag_engine(repo_root, lab_dir, dag_path, env=env)
+            except RunnerStateConflictError as exc:
+                st.warning("Workflow state changed in another session. Reloading the latest state.")
+                st.caption(str(exc))
+                st.rerun()
+                return
             except Exception as exc:
                 st.error("Multi-app plan preview is unavailable.")
                 st.caption("Full diagnostic")

@@ -7,6 +7,8 @@ import json
 import os
 import shutil
 import sys
+import threading
+import time
 import tomllib
 import types
 from types import SimpleNamespace
@@ -17,6 +19,7 @@ from unittest.mock import patch, MagicMock
 from streamlit.testing.v1 import AppTest
 
 from agi_env import AgiEnv
+from agi_env.app_settings_support import update_app_settings_owned
 import agi_env.credential_store_support as credential_store_support
 from pydantic import BaseModel, model_validator
 
@@ -730,8 +733,8 @@ from pydantic import BaseModel
 from datetime import date
 class FlightArgs(BaseModel):
     data_source: str = "file"
-    data_in: str = ""
-    data_out: str = ""
+    data_in: str = "flight_telemetry/dataset"
+    data_out: str = "flight_telemetry/dataframe"
     files: str = "*"
     nfile: int = 1
     nskip: int = 0
@@ -963,46 +966,28 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
         encoding="utf-8"
     )
     pipeline_source = Path("src/agilab/pages/3_WORKFLOW.py").read_text(encoding="utf-8")
-    about_block = source.split("main_page = st.Page(", 1)[1].split(
-        "settings_nav_page", 1
-    )[0]
-    settings_block = source.split("settings_nav_page = st.Page(", 1)[1].split(
-        "project_page", 1
-    )[0]
-
     assert "st.navigation(_navigation_pages()).run()" in source
-    assert 'title="ABOUT"' in about_block
-    assert "default=True" in about_block
-    assert 'visibility="hidden"' in about_block
-    assert 'title="SETTINGS"' in settings_block
-    assert 'url_path="SETTINGS"' in settings_block
-    assert "_SETTINGS_PAGE_FILE" in settings_block
+    assert "_render_about_page_entry" in source
+    assert 'title="ABOUT"' in source
+    assert "default=True" in source
+    assert 'title="SETTINGS"' in source
+    assert 'url_path="SETTINGS"' in source
+    assert "_SETTINGS_PAGE_FILE" in source
+    assert 'route_ids=("settings",)' in source
     assert '_PROJECT_STATUS_PAGE_FILE = _NAVIGATION_PAGE_FILES[1]' in source
     assert '_PROJECT_PAGE_FILE = _NAVIGATION_PAGE_FILES[2]' in source
-    assert 'visibility="hidden"' in settings_block
+    assert 'visibility="hidden"' in source
     assert 'page_label="ABOUT"' not in source
     assert 'page_label="MAIN_PAGE"' in source
     assert 'page_label="SETTINGS"' in source
     assert 'title="PROJECT"' in source
     assert 'url_path="PROJECT"' in source
-    project_block = source.split("project_page = st.Page(", 1)[1].split(
-        "project_editor_page", 1
-    )[0]
-    project_editor_block = source.split("project_editor_page = st.Page(", 1)[1].split(
-        "project_status_legacy_page", 1
-    )[0]
-    project_status_legacy_block = source.split("project_status_legacy_page = st.Page(", 1)[1].split(
-        "orchestrate_page", 1
-    )[0]
-    assert "_page_file_runner(_PROJECT_STATUS_PAGE_FILE)" in project_block
-    assert 'title="PROJECT"' in project_block
-    assert 'url_path="PROJECT"' in project_block
-    assert "_page_file_runner(_PROJECT_PAGE_FILE)" in project_editor_block
-    assert 'url_path="PROJECT_EDITOR"' in project_editor_block
-    assert 'visibility="hidden"' in project_editor_block
-    assert "_page_file_runner(_PROJECT_STATUS_PAGE_FILE)" in project_status_legacy_block
-    assert 'url_path="PROJECT_STATUS"' in project_status_legacy_block
-    assert 'visibility="hidden"' in project_status_legacy_block
+    assert "_page_file_runner(_PROJECT_STATUS_PAGE_FILE)" in source
+    assert 'route_ids=("project", "project_status")' in source
+    assert "_page_file_runner(_PROJECT_PAGE_FILE)" in source
+    assert 'url_path="PROJECT_EDITOR"' in source
+    assert 'route_ids=("project_editor",)' in source
+    assert 'url_path="PROJECT_STATUS"' in source
     assert 'visibility="hidden"' in source
     assert 'title="ORCHESTRATE"' in source
     assert 'title="WORKFLOW"' in source
@@ -1042,7 +1027,7 @@ def test_review_context_expanders_render_after_primary_page_evidence():
 
 def test_orchestrate_page_exposes_analysis_preview_expander(mock_ui_env):
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
-    env = AgiEnv(
+    env = AgiEnv.session(
         apps_path=mock_ui_env["apps_dir"],
         app="flight_telemetry_project",
         verbose=0,
@@ -1153,6 +1138,138 @@ def test_page_module_cache_disable_does_not_store_loaded_module(tmp_path, monkey
     assert not main_page._PAGE_MODULE_CACHE
 
 
+def test_page_module_cold_load_is_published_once_across_threads(tmp_path, monkeypatch):
+    main_page = _import_agilab_module("agilab.main_page")
+    main_page._PAGE_MODULE_CACHE.clear()
+    main_page._PAGE_MODULE_NAME_CACHE.clear()
+    main_page._RESOLVED_PAGE_PATH_CACHE.clear()
+    monkeypatch.delenv("AGILAB_DISABLE_PAGE_MODULE_CACHE", raising=False)
+    monkeypatch.delenv("AGILAB_DISABLE_ALL_PAGE_CACHES", raising=False)
+
+    execution_counter = tmp_path / "page-executions.txt"
+    page_file = tmp_path / "cold_page.py"
+    page_file.write_text(
+        "from pathlib import Path\n"
+        "import time\n"
+        f"counter = Path({str(execution_counter)!r})\n"
+        "current = int(counter.read_text() or '0') if counter.exists() else 0\n"
+        "time.sleep(0.05)\n"
+        "counter.write_text(str(current + 1))\n"
+        "VALUE = object()\n",
+        encoding="utf-8",
+    )
+
+    start = threading.Barrier(3)
+    modules: list[object] = []
+    errors: list[Exception] = []
+
+    def load() -> None:
+        start.wait()
+        try:
+            modules.append(main_page._load_page_module(page_file))
+        except Exception as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    workers = [threading.Thread(target=load) for _ in range(2)]
+    for worker in workers:
+        worker.start()
+    start.wait()
+    for worker in workers:
+        worker.join(timeout=5)
+
+    assert all(not worker.is_alive() for worker in workers)
+    assert errors == []
+    assert len(modules) == 2
+    assert modules[0] is modules[1]
+    assert modules[0].VALUE is modules[1].VALUE
+    assert execution_counter.read_text(encoding="utf-8") == "1"
+
+
+def test_page_file_runner_serializes_and_restores_main_process_state(
+    tmp_path, monkeypatch
+):
+    main_page = _import_agilab_module("agilab.main_page")
+    main_page._PAGE_RUNNER_CACHE.clear()
+    main_page._RESOLVED_PAGE_PATH_CACHE.clear()
+    monkeypatch.setattr(
+        main_page, "_about_resources_path", lambda: tmp_path / "resources"
+    )
+    monkeypatch.setattr(
+        main_page, "_ensure_navigation_environment", lambda *_args, **_kwargs: object()
+    )
+    monkeypatch.setattr(main_page, "_record_ui_timing_span", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(main_page, "_render_page_load_timing", lambda *_args, **_kwargs: None)
+
+    lock = threading.Lock()
+    alpha_started = threading.Event()
+    release_alpha = threading.Event()
+    records: list[tuple[str, list[str], list[str]]] = []
+    active = 0
+    max_active = 0
+
+    def _main(name: str) -> None:
+        nonlocal active, max_active
+        sys.argv = [name]
+        sys.path.insert(0, name)
+        with lock:
+            active += 1
+            max_active = max(max_active, active)
+            records.append((name, list(sys.argv), list(sys.path)))
+        if name == "alpha":
+            alpha_started.set()
+            assert release_alpha.wait(timeout=5)
+        with lock:
+            active -= 1
+
+    modules = {
+        (tmp_path / "alpha.py").resolve(): SimpleNamespace(
+            main=lambda: _main("alpha")
+        ),
+        (tmp_path / "beta.py").resolve(): SimpleNamespace(
+            main=lambda: _main("beta")
+        ),
+    }
+    monkeypatch.setattr(main_page, "_load_page_module", lambda path: modules[path])
+
+    original_argv = list(sys.argv)
+    original_path = list(sys.path)
+    errors: list[BaseException] = []
+
+    def _run(runner) -> None:
+        try:
+            runner()
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    first = threading.Thread(
+        target=_run,
+        args=(main_page._page_file_runner(tmp_path / "alpha.py"),),
+    )
+    second = threading.Thread(
+        target=_run,
+        args=(main_page._page_file_runner(tmp_path / "beta.py"),),
+    )
+    first.start()
+    assert alpha_started.wait(timeout=5)
+    second.start()
+    time.sleep(0.05)
+    assert max_active == 1
+    release_alpha.set()
+    first.join(timeout=5)
+    second.join(timeout=5)
+
+    assert all(not worker.is_alive() for worker in (first, second))
+    assert errors == []
+    assert [record[0] for record in records] == ["alpha", "beta"]
+    assert records[0][1] == ["alpha"]
+    assert records[1][1] == ["beta"]
+    assert records[0][2][0] == "alpha"
+    assert records[1][2][0] == "beta"
+    assert max_active == 1
+    assert sys.argv == original_argv
+    assert sys.path == original_path
+
+
 def test_all_page_caches_disable_does_not_store_runner_or_module_name(
     tmp_path, monkeypatch
 ):
@@ -1189,7 +1306,7 @@ def test_page_module_name_is_deterministic_for_resolved_path(tmp_path):
     assert len(relative_name.rsplit("_", 1)[-1]) == 16
 
 
-def test_navigation_pages_reuses_cached_page_list_until_disabled(monkeypatch, request):
+def test_navigation_pages_reuses_cached_specs_but_returns_fresh_pages(monkeypatch, request):
     main_page = _import_agilab_module("agilab.main_page")
     main_page._NAVIGATION_PAGE_ROUTES.clear()
     main_page._NAVIGATION_PAGE_CACHE.clear()
@@ -1217,9 +1334,17 @@ def test_navigation_pages_reuses_cached_page_list_until_disabled(monkeypatch, re
 
     pages = main_page._navigation_pages()
     routes = dict(main_page._NAVIGATION_PAGE_ROUTES)
-    assert main_page._navigation_pages() is pages
-    assert main_page._NAVIGATION_PAGE_ROUTES == routes
-    assert len(created_pages) == len(pages)
+    second_pages = main_page._navigation_pages()
+    second_routes = dict(main_page._NAVIGATION_PAGE_ROUTES)
+    assert second_pages is not pages
+    assert all(second is not first for first, second in zip(pages, second_pages))
+    assert set(second_routes) == set(routes)
+    assert all(second_routes[key] is not routes[key] for key in routes)
+    assert second_routes["project_editor"] is second_pages[3]
+    assert second_routes["settings"] is second_pages[1]
+    assert second_routes["project_status"] is second_routes["project"]
+    assert second_routes["workflow"].kwargs["url_path"] == "WORKFLOW"
+    assert len(created_pages) == len(pages) * 2
     assert main_page._PAGE_CACHE_STATS["navigation_miss"] == 1
     assert main_page._PAGE_CACHE_STATS["navigation_hit"] == 1
 
@@ -1227,9 +1352,44 @@ def test_navigation_pages_reuses_cached_page_list_until_disabled(monkeypatch, re
     sentinel_page = main_page._PROJECT_PAGE_FILE.resolve()
     main_page._PAGE_MODULE_CACHE[sentinel_page] = (1, 1, "sentinel", object())
     assert main_page._navigation_pages() is not pages
-    assert len(created_pages) == len(pages) * 2
+    assert len(created_pages) == len(pages) * 3
     assert main_page._PAGE_CACHE_STATS["navigation_miss"] == 2
     assert sentinel_page in main_page._PAGE_MODULE_CACHE
+
+
+def test_navigation_page_registry_is_isolated_between_streamlit_sessions(monkeypatch):
+    main_page = _import_agilab_module("agilab.main_page")
+    main_page._NAVIGATION_PAGE_CACHE.clear()
+    main_page._PAGE_RUNNER_CACHE.clear()
+
+    def session_host(name):
+        created = []
+
+        def page(*args, **kwargs):
+            value = SimpleNamespace(session=name, args=args, kwargs=kwargs)
+            created.append(value)
+            return value
+
+        return SimpleNamespace(session_state={}, Page=page), created
+
+    first_st, first_created = session_host("first")
+    second_st, second_created = session_host("second")
+
+    monkeypatch.setattr(main_page, "st", first_st)
+    first_pages = main_page._navigation_pages()
+    first_routes = dict(main_page._NAVIGATION_PAGE_ROUTES)
+
+    monkeypatch.setattr(main_page, "st", second_st)
+    second_pages = main_page._navigation_pages()
+    second_routes = dict(main_page._NAVIGATION_PAGE_ROUTES)
+
+    assert first_created == first_pages
+    assert second_created == second_pages
+    assert all(second_routes[key] is not first_routes[key] for key in first_routes)
+    assert second_routes["analysis"] is second_pages[-1]
+
+    monkeypatch.setattr(main_page, "st", first_st)
+    assert dict(main_page._NAVIGATION_PAGE_ROUTES) == first_routes
 
 
 def test_navigation_page_signature_uses_passed_paths(tmp_path):
@@ -1357,7 +1517,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
 
     # Pre-inject environment into session state
-    env = AgiEnv(
+    env = AgiEnv.session(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
     env.init_done = True
@@ -1386,6 +1546,15 @@ def test_execute_page_cluster_settings(mock_ui_env):
             "scheduler": "127.0.0.1:8786",
         },
     }
+    update_app_settings_owned(
+        env.app_settings_file,
+        at.session_state["app_settings"],
+        owned_paths=(
+            ("cluster", "cluster_enabled"),
+            ("cluster", "pool"),
+            ("cluster", "scheduler"),
+        ),
+    )
     _seed_env_editor_state(at, env)
 
     at.run()
@@ -1693,17 +1862,26 @@ def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui
     env.envars = dict(getattr(env, "envars", {}) or {})
     env.envars["AGI_CLUSTER_SHARE"] = str(cluster_share)
     at.session_state["env"] = env
-    at.session_state["app_settings"] = {
-        "args": {},
-        "cluster": {
-            "cluster_enabled": True,
-            "cython": True,
-            "pool": True,
-            "scheduler": "192.168.20.111:8786",
-            "workers": {"192.168.20.111": 1, "192.168.20.15": 1},
-            "workers_data_path": str(cluster_share),
-        },
+    cluster_settings = {
+        "cluster_enabled": True,
+        "cython": True,
+        "pool": True,
+        "scheduler": "192.168.20.111:8786",
+        "workers": {"192.168.20.111": 1, "192.168.20.15": 1},
+        "workers_data_path": str(cluster_share),
     }
+    update_app_settings_owned(
+        env.app_settings_file,
+        {"cluster": cluster_settings},
+        owned_paths=(
+            ("cluster", "cluster_enabled"),
+            ("cluster", "cython"),
+            ("cluster", "pool"),
+            ("cluster", "scheduler"),
+            ("cluster", "workers"),
+            ("cluster", "workers_data_path"),
+        ),
+    )
     _seed_env_editor_state(at, env)
     calls: list[dict[str, object]] = []
 
@@ -2890,10 +3068,11 @@ def test_execute_page_workers_data_path(mock_ui_env):
     ).resolve()
     app_state_name = Path(str(env.app)).name
     at.session_state["env"] = env
-    at.session_state["app_settings"] = {
-        "args": {},
-        "cluster": {"cluster_enabled": True},
-    }
+    update_app_settings_owned(
+        env.app_settings_file,
+        {"cluster": {"cluster_enabled": True}},
+        owned_paths=(("cluster", "cluster_enabled"),),
+    )
     _seed_env_editor_state(at, env)
 
     at.run()
@@ -2909,10 +3088,7 @@ def test_execute_page_workers_data_path(mock_ui_env):
     cluster_state = (
         app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
     )
-    assert (
-        cluster_state.get("workers_data_path", at.session_state[wdp_key])
-        == "/data/shared"
-    )
+    assert cluster_state["workers_data_path"] == "/data/shared"
     with open(env.app_settings_file, "rb") as file:
         persisted_settings = tomllib.load(file)
     assert persisted_settings["cluster"]["workers_data_path"] == "/data/shared"

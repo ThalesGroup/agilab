@@ -367,7 +367,7 @@ def test_view_training_analysis_loads_and_persists_app_settings(tmp_path: Path) 
     assert module.st.session_state["app_settings"]["view_training_analysis"]["trainer"] == "alpha"
 
     module.st.session_state["app_settings"] = {"view_training_analysis": {"trainer": "beta"}}
-    module._persist_app_settings(env)
+    module._persist_app_settings(env, ("trainer",))
     assert "view_training_analysis" in settings_path.read_text(encoding="utf-8")
 
     module.st = SimpleNamespace(session_state={})
@@ -377,6 +377,29 @@ def test_view_training_analysis_loads_and_persists_app_settings(tmp_path: Path) 
 
     module.st = SimpleNamespace(session_state={"app_settings": {"pages": {module.PAGE_KEY: {"tags": ["x"]}}}})
     assert module._get_page_defaults() == {"tags": ["x"]}
+
+
+def test_view_training_analysis_preserves_other_session_leaf_and_page_reference(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text(
+        '[view_training_analysis]\ntrainer = "current"\nx_axis = "wall_time"\n',
+        encoding="utf-8",
+    )
+    page_state = {"trainer": "next", "x_axis": "stale"}
+    app_settings = {module.PAGE_KEY: page_state}
+    module.st = SimpleNamespace(session_state={"app_settings": app_settings})
+
+    module._persist_app_settings(
+        SimpleNamespace(app_settings_file=settings_path),
+        ("trainer",),
+    )
+
+    assert module.st.session_state["app_settings"] is app_settings
+    assert module.st.session_state["app_settings"][module.PAGE_KEY] is page_state
+    assert page_state == {"trainer": "next", "x_axis": "wall_time"}
 
 
 def test_view_training_analysis_repo_path_and_setting_helpers(monkeypatch, tmp_path: Path) -> None:
@@ -670,6 +693,10 @@ def test_view_training_analysis_main_bootstraps_env_when_missing(monkeypatch, tm
             self.AGILAB_EXPORT_ABS = str(export_root)
             self.init_done = False
 
+        @classmethod
+        def session_for_app(cls, *, apps_path, app, verbose):
+            return cls(apps_path, app, verbose)
+
     module.st = SimpleNamespace(
         session_state={},
         sidebar=SimpleNamespace(
@@ -739,6 +766,10 @@ def test_view_training_analysis_main_resets_state_when_active_app_changes(
             self.AGILAB_EXPORT_ABS = str(new_export)
             self.init_done = False
 
+        @classmethod
+        def session_for_app(cls, *, apps_path, app, verbose):
+            return cls(apps_path, app, verbose)
+
     module.st = SimpleNamespace(
         session_state={
             "env": old_env,
@@ -781,6 +812,10 @@ def test_view_training_analysis_main_resets_state_when_active_app_changes(
     assert module.st.session_state["env"].app == "new_trainer_project"
     assert module.st.session_state["env"].init_done is True
     assert module.st.session_state["app_settings"] == {
+        "__meta__": {
+            "schema": "agilab.app_settings.v1",
+            "version": 1,
+        },
         "view_training_analysis": {
             "base_dir_choice": "AGILAB_EXPORT",
             "datadir_rel": "",
@@ -794,7 +829,91 @@ def test_view_training_analysis_main_resets_state_when_active_app_changes(
     assert module.TRAINERS_KEY not in module.st.session_state
     assert module.RUN_ROOTS_KEY not in module.st.session_state
     assert module.TAGS_KEY not in module.st.session_state
-    assert any("No TensorBoard or training-history outputs found" in message for message in warnings_seen)
+    assert any(
+        "No TensorBoard or training-history outputs found" in message
+        for message in warnings_seen
+    )
+
+
+def test_view_training_analysis_replaces_stale_env_when_scope_key_is_current(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    active_app = tmp_path / "apps" / "trainer_project"
+    stale_app = tmp_path / "apps" / "other_trainer_project"
+    active_app.mkdir(parents=True)
+    stale_app.mkdir(parents=True)
+    stale_env = SimpleNamespace(apps_path=stale_app.parent, app=stale_app.name)
+    created: list[dict[str, object]] = []
+
+    class FakeEnv:
+        @classmethod
+        def session_for_app(cls, **kwargs):
+            env = SimpleNamespace(
+                apps_path=kwargs["apps_path"],
+                app=kwargs["app"],
+                init_done=False,
+            )
+            created.append(kwargs)
+            return env
+
+    module.st = SimpleNamespace(
+        session_state={
+            "env": stale_env,
+            module.APP_SCOPE_KEY: str(active_app.resolve()),
+        }
+    )
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
+    monkeypatch.setattr(module, "AgiEnv", FakeEnv)
+    monkeypatch.setattr(
+        module,
+        "reset_scoped_session_state",
+        lambda *_args, **_kwargs: pytest.fail("current page scope must not reset"),
+    )
+
+    env = module._ensure_app_scoped_env()
+
+    assert created == [
+        {"apps_path": active_app.parent, "app": active_app.name, "verbose": 0}
+    ]
+    assert env is not stale_env
+    assert env.init_done is True
+    assert module.st.session_state["env"] is env
+
+
+def test_view_training_analysis_rebinds_matching_env_after_scope_reset(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    active_app = tmp_path / "apps" / "trainer_project"
+    active_app.mkdir(parents=True)
+    matching_env = SimpleNamespace(
+        apps_path=active_app.parent,
+        app=active_app.name,
+    )
+    module.st = SimpleNamespace(
+        session_state={
+            "env": matching_env,
+            module.TAGS_KEY: ["stale-tag"],
+        }
+    )
+
+    class UnexpectedEnvFactory:
+        @classmethod
+        def session_for_app(cls, **_kwargs):
+            pytest.fail("matching environment must be rebound, not recreated")
+
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: active_app)
+    monkeypatch.setattr(module, "AgiEnv", UnexpectedEnvFactory)
+
+    env = module._ensure_app_scoped_env()
+
+    assert env is matching_env
+    assert module.st.session_state["env"] is matching_env
+    assert module.st.session_state[module.APP_SCOPE_KEY] == str(active_app.resolve())
+    assert module.TAGS_KEY not in module.st.session_state
 
 
 def test_view_training_analysis_main_plots_selected_metrics(monkeypatch, tmp_path: Path) -> None:
@@ -1018,16 +1137,25 @@ def test_view_training_analysis_handles_active_app_and_settings_error_paths(monk
     assert module.st.session_state["app_settings"] == {}
 
     module.st = SimpleNamespace(session_state={"app_settings": "bad"})
-    module._persist_app_settings(SimpleNamespace(app_settings_file=tmp_path / "persist.toml"))
+    module._persist_app_settings(
+        SimpleNamespace(app_settings_file=tmp_path / "persist.toml"), ()
+    )
     assert not (tmp_path / "persist.toml").exists()
 
-    module.st = SimpleNamespace(session_state={"app_settings": {"view_training_analysis": {}}})
+    module.st = SimpleNamespace(
+        session_state={
+            "app_settings": {"view_training_analysis": {"probe": "value"}}
+        }
+    )
     monkeypatch.setattr(
         module,
         "_dump_toml",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("dump failed")),
     )
-    module._persist_app_settings(SimpleNamespace(app_settings_file=tmp_path / "persist.toml"))
+    module._persist_app_settings(
+        SimpleNamespace(app_settings_file=tmp_path / "persist.toml"),
+        ("probe",),
+    )
 
     assert module._coerce_str_list(None) == []
     assert module._coerce_str_list(("a", "b", "a")) == ["a", "b"]
@@ -1044,21 +1172,26 @@ def test_view_training_analysis_unexpected_settings_helper_errors_propagate(
 
     module.st = SimpleNamespace(session_state={})
     monkeypatch.setattr(
-        module.tomllib,
-        "load",
+        module,
+        "read_app_settings",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad load")),
     )
     with pytest.raises(TypeError, match="bad load"):
         module._ensure_app_settings_loaded(SimpleNamespace(app_settings_file=settings_path))
 
-    module.st = SimpleNamespace(session_state={"app_settings": {module.PAGE_KEY: {}}})
+    module.st = SimpleNamespace(
+        session_state={"app_settings": {module.PAGE_KEY: {"probe": "value"}}}
+    )
     monkeypatch.setattr(
         module,
         "_dump_toml",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad dump")),
     )
     with pytest.raises(ValueError, match="bad dump"):
-        module._persist_app_settings(SimpleNamespace(app_settings_file=tmp_path / "persist.toml"))
+        module._persist_app_settings(
+            SimpleNamespace(app_settings_file=tmp_path / "persist.toml"),
+            ("probe",),
+        )
 
     monkeypatch.setattr(Path, "resolve", lambda self: (_ for _ in ()).throw(TypeError("bad path")))
     with pytest.raises(TypeError, match="bad path"):

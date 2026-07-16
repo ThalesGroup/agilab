@@ -162,6 +162,41 @@ def test_app_dispatch_smoke_moves_target_project_first(
     assert module.sys.path.count(str(src_root)) == 1
 
 
+def test_app_entrypoint_reuses_completed_token_without_repeating_callback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_core_module()
+    callback_count = 0
+
+    def _run_once(**_kwargs):
+        nonlocal callback_count
+        callback_count += 1
+        return {"summary_metrics": {"stage_completed": 1}}
+
+    monkeypatch.setattr(module, "_run_queue_family_app_once", _run_once)
+    kwargs = {
+        "repo_root": tmp_path,
+        "run_root": tmp_path / "run",
+        "project_name": "uav_queue_project",
+        "manager_package": "uav_queue",
+        "worker_package": "uav_queue_worker",
+        "manager_class_name": "UavQueue",
+        "args_class_name": "UavQueueArgs",
+        "worker_class_name": "UavQueueWorker",
+        "target": "queue_baseline",
+        "app_entry": "fake",
+        "idempotency_token": "direct-app:queue_baseline",
+    }
+
+    first = module._run_queue_family_app(**kwargs)
+    second = module._run_queue_family_app(**kwargs)
+
+    assert callback_count == 1
+    assert second == first
+    assert second["idempotency_token"] == "direct-app:queue_baseline"
+
+
 def test_app_dispatch_smoke_report_handles_load_failure(tmp_path: Path) -> None:
     module = _load_report_module()
     missing = tmp_path / "missing.json"
@@ -285,7 +320,7 @@ def test_app_dispatch_smoke_queue_runner_requires_expected_outputs(
         UavQueueWorker=FakeWorker,
     ))
 
-    with pytest.raises(FileNotFoundError, match="summary metrics"):
+    with pytest.raises(RuntimeError, match="summary metrics"):
         module._run_queue_family_app(
             repo_root=tmp_path,
             run_root=tmp_path / "run",
@@ -297,6 +332,7 @@ def test_app_dispatch_smoke_queue_runner_requires_expected_outputs(
             worker_class_name="UavQueueWorker",
             target="target",
             app_entry="fake",
+            idempotency_token="missing-summary:queue_baseline",
         )
 
 
@@ -334,7 +370,7 @@ def test_app_dispatch_smoke_queue_runner_requires_reduce_artifact(
         UavQueueWorker=FakeWorker,
     ))
 
-    with pytest.raises(FileNotFoundError, match="reduce artifact"):
+    with pytest.raises(RuntimeError, match="reduce artifact"):
         module._run_queue_family_app(
             repo_root=tmp_path,
             run_root=run_root,
@@ -346,4 +382,5 @@ def test_app_dispatch_smoke_queue_runner_requires_reduce_artifact(
             worker_class_name="UavQueueWorker",
             target="target",
             app_entry="fake",
+            idempotency_token="missing-reduce:queue_baseline",
         )

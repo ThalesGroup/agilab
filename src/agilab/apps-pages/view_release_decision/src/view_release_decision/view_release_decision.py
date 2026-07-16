@@ -44,7 +44,9 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_pages.runtime import (
+    active_app_scope_value,
     configure_streamlit_page,
+    env_app_scope_value,
     render_streamlit_page_header,
     reset_scoped_session_state,
 )
@@ -122,6 +124,22 @@ def _resolve_active_app() -> Path:
         st.error(f"Provided --active-app path not found: {active_app_path}")
         st.stop()
     return active_app_path
+
+
+def _ensure_app_scoped_env() -> AgiEnv:
+    active_app_path = _resolve_active_app()
+    env = st.session_state.get("env")
+    if env_app_scope_value(env) == active_app_scope_value(active_app_path):
+        return env
+
+    env = AgiEnv.session_for_app(
+        apps_path=active_app_path.parent,
+        app=active_app_path.name,
+        verbose=0,
+    )
+    env.init_done = True
+    st.session_state["env"] = env
+    return env
 
 
 def _connector_path_registry(env: AgiEnv) -> ConnectorPathRegistry:
@@ -2101,13 +2119,7 @@ def _render_release_decision_connector_live_ui(
 
 configure_streamlit_page(st, title="Evidence cockpit")
 
-if "env" not in st.session_state:
-    active_app_path = _resolve_active_app()
-    env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
-    env.init_done = True
-    st.session_state["env"] = env
-else:
-    env = st.session_state["env"]
+env = _ensure_app_scoped_env()
 _reset_app_scoped_session_defaults(st, env)
 
 render_streamlit_page_header(

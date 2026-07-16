@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import ast
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 import importlib
 import importlib.util
 import io
@@ -9,6 +11,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+import threading
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,6 +21,88 @@ import pandas as pd
 import pytest
 
 from agi_env import pagelib, ui_support
+from agi_env.ui.sidecar_registry import SidecarCollisionError, SidecarStartError
+
+
+class _TestSidecarRegistry:
+    """Exercise public wrapper wiring without launching real background services."""
+
+    def __init__(self) -> None:
+        self._leases: dict[tuple[str, str, str], SimpleNamespace] = {}
+        self._registry_lock = threading.RLock()
+        self._preparation_lock = threading.RLock()
+        self._preparation_condition = threading.Condition()
+        self.preparation_calls: list[dict[str, object]] = []
+        self.get_calls: list[dict[str, object]] = []
+        self.ensure_calls: list[dict[str, object]] = []
+
+    @staticmethod
+    def _lease_key(kwargs) -> tuple[str, str, str]:
+        return (
+            str(kwargs["service_kind"]),
+            str(kwargs["project"]),
+            str(kwargs["key"]),
+        )
+
+    @contextmanager
+    def preparation_guard(self, **kwargs):
+        with self._preparation_condition:
+            self.preparation_calls.append(dict(kwargs))
+            self._preparation_condition.notify_all()
+        with self._preparation_lock:
+            yield
+
+    def get(self, **kwargs):
+        self.get_calls.append(dict(kwargs))
+        with self._registry_lock:
+            return self._leases.get(self._lease_key(kwargs))
+
+    def ensure(self, **kwargs):
+        self.ensure_calls.append(dict(kwargs))
+        lease_key = self._lease_key(kwargs)
+        with self._registry_lock:
+            if kwargs.get("exclusive_for_project"):
+                for existing_key in self._leases:
+                    if existing_key[:2] == lease_key[:2] and existing_key != lease_key:
+                        raise SidecarCollisionError(
+                            "different project configuration already active"
+                        )
+            if kwargs.get("replace_existing_for_project"):
+                for existing_key in tuple(self._leases):
+                    if existing_key[:2] == lease_key[:2] and existing_key != lease_key:
+                        self._leases.pop(existing_key, None)
+            existing = self._leases.get(lease_key)
+            if existing is not None:
+                return existing
+
+            port = pagelib._next_free_port()
+            process = kwargs["launcher"](port, kwargs.get("token") or "test-token")
+            if kwargs["service_kind"] == "mlflow" and not pagelib._wait_for_listen_port(port):
+                terminate = getattr(process, "terminate", None)
+                if callable(terminate):
+                    terminate()
+                raise SidecarStartError(
+                    f"MLflow process did not open its listening port {port}"
+                )
+            endpoint_builder = kwargs.get("endpoint_builder")
+            endpoint = (
+                endpoint_builder(port)
+                if callable(endpoint_builder)
+                else f"http://127.0.0.1:{port}"
+            )
+            lease = SimpleNamespace(
+                endpoint=endpoint,
+                port=port,
+                token=kwargs.get("token") or "test-token",
+                health_signature="test-signature",
+            )
+            self._leases[lease_key] = lease
+            return lease
+
+
+@pytest.fixture(autouse=True)
+def _isolate_pagelib_sidecar_registry(monkeypatch):
+    monkeypatch.setattr(pagelib, "DEFAULT_SIDECAR_REGISTRY", _TestSidecarRegistry())
 
 
 def _patch_mlflow_cli(monkeypatch):
@@ -1022,6 +1107,182 @@ def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
     assert fake_st.session_state["mlflow_port"] == 50123
 
 
+def test_activate_mlflow_serializes_shared_tracking_dir_preparation_across_apps(
+    tmp_path,
+    monkeypatch,
+):
+    registry = _TestSidecarRegistry()
+    fake_st = SimpleNamespace(
+        session_state={},
+        error=lambda *_args, **_kwargs: None,
+        warning=lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(pagelib, "DEFAULT_SIDECAR_REGISTRY", registry)
+    monkeypatch.setattr(pagelib, "st", fake_st)
+    _patch_mlflow_cli(monkeypatch)
+    monkeypatch.setattr(pagelib, "get_random_port", lambda: 50123)
+    monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
+    monkeypatch.setattr(pagelib, "_wait_for_listen_port", lambda _port: True)
+    monkeypatch.setattr(
+        pagelib,
+        "_resolve_mlflow_artifact_dir",
+        lambda tracking_dir: tracking_dir / "artifacts",
+    )
+    monkeypatch.setattr(
+        pagelib,
+        "subproc",
+        lambda *_args, **_kwargs: SimpleNamespace(),
+    )
+
+    preparation_started = threading.Event()
+    release_preparation = threading.Event()
+    backend_preparations: list[Path] = []
+
+    def _prepare_backend(tracking_dir):
+        backend_preparations.append(tracking_dir)
+        preparation_started.set()
+        assert release_preparation.wait(timeout=5.0)
+        return "sqlite:///shared/mlflow.db"
+
+    monkeypatch.setattr(pagelib, "_ensure_default_mlflow_experiment", _prepare_backend)
+    monkeypatch.setattr(
+        pagelib,
+        "_ensure_mlflow_backend_ready",
+        lambda _tracking_dir: pytest.fail("fallback backend preparation should not run"),
+    )
+
+    env_a = SimpleNamespace(app="alpha_project", MLFLOW_TRACKING_DIR="", home_abs=tmp_path)
+    env_b = SimpleNamespace(app="beta_project", MLFLOW_TRACKING_DIR="", home_abs=tmp_path)
+    futures = []
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures.append(executor.submit(pagelib.activate_mlflow, env_a))
+        try:
+            assert preparation_started.wait(timeout=5.0)
+            futures.append(executor.submit(pagelib.activate_mlflow, env_b))
+            with registry._preparation_condition:
+                assert registry._preparation_condition.wait_for(
+                    lambda: len(registry.preparation_calls) == 2,
+                    timeout=5.0,
+                )
+        finally:
+            release_preparation.set()
+
+    assert [future.result() for future in futures] == [True, True]
+    expected_scope = str((tmp_path / ".mlflow").resolve())
+    assert backend_preparations == [Path(expected_scope)]
+    assert len(registry.ensure_calls) == 1
+    assert len(registry.get_calls) == 2
+    for call in (*registry.preparation_calls, *registry.get_calls, *registry.ensure_calls):
+        assert call["project"] == expected_scope
+        assert call["key"] == expected_scope
+    assert fake_st.session_state["mlflow_endpoint"] == "http://127.0.0.1:50123"
+
+
+def test_activate_mlflow_failed_revalidation_clears_stale_runtime_state(
+    tmp_path,
+    monkeypatch,
+):
+    class FailingRegistry(_TestSidecarRegistry):
+        def get(self, **kwargs):
+            super().get(**kwargs)
+            raise SidecarStartError("registered MLflow process is not healthy")
+
+    errors: list[str] = []
+    session_state = {
+        "server_started": True,
+        "mlflow_port": 50123,
+        "mlflow_endpoint": "http://127.0.0.1:50123",
+        "mlflow_health_signature": "stale-signature",
+    }
+    monkeypatch.setattr(
+        pagelib,
+        "st",
+        SimpleNamespace(
+            session_state=session_state,
+            error=lambda message: errors.append(str(message)),
+            warning=lambda *_args, **_kwargs: None,
+        ),
+    )
+    monkeypatch.setattr(pagelib, "DEFAULT_SIDECAR_REGISTRY", FailingRegistry())
+    monkeypatch.setattr(
+        pagelib,
+        "_ensure_default_mlflow_experiment",
+        lambda _tracking_dir: pytest.fail("backend preparation must not follow failed revalidation"),
+    )
+
+    started = pagelib.activate_mlflow(
+        SimpleNamespace(app="alpha_project", MLFLOW_TRACKING_DIR="", home_abs=tmp_path)
+    )
+
+    assert started is False
+    assert session_state["server_started"] is False
+    assert "mlflow_autostart_disabled" not in session_state
+    for state_key in ("mlflow_port", "mlflow_endpoint", "mlflow_health_signature"):
+        assert state_key not in session_state
+    assert any("registered MLflow process is not healthy" in message for message in errors)
+
+
+def test_activate_mlflow_retries_registry_revalidation_after_transient_failure(
+    tmp_path,
+    monkeypatch,
+):
+    lease = SimpleNamespace(
+        endpoint="http://127.0.0.1:50123",
+        port=50123,
+        health_signature="healthy-signature",
+    )
+
+    class RetryingRegistry:
+        def __init__(self):
+            self.get_calls = 0
+
+        @contextmanager
+        def preparation_guard(self, **_kwargs):
+            yield
+
+        def get(self, **_kwargs):
+            self.get_calls += 1
+            if self.get_calls == 1:
+                raise SidecarStartError("registry is temporarily busy")
+            return lease
+
+        def ensure(self, **_kwargs):
+            pytest.fail("a healthy revalidated lease must be reused")
+
+    registry = RetryingRegistry()
+    errors: list[str] = []
+    session_state: dict[str, object] = {}
+    monkeypatch.setattr(
+        pagelib,
+        "st",
+        SimpleNamespace(
+            session_state=session_state,
+            error=lambda message: errors.append(str(message)),
+            warning=lambda *_args, **_kwargs: None,
+        ),
+    )
+    monkeypatch.setattr(pagelib, "DEFAULT_SIDECAR_REGISTRY", registry)
+    monkeypatch.setattr(
+        pagelib,
+        "_ensure_default_mlflow_experiment",
+        lambda _tracking_dir: pytest.fail(
+            "healthy lease reuse must not prepare the backend"
+        ),
+    )
+    env = SimpleNamespace(
+        app="alpha_project",
+        MLFLOW_TRACKING_DIR="",
+        home_abs=tmp_path,
+    )
+
+    assert pagelib.activate_mlflow(env) is False
+    assert "mlflow_autostart_disabled" not in session_state
+    assert pagelib.activate_mlflow(env) is True
+    assert registry.get_calls == 2
+    assert session_state["mlflow_endpoint"] == lease.endpoint
+    assert "mlflow_status_message" not in session_state
+
+
 def test_activate_mlflow_migrates_legacy_filestore(tmp_path, monkeypatch):
     tracking_dir = (tmp_path / ".mlflow").resolve()
     (tracking_dir / "0").mkdir(parents=True)
@@ -1998,7 +2259,11 @@ def test_activate_gpt_oss_handles_missing_package_and_success(monkeypatch):
     monkeypatch.setattr(pagelib, "get_random_port", lambda: 50124)
     monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
     launched = {}
-    monkeypatch.setattr(pagelib, "subproc", lambda command, cwd: launched.setdefault("call", (command, cwd)))
+    monkeypatch.setattr(
+        pagelib,
+        "subproc",
+        lambda command, cwd, **_kwargs: launched.setdefault("call", (command, cwd)),
+    )
 
     assert pagelib.activate_gpt_oss(env) is True
     command = launched["call"][0]
@@ -2007,6 +2272,111 @@ def test_activate_gpt_oss_handles_missing_package_and_success(monkeypatch):
     assert fake_st.session_state["gpt_oss_server_started"] is True
     assert fake_st.session_state["gpt_oss_endpoint"] == "http://127.0.0.1:50124/v1/responses"
     assert env.envars["GPT_OSS_ENDPOINT"] == "http://127.0.0.1:50124/v1/responses"
+
+
+def test_activate_gpt_oss_failed_revalidation_clears_prior_success_state(monkeypatch):
+    class FlakyRegistry:
+        def __init__(self) -> None:
+            self.ensure_calls: list[dict[str, object]] = []
+
+        def ensure(self, **kwargs):
+            self.ensure_calls.append(dict(kwargs))
+            if len(self.ensure_calls) == 1:
+                return SimpleNamespace(
+                    endpoint="http://127.0.0.1:50124/custom-responses",
+                    port=50124,
+                    health_signature="healthy-signature",
+                )
+            raise SidecarStartError("registered GPT-OSS process is not healthy")
+
+    registry = FlakyRegistry()
+    errors: list[str] = []
+    session_state: dict[str, object] = {}
+    monkeypatch.setattr(
+        pagelib,
+        "st",
+        SimpleNamespace(
+            session_state=session_state,
+            warning=lambda *_args, **_kwargs: None,
+            error=lambda message: errors.append(str(message)),
+        ),
+    )
+    monkeypatch.setattr(pagelib, "DEFAULT_SIDECAR_REGISTRY", registry)
+    monkeypatch.setitem(sys.modules, "gpt_oss", SimpleNamespace())
+    env = SimpleNamespace(app="demo_project", envars={})
+
+    assert pagelib.activate_gpt_oss(env) is True
+    assert session_state["gpt_oss_endpoint"] == "http://127.0.0.1:50124/custom-responses"
+    assert env.envars["GPT_OSS_ENDPOINT"] == "http://127.0.0.1:50124/custom-responses"
+    assert registry.ensure_calls[0]["exclusive_for_project"] is True
+    assert "replace_existing_for_project" not in registry.ensure_calls[0]
+
+    assert pagelib.activate_gpt_oss(env) is False
+    for state_key in (
+        "gpt_oss_server_started",
+        "gpt_oss_port",
+        "gpt_oss_endpoint",
+        "gpt_oss_health_signature",
+        "gpt_oss_backend_active",
+        "gpt_oss_checkpoint_active",
+        "gpt_oss_extra_args_active",
+    ):
+        assert state_key not in session_state
+    assert "GPT_OSS_ENDPOINT" not in env.envars
+    assert session_state["gpt_oss_autostart_failed"] is True
+    assert registry.ensure_calls[1]["exclusive_for_project"] is True
+    assert "replace_existing_for_project" not in registry.ensure_calls[1]
+    assert any("registered GPT-OSS process is not healthy" in message for message in errors)
+
+
+def test_activate_gpt_oss_namespaces_same_app_name_by_resolved_project_root(
+    tmp_path,
+    monkeypatch,
+):
+    registry = _TestSidecarRegistry()
+    session_state: dict[str, object] = {}
+    monkeypatch.setattr(
+        pagelib,
+        "st",
+        SimpleNamespace(
+            session_state=session_state,
+            warning=lambda *_args, **_kwargs: None,
+            error=lambda *_args, **_kwargs: None,
+        ),
+    )
+    monkeypatch.setattr(pagelib, "DEFAULT_SIDECAR_REGISTRY", registry)
+    monkeypatch.setitem(sys.modules, "gpt_oss", SimpleNamespace())
+    monkeypatch.setattr(
+        pagelib,
+        "subproc",
+        lambda *_args, **_kwargs: SimpleNamespace(),
+    )
+    first_root = tmp_path / "checkout-a" / "apps" / "demo_project"
+    second_root = tmp_path / "checkout-b" / "apps" / "demo_project"
+    first = SimpleNamespace(
+        app="demo_project",
+        active_app=first_root,
+        envars={},
+    )
+    second = SimpleNamespace(
+        app="demo_project",
+        active_app=second_root,
+        envars={},
+    )
+
+    assert pagelib.activate_gpt_oss(first) is True
+    session_state["gpt_oss_extra_args"] = "--temperature 0.2"
+    assert pagelib.activate_gpt_oss(second) is True
+    session_state["gpt_oss_extra_args"] = "--temperature 0.4"
+    assert pagelib.activate_gpt_oss(first) is False
+
+    projects = [str(call["project"]) for call in registry.ensure_calls]
+    assert projects == [
+        str(first_root.resolve()),
+        str(second_root.resolve()),
+        str(first_root.resolve()),
+    ]
+    assert len(registry._leases) == 2
 
 
 def test_activate_gpt_oss_requires_checkpoint_for_transformers_backend(monkeypatch):
@@ -2200,9 +2570,18 @@ def test_activate_mlflow_and_gpt_oss_cover_no_env_and_runtime_failures(monkeypat
 
     errors.clear()
     fake_st.session_state["gpt_oss_server_started"] = True
+    monkeypatch.setitem(sys.modules, "gpt_oss", SimpleNamespace())
+    reverified_launches: list[object] = []
+    monkeypatch.setattr(
+        pagelib,
+        "subproc",
+        lambda command, _cwd, **_kwargs: reverified_launches.append(command),
+    )
     assert pagelib.activate_gpt_oss(SimpleNamespace(envars={})) is True
+    assert reverified_launches
 
     fake_st.session_state.clear()
+    monkeypatch.setattr(pagelib, "DEFAULT_SIDECAR_REGISTRY", _TestSidecarRegistry())
     monkeypatch.setitem(sys.modules, "gpt_oss", SimpleNamespace())
     monkeypatch.setattr(pagelib, "get_random_port", lambda: 50124)
     monkeypatch.setattr(pagelib, "is_port_in_use", lambda _port: False)
@@ -2776,7 +3155,7 @@ def test_activate_gpt_oss_transformers_backend_retries_busy_port_and_keeps_activ
     monkeypatch.setattr(
         pagelib,
         "subproc",
-        lambda command, cwd: launched.setdefault("call", (command, cwd)),
+        lambda command, cwd, **_kwargs: launched.setdefault("call", (command, cwd)),
     )
 
     env = SimpleNamespace(envars={})
@@ -2843,5 +3222,5 @@ def test_activate_mlflow_public_wrapper_does_not_strip_launch_options(tmp_path, 
     assert launched[0]["stdout"].name == str(tmp_path / ".mlflow" / "mlflow-server.log")
     assert launched[0]["stderr"] == pagelib.subprocess.STDOUT
     assert launched[0]["start_new_session"] is True
-    assert fake_st.session_state["mlflow_autostart_disabled"] is True
+    assert "mlflow_autostart_disabled" not in fake_st.session_state
     assert "mlflow-server.log" in fake_st.session_state["mlflow_status_message"]

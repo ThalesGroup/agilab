@@ -62,9 +62,8 @@ def _default_app() -> Path | None:
 
 
 from agi_env import AgiEnv
-from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
 from agi_gui.pagelib import find_files, load_df, render_dataframe_preview, _dump_toml_payload
-import tomllib as _toml
 
 
 # List of available color palettes
@@ -227,7 +226,7 @@ def _bootstrap_env_from_active_app() -> bool:
             continue
         _reset_app_scoped_session_state(candidate)
         try:
-            env = getattr(AgiEnv, "for_app", AgiEnv)(
+            env = AgiEnv.session_for_app(
                 apps_path=candidate.parent,
                 app=candidate.name,
                 verbose=1,
@@ -631,9 +630,8 @@ def page():
     settings_path = Path(env.app_settings_file)
     persisted = {}
     try:
-        with open(settings_path, "rb") as fh:
-            persisted = _toml.load(fh)
-    except (OSError, _toml.TOMLDecodeError):
+        persisted = read_app_settings(settings_path)
+    except (OSError, ValueError):
         logger.debug("Unable to load view_maps_3d settings from %s", settings_path, exc_info=True)
         persisted = {}
     view_settings = persisted.get("view_maps_3d", {}) if isinstance(persisted, dict) else {}
@@ -980,20 +978,23 @@ def page():
         "beam_files": st.session_state.get("beam_files", []),
         "coltype": st.session_state.get("coltype", ""),
     }
-    mutated = False
+    changed_keys: list[str] = []
     view_settings = persisted.get("view_maps_3d", {}) if isinstance(persisted, dict) else {}
     if not isinstance(view_settings, dict):
         view_settings = {}
     for k, v in save_settings.items():
         if view_settings.get(k) != v and v not in (None, ""):
             view_settings[k] = v
-            mutated = True
-    if mutated:
+            changed_keys.append(k)
+    if changed_keys:
         persisted["view_maps_3d"] = view_settings
         try:
-            settings_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(settings_path, "wb") as fh:
-                _dump_toml_payload(prepare_app_settings_for_write(persisted), fh)
+            persisted, _ = update_app_settings_owned(
+                settings_path,
+                persisted,
+                owned_paths=tuple(("view_maps_3d", key) for key in changed_keys),
+                dump_fn=_dump_toml_payload,
+            )
         except Exception:
             logger.warning("Unable to persist view_maps_3d settings to %s", settings_path, exc_info=True)
 
@@ -1405,7 +1406,7 @@ def main():
         st.session_state["apps_path"] = str(active_app.parent)
         st.session_state["app"] = app
 
-        env = getattr(AgiEnv, "for_app", AgiEnv)(
+        env = AgiEnv.session_for_app(
             apps_path=active_app.parent,
             app=app,
             verbose=1,

@@ -9,11 +9,13 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 from typing import Any, Callable, Mapping
 
 from agilab.security.secret_uri import redact_mapping, redact_text
+from agilab.agent_runtime.agent_trace import repair_jsonl_tail, trace_file_lock
 
 
 SCHEMA = "agilab.agent_tool_safety.v1"
@@ -335,8 +337,12 @@ class ProgressRecorder:
             metadata=redact_mapping(metadata or {}),
         )
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(asdict(record), sort_keys=True) + "\n")
+        with trace_file_lock(self.path):
+            repair_jsonl_tail(self.path)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(asdict(record), sort_keys=True) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
         return record
 
 
@@ -345,8 +351,20 @@ def load_progress_events(path: Path | str) -> list[dict[str, Any]]:
     progress_path = Path(path).expanduser()
     if not progress_path.exists():
         return []
-    return [
-        json.loads(line)
-        for line in progress_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    raw = progress_path.read_bytes()
+    has_unterminated_tail = bool(raw) and not raw.endswith(b"\n")
+    rows: list[dict[str, Any]] = []
+    lines = raw.splitlines()
+    for index, encoded_line in enumerate(lines):
+        if not encoded_line.strip():
+            continue
+        try:
+            payload = json.loads(encoded_line.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            if has_unterminated_tail and index == len(lines) - 1:
+                break
+            raise
+        if not isinstance(payload, dict):
+            raise ValueError(f"Progress JSONL record {index + 1} must be an object")
+        rows.append(payload)
+    return rows

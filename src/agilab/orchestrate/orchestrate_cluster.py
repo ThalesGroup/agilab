@@ -3,6 +3,7 @@ import json
 import os
 import platform
 import re
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +14,12 @@ import streamlit as st
 
 from agilab.cluster.cluster_lan_discovery import DiscoveryOptions, discover_lan_nodes
 from agilab.orchestrate.orchestrate_page_support import ORCHESTRATE_ACTION_LABELS
+from agilab.orchestrate.orchestrate_support import (
+    changed_app_settings_paths,
+    owned_app_settings_payload,
+    reconcile_untouched_widget_values,
+    remember_rendered_widget_values,
+)
 
 # Keep in sync with orchestrate_page_support.RUN_MODE_LABELS: the dask bit (4)
 # keeps the historical in-worker pooling behavior, so "dask" modes pool
@@ -106,9 +113,75 @@ def cluster_widget_keys(app_state_name: str) -> dict[str, str]:
     }
 
 
+def cluster_widget_baseline_key(app_state_name: str) -> str:
+    return f"cluster_widget_values__{app_state_name}"
+
+
+def cluster_widget_values(
+    app_state_name: str,
+    cluster_params: dict[str, Any],
+    *,
+    is_managed_pc: bool,
+) -> dict[str, Any]:
+    """Return persisted cluster values in their Streamlit widget representation."""
+
+    widget_keys = cluster_widget_keys(app_state_name)
+    workers_value = cluster_params.get("workers", {})
+    if isinstance(workers_value, dict):
+        workers_widget_value = json.dumps(workers_value, indent=2)
+    elif workers_value in (None, ""):
+        workers_widget_value = ""
+    else:
+        workers_widget_value = str(workers_value)
+
+    auth_method = cluster_params.get("auth_method")
+    use_key = bool(cluster_params.get("ssh_key_path"))
+    if isinstance(auth_method, str):
+        use_key = auth_method.lower() == "ssh_key"
+
+    return {
+        widget_keys["cluster_enabled"]: bool(
+            cluster_params.get("cluster_enabled", False)
+        ),
+        widget_keys["cython"]: bool(cluster_params.get("cython", False)),
+        widget_keys["pool"]: bool(cluster_params.get("pool", False)),
+        widget_keys["rapids"]: False
+        if is_managed_pc
+        else bool(cluster_params.get("rapids", False)),
+        widget_keys["pool_max_workers"]: _optional_positive_int(
+            cluster_params.get("pool_max_workers")
+        )
+        or 0,
+        widget_keys["pool_item_timeout"]: _optional_positive_float(
+            cluster_params.get("pool_item_timeout")
+        )
+        or 0.0,
+        widget_keys["pool_executor"]: _pool_executor_value(
+            cluster_params.get("pool_executor")
+        ),
+        widget_keys["scheduler"]: str(cluster_params.get("scheduler", "") or ""),
+        widget_keys["user"]: str(cluster_params.get("user", "") or ""),
+        widget_keys["use_key"]: use_key,
+        widget_keys["ssh_key_path"]: str(
+            cluster_params.get("ssh_key_path", "") or ""
+        ),
+        widget_keys["workflow_session_policy"]: _workflow_session_policy(
+            cluster_params.get("workflow_session_policy")
+        ),
+        widget_keys["workflow_session"]: _safe_workflow_component(
+            cluster_params.get("workflow_session"), ""
+        ),
+        widget_keys["workers_data_path"]: str(
+            cluster_params.get("workers_data_path", "") or ""
+        ),
+        widget_keys["workers"]: workers_widget_value,
+    }
+
+
 def clear_cluster_widget_state(session_state, app_state_name: str) -> None:
     for widget_key in cluster_widget_keys(app_state_name).values():
         session_state.pop(widget_key, None)
+    session_state.pop(cluster_widget_baseline_key(app_state_name), None)
 
 
 def hydrate_cluster_widget_state(
@@ -119,54 +192,12 @@ def hydrate_cluster_widget_state(
     is_managed_pc: bool,
 ) -> None:
     widget_keys = cluster_widget_keys(app_state_name)
-    session_state.setdefault(widget_keys["cluster_enabled"], bool(cluster_params.get("cluster_enabled", False)))
-    session_state.setdefault(widget_keys["cython"], bool(cluster_params.get("cython", False)))
-    session_state.setdefault(widget_keys["pool"], bool(cluster_params.get("pool", False)))
-    session_state.setdefault(
-        widget_keys["pool_max_workers"],
-        _optional_positive_int(cluster_params.get("pool_max_workers")) or 0,
-    )
-    session_state.setdefault(
-        widget_keys["pool_item_timeout"],
-        _optional_positive_float(cluster_params.get("pool_item_timeout")) or 0.0,
-    )
-    session_state.setdefault(
-        widget_keys["pool_executor"],
-        _pool_executor_value(cluster_params.get("pool_executor")),
-    )
-    session_state.setdefault(
-        widget_keys["workflow_session_policy"],
-        _workflow_session_policy(cluster_params.get("workflow_session_policy")),
-    )
-    session_state.setdefault(
-        widget_keys["workflow_session"],
-        _safe_workflow_component(cluster_params.get("workflow_session"), ""),
-    )
-    if is_managed_pc:
-        session_state[widget_keys["rapids"]] = False
-    else:
-        session_state.setdefault(widget_keys["rapids"], bool(cluster_params.get("rapids", False)))
-
-    session_state.setdefault(widget_keys["scheduler"], str(cluster_params.get("scheduler", "") or ""))
-    session_state.setdefault(widget_keys["user"], str(cluster_params.get("user", "") or ""))
-    session_state.setdefault(widget_keys["ssh_key_path"], str(cluster_params.get("ssh_key_path", "") or ""))
-    session_state.setdefault(widget_keys["workers_data_path"], str(cluster_params.get("workers_data_path", "") or ""))
-
-    workers_value = cluster_params.get("workers", {})
-    workers_key = widget_keys["workers"]
-    if workers_key not in session_state:
-        if isinstance(workers_value, dict):
-            session_state[workers_key] = json.dumps(workers_value, indent=2)
-        elif workers_value in (None, ""):
-            session_state[workers_key] = ""
-        else:
-            session_state[workers_key] = str(workers_value)
-
-    auth_method = cluster_params.get("auth_method")
-    use_key = bool(cluster_params.get("ssh_key_path"))
-    if isinstance(auth_method, str):
-        use_key = auth_method.lower() == "ssh_key"
-    session_state.setdefault(widget_keys["use_key"], use_key)
+    for widget_key, value in cluster_widget_values(
+        app_state_name,
+        cluster_params,
+        is_managed_pc=is_managed_pc,
+    ).items():
+        session_state.setdefault(widget_key, value)
     session_state.pop(widget_keys["password"], None)
 
 
@@ -1144,10 +1175,26 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
         st.session_state["app_settings"] = app_settings
 
     cluster_params = app_settings.setdefault("cluster", {})
+    cluster_before_render = deepcopy(cluster_params)
     app_state_name = Path(str(env.app)).name if env.app else ""
+    widget_keys = cluster_widget_keys(app_state_name)
+    widget_baseline_key = cluster_widget_baseline_key(app_state_name)
+    is_initial_widget_render = widget_baseline_key not in st.session_state
+    persisted_widget_values = cluster_widget_values(
+        app_state_name,
+        cluster_params,
+        is_managed_pc=bool(env.is_managed_pc),
+    )
+    reconcile_untouched_widget_values(
+        st.session_state,
+        baseline_key=widget_baseline_key,
+        desired_values={
+            widget_keys[name]: persisted_widget_values[widget_keys[name]]
+            for name in ("cluster_enabled", "cython", "pool", "rapids")
+        },
+    )
     workflow_id = _orchestrate_workflow_id(cluster_params, env)
     cluster_params["workflow_id"] = workflow_id
-    widget_keys = cluster_widget_keys(app_state_name)
     env_home = _env_home_path(env)
     lan_cache_path = _default_lan_discovery_cache_path(env_home)
 
@@ -1171,6 +1218,18 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
 
     pool_enabled = bool(cluster_params.get("pool", False))
     if pool_enabled:
+        reconcile_untouched_widget_values(
+            st.session_state,
+            baseline_key=widget_baseline_key,
+            desired_values={
+                widget_keys[name]: persisted_widget_values[widget_keys[name]]
+                for name in (
+                    "pool_max_workers",
+                    "pool_item_timeout",
+                    "pool_executor",
+                )
+            },
+        )
         with st.container():
             st.markdown("**Pool parameters**")
             pool_cols = st.columns(3)
@@ -1288,6 +1347,39 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
         cluster_params["cluster_enabled"] = bool(cluster_enabled)
 
     if cluster_enabled:
+        active_widget_values = dict(persisted_widget_values)
+        if cluster_params.get("user") in (None, ""):
+            active_widget_values[widget_keys["user"]] = str(env.user or "")
+        active_widget_values[widget_keys["workflow_session_policy"]] = (
+            _workflow_session_policy(
+                cluster_params.get("workflow_session_policy")
+                or _env_value(env, WORKFLOW_SESSION_POLICY_ENV)
+            )
+        )
+        active_widget_values[widget_keys["workflow_session"]] = (
+            _safe_workflow_component(
+                cluster_params.get("workflow_session")
+                or _env_value(env, WORKFLOW_SESSION_ENV),
+                "",
+            )
+        )
+        reconcile_untouched_widget_values(
+            st.session_state,
+            baseline_key=widget_baseline_key,
+            desired_values={
+                widget_keys[name]: active_widget_values[widget_keys[name]]
+                for name in (
+                    "scheduler",
+                    "user",
+                    "use_key",
+                    "ssh_key_path",
+                    "workflow_session_policy",
+                    "workflow_session",
+                    "workers_data_path",
+                    "workers",
+                )
+            },
+        )
         scheduler_widget_key = widget_keys["scheduler"]
         cluster_share_candidate = _env_cluster_share_candidate(env)
         lan_action_cols = st.columns(3)
@@ -1747,12 +1839,50 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
     if show_run_mode_info:
         st.info(f"Run mode {RUN_MODE_LABELS[mode_value]}")
     st.session_state.app_settings["cluster"] = cluster_params
-
-    st.session_state.app_settings = deps.write_app_settings_toml(
-        env.app_settings_file,
-        st.session_state.app_settings,
+    remember_rendered_widget_values(
+        st.session_state,
+        baseline_key=widget_baseline_key,
+        widget_keys=cluster_widget_values(
+            app_state_name,
+            cluster_params,
+            is_managed_pc=bool(env.is_managed_pc),
+        ),
     )
-    try:
-        deps.clear_load_toml_cache()
-    except (AttributeError, RuntimeError):
-        pass
+
+    cluster_owned_paths = tuple(
+        path
+        for path in changed_app_settings_paths(
+            cluster_before_render,
+            cluster_params,
+            prefix=("cluster",),
+        )
+        if path[:2] != ("cluster", "service_health")
+    )
+    cluster_default_paths = (
+        tuple(
+            path
+            for path in changed_app_settings_paths(
+                {},
+                cluster_params,
+                prefix=("cluster",),
+            )
+            if path not in cluster_owned_paths
+            and path[:2] != ("cluster", "service_health")
+        )
+        if is_initial_widget_render
+        else ()
+    )
+    if cluster_owned_paths or cluster_default_paths:
+        st.session_state.app_settings = deps.write_app_settings_toml(
+            env.app_settings_file,
+            owned_app_settings_payload(
+                st.session_state.app_settings,
+                *cluster_owned_paths,
+                default_paths=cluster_default_paths,
+                preserved_paths=(("args",),),
+            ),
+        )
+        try:
+            deps.clear_load_toml_cache()
+        except (AttributeError, RuntimeError):
+            pass

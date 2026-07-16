@@ -124,7 +124,7 @@ def test_configure_worker_runtime_copies_packaged_app_when_worker_is_missing(tmp
     assert env.worker_path == env.active_app / "src" / "demo_worker" / "demo_worker.py"
 
 
-def test_configure_worker_runtime_sets_free_threading_and_clears_distribution_tree(tmp_path: Path):
+def test_configure_worker_runtime_sets_free_threading_and_preserves_distribution_tree(tmp_path: Path):
     env = _dummy_env(tmp_path)
     home_abs = tmp_path / "home"
     worker_dir = home_abs / "wenv" / "demo_worker" / "src" / "demo_worker"
@@ -136,7 +136,8 @@ def test_configure_worker_runtime_sets_free_threading_and_clears_distribution_tr
     )
     stale_plan = home_abs / "wenv" / "demo_worker" / "distribution_tree.json"
     stale_plan.parent.mkdir(parents=True, exist_ok=True)
-    stale_plan.write_text("{}", encoding="utf-8")
+    persisted_plan = '{"workers": ["node-a"]}'
+    stale_plan.write_text(persisted_plan, encoding="utf-8")
 
     sys_path = []
     pythonpath_entries = []
@@ -159,7 +160,7 @@ def test_configure_worker_runtime_sets_free_threading_and_clears_distribution_tr
     )
 
     assert env.distribution_tree == stale_plan
-    assert not stale_plan.exists()
+    assert stale_plan.read_text(encoding="utf-8") == persisted_plan
     assert env.uv_worker == "PYTHON_GIL=0 uv"
     assert env.pyvers_worker == "3.13t"
     assert pythonpath_entries == ["PYTHONPATH-entry"]

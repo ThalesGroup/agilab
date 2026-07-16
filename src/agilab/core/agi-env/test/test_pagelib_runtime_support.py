@@ -386,6 +386,7 @@ def test_activate_gpt_oss_support_clears_empty_checkpoint_and_extra_args(monkeyp
     command = launched[0][0]
     assert command[:3] == [sys.executable, "-m", "gpt_oss.responses_api.serve"]
     assert command[command.index("--inference-backend") + 1] == "stub"
+    assert command[command.index("--host") + 1] == "127.0.0.1"
 
 
 def test_activate_gpt_oss_support_handles_existing_import_missing_checkpoint_and_start_failure(monkeypatch):

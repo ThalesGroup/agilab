@@ -5,7 +5,6 @@ import importlib.util
 import sys
 import tomllib
 from collections.abc import Mapping
-from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -271,29 +270,6 @@ def configured_app_surface_entrypoint(
     return resolve_app_surface_entrypoint(active_app, spec.entrypoint)
 
 
-@contextmanager
-def _temporary_sys_path(paths: list[Path]):
-    previous = list(sys.path)
-    try:
-        for path in reversed(paths):
-            entry = str(path)
-            sys.path[:] = [existing for existing in sys.path if existing != entry]
-            sys.path.insert(0, entry)
-        yield
-    finally:
-        sys.path[:] = previous
-
-
-@contextmanager
-def _temporary_argv(entrypoint: Path, active_app: Path):
-    previous = list(sys.argv)
-    sys.argv = [str(entrypoint), "--active-app", str(active_app)]
-    try:
-        yield
-    finally:
-        sys.argv = previous
-
-
 def _load_module_from_path(entrypoint: Path) -> ModuleType:
     digest = hashlib.sha1(str(entrypoint).encode("utf-8")).hexdigest()[:12]
     module_name = f"_agilab_app_surface_{digest}"
@@ -304,6 +280,23 @@ def _load_module_from_path(entrypoint: Path) -> ModuleType:
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _isolated_import_process_state() -> Any:
+    """Load the optional UI/runtime guard only when inline rendering starts."""
+
+    try:
+        from agi_env.ui.sidecar_registry import isolated_import_process_state
+    except ModuleNotFoundError as exc:
+        if exc.name and not (
+            exc.name == "agi_env" or exc.name.startswith("agi_env.")
+        ):
+            raise
+        raise ModuleNotFoundError(
+            "Inline app-surface rendering requires the AGILAB UI runtime; "
+            "install it with `python -m pip install 'agilab[ui]'`."
+        ) from exc
+    return isolated_import_process_state
 
 
 def render_app_surface(
@@ -326,7 +319,12 @@ def render_app_surface(
     entrypoint = resolve_app_surface_entrypoint(active_app_path, selected.entrypoint)
     if entrypoint is None:
         return False
-    with _temporary_sys_path([active_app_path / "src", entrypoint.parent]), _temporary_argv(entrypoint, active_app_path):
+    import_roots = (active_app_path / "src", entrypoint.parent)
+    with _isolated_import_process_state()(
+        argv=[str(entrypoint), "--active-app", str(active_app_path)],
+        prepend_paths=import_roots,
+        module_roots=import_roots,
+    ):
         module = _load_module_from_path(entrypoint)
         render = getattr(module, "render", None)
         if not callable(render):

@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
 import traceback
+import uuid
 from contextlib import suppress
 from pathlib import Path
 from typing import Any, Callable
@@ -13,6 +15,51 @@ SERVICE_TASK_SCHEMA = "agi.service.task.v1"
 SERVICE_TASK_SUFFIX = ".task.json"
 LEGACY_SERVICE_TASK_SUFFIX = ".task.pkl"
 SERVICE_TASK_EXECUTION_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
+
+
+def _flush_and_fsync(stream: Any, *, os_module: Any = os) -> None:
+    """Flush one temp file and fsync it when the platform supports that."""
+
+    stream.flush()
+    fsync = getattr(os_module, "fsync", None)
+    fileno = getattr(stream, "fileno", None)
+    if not callable(fsync) or not callable(fileno):
+        return
+    try:
+        fsync(fileno())
+    except (AttributeError, OSError, TypeError, ValueError):
+        # Some virtual/Windows filesystems do not expose a syncable descriptor.
+        pass
+
+
+def _fsync_directory(path: Path, *, os_module: Any = os) -> None:
+    """Best-effort directory durability after an atomic rename."""
+
+    open_dir = getattr(os_module, "open", None)
+    close_fd = getattr(os_module, "close", None)
+    fsync = getattr(os_module, "fsync", None)
+    read_only = getattr(os_module, "O_RDONLY", None)
+    if (
+        not callable(open_dir)
+        or not callable(close_fd)
+        or not callable(fsync)
+        or read_only is None
+    ):
+        return
+    flags = int(read_only) | int(getattr(os_module, "O_DIRECTORY", 0))
+    try:
+        fd = open_dir(path, flags)
+    except (AttributeError, OSError, TypeError, ValueError):
+        return
+    try:
+        fsync(fd)
+    except (AttributeError, OSError, TypeError, ValueError):
+        pass
+    finally:
+        try:
+            close_fd(fd)
+        except (AttributeError, OSError, TypeError, ValueError):
+            pass
 
 
 def resolve_service_queue_root(
@@ -49,22 +96,29 @@ def make_heartbeat_writer(
     heartbeat_dir.mkdir(parents=True, exist_ok=True)
     safe_worker = re.sub(r"[^a-zA-Z0-9_.-]+", "-", str(worker_name or worker_id)).strip("-")
     heartbeat_file = heartbeat_dir / f"{worker_id:03d}-{safe_worker or 'worker'}.json"
+    worker_incarnation = uuid.uuid4().hex
 
     def _write_heartbeat(state: str) -> None:
+        process_pid = pid_factory()
         payload = {
             "worker_id": worker_id,
             "worker": str(worker_name),
-            "pid": pid_factory(),
+            "pid": process_pid,
+            "worker_incarnation": worker_incarnation,
             "timestamp": time_module.time(),
             "state": state,
         }
-        tmp = heartbeat_file.with_suffix(heartbeat_file.suffix + ".tmp")
+        tmp = heartbeat_file.with_suffix(
+            heartbeat_file.suffix + f".{process_pid}-{uuid.uuid4().hex}.tmp"
+        )
         try:
             with open_fn(tmp, "w", encoding="utf-8") as stream:
                 json_module.dump(payload, stream)
+                _flush_and_fsync(stream, os_module=os_module)
             os_module.replace(tmp, heartbeat_file)
+            _fsync_directory(heartbeat_file.parent, os_module=os_module)
         except OSError:
-            with suppress(FileNotFoundError):
+            with suppress(OSError):
                 tmp.unlink()
             logger_obj.debug(
                 "worker #%s: failed to write service heartbeat",
@@ -72,6 +126,10 @@ def make_heartbeat_writer(
                 exc_info=True,
             )
 
+    # The queue consumer binds every running claim to the same unique token.
+    # Recovery can therefore distinguish a live claimant from a replacement
+    # worker that happens to reuse the same scheduler worker name.
+    setattr(_write_heartbeat, "worker_incarnation", worker_incarnation)
     return _write_heartbeat
 
 
@@ -101,11 +159,19 @@ def _dump_service_payload(
     pickle_module: Any | None = None,
     os_module: Any = os,
 ) -> None:
-    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp = path.with_suffix(path.suffix + f".{uuid.uuid4().hex}.tmp")
     payload.setdefault("schema", SERVICE_TASK_SCHEMA)
-    with open_fn(tmp, "w", encoding="utf-8") as stream:
-        json_module.dump(payload, stream, sort_keys=True)
-    os_module.replace(tmp, path)
+    try:
+        with open_fn(tmp, "w", encoding="utf-8") as stream:
+            json_module.dump(payload, stream, sort_keys=True)
+            _flush_and_fsync(stream, os_module=os_module)
+        os_module.replace(tmp, path)
+        _fsync_directory(path.parent, os_module=os_module)
+    finally:
+        # Publication failures must not leave ambiguous temp artifacts.  The
+        # canonical running claim remains the durable task evidence.
+        with suppress(OSError):
+            tmp.unlink()
 
 
 def _load_service_payload(
@@ -185,6 +251,9 @@ def run_service_queue(
         TypeError,
         json_decode_error,
     )
+    worker_incarnation = str(
+        getattr(write_heartbeat, "worker_incarnation", "") or uuid.uuid4().hex
+    )
 
     write_heartbeat("running")
     while not stop_event.is_set():
@@ -226,16 +295,53 @@ def run_service_queue(
             ):
                 continue
 
-            running_path = queue_dirs["running"] / pending_path.name
+            task_basename = pending_path.name[: -len(SERVICE_TASK_SUFFIX)]
+            running_path = queue_dirs["running"] / (
+                f"{task_basename}.claim-{uuid.uuid4().hex}{SERVICE_TASK_SUFFIX}"
+            )
             try:
                 pending_path.replace(running_path)
             except FileNotFoundError:
                 continue
+            _fsync_directory(running_path.parent, os_module=os_module)
+            _fsync_directory(pending_path.parent, os_module=os_module)
 
             claimed = True
             task_start = time_module.time()
+            payload["claim"] = {
+                "worker_id": worker_id,
+                "worker": str(worker_name),
+                "worker_incarnation": worker_incarnation,
+                "claimed_at": task_start,
+                "task_filename": pending_path.name,
+            }
+            # Publish the ownership binding before work begins.  A crash after
+            # this point leaves a claim that can be matched only by this worker
+            # incarnation, never by a later worker reusing the same name.
+            _dump_service_payload(
+                running_path,
+                payload,
+                open_fn=open_fn,
+                json_module=json_module,
+                pickle_module=pickle_module,
+                os_module=os_module,
+            )
+            heartbeat_stop = threading.Event()
+            heartbeat_interval = min(max(idle_wait, 0.1), 5.0)
+            publication_succeeded = False
+
+            def _pulse_processing_heartbeat() -> None:
+                while not heartbeat_stop.wait(heartbeat_interval):
+                    write_heartbeat("processing")
+
+            heartbeat_thread = threading.Thread(
+                target=_pulse_processing_heartbeat,
+                name=f"agi-service-heartbeat-{worker_id}",
+                daemon=True,
+            )
             try:
                 write_heartbeat("processing")
+                heartbeat_thread.start()
                 logs = do_works_fn(
                     payload.get("plan", []),
                     payload.get("metadata", []),
@@ -246,15 +352,6 @@ def run_service_queue(
                 payload["worker_id"] = worker_id
                 payload["worker_name"] = worker_name
                 payload["logs"] = logs
-                _dump_service_payload(
-                    queue_dirs["done"] / pending_path.name,
-                    payload,
-                    open_fn=open_fn,
-                    json_module=json_module,
-                    pickle_module=pickle_module,
-                    os_module=os_module,
-                )
-                processed += 1
             # Worker code can fail arbitrarily; persist the failure and keep the queue alive.
             except SERVICE_TASK_EXECUTION_EXCEPTIONS as exc:
                 payload["status"] = "failed"
@@ -264,24 +361,45 @@ def run_service_queue(
                 payload["worker_name"] = worker_name
                 payload["error"] = str(exc)
                 payload["traceback"] = traceback_module.format_exc()
+                destination = queue_dirs["failed"] / pending_path.name
+                logger_obj.exception(
+                    "worker #%s: service task failed (%s)",
+                    worker_id,
+                    pending_path.name,
+                )
+            else:
+                destination = queue_dirs["done"] / pending_path.name
+
+            try:
                 _dump_service_payload(
-                    queue_dirs["failed"] / pending_path.name,
+                    destination,
                     payload,
                     open_fn=open_fn,
                     json_module=json_module,
                     pickle_module=pickle_module,
                     os_module=os_module,
                 )
-                failures += 1
+                publication_succeeded = True
+                if payload["status"] == "done":
+                    processed += 1
+                else:
+                    failures += 1
+            except SERVICE_TASK_EXECUTION_EXCEPTIONS:
                 logger_obj.exception(
-                    "worker #%s: service task failed (%s)",
+                    "worker #%s: failed to publish terminal service task %s; "
+                    "preserving the running claim",
                     worker_id,
                     pending_path.name,
                 )
             finally:
+                heartbeat_stop.set()
+                if heartbeat_thread.is_alive():
+                    heartbeat_thread.join(timeout=heartbeat_interval + 0.5)
                 write_heartbeat("running")
-                with suppress(FileNotFoundError):
-                    running_path.unlink()
+                if publication_succeeded:
+                    with suppress(FileNotFoundError):
+                        running_path.unlink()
+                    _fsync_directory(running_path.parent, os_module=os_module)
             break
 
         if not claimed:

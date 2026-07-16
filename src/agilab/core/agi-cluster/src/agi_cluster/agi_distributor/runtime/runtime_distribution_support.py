@@ -3,12 +3,16 @@ import contextlib
 import inspect
 import logging
 import os
+import signal
 import shlex
+import subprocess
 import time
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path, PurePath
 from typing import Any, Callable, Dict, Optional
 from zipfile import BadZipFile, ZipFile
+
+import psutil
 
 from agi_cluster.agi_distributor import background_jobs_support, deployment_remote_support
 from agi_env.process_support import project_virtualenv_script_path
@@ -16,9 +20,25 @@ from agi_env.process_support import project_virtualenv_script_path
 
 logger = logging.getLogger(__name__)
 
+RUNTIME_CLEANUP_TIMEOUT_SECONDS = 30.0
+
+
+class RuntimeCleanupRequiredError(RuntimeError):
+    """Raised when owned runtime shutdown cannot be proven within its bound."""
+
+
 _CMD_PREFIX_LOOKUP_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
 _WORKER_START_EXCEPTIONS = (ConnectionError, FileNotFoundError, OSError, RuntimeError, TimeoutError)
 _SYNC_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
+_BACKGROUND_TREE_CLEANUP_EXCEPTIONS = (
+    AttributeError,
+    OSError,
+    RuntimeError,
+    subprocess.SubprocessError,
+    TypeError,
+    ValueError,
+    psutil.Error,
+)
 _STOP_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
 _TOP_LEVEL_UI_MODULE_SUFFIX = "_args_form.py"
 _TOP_LEVEL_UI_BYTECODE_SUFFIX = "_args_form."
@@ -152,7 +172,7 @@ def _remote_dask_worker_command(
         f"{uv_parts} --project {_remote_path(worker_path)} run --no-sync "
         f"dask worker {shlex.quote(f'tcp://{scheduler}')} --no-nanny "
         f"{port_clause}"
-        f"--pid-file {_remote_path(worker_path.parent / pid_file)}"
+        f"--pid-file {_remote_path(worker_path / pid_file)}"
     )
 
 
@@ -366,9 +386,9 @@ async def run_local(
         raise FileNotFoundError("Worker installation (.venv) not found")
     validate_worker_uv_sources_fn(env.wenv_abs / "pyproject.toml")
 
-    # Write the pid file where the cleanup scanners look for it
-    # (env.wenv_abs.parent/*.pid), not the arbitrary launch CWD.
-    pid_file = Path(env.wenv_abs).parent / "dask_worker_0.pid"
+    # Keep ownership evidence inside the exact worker runtime so concurrent
+    # managers cannot consume another target's shared-parent PID record.
+    pid_file = Path(env.wenv_abs) / "dask_worker_0.pid"
     current_pid = os.getpid()
     pid_file.parent.mkdir(parents=True, exist_ok=True)
     with open(pid_file, "w", encoding="utf-8") as stream:
@@ -473,8 +493,29 @@ async def start(
     env = agi_cls.env
     dask_env = dask_env_prefix(agi_cls)
 
+    # Establish task ownership before any scheduler/worker process is spawned
+    # so partial startup can always cancel and await every launch operation.
+    agi_cls._scheduler_launch_tasks = set()
+    agi_cls._scheduler_launch_errors = []
+    agi_cls._worker_launch_tasks = set()
+    agi_cls._worker_launch_errors = []
+
+    acquire_remote_lease = getattr(agi_cls, "_acquire_remote_target_lease", None)
+    if callable(acquire_remote_lease) and getattr(
+        agi_cls, "_lifecycle_call_token", None
+    ):
+        target_ips = set(agi_cls._workers)
+        target_ips.add(agi_cls._get_scheduler(scheduler)[0])
+        for ip in sorted(target_ips):
+            if not env.is_local(ip):
+                await acquire_remote_lease(ip)
+
     if not await agi_cls._start_scheduler(scheduler):
         return False
+
+    scheduler_errors = getattr(agi_cls, "_scheduler_launch_errors", None) or []
+    if scheduler_errors:
+        raise scheduler_errors[0]
 
     await ensure_remote_cluster_shares(agi_cls)
 
@@ -487,7 +528,6 @@ async def start(
     agi_cls._worker_launch_errors = launch_errors
 
     def _on_worker_launch_done(task: Any) -> None:
-        launch_tasks.discard(task)
         if task.cancelled():
             return
         exc = task.exception()
@@ -802,13 +842,17 @@ async def main(
         )
         res = time_fn() - started_at
     elif agi_cls._mode & agi_cls.DASK_MODE:
-        await _run_timed_phase(
-            agi_cls,
-            "start-dask",
-            lambda: agi_cls._start(scheduler),
-            time_fn=time_fn,
-        )
+        agi_cls._startup_in_progress = True
         try:
+            started = await _run_timed_phase(
+                agi_cls,
+                "start-dask",
+                lambda: agi_cls._start(scheduler),
+                time_fn=time_fn,
+            )
+            if started is False:
+                raise RuntimeError("Dask startup did not complete")
+            agi_cls._startup_in_progress = False
             res = await _run_timed_phase(
                 agi_cls,
                 "distribute",
@@ -822,12 +866,15 @@ async def main(
             # _update_capacity raise; otherwise scheduler/workers/ports and
             # SSH connections leak. _stop() still honors the _mode_auto
             # benchmark skip internally.
-            await _run_timed_phase(
-                agi_cls,
-                "stop-dask",
-                lambda: agi_cls._stop(),
-                time_fn=time_fn,
-            )
+            try:
+                await _run_timed_phase(
+                    agi_cls,
+                    "stop-dask",
+                    lambda: agi_cls._stop(),
+                    time_fn=time_fn,
+                )
+            finally:
+                agi_cls._startup_in_progress = False
     else:
         res = await agi_cls._run()
 
@@ -849,53 +896,735 @@ async def stop(
     *,
     sleep_fn: Callable[[float], Any] = asyncio.sleep,
     log: Any = logger,
+    cleanup_timeout: float = RUNTIME_CLEANUP_TIMEOUT_SECONDS,
+) -> None:
+    """Stop owned runtime resources without letting caller cancellation strand them.
+
+    Dask shutdown contains several cancellation points.  Run that cleanup in a
+    separately owned task and keep draining it when the caller is cancelled
+    again, but only for a finite interval.  A timed-out task remains attached to
+    ``agi_cls`` so an explicit lifecycle stop can finish that exact cleanup
+    before any lease or runtime ownership is released.
+    """
+
+    try:
+        timeout = float(cleanup_timeout)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("runtime cleanup timeout must be a positive number") from exc
+    if timeout <= 0:
+        raise ValueError("runtime cleanup timeout must be a positive number")
+
+    agi_cls._service_cleanup_unproven = True
+    cleanup_task = _reusable_runtime_cleanup_task(agi_cls, log=log)
+    if cleanup_task is None:
+        cleanup_task = asyncio.create_task(
+            _stop_runtime_resources(
+                agi_cls,
+                sleep_fn=sleep_fn,
+                log=log,
+            ),
+            name="agilab-stop-owned-runtime",
+        )
+        agi_cls._runtime_cleanup_task = cleanup_task
+
+    try:
+        await _drain_owned_cleanup_task(cleanup_task, timeout=timeout)
+    except TimeoutError as exc:
+        phase = str(getattr(agi_cls, "_runtime_cleanup_phase", None) or "unknown")
+        raise RuntimeCleanupRequiredError(
+            f"AGI runtime cleanup remains unproven after {timeout:.1f}s "
+            f"(phase={phase}). The owned cleanup task and lifecycle lease were "
+            "retained. Call AGI.serve(..., action='stop') to retry cleanup before "
+            "starting another runtime operation."
+        ) from exc
+    finally:
+        cleanup_proven = (
+            cleanup_task.done()
+            and not cleanup_task.cancelled()
+            and cleanup_task.exception() is None
+        )
+        agi_cls._service_cleanup_unproven = not cleanup_proven
+        if cleanup_task.done() and getattr(agi_cls, "_runtime_cleanup_task", None) is cleanup_task:
+            # A completed failure is retryable by a fresh explicit stop.  Only a
+            # still-running task must remain attached so cleanup cannot overlap.
+            agi_cls._runtime_cleanup_task = None
+        if cleanup_proven:
+            agi_cls._runtime_cleanup_phase = None
+
+
+def _reusable_runtime_cleanup_task(
+    agi_cls: Any,
+    *,
+    log: Any,
+) -> asyncio.Task[Any] | None:
+    """Return an in-flight cleanup task, or consume a prior terminal result."""
+
+    cleanup_task = getattr(agi_cls, "_runtime_cleanup_task", None)
+    if not isinstance(cleanup_task, asyncio.Task):
+        return None
+    if cleanup_task.done():
+        if not cleanup_task.cancelled() and cleanup_task.exception() is None:
+            agi_cls._service_cleanup_unproven = False
+            agi_cls._runtime_cleanup_phase = None
+            agi_cls._runtime_cleanup_task = None
+            return cleanup_task
+        if cleanup_task.cancelled():
+            log.warning("Prior owned AGI runtime cleanup task was cancelled; retrying cleanup")
+        else:
+            log.warning(
+                "Prior owned AGI runtime cleanup failed; retrying cleanup: %s",
+                cleanup_task.exception(),
+            )
+        agi_cls._runtime_cleanup_task = None
+        return None
+
+    current_loop = asyncio.get_running_loop()
+    task_loop = cleanup_task.get_loop()
+    if task_loop is not current_loop:
+        raise RuntimeCleanupRequiredError(
+            "AGI runtime cleanup remains active in another event loop. The owned "
+            "cleanup task and lifecycle lease were retained; finish the original "
+            "session or restart the AGILAB process before retrying."
+        )
+    return cleanup_task
+
+
+async def _drain_owned_cleanup_task(
+    cleanup_task: asyncio.Task[Any],
+    *,
+    timeout: float,
+) -> Any:
+    """Drain ``cleanup_task`` through repeated caller cancellation, with a bound."""
+
+    cancellation: asyncio.CancelledError | None = None
+    completion_waiter = asyncio.create_task(
+        asyncio.wait({cleanup_task}, timeout=timeout),
+        name="agilab-stop-cleanup-deadline",
+    )
+    while not completion_waiter.done():
+        try:
+            await asyncio.shield(completion_waiter)
+        except asyncio.CancelledError as exc:
+            if completion_waiter.cancelled():
+                raise
+            cancellation = cancellation or exc
+
+    completed, _pending = completion_waiter.result()
+    if cleanup_task not in completed:
+        raise TimeoutError("owned AGI runtime cleanup exceeded its deadline")
+
+    result = cleanup_task.result()
+    if cancellation is not None:
+        raise cancellation
+    return result
+
+
+def _record_runtime_cleanup_failure(
+    failures: list[tuple[str, BaseException]],
+    phase: str,
+    exc: BaseException,
+    *,
+    log: Any,
+) -> None:
+    failures.append((phase, exc))
+    log.warning("AGI runtime cleanup could not prove %s: %s", phase, exc)
+
+
+def _raise_runtime_cleanup_failures(
+    failures: list[tuple[str, BaseException]],
+) -> None:
+    if not failures:
+        return
+    details = "; ".join(f"{phase}: {exc}" for phase, exc in failures)
+    error = RuntimeCleanupRequiredError(
+        "AGI runtime cleanup remains unproven ("
+        f"{details}). The lifecycle lease must remain retained; call "
+        "AGI.serve(..., action='stop') to retry cleanup before another operation."
+    )
+    for phase, exc in failures[1:]:
+        error.add_note(f"Additional cleanup failure in {phase}: {exc}")
+    raise error from failures[0][1]
+
+
+async def _stop_runtime_resources(
+    agi_cls: Any,
+    *,
+    sleep_fn: Callable[[float], Any],
+    log: Any,
 ) -> None:
     log.info("stop Agi core")
 
-    retire_attempts = 0
-    while retire_attempts < agi_cls._TIMEOUT:
+    failures: list[tuple[str, BaseException]] = []
+    fatal_error: BaseException | None = None
+    client = getattr(agi_cls, "_dask_client", None)
+    shutdown_owned_runtime = not bool(getattr(agi_cls, "_mode_auto", False)) or bool(
+        getattr(agi_cls, "_startup_in_progress", False)
+    )
+    proven_shutdown_client = getattr(agi_cls, "_runtime_shutdown_client", None)
+    if proven_shutdown_client is not None and proven_shutdown_client is not client:
+        agi_cls._runtime_shutdown_client = None
+        proven_shutdown_client = None
+    client_shutdown_proven = client is None or proven_shutdown_client is client
+    if client is not None and not client_shutdown_proven:
+        retire_attempts = 0
         try:
-            scheduler_info = await _scheduler_info_payload(agi_cls._dask_client)
-        except _STOP_RETRY_EXCEPTIONS as exc:
-            log.debug("Unable to fetch scheduler info during shutdown: %s", exc)
-            break
-
-        workers = scheduler_info.get("workers") or {}
-        if not workers:
-            break
-
-        retire_attempts += 1
-        try:
-            await _maybe_await(
-                agi_cls._dask_client.retire_workers(
-                    workers=list(workers.keys()),
-                    close_workers=True,
-                    remove=True,
+            retire_limit = max(int(getattr(agi_cls, "_TIMEOUT", 0)), 0)
+        except (TypeError, ValueError):
+            retire_limit = 0
+        while fatal_error is None:
+            agi_cls._runtime_cleanup_phase = "scheduler-inspection"
+            try:
+                scheduler_info = await _scheduler_info_payload(client)
+            except _STOP_RETRY_EXCEPTIONS as exc:
+                _record_runtime_cleanup_failure(
+                    failures,
+                    "scheduler inspection",
+                    exc,
+                    log=log,
                 )
-            )
-        except _STOP_RETRY_EXCEPTIONS as exc:
-            log.debug("retire_workers failed: %s", exc)
-            break
+                break
+            except BaseException as exc:
+                fatal_error = exc
+                break
 
-        await sleep_fn(1)
+            workers = scheduler_info.get("workers") or {}
+            if not workers:
+                break
+            if retire_attempts >= retire_limit:
+                _record_runtime_cleanup_failure(
+                    failures,
+                    "worker retirement",
+                    RuntimeError(
+                        f"{len(workers)} scheduler worker(s) remained after "
+                        f"{retire_attempts} retirement attempt(s)"
+                    ),
+                    log=log,
+                )
+                break
+
+            agi_cls._runtime_cleanup_phase = "worker-retirement"
+            try:
+                await _maybe_await(
+                    client.retire_workers(
+                        workers=list(workers.keys()),
+                        close_workers=True,
+                        remove=True,
+                    )
+                )
+                retire_attempts += 1
+                await sleep_fn(1)
+            except _STOP_RETRY_EXCEPTIONS as exc:
+                _record_runtime_cleanup_failure(
+                    failures,
+                    "worker retirement",
+                    exc,
+                    log=log,
+                )
+                break
+            except BaseException as exc:
+                fatal_error = exc
+                break
+
+        # A partial startup owns whatever scheduler it managed to create, even
+        # during benchmark mode, and must tear it down.
+        if shutdown_owned_runtime:
+            agi_cls._runtime_cleanup_phase = "client-shutdown"
+            try:
+                await _maybe_await(client.shutdown())
+                agi_cls._runtime_shutdown_client = client
+                client_shutdown_proven = True
+            except _STOP_RETRY_EXCEPTIONS as exc:
+                _record_runtime_cleanup_failure(
+                    failures,
+                    "Dask client shutdown",
+                    exc,
+                    log=log,
+                )
+            except BaseException as exc:
+                fatal_error = fatal_error or exc
+
+    agi_cls._runtime_cleanup_phase = "launch-tasks"
+    try:
+        launch_tasks: list[Any] = []
+        for field in ("_worker_launch_tasks", "_scheduler_launch_tasks"):
+            tasks = getattr(agi_cls, field, None)
+            if tasks:
+                launch_tasks.extend(list(tasks))
+        for task in launch_tasks:
+            if hasattr(task, "done") and task.done():
+                continue
+            if hasattr(task, "cancel"):
+                task.cancel()
+        awaitables = [task for task in launch_tasks if inspect.isawaitable(task)]
+        if awaitables:
+            await asyncio.gather(*awaitables, return_exceptions=True)
+        for field in ("_worker_launch_tasks", "_scheduler_launch_tasks"):
+            tasks = getattr(agi_cls, field, None)
+            if hasattr(tasks, "clear"):
+                tasks.clear()
+    except BaseException as exc:
+        fatal_error = fatal_error or exc
+
+    background_cleanup_proven = not shutdown_owned_runtime
+    if shutdown_owned_runtime:
+        agi_cls._runtime_cleanup_phase = "background-processes"
+        try:
+            await _terminate_owned_background_jobs(agi_cls, log=log)
+            background_cleanup_proven = True
+        except RuntimeCleanupRequiredError as exc:
+            _record_runtime_cleanup_failure(
+                failures,
+                "owned background processes",
+                exc,
+                log=log,
+            )
+        except BaseException as exc:
+            fatal_error = fatal_error or exc
+
+    if shutdown_owned_runtime and client_shutdown_proven and background_cleanup_proven:
+        # Do not retain a successfully closed client across a lifecycle retry.
+        # A service-state unlink may fail after runtime cleanup and keep the
+        # ownership lease; the next stop must not query the already-closed
+        # client before retrying the remaining lifecycle work.
+        if getattr(agi_cls, "_dask_client", None) is client:
+            agi_cls._dask_client = None
+        if getattr(agi_cls, "_runtime_shutdown_client", None) is client:
+            agi_cls._runtime_shutdown_client = None
+
+    agi_cls._runtime_cleanup_phase = "connections"
+    try:
+        await agi_cls._close_all_connections()
+    except _STOP_RETRY_EXCEPTIONS as exc:
+        _record_runtime_cleanup_failure(
+            failures,
+            "connection shutdown",
+            exc,
+            log=log,
+        )
+    except BaseException as exc:
+        fatal_error = fatal_error or exc
+
+    if fatal_error is not None:
+        agi_cls._runtime_cleanup_phase = "recovery-required"
+        for phase, exc in failures:
+            fatal_error.add_note(f"Additional cleanup failure in {phase}: {exc}")
+        raise fatal_error
+    if failures:
+        agi_cls._runtime_cleanup_phase = "recovery-required"
+        _raise_runtime_cleanup_failures(failures)
+    agi_cls._runtime_cleanup_phase = None
+
+
+def _background_job_ownership_token(job: Any) -> str | None:
+    token = getattr(job, "ownership_token", None)
+    return token if isinstance(token, str) and token else None
+
+
+def _owned_token_processes(job: Any) -> tuple[list[psutil.Process], list[int]]:
+    """Return token matches and inaccessible plausible owned candidates."""
+
+    token = _background_job_ownership_token(job)
+    if token is None:
+        return [], []
+    matches: list[psutil.Process] = []
+    uncertain_candidates: list[int] = []
+    current_pid = os.getpid()
+    started_at = getattr(job, "ownership_started_at", None)
+    try:
+        username = psutil.Process(current_pid).username()
+    except (psutil.AccessDenied, psutil.NoSuchProcess, OSError):
+        username = None
+    for process in psutil.process_iter(attrs=["pid"]):
+        if process.pid == current_pid:
+            continue
+        try:
+            if isinstance(started_at, (int, float)) and (
+                process.create_time() < float(started_at) - 1.0
+            ):
+                continue
+            if username is not None and process.username() != username:
+                continue
+        except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess, OSError):
+            # Identity-inaccessible protected processes cannot yet be narrowed
+            # to this recent same-user launch and remain unrelated.
+            continue
+        try:
+            if process.environ().get(background_jobs_support.BACKGROUND_JOB_TOKEN_ENV) == token:
+                matches.append(process)
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (psutil.AccessDenied, OSError):
+            uncertain_candidates.append(process.pid)
+    return matches, uncertain_candidates
+
+
+def _known_process_tree(process: Any) -> list[psutil.Process]:
+    """Return the still-addressable tree rooted at a known Popen handle."""
 
     try:
-        # Skip the scheduler shutdown only while a benchmark is still
-        # iterating modes (_mode_auto); benchmark_dask_modes clears the flag
-        # before its final _stop() so partial mode ranges shut down too.
-        if not agi_cls._mode_auto:
-            await _maybe_await(agi_cls._dask_client.shutdown())
-    except _STOP_RETRY_EXCEPTIONS as exc:
-        log.debug("Dask client shutdown raised: %s", exc)
+        if process.poll() is not None:
+            return []
+        pid = int(process.pid)
+        root = psutil.Process(pid)
+        return [*root.children(recursive=True), root]
+    except (
+        AttributeError,
+        ProcessLookupError,
+        TypeError,
+        ValueError,
+        psutil.AccessDenied,
+        psutil.NoSuchProcess,
+        psutil.ZombieProcess,
+    ):
+        return []
 
-    # Cancel any still-pending remote worker launch tasks so they are not
-    # destroyed pending at loop close.
-    for task in list(getattr(agi_cls, "_worker_launch_tasks", None) or []):
-        task.cancel()
-    if getattr(agi_cls, "_worker_launch_tasks", None):
-        agi_cls._worker_launch_tasks.clear()
 
-    await agi_cls._close_all_connections()
+def _unique_processes(processes: list[psutil.Process]) -> list[psutil.Process]:
+    unique: list[psutil.Process] = []
+    seen: set[int] = set()
+    for process in processes:
+        if process.pid in seen:
+            continue
+        seen.add(process.pid)
+        unique.append(process)
+    return unique
+
+
+def _terminate_token_process_tree(job: Any, *, timeout: float) -> None:
+    """Terminate token-owned descendants, including a reparented Windows child."""
+
+    token = _background_job_ownership_token(job)
+    if token is None:
+        raise RuntimeError("owned background job has no ownership token")
+    process = getattr(job, "process", None)
+    token_processes, _token_uncertainties = _owned_token_processes(job)
+    processes = _unique_processes(
+        [*token_processes, *_known_process_tree(process)]
+    )
+
+    signal_failures: list[str] = []
+    terminated: list[psutil.Process] = []
+    for owned_process in processes:
+        try:
+            owned_process.terminate()
+            terminated.append(owned_process)
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (psutil.AccessDenied, OSError) as exc:
+            signal_failures.append(f"pid {owned_process.pid}: {exc}")
+
+    _gone, alive = psutil.wait_procs(terminated, timeout=timeout)
+    killed: list[psutil.Process] = []
+    for owned_process in alive:
+        try:
+            owned_process.kill()
+            killed.append(owned_process)
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (psutil.AccessDenied, OSError) as exc:
+            signal_failures.append(f"pid {owned_process.pid}: {exc}")
+    _gone, alive = psutil.wait_procs(killed, timeout=timeout)
+
+    remaining_token_processes, token_uncertainties = _owned_token_processes(job)
+    remaining = _unique_processes([*alive, *remaining_token_processes])
+    if signal_failures or remaining or token_uncertainties:
+        details = "; ".join(signal_failures)
+        if remaining:
+            live_pids = ", ".join(str(process.pid) for process in remaining)
+            details = f"{details}; " if details else ""
+            details += f"owned pid(s) still alive: {live_pids}"
+        if token_uncertainties:
+            details = f"{details}; " if details else ""
+            details += (
+                "ownership token unavailable for recent same-user candidate pid(s): "
+                + ", ".join(str(pid) for pid in token_uncertainties)
+            )
+        raise RuntimeError(f"owned process-tree termination remains unproven ({details})")
+
+
+def _posix_process_group_has_live_member(process_group_id: int) -> bool:
+    getpgid = getattr(os, "getpgid", None)
+    if not callable(getpgid):
+        return True
+    for process in psutil.process_iter(attrs=["pid", "status"]):
+        try:
+            if getpgid(process.pid) != process_group_id:
+                continue
+            if process.info.get("status") != psutil.STATUS_ZOMBIE:
+                return True
+        except (ProcessLookupError, psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (PermissionError, OSError, psutil.AccessDenied):
+            return True
+    return False
+
+
+def _posix_process_group_exists(process_group_id: int) -> bool:
+    killpg = getattr(os, "killpg", None)
+    if not callable(killpg):
+        raise RuntimeError("POSIX process-group signaling is unavailable")
+    try:
+        killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError as exc:
+        # macOS may report EPERM while a terminated orphan remains briefly as
+        # a zombie. A zombie is already dead and cannot keep runtime work alive.
+        if not _posix_process_group_has_live_member(process_group_id):
+            return False
+        raise RuntimeError(
+            f"cannot inspect owned process group {process_group_id}: {exc}"
+        ) from exc
+    except OSError as exc:
+        raise RuntimeError(
+            f"cannot inspect owned process group {process_group_id}: {exc}"
+        ) from exc
+    return True
+
+
+def _posix_leader_owns_group(process: Any, process_group_id: int) -> bool:
+    getpgid = getattr(os, "getpgid", None)
+    if not callable(getpgid):
+        return False
+    try:
+        if process.poll() is not None:
+            return False
+        return getpgid(int(process.pid)) == process_group_id
+    except (AttributeError, ProcessLookupError, TypeError, ValueError, OSError):
+        return False
+
+
+def _posix_group_has_ownership_token(process_group_id: int, token: str) -> bool:
+    getpgid = getattr(os, "getpgid", None)
+    if not callable(getpgid):
+        return False
+    inaccessible_members: list[int] = []
+    for process in psutil.process_iter(attrs=["pid"]):
+        try:
+            if getpgid(process.pid) != process_group_id:
+                continue
+        except (ProcessLookupError, psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (PermissionError, OSError) as exc:
+            raise RuntimeError(
+                f"cannot inspect member {process.pid} of process group {process_group_id}: {exc}"
+            ) from exc
+        try:
+            if process.environ().get(background_jobs_support.BACKGROUND_JOB_TOKEN_ENV) == token:
+                return True
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (psutil.AccessDenied, PermissionError, OSError):
+            inaccessible_members.append(process.pid)
+    if inaccessible_members:
+        pids = ", ".join(str(pid) for pid in inaccessible_members)
+        raise RuntimeError(
+            f"cannot prove ownership of process group {process_group_id}; "
+            f"member environment unavailable for pid(s) {pids}"
+        )
+    return False
+
+
+def _prove_posix_process_group_ownership(job: Any, process_group_id: int) -> bool:
+    """Prove a still-existing group is ours before sending a group signal."""
+
+    if not _posix_process_group_exists(process_group_id):
+        return False
+    process = getattr(job, "process", None)
+    if _posix_leader_owns_group(process, process_group_id):
+        return True
+    token = _background_job_ownership_token(job)
+    if token is not None and _posix_group_has_ownership_token(process_group_id, token):
+        return True
+    if not _posix_process_group_exists(process_group_id):
+        return False
+    raise RuntimeError(
+        f"cannot prove ownership of live process group {process_group_id}; refusing to signal it"
+    )
+
+
+def _signal_posix_process_group(job: Any, process_group_id: int, sig: int) -> bool:
+    if not _prove_posix_process_group_ownership(job, process_group_id):
+        return False
+    killpg = getattr(os, "killpg", None)
+    if not callable(killpg):
+        raise RuntimeError("POSIX process-group signaling is unavailable")
+    try:
+        killpg(process_group_id, sig)
+    except ProcessLookupError:
+        return False
+    except (PermissionError, OSError) as exc:
+        raise RuntimeError(
+            f"cannot signal owned process group {process_group_id}: {exc}"
+        ) from exc
+    return True
+
+
+def _wait_for_posix_process_group(
+    process: Any,
+    process_group_id: int,
+    *,
+    timeout: float,
+) -> bool:
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            process.poll()
+        except (AttributeError, ProcessLookupError, OSError):
+            pass
+        if not _posix_process_group_exists(process_group_id):
+            return True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(0.05, remaining))
+
+
+def _terminate_posix_owned_process_tree(job: Any, *, timeout: float) -> None:
+    process_group_id = getattr(job, "process_group_id", None)
+    if not isinstance(process_group_id, int) or process_group_id <= 0:
+        _terminate_token_process_tree(job, timeout=timeout)
+        return
+    getpgrp = getattr(os, "getpgrp", None)
+    if callable(getpgrp) and getpgrp() == process_group_id:
+        raise RuntimeError("refusing to signal the AGILAB process group")
+
+    process = getattr(job, "process", None)
+    if _signal_posix_process_group(job, process_group_id, signal.SIGTERM):
+        if not _wait_for_posix_process_group(
+            process,
+            process_group_id,
+            timeout=timeout,
+        ):
+            _signal_posix_process_group(job, process_group_id, signal.SIGKILL)
+            if not _wait_for_posix_process_group(
+                process,
+                process_group_id,
+                timeout=timeout,
+            ):
+                raise subprocess.TimeoutExpired(
+                    f"owned process group {process_group_id}",
+                    timeout,
+                )
+
+    # The random token also finds descendants that escaped the original group,
+    # and is the safe Windows ownership boundary when killpg is unavailable.
+    _terminate_token_process_tree(job, timeout=timeout)
+
+
+async def _terminate_legacy_background_process(
+    process: Any,
+    *,
+    timeout: float,
+) -> tuple[str, BaseException] | None:
+    process_label = str(getattr(process, "pid", "unknown"))
+    try:
+        if process.poll() is not None:
+            return None
+        process.terminate()
+    except ProcessLookupError:
+        return None
+    except (AttributeError, OSError) as exc:
+        return f"background process {process_label} termination", exc
+    try:
+        await asyncio.to_thread(process.wait, timeout=timeout)
+        return None
+    except subprocess.TimeoutExpired:
+        pass
+    except ProcessLookupError:
+        return None
+    except (AttributeError, OSError) as exc:
+        return f"background process {process_label} wait", exc
+    try:
+        process.kill()
+        await asyncio.to_thread(process.wait, timeout=timeout)
+        return None
+    except ProcessLookupError:
+        return None
+    except (AttributeError, OSError, subprocess.TimeoutExpired) as exc:
+        return f"background process {process_label} kill/wait", exc
+
+
+def _forget_owned_background_job(manager: Any, job: Any) -> None:
+    for field in ("owned", "running", "completed", "dead"):
+        jobs = getattr(manager, field, None)
+        if not isinstance(jobs, list):
+            continue
+        while job in jobs:
+            jobs.remove(job)
+    job_num = getattr(job, "num", None)
+    all_jobs = getattr(manager, "all", None)
+    if isinstance(all_jobs, dict) and all_jobs.get(job_num) is job:
+        all_jobs.pop(job_num, None)
+
+
+async def _terminate_owned_background_jobs(
+    agi_cls: Any,
+    *,
+    timeout: float = 3.0,
+    log: Any = logger,
+) -> None:
+    """Terminate complete process groups/trees owned by this runtime operation."""
+
+    manager = getattr(agi_cls, "_jobs", None)
+    jobs: list[Any] = []
+    seen_jobs: set[int] = set()
+    for field in ("owned", "running"):
+        for job in list(getattr(manager, field, None) or []):
+            if id(job) in seen_jobs:
+                continue
+            seen_jobs.add(id(job))
+            jobs.append(job)
+
+    failures: list[tuple[str, BaseException]] = []
+    seen_processes: set[int] = set()
+    for index, job in enumerate(jobs):
+        process = getattr(job, "process", None)
+        if process is None:
+            _record_runtime_cleanup_failure(
+                failures,
+                f"background job {index}",
+                RuntimeError("owned job has no process handle"),
+                log=log,
+            )
+            continue
+        if id(process) in seen_processes:
+            continue
+        seen_processes.add(id(process))
+
+        token = _background_job_ownership_token(job)
+        if token is None:
+            result = await _terminate_legacy_background_process(process, timeout=timeout)
+            if result is not None:
+                phase, exc = result
+                _record_runtime_cleanup_failure(failures, phase, exc, log=log)
+                continue
+        else:
+            process_label = str(getattr(process, "pid", index))
+            try:
+                if os.name == "posix":
+                    await asyncio.to_thread(
+                        _terminate_posix_owned_process_tree,
+                        job,
+                        timeout=timeout,
+                    )
+                else:
+                    await asyncio.to_thread(
+                        _terminate_token_process_tree,
+                        job,
+                        timeout=timeout,
+                    )
+            except _BACKGROUND_TREE_CLEANUP_EXCEPTIONS as exc:
+                _record_runtime_cleanup_failure(
+                    failures,
+                    f"background process group/tree {process_label}",
+                    exc,
+                    log=log,
+                )
+                continue
+        _forget_owned_background_job(manager, job)
+
+    _raise_runtime_cleanup_failures(failures)
 
 
 def exec_bg(agi_cls: Any, cmd: Any, cwd: str, *, env: Optional[Dict[str, str]] = None) -> None:

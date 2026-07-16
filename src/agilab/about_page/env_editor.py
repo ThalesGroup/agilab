@@ -17,6 +17,8 @@ from agi_env.credential_store_support import (
     read_cluster_credentials,
     store_cluster_credentials,
 )
+from agi_env.runtime.atomic_write_support import run_with_windows_file_sharing_retry
+from agi_env.runtime.env_config_support import update_env_file_text
 
 _IMPORT_GUARD_PATH = Path(__file__).resolve().parents[1] / "import_guard.py"
 _IMPORT_GUARD_SPEC = importlib.util.spec_from_file_location(
@@ -74,14 +76,17 @@ def _ensure_env_file(path: Path) -> Path:
             logger.info("mkdir %s", bound_log_value(parent, LOG_PATH_LIMIT))
         except FileExistsError:
             pass
+        template_text = ""
         if TEMPLATE_ENV_PATH is not None:
             try:
                 template_text = TEMPLATE_ENV_PATH.read_text(encoding="utf-8")
-                path.write_text(template_text, encoding="utf-8")
-                return path
             except (OSError, UnicodeError):
                 pass
-        path.touch(exist_ok=True)
+        update_env_file_text(
+            path,
+            lambda current: template_text if current is None else None,
+            refuse_symlink_message=f"Refusing to create env file through symlink: {path}",
+        )
     except OSError as exc:
         logger.warning(
             "Unable to create env file at %s: %s",
@@ -213,33 +218,36 @@ def _env_preview_value(key: str, value: str) -> str:
     return value
 
 
+def _parse_env_text(text: str) -> List[Dict[str, str]]:
+    entries: List[Dict[str, str]] = []
+    for raw in text.splitlines():
+        stripped = raw.strip()
+        if not stripped:
+            entries.append({"type": "comment", "raw": raw})
+            continue
+
+        # Treat commented KEY=VAL lines as entries so they can be edited/uncommented.
+        target = stripped.lstrip("#").strip()
+        if "=" in target:
+            key, value = target.split("=", 1)
+            entries.append(
+                {
+                    "type": "entry",
+                    "key": key.strip(),
+                    "value": _strip_dotenv_quotes(value),
+                    "raw": raw,
+                    "commented": stripped.startswith("#"),
+                }
+            )
+        else:
+            entries.append({"type": "comment", "raw": raw})
+    return entries
+
+
 def _read_env_file(path: Path) -> List[Dict[str, str]]:
     path = _ensure_env_file(path)
-    entries: List[Dict[str, str]] = []
-    with path.open("r", encoding="utf-8") as handle:
-        for raw_line in handle.readlines():
-            raw = raw_line.rstrip("\n")
-            stripped = raw.strip()
-            if not stripped:
-                entries.append({"type": "comment", "raw": raw})
-                continue
-
-            # Treat commented KEY=VAL lines as entries so they can be edited/uncommented.
-            target = stripped.lstrip("#").strip()
-            if "=" in target:
-                key, value = target.split("=", 1)
-                entries.append(
-                    {
-                        "type": "entry",
-                        "key": key.strip(),
-                        "value": _strip_dotenv_quotes(value),
-                        "raw": raw,
-                        "commented": stripped.startswith("#"),
-                    }
-                )
-            else:
-                entries.append({"type": "comment", "raw": raw})
-    return entries
+    text = run_with_windows_file_sharing_retry(lambda: path.read_text(encoding="utf-8"))
+    return _parse_env_text(text)
 
 
 def _is_worker_python_override_key(key: str) -> bool:
@@ -298,56 +306,72 @@ def _write_env_file(
 ) -> None:
     """Write the .env file, consolidating duplicate keys (last value wins)."""
     path = _ensure_env_file(path)
-    lines: List[str] = []
-    emitted_keys: set[str] = set()
 
-    file_values: Dict[str, str] = {}
-    for entry in entries:
-        if entry["type"] == "entry":
-            file_values[entry["key"]] = entry["value"]
-    final_values: Dict[str, str] = {**file_values, **updates}
+    def _apply(current_text: str | None) -> str:
+        current_entries = _parse_env_text(current_text or "")
+        if current_text is None:
+            current_entries = entries
+        lines: List[str] = []
+        emitted_keys: set[str] = set()
+        last_entries = {
+            entry["key"]: entry for entry in current_entries if entry["type"] == "entry"
+        }
 
-    for entry in entries:
-        if entry["type"] != "entry":
-            lines.append(entry["raw"])
-            continue
-        key = entry["key"]
-        if key in emitted_keys:
-            continue
-        emitted_keys.add(key)
-        value = final_values.get(key, entry["value"])
-        lines.append(f"{key}={value}")
-
-    for key, value in updates.items():
-        if key not in emitted_keys:
-            lines.append(f"{key}={value}")
+        for entry in current_entries:
+            if entry["type"] != "entry":
+                lines.append(entry["raw"])
+                continue
+            key = entry["key"]
+            if key in emitted_keys:
+                continue
             emitted_keys.add(key)
+            if key in updates:
+                lines.append(f"{key}={updates[key]}")
+            else:
+                lines.append(last_entries[key]["raw"])
 
-    if new_entry and new_entry.get("key") and new_entry["key"] not in emitted_keys:
-        lines.append(f"{new_entry['key']}={new_entry['value']}")
+        for key, value in updates.items():
+            if key not in emitted_keys:
+                lines.append(f"{key}={value}")
+                emitted_keys.add(key)
 
-    content = "\n".join(lines).rstrip() + "\n"
-    path.write_text(content, encoding="utf-8")
+        if new_entry and new_entry.get("key") and new_entry["key"] not in emitted_keys:
+            lines.append(f"{new_entry['key']}={new_entry['value']}")
+
+        return "\n".join(lines).rstrip() + "\n"
+
+    update_env_file_text(
+        path,
+        _apply,
+        refuse_symlink_message=f"Refusing to write env file through symlink: {path}",
+    )
 
 
 def _upsert_env_var(path: Path, key: str, value: str) -> None:
     """Update or append a single KEY=VALUE in the .env file."""
     path = _ensure_env_file(path)
-    lines = path.read_text(encoding="utf-8").splitlines()
-    rewritten: List[str] = []
-    key_eq = f"{key}="
-    updated = False
-    for raw in lines:
-        stripped = raw.strip()
-        target = stripped.lstrip("#").strip()
-        if target.startswith(key_eq):
+
+    def _apply(current_text: str | None) -> str:
+        rewritten: List[str] = []
+        key_eq = f"{key}="
+        updated = False
+        for raw in (current_text or "").splitlines():
+            stripped = raw.strip()
+            target = stripped.lstrip("#").strip()
+            if target.startswith(key_eq):
+                rewritten.append(f"{key}={value}")
+                updated = True
+            else:
+                rewritten.append(raw)
+        if not updated:
             rewritten.append(f"{key}={value}")
-            updated = True
-        else:
-            rewritten.append(raw)
-    if not updated:
-        rewritten.append(f"{key}={value}")
-    path.write_text("\n".join(rewritten).rstrip() + "\n", encoding="utf-8")
+        return "\n".join(rewritten).rstrip() + "\n"
+
+    update_env_file_text(
+        path,
+        _apply,
+        refuse_symlink_message=f"Refusing to write env file through symlink: {path}",
+    )
 
 
 def _refresh_env_from_file(env: Any) -> None:
@@ -361,7 +385,9 @@ def _refresh_env_from_file(env: Any) -> None:
     if last_mtime is not None and last_mtime == current_mtime:
         return
 
-    env_map = _load_env_file_map(ENV_FILE_PATH, include_commented=False)
+    env_map = run_with_windows_file_sharing_retry(
+        lambda: _load_env_file_map(ENV_FILE_PATH, include_commented=False)
+    )
     if not env_map:
         st.session_state["env_file_mtime_ns"] = current_mtime
         return
@@ -566,7 +592,9 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
                 if key:
                     template_keys.append(key)
 
-        env_lines = ENV_FILE_PATH.read_text(encoding="utf-8").splitlines()
+        env_lines = run_with_windows_file_sharing_retry(
+            lambda: ENV_FILE_PATH.read_text(encoding="utf-8")
+        ).splitlines()
         current: Dict[str, str] = {}
         for raw in env_lines:
             stripped = raw.strip()

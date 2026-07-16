@@ -7,6 +7,8 @@ import tempfile
 from pathlib import Path
 from typing import Callable, Mapping
 
+from agi_env.project.app_settings_support import read_app_settings
+
 SETTINGS_READ_EXCEPTIONS = (OSError, ValueError)
 SETTINGS_LOOKUP_EXCEPTIONS = (OSError, TypeError, ValueError)
 DIR_USABILITY_EXCEPTIONS = (OSError,)
@@ -29,12 +31,7 @@ def _parse_bool(value: object) -> bool | None:
 def _read_cluster_setting(path: Path) -> bool | None:
     """Read ``[cluster].cluster_enabled`` from a TOML settings file."""
     try:
-        if not path.is_file() or path.stat().st_size <= 0:
-            return None
-        import tomllib
-
-        with path.open("rb") as handle:
-            doc = tomllib.load(handle)
+        doc = read_app_settings(path)
         cluster_section = doc.get("cluster")
         if isinstance(cluster_section, dict) and "cluster_enabled" in cluster_section:
             return _parse_bool(cluster_section.get("cluster_enabled"))

@@ -1601,6 +1601,7 @@ def test_view_release_decision_surfaces_reduce_artifacts_without_metrics(tmp_pat
 
     env = SimpleNamespace(
         app="execution_pandas_project",
+        active_app=project_dir,
         target="execution_pandas_project",
         AGILAB_EXPORT_ABS=str(tmp_path / "export"),
         st_resources=tmp_path,
@@ -1633,6 +1634,7 @@ def test_view_release_decision_reuses_existing_session_env(tmp_path, monkeypatch
 
     env = SimpleNamespace(
         app="weather_forecast_project",
+        active_app=project_dir,
         target="weather_forecast",
         AGILAB_EXPORT_ABS=str(tmp_path / "export"),
         AGILAB_LOG_ABS=tmp_path / "log",
@@ -1651,3 +1653,43 @@ def test_view_release_decision_reuses_existing_session_env(tmp_path, monkeypatch
         at.run()
 
     assert not at.exception
+    assert at.session_state["env"] is env
+
+
+def test_view_release_decision_replaces_env_after_active_app_switch(
+    tmp_path, monkeypatch
+) -> None:
+    project_dir = _create_forecast_project(tmp_path)
+    worker_path = (
+        project_dir
+        / "src"
+        / "weather_forecast_worker"
+        / "weather_forecast_worker.py"
+    )
+    worker_path.parent.mkdir()
+    worker_path.write_text("", encoding="utf-8")
+    stale_project = tmp_path / "apps" / "stale_project"
+    stale_project.mkdir()
+    stale_env = SimpleNamespace(
+        app="stale_project",
+        active_app=stale_project,
+        target="stale",
+        AGILAB_EXPORT_ABS=str(tmp_path / "export"),
+        AGILAB_LOG_ABS=tmp_path / "log",
+        st_resources=tmp_path,
+    )
+    argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
+    with patch.object(sys, "argv", argv):
+        monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
+        monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
+        monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
+        monkeypatch.setenv("AGI_LOG_DIR", str(tmp_path / "log"))
+        monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+        monkeypatch.setenv("IS_SOURCE_ENV", "1")
+        at = AppTest.from_file(PAGE_PATH, default_timeout=20)
+        at.session_state["env"] = stale_env
+        at.run()
+
+    assert not at.exception
+    assert at.session_state["env"] is not stale_env
+    assert Path(at.session_state["env"].active_app) == project_dir

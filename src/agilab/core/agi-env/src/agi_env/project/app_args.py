@@ -6,11 +6,13 @@ from io import BufferedWriter
 from pathlib import Path
 from typing import Any, Callable, Mapping, Type, TypeVar
 
-import tomllib
-
 from pydantic import BaseModel, ValidationError
 
-from agi_env.project.app_settings_support import prepare_app_settings_for_write
+from agi_env.project.app_settings_support import (
+    app_settings_file_lock as _settings_file_lock,
+    prepare_app_settings_for_write,
+    read_app_settings,
+)
 from agi_env.runtime.agi_logger import AgiLogger
 from agi_env.runtime.atomic_write_support import atomic_write_bytes
 
@@ -21,6 +23,7 @@ logger = AgiLogger.get_logger(__name__)
 
 def _is_missing_module(exc: ModuleNotFoundError, module_name: str) -> bool:
     return getattr(exc, "name", None) == module_name
+
 
 def model_to_payload(model: BaseModel) -> dict[str, Any]:
     """Return a JSON/TOML friendly representation of the model."""
@@ -38,7 +41,9 @@ def prefer_persisted_value(persisted_value: Any, fallback_value: Any) -> Any:
     return persisted_value
 
 
-def merge_model_data(model: BaseModel, overrides: Mapping[str, Any] | None = None) -> BaseModel:
+def merge_model_data(
+    model: BaseModel, overrides: Mapping[str, Any] | None = None
+) -> BaseModel:
     """Return a copy of ``model`` with ``overrides`` applied."""
 
     data = model.model_dump()
@@ -58,8 +63,7 @@ def load_model_from_toml(
     settings_path = Path(settings_path)
     payload: dict[str, Any] = {}
     if settings_path.exists():
-        with settings_path.open("rb") as handle:
-            doc = tomllib.load(handle)
+        doc = read_app_settings(settings_path)
         if section in doc:
             payload = dict(doc[section])
 
@@ -81,16 +85,6 @@ def dump_model_to_toml(
     """Persist a Pydantic model into a TOML section."""
 
     settings_path = Path(settings_path)
-    doc: dict[str, Any] = {}
-    if settings_path.exists():
-        with settings_path.open("rb") as handle:
-            doc = tomllib.load(handle)
-    elif not create_missing:
-        raise FileNotFoundError(f"Settings file not found: {settings_path}")
-
-    doc[section] = model_to_payload(model)
-    doc = prepare_app_settings_for_write(doc)
-
     dumper: Callable[[dict[str, Any], BufferedWriter], None] | None = None
     try:
         import tomli_w  # type: ignore[import-not-found]
@@ -117,4 +111,13 @@ def dump_model_to_toml(
         dumper = _dump_with_tomlkit
 
     logger.info(f"mkdir {settings_path.parent}")
-    atomic_write_bytes(settings_path, lambda handle: dumper(doc, handle))
+    with _settings_file_lock(settings_path):
+        doc: dict[str, Any] = {}
+        if settings_path.exists():
+            doc = read_app_settings(settings_path)
+        elif not create_missing:
+            raise FileNotFoundError(f"Settings file not found: {settings_path}")
+
+        doc[section] = model_to_payload(model)
+        doc = prepare_app_settings_for_write(doc)
+        atomic_write_bytes(settings_path, lambda handle: dumper(doc, handle))

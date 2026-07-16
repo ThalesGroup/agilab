@@ -230,7 +230,10 @@ def test_view_maps_network_persists_app_settings(tmp_path: Path, monkeypatch) ->
         }
     )
 
-    module._persist_app_settings(SimpleNamespace(app_settings_file=settings_path))
+    module._persist_app_settings(
+        SimpleNamespace(app_settings_file=settings_path),
+        ("dataset_base_choice", "df_file", "df_files"),
+    )
 
     written = settings_path.read_text(encoding="utf-8")
     assert "view_maps_network" in written
@@ -239,6 +242,32 @@ def test_view_maps_network_persists_app_settings(tmp_path: Path, monkeypatch) ->
     assert parsed["__meta__"] == {"schema": "agilab.app_settings.v1", "version": 1}
     assert parsed["view_maps_network"]["df_file"] == ""
     assert parsed["view_maps_network"]["df_files"] == ["export.csv", ""]
+
+
+def test_view_maps_network_preserves_other_session_leaf_and_local_reference(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text(
+        '[view_maps_network]\nedges_file = "current.csv"\ntraj_glob = "fresh/*.csv"\n',
+        encoding="utf-8",
+    )
+    vm_settings = {"edges_file": "next.csv", "traj_glob": "stale/*.csv"}
+    app_settings = {"view_maps_network": vm_settings}
+    module.st = SimpleNamespace(session_state={"app_settings": app_settings})
+
+    module._persist_app_settings(
+        SimpleNamespace(app_settings_file=settings_path),
+        ("edges_file",),
+    )
+
+    assert module.st.session_state["app_settings"] is app_settings
+    assert module.st.session_state["app_settings"]["view_maps_network"] is vm_settings
+    assert vm_settings == {
+        "edges_file": "next.csv",
+        "traj_glob": "fresh/*.csv",
+    }
 
 
 def test_view_maps_network_drops_ambiguous_index_levels(
@@ -1473,12 +1502,14 @@ def test_view_maps_network_handles_settings_and_active_app_error_paths(
 
     persist_path = tmp_path / "persist.toml"
     module.st = SimpleNamespace(session_state={"app_settings": "bad"})
-    module._persist_app_settings(SimpleNamespace(app_settings_file=persist_path))
+    module._persist_app_settings(
+        SimpleNamespace(app_settings_file=persist_path), ()
+    )
     assert not persist_path.exists()
 
     warnings: list[str] = []
     module.st = SimpleNamespace(
-        session_state={"app_settings": {"view_maps_network": {}}}
+        session_state={"app_settings": {"view_maps_network": {"probe": "value"}}}
     )
     monkeypatch.setattr(
         module.logger, "warning", lambda message: warnings.append(message)
@@ -1489,7 +1520,8 @@ def test_view_maps_network_handles_settings_and_active_app_error_paths(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("cannot write")),
     )
     module._persist_app_settings(
-        SimpleNamespace(app_settings_file=tmp_path / "nested" / "persist.toml")
+        SimpleNamespace(app_settings_file=tmp_path / "nested" / "persist.toml"),
+        ("probe",),
     )
     assert any("Unable to persist app_settings" in message for message in warnings)
 
@@ -1506,8 +1538,8 @@ def test_view_maps_network_unexpected_helper_errors_propagate(
 
     module.st = SimpleNamespace(session_state={})
     monkeypatch.setattr(
-        module.tomllib,
-        "load",
+        module,
+        "read_app_settings",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad load")),
     )
     with pytest.raises(TypeError, match="bad load"):
@@ -1517,7 +1549,7 @@ def test_view_maps_network_unexpected_helper_errors_propagate(
 
     warnings: list[str] = []
     module.st = SimpleNamespace(
-        session_state={"app_settings": {"view_maps_network": {}}}
+        session_state={"app_settings": {"view_maps_network": {"probe": "value"}}}
     )
     monkeypatch.setattr(
         module.logger, "warning", lambda message: warnings.append(message)
@@ -1528,7 +1560,8 @@ def test_view_maps_network_unexpected_helper_errors_propagate(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad dump")),
     )
     module._persist_app_settings(
-        SimpleNamespace(app_settings_file=tmp_path / "persist.toml")
+        SimpleNamespace(app_settings_file=tmp_path / "persist.toml"),
+        ("probe",),
     )
     assert any(
         "Unable to persist app_settings" in message and "bad dump" in message

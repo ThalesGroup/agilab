@@ -17,7 +17,9 @@ from plotly.subplots import make_subplots
 import streamlit as st
 import tomllib
 from agi_pages.runtime import (
+    active_app_scope_value,
     configure_streamlit_page,
+    env_app_scope_value,
     ensure_repo_on_path as _page_ensure_repo_on_path,
     render_streamlit_page_header,
     resolve_active_app_path,
@@ -81,15 +83,16 @@ def _ensure_app_scoped_env() -> AgiEnv:
     )
 
     env = st.session_state.get("env")
-    if env is not None:
+    env_matches_active_app = (
+        env is not None
+        and env_app_scope_value(env) == active_app_scope_value(active_app_path)
+    )
+    if env_matches_active_app:
         return env
 
-    try:
-        env = AgiEnv.current()
-    except RuntimeError:
-        env = getattr(AgiEnv, "for_app", AgiEnv)(
-            apps_path=active_app_path.parent, app=active_app_path.name, verbose=0
-        )
+    env = AgiEnv.session_for_app(
+        apps_path=active_app_path.parent, app=active_app_path.name, verbose=0
+    )
     env.init_done = True
     st.session_state["env"] = env
     return env

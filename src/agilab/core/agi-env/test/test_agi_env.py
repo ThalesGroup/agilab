@@ -7,6 +7,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -24,6 +25,108 @@ from agi_env.agi_logger import AgiLogger
 from agi_env.defaults import get_default_openai_model
 
 logger = AgiLogger.get_logger(__name__)
+
+
+@pytest.mark.parametrize("operation", ("session", "constructor", "reset"))
+def test_initialization_lock_times_out_for_peer_operations(monkeypatch, operation):
+    outcomes: list[BaseException | str] = []
+    monkeypatch.setattr(AgiEnv, "_initialization_lock_timeout_seconds", 0.01)
+
+    def _contender() -> None:
+        try:
+            if operation == "session":
+                AgiEnv.session()
+            elif operation == "constructor":
+                AgiEnv()
+            else:
+                AgiEnv.reset()
+        except BaseException as exc:
+            outcomes.append(exc)
+        else:
+            outcomes.append("acquired")
+
+    AgiEnv._lock.acquire()
+    try:
+        thread = threading.Thread(target=_contender)
+        thread.start()
+        thread.join(timeout=1)
+    finally:
+        AgiEnv._lock.release()
+
+    assert not thread.is_alive()
+    assert len(outcomes) == 1
+    assert isinstance(outcomes[0], agi_env_module.AgiEnvBusyError)
+
+
+def test_direct_constructors_never_overlap_singleton_initialization(monkeypatch):
+    start = threading.Barrier(3)
+    state_lock = threading.Lock()
+    active = 0
+    max_active = 0
+    outcomes: list[BaseException | AgiEnv] = []
+
+    def _initialize(instance, **_kwargs) -> None:
+        nonlocal active, max_active
+        with state_lock:
+            active += 1
+            max_active = max(max_active, active)
+        threading.Event().wait(0.05)
+        with state_lock:
+            active -= 1
+
+    def _construct() -> None:
+        start.wait(timeout=1)
+        try:
+            outcomes.append(AgiEnv())
+        except BaseException as exc:
+            outcomes.append(exc)
+
+    monkeypatch.setattr(agi_env_module, "initialize_agi_env_instance", _initialize)
+    monkeypatch.setattr(AgiEnv, "_initialization_lock_timeout_seconds", 1.0)
+    threads = [threading.Thread(target=_construct) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    start.wait(timeout=1)
+    for thread in threads:
+        thread.join(timeout=2)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert len(outcomes) == 2
+    assert all(isinstance(outcome, AgiEnv) for outcome in outcomes)
+    assert outcomes[0] is outcomes[1]
+    assert max_active == 1
+
+
+def test_current_cannot_expose_partially_initialized_singleton(monkeypatch):
+    initializer_entered = threading.Event()
+    release_initializer = threading.Event()
+    constructor_outcomes: list[BaseException | AgiEnv] = []
+
+    def _initialize(instance, **_kwargs) -> None:
+        initializer_entered.set()
+        assert release_initializer.wait(timeout=1)
+
+    def _construct() -> None:
+        try:
+            constructor_outcomes.append(AgiEnv())
+        except BaseException as exc:
+            constructor_outcomes.append(exc)
+
+    monkeypatch.setattr(agi_env_module, "initialize_agi_env_instance", _initialize)
+    monkeypatch.setattr(AgiEnv, "_initialization_lock_timeout_seconds", 0.01)
+    constructor = threading.Thread(target=_construct)
+    constructor.start()
+    assert initializer_entered.wait(timeout=1)
+
+    with pytest.raises(agi_env_module.AgiEnvBusyError):
+        AgiEnv.current()
+
+    release_initializer.set()
+    constructor.join(timeout=1)
+    assert not constructor.is_alive()
+    assert len(constructor_outcomes) == 1
+    assert isinstance(constructor_outcomes[0], AgiEnv)
+    assert AgiEnv.current() is constructor_outcomes[0]
 
 
 _AGIENV_PROCESS_ENV_KEYS = {
@@ -1048,6 +1151,54 @@ def test_reinit_failure_leaves_singleton_uninitialized(monkeypatch):
     assert env._agilab_init_signature is None
 
 
+def test_session_bootstrap_uses_instance_logger_before_singleton_exists(tmp_path):
+    from agi_env.runtime import agi_env_instance_initialization as init_module
+
+    session_logger = mock.Mock()
+    env = SimpleNamespace(
+        worker_path=tmp_path / "missing_worker.py",
+        target_worker_class="DemoWorker",
+        is_source_env=True,
+        is_worker_env=False,
+        logger=session_logger,
+    )
+    env_cls = SimpleNamespace(logger=None)
+
+    init_module._resolve_worker_base_class(env, env_cls=env_cls)
+
+    assert env.base_worker_cls is None
+    assert env._base_worker_module is None
+    session_logger.info.assert_called_once()
+
+
+def test_session_unzip_data_uses_its_own_runtime_context(env, monkeypatch, tmp_path):
+    captured: dict[str, object] = {}
+    session_logger = mock.Mock()
+    session = object.__new__(AgiEnv)
+    session.app_data_rel = tmp_path / "session-data"
+    session.agi_share_path_abs = tmp_path / "share"
+    session.user = "session-user"
+    session.home_abs = tmp_path / "home"
+    session.verbose = 7
+    session.logger = session_logger
+
+    def capture_extract(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(agi_env_module, "extract_dataset_archive", capture_extract)
+
+    session.unzip_data(tmp_path / "dataset.7z", "dataset/demo", force_extract=True)
+
+    kwargs = captured["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert kwargs["logger"] is session_logger
+    assert kwargs["logger"] is not env.logger
+    assert kwargs["verbose"] == 7
+    assert kwargs["user"] == "session-user"
+    assert kwargs["force_extract"] is True
+
+
 def test_agienv_for_app_reuses_matching_singleton(env, monkeypatch):
     def _fail_init(*_args, **_kwargs):  # pragma: no cover - must not run
         raise AssertionError("for_app should not reinitialize matching app state")
@@ -1101,6 +1252,169 @@ def test_agienv_for_app_reinitializes_conflicting_singleton(monkeypatch, env):
 def test_agienv_for_app_rejects_empty_app_name(env):
     with pytest.raises(ValueError, match="app name must be non-empty"):
         AgiEnv.for_app(apps_path=env.apps_path, app="")
+
+
+def test_agienv_session_factories_isolate_concurrent_ui_state(env, monkeypatch, tmp_path):
+    apps_path = tmp_path / "apps"
+    apps_path.mkdir()
+    start = threading.Barrier(3)
+    sessions: list[AgiEnv] = []
+
+    def fake_init(self, *, apps_path: Path, app: str, verbose: int | None = None, **_kwargs):
+        assert getattr(self, "_agilab_session_scoped", False) is True
+        self.apps_path = Path(apps_path)
+        self.app = app
+        self.verbose = int(verbose or 0)
+        self.envars = {"SESSION_NAME": app}
+        self._pythonpath_entries = [str(Path(apps_path) / app / "src")]
+
+    def build(app: str) -> None:
+        start.wait()
+        sessions.append(
+            AgiEnv.session_for_app(apps_path=apps_path, app=app, verbose=0)
+        )
+
+    monkeypatch.setattr(AgiEnv, "__init__", fake_init, raising=True)
+    workers = [
+        threading.Thread(target=build, args=("alpha_project",)),
+        threading.Thread(target=build, args=("beta_project",)),
+    ]
+    for worker in workers:
+        worker.start()
+    start.wait()
+    for worker in workers:
+        worker.join(timeout=5)
+
+    assert len(sessions) == 2
+    assert sessions[0] is not sessions[1]
+    assert {session.app for session in sessions} == {
+        "alpha_project",
+        "beta_project",
+    }
+    assert AgiEnv.current() is env
+
+    original_path = list(sys.path)
+    original_pythonpath = os.environ.get("PYTHONPATH")
+    sessions[0]._configure_pythonpath(["/session-only/pythonpath"])
+    assert sys.path == original_path
+    assert os.environ.get("PYTHONPATH") == original_pythonpath
+    child_envs = [session._build_env_for_instance() for session in sessions]
+    assert {child_env["APP_DEFAULT"] for child_env in child_envs} == {
+        "alpha_project",
+        "beta_project",
+    }
+    assert {child_env["SESSION_NAME"] for child_env in child_envs} == {
+        "alpha_project",
+        "beta_project",
+    }
+
+    rebootstrap_start = threading.Barrier(3)
+    expected_apps = {
+        id(session): f"{session.app.removesuffix('_project')}_next_project"
+        for session in sessions
+    }
+
+    def rebootstrap(session: AgiEnv) -> None:
+        rebootstrap_start.wait()
+        session.reinitialize_for_app(
+            apps_path=apps_path,
+            app=expected_apps[id(session)],
+            verbose=0,
+        )
+
+    rebootstrap_workers = [
+        threading.Thread(target=rebootstrap, args=(session,)) for session in sessions
+    ]
+    for worker in rebootstrap_workers:
+        worker.start()
+    rebootstrap_start.wait()
+    for worker in rebootstrap_workers:
+        worker.join(timeout=5)
+
+    assert {session.app for session in sessions} == set(expected_apps.values())
+    assert all(session.apps_path == apps_path for session in sessions)
+    assert AgiEnv.current() is env
+
+
+def test_session_execution_methods_use_each_sessions_subprocess_snapshot(
+    env, monkeypatch, tmp_path
+):
+    from agi_env.runtime import agi_env_execution_methods as execution_methods
+
+    apps_path = tmp_path / "apps"
+    apps_path.mkdir()
+
+    def fake_init(
+        self,
+        *,
+        apps_path: Path,
+        app: str,
+        verbose: int | None = None,
+        **_kwargs,
+    ):
+        self.apps_path = Path(apps_path)
+        self.app = app
+        self.verbose = int(verbose or 0)
+        self.envars = {"SESSION_NAME": app}
+        self._pythonpath_entries = [str(apps_path / app / "src")]
+        self.logger = SimpleNamespace(session=app)
+
+    async def capture_run(_cmd, _venv, **kwargs):
+        return kwargs["build_env_fn"](None), kwargs["logger"]
+
+    async def capture_run_bg(_cmd, **kwargs):
+        return kwargs["build_env_fn"](None), kwargs["logger"]
+
+    async def capture_run_async(_cmd, **kwargs):
+        return kwargs["build_env_fn"](None), kwargs["logger"]
+
+    monkeypatch.setattr(AgiEnv, "__init__", fake_init, raising=True)
+    monkeypatch.setattr(execution_methods, "run_command_in_env", capture_run)
+    monkeypatch.setattr(
+        execution_methods,
+        "run_command_in_background",
+        capture_run_bg,
+    )
+    monkeypatch.setattr(execution_methods, "run_command_async", capture_run_async)
+
+    sessions = [
+        AgiEnv.session_for_app(apps_path=apps_path, app=app, verbose=0)
+        for app in ("alpha_project", "beta_project")
+    ]
+
+    async def capture_session(session):
+        return await asyncio.gather(
+            session.run("echo run", None),
+            session._run_bg("echo bg"),
+            session.run_async("echo async"),
+        )
+
+    async def capture_all_sessions():
+        return await asyncio.gather(
+            *(capture_session(session) for session in sessions)
+        )
+
+    results = asyncio.run(capture_all_sessions())
+
+    for session, method_results in zip(sessions, results):
+        expected_pythonpath = str(apps_path / session.app / "src")
+        assert len(method_results) == 3
+        method_envs = [child_env for child_env, _logger in method_results]
+        assert {child_env["APP_DEFAULT"] for child_env in method_envs} == {
+            session.app
+        }
+        assert {child_env["PYTHONPATH"] for child_env in method_envs} == {
+            expected_pythonpath
+        }
+        assert {child_env["SESSION_NAME"] for child_env in method_envs} == {
+            session.app
+        }
+        assert all(
+            child_logger is session.logger
+            for _child_env, child_logger in method_results
+        )
+
+    assert AgiEnv.current() is env
 
 
 def test_change_app_marks_reinitialization_as_intentional(monkeypatch, env):

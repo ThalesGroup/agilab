@@ -4,6 +4,7 @@ import getpass
 import json
 import os
 import shlex
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -877,6 +878,24 @@ def test_deploy_stage_cache_support_edge_cases(monkeypatch, tmp_path):
         app_path=tmp_path,
         worker_project=tmp_path,
     )
+
+
+def test_deploy_cache_atomic_writers_use_unique_temporary_files(tmp_path):
+    cache_path = tmp_path / "cache" / "stages.json"
+
+    def _write(index: int) -> None:
+        deployment_stage_cache_support._write_deploy_stage_cache(
+            cache_path,
+            {"stages": {f"stage-{index}": {"digest": str(index)}}},
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(_write, range(40)))
+
+    payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    assert payload["schema"] == deployment_local_support.DEPLOY_STAGE_CACHE_SCHEMA
+    assert len(payload["stages"]) == 1
+    assert list(cache_path.parent.glob(f".{cache_path.name}.*.tmp")) == []
 
 
 def test_deploy_stage_fingerprints_and_copy_stamps_cover_edge_cases(monkeypatch, tmp_path):

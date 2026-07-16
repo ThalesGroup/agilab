@@ -461,6 +461,7 @@ def test_view_maps_persists_view_settings(tmp_path) -> None:
         env,
         {"ui": {"map": {"center_lat": 0.0}}},
         {"datadir": "/tmp/export", "file_ext_choice": "csv"},
+        ("datadir", "file_ext_choice"),
     )
 
     assert payload["ui"]["map"]["center_lat"] == 0.0
@@ -468,6 +469,28 @@ def test_view_maps_persists_view_settings(tmp_path) -> None:
     written = settings_path.read_text(encoding="utf-8")
     assert "view_maps" in written
     assert 'datadir = "/tmp/export"' in written
+
+
+def test_view_maps_persists_only_changed_view_leaf(tmp_path) -> None:
+    module = _load_view_maps_module()
+    settings_path = tmp_path / "app_settings.toml"
+    settings_path.write_text(
+        '[view_maps]\ndatadir = "/current"\nfile_ext_choice = "parquet"\n',
+        encoding="utf-8",
+    )
+    env = SimpleNamespace(app_settings_file=settings_path)
+
+    payload = module._persist_view_maps_settings(
+        env,
+        {"view_maps": {"datadir": "/stale", "file_ext_choice": "csv"}},
+        {"datadir": "/next", "file_ext_choice": "csv"},
+        ("datadir",),
+    )
+
+    assert payload["view_maps"] == {
+        "datadir": "/next",
+        "file_ext_choice": "parquet",
+    }
 
 
 def test_view_maps_continuous_and_discrete_helpers_set_session_state(
@@ -638,7 +661,9 @@ def test_view_maps_persist_view_maps_settings_accepts_non_dict_base(tmp_path) ->
     settings_path = tmp_path / "app_settings.toml"
     env = SimpleNamespace(app_settings_file=settings_path)
 
-    payload = module._persist_view_maps_settings(env, None, {"datadir": "/tmp/export"})
+    payload = module._persist_view_maps_settings(
+        env, None, {"datadir": "/tmp/export"}, ("datadir",)
+    )
 
     assert payload == {"view_maps": {"datadir": "/tmp/export"}}
     assert "view_maps" in settings_path.read_text(encoding="utf-8")
@@ -656,7 +681,7 @@ def test_view_maps_persist_view_maps_settings_tolerates_write_failure(
     )
 
     payload = module._persist_view_maps_settings(
-        env, {"ui": {}}, {"datadir": "/tmp/export"}
+        env, {"ui": {}}, {"datadir": "/tmp/export"}, ("datadir",)
     )
 
     assert payload["view_maps"]["datadir"] == "/tmp/export"
@@ -669,8 +694,8 @@ def test_view_maps_unexpected_helper_errors_propagate(monkeypatch, tmp_path) -> 
     settings_path.write_text('[view_maps]\ndatadir = "/tmp/export"\n', encoding="utf-8")
 
     monkeypatch.setattr(
-        module._toml,
-        "load",
+        module,
+        "read_app_settings",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad load")),
     )
     with pytest.raises(TypeError, match="bad load"):
@@ -688,6 +713,7 @@ def test_view_maps_unexpected_helper_errors_propagate(monkeypatch, tmp_path) -> 
             SimpleNamespace(app_settings_file=tmp_path / "persist.toml"),
             {"ui": {}},
             {"datadir": "/tmp/export"},
+            ("datadir",),
         )
 
     class _BadRelativePath:
@@ -748,6 +774,8 @@ def test_view_maps_main_initializes_env_and_invokes_page(tmp_path, monkeypatch) 
             init_done=False,
         )
         return env
+
+    fake_agi_env.session_for_app = fake_agi_env
 
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "AgiEnv", fake_agi_env)

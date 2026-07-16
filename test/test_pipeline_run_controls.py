@@ -3,21 +3,25 @@ from __future__ import annotations
 from contextlib import contextmanager
 import importlib
 import json
+import multiprocessing
 import os
 from pathlib import Path
 import socket
 import sys
+import time
 import types
 from types import SimpleNamespace
 
 
 def _import_pipeline_run_controls():
+    repo_root = Path(__file__).resolve().parents[1]
     src_root = Path(__file__).resolve().parents[1] / "src"
     package_root = src_root / "agilab"
     src_root_str = str(src_root)
     package_root_str = str(package_root)
-    if src_root_str not in sys.path:
-        sys.path.insert(0, src_root_str)
+    for import_root in (str(repo_root), src_root_str):
+        if import_root not in sys.path:
+            sys.path.insert(0, import_root)
     pkg = sys.modules.get("agilab")
     if pkg is None or not hasattr(pkg, "__path__"):
         pkg = types.ModuleType("agilab")
@@ -27,7 +31,25 @@ def _import_pipeline_run_controls():
     elif package_root_str not in list(pkg.__path__):
         pkg.__path__ = [package_root_str, *list(pkg.__path__)]
     importlib.invalidate_caches()
-    return importlib.import_module("agilab.pipeline_run_controls")
+    # Import the implementation directly so another test importing the legacy
+    # compatibility shim first cannot leave copied helper globals behind.
+    return importlib.import_module("agilab.pipeline.pipeline_run_controls")
+
+
+def _pipeline_lock_process(root: str, ready, release) -> None:
+    module = _import_pipeline_run_controls()
+    module.st = _FakeStreamlit()
+    root_path = Path(root)
+    env = SimpleNamespace(
+        app="demo",
+        target="demo",
+        home_abs=root_path,
+        resolve_share_path=lambda relative: root_path / "share" / relative,
+    )
+    handle = module._acquire_pipeline_run_lock(env, "page")
+    ready.put(bool(handle))
+    release.wait(timeout=10)
+    module._release_pipeline_run_lock(handle, "page")
 
 
 class _FakePlaceholder:
@@ -183,7 +205,8 @@ def test_pipeline_run_controls_lock_helpers_cover_owner_and_lifecycle_edges(tmp_
     assert "host=remote" in state["owner_text"]
 
     assert module._clear_pipeline_run_lock(env, "page", reason="test") is True
-    assert not direct_lock.exists()
+    assert direct_lock.exists()
+    assert module._read_pipeline_lock_payload(direct_lock) == {}
     assert module._clear_pipeline_run_lock(env, "page", reason="already gone") is True
 
 
@@ -212,14 +235,18 @@ def test_pipeline_run_controls_acquire_refresh_release_and_busy_lock(tmp_path, m
     assert refreshed["heartbeat_at"] >= before
 
     module._release_pipeline_run_lock(handle, "page")
-    assert not lock_path.exists()
+    assert lock_path.exists()
+    assert module._read_pipeline_lock_payload(lock_path) == {}
     assert any("Workflow lock released" in line for line in fake_st.session_state["page__run_logs"])
 
-    lock_path.write_text(json.dumps({"host": "remote", "pid": 123, "app": "demo"}), encoding="utf-8")
+    owner = module._acquire_pipeline_run_lock(env, "page")
+    assert owner is not None
     busy = module._acquire_pipeline_run_lock(env, "page")
     assert busy is None
     assert any(kind == "warning" and "already running" in message for kind, message in fake_st.messages)
+    module._release_pipeline_run_lock(owner, "page")
 
+    lock_path.write_text(json.dumps({"host": "remote", "pid": 123, "app": "demo"}), encoding="utf-8")
     old = module.time.time() - 10
     os.utime(lock_path, (old, old))
     stale_handle = module._acquire_pipeline_run_lock(env, "page")
@@ -293,9 +320,9 @@ def test_pipeline_run_controls_lock_failure_branches(tmp_path, monkeypatch):
 
     locked_dir = tmp_path / "lock-as-dir"
     locked_dir.mkdir()
-    monkeypatch.setattr(module, "_inspect_pipeline_run_lock", lambda _env: {"path": locked_dir})
+    monkeypatch.setattr(module, "_pipeline_lock_path", lambda _env: locked_dir)
     assert module._clear_pipeline_run_lock(env, "page", reason="unit-test") is False
-    assert any(kind == "error" and "Unable to remove workflow lock" in msg for kind, msg in fake_st.messages)
+    assert any(kind == "error" and "Unable to clear workflow lock" in msg for kind, msg in fake_st.messages)
 
     lock_path = tmp_path / "cannot-open.lock"
     monkeypatch.setattr(module, "_pipeline_lock_path", lambda _env: lock_path)
@@ -309,12 +336,6 @@ def test_pipeline_run_controls_lock_failure_branches(tmp_path, monkeypatch):
     module._refresh_pipeline_run_lock({"path": tmp_path / "missing.lock", "token": "token"})
 
     refresh_lock = tmp_path / "refresh.lock"
-    refresh_lock.write_text(json.dumps({"token": "other"}), encoding="utf-8")
-    module._refresh_pipeline_run_lock({"path": refresh_lock, "token": "token"})
-    assert json.loads(refresh_lock.read_text(encoding="utf-8")) == {"token": "other"}
-
-    refresh_lock.write_text(json.dumps({"token": "token"}), encoding="utf-8")
-    monkeypatch.setattr(module.os, "replace", lambda *_args: (_ for _ in ()).throw(OSError("replace failed")))
     module._refresh_pipeline_run_lock({"path": refresh_lock, "token": "token"})
 
     module._release_pipeline_run_lock(None, "page")
@@ -354,12 +375,13 @@ def test_pipeline_run_controls_stale_owner_and_retry_exhaustion_branches(tmp_pat
     assert state["stale_reason"] == "owner process is no longer running on this host"
 
     missing_lock = tmp_path / "missing-clear.lock"
-    monkeypatch.setattr(module, "_inspect_pipeline_run_lock", lambda _env: {"path": missing_lock})
+    monkeypatch.setattr(module, "_pipeline_lock_path", lambda _env: missing_lock)
     assert module._clear_pipeline_run_lock(env, "page", reason="race") is True
 
     sticky_lock = tmp_path / "sticky.lock"
     sticky_lock.write_text("{}", encoding="utf-8")
     monkeypatch.setattr(module, "_pipeline_lock_path", lambda _env: sticky_lock)
+    monkeypatch.setattr(module, "_try_pipeline_file_lock", lambda _fd: False)
     monkeypatch.setattr(
         module,
         "_inspect_pipeline_run_lock",
@@ -380,6 +402,309 @@ def test_pipeline_run_controls_stale_owner_and_retry_exhaustion_branches(tmp_pat
 
     monkeypatch.setattr(module, "_clear_pipeline_run_lock", lambda *_args, **_kwargs: False)
     assert module._acquire_pipeline_run_lock(env, "page") is None
+
+
+def test_clear_pipeline_lock_does_not_unlock_unowned_file(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    lock_path = tmp_path / "busy.lock"
+    monkeypatch.setattr(module, "_pipeline_lock_path", lambda _env: lock_path)
+    monkeypatch.setattr(module, "_try_pipeline_file_lock", lambda _fd: False)
+    monkeypatch.setattr(
+        module,
+        "_inspect_pipeline_run_lock",
+        lambda _env: {"owner_text": "another session"},
+    )
+    unlocks: list[int] = []
+    monkeypatch.setattr(module, "_unlock_pipeline_file", unlocks.append)
+
+    assert module._clear_pipeline_run_lock(
+        SimpleNamespace(app="demo", target="demo"),
+        "page",
+        reason="unit test",
+    ) is False
+    assert unlocks == []
+
+
+def test_pipeline_lock_holds_identity_across_refresh_release_and_stale_clear(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setenv("AGILAB_PIPELINE_LOCK_TTL_SEC", "0.15")
+    env = SimpleNamespace(
+        app="demo",
+        target="demo",
+        home_abs=tmp_path,
+        resolve_share_path=lambda relative: tmp_path / "share" / relative,
+    )
+
+    first = module._acquire_pipeline_run_lock(env, "page")
+    assert first is not None
+    initial_heartbeat = module._read_pipeline_lock_payload(Path(first["path"]))["heartbeat_at"]
+    target_base = tmp_path / "parallel-wave"
+    target_base.mkdir()
+    stages_file = target_base / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
+    monkeypatch.setattr(module, "_resolve_stage_engine_runtime", lambda *_args, **_kwargs: ("agi.run", str(tmp_path)))
+    monkeypatch.setattr(module._pipeline_stages, "stage_summary", lambda *_args, **_kwargs: "stage")
+    monkeypatch.setattr(module._pipeline_runtime, "label_for_stage_runtime", lambda *_args, **_kwargs: "runtime")
+    monkeypatch.setattr(module._pipeline_runtime, "wrap_code_with_mlflow_resume", lambda code: code)
+    monkeypatch.setattr(module._pipeline_runtime, "python_for_stage", lambda *_args, **_kwargs: "python")
+    monkeypatch.setattr(module, "_stage_output_records", lambda *_args, **_kwargs: [])
+
+    def slow_stage(*_args, **_kwargs):
+        time.sleep(0.22)
+        return "ok"
+
+    monkeypatch.setattr(module, "_run_stage_subprocess", slow_stage)
+    records: list[dict] = []
+    assert module._run_parallel_agi_wave(
+        stages=[{"C": "print(1)"}, {"C": "print(2)"}],
+        wave=[0, 1],
+        profile="balanced",
+        env=env,
+        index_page="page",
+        stages_file=stages_file,
+        run_id="heartbeat",
+        selected_map={},
+        engine_map={},
+        default_runtime="",
+        target_base=target_base,
+        max_workers=2,
+        manifest_stage_records=records,
+        log_placeholder=None,
+    ) == 2
+    heartbeat = module._read_pipeline_lock_payload(Path(first["path"]))["heartbeat_at"]
+    assert heartbeat > initial_heartbeat
+    assert module._clear_pipeline_run_lock(env, "page", reason="expired-looking metadata") is False
+    module._release_pipeline_run_lock(first, "page")
+
+    second = module._acquire_pipeline_run_lock(env, "page")
+    assert second is not None
+    second_token = module._read_pipeline_lock_payload(Path(second["path"]))["token"]
+    module._refresh_pipeline_run_lock(first)
+    module._release_pipeline_run_lock(first, "page")
+    assert module._read_pipeline_lock_payload(Path(second["path"]))["token"] == second_token
+    module._release_pipeline_run_lock(second, "page")
+
+
+def test_pipeline_lock_is_exclusive_across_processes(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    monkeypatch.setattr(module, "st", _FakeStreamlit())
+    context = multiprocessing.get_context("spawn")
+    ready = context.Queue()
+    release = context.Event()
+    process = context.Process(target=_pipeline_lock_process, args=(str(tmp_path), ready, release))
+    process.start()
+    assert ready.get(timeout=10) is True
+    env = SimpleNamespace(
+        app="demo",
+        target="demo",
+        home_abs=tmp_path,
+        resolve_share_path=lambda relative: tmp_path / "share" / relative,
+    )
+    assert module._acquire_pipeline_run_lock(env, "page") is None
+    release.set()
+    process.join(timeout=10)
+    assert process.exitcode == 0
+
+
+def test_parallel_wave_rejects_equal_nested_and_aliased_declared_outputs(tmp_path):
+    module = _import_pipeline_run_controls()
+    env = SimpleNamespace(share_root=tmp_path)
+    stages_file = tmp_path / "lab_stages.toml"
+    stages = [
+        {
+            "id": "left",
+            "deps": ["seed"],
+            "C": "print('left')",
+            "automation": {"parallel_safe": True, "outputs": ["out/data"]},
+        },
+        {
+            "id": "right",
+            "deps": ["seed"],
+            "C": "print('right')",
+            "automation": {"parallel_safe": True, "outputs": ["out/data/result.csv"]},
+        },
+        {"id": "seed", "C": "print('seed')"},
+    ]
+
+    waves, error, _ids, _deps = module._build_stage_waves(
+        stages,
+        [2, 0, 1],
+        "balanced",
+        env=env,
+        stages_file=stages_file,
+    )
+
+    assert waves == []
+    assert error is not None
+    assert "overlapping output paths" in error
+    assert "Add a dependency to serialize" in error
+    assert module._declared_outputs_overlap("out/data", "out/data/result.csv") is True
+    assert module._declared_outputs_overlap("out/data", "out/database") is False
+    assert module._declared_outputs_overlap("a/../b", "b/result.json") is True
+    assert module._declared_outputs_overlap("Case/Output", "case/output/result.json") is True
+
+    real_dir = tmp_path / "real-output"
+    real_dir.mkdir()
+    alias_dir = tmp_path / "output-alias"
+    try:
+        alias_dir.symlink_to(real_dir, target_is_directory=True)
+    except OSError:
+        return
+    assert module._declared_outputs_overlap(
+        "output-alias/result",
+        "real-output/result/file.json",
+        env=env,
+        stages_file=stages_file,
+    ) is True
+
+
+def test_parallel_wave_serializes_stages_without_complete_output_contracts(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    env = SimpleNamespace(share_root=tmp_path)
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
+    monkeypatch.setattr(
+        module,
+        "_resolve_stage_engine_runtime",
+        lambda *_args, **_kwargs: ("agi.run", str(tmp_path / "runtime")),
+    )
+
+    unknown_stages = [
+        {"id": "seed", "C": "print('seed')"},
+        {"id": "left", "deps": ["seed"], "C": "print('left')"},
+        {"id": "right", "deps": ["seed"], "C": "print('right')"},
+    ]
+    waves, error, _ids, _deps = module._build_stage_waves(
+        unknown_stages,
+        [0, 1, 2],
+        "balanced",
+        env=env,
+        stages_file=stages_file,
+    )
+    assert error is None
+    assert waves == [[0], [1, 2]]
+    reason = module._parallel_agi_wave_ineligibility_reason(
+        unknown_stages,
+        [1, 2],
+        profile="balanced",
+        env=env,
+        stages_file=stages_file,
+        selected_map={},
+        engine_map={},
+        default_runtime="",
+    )
+
+    assert reason is not None
+    assert "parallel_safe" in reason
+    assert module._parallel_agi_wave_eligible(
+        unknown_stages,
+        [1, 2],
+        profile="balanced",
+        env=env,
+        stages_file=stages_file,
+        selected_map={},
+        engine_map={},
+        default_runtime="",
+    ) is False
+
+    safe_stage = {
+        "id": "safe",
+        "C": "print('safe')",
+        "automation": {"parallel_safe": True, "outputs": ["out/safe"]},
+    }
+    unsafe_stages = [
+        {
+            "id": "default_output",
+            "D": "out/inferred-default",
+            "C": "print('default')",
+            "automation": {"parallel_safe": True},
+        },
+        {
+            "id": "dynamic_output",
+            "C": "print('dynamic')",
+            "automation": {"parallel_safe": True, "outputs": ["out/{run_id}"]},
+        },
+        {
+            "id": "shell_variable_output",
+            "C": "print('dynamic')",
+            "automation": {"parallel_safe": True, "outputs": ["$RUN_ROOT/out"]},
+        },
+    ]
+    for unsafe_stage, expected in (
+        (unsafe_stages[0], "complete `automation.outputs`"),
+        (unsafe_stages[1], "dynamic or invalid"),
+        (unsafe_stages[2], "dynamic or invalid"),
+    ):
+        reason = module._parallel_agi_wave_ineligibility_reason(
+            [unsafe_stage, safe_stage],
+            [0, 1],
+            profile="balanced",
+            env=env,
+            stages_file=stages_file,
+            selected_map={},
+            engine_map={},
+            default_runtime="",
+        )
+        assert reason is not None
+        assert expected in reason
+
+
+def test_parallel_wave_accepts_explicit_disjoint_output_contracts(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    env = SimpleNamespace(share_root=tmp_path)
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
+    stages = [
+        {"id": "seed", "C": "print('seed')"},
+        {
+            "id": "left",
+            "deps": ["seed"],
+            "C": "print('left')",
+            "automation": {"parallel_safe": True, "outputs": ["out/left"]},
+        },
+        {
+            "id": "right",
+            "deps": ["seed"],
+            "C": "print('right')",
+            "automation": {"parallel_safe": True, "outputs": ["out/right"]},
+        },
+    ]
+    monkeypatch.setattr(
+        module,
+        "_resolve_stage_engine_runtime",
+        lambda *_args, **_kwargs: ("agi.run", str(tmp_path / "runtime")),
+    )
+
+    waves, error, _ids, _deps = module._build_stage_waves(
+        stages,
+        [0, 1, 2],
+        "balanced",
+        env=env,
+        stages_file=stages_file,
+    )
+    assert error is None
+    assert waves == [[0], [1, 2]]
+    assert module._parallel_wave_output_conflict(
+        [1, 2],
+        entries_by_idx={1: stages[1], 2: stages[2]},
+        stage_ids={1: "left", 2: "right"},
+        env=env,
+        stages_file=stages_file,
+    ) is None
+    assert module._parallel_agi_wave_eligible(
+        stages,
+        [1, 2],
+        profile="balanced",
+        env=env,
+        stages_file=stages_file,
+        selected_map={},
+        engine_map={},
+        default_runtime="",
+    ) is True
 
 
 def test_pipeline_run_controls_legacy_stage_formatting_and_clean_abort(tmp_path, monkeypatch):
@@ -449,18 +774,23 @@ def test_pipeline_run_controls_run_all_stages_executes_runpy_and_agi_run(tmp_pat
     saved_exports: list[str] = []
     mlflow_calls: list[dict] = []
 
+    class FakeTracker:
+        def __init__(self, run_id: str) -> None:
+            self.run_id = run_id
+
+        def __bool__(self) -> bool:
+            return True
+
+        def log_artifacts(self, **kwargs) -> None:
+            artifact_calls.append(kwargs)
+
     @contextmanager
-    def fake_start_mlflow_run(_env, **kwargs):
+    def fake_start_tracker_run(_env, **kwargs):
         mlflow_calls.append(kwargs)
-        yield {"run": SimpleNamespace(info=SimpleNamespace(run_id=f"run-{len(mlflow_calls)}"))}
+        yield FakeTracker(f"run-{len(mlflow_calls)}")
 
     monkeypatch.setattr(module._pipeline_runtime, "mlflow_tracking_uri", lambda _env: "sqlite:///mlflow.db")
-    monkeypatch.setattr(module._pipeline_runtime, "start_mlflow_run", fake_start_mlflow_run)
-    monkeypatch.setattr(
-        module._pipeline_runtime,
-        "log_mlflow_artifacts",
-        lambda _tracking, **kwargs: artifact_calls.append(kwargs),
-    )
+    monkeypatch.setattr(module._pipeline_runtime, "start_tracker_run", fake_start_tracker_run)
     monkeypatch.setattr(
         module._pipeline_runtime,
         "build_mlflow_process_env",

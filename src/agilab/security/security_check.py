@@ -13,6 +13,8 @@ import re
 import tomllib
 from typing import Any, Mapping, Sequence
 
+from agilab.environment.env_file_utils import read_mutable_env_text
+
 try:
     from .untrusted_content_boundary import build_external_source_boundary
 except ImportError:  # pragma: no cover - supports direct script execution.
@@ -95,7 +97,7 @@ def _parse_env_file(path: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
     result: dict[str, str] = {}
-    for raw_line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+    for raw_line in read_mutable_env_text(path, errors="ignore").splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue

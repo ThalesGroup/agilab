@@ -10,6 +10,7 @@ from agi_cluster.agi_distributor.service_lifecycle_support import (
 )
 from agi_cluster.agi_distributor.service_state_support import (
     init_service_queue,
+    recover_orphaned_service_tasks,
     reset_service_queue_state,
     service_apply_queue_root,
     service_apply_runtime_config,
@@ -37,6 +38,7 @@ from agi_cluster.agi_distributor.service_state_support import (
 
 __all__ = [
     "init_service_queue",
+    "recover_orphaned_service_tasks",
     "reset_service_queue_state",
     "serve",
     "service_apply_queue_root",

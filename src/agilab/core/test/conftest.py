@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,23 @@ from agi_env import AgiEnv
 
 
 _ORIGINAL_PATH_HOME = Path.home
+
+
+def _reset_loaded_agi_lifecycle() -> None:
+    module = sys.modules.get(
+        "agi_cluster.agi_distributor.api.agi_distributor"
+    )
+    if module is None:
+        return
+    agi_cls = getattr(module, "AGI", None)
+    lifecycle_support = getattr(module, "lifecycle_guard_support", None)
+    if agi_cls is not None and lifecycle_support is not None:
+        lifecycle_support.reset_lifecycle_state(agi_cls)
+        agi_cls._worker_launch_tasks = set()
+        agi_cls._worker_launch_errors = []
+        agi_cls._scheduler_launch_tasks = set()
+        agi_cls._scheduler_launch_errors = []
+        agi_cls._startup_in_progress = False
 
 
 def _home_from_env() -> Path:
@@ -30,6 +48,7 @@ def _home_from_env() -> Path:
 def isolate_core_test_environment(tmp_path_factory, monkeypatch):
     """Keep core tests independent from developer-local AGILAB state."""
 
+    _reset_loaded_agi_lifecycle()
     monkeypatch.setattr(Path, "home", staticmethod(_home_from_env))
 
     fake_home = tmp_path_factory.mktemp("agilab_fake_home")
@@ -74,6 +93,7 @@ def isolate_core_test_environment(tmp_path_factory, monkeypatch):
     yield
     AgiEnv.logger = original_logger
     AgiEnv.reset()
+    _reset_loaded_agi_lifecycle()
 
 
 @pytest.fixture

@@ -3277,10 +3277,12 @@ def _render_app_settings(env):
         pass
 
     if app_settings_file.exists():
+        from agi_env.app_settings_support import read_app_settings_text
+
         env.app_settings_file = app_settings_file
         render_code_editor(
             app_settings_file,
-            app_settings_file.read_text(),
+            read_app_settings_text(app_settings_file),
             "toml",
             "set",
             comp_props,

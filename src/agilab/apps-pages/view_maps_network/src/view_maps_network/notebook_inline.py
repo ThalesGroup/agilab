@@ -10,6 +10,7 @@ import networkx as nx
 import pandas as pd
 import plotly.graph_objects as go
 from IPython.display import Markdown
+from agi_env.app_settings_support import read_app_settings
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,8 @@ def _read_toml_dict(path: str | Path | None) -> dict[str, Any]:
     if not candidate.exists():
         return {}
     try:
-        import tomllib
-
-        with open(candidate, "rb") as handle:
-            payload = tomllib.load(handle)
-    except (OSError, ValueError, tomllib.TOMLDecodeError):
+        payload = read_app_settings(candidate)
+    except (OSError, ValueError):
         return {}
     return payload if isinstance(payload, dict) else {}
 

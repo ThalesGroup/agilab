@@ -86,6 +86,22 @@ def test_view_prefix_remains_the_generic_page_family() -> None:
         assert "autoencoder_latentspace" in text
 
 
+def test_apps_pages_never_borrow_the_process_agienv_singleton() -> None:
+    source_files = sorted(APPS_PAGES_ROOT.rglob("*.py"))
+    offenders: list[str] = []
+    for source_file in source_files:
+        source = source_file.read_text(encoding="utf-8", errors="ignore")
+        if (
+            "AgiEnv.for_app(" in source
+            or 'getattr(AgiEnv, "for_app"' in source
+            or "AgiEnv.current()" in source
+            or "AgiEnv(" in source
+        ):
+            offenders.append(str(source_file.relative_to(REPO_ROOT)))
+
+    assert offenders == []
+
+
 def test_barycentric_dataframe_selector_avoids_session_state_double_init() -> None:
     source = (
         APPS_PAGES_ROOT

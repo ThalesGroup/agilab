@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import importlib.util
 import json
 import subprocess
@@ -161,6 +162,40 @@ workers_data_path = "clustershare/agi"
     assert merged["cluster"]["workers"] == {"127.0.0.1": 1}
 
 
+def test_load_distributed_settings_uses_stdlib_without_optional_agi_env(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    settings_file = tmp_path / "app_settings.toml"
+    settings_file.write_text(
+        '[cluster]\ncluster_enabled = true\nscheduler = "127.0.0.1:8786"\n',
+        encoding="utf-8",
+    )
+    real_import = builtins.__import__
+
+    def _without_agi_env(name, *args, **kwargs):
+        if name.startswith("agi_env"):
+            raise ModuleNotFoundError(
+                "No module named 'agi_env'",
+                name="agi_env",
+            )
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _without_agi_env)
+
+    loaded = dag_distributed_submitter.load_dag_distributed_settings(
+        SimpleNamespace(app_settings_file=settings_file),
+        None,
+    )
+
+    assert loaded == {
+        "cluster": {
+            "cluster_enabled": True,
+            "scheduler": "127.0.0.1:8786",
+        }
+    }
+
+
 def test_build_global_submitter_runs_configured_runner(tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
     _write_app(repo_root, "src/agilab/apps/builtin", "flight_telemetry_project")
@@ -194,9 +229,14 @@ def test_build_global_submitter_runs_configured_runner(tmp_path: Path) -> None:
         artifact={"artifact": "stage_result"},
         execution_contract={"params": {}, "stages": []},
         timestamp="2026-05-07T00:00:00Z",
+        idempotency_token="factory-attempt:flight_context",
     )
 
     assert calls[0]["config"].verbose == 3
+    assert calls[0]["idempotency_token"] == "factory-attempt:flight_context"
+    assert calls[0]["request_payload"]["idempotency_token"] == (
+        "factory-attempt:flight_context"
+    )
     assert result["summary_metrics"]["factory_runner"] == 1
 
 
@@ -239,21 +279,55 @@ def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path:
             "stages": [{"name": "prepare", "args": {"n": 2}}],
         },
         timestamp="2026-05-07T00:00:00Z",
+        idempotency_token="distributed-attempt:flight_context",
+    )
+    duplicate = dag_distributed_submitter.submit_distributed_stage(
+        config=config,
+        runner_fn=_runner,
+        repo_root=repo_root,
+        lab_dir=tmp_path / "lab",
+        run_root=tmp_path / "lab/.agilab/multi_app_dag_real_runs/flight_context",
+        unit={"id": "flight_context", "app": "flight_telemetry_project"},
+        artifact={
+            "artifact": "flight_reduce_summary",
+            "kind": "reduce_summary",
+            "path": "flight/reduce.json",
+        },
+        execution_contract={
+            "entrypoint": "flight_telemetry_project.flight_context",
+            "params": {"scenario": "demo"},
+            "stages": [{"name": "prepare", "args": {"n": 2}}],
+        },
+        timestamp="2026-05-07T00:00:00Z",
+        idempotency_token="distributed-attempt:flight_context",
     )
 
     assert len(calls) == 1
+    assert duplicate == result
     assert calls[0]["apps_path"] == repo_root / "src/agilab/apps/builtin"
     assert calls[0]["app_name"] == "flight_telemetry_project"
     assert calls[0]["request_payload"]["params"] == {"scenario": "demo"}
     assert calls[0]["request_payload"]["stages"] == [{"name": "prepare", "args": {"n": 2}}]
+    assert calls[0]["request_payload"]["idempotency_token"] == (
+        "distributed-attempt:flight_context"
+    )
+    assert calls[0]["idempotency_token"] == "distributed-attempt:flight_context"
     evidence_path = Path(result["submission_evidence_path"])
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     assert evidence["schema"] == "agilab.distributed_dag_stage_submission.v1"
     assert evidence["app"] == "flight_telemetry_project"
+    assert evidence["idempotency_token"] == "distributed-attempt:flight_context"
+    assert evidence["request_payload"]["idempotency_token"] == (
+        "distributed-attempt:flight_context"
+    )
     assert evidence["cluster"]["worker_nodes"] == 2
     assert result["reduce_artifact_path"] == str(evidence_path)
     assert result["summary_metrics"]["worker_slots"] == 3
     assert result["summary_metrics"]["runner_confirmed"] == 1
+    assert result["idempotency_token"] == "distributed-attempt:flight_context"
+    assert result["distributed_submission"]["idempotency_token"] == (
+        "distributed-attempt:flight_context"
+    )
 
     non_mapping_result = dag_distributed_submitter.submit_distributed_stage(
         config=config,
@@ -265,6 +339,7 @@ def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path:
         artifact={"artifact": "default_metrics"},
         execution_contract={},
         timestamp="2026-05-07T00:00:01Z",
+        idempotency_token="distributed-attempt:default_metrics",
     )
     assert non_mapping_result["summary_metrics"] == {
         "stage_completed": 1,
@@ -402,6 +477,7 @@ def test_submit_distributed_stage_rejects_missing_or_unknown_app(tmp_path: Path)
             artifact={},
             execution_contract={},
             timestamp="2026-05-07T00:00:00Z",
+            idempotency_token="bad-attempt:bad_stage",
         )
 
     with pytest.raises(RuntimeError, match="was not found"):
@@ -457,8 +533,11 @@ def test_tail_file_trims_and_handles_unreadable_paths(tmp_path: Path) -> None:
 
 def test_stage_subprocess_runner_generates_isolated_agilab_run_script(monkeypatch, tmp_path: Path) -> None:
     captured: dict[str, object] = {}
+    call_count = 0
 
     def _fake_run(command, **kwargs):
+        nonlocal call_count
+        call_count += 1
         captured["command"] = command
         captured["kwargs"] = kwargs
         kwargs["stdout"].write('{"result": "ok"}\n')
@@ -481,6 +560,17 @@ def test_stage_subprocess_runner_generates_isolated_agilab_run_script(monkeypatc
         app_name="flight_telemetry_project",
         request_payload={"params": {}, "stages": []},
         timestamp="2026-05-07T00:00:00Z",
+        idempotency_token="subprocess-attempt:flight_context",
+    )
+    duplicate = dag_distributed_submitter.run_agilab_stage_subprocess(
+        config=config,
+        repo_root=tmp_path,
+        run_root=tmp_path / "run",
+        apps_path=tmp_path / "src/agilab/apps/builtin",
+        app_name="flight_telemetry_project",
+        request_payload={"params": {}, "stages": []},
+        timestamp="2026-05-07T00:00:00Z",
+        idempotency_token="subprocess-attempt:flight_context",
     )
 
     script = (tmp_path / "run/run_distributed_stage.py").read_text(encoding="utf-8")
@@ -488,6 +578,10 @@ def test_stage_subprocess_runner_generates_isolated_agilab_run_script(monkeypatc
     assert "modes_enabled=7" in script
     assert "await AGI.run(app_env, request=request)" in script
     assert "workers_data_path='clustershare/agi'" in script
+    assert 'os.environ["AGILAB_IDEMPOTENCY_TOKEN"]' in script
+    assert captured["kwargs"]["env"]["AGILAB_IDEMPOTENCY_TOKEN"] == (
+        "subprocess-attempt:flight_context"
+    )
     assert captured["command"][0] == sys.executable
     assert captured["kwargs"]["stdout"] is not subprocess.PIPE
     assert captured["kwargs"]["stderr"] is not subprocess.PIPE
@@ -498,6 +592,9 @@ def test_stage_subprocess_runner_generates_isolated_agilab_run_script(monkeypatc
     assert result["stdout_tail"] == '{"result": "ok"}\n'
     assert result["stdout_log"].endswith("distributed_stage.stdout.log")
     assert result["stderr_log"].endswith("distributed_stage.stderr.log")
+    assert result["idempotency_token"] == "subprocess-attempt:flight_context"
+    assert duplicate == result
+    assert call_count == 1
 
 
 def test_stage_subprocess_runner_streams_worker_logs_before_completion(monkeypatch, tmp_path: Path) -> None:
@@ -547,6 +644,7 @@ def test_stage_subprocess_runner_streams_worker_logs_before_completion(monkeypat
         app_name="flight_telemetry_project",
         request_payload={"params": {}, "stages": []},
         timestamp="2026-05-07T00:00:00Z",
+        idempotency_token="stream-attempt:flight_context",
     )
 
     assert streamed_before_return == {"stdout": True, "stderr": True}
@@ -592,6 +690,7 @@ def test_stage_subprocess_runner_rejects_null_or_error_results(
             app_name="flight_telemetry_project",
             request_payload={"params": {}, "stages": []},
             timestamp="2026-05-07T00:00:00Z",
+            idempotency_token="failure-attempt:flight_context",
         )
 
     script = (tmp_path / "run/run_distributed_stage.py").read_text(encoding="utf-8")
@@ -620,6 +719,7 @@ def test_stage_subprocess_runner_raises_with_trimmed_failure(monkeypatch, tmp_pa
             app_name="flight_telemetry_project",
             request_payload={},
             timestamp="2026-05-07T00:00:00Z",
+            idempotency_token="exit-attempt:flight_context",
         )
 
     message = str(err.value)

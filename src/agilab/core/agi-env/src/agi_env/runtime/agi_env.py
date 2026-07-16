@@ -48,7 +48,9 @@ import inspect
 import ctypes
 from ctypes import wintypes
 import importlib.util
+from contextlib import contextmanager
 from threading import RLock
+from types import MethodType
 from agi_env.project.app_settings_support import (
     app_settings_aliases,
     app_settings_source_roots,
@@ -64,9 +66,12 @@ from agi_env.runtime.env_config_support import (
 from agi_env.runtime.agi_env_app_switch_support import change_app as _agi_env_change_app
 from agi_env.runtime.agi_env_execution_methods import (
     run as _agi_env_run,
+    run_for_session as _agi_env_run_for_session,
     run_agi as _agi_env_run_agi,
     run_async as _agi_env_run_async,
+    run_async_for_session as _agi_env_run_async_for_session,
     run_bg as _agi_env_run_bg,
+    run_bg_for_session as _agi_env_run_bg_for_session,
 )
 from agi_env.runtime.agi_env_instance_initialization import initialize_agi_env_instance
 from agi_env.runtime.agi_env_meta_support import AgiEnvMeta as _AgiEnvMeta
@@ -233,6 +238,24 @@ def _select_hook(local_candidate: Path, fallback_filename: str, hook_label: str)
         resolve_hook=_resolve_worker_hook,
     )
 
+class AgiEnvBusyError(RuntimeError):
+    """Raised when another session is stuck in process-global initialization."""
+
+
+@contextmanager
+def _bounded_env_initialization_lock(lock: RLock, *, timeout: float):
+    acquired = lock.acquire(timeout=max(float(timeout), 0.0))
+    if not acquired:
+        raise AgiEnvBusyError(
+            "Timed out waiting for AGILAB environment initialization. Another "
+            "session is still bootstrapping or switching an app; retry after it finishes."
+        )
+    try:
+        yield
+    finally:
+        lock.release()
+
+
 class AgiEnv(metaclass=_AgiEnvMeta):
     """Encapsulates filesystem and configuration state for AGILab deployments.
 
@@ -242,12 +265,28 @@ class AgiEnv(metaclass=_AgiEnvMeta):
       to drop it, or :func:`AgiEnv.current` to retrieve it.
     - Reading ``AgiEnv.attr`` proxies to the singleton's attribute when the
       instance exists; callables/properties are always returned from the class.
+    - Streamlit callers must use :meth:`AgiEnv.session` or
+      :meth:`AgiEnv.session_for_app`.  Those factories return an independent
+      environment which is never installed as the process singleton.
     """
     _instance: "AgiEnv | None" = None
     _lock: RLock = RLock()
+    _initialization_lock_timeout_seconds: float = 30.0
+
+    @classmethod
+    def _bounded_construction_guard(cls):
+        """Serialize the complete legacy singleton construction transaction."""
+
+        return _bounded_env_initialization_lock(
+            cls._lock,
+            timeout=cls._initialization_lock_timeout_seconds,
+        )
 
     def __new__(cls, *args, **kwargs):
-        with cls._lock:
+        with _bounded_env_initialization_lock(
+            cls._lock,
+            timeout=cls._initialization_lock_timeout_seconds,
+        ):
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
         return cls._instance
@@ -256,9 +295,54 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def current(cls) -> "AgiEnv":
         """Return the currently initialised environment instance."""
 
-        if cls._instance is None:
-            raise RuntimeError("AgiEnv has not been initialised yet")
-        return cls._instance
+        with cls._bounded_construction_guard():
+            if cls._instance is None:
+                raise RuntimeError("AgiEnv has not been initialised yet")
+            return cls._instance
+
+    @classmethod
+    def session(cls, *args, **kwargs) -> "AgiEnv":
+        """Return an independently mutable UI/session environment.
+
+        Construction is serialized because initialisation performs a few
+        monotonic process-wide registrations (logger configuration and import
+        path discovery).  The returned object itself is not stored on ``cls``
+        and subsequent app switches cannot mutate another session or the
+        legacy CLI singleton.
+        """
+
+        with _bounded_env_initialization_lock(
+            cls._lock,
+            timeout=cls._initialization_lock_timeout_seconds,
+        ):
+            env = object.__new__(cls)
+            env._agilab_session_scoped = True
+            env.run = MethodType(_agi_env_run_for_session, env)
+            env._run_bg = MethodType(_agi_env_run_bg_for_session, env)
+            env.run_async = MethodType(_agi_env_run_async_for_session, env)
+            cls.__init__(env, *args, **kwargs)
+            return env
+
+    @classmethod
+    def session_for_app(
+        cls,
+        *,
+        apps_path: Path,
+        app: str,
+        verbose: int | None = None,
+        **kwargs,
+    ) -> "AgiEnv":
+        """Return a fresh session environment configured for ``app``."""
+
+        app_name = Path(str(app)).name
+        if not app_name:
+            raise ValueError("app name must be non-empty")
+        return cls.session(
+            apps_path=Path(apps_path).expanduser().resolve(strict=False),
+            app=app_name,
+            verbose=verbose,
+            **kwargs,
+        )
 
     @classmethod
     def for_app(
@@ -276,38 +360,45 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             raise ValueError("app name must be non-empty")
         requested_apps_path = Path(apps_path).expanduser().resolve(strict=False)
 
-        if cls._instance is None:
-            return cls(apps_path=requested_apps_path, app=app_name, verbose=verbose, **kwargs)
-
-        env = cls.current()
-        current_apps_path = Path(getattr(env, "apps_path", "") or "").expanduser().resolve(strict=False)
-        current_app = Path(str(getattr(env, "app", "") or "")).name
-        current_active_app = Path(getattr(env, "active_app", "") or "").expanduser().resolve(strict=False)
-        requested_active_app = (requested_apps_path / app_name).resolve(strict=False)
-        requested_builtin_app = (requested_apps_path / "builtin" / app_name).resolve(strict=False)
-
-        if (
-            current_apps_path == requested_apps_path
-            and current_app == app_name
-            and current_active_app in {requested_active_app, requested_builtin_app}
+        with _bounded_env_initialization_lock(
+            cls._lock,
+            timeout=cls._initialization_lock_timeout_seconds,
         ):
-            return env
+            if cls._instance is None:
+                return cls(apps_path=requested_apps_path, app=app_name, verbose=verbose, **kwargs)
 
-        type(env).__init__(
-            env,
-            apps_path=requested_apps_path,
-            app=app_name,
-            verbose=verbose,
-            _agilab_reinitialize=True,
-            **kwargs,
-        )
-        return env
+            env = cls.current()
+            current_apps_path = Path(getattr(env, "apps_path", "") or "").expanduser().resolve(strict=False)
+            current_app = Path(str(getattr(env, "app", "") or "")).name
+            current_active_app = Path(getattr(env, "active_app", "") or "").expanduser().resolve(strict=False)
+            requested_active_app = (requested_apps_path / app_name).resolve(strict=False)
+            requested_builtin_app = (requested_apps_path / "builtin" / app_name).resolve(strict=False)
+
+            if (
+                current_apps_path == requested_apps_path
+                and current_app == app_name
+                and current_active_app in {requested_active_app, requested_builtin_app}
+            ):
+                return env
+
+            type(env).__init__(
+                env,
+                apps_path=requested_apps_path,
+                app=app_name,
+                verbose=verbose,
+                _agilab_reinitialize=True,
+                **kwargs,
+            )
+            return env
 
     @classmethod
     def reset(cls) -> None:
         """Drop the cached singleton so a fresh environment can be bootstrapped."""
 
-        with cls._lock:
+        with _bounded_env_initialization_lock(
+            cls._lock,
+            timeout=cls._initialization_lock_timeout_seconds,
+        ):
             cls._instance = None
             cls._ip_local_cache = {"127.0.0.1", "::1"}
             cls._pythonpath_entries = []
@@ -397,7 +488,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
             )
 
-        _install_formatted_traceback_excepthook()
+        if not getattr(self, "_agilab_session_scoped", False):
+            _install_formatted_traceback_excepthook()
         initialize_agi_env_instance(
             self,
             apps_path=apps_path,
@@ -451,7 +543,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         return resolve_apps_repository_root(
             envars=self.envars,
             environ=os.environ,
-            logger=AgiEnv.logger,
+            logger=self.logger,
             fix_windows_drive_fn=_fix_windows_drive,
         )
 
@@ -468,6 +560,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     def _configure_pythonpath(self, entries: list[str]) -> None:
         self._pythonpath_entries = entries
+        if getattr(self, "_agilab_session_scoped", False):
+            # Session construction must not replace another session's process
+            # PYTHONPATH or import precedence. Subprocesses receive the exact
+            # bound-session snapshot via ``_build_env_for_instance``.
+            return
         apply_pythonpath_entries(entries, sys_path=sys.path, environ=os.environ)
 
     def _configure_worker_runtime(
@@ -492,9 +589,38 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             normalize_path_fn=normalize_path,
             parse_int_env_value_fn=parse_int_env_value,
             python_supports_free_threading_fn=python_supports_free_threading,
-            logger=AgiEnv.logger,
-            sys_path=sys.path,
+            logger=self.logger,
+            sys_path=(
+                list(sys.path)
+                if getattr(self, "_agilab_session_scoped", False)
+                else sys.path
+            ),
         )
+
+    def reinitialize_for_app(
+        self,
+        *,
+        apps_path: Path,
+        app: str,
+        verbose: int | None = None,
+        **kwargs,
+    ) -> "AgiEnv":
+        """Serialize a deliberate rebootstrap of this exact environment object."""
+
+        env_cls = type(self)
+        with _bounded_env_initialization_lock(
+            env_cls._lock,
+            timeout=env_cls._initialization_lock_timeout_seconds,
+        ):
+            env_cls.__init__(
+                self,
+                apps_path=apps_path,
+                app=app,
+                verbose=verbose,
+                _agilab_reinitialize=True,
+                **kwargs,
+            )
+        return self
 
     @staticmethod
     def _dedupe_paths(paths) -> list[str]:
@@ -702,7 +828,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             src_apps,
             dst_apps,
             ensure_dir_fn=_ensure_dir,
-            logger=AgiEnv.logger,
+            logger=self.logger,
         )
 
     # Simplified: keep single copy_missing implementation defined later using _copy_file
@@ -794,7 +920,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             st_resources=self.st_resources,
             is_source_env=self.is_source_env,
             ensure_dir_fn=_ensure_dir,
-            logger=AgiEnv.logger,
+            logger=self.logger,
         )
 
     def _init_projects(self):
@@ -814,7 +940,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         return discover_projects(
             paths,
             installed_app_project_paths=getattr(self, "installed_app_project_paths", ()),
-            logger=AgiEnv.logger,
+            logger=self.logger,
         )
 
     def get_base_worker_cls(self, module_path, class_name):
@@ -822,7 +948,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         return discover_base_worker_cls(
             module_path,
             class_name,
-            logger=AgiEnv.logger,
+            logger=self.logger,
             get_base_classes_fn=self.get_base_classes,
         )
 
@@ -831,14 +957,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         return discover_base_classes(
             module_path,
             class_name,
-            logger=AgiEnv.logger,
+            logger=self.logger,
             import_mapping_fn=self.get_import_mapping,
             extract_base_info_fn=self.extract_base_info,
         )
 
     def get_import_mapping(self, source):
         """Build a mapping of names to modules from ``import`` statements in ``source``."""
-        return build_import_mapping(source, logger=AgiEnv.logger)
+        return build_import_mapping(source, logger=self.logger)
 
     def _ensure_repository_app_link(self) -> bool:
         """Create a symlink to a repository app when the public tree is missing it."""
@@ -860,7 +986,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
         if not AgiEnv.create_symlink(candidate, dest):
             return False
-        AgiEnv.logger.info("Created apps repository symlink: %s -> %s", dest, candidate)  # ty: ignore[unresolved-attribute]
+        self.logger.info("Created apps repository symlink: %s -> %s", dest, candidate)
         return True
 
     @staticmethod
@@ -950,7 +1076,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             read_agilab_path_fn=self.read_agilab_path,
             optional_agi_pages_bundles_root_fn=_optional_agi_pages_bundles_root,
             ensure_dir_fn=_ensure_dir,
-            logger=AgiEnv.logger,
+            logger=self.logger,
         )
 
 
@@ -986,6 +1112,24 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             base_env=os.environ.copy(),
             venv=venv,
             pythonpath_entries=extra_paths,
+            sys_prefix=sys.prefix,
+        )
+
+    def _build_env_for_instance(self, venv=None):
+        """Build subprocess state from this environment, not the singleton."""
+
+        base_env = os.environ.copy()
+        for key, value in dict(getattr(self, "envars", {}) or {}).items():
+            if value is not None:
+                base_env[str(key)] = str(value)
+        if self.apps_path is not None:
+            base_env["APPS_PATH"] = str(self.apps_path)
+        if self.app:
+            base_env["APP_DEFAULT"] = str(self.app)
+        return build_subprocess_env(
+            base_env=base_env,
+            venv=venv,
+            pythonpath_entries=list(getattr(self, "_pythonpath_entries", ()) or ()),
             sys_prefix=sys.prefix,
         )
 
@@ -1090,7 +1234,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             apps_path=self.apps_path,  # ty: ignore[invalid-argument-type]
             home_abs=self.home_abs,
             projects=self.projects,
-            logger=AgiEnv.logger,
+            logger=self.logger,
             create_rename_map_fn=self.create_rename_map,
             clone_directory_fn=self.clone_directory,
             cleanup_rename_fn=self._cleanup_rename,
@@ -1142,8 +1286,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             agi_share_path_abs=Path(self.agi_share_path_abs),
             user=self.user,
             home_abs=Path(self.home_abs),
-            verbose=AgiEnv.verbose or 0,
-            logger=AgiEnv.logger,
+            verbose=self.verbose or 0,
+            logger=self.logger,
             force_extract=force_extract,
             ensure_dir_fn=_ensure_dir,
             sevenzip_file_cls=py7zr.SevenZipFile,

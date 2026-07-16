@@ -30,13 +30,24 @@ def change_app(env, app):
     existed_before = active_app.exists()
     env_cls = type(env)
     try:
-        env_cls.__init__(
-            env,
-            apps_path=active_app.parent,
-            app=requested_name,
-            verbose=env_cls.verbose,
-            _agilab_reinitialize=True,
-        )
+        reinitialize = getattr(env, "reinitialize_for_app", None)
+        if callable(reinitialize):
+            reinitialize(
+                apps_path=active_app.parent,
+                app=requested_name,
+                verbose=getattr(env, "verbose", 0),
+            )
+        else:
+            lock = getattr(env_cls, "_lock", None)
+            context = lock if lock is not None else _NullContext()
+            with context:
+                env_cls.__init__(
+                    env,
+                    apps_path=active_app.parent,
+                    app=requested_name,
+                    verbose=getattr(env, "verbose", 0),
+                    _agilab_reinitialize=True,
+                )
     except BaseException:
         # Catch only THIS reinit's failure — probing sys.exc_info() would also
         # fire for an unrelated exception being handled in an outer frame.
@@ -47,6 +58,14 @@ def change_app(env, app):
             )
             shutil.rmtree(active_app, ignore_errors=True)
         raise
+
+
+class _NullContext:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
 
 
 def _app_name(value):

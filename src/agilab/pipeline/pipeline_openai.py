@@ -1,12 +1,12 @@
 import os
 from pathlib import Path
 import re
-import tempfile
 from typing import Any, Callable, Dict, Optional
 
 import streamlit as st
 
 from agi_env.defaults import get_default_openai_model
+from agi_env.runtime.env_config_support import update_env_file_text
 
 _ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -38,35 +38,23 @@ def persist_env_var(name: str, value: str) -> None:
     env_dir.mkdir(parents=True, exist_ok=True)
     env_dir.chmod(0o700)
     env_file = env_dir / ".env"
-    if env_file.is_symlink():
-        raise OSError(f"Refusing to write API credentials through symlink: {env_file}")
-    lines: list[str] = []
-    if env_file.exists():
+    symlink_error = f"Refusing to write API credentials through symlink: {env_file}"
+
+    def _apply(current_text: str | None) -> str:
         lines = [
             line
-            for line in env_file.read_text(encoding="utf-8").splitlines()
+            for line in (current_text or "").splitlines()
             if not line.strip().startswith(f"{name}=")
         ]
-    lines.append(f"{name}={_dotenv_quote(value)}")
+        lines.append(f"{name}={_dotenv_quote(value)}")
+        return "\n".join(lines) + "\n"
 
-    tmp_path: Optional[Path] = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            dir=env_dir,
-            prefix=".env.",
-            delete=False,
-        ) as handle:
-            tmp_path = Path(handle.name)
-            handle.write("\n".join(lines) + "\n")
-        tmp_path.chmod(0o600)
-        tmp_path.replace(env_file)
-        env_file.chmod(0o600)
-    except Exception:
-        if tmp_path is not None:
-            tmp_path.unlink(missing_ok=True)
-        raise
+    update_env_file_text(
+        env_file,
+        _apply,
+        file_mode=0o600,
+        refuse_symlink_message=symlink_error,
+    )
 
 
 def prompt_for_openai_api_key(message: str) -> None:
