@@ -1381,6 +1381,7 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
     dist_abs = tmp_path / "dist"
     dist_abs.mkdir(parents=True, exist_ok=True)
     (dist_abs / "demo_worker-0.0.1.egg").write_text("egg", encoding="utf-8")
+    scheduler_share = tmp_path / "share"
     agi_env = tmp_path / "agi_env"
     agi_node = tmp_path / "agi_node"
     for p, name in ((agi_env, "agi_env"), (agi_node, "agi_node")):
@@ -1396,6 +1397,7 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
         dist_abs=dist_abs,
         pyvers_worker="3.13",
         envars={},
+        AGI_CLUSTER_SHARE=str(scheduler_share),
         uv_worker="uv",
         is_source_env=True,
         app="demo_app",
@@ -1436,7 +1438,7 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
 
     agi_cls = SimpleNamespace(
         _rapids_enabled=True,
-        _workers_data_path=str(tmp_path / "share"),
+        _workers_data_path="/mnt/agilab",
         _scheduler_ip="10.0.0.1",
         exec_ssh=_fake_exec,
         send_files=_fake_send,
@@ -1466,6 +1468,10 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
         for _, payload, _ in sent
     )
     assert any("python -m demo.post_install" in cmd for _, cmd in ssh)
+    mount_cmd = next(cmd for _, cmd in ssh if "SCHEDULER_CLUSTER_SHARE" in cmd)
+    assert scheduler_share.is_dir()
+    assert scheduler_share.as_posix() in mount_cmd
+    assert "REMOTE_CLUSTER_SHARE=/mnt/agilab" in mount_cmd
 
 
 @pytest.mark.asyncio
