@@ -6,6 +6,7 @@ from typing import Any
 
 import streamlit as st
 from pydantic import ValidationError
+from agi_env.streamlit_args import resolve_app_args_share_paths
 
 _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
@@ -98,15 +99,19 @@ try:
         "reset_target": bool(st.session_state.get(_k("reset_target"), False)),
     }
     validated = RRuntimeBridgeArgs(**candidate)
+    resolve_app_args_share_paths(env, validated)
 except (ValidationError, ValueError) as exc:
-    st.error("Invalid R Runtime Bridge parameters:")
+    if isinstance(exc, ValueError) and str(exc).startswith("Invalid data_out path:"):
+        st.error(str(exc))
+    else:
+        st.error("Invalid R Runtime Bridge parameters:")
     if isinstance(exc, ValidationError) and hasattr(env, "humanize_validation_errors"):
         for msg in env.humanize_validation_errors(exc):
             st.markdown(msg)
-    elif isinstance(exc, ValueError):
+    elif isinstance(exc, ValueError) and not str(exc).startswith("Invalid data_out path:"):
         st.markdown("Input x values must be a comma-separated list of numbers (example: `1, 2.5, 3`).")
         st.code(str(exc))
-    else:
+    elif not isinstance(exc, ValueError):
         st.code(str(exc))
 else:
     validated_payload = validated.model_dump(mode="json")

@@ -64,6 +64,54 @@ def test_activate_mlflow_support_updates_session_state_and_env(tmp_path):
     assert messages == []
 
 
+def test_call_mlflow_subproc_marks_new_session_for_termination():
+    class _Proc:
+        pass
+
+    proc = _Proc()
+
+    result = pagelib_runtime_support._call_mlflow_subproc(
+        lambda _cmd, _cwd, **_kwargs: proc,
+        ["mlflow"],
+        "/tmp",
+        env={},
+        stdout=None,
+    )
+
+    assert result is proc
+    assert proc._agilab_started_new_session is True
+
+
+def test_terminate_process_tree_uses_killpg_only_for_new_session(monkeypatch):
+    calls: list[tuple[str, int]] = []
+
+    class _Proc:
+        pid = 123
+
+        def __init__(self, marked: bool):
+            self._agilab_started_new_session = marked
+            self.terminated = False
+
+        def terminate(self):
+            self.terminated = True
+
+    monkeypatch.setattr(
+        pagelib_runtime_support.os,
+        "killpg",
+        lambda pid, _signal: calls.append(("killpg", pid)),
+        raising=False,
+    )
+
+    marked = _Proc(True)
+    pagelib_runtime_support._terminate_process_tree(marked)
+    assert calls == [("killpg", 123)]
+    assert marked.terminated is False
+
+    unmarked = _Proc(False)
+    pagelib_runtime_support._terminate_process_tree(unmarked)
+    assert unmarked.terminated is True
+
+
 def test_pagelib_runtime_support_command_and_wait_helpers(tmp_path):
     from agi_env import pagelib_runtime_support as support
 

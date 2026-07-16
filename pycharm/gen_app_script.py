@@ -7,13 +7,15 @@ import tempfile
 import tomllib
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 def update_workspace_xml(config_name, config_type, folder_name: str) -> None:
     """
     Ensure that workspace.xml has a RunManager configuration entry
     with the given name/type and folderName.
     """
-    workspace_path = os.path.join(os.getcwd(), ".idea", "workspace.xml")
+    workspace_path = REPO_ROOT / ".idea" / "workspace.xml"
     if not os.path.exists(workspace_path):
         root = ET.Element("project", version="4")
         ET.SubElement(root, "component", {"name": "RunManager"})
@@ -54,8 +56,8 @@ def update_folders_xml(folder_name: str) -> None:
     Ensure that .idea/runConfigurations/folders.xml has a folder entry
     for the given folder_name.
     """
-    output_dir = os.path.join(os.getcwd(), ".idea", "runConfigurations")
-    folders_xml_path = os.path.join(output_dir, "folders.xml")
+    output_dir = REPO_ROOT / ".idea" / "runConfigurations"
+    folders_xml_path = output_dir / "folders.xml"
 
     if os.path.exists(folders_xml_path):
         tree = ET.parse(folders_xml_path)
@@ -135,7 +137,7 @@ def _resolve_runtime_target(raw_arg: str, module_name: str, script_root: Path) -
         repo_root = script_root.parent
         candidates.extend(
             [
-                Path.cwd() / app_path / "pyproject.toml",
+                repo_root / app_path / "pyproject.toml",
                 repo_root / "src" / "agilab" / "apps" / app_path / "pyproject.toml",
                 repo_root / "src" / "agilab" / "apps" / "builtin" / app_path / "pyproject.toml",
             ]
@@ -238,7 +240,7 @@ if __name__ == "__main__":
         "_template_app_test.xml",
     ]
 
-    output_dir = os.path.join(os.getcwd(), ".idea", "runConfigurations")
+    output_dir = REPO_ROOT / ".idea" / "runConfigurations"
     os.makedirs(output_dir, exist_ok=True)
 
     for filename in template_names:

@@ -178,7 +178,11 @@ def test_agi_env_small_helpers_cover_remaining_branches(tmp_path: Path, monkeypa
     assert share_mount_support._read_cluster_setting(settings_path) is None
     usable_dir = tmp_path / "cluster"
     usable_dir.mkdir()
-    assert share_mount_support.is_mounted(str(usable_dir), home_path=tmp_path) is True
+    expected_mounted = (
+        Path("/proc/self/mountinfo").exists()
+        or usable_dir.is_mount()
+    )
+    assert share_mount_support.is_mounted(str(usable_dir), home_path=tmp_path) is expected_mounted
 
     class _State(dict):
         def __getattr__(self, name):

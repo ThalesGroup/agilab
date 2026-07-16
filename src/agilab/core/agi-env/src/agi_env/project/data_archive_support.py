@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import importlib
 import os
+import tempfile
 import traceback
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 import py7zr
+
+from agi_env.shares.share_runtime_support import resolve_share_path
 
 STAMP_WRITE_EXCEPTIONS = (OSError,)
 SIZE_PROBE_EXCEPTIONS = (OSError,)
@@ -140,7 +143,10 @@ PY7ZR_BAD7Z_FILE = (
 )
 PY7ZR_SEVENZIP_FILE = _py7zr_sevenzip_file_class(py7zr, PY7ZR_IMPLEMENTATION_MODULE)
 ensure_py7zr_package_compatibility()
-EXTRACTION_FAILURE_EXCEPTIONS = (OSError, *PY7ZR_ARCHIVE_ERROR_CLASSES)
+EXTRACTION_FAILURE_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    OSError,
+    *PY7ZR_ARCHIVE_ERROR_CLASSES,
+)
 
 
 def _archive_size_mb(archive_path: Path) -> float | None:
@@ -151,10 +157,11 @@ def _archive_size_mb(archive_path: Path) -> float | None:
 
 
 def _archive_member_names(archive: Any) -> list[str] | None:
-    getnames = getattr(archive, "getnames", None)
-    if not callable(getnames):
-        return None
-    return [str(name) for name in getnames()]
+    for method_name in ("getnames", "namelist"):
+        getnames = getattr(archive, method_name, None)
+        if callable(getnames):
+            return [str(name) for name in getnames()]
+    return None
 
 
 def _archive_member_target(dest: Path, member_name: str) -> Path:
@@ -183,6 +190,12 @@ def _validate_archive_members_stay_within_dest(archive: Any, dest: Path) -> None
             raise RuntimeError(f"Unsafe archive member path in '{member_name}'")
 
 
+def validate_archive_members_stay_within_dest(archive: Any, dest: Path) -> None:
+    """Public wrapper for archive preflight before ``extractall``."""
+
+    _validate_archive_members_stay_within_dest(archive, dest)
+
+
 def _write_dataset_stamp(archive_path: Path, stamp_path: Path) -> None:
     try:
         stamp_path.write_text(str(archive_path), encoding="utf-8")
@@ -206,7 +219,7 @@ def unzip_data(
     ensure_dir_fn: Callable[[str | Path], Path],
     sevenzip_file_cls: type[Any],
     rmtree_fn: Callable[..., Any],
-    environ: dict[str, str] = os.environ,  # ty: ignore[invalid-parameter-default]
+    environ: Mapping[str, str] = os.environ,
 ) -> None:
     """Extract a `.7z` dataset archive into the app share directory."""
 
@@ -216,9 +229,7 @@ def unzip_data(
         return
 
     extract_rel = Path(extract_to) if extract_to is not None else Path(app_data_rel)
-
-    def _resolve_destination(base: Path, candidate: Path) -> Path:
-        return candidate if candidate.is_absolute() else (base / candidate)
+    share_root = Path(agi_share_path_abs).expanduser().resolve(strict=False)
 
     def _prepare_parent(path: Path) -> Path | None:
         parent = path.parent
@@ -229,7 +240,7 @@ def unzip_data(
             return None
         return parent
 
-    dest = _resolve_destination(Path(agi_share_path_abs), extract_rel)
+    dest = resolve_share_path(extract_rel, share_root)
     dest_parent = _prepare_parent(dest)
     if dest_parent is None:
         logger.warning(
@@ -238,7 +249,13 @@ def unzip_data(
         )
         return
 
-    dataset = dest / "dataset"
+    def _resolve_dataset_target() -> Path:
+        target = resolve_share_path(dest / "dataset", share_root)
+        if target == share_root:
+            raise ValueError("Dataset reset target must not be the physical share root")
+        return target
+
+    dataset = _resolve_dataset_target()
     env_force = environ.get("AGILAB_FORCE_DATA_REFRESH", "0") not in {"0", "", "false", "False"}
     force_refresh = force_extract or env_force
 
@@ -274,27 +291,48 @@ def unzip_data(
             _write_dataset_stamp(archive_path, stamp_path)
         return
 
-    if dataset.exists() and force_refresh:
-        try:
-            def _ignore_missing(func, path, excinfo):
-                exc = excinfo[1]
-                if isinstance(exc, FileNotFoundError):
-                    return
-                raise exc
-
-            rmtree_fn(dataset, onerror=_ignore_missing)
-        except FileNotFoundError:
-            pass
-        except PermissionError as exc:
-            if verbose > 0:
-                logger.info(f"Unable to refresh dataset '{dataset}': {exc}. Skipping extraction.")
+    def _ignore_missing(
+        _func: Callable[..., Any],
+        _path: str,
+        excinfo: tuple[type[BaseException], BaseException, Any],
+    ) -> None:
+        exc = excinfo[1]
+        if isinstance(exc, FileNotFoundError):
             return
+        raise exc
+
+    def _cleanup_tree(path: Path, *, purpose: str) -> None:
+        if not path.exists():
+            return
+        try:
+            rmtree_fn(path, onerror=_ignore_missing)
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            logger.warning("Unable to remove %s '%s': %s.", purpose, path, exc)
+
+    created_staging_root: Path | None = None
+    try:
+        created_staging_root = Path(
+            tempfile.mkdtemp(prefix=".agilab-dataset-refresh-", dir=dest)
+        )
+        staging_root = resolve_share_path(created_staging_root, dest)
+    except (OSError, ValueError) as exc:
+        logger.warning(
+            "Unable to create a staging directory below '%s': %s. Skipping extraction.",
+            dest,
+            exc,
+        )
+        return
 
     try:
-        ensure_dir_fn(dataset)
-    except OSError as exc:
-        logger.warning("Unable to create dataset directory '%s': %s. Skipping extraction.", dataset, exc)
-        return
+        backup = resolve_share_path(
+            staging_root.with_name(f"{staging_root.name}.rollback"),
+            dest,
+        )
+    except ValueError:
+        _cleanup_tree(staging_root, purpose="dataset refresh staging directory")
+        raise
 
     try:
         with sevenzip_file_cls(archive_path, mode="r") as archive:
@@ -302,19 +340,51 @@ def unzip_data(
             size_hint = f" (~{size_mb:.1f} MB)" if size_mb else ""
             if verbose > 1:
                 logger.info(
-                    f"Starting dataset extraction: {archive_path}{size_hint} -> {dataset} "
+                    f"Starting dataset extraction: {archive_path}{size_hint} -> {staging_root} "
                     "(this can take a moment; please wait)."
                 )
-            _validate_archive_members_stay_within_dest(archive, dest)
-            archive.extractall(path=dest)
+            _validate_archive_members_stay_within_dest(archive, staging_root)
+            archive.extractall(path=staging_root)
+
+        try:
+            staged_dataset = resolve_share_path(staging_root / "dataset", staging_root)
+        except ValueError as exc:
+            raise RuntimeError("Extracted dataset escaped its staging directory") from exc
+        if not staged_dataset.is_dir():
+            raise RuntimeError(
+                f"Archive '{archive_path}' did not produce a dataset directory"
+            )
+
+        _write_dataset_stamp(
+            archive_path,
+            staged_dataset / ".agilab_dataset_stamp",
+        )
+
+        dataset = _resolve_dataset_target()
+        had_live_dataset = dataset.exists()
+        if had_live_dataset:
+            dataset.replace(backup)
+        try:
+            staged_dataset.replace(dataset)
+        except BaseException:
+            if had_live_dataset:
+                try:
+                    backup.replace(dataset)
+                except OSError as rollback_exc:
+                    raise RuntimeError(
+                        f"Dataset refresh failed and rollback could not restore '{dataset}'"
+                    ) from rollback_exc
+            raise
+
+        if had_live_dataset:
+            _cleanup_tree(backup, purpose="dataset refresh rollback directory")
         if verbose > 1:
             logger.info(f"Extracted '{archive_path}' to '{dest}'.")
-
-        stamp_path = dataset / ".agilab_dataset_stamp"
-        _write_dataset_stamp(archive_path, stamp_path)
     except EXTRACTION_FAILURE_EXCEPTIONS as exc:
         # Extraction is an operational boundary: surface archive/read/write failures
         # to callers through one stable RuntimeError contract.
         logger.error(f"Failed to extract '{archive_path}': {exc}")
         traceback.print_exc()
         raise RuntimeError(f"Extraction failed for '{archive_path}'") from exc
+    finally:
+        _cleanup_tree(staging_root, purpose="dataset refresh staging directory")

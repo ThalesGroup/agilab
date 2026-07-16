@@ -108,14 +108,12 @@ def test_remote_deployment_path_and_probe_helpers(tmp_path):
         local_share_setting=str(local_share),
         env=env,
     ) == "clustershare/agi"
-    assert (
+    with pytest.raises(ValueError, match=r"must not contain '\.\.' traversal"):
         deployment_remote_support._remote_cluster_share_root_setting(
             "clustershare/agi/../outside",
             local_share_setting=str(local_share),
             env=env,
         )
-        == "clustershare/agi"
-    )
 
     assert deployment_remote_support._parse_version_prefix("10.15.7-extra") == (
         10,
@@ -139,6 +137,25 @@ def test_remote_cluster_share_root_setting_strips_default_user_workflow_suffix(t
         local_share_setting=str(tmp_path / "scheduler-share"),
         env=env,
     ) == "clustershare/agi"
+
+
+@pytest.mark.parametrize(
+    "remote_share",
+    (
+        "/mnt/agilab",
+        "/mnt/agilab/agi/workflows/session-123",
+    ),
+)
+def test_remote_cluster_share_root_setting_preserves_absolute_physical_root(
+    remote_share,
+):
+    env = SimpleNamespace(home_abs=Path("/home/agi"), user="agi")
+
+    assert deployment_remote_support._remote_cluster_share_root_setting(
+        remote_share,
+        local_share_setting="/mnt/agilab",
+        env=env,
+    ) == "/mnt/agilab"
 
 
 def test_remote_command_helpers_quote_dynamic_arguments():
@@ -213,10 +230,13 @@ def test_remote_environment_and_scheduler_port_edge_helpers(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_remote_deployment_mount_and_platform_error_edges(tmp_path):
+    no_scheduler_calls: list[str] = []
+
     class _AgiNoScheduler:
         _scheduler_ip = ""
 
-        async def exec_ssh(self, *_args):
+        async def exec_ssh(self, _ip, cmd):
+            no_scheduler_calls.append(cmd)
             return "ok"
 
     env = SimpleNamespace(
@@ -226,6 +246,7 @@ async def test_remote_deployment_mount_and_platform_error_edges(tmp_path):
         await deployment_remote_support._prepare_remote_cluster_share(
             _AgiNoScheduler(), "10.0.0.2", env, "clustershare"
         )
+    assert no_scheduler_calls == []
 
     calls: list[str] = []
 
@@ -343,7 +364,213 @@ async def test_prepare_remote_cluster_share_logs_premounted_verbose_path(tmp_pat
 
     log.info.assert_called_once()
     assert len(ssh_calls) == 2
-    assert "Pre-mounted AGILAB cluster share" in ssh_calls[1]
+    assert "Pre-mounted AGILAB cluster share" in ssh_calls[0]
+    assert "AGI_CLUSTER_ENABLED=" in ssh_calls[1]
+
+
+@pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_does_not_persist_env_when_premounted_check_fails(
+    tmp_path,
+):
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE=str(tmp_path / "scheduler-share"),
+        envars={"AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED": "1"},
+        home_abs=tmp_path,
+        user="agi",
+        verbose=0,
+    )
+    ssh_calls: list[str] = []
+
+    class _AgiNoScheduler:
+        _scheduler_ip = ""
+
+        async def exec_ssh(self, _ip, cmd):
+            ssh_calls.append(cmd)
+            raise RuntimeError("pre-mounted share unavailable")
+
+    with pytest.raises(RuntimeError, match="pre-mounted share unavailable"):
+        await deployment_remote_support._prepare_remote_cluster_share(
+            _AgiNoScheduler(), "192.168.20.15", env, "clustershare"
+        )
+
+    assert len(ssh_calls) == 1
+    assert "Pre-mounted AGILAB cluster share" in ssh_calls[0]
+    assert not any("AGI_CLUSTER_ENABLED=" in cmd for cmd in ssh_calls)
+
+
+@pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_does_not_persist_env_when_mount_fails(
+    tmp_path,
+):
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE=str(tmp_path / "scheduler-share"),
+        envars={},
+        home_abs=tmp_path,
+        user="agi",
+        verbose=0,
+    )
+    ssh_calls: list[str] = []
+
+    class _Agi:
+        _scheduler_ip = "192.168.20.111"
+
+        async def exec_ssh(self, _ip, cmd):
+            ssh_calls.append(cmd)
+            raise RuntimeError("sshfs mount failed")
+
+    with pytest.raises(RuntimeError, match="sshfs mount failed"):
+        await deployment_remote_support._prepare_remote_cluster_share(
+            _Agi(), "192.168.20.15", env, "clustershare"
+        )
+
+    assert len(ssh_calls) == 1
+    assert "SCHEDULER_CLUSTER_SHARE" in ssh_calls[0]
+    assert not any("AGI_CLUSTER_ENABLED=" in cmd for cmd in ssh_calls)
+
+
+@pytest.mark.parametrize(
+    "remote_share",
+    [
+        "../victim",
+        "clustershare/../victim",
+        r"clustershare\..\victim",
+        "clustershare/evil\x00target",
+        r"C:relative\share",
+        r"C:\absolute\share",
+        r"\\server\share",
+        "",
+        ".",
+        "./",
+        "./.",
+        "~",
+        "~/",
+        "/",
+        "//",
+        "/./",
+        "/home/agi",
+        "/home/agi/.",
+        "//home/agi/.",
+        "/Users/agi",
+        "/Users/agi/.",
+        "/root",
+        "/root/.",
+        "/var/root",
+        "/var/root/.",
+        "/etc",
+        "/etc/.",
+        "/mnt",
+        "/mnt/.",
+    ],
+)
+@pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_rejects_unsafe_worker_target_before_ssh(
+    tmp_path,
+    remote_share,
+):
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE=str(tmp_path / "scheduler-share"),
+        envars={},
+        home_abs=tmp_path,
+        user="agi",
+        verbose=0,
+    )
+    ssh_calls: list[str] = []
+
+    class _Agi:
+        _scheduler_ip = "192.168.20.111"
+
+        async def exec_ssh(self, _ip, cmd):
+            ssh_calls.append(cmd)
+            return "ok"
+
+    with pytest.raises(ValueError, match="Workers Data Path"):
+        await deployment_remote_support._prepare_remote_cluster_share(
+            _Agi(), "192.168.20.15", env, remote_share
+        )
+
+    assert ssh_calls == []
+    assert not (tmp_path / "scheduler-share").exists()
+
+
+@pytest.mark.parametrize(
+    "local_share",
+    ["/", "/etc", "/mnt", "/home/agi", "/Users/agi", "/var/root"],
+)
+@pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_rejects_unsafe_scheduler_source_before_ssh(
+    tmp_path,
+    local_share,
+):
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE=local_share,
+        envars={},
+        home_abs=tmp_path,
+        user="agi",
+        verbose=0,
+    )
+    ssh_calls: list[str] = []
+    agi_cls = SimpleNamespace(
+        _scheduler_ip="127.0.0.1",
+        exec_ssh=lambda ip, command: ssh_calls.append(command),
+    )
+
+    with pytest.raises(ValueError, match="AGI_CLUSTER_SHARE"):
+        await deployment_remote_support._prepare_remote_cluster_share(
+            agi_cls,
+            "192.0.2.10",
+            env,
+            "clustershare/agi",
+        )
+
+    assert ssh_calls == []
+
+
+@pytest.mark.parametrize(
+    "remote_share",
+    [
+        "clustershare",
+        "~/clustershare",
+        "/mnt/agilab",
+        "/var/lib/agilab",
+        "/tmp/agilab",
+    ],
+)
+def test_validate_remote_share_target_accepts_dedicated_roots(remote_share):
+    assert deployment_remote_support._validate_remote_share_target(remote_share) == remote_share
+
+
+@pytest.mark.asyncio
+async def test_prepare_remote_cluster_share_preserves_absolute_worker_mount_target(
+    tmp_path,
+):
+    scheduler_share = tmp_path / "scheduler-share"
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE=str(scheduler_share),
+        envars={},
+        home_abs=tmp_path,
+        user="agi",
+        verbose=0,
+    )
+    ssh_calls: list[str] = []
+
+    class _Agi:
+        _scheduler_ip = "192.168.20.111"
+
+        async def exec_ssh(self, _ip, cmd):
+            ssh_calls.append(cmd)
+            return "ok"
+
+    await deployment_remote_support._prepare_remote_cluster_share(
+        _Agi(), "192.168.20.15", env, "/mnt/agilab"
+    )
+
+    assert scheduler_share.is_dir()
+    remote_env_cmd = next(cmd for cmd in ssh_calls if "AGI_CLUSTER_SHARE=" in cmd)
+    mount_cmd = next(cmd for cmd in ssh_calls if "SCHEDULER_CLUSTER_SHARE" in cmd)
+    assert "/mnt/agilab" in remote_env_cmd
+    assert "REMOTE_CLUSTER_SHARE=/mnt/agilab" in mount_cmd
+    assert scheduler_share.as_posix() in mount_cmd
+    assert ssh_calls.index(mount_cmd) < ssh_calls.index(remote_env_cmd)
 
 
 @pytest.mark.asyncio
@@ -1027,9 +1254,9 @@ async def test_prepare_remote_cluster_share_accepts_premounted_remote_share_with
     )
 
     assert len(ssh_calls) == 2
-    assert "AGI_CLUSTER_SHARE=" in ssh_calls[0]
-    assert "clustershare" in ssh_calls[0]
-    assert "Pre-mounted AGILAB cluster share" in ssh_calls[1]
+    assert "Pre-mounted AGILAB cluster share" in ssh_calls[0]
+    assert "AGI_CLUSTER_SHARE=" in ssh_calls[1]
+    assert "clustershare" in ssh_calls[1]
     assert "SCHEDULER_SSH_TARGET" not in "\n".join(ssh_calls)
     assert "sshfs" not in "\n".join(ssh_calls)
 
@@ -1067,7 +1294,8 @@ async def test_prepare_remote_cluster_share_treats_nfs_and_ntfs_backends_as_prem
         )
 
         assert len(ssh_calls) == 2
-        assert "Pre-mounted AGILAB cluster share" in ssh_calls[1]
+        assert "Pre-mounted AGILAB cluster share" in ssh_calls[0]
+        assert "AGI_CLUSTER_ENABLED=" in ssh_calls[1]
         assert "SCHEDULER_SSH_TARGET" not in "\n".join(ssh_calls)
         assert "sshfs" not in "\n".join(ssh_calls).lower()
 
@@ -1153,6 +1381,7 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
     dist_abs = tmp_path / "dist"
     dist_abs.mkdir(parents=True, exist_ok=True)
     (dist_abs / "demo_worker-0.0.1.egg").write_text("egg", encoding="utf-8")
+    scheduler_share = tmp_path / "share"
     agi_env = tmp_path / "agi_env"
     agi_node = tmp_path / "agi_node"
     for p, name in ((agi_env, "agi_env"), (agi_node, "agi_node")):
@@ -1168,6 +1397,7 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
         dist_abs=dist_abs,
         pyvers_worker="3.13",
         envars={},
+        AGI_CLUSTER_SHARE=str(scheduler_share),
         uv_worker="uv",
         is_source_env=True,
         app="demo_app",
@@ -1208,7 +1438,7 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
 
     agi_cls = SimpleNamespace(
         _rapids_enabled=True,
-        _workers_data_path=str(tmp_path / "share"),
+        _workers_data_path="/mnt/agilab",
         _scheduler_ip="10.0.0.1",
         exec_ssh=_fake_exec,
         send_files=_fake_send,
@@ -1238,6 +1468,10 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
         for _, payload, _ in sent
     )
     assert any("python -m demo.post_install" in cmd for _, cmd in ssh)
+    mount_cmd = next(cmd for _, cmd in ssh if "SCHEDULER_CLUSTER_SHARE" in cmd)
+    assert scheduler_share.is_dir()
+    assert scheduler_share.as_posix() in mount_cmd
+    assert "REMOTE_CLUSTER_SHARE=/mnt/agilab" in mount_cmd
 
 
 @pytest.mark.asyncio

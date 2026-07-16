@@ -6,6 +6,7 @@ from typing import Any
 
 import streamlit as st
 from pydantic import ValidationError
+from agi_env.streamlit_args import resolve_app_args_share_paths
 
 _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
@@ -372,6 +373,7 @@ if submission_inbox_raw:
 
 try:
     validated = TesciaDiagnosticArgs(**candidate)
+    resolved_paths = resolve_app_args_share_paths(env, validated)
 except ValidationError as exc:
     st.error("Invalid TeSciA diagnostic parameters:")
     if hasattr(env, "humanize_validation_errors"):
@@ -379,6 +381,8 @@ except ValidationError as exc:
             st.markdown(msg)
     else:
         st.code(str(exc))
+except ValueError as exc:
+    st.error(str(exc))
 else:
     validated_payload = validated.model_dump(mode="json")
     if validated_payload != current_payload:
@@ -394,10 +398,9 @@ else:
     else:
         st.info("No changes to save.")
 
-    _resolve_input = getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
-    resolved_data_in = _resolve_input(validated.data_in)
-    resolved_data_out = env.resolve_share_path(validated.data_out)
-    resolved_submission_inbox = env.resolve_share_path(validated.submission_inbox)
+    resolved_data_in = resolved_paths["data_in"]
+    resolved_data_out = resolved_paths["data_out"]
+    resolved_submission_inbox = resolved_paths["submission_inbox"]
     if not any(resolved_data_in.glob(validated.files)):
         if validated.case_source == "standalone_ai":
             st.info("No generated diagnostic JSON exists yet. The standalone AI engine will create it on first run.")

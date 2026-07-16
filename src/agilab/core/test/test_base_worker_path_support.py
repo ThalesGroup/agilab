@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -23,6 +21,15 @@ def test_base_worker_path_support_normalized_and_share_root(monkeypatch, tmp_pat
         home_abs=tmp_path,
     )
     assert path_support.share_root_path(env) == tmp_path / "clustershare"
+
+
+def test_share_root_fallback_tolerates_missing_optional_path_attributes(tmp_path):
+    env = SimpleNamespace(
+        share_root_path=lambda: (_ for _ in ()).throw(OSError("no share")),
+        home_abs=tmp_path,
+    )
+
+    assert path_support.share_root_path(env) == tmp_path
 
 
 def test_worker_share_fallback_uses_runtime_home_for_relative_share(monkeypatch, tmp_path):
@@ -176,6 +183,105 @@ def test_input_data_dir_falls_back_to_physical_share_when_session_input_missing(
     assert resolved == session_input.resolve(strict=False)
 
 
+@pytest.mark.parametrize(
+    "value",
+    (Path("../outside/pipeline"), Path("nested/../../outside")),
+)
+def test_data_dir_rejects_relative_escape_from_trusted_roots(tmp_path, value):
+    share_root = tmp_path / "share"
+    env = SimpleNamespace(
+        share_root_path=lambda: share_root,
+        agi_share_path_abs=share_root,
+        agi_share_path=Path("share"),
+        home_abs=tmp_path,
+        _is_managed_pc=False,
+    )
+
+    with pytest.raises(ValueError, match="parent traversal"):
+        path_support.resolve_data_dir(
+            env,
+            value,
+            share_root_path_fn=lambda current_env: path_support.share_root_path(
+                current_env
+            ),
+            remap_managed_pc_path_fn=lambda candidate: Path(candidate),
+            normalized_path_fn=lambda candidate: Path(candidate),
+        )
+
+
+def test_data_dir_rejects_absolute_and_symlink_escapes(tmp_path):
+    share_root = tmp_path / "share"
+    outside = tmp_path / "outside"
+    share_root.mkdir()
+    outside.mkdir()
+    symlink = share_root / "linked-outside"
+    symlink.symlink_to(outside, target_is_directory=True)
+    env = SimpleNamespace(
+        share_root_path=lambda: share_root,
+        agi_share_path_abs=share_root,
+        agi_share_path=Path("share"),
+        home_abs=tmp_path,
+        _is_managed_pc=False,
+    )
+
+    for value in (outside / "pipeline", symlink / "pipeline"):
+        with pytest.raises(ValueError, match="must stay inside"):
+            path_support.resolve_data_dir(
+                env,
+                value,
+                share_root_path_fn=lambda current_env: path_support.share_root_path(
+                    current_env
+                ),
+                remap_managed_pc_path_fn=lambda candidate: Path(candidate),
+                normalized_path_fn=lambda candidate: Path(candidate),
+            )
+
+
+def test_data_dir_allows_absolute_workflow_and_physical_share_paths(tmp_path):
+    physical_root = tmp_path / "share"
+    workflow_root = physical_root / "workflows" / "run-1"
+    env = SimpleNamespace(
+        AGILAB_WORKFLOW_DATA_ROOT=workflow_root,
+        share_root_path=lambda: physical_root,
+        agi_share_path_abs=physical_root,
+        agi_share_path=Path("share"),
+        home_abs=tmp_path,
+        _is_managed_pc=False,
+    )
+
+    for value in (workflow_root / "app/input", physical_root / "seed/input"):
+        assert path_support.resolve_data_dir(
+            env,
+            value,
+            share_root_path_fn=lambda current_env: path_support.share_root_path(
+                current_env
+            ),
+            remap_managed_pc_path_fn=lambda candidate: Path(candidate),
+            normalized_path_fn=lambda candidate: Path(candidate),
+        ) == value.resolve(strict=False)
+
+
+def test_data_dir_rejects_windows_drive_relative_path(tmp_path):
+    env = SimpleNamespace(
+        share_root_path=lambda: tmp_path / "share",
+        agi_share_path_abs=tmp_path / "share",
+        agi_share_path=Path("share"),
+        home_abs=tmp_path,
+        _is_managed_pc=False,
+    )
+
+    with pytest.raises(ValueError, match="drive-relative"):
+        path_support.resolve_data_dir(
+            env,
+            "C:outside/pipeline",
+            share_root_path_fn=lambda current_env: path_support.share_root_path(
+                current_env
+            ),
+            remap_managed_pc_path_fn=lambda candidate: Path(candidate),
+            normalized_path_fn=lambda candidate: Path(candidate),
+        )
+
+
 def test_generated_artifact_path_uses_output_root_not_dataset(tmp_path):
     dataset_root = tmp_path / "flight_trajectory" / "dataset"
     output_root = tmp_path / "flight_trajectory" / "dataframe"
@@ -234,10 +340,123 @@ def test_generated_artifact_path_rejects_relative_parent_escape(tmp_path):
         )
 
 
-@pytest.mark.skipif(
-    os.name == "posix" and sys.platform != "darwin",
-    reason="case-insensitive matching only applies on macOS/Windows filesystems",
-)
+def test_generated_artifact_path_rejects_absolute_outside_output(tmp_path):
+    dataset_root = tmp_path / "flight_trajectory" / "dataset"
+    output_root = tmp_path / "flight_trajectory" / "dataframe"
+    outside = tmp_path / "outside" / "evil.parquet"
+
+    with pytest.raises(ValueError, match="stay under data_out"):
+        path_support.resolve_generated_artifact_path(
+            dataset_root,
+            output_root,
+            outside,
+            normalized_path_fn=lambda value: Path(value).expanduser(),
+        )
+
+
+def test_generated_artifact_path_rejects_windows_drive_relative_path(tmp_path):
+    with pytest.raises(ValueError, match="drive-relative"):
+        path_support.resolve_generated_artifact_path(
+            tmp_path / "dataset",
+            tmp_path / "dataframe",
+            "C:outside/evil.parquet",
+            normalized_path_fn=lambda value: Path(value).expanduser(),
+        )
+
+
+def test_share_output_path_verifies_even_lenient_runtime_resolver(tmp_path):
+    share_root = tmp_path / "share"
+
+    def _lenient_resolver(value):
+        candidate = Path(value)
+        return candidate if candidate.is_absolute() else share_root / candidate
+
+    env = SimpleNamespace(resolve_share_path=_lenient_resolver)
+
+    assert path_support.resolve_share_output_path(env, "app/evidence") == (
+        share_root / "app/evidence"
+    ).resolve(strict=False)
+    with pytest.raises(ValueError, match="active share root"):
+        path_support.resolve_share_output_path(env, tmp_path / "outside")
+
+
+def test_safe_reset_path_requires_a_descendant_of_a_trusted_root(tmp_path):
+    share_root = tmp_path / "share"
+    target = share_root / "app/evidence"
+
+    assert path_support.safe_reset_path(
+        target,
+        roots=(share_root,),
+        label="data_out",
+    ) == target.resolve(strict=False)
+    with pytest.raises(ValueError, match="confinement root"):
+        path_support.safe_reset_path(
+            share_root,
+            roots=(share_root,),
+            label="data_out",
+        )
+    with pytest.raises(ValueError, match="trusted root"):
+        path_support.safe_reset_path(
+            tmp_path / "outside",
+            roots=(share_root,),
+            label="data_out",
+        )
+
+
+@pytest.mark.parametrize("relation", ("ancestor", "descendant"))
+def test_safe_reset_path_rejects_overlap_with_protected_input(tmp_path, relation):
+    share_root = tmp_path / "share"
+    protected = share_root / "app" / "input"
+    protected.mkdir(parents=True)
+    target = share_root / "app" if relation == "ancestor" else protected / "generated"
+
+    with pytest.raises(ValueError, match="must not overlap protected input"):
+        path_support.safe_reset_path(
+            target,
+            roots=(share_root,),
+            protected_paths=(protected,),
+            label="data_out",
+        )
+
+
+def test_case_alias_uses_filesystem_identity_for_containment_and_relative_suffix(tmp_path):
+    share_root = tmp_path / "WorkflowRoot"
+    share_root.mkdir()
+    case_variant = tmp_path / "workflowroot"
+    if not case_variant.exists():
+        pytest.skip("temporary filesystem is case-sensitive")
+
+    alias_child = case_variant / "inputs" / "dataset.csv"
+    assert path_support._path_is_relative_to(alias_child, share_root)
+    assert path_support._relative_path_under(alias_child, share_root) == Path(
+        "inputs/dataset.csv"
+    )
+
+    with pytest.raises(ValueError, match="confinement root"):
+        path_support.safe_reset_path(
+            case_variant,
+            roots=(share_root,),
+            label="data_out",
+        )
+
+
+def test_case_distinct_sibling_is_not_authorized_on_case_sensitive_volume(tmp_path):
+    share_root = tmp_path / "WorkflowRoot"
+    share_root.mkdir()
+    case_variant = tmp_path / "workflowroot"
+    try:
+        case_variant.mkdir()
+    except FileExistsError:
+        pytest.skip("temporary filesystem is case-insensitive")
+    if case_variant.samefile(share_root):
+        pytest.skip("temporary filesystem aliases case variants")
+
+    target = case_variant / "output"
+    assert not path_support._path_is_relative_to(target, share_root)
+    with pytest.raises(ValueError, match="trusted root"):
+        path_support.safe_reset_path(target, roots=(share_root,), label="data_out")
+
+
 def test_generated_artifact_path_catches_case_variant_of_data_in(tmp_path):
     # Regression: on case-insensitive filesystems a case-variant spelling of
     # data_in (e.g. .../DATASET) must still be recognised as aliasing the
@@ -248,6 +467,8 @@ def test_generated_artifact_path_catches_case_variant_of_data_in(tmp_path):
     output_root.mkdir(parents=True)
 
     case_variant_input = tmp_path / "link_sim" / "DATASET" / "x.parquet"
+    if not case_variant_input.parent.exists():
+        pytest.skip("temporary filesystem is case-sensitive")
 
     resolved = path_support.resolve_generated_artifact_path(
         dataset_root,
@@ -266,18 +487,6 @@ def test_path_is_relative_to_matches_exact_case_on_all_platforms():
     child = Path("/data/dataset/sub/x.parquet")
     assert path_support._path_is_relative_to(child, parent) is True
     assert path_support._path_is_relative_to(Path("/data/other"), parent) is False
-
-
-@pytest.mark.skipif(
-    os.name == "posix" and sys.platform != "darwin",
-    reason="case-insensitive matching only applies on macOS/Windows filesystems",
-)
-def test_path_is_relative_to_is_case_insensitive_on_case_folding_platforms():
-    # Direct guard: a case-variant parent spelling must be recognised as a
-    # prefix on case-insensitive platforms (macOS/Windows).
-    parent = Path("/data/DataSet")
-    child = Path("/data/dataset/sub/x.parquet")
-    assert path_support._path_is_relative_to(child, parent) is True
 
 
 def test_artifact_dir_prefers_export_root_then_share_resolver(tmp_path):

@@ -146,7 +146,7 @@ def test_share_mount_support_path_and_mount_helpers(tmp_path: Path, monkeypatch)
         raise FileNotFoundError("no mountinfo")
 
     monkeypatch.setattr(share_mount_support, "open", _missing_mountinfo, raising=False)
-    assert share_mount_support.is_mounted(str(share_dir), home_path=tmp_path) is True
+    assert share_mount_support.is_mounted(str(share_dir), home_path=tmp_path) is False
 
     monkeypatch.setattr(
         share_mount_support,

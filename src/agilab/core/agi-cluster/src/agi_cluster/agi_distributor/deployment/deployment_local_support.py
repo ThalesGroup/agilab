@@ -19,6 +19,8 @@ from typing import Any, Callable, cast
 import tomlkit
 from packaging.requirements import InvalidRequirement, Requirement
 
+from agi_env.runtime.atomic_write_support import atomic_write_text
+
 from agi_cluster.agi_distributor import deployment_dask_support
 from agi_cluster.agi_distributor.deployment.deployment_build_support import (
     _latest_glob_match as _latest_glob_match,
@@ -210,7 +212,7 @@ def _normalize_worker_requires_python_floor(
 
     project_tbl["requires-python"] = updated
     data["project"] = project_tbl
-    pyproject_file.write_text(tomlkit.dumps(data))
+    atomic_write_text(pyproject_file, tomlkit.dumps(data))
     return True
 
 
@@ -764,7 +766,7 @@ def _write_manager_sync_overlay(
 
     overlay_dir.mkdir(parents=True, exist_ok=True)
     overlay_pyproject = overlay_dir / "pyproject.toml"
-    overlay_pyproject.write_text(tomlkit.dumps(doc), encoding="utf-8")
+    atomic_write_text(overlay_pyproject, tomlkit.dumps(doc), encoding="utf-8")
     return overlay_dir
 
 
@@ -833,7 +835,7 @@ def _update_pyproject_dependencies(
 
     project_tbl["dependencies"] = deps
     data["project"] = project_tbl
-    pyproject_file.write_text(tomlkit.dumps(data))
+    atomic_write_text(pyproject_file, tomlkit.dumps(data))
 
 
 # Read-only dependency parses keyed by (path, mtime_ns, size): one deploy

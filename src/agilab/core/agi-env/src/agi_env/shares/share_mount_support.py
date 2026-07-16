@@ -142,6 +142,7 @@ def is_mounted(path: str, *, home_path: Path) -> bool:
     if not _is_usable_dir(path):
         return False
 
+    mountinfo_available = True
     try:
         with open("/proc/self/mountinfo", "r") as handle:
             for line in handle:
@@ -149,13 +150,26 @@ def is_mounted(path: str, *, home_path: Path) -> bool:
                 if len(parts) > 4 and os.path.normpath(parts[4]) == path:
                     return True
     except FileNotFoundError:
-        return True
+        mountinfo_available = False
 
     bind_src = _fstab_bind_source_for_target(path)
     if bind_src:
         bind_src_abs = _abs_path(bind_src, home_path=home_path) if not os.path.isabs(bind_src) else bind_src
         return _same_storage(path, bind_src_abs)
-    return True
+    if mountinfo_available:
+        return True
+    try:
+        if Path(path).is_mount():
+            return True
+        # A subdirectory beneath a mount point (e.g. a per-user share
+        # subdirectory) is not itself a mount root, but still lives on the
+        # mounted device. Compare against the local home filesystem to tell
+        # a genuinely mounted share apart from a plain local directory.
+        path_dev = os.stat(path).st_dev
+        home_dev = os.stat(home_path).st_dev
+        return path_dev != home_dev
+    except OSError:
+        return False
 
 
 def resolve_share_path(

@@ -570,38 +570,19 @@ def test_service_loop_async_worker_uses_event_loop_fallback(monkeypatch):
     BaseWorker._worker = "tcp://127.0.0.1:8787"
     BaseWorker._insts = {0: worker}
 
-    class FakeLoop:
-        def __init__(self):
-            self.closed = False
-            self.awaited = []
+    run_threads: list[str] = []
 
-        def run_until_complete(self, awaitable):
-            self.awaited.append(awaitable)
-            return False
+    def _run_in_worker_thread(_awaitable):
+        run_threads.append(threading.current_thread().name)
+        return False
 
-        def close(self):
-            self.closed = True
-
-    fake_loop = FakeLoop()
-    # New contract: the fallback loop is selected by probing for a running
-    # event loop *before* consuming the awaitable (asyncio.run is never called
-    # in that case), so a RuntimeError raised inside the worker's coroutine is
-    # no longer mistaken for "cannot be called from a running event loop".
-    monkeypatch.setattr(
-        base_worker_mod.asyncio, "get_running_loop", lambda: fake_loop
-    )
-    monkeypatch.setattr(
-        base_worker_mod.asyncio,
-        "run",
-        lambda _awaitable: pytest.fail("asyncio.run must not be used while a loop is running"),
-    )
-    monkeypatch.setattr(base_worker_mod.asyncio, "new_event_loop", lambda: fake_loop)
+    monkeypatch.setattr(base_worker_mod.asyncio, "get_running_loop", lambda: object())
+    monkeypatch.setattr(base_worker_mod.asyncio, "run", _run_in_worker_thread)
 
     payload = BaseWorker.loop(poll_interval=0.0)
 
     assert payload["status"] == "stopped"
-    assert fake_loop.awaited
-    assert fake_loop.closed is True
+    assert run_threads == ["agilab-worker-awaitable"]
 
 
 def test_service_loop_async_worker_runtime_error_propagates(monkeypatch):

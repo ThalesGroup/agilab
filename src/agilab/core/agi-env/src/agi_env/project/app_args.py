@@ -12,6 +12,7 @@ from pydantic import BaseModel, ValidationError
 
 from agi_env.project.app_settings_support import prepare_app_settings_for_write
 from agi_env.runtime.agi_logger import AgiLogger
+from agi_env.runtime.atomic_write_support import atomic_write_bytes
 
 TModel = TypeVar("TModel", bound=BaseModel)
 
@@ -116,6 +117,4 @@ def dump_model_to_toml(
         dumper = _dump_with_tomlkit
 
     logger.info(f"mkdir {settings_path.parent}")
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
-    with settings_path.open("wb") as handle:
-        dumper(doc, handle)
+    atomic_write_bytes(settings_path, lambda handle: dumper(doc, handle))

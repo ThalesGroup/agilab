@@ -146,7 +146,12 @@ def _call_mlflow_subproc(subproc_fn, cmd: list[str], cwd, *, env, stdout):
     }
     while True:
         try:
-            return subproc_fn(cmd, cwd, **kwargs)
+            process = subproc_fn(cmd, cwd, **kwargs)
+            try:
+                setattr(process, "_agilab_started_new_session", "start_new_session" in kwargs)
+            except (AttributeError, TypeError):
+                pass
+            return process
         except TypeError as exc:
             message = str(exc)
             removable = [name for name in ("start_new_session", "stdout", "stderr", "env") if name in kwargs and name in message]
@@ -168,7 +173,8 @@ def _launch_mlflow_server(subproc_fn, cmd: list[str], cwd, *, log_path: Path):
 
 def _terminate_process_tree(process) -> None:
     pid = getattr(process, "pid", None)
-    if pid is not None and hasattr(os, "killpg"):
+    started_new_session = bool(getattr(process, "_agilab_started_new_session", False))
+    if started_new_session and pid is not None and hasattr(os, "killpg"):
         try:
             os.killpg(int(pid), signal.SIGTERM)
             return

@@ -139,8 +139,17 @@ class MissionDecisionWorker(PandasWorker):
     def _write_artifact_bundle(self, root: Path, artifacts: dict[str, Any]) -> None:
         stem = _sanitize_slug(str(artifacts["artifact_stem"]))
         run_root = root / stem
-        if run_root.exists() and bool(getattr(self._current_args(), "reset_target", False)):
-            shutil.rmtree(run_root)
+        if bool(getattr(self._current_args(), "reset_target", False)):
+            source_file = artifacts.get("source_file")
+            protected_paths = (source_file,) if source_file else ()
+            reset_path = path_support.safe_reset_path(
+                run_root,
+                roots=(root,),
+                protected_paths=protected_paths,
+                label="mission artifact directory",
+            )
+            if reset_path.exists():
+                shutil.rmtree(reset_path)
         run_root.mkdir(parents=True, exist_ok=True)
 
         summary = dict(artifacts["summary"])

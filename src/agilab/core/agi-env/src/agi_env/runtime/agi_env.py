@@ -105,6 +105,7 @@ from agi_env.shares.share_runtime_support import (
     is_valid_ip as is_valid_ipv4_address,
     mode_to_int,
     mode_to_str,
+    resolve_share_input_path as resolve_relative_share_input_path,
     resolve_share_path as resolve_relative_share_path,
     share_target_name,
     python_supports_free_threading,
@@ -607,19 +608,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         back to resolving it against the physical share root (still confined to
         the share root, so confinement is preserved) before re-raising.
         """
-        try:
-            resolved = self.resolve_share_path(path)
-        except ValueError:
-            fallback = resolve_relative_share_path(path, self.share_root_path())
-            if fallback.exists():
-                return fallback
-            raise
-        if resolved.exists():
-            return resolved
-        fallback = resolve_relative_share_path(path, self.share_root_path())
-        if fallback != resolved and fallback.exists():
-            return fallback
-        return resolved
+        return resolve_relative_share_input_path(
+            path,
+            self.workflow_data_root_path(),
+            self.share_root_path(),
+        )
 
     def workflow_data_root_path(self) -> Path:
         """Return the active workflow/session data root when configured."""

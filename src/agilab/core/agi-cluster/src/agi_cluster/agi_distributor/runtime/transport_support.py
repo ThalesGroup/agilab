@@ -17,6 +17,7 @@ from agi_env import AgiEnv
 
 
 logger = logging.getLogger(__name__)
+SSH_STREAM_READ_LIMIT_BYTES = 2 * 1024 * 1024
 
 _KNOWN_HOSTS_ENV_NAMES = (
     "AGILAB_CLUSTER_SSH_KNOWN_HOSTS",
@@ -210,6 +211,24 @@ def _prepare_known_hosts_for_policy(
 _SCP_TRANSFER_TIMEOUT_SECONDS = 300
 
 
+async def _await_task_uninterruptibly(task: asyncio.Task[Any]) -> None:
+    """Finish cleanup even when the caller receives repeated cancellation."""
+
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            continue
+    await task
+
+
+async def _kill_and_reap_subprocess(process: Any) -> None:
+    with contextlib.suppress(OSError, ProcessLookupError):
+        process.kill()
+    with contextlib.suppress(Exception):
+        await process.wait()
+
+
 async def _run_scp_command(
     cmd: list[str],
     *,
@@ -232,11 +251,17 @@ async def _run_scp_command(
     )
     try:
         _stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_sec)
+    except asyncio.CancelledError:
+        cleanup_task = asyncio.create_task(_kill_and_reap_subprocess(process))
+        await _await_task_uninterruptibly(cleanup_task)
+        raise
     except asyncio.TimeoutError:
-        with contextlib.suppress(OSError, ProcessLookupError):
-            process.kill()
-        with contextlib.suppress(Exception):
-            await process.wait()
+        cleanup_task = asyncio.create_task(_kill_and_reap_subprocess(process))
+        try:
+            await asyncio.shield(cleanup_task)
+        except asyncio.CancelledError:
+            await _await_task_uninterruptibly(cleanup_task)
+            raise
         message = f"SCP transfer of {local_path} to {remote} timed out after {timeout_sec}s"
         log.error(message)
         raise ConnectionError(f"SCP error: {message}") from None
@@ -636,6 +661,62 @@ def _stream_text(payload: Any) -> str:
     return str(payload or "")
 
 
+async def _read_stream_bounded(stream: Any, *, limit: int = SSH_STREAM_READ_LIMIT_BYTES) -> Any:
+    chunks: list[Any] = []
+    total_bytes = 0
+    while True:
+        payload = await stream.read(max(1, limit - total_bytes + 1))
+        if not payload:
+            if not chunks:
+                return payload
+            break
+
+        payload_bytes = payload if isinstance(payload, bytes) else str(payload).encode("utf-8")
+        total_bytes += len(payload_bytes)
+        if total_bytes > limit:
+            raise ConnectionError(
+                f"Remote command output exceeded {limit} bytes; "
+                "rerun with an explicit log artifact."
+            )
+        chunks.append(payload)
+
+    if isinstance(chunks[0], bytes):
+        return b"".join(cast(bytes, chunk) for chunk in chunks)
+    return "".join(cast(str, chunk) for chunk in chunks)
+
+
+async def _stop_remote_process(process: Any) -> None:
+    """Terminate and await a remote process after interrupted stream handling."""
+
+    stop = getattr(process, "terminate", None) or getattr(process, "kill", None)
+    if callable(stop):
+        with contextlib.suppress(asyncssh.Error, OSError, RuntimeError):
+            stop()
+
+    close = getattr(process, "close", None)
+    if callable(close):
+        with contextlib.suppress(asyncssh.Error, OSError, RuntimeError):
+            close()
+
+    wait_closed = getattr(process, "wait_closed", None)
+    wait = getattr(process, "wait", None)
+    with contextlib.suppress(asyncssh.Error, OSError, RuntimeError):
+        if callable(wait_closed):
+            await wait_closed()
+        elif callable(wait):
+            await wait()
+
+
+async def _abort_remote_process(process: Any, read_tasks: list[asyncio.Task[Any]]) -> None:
+    """Cancel pending readers while closing and awaiting their remote process."""
+
+    for task in read_tasks:
+        if not task.done():
+            task.cancel()
+    stop_task = asyncio.create_task(_stop_remote_process(process))
+    await asyncio.gather(*read_tasks, stop_task, return_exceptions=True)
+
+
 async def exec_ssh_async(agi_cls: Any, ip: str, cmd: str, *, log: Any = logger) -> str:
     """Execute a remote command via SSH and return the last non-empty stdout line.
 
@@ -647,15 +728,26 @@ async def exec_ssh_async(agi_cls: Any, ip: str, cmd: str, *, log: Any = logger) 
     async with agi_cls.get_ssh_connection(ip) as conn:
         process = await conn.create_process(cmd)
         stderr_stream = getattr(process, "stderr", None)
+        read_tasks = [asyncio.create_task(_read_stream_bounded(process.stdout))]
         if stderr_stream is not None:
-            stdout, stderr = await asyncio.gather(
-                process.stdout.read(),
-                stderr_stream.read(),
-            )
-        else:
-            stdout = await process.stdout.read()
-            stderr = ""
-        result = await process.wait()
+            read_tasks.append(asyncio.create_task(_read_stream_bounded(stderr_stream)))
+        try:
+            payloads = await asyncio.gather(*read_tasks)
+            stdout = payloads[0]
+            stderr = payloads[1] if len(payloads) > 1 else ""
+            result = await process.wait()
+        except asyncio.CancelledError:
+            cleanup_task = asyncio.create_task(_abort_remote_process(process, read_tasks))
+            await _await_task_uninterruptibly(cleanup_task)
+            raise
+        except BaseException:
+            cleanup_task = asyncio.create_task(_abort_remote_process(process, read_tasks))
+            try:
+                await asyncio.shield(cleanup_task)
+            except asyncio.CancelledError:
+                await _await_task_uninterruptibly(cleanup_task)
+                raise
+            raise
 
         stdout_text = _stream_text(stdout)
         stderr_text = _stream_text(stderr)
@@ -679,10 +771,16 @@ async def exec_ssh_async(agi_cls: Any, ip: str, cmd: str, *, log: Any = logger) 
 async def close_all_connections(agi_cls: Any) -> None:
     """Close and drop every cached SSH connection."""
 
-    for conn in agi_cls._ssh_connections.values():
-        conn.close()
-        await conn.wait_closed()
-    agi_cls._ssh_connections.clear()
+    try:
+        for conn in list(agi_cls._ssh_connections.values()):
+            conn.close()
+            try:
+                await conn.wait_closed()
+            except (asyncssh.Error, OSError, RuntimeError):
+                logger.warning("SSH connection did not close cleanly", exc_info=True)
+    finally:
+        agi_cls._ssh_connections.clear()
+
     # Evict the per-(loop, ip) connect locks for the current event loop so the
     # cache does not grow without bound and cannot collide with a future loop
     # that reuses the same id() after this one is closed.

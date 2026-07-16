@@ -70,21 +70,30 @@ class FlightTelemetry(BaseWorker):
         # when they are not present under the workflow data root. Outputs stay
         # workflow-scoped.
         resolve_input = getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
-        self.args.data_in = resolve_input(self.args.data_in)
-        self.args.data_out = env.resolve_share_path(self.args.data_out)
+        try:
+            self.args.data_in = resolve_input(self.args.data_in)
+            self.args.data_out = env.resolve_share_path(self.args.data_out)
+        except ValueError as exc:
+            raise ValueError(f"Invalid FlightTelemetry data_in/data_out path: {exc}") from exc
         self.data_out = self.args.data_out
 
         if getattr(self.args, "reset_target", False):
             try:
-                if self.data_out.exists():
+                reset_path = self._safe_share_reset_path(
+                    env,
+                    self.data_out,
+                    protected_paths=(self.args.data_in,),
+                    label="data_out",
+                )
+                if reset_path.exists():
                     shutil.rmtree(
-                        self.data_out,
+                        reset_path,
                         ignore_errors=True,
                         onerror=WorkDispatcher._onerror,
                     )
                 logger.info(f"mkdir {self.data_out}")
                 self.data_out.mkdir(parents=True, exist_ok=True)
-            except Exception as exc:  # pragma: no cover - defensive guard
+            except (OSError, RuntimeError) as exc:  # pragma: no cover - defensive guard
                 logger.warning(
                     "Issue while trying to reset dataframe directory %s: %s",
                     self.data_out,

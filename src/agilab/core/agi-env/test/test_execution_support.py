@@ -33,15 +33,58 @@ class _FakeProc:
         self.stderr = _FakeStream(stderr_lines)
         self.returncode = returncode
         self.wait_calls = 0
+        self.kill_calls = 0
 
     async def wait(self):
         self.wait_calls += 1
         return self.returncode
 
+    def kill(self):
+        self.kill_calls += 1
+
     async def communicate(self):
         stdout = b"".join(line for line in [*self.stdout._lines] if line)
         stderr = b"".join(line for line in [*self.stderr._lines] if line)
         return stdout, stderr
+
+
+class _CancellationProc:
+    def __init__(self):
+        self.stdout = _FakeStream([b""])
+        self.stderr = _FakeStream([b""])
+        self.returncode = None
+        self.wait_calls = 0
+        self.kill_calls = 0
+        self.reaped = False
+        self.wait_started = asyncio.Event()
+        self.cleanup_started = asyncio.Event()
+        self.allow_cleanup = asyncio.Event()
+
+    async def wait(self):
+        self.wait_calls += 1
+        if self.kill_calls:
+            self.cleanup_started.set()
+        else:
+            self.wait_started.set()
+        await self.allow_cleanup.wait()
+        self.returncode = -9 if self.kill_calls else 0
+        self.reaped = True
+        return self.returncode
+
+    def kill(self):
+        self.kill_calls += 1
+
+
+async def _cancel_while_waiting_for_cleanup(task, proc: _CancellationProc) -> None:
+    await proc.wait_started.wait()
+    task.cancel()
+    await proc.cleanup_started.wait()
+    task.cancel()
+    await asyncio.sleep(0)
+    assert not task.done()
+    proc.allow_cleanup.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
 
 
 def test_spawn_process_uses_shell_only_for_shell_syntax(tmp_path: Path, monkeypatch):
@@ -119,6 +162,63 @@ def test_spawn_process_propagates_unexpected_exec_bug(tmp_path: Path, monkeypatc
                 shell_executable="/bin/bash",
             )
         )
+
+
+def test_run_wait_false_tracks_background_wait(tmp_path: Path, monkeypatch):
+    proc = _FakeProc()
+
+    async def _fake_spawn(*_args, **_kwargs):
+        return proc
+
+    monkeypatch.setattr(execution_support, "_spawn_process", _fake_spawn)
+
+    async def _case():
+        assert await execution_support.run("echo ok", tmp_path, cwd=tmp_path, wait=False) == 0
+        assert proc.wait_calls == 0
+        await asyncio.sleep(0)
+        assert proc.wait_calls == 1
+
+    asyncio.run(_case())
+
+
+def test_run_kills_spawned_process_on_wrapped_stream_error(tmp_path: Path, monkeypatch):
+    proc = _FakeProc()
+
+    async def _fake_spawn(*_args, **_kwargs):
+        return proc
+
+    async def _raise_stream_error(*_args, **_kwargs):
+        raise ValueError("stream failed")
+
+    monkeypatch.setattr(execution_support, "_spawn_process", _fake_spawn)
+    monkeypatch.setattr(execution_support, "_stream_process_output", _raise_stream_error)
+
+    with pytest.raises(RuntimeError, match="Command execution error"):
+        asyncio.run(execution_support.run("echo ok", tmp_path, cwd=tmp_path))
+
+    assert proc.kill_calls == 1
+    assert proc.wait_calls == 1
+
+
+def test_run_cancellation_kills_and_reaps_spawned_process(tmp_path: Path, monkeypatch):
+    async def _case():
+        proc = _CancellationProc()
+        monkeypatch.setattr(
+            execution_support,
+            "_spawn_process",
+            mock.AsyncMock(return_value=proc),
+        )
+
+        task = asyncio.create_task(
+            execution_support.run("echo ok", tmp_path, cwd=tmp_path)
+        )
+        await _cancel_while_waiting_for_cleanup(task, proc)
+
+        assert proc.kill_calls == 1
+        assert proc.wait_calls == 2
+        assert proc.reaped is True
+
+    asyncio.run(_case())
 
 
 def test_stream_process_output_collects_lines_and_waits_for_proc():
@@ -391,6 +491,30 @@ def test_run_bg_returns_real_subprocess_output_after_streaming(tmp_path: Path):
     assert stdout == "real out"
     assert stderr == "real err"
     assert streamed == ["real out", "real err"]
+
+
+def test_run_bg_cancellation_kills_and_reaps_spawned_process(
+    tmp_path: Path,
+    monkeypatch,
+):
+    async def _case():
+        proc = _CancellationProc()
+        monkeypatch.setattr(
+            execution_support,
+            "_spawn_process",
+            mock.AsyncMock(return_value=proc),
+        )
+
+        task = asyncio.create_task(
+            execution_support.run_bg("echo ok", cwd=tmp_path, venv=tmp_path)
+        )
+        await _cancel_while_waiting_for_cleanup(task, proc)
+
+        assert proc.kill_calls == 1
+        assert proc.wait_calls == 2
+        assert proc.reaped is True
+
+    asyncio.run(_case())
 
 
 def test_run_bg_propagates_unexpected_exec_bug(tmp_path: Path, monkeypatch):

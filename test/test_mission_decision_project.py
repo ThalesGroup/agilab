@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 from agi_node.pandas_worker import PandasWorker
 
 
@@ -15,16 +16,20 @@ SRC_ROOT = APP_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from mission_decision import MissionDecision, MissionDecisionArgs, build_decision_artifacts
-from mission_decision.fred_support import (
+from mission_decision import (  # noqa: E402
+    MissionDecision,
+    MissionDecisionArgs,
+    build_decision_artifacts,
+)
+from mission_decision.fred_support import (  # noqa: E402
     FRED_FIXTURE_SERIES_ID,
     fetch_fred_csv_rows,
     fred_csv_url,
     fred_fixture_rows,
     parse_fred_csv,
 )
-from mission_decision_worker import MissionDecisionWorker
-from mission_decision_worker.mission_decision_worker import _args_with_defaults
+from mission_decision_worker import MissionDecisionWorker  # noqa: E402
+from mission_decision_worker.mission_decision_worker import _args_with_defaults  # noqa: E402
 
 
 def _make_env(tmp_path: Path) -> SimpleNamespace:
@@ -65,6 +70,32 @@ def test_mission_decision_manager_seeds_public_scenario_and_distribution(tmp_pat
     assert partition_key == "scenario"
     assert weights_key == "size_kb"
     assert unit == "KB"
+
+
+@pytest.mark.parametrize(
+    "data_out",
+    ("mission_decision", "mission_decision/scenarios/generated"),
+)
+def test_mission_manager_rejects_reset_overlap_with_input(
+    tmp_path: Path, data_out: str
+) -> None:
+    env = _make_env(tmp_path)
+    input_dir = Path(env.AGI_LOCAL_SHARE) / "mission_decision/scenarios"
+    input_dir.mkdir(parents=True)
+    marker = input_dir / "important.json"
+    marker.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must not overlap protected input"):
+        MissionDecision(
+            env,
+            args=MissionDecisionArgs(
+                data_in="mission_decision/scenarios",
+                data_out=data_out,
+                reset_target=True,
+            ),
+        )
+
+    assert marker.read_text(encoding="utf-8") == "{}"
 
 
 def test_mission_decision_decision_artifacts_replan_after_bandwidth_drop() -> None:

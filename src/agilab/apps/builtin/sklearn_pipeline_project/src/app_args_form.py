@@ -6,6 +6,7 @@ from typing import Any
 
 import streamlit as st
 from pydantic import ValidationError
+from agi_env.streamlit_args import resolve_app_args_share_paths
 
 _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
@@ -104,6 +105,7 @@ candidate: dict[str, Any] = {
 
 try:
     validated = SklearnPipelineArgs(**candidate)
+    resolved_paths = resolve_app_args_share_paths(env, validated)
 except ValidationError as exc:
     st.error("Invalid Scikit-Learn Pipeline parameters:")
     if hasattr(env, "humanize_validation_errors"):
@@ -111,6 +113,8 @@ except ValidationError as exc:
             st.markdown(msg)
     else:
         st.code(str(exc))
+except ValueError as exc:
+    st.error(str(exc))
 else:
     validated_payload = validated.model_dump(mode="json")
     if validated_payload != current_payload:
@@ -126,7 +130,7 @@ else:
     else:
         st.info("No changes to save.")
 
-    resolved_data_out = env.resolve_share_path(validated.data_out)
+    resolved_data_out = resolved_paths["data_out"]
     expected_test_rows = max(1, round(validated.sample_count * validated.test_size))
     st.caption(
         f"Resolved evidence directory: `{resolved_data_out}`  -  "

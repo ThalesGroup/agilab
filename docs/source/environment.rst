@@ -140,12 +140,26 @@ rather than shown as one of the workflow pages.
        ``C:\Users\<user>\...`` to the portable suffix before writing worker
        settings. Operators can still override it with an explicit mounted path
        such as ``/mnt/agilab`` when the same mount point exists on every node.
+       Both the scheduler source and worker mount target must be dedicated
+       subdirectories; filesystem, home, and exact operating-system roots are
+       rejected before remote mount, fan-out, or environment mutation.
+   * - ``AGILAB_WORKFLOW_DATA_ROOT``
+     - unset (the active local or cluster share root is used)
+     - Optional per-workflow/session data root. AGILAB normally manages this
+       value for ORCHESTRATE and distributed runs while leaving
+       ``AGI_CLUSTER_SHARE`` as the physical mount root. Outputs are confined
+       to the workflow root; relative inputs may fall back to the corresponding
+       pre-existing dataset under the physical share root. Avoid persisting a
+       global value unless every run should share that narrower namespace.
    * - ``AGILAB_SHARE_USER``
      - ``USER`` / ``USERNAME`` / ``user``
      - Optional override for the ``<user>`` segment used by the implicit ``clustershare/<user>`` default. The value is sanitised before it is used in a filesystem path.
    * - ``AGI_LOCAL_SHARE``
-     - ``$HOME/localshare``
-     - Local datasets/outputs root used when cluster mode is disabled. In cluster mode, AGILab no longer falls back to this path if the shared mount is missing.
+     - ``$HOME/localshare/<user>``
+     - User-scoped local datasets/outputs root used when cluster mode is
+       disabled. ``<user>`` follows ``AGILAB_SHARE_USER``, then ``USER``, then
+       ``USERNAME``, with sanitisation. In cluster mode, AGILab no longer falls
+       back to this path if the shared mount is missing.
    * - ``AGI_SCHEDULER_IP``
      - ``127.0.0.1``
      - Default scheduler host for distributed runs.

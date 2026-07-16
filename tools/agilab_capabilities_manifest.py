@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -511,19 +512,60 @@ def collect_agent_skills() -> list[dict[str, Any]]:
 
 def _iter_schema_sources() -> Iterable[Path]:
     seen: set[Path] = set()
+    visible_paths = _git_visible_paths()
     for root in SCHEMA_SCAN_ROOTS:
-        for path in _walk_source_files(root):
+        for path in _walk_source_files(root, visible_paths=visible_paths):
             if path in seen:
                 continue
             seen.add(path)
             yield path
     for path in SCHEMA_SCAN_FILES:
-        if path.exists() and path.is_file() and path not in seen:
+        if (
+            path.exists()
+            and path.is_file()
+            and path not in seen
+            and (visible_paths is None or path in visible_paths)
+        ):
             seen.add(path)
             yield path
 
 
-def _walk_source_files(root: Path) -> Iterable[Path]:
+def _git_visible_paths() -> set[Path] | None:
+    """Return Git-visible paths, or scan all files in a source tree without Git."""
+
+    if not (REPO_ROOT / ".git").exists():
+        return None
+
+    try:
+        completed = subprocess.run(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+            cwd=REPO_ROOT,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except OSError as exc:
+        raise RuntimeError(
+            "cannot enumerate Git-visible schema sources in this checkout"
+        ) from exc
+    if completed.returncode != 0:
+        detail = os.fsdecode(completed.stderr).strip()
+        suffix = f": {detail}" if detail else ""
+        raise RuntimeError(
+            f"cannot enumerate Git-visible schema sources in this checkout{suffix}"
+        )
+    return {
+        REPO_ROOT / os.fsdecode(relative_path)
+        for relative_path in completed.stdout.split(b"\0")
+        if relative_path
+    }
+
+
+def _walk_source_files(
+    root: Path,
+    *,
+    visible_paths: set[Path] | None = None,
+) -> Iterable[Path]:
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(
             dirname for dirname in dirnames if dirname not in SCHEMA_SCAN_SKIP_DIRS
@@ -531,7 +573,9 @@ def _walk_source_files(root: Path) -> Iterable[Path]:
         current_dir = Path(dirpath)
         for filename in sorted(filenames):
             path = current_dir / filename
-            if path.suffix in SCHEMA_SCAN_SUFFIXES:
+            if path.suffix in SCHEMA_SCAN_SUFFIXES and (
+                visible_paths is None or path in visible_paths
+            ):
                 yield path
 
 

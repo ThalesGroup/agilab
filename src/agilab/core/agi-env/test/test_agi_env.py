@@ -18,6 +18,7 @@ from agi_env import AgiEnv
 import agi_env.agi_env as agi_env_module
 from agi_env import data_archive_support
 from agi_env import project_clone_support
+from agi_env.shares import share_mount_support
 
 from agi_env.agi_logger import AgiLogger
 from agi_env.defaults import get_default_openai_model
@@ -526,6 +527,7 @@ def test_cluster_enabled_from_process_env_when_app_src_invalid(tmp_path: Path, m
     monkeypatch.setenv("AGI_CLUSTER_ENABLED", "1")
     monkeypatch.setenv("AGI_CLUSTER_SHARE", str(share_dir / "cluster_shared"))
     (share_dir / "cluster_shared").mkdir(exist_ok=True, parents=True)
+    monkeypatch.setattr(share_mount_support, "is_mounted", lambda *_args, **_kwargs: True)
 
     fake_apps = tmp_path / "apps"
     bad_app = fake_apps / "broken_project"
@@ -600,6 +602,7 @@ def test_cluster_enabled_from_apps_repository_when_app_src_invalid(tmp_path: Pat
     cluster_share = fake_home / "cluster_share"
     cluster_share.mkdir()
     monkeypatch.setenv("AGI_CLUSTER_SHARE", str(cluster_share))
+    monkeypatch.setattr(share_mount_support, "is_mounted", lambda *_args, **_kwargs: True)
 
     fake_apps = tmp_path / "apps"
     bad_app = fake_apps / app_name
@@ -1295,6 +1298,7 @@ def test_init_worker_install_type_detects_wenv_apps_path(tmp_path: Path, monkeyp
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setenv("AGI_CLUSTER_ENABLED", "0")
     monkeypatch.setenv("AGILAB_SHARE_USER", "worker-user")
+    monkeypatch.setattr(share_mount_support, "is_mounted", lambda *_args, **_kwargs: True)
 
     site_root = tmp_path / "site-packages"
     _configure_fake_installed_specs(monkeypatch, site_root)
@@ -1865,7 +1869,13 @@ def test_unzip_data_handles_missing_archive_existing_dataset_and_force_refresh(t
     monkeypatch.setattr(agi_env_module.py7zr, "SevenZipFile", _FakeSevenZip)
 
     env.unzip_data(archive, "dataset/demo", force_extract=True)
-    assert removed == [dataset]
+    assert len(removed) == 2
+    assert any(path.name.endswith(".rollback") for path in removed)
+    assert any(
+        path.name.startswith(".agilab-dataset-refresh-")
+        and not path.name.endswith(".rollback")
+        for path in removed
+    )
     assert (dataset / "payload.txt").exists()
 
 
@@ -1915,7 +1925,21 @@ def test_unzip_data_skips_for_owner_mismatch_parent_failure_and_refresh_permissi
     dataset = refresh_env.agi_share_path_abs / "dataset" / "demo" / "dataset"
     dataset.mkdir(parents=True)
 
+    class _FakeSevenZip:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def extractall(self, path):
+            (Path(path) / "dataset").mkdir(parents=True, exist_ok=True)
+
     monkeypatch.setattr(agi_env_module, "_ensure_dir", original_ensure_dir)
+    monkeypatch.setattr(agi_env_module.py7zr, "SevenZipFile", _FakeSevenZip)
     monkeypatch.setattr(agi_env_module.shutil, "rmtree", lambda *_a, **_k: (_ for _ in ()).throw(PermissionError("busy")))
     refresh_env.unzip_data(archive, "dataset/demo", force_extract=True)
     assert dataset.exists()

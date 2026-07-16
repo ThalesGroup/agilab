@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 from types import SimpleNamespace
 from unittest import mock
 
@@ -26,6 +27,85 @@ def test_unzip_data_warns_when_archive_missing(tmp_path: Path):
     )
 
     assert logger.warning.called
+
+
+@pytest.mark.parametrize(
+    "extract_to_factory",
+    (
+        pytest.param(lambda tmp_path, _share_root: tmp_path / "outside", id="absolute"),
+        pytest.param(lambda _tmp_path, _share_root: Path("../outside"), id="parent-traversal"),
+    ),
+)
+def test_unzip_data_rejects_destination_escape_before_reset(
+    tmp_path: Path,
+    extract_to_factory,
+) -> None:
+    archive = tmp_path / "demo.7z"
+    archive.write_bytes(b"7z")
+    share_root = tmp_path / "share"
+    share_root.mkdir()
+    outside = tmp_path / "outside"
+    dataset = outside / "dataset"
+    dataset.mkdir(parents=True)
+    marker = dataset / "important.csv"
+    marker.write_text("keep", encoding="utf-8")
+    mutations: list[Path] = []
+
+    with pytest.raises(ValueError, match="share root"):
+        unzip_data(
+            archive,
+            extract_to=extract_to_factory(tmp_path, share_root),
+            app_data_rel="demo",
+            agi_share_path_abs=share_root,
+            user=Path.home().name,
+            home_abs=Path.home(),
+            verbose=0,
+            logger=mock.Mock(),
+            force_extract=True,
+            ensure_dir_fn=lambda path: mutations.append(Path(path)) or Path(path),
+            sevenzip_file_cls=object,
+            rmtree_fn=lambda path, **_kwargs: mutations.append(Path(path)),
+        )
+
+    assert mutations == []
+    assert marker.read_text(encoding="utf-8") == "keep"
+
+
+def test_unzip_data_rejects_symlink_parent_escape_before_reset(tmp_path: Path) -> None:
+    archive = tmp_path / "demo.7z"
+    archive.write_bytes(b"7z")
+    share_root = tmp_path / "share"
+    share_root.mkdir()
+    outside = tmp_path / "outside"
+    dataset = outside / "victim" / "dataset"
+    dataset.mkdir(parents=True)
+    marker = dataset / "important.csv"
+    marker.write_text("keep", encoding="utf-8")
+    linked_parent = share_root / "linked-parent"
+    try:
+        linked_parent.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+    mutations: list[Path] = []
+
+    with pytest.raises(ValueError, match="share root"):
+        unzip_data(
+            archive,
+            extract_to="linked-parent/victim",
+            app_data_rel="demo",
+            agi_share_path_abs=share_root,
+            user=Path.home().name,
+            home_abs=Path.home(),
+            verbose=0,
+            logger=mock.Mock(),
+            force_extract=True,
+            ensure_dir_fn=lambda path: mutations.append(Path(path)) or Path(path),
+            sevenzip_file_cls=object,
+            rmtree_fn=lambda path, **_kwargs: mutations.append(Path(path)),
+        )
+
+    assert mutations == []
+    assert marker.read_text(encoding="utf-8") == "keep"
 
 
 def test_unzip_data_raises_runtime_error_on_extract_failure(tmp_path: Path):
@@ -63,6 +143,158 @@ def test_unzip_data_raises_runtime_error_on_extract_failure(tmp_path: Path):
             sevenzip_file_cls=_BrokenSevenZip,
             rmtree_fn=lambda *_a, **_k: None,
         )
+
+
+def test_force_refresh_corrupt_archive_preserves_live_dataset(tmp_path: Path):
+    archive = tmp_path / "demo.7z"
+    archive.write_bytes(b"corrupt")
+    share_root = tmp_path / "share"
+    dataset = share_root / "dataset" / "demo" / "dataset"
+    dataset.mkdir(parents=True)
+    marker = dataset / "old.marker"
+    marker.write_text("keep", encoding="utf-8")
+    bad7z_file = data_archive_support.PY7ZR_BAD7Z_FILE
+    assert bad7z_file is not None
+
+    class _CorruptArchive:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            raise bad7z_file("corrupt archive")
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    with pytest.raises(RuntimeError, match="Extraction failed"):
+        unzip_data(
+            archive,
+            extract_to="dataset/demo",
+            app_data_rel="demo",
+            agi_share_path_abs=share_root,
+            user=Path.home().name,
+            home_abs=Path.home(),
+            verbose=0,
+            logger=mock.Mock(),
+            force_extract=True,
+            ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True)
+            or Path(path),
+            sevenzip_file_cls=_CorruptArchive,
+            rmtree_fn=shutil.rmtree,
+        )
+
+    assert marker.read_text(encoding="utf-8") == "keep"
+    assert list(dataset.parent.glob(".agilab-dataset-refresh-*")) == []
+
+
+def test_force_refresh_partial_extract_preserves_live_dataset(tmp_path: Path):
+    archive = tmp_path / "demo.7z"
+    archive.write_bytes(b"7z")
+    share_root = tmp_path / "share"
+    dataset = share_root / "dataset" / "demo" / "dataset"
+    dataset.mkdir(parents=True)
+    marker = dataset / "old.marker"
+    marker.write_text("keep", encoding="utf-8")
+
+    class _PartialArchive:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def getnames(self):
+            return ["dataset/new.csv"]
+
+        def extractall(self, path):
+            staged_dataset = Path(path) / "dataset"
+            staged_dataset.mkdir(parents=True)
+            (staged_dataset / "new.csv").write_text("partial", encoding="utf-8")
+            raise OSError("disk write failed")
+
+    with pytest.raises(RuntimeError, match="Extraction failed"):
+        unzip_data(
+            archive,
+            extract_to="dataset/demo",
+            app_data_rel="demo",
+            agi_share_path_abs=share_root,
+            user=Path.home().name,
+            home_abs=Path.home(),
+            verbose=0,
+            logger=mock.Mock(),
+            force_extract=True,
+            ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True)
+            or Path(path),
+            sevenzip_file_cls=_PartialArchive,
+            rmtree_fn=shutil.rmtree,
+        )
+
+    assert marker.read_text(encoding="utf-8") == "keep"
+    assert not (dataset / "new.csv").exists()
+    assert list(dataset.parent.glob(".agilab-dataset-refresh-*")) == []
+
+
+def test_force_refresh_swap_failure_rolls_back_live_dataset(
+    tmp_path: Path,
+    monkeypatch,
+):
+    archive = tmp_path / "demo.7z"
+    archive.write_bytes(b"7z")
+    share_root = tmp_path / "share"
+    dataset = share_root / "dataset" / "demo" / "dataset"
+    dataset.mkdir(parents=True)
+    marker = dataset / "old.marker"
+    marker.write_text("keep", encoding="utf-8")
+
+    class _Archive:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def extractall(self, path):
+            staged_dataset = Path(path) / "dataset"
+            staged_dataset.mkdir(parents=True)
+            (staged_dataset / "new.csv").write_text("complete", encoding="utf-8")
+
+    original_replace = Path.replace
+
+    def _fail_staged_install(self, target):
+        if self.name == "dataset" and self.parent.name.startswith(
+            ".agilab-dataset-refresh-"
+        ):
+            raise OSError("install failed")
+        return original_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", _fail_staged_install, raising=False)
+
+    with pytest.raises(RuntimeError, match="Extraction failed"):
+        unzip_data(
+            archive,
+            extract_to="dataset/demo",
+            app_data_rel="demo",
+            agi_share_path_abs=share_root,
+            user=Path.home().name,
+            home_abs=Path.home(),
+            verbose=0,
+            logger=mock.Mock(),
+            force_extract=True,
+            ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True)
+            or Path(path),
+            sevenzip_file_cls=_Archive,
+            rmtree_fn=shutil.rmtree,
+        )
+
+    assert marker.read_text(encoding="utf-8") == "keep"
+    assert not (dataset / "new.csv").exists()
+    assert list(dataset.parent.glob(".agilab-dataset-refresh-*")) == []
 
 
 def test_unzip_data_rejects_archive_member_path_traversal(tmp_path: Path):
@@ -105,6 +337,60 @@ def test_unzip_data_rejects_archive_member_path_traversal(tmp_path: Path):
         )
 
     assert extracted is False
+
+
+def test_unzip_data_rejects_real_7z_symlink_target_escape(tmp_path: Path) -> None:
+    """Pin py7zr's extraction-time validation of archived symlink targets."""
+
+    share_root = tmp_path / "share"
+    share_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    marker = outside / "important.txt"
+    marker.write_text("keep", encoding="utf-8")
+
+    source_link = tmp_path / "escape-link"
+    try:
+        source_link.symlink_to(marker)
+    except OSError as exc:
+        pytest.skip(f"file symlinks unavailable: {exc}")
+
+    archive_path = tmp_path / "malicious.7z"
+    sevenzip_file_cls = data_archive_support.PY7ZR_SEVENZIP_FILE
+    with sevenzip_file_cls(archive_path, mode="w") as archive:
+        archive.write(source_link, arcname="dataset/escape-link")
+
+    with pytest.raises(RuntimeError, match="Extraction failed"):
+        unzip_data(
+            archive_path,
+            extract_to="dataset/demo",
+            app_data_rel="demo",
+            agi_share_path_abs=share_root,
+            user=Path.home().name,
+            home_abs=Path.home(),
+            verbose=0,
+            logger=mock.Mock(),
+            force_extract=True,
+            ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True)
+            or Path(path),
+            sevenzip_file_cls=sevenzip_file_cls,
+            rmtree_fn=lambda *_a, **_k: None,
+        )
+
+    assert marker.read_text(encoding="utf-8") == "keep"
+    assert not (share_root / "dataset" / "demo" / "dataset" / "escape-link").exists()
+
+
+def test_archive_member_validation_supports_zip_namelist(tmp_path: Path):
+    class _UnsafeZip:
+        def namelist(self):
+            return ["good.txt", "../escape.txt"]
+
+    with pytest.raises(RuntimeError, match="Unsafe archive member path"):
+        data_archive_support.validate_archive_members_stay_within_dest(
+            _UnsafeZip(),
+            tmp_path / "dest",
+        )
 
 
 def test_py7zr_archive_error_resolution_handles_missing_package_exceptions_attr():
@@ -371,8 +657,16 @@ def test_unzip_data_existing_dataset_refresh_and_success_paths(tmp_path: Path):
         sevenzip_file_cls=_Archive,
         rmtree_fn=lambda path, onerror=None: removed.append((Path(path), onerror)),
     )
-    assert removed and removed[0][0] == dataset
-    assert extracted == [share_root / "dataset" / "demo"]
+    assert any(path.name.endswith(".rollback") for path, _onerror in removed)
+    assert any(
+        path.name.startswith(".agilab-dataset-refresh-")
+        and not path.name.endswith(".rollback")
+        for path, _onerror in removed
+    )
+    assert len(extracted) == 1
+    assert extracted[0].parent == share_root / "dataset" / "demo"
+    assert extracted[0].name.startswith(".agilab-dataset-refresh-")
+    assert (dataset / "sample.csv").exists()
     assert logger.info.called
 
 
@@ -433,10 +727,10 @@ def test_unzip_data_refresh_handles_missing_permission_and_dataset_dir_failures(
         logger=logger,
         force_extract=True,
         ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
-        sevenzip_file_cls=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("archive should not open")),
+        sevenzip_file_cls=_Archive,
         rmtree_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(PermissionError("denied")),
     )
-    assert logger.info.called
+    assert logger.warning.called
 
     logger.reset_mock()
 
@@ -462,7 +756,10 @@ def test_unzip_data_refresh_handles_missing_permission_and_dataset_dir_failures(
     assert logger.warning.called
 
 
-def test_unzip_data_refresh_handles_direct_filenotfound_and_dataset_dir_failure(tmp_path: Path):
+def test_unzip_data_refresh_handles_direct_filenotfound_and_staging_dir_failure(
+    tmp_path: Path,
+    monkeypatch,
+):
     archive = tmp_path / "demo.7z"
     archive.write_bytes(b"7z")
     share_root = tmp_path / "share"
@@ -503,16 +800,17 @@ def test_unzip_data_refresh_handles_direct_filenotfound_and_dataset_dir_failure(
         sevenzip_file_cls=_Archive,
         rmtree_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError("gone")),
     )
-    assert extracted == [share_root / "dataset" / "demo"]
+    assert len(extracted) == 1
+    assert extracted[0].parent == share_root / "dataset" / "demo"
+    assert extracted[0].name.startswith(".agilab-dataset-refresh-")
 
     logger.reset_mock()
 
-    def _dataset_dir_failure(path):
-        path = Path(path)
-        if path == dataset:
-            raise OSError("dataset mkdir failed")
-        path.mkdir(parents=True, exist_ok=True)
-        return path
+    monkeypatch.setattr(
+        data_archive_support.tempfile,
+        "mkdtemp",
+        lambda **_kwargs: (_ for _ in ()).throw(OSError("staging mkdir failed")),
+    )
 
     unzip_data(
         archive,
@@ -524,7 +822,8 @@ def test_unzip_data_refresh_handles_direct_filenotfound_and_dataset_dir_failure(
         verbose=0,
         logger=logger,
         force_extract=True,
-        ensure_dir_fn=_dataset_dir_failure,
+        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True)
+        or Path(path),
         sevenzip_file_cls=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("archive should not open")),
         rmtree_fn=lambda *_args, **_kwargs: None,
     )
@@ -547,6 +846,19 @@ def test_unzip_data_refresh_onerror_raises_non_missing_exception(tmp_path: Path)
         if onerror is not None:
             onerror(lambda *_args: None, "locked", (PermissionError, PermissionError("denied"), None))
 
+    class _Archive:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def extractall(self, path):
+            (Path(path) / "dataset").mkdir(parents=True, exist_ok=True)
+
     unzip_data(
         archive,
         extract_to="dataset/demo",
@@ -558,11 +870,11 @@ def test_unzip_data_refresh_onerror_raises_non_missing_exception(tmp_path: Path)
         logger=logger,
         force_extract=True,
         ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
-        sevenzip_file_cls=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("archive should not open")),
+        sevenzip_file_cls=_Archive,
         rmtree_fn=_permission_rmtree,
     )
 
-    logger.info.assert_called()
+    logger.warning.assert_called()
 
 
 def test_unzip_data_warns_when_target_directory_prepare_fails_in_normal_path(tmp_path: Path):

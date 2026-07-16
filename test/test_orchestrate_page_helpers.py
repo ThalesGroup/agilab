@@ -6,6 +6,7 @@ import importlib.util
 import json
 from importlib.machinery import ModuleSpec
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path, PosixPath
@@ -14,6 +15,7 @@ import types
 
 import pytest
 from streamlit.errors import StreamlitAPIException
+from streamlit.testing.v1 import AppTest
 
 
 class _CaptureCodeSink:
@@ -2483,6 +2485,187 @@ def test_app_args_env_uses_cluster_share_instead_of_stale_local_share(tmp_path):
         == cluster_share / "flight_telemetry/dataset"
     )
     assert args_env.envars["AGI_CLUSTER_SHARE"] == str(cluster_share)
+
+
+@pytest.mark.parametrize(
+    "workers_data_path",
+    (
+        "",
+        ".",
+        "./",
+        "./.",
+        "~",
+        "~/",
+        "/",
+        "//",
+        "/./",
+        "/home/agi",
+        "/home/agi/.",
+        "//home/agi/.",
+        "/Users/agi",
+        "/Users/agi/.",
+        "/root",
+        "/root/.",
+        "/var/root",
+        "/var/root/.",
+        "/etc",
+        "/etc/.",
+        "/mnt",
+        "/mnt/.",
+    ),
+)
+def test_cluster_args_share_root_rejects_degenerate_worker_roots(
+    tmp_path,
+    workers_data_path,
+):
+    module = _load_orchestrate_module()
+    cluster_share = tmp_path / "clustershare" / "agi"
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        agi_share_path=cluster_share,
+        AGI_LOCAL_SHARE=str(tmp_path / "localshare"),
+        AGI_CLUSTER_SHARE=str(cluster_share),
+        envars={},
+    )
+
+    assert module._cluster_args_share_root(
+        env,
+        {"cluster_enabled": True, "workers_data_path": workers_data_path},
+    ) == cluster_share.resolve(strict=False)
+
+
+def test_cluster_args_share_root_keeps_dedicated_absolute_worker_root(tmp_path):
+    module = _load_orchestrate_module()
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        agi_share_path=tmp_path / "clustershare",
+        AGI_LOCAL_SHARE=str(tmp_path / "localshare"),
+        AGI_CLUSTER_SHARE=str(tmp_path / "clustershare"),
+        envars={},
+    )
+
+    assert module._cluster_args_share_root(
+        env,
+        {"cluster_enabled": True, "workers_data_path": "/mnt/agilab"},
+    ) == Path("/mnt/agilab").resolve(strict=False)
+
+
+def test_cluster_app_args_env_confines_relative_absolute_parent_and_symlink_paths(
+    tmp_path,
+):
+    module = _load_orchestrate_module()
+    cluster_share = tmp_path / "clustershare" / "agi"
+    workflow_root = cluster_share / "users" / "agi" / "workflow" / "session"
+    workflow_input = workflow_root / "workflow" / "input"
+    physical_input = cluster_share / "shared" / "input"
+    workflow_input.mkdir(parents=True)
+    physical_input.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (workflow_root / "escape-link").symlink_to(outside, target_is_directory=True)
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        agi_share_path=cluster_share,
+        agi_share_path_abs=cluster_share,
+        AGI_LOCAL_SHARE=str(tmp_path / "localshare"),
+        AGI_CLUSTER_SHARE=str(cluster_share),
+        envars={},
+        share_root_path=lambda: cluster_share,
+    )
+    args_env = module._app_args_env_for_cluster(
+        env,
+        {"cluster_enabled": True, "workers_data_path": str(workflow_root)},
+    )
+
+    assert args_env.resolve_share_path("valid/output") == workflow_root / "valid/output"
+    assert args_env.resolve_share_input_path("workflow/input") == workflow_input
+    assert args_env.resolve_share_input_path("shared/input") == physical_input
+    assert args_env.resolve_share_input_path(physical_input) == physical_input
+    with pytest.raises(ValueError, match="share root"):
+        args_env.resolve_share_path(physical_input)
+    for escaped in (outside, "../outside", "escape-link/payload"):
+        with pytest.raises(ValueError, match="share root"):
+            args_env.resolve_share_path(escaped)
+        with pytest.raises(ValueError, match="share root"):
+            args_env.resolve_share_input_path(escaped)
+
+
+@pytest.mark.parametrize(
+    "workers_data_path",
+    (None, "", ".", "./", "./.", "~", "~/", "/", "//", "/./"),
+    ids=(
+        "parent-escape",
+        "empty-root",
+        "dot",
+        "dot-slash",
+        "dot-chain",
+        "home",
+        "home-slash",
+        "root",
+        "double-root",
+        "root-dot",
+    ),
+)
+def test_cluster_app_args_env_rejects_invalid_form_output_without_persisting(
+    tmp_path,
+    workers_data_path,
+):
+    module = _load_orchestrate_module()
+    form_path = Path(
+        "src/agilab/apps/builtin/minimal_app_project/src/app_args_form.py"
+    )
+    settings_path = tmp_path / "minimal_app_project" / "app_settings.toml"
+    settings_path.parent.mkdir()
+    shutil.copyfile(form_path.parent / "app_settings.toml", settings_path)
+    local_share = tmp_path / "localshare" / "agi"
+    cluster_share = tmp_path / "clustershare" / "agi"
+    local_share.mkdir(parents=True)
+    cluster_share.mkdir(parents=True)
+    env = SimpleNamespace(
+        app="minimal_app_project",
+        app_settings_file=str(settings_path),
+        home_abs=tmp_path,
+        agi_share_path=local_share,
+        agi_share_path_abs=local_share,
+        AGI_LOCAL_SHARE=str(local_share),
+        AGI_CLUSTER_SHARE=str(cluster_share),
+        envars={},
+        share_root_path=lambda: local_share,
+        humanize_validation_errors=lambda exc: [str(item) for item in exc.errors()],
+    )
+    args_env = module._app_args_env_for_cluster(
+        env,
+        {
+            "cluster_enabled": True,
+            "workers_data_path": (
+                str(cluster_share) if workers_data_path is None else workers_data_path
+            ),
+        },
+    )
+
+    at = AppTest.from_file(str(form_path), default_timeout=30)
+    at.session_state["env"] = args_env
+    at.session_state["_env"] = args_env
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    at.run()
+    assert not at.exception
+    settings_before = settings_path.read_bytes()
+    args_before = dict(at.session_state["app_settings"]["args"])
+
+    escaped_output = (
+        "../escaped-output"
+        if workers_data_path is None
+        else str(tmp_path / "outside-share" / "escaped-output")
+    )
+    at.text_input(key="minimal_app_project:app_args_form:data_out").set_value(escaped_output)
+    at.run()
+
+    assert not at.exception
+    assert any("Invalid data_out path" in str(item.value) for item in at.error)
+    assert settings_path.read_bytes() == settings_before
+    assert dict(at.session_state["app_settings"]["args"]) == args_before
+    assert not any("Saved to" in str(item.value) for item in at.success)
+    assert not any("Resolved input" in str(item.value) for item in at.caption)
 
 
 def test_cluster_args_share_warning_accepts_configured_cluster_share(tmp_path):

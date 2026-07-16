@@ -641,6 +641,7 @@ class UavQueueWorker(PandasWorker):
         }
 
         return {
+            "source_file": str(file_path),
             "summary_metrics": summary_metrics,
             "packet_events": packet_df,
             "queue_timeseries": queue_df,
@@ -668,8 +669,19 @@ class UavQueueWorker(PandasWorker):
         }
 
         for root in destinations:
-            if self.reset_target and root.exists():
-                shutil.rmtree(root, ignore_errors=True, onerror=self._onerror)
+            if self.reset_target:
+                reset_path = path_support.safe_reset_path(
+                    root,
+                    roots=(root.parent,),
+                    protected_paths=(result["source_file"],),
+                    label="UAV artifact directory",
+                )
+                if reset_path.exists():
+                    shutil.rmtree(
+                        reset_path,
+                        ignore_errors=True,
+                        onerror=self._onerror,
+                    )
             root.mkdir(parents=True, exist_ok=True)
             (root / f"{stem}_summary_metrics.json").write_text(
                 json.dumps(metrics, indent=2),

@@ -13,7 +13,11 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
-from agi_env.streamlit_args import load_args_state, persist_args  # noqa: E402
+from agi_env.streamlit_args import (  # noqa: E402
+    load_args_state,
+    persist_args,
+    resolve_app_args_share_paths,
+)
 from pytorch_playground import app_args  # noqa: E402
 from pytorch_playground.app_args import (  # noqa: E402
     ACTIVATIONS,
@@ -438,6 +442,7 @@ def persist_current_args(*, env: Any | None = None) -> app_args.PytorchPlaygroun
         app_args.ArgsModel(**_current_form_values(defaults_model, env=active_env)),
         env=active_env,
     )
+    resolve_app_args_share_paths(active_env, parsed)
     persist_args(
         app_args,
         parsed,
@@ -936,6 +941,7 @@ def render(
     else:
         try:
             config = app_args.to_playground_config(parsed)
+            resolve_app_args_share_paths(active_env, parsed)
         except ValueError as exc:
             output_container.error(str(exc))
         else:

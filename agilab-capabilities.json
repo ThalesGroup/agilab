@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-09T16:46:01Z",
+  "generated_at_utc": "2026-07-16T11:36:39Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -886,7 +886,7 @@
       "name": "agilab-security-review-patterns",
       "description": "Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.",
       "path": ".claude/skills/agilab-security-review-patterns/SKILL.md",
-      "updated": "2026-07-09"
+      "updated": "2026-07-16"
     },
     {
       "name": "agilab-streamlit-pages",
@@ -1662,7 +1662,8 @@
       "sources": [
         "src/agilab/pipeline/pipeline_stages.py",
         "src/agilab/workflow/workflow_validation.py",
-        "tools/agilab_widget_robot.py"
+        "tools/agilab_widget_robot.py",
+        "tools/notebook_roundtrip_report.py"
       ]
     },
     {
@@ -1780,36 +1781,18 @@
     {
       "schema": "agilab.notebook_export_handoff.v1",
       "sources": [
-        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.md",
-        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.md",
-        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.md",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.md",
-        "src/agilab/apps/builtin/weather_forecast_legacy_project/notebooks/lab_stages.notebook_export.md",
-        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.md",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
     {
       "schema": "agilab.notebook_export_manifest.v1",
       "sources": [
-        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/weather_forecast_legacy_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
     {
       "schema": "agilab.notebook_export_portability.v1",
       "sources": [
-        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/weather_forecast_legacy_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
@@ -1883,12 +1866,6 @@
     {
       "schema": "agilab.notebook_view_sync.v1",
       "sources": [
-        "src/agilab/apps/builtin/flight_telemetry_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/mission_decision_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/multi_app_dag_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/weather_forecast_legacy_project/notebooks/lab_stages.notebook_export.json",
-        "src/agilab/apps/builtin/weather_forecast_project/notebooks/lab_stages.notebook_export.json",
         "src/agilab/notebooks/notebook_export_support.py"
       ]
     },
@@ -2433,6 +2410,7 @@
       "schema": "agilab.ui_robot_evidence.v1",
       "sources": [
         "docs/source/data/ui_robot_evidence.json",
+        "docs/source/evidence-taxonomy.rst",
         "tools/ui_robot_evidence.py"
       ]
     },

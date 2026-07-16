@@ -5,6 +5,8 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
+from agi_env.runtime.atomic_write_support import atomic_write_bytes
+
 
 def load_global_state(
     global_state_file: Path,
@@ -39,9 +41,7 @@ def persist_global_state(
 ) -> None:
     """Persist the UI state, swallowing serialization and filesystem failures."""
     try:
-        global_state_file.parent.mkdir(parents=True, exist_ok=True)
-        with global_state_file.open("wb") as handle:
-            dump_payload_fn(data, handle)
+        atomic_write_bytes(global_state_file, lambda handle: dump_payload_fn(data, handle))
     except (OSError, RuntimeError, TypeError, ValueError):
         pass
 

@@ -339,7 +339,7 @@ def test_persist_global_state_swallows_dump_errors(tmp_path, monkeypatch):
 
     ui_support.persist_global_state({"last_active_app": "/tmp/demo"})
 
-    assert state_file.exists()
+    assert not state_file.exists()
 
 
 def test_load_last_active_app_returns_none_when_target_is_missing(tmp_path, monkeypatch):
@@ -852,7 +852,11 @@ def test_update_views_creates_missing_links_and_removes_stale_hardlinks(tmp_path
         }
     )
     monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state=session_state))
-    monkeypatch.setattr(pagelib.os, "getcwd", lambda: str(repo_root))
+    monkeypatch.setattr(
+        pagelib,
+        "__file__",
+        str(repo_root / "src" / "agilab" / "core" / "agi-env" / "src" / "agi_env" / "ui" / "pagelib.py"),
+    )
 
     updated = pagelib.update_views("demo_project", [str(keep_view), str(new_view)])
 
@@ -2604,11 +2608,15 @@ def test_update_views_ignores_missing_page_between_listdir_and_stat(tmp_path, mo
         preview_tree=True,
     )
     monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state=session_state))
-    monkeypatch.setattr(pagelib.os, "getcwd", lambda: str(repo_root))
+    monkeypatch.setattr(
+        pagelib,
+        "__file__",
+        str(repo_root / "src" / "agilab" / "core" / "agi-env" / "src" / "agi_env" / "ui" / "pagelib.py"),
+    )
     monkeypatch.setattr(pagelib.os, "listdir", lambda _path: ["ghost.py"])
     monkeypatch.setattr(
-        pagelib.os,
-        "stat",
+        pagelib,
+        "_hardlink_count",
         lambda _path: (_ for _ in ()).throw(FileNotFoundError("already removed")),
     )
 
@@ -2711,7 +2719,11 @@ def test_update_views_returns_false_when_everything_is_already_in_sync(tmp_path,
         preview_tree=True,
     )
     monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state=session_state))
-    monkeypatch.setattr(pagelib.os, "getcwd", lambda: str(repo_root))
+    monkeypatch.setattr(
+        pagelib,
+        "__file__",
+        str(repo_root / "src" / "agilab" / "core" / "agi-env" / "src" / "agi_env" / "ui" / "pagelib.py"),
+    )
 
     updated = pagelib.update_views("demo_project", [str(source)])
 

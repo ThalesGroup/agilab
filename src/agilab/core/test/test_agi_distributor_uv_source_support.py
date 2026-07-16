@@ -68,6 +68,15 @@ def test_ensure_optional_extras_bootstraps_missing_pyproject(tmp_path):
     assert "agent-worker = []" in content
 
 
+def test_ensure_optional_extras_leaves_invalid_pyproject_untouched(tmp_path):
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text("[project\nname = 'broken'\n", encoding="utf-8")
+
+    uv_source_support.ensure_optional_extras(pyproject, {"agent-worker"})
+
+    assert pyproject.read_text(encoding="utf-8") == "[project\nname = 'broken'\n"
+
+
 def test_rewrite_uv_sources_paths_rewrites_invalid_entries_and_logs(tmp_path, monkeypatch):
     src_dir = tmp_path / "src" / "worker"
     dst_dir = tmp_path / "dst" / "worker"

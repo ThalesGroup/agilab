@@ -41,8 +41,11 @@ class MinimalApp(BaseWorker):
         # Inputs may be pre-existing datasets under the cluster share root;
         # fall back to it when nothing exists under the workflow data root.
         resolve_input = getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
-        self.args.data_in = resolve_input(self.args.data_in)
-        self.args.data_out = env.resolve_share_path(self.args.data_out)
+        try:
+            self.args.data_in = resolve_input(self.args.data_in)
+            self.args.data_out = env.resolve_share_path(self.args.data_out)
+        except ValueError as exc:
+            raise ValueError(f"Invalid MinimalApp data_in/data_out path: {exc}") from exc
         self.data_out = self.args.data_out
 
         # The minimal_app tests expect the data source directory to exist immediately
@@ -52,15 +55,22 @@ class MinimalApp(BaseWorker):
 
         reset_target = getattr(self.args, "reset_target", False)
         try:
-            if reset_target and self.data_out.exists():
-                shutil.rmtree(
+            if reset_target:
+                reset_path = self._safe_share_reset_path(
+                    env,
                     self.data_out,
-                    ignore_errors=True,
-                    onerror=WorkDispatcher._onerror,
+                    protected_paths=(self.args.data_in,),
+                    label="data_out",
                 )
+                if reset_path.exists():
+                    shutil.rmtree(
+                        reset_path,
+                        ignore_errors=True,
+                        onerror=WorkDispatcher._onerror,
+                    )
             logger.info(f"mkdir {self.data_out}")
             self.data_out.mkdir(parents=True, exist_ok=True)
-        except Exception as exc:  # pragma: no cover - defensive guard
+        except (OSError, RuntimeError) as exc:  # pragma: no cover - defensive guard
             logger.warning(
                 "Issue while preparing dataframe directory %s: %s",
                 self.data_out,

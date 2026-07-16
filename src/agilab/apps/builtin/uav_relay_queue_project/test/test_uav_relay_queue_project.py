@@ -17,15 +17,20 @@ SRC_ROOT = APP_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from uav_relay_queue import UavQueue, UavQueueArgs, UavRelayQueue, UavRelayQueueArgs
-from uav_relay_queue.reduction import (
+from uav_relay_queue import (  # noqa: E402
+    UavQueue,
+    UavQueueArgs,
+    UavRelayQueue,
+    UavRelayQueueArgs,
+)
+from uav_relay_queue.reduction import (  # noqa: E402
     REDUCE_ARTIFACT_NAME,
     REDUCER_NAME,
     build_reduce_artifact,
     partial_from_summary_metrics,
     reduce_artifact_path,
 )
-from uav_relay_queue_worker import UavQueueWorker, UavRelayQueueWorker
+from uav_relay_queue_worker import UavQueueWorker, UavRelayQueueWorker  # noqa: E402
 
 
 def _make_env(tmp_path: Path) -> SimpleNamespace:
@@ -305,6 +310,7 @@ def test_uav_relay_queue_worker_edge_branches(monkeypatch, tmp_path: Path) -> No
     old_run = worker.artifact_dir / "demo"
     old_run.mkdir(parents=True)
     result = {
+        "source_file": str(tmp_path / "input.json"),
         "summary_metrics": {
             "artifact_stem": "demo",
             "scenario": "demo",
@@ -331,6 +337,29 @@ def test_uav_relay_queue_worker_edge_branches(monkeypatch, tmp_path: Path) -> No
     UavRelayQueueWorker.work_done(worker, None)
     UavRelayQueueWorker.work_done(worker, result)
     assert (worker.artifact_dir / "demo" / "pipeline" / "allocations_steps.csv").is_file()
+
+
+def test_uav_relay_worker_rejects_artifact_reset_containing_source(tmp_path: Path) -> None:
+    worker = object.__new__(UavRelayQueueWorker)
+    worker.data_out = tmp_path / "output"
+    worker.artifact_dir = tmp_path / "artifacts"
+    worker.reset_target = True
+    source = worker.data_out / "demo" / "source.json"
+    source.parent.mkdir(parents=True)
+    source.write_text("{}", encoding="utf-8")
+    result = {
+        "source_file": str(source),
+        "summary_metrics": {"artifact_stem": "demo"},
+        "packet_events": [],
+        "queue_timeseries": [],
+        "node_positions": [],
+        "routing_summary": [],
+    }
+
+    with pytest.raises(ValueError, match="must not overlap protected input"):
+        worker.work_done(result)
+
+    assert source.read_text(encoding="utf-8") == "{}"
 
 
 def test_uav_relay_queue_multi_scenario_outputs_do_not_overwrite(tmp_path: Path) -> None:

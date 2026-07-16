@@ -11,6 +11,7 @@ from annotated_types import Ge, Le, MultipleOf
 
 from agi_env.ui._optional_ui import require_streamlit
 from agi_env.project.app_args import prefer_persisted_value
+from agi_env.shares.share_runtime_support import resolve_share_path
 
 st = require_streamlit()
 
@@ -159,14 +160,54 @@ def render_form(model: BaseModel, *, container: Any | None = None) -> dict[str, 
 
 
 def resolve_shared_path(env, path_value: str | Path) -> Path:
-    """Resolve ``path_value`` relative to ``env.share_root_path()`` when needed."""
-
-    candidate = Path(str(path_value)).expanduser()
-    if candidate.is_absolute():
-        return candidate
+    """Resolve ``path_value`` inside ``env.share_root_path()``."""
 
     share_root = Path(env.share_root_path()).expanduser()
-    return (share_root / candidate).expanduser()
+    return resolve_share_path(path_value, share_root)
+
+
+def resolve_app_args_share_paths(
+    env: Any,
+    parsed: BaseModel,
+    *,
+    input_fields: tuple[str, ...] = ("data_in",),
+    output_fields: tuple[str, ...] = ("data_out", "submission_inbox"),
+) -> dict[str, Path]:
+    """Resolve shared-data fields before an app form persists ``parsed``.
+
+    Input fields may use the environment's read-only physical-share fallback,
+    while output-like fields always use the active workflow/share root. Models
+    without one of the named fields are intentionally a no-op.
+    """
+
+    model_fields = getattr(type(parsed), "model_fields", {})
+    selected_inputs = tuple(name for name in input_fields if name in model_fields)
+    selected_outputs = tuple(
+        name for name in output_fields if name in model_fields and name not in selected_inputs
+    )
+    if not selected_inputs and not selected_outputs:
+        return {}
+
+    output_resolver = getattr(env, "resolve_share_path", None)
+    if not callable(output_resolver):
+        raise ValueError("AGILAB environment does not provide share-path resolution.")
+    input_resolver = getattr(env, "resolve_share_input_path", None)
+    if not callable(input_resolver):
+        input_resolver = output_resolver
+
+    resolved: dict[str, Path] = {}
+    for field_name, resolver in (
+        *((name, input_resolver) for name in selected_inputs),
+        *((name, output_resolver) for name in selected_outputs),
+    ):
+        value = getattr(parsed, field_name)
+        if value in (None, ""):
+            continue
+        try:
+            resolved[field_name] = Path(resolver(value))
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid {field_name} path: {exc}") from exc
+    return resolved
 
 
 def ensure_shared_directory(
@@ -183,7 +224,11 @@ def ensure_shared_directory(
     the helper attempts to ``mkdir -p`` the directory before reporting errors.
     """
 
-    target = resolve_shared_path(env, path_value)
+    try:
+        target = resolve_shared_path(env, path_value)
+    except (OSError, TypeError, ValueError) as exc:
+        fallback = Path(str(path_value)).expanduser()
+        return fallback, False, f"Unable to resolve {description} inside the AGI share path: {exc}"
     created = False
 
     if target.is_dir():

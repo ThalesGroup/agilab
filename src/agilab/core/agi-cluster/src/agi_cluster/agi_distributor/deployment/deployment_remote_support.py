@@ -19,6 +19,10 @@ from agi_cluster.agi_distributor.deployment.deployment_build_support import (
 )
 from agi_env import AgiEnv
 from agi_env.cython_build_config import cython_build_overlay_specs
+from agi_env.shares.share_runtime_support import (
+    validate_local_share_root,
+    validate_worker_share_root,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -65,6 +69,11 @@ def _resolve_local_share_path(value: str, env: Any) -> Path:
     home = getattr(env, "home_abs", None)
     base = Path(home).expanduser() if home else Path.home()
     return (base / path).resolve(strict=False)
+
+
+def _validate_remote_share_target(value: str) -> str:
+    """Validate a worker-side mount target without rebasing it locally."""
+    return validate_worker_share_root(value)
 
 
 def _remote_share_assignment(value: str) -> str:
@@ -396,12 +405,13 @@ def _remote_cluster_share_root_setting(
 ) -> str:
     """Return the worker-side AGI_CLUSTER_SHARE root, not a per-run subpath."""
 
+    remote_share = _validate_remote_share_target(remote_share)
     remote_setting = _home_relative_share_setting(remote_share, env)
     requested = PurePosixPath(remote_setting.replace("\\", "/"))
     configured_text = _home_relative_share_setting(local_share_setting, env)
     configured = PurePosixPath(configured_text.replace("\\", "/"))
 
-    if configured_text and not configured.is_absolute():
+    if configured_text:
         try:
             requested.relative_to(configured)
         except ValueError:
@@ -544,7 +554,10 @@ async def _prepare_remote_cluster_share(
         )
         or remote_share
     )
-    local_share = _resolve_local_share_path(local_share_raw, env)
+    local_share = validate_local_share_root(
+        _resolve_local_share_path(local_share_raw, env),
+        home_roots=(getattr(env, "home_abs", ""), Path.home()),
+    )
     share_backend = _cluster_share_backend(env)
     share_is_premounted = _remote_cluster_share_premounted(env)
     remote_share_setting = _remote_cluster_share_root_setting(
@@ -559,10 +572,6 @@ async def _prepare_remote_cluster_share(
     local_share.mkdir(parents=True, exist_ok=True)
 
     workflow_data_root_setting = _home_relative_share_setting(remote_share, env)
-    await agi_cls.exec_ssh(
-        ip,
-        _remote_env_update_command(remote_share_setting, workflow_data_root_setting),
-    )
     if share_is_premounted:
         if getattr(env, "verbose", 0) > 0:
             log.info(
@@ -572,25 +581,29 @@ async def _prepare_remote_cluster_share(
                 remote_share_setting,
             )
         await agi_cls.exec_ssh(ip, _remote_share_premounted_check_command(remote_share_setting))
-        return
+    else:
+        scheduler_target = _scheduler_ssh_target(agi_cls, env)
+        if not scheduler_target:
+            raise RuntimeError(
+                "Cannot mount AGI_CLUSTER_SHARE on remote worker: scheduler host is unknown."
+            )
 
-    scheduler_target = _scheduler_ssh_target(agi_cls, env)
-    if not scheduler_target:
-        raise RuntimeError(
-            "Cannot mount AGI_CLUSTER_SHARE on remote worker: scheduler host is unknown."
+        mount_cmd = _remote_share_mount_command(
+            scheduler_target=scheduler_target,
+            scheduler_ssh_port=_scheduler_ssh_port(env),
+            local_share=local_share,
+            remote_share=remote_share_setting,
         )
+        if getattr(env, "verbose", 0) > 0:
+            log.info(
+                "Mounting scheduler AGI_CLUSTER_SHARE on remote worker %s with SSHFS", ip
+            )
+        await agi_cls.exec_ssh(ip, mount_cmd)
 
-    mount_cmd = _remote_share_mount_command(
-        scheduler_target=scheduler_target,
-        scheduler_ssh_port=_scheduler_ssh_port(env),
-        local_share=local_share,
-        remote_share=remote_share_setting,
+    await agi_cls.exec_ssh(
+        ip,
+        _remote_env_update_command(remote_share_setting, workflow_data_root_setting),
     )
-    if getattr(env, "verbose", 0) > 0:
-        log.info(
-            "Mounting scheduler AGI_CLUSTER_SHARE on remote worker %s with SSHFS", ip
-        )
-    await agi_cls.exec_ssh(ip, mount_cmd)
 
 
 def _parse_version_prefix(version: str) -> tuple[int, ...]:

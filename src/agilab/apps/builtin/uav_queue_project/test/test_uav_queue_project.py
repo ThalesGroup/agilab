@@ -17,15 +17,15 @@ SRC_ROOT = APP_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from uav_queue import UavQueue, UavQueueArgs, UavRelayQueue, UavRelayQueueArgs
-from uav_queue.reduction import (
+from uav_queue import UavQueue, UavQueueArgs, UavRelayQueue, UavRelayQueueArgs  # noqa: E402
+from uav_queue.reduction import (  # noqa: E402
     REDUCE_ARTIFACT_NAME,
     REDUCER_NAME,
     build_reduce_artifact,
     partial_from_summary_metrics,
     reduce_artifact_path,
 )
-from uav_queue_worker import UavQueueWorker
+from uav_queue_worker import UavQueueWorker  # noqa: E402
 
 
 def _make_env(tmp_path: Path) -> SimpleNamespace:
@@ -304,6 +304,7 @@ def test_uav_queue_worker_edge_branches(monkeypatch, tmp_path: Path) -> None:
     old_run = worker.artifact_dir / "demo"
     old_run.mkdir(parents=True)
     result = {
+        "source_file": str(tmp_path / "input.json"),
         "summary_metrics": {
             "artifact_stem": "demo",
             "scenario": "demo",

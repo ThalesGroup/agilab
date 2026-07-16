@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import agi_env.share_runtime_support as share_runtime_module
@@ -39,6 +38,198 @@ def test_share_runtime_helpers_cover_target_path_modes_and_ip_validation(tmp_pat
     assert share_runtime_module.is_valid_ip("192.168.20.130") is True
     assert share_runtime_module.is_valid_ip("999.1.1.1") is False
     assert share_runtime_module.is_valid_ip("not-an-ip") is False
+
+
+def test_resolve_share_input_path_prefers_workflow_then_confined_physical_fallback(
+    tmp_path: Path,
+) -> None:
+    physical_root = tmp_path / "cluster"
+    workflow_root = physical_root / "users" / "agi" / "workflow" / "session"
+    workflow_dataset = workflow_root / "workflow-only" / "dataset"
+    shared_dataset = physical_root / "shared" / "dataset"
+    workflow_dataset.mkdir(parents=True)
+    shared_dataset.mkdir(parents=True)
+
+    assert (
+        share_runtime_module.resolve_share_input_path(
+            "workflow-only/dataset", workflow_root, physical_root
+        )
+        == workflow_dataset
+    )
+    assert (
+        share_runtime_module.resolve_share_input_path(
+            "shared/dataset", workflow_root, physical_root
+        )
+        == shared_dataset
+    )
+    assert (
+        share_runtime_module.resolve_share_input_path(
+            shared_dataset, workflow_root, physical_root
+        )
+        == shared_dataset
+    )
+    with pytest.raises(ValueError, match="share root"):
+        share_runtime_module.resolve_share_input_path(
+            tmp_path / "outside", workflow_root, physical_root
+        )
+
+
+def test_resolve_share_input_path_accepts_case_alias_on_case_insensitive_volume(
+    tmp_path: Path,
+) -> None:
+    physical_root = tmp_path / "PhysicalShare"
+    workflow_root = physical_root / "workflow" / "session"
+    shared_dataset = physical_root / "shared" / "dataset"
+    workflow_root.mkdir(parents=True)
+    shared_dataset.mkdir(parents=True)
+
+    case_alias = tmp_path / "physicalshare"
+    if not case_alias.exists():
+        pytest.skip("temporary filesystem is case-sensitive")
+
+    resolved = share_runtime_module.resolve_share_input_path(
+        case_alias / "shared" / "dataset",
+        workflow_root,
+        physical_root,
+    )
+
+    assert resolved.samefile(shared_dataset)
+
+
+def test_resolve_share_input_path_rejects_case_distinct_sibling_on_case_sensitive_volume(
+    tmp_path: Path,
+) -> None:
+    physical_root = tmp_path / "PhysicalShare"
+    workflow_root = physical_root / "workflow" / "session"
+    case_distinct_root = tmp_path / "physicalshare"
+    workflow_root.mkdir(parents=True)
+    try:
+        case_distinct_root.mkdir()
+    except FileExistsError:
+        pytest.skip("temporary filesystem is case-insensitive")
+    if case_distinct_root.samefile(physical_root):
+        pytest.skip("temporary filesystem aliases case variants")
+    outside_dataset = case_distinct_root / "shared" / "dataset"
+    outside_dataset.mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="share root"):
+        share_runtime_module.resolve_share_input_path(
+            outside_dataset,
+            workflow_root,
+            physical_root,
+        )
+
+
+@pytest.mark.parametrize(
+    "value",
+    ("", ".", "./", "./.", "~", "~/", "/", "//", "/./"),
+)
+def test_validate_worker_share_root_rejects_degenerate_roots(value: str) -> None:
+    with pytest.raises(ValueError, match="Workers Data Path"):
+        share_runtime_module.validate_worker_share_root(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "/home/agi",
+        "/home/agi/.",
+        "//home/agi/.",
+        "/HOME/agi",
+        "/Users/agi",
+        "/Users/agi/.",
+        "/users/agi",
+        "/root",
+        "/root/.",
+        "//ROOT/.",
+        "/var/root",
+        "/var/root/.",
+        "//VAR/root/.",
+    ),
+)
+def test_validate_worker_share_root_rejects_absolute_worker_home_aliases(
+    value: str,
+) -> None:
+    with pytest.raises(ValueError, match="worker home or system root"):
+        share_runtime_module.validate_worker_share_root(value)
+
+
+_SENSITIVE_SYSTEM_ROOTS = (
+    "/etc",
+    "/usr",
+    "/var",
+    "/proc",
+    "/sys",
+    "/dev",
+    "/boot",
+    "/bin",
+    "/sbin",
+    "/lib",
+    "/opt",
+    "/tmp",
+    "/mnt",
+)
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        *_SENSITIVE_SYSTEM_ROOTS,
+        *(f"{root}/." for root in _SENSITIVE_SYSTEM_ROOTS),
+    ),
+)
+def test_validate_worker_share_root_rejects_sensitive_system_roots(
+    value: str,
+) -> None:
+    with pytest.raises(ValueError, match="system root"):
+        share_runtime_module.validate_worker_share_root(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "clustershare",
+        "~/clustershare",
+        "/mnt/agilab",
+        "/var/lib/agilab",
+        "/tmp/agilab",
+    ),
+)
+def test_validate_worker_share_root_accepts_dedicated_roots(value: str) -> None:
+    assert share_runtime_module.validate_worker_share_root(value) == value
+
+
+@pytest.mark.parametrize(
+    "value",
+    ("/", "/etc", "/mnt", "/home/agi", "/Users/agi", "/var/root"),
+)
+def test_validate_local_share_root_rejects_ambient_roots(value: str) -> None:
+    with pytest.raises(ValueError, match="AGI_CLUSTER_SHARE"):
+        share_runtime_module.validate_local_share_root(value)
+
+
+def test_validate_local_share_root_rejects_home_alias_and_allows_nested_share(
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "home" / "agi"
+    home.mkdir(parents=True)
+    home_alias = tmp_path / "home-alias"
+    try:
+        home_alias.symlink_to(home, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="scheduler home"):
+        share_runtime_module.validate_local_share_root(
+            home_alias,
+            home_roots=(home,),
+        )
+
+    dedicated = home / "clustershare"
+    assert share_runtime_module.validate_local_share_root(
+        dedicated,
+        home_roots=(home,),
+    ) == dedicated.resolve(strict=False)
 
 
 def test_python_supports_free_threading_prefers_runtime_probe(monkeypatch):

@@ -908,6 +908,27 @@ def handle_go_action(view_module, view_path):
     # Implement your desired functionality here.
 
 
+def _repo_pages_root(*, file_path: str | Path | None = None) -> Path:
+    """Return the repo-local generated GUI pages directory."""
+
+    module_path = Path(file_path or __file__).resolve()
+    fallback: Path | None = None
+    for parent in module_path.parents:
+        candidate = parent / "src" / "gui" / "pages"
+        if candidate.exists() or (parent / ".git").exists():
+            return candidate
+        if fallback is None and (parent / "pyproject.toml").exists():
+            # A nested package's own pyproject.toml (e.g. a monorepo member)
+            # is not necessarily the repo root; keep it only as a fallback
+            # in case no ".git" marker or existing pages dir is found above.
+            fallback = candidate
+    return fallback or module_path.parent / "pages"
+
+
+def _hardlink_count(path: Path) -> int:
+    return path.stat().st_nlink
+
+
 def update_views(project, pages):
     """
     Create and remove hard links according to pages checkbox.
@@ -924,7 +945,7 @@ def update_views(project, pages):
     env.change_app(project)
     st.session_state.preview_tree = False
 
-    pages_root = Path(os.getcwd()) / "src/gui/pages"
+    pages_root = _repo_pages_root()
     existing_pages = set(os.listdir(pages_root))
 
     expected_pages = set()
@@ -941,7 +962,7 @@ def update_views(project, pages):
     for page in existing_pages:
         page_abs = pages_root / page
         try:
-            if page not in expected_pages and os.stat(page_abs).st_nlink > 1:
+            if page not in expected_pages and _hardlink_count(page_abs) > 1:
                 os.remove(page_abs)
                 update_required = True
         except FileNotFoundError:
