@@ -227,7 +227,39 @@ def _required_list(name: str, manifest: Mapping[str, Any]) -> list[Any]:
     return value
 
 
-def render_release_proof(manifest: Mapping[str, Any]) -> str:
+def _ui_robot_provenance_suffix(evidence_path: Path | None) -> str:
+    """Return a sentence pinning the UI-robot run date/id/sha, or "" if absent.
+
+    The provenance lives in ui_robot_evidence.json (the single source of truth),
+    so the rendered page surfaces the evidence age instead of hiding it.
+    """
+    if evidence_path is None or not evidence_path.exists():
+        return ""
+    try:
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    generated_at = str(evidence.get("generated_at") or "").strip()
+    source = evidence.get("source") or {}
+    run_id = str(source.get("run_id") or "").strip()
+    head_sha = str(source.get("head_sha") or "").strip()
+    parts: list[str] = []
+    if run_id:
+        parts.append(f"run ``{run_id}``")
+    if head_sha:
+        parts.append(f"commit ``{head_sha[:12]}``")
+    if generated_at:
+        parts.append(f"generated ``{generated_at}``")
+    if not parts:
+        return ""
+    return " Pinned UI robot evidence: " + ", ".join(parts) + "."
+
+
+def render_release_proof(
+    manifest: Mapping[str, Any],
+    *,
+    ui_robot_evidence_path: Path | None = None,
+) -> str:
     context = _template_context(manifest)
     release = _required_table("release", manifest)
     proof_command = _required_table("proof_command", manifest)
@@ -325,7 +357,10 @@ def render_release_proof(manifest: Mapping[str, Any]) -> str:
     _append_wrapped(lines, _format_template(str(proof_command["summary"]), context), initial_indent="- ")
     _append_code_block(lines, proof_command.get("commands", []), context, indent="  ")
     lines.append("")
+    provenance_suffix = _ui_robot_provenance_suffix(ui_robot_evidence_path)
     for bullet in _format_templates(proof_bullets, context):
+        if provenance_suffix and "ui_robot_evidence.json" in bullet:
+            bullet = bullet + provenance_suffix
         _append_wrapped(lines, bullet, initial_indent="- ", subsequent_indent="  ")
 
     lines.extend(["", "How to verify it again", "----------------------", ""])
@@ -928,7 +963,10 @@ def build_report(
     github_max_age_days: int = DEFAULT_GITHUB_MAX_AGE_DAYS,
 ) -> dict[str, Any]:
     manifest = load_manifest(manifest_path)
-    rendered = render_release_proof(manifest)
+    rendered = render_release_proof(
+        manifest,
+        ui_robot_evidence_path=manifest_path.parent / UI_ROBOT_EVIDENCE_RELATIVE_PATH.name,
+    )
     release = _required_table("release", manifest)
     ci_runs = _required_list("ci_runs", manifest)
     package_version = str(release["package_version"])
@@ -1201,7 +1239,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         write_manifest(manifest_path, manifest)
 
-    rendered = render_release_proof(manifest)
+    rendered = render_release_proof(
+        manifest,
+        ui_robot_evidence_path=manifest_path.parent / UI_ROBOT_EVIDENCE_RELATIVE_PATH.name,
+    )
     if args.render:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(rendered, encoding="utf-8")

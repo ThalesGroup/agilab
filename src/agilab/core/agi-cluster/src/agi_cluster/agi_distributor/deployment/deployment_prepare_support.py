@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import shlex
@@ -21,6 +22,28 @@ UV_SELF_UPDATE_ENV = "AGILAB_UV_SELF_UPDATE"
 def _is_local_ip(ip: str) -> bool:
     is_local = cast(Callable[[str], bool], AgiEnv.is_local)
     return is_local(ip)
+
+
+async def _gather_with_cancel_on_failure(coros: list[Any]) -> list[Any]:
+    """Run per-node coroutines concurrently, preserving input order in results.
+
+    Mirrors ``deploy_application``'s cancel-on-failure semantics: if any task
+    fails, the remaining sibling tasks are cancelled and awaited before the
+    original error propagates, so a failing node cannot leave sibling install
+    work running unobserved (which a retry would then race).
+    ``asyncio.gather`` preserves the order of the input coroutines in its
+    results, so callers can rely on stable IP ordering.
+    """
+    tasks = [asyncio.create_task(coro) for coro in coros]
+    try:
+        return await asyncio.gather(*tasks)
+    except BaseException:
+        # A failing node must not leave sibling tasks running unobserved
+        # (a retry would then race half-finished installs).
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
 
 
 def _uv_self_update_enabled(
@@ -245,24 +268,51 @@ async def prepare_cluster_env(
                 raise ValueError(f"Invalid IP address: {ip}") from exc
 
     agi_cls.list_ip = list_ip
-    legacy_intel_macos_ips: set[str] = set()
-    for ip in list_ip:
-        if env.is_local(ip):
-            continue
+    # Stable IP order for deterministic set_env_var writes and legacy detection.
+    remote_ips = [ip for ip in sorted(list_ip) if not env.is_local(ip)]
 
+    async def _probe_remote_platform(ip: str) -> dict[str, Any]:
+        # Loop-1 body: detect the shell prefix and run the platform probe.
+        # Env writes and legacy-set updates are deferred to the caller so they
+        # happen deterministically in stable IP order after every probe
+        # completes (the cross-node legacy-Intel-macOS decision below MUST see
+        # all loop-1 probes before loop-2 begins). ConnectionError propagates
+        # (mirroring the original inline ``except ConnectionError: raise``);
+        # other remote command failures are recorded as a warning to emit
+        # later without aborting sibling probes.
         cmd_prefix = await detect_export_cmd_fn(ip)
-        set_env_var_fn(f"{ip}_CMD_PREFIX", cmd_prefix)
-
+        result: dict[str, Any] = {"ip": ip, "cmd_prefix": cmd_prefix, "is_legacy": False, "warning": None}
         try:
             platform_probe = await run_exec_ssh_fn(ip, deployment_remote_support._remote_platform_probe_command())
         except ConnectionError:
             raise
         except remote_command_failures as exc:
-            log.warning("Could not probe remote worker platform on %s; skipping legacy macOS runtime selection: %s", ip, exc)
+            result["warning"] = exc
         else:
             system, machine, product_version = deployment_remote_support._parse_remote_platform_probe(platform_probe)
-            if deployment_remote_support._is_legacy_intel_macos(system, machine, product_version):
-                legacy_intel_macos_ips.add(ip)
+            result["is_legacy"] = deployment_remote_support._is_legacy_intel_macos(system, machine, product_version)
+        return result
+
+    probe_results = await _gather_with_cancel_on_failure(
+        [_probe_remote_platform(ip) for ip in remote_ips]
+    )
+
+    legacy_intel_macos_ips: set[str] = set()
+    for result in probe_results:
+        ip = result["ip"]
+        set_env_var_fn(f"{ip}_CMD_PREFIX", result["cmd_prefix"])
+        if result["warning"] is not None:
+            log.warning(
+                "Could not probe remote worker platform on %s; skipping legacy macOS runtime selection: %s",
+                ip,
+                result["warning"],
+            )
+        elif result["is_legacy"]:
+            legacy_intel_macos_ips.add(ip)
+
+    # Persist the probe result so deploy_remote_worker can reuse it instead of
+    # re-running the platform probe over SSH once per worker in the same flow.
+    agi_cls._legacy_intel_macos_ips = set(legacy_intel_macos_ips)
 
     if legacy_intel_macos_ips and pyvers_worker != "3.12":
         log.warning(
@@ -275,14 +325,19 @@ async def prepare_cluster_env(
         env.python_version = "3.12"
         env.uv_worker = env.uv
 
-    for ip in list_ip:
-        if env.is_local(ip):
-            continue
+    async def _prepare_remote_worker(ip: str) -> list[tuple[str, Any]]:
+        # Loop-2 body for a single worker IP. Runs as one task per IP so per-node
+        # install work overlaps (mirroring deploy_application). The order of
+        # steps WITHIN a node is preserved exactly, as are all error paths.
+        # Any set_env_var write is collected and returned so the caller can apply
+        # it deterministically in stable IP order after the gather, keeping env
+        # state from interleaving across concurrent tasks.
+        pending_env_writes: list[tuple[str, Any]] = []
 
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX")
         if cmd_prefix is None:
             cmd_prefix = await detect_export_cmd_fn(ip)
-            set_env_var_fn(f"{ip}_CMD_PREFIX", cmd_prefix)
+            pending_env_writes.append((f"{ip}_CMD_PREFIX", cmd_prefix))
         agi_internet_on = 1 if envar_truthy_fn(env.envars, "AGI_INTERNET_ON") else 0
         uv_probe = deployment_remote_support._remote_tool(cmd_prefix, env.uv)
         try:
@@ -318,7 +373,12 @@ async def prepare_cluster_env(
         elif agi_internet_on != 1:
             log.warning("You appears to be on a local network. Please be sure to have uv latest release.")
 
-        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
+        # Re-read the shell prefix from env state as before, falling back to the
+        # value this task computed above (whose write is still pending) so a
+        # concurrent sibling cannot observe a partial write.
+        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX")
+        if cmd_prefix is None:
+            cmd_prefix = pending_env_writes[-1][1] if pending_env_writes else ""
         uv = deployment_remote_support._remote_tool(cmd_prefix, env.uv)
 
         cmd = _remote_python_makedirs_command(uv, dist_rel.parents[1])
@@ -391,3 +451,14 @@ async def prepare_cluster_env(
         finally:
             if staged_tmp_dir is not None:
                 shutil.rmtree(staged_tmp_dir, ignore_errors=True)
+
+        return pending_env_writes
+
+    worker_env_writes = await _gather_with_cancel_on_failure(
+        [_prepare_remote_worker(ip) for ip in remote_ips]
+    )
+    # Apply deferred env writes deterministically in stable IP order so env
+    # state cannot interleave between concurrently running per-IP tasks.
+    for pending_env_writes in worker_env_writes:
+        for key, value in pending_env_writes:
+            set_env_var_fn(key, value)

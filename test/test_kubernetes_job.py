@@ -55,6 +55,29 @@ def test_kubernetes_job_manifest_includes_runner_contract_and_artifact_pvc() -> 
     assert env["AGILAB_ACTIVE_APP"] == "flight_telemetry_project"
     assert env["AGILAB_EXECUTION_BACKEND"] == "kubernetes-job"
     assert env["OPENAI_MODEL"] == "gpt-4.1-mini"
+    # The runtime reads AGI_EXPORT_DIR (not AGILAB_EXPORT_DIR) for the export
+    # root, so the PVC handoff env var must use the canonical name.
+    assert env["AGI_EXPORT_DIR"] == "/agilab/export"
+    # AGILAB_EXPORT_DIR is kept as a duplicate alias for one release.
+    assert env["AGILAB_EXPORT_DIR"] == "/agilab/export"
+
+
+def test_kubernetes_job_export_env_uses_runtime_name_for_custom_mount_path() -> None:
+    manifest = kubernetes_job.build_kubernetes_job_manifest(
+        kubernetes_job.KubernetesJobConfig(
+            app="demo_project",
+            image="agilab:local",
+            pvc_name="agilab-artifacts",
+            mount_path="/mnt/agilab/export",
+        )
+    )
+
+    container = manifest["spec"]["template"]["spec"]["containers"][0]
+    env = {entry["name"]: entry["value"] for entry in container["env"]}
+    # AGI_EXPORT_DIR must track the mount path so the runtime writes artifacts
+    # into the PVC mount instead of a silent default.
+    assert env["AGI_EXPORT_DIR"] == "/mnt/agilab/export"
+    assert env["AGILAB_EXPORT_DIR"] == "/mnt/agilab/export"
 
 
 def test_kubernetes_job_names_and_labels_are_kubernetes_safe() -> None:

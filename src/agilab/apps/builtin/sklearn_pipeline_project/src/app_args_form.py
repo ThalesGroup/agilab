@@ -39,11 +39,16 @@ def _load_current_args(settings_path: Path) -> SklearnPipelineArgs:
 
 
 env = _get_env()
-settings_path = Path(env.app_settings_file)
+settings_path = Path(env.app_settings_file).resolve(strict=False)
 current_args = _load_current_args(settings_path)
 current_payload = current_args.model_dump(mode="json")
+artifact_target = str(getattr(env, "target", "") or getattr(env, "app", "") or "sklearn_pipeline_project")
+export_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export")).resolve(
+    strict=False
+)
+artifact_target = Path(artifact_target).name
 
-artifact_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export")) / env.target / "sklearn_pipeline"
+artifact_root = export_root / artifact_target / "sklearn_pipeline"
 st.caption(
     "Scikit-Learn Pipeline trains a deterministic local classifier and writes a "
     f"model, metrics, predictions, and hash manifest. Analysis artifacts are exported to `{artifact_root}`."

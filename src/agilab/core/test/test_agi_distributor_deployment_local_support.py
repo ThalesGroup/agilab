@@ -4556,7 +4556,10 @@ async def test_deploy_local_worker_handles_archive_copy_edge_cases_and_missing_c
         _uninstall_modules=_fake_uninstall,
     )
 
-    with pytest.raises(FileNotFoundError):
+    # Fail-closed contract: a dataset-archive copy failure must surface instead
+    # of being swallowed, so install cannot report success when archives were
+    # found but could not be staged into the worker env dest.
+    with pytest.raises(PermissionError, match="copy denied"):
         await _call_deploy_local_worker(
             agi_cls,
             app_path,
@@ -4569,7 +4572,11 @@ async def test_deploy_local_worker_handles_archive_copy_edge_cases_and_missing_c
         )
 
     assert sum(1 for src, _dst in copy_calls if src.name == "Trajectory.7z") == 1
-    log.warning.assert_called()
+    log.error.assert_called()
+    # The error message names the real copy destination (worker env dest), not
+    # the share root.
+    error_messages = [call.args[0] % call.args[1:] for call in log.error.call_args_list]
+    assert any(str(wenv_abs / "src" / "demo_worker") in msg for msg in error_messages)
 
 
 @pytest.mark.asyncio

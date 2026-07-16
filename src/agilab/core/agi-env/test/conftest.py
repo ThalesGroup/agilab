@@ -8,6 +8,7 @@ import sys
 import types
 from collections.abc import Callable
 from datetime import date
+from ipaddress import AddressValueError, IPv4Address
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -15,6 +16,16 @@ import pytest
 
 
 _ORIGINAL_PATH_HOME = Path.home
+
+
+def _is_node_env_key(key: str) -> bool:
+    """Return whether an environment key begins with an IPv4 node address."""
+
+    try:
+        IPv4Address(key.partition("_")[0])
+    except AddressValueError:
+        return False
+    return True
 
 
 def _home_from_env() -> Path:
@@ -136,6 +147,10 @@ def _posix_marker_path(
 def isolate_agi_env_test_environment(tmp_path_factory, monkeypatch):
     """Keep agi-env tests independent from developer-local AGILAB state."""
 
+    saved_node_keys = tuple(key for key in os.environ if _is_node_env_key(key))
+    for key in saved_node_keys:
+        monkeypatch.delenv(key, raising=False)
+
     monkeypatch.setattr(Path, "home", staticmethod(_home_from_env))
 
     fake_home = tmp_path_factory.mktemp("agilab_fake_home")
@@ -192,3 +207,6 @@ def isolate_agi_env_test_environment(tmp_path_factory, monkeypatch):
     AgiEnv.reset()
     ui_support._GLOBAL_STATE_FILE = original_global_state_file
     ui_support._LEGACY_LAST_APP_FILE = original_legacy_last_app_file
+    for key in tuple(os.environ):
+        if _is_node_env_key(key):
+            os.environ.pop(key, None)

@@ -42,6 +42,9 @@ USER_ENV_DEFAULT_COMMENT_LINES: tuple[str, ...] = (
     '# AGI_LOG_DIR="log"',
     '# AGI_EXPORT_DIR="export"',
     '# AGILAB_LOG_ROOT="log"',
+    # AGILAB_EXPORT_DIR is a deprecated alias of AGI_EXPORT_DIR (the name the
+    # runtime actually reads); kept commented for one release. Do not present it
+    # as an independent/equivalent setting.
     '# AGILAB_EXPORT_DIR="export"',
     '# AGILAB_WORKFLOW_DATA_ROOT=""',
     '# CLUSTER_CREDENTIALS="agi:2633"',

@@ -25,23 +25,21 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ### Security
 
-- Hardened data-connector live endpoint smoke checks so bearer-token probes
-  refuse unsafe schemes, metadata/loopback/private targets, and cross-origin
-  redirects before credentials are attached.
+- Hardened shared-path resolution and artifact path joins so shared datasets,
+  outputs, and evidence stay confined to the resolved cluster-share root and
+  reject traversal outside it (#802).
 
 ### Changed
 
-- Centralized built-in worker artifact directory resolution through the shared
-  `agi-node` worker path contract so evidence exports honor explicit export
-  roots, runtime share resolvers, and active workflow data roots before local
-  fallback paths.
-- Tightened public README production-boundary wording around the stable
-  `agi-core` handoff surface.
-
-### Fixed
-
-- Corrected the data-quality built-in example README so it points readers to
-  emitted artifacts instead of a nonexistent quality-gate report file.
+- Built default Dask scheduler and worker port ranges into the code and moved
+  scheduler/worker port selection to a bounded port range so firewalled cluster
+  nodes can be provisioned without ad hoc port edits.
+- Defaulted new installs to Python 3.14 and forced a GIL (non-free-threaded)
+  Python interpreter for end-user installs so the packaged runtime matches the
+  supported worker build path.
+- Routed generated artifacts through the configured output roots so exports
+  honor explicit export directories and active workflow data roots before any
+  local fallback path (#798).
 
 ## [2026.07.04] - 2026-07-04
 
@@ -57,11 +55,28 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.04
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.24
 
+### Security
+
+- Hardened data-connector live endpoint smoke checks so bearer-token probes
+  refuse unsafe schemes, metadata/loopback/private targets, and cross-origin
+  redirects before credentials are attached.
+
 ### Changed
 
 - Published AGILAB `2026.06.24` to PyPI for `agi-env`, `agi-gui`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-flight-telemetry`, `agi-app-weather-forecast`, `agi-app-pytorch-playground`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
 - Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
 - Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+- Centralized built-in worker artifact directory resolution through the shared
+  `agi-node` worker path contract so evidence exports honor explicit export
+  roots, runtime share resolvers, and active workflow data roots before local
+  fallback paths.
+- Tightened public README production-boundary wording around the stable
+  `agi-core` handoff surface.
+
+### Fixed
+
+- Corrected the data-quality built-in example README so it points readers to
+  emitted artifacts instead of a nonexistent quality-gate report file.
 
 ## [2026.06.23] - 2026-06-23
 

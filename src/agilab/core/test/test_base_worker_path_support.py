@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -213,6 +215,69 @@ def test_generated_artifact_path_rejects_output_root_inside_dataset(tmp_path):
             "CloudMapSat.npz",
             normalized_path_fn=lambda value: Path(value).expanduser(),
         )
+
+
+def test_generated_artifact_path_rejects_relative_parent_escape(tmp_path):
+    # Regression: a relative artifact path with ".." parts must not climb out
+    # of data_out (previously only "" and "." parts were filtered out).
+    dataset_root = tmp_path / "flight_trajectory" / "dataset"
+    output_root = tmp_path / "flight_trajectory" / "dataframe"
+    dataset_root.mkdir(parents=True)
+    output_root.mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="'\\.\\.'"):
+        path_support.resolve_generated_artifact_path(
+            dataset_root,
+            output_root,
+            "../../../evil.parquet",
+            normalized_path_fn=lambda value: Path(value).expanduser(),
+        )
+
+
+@pytest.mark.skipif(
+    os.name == "posix" and sys.platform != "darwin",
+    reason="case-insensitive matching only applies on macOS/Windows filesystems",
+)
+def test_generated_artifact_path_catches_case_variant_of_data_in(tmp_path):
+    # Regression: on case-insensitive filesystems a case-variant spelling of
+    # data_in (e.g. .../DATASET) must still be recognised as aliasing the
+    # read-only input tree instead of passing the guard.
+    dataset_root = tmp_path / "link_sim" / "dataset"
+    output_root = tmp_path / "link_sim" / "dataframe"
+    dataset_root.mkdir(parents=True)
+    output_root.mkdir(parents=True)
+
+    case_variant_input = tmp_path / "link_sim" / "DATASET" / "x.parquet"
+
+    resolved = path_support.resolve_generated_artifact_path(
+        dataset_root,
+        output_root,
+        case_variant_input,
+        normalized_path_fn=lambda value: Path(value).expanduser(),
+    )
+    # The dataset prefix (case-insensitively matched) is rerooted under
+    # data_out rather than left pointing at the read-only input tree.
+    assert resolved == (output_root / "x.parquet").resolve(strict=False)
+    assert not path_support._path_is_relative_to(resolved, dataset_root.resolve(strict=False))
+
+
+def test_path_is_relative_to_matches_exact_case_on_all_platforms():
+    parent = Path("/data/dataset")
+    child = Path("/data/dataset/sub/x.parquet")
+    assert path_support._path_is_relative_to(child, parent) is True
+    assert path_support._path_is_relative_to(Path("/data/other"), parent) is False
+
+
+@pytest.mark.skipif(
+    os.name == "posix" and sys.platform != "darwin",
+    reason="case-insensitive matching only applies on macOS/Windows filesystems",
+)
+def test_path_is_relative_to_is_case_insensitive_on_case_folding_platforms():
+    # Direct guard: a case-variant parent spelling must be recognised as a
+    # prefix on case-insensitive platforms (macOS/Windows).
+    parent = Path("/data/DataSet")
+    child = Path("/data/dataset/sub/x.parquet")
+    assert path_support._path_is_relative_to(child, parent) is True
 
 
 def test_artifact_dir_prefers_export_root_then_share_resolver(tmp_path):

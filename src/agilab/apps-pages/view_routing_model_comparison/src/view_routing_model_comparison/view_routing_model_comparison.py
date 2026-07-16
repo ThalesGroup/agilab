@@ -30,6 +30,13 @@ APP_SCOPE_KEY = f"{PAGE_KEY}_active_app_path"
 MIN_MEANINGFUL_DELIVERY_MBPS = 1e-9
 FULFILLED_THRESHOLD = 0.99
 TIME_STEP_S = 60.0
+ACTIVE_DEMAND_KEY_COLUMNS = (
+    "time_index",
+    "source_label",
+    "destination_label",
+)
+ACTIVE_DEMAND_OCCURRENCE_COLUMN = "_active_demand_occurrence"
+ACTIVE_DEMAND_CONFLICT_ATTR = "active_demand_schedule_conflicts"
 
 MODEL_FILES = {
     "ILP": "trainer_fcas_routing_ilp/allocations_steps.json",
@@ -80,7 +87,9 @@ def _ensure_app_scoped_env() -> AgiEnv:
     try:
         env = AgiEnv.current()
     except RuntimeError:
-        env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+        env = getattr(AgiEnv, "for_app", AgiEnv)(
+            apps_path=active_app_path.parent, app=active_app_path.name, verbose=0
+        )
     env.init_done = True
     st.session_state["env"] = env
     return env
@@ -269,11 +278,12 @@ def load_allocations(file_signatures: tuple[tuple[str, str, int], ...]) -> pd.Da
             for allocation in step.get("allocations", []):
                 if not isinstance(allocation, dict):
                     continue
-                source_label = allocation.get("source_label") or allocation.get("source")
-                destination_label = (
-                    allocation.get("destination_label")
-                    or allocation.get("destination")
+                source_label = allocation.get("source_label") or allocation.get(
+                    "source"
                 )
+                destination_label = allocation.get(
+                    "destination_label"
+                ) or allocation.get("destination")
                 requested = safe_float(allocation.get("bandwidth"))
                 delivered = safe_float(allocation.get("delivered_bandwidth"))
                 satisfaction = get_satisfaction(allocation)
@@ -292,6 +302,7 @@ def load_allocations(file_signatures: tuple[tuple[str, str, int], ...]) -> pd.Da
                         "demand": f"{source_label} -> {destination_label}",
                         "requested_mbps": requested,
                         "delivered_mbps": delivered,
+                        "active": safe_bool(allocation.get("active")),
                         "satisfaction_ratio": satisfaction,
                         "routed": routed,
                         "outcome": demand_outcome(routed, satisfaction),
@@ -301,10 +312,95 @@ def load_allocations(file_signatures: tuple[tuple[str, str, int], ...]) -> pd.Da
                         "sat_edge_count": sum(bearer == "SAT" for bearer in bearers),
                         "ivdl_edge_count": sum(bearer == "IVDL" for bearer in bearers),
                         "bearers": " -> ".join(bearers),
-                        "path": str(allocation.get("path") or allocation.get("path_labels") or ""),
+                        "path": str(
+                            allocation.get("path")
+                            or allocation.get("path_labels")
+                            or ""
+                        ),
                     }
                 )
-    return pd.DataFrame(rows)
+    return filter_active_demands(pd.DataFrame(rows))
+
+
+def filter_active_demands(alloc_df: pd.DataFrame) -> pd.DataFrame:
+    """Exclude inactive demand-time pairs using the shared model schedule.
+
+    Some routing exporters, notably older PPO-GNN outputs, omit the per-row
+    ``active`` flag. The ILP and Path-AC artifacts carry the same demand
+    schedule, so their explicit flags are broadcast by time/source/destination
+    and stable duplicate-demand occurrence before filtering. Conflicting model
+    evidence is excluded, while unmatched legacy rows are retained rather than
+    having activity inferred from routing or delivery.
+    """
+
+    if alloc_df.empty or "active" not in alloc_df.columns:
+        return alloc_df
+    indexed = alloc_df.copy()
+    indexed[ACTIVE_DEMAND_OCCURRENCE_COLUMN] = indexed.groupby(
+        ["model", *ACTIVE_DEMAND_KEY_COLUMNS],
+        sort=False,
+        dropna=False,
+        observed=False,
+    ).cumcount()
+    reference_columns = [
+        *ACTIVE_DEMAND_KEY_COLUMNS,
+        ACTIVE_DEMAND_OCCURRENCE_COLUMN,
+    ]
+    explicit_rows = indexed.loc[
+        indexed["active"].notna(),
+        [*reference_columns, "active"],
+    ]
+    if explicit_rows.empty:
+        return alloc_df.copy()
+
+    reference_bounds = (
+        explicit_rows.groupby(
+            reference_columns,
+            as_index=False,
+            observed=False,
+            dropna=False,
+        )["active"]
+        .agg(["min", "max"])
+        .reset_index()
+    )
+    conflict_mask = reference_bounds["min"] != reference_bounds["max"]
+    conflict_keys = reference_bounds.loc[conflict_mask, reference_columns]
+    active_reference = reference_bounds.loc[
+        ~conflict_mask,
+        [*reference_columns, "min"],
+    ].rename(columns={"min": "_active_reference"})
+    resolved = indexed.merge(
+        active_reference,
+        on=reference_columns,
+        how="left",
+        validate="many_to_one",
+    )
+    resolved = resolved.merge(
+        conflict_keys.assign(_active_reference_conflict=True),
+        on=reference_columns,
+        how="left",
+        validate="many_to_one",
+    )
+    resolved["active"] = resolved["active"].where(
+        resolved["active"].notna(),
+        resolved["_active_reference"],
+    )
+    keep_mask = ~resolved["_active_reference_conflict"].eq(True) & (
+        resolved["active"].isna() | resolved["active"].eq(True)
+    )
+    filtered = (
+        resolved.loc[keep_mask]
+        .drop(
+            columns=[
+                "_active_reference",
+                "_active_reference_conflict",
+                ACTIVE_DEMAND_OCCURRENCE_COLUMN,
+            ]
+        )
+        .reset_index(drop=True)
+    )
+    filtered.attrs[ACTIVE_DEMAND_CONFLICT_ATTR] = len(conflict_keys)
+    return filtered
 
 
 def add_latency_targets(alloc_df: pd.DataFrame) -> pd.DataFrame:
@@ -358,9 +454,13 @@ def build_summary(alloc_df: pd.DataFrame) -> pd.DataFrame:
                 "total_requested_mbps": requested_total,
                 "total_delivered_mbps": delivered_total,
                 "served_bandwidth_ratio": (
-                    delivered_total / requested_total if requested_total > 0 else math.nan
+                    delivered_total / requested_total
+                    if requested_total > 0
+                    else math.nan
                 ),
-                "mean_satisfaction_ratio": group["satisfaction_ratio"].mean(skipna=True),
+                "mean_satisfaction_ratio": group["satisfaction_ratio"].mean(
+                    skipna=True
+                ),
                 "latency_violation_rate": latency_checked["latency_violation"].mean()
                 if len(latency_checked)
                 else math.nan,
@@ -377,7 +477,9 @@ def build_summary(alloc_df: pd.DataFrame) -> pd.DataFrame:
     summary_df = pd.DataFrame(rows)
     if summary_df.empty:
         return summary_df
-    summary_df["model"] = pd.Categorical(summary_df["model"], categories=MODEL_ORDER, ordered=True)
+    summary_df["model"] = pd.Categorical(
+        summary_df["model"], categories=MODEL_ORDER, ordered=True
+    )
     return summary_df.sort_values("model").reset_index(drop=True)
 
 
@@ -393,7 +495,9 @@ def available_file_signatures(base_dir: Path) -> tuple[tuple[str, str, int], ...
 def render_metric_row(summary_df: pd.DataFrame) -> None:
     if summary_df.empty:
         return
-    best_served = summary_df.sort_values("served_bandwidth_ratio", ascending=False).iloc[0]
+    best_served = summary_df.sort_values(
+        "served_bandwidth_ratio", ascending=False
+    ).iloc[0]
     lowest_latency = (
         summary_df.dropna(subset=["mean_latency_ms"])
         .sort_values("mean_latency_ms")
@@ -413,7 +517,9 @@ def render_metric_row(summary_df: pd.DataFrame) -> None:
     )
     if not lowest_latency.empty:
         row = lowest_latency.iloc[0]
-        cols[1].metric("Lowest mean latency", str(row["model"]), f"{row['mean_latency_ms']:.1f} ms")
+        cols[1].metric(
+            "Lowest mean latency", str(row["model"]), f"{row['mean_latency_ms']:.1f} ms"
+        )
     if not lowest_violation.empty:
         row = lowest_violation.iloc[0]
         cols[2].metric(
@@ -512,7 +618,9 @@ def build_overview_figure(
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     fig.update_yaxes(range=[0, 1.05], row=1, col=1, title_text="Delivered / requested")
-    fig.update_yaxes(range=[0, 1.05], row=1, col=2, title_text="Proportion of demand outcomes")
+    fig.update_yaxes(
+        range=[0, 1.05], row=1, col=2, title_text="Proportion of demand outcomes"
+    )
     fig.update_yaxes(title_text="Latency (ms)", row=2, col=1)
     fig.update_yaxes(title_text="Violation rate", row=2, col=2)
     return fig
@@ -521,14 +629,13 @@ def build_overview_figure(
 def build_time_figure(alloc_df: pd.DataFrame, models: list[str]) -> go.Figure:
     time_df = alloc_df.copy()
     time_df["latency_ms_routed"] = time_df["latency_ms"].where(time_df["routed"])
-    time_kpi = (
-        time_df.groupby(["model", "time_index"], as_index=False, observed=False)
-        .agg(
-            mean_satisfaction=("satisfaction_ratio", "mean"),
-            total_delivered_mbps=("delivered_mbps", "sum"),
-            mean_latency_ms=("latency_ms_routed", "mean"),
-            latency_violation_rate=("latency_violation", "mean"),
-        )
+    time_kpi = time_df.groupby(
+        ["model", "time_index"], as_index=False, observed=False
+    ).agg(
+        mean_satisfaction=("satisfaction_ratio", "mean"),
+        total_delivered_mbps=("delivered_mbps", "sum"),
+        mean_latency_ms=("latency_ms_routed", "mean"),
+        latency_violation_rate=("latency_violation", "mean"),
     )
     fig = make_subplots(
         rows=2,
@@ -588,7 +695,9 @@ def build_time_figure(alloc_df: pd.DataFrame, models: list[str]) -> go.Figure:
             col=2,
         )
     fig.update_layout(height=720, margin=dict(l=20, r=20, t=70, b=30))
-    fig.update_yaxes(range=[0, 1.05], row=1, col=1, title_text="Mean delivered / requested")
+    fig.update_yaxes(
+        range=[0, 1.05], row=1, col=1, title_text="Mean delivered / requested"
+    )
     fig.update_yaxes(title_text="Delivered bandwidth (Mbps)", row=1, col=2)
     fig.update_yaxes(title_text="Latency (ms)", row=2, col=1)
     fig.update_yaxes(range=[0, 1.05], row=2, col=2, title_text="Violation rate")
@@ -612,7 +721,9 @@ def build_path_figure(alloc_df: pd.DataFrame, models: list[str]) -> go.Figure:
             .unstack(fill_value=0)
             .reindex(index=models, columns=hop_counts, fill_value=0)
         )
-        hop_pivot = hop_pivot.div(hop_pivot.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)
+        hop_pivot = hop_pivot.div(
+            hop_pivot.sum(axis=1).replace(0, np.nan), axis=0
+        ).fillna(0.0)
         palette = ["#0f766e", "#2563eb", "#7c3aed", "#db2777", "#64748b"]
         for index, hop in enumerate(hop_counts):
             fig.add_trace(
@@ -629,7 +740,10 @@ def build_path_figure(alloc_df: pd.DataFrame, models: list[str]) -> go.Figure:
 
     bearer_summary = (
         alloc_df.groupby("model", as_index=False, observed=False)
-        .agg(sat_edge_count=("sat_edge_count", "sum"), ivdl_edge_count=("ivdl_edge_count", "sum"))
+        .agg(
+            sat_edge_count=("sat_edge_count", "sum"),
+            ivdl_edge_count=("ivdl_edge_count", "sum"),
+        )
         .set_index("model")
         .reindex(models)
         .fillna(0)
@@ -655,17 +769,212 @@ def build_path_figure(alloc_df: pd.DataFrame, models: list[str]) -> go.Figure:
         col=2,
     )
     fig.update_layout(height=430, barmode="stack", margin=dict(l=20, r=20, t=65, b=30))
-    fig.update_yaxes(range=[0, 1.05], row=1, col=1, title_text="Proportion of routed demands")
+    fig.update_yaxes(
+        range=[0, 1.05], row=1, col=1, title_text="Proportion of routed demands"
+    )
     fig.update_yaxes(title_text="Selected bearer edges", row=1, col=2)
+    return fig
+
+
+def build_demand_matrix_data(alloc_df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate source-destination delivery, rejection, and latency evidence."""
+
+    columns = [
+        "model",
+        "source_label",
+        "destination_label",
+        "served_bandwidth_ratio",
+        "unmet_bandwidth_ratio",
+        "unrouted_rate",
+        "mean_latency_ms",
+    ]
+    if alloc_df.empty:
+        return pd.DataFrame(columns=columns)
+
+    matrix_df = alloc_df.copy()
+    matrix_df["requested_mbps_valid"] = (
+        pd.to_numeric(matrix_df["requested_mbps"], errors="coerce")
+        .clip(lower=0.0)
+        .fillna(0.0)
+    )
+    delivered = (
+        pd.to_numeric(matrix_df["delivered_mbps"], errors="coerce")
+        .clip(lower=0.0)
+        .fillna(0.0)
+    )
+    matrix_df["delivered_mbps_valid"] = pd.concat(
+        [delivered, matrix_df["requested_mbps_valid"]], axis=1
+    ).min(axis=1)
+    matrix_df["unmet_mbps"] = (
+        matrix_df["requested_mbps_valid"] - matrix_df["delivered_mbps_valid"]
+    ).clip(lower=0.0)
+    routed = matrix_df["routed"].fillna(False).astype(bool)
+    matrix_df["unrouted_decision"] = ~routed
+    matrix_df["routed_latency_ms"] = pd.to_numeric(
+        matrix_df["latency_ms"], errors="coerce"
+    ).where(routed)
+
+    pair_kpis = matrix_df.groupby(
+        ["model", "source_label", "destination_label"],
+        as_index=False,
+        observed=False,
+    ).agg(
+        requested_mbps=("requested_mbps_valid", "sum"),
+        delivered_mbps=("delivered_mbps_valid", "sum"),
+        unmet_mbps=("unmet_mbps", "sum"),
+        unrouted_rate=("unrouted_decision", "mean"),
+        mean_latency_ms=("routed_latency_ms", "mean"),
+    )
+    requested = pair_kpis["requested_mbps"].replace(0.0, np.nan)
+    pair_kpis["served_bandwidth_ratio"] = (
+        pair_kpis["delivered_mbps"] / requested
+    ).clip(lower=0.0, upper=1.0)
+    pair_kpis["unmet_bandwidth_ratio"] = (pair_kpis["unmet_mbps"] / requested).clip(
+        lower=0.0, upper=1.0
+    )
+    return pair_kpis[columns]
+
+
+def build_demand_matrix_figure(
+    alloc_df: pd.DataFrame,
+    models: list[str],
+) -> go.Figure:
+    """Build aligned source-destination heatmaps for each selected model."""
+
+    pair_kpis = build_demand_matrix_data(alloc_df)
+    visible_models = [model for model in models if model in set(pair_kpis["model"])]
+    if pair_kpis.empty or not visible_models:
+        return go.Figure()
+
+    sources = sorted(pair_kpis["source_label"].dropna().astype(str).unique())
+    destinations = sorted(pair_kpis["destination_label"].dropna().astype(str).unique())
+    visible_rows = pair_kpis[pair_kpis["model"].isin(visible_models)]
+    finite_latency = pd.to_numeric(
+        visible_rows["mean_latency_ms"], errors="coerce"
+    ).replace([np.inf, -np.inf], np.nan)
+    latency_max = finite_latency.max()
+    shared_latency_max = (
+        float(latency_max)
+        if math.isfinite(latency_max) and float(latency_max) > 0.0
+        else 1.0
+    )
+    metrics = (
+        ("served_bandwidth_ratio", "Served bandwidth", "Greens", 0.0, 1.0, "%{z:.0%}"),
+        ("unmet_bandwidth_ratio", "Unmet bandwidth", "OrRd", 0.0, 1.0, "%{z:.0%}"),
+        ("unrouted_rate", "Unrouted decisions", "OrRd", 0.0, 1.0, "%{z:.0%}"),
+        (
+            "mean_latency_ms",
+            "Mean routed latency (ms)",
+            "Viridis",
+            0.0,
+            shared_latency_max,
+            "%{z:.1f}",
+        ),
+    )
+    subplot_titles = [
+        f"{model} · {title}"
+        for model in visible_models
+        for _metric, title, _colorscale, _zmin, _zmax, _texttemplate in metrics
+    ]
+    fig = make_subplots(
+        rows=2 * len(visible_models),
+        cols=2,
+        subplot_titles=subplot_titles,
+        horizontal_spacing=0.12,
+        vertical_spacing=min(0.16, 0.4 / (2 * len(visible_models))),
+    )
+
+    for model_index, model in enumerate(visible_models):
+        model_rows = pair_kpis[pair_kpis["model"] == model]
+        for metric_index, (
+            metric,
+            title,
+            colorscale,
+            zmin,
+            zmax,
+            texttemplate,
+        ) in enumerate(metrics):
+            matrix = model_rows.pivot(
+                index="destination_label",
+                columns="source_label",
+                values=metric,
+            ).reindex(index=destinations, columns=sources)
+            row_index = model_index * 2 + metric_index // 2 + 1
+            column_index = metric_index % 2 + 1
+            fig.add_trace(
+                go.Heatmap(
+                    z=matrix.to_numpy(),
+                    x=sources,
+                    y=destinations,
+                    colorscale=colorscale,
+                    zmin=zmin,
+                    zmax=zmax,
+                    showscale=False,
+                    texttemplate=texttemplate,
+                    textfont=dict(size=12),
+                    hovertemplate=(
+                        "Source %{x}<br>Destination %{y}<br>"
+                        f"{title}: %{{z:.3f}}<extra>{model}</extra>"
+                    ),
+                ),
+                row=row_index,
+                col=column_index,
+            )
+
+    fig.update_layout(
+        height=max(800, 760 * len(visible_models)),
+        margin=dict(l=30, r=30, t=70, b=90),
+    )
+    fig.update_annotations(font_size=13)
+    fig.update_xaxes(
+        tickangle=-35,
+        tickfont=dict(size=10),
+        automargin=True,
+    )
+    fig.update_yaxes(
+        title_text="Destination",
+        tickfont=dict(size=10),
+        automargin=True,
+    )
+    for model_index in range(len(visible_models)):
+        top_row = model_index * 2 + 1
+        bottom_row = top_row + 1
+        for column_index in (1, 2):
+            fig.update_xaxes(
+                title_text=None,
+                showticklabels=False,
+                row=top_row,
+                col=column_index,
+            )
+            fig.update_xaxes(
+                title_text="Source",
+                showticklabels=True,
+                row=bottom_row,
+                col=column_index,
+            )
+        for row_index in (top_row, bottom_row):
+            fig.update_yaxes(
+                title_text="Destination",
+                showticklabels=True,
+                row=row_index,
+                col=1,
+            )
+            fig.update_yaxes(
+                title_text=None,
+                showticklabels=False,
+                row=row_index,
+                col=2,
+            )
     return fig
 
 
 def build_failure_table(alloc_df: pd.DataFrame) -> pd.DataFrame:
     table = alloc_df.copy()
-    table["latency_over_target_ms"] = table["latency_ms"] - table["latency_target_used_ms"]
+    table["latency_over_target_ms"] = (
+        table["latency_ms"] - table["latency_target_used_ms"]
+    )
     failures = table[
-        (table["outcome"] != "fulfilled")
-        | (table["latency_violation"])
+        (table["outcome"] != "fulfilled") | (table["latency_violation"])
     ].copy()
     columns = [
         "model",
@@ -696,7 +1005,11 @@ def _format_summary(summary_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main() -> None:
-    configure_streamlit_page(st, title="Routing Model Comparison")
+    configure_streamlit_page(
+        st,
+        title="Routing Model Comparison",
+        layout="wide",
+    )
     env = _ensure_app_scoped_env()
     active_app_path = _resolve_active_app()
     settings = _load_app_settings(active_app_path)
@@ -719,7 +1032,9 @@ def main() -> None:
     base_dir = Path(pipeline_dir_text).expanduser()
     file_signatures = available_file_signatures(base_dir)
     available_models = [
-        model for model, path_text, _mtime in file_signatures if Path(path_text).exists()
+        model
+        for model, path_text, _mtime in file_signatures
+        if Path(path_text).exists()
     ]
     selected_models = st.sidebar.multiselect(
         "Models",
@@ -746,8 +1061,17 @@ def main() -> None:
             st.write("\n".join(missing_files))
 
     alloc_df = load_allocations(file_signatures)
+    active_schedule_conflicts = int(alloc_df.attrs.get(ACTIVE_DEMAND_CONFLICT_ATTR, 0))
+    if active_schedule_conflicts:
+        st.warning(
+            f"Excluded {active_schedule_conflicts:,} demand-time pair(s) because "
+            "model artifacts disagree on whether they are active. Regenerate the "
+            "routing model outputs together before comparing them."
+        )
     if alloc_df.empty:
-        st.warning("No allocation data was loaded from the selected pipeline directory.")
+        st.warning(
+            "No active-demand allocation data was loaded from the selected pipeline directory."
+        )
         st.stop()
 
     alloc_df = add_latency_targets(alloc_df)
@@ -757,18 +1081,33 @@ def main() -> None:
         st.warning("No allocation rows match the selected model filter.")
         st.stop()
 
+    has_active_evidence = alloc_df["active"].notna().any()
+    has_legacy_activity = alloc_df["active"].isna().any()
     summary_df = build_summary(alloc_df)
     models = [model for model in MODEL_ORDER if model in set(alloc_df["model"])]
 
     render_metric_row(summary_df)
 
-    summary_tab, dashboard_tab, time_tab, path_tab, failures_tab = st.tabs(
-        ["Summary", "Dashboard", "Over Time", "Paths", "Failures"]
+    summary_tab, dashboard_tab, time_tab, demand_tab, path_tab, failures_tab = st.tabs(
+        ["Summary", "Dashboard", "Over Time", "Demand Matrix", "Paths", "Failures"]
     )
     with summary_tab:
         st.subheader("Model Summary")
         st.dataframe(_format_summary(summary_df), width="stretch")
-        st.caption(f"Loaded {len(alloc_df):,} allocation decisions from {base_dir}.")
+        if has_active_evidence and not has_legacy_activity:
+            st.caption(
+                f"Loaded {len(alloc_df):,} active-demand allocation decisions from {base_dir}."
+            )
+        elif has_active_evidence:
+            st.caption(
+                f"Loaded {len(alloc_df):,} in-scope allocation decisions from {base_dir}. "
+                "The active-demand schedule was applied where available; unmatched legacy rows were retained."
+            )
+        else:
+            st.caption(
+                f"Loaded {len(alloc_df):,} allocation decisions from {base_dir}. "
+                "Rows without activity evidence were retained for legacy compatibility."
+            )
 
     with dashboard_tab:
         st.plotly_chart(
@@ -778,6 +1117,16 @@ def main() -> None:
 
     with time_tab:
         st.plotly_chart(build_time_figure(alloc_df, models), width="stretch")
+
+    with demand_tab:
+        st.caption(
+            "Compare served and unmet bandwidth, unrouted decisions, and routed latency "
+            "for each source-destination pair."
+        )
+        st.plotly_chart(
+            build_demand_matrix_figure(alloc_df, models),
+            width="stretch",
+        )
 
     with path_tab:
         st.plotly_chart(build_path_figure(alloc_df, models), width="stretch")

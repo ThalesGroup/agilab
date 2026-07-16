@@ -60,7 +60,7 @@ def _pool_executor_options_for_platform(system: str | None = None) -> tuple[str,
 
 
 env = _get_env()
-settings_path = Path(env.app_settings_file)
+settings_path = Path(env.app_settings_file).resolve(strict=False)
 current_args = _load_current_args(settings_path)
 current_payload = current_args.model_dump(mode="json")
 

@@ -152,6 +152,12 @@ def initialize_agi_env_instance(
 
 
 def _reset_bootstrap_flags(env) -> None:
+    # Mark the singleton as uninitialised for the duration of the (re)build so a
+    # reinit that raises midway does not leave a half-initialised instance that
+    # the constructor guard would still accept as valid. The final assignments at
+    # the end of ``initialize_agi_env_instance`` restore these on success.
+    env._agilab_initialized = False
+    env._agilab_init_signature = None
     env.skip_repo_links = False
     env.AGILAB_SHARE_HINT = None
     env.AGILAB_SHARE_REL = None

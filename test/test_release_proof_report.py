@@ -45,6 +45,35 @@ def test_release_proof_manifest_renders_checked_in_page() -> None:
     }
 
 
+def test_release_proof_renders_ui_robot_run_provenance(tmp_path: Path) -> None:
+    module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+    evidence_path = tmp_path / "ui_robot_evidence.json"
+    evidence_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-05-08T20:34:30Z",
+                "source": {
+                    "run_id": "25577485125",
+                    "head_sha": "2a36df530b48ce992fdd1c388d47ab0f46b5239a",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # Collapse line-wrapping so the assertions are whitespace-insensitive.
+    with_prov = " ".join(module.render_release_proof(manifest, ui_robot_evidence_path=evidence_path).split())
+    without_prov = module.render_release_proof(manifest)
+
+    # The pinned run id, short sha, and date are surfaced on the page...
+    assert "Pinned UI robot evidence: run ``25577485125``" in with_prov
+    assert "commit ``2a36df530b48``" in with_prov
+    assert "generated ``2026-05-08T20:34:30Z``" in with_prov
+    # ...and absent when no evidence file is available.
+    assert "Pinned UI robot evidence" not in without_prov
+
+
 def test_release_proof_cli_check_emits_machine_readable_report(capsys) -> None:
     module = _load_module()
 
@@ -107,7 +136,8 @@ def test_release_proof_refresh_from_local_updates_manifest_and_page(
     assert refreshed["release"]["dataset_count"] > 0
     assert refreshed["release"]["hf_space_commit"] == "test-hf-commit"
     assert (docs_source / "release-proof.rst").read_text(encoding="utf-8") == module.render_release_proof(
-        refreshed
+        refreshed,
+        ui_robot_evidence_path=data_dir / "ui_robot_evidence.json",
     )
 
 

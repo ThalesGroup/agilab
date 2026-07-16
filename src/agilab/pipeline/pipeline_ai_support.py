@@ -1021,6 +1021,22 @@ _BLOCKED_MODULES = frozenset({
     "multiprocessing", "threading", "webbrowser",
 })
 
+# Pandas/numpy I/O and deserialization entry points that read local files,
+# reach the network, deserialize arbitrary payloads (RCE), or write arbitrary
+# files. These bypass the in-process namespace restriction because ``pd``,
+# ``np`` and ``df`` are exposed, so they are rejected by attribute name on any
+# receiver regardless of how the call is spelled (``pd.read_pickle``,
+# ``df.to_csv``, ``getattr(pd, "read_csv")`` is already blocked via getattr).
+_BLOCKED_IO_METHODS = frozenset({
+    "read_pickle", "read_csv", "read_json", "read_parquet", "read_table",
+    "read_sql", "read_sql_query", "read_sql_table", "read_html", "read_fwf",
+    "read_excel", "read_feather", "read_orc", "read_hdf", "read_xml",
+    "read_stata", "read_sas", "read_spss", "read_gbq", "read_clipboard",
+    "to_pickle", "to_csv", "to_parquet", "to_json", "to_sql", "to_hdf",
+    "to_feather", "to_excel", "to_stata", "to_orc", "to_xml", "to_gbq",
+    "to_clipboard",
+})
+
 
 class _UnsafeCodeError(Exception):
     """Raised when LLM-generated code fails the safety audit."""
@@ -1056,6 +1072,15 @@ def _validate_code_safety(code: str) -> None:
                 raise _UnsafeCodeError(
                     f"Call to blocked builtin '{func.id}' is not allowed."
                 )
+            # Block pandas/numpy I/O + deserialization method calls regardless
+            # of the receiver (pd.read_pickle(...), df.to_csv(...), etc.). These
+            # escape the in-process namespace restriction and enable file read,
+            # network exfil, arbitrary write, or deserialization RCE.
+            if isinstance(func, ast.Attribute) and func.attr in _BLOCKED_IO_METHODS:
+                raise _UnsafeCodeError(
+                    f"Call to I/O method '{func.attr}' is not allowed in "
+                    "pipeline code (file/network/deserialization escape)."
+                )
 
         # Block access to dangerous dunder attributes
         if isinstance(node, ast.Attribute):
@@ -1083,9 +1108,15 @@ def _exec_code_on_df(code: str, df: pd.DataFrame) -> Tuple[Optional[pd.DataFrame
     """Execute code against a copy of df. Returns (new_df, error).
 
     The code is first validated via AST inspection to reject dangerous
-    constructs (imports, dunder access, blocked builtins) before execution.
-    The runtime namespace is restricted to pandas, numpy, and a safe
-    subset of Python builtins.
+    constructs (imports, dunder access, blocked builtins, and pandas/numpy
+    I/O + deserialization method calls) before execution. The runtime
+    namespace is restricted to pandas, numpy, and a safe subset of Python
+    builtins.
+
+    Note: this runs the generated code **in the current process**. The AST
+    allowlist reduces blast radius but is not a security boundary; it does not
+    provide process, container, or VM isolation. Callers must not present this
+    as isolated execution.
     """
     try:
         _validate_code_safety(code)

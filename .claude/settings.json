@@ -1,0 +1,169 @@
+{
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event Notification",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event PermissionDenied",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event PermissionRequest",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event PostCompact",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event PostToolUse",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event PostToolUseFailure",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event PreCompact",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event PreToolUse",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event SessionEnd",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event SessionStart",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event Stop",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event StopFailure",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event SubagentStart",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event SubagentStop",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "TOKKI_LAUNCHER_NO_UPDATE=1 tokki hooks claude-ingest --event UserPromptSubmit",
+            "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

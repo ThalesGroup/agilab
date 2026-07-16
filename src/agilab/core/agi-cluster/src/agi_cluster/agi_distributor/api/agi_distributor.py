@@ -133,7 +133,6 @@ class AGI:
     PYTHON_MODE = 1
     CYTHON_MODE = 2
     DASK_MODE = 4
-    RAPIDS_MODE = 16
     _INSTALL_MASK = 0b11 << DASK_MODE
     _INSTALL_MODE = 0b01 << DASK_MODE
     _UPDATE_MODE = 0b10 << DASK_MODE
@@ -142,6 +141,10 @@ class AGI:
     _RUN_MASK = 0b001111
     _RAPIDS_SET = 0b111111
     _RAPIDS_RESET = 0b110111
+    # Rapids run-mode bit (8). Derived from the rapids set/reset masks so it can
+    # never drift back into the install-mode range (0b01 << DASK_MODE == 16);
+    # AGI.DASK_MODE | AGI.RAPIDS_MODE must resolve to a rapids RUN, not an install.
+    RAPIDS_MODE = _RAPIDS_SET ^ _RAPIDS_RESET
     _DASK_RESET = 0b111011
     _args: Optional[Dict[str, Any]] = None
     _worker_args: Optional[Dict[str, Any]] = None

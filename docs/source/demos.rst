@@ -148,15 +148,18 @@ The static scenario contract is available as JSON:
   keep the default ``typed_numeric`` kernel and Cython setting, run
   ``INSTALL`` then ``EXECUTE``, and inspect the reducer evidence for
   ``kernel_mode``, ``kernel_runtime``, and ``dtype_contract``.
-  The versioned local kernel proof records ``0.620s`` Python vs ``0.002s``
-  Cython on 100,000 rows x 32 passes, with matching checksums and a ``306x``
-  hot-loop speedup.
+  The versioned local kernel proof records a large hot-loop speedup (a
+  representative local figure on the order of hundreds of times, with matching
+  Python and Cython checksums) on 100,000 rows x 32 passes. See the benchmark
+  artifact rendered in :doc:`execution-playground` for the current numbers
+  rather than a hardcoded figure.
 
-  For a short command-line proof of the compiled hot loop, run:
+  For a short command-line proof of the compiled hot loop that also regenerates
+  the committed benchmark artifact, run:
 
   .. code-block:: bash
 
-     uv --preview-features extra-build-dependencies run python tools/benchmark_execution_pandas_cython_kernel.py --rows 100000 --compute-passes 32 --repeats 3 --warmups 1
+     uv --preview-features extra-build-dependencies run python tools/benchmark_execution_pandas_cython_kernel.py --rows 100000 --compute-passes 32 --repeats 3 --warmups 1 --json-out docs/source/data/execution_pandas_typed_kernel_benchmark.json --csv-out docs/source/data/execution_pandas_typed_kernel_benchmark.csv
 
   Stop when the Python and Cython checksums match and the report shows the
   Cython runtime separately. This is a kernel-scoped speedup demo; full AGILAB

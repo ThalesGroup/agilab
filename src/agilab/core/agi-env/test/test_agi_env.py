@@ -1,6 +1,7 @@
 import asyncio
 import ast
 import getpass
+import logging
 import os
 import shlex
 import shutil
@@ -132,11 +133,13 @@ def test_change_app_rejects_empty_name_and_missing_apps_path(monkeypatch):
         env.change_app("demo_project")
 
 
-def test_change_app_cleans_stale_destination_after_init_failure(tmp_path: Path):
+def test_change_app_preserves_preexisting_destination_after_init_failure(tmp_path: Path):
     apps_root = tmp_path / "apps"
     apps_root.mkdir()
-    stale_target = apps_root / "demo_project"
-    stale_target.mkdir()
+    existing_target = apps_root / "demo_project"
+    existing_target.mkdir()
+    keep = existing_target / "keep.py"
+    keep.write_text("# user data\n")
 
     env = object.__new__(AgiEnv)
     env.app = str(apps_root / "flight_telemetry_project")
@@ -148,7 +151,56 @@ def test_change_app_cleans_stale_destination_after_init_failure(tmp_path: Path):
         with pytest.raises(RuntimeError, match="boom"):
             env.change_app("demo_project")
 
-    assert not stale_target.exists()
+    # A pre-existing project directory (with user data) must survive a failed reinit.
+    assert existing_target.exists()
+    assert keep.exists()
+
+
+def test_change_app_cleans_only_created_destination_after_init_failure(tmp_path: Path):
+    apps_root = tmp_path / "apps"
+    apps_root.mkdir()
+    created_target = apps_root / "demo_project"  # does NOT exist before the switch
+
+    env = object.__new__(AgiEnv)
+    env.app = str(apps_root / "flight_telemetry_project")
+
+    def _failing_init(self, *args, **kwargs):
+        # Simulate a clone that materialised the destination before failing.
+        created_target.mkdir(exist_ok=True)
+        raise RuntimeError("boom")
+
+    with mock.patch.object(AgiEnv, "__init__", _failing_init, create=True):
+        with pytest.raises(RuntimeError, match="boom"):
+            env.change_app("demo_project")
+
+    # A destination created during the failed switch is cleaned up.
+    assert not created_target.exists()
+
+
+def test_change_app_success_inside_outer_except_does_not_delete(tmp_path: Path):
+    apps_root = tmp_path / "apps"
+    apps_root.mkdir()
+    target = apps_root / "demo_project"
+    target.mkdir()
+    keep = target / "keep.py"
+    keep.write_text("# user data\n")
+
+    env = object.__new__(AgiEnv)
+    env.app = str(apps_root / "flight_telemetry_project")
+
+    def _ok_init(self, *args, **kwargs):
+        self.app = "demo_project"
+
+    with mock.patch.object(AgiEnv, "__init__", _ok_init, create=True):
+        try:
+            raise RuntimeError("outer")
+        except RuntimeError:
+            # A successful change_app called while an outer exception is being
+            # handled must not delete the freshly activated project.
+            env.change_app("demo_project")
+
+    assert target.exists()
+    assert keep.exists()
 
 def test_humanize_validation_errors(env):
     from pydantic import BaseModel, ValidationError, constr
@@ -379,7 +431,6 @@ def test_user_workspace_app_settings_override_source_cluster_toggle(tmp_path: Pa
     (fake_app / "src" / "app_settings.toml").write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
 
     AgiEnv.reset()
-    AgiEnv._share_mount_warning_keys.clear()
 
     mock_logger = mock.Mock()
     with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), mock.patch.object(
@@ -423,7 +474,6 @@ def test_cluster_share_missing_raises_for_cluster_enabled_app(tmp_path: Path, mo
     monkeypatch.setenv("HOME", str(fake_home))
 
     AgiEnv.reset()
-    AgiEnv._share_mount_warning_keys.clear()
 
     mock_logger = mock.Mock()
     with mock.patch.object(AgiLogger, "configure", return_value=mock_logger):
@@ -455,7 +505,6 @@ def test_cluster_enabled_raises_when_app_src_invalid(tmp_path: Path, monkeypatch
     (bad_app / "src").write_text("broken")
 
     AgiEnv.reset()
-    AgiEnv._share_mount_warning_keys.clear()
 
     mock_logger = mock.Mock()
     with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), mock.patch.object(
@@ -486,7 +535,6 @@ def test_cluster_enabled_from_process_env_when_app_src_invalid(tmp_path: Path, m
     (bad_app / "src").write_text("broken")
 
     AgiEnv.reset()
-    AgiEnv._share_mount_warning_keys.clear()
     mock_logger = mock.Mock()
     with mock.patch.object(AgiEnv, "_init_apps", lambda self: None), mock.patch.object(
         AgiLogger, "configure", return_value=mock_logger
@@ -562,7 +610,6 @@ def test_cluster_enabled_from_apps_repository_when_app_src_invalid(tmp_path: Pat
     (bad_app / "src").write_text("broken")
 
     AgiEnv.reset()
-    AgiEnv._share_mount_warning_keys.clear()
 
     mock_logger = mock.Mock()
     with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), mock.patch.object(
@@ -963,6 +1010,42 @@ def test_agienv_constructor_treats_verbose_debug_as_cosmetic(env, monkeypatch):
 def test_agienv_constructor_rejects_conflicting_reinitialization(env):
     with pytest.raises(RuntimeError, match="already initialised with a different configuration"):
         AgiEnv(apps_path=env.apps_path, app="other_project", verbose=env.verbose)
+
+
+def test_reinit_failure_leaves_singleton_uninitialized(monkeypatch):
+    from agi_env.runtime import agi_env_instance_initialization as init_module
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("reinit boom")
+
+    # Fail immediately after the START-of-init flag reset (_load_environment is
+    # the first step run after _reset_bootstrap_flags).
+    monkeypatch.setattr(init_module, "_load_environment", _boom)
+
+    env = object.__new__(AgiEnv)
+    env._agilab_initialized = True
+    env._agilab_init_signature = ("stale", "signature")
+
+    with pytest.raises(RuntimeError, match="reinit boom"):
+        init_module.initialize_agi_env_instance(
+            env,
+            apps_path=None,
+            app="minimal_app_project",
+            active_app_override=None,
+            verbose=0,
+            debug=False,
+            python_variante="",
+            init_signature=("new", "signature"),
+            load_dotenv_values_fn=lambda *a, **k: {},
+            optional_agi_pages_bundles_root_fn=lambda: None,
+            ensure_dir_fn=lambda p: Path(p),
+            module_logger=mock.Mock(),
+        )
+
+    # A reinit that raises midway must NOT leave a half-initialised singleton the
+    # constructor guard would accept; the flags are cleared at the START.
+    assert env._agilab_initialized is False
+    assert env._agilab_init_signature is None
 
 
 def test_agienv_for_app_reuses_matching_singleton(env, monkeypatch):
@@ -2814,6 +2897,41 @@ def test_resolve_share_input_path_falls_back_to_share_root(tmp_path: Path, monke
     )
 
 
+def test_resolve_share_input_path_accepts_absolute_share_path_outside_workflow(
+    tmp_path: Path, monkeypatch
+):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    env = object.__new__(AgiEnv)
+    env._share_root_cache = None
+    env.agi_share_path = "clustershare"
+    env.home_abs = fake_home
+    env.is_worker_env = False
+    env.target = "demo_project"
+    env.app = "demo_project"
+    env.AGILAB_WORKFLOW_DATA_ROOT = "clustershare/alice/workflow/session-1"
+
+    share_root = fake_home / "clustershare"
+    # Absolute input under the physical cluster share but OUTSIDE the workflow
+    # data root: resolve_share_path raises ValueError, so resolve_share_input_path
+    # must fall back to the physical share root instead of propagating the error.
+    abs_input = share_root / "flight_telemetry" / "dataset"
+    abs_input.mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="share root"):
+        env.resolve_share_path(abs_input)
+
+    assert env.resolve_share_input_path(abs_input) == abs_input
+
+    # An absolute path escaping the physical share root entirely must still raise.
+    outside = tmp_path / "outside" / "dataset"
+    outside.mkdir(parents=True)
+    with pytest.raises(ValueError, match="share root"):
+        env.resolve_share_input_path(outside)
+
+
 def test_share_root_resolution_worker_uses_runtime_home_and_init_honours_share_override(tmp_path: Path, monkeypatch):
     fake_home = tmp_path / "worker-home"
     fake_home.mkdir()
@@ -3280,14 +3398,35 @@ def test_is_local_and_has_admin_rights_helpers(monkeypatch):
 
 def test_reset_clears_runtime_class_caches():
     AgiEnv._ip_local_cache = {"127.0.0.1", "::1", "192.168.10.10"}
-    AgiEnv._share_mount_warning_keys = {("/tmp/local", "/tmp/cluster")}
     AgiEnv._pythonpath_entries = ["/tmp/project/src"]
+    # Pre-init class-level defaults that _ensure_defaults / set_env_var may
+    # populate must be dropped by reset() so a fresh bootstrap starts clean.
+    type.__setattr__(AgiEnv, "envars", {"AGI_STALE": "1"})
+    type.__setattr__(AgiEnv, "resources_path", Path("/tmp/stale-agilab"))
+    type.__setattr__(AgiEnv, "logger", mock.Mock())
 
     AgiEnv.reset()
 
     assert AgiEnv._ip_local_cache == {"127.0.0.1", "::1"}
-    assert AgiEnv._share_mount_warning_keys == set()
     assert AgiEnv._pythonpath_entries == []
+    assert not hasattr(AgiEnv, "_share_mount_warning_keys")
+    assert AgiEnv.envars == {}
+    assert AgiEnv.resources_path is None
+    assert AgiEnv.logger is None
+
+    AgiEnv._ensure_defaults()
+    assert AgiEnv.resources_path == Path.home() / ".agilab"
+
+
+def test_reset_keeps_resources_path_lazy_while_path_factory_is_patched(monkeypatch):
+    class _PathWithoutHome:
+        pass
+
+    monkeypatch.setattr(agi_env_module, "Path", _PathWithoutHome)
+
+    AgiEnv.reset()
+
+    assert AgiEnv.resources_path is None
 
 
 def test_create_symlink_windows_hits_success_and_failure_branches(tmp_path: Path, monkeypatch):
@@ -3327,3 +3466,198 @@ def test_create_symlink_windows_hits_success_and_failure_branches(tmp_path: Path
     info_messages = [" ".join(str(part) for part in call.args) for call in mock_logger.info.call_args_list]
     assert any("Created symbolic link" in message for message in info_messages)
     assert any("Failed to create symbolic link" in message for message in info_messages)
+
+
+# ---------------------------------------------------------------------------
+# Per-node env-key pruning (Finding #3)
+# ---------------------------------------------------------------------------
+
+
+def _prime_home_for_env_file(tmp_path: Path, monkeypatch) -> Path:
+    """Point HOME at a fresh tmp home and reset lazy AGILAB defaults."""
+
+    fake_home = tmp_path / "fake_home"
+    (fake_home / ".agilab").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("HOME", str(fake_home))
+    # reset() restores a lazy sentinel; set_env_var resolves it against the
+    # freshly patched HOME before writing into the tmp dotenv file.
+    AgiEnv.reset()
+    return fake_home
+
+
+def _set_test_env_var(monkeypatch, key: str, value: str) -> None:
+    """Persist a test value while registering failure-safe process cleanup."""
+
+    monkeypatch.setenv(key, value)
+    AgiEnv.set_env_var(key, value)
+
+
+def test_remove_env_keys_removes_present_keys_and_ignores_absent(
+    tmp_path: Path, caplog
+):
+    from agi_env.runtime.env_config_support import remove_env_keys, write_env_updates
+
+    env_file = tmp_path / ".env"
+    write_env_updates(
+        env_file,
+        {"KEEP": "1", "192.168.0.1_CMD_PREFIX": "prefix", "192.168.0.1": "hw_rapids_capable"},
+    )
+
+    with caplog.at_level(logging.WARNING, logger="dotenv.main"):
+        removed = remove_env_keys(
+            env_file,
+            ["192.168.0.1_CMD_PREFIX", "192.168.0.1", "MISSING"],
+        )
+
+    assert set(removed) == {"192.168.0.1_CMD_PREFIX", "192.168.0.1"}
+    assert not [record for record in caplog.records if "MISSING" in record.message]
+    contents = env_file.read_text(encoding="utf-8")
+    assert "KEEP" in contents
+    assert "192.168.0.1_CMD_PREFIX" not in contents
+    # Line-anchored: the bare-IP key value 'hw_rapids_capable' may not appear as a key,
+    # but the bare-IP assignment line itself must be gone.
+    assert "192.168.0.1=" not in contents
+
+
+def test_remove_env_keys_missing_file_is_noop(tmp_path: Path):
+    from agi_env.runtime.env_config_support import remove_env_keys
+
+    env_file = tmp_path / "does_not_exist.env"
+    assert remove_env_keys(env_file, ["ANYTHING"]) == []
+    assert not env_file.exists()
+
+
+def test_remove_env_keys_matches_windows_dotenv_keys_case_insensitively(
+    tmp_path: Path, monkeypatch, caplog
+):
+    from agi_env.runtime import env_config_support
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("Mixed_Node_Key=value\n", encoding="utf-8")
+    monkeypatch.setattr(env_config_support, "os", SimpleNamespace(name="nt"))
+
+    with caplog.at_level(logging.WARNING, logger="dotenv.main"):
+        removed = env_config_support.remove_env_keys(env_file, ["MIXED_NODE_KEY"])
+
+    assert removed == ["Mixed_Node_Key"]
+    assert env_file.read_text(encoding="utf-8") == ""
+    assert caplog.records == []
+
+
+def test_prune_node_env_keys_removes_stale_and_keeps_current(tmp_path: Path, monkeypatch):
+    fake_home = _prime_home_for_env_file(tmp_path, monkeypatch)
+    env_file = fake_home / ".agilab" / ".env"
+
+    stale_ip = "10.0.0.9"
+    current_ip = "10.0.0.1"
+
+    # Stale per-node keys across all three shapes.
+    _set_test_env_var(monkeypatch, stale_ip, "hw_rapids_capable")
+    _set_test_env_var(monkeypatch, f"{stale_ip}_CMD_PREFIX", "stale-prefix")
+    _set_test_env_var(monkeypatch, f"{stale_ip}_PYTHON_VERSION", "3.11")
+    # Current per-node keys that must survive.
+    _set_test_env_var(monkeypatch, current_ip, "no_rapids_hw")
+    _set_test_env_var(monkeypatch, f"{current_ip}_CMD_PREFIX", "live-prefix")
+    _set_test_env_var(monkeypatch, f"{current_ip}_PYTHON_VERSION", "3.14")
+    # A non-node key that must never be touched.
+    _set_test_env_var(monkeypatch, "OPENAI_MODEL", "gpt-x")
+
+    removed = AgiEnv.prune_node_env_keys({current_ip})
+
+    assert set(removed) == {
+        stale_ip,
+        f"{stale_ip}_CMD_PREFIX",
+        f"{stale_ip}_PYTHON_VERSION",
+    }
+
+    # envars mapping
+    assert stale_ip not in AgiEnv.envars
+    assert f"{stale_ip}_CMD_PREFIX" not in AgiEnv.envars
+    assert f"{stale_ip}_PYTHON_VERSION" not in AgiEnv.envars
+    assert AgiEnv.envars[current_ip] == "no_rapids_hw"
+    assert AgiEnv.envars[f"{current_ip}_CMD_PREFIX"] == "live-prefix"
+    assert AgiEnv.envars[f"{current_ip}_PYTHON_VERSION"] == "3.14"
+    assert AgiEnv.envars["OPENAI_MODEL"] == "gpt-x"
+
+    # os.environ
+    assert stale_ip not in os.environ
+    assert f"{stale_ip}_CMD_PREFIX" not in os.environ
+    assert f"{stale_ip}_PYTHON_VERSION" not in os.environ
+    assert os.environ[current_ip] == "no_rapids_hw"
+    assert os.environ[f"{current_ip}_CMD_PREFIX"] == "live-prefix"
+    assert os.environ["OPENAI_MODEL"] == "gpt-x"
+
+    # persistent dotenv file
+    contents = env_file.read_text(encoding="utf-8")
+    assert f"{stale_ip}=" not in contents
+    assert f"{stale_ip}_CMD_PREFIX" not in contents
+    assert f"{stale_ip}_PYTHON_VERSION" not in contents
+    assert f"{current_ip}=" in contents
+    assert f"{current_ip}_CMD_PREFIX" in contents
+    assert "OPENAI_MODEL" in contents
+
+def test_prune_node_env_keys_removes_leaked_os_environ_only_keys(tmp_path: Path, monkeypatch):
+    """Bare-IP keys that leaked into os.environ but not envars are still pruned."""
+
+    _prime_home_for_env_file(tmp_path, monkeypatch)
+    AgiEnv._ensure_defaults()
+
+    leaked_ip = "172.16.5.5"
+    # Simulate a leaked child-process key present only in os.environ.
+    monkeypatch.setenv(f"{leaked_ip}_CMD_PREFIX", "leaked")
+    monkeypatch.setenv(leaked_ip, "hw_rapids_capable")
+    assert leaked_ip not in AgiEnv.envars
+
+    removed = AgiEnv.prune_node_env_keys({"172.16.5.6"})
+
+    assert set(removed) == {leaked_ip, f"{leaked_ip}_CMD_PREFIX"}
+    assert leaked_ip not in os.environ
+    assert f"{leaked_ip}_CMD_PREFIX" not in os.environ
+
+
+def test_prune_node_env_keys_empty_current_ips_removes_all_node_keys(tmp_path: Path, monkeypatch):
+    fake_home = _prime_home_for_env_file(tmp_path, monkeypatch)
+    env_file = fake_home / ".agilab" / ".env"
+
+    _set_test_env_var(monkeypatch, "192.0.2.10", "hw_rapids_capable")
+    _set_test_env_var(monkeypatch, "192.0.2.10_CMD_PREFIX", "p")
+    _set_test_env_var(monkeypatch, "NON_NODE_KEY", "value")
+
+    removed = AgiEnv.prune_node_env_keys(set())
+
+    assert set(removed) == {"192.0.2.10", "192.0.2.10_CMD_PREFIX"}
+    assert "192.0.2.10" not in AgiEnv.envars
+    assert AgiEnv.envars["NON_NODE_KEY"] == "value"
+    contents = env_file.read_text(encoding="utf-8")
+    assert "NON_NODE_KEY" in contents
+    assert "192.0.2.10_CMD_PREFIX" not in contents
+
+def test_prune_node_env_keys_noop_when_nothing_stale(tmp_path: Path, monkeypatch):
+    _prime_home_for_env_file(tmp_path, monkeypatch)
+
+    _set_test_env_var(monkeypatch, "203.0.113.7", "no_rapids_hw")
+    _set_test_env_var(monkeypatch, "SOME_GLOBAL", "x")
+
+    removed = AgiEnv.prune_node_env_keys({"203.0.113.7"})
+
+    assert removed == []
+    assert AgiEnv.envars["203.0.113.7"] == "no_rapids_hw"
+    assert AgiEnv.envars["SOME_GLOBAL"] == "x"
+
+def test_prune_node_env_keys_ignores_non_ip_underscore_keys(tmp_path: Path, monkeypatch):
+    """Keys like 'FOO_CMD_PREFIX' whose head is not an IPv4 must be preserved."""
+
+    _prime_home_for_env_file(tmp_path, monkeypatch)
+
+    _set_test_env_var(monkeypatch, "FOO_CMD_PREFIX", "not-a-node-key")
+    _set_test_env_var(
+        monkeypatch,
+        "999.999.999.999_CMD_PREFIX",
+        "invalid-ip-head",
+    )
+
+    removed = AgiEnv.prune_node_env_keys(set())
+
+    assert removed == []
+    assert AgiEnv.envars["FOO_CMD_PREFIX"] == "not-a-node-key"
+    assert AgiEnv.envars["999.999.999.999_CMD_PREFIX"] == "invalid-ip-head"

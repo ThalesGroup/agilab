@@ -78,22 +78,61 @@ def _remote_share_assignment(value: str) -> str:
     return '"$HOME"/' + quote(cleaned)
 
 
+_ALIAS_CONFLICT_WARNED: set[tuple[str, ...]] = set()
+
+
+def _warn_alias_conflict(source: str, first_name: str, names: tuple[str, ...], values: dict[str, str]) -> None:
+    # First-match precedence is intentional and unchanged; we only surface a
+    # one-time warning so an operator who set two aliases for the same setting
+    # to *different* values knows which one actually took effect.
+    if len(values) < 2:
+        return
+    distinct = set(values.values())
+    if len(distinct) < 2:
+        return
+    warn_key = (source, first_name, *sorted(f"{name}={values[name]!r}" for name in values))
+    if warn_key in _ALIAS_CONFLICT_WARNED:
+        return
+    _ALIAS_CONFLICT_WARNED.add(warn_key)
+    conflicting = ", ".join(f"{name}={values[name]!r}" for name in names if name in values)
+    logger.warning(
+        "Conflicting cluster settings in %s: %s. Using %s=%s (first-match precedence).",
+        source,
+        conflicting,
+        first_name,
+        values[first_name],
+    )
+
+
 def _env_lookup(env: Any, *names: str) -> str | None:
-    for name in names:
-        value = getattr(env, name, None)
-        if value not in (None, ""):
-            return str(value)
+    # Intentionally duplicated with transport_support._env_lookup to avoid an
+    # import cycle between the deployment and runtime transport modules; keep
+    # the two implementations in sync when either changes.
+    def _resolve_tier(source: str, getter: Callable[[str], Any]) -> str | None:
+        found: dict[str, str] = {}
+        first_name: str | None = None
+        for name in names:
+            value = getter(name)
+            if value not in (None, ""):
+                found[name] = str(value)
+                if first_name is None:
+                    first_name = name
+        if first_name is None:
+            return None
+        _warn_alias_conflict(source, first_name, names, found)
+        return found[first_name]
+
+    resolved = _resolve_tier("env attributes", lambda name: getattr(env, name, None))
+    if resolved is not None:
+        return resolved
+
     envars = getattr(env, "envars", None)
     if isinstance(envars, dict):
-        for name in names:
-            value = envars.get(name)
-            if value not in (None, ""):
-                return str(value)
-    for name in names:
-        value = os.environ.get(name)
-        if value not in (None, ""):
-            return str(value)
-    return None
+        resolved = _resolve_tier("env.envars", envars.get)
+        if resolved is not None:
+            return resolved
+
+    return _resolve_tier("process environment", os.environ.get)
 
 
 def _truthy_env(value: str | None) -> bool:
@@ -646,6 +685,20 @@ async def _remote_rapids_capability(
 async def _legacy_intel_macos_dependency_specs(
     agi_cls: Any, ip: str, *, log: Any = logger
 ) -> tuple[str, ...]:
+    # prepare_cluster_env already probes every worker platform once and records
+    # the legacy Intel macOS IPs; reuse that result instead of re-running the
+    # SSH probe here so the same install flow does not probe each worker twice.
+    cached_ips = getattr(agi_cls, "_legacy_intel_macos_ips", None)
+    if cached_ips is not None:
+        if ip not in cached_ips:
+            return ()
+        log.warning(
+            "Detected legacy Intel macOS worker %s; pre-pinning worker dependencies: %s",
+            ip,
+            ", ".join(_LEGACY_INTEL_MACOS_DEPENDENCY_SPECS),
+        )
+        return _LEGACY_INTEL_MACOS_DEPENDENCY_SPECS
+
     try:
         probe = await agi_cls.exec_ssh(ip, _remote_platform_probe_command())
     except ConnectionError:

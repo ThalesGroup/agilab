@@ -58,6 +58,7 @@ from agi_env.project.app_settings_support import (
 )
 from agi_env.runtime.env_config_support import (
     load_dotenv_values as _load_dotenv_values,
+    remove_env_keys,
     write_env_updates,
 )
 from agi_env.runtime.agi_env_app_switch_support import change_app as _agi_env_change_app
@@ -308,8 +309,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         with cls._lock:
             cls._instance = None
             cls._ip_local_cache = {"127.0.0.1", "::1"}
-            cls._share_mount_warning_keys = set()
             cls._pythonpath_entries = []
+            # Drop pre-init class-level defaults that ``_ensure_defaults`` /
+            # ``set_env_var`` may have populated on the class (only used while no
+            # singleton exists). Resetting them to their sentinels forces a clean
+            # rebuild on the next bootstrap instead of leaking stale state.
+            type.__setattr__(cls, "envars", {})
+            type.__setattr__(cls, "resources_path", None)
+            type.__setattr__(cls, "logger", None)
     install_type: int | None = None  # deprecated: derived from flags for backward compatibility
     apps_path: Path | None = None
     app: str | None = None
@@ -354,7 +361,6 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     is_source_env: bool = False
     is_local_worker: bool = False
     _ip_local_cache: set = set({"127.0.0.1", "::1"})
-    _share_mount_warning_keys: set[tuple[str, str]] = set()
     INDEX_URL="https://test.pypi.org/simple"
     EXTRA_INDEX_URL="https://pypi.org/simple"
     snippet_tail = "asyncio.run(main())"
@@ -526,7 +532,16 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     @staticmethod
     def set_env_var(key: str, value: str):
-        """Persist ``key``/``value`` in :attr:`envars`, ``os.environ`` and the ``.env`` file."""
+        """Persist ``key``/``value`` in :attr:`envars`, ``os.environ`` and the ``.env`` file.
+
+        Accretion hazard: callers persist per-node probe keys (e.g. a bare-IP
+        ``hw_rapids_capable`` flag, ``{ip}_CMD_PREFIX`` and ``{ip}_PYTHON_VERSION``)
+        through this method. There is no eviction, so decommissioned nodes leave
+        stale entries in the global ``~/.agilab/.env`` and pollute ``os.environ``
+        with bare-IP keys that can shadow unrelated variables. Pruning stale
+        per-IP keys is deferred because it would change deployment behaviour; do
+        not treat this cache as bounded.
+        """
         AgiEnv._ensure_defaults()
         AgiEnv.envars[key] = value
         os.environ[key] = str(value)
@@ -567,10 +582,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         """
         Resolve ``path`` relative to the active shared data root.
 
-        ``None`` or ``"."`` returns the active data root itself; absolute inputs
-        are accepted only when they resolve inside the active data root, and
-        raise :class:`ValueError` otherwise. When workflow/session scoping is
-        active, ``AGILAB_WORKFLOW_DATA_ROOT`` is the active data root while
+        ``None`` or ``"."`` returns the active data root itself. Absolute inputs
+        are confined to the active data root and raise :class:`ValueError` when
+        they escape it. When workflow/session scoping is active,
+        ``AGILAB_WORKFLOW_DATA_ROOT`` is the active data root while
         ``AGI_CLUSTER_SHARE`` remains the physical cluster-share mount root.
         """
         return resolve_relative_share_path(path, self.workflow_data_root_path())
@@ -585,8 +600,20 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         same relative path under the share root if it exists there. Output
         paths must keep using :meth:`resolve_share_path` so workflow isolation
         is preserved.
+
+        An absolute input that lives under the physical cluster share but
+        outside ``AGILAB_WORKFLOW_DATA_ROOT`` makes the workflow-scoped
+        :meth:`resolve_share_path` raise :class:`ValueError`; in that case fall
+        back to resolving it against the physical share root (still confined to
+        the share root, so confinement is preserved) before re-raising.
         """
-        resolved = self.resolve_share_path(path)
+        try:
+            resolved = self.resolve_share_path(path)
+        except ValueError:
+            fallback = resolve_relative_share_path(path, self.share_root_path())
+            if fallback.exists():
+                return fallback
+            raise
         if resolved.exists():
             return resolved
         fallback = resolve_relative_share_path(path, self.share_root_path())
@@ -691,6 +718,80 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         AgiEnv._ensure_defaults()
         env_file = AgiEnv.resources_path / ".env"
         write_env_updates(env_file, updates)
+
+    @staticmethod
+    def _remove_env_file(keys) -> list[str]:
+        """Remove ``keys`` from the persistent ``~/.agilab/.env`` file."""
+        AgiEnv._ensure_defaults()
+        env_file = AgiEnv.resources_path / ".env"
+        return remove_env_keys(env_file, keys)
+
+    @classmethod
+    def prune_node_env_keys(cls, current_ips) -> list[str]:
+        """Evict persisted per-node probe keys for IPs not in ``current_ips``.
+
+        Cluster deployment funnels per-node probe results through
+        :func:`set_env_var` using three key shapes keyed by worker IP:
+
+        - a bare-IP key (e.g. ``"192.168.1.5"``) whose value is a RAPIDS
+          capability sentinel (``"hw_rapids_capable"`` / ``"no_rapids_hw"``);
+        - ``"{ip}_CMD_PREFIX"``;
+        - ``"{ip}_PYTHON_VERSION"``.
+
+        These accrete forever, so on DHCP reuse or a hardware swap a later run
+        can trust a stale entry, and the bare-IP keys leak into ``os.environ``
+        for child processes. This helper removes every such key whose IP is not
+        present in ``current_ips`` from :attr:`envars`, ``os.environ`` and the
+        persistent ``~/.agilab/.env`` file. Keys for current IPs and any
+        non-node keys (anything whose leading token is not a valid IPv4 address)
+        are left untouched, preserving the read/write contract that the
+        deployment writers/readers rely on.
+
+        This method is intentionally NOT wired into deployment here (that is a
+        cross-module change). Deployment install should call it with the current
+        worker set, e.g. ``AgiEnv.prune_node_env_keys(set(current_worker_ips))``,
+        once the live worker list is known.
+
+        Returns the list of keys that were pruned.
+        """
+        cls._ensure_defaults()
+
+        def _ip_prefix(key: str) -> str | None:
+            """Return the IP a per-node key belongs to, or ``None`` when not one."""
+            if not isinstance(key, str) or not key:
+                return None
+            if is_valid_ipv4_address(key):
+                return key  # bare-IP capability sentinel key
+            head, sep, _tail = key.partition("_")
+            if sep and is_valid_ipv4_address(head):
+                return head  # "{ip}_CMD_PREFIX" / "{ip}_PYTHON_VERSION" / etc.
+            return None
+
+        keep_ips = {str(ip) for ip in (current_ips or set())}
+
+        # Collect stale keys from both the persisted mapping and os.environ so
+        # bare-IP keys that leaked into the process environment are cleaned up
+        # even if they are missing from ``envars``.
+        candidate_keys: set[str] = set()
+        envars = cls.envars if isinstance(cls.envars, dict) else {}
+        candidate_keys.update(str(k) for k in envars.keys())
+        candidate_keys.update(str(k) for k in os.environ.keys())
+
+        stale_keys: list[str] = []
+        for key in candidate_keys:
+            ip = _ip_prefix(key)
+            if ip is not None and ip not in keep_ips:
+                stale_keys.append(key)
+
+        if not stale_keys:
+            return []
+
+        for key in stale_keys:
+            envars.pop(key, None)
+            os.environ.pop(key, None)
+
+        cls._remove_env_file(stale_keys)
+        return sorted(stale_keys)
 
     def _init_resources(self, resources_src):
         """Replicate ``resources_src`` into the managed ``.agilab`` tree."""

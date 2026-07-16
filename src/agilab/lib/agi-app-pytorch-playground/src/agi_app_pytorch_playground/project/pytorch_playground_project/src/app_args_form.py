@@ -869,10 +869,12 @@ def render(
         or getattr(active_env, "app", "")
         or "pytorch_playground_project"
     )
+    export_root = Path(
+        getattr(active_env, "AGILAB_EXPORT_ABS", Path.home() / "export")
+    ).resolve(strict=False)
+    artifact_target = Path(artifact_target).name
     artifact_root = (
-        Path(getattr(active_env, "AGILAB_EXPORT_ABS", Path.home() / "export"))
-        / artifact_target
-        / "pytorch_playground"
+        export_root / artifact_target / "pytorch_playground"
     )
     output_container = container or st
     if not compact:

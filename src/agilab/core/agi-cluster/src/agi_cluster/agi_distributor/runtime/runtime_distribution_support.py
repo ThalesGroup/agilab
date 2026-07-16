@@ -37,11 +37,19 @@ def _sync_poll_delay(attempt: int) -> float:
     return _SYNC_POLL_DELAYS_SECONDS[attempt]
 
 
+# Default listen-port range pinned on dask workers so clean installs stay
+# firewall-friendly (the client connects INBOUND to each worker's listen
+# port). Override with AGILAB_DASK_WORKER_PORT_RANGE; set it to "ephemeral"
+# to restore OS-assigned random ports.
+DEFAULT_WORKER_PORT_RANGE = "9000:9100"
+
+
 def _worker_port_range(env: Any) -> str | None:
-    """Optional fixed listen-port range for dask workers (firewall pinning).
+    """Fixed listen-port range for dask workers (firewall pinning).
 
     Accepts a single port ("9000") or an inclusive range ("9000:9100"), the
-    same syntax as `dask worker --worker-port`.
+    same syntax as `dask worker --worker-port`. Defaults to
+    :data:`DEFAULT_WORKER_PORT_RANGE`; the value "ephemeral" disables pinning.
     """
     raw = deployment_remote_support._env_lookup(
         env,
@@ -50,8 +58,10 @@ def _worker_port_range(env: Any) -> str | None:
         "dask_worker_port_range",
     )
     if raw in (None, ""):
-        return None
+        return DEFAULT_WORKER_PORT_RANGE
     text = str(raw).strip()
+    if text.lower() == "ephemeral":
+        return None
     parts = text.split(":")
     if len(parts) not in (1, 2):
         raise ValueError(f"Invalid dask worker port range: {raw!r}")
@@ -798,19 +808,26 @@ async def main(
             lambda: agi_cls._start(scheduler),
             time_fn=time_fn,
         )
-        res = await _run_timed_phase(
-            agi_cls,
-            "distribute",
-            lambda: agi_cls._distribute(),
-            time_fn=time_fn,
-        )
-        agi_cls._update_capacity()
-        await _run_timed_phase(
-            agi_cls,
-            "stop-dask",
-            lambda: agi_cls._stop(),
-            time_fn=time_fn,
-        )
+        try:
+            res = await _run_timed_phase(
+                agi_cls,
+                "distribute",
+                lambda: agi_cls._distribute(),
+                time_fn=time_fn,
+            )
+            agi_cls._update_capacity()
+        finally:
+            # Always tear the cluster down (dask client shutdown, worker
+            # retirement, SSH/connection cleanup) even when _distribute or
+            # _update_capacity raise; otherwise scheduler/workers/ports and
+            # SSH connections leak. _stop() still honors the _mode_auto
+            # benchmark skip internally.
+            await _run_timed_phase(
+                agi_cls,
+                "stop-dask",
+                lambda: agi_cls._stop(),
+                time_fn=time_fn,
+            )
     else:
         res = await agi_cls._run()
 

@@ -5,11 +5,14 @@ import importlib
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import math
 
 import pandas as pd
 import pytest
+from streamlit.testing.v1 import AppTest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -172,7 +175,9 @@ def test_routing_model_comparison_parses_allocation_helpers() -> None:
     assert module.demand_outcome(True, 0.5) == "partial"
 
 
-def test_routing_model_comparison_covers_fallback_helper_branches(tmp_path: Path) -> None:
+def test_routing_model_comparison_covers_fallback_helper_branches(
+    tmp_path: Path,
+) -> None:
     module = _load_module()
     active_app = tmp_path / "active_app"
 
@@ -191,11 +196,13 @@ def test_routing_model_comparison_covers_fallback_helper_branches(tmp_path: Path
     assert module.has_path({"routed": "yes"}) is True
     assert module.has_path({"delivered_bandwidth": 0.5}) is True
     assert module.has_path({"delivered_bandwidth": 0.0}) is False
-    assert module.is_routed(
-        {"path_labels": ["A", "B"], "served_fraction": 0.25}
-    ) is True
+    assert (
+        module.is_routed({"path_labels": ["A", "B"], "served_fraction": 0.25}) is True
+    )
     assert module.is_routed({"path_labels": ["A", "B"], "served_fraction": 0}) is False
-    assert math.isnan(module.get_satisfaction({"bandwidth": 0, "delivered_bandwidth": 1}))
+    assert math.isnan(
+        module.get_satisfaction({"bandwidth": 0, "delivered_bandwidth": 1})
+    )
     assert module.get_latency_ms({"latency": "42"}) == 42.0
     assert math.isnan(module.get_latency_ms({}))
     assert module.get_latency_target_ms({"latency_target": "20"}) == 20.0
@@ -221,7 +228,9 @@ def test_routing_model_comparison_covers_fallback_helper_branches(tmp_path: Path
         encoding="utf-8",
     )
     settings = module._load_app_settings(app)
-    assert module._page_defaults(settings)["dataset_custom_base"] == "/tmp/agilab-routing"
+    assert (
+        module._page_defaults(settings)["dataset_custom_base"] == "/tmp/agilab-routing"
+    )
     settings_file.write_text("[pages\n", encoding="utf-8")
     assert module._load_app_settings(app) == {}
     assert module._page_defaults({}) == {}
@@ -229,7 +238,10 @@ def test_routing_model_comparison_covers_fallback_helper_branches(tmp_path: Path
     assert module._page_defaults({"pages": {module.PAGE_KEY: "bad"}}) == {}
 
     env = type("Env", (), {"agi_share_path_abs": str(tmp_path / "share")})()
-    assert module._default_pipeline_root(env, {}) == tmp_path / "share" / "sb3_trainer/pipeline"
+    assert (
+        module._default_pipeline_root(env, {})
+        == tmp_path / "share" / "sb3_trainer/pipeline"
+    )
     custom_root = module._default_pipeline_root(
         env,
         {"dataset_custom_base": str(tmp_path), "dataset_subpath": "pipeline"},
@@ -239,7 +251,9 @@ def test_routing_model_comparison_covers_fallback_helper_branches(tmp_path: Path
     assert module._default_pipeline_root(empty_env, {}) is None
 
 
-def test_routing_model_comparison_scoped_env_reuses_or_initializes(monkeypatch, tmp_path: Path) -> None:
+def test_routing_model_comparison_scoped_env_reuses_or_initializes(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_module()
     app_path = tmp_path / "apps" / "routing_app"
     app_path.mkdir(parents=True)
@@ -284,7 +298,9 @@ def test_routing_model_comparison_scoped_env_reuses_or_initializes(monkeypatch, 
     assert streamlit.session_state["env"] is env
 
 
-def test_routing_model_comparison_loads_and_summarizes_allocations(tmp_path: Path) -> None:
+def test_routing_model_comparison_loads_and_summarizes_allocations(
+    tmp_path: Path,
+) -> None:
     module = _load_module()
     base = tmp_path / "pipeline"
     ilp_path = base / "trainer_fcas_routing_ilp" / "allocations_steps.json"
@@ -351,6 +367,7 @@ def test_routing_model_comparison_loads_and_summarizes_allocations(tmp_path: Pat
     alloc_df = module.load_allocations(signatures)
     alloc_df = module.add_latency_targets(alloc_df)
     summary = module.build_summary(alloc_df)
+    demand_matrix = module.build_demand_matrix_data(alloc_df)
     failures = module.build_failure_table(alloc_df)
 
     assert set(alloc_df["model"]) == {"ILP", "PPO-GNN"}
@@ -359,8 +376,213 @@ def test_routing_model_comparison_loads_and_summarizes_allocations(tmp_path: Pat
     assert alloc_df["outcome"].tolist().count("partial") == 1
     assert summary.set_index("model").loc["ILP", "routed_count"] == 1
     assert summary.set_index("model").loc["PPO-GNN", "latency_violation_rate"] == 1.0
+    demand_by_pair = demand_matrix.set_index(
+        ["model", "source_label", "destination_label"]
+    )
+    assert demand_by_pair.loc[("ILP", "A", "B"), "served_bandwidth_ratio"] == 1.0
+    assert demand_by_pair.loc[("ILP", "C", "D"), "unmet_bandwidth_ratio"] == 1.0
+    assert demand_by_pair.loc[("ILP", "C", "D"), "unrouted_rate"] == 1.0
+    assert demand_by_pair.loc[("PPO-GNN", "A", "B"), "mean_latency_ms"] == 45.0
     assert len(failures) == 2
     assert "latency_over_target_ms" in failures.columns
+
+
+def test_routing_model_comparison_filters_to_active_demand_schedule(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    base = tmp_path / "pipeline"
+    _write_allocations(
+        base / "trainer_fcas_routing_ilp" / "allocations_steps.json",
+        [
+            {
+                "source_label": "active-source",
+                "destination_label": "active-destination",
+                "bandwidth": 10.0,
+                "delivered_bandwidth": 10.0,
+                "active": True,
+            },
+            {
+                "source_label": "inactive-source",
+                "destination_label": "inactive-destination",
+                "bandwidth": 20.0,
+                "delivered_bandwidth": 0.0,
+                "active": False,
+            },
+            {
+                "source_label": "active-unrouted-source",
+                "destination_label": "active-unrouted-destination",
+                "bandwidth": 5.0,
+                "delivered_bandwidth": 0.0,
+                "routed": False,
+                "active": True,
+            },
+        ],
+    )
+    _write_allocations(
+        base / "trainer_fcas_routing_ppo_gnn" / "allocations_steps.json",
+        [
+            {
+                "source_label": "active-source",
+                "destination_label": "active-destination",
+                "bandwidth": 10.0,
+                "delivered_bandwidth": 5.0,
+            },
+            {
+                "source_label": "inactive-source",
+                "destination_label": "inactive-destination",
+                "bandwidth": 20.0,
+                "delivered_bandwidth": 0.0,
+            },
+            {
+                "source_label": "unknown-source",
+                "destination_label": "unknown-destination",
+                "bandwidth": 30.0,
+                "delivered_bandwidth": 30.0,
+            },
+        ],
+    )
+
+    alloc_df = module.load_allocations(module.available_file_signatures(base))
+    failures = module.build_failure_table(module.add_latency_targets(alloc_df.copy()))
+
+    assert len(alloc_df) == 4
+    assert set(alloc_df["model"]) == {"ILP", "PPO-GNN"}
+    assert set(alloc_df["source_label"]) == {
+        "active-source",
+        "active-unrouted-source",
+        "unknown-source",
+    }
+    assert alloc_df["requested_mbps"].sum() == 55.0
+    assert alloc_df.loc[alloc_df["source_label"] == "active-source", "active"].all()
+    assert "active-unrouted-source" in set(failures["source_label"])
+    assert "inactive-source" not in set(failures["source_label"])
+
+
+def test_routing_model_comparison_retains_legacy_rows_without_active_evidence(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    base = tmp_path / "pipeline"
+    _write_allocations(
+        base / "trainer_fcas_routing_ilp" / "allocations_steps.json",
+        [
+            {
+                "source_label": "legacy-source",
+                "destination_label": "legacy-destination",
+                "bandwidth": 10.0,
+                "delivered_bandwidth": 10.0,
+            }
+        ],
+    )
+
+    alloc_df = module.load_allocations(module.available_file_signatures(base))
+
+    assert len(alloc_df) == 1
+    assert alloc_df.iloc[0]["source_label"] == "legacy-source"
+    assert alloc_df["active"].isna().all()
+
+
+def test_routing_model_comparison_matches_duplicate_demands_by_occurrence(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    base = tmp_path / "pipeline"
+    ilp_path = base / "trainer_fcas_routing_ilp" / "allocations_steps.json"
+    ppo_path = base / "trainer_fcas_routing_ppo_gnn" / "allocations_steps.json"
+    ilp_path.parent.mkdir(parents=True)
+    ppo_path.parent.mkdir(parents=True)
+    common_pair = {
+        "source_label": "duplicate-source",
+        "destination_label": "duplicate-destination",
+    }
+    ilp_path.write_text(
+        json.dumps(
+            [
+                {
+                    "time_index": 0,
+                    "allocations": [
+                        {**common_pair, "bandwidth": 1.0, "active": True},
+                        {**common_pair, "bandwidth": 2.0, "active": False},
+                    ],
+                },
+                {
+                    "time_index": 1,
+                    "allocations": [
+                        {**common_pair, "bandwidth": 1.0, "active": False},
+                        {**common_pair, "bandwidth": 2.0, "active": True},
+                    ],
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    ppo_path.write_text(
+        json.dumps(
+            [
+                {
+                    "time_index": time_index,
+                    "allocations": [
+                        {**common_pair, "bandwidth": 1.0},
+                        {**common_pair, "bandwidth": 2.0},
+                    ],
+                }
+                for time_index in (0, 1)
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    alloc_df = module.load_allocations(module.available_file_signatures(base))
+    bandwidths_by_model_and_time = {
+        key: values.tolist()
+        for key, values in alloc_df.groupby(["model", "time_index"], observed=False)[
+            "requested_mbps"
+        ]
+    }
+
+    assert bandwidths_by_model_and_time == {
+        ("ILP", 0): [1.0],
+        ("ILP", 1): [2.0],
+        ("PPO-GNN", 0): [1.0],
+        ("PPO-GNN", 1): [2.0],
+    }
+
+
+def test_routing_model_comparison_excludes_conflicting_active_evidence(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    base = tmp_path / "pipeline"
+    conflicting = {
+        "source_label": "conflict-source",
+        "destination_label": "conflict-destination",
+        "bandwidth": 10.0,
+    }
+    _write_allocations(
+        base / "trainer_fcas_routing_ilp" / "allocations_steps.json",
+        [{**conflicting, "active": False}],
+    )
+    _write_allocations(
+        base / "trainer_fcas_routing_path_ac" / "allocations_steps.json",
+        [{**conflicting, "active": True}],
+    )
+    _write_allocations(
+        base / "trainer_fcas_routing_ppo_gnn" / "allocations_steps.json",
+        [
+            conflicting,
+            {
+                "source_label": "legacy-source",
+                "destination_label": "legacy-destination",
+                "bandwidth": 5.0,
+            },
+        ],
+    )
+
+    alloc_df = module.load_allocations(module.available_file_signatures(base))
+
+    assert alloc_df["source_label"].tolist() == ["legacy-source"]
+    assert alloc_df.attrs[module.ACTIVE_DEMAND_CONFLICT_ATTR] == 1
 
 
 def test_routing_model_comparison_figures_handle_empty_and_visible_models() -> None:
@@ -370,6 +592,9 @@ def test_routing_model_comparison_figures_handle_empty_and_visible_models() -> N
             {
                 "model": "ILP",
                 "time_index": 0,
+                "source_label": "A",
+                "destination_label": "B",
+                "requested_mbps": 10.0,
                 "satisfaction_ratio": 1.0,
                 "delivered_mbps": 10.0,
                 "latency_ms": 20.0,
@@ -383,6 +608,9 @@ def test_routing_model_comparison_figures_handle_empty_and_visible_models() -> N
             {
                 "model": "PPO-GNN",
                 "time_index": 0,
+                "source_label": "A",
+                "destination_label": "B",
+                "requested_mbps": 10.0,
                 "satisfaction_ratio": 0.5,
                 "delivered_mbps": 5.0,
                 "latency_ms": 45.0,
@@ -417,10 +645,76 @@ def test_routing_model_comparison_figures_handle_empty_and_visible_models() -> N
 
     assert len(module.build_overview_figure(alloc_df, summary, models).data) >= 4
     assert len(module.build_time_figure(alloc_df, models).data) == 8
+    demand_figure = module.build_demand_matrix_figure(alloc_df, models)
+    assert len(demand_figure.data) == 8
+    ratio_traces = [
+        trace for index, trace in enumerate(demand_figure.data) if index % 4 != 3
+    ]
+    assert {trace.zmin for trace in ratio_traces} == {0.0}
+    assert {trace.zmax for trace in ratio_traces} == {1.0}
+    latency_traces = demand_figure.data[3::4]
+    assert {trace.zmin for trace in latency_traces} == {0.0}
+    assert {trace.zmax for trace in latency_traces} == {45.0}
     assert len(module.build_path_figure(alloc_df, models).data) >= 2
     no_routed = alloc_df.assign(routed=False)
     assert len(module.build_path_figure(no_routed, models).data) == 2
     assert module._format_summary(summary).columns.tolist() == models
+    assert module.build_demand_matrix_data(pd.DataFrame()).empty
+    assert len(module.build_demand_matrix_figure(pd.DataFrame(), models).data) == 0
+
+
+def test_demand_matrix_caps_delivery_and_preserves_full_node_identity() -> None:
+    module = _load_module()
+    alloc_df = pd.DataFrame(
+        [
+            {
+                "model": "ILP",
+                "source_label": "A-S1",
+                "destination_label": "destination",
+                "requested_mbps": 10.0,
+                "delivered_mbps": 20.0,
+                "routed": True,
+                "latency_ms": 10.0,
+            },
+            {
+                "model": "ILP",
+                "source_label": "A-S1",
+                "destination_label": "destination",
+                "requested_mbps": 10.0,
+                "delivered_mbps": 0.0,
+                "routed": False,
+                "latency_ms": math.nan,
+            },
+            {
+                "model": "ILP",
+                "source_label": "A-S1",
+                "destination_label": "destination",
+                "requested_mbps": math.nan,
+                "delivered_mbps": 100.0,
+                "routed": True,
+                "latency_ms": 12.0,
+            },
+            {
+                "model": "ILP",
+                "source_label": "B-S1",
+                "destination_label": "destination",
+                "requested_mbps": 5.0,
+                "delivered_mbps": 5.0,
+                "routed": True,
+                "latency_ms": 8.0,
+            },
+        ]
+    )
+
+    matrix = module.build_demand_matrix_data(alloc_df).set_index("source_label")
+    figure = module.build_demand_matrix_figure(alloc_df, ["ILP"])
+
+    assert matrix.loc["A-S1", "served_bandwidth_ratio"] == 0.5
+    assert matrix.loc["A-S1", "unmet_bandwidth_ratio"] == 0.5
+    assert list(figure.data[0].x) == ["A-S1", "B-S1"]
+    assert all(trace.showscale is False for trace in figure.data)
+    assert figure.layout.xaxis3.domain == figure.layout.xaxis.domain
+    assert figure.layout.yaxis3.domain != figure.layout.yaxis.domain
 
 
 def test_routing_model_comparison_empty_helpers_and_metrics(monkeypatch) -> None:
@@ -475,10 +769,7 @@ def test_routing_model_comparison_empty_helpers_and_metrics(monkeypatch) -> None
 
 
 def test_routing_model_comparison_package_bundle_root() -> None:
-    package_src = str(
-        ROOT
-        / "src/agilab/apps-pages/view_routing_model_comparison/src"
-    )
+    package_src = str(ROOT / "src/agilab/apps-pages/view_routing_model_comparison/src")
     if package_src not in sys.path:
         sys.path.insert(0, package_src)
 
@@ -487,7 +778,9 @@ def test_routing_model_comparison_package_bundle_root() -> None:
     assert package.bundle_root().name == "view_routing_model_comparison"
 
 
-def test_routing_model_comparison_main_renders_pipeline(monkeypatch, tmp_path: Path) -> None:
+def test_routing_model_comparison_main_renders_pipeline(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_module()
     pipeline_dir = tmp_path / "pipeline"
     app = tmp_path / "apps" / "routing_app"
@@ -520,8 +813,12 @@ def test_routing_model_comparison_main_renders_pipeline(monkeypatch, tmp_path: P
     env = type("Env", (), {"agi_share_path_abs": ""})()
 
     monkeypatch.setattr(module, "st", streamlit)
-    monkeypatch.setattr(module, "configure_streamlit_page", lambda *args, **kwargs: None)
-    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        module, "configure_streamlit_page", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        module, "render_streamlit_page_header", lambda *args, **kwargs: None
+    )
     monkeypatch.setattr(module, "_ensure_app_scoped_env", lambda: env)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: app)
 
@@ -529,9 +826,47 @@ def test_routing_model_comparison_main_renders_pipeline(monkeypatch, tmp_path: P
 
     call_names = [name for name, _args in streamlit.calls]
     assert "expander" in call_names
-    assert call_names.count("plotly_chart") == 3
+    assert call_names.count("plotly_chart") == 4
     assert "dataframe" in call_names
-    assert any(name == "caption" and "Loaded 1 allocation" in args[0] for name, args in streamlit.calls)
+    assert any(
+        name == "tabs" and "Demand Matrix" in args for name, args in streamlit.calls
+    )
+    assert any(
+        name == "caption" and "Loaded 1 allocation" in args[0]
+        for name, args in streamlit.calls
+    )
+
+
+def test_routing_model_comparison_main_requests_wide_layout(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_module()
+    app = tmp_path / "apps" / "routing_app"
+    app.mkdir(parents=True)
+    streamlit = _StreamlitStub(pipeline_text="")
+    env = type("Env", (), {"agi_share_path_abs": ""})()
+    page_configs: list[dict[str, object]] = []
+
+    monkeypatch.setattr(module, "st", streamlit)
+    monkeypatch.setattr(
+        module,
+        "configure_streamlit_page",
+        lambda _streamlit, **kwargs: page_configs.append(kwargs),
+    )
+    monkeypatch.setattr(
+        module, "render_streamlit_page_header", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(module, "_ensure_app_scoped_env", lambda: env)
+    monkeypatch.setattr(module, "_resolve_active_app", lambda: app)
+
+    module.main()
+
+    assert page_configs == [
+        {
+            "title": "Routing Model Comparison",
+            "layout": "wide",
+        }
+    ]
 
 
 def test_routing_model_comparison_main_renders_without_missing_files_or_model_filter(
@@ -565,18 +900,27 @@ def test_routing_model_comparison_main_renders_without_missing_files_or_model_fi
     env = type("Env", (), {"agi_share_path_abs": ""})()
 
     monkeypatch.setattr(module, "st", streamlit)
-    monkeypatch.setattr(module, "configure_streamlit_page", lambda *args, **kwargs: None)
-    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        module, "configure_streamlit_page", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        module, "render_streamlit_page_header", lambda *args, **kwargs: None
+    )
     monkeypatch.setattr(module, "_ensure_app_scoped_env", lambda: env)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: app)
 
     module.main()
 
     assert all(name != "expander" for name, _args in streamlit.calls)
-    assert any(name == "caption" and "Loaded 3 allocation" in args[0] for name, args in streamlit.calls)
+    assert any(
+        name == "caption" and "Loaded 3 allocation" in args[0]
+        for name, args in streamlit.calls
+    )
 
 
-def test_routing_model_comparison_main_stops_when_loaded_data_is_empty(monkeypatch, tmp_path: Path) -> None:
+def test_routing_model_comparison_main_stops_when_loaded_data_is_empty(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_module()
     pipeline_dir = tmp_path / "pipeline"
     app = tmp_path / "apps" / "routing_app"
@@ -589,8 +933,12 @@ def test_routing_model_comparison_main_stops_when_loaded_data_is_empty(monkeypat
     env = type("Env", (), {"agi_share_path_abs": ""})()
 
     monkeypatch.setattr(module, "st", streamlit)
-    monkeypatch.setattr(module, "configure_streamlit_page", lambda *args, **kwargs: None)
-    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        module, "configure_streamlit_page", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        module, "render_streamlit_page_header", lambda *args, **kwargs: None
+    )
     monkeypatch.setattr(module, "_ensure_app_scoped_env", lambda: env)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: app)
 
@@ -598,12 +946,14 @@ def test_routing_model_comparison_main_stops_when_loaded_data_is_empty(monkeypat
         module.main()
 
     assert any(
-        name == "warning" and "No allocation data was loaded" in args[0]
+        name == "warning" and "No active-demand allocation data was loaded" in args[0]
         for name, args in streamlit.calls
     )
 
 
-def test_routing_model_comparison_main_warns_when_filter_removes_rows(monkeypatch, tmp_path: Path) -> None:
+def test_routing_model_comparison_main_warns_when_filter_removes_rows(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_module()
     pipeline_dir = tmp_path / "pipeline"
     app = tmp_path / "apps" / "routing_app"
@@ -628,8 +978,12 @@ def test_routing_model_comparison_main_warns_when_filter_removes_rows(monkeypatc
     env = type("Env", (), {"agi_share_path_abs": ""})()
 
     monkeypatch.setattr(module, "st", streamlit)
-    monkeypatch.setattr(module, "configure_streamlit_page", lambda *args, **kwargs: None)
-    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        module, "configure_streamlit_page", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        module, "render_streamlit_page_header", lambda *args, **kwargs: None
+    )
     monkeypatch.setattr(module, "_ensure_app_scoped_env", lambda: env)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: app)
 
@@ -642,7 +996,9 @@ def test_routing_model_comparison_main_warns_when_filter_removes_rows(monkeypatc
     )
 
 
-def test_routing_model_comparison_main_returns_without_pipeline(monkeypatch, tmp_path: Path) -> None:
+def test_routing_model_comparison_main_returns_without_pipeline(
+    monkeypatch, tmp_path: Path
+) -> None:
     module = _load_module()
     app = tmp_path / "apps" / "routing_app"
     app.mkdir(parents=True)
@@ -650,8 +1006,12 @@ def test_routing_model_comparison_main_returns_without_pipeline(monkeypatch, tmp
     env = type("Env", (), {"agi_share_path_abs": ""})()
 
     monkeypatch.setattr(module, "st", streamlit)
-    monkeypatch.setattr(module, "configure_streamlit_page", lambda *args, **kwargs: None)
-    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        module, "configure_streamlit_page", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        module, "render_streamlit_page_header", lambda *args, **kwargs: None
+    )
     monkeypatch.setattr(module, "_ensure_app_scoped_env", lambda: env)
     monkeypatch.setattr(module, "_resolve_active_app", lambda: app)
 
@@ -660,4 +1020,52 @@ def test_routing_model_comparison_main_returns_without_pipeline(monkeypatch, tmp
     assert any(
         name == "info" and "Data directory not configured" in args[0]
         for name, args in streamlit.calls
+    )
+
+
+def test_routing_model_comparison_app_test_renders_demand_matrix(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    pipeline_dir = tmp_path / "pipeline"
+    app = tmp_path / "apps" / "routing_app"
+    settings_path = app / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        "[pages.view_routing_model_comparison]\n"
+        f"dataset_custom_base = {json.dumps(str(tmp_path))}\n"
+        "dataset_subpath = 'pipeline'\n",
+        encoding="utf-8",
+    )
+    _write_allocations(
+        pipeline_dir / "trainer_fcas_routing_ilp" / "allocations_steps.json",
+        [
+            {
+                "source_label": "flight-000-S001",
+                "destination_label": "flight-001-S002",
+                "bandwidth": 10.0,
+                "delivered_bandwidth": 7.5,
+                "latency_ms": 22.0,
+                "latency_target_ms": 30.0,
+                "routed": True,
+            }
+        ],
+    )
+
+    argv = [MODULE_PATH.name, "--active-app", str(app)]
+    with patch.object(sys, "argv", argv):
+        monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
+        monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
+        monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
+        monkeypatch.setenv("IS_SOURCE_ENV", "1")
+        at = AppTest.from_file(str(MODULE_PATH), default_timeout=30)
+        at.session_state["env"] = SimpleNamespace(
+            agi_share_path_abs="",
+            st_resources=tmp_path / "resources",
+        )
+        at.run()
+
+    assert not at.exception
+    assert any(
+        "Compare served and unmet bandwidth" in caption.value for caption in at.caption
     )

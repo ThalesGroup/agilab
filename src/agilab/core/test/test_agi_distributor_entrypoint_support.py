@@ -62,9 +62,11 @@ async def test_ensure_local_scheduler_port_keeps_port_when_released(monkeypatch)
 
 @pytest.mark.asyncio
 async def test_ensure_local_scheduler_port_raises_when_port_busy(monkeypatch):
+    # An explicit port outside the (default) range gets no fallback: the
+    # firewall may only allow the configured ports.
     AGI._scheduler_ip = "127.0.0.1"
-    AGI._scheduler_port = 8786
-    AGI._scheduler = "127.0.0.1:8786"
+    AGI._scheduler_port = 9999
+    AGI._scheduler = "127.0.0.1:9999"
 
     async def _still_busy(*_args, **_kwargs):
         return False
@@ -73,6 +75,24 @@ async def test_ensure_local_scheduler_port_raises_when_port_busy(monkeypatch):
 
     with pytest.raises(RuntimeError, match="still busy"):
         await entrypoint_support._ensure_local_scheduler_port(AGI)
+
+
+@pytest.mark.asyncio
+async def test_ensure_local_scheduler_port_default_range_falls_back(monkeypatch):
+    # Without any env var the code default range 8780:8790 applies.
+    AGI._scheduler_ip = "127.0.0.1"
+    AGI._scheduler_port = 8780
+    AGI._scheduler = "127.0.0.1:8780"
+
+    async def _busy_until_8781(_ip, port, **_kwargs):
+        return port == 8781
+
+    monkeypatch.setattr(AGI, "_wait_for_port_release", staticmethod(_busy_until_8781))
+
+    await entrypoint_support._ensure_local_scheduler_port(AGI)
+
+    assert AGI._scheduler_port == 8781
+    assert AGI._scheduler == "127.0.0.1:8781"
 
 
 @pytest.mark.asyncio

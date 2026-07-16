@@ -117,7 +117,13 @@ import_agilab_symbols(
 
 GENERATED_CODE_SANDBOX_ENV = "AGILAB_GENERATED_CODE_SANDBOX"
 GENERATED_CODE_PROCESS_LIMITS_ENV = "AGILAB_GENERATED_CODE_PROCESS_LIMITS"
-GENERATED_CODE_SANDBOX_MODES = frozenset({"process", "container", "vm"})
+# Accepted opt-in values for the env var. Only ``process`` actually executes,
+# and it runs the generated code **in the current process** (no isolation).
+# ``container`` / ``vm`` are recognized names but their isolation is not yet
+# implemented, so they are refused rather than run in-process. Do not present
+# any of these as a security boundary.
+GENERATED_CODE_ISOLATED_SANDBOX_MODES = frozenset({"container", "vm"})
+GENERATED_CODE_SANDBOX_MODES = frozenset({"process"}) | GENERATED_CODE_ISOLATED_SANDBOX_MODES
 
 import_agilab_symbols(
     globals(),
@@ -987,7 +993,20 @@ def _maybe_autofix_generated_code(
         push_run_log(
             index_page,
             "Auto-fix skipped: generated-code execution requires "
-            f"{GENERATED_CODE_SANDBOX_ENV}=process|container|vm.",
+            f"{GENERATED_CODE_SANDBOX_ENV}=process.",
+            get_run_placeholder(index_page),
+        )
+        return merged_code, model_label, detail
+    if sandbox in GENERATED_CODE_ISOLATED_SANDBOX_MODES:
+        # container/vm isolation is advertised but not yet implemented: the
+        # executor runs the generated code in-process. Refuse rather than
+        # silently running unisolated and overclaiming isolation.
+        push_run_log(
+            index_page,
+            f"Auto-fix skipped: {GENERATED_CODE_SANDBOX_ENV}={sandbox} isolation "
+            "is not yet implemented; only 'process' (in-process, no isolation) "
+            "is supported. Set "
+            f"{GENERATED_CODE_SANDBOX_ENV}=process to opt in explicitly.",
             get_run_placeholder(index_page),
         )
         return merged_code, model_label, detail

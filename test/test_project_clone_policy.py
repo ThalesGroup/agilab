@@ -780,10 +780,9 @@ def test_create_project_from_notebook_writes_project_import_artifacts(
 
     dest_root = tmp_path / "notebook_demo_project"
     assert result.status == "success"
-    assert result.title == "Project 'notebook_demo_project' created from notebook."
-    assert "ORCHESTRATE" in str(result.next_action)
-    assert "EXECUTE" in str(result.next_action)
+    assert result.title == "Project shell 'notebook_demo_project' created from notebook."
     assert "WORKFLOW" in str(result.next_action)
+    assert "template app" in str(result.next_action)
     assert clone_calls == [(Path("pandas_app_template"), Path("notebook_demo_project"))]
     assert (dest_root / "notebooks/source/Demo_Notebook.ipynb").is_file()
     boundary_manifest = dest_root / "notebooks/source/Demo_Notebook.ipynb.untrusted-content.json"
@@ -795,6 +794,7 @@ def test_create_project_from_notebook_writes_project_import_artifacts(
     assert result.data["source_notebook"] == "notebooks/source/Demo_Notebook.ipynb"
     assert result.data["notebook_boundary_manifest"] == boundary_manifest
     assert result.data["notebook_import_cell_count"] == 1
+    assert result.data["notebook_import_mode"] == "workflow_stage_shell"
 
     steps = tomllib.loads((dest_root / "lab_stages.toml").read_text(encoding="utf-8"))
     assert steps["__meta__"] == {"schema": "agilab.lab_stages.v1", "version": 1}
@@ -838,9 +838,32 @@ def test_project_notebook_import_preview_uses_canonical_persistence(
             preview,
             tmp_path,
             tmp_path / "lab_stages.toml",
-            {"view_manifest_dir": tmp_path},
+            {"view_manifest_dir": tmp_path, "write_mode": "replace"},
         )
     ]
+
+
+def test_notebook_project_navigation_matches_import_mode() -> None:
+    module = _load_project_module()
+    shell_result = module.ActionResult.success(
+        "shell",
+        data={"notebook_import_mode": "workflow_stage_shell"},
+    )
+    packaged_result = module.ActionResult.success(
+        "packaged",
+        data={"notebook_import_mode": "packaged_sample_app"},
+    )
+
+    assert module._notebook_project_navigation_target(shell_result) == (
+        "workflow",
+        "WORKFLOW",
+        False,
+    )
+    assert module._notebook_project_navigation_target(packaged_result) == (
+        "orchestrate",
+        "ORCHESTRATE",
+        True,
+    )
 
 
 def test_packaged_notebook_samples_create_projects_that_preserve_base_app_contracts(
@@ -1509,7 +1532,9 @@ def test_notebook_import_query_seed_reports_unknown_registry_sample():
 def test_notebook_import_create_copy_uses_newcomer_friendly_labels():
     source = MODULE_PATH.read_text(encoding="utf-8")
 
-    assert "Start from a notebook. AGILAB clones a base project" in source
+    assert "Start from a notebook. AGILAB creates a project shell" in source
+    assert "Packaged AGILAB sample notebooks may also provide" in source
+    assert "then you can install and run the new project" not in source
     assert "Base project to clone" in source
     assert "This notebook will create" in source
     assert "Upload your own notebook file" in source
@@ -1522,7 +1547,9 @@ def test_notebook_import_create_copy_uses_newcomer_friendly_labels():
     assert 'st.session_state["project_selectbox"] = new_name' not in source
     assert 'st.session_state["lab_dir_selectbox"] = new_name' not in source
     assert 'switch_page(Path("pages/3_WORKFLOW.py"))' not in source
-    assert '_switch_to_registered_navigation_page(\n                "orchestrate"' in source
+    assert "_notebook_project_navigation_target(" in source
+    assert 'return "workflow", "WORKFLOW", False' in source
+    assert 'return "orchestrate", "ORCHESTRATE", True' in source
     assert "Notebook source" not in source
     assert "INSTALL then RUN" not in source
     assert "chosen app or template source" not in source

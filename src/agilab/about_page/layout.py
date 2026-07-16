@@ -864,6 +864,44 @@ def _ssh_target(host: str, user: str) -> str:
     return f"{user}@{host}"
 
 
+# Env var names that opt into a relaxed (accept-new) SSH host-key policy. These
+# mirror the cluster transport policy names so the probe honors the same
+# strict-by-default posture instead of hardcoding trust-on-first-use.
+_HOST_KEY_POLICY_ENV_NAMES = (
+    "AGILAB_CLUSTER_SSH_HOST_KEY_POLICY",
+    "AGILAB_CLUSTER_HOST_KEY_POLICY",
+    "AGI_CLUSTER_SSH_HOST_KEY_POLICY",
+    "AGI_CLUSTER_HOST_KEY_POLICY",
+    "AGILAB_CLUSTER_SSH_STRICT_HOST_KEY_CHECKING",
+)
+_TOFU_HOST_KEY_VALUES = frozenset({
+    "0",
+    "accept-new",
+    "false",
+    "learn",
+    "learn-and-pin",
+    "off",
+    "tofu",
+})
+
+
+def _ssh_strict_host_key_checking() -> str:
+    """Resolve the SSH host-key policy, strict-by-default.
+
+    Only relaxes to ``accept-new`` when the operator has explicitly opted in via
+    the cluster host-key policy env. Any unrecognized/strict value keeps
+    ``yes``.
+    """
+    for name in _HOST_KEY_POLICY_ENV_NAMES:
+        value = os.environ.get(name)
+        if value in (None, ""):
+            continue
+        if str(value).strip().lower() in _TOFU_HOST_KEY_VALUES:
+            return "accept-new"
+        return "yes"
+    return "yes"
+
+
 @lru_cache(maxsize=32)
 def _remote_hardware_probe(host: str, user: str, ssh_key_path: str) -> str:
     if _hardware_probes_disabled():
@@ -875,11 +913,13 @@ def _remote_hardware_probe(host: str, user: str, ssh_key_path: str) -> str:
         "-o",
         "ConnectTimeout=3",
         "-o",
-        "StrictHostKeyChecking=accept-new",
+        f"StrictHostKeyChecking={_ssh_strict_host_key_checking()}",
     ]
     if ssh_key_path:
         command.extend(["-i", ssh_key_path])
-    command.extend([_ssh_target(host, user), _remote_hardware_probe_command()])
+    # ``--`` terminates option parsing so a host beginning with ``-`` cannot be
+    # interpreted as an ssh option (option injection).
+    command.extend(["--", _ssh_target(host, user), _remote_hardware_probe_command()])
     return _command_output(tuple(command))
 
 

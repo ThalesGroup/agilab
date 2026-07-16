@@ -122,6 +122,10 @@ def build_kubernetes_job_manifest(config: KubernetesJobConfig) -> dict[str, Any]
     env = {
         "AGILAB_ACTIVE_APP": config.app,
         "AGILAB_EXECUTION_BACKEND": "kubernetes-job",
+        # AGI_EXPORT_DIR is the name the runtime actually reads for the export
+        # root. AGILAB_EXPORT_DIR is kept as a duplicate alias for one release
+        # to avoid breaking any operator tooling that already grepped for it.
+        "AGI_EXPORT_DIR": config.mount_path,
         "AGILAB_EXPORT_DIR": config.mount_path,
     }
     env.update(dict(config.env))

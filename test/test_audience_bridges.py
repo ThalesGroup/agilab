@@ -1253,6 +1253,41 @@ def test_manifest_tools_do_not_allow_launch_cwd_by_default(
     assert payload["manifest"]["status"] == "pass"
 
 
+def test_mcp_read_roots_honor_canonical_apps_path_and_log_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    apps_root = tmp_path / "apps"
+    apps_root.mkdir()
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+
+    # Clear the explicit-roots and legacy-alias envs so the canonical names are
+    # the only source that could allow these paths.
+    monkeypatch.delenv("AGILAB_MCP_ALLOWED_ROOTS", raising=False)
+    monkeypatch.delenv("AGILAB_MCP_ALLOW_CWD", raising=False)
+    monkeypatch.delenv("AGILAB_APPS_ROOT", raising=False)
+    monkeypatch.delenv("AGILAB_LOG_ROOT", raising=False)
+    monkeypatch.delenv("AGILAB_AGENT_LOG_ROOT", raising=False)
+    monkeypatch.delenv("AGI_LOG_DIR", raising=False)
+    monkeypatch.delenv("APPS_PATH", raising=False)
+
+    manifest = apps_root / "run_manifest.json"
+    manifest.write_text('{"status": "pass"}', encoding="utf-8")
+    # Without APPS_PATH the tmp path is outside the configured read roots.
+    with pytest.raises(ValueError, match="outside configured read roots"):
+        manifest_tools.read_manifest(manifest)
+
+    # The documented canonical APPS_PATH must extend the MCP read roots.
+    monkeypatch.setenv("APPS_PATH", str(apps_root))
+    roots = manifest_tools._configured_read_roots()
+    assert apps_root.resolve() in roots
+    assert manifest_tools.read_manifest(manifest)["manifest"]["status"] == "pass"
+
+    # AGI_LOG_DIR is honored as a read root too.
+    monkeypatch.setenv("AGI_LOG_DIR", str(log_dir))
+    assert log_dir.resolve() in manifest_tools._configured_read_roots()
+
+
 def test_agent_quickstart_discovers_manifest_from_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

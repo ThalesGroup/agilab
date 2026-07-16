@@ -4,13 +4,60 @@ import argparse
 import csv
 import importlib
 import json
+import os
+import platform
+import subprocess
 import sys
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 
 import numpy as np
+
+
+def _git_rev() -> str | None:
+    """Return the short git rev of ROOT when git is cheaply available."""
+
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    rev = completed.stdout.strip()
+    return rev or None
+
+
+def _cython_version() -> str | None:
+    """Return the installed Cython version string when it can be imported."""
+
+    try:
+        import Cython  # type: ignore
+    except Exception:
+        return None
+    return getattr(Cython, "__version__", None)
+
+
+def _provenance() -> dict[str, Any]:
+    """Capture attestable provenance for a benchmark run's environment dict."""
+
+    return {
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "machine": platform.machine(),
+        "processor": platform.processor(),
+        "cpu_count": os.cpu_count(),
+        "cython": _cython_version(),
+        "numpy": np.__version__,
+        "git_rev": _git_rev(),
+    }
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -273,6 +320,7 @@ def run_benchmark(
             "seed": seed,
             "kernel": KERNEL_NAME,
             "dtype_contract": "float64-contiguous",
+            **_provenance(),
         },
         "runtimes": {
             "python": python_result,
@@ -346,6 +394,7 @@ def run_compare_preprocess_benchmark(
             "kernel": KERNEL_NAME,
             "dtype_contract": "float64-contiguous",
             "compare_preprocess": True,
+            **_provenance(),
         },
         "preprocess": {
             "typed_count": len(preprocess_report["declarations"]),

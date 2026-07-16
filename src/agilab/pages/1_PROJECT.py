@@ -3590,6 +3590,14 @@ def _switch_to_registered_navigation_page(
     return True
 
 
+def _notebook_project_navigation_target(result: ActionResult) -> tuple[str, str, bool]:
+    """Route generic notebook shells to WORKFLOW and packaged apps to ORCHESTRATE."""
+    mode = str(result.data.get("notebook_import_mode", "") or "")
+    if mode == "workflow_stage_shell":
+        return "workflow", "WORKFLOW", False
+    return "orchestrate", "ORCHESTRATE", True
+
+
 def _notebook_project_source_options(
     env: AgiEnv, template_options: list[str]
 ) -> list[str]:
@@ -3665,6 +3673,7 @@ def _build_project_notebook_import_preview(uploaded_notebook, module_dir: Path) 
             preflight=preflight,
             module_name=module,
         ),
+        "write_mode": "replace",
     }
 
 
@@ -3899,6 +3908,7 @@ def _write_project_notebook_import_preview(
             module_dir,
             stages_file,
             view_manifest_dir=module_dir,
+            write_mode="replace",
         )
     )
 
@@ -4006,6 +4016,9 @@ def _create_project_from_notebook_action(
         )
 
     notebook_name = _safe_uploaded_notebook_name(uploaded_notebook)
+    source_kind = str(
+        getattr(uploaded_notebook, "agilab_source_kind", "uploaded_notebook")
+    )
     notebook_relative_path = NOTEBOOK_SOURCE_DIR / notebook_name
     preview_upload = SimpleNamespace(
         name=notebook_relative_path.as_posix(),
@@ -4062,9 +4075,7 @@ def _create_project_from_notebook_action(
         _write_untrusted_content_manifest(
             notebook_boundary_manifest_path,
             notebook_bytes,
-            source_kind=str(
-                getattr(uploaded_notebook, "agilab_source_kind", "uploaded_notebook")
-            ),
+            source_kind=source_kind,
             source_name=notebook_name,
             mime_type=str(
                 getattr(uploaded_notebook, "type", "application/x-ipynb+json") or ""
@@ -4107,13 +4118,25 @@ def _create_project_from_notebook_action(
             },
         )
 
+    next_action = (
+        "Project created. Open ORCHESTRATE, run INSTALL, then EXECUTE. Open WORKFLOW to inspect "
+        "the imported notebook stages."
+        if source_kind == "packaged_sample_notebook"
+        else (
+            "Project shell created. Open WORKFLOW first to review and run the imported notebook "
+            "stages. ORCHESTRATE still installs and executes the selected template app until you "
+            "adapt that app implementation."
+        )
+    )
+    result_title = (
+        f"Project '{new_name}' created from notebook."
+        if source_kind == "packaged_sample_notebook"
+        else f"Project shell '{new_name}' created from notebook."
+    )
     return ActionResult.success(
-        f"Project '{new_name}' created from notebook.",
+        result_title,
         detail=_notebook_project_detail(clone_result.detail, preflight, cell_count),
-        next_action=(
-            "Project created. Open ORCHESTRATE, run INSTALL, then EXECUTE. Open WORKFLOW to inspect "
-            "the imported notebook stages."
-        ),
+        next_action=next_action,
         data={
             **dict(clone_result.data),
             "new_name": new_name,
@@ -4123,6 +4146,11 @@ def _create_project_from_notebook_action(
             "notebook_boundary_manifest": notebook_boundary_manifest_path,
             "stages_file": stages_file,
             "notebook_import_cell_count": cell_count,
+            "notebook_import_mode": (
+                "packaged_sample_app"
+                if source_kind == "packaged_sample_notebook"
+                else "workflow_stage_shell"
+            ),
             "notebook_import_preflight": preflight,
             "notebook_import_contract": preview.get("contract", {}),
         },
@@ -4379,8 +4407,9 @@ def handle_project_creation():
 
     if create_mode == CREATE_MODE_NOTEBOOK:
         st.caption(
-            "Start from a notebook. AGILAB clones a base project, imports the notebook steps, "
-            "then you can install and run the new project."
+            "Start from a notebook. AGILAB creates a project shell and imports runnable cells "
+            "into WORKFLOW. Packaged AGILAB sample notebooks may also provide an immediately "
+            "runnable app."
         )
         template_options = _notebook_project_source_options(
             env,
@@ -4568,10 +4597,16 @@ def handle_project_creation():
             st.session_state["_requested_lab_dir"] = new_name
             st.query_params["active_app"] = new_name
             st.query_params["lab_dir_selectbox"] = new_name
-            st.session_state["show_install"] = True
+            route_id, route_label, show_install = _notebook_project_navigation_target(
+                result
+            )
+            if show_install:
+                st.session_state["show_install"] = True
+            else:
+                st.session_state.pop("show_install", None)
             if _switch_to_registered_navigation_page(
-                "orchestrate",
-                "ORCHESTRATE",
+                route_id,
+                route_label,
                 query_params={"active_app": new_name, "lab_dir_selectbox": new_name},
             ):
                 return

@@ -39,11 +39,20 @@ def _load_current_args(settings_path: Path) -> DataQualityGateArgs:
 
 
 env = _get_env()
-settings_path = Path(env.app_settings_file)
+settings_path = Path(env.app_settings_file).resolve(strict=False)
 current_args = _load_current_args(settings_path)
 current_payload = current_args.model_dump(mode="json")
+artifact_target = str(getattr(env, "target", "") or getattr(env, "app", "") or "data_quality_gate_project")
+export_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export")).resolve(
+    strict=False
+)
+artifact_target = Path(artifact_target).name
+if artifact_target in {"", ".", ".."}:
+    # Path("..").name keeps a bare ".." which would escape one level above the
+    # export root; fall back to the project default so the artifact stays confined.
+    artifact_target = "data_quality_gate_project"
 
-artifact_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export")) / env.target / "data_quality_gate"
+artifact_root = export_root / artifact_target / "data_quality_gate"
 st.caption(
     "Data Quality Gate validates a candidate dataset against a contract, drift thresholds, "
     f"and a promotion decision. Leave CSV fields empty for the deterministic built-in sample. "

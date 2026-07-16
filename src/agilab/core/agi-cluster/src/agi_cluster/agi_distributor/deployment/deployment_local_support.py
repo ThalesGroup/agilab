@@ -1740,6 +1740,9 @@ async def deploy_local_worker(
     if isinstance(dataset_archive, Path) and dataset_archive.exists():
         archives.append(dataset_archive)
 
+    # TODO: the app-specific Trajectory.7z discovery below belongs in a per-app
+    # post_install hook in agi_node, not in the shared core deployer. Until that
+    # move, keep the generic archive-copy path but surface staging failures.
     try:
         active_src = Path(env.active_app) / "src"
         if active_src.exists():
@@ -1753,15 +1756,11 @@ async def deploy_local_worker(
 
     if archives:
         try:
-            share_root = env.share_root_path()
-            install_dataset_dir = share_root
-            log.info(f"mkdir {install_dataset_dir}")
-            os.makedirs(install_dataset_dir, exist_ok=True)
-
             seen_archives: set[str] = set()
             # App-specific dataset reuse decisions (e.g. sat_trajectory's
             # Trajectory.7z) belong to the per-app post_install hook in
-            # agi_node; the generic deployer just copies archives.
+            # agi_node; the generic deployer just copies archives into the
+            # worker env dest (wenv_abs/src/<target_worker>).
             for archive_path in sorted(archives, key=lambda path: path.as_posix()):
                 key = str(archive_path)
                 if key in seen_archives:
@@ -1772,14 +1771,18 @@ async def deploy_local_worker(
                     dest / archive_path.name,
                     copy_cache_enabled=stage_cache_enabled,
                 )
-        except (FileNotFoundError, PermissionError, RuntimeError) as exc:
-            log.warning(
-                "Skipping dataset archive copy to %s: %s",
-                install_dataset_dir
-                if "install_dataset_dir" in locals()
-                else "<share root>",
+        except (FileNotFoundError, PermissionError, RuntimeError, OSError) as exc:
+            # Fail closed: archives were found but could not be staged into the
+            # worker env dest, so the install must not report success. Record a
+            # failed stage in the deploy plan and re-raise instead of swallowing
+            # the error. The warning names the real copy destination (dest).
+            deploy_plan.results["worker-dataset-archive"] = "failed"
+            log.error(
+                "Failed to stage dataset archive(s) into %s: %s",
+                dest,
                 exc,
             )
+            raise
 
     post_install_tool = _compose_worker_post_install_tool(
         _local_worker_post_install_env_prefix(agi_cls),

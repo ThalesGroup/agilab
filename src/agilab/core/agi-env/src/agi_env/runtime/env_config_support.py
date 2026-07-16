@@ -6,7 +6,7 @@ import os
 from collections.abc import Mapping
 from pathlib import Path
 
-from dotenv import dotenv_values, set_key
+from dotenv import dotenv_values, set_key, unset_key
 
 ENV_MAPPING_EXCEPTIONS = (AttributeError, TypeError)
 
@@ -59,3 +59,35 @@ def write_env_updates(env_file: Path, updates: dict[str, object]) -> None:
     env_file.parent.mkdir(parents=True, exist_ok=True)
     for key, value in updates.items():
         set_key(str(env_file), key, str(value), quote_mode="never")
+
+
+def remove_env_keys(env_file: Path, keys) -> list[str]:
+    """Remove ``keys`` from a dotenv file, returning the keys that were present.
+
+    Counterpart to :func:`write_env_updates`, which only ever adds. Missing
+    files and missing keys are treated as no-ops, so callers can prune stale
+    entries idempotently without making python-dotenv emit missing-key warnings.
+    """
+
+    if not env_file.exists():
+        return []
+    present_keys = [str(key) for key in dotenv_values(dotenv_path=env_file)]
+    case_insensitive = os.name == "nt"
+    removed: list[str] = []
+    for requested_key in keys:
+        requested = str(requested_key)
+        matching_keys = [
+            present
+            for present in present_keys
+            if (
+                present.casefold() == requested.casefold()
+                if case_insensitive
+                else present == requested
+            )
+        ]
+        for actual_key in matching_keys:
+            result, _ = unset_key(str(env_file), actual_key, quote_mode="never")
+            if result:
+                removed.append(actual_key)
+            present_keys.remove(actual_key)
+    return removed

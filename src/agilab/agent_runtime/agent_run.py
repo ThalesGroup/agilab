@@ -135,7 +135,10 @@ def _new_run_id(agent: str) -> str:
 
 
 def _default_log_root() -> Path:
-    return Path(os.environ.get("AGILAB_LOG_ABS", str(Path.home() / "log"))).expanduser()
+    # AGI_LOG_DIR is the documented canonical name; AGILAB_LOG_ABS is the
+    # internal resolved-path attribute kept here as an alias for compatibility.
+    raw = os.environ.get("AGI_LOG_DIR") or os.environ.get("AGILAB_LOG_ABS")
+    return Path(raw if raw else str(Path.home() / "log")).expanduser()
 
 
 def _default_output_dir(agent: str, run_id: str) -> Path:

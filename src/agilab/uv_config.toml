@@ -1,5 +1,4 @@
 
  override-dependencies = [
-    "streamlit-pandas-profiling",
     "ydata-profiling; python_version < '3.14'",
  ]

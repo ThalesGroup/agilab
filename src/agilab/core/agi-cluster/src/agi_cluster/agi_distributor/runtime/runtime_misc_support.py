@@ -19,6 +19,15 @@ from datetime import timedelta
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Callable, List, Optional, cast
 
+# NOTE: The capacity-model manifest is an *integrity* control, not an
+# authenticity/signing control. It is an unsigned sha256 co-located with the
+# model file, so it only detects accidental corruption or truncation of a
+# pickle the operator already trusts on disk. It cannot prove *who* produced
+# the model. Loading is additionally constrained to a trusted root, rejects
+# shared-group/world-writable files on POSIX, and verifies Windows owner SID
+# identity. These controls reduce the pickle-planting surface but do not prove
+# who produced the model. Do not treat manifest verification alone as a defense
+# against a tampered model.
 CAPACITY_MODEL_MANIFEST_SCHEMA = "agilab.capacity_model_manifest.v1"
 CAPACITY_MODEL_HASH_ALGORITHM = "sha256"
 _CAPACITY_LOAD_EXCEPTIONS = (
@@ -263,6 +272,120 @@ def load_capacity_predictor(
         return None
 
 
+def _posix_group_is_user_private(stat_result: os.stat_result) -> bool:
+    """Return True when the file's group is the current user's private group.
+
+    A "user-private group" (the common Linux default where each user has a
+    same-named group with only that user as a member) is not a meaningful
+    escalation surface, so group-write on such a group is tolerated. Any other
+    (shared) group with write permission is rejected.
+    """
+    try:
+        import grp
+        import pwd
+
+        euid = os.geteuid()
+        user_record = pwd.getpwuid(euid)
+        # Group matches the user's own primary group.
+        if stat_result.st_gid == user_record.pw_gid:
+            return True
+        group_record = grp.getgrgid(stat_result.st_gid)
+        members = set(group_record.gr_mem)
+        members.discard(user_record.pw_name)
+        # Private group: only the owning user (already excluded) is a member.
+        return not members
+    except (ImportError, KeyError, OSError, AttributeError):
+        # Cannot verify group membership; treat as shared (not private).
+        return False
+
+
+def _windows_capacity_model_identities(
+    model_path: Path,
+) -> tuple[str, tuple[str, ...], str | None]:
+    """Return the file SID, trusted process-token SIDs, and an owner label."""
+
+    try:
+        import win32api
+        import win32con
+        import win32security
+    except ImportError as exc:
+        raise RuntimeError(
+            "pywin32 is required to verify capacity model ownership on Windows"
+        ) from exc
+
+    security_descriptor = win32security.GetFileSecurity(
+        str(model_path),
+        win32security.OWNER_SECURITY_INFORMATION,
+    )
+    owner_sid = security_descriptor.GetSecurityDescriptorOwner()
+    if owner_sid is None:
+        raise OSError("model file has no owner SID")
+
+    token = win32security.OpenProcessToken(
+        win32api.GetCurrentProcess(),
+        win32con.TOKEN_QUERY,
+    )
+    try:
+        current_sid, _attributes = win32security.GetTokenInformation(
+            token,
+            win32security.TokenUser,
+        )
+        token_owner = win32security.GetTokenInformation(
+            token,
+            win32security.TokenOwner,
+        )
+        default_owner_sid = (
+            token_owner[0] if isinstance(token_owner, tuple) else token_owner
+        )
+        owner_sid_text = win32security.ConvertSidToStringSid(owner_sid)
+        current_sid_text = win32security.ConvertSidToStringSid(current_sid)
+        default_owner_sid_text = win32security.ConvertSidToStringSid(
+            default_owner_sid
+        )
+    finally:
+        token.Close()
+
+    owner_label: str | None = None
+    try:
+        owner_name, owner_domain, _account_type = win32security.LookupAccountSid(
+            None,
+            owner_sid,
+        )
+        owner_label = (
+            f"{owner_domain}\\{owner_name}" if owner_domain else owner_name
+        )
+    except Exception:
+        # Best-effort diagnostic only; SID equality remains the trust decision.
+        pass
+    trusted_sids = tuple(dict.fromkeys((current_sid_text, default_owner_sid_text)))
+    return owner_sid_text, trusted_sids, owner_label
+
+
+def _windows_capacity_model_owner_error(
+    model_path: Path,
+    *,
+    identities_fn: Callable[[Path], tuple[str, tuple[str, ...], str | None]]
+    | None = None,
+) -> str | None:
+    """Return a fail-closed error unless the owner matches the process token."""
+
+    identity_provider = identities_fn or _windows_capacity_model_identities
+    try:
+        owner_sid, trusted_sids, owner_label = identity_provider(model_path)
+    except Exception as exc:
+        # pywin32 raises several exception types across versions. This boundary
+        # must turn every lookup failure into refusal to deserialize the pickle.
+        return f"cannot verify model file ownership on Windows: {exc}"
+
+    normalized_trusted_sids = {sid.casefold() for sid in trusted_sids if sid}
+    if not owner_sid or not normalized_trusted_sids:
+        return "cannot verify model file ownership on Windows: an owner SID is missing"
+    if owner_sid.casefold() not in normalized_trusted_sids:
+        owner = owner_label or owner_sid
+        return f"model file is owned by {owner}, not the current Windows token"
+    return None
+
+
 def _capacity_model_trust_error(model_path: Path, trusted_root: Path) -> str | None:
     path = Path(model_path).expanduser().resolve(strict=False)
     root = Path(trusted_root).expanduser().resolve(strict=False)
@@ -270,12 +393,20 @@ def _capacity_model_trust_error(model_path: Path, trusted_root: Path) -> str | N
         return f"path is outside trusted resource root {root}"
 
     try:
-        mode = path.stat().st_mode
+        stat_result = path.stat()
     except OSError as exc:
         return f"cannot stat model file: {exc}"
+    mode = stat_result.st_mode
 
-    if os.name != "nt" and mode & stat.S_IWOTH:
+    if os.name == "nt":
+        # POSIX permission bits are not authoritative on Windows. Compare the
+        # native file-owner SID with the token user/default-owner SIDs instead.
+        return _windows_capacity_model_owner_error(path)
+
+    if mode & stat.S_IWOTH:
         return "model file is world-writable"
+    if mode & stat.S_IWGRP and not _posix_group_is_user_private(stat_result):
+        return "model file is group-writable by a shared group"
     return None
 
 

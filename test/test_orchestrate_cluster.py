@@ -462,9 +462,13 @@ def test_orchestrate_cluster_helper_edge_branches(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     assert orchestrate_cluster._lan_discovery_cluster_defaults(cache) == {
-        "scheduler": "192.168.20.111:8786",
+        "scheduler": f"192.168.20.111:{orchestrate_cluster.DEFAULT_SCHEDULER_PORT}",
         "workers": {"192.168.20.111": 1, "worker-a": 1},
     }
+    # LAN autofill must use the canonical scheduler port (8780 since commit
+    # 7fe662f99), not the stale 8786 literal.
+    assert orchestrate_cluster.DEFAULT_SCHEDULER_PORT == 8780
+    assert orchestrate_cluster._lan_discovery_cluster_defaults(cache)["scheduler"].endswith(":8780")
     assert orchestrate_cluster._lan_discovery_invalid_worker_hosts(cache) == {"worker-b"}
     assert orchestrate_cluster._lan_discovery_invalid_worker_hosts(None) == set()
     assert orchestrate_cluster._lan_discovery_invalid_worker_hosts(list_cache) == set()
@@ -877,7 +881,7 @@ def test_cluster_advisor_recommends_workers_and_writes_evidence(tmp_path):
     assert plan["schema"] == orchestrate_cluster.CLUSTER_ADVISOR_SCHEMA
     assert plan["mode"] == "advisor_only"
     assert plan["status"] == "ok"
-    assert plan["scheduler"] == "192.168.20.111:8786"
+    assert plan["scheduler"] == "192.168.20.111:8780"
     assert plan["workers_data_path"] == "clustershare"
     assert plan["current_workers"] == {"worker-a": 1}
     assert plan["recommended_workers"] == {
@@ -1155,7 +1159,7 @@ def test_lan_discovery_cluster_defaults_uses_ready_cache_nodes(tmp_path):
     defaults = orchestrate_cluster._lan_discovery_cluster_defaults(cache_path)
 
     assert defaults == {
-        "scheduler": "192.168.3.103:8786",
+        "scheduler": "192.168.3.103:8780",
         "workers": {"192.168.3.103": 1, "192.168.3.35": 1},
     }
 
@@ -1223,7 +1227,7 @@ def test_lan_discovery_cluster_defaults_accepts_explicit_non_private_lan_cache(t
     defaults = orchestrate_cluster._lan_discovery_cluster_defaults(cache_path)
 
     assert defaults == {
-        "scheduler": "192.128.20.111:8786",
+        "scheduler": "192.128.20.111:8780",
         "workers": {"192.128.20.111": 1, "192.128.20.130": 1},
     }
 
@@ -1290,7 +1294,7 @@ def test_lan_discovery_cluster_defaults_uses_only_ready_worker_candidates(tmp_pa
     defaults = orchestrate_cluster._lan_discovery_cluster_defaults(cache_path)
 
     assert defaults == {
-        "scheduler": f"{scheduler}:8786",
+        "scheduler": f"{scheduler}:8780",
         "workers": {scheduler: 1, known_hosts_auth_host: 1},
     }
 
@@ -1324,7 +1328,7 @@ def test_lan_discovery_cluster_defaults_skips_non_ready_authenticated_known_host
     defaults = orchestrate_cluster._lan_discovery_cluster_defaults(cache_path)
 
     assert defaults == {
-        "scheduler": "192.168.20.111:8786",
+        "scheduler": "192.168.20.111:8780",
         "workers": {"192.168.20.111": 1},
     }
 
@@ -1377,7 +1381,7 @@ def test_lan_discovery_cluster_defaults_reads_cache_from_env_home(tmp_path):
     defaults = orchestrate_cluster._lan_discovery_cluster_defaults(home=home)
 
     assert defaults == {
-        "scheduler": "192.168.50.10:8786",
+        "scheduler": "192.168.50.10:8780",
         "workers": {"192.168.50.10": 1, "192.168.50.20": 1},
     }
 
@@ -3559,3 +3563,18 @@ def test_render_cluster_settings_ui_reports_second_workflow_session_prepare_erro
 
     assert calls["count"] == 2
     assert any("Could not prepare workflow session" in error for error in fake_st.errors)
+
+
+def test_empty_scheduler_sentinel_tracks_default_scheduler_port():
+    # The empty-scheduler sentinel must match the canonical default port (8780
+    # since commit 7fe662f99) so LAN autofill can override the local default.
+    assert orchestrate_cluster.DEFAULT_SCHEDULER_PORT == 8780
+    assert orchestrate_cluster._is_empty_scheduler(
+        f"127.0.0.1:{orchestrate_cluster.DEFAULT_SCHEDULER_PORT}"
+    )
+    assert orchestrate_cluster._is_empty_scheduler("127.0.0.1:8780")
+    # The stale 8786 literal is no longer treated as an empty default, so an
+    # explicit 8786 scheduler is preserved rather than silently overwritten.
+    assert not orchestrate_cluster._is_empty_scheduler("127.0.0.1:8786")
+    assert orchestrate_cluster._is_empty_scheduler("")
+    assert orchestrate_cluster._is_empty_scheduler("localhost")

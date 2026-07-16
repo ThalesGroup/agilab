@@ -43,6 +43,7 @@ _TOFU_HOST_KEY_VALUES = {
     "false",
     "learn",
     "learn-and-pin",
+    "no",
     "off",
     "tofu",
 }
@@ -54,6 +55,10 @@ def _is_local_ip(ip: str) -> bool:
 
 
 def _env_lookup(env: Any, *names: str) -> str | None:
+    # Canonical twin of deployment_remote_support._env_lookup; duplicated to
+    # avoid an import cycle between the runtime transport and deployment
+    # modules. The deployment copy additionally emits an alias-conflict
+    # warning; keep the core lookup/precedence behavior in sync.
     for name in names:
         value = getattr(env, name, None)
         if value not in (None, ""):
@@ -88,8 +93,12 @@ def _cluster_ssh_host_key_policy(env: Any) -> str:
         return "strict"
     if normalized in _TOFU_HOST_KEY_VALUES:
         return "accept-new"
+    # OpenSSH-style "ask" (interactive prompt) has no counterpart here, so it
+    # falls through to this error rather than silently downgrading security.
     raise ValueError(
-        "Invalid cluster SSH host-key policy. Use 'strict' or 'accept-new'."
+        f"Invalid cluster SSH host-key policy {configured!r}. "
+        "Use a strict value (e.g. 'strict', 'yes', 'on') or an accept-new/TOFU "
+        "value (e.g. 'accept-new', 'no', 'off', 'tofu')."
     )
 
 
@@ -591,9 +600,13 @@ async def exec_ssh(
                 stdout = stdout.decode("utf-8", errors="replace")
             if isinstance(stderr, bytes):
                 stderr = stderr.decode("utf-8", errors="replace")
-            if stderr:
-                log.info(f"[{ip}] {stderr.strip()}")
             if _verbose_logging_enabled():
+                # stderr on a successful remote command is progress noise
+                # (e.g. uv install output); only surface it when verbose so
+                # default installs stay quiet. Error-path stderr is still
+                # logged unconditionally in the except branches below.
+                if stderr:
+                    log.info(f"[{ip}] {stderr.strip()}")
                 if stdout:
                     log.info(f"[{ip}] {stdout.strip()}")
             return (stdout or "").strip() + "\n" + (stderr or "").strip()
@@ -685,3 +698,14 @@ async def close_all_connections(agi_cls: Any) -> None:
                 logger.warning("SSH connection did not close cleanly", exc_info=True)
     finally:
         agi_cls._ssh_connections.clear()
+
+    # Evict the per-(loop, ip) connect locks for the current event loop so the
+    # cache does not grow without bound and cannot collide with a future loop
+    # that reuses the same id() after this one is closed.
+    try:
+        loop_id = id(asyncio.get_running_loop())
+    except RuntimeError:
+        return
+    stale_keys = [key for key in _SSH_CONNECT_LOCKS if key[0] == loop_id]
+    for key in stale_keys:
+        _SSH_CONNECT_LOCKS.pop(key, None)

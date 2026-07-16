@@ -481,8 +481,8 @@ async def _prepare_scheduler_nodes(
 
 
 async def _ensure_local_scheduler_port(agi_cls: Any, *, log: Any = logger) -> None:
-    # The scheduler port is deterministic (default 8786, the first port of
-    # AGILAB_DASK_SCHEDULER_PORT_RANGE, or an explicit scheduler="ip:port"):
+    # The scheduler port is deterministic (the first port of the scheduler
+    # port range — default 8780:8790 — or an explicit scheduler="ip:port"):
     # never swap it for a random one, as firewall rules may only allow the
     # configured ports. When the port is busy, only the remaining ports of the
     # configured range are tried.

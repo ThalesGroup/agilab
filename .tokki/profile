@@ -1,6 +1,7 @@
 agilab
-agilab-clean-worktree
-repo-update-on-launch-clean-only
+repo-update-on-launch
+context-provenance-require-pass
+codex-local-api-route
 agilab-validation-shortcuts
 agilab-builtin-apps
 agilab-docs-mirror

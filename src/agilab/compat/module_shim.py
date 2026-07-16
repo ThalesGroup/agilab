@@ -53,7 +53,9 @@ def _execute_target_in_current_module(
 ) -> ModuleType | None:
     current_module = sys.modules.get(current_name)
     spec = importlib.util.find_spec(target_name)
-    target_namespace = current_module.__dict__ if current_module is not None else namespace
+    target_namespace = (
+        current_module.__dict__ if current_module is not None else namespace
+    )
     if target_namespace is None or spec is None or spec.origin is None:
         return importlib.import_module(target_name)
     target_package = target_name.rpartition(".")[0]
@@ -65,6 +67,24 @@ def _execute_target_in_current_module(
         "exec",
     )
     exec(source, target_namespace)
+    # Register the executed target so a later ``import target_name`` reuses this
+    # namespace instead of re-running the module body (double execution would
+    # duplicate module-level state). Guard on absence to avoid clobbering an
+    # in-progress import of ``target_name``.
+    if target_name not in sys.modules:
+        executed = ModuleType(target_name)
+        executed.__dict__.update(target_namespace)
+        # ``target_namespace`` belongs to the synthetic legacy loader. Keep
+        # that identity in the caller, but never publish its legacy spec under
+        # the classified target name: ``find_spec(target_name)`` would then
+        # resolve back to the shim and recursively execute it.
+        executed.__name__ = target_name
+        executed.__package__ = target_package
+        executed.__file__ = spec.origin
+        executed.__loader__ = spec.loader
+        executed.__spec__ = spec
+        executed.__cached__ = spec.cached
+        sys.modules[target_name] = executed
     return None
 
 
@@ -76,15 +96,18 @@ def activate_compat_module(
     The helper keeps ``import agilab.<legacy>`` working after moving the real
     module into a classified subpackage. When a shim is executed as a module,
     it delegates to the target module with ``__main__`` semantics.
+
+    TODO: emit a ``DeprecationWarning`` for external callers of the legacy path
+    once the internal call sites have migrated. Adding it now would spam every
+    first-party import that still routes through these shims.
     """
 
     if current_name == "__main__":
         runpy.run_module(target_name, run_name="__main__")
         return None
 
-    if (
-        legacy_name is not None
-        and (current_name != legacy_name or not current_name.startswith("agilab."))
+    if legacy_name is not None and (
+        current_name != legacy_name or not current_name.startswith("agilab.")
     ):
         caller_globals = sys._getframe(1).f_globals
         return _execute_target_in_current_module(

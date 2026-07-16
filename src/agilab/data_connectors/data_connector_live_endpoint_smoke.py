@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import socket
 import sqlite3
 from typing import Any, Mapping, Sequence
 from urllib import request
@@ -88,6 +89,33 @@ def _local_http_allowed() -> bool:
     return os.getenv(LOCAL_HTTP_OPT_IN_ENV, "").strip().lower() in {"1", "true", "yes"}
 
 
+def _address_is_blocked(address: ipaddress._BaseAddress, *, allow_local_http: bool) -> str:
+    if address in BLOCKED_LINK_LOCAL_METADATA_IPS:
+        return "metadata-service target is blocked"
+    if address.is_loopback:
+        return "" if allow_local_http else "loopback targets require local emulator opt-in"
+    if address.is_private or address.is_link_local or address.is_unspecified or address.is_multicast:
+        return "non-public IP targets are blocked"
+    return ""
+
+
+def _resolve_host_addresses(host: str) -> list[ipaddress._BaseAddress]:
+    addresses: list[ipaddress._BaseAddress] = []
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+    except (socket.gaierror, OSError, UnicodeError):
+        return addresses
+    for info in infos:
+        sockaddr = info[4]
+        if not sockaddr:
+            continue
+        try:
+            addresses.append(ipaddress.ip_address(sockaddr[0]))
+        except ValueError:
+            continue
+    return addresses
+
+
 def _host_is_blocked(host: str, *, allow_local_http: bool) -> str:
     if not host:
         return "missing host"
@@ -97,14 +125,18 @@ def _host_is_blocked(host: str, *, allow_local_http: bool) -> str:
     try:
         address = ipaddress.ip_address(lowered)
     except ValueError:
+        # DNS name: resolve it and apply the block policy to EVERY resolved
+        # address so names that resolve to metadata/loopback/private targets
+        # never receive the connection or the Bearer token.
+        resolved = _resolve_host_addresses(lowered)
+        if not resolved:
+            return "hostname did not resolve to any address"
+        for resolved_address in resolved:
+            reason = _address_is_blocked(resolved_address, allow_local_http=allow_local_http)
+            if reason:
+                return reason
         return ""
-    if address in BLOCKED_LINK_LOCAL_METADATA_IPS:
-        return "metadata-service target is blocked"
-    if address.is_loopback:
-        return "" if allow_local_http else "loopback targets require local emulator opt-in"
-    if address.is_private or address.is_link_local or address.is_unspecified or address.is_multicast:
-        return "non-public IP targets are blocked"
-    return ""
+    return _address_is_blocked(address, allow_local_http=allow_local_http)
 
 
 def _validate_live_probe_url(url: str, *, allow_local_http: bool = False) -> tuple[bool, str]:

@@ -98,6 +98,10 @@ distribution.json
 # Local generated reports
 /reports/
 
+# Generated audit reports must never land in the tracked skill tree
+.claude/skills/**/AUDIT_REPORT_*.md
+.claude/skills/**/AGILAB_DEEP_AUDIT_*.md
+
 # Sphinx output (generated locally, not versioned)
 docs/html/
 

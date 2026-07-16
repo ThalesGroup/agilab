@@ -19,6 +19,7 @@
 # Internal Libraries:
 import importlib
 import os
+import re
 import sys
 import stat
 import json
@@ -37,6 +38,11 @@ from agi_env import AgiEnv
 logger = logging.getLogger(__name__)
 workers_default = {socket.gethostbyname("localhost"): 1}
 RUN_STAGES_KEY = "_agilab_run_stages"
+
+# Conservative module/distribution name allow-list for runtime auto-install.
+# The auto-install command is executed through a shell, so the name must not
+# contain metacharacters that could be routed by the shell.
+_SAFE_MODULE_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 class WorkDispatcher:
@@ -401,7 +407,8 @@ class WorkDispatcher:
         capacities = WorkDispatcher._normalize_worker_capacities(chk_weights, {})
         nchk = len(capacities)
 
-        subsets.sort(reverse=True, key=lambda j: j[1])
+        # Sort a copy so callers keep their original ``subsets`` ordering.
+        subsets = sorted(subsets, reverse=True, key=lambda j: j[1])
         chunks = [[] for _ in range(nchk)]
         normalized_loads = np.zeros(nchk, dtype=float)
 
@@ -480,6 +487,13 @@ class WorkDispatcher:
             module_to_install = WorkDispatcher._missing_module_name(e)
             if not module_to_install:
                 raise
+            if not _SAFE_MODULE_NAME_RE.match(module_to_install):
+                logger.error(
+                    "runtime dependency auto-install refused for unsafe module name %r; "
+                    "only [A-Za-z0-9._-] are allowed",
+                    module_to_install,
+                )
+                raise
             app_path = env.active_app
             cmd = f"{env.uv} add --upgrade {module_to_install}"
             await WorkDispatcher._record_runtime_auto_install_event(env, module_to_install, cmd, app_path)
@@ -502,10 +516,13 @@ class WorkDispatcher:
 
     @staticmethod
     def _missing_module_name(exc: ModuleNotFoundError) -> str:
+        # Preserve the original module/dist name casing: PyPI names passed to
+        # ``uv add`` are case-sensitive, so lowercasing can request the wrong
+        # distribution.
         name = getattr(exc, "name", None)
         if name:
-            return str(name).strip().lower()
-        return str(exc).replace("No module named ", "").lower().replace("'", "").strip()
+            return str(name).strip()
+        return str(exc).replace("No module named ", "").replace("'", "").strip()
 
     @staticmethod
     async def _record_runtime_auto_install_event(env, module_name: str, cmd: str, app_path: Path) -> None:
