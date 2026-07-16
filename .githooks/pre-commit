@@ -9,5 +9,6 @@ if [[ "${AGILAB_SKIP_LOCAL_GUARDS:-}" == "1" ]]; then
 fi
 
 cd "$ROOT_DIR"
-uv --preview-features extra-build-dependencies run python tools/agent_commit_provenance_guard.py \
+. "$(dirname -- "${BASH_SOURCE[0]}")/guard_python.sh"
+run_guard_python tools/agent_commit_provenance_guard.py \
   --check-config
