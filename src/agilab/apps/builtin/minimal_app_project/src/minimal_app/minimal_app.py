@@ -41,8 +41,11 @@ class MinimalApp(BaseWorker):
         # Inputs may be pre-existing datasets under the cluster share root;
         # fall back to it when nothing exists under the workflow data root.
         resolve_input = getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
-        self.args.data_in = resolve_input(self.args.data_in)
-        self.args.data_out = env.resolve_share_path(self.args.data_out)
+        try:
+            self.args.data_in = resolve_input(self.args.data_in)
+            self.args.data_out = env.resolve_share_path(self.args.data_out)
+        except ValueError as exc:
+            raise ValueError(f"Invalid MinimalApp data_in/data_out path: {exc}") from exc
         self.data_out = self.args.data_out
 
         # The minimal_app tests expect the data source directory to exist immediately

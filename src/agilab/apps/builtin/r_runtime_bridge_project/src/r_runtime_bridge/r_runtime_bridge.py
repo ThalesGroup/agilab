@@ -45,7 +45,10 @@ class RRuntimeBridge(BaseWorker):
                 raise ValueError(f"Invalid RRuntimeBridge arguments: {exc}") from exc
 
         self.args = ensure_defaults(args, env=env)
-        self.args.data_out = env.resolve_share_path(self.args.data_out)
+        try:
+            self.args.data_out = env.resolve_share_path(self.args.data_out)
+        except ValueError as exc:
+            raise ValueError(f"Invalid RRuntimeBridge data_out path: {exc}") from exc
         self.data_out = self.args.data_out
 
         if self.args.reset_target and self.data_out.exists():

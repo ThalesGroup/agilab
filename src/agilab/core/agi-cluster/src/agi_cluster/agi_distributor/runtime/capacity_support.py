@@ -736,6 +736,7 @@ def update_capacity(agi_cls: Any) -> None:
         return
 
     current_state = deepcopy(workers_rt)
+    unresolved_workers: set[str] = set()
 
     for worker, data in workers_rt.items():
         worker_cap = data["label"]
@@ -763,8 +764,17 @@ def update_capacity(agi_cls: Any) -> None:
                         worker,
                         host,
                     )
-                    return
+                    # Drop only this worker's row from the balancer CSV/retrain
+                    # instead of aborting the whole batch for every worker.
+                    unresolved_workers.add(worker)
+                    break
                 workers_rt[worker]["nb_workers"] = worker_count
+
+    for worker in unresolved_workers:
+        del workers_rt[worker]
+
+    if not workers_rt:
+        return
 
     for worker_name, data in workers_rt.items():
         del data["run_time"]

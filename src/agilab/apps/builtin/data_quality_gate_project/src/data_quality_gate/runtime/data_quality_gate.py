@@ -52,7 +52,10 @@ class DataQualityGate(BaseWorker):
 
         self.args = ensure_defaults(args, env=env)
         self.args = self._apply_managed_pc_paths(self.args)
-        self.data_out = env.resolve_share_path(self.args.data_out)
+        try:
+            self.data_out = env.resolve_share_path(self.args.data_out)
+        except ValueError as exc:
+            raise ValueError(f"Invalid DataQualityGate data_out path: {exc}") from exc
 
         if self.args.reset_target and self.data_out.exists():
             reset_path = safe_reset_path(self.data_out, share_root=share_root_from_env(env), label="data_out")

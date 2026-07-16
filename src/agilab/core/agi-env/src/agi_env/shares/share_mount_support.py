@@ -159,7 +159,15 @@ def is_mounted(path: str, *, home_path: Path) -> bool:
     if mountinfo_available:
         return True
     try:
-        return Path(path).is_mount()
+        if Path(path).is_mount():
+            return True
+        # A subdirectory beneath a mount point (e.g. a per-user share
+        # subdirectory) is not itself a mount root, but still lives on the
+        # mounted device. Compare against the local home filesystem to tell
+        # a genuinely mounted share apart from a plain local directory.
+        path_dev = os.stat(path).st_dev
+        home_dev = os.stat(home_path).st_dev
+        return path_dev != home_dev
     except OSError:
         return False
 

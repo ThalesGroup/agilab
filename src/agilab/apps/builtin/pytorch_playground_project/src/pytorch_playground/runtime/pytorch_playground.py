@@ -46,7 +46,10 @@ class PytorchPlayground(BaseWorker):
 
         self.args = ensure_defaults(args, env=env)
         self.args = self._apply_managed_pc_paths(self.args)
-        self.args.data_out = env.resolve_share_path(self.args.data_out)
+        try:
+            self.args.data_out = env.resolve_share_path(self.args.data_out)
+        except ValueError as exc:
+            raise ValueError(f"Invalid PyTorch playground data_out path: {exc}") from exc
         self.data_out = self.args.data_out
 
         if self.args.reset_target and self.data_out.exists():

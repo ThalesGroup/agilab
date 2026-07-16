@@ -146,9 +146,13 @@ else:
     else:
         st.info("No changes to save.")
 
-    resolved_data_out = env.resolve_share_path(validated.data_out)
-    st.caption(
-        f"Resolved evidence directory: `{resolved_data_out}`  -  "
-        f"input mode: `{'csv' if validated.baseline_csv and validated.candidate_csv else 'synthetic'}`  -  "
-        f"candidate/baseline rows: `{validated.candidate_rows}/{validated.baseline_rows}`."
-    )
+    try:
+        resolved_data_out = env.resolve_share_path(validated.data_out)
+    except ValueError as exc:
+        st.error(f"Invalid data_out path: {exc}")
+    else:
+        st.caption(
+            f"Resolved evidence directory: `{resolved_data_out}`  -  "
+            f"input mode: `{'csv' if validated.baseline_csv and validated.candidate_csv else 'synthetic'}`  -  "
+            f"candidate/baseline rows: `{validated.candidate_rows}/{validated.baseline_rows}`."
+        )

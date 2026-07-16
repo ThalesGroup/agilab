@@ -869,7 +869,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
                 output_path = candidate.resolve(strict=False)
             except (OSError, RuntimeError):
                 output_path = Path(os.path.normpath(str(candidate)))
-        confinement_root = share_root or output_root
+        confinement_root = output_root
         output_path = type(self)._ensure_path_within(
             output_path,
             Path(confinement_root),

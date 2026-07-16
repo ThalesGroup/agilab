@@ -568,8 +568,9 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         Resolve ``path`` relative to the active shared data root.
 
         ``None`` or ``"."`` returns the active data root itself; absolute inputs
-        pass through unchanged. When workflow/session scoping is active,
-        ``AGILAB_WORKFLOW_DATA_ROOT`` is the active data root while
+        are accepted only when they resolve inside the active data root, and
+        raise :class:`ValueError` otherwise. When workflow/session scoping is
+        active, ``AGILAB_WORKFLOW_DATA_ROOT`` is the active data root while
         ``AGI_CLUSTER_SHARE`` remains the physical cluster-share mount root.
         """
         return resolve_relative_share_path(path, self.workflow_data_root_path())

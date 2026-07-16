@@ -174,14 +174,18 @@ else:
         st.info("No changes to save.")
 
     _resolve_input = getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
-    resolved_data_in = _resolve_input(validated.data_in)
-    resolved_data_out = env.resolve_share_path(validated.data_out)
-    if not any(resolved_data_in.glob(validated.files)):
-        st.info("No matching scenario file exists yet. The bundled public scenario will be seeded on first run.")
-    st.caption(
-        f"Resolved input: `{resolved_data_in}`  -  results: `{resolved_data_out}`  -  "
-        f"analysis artifacts: `{artifact_root}`"
-    )
+    try:
+        resolved_data_in = _resolve_input(validated.data_in)
+        resolved_data_out = env.resolve_share_path(validated.data_out)
+    except ValueError as exc:
+        st.error(f"Invalid data_in/data_out path: {exc}")
+    else:
+        if not any(resolved_data_in.glob(validated.files)):
+            st.info("No matching scenario file exists yet. The bundled public scenario will be seeded on first run.")
+        st.caption(
+            f"Resolved input: `{resolved_data_in}`  -  results: `{resolved_data_out}`  -  "
+            f"analysis artifacts: `{artifact_root}`"
+        )
     st.caption(
         "Default behavior selects a fast direct route first, injects a bandwidth drop, "
         "then re-plans toward a more reliable relay route."

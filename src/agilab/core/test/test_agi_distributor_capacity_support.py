@@ -936,6 +936,82 @@ def test_update_capacity_ignores_zero_runtime_adjustment(tmp_path, monkeypatch):
     assert Path(AGI._capacity_data_file).exists()
 
 
+def test_update_capacity_skips_only_unresolved_worker(tmp_path, monkeypatch):
+    # 10.0.0.2 is missing from AGI._workers (e.g. a stale/mismatched
+    # hostname); its row must be dropped without discarding the whole batch,
+    # so 127.0.0.1's row still gets written and the model still retrains.
+    AGI._workers = {"127.0.0.1": 1}
+    AGI.workers_info = {
+        "127.0.0.1:8787": {
+            "nb_workers": 1,
+            "ram_total": 10.0,
+            "ram_available": 5.0,
+            "cpu_count": 4.0,
+            "cpu_frequency": 2.5,
+            "network_speed": 1.0,
+            "label": 1.0,
+        },
+        "10.0.0.2:8788": {
+            "nb_workers": 1,
+            "ram_total": 20.0,
+            "ram_available": 10.0,
+            "cpu_count": 8.0,
+            "cpu_frequency": 3.0,
+            "network_speed": 2.0,
+            "label": 2.0,
+        },
+    }
+    AGI._run_time = [
+        {"127.0.0.1:8787": 2.0},
+        {"10.0.0.2:8788": 1.0},
+    ]
+    AGI._capacity_data_file = str(tmp_path / "capacity.csv")
+    AGI.env = SimpleNamespace(home_abs=str(tmp_path))
+    train_calls = {"count": 0}
+    monkeypatch.setattr(
+        AGI,
+        "_train_capacity",
+        staticmethod(lambda _path: train_calls.__setitem__("count", train_calls["count"] + 1)),
+    )
+
+    capacity_support.update_capacity(AGI)
+
+    assert train_calls["count"] == 1
+    csv_path = Path(AGI._capacity_data_file)
+    assert csv_path.exists()
+    rows = [line for line in csv_path.read_text(encoding="utf-8").split("\r") if line]
+    assert len(rows) == 1
+
+
+def test_update_capacity_skips_retrain_when_every_worker_is_unresolved(tmp_path, monkeypatch):
+    AGI._workers = {}
+    AGI.workers_info = {
+        "10.0.0.2:8788": {
+            "nb_workers": 1,
+            "ram_total": 20.0,
+            "ram_available": 10.0,
+            "cpu_count": 8.0,
+            "cpu_frequency": 3.0,
+            "network_speed": 2.0,
+            "label": 2.0,
+        },
+    }
+    AGI._run_time = [{"10.0.0.2:8788": 1.0}]
+    AGI._capacity_data_file = str(tmp_path / "capacity.csv")
+    AGI.env = SimpleNamespace(home_abs=str(tmp_path))
+    train_calls = {"count": 0}
+    monkeypatch.setattr(
+        AGI,
+        "_train_capacity",
+        staticmethod(lambda _path: train_calls.__setitem__("count", train_calls["count"] + 1)),
+    )
+
+    capacity_support.update_capacity(AGI)
+
+    assert train_calls["count"] == 0
+    assert not Path(AGI._capacity_data_file).exists()
+
+
 def test_update_capacity_writes_utf8_capacity_csv_for_polars(tmp_path, monkeypatch):
     AGI._workers = {"127.0.0.1": 1}
     AGI.workers_info = {

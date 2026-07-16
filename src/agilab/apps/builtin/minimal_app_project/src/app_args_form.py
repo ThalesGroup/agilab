@@ -124,6 +124,10 @@ else:
 
     if hasattr(env, "resolve_share_path"):
         _resolve_input = getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
-        resolved_data_in = _resolve_input(validated.data_in)
-        resolved_data_out = env.resolve_share_path(validated.data_out)
-        st.caption(f"Resolved input: `{resolved_data_in}`  •  output: `{resolved_data_out}`")
+        try:
+            resolved_data_in = _resolve_input(validated.data_in)
+            resolved_data_out = env.resolve_share_path(validated.data_out)
+        except ValueError as exc:
+            st.error(f"Invalid data_in/data_out path: {exc}")
+        else:
+            st.caption(f"Resolved input: `{resolved_data_in}`  •  output: `{resolved_data_out}`")

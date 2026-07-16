@@ -121,9 +121,13 @@ else:
     else:
         st.info("No changes to save.")
 
-    resolved_data_out = env.resolve_share_path(validated.data_out)
-    expected_test_rows = max(1, round(validated.sample_count * validated.test_size))
-    st.caption(
-        f"Resolved evidence directory: `{resolved_data_out}`  -  "
-        f"about `{expected_test_rows}` prediction rows will be written."
-    )
+    try:
+        resolved_data_out = env.resolve_share_path(validated.data_out)
+    except ValueError as exc:
+        st.error(f"Invalid data_out path: {exc}")
+    else:
+        expected_test_rows = max(1, round(validated.sample_count * validated.test_size))
+        st.caption(
+            f"Resolved evidence directory: `{resolved_data_out}`  -  "
+            f"about `{expected_test_rows}` prediction rows will be written."
+        )
