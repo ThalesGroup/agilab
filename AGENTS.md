@@ -22,6 +22,14 @@ Use this runbook whenever you:
 
 ## General practices
 
+- **Where apps live**: `*_project` apps are maintained in the external apps
+  repository, not in this checkout. `APPS_REPOSITORY` in
+  `~/.local/share/agilab/.env` names that checkout (conventionally the sibling
+  `thales_agilab` repo; its apps sit under `apps/`), and only installer-selected
+  apps are symlinked into `src/agilab/apps/`. Before concluding an app does not
+  exist, list `src/agilab/apps/` (the symlink targets reveal the apps repo) and
+  search `$APPS_REPOSITORY/apps/`. Note that `.tokki/scope` may exclude apps
+  from Tokki repo maps, so a Tokki-first search will not see them.
 - **uv everywhere**: Invoke Python entry points through `uv` (`uv --preview-features extra-build-dependencies run python …`,
   `uv --preview-features extra-build-dependencies run --extra ui streamlit …` for source UI launches) so dependencies resolve inside the managed environments that
   ship with AGILab.
