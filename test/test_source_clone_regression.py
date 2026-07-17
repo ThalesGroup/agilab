@@ -10,10 +10,15 @@ from pathlib import Path
 
 import pytest
 
+from agilab.security.secret_uri import redact_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE_PROOF_ENV = "AGILAB_RUN_RELEASE_PROOF_SLOW"
 UV_PYTHON_SELECTOR = ("AGILAB_RELEASE_PROOF_PYTHON", "AGILAB_SOURCE_CLONE_PYTHON")
+CLONE_PROOF_DIAGNOSTIC_TAIL_LINES = 40
+CLONE_PROOF_DIAGNOSTIC_TAIL_CHARS = 4_000
+CLONE_PROOF_FAILED_STEP_CHARS = 160
 
 
 def _uv_python_args() -> tuple[str, ...]:
@@ -195,6 +200,90 @@ def test_materialize_fresh_source_clone_recovers_from_parent_payload(
     assert (clone_root / "src" / "demo_worker" / "dataset.7z").read_bytes() == b"7z\xbc\xafmaterialized"
 
 
+def _bounded_diagnostic_tail(value: str) -> tuple[str, int, int]:
+    lines = redact_text(value).splitlines()
+    omitted_lines = max(0, len(lines) - CLONE_PROOF_DIAGNOSTIC_TAIL_LINES)
+    tail = "\n".join(lines[-CLONE_PROOF_DIAGNOSTIC_TAIL_LINES:])
+    omitted_chars = max(0, len(tail) - CLONE_PROOF_DIAGNOSTIC_TAIL_CHARS)
+    if omitted_chars:
+        tail = tail[-CLONE_PROOF_DIAGNOSTIC_TAIL_CHARS:]
+    return tail, omitted_lines, omitted_chars
+
+
+def _bounded_failed_step(value: object) -> tuple[str, int]:
+    if value is None:
+        return "unknown", 0
+    normalized = " ".join(redact_text(value).splitlines()).strip() or "unknown"
+    omitted_chars = max(0, len(normalized) - CLONE_PROOF_FAILED_STEP_CHARS)
+    if omitted_chars:
+        normalized = normalized[: CLONE_PROOF_FAILED_STEP_CHARS - 3] + "..."
+    return normalized, omitted_chars
+
+
+def _clone_proof_failure_message(
+    completed: subprocess.CompletedProcess[str],
+) -> str:
+    stdout = completed.stdout or ""
+    stderr = completed.stderr or ""
+    payload: dict[str, object] | None = None
+    try:
+        decoded = json.loads(stdout)
+    except (json.JSONDecodeError, TypeError):
+        decoded = None
+    if isinstance(decoded, dict):
+        payload = decoded
+
+    failed_step = payload.get("failed_step") if payload else None
+    failed_step_label, failed_step_omitted_chars = _bounded_failed_step(failed_step)
+    diagnostic = ""
+    if payload:
+        steps = payload.get("steps")
+        if isinstance(steps, list):
+            failed_result = next(
+                (
+                    step
+                    for step in steps
+                    if isinstance(step, dict)
+                    and (
+                        step.get("label") == failed_step or step.get("status") == "fail"
+                    )
+                ),
+                None,
+            )
+            if isinstance(failed_result, dict):
+                raw_diagnostic = failed_result.get("diagnostic_tail")
+                if isinstance(raw_diagnostic, list):
+                    diagnostic = "\n".join(str(line) for line in raw_diagnostic)
+                elif isinstance(raw_diagnostic, str):
+                    diagnostic = raw_diagnostic
+
+    if not diagnostic:
+        diagnostic = stdout
+    diagnostic_tail, diagnostic_omitted_lines, diagnostic_omitted_chars = (
+        _bounded_diagnostic_tail(diagnostic)
+    )
+    stderr_tail, stderr_omitted_lines, stderr_omitted_chars = _bounded_diagnostic_tail(
+        stderr
+    )
+    stdout_omitted_lines = max(
+        0,
+        len(stdout.splitlines()) - CLONE_PROOF_DIAGNOSTIC_TAIL_LINES,
+    )
+    return (
+        "fresh source clone newcomer proof failed "
+        f"(exit_code={completed.returncode}, failed_step={failed_step_label}, "
+        f"failed_step_omitted_chars={failed_step_omitted_chars}).\n"
+        "diagnostic_tail "
+        f"(omitted_lines={diagnostic_omitted_lines}, "
+        f"omitted_chars={diagnostic_omitted_chars}):\n"
+        f"{diagnostic_tail or '<empty>'}\n"
+        "stderr_tail "
+        f"(omitted_lines={stderr_omitted_lines}, omitted_chars={stderr_omitted_chars}):\n"
+        f"{stderr_tail or '<empty>'}\n"
+        f"captured_stdout_omitted_lines={stdout_omitted_lines}"
+    )
+
+
 def _run_clone_newcomer_proof(clone_root: Path) -> dict[str, object]:
     active_app = (
         clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
@@ -226,12 +315,71 @@ def _run_clone_newcomer_proof(clone_root: Path) -> dict[str, object]:
             "--no-manifest",
         ],
         cwd=clone_root,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
         env=env,
     )
-    return json.loads(completed.stdout)
+    if completed.returncode != 0:
+        raise AssertionError(_clone_proof_failure_message(completed))
+    payload = json.loads(completed.stdout)
+    assert isinstance(payload, dict)
+    return payload
+
+
+def test_run_clone_newcomer_proof_reports_structured_bounded_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    secret = "sk-live-12345678901234567890"
+    failed_step = f"flight install smoke {secret} " + ("x" * 50_000)
+    diagnostic_lines = [
+        "install setup",
+        f"OPENAI_API_KEY={secret} " + ("y" * 6_000),
+        "No virtual environment found for Python 3.13",
+    ]
+    stdout = json.dumps(
+        {
+            "failed_step": failed_step,
+            "steps": [
+                {
+                    "label": failed_step,
+                    "status": "fail",
+                    "diagnostic_tail": diagnostic_lines,
+                }
+            ],
+        },
+        indent=2,
+    )
+    stderr = "\n".join(
+        f"uv stderr {index} token={secret}" for index in range(60)
+    )
+
+    def _fake_run(cmd, **kwargs):
+        assert kwargs["check"] is False
+        return subprocess.CompletedProcess(
+            cmd,
+            returncode=1,
+            stdout=stdout,
+            stderr=stderr,
+        )
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    with pytest.raises(AssertionError) as caught:
+        _run_clone_newcomer_proof(tmp_path / "clone")
+
+    message = str(caught.value)
+    assert "failed_step=flight install smoke" in message
+    assert "failed_step_omitted_chars=" in message
+    assert "No virtual environment found for Python 3.13" in message
+    assert "stderr_tail (omitted_lines=20" in message
+    assert "uv stderr 59" in message
+    assert "uv stderr 0" not in message
+    assert "captured_stdout_omitted_lines=" in message
+    assert secret not in message
+    assert "<redacted>" in message
+    assert len(message) < 10_000
 
 
 def _extract_marked_json(stdout: str, marker: str) -> dict[str, object]:
