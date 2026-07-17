@@ -309,7 +309,7 @@ def log_app_settings_validation(
         if logger is not None:
             try:
                 logger.debug(f"app_settings validation skipped for {settings_path}: {exc}")
-            except Exception:
+            except Exception:  # defensive: a broken logger must not crash env init either
                 pass
         return AppSettingsValidation()
     return validation
