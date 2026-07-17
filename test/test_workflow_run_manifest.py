@@ -4,7 +4,6 @@ import importlib
 import importlib.util
 import json
 import multiprocessing
-import os
 from pathlib import Path
 import sys
 
@@ -42,10 +41,15 @@ def _ensure_agilab_package_path() -> None:
 
 
 _ensure_agilab_package_path()
+test_support_root = str(Path(__file__).resolve().parent)
+if test_support_root not in sys.path:
+    sys.path.insert(0, test_support_root)
+
 dag_run_engine = importlib.import_module("agilab.dag_run_engine")
 evidence_graph = importlib.import_module("agilab.evidence_graph")
 workflow_run_manifest = importlib.import_module("agilab.workflow_run_manifest")
 runtime_contract = importlib.import_module("agilab.workflow_runtime_contract")
+process_support = importlib.import_module("_workflow_run_manifest_process_support")
 
 LATEST_WORKFLOW_EVIDENCE_FILENAME = workflow_run_manifest.LATEST_WORKFLOW_EVIDENCE_FILENAME
 WORKFLOW_EVIDENCE_DIRNAME = workflow_run_manifest.WORKFLOW_EVIDENCE_DIRNAME
@@ -54,72 +58,6 @@ load_workflow_run_manifest = workflow_run_manifest.load_workflow_run_manifest
 sha256_payload = workflow_run_manifest.sha256_payload
 workflow_manifest_summary = workflow_run_manifest.workflow_manifest_summary
 write_workflow_run_evidence = workflow_run_manifest.write_workflow_run_evidence
-
-
-def _workflow_evidence_writer(
-    lab_dir: str,
-    state_path: str,
-    state: dict,
-    start,
-    results,
-) -> None:
-    start.wait(timeout=10)
-    try:
-        workflow_run_manifest.write_workflow_run_evidence(
-            state=state,
-            state_path=Path(state_path),
-            repo_root=Path(lab_dir).parent,
-            lab_dir=Path(lab_dir),
-            trigger={"surface": "multiprocess", "action": "write"},
-        )
-    except BaseException as exc:
-        results.put(("error", type(exc).__name__, str(exc)))
-    else:
-        results.put(("ok", "", ""))
-
-
-def _workflow_evidence_trigger_writer(
-    lab_dir: str,
-    state_path: str,
-    state: dict,
-    trigger: dict,
-    start,
-    results,
-) -> None:
-    start.wait(timeout=10)
-    try:
-        bundle = workflow_run_manifest.write_workflow_run_evidence(
-            state=state,
-            state_path=Path(state_path),
-            repo_root=Path(lab_dir).parent,
-            lab_dir=Path(lab_dir),
-            trigger=trigger,
-        )
-    except BaseException as exc:
-        results.put(("error", type(exc).__name__, str(exc)))
-    else:
-        results.put(("ok", bundle.manifest["manifest_id"], trigger["action"]))
-
-
-def _workflow_evidence_crash_writer(lab_dir: str, state_path: str, state: dict) -> None:
-    real_write = workflow_run_manifest._write_json_fsync
-    calls = 0
-
-    def crash_after_partial_stage(path, payload):
-        nonlocal calls
-        calls += 1
-        real_write(path, payload)
-        if calls == 2:
-            os._exit(23)
-
-    workflow_run_manifest._write_json_fsync = crash_after_partial_stage
-    workflow_run_manifest.write_workflow_run_evidence(
-        state=state,
-        state_path=Path(state_path),
-        repo_root=Path(lab_dir).parent,
-        lab_dir=Path(lab_dir),
-        trigger={"surface": "crash", "action": "write"},
-    )
 
 
 def _start_spawn_processes(processes) -> None:
@@ -431,7 +369,7 @@ def test_two_process_state_a_b_publication_rejects_stale_a(tmp_path: Path) -> No
     results = context.Queue()
     processes = [
         context.Process(
-            target=_workflow_evidence_writer,
+            target=process_support.workflow_evidence_writer,
             args=(str(lab_dir), str(state_path), state, start, results),
         )
         for state in (state_a, state_b)
@@ -469,7 +407,7 @@ def test_workflow_evidence_publication_is_multiprocess_safe(tmp_path: Path) -> N
     results = context.Queue()
     processes = [
         context.Process(
-            target=_workflow_evidence_writer,
+            target=process_support.workflow_evidence_writer,
             args=(str(lab_dir), str(state_path), state, start, results),
         )
         for _ in range(2)
@@ -504,7 +442,7 @@ def test_same_state_different_triggers_publish_distinct_bundles_concurrently(tmp
     ]
     processes = [
         context.Process(
-            target=_workflow_evidence_trigger_writer,
+            target=process_support.workflow_evidence_trigger_writer,
             args=(str(lab_dir), str(state_path), state, trigger, start, results),
         )
         for trigger in triggers
@@ -724,7 +662,7 @@ def test_workflow_evidence_process_crash_is_ignored_and_recovered(tmp_path: Path
     state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     context = multiprocessing.get_context("spawn")
     process = context.Process(
-        target=_workflow_evidence_crash_writer,
+        target=process_support.workflow_evidence_crash_writer,
         args=(str(lab_dir), str(state_path), state),
     )
     _start_spawn_processes([process])
