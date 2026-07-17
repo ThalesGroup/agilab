@@ -67,6 +67,18 @@ def normalize_agilab_package_spec_for_root_tests():
 
 
 @pytest.fixture(autouse=True)
+def restore_main_module_after_root_tests():
+    """Prevent Streamlit AppTest modules from leaking into later spawn workers."""
+
+    original_main = sys.modules.get("__main__")
+    yield
+    if original_main is None:
+        sys.modules.pop("__main__", None)
+    else:
+        sys.modules["__main__"] = original_main
+
+
+@pytest.fixture(autouse=True)
 def reset_agienv_singleton():
     """Keep singleton state from leaking across tests."""
     AgiEnv.reset()
