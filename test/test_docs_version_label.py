@@ -64,3 +64,10 @@ def test_docs_conf_ignores_installed_agilab_path_fallback() -> None:
     assert conf._is_site_packages_path(installed_agilab) is True
     assert conf._should_use_agilab_path_fallback(installed_agilab) is False
     assert conf._should_use_agilab_path_fallback(source_agilab) is True
+    assert (
+        conf._should_use_agilab_path_fallback(
+            source_agilab,
+            current_source_available=True,
+        )
+        is False
+    )
