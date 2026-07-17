@@ -37,6 +37,20 @@ def _uv_python_args() -> tuple[str, ...]:
     return ("--python", str(sys.executable))
 
 
+def _prepare_clone_proof_home(home_root: Path) -> Path:
+    """Pin nested AGILAB installs to the interpreter running the proof."""
+
+    python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    env_file = home_root / ".agilab" / ".env"
+    env_file.parent.mkdir(parents=True, exist_ok=True)
+    env_file.write_text(
+        "AGI_PYTHON_VERSION=" + json.dumps(python_version) + "\n"
+        "AGI_PYTHON_UV_SPEC=" + json.dumps(sys.executable) + "\n",
+        encoding="utf-8",
+    )
+    return home_root
+
+
 def _load_module(path: Path, name: str):
     sys.modules.pop(name, None)
     spec = importlib.util.spec_from_file_location(name, path)
@@ -288,9 +302,10 @@ def _run_clone_newcomer_proof(clone_root: Path) -> dict[str, object]:
     active_app = (
         clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
     )
+    proof_home = _prepare_clone_proof_home(clone_root / "home")
     env = {
         **os.environ,
-        "HOME": str(clone_root / "home"),
+        "HOME": str(proof_home),
         "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
         "OPENAI_API_KEY": "sk-test-source-clone-proof-000000000000",
         "PYTHONUNBUFFERED": "1",
@@ -382,6 +397,18 @@ def test_run_clone_newcomer_proof_reports_structured_bounded_failure(
     assert len(message) < 10_000
 
 
+def test_prepare_clone_proof_home_pins_active_python(tmp_path: Path) -> None:
+    from dotenv import dotenv_values
+
+    home_root = _prepare_clone_proof_home(tmp_path / "isolated-home")
+
+    values = dotenv_values(home_root / ".agilab" / ".env")
+    assert values["AGI_PYTHON_VERSION"] == (
+        f"{sys.version_info.major}.{sys.version_info.minor}"
+    )
+    assert values["AGI_PYTHON_UV_SPEC"] == sys.executable
+
+
 def _extract_marked_json(stdout: str, marker: str) -> dict[str, object]:
     prefix = f"{marker}="
     for line in reversed(stdout.splitlines()):
@@ -393,7 +420,9 @@ def _extract_marked_json(stdout: str, marker: str) -> dict[str, object]:
 
 
 def _run_clone_notebook_import_proof(clone_root: Path) -> dict[str, object]:
-    notebook_home = clone_root / "home-notebook-import"
+    notebook_home = _prepare_clone_proof_home(
+        clone_root / "home-notebook-import"
+    )
     env = {
         **os.environ,
         "HOME": str(notebook_home),
