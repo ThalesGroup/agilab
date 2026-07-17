@@ -39,10 +39,8 @@ def _session_state_set(session_state: Any, key: str, value: Any) -> None:
 
 def _page_configured(streamlit: Any) -> bool:
     session_state = getattr(streamlit, "session_state", None)
-    if session_state is not None and bool(
-        _session_state_get(session_state, PAGE_CONFIGURED_STATE_KEY)
-    ):
-        return True
+    if session_state is not None:
+        return bool(_session_state_get(session_state, PAGE_CONFIGURED_STATE_KEY))
     return bool(getattr(streamlit, PAGE_CONFIGURED_STATE_KEY, False))
 
 
@@ -50,6 +48,7 @@ def _mark_page_configured(streamlit: Any) -> None:
     session_state = getattr(streamlit, "session_state", None)
     if session_state is not None:
         _session_state_set(session_state, PAGE_CONFIGURED_STATE_KEY, True)
+        return
     try:
         setattr(streamlit, PAGE_CONFIGURED_STATE_KEY, True)
     except (AttributeError, RuntimeError, TypeError, ValueError):

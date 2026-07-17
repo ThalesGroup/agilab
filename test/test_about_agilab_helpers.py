@@ -785,8 +785,10 @@ def test_page_bootstrap_configure_page_chrome_sets_docs_title_and_theme(tmp_path
 
 def test_page_bootstrap_configure_page_config_is_once_per_session() -> None:
     events: list[dict[str, object]] = []
+    first_session_state: dict[str, object] = {}
+    second_session_state: dict[str, object] = {}
     fake_st = SimpleNamespace(
-        session_state={},
+        session_state=first_session_state,
         set_page_config=lambda **kwargs: events.append(kwargs),
     )
 
@@ -796,9 +798,17 @@ def test_page_bootstrap_configure_page_config_is_once_per_session() -> None:
     assert not page_bootstrap.configure_page_config(
         fake_st, page_title="Ignored", layout="centered"
     )
+    fake_st.session_state = second_session_state
+    assert page_bootstrap.configure_page_config(
+        fake_st, page_title="AGILab", layout="centered"
+    )
 
-    assert events == [{"page_title": "AGILab", "layout": "wide"}]
-    assert fake_st.session_state[page_bootstrap.PAGE_CONFIGURED_STATE_KEY] is True
+    assert events == [
+        {"page_title": "AGILab", "layout": "wide"},
+        {"page_title": "AGILab", "layout": "centered"},
+    ]
+    assert first_session_state[page_bootstrap.PAGE_CONFIGURED_STATE_KEY] is True
+    assert second_session_state[page_bootstrap.PAGE_CONFIGURED_STATE_KEY] is True
 
 
 def test_ui_session_key_registry_covers_page_bootstrap_keys() -> None:

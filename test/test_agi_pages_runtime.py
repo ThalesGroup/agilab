@@ -176,6 +176,33 @@ def test_agi_pages_runtime_header_can_render_logo_without_title() -> None:
     assert events == [("logo", ("3D Maps",))]
 
 
+def test_agi_pages_runtime_header_configures_wide_layout_before_render() -> None:
+    events: list[tuple[str, object]] = []
+    fake_st = SimpleNamespace(
+        session_state={},
+        set_page_config=lambda **kwargs: events.append(("config", kwargs)),
+        title=lambda value: events.append(("title", value)),
+        caption=lambda value: events.append(("caption", value)),
+    )
+
+    runtime.render_streamlit_page_header(
+        fake_st,
+        title=":world_map: Cartography Visualization",
+        show_logo=False,
+    )
+
+    assert events == [
+        (
+            "config",
+            {
+                "page_title": "Cartography Visualization",
+                "layout": "wide",
+            },
+        ),
+        ("title", ":world_map: Cartography Visualization"),
+    ]
+
+
 def test_agi_pages_runtime_resets_app_scoped_session_state(tmp_path: Path) -> None:
     first_app = tmp_path / "first"
     second_app = tmp_path / "second"

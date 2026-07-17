@@ -6,6 +6,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, Callable
@@ -167,6 +168,16 @@ def safe_metric(value: Any, *, digits: int = 3) -> str:
     return f"{numeric:.{digits}f}"
 
 
+def _page_title_from_header(title: str) -> str:
+    """Derive a clean browser-tab title from a visible page header."""
+
+    text = str(title or "").strip()
+    if not text:
+        return "AGILab"
+    cleaned = re.sub(r"^:[^:]+:\s*", "", text).strip()
+    return cleaned or text
+
+
 def configure_streamlit_page(
     streamlit: Any,
     *,
@@ -206,6 +217,11 @@ def render_streamlit_page_header(
 ) -> None:
     """Render the common AGILAB analysis-page logo, title, and optional caption."""
 
+    configure_streamlit_page(
+        streamlit,
+        title=_page_title_from_header(title),
+        layout="wide",
+    )
     if show_logo:
         if render_logo_fn is None:
             from agi_gui.pagelib import render_logo as _render_logo

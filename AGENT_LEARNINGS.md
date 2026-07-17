@@ -63,6 +63,10 @@ is not a scratchpad or task log.
   subprocesses in `.venv-dev`, or pass an explicit ignored
   `UV_PROJECT_ENVIRONMENT` so validation cannot strip Streamlit static assets
   from the live UI environment.
+- When a shared Streamlit helper needs to remember that a page has been
+  configured, store that marker in `st.session_state`, not on the imported
+  `streamlit` module. Module attributes are process-global and can leak layout
+  or title decisions across browser sessions.
 - When passing URLs, GitHub API paths, or query strings through the shell,
   quote the entire argument or use stdin/structured flags. In zsh, unquoted
   `?`, `&`, `[]`, or other glob-sensitive characters can change or reject the
@@ -100,6 +104,11 @@ is not a scratchpad or task log.
   artifacts, verify those exact names against worker code and documented
   outputs before merging. Fix the docs or generation path if the artifact is
   not actually emitted.
+- When a Streamlit configure form has an expensive preview that reads upstream
+  artifacts, make refresh an explicit one-shot action and add a regression that
+  proves ordinary widget changes do not trigger that preview. Do not use a
+  persistent checkbox for expensive previews unless the user explicitly asks for
+  live recomputation.
 - Treat built-in app maturity as one gate: first-run UX, deterministic sample
   data, README artifact truth, app-local tests, installer/catalog contract, and
   clear example value must align before calling the app example-grade.
