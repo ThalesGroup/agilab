@@ -40,10 +40,14 @@ def _is_site_packages_path(path: Path) -> bool:
     return "site-packages" in path.parts
 
 
-def _should_use_agilab_path_fallback(path: Path) -> bool:
-    """Avoid documenting stale installed wheels when a source checkout is built."""
+def _should_use_agilab_path_fallback(
+    path: Path,
+    *,
+    current_source_available: bool = False,
+) -> bool:
+    """Use persisted source only when the checkout being documented has none."""
 
-    return not _is_site_packages_path(path)
+    return not current_source_available and not _is_site_packages_path(path)
 
 
 # Prefer the pinned public framework submodule when present.
@@ -60,14 +64,18 @@ if (repo_root / "core").exists():
 
 # Current public source checkout. Prefer this over any persisted installed path
 # so autodoc does not import stale binary wheels from another Python version.
-if (repo_root / "src/agilab").exists():
+current_source_available = (repo_root / "src/agilab").exists()
+if current_source_available:
     _add_path(repo_root / "src")
     _add_agilab_lib_paths(repo_root / "src/agilab")
     if (repo_root / "src/agilab/core").exists():
         _add_core_paths(repo_root / "src/agilab/core")
 
 # Fallback: use the upstream checkout recorded by `~/.local/share/agilab/.agilab-path`.
-if agi_path is not None and _should_use_agilab_path_fallback(agi_path):
+if agi_path is not None and _should_use_agilab_path_fallback(
+    agi_path,
+    current_source_available=current_source_available,
+):
     # `.agilab-path` commonly points at `<repo>/src/agilab`. Add the parent so
     # `import agilab` works, while still supporting a repo-root path.
     if agi_path.name == "agilab" and (agi_path / "__init__.py").exists():
@@ -81,9 +89,14 @@ if agi_path is not None and _should_use_agilab_path_fallback(agi_path):
     elif (agi_path / "core").exists():
         _add_core_paths(agi_path / "core")
 elif agi_path is not None:
+    reason = (
+        "the current source checkout is available"
+        if current_source_available
+        else "it points into site-packages"
+    )
     print(
-        "Info: ignoring installed AGILAB path for docs build "
-        f"because it points into site-packages: {agi_path}"
+        "Info: ignoring persisted AGILAB path for docs build "
+        f"because {reason}: {agi_path}"
     )
 
 try:
