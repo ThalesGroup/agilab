@@ -4,7 +4,7 @@ title = "Simple AGILAB app"
 note = "Replace this note with the app-specific local workflow."
 
 [cluster]
-verbose = true
+verbose = 1
 cython = false
 rapids = false
 pool = false

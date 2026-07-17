@@ -51,6 +51,7 @@ import importlib.util
 from contextlib import contextmanager
 from threading import RLock
 from types import MethodType
+from agi_env.project.app_settings_schema import log_app_settings_validation
 from agi_env.project.app_settings_support import (
     app_settings_aliases,
     app_settings_source_roots,
@@ -1098,6 +1099,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         self.app_settings_file = app_files.app_settings_file
         self.app_args_form = app_files.app_args_form
         self.gitignore_file = app_files.gitignore_file
+        log_app_settings_validation(self.app_settings_file, logger=self.logger)
 
 
     @staticmethod
