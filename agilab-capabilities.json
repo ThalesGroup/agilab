@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-17T13:50:41Z",
+  "generated_at_utc": "2026-07-17T15:49:10Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -10,7 +10,7 @@
     "repository": "https://github.com/ThalesGroup/agilab",
     "documentation": "https://thalesgroup.github.io/agilab/",
     "project": "agilab",
-    "version": "2026.07.17"
+    "version": "2026.07.17.1"
   },
   "boundary": {
     "proves": "This manifest proves that public AGILAB surfaces are discoverable from checked-in contracts.",
@@ -397,7 +397,7 @@
       "name": "agi-page-queue-health",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.07.17",
+      "version": "2026.07.17.1",
       "description": "AGILAB page bundle for queue health and resilience evidence.",
       "project": "src/agilab/apps-pages/view_queue_resilience",
       "pyproject": "src/agilab/apps-pages/view_queue_resilience/pyproject.toml",
@@ -408,7 +408,7 @@
       "name": "agi-page-relay-health",
       "role": "page-bundle",
       "status": "PyPI package",
-      "version": "2026.07.17",
+      "version": "2026.07.17.1",
       "description": "AGILAB page bundle for relay health and resilience evidence.",
       "project": "src/agilab/apps-pages/view_relay_resilience",
       "pyproject": "src/agilab/apps-pages/view_relay_resilience/pyproject.toml",
@@ -463,7 +463,7 @@
       "name": "agi-pages",
       "role": "page-umbrella",
       "status": "PyPI package",
-      "version": "2026.07.17",
+      "version": "2026.07.17.1",
       "description": "AGILAB public analysis page umbrella and provider package",
       "project": "src/agilab/lib/agi-pages",
       "pyproject": "src/agilab/lib/agi-pages/pyproject.toml",
@@ -650,7 +650,7 @@
       "name": "agilab",
       "role": "top-level-bundle",
       "status": "PyPI package",
-      "version": "2026.07.17",
+      "version": "2026.07.17.1",
       "description": "AGILAB is a reproducible AI/ML workbench for engineering teams.",
       "project": ".",
       "pyproject": "pyproject.toml",

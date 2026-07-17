@@ -1,5 +1,5 @@
 [project]
-version = "2026.07.17"
+version = "2026.07.17.1"
 name = "agi-pages"
 description = "AGILAB public analysis page umbrella and provider package"
 requires-python = ">=3.12"

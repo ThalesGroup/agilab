@@ -6,6 +6,7 @@ import tomllib
 from pathlib import Path
 
 from packaging.requirements import Requirement
+from packaging.version import Version
 import pytest
 from setuptools import find_packages
 
@@ -46,7 +47,9 @@ def _requirements(pyproject: Path, section: str) -> list[Requirement]:
 
 
 def _requirement_names(pyproject: Path, section: str) -> set[str]:
-    return {requirement.name.lower() for requirement in _requirements(pyproject, section)}
+    return {
+        requirement.name.lower() for requirement in _requirements(pyproject, section)
+    }
 
 
 def _exact_pin(requirement: Requirement) -> str | None:
@@ -57,12 +60,16 @@ def _exact_pin(requirement: Requirement) -> str | None:
 
 
 def _has_lower_bound(requirement: Requirement) -> bool:
-    return any(specifier.operator in {">=", "~="} for specifier in requirement.specifier)
+    return any(
+        specifier.operator in {">=", "~="} for specifier in requirement.specifier
+    )
 
 
 def _load_pypi_publish():
     module_path = REPO_ROOT / "tools/pypi_publish.py"
-    spec = importlib.util.spec_from_file_location("pypi_publish_contract_test_module", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "pypi_publish_contract_test_module", module_path
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -72,7 +79,9 @@ def _load_pypi_publish():
 
 def _load_release_plan():
     module_path = REPO_ROOT / "tools/release_plan.py"
-    spec = importlib.util.spec_from_file_location("release_plan_contract_test_module", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "release_plan_contract_test_module", module_path
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -110,7 +119,9 @@ def test_page_package_pyprojects_declare_pypi_discoverability_metadata() -> None
         "Changelog",
     }
 
-    for pyproject in sorted((REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml")):
+    for pyproject in sorted(
+        (REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml")
+    ):
         data = _load_toml(pyproject)
         project = data["project"]
         package_name = project["name"]
@@ -127,7 +138,9 @@ def test_page_package_pyprojects_declare_pypi_discoverability_metadata() -> None
 
 def test_internal_dependencies_follow_bundle_or_asset_version_policy() -> None:
     versions = {
-        package.name: _load_toml(pyproject_path(REPO_ROOT, package))["project"]["version"]
+        package.name: _load_toml(pyproject_path(REPO_ROOT, package))["project"][
+            "version"
+        ]
         for package in PACKAGE_CONTRACTS
     }
     internal_names = set(PACKAGE_NAMES)
@@ -148,9 +161,13 @@ def test_internal_dependencies_follow_bundle_or_asset_version_policy() -> None:
                 exact_version = _exact_pin(requirement)
                 if package.name in ASSET_PACKAGE_NAMES:
                     if exact_version is not None:
-                        violations.append(f"{package.name}:{section}:{requirement}: asset payload must not exact-pin internal packages")
+                        violations.append(
+                            f"{package.name}:{section}:{requirement}: asset payload must not exact-pin internal packages"
+                        )
                     if not _has_lower_bound(requirement):
-                        violations.append(f"{package.name}:{section}:{requirement}: asset payload must declare a compatible runtime floor")
+                        violations.append(
+                            f"{package.name}:{section}:{requirement}: asset payload must declare a compatible runtime floor"
+                        )
                     continue
 
                 expected_version = versions[requirement.name.lower()]
@@ -162,6 +179,41 @@ def test_internal_dependencies_follow_bundle_or_asset_version_policy() -> None:
                     )
 
     assert violations == []
+
+
+def test_queue_resilience_pages_require_the_shared_runtime_release() -> None:
+    shared_pyproject = REPO_ROOT / "src/agilab/lib/agi-pages/pyproject.toml"
+    shared_version = _load_toml(shared_pyproject)["project"]["version"]
+    root_pyproject = REPO_ROOT / "pyproject.toml"
+    root_version = _load_toml(root_pyproject)["project"]["version"]
+    shared_module = (
+        REPO_ROOT / "src/agilab/lib/agi-pages/src/agi_pages/queue_resilience.py"
+    )
+
+    assert shared_module.is_file()
+    assert Version(shared_version) > Version("2026.07.17")
+    assert Version(root_version) > Version("2026.07.17")
+    for page_name in ("view_queue_resilience", "view_relay_resilience"):
+        pyproject = REPO_ROOT / "src/agilab/apps-pages" / page_name / "pyproject.toml"
+        requirements = _requirements(pyproject, "dependencies")
+        agi_pages = next(
+            requirement
+            for requirement in requirements
+            if requirement.name.lower() == "agi-pages"
+        )
+        assert any(
+            specifier.operator == ">=" and specifier.version == shared_version
+            for specifier in agi_pages.specifier
+        ), pyproject
+
+    for extra_name in ("ui", "pages"):
+        requirements = _requirements(root_pyproject, extra_name)
+        agi_pages = next(
+            requirement
+            for requirement in requirements
+            if requirement.name.lower() == "agi-pages"
+        )
+        assert _exact_pin(agi_pages) == shared_version
 
 
 def test_root_extras_and_uv_sources_match_package_split_contract() -> None:
@@ -191,7 +243,9 @@ def test_root_extras_and_uv_sources_match_package_split_contract() -> None:
         "starlette",
     }
 
-    sources = _load_toml(root_pyproject).get("tool", {}).get("uv", {}).get("sources", {})
+    sources = (
+        _load_toml(root_pyproject).get("tool", {}).get("uv", {}).get("sources", {})
+    )
     for package in LIBRARY_PACKAGE_CONTRACTS:
         source = sources.get(package.name)
         assert source is not None, package.name
@@ -201,7 +255,9 @@ def test_root_extras_and_uv_sources_match_package_split_contract() -> None:
 
 def test_root_ui_extra_covers_default_source_analysis_view_dependencies() -> None:
     root_pyproject = REPO_ROOT / "pyproject.toml"
-    default_analysis_bundle = REPO_ROOT / "src/agilab/apps-pages/view_maps/pyproject.toml"
+    default_analysis_bundle = (
+        REPO_ROOT / "src/agilab/apps-pages/view_maps/pyproject.toml"
+    )
     required_names = {
         requirement.name.lower()
         for requirement in _requirements(default_analysis_bundle, "dependencies")
@@ -215,7 +271,9 @@ def test_root_ui_extra_covers_default_source_analysis_view_dependencies() -> Non
 def test_publish_tool_uses_the_same_package_split_contract() -> None:
     module = _load_pypi_publish()
 
-    assert [name for name, *_ in module.publishable_libs()] == [package.name for package in LIBRARY_PACKAGE_CONTRACTS]
+    assert [name for name, *_ in module.publishable_libs()] == [
+        package.name for package in LIBRARY_PACKAGE_CONTRACTS
+    ]
     assert module.ALL_PACKAGE_NAMES == list(PACKAGE_NAMES)
     assert module.WHEEL_ONLY_PACKAGES == set(WHEEL_ONLY_PACKAGE_NAMES)
 
@@ -301,13 +359,20 @@ def test_root_wheel_package_discovery_keeps_cli_subpackages() -> None:
 
 
 def test_workflow_and_docs_cover_the_same_package_split() -> None:
-    workflow = (REPO_ROOT / ".github/workflows/pypi-publish.yaml").read_text(encoding="utf-8")
-    docs = (REPO_ROOT / "docs/source/package-publishing-policy.rst").read_text(encoding="utf-8")
+    workflow = (REPO_ROOT / ".github/workflows/pypi-publish.yaml").read_text(
+        encoding="utf-8"
+    )
+    docs = (REPO_ROOT / "docs/source/package-publishing-policy.rst").read_text(
+        encoding="utf-8"
+    )
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     release_plan = _load_release_plan()
 
     assert "tools/release_plan.py" in workflow
-    assert "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}" in workflow
+    assert (
+        "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}"
+        in workflow
+    )
     assert workflow.count("          - package: ") == 0
     assert release_plan.library_matrix() == [
         {
@@ -353,4 +418,6 @@ def test_app_project_package_contracts_match_declared_project_packages() -> None
     assert package_by_name("agi-core").role == "runtime-bundle"
     assert app_project_contracts
     package_names = [package.name for package in LIBRARY_PACKAGE_CONTRACTS]
-    assert max(package_names.index(name) for name, _ in app_project_contracts) < package_names.index("agi-apps")
+    assert max(
+        package_names.index(name) for name, _ in app_project_contracts
+    ) < package_names.index("agi-apps")

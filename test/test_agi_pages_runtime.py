@@ -9,7 +9,9 @@ import pytest
 from agi_pages import runtime
 
 
-def test_agi_pages_runtime_resolves_active_app_and_reports_missing(tmp_path: Path) -> None:
+def test_agi_pages_runtime_resolves_active_app_and_reports_missing(
+    tmp_path: Path,
+) -> None:
     app = tmp_path / "demo_project"
     app.mkdir()
 
@@ -44,17 +46,239 @@ def test_agi_pages_runtime_resolves_active_app_and_reports_missing(tmp_path: Pat
     assert errors == ["Missing --active-app argument."]
 
     with pytest.raises(FileNotFoundError, match="Provided --active-app path not found"):
-        runtime.resolve_active_app_path(["--active-app", str(tmp_path / "missing_without_callbacks")])
+        runtime.resolve_active_app_path(
+            ["--active-app", str(tmp_path / "missing_without_callbacks")]
+        )
 
 
 def test_agi_pages_runtime_scope_helpers_cover_env_fallbacks(tmp_path: Path) -> None:
     app_path = tmp_path / "apps" / "demo_project"
     app_path.mkdir(parents=True)
+    other_path = tmp_path / "apps" / "other_project"
 
-    assert runtime.env_app_scope_value(SimpleNamespace(app_path=app_path)) == str(app_path.resolve())
-    assert runtime.env_app_scope_value(SimpleNamespace(active_app=app_path)) == str(app_path.resolve())
-    assert runtime.env_app_scope_value(SimpleNamespace(apps_path=app_path.parent, app=app_path.name)) == str(app_path.resolve())
+    assert runtime.env_app_scope_value(
+        SimpleNamespace(
+            _agilab_active_app_scope=other_path,
+            apps_path=app_path.parent,
+            app=app_path.name,
+        )
+    ) == str(app_path.resolve())
+    assert runtime.env_app_scope_value(
+        SimpleNamespace(_agilab_active_app_scope=app_path)
+    ) == str(app_path.resolve())
+    assert runtime.env_app_scope_value(SimpleNamespace(app_path=app_path)) == str(
+        app_path.resolve()
+    )
+    assert runtime.env_app_scope_value(SimpleNamespace(active_app=app_path)) == str(
+        app_path.resolve()
+    )
+    assert runtime.env_app_scope_value(
+        SimpleNamespace(apps_path=app_path.parent, app=app_path.name)
+    ) == str(app_path.resolve())
     assert runtime.env_app_scope_value(SimpleNamespace()) is None
+
+
+def test_agi_pages_runtime_reuses_matching_scoped_environment(tmp_path: Path) -> None:
+    app = tmp_path / "apps" / "demo_project"
+    app.mkdir(parents=True)
+    env = SimpleNamespace(apps_path=app.parent, app=app.name)
+    state = {
+        "scope": str(app.resolve()),
+        "env": env,
+        "page:choice": "kept",
+    }
+    created: list[Path] = []
+
+    resolved = runtime.ensure_app_scoped_env(
+        state,
+        app,
+        scope_key="scope",
+        env_factory=lambda active: created.append(active),
+        prefixes=("page:",),
+    )
+
+    assert resolved is env
+    assert created == []
+    assert state["page:choice"] == "kept"
+
+
+def test_agi_pages_runtime_accepts_matching_apps_path_when_active_app_is_builtin(
+    tmp_path: Path,
+) -> None:
+    apps_path = tmp_path / "apps"
+    app = apps_path / "demo_project"
+    builtin_apps_path = tmp_path / "builtin-apps"
+    builtin_app = builtin_apps_path / "demo_project"
+    app.mkdir(parents=True)
+    builtin_app.mkdir(parents=True)
+    env = SimpleNamespace(
+        active_app=builtin_app,
+        apps_path=apps_path,
+        app=app.name,
+        builtin_apps_path=builtin_apps_path,
+    )
+    state = {"scope": str(app.resolve()), "env": env}
+
+    assert runtime.env_app_scope_value(env) == str(builtin_app.resolve())
+    assert (
+        runtime.ensure_app_scoped_env(
+            state,
+            app,
+            scope_key="scope",
+            env_factory=lambda _active: pytest.fail("matching environment was rebuilt"),
+        )
+        is env
+    )
+    assert state["env"] is env
+
+
+def test_agi_pages_runtime_reuses_matching_environment_after_scope_switch(
+    tmp_path: Path,
+) -> None:
+    old_app = tmp_path / "apps" / "old_project"
+    new_app = tmp_path / "apps" / "new_project"
+    old_app.mkdir(parents=True)
+    new_app.mkdir()
+    env = SimpleNamespace(apps_path=new_app.parent, app=new_app.name)
+    state = {
+        "scope": str(old_app.resolve()),
+        "env": env,
+        "page:choice": "stale",
+        "global": "kept",
+    }
+
+    resolved = runtime.ensure_app_scoped_env(
+        state,
+        new_app,
+        scope_key="scope",
+        env_factory=lambda _active: pytest.fail("matching environment was rebuilt"),
+        keys=("env",),
+        prefixes=("page:",),
+    )
+
+    assert resolved is env
+    assert state == {
+        "scope": str(new_app.resolve()),
+        "env": env,
+        "global": "kept",
+    }
+
+
+def test_agi_pages_runtime_rebuilds_stale_environment_despite_matching_marker(
+    tmp_path: Path,
+) -> None:
+    old_app = tmp_path / "apps" / "old_project"
+    new_app = tmp_path / "apps" / "new_project"
+    old_app.mkdir(parents=True)
+    new_app.mkdir()
+    stale_env = SimpleNamespace(
+        apps_path=old_app.parent,
+        app=old_app.name,
+        _agilab_active_app_scope=new_app,
+    )
+    replacement = SimpleNamespace(apps_path=new_app.parent, app=new_app.name)
+    state = {
+        "scope": str(new_app.resolve()),
+        "env": stale_env,
+        "exact": "stale",
+        "page:choice": "stale",
+        "global": "kept",
+    }
+    created: list[Path] = []
+
+    resolved = runtime.ensure_app_scoped_env(
+        state,
+        new_app,
+        scope_key="scope",
+        env_factory=lambda active: created.append(active) or replacement,
+        keys=("exact",),
+        prefixes=("page:",),
+    )
+
+    assert resolved is replacement
+    assert created == [new_app.resolve()]
+    assert state == {
+        "scope": str(new_app.resolve()),
+        "env": replacement,
+        "global": "kept",
+    }
+
+
+def test_agi_pages_runtime_rebuilds_conflicting_live_environment_identity(
+    tmp_path: Path,
+) -> None:
+    apps_path = tmp_path / "apps"
+    old_app = apps_path / "old_project"
+    new_app = apps_path / "new_project"
+    old_app.mkdir(parents=True)
+    new_app.mkdir()
+    stale_env = SimpleNamespace(
+        active_app=old_app,
+        apps_path=apps_path,
+        app=new_app.name,
+        _agilab_active_app_scope=new_app,
+    )
+    replacement = SimpleNamespace(
+        active_app=new_app,
+        apps_path=apps_path,
+        app=new_app.name,
+    )
+    state = {"scope": str(new_app.resolve()), "env": stale_env}
+
+    resolved = runtime.ensure_app_scoped_env(
+        state,
+        new_app,
+        scope_key="scope",
+        env_factory=lambda _active: replacement,
+    )
+
+    assert resolved is replacement
+    assert state["env"] is replacement
+
+
+def test_agi_pages_runtime_rebuilds_unknown_unscoped_environment(
+    tmp_path: Path,
+) -> None:
+    app = tmp_path / "apps" / "demo_project"
+    app.mkdir(parents=True)
+    replacement = SimpleNamespace(apps_path=app.parent, app=app.name)
+    state = {"env": SimpleNamespace(), "page:choice": "stale"}
+
+    resolved = runtime.ensure_app_scoped_env(
+        state,
+        app,
+        scope_key="scope",
+        env_factory=lambda _active: replacement,
+        prefixes=("page:",),
+    )
+
+    assert resolved is replacement
+    assert state == {"scope": str(app.resolve()), "env": replacement}
+
+
+def test_agi_pages_runtime_rejects_factory_environment_for_another_app(
+    tmp_path: Path,
+) -> None:
+    requested_app = tmp_path / "apps" / "requested_project"
+    other_app = tmp_path / "apps" / "other_project"
+    requested_app.mkdir(parents=True)
+    other_app.mkdir()
+    cached_env = SimpleNamespace()
+    state: dict[str, object] = {"env": cached_env, "page:choice": "kept"}
+
+    with pytest.raises(ValueError, match="does not match the requested app"):
+        runtime.ensure_app_scoped_env(
+            state,
+            requested_app,
+            scope_key="scope",
+            env_factory=lambda _active: SimpleNamespace(
+                apps_path=other_app.parent,
+                app=other_app.name,
+            ),
+            prefixes=("page:",),
+        )
+
+    assert state == {"env": cached_env, "page:choice": "kept"}
 
 
 def test_agi_pages_runtime_file_helpers_are_deterministic(tmp_path: Path) -> None:
@@ -74,10 +298,13 @@ def test_agi_pages_runtime_file_helpers_are_deterministic(tmp_path: Path) -> Non
         def glob(self, _pattern: str):
             raise OSError("glob unavailable")
 
-    assert runtime.artifact_root(
-        SimpleNamespace(AGILAB_EXPORT_ABS=tmp_path / "export", target="demo"),
-        "forecast",
-    ) == tmp_path / "export" / "demo" / "forecast"
+    assert (
+        runtime.artifact_root(
+            SimpleNamespace(AGILAB_EXPORT_ABS=tmp_path / "export", target="demo"),
+            "forecast",
+        )
+        == tmp_path / "export" / "demo" / "forecast"
+    )
     assert runtime.discover_files(root, "**/metrics.json") == [a_file, b_file]
     assert runtime.discover_files(root / "missing", "[") == []
     assert runtime.discover_files(BrokenBase(), "*.json") == []
@@ -265,16 +492,30 @@ def test_agi_pages_runtime_infers_env_app_scope(tmp_path: Path) -> None:
     app = tmp_path / "apps" / "demo"
     app.mkdir(parents=True)
 
-    assert runtime.env_app_scope_value(SimpleNamespace(app_path=app)) == str(app.resolve())
-    assert runtime.env_app_scope_value(SimpleNamespace(active_app=app)) == str(app.resolve())
-    assert runtime.env_app_scope_value(SimpleNamespace(apps_path=app.parent, app=app.name)) == str(app.resolve())
+    assert runtime.env_app_scope_value(SimpleNamespace(app_path=app)) == str(
+        app.resolve()
+    )
+    assert runtime.env_app_scope_value(SimpleNamespace(active_app=app)) == str(
+        app.resolve()
+    )
+    assert runtime.env_app_scope_value(
+        SimpleNamespace(apps_path=app.parent, app=app.name)
+    ) == str(app.resolve())
     assert runtime.env_app_scope_value(SimpleNamespace()) is None
 
 
 def test_agi_pages_runtime_ensure_repo_on_path(monkeypatch, tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
     src_root = repo_root / "src"
-    page_file = src_root / "agilab" / "apps-pages" / "view_demo" / "src" / "view_demo" / "view_demo.py"
+    page_file = (
+        src_root
+        / "agilab"
+        / "apps-pages"
+        / "view_demo"
+        / "src"
+        / "view_demo"
+        / "view_demo.py"
+    )
     page_file.parent.mkdir(parents=True)
     page_file.write_text("# page\n", encoding="utf-8")
 
