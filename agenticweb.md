@@ -243,7 +243,7 @@ x_generated_by:
   command: "python3 tools/agenticweb_manifest.py --apply"
   source_manifest: "agilab-capabilities.json"
   source_schema: "agilab.capabilities.v1"
-  source_version: "2026.07.17"
+  source_version: "2026.07.17.1"
   boundary: "Discovery only: this file does not prove runtime success, external service reachability, security certification, or production readiness."
 ---
 

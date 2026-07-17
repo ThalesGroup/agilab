@@ -4,22 +4,22 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import streamlit as st
+from agi_pages.queue_resilience import (
+    load_queue_resilience_run,
+    load_queue_summary as _load_json,
+    peer_csv_path as _peer_csv,
+    prepare_queue_resilience_page,
+    render_queue_resilience_run,
+)
 from agi_pages.runtime import (
-    artifact_root as _page_artifact_root,
-    configure_streamlit_page,
-    discover_files as _page_discover_files,
     ensure_repo_on_path as _page_ensure_repo_on_path,
     relative_label as _page_relative_label,
-    render_streamlit_page_header,
-    resolve_active_app_path,
-    reset_scoped_session_state,
-    safe_metric,
+    safe_metric as _safe_metric,
 )
 
 
@@ -29,7 +29,7 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
-from agi_env import AgiEnv
+from agi_env import AgiEnv  # noqa: E402
 
 RUN_SELECTION_KEY = "relay_resilience_selected_runs"
 DETAIL_RUN_KEY = "relay_resilience_detail_run"
@@ -46,47 +46,13 @@ APP_SCOPED_SESSION_DEFAULT_KEYS = (
 )
 
 
-def _resolve_active_app() -> Path:
-    return resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
-
-
-def _default_artifact_root(env: AgiEnv) -> Path:
-    return _page_artifact_root(env, "queue_analysis")
-
-
-def _discover_files(base: Path, pattern: str) -> list[Path]:
-    return _page_discover_files(base, pattern)
-
-
-def _reset_app_scoped_session_defaults(active_app_path: Path) -> bool:
-    """Clear persisted Relay Resilience defaults when the active app changes."""
-
-    return reset_scoped_session_state(
-        st.session_state,
-        APP_SCOPE_KEY,
-        active_app_path,
-        keys=APP_SCOPED_SESSION_DEFAULT_KEYS,
-    )
-
-
-def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _peer_csv(path: Path, suffix: str) -> Path:
-    stem = path.name.removesuffix("_summary_metrics.json")
-    return path.with_name(f"{stem}_{suffix}.csv")
-
-
-def _safe_metric(value: Any) -> str:
-    return safe_metric(value)
-
-
 def _relative_summary_label(path: Path, artifact_root: Path) -> str:
     return _page_relative_label(path, artifact_root)
 
 
-def _coerce_selection(saved_value: Any, options: list[str], *, fallback: str | None = None) -> list[str]:
+def _coerce_selection(
+    saved_value: Any, options: list[str], *, fallback: str | None = None
+) -> list[str]:
     if isinstance(saved_value, str):
         candidates = [saved_value]
     elif isinstance(saved_value, (list, tuple, set)):
@@ -118,7 +84,9 @@ def _comparison_row(summary_path: Path, artifact_root: Path) -> dict[str, Any]:
     }
 
 
-def _build_comparison_frame(selected_paths: dict[str, Path], artifact_root: Path, reference_label: str) -> pd.DataFrame:
+def _build_comparison_frame(
+    selected_paths: dict[str, Path], artifact_root: Path, reference_label: str
+) -> pd.DataFrame:
     rows = [_comparison_row(path, artifact_root) for path in selected_paths.values()]
     if not rows:
         return pd.DataFrame()
@@ -134,7 +102,9 @@ def _build_comparison_frame(selected_paths: dict[str, Path], artifact_root: Path
     for column in numeric_columns:
         comparison_df[column] = pd.to_numeric(comparison_df[column], errors="coerce")
     if reference_label in comparison_df["run_label"].values:
-        reference_row = comparison_df.loc[comparison_df["run_label"] == reference_label].iloc[0]
+        reference_row = comparison_df.loc[
+            comparison_df["run_label"] == reference_label
+        ].iloc[0]
         comparison_df["delta_pdr_vs_ref"] = comparison_df["pdr"] - reference_row["pdr"]
         comparison_df["delta_delay_ms_vs_ref"] = (
             comparison_df["mean_e2e_delay_ms"] - reference_row["mean_e2e_delay_ms"]
@@ -143,7 +113,8 @@ def _build_comparison_frame(selected_paths: dict[str, Path], artifact_root: Path
             comparison_df["mean_queue_wait_ms"] - reference_row["mean_queue_wait_ms"]
         )
         comparison_df["delta_max_queue_vs_ref"] = (
-            comparison_df["max_queue_depth_pkts"] - reference_row["max_queue_depth_pkts"]
+            comparison_df["max_queue_depth_pkts"]
+            - reference_row["max_queue_depth_pkts"]
         )
     ordered_columns = [
         "run_label",
@@ -162,7 +133,9 @@ def _build_comparison_frame(selected_paths: dict[str, Path], artifact_root: Path
         "delta_queue_wait_ms_vs_ref",
         "delta_max_queue_vs_ref",
     ]
-    return comparison_df[[column for column in ordered_columns if column in comparison_df.columns]]
+    return comparison_df[
+        [column for column in ordered_columns if column in comparison_df.columns]
+    ]
 
 
 def _build_max_queue_comparison_frame(selected_paths: dict[str, Path]) -> pd.DataFrame:
@@ -172,10 +145,16 @@ def _build_max_queue_comparison_frame(selected_paths: dict[str, Path]) -> pd.Dat
         if not queue_path.is_file():
             continue
         queue_df = pd.read_csv(queue_path)
-        if "time_s" not in queue_df.columns or "queue_depth_pkts" not in queue_df.columns:
+        if (
+            "time_s" not in queue_df.columns
+            or "queue_depth_pkts" not in queue_df.columns
+        ):
             continue
         queue_series = (
-            queue_df.groupby("time_s", dropna=False)["queue_depth_pkts"].max().sort_index().rename(label)
+            queue_df.groupby("time_s", dropna=False)["queue_depth_pkts"]
+            .max()
+            .sort_index()
+            .rename(label)
         )
         queue_frames.append(queue_series)
     if not queue_frames:
@@ -183,57 +162,35 @@ def _build_max_queue_comparison_frame(selected_paths: dict[str, Path]) -> pd.Dat
     return pd.concat(queue_frames, axis=1).sort_index()
 
 
-configure_streamlit_page(st, title="Relay resilience analysis")
-
-active_app_path = _resolve_active_app()
-app_scope_changed = _reset_app_scoped_session_defaults(active_app_path)
-if "env" not in st.session_state or app_scope_changed:
-    env = AgiEnv.session_for_app(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+def _create_env(active_app_path: Path) -> AgiEnv:
+    env = AgiEnv.session_for_app(
+        apps_path=active_app_path.parent,
+        app=active_app_path.name,
+        verbose=0,
+    )
     env.init_done = True
-    st.session_state["env"] = env
-else:
-    env = st.session_state["env"]
+    return env
 
-render_streamlit_page_header(
+
+page_context = prepare_queue_resilience_page(
     st,
+    env_factory=_create_env,
     title="Relay resilience analysis",
     logo_title="Relay Resilience Analysis",
     caption=(
         "Use exported relay-queue telemetry to compare routing policies, queue hotspots, and delivery outcomes "
         "without reopening the producer code."
     ),
-)
-st.info(
-    "Each run also writes `pipeline/topology.gml`, `pipeline/allocations_steps.csv`, "
-    "`pipeline/_trajectory_summary.json`, and per-node trajectory CSVs so the same result "
-    "can be explored in `view_maps_network`."
-)
-
-default_root = _default_artifact_root(env)
-st.session_state.setdefault(DATA_DIR_KEY, str(default_root))
-artifact_root_value = st.sidebar.text_input(
-    "Artifact directory",
-    key=DATA_DIR_KEY,
-)
-artifact_root = Path(artifact_root_value).expanduser()
-
-st.session_state.setdefault(SUMMARY_GLOB_KEY, "**/*_summary_metrics.json")
-metrics_pattern = st.sidebar.text_input(
-    "Summary glob",
-    key=SUMMARY_GLOB_KEY,
+    data_dir_key=DATA_DIR_KEY,
+    summary_glob_key=SUMMARY_GLOB_KEY,
+    app_scope_key=APP_SCOPE_KEY,
+    app_scoped_keys=APP_SCOPED_SESSION_DEFAULT_KEYS,
 )
 
-summary_files = _discover_files(artifact_root, metrics_pattern) if artifact_root.exists() else []
-
-if not artifact_root.exists():
-    st.warning(f"Artifact directory does not exist yet: {artifact_root}")
-    st.stop()
-
-if not summary_files:
-    st.warning(f"No summary metrics file found in {artifact_root} with pattern {metrics_pattern!r}.")
-    st.stop()
-
-summary_label_to_path = {_relative_summary_label(path, artifact_root): path for path in summary_files}
+summary_label_to_path = {
+    _relative_summary_label(path, page_context.artifact_root): path
+    for path in page_context.summary_files
+}
 summary_labels = list(summary_label_to_path.keys())
 default_selection = summary_labels[-1:] if summary_labels else []
 if RUN_SELECTION_KEY in st.session_state:
@@ -277,7 +234,11 @@ if len(selected_run_labels) > 1:
     )
 
 selected_paths = {label: summary_label_to_path[label] for label in selected_run_labels}
-comparison_df = _build_comparison_frame(selected_paths, artifact_root, reference_run_label)
+comparison_df = _build_comparison_frame(
+    selected_paths,
+    page_context.artifact_root,
+    reference_run_label,
+)
 max_queue_compare_df = _build_max_queue_comparison_frame(selected_paths)
 
 if len(selected_run_labels) > 1 and not comparison_df.empty:
@@ -286,33 +247,47 @@ if len(selected_run_labels) > 1 and not comparison_df.empty:
         "Select several exported runs to compare routing policy, queue buildup, and delivery outcomes "
         "before drilling into one detailed run below."
     )
-    best_pdr_idx = comparison_df["pdr"].idxmax() if comparison_df["pdr"].notna().any() else None
+    best_pdr_idx = (
+        comparison_df["pdr"].idxmax() if comparison_df["pdr"].notna().any() else None
+    )
     lowest_delay_idx = (
-        comparison_df["mean_e2e_delay_ms"].idxmin() if comparison_df["mean_e2e_delay_ms"].notna().any() else None
+        comparison_df["mean_e2e_delay_ms"].idxmin()
+        if comparison_df["mean_e2e_delay_ms"].notna().any()
+        else None
     )
     lowest_queue_idx = (
-        comparison_df["mean_queue_wait_ms"].idxmin() if comparison_df["mean_queue_wait_ms"].notna().any() else None
+        comparison_df["mean_queue_wait_ms"].idxmin()
+        if comparison_df["mean_queue_wait_ms"].notna().any()
+        else None
     )
     comparison_cols = st.columns(4)
     comparison_cols[0].metric("Runs selected", str(len(selected_run_labels)))
     comparison_cols[1].metric(
         "Best PDR",
-        _safe_metric(comparison_df.loc[best_pdr_idx, "pdr"]) if best_pdr_idx is not None else "n/a",
-        comparison_df.loc[best_pdr_idx, "run_label"] if best_pdr_idx is not None else None,
+        _safe_metric(comparison_df.loc[best_pdr_idx, "pdr"])
+        if best_pdr_idx is not None
+        else "n/a",
+        comparison_df.loc[best_pdr_idx, "run_label"]
+        if best_pdr_idx is not None
+        else None,
     )
     comparison_cols[2].metric(
         "Lowest delay (ms)",
         _safe_metric(comparison_df.loc[lowest_delay_idx, "mean_e2e_delay_ms"])
         if lowest_delay_idx is not None
         else "n/a",
-        comparison_df.loc[lowest_delay_idx, "run_label"] if lowest_delay_idx is not None else None,
+        comparison_df.loc[lowest_delay_idx, "run_label"]
+        if lowest_delay_idx is not None
+        else None,
     )
     comparison_cols[3].metric(
         "Lowest queue wait (ms)",
         _safe_metric(comparison_df.loc[lowest_queue_idx, "mean_queue_wait_ms"])
         if lowest_queue_idx is not None
         else "n/a",
-        comparison_df.loc[lowest_queue_idx, "run_label"] if lowest_queue_idx is not None else None,
+        comparison_df.loc[lowest_queue_idx, "run_label"]
+        if lowest_queue_idx is not None
+        else None,
     )
     st.dataframe(comparison_df, width="stretch", hide_index=True)
     st.caption(
@@ -324,88 +299,12 @@ if len(selected_run_labels) > 1 and not comparison_df.empty:
         st.line_chart(max_queue_compare_df)
 
 summary_path = selected_paths[detailed_run_label]
-
-summary = _load_json(Path(summary_path))
-queue_path = _peer_csv(Path(summary_path), "queue_timeseries")
-packet_path = _peer_csv(Path(summary_path), "packet_events")
-positions_path = _peer_csv(Path(summary_path), "node_positions")
-routing_path = _peer_csv(Path(summary_path), "routing_summary")
-
-missing = [path for path in (queue_path, packet_path, positions_path, routing_path) if not path.is_file()]
-if missing:
-    st.error("Related queue artifacts are missing for the selected summary:")
-    for path in missing:
-        st.code(str(path))
-    st.stop()
-
-queue_df = pd.read_csv(queue_path)
-packet_df = pd.read_csv(packet_path)
-positions_df = pd.read_csv(positions_path)
-routing_df = pd.read_csv(routing_path)
+run = load_queue_resilience_run(
+    st,
+    Path(summary_path),
+    csv_loader=pd.read_csv,
+)
 
 st.divider()
 st.subheader(f"Detailed run: {detailed_run_label}")
-
-intro_left, intro_right = st.columns([1.6, 1.2])
-with intro_left:
-    st.subheader("Why this run is useful")
-    st.markdown(
-        "- one scenario file becomes a reproducible project\n"
-        "- one routing knob changes queue buildup and delivery outcomes\n"
-        "- the exported packet and queue telemetry stays explorable across reruns\n"
-        "- the producer can later be swapped while preserving the analysis contract"
-    )
-with intro_right:
-    st.subheader("Run metadata")
-    st.json(
-        {
-            "scenario": summary.get("scenario"),
-            "routing_policy": summary.get("routing_policy"),
-            "source_rate_pps": summary.get("source_rate_pps"),
-            "random_seed": summary.get("random_seed"),
-            "bottleneck_relay": summary.get("bottleneck_relay"),
-        }
-    )
-
-metric_columns = st.columns(4)
-metric_specs = [
-    ("PDR", summary.get("pdr")),
-    ("Mean delay (ms)", summary.get("mean_e2e_delay_ms")),
-    ("Queue wait (ms)", summary.get("mean_queue_wait_ms")),
-    ("Max queue", summary.get("max_queue_depth_pkts")),
-]
-for col, (label, value) in zip(metric_columns, metric_specs):
-    col.metric(label, _safe_metric(value))
-
-st.subheader("Queue occupancy over time")
-queue_chart = (
-    queue_df.pivot_table(index="time_s", columns="relay", values="queue_depth_pkts", aggfunc="last")
-    .sort_index()
-)
-st.line_chart(queue_chart)
-
-relay_positions = positions_df.loc[positions_df["role"] == "relay"].copy()
-if not relay_positions.empty:
-    st.subheader("Relay mobility trace (y axis)")
-    relay_chart = relay_positions.pivot_table(index="time_s", columns="node", values="y_m", aggfunc="last").sort_index()
-    st.line_chart(relay_chart)
-
-if not routing_df.empty:
-    st.subheader("Route usage")
-    route_metrics = routing_df.set_index("relay")[["packets_delivered", "packets_dropped"]]
-    st.bar_chart(route_metrics)
-    st.dataframe(routing_df, width="stretch", hide_index=True)
-
-source_packets = packet_df.loc[packet_df["origin_kind"] == "source"].copy()
-delivered_packets = source_packets.loc[source_packets["status"] == "delivered"].copy()
-if not delivered_packets.empty:
-    st.subheader("Highest-delay source packets")
-    slowest = delivered_packets.sort_values("e2e_delay_ms", ascending=False).head(30)
-    st.dataframe(slowest, width="stretch", hide_index=True)
-else:
-    st.info("No delivered source packet is available in this run.")
-
-notes = str(summary.get("notes", "") or "").strip()
-if notes:
-    st.subheader("Notes")
-    st.info(notes)
+render_queue_resilience_run(st, run)
