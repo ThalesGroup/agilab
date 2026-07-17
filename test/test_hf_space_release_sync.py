@@ -121,6 +121,65 @@ def test_set_space_visibility_falls_back_to_legacy_hf_api(monkeypatch) -> None:
     ]
 
 
+def test_upload_space_updates_existing_repo_without_create(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    calls: list[dict[str, object]] = []
+    visibility: list[tuple[str, str, bool]] = []
+
+    class _Commit:
+        oid = "0123456789abcdef0123456789abcdef01234567"
+
+    class _Api:
+        def upload_folder(self, **kwargs):
+            calls.append(kwargs)
+            return _Commit()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "huggingface_hub",
+        types.SimpleNamespace(HfApi=lambda: _Api()),
+    )
+    monkeypatch.setattr(
+        module,
+        "set_space_visibility",
+        lambda space_id, *, token, private: visibility.append((space_id, token, private)),
+    )
+
+    commit = module.upload_space(
+        tmp_path,
+        space_id="jpmorard/agilab",
+        token="hf-token",
+        private=False,
+    )
+
+    assert commit == "0123456789abcdef0123456789abcdef01234567"
+    assert calls == [
+        {
+            "repo_id": "jpmorard/agilab",
+            "folder_path": tmp_path,
+            "repo_type": "space",
+            "token": "hf-token",
+            "commit_message": calls[0]["commit_message"],
+            "delete_patterns": [
+                "src/agilab/apps/builtin/**",
+                "src/agilab/apps-pages/**",
+                "src/agilab/pages/**",
+                "src/.DS_Store",
+                "src/.coverage*",
+                "src/**/.DS_Store",
+                "src/**/.coverage*",
+            ],
+            "ignore_patterns": [
+                "**/.venv/**",
+                "**/__pycache__/**",
+                "**/*.pyc",
+            ],
+        }
+    ]
+    assert str(calls[0]["commit_message"]).startswith("chore: deploy AGILAB release Space (")
+    assert visibility == [("jpmorard/agilab", "hf-token", False)]
+
+
 def test_generated_space_readme_uses_valid_hf_emoji_metadata() -> None:
     module = _load_module()
 

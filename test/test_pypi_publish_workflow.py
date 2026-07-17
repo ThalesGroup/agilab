@@ -446,6 +446,8 @@ def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_asse
     assert "--direct-web-only" in text
     assert '--min-published-releases "$PYPI_RETENTION_MIN_PUBLISHED_RELEASES"' in text
     assert "--min-published-releases 11" not in text
+    assert "--verify-attempts 17" in retention_block
+    assert "--retry-delay 60" in retention_block
     assert "retention_log=\"$(mktemp)\"" in text
     assert "PyPI redirected back to login while opening the release delete page after password/TOTP authentication." in text
     assert "--github-confirm-login-repository \"$GITHUB_REPOSITORY\"" in text

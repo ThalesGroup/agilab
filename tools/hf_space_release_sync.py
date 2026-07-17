@@ -500,43 +500,35 @@ def set_space_visibility(space_id: str, *, token: str, private: bool) -> None:
 
 
 def upload_space(stage_dir: Path, *, space_id: str, token: str, private: bool) -> str:
-    env = os.environ.copy()
-    env["HF_TOKEN"] = token
-    output = run_command(
-        [
-            "hf",
-            "upload",
-            space_id,
-            str(stage_dir),
-            "--type",
-            "space",
-            "--commit-message",
-            f"chore: deploy AGILAB release Space ({time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())})",
-            "--delete",
+    from huggingface_hub import HfApi
+
+    commit = HfApi().upload_folder(
+        repo_id=space_id,
+        folder_path=stage_dir,
+        repo_type="space",
+        token=token,
+        commit_message=(
+            "chore: deploy AGILAB release Space "
+            f"({time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())})"
+        ),
+        delete_patterns=[
             "src/agilab/apps/builtin/**",
-            "--delete",
             "src/agilab/apps-pages/**",
-            "--delete",
             "src/agilab/pages/**",
-            "--delete",
             "src/.DS_Store",
-            "--delete",
             "src/.coverage*",
-            "--delete",
             "src/**/.DS_Store",
-            "--delete",
             "src/**/.coverage*",
-            "--exclude",
+        ],
+        ignore_patterns=[
             "**/.venv/**",
-            "--exclude",
             "**/__pycache__/**",
-            "--exclude",
             "**/*.pyc",
         ],
-        env=env,
     )
     set_space_visibility(space_id, token=token, private=private)
-    return parse_commit_sha(output) or current_space_sha(space_id, token=token)
+    commit_sha = str(getattr(commit, "oid", "") or "")
+    return commit_sha or current_space_sha(space_id, token=token)
 
 
 def wait_for_runtime(
@@ -621,9 +613,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit("HF_TOKEN is required for release HF Space sync")
     if "/" not in args.space:
         raise SystemExit("--space must be NAMESPACE/SPACE_NAME")
-    if shutil.which("hf") is None and not args.dry_run:
-        raise SystemExit("hf CLI is required; install huggingface_hub[cli]")
-
     with tempfile.TemporaryDirectory(prefix="agilab-hf-release-") as tmp:
         stage_dir = Path(tmp)
         staged = stage_space_tree(repo_root, stage_dir, profile=args.profile)

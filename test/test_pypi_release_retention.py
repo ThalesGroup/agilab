@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -11,12 +12,20 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPO_ROOT / "tools" / "pypi_release_retention.py"
 
 
-def _load_module():
+def _load_module(*, stub_network: bool = True):
     spec = importlib.util.spec_from_file_location("pypi_release_retention_test_module", MODULE_PATH)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
+    if stub_network:
+        module.fetch_exact_release_version = (
+            lambda package, repo, version: module.normalize_version(version)
+        )
+        module.probe_exact_release_version = lambda package, repo, version: (
+            module.EXACT_RELEASE_PRESENT,
+            module.normalize_version(version),
+        )
     return module
 
 
@@ -34,6 +43,199 @@ def test_retention_plan_keeps_only_protected_normalized_version(monkeypatch) -> 
     assert plan.protect_version == "2026.5.17"
     assert plan.delete_versions == ["2026.04.16", "2026.04.17"]
     assert plan.missing_protected_version is False
+
+
+def test_exact_release_probe_uses_distinct_cache_busted_requests(monkeypatch) -> None:
+    module = _load_module(stub_network=False)
+    requests = []
+    nonces = iter([101, 102])
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps({"info": {"version": "2026.7.17"}}).encode()
+
+    def fake_urlopen(request, *, timeout):
+        requests.append((request, timeout))
+        return _Response()
+
+    monkeypatch.setattr(module.time, "time_ns", lambda: next(nonces))
+    monkeypatch.setattr(module.urllib.request, "urlopen", fake_urlopen)
+
+    assert module.fetch_exact_release_version("agi-web", "pypi", "2026.07.17") == "2026.7.17"
+    assert module.fetch_exact_release_version("agi-web", "pypi", "2026.07.17") == "2026.7.17"
+    assert [request.full_url for request, _timeout in requests] == [
+        "https://pypi.org/pypi/agi-web/2026.7.17/json?agilab_cache_bust=101",
+        "https://pypi.org/pypi/agi-web/2026.7.17/json?agilab_cache_bust=102",
+    ]
+    headers = dict(requests[0][0].header_items())
+    assert headers["Accept"] == "application/json"
+    assert headers["Cache-control"] == "no-cache, no-store, max-age=0"
+    assert headers["Pragma"] == "no-cache"
+    assert headers["User-agent"] == "agilab-pypi-retention/1.0"
+    assert [timeout for _request, timeout in requests] == [15, 15]
+
+
+def test_retention_plan_accepts_matching_exact_release_when_project_json_is_stale(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.7.4"])
+    monkeypatch.setattr(
+        module,
+        "fetch_exact_release_version",
+        lambda package, repo, version: "2026.7.17",
+    )
+
+    plan = module.build_plan(
+        "agi-web",
+        "pypi",
+        "2026.7.17",
+        min_published_releases=2,
+    )
+
+    assert plan.published_versions == ["2026.7.4", "2026.7.17"]
+    assert plan.delete_versions == ["2026.7.4"]
+    assert plan.missing_protected_version is False
+
+
+def test_retention_plan_stays_fail_closed_when_exact_release_is_missing(monkeypatch) -> None:
+    module = _load_module(stub_network=False)
+    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.7.4"])
+
+    def missing_exact_release(request, *, timeout):
+        raise module.urllib.error.HTTPError(
+            request.full_url,
+            404,
+            "Not Found",
+            hdrs=None,
+            fp=None,
+        )
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", missing_exact_release)
+
+    plan = module.build_plan("agi-web", "pypi", "2026.7.17")
+
+    assert plan.published_versions == ["2026.7.4"]
+    assert plan.delete_versions == []
+    assert plan.retained_versions == ["2026.7.4"]
+    assert plan.missing_protected_version is True
+
+
+def test_retention_plan_refuses_deletion_when_only_aggregate_confirms_protected_release(
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "fetch_releases",
+        lambda package, repo: ["2026.7.4", "2026.7.17"],
+    )
+    monkeypatch.setattr(module, "fetch_exact_release_version", lambda package, repo, version: None)
+
+    plan = module.build_plan("agi-web", "pypi", "2026.7.17")
+
+    assert plan.delete_versions == []
+    assert plan.retained_versions == ["2026.7.4"]
+    assert plan.missing_protected_version is True
+
+
+def test_post_delete_verification_accepts_exact_404_with_stale_aggregate(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "fetch_releases",
+        lambda package, repo: ["2026.7.4", "2026.7.17"],
+    )
+    monkeypatch.setattr(
+        module,
+        "probe_exact_release_version",
+        lambda package, repo, version: (
+            (module.EXACT_RELEASE_PRESENT, "2026.7.17")
+            if version == "2026.7.17"
+            else (module.EXACT_RELEASE_ABSENT, None)
+        ),
+    )
+
+    plans = module.verify_package_retention(
+        package_versions={"agi-web": "2026.7.17"},
+        repo="pypi",
+        attempts=1,
+        retry_delay=60,
+    )
+
+    assert plans[0].published_versions == ["2026.7.17"]
+    assert plans[0].delete_versions == []
+
+
+def test_post_delete_verification_retries_exact_endpoint_errors(monkeypatch) -> None:
+    module = _load_module()
+    attempts = 0
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        module,
+        "fetch_releases",
+        lambda package, repo: ["2026.7.4", "2026.7.17"],
+    )
+
+    def probe(package, repo, version):
+        nonlocal attempts
+        if version == "2026.7.17":
+            return module.EXACT_RELEASE_PRESENT, "2026.7.17"
+        attempts += 1
+        if attempts == 1:
+            return module.EXACT_RELEASE_ERROR, None
+        return module.EXACT_RELEASE_ABSENT, None
+
+    monkeypatch.setattr(module, "probe_exact_release_version", probe)
+    monkeypatch.setattr(module.time, "sleep", lambda seconds: sleeps.append(seconds))
+
+    plans = module.verify_package_retention(
+        package_versions={"agi-web": "2026.7.17"},
+        repo="pypi",
+        attempts=2,
+        retry_delay=60,
+    )
+
+    assert attempts == 2
+    assert sleeps == [60]
+    assert plans[0].delete_versions == []
+
+
+def test_protected_release_wait_allows_full_pypi_cache_window(monkeypatch) -> None:
+    module = _load_module()
+    calls = 0
+    sleeps: list[float] = []
+
+    def fake_build_plan(package, repo, protect_version, *, min_published_releases):
+        nonlocal calls
+        calls += 1
+        missing = calls < 17
+        return module.ReleasePlan(
+            package=package,
+            protect_version=protect_version,
+            published_versions=[] if missing else [protect_version],
+            delete_versions=[],
+            retained_versions=[],
+            missing_protected_version=missing,
+        )
+
+    monkeypatch.setattr(module, "build_plan", fake_build_plan)
+    monkeypatch.setattr(module.time, "sleep", lambda seconds: sleeps.append(seconds))
+
+    plans = module.wait_for_package_protected_releases(
+        package_versions={"agi-web": "2026.7.17"},
+        repo="pypi",
+        attempts=17,
+        retry_delay=60,
+    )
+
+    assert calls == 17
+    assert sleeps == [60] * 16
+    assert plans[0].missing_protected_version is False
 
 
 def test_retention_plan_retains_old_versions_below_publish_threshold(monkeypatch) -> None:
@@ -211,6 +413,13 @@ def test_main_auto_selects_packages_with_visible_protected_version(monkeypatch, 
         },
     )
     monkeypatch.setattr(module, "fetch_releases", lambda package, repo: releases[package])
+    monkeypatch.setattr(
+        module,
+        "fetch_exact_release_version",
+        lambda package, repo, version: (
+            None if package == "agi-old-only" else module.normalize_version(version)
+        ),
+    )
 
     status = module.main(
         [
@@ -248,6 +457,7 @@ def test_main_auto_select_fails_when_no_protected_package_is_visible(monkeypatch
         lambda repo_root: {"agi-old-only": "2026.06.12"},
     )
     monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.06.12"])
+    monkeypatch.setattr(module, "fetch_exact_release_version", lambda package, repo, version: None)
 
     with pytest.raises(SystemExit, match="visible on PyPI"):
         module.main(
@@ -316,14 +526,15 @@ def test_main_retries_until_protected_release_is_visible(monkeypatch, capsys) ->
     module = _load_module()
     calls = 0
 
-    def fake_fetch_releases(package, repo):
+    def fake_fetch_exact_release(package, repo, version):
         nonlocal calls
         calls += 1
         if calls == 1:
-            return ["2026.04.16"]
-        return ["2026.04.16", "2026.05.17"]
+            return None
+        return module.normalize_version(version)
 
-    monkeypatch.setattr(module, "fetch_releases", fake_fetch_releases)
+    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.04.16"])
+    monkeypatch.setattr(module, "fetch_exact_release_version", fake_fetch_exact_release)
 
     status = module.main(
         [
@@ -589,7 +800,11 @@ def test_direct_pypi_delete_treats_missing_manage_release_as_already_deleted(
                 text="<html></html>",
             )
 
-    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.5.26"])
+    monkeypatch.setattr(
+        module,
+        "probe_exact_release_version",
+        lambda package, repo, version: (module.EXACT_RELEASE_ABSENT, None),
+    )
     session = FakeSession()
 
     module.delete_release_via_pypi_web(
@@ -1312,6 +1527,7 @@ def test_main_rejects_missing_protected_release(monkeypatch) -> None:
     module = _load_module()
 
     monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.04.16"])
+    monkeypatch.setattr(module, "fetch_exact_release_version", lambda package, repo, version: None)
 
     with pytest.raises(SystemExit, match="agilab=2026.5.17"):
         module.main(

@@ -20,10 +20,10 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Sequence
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 from packaging.version import InvalidVersion, Version
 
@@ -38,6 +38,10 @@ PYPI_JSON_URLS = {
     "pypi": "https://pypi.org/pypi/{package}/json",
     "testpypi": "https://test.pypi.org/pypi/{package}/json",
 }
+PYPI_RELEASE_JSON_URLS = {
+    "pypi": "https://pypi.org/pypi/{package}/{version}/json",
+    "testpypi": "https://test.pypi.org/pypi/{package}/{version}/json",
+}
 PYPI_HOSTS = {
     "pypi": "https://pypi.org/",
     "testpypi": "https://test.pypi.org/",
@@ -46,6 +50,9 @@ SCHEMA_VERSION = "agilab.pypi_release_retention.v1"
 PYPI_PROJECT_NAME_RE = re.compile(
     r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$"
 )
+EXACT_RELEASE_PRESENT = "present"
+EXACT_RELEASE_ABSENT = "absent"
+EXACT_RELEASE_ERROR = "error"
 
 
 @dataclass(frozen=True)
@@ -272,6 +279,64 @@ def fetch_releases(package: str, repo: str, *, timeout: int = 15) -> list[str]:
     return sorted(releases, key=lambda value: Version(value))
 
 
+def probe_exact_release_version(
+    package: str,
+    repo: str,
+    version: str,
+    *,
+    timeout: int = 15,
+) -> tuple[str, str | None]:
+    """Return present, absent, or error from a cache-isolated release endpoint."""
+    normalized = normalize_version(version)
+    url = PYPI_RELEASE_JSON_URLS[repo].format(
+        package=quote(package, safe=""),
+        version=quote(normalized, safe=""),
+    )
+    request = urllib.request.Request(
+        f"{url}?agilab_cache_bust={time.time_ns()}",
+        headers={
+            "Accept": "application/json",
+            "Cache-Control": "no-cache, no-store, max-age=0",
+            "Pragma": "no-cache",
+            "User-Agent": "agilab-pypi-retention/1.0",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        return (EXACT_RELEASE_ABSENT, None) if exc.code == 404 else (EXACT_RELEASE_ERROR, None)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        return EXACT_RELEASE_ERROR, None
+    info = data.get("info") if isinstance(data, dict) else None
+    observed = info.get("version") if isinstance(info, dict) else None
+    if not isinstance(observed, str):
+        return EXACT_RELEASE_ERROR, None
+    try:
+        observed_normalized = str(Version(observed))
+    except InvalidVersion:
+        return EXACT_RELEASE_ERROR, None
+    if observed_normalized != normalized:
+        return EXACT_RELEASE_ERROR, None
+    return EXACT_RELEASE_PRESENT, normalized
+
+
+def fetch_exact_release_version(
+    package: str,
+    repo: str,
+    version: str,
+    *,
+    timeout: int = 15,
+) -> str | None:
+    state, observed = probe_exact_release_version(
+        package,
+        repo,
+        version,
+        timeout=timeout,
+    )
+    return observed if state == EXACT_RELEASE_PRESENT else None
+
+
 def build_plan(
     package: str,
     repo: str,
@@ -281,12 +346,22 @@ def build_plan(
 ) -> ReleasePlan:
     protected = Version(normalize_version(protect_version))
     releases = fetch_releases(package, repo)
+    exact_release = fetch_exact_release_version(package, repo, str(protected))
+    if exact_release is not None and all(
+        Version(normalize_version(version)) != protected for version in releases
+    ):
+        releases = sorted([*releases, exact_release], key=lambda value: Version(value))
     old_versions = [
         version
         for version in releases
         if Version(normalize_version(version)) != protected
     ]
-    if len(releases) < min_published_releases:
+    missing_protected = exact_release is None
+    if missing_protected:
+        delete_versions = []
+        retained_versions = old_versions
+        retention_skipped_reason = "protected release is not confirmed by its exact PyPI endpoint"
+    elif len(releases) < min_published_releases:
         delete_versions: list[str] = []
         retained_versions = old_versions
         retention_skipped_reason = (
@@ -299,9 +374,6 @@ def build_plan(
         delete_versions = old_versions
         retained_versions = []
         retention_skipped_reason = None
-    missing_protected = all(
-        Version(normalize_version(version)) != protected for version in releases
-    )
     return ReleasePlan(
         package=package,
         protect_version=str(protected),
@@ -310,6 +382,31 @@ def build_plan(
         retained_versions=retained_versions,
         missing_protected_version=missing_protected,
         retention_skipped_reason=retention_skipped_reason,
+    )
+
+
+def reconcile_exact_deleted_releases(plan: ReleasePlan, *, repo: str) -> ReleasePlan:
+    """Clear stale aggregate entries only after exact endpoints confirm deletion."""
+    if not plan.delete_versions:
+        return plan
+    unresolved: list[str] = []
+    confirmed_absent: set[str] = set()
+    for version in plan.delete_versions:
+        state, _observed = probe_exact_release_version(plan.package, repo, version)
+        if state == EXACT_RELEASE_ABSENT:
+            confirmed_absent.add(normalize_version(version))
+        else:
+            unresolved.append(version)
+    if not confirmed_absent:
+        return plan
+    return replace(
+        plan,
+        published_versions=[
+            version
+            for version in plan.published_versions
+            if normalize_version(version) not in confirmed_absent
+        ],
+        delete_versions=unresolved,
     )
 
 
@@ -460,11 +557,8 @@ def _http_status_from_exception(exc: BaseException) -> int | None:
 
 
 def _version_is_absent_from_public_index(*, package: str, version: str, repo: str) -> bool:
-    target = Version(normalize_version(version))
-    return all(
-        Version(normalize_version(candidate)) != target
-        for candidate in fetch_releases(package, repo)
-    )
+    state, _observed = probe_exact_release_version(package, repo, version)
+    return state == EXACT_RELEASE_ABSENT
 
 
 def _release_absent_after_not_found(
@@ -1028,11 +1122,14 @@ def verify_retention(
     latest: list[ReleasePlan] = []
     for attempt in range(1, max(1, attempts) + 1):
         latest = [
-            build_plan(
-                package,
-                repo,
-                protect_version,
-                min_published_releases=min_published_releases,
+            reconcile_exact_deleted_releases(
+                build_plan(
+                    package,
+                    repo,
+                    protect_version,
+                    min_published_releases=min_published_releases,
+                ),
+                repo=repo,
             )
             for package in packages
         ]
@@ -1059,11 +1156,14 @@ def verify_package_retention(
     latest: list[ReleasePlan] = []
     for attempt in range(1, max(1, attempts) + 1):
         latest = [
-            build_plan(
-                package,
-                repo,
-                protect_version,
-                min_published_releases=min_published_releases,
+            reconcile_exact_deleted_releases(
+                build_plan(
+                    package,
+                    repo,
+                    protect_version,
+                    min_published_releases=min_published_releases,
+                ),
+                repo=repo,
             )
             for package, protect_version in package_versions.items()
         ]
