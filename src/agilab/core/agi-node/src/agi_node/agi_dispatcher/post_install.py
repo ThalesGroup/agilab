@@ -306,7 +306,6 @@ def _execute_post_install(
     try:
         return seed_optional_dataset_fn(
             env=env,
-            dataset_archive=dataset_archive,
             dest_arg=dest_arg,
         )
     except (OSError, shutil.Error, py7zr.Bad7zFile) as exc:
@@ -400,9 +399,31 @@ def _apply_preferred_sat_dataset(
     return None
 
 
+def _find_trajectory_archive(active_app: Path) -> Path | None:
+    """Locate an app-provided Trajectory.7z anywhere under the app's src tree.
+
+    Apps that ship one (e.g. link_sim's optional satellite trajectories) do
+    not all place it as a literal sibling of dataset.7z, so this searches the
+    whole src tree rather than assuming a fixed layout.
+    """
+
+    try:
+        active_src = Path(active_app) / "src"
+        if not active_src.exists():
+            return None
+        for candidate in sorted(
+            active_src.rglob("Trajectory.7z"), key=lambda path: path.as_posix()
+        ):
+            if candidate.is_file():
+                return candidate
+    except OSError:
+        pass
+    return None
+
+
 def _apply_trajectory_sat_dataset(
     *,
-    dataset_archive: Path,
+    trajectory_archive: Path | None,
     dataset_root: Path,
     sat_folder: Path,
     print_fn=None,
@@ -410,10 +431,9 @@ def _apply_trajectory_sat_dataset(
     if print_fn is None:
         print_fn = print
 
-    trajectory_archive = dataset_archive.parent / "Trajectory.7z"
     trajectory_folder = dataset_root / "Trajectory"
 
-    if not _has_samples(trajectory_folder) and trajectory_archive.exists():
+    if not _has_samples(trajectory_folder) and trajectory_archive is not None and trajectory_archive.exists():
         print_fn(f"[post_install] extracting optional trajectories: {trajectory_archive}")
         _extract_archive(trajectory_archive, dataset_root)
 
@@ -440,7 +460,6 @@ def _apply_trajectory_sat_dataset(
 def _seed_optional_dataset(
     *,
     env: AgiEnv,
-    dataset_archive: Path,
     dest_arg: str | Path,
 ) -> int:
     dataset_root = Path(dest_arg) / "dataset"
@@ -468,7 +487,7 @@ def _seed_optional_dataset(
         return 0
 
     return _apply_trajectory_sat_dataset(
-        dataset_archive=dataset_archive,
+        trajectory_archive=_find_trajectory_archive(env.active_app),
         dataset_root=dataset_root,
         sat_folder=sat_folder,
     )
