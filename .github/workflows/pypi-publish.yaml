@@ -805,6 +805,8 @@ jobs:
             --repo-root .
             --protect-versions-from-projects
             --min-published-releases "$PYPI_RETENTION_MIN_PUBLISHED_RELEASES"
+            --verify-attempts 17
+            --retry-delay 60
             --confirm-delete
             --direct-web-only
             --json
