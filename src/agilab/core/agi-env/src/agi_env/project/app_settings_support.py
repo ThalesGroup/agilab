@@ -1,12 +1,26 @@
-"""Pure app-settings path helpers for AGILAB."""
+"""App-settings contract, transaction, and path helpers for AGILAB."""
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from copy import deepcopy
+from io import BufferedWriter
+import os
 import shutil
 from pathlib import Path
-from typing import Any, Callable
+import tempfile
+import threading
+import tomllib
+from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 
 from agi_env.runtime.env_config_support import clean_envar_value
+from agi_env.runtime.atomic_write_support import (
+    FILE_LOCK_TIMEOUT_SECONDS,
+    acquire_bounded_file_lock,
+    atomic_write_bytes,
+    release_file_lock,
+    run_with_windows_file_sharing_retry,
+)
 
 APP_SETTINGS_META_KEY = "__meta__"
 APP_SETTINGS_SCHEMA = "agilab.app_settings.v1"
@@ -14,6 +28,252 @@ APP_SETTINGS_SCHEMA_VERSION = 1
 PATH_VALUE_EXCEPTIONS = (TypeError, ValueError)
 PATH_PROBE_EXCEPTIONS = (OSError,)
 EXPORT_ROOT_EXCEPTIONS = (OSError, TypeError, ValueError)
+
+_APP_SETTINGS_THREAD_LOCKS: dict[Path, threading.Lock] = {}
+_APP_SETTINGS_THREAD_LOCKS_GUARD = threading.Lock()
+_APP_SETTINGS_LOCK_TIMEOUT_SECONDS = FILE_LOCK_TIMEOUT_SECONDS
+
+
+def _app_settings_thread_lock(settings_path: Path) -> threading.Lock:
+    """Return the process-local lock paired with a settings transaction path."""
+
+    try:
+        lock_key = settings_path.resolve(strict=False)
+    except OSError:
+        lock_key = settings_path.absolute()
+    with _APP_SETTINGS_THREAD_LOCKS_GUARD:
+        return _APP_SETTINGS_THREAD_LOCKS.setdefault(lock_key, threading.Lock())
+
+
+@contextmanager
+def app_settings_file_lock(settings_path: str | Path) -> Iterator[None]:
+    """Serialize thread and process read/merge/write settings transactions."""
+
+    settings_path = Path(settings_path)
+    lock_path = settings_path.with_name(settings_path.name + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    thread_lock = _app_settings_thread_lock(settings_path)
+    thread_locked = thread_lock.acquire(timeout=_APP_SETTINGS_LOCK_TIMEOUT_SECONDS)
+    if not thread_locked:
+        raise TimeoutError(
+            f"Timed out waiting for AGILAB app-settings lock {lock_path}. "
+            "Another session may still be updating these settings; retry after it finishes."
+        )
+    try:
+        handle = lock_path.open("a+b")
+        file_locked = False
+        try:
+            acquire_bounded_file_lock(
+                handle,
+                lock_path,
+                timeout_seconds=_APP_SETTINGS_LOCK_TIMEOUT_SECONDS,
+            )
+            file_locked = True
+            yield
+        finally:
+            try:
+                if file_locked:
+                    release_file_lock(handle)
+            finally:
+                handle.close()
+    finally:
+        thread_lock.release()
+
+
+def _fsync_directory(path: Path) -> None:
+    """Persist a settings-file directory entry after atomic publication."""
+
+    try:
+        directory_fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        if os.name == "nt":  # pragma: no cover - directory fsync is unsupported
+            return
+        raise
+    try:
+        try:
+            os.fsync(directory_fd)
+        except OSError:
+            if os.name != "nt":
+                raise
+    finally:
+        os.close(directory_fd)
+
+
+def _default_app_settings_dumper(
+    payload: dict[str, Any], stream: BufferedWriter
+) -> None:
+    try:
+        import tomli_w  # type: ignore[import-not-found]
+    except ModuleNotFoundError as exc:
+        if getattr(exc, "name", None) != "tomli_w":
+            raise
+        try:
+            from tomlkit import dumps as tomlkit_dumps
+        except ModuleNotFoundError as fallback_exc:
+            if getattr(fallback_exc, "name", None) != "tomlkit":
+                raise
+            raise RuntimeError(
+                "Writing settings requires either 'tomli-w' or 'tomlkit'."
+            ) from fallback_exc
+        stream.write(tomlkit_dumps(payload).encode("utf-8"))
+        return
+    tomli_w.dump(payload, stream)
+
+
+def read_app_settings_text(settings_path: str | Path) -> str:
+    """Read mutable app settings through Windows' bounded sharing retry."""
+
+    path = Path(settings_path)
+    return run_with_windows_file_sharing_retry(
+        lambda: path.read_text(encoding="utf-8")
+    )
+
+
+def read_app_settings(settings_path: str | Path) -> dict[str, Any]:
+    """Parse mutable app settings without hiding TOML or permanent I/O errors."""
+
+    return tomllib.loads(read_app_settings_text(settings_path))
+
+
+def update_app_settings(
+    settings_path: str | Path,
+    update: Callable[[dict[str, Any]], bool],
+    *,
+    create_missing: bool = True,
+    dump_fn: Callable[[dict[str, Any], BufferedWriter], None] | None = None,
+    prepare_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+) -> tuple[dict[str, Any], bool]:
+    """Apply one locked read/update/write transaction to ``app_settings.toml``.
+
+    ``update`` receives the latest payload while the cross-process lock is held.
+    It may mutate only the keys it owns and returns whether publication is needed.
+    The existing file is retained if mutation, serialization, or atomic publication
+    fails.
+    """
+
+    settings_path = Path(settings_path)
+    writer = dump_fn or _default_app_settings_dumper
+    prepare = prepare_fn or prepare_app_settings_for_write
+    with app_settings_file_lock(settings_path):
+        if settings_path.exists():
+            payload = read_app_settings(settings_path)
+        elif create_missing:
+            payload = {}
+        else:
+            raise FileNotFoundError(f"Settings file not found: {settings_path}")
+
+        if not update(payload):
+            return payload, False
+
+        prepared = prepare(payload)
+        atomic_write_bytes(
+            settings_path,
+            lambda handle: writer(prepared, handle),
+        )
+        _fsync_directory(settings_path.parent)
+        return prepared, True
+
+
+_MISSING_APP_SETTINGS_VALUE = object()
+
+
+def _app_settings_path_value(
+    payload: Mapping[str, Any], path: Sequence[str]
+) -> Any:
+    current: Any = payload
+    for part in path:
+        if not isinstance(current, Mapping) or part not in current:
+            return _MISSING_APP_SETTINGS_VALUE
+        current = current[part]
+    return current
+
+
+def _apply_app_settings_path_value(
+    payload: dict[str, Any], path: Sequence[str], value: Any
+) -> bool:
+    if not path or any(not isinstance(part, str) or not part for part in path):
+        raise ValueError("App-settings ownership paths must contain non-empty strings.")
+
+    current: dict[str, Any] = payload
+    for part in path[:-1]:
+        child = current.get(part)
+        if not isinstance(child, dict):
+            if value is _MISSING_APP_SETTINGS_VALUE:
+                return False
+            child = {}
+            current[part] = child
+        current = child
+
+    leaf = path[-1]
+    if value is _MISSING_APP_SETTINGS_VALUE:
+        if leaf not in current:
+            return False
+        del current[leaf]
+        return True
+
+    copied = deepcopy(value)
+    if current.get(leaf, _MISSING_APP_SETTINGS_VALUE) == copied:
+        return False
+    current[leaf] = copied
+    return True
+
+
+def update_app_settings_owned(
+    settings_path: str | Path,
+    payload: Mapping[str, Any],
+    *,
+    owned_paths: Iterable[Sequence[str]],
+    default_paths: Iterable[Sequence[str]] = (),
+    create_missing: bool = True,
+    dump_fn: Callable[[dict[str, Any], BufferedWriter], None] | None = None,
+    prepare_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+) -> tuple[dict[str, Any], bool]:
+    """Publish only explicitly owned paths from a possibly stale payload.
+
+    Each owned value is selected from ``payload`` before the transaction, then
+    applied to the latest on-disk document while its lock is held. A missing owned
+    path means deletion; unrelated leaves written by other sessions remain
+    untouched. ``default_paths`` are applied only when the latest document does not
+    already contain that leaf, so first-render initialization cannot replace a
+    concurrent writer's value.
+    """
+
+    normalized_paths = tuple(tuple(path) for path in owned_paths)
+    normalized_default_paths = tuple(tuple(path) for path in default_paths)
+    if not normalized_paths and not normalized_default_paths:
+        raise ValueError(
+            "At least one app-settings ownership or default path is required."
+        )
+    if set(normalized_paths) & set(normalized_default_paths):
+        raise ValueError("App-settings ownership and default paths must be disjoint.")
+    owned_values = tuple(
+        (path, _app_settings_path_value(payload, path)) for path in normalized_paths
+    )
+    default_values = tuple(
+        (path, _app_settings_path_value(payload, path))
+        for path in normalized_default_paths
+    )
+
+    def _update(latest: dict[str, Any]) -> bool:
+        changed = False
+        for path, value in owned_values:
+            changed = _apply_app_settings_path_value(latest, path, value) or changed
+        for path, value in default_values:
+            if value is _MISSING_APP_SETTINGS_VALUE:
+                continue
+            if _app_settings_path_value(latest, path) is _MISSING_APP_SETTINGS_VALUE:
+                changed = (
+                    _apply_app_settings_path_value(latest, path, value) or changed
+                )
+        return changed
+
+    return update_app_settings(
+        settings_path,
+        _update,
+        create_missing=create_missing,
+        dump_fn=dump_fn,
+        prepare_fn=prepare_fn,
+    )
 
 
 def sanitize_app_settings_for_toml(obj: Any) -> Any:
@@ -279,12 +539,25 @@ def resolve_user_app_settings_file(
         return workspace_file
 
     workspace_file.parent.mkdir(parents=True, exist_ok=True)
-    if workspace_file.exists():
-        return workspace_file
+    with app_settings_file_lock(workspace_file):
+        if workspace_file.exists():
+            return workspace_file
 
-    source_file = find_source_file(target_app)
-    if source_file is not None and source_file.exists():
-        copy_file(source_file, workspace_file)
-    else:
-        workspace_file.touch()
+        source_file = find_source_file(target_app)
+        if source_file is not None and source_file.exists():
+            with tempfile.TemporaryDirectory(
+                prefix=f".{workspace_file.name}.seed.",
+                dir=workspace_file.parent,
+            ) as staging_dir:
+                staged_source = Path(staging_dir) / source_file.name
+                copy_file(source_file, staged_source)
+
+                def _copy_staged(handle: BufferedWriter) -> None:
+                    with staged_source.open("rb") as source_handle:
+                        shutil.copyfileobj(source_handle, handle)
+
+                atomic_write_bytes(workspace_file, _copy_staged)
+        else:
+            atomic_write_bytes(workspace_file, lambda _handle: None)
+        _fsync_directory(workspace_file.parent)
     return workspace_file

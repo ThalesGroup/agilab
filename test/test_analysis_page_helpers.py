@@ -1,13 +1,22 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+from contextlib import contextmanager
 import importlib.util
 import os
+import signal
+import subprocess
 import sys
+import threading
+import time
 import tomllib
 import types
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
+import psutil
 
 
 MODULE_PATH = Path("src/agilab/pages/4_ANALYSIS.py")
@@ -108,6 +117,61 @@ def test_write_config_creates_parent_and_persists_toml(tmp_path: Path):
         "__meta__": {"schema": "agilab.app_settings.v1", "version": 1},
         "title": "demo",
     }
+
+
+def test_write_config_preserves_unowned_app_settings_sections(tmp_path: Path):
+    module = _load_analysis_module()
+    config_path = tmp_path / "app_settings.toml"
+    config_path.write_text(
+        "[cluster]\ncluster_enabled = false\nuser = \"agi\"\n\n"
+        "[pages]\nview_module = [\"old\"]\n",
+        encoding="utf-8",
+    )
+
+    module._write_config(
+        config_path,
+        {"pages": {"view_module": ["view_maps"]}},
+        keys=module._ANALYSIS_APP_SETTINGS_KEYS,
+    )
+
+    payload = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    assert payload["cluster"] == {"cluster_enabled": False, "user": "agi"}
+    assert payload["pages"] == {"view_module": ["view_maps"]}
+
+
+def test_write_config_applies_stale_snapshot_leaf_delta_to_latest_table(
+    tmp_path: Path,
+) -> None:
+    module = _load_analysis_module()
+    config_path = tmp_path / "app_settings.toml"
+    config_path.write_text(
+        "[pages]\nview_module = [\"old\"]\n\n"
+        "[pages.app_ui]\nentrypoint = \"concurrent.py\"\n",
+        encoding="utf-8",
+    )
+    previous = {
+        "pages": {
+            "view_module": ["old"],
+            "app_ui": {"entrypoint": "stale.py"},
+        }
+    }
+    updated = {
+        "pages": {
+            "view_module": ["view_maps"],
+            "app_ui": {"entrypoint": "stale.py"},
+        }
+    }
+
+    module._write_config(
+        config_path,
+        updated,
+        keys=module._ANALYSIS_APP_SETTINGS_KEYS,
+        previous=previous,
+    )
+
+    payload = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    assert payload["pages"]["view_module"] == ["view_maps"]
+    assert payload["pages"]["app_ui"] == {"entrypoint": "concurrent.py"}
 
 
 def test_write_config_reports_oserror(tmp_path: Path, monkeypatch):
@@ -983,7 +1047,6 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     notebook_path.parent.mkdir(parents=True)
     notebook_path.write_text("{}", encoding="utf-8")
     commands: list[tuple[object, str, dict[str, str] | None]] = []
-    port_checks = iter([False, True])
 
     class _FakeProcess:
         returncode = None
@@ -991,7 +1054,13 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
         def poll(self):
             return None
 
-    fake_logger = SimpleNamespace(info=lambda *_args, **_kwargs: None, error=lambda *_args, **_kwargs: None)
+    log_messages: list[str] = []
+    fake_logger = SimpleNamespace(
+        info=lambda message, *args, **_kwargs: log_messages.append(
+            str(message) % args if args else str(message)
+        ),
+        error=lambda *_args, **_kwargs: None,
+    )
     fake_env = SimpleNamespace(
         envars={"127.0.0.1_CMD_PREFIX": 'export PATH="$HOME/.local/bin:$PATH";'},
         uv="uv --quiet",
@@ -1000,8 +1069,25 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     )
     fake_st = SimpleNamespace(session_state={"env": fake_env})
 
+    registry_calls: list[dict[str, object]] = []
+
+    class FakeRegistry:
+        @staticmethod
+        def ensure(**kwargs):
+            registry_calls.append(dict(kwargs))
+            process = kwargs["launcher"](8766, kwargs.get("token") or "sidecar-token")
+            assert isinstance(process, _FakeProcess)
+            return SimpleNamespace(
+                endpoint="http://127.0.0.1:8766",
+                port=8766,
+                token="sidecar-token",
+                pid=123,
+                process_started_at=1.0,
+                health_signature="signed",
+            )
+
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "_is_port_open", lambda _port: next(port_checks))
+    monkeypatch.setattr(module, "DEFAULT_SIDECAR_REGISTRY", FakeRegistry())
     monkeypatch.setattr(module, "_notebook_sidecar_token", lambda _key: "sidecar-token")
 
     def _fake_exec_bg(_env, cmd, cwd: str, process_env=None):
@@ -1038,6 +1124,9 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
         for part in command
     )
     assert not any("'" in part for part in command)
+    assert registry_calls[0]["key"] == str(project_root.resolve())
+    assert all("sidecar-token" not in message for message in log_messages)
+    assert any("<redacted>" in message for message in log_messages)
 
 
 def test_exec_bg_clears_parent_python_environment(tmp_path: Path, monkeypatch):
@@ -1075,6 +1164,47 @@ def test_exec_bg_clears_parent_python_environment(tmp_path: Path, monkeypatch):
     assert child_env["PATH"] == "/tool/bin"
     assert "PYTHONPATH" not in child_env
     assert "VIRTUAL_ENV" not in child_env
+
+
+def test_exec_bg_retains_owned_process_identity(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    captured: dict[str, object] = {}
+
+    class _FakeProcess:
+        pid = 4242
+
+    def _fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured.update(kwargs)
+        return _FakeProcess()
+
+    monkeypatch.setattr(module.subprocess, "Popen", _fake_popen)
+    fake_env = SimpleNamespace(
+        out_log=str(tmp_path / "prepare.log"),
+        err_log=str(tmp_path / "prepare.err"),
+    )
+
+    process = module.exec_bg(
+        fake_env,
+        ["uv", "sync"],
+        cwd=str(tmp_path),
+        owned_process_group=True,
+    )
+
+    assert process._agilab_owned_process_group is True
+    assert process._agilab_owned_process_token
+    assert isinstance(process._agilab_owned_process_started_at, float)
+    child_env = captured["env"]
+    assert (
+        child_env[module._ANALYSIS_PREPARATION_TOKEN_ENV]
+        == process._agilab_owned_process_token
+    )
+    if os.name == "nt":
+        assert process._agilab_owned_process_group_id is None
+        assert captured["creationflags"] == module.subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        assert process._agilab_owned_process_group_id == process.pid
+        assert captured["start_new_session"] is True
 
 
 def test_source_bootstrap_stamp_invalidates_when_core_path_changes(tmp_path: Path):
@@ -1117,12 +1247,10 @@ def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Pat
     module._write_source_bootstrap_stamp(project_root, core_root)
 
     commands: list[tuple[object, str, dict[str, str] | None]] = []
-    port_checks = iter([False, True])
-
     class _FakeProcess:
         returncode = None
 
-        def wait(self):
+        def wait(self, timeout=None):
             return 0
 
         def poll(self):
@@ -1143,8 +1271,31 @@ def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Pat
     )
     fake_st = SimpleNamespace(session_state={"env": fake_env})
 
+    class FakeRegistry:
+        @staticmethod
+        def get(**_kwargs):
+            return None
+
+        @staticmethod
+        @contextmanager
+        def preparation_guard(**_kwargs):
+            yield
+
+        @staticmethod
+        def ensure(**kwargs):
+            process = kwargs["launcher"](8765, "unused-token")
+            assert isinstance(process, _FakeProcess)
+            return SimpleNamespace(
+                endpoint="http://127.0.0.1:8765",
+                port=8765,
+                token="unused-token",
+                pid=124,
+                process_started_at=2.0,
+                health_signature="signed",
+            )
+
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module, "_is_port_open", lambda _port: next(port_checks))
+    monkeypatch.setattr(module, "DEFAULT_SIDECAR_REGISTRY", FakeRegistry())
 
     def _fake_exec_bg(_env, cmd, cwd: str, process_env=None):
         commands.append((cmd, cwd, process_env))
@@ -1171,6 +1322,140 @@ def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Pat
     assert "ensurepip" not in command
     assert "pip" not in command
     assert not any("'" in part for part in command)
+
+
+def test_concurrent_analysis_sidecars_prepare_and_launch_project_once(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_analysis_module()
+    project_root = tmp_path / "page_project"
+    (project_root / ".venv" / "bin").mkdir(parents=True)
+    (project_root / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+    (project_root / "pyproject.toml").write_text(
+        "[project]\nname='page-project'\n",
+        encoding="utf-8",
+    )
+    view_path = project_root / "src" / "view_demo.py"
+    view_path.parent.mkdir()
+    view_path.write_text("", encoding="utf-8")
+
+    commands: list[list[str]] = []
+    commands_lock = threading.Lock()
+
+    class _FakeProcess:
+        pid = 123
+
+        def wait(self, timeout=None):
+            return 0
+
+        def poll(self):
+            return None
+
+    logger = SimpleNamespace(
+        info=lambda *_args, **_kwargs: None,
+        warning=lambda *_args, **_kwargs: None,
+        error=lambda *_args, **_kwargs: None,
+    )
+    env = SimpleNamespace(
+        envars={},
+        uv="uv",
+        is_source_env=False,
+        AGILAB_LOG_ABS=tmp_path,
+        logger=logger,
+    )
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state={"env": env}))
+
+    class FakeRegistry:
+        def __init__(self):
+            self.guard = threading.Lock()
+            self.get_barrier = threading.Barrier(2)
+            self.get_calls = 0
+            self.get_calls_lock = threading.Lock()
+            self.lease = None
+            self.ensure_calls = 0
+
+        def get(self, **_kwargs):
+            with self.get_calls_lock:
+                self.get_calls += 1
+                call_number = self.get_calls
+                observed = self.lease
+            if call_number <= 2:
+                self.get_barrier.wait(timeout=5)
+            return observed
+
+        @contextmanager
+        def preparation_guard(self, **_kwargs):
+            with self.guard:
+                yield
+
+        def ensure(self, **kwargs):
+            self.ensure_calls += 1
+            kwargs["launcher"](8765, "unused-token")
+            self.lease = SimpleNamespace(
+                endpoint="http://127.0.0.1:8765",
+                port=8765,
+                token="unused-token",
+                pid=123,
+                process_started_at=1.0,
+                health_signature="signed",
+            )
+            return self.lease
+
+    registry = FakeRegistry()
+    monkeypatch.setattr(module, "DEFAULT_SIDECAR_REGISTRY", registry)
+
+    def _fake_exec_bg(_env, cmd, **_kwargs):
+        with commands_lock:
+            commands.append(list(cmd))
+        return _FakeProcess()
+
+    monkeypatch.setattr(module, "exec_bg", _fake_exec_bg)
+
+    results: list[bool] = []
+    result_lock = threading.Lock()
+
+    def _run() -> None:
+        result = module._ensure_sidecar(
+            "view-key",
+            view_path,
+            8765,
+            "flight_telemetry_project",
+        )
+        with result_lock:
+            results.append(result)
+
+    threads = [threading.Thread(target=_run) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert results == [True, True]
+    assert registry.ensure_calls == 1
+    assert sum("sync" in command for command in commands) == 1
+    assert sum("streamlit" in command for command in commands) == 1
+
+
+def test_atomic_sync_stamp_failure_preserves_previous_payload(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_analysis_module()
+    destination = tmp_path / "stamp.json"
+    destination.write_text('{"old":true}', encoding="utf-8")
+
+    def _fail_replace(_source, _destination):
+        raise OSError("publication failed")
+
+    monkeypatch.setattr(module.os, "replace", _fail_replace)
+
+    with pytest.raises(OSError, match="publication failed"):
+        module._write_json_atomic(destination, {"new": True})
+
+    assert destination.read_text(encoding="utf-8") == '{"old":true}'
+    assert list(tmp_path.glob(".*.tmp")) == []
 
 
 def test_resolve_default_view_accepts_named_view(tmp_path: Path):
@@ -1575,12 +1860,16 @@ def test_initialize_analysis_env_uses_builtin_flight_for_query_shorthand(
     stored_apps: list[Path] = []
 
     class FakeAgiEnv:
-        for_app_calls: list[tuple[Path, str, int]] = []
+        session_for_app_calls: list[tuple[Path, str, int]] = []
 
         @classmethod
-        def for_app(cls, *, apps_path: Path, app: str, verbose: int):
-            cls.for_app_calls.append((apps_path, app, verbose))
+        def session_for_app(cls, *, apps_path: Path, app: str, verbose: int):
+            cls.session_for_app_calls.append((apps_path, app, verbose))
             return cls(apps_path=apps_path, app=app, verbose=verbose)
+
+        @classmethod
+        def for_app(cls, **_kwargs):
+            raise AssertionError("ANALYSIS must not borrow the process singleton")
 
         def __init__(self, *, apps_path: Path, app: str, verbose: int):
             self.apps_path = apps_path
@@ -1606,7 +1895,9 @@ def test_initialize_analysis_env_uses_builtin_flight_for_query_shorthand(
 
     assert env.apps_path == apps_path.resolve()
     assert env.app == "flight_telemetry_project"
-    assert FakeAgiEnv.for_app_calls == [(apps_path.resolve(), "flight_telemetry_project", 0)]
+    assert FakeAgiEnv.session_for_app_calls == [
+        (apps_path.resolve(), "flight_telemetry_project", 0)
+    ]
     assert fake_st.session_state["first_run"] is False
     assert fake_st.session_state["apps_path"] == str(apps_path.resolve())
     assert fake_st.session_state["app"] == "flight_telemetry_project"
@@ -1623,8 +1914,15 @@ def test_initialize_analysis_env_defaults_to_builtin_flight_telemetry_project(
     flight_telemetry_project.mkdir(parents=True)
 
     class FakeAgiEnv:
+        session_for_app_calls: list[tuple[Path, str, int]] = []
+
         @classmethod
         def for_app(cls, *, apps_path: Path, app: str, verbose: int):
+            raise AssertionError("analysis must not borrow the CLI singleton")
+
+        @classmethod
+        def session_for_app(cls, *, apps_path: Path, app: str, verbose: int):
+            cls.session_for_app_calls.append((apps_path, app, verbose))
             return cls(apps_path=apps_path, app=app, verbose=verbose)
 
         def __init__(self, *, apps_path: Path, app: str, verbose: int):
@@ -1651,6 +1949,9 @@ def test_initialize_analysis_env_defaults_to_builtin_flight_telemetry_project(
 
     assert env.apps_path == apps_path.resolve()
     assert env.app == "flight_telemetry_project"
+    assert FakeAgiEnv.session_for_app_calls == [
+        (apps_path.resolve(), "flight_telemetry_project", 0)
+    ]
     assert fake_st.session_state["first_run"] is False
 
 
@@ -2007,27 +2308,337 @@ def test_scan_analysis_artifacts_counts_supported_outputs(tmp_path: Path):
     assert summary["exists"] is True
 
 
-def test_terminate_process_quietly_ignores_timeout():
+def test_terminate_process_quietly_kills_and_reaps_after_timeout():
     module = _load_analysis_module()
 
     class _FakeProcess:
         def __init__(self):
             self.terminated = False
+            self.killed = False
             self.wait_calls = 0
+
+        def poll(self):
+            return None
 
         def terminate(self):
             self.terminated = True
 
+        def kill(self):
+            self.killed = True
+
         def wait(self, timeout: int):
             self.wait_calls += 1
-            raise module.subprocess.TimeoutExpired(cmd="demo", timeout=timeout)
+            if self.wait_calls == 1:
+                raise module.subprocess.TimeoutExpired(cmd="demo", timeout=timeout)
+            return -9
 
     process = _FakeProcess()
 
     module._terminate_process_quietly(process)
 
     assert process.terminated is True
-    assert process.wait_calls == 1
+    assert process.killed is True
+    assert process.wait_calls == 2
+
+
+def test_wait_owned_preparation_process_times_out_and_reaps(monkeypatch):
+    module = _load_analysis_module()
+
+    class _NeverFinishes:
+        def __init__(self):
+            self.terminated = False
+            self.reaped = False
+
+        def poll(self):
+            return None
+
+        def wait(self, timeout=None):
+            if not self.terminated:
+                raise module.subprocess.TimeoutExpired(cmd="uv sync", timeout=timeout)
+            self.reaped = True
+            return -15
+
+        def terminate(self):
+            self.terminated = True
+
+        def kill(self):
+            raise AssertionError("terminate should be sufficient")
+
+    process = _NeverFinishes()
+    monkeypatch.setattr(
+        module,
+        "_ANALYSIS_PREPARATION_PROCESS_TIMEOUT_SECONDS",
+        0.01,
+    )
+
+    with pytest.raises(RuntimeError, match="preparation timed out"):
+        module._wait_owned_preparation_process(process)
+
+    assert process.terminated is True
+    assert process.reaped is True
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX process-group regression")
+def test_terminate_process_quietly_stops_owned_descendant_tree(tmp_path):
+    module = _load_analysis_module()
+    child_pid_path = tmp_path / "child.pid"
+    parent_code = (
+        "import subprocess, sys, time\n"
+        "from pathlib import Path\n"
+        "child = subprocess.Popen([sys.executable, '-c', "
+        "'import time; time.sleep(30)'])\n"
+        f"Path({str(child_pid_path)!r}).write_text(str(child.pid), encoding='utf-8')\n"
+        "time.sleep(30)\n"
+    )
+    process = subprocess.Popen(
+        [sys.executable, "-c", parent_code],
+        start_new_session=True,
+    )
+    setattr(process, "_agilab_owned_process_group", True)
+    try:
+        deadline = time.monotonic() + 5
+        while not child_pid_path.exists():
+            if time.monotonic() >= deadline:
+                raise TimeoutError("descendant PID was not published")
+            time.sleep(0.01)
+        child_pid = int(child_pid_path.read_text(encoding="utf-8"))
+
+        module._terminate_process_quietly(process)
+
+        assert process.poll() is not None
+        try:
+            child = psutil.Process(child_pid)
+            child.wait(timeout=3)
+        except psutil.NoSuchProcess:
+            pass
+        else:
+            assert not child.is_running() or child.status() == psutil.STATUS_ZOMBIE
+    finally:
+        if process.poll() is None:
+            with contextlib.suppress(OSError):
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=5)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX process-group regression")
+def test_wait_owned_preparation_process_stops_child_after_wrapper_exits(tmp_path):
+    module = _load_analysis_module()
+    child_pid_path = tmp_path / "detached-child.pid"
+    ownership_token = f"analysis-test-{os.getpid()}-{time.monotonic_ns()}"
+    parent_code = (
+        "import subprocess, sys\n"
+        "from pathlib import Path\n"
+        "child = subprocess.Popen([sys.executable, '-c', "
+        "'import time; time.sleep(30)'])\n"
+        f"Path({str(child_pid_path)!r}).write_text(str(child.pid), encoding='utf-8')\n"
+    )
+    process_env = dict(os.environ)
+    process_env[module._ANALYSIS_PREPARATION_TOKEN_ENV] = ownership_token
+    process = subprocess.Popen(
+        [sys.executable, "-c", parent_code],
+        start_new_session=True,
+        env=process_env,
+    )
+    setattr(process, "_agilab_owned_process_group", True)
+    setattr(process, "_agilab_owned_process_group_id", process.pid)
+    setattr(process, "_agilab_owned_process_token", ownership_token)
+    setattr(process, "_agilab_owned_process_started_at", time.time())
+    setattr(
+        process,
+        "_agilab_owned_process_username",
+        psutil.Process(os.getpid()).username(),
+    )
+    child_pid: int | None = None
+    try:
+        deadline = time.monotonic() + 5
+        while not child_pid_path.exists():
+            if time.monotonic() >= deadline:
+                raise TimeoutError("descendant PID was not published")
+            time.sleep(0.01)
+        child_pid = int(child_pid_path.read_text(encoding="utf-8"))
+        process.wait(timeout=5)
+        assert process.poll() == 0
+        assert psutil.Process(child_pid).is_running()
+
+        assert module._wait_owned_preparation_process(process) == 0
+
+        try:
+            child = psutil.Process(child_pid)
+            child.wait(timeout=3)
+        except psutil.NoSuchProcess:
+            pass
+        else:
+            assert not child.is_running() or child.status() == psutil.STATUS_ZOMBIE
+    finally:
+        if child_pid is not None:
+            with contextlib.suppress(psutil.NoSuchProcess):
+                child = psutil.Process(child_pid)
+                if child.is_running() and child.status() != psutil.STATUS_ZOMBIE:
+                    child.kill()
+                    child.wait(timeout=3)
+        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=5)
+
+
+def test_terminate_process_quietly_rejects_unreaped_parent_after_kill_timeout(
+    monkeypatch,
+):
+    module = _load_analysis_module()
+    monkeypatch.setattr(
+        module,
+        "_ANALYSIS_PREPARATION_TERMINATE_TIMEOUT_SECONDS",
+        0.01,
+    )
+
+    class _UnreapedProcess:
+        pid = 999_999_999
+
+        def __init__(self):
+            self.terminate_calls = 0
+            self.kill_calls = 0
+            self.wait_calls = 0
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            self.terminate_calls += 1
+
+        def kill(self):
+            self.kill_calls += 1
+
+        def wait(self, timeout=None):
+            self.wait_calls += 1
+            raise module.subprocess.TimeoutExpired(cmd="uv sync", timeout=timeout)
+
+    process = _UnreapedProcess()
+
+    with pytest.raises(RuntimeError, match="parent pid 999999999 was not reaped"):
+        module._terminate_process_quietly(process)
+
+    assert process.terminate_calls == 1
+    assert process.kill_calls == 1
+    assert process.wait_calls == 2
+
+
+def test_terminate_process_quietly_rejects_inaccessible_owned_token_candidate(
+    monkeypatch,
+):
+    module = _load_analysis_module()
+    started_at = time.time()
+
+    class _CompletedWrapper:
+        pid = 7001
+        _agilab_owned_process_group = False
+        _agilab_owned_process_token = "owned-token"
+        _agilab_owned_process_started_at = started_at
+        _agilab_owned_process_username = "analysis-owner"
+
+        @staticmethod
+        def poll():
+            return 0
+
+    class _InaccessibleCandidate:
+        pid = 7002
+
+        @staticmethod
+        def create_time():
+            return started_at
+
+        @staticmethod
+        def username():
+            return "analysis-owner"
+
+        def environ(self):
+            raise module.psutil.AccessDenied(self.pid)
+
+    monkeypatch.setattr(
+        module.psutil,
+        "process_iter",
+        lambda attrs: iter([_InaccessibleCandidate()]),
+    )
+
+    with pytest.raises(RuntimeError, match="ownership token unavailable.*7002"):
+        module._terminate_process_quietly(_CompletedWrapper())
+
+
+def test_analysis_preparation_interruption_terminates_and_reaps_owned_process(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_analysis_module()
+    project_root = tmp_path / "page_project"
+    project_root.mkdir()
+    (project_root / "pyproject.toml").write_text(
+        "[project]\nname='page-project'\n",
+        encoding="utf-8",
+    )
+    view_path = project_root / "view_demo.py"
+    view_path.write_text("", encoding="utf-8")
+
+    class _InterruptedProcess:
+        def __init__(self):
+            self.terminated = False
+            self.reaped = False
+
+        def wait(self, timeout=None):
+            if not self.terminated:
+                raise KeyboardInterrupt
+            self.reaped = True
+            return -15
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            self.terminated = True
+
+        def kill(self):
+            raise AssertionError("terminate should be sufficient")
+
+    process = _InterruptedProcess()
+    guard_exited = False
+
+    class _Registry:
+        @staticmethod
+        def get(**_kwargs):
+            return None
+
+        @staticmethod
+        @contextmanager
+        def preparation_guard(**_kwargs):
+            nonlocal guard_exited
+            try:
+                yield
+            finally:
+                guard_exited = True
+
+    env = SimpleNamespace(
+        is_source_env=False,
+        logger=SimpleNamespace(
+            info=lambda *_args, **_kwargs: None,
+            warning=lambda *_args, **_kwargs: None,
+        ),
+    )
+    monkeypatch.setattr(module, "DEFAULT_SIDECAR_REGISTRY", _Registry())
+    monkeypatch.setattr(module, "exec_bg", lambda *_args, **_kwargs: process)
+
+    with pytest.raises(KeyboardInterrupt):
+        module._ensure_prepared_analysis_sidecar(
+            env=env,
+            view_page=view_path,
+            active_app="demo_project",
+            page_root=project_root,
+            project="demo_project",
+            registry_key="demo",
+            uv=["uv"],
+            uv_process_env={},
+        )
+
+    assert process.terminated is True
+    assert process.reaped is True
+    assert guard_exited is True
 
 
 def test_is_hosted_analysis_runtime_uses_agi_env_envars():
@@ -2132,3 +2743,92 @@ def main():
     asyncio.run(module._render_view_page_inline(page_path, str(active_app)))
 
     assert fake_streamlit.session_state["inline_active_app"] == str(active_app)
+
+
+def test_render_view_page_inline_fails_fast_and_restores_process_state(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    coordination = types.ModuleType("agilab_inline_test_coordination")
+    monkeypatch.setitem(sys.modules, coordination.__name__, coordination)
+    slow_page = tmp_path / "slow_view.py"
+    slow_page.write_text(
+        """
+import agilab_inline_test_coordination as coordination
+
+async def main():
+    coordination.started.set()
+    await coordination.release.wait()
+""",
+        encoding="utf-8",
+    )
+    other_page = tmp_path / "other_view.py"
+    other_page.write_text("def main():\n    return None\n", encoding="utf-8")
+    failing_page = tmp_path / "failing_view.py"
+    failing_page.write_text(
+        "async def main():\n    raise RuntimeError('inline boom')\n",
+        encoding="utf-8",
+    )
+    original_argv = list(sys.argv)
+    original_path = list(sys.path)
+
+    async def exercise() -> None:
+        coordination.started = asyncio.Event()
+        coordination.release = asyncio.Event()
+        first = asyncio.create_task(
+            module._render_view_page_inline(slow_page, "alpha_project")
+        )
+        await asyncio.wait_for(coordination.started.wait(), timeout=2)
+        with pytest.raises(module.HostedAnalysisBusyError, match="Another hosted analysis"):
+            await module._render_view_page_inline(other_page, "beta_project")
+        coordination.release.set()
+        await asyncio.wait_for(first, timeout=2)
+
+        with pytest.raises(RuntimeError, match="inline boom"):
+            await module._render_view_page_inline(failing_page, "alpha_project")
+        # The failing render must release the lease for the next session.
+        await module._render_view_page_inline(other_page, "beta_project")
+
+    asyncio.run(exercise())
+
+    assert sys.argv == original_argv
+    assert sys.path == original_path
+
+
+def test_render_view_page_inline_isolates_transitive_helper_modules(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_analysis_module()
+    coordination = types.ModuleType("agilab_inline_helper_coordination")
+    monkeypatch.setitem(sys.modules, coordination.__name__, coordination)
+    alpha_dir = tmp_path / "alpha"
+    beta_dir = tmp_path / "beta"
+    alpha_dir.mkdir()
+    beta_dir.mkdir()
+    alpha_helper = alpha_dir / "helper.py"
+    alpha_helper.write_text('VALUE = "alpha"\n', encoding="utf-8")
+    beta_helper = beta_dir / "helper.py"
+    beta_helper.write_text('VALUE = "beta"\n', encoding="utf-8")
+    beta_page = beta_dir / "view.py"
+    beta_page.write_text(
+        "import helper\n"
+        "import agilab_inline_helper_coordination as coordination\n\n"
+        "def main():\n"
+        "    coordination.value = helper.VALUE\n",
+        encoding="utf-8",
+    )
+    helper_spec = importlib.util.spec_from_file_location("helper", alpha_helper)
+    assert helper_spec is not None and helper_spec.loader is not None
+    original_helper = importlib.util.module_from_spec(helper_spec)
+    helper_spec.loader.exec_module(original_helper)
+    monkeypatch.setitem(sys.modules, "helper", original_helper)
+    inline_modules_before = {
+        name for name in sys.modules if name.startswith("agilab_analysis_inline_")
+    }
+
+    asyncio.run(module._render_view_page_inline(beta_page, "beta_project"))
+
+    assert coordination.value == "beta"
+    assert sys.modules["helper"] is original_helper
+    assert {
+        name for name in sys.modules if name.startswith("agilab_analysis_inline_")
+    } == inline_modules_before

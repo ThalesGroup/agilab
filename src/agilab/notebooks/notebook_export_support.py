@@ -15,6 +15,7 @@ from typing import Any, Dict, Iterable, Mapping, Sequence
 import tomllib
 
 from agi_env.app_provider_registry import app_name_aliases
+from agi_env.app_settings_support import read_app_settings
 
 from agilab.ui.page_bundle_registry import discover_page_bundle
 
@@ -459,8 +460,7 @@ def _load_related_pages_from_settings(settings_path: Path | None) -> tuple[str, 
     if settings_path is None or not settings_path.exists():
         return ()
     try:
-        with open(settings_path, "rb") as stream:
-            payload = tomllib.load(stream)
+        payload = read_app_settings(settings_path)
     except (OSError, TypeError, ValueError, tomllib.TOMLDecodeError):
         return ()
     raw_pages = payload.get("pages", {}).get("view_module", [])
@@ -2039,6 +2039,7 @@ def _helper_cell(payload: dict[str, Any]) -> str:
         import subprocess
         import sys
         import tempfile
+        import time
         import tomllib
         import traceback
         from pathlib import Path
@@ -2223,6 +2224,21 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             )
 
 
+        def _read_mutable_toml(candidate):
+            deadline = time.monotonic() + 0.5
+            while True:
+                try:
+                    with candidate.open("rb") as stream:
+                        return tomllib.load(stream)
+                except PermissionError:
+                    if os.name != "nt":
+                        raise
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise
+                    time.sleep(min(0.01, remaining))
+
+
         def _load_app_settings_args(active_app):
             settings_candidates = []
 
@@ -2242,8 +2258,7 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 try:
                     if not candidate.exists():
                         continue
-                    with candidate.open("rb") as stream:
-                        payload = tomllib.load(stream)
+                    payload = _read_mutable_toml(candidate)
                 except (OSError, TypeError, ValueError, tomllib.TOMLDecodeError):
                     continue
                 args_payload = payload.get("args")

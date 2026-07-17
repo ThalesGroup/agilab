@@ -43,6 +43,8 @@ from agilab.page_bundle_registry import (  # noqa: E402
     discover_page_bundles,
     resolve_page_bundles,
 )
+from agilab.environment.env_file_utils import load_env_file_map  # noqa: E402
+from agi_env.app_settings_support import read_app_settings  # noqa: E402
 from agi_env.app_provider_registry import aliased_app_runtime_target, app_name_aliases  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -2473,26 +2475,12 @@ def _strip_config_value(value: Any) -> str:
 
 
 def _load_dotenv_map(path: Path) -> dict[str, str]:
-    values: dict[str, str] = {}
-    try:
-        for raw in path.read_text(encoding="utf-8").splitlines():
-            stripped = raw.strip()
-            if not stripped or "=" not in stripped:
-                continue
-            key, value = stripped.lstrip("#").strip().split("=", 1)
-            key = key.strip()
-            if key:
-                values[key] = _strip_config_value(value)
-    except OSError:
-        pass
-    return values
+    return load_env_file_map(path)
 
 
 def _read_cluster_enabled_setting(path: Path) -> bool | None:
     try:
-        if not path.is_file() or path.stat().st_size <= 0:
-            return None
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        data = read_app_settings(path)
     except (OSError, tomllib.TOMLDecodeError):
         return None
     cluster = data.get("cluster")
@@ -2779,7 +2767,7 @@ def _load_app_settings_args_for_artifact_context(context: OrchestrateArtifactCon
         if settings_path is None or not settings_path.is_file():
             continue
         try:
-            payload = tomllib.loads(settings_path.read_text(encoding="utf-8"))
+            payload = read_app_settings(settings_path)
         except (OSError, tomllib.TOMLDecodeError):
             continue
         args = payload.get("args")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from pathlib import Path
@@ -74,6 +75,10 @@ def test_make_heartbeat_writer_persists_payload(tmp_path):
     heartbeat_payload = json.loads(heartbeat_files[0].read_text(encoding="utf-8"))
     assert heartbeat_payload["worker_id"] == 2
     assert heartbeat_payload["state"] == "stopped"
+    assert heartbeat_payload["worker_incarnation"] == getattr(
+        write_heartbeat,
+        "worker_incarnation",
+    )
 
 
 def test_service_loop_without_worker_override_stops_cleanly():
@@ -155,6 +160,220 @@ def test_service_loop_consumes_queued_tasks(tmp_path):
     payload_out = result.get("payload")
     assert isinstance(payload_out, dict)
     assert payload_out.get("processed") == 1
+
+
+def test_service_loop_refreshes_heartbeat_during_long_task(tmp_path):
+    worker = DummyWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "127.0.0.1:8787"
+    worker.args = SimpleNamespace(_agi_service_queue_dir=str(tmp_path / "service_queue"))
+    work_started = threading.Event()
+    release_work = threading.Event()
+
+    def _works(_plan, _metadata):
+        work_started.set()
+        assert release_work.wait(timeout=2)
+
+    worker.works = _works
+    queue_root = Path(worker.args._agi_service_queue_dir)
+    pending = queue_root / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
+    task_file = pending / "000001-long-task.task.json"
+    _write_task(
+        task_file,
+        {
+            "worker_idx": 0,
+            "worker": "127.0.0.1:8787",
+            "plan": [],
+            "metadata": [],
+        },
+    )
+
+    loop_thread = threading.Thread(
+        target=lambda: BaseWorker.loop(poll_interval=0.05),
+        daemon=True,
+    )
+    loop_thread.start()
+    assert work_started.wait(timeout=2)
+
+    heartbeat_file = next((queue_root / "heartbeats").glob("*.json"))
+    first = json.loads(heartbeat_file.read_text(encoding="utf-8"))
+    deadline = time.time() + 2
+    refreshed = first
+    while time.time() < deadline and refreshed["timestamp"] <= first["timestamp"]:
+        time.sleep(0.05)
+        refreshed = json.loads(heartbeat_file.read_text(encoding="utf-8"))
+
+    assert refreshed["state"] == "processing"
+    assert refreshed["timestamp"] > first["timestamp"]
+    running_file = next((queue_root / "running").glob("*.task.json"))
+    running_payload = json.loads(running_file.read_text(encoding="utf-8"))
+    assert running_payload["claim"]["worker_incarnation"] == refreshed["worker_incarnation"]
+
+    release_work.set()
+    done_file = queue_root / "done" / task_file.name
+    deadline = time.time() + 2
+    while time.time() < deadline and not done_file.exists():
+        time.sleep(0.05)
+    assert done_file.exists()
+    assert BaseWorker.break_loop() is True
+    loop_thread.join(timeout=2)
+    assert not loop_thread.is_alive()
+
+
+@pytest.mark.parametrize("execution_fails", [False, True])
+def test_service_loop_preserves_running_claim_when_terminal_publication_fails(
+    tmp_path,
+    execution_fails,
+):
+    queue_root = tmp_path / "queue"
+    pending = queue_root / "pending"
+    pending.mkdir(parents=True)
+    task_file = pending / "000001-publication.task.json"
+    _write_task(
+        task_file,
+        {
+            "worker_idx": 0,
+            "worker": "worker-1",
+            "plan": [],
+            "metadata": [],
+        },
+    )
+    stop_event = threading.Event()
+    log_messages: list[str] = []
+
+    def _do_works(_plan, _metadata):
+        stop_event.set()
+        if execution_fails:
+            raise RuntimeError("work failed")
+        return ["ok"]
+
+    def _write_heartbeat(_state):
+        return None
+
+    setattr(_write_heartbeat, "worker_incarnation", "incarnation-1")
+
+    class _FailTerminalReplace:
+        @staticmethod
+        def replace(source, destination):
+            if Path(destination).parent.name in {"done", "failed"}:
+                raise OSError("terminal replace denied")
+            return os.replace(source, destination)
+
+    logger_obj = SimpleNamespace(
+        error=lambda *_args, **_kwargs: None,
+        exception=lambda message, *args, **_kwargs: log_messages.append(
+            message % args if args else message
+        ),
+    )
+
+    result = service_support.run_service_queue(
+        stop_event=stop_event,
+        queue_root=queue_root,
+        worker_id=0,
+        worker_name="worker-1",
+        poll=0.01,
+        do_works_fn=_do_works,
+        write_heartbeat=_write_heartbeat,
+        logger_obj=logger_obj,
+        os_module=_FailTerminalReplace,
+    )
+
+    running_path = next((queue_root / "running").glob("*.task.json"))
+    assert result == {"status": "stopped", "processed": 0, "failed": 0}
+    assert running_path.exists()
+    claim = json.loads(running_path.read_text(encoding="utf-8"))["claim"]
+    assert claim["worker_incarnation"] == "incarnation-1"
+    assert list(queue_root.rglob("*.tmp")) == []
+    assert not (queue_root / "done" / task_file.name).exists()
+    assert not (queue_root / "failed" / task_file.name).exists()
+    assert any("preserving the running claim" in message for message in log_messages)
+
+
+def test_service_payload_and_heartbeat_publications_flush_and_fsync(monkeypatch, tmp_path):
+    flush_paths = []
+    synced_dirs = []
+    real_flush = service_support._flush_and_fsync
+
+    def _record_flush(stream, *, os_module=os):
+        flush_paths.append(Path(stream.name))
+        real_flush(stream, os_module=os_module)
+
+    def _record_directory(path, *, os_module=os):
+        synced_dirs.append(Path(path))
+
+    monkeypatch.setattr(service_support, "_flush_and_fsync", _record_flush)
+    monkeypatch.setattr(service_support, "_fsync_directory", _record_directory)
+
+    queue_root = tmp_path / "queue"
+    write_heartbeat = service_support.make_heartbeat_writer(
+        queue_root,
+        worker_id=0,
+        worker_name="worker-1",
+        logger_obj=SimpleNamespace(debug=lambda *_args, **_kwargs: None),
+    )
+    write_heartbeat("running")
+    terminal_path = queue_root / "done" / "task.task.json"
+    terminal_path.parent.mkdir(parents=True)
+    service_support._dump_service_payload(
+        terminal_path,
+        {"schema": SERVICE_TASK_SCHEMA, "status": "done"},
+    )
+
+    assert len(flush_paths) == 2
+    assert all(path.name.endswith(".tmp") for path in flush_paths)
+    assert synced_dirs == [queue_root / "heartbeats", queue_root / "done"]
+
+
+def test_service_loop_unique_running_claim_does_not_overwrite_duplicate_name(tmp_path):
+    queue_root = tmp_path / "queue"
+    pending = queue_root / "pending"
+    running = queue_root / "running"
+    pending.mkdir(parents=True)
+    running.mkdir(parents=True)
+    task_file = pending / "duplicate.task.json"
+    stale_running = running / task_file.name
+    _write_task(
+        task_file,
+        {
+            "task_id": "new-task",
+            "worker_idx": 0,
+            "worker": "worker-1",
+            "plan": [],
+            "metadata": [],
+        },
+    )
+    stale_running.write_text("stale-running-evidence", encoding="utf-8")
+    stop_event = threading.Event()
+
+    def _do_works(_plan, _metadata):
+        stop_event.set()
+        return ["ok"]
+
+    def _write_heartbeat(_state):
+        return None
+
+    setattr(_write_heartbeat, "worker_incarnation", "incarnation-1")
+    result = service_support.run_service_queue(
+        stop_event=stop_event,
+        queue_root=queue_root,
+        worker_id=0,
+        worker_name="worker-1",
+        poll=0.01,
+        do_works_fn=_do_works,
+        write_heartbeat=_write_heartbeat,
+        logger_obj=SimpleNamespace(
+            error=lambda *_args, **_kwargs: None,
+            exception=lambda *_args, **_kwargs: None,
+        ),
+    )
+
+    assert result["processed"] == 1
+    assert stale_running.read_text(encoding="utf-8") == "stale-running-evidence"
+    terminal = json.loads((queue_root / "done" / task_file.name).read_text(encoding="utf-8"))
+    assert terminal["task_id"] == "new-task"
+    assert terminal["claim"]["task_filename"] == task_file.name
+    assert list(running.glob("*.claim-*.task.json")) == []
 
 
 def test_service_loop_moves_unreadable_task_to_failed(tmp_path):

@@ -13,7 +13,9 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 from __future__ import annotations
 
+import contextlib
 import os
+import signal
 import sys
 import socket
 import time
@@ -23,6 +25,7 @@ import json
 import re
 import secrets
 import inspect
+from copy import deepcopy
 from collections.abc import Sequence
 from typing import Any, Union
 import asyncio
@@ -41,7 +44,15 @@ os.environ.setdefault(
 )
 import streamlit as st
 import logging
+import psutil
 import subprocess
+from agi_env.ui.sidecar_registry import (
+    DEFAULT_SIDECAR_REGISTRY,
+    HOSTED_INLINE_RENDER_SESSION_LEASE,
+    isolated_import_process_state,
+    SidecarLease,
+    SidecarRegistryError,
+)
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location(
@@ -155,7 +166,7 @@ import_agilab_symbols(
 # Use modern TOML libraries
 import tomllib  # For reading TOML files (read as binary)
 
-from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
 from agi_env.process_support import apply_inline_path_export
 
 logger = logging.getLogger(__name__)
@@ -592,15 +603,40 @@ def _page_sync_is_fresh(project_root: Path) -> bool:
     return saved == _page_sync_fingerprint(project_root)
 
 
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    """Durably replace one JSON file without exposing a partial payload."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(
+        f".{path.name}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+    )
+    try:
+        with temporary.open("x", encoding="utf-8") as handle:
+            json.dump(payload, handle, sort_keys=True, separators=(",", ":"))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        try:
+            directory_fd = os.open(
+                path.parent,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+            )
+        except OSError:
+            directory_fd = -1
+        if directory_fd >= 0:
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def _write_page_sync_stamp(project_root: Path) -> None:
     stamp_path = _page_sync_stamp_path(project_root)
-    stamp_path.parent.mkdir(parents=True, exist_ok=True)
-    stamp_path.write_text(
-        json.dumps(
-            _page_sync_fingerprint(project_root), sort_keys=True, separators=(",", ":")
-        ),
-        encoding="utf-8",
-    )
+    _write_json_atomic(stamp_path, _page_sync_fingerprint(project_root))
 
 
 def _source_bootstrap_stamp_path(project_root: Path) -> Path:
@@ -635,14 +671,9 @@ def _source_bootstrap_is_fresh(project_root: Path, source_root: Path) -> bool:
 
 def _write_source_bootstrap_stamp(project_root: Path, source_root: Path) -> None:
     stamp_path = _source_bootstrap_stamp_path(project_root)
-    stamp_path.parent.mkdir(parents=True, exist_ok=True)
-    stamp_path.write_text(
-        json.dumps(
-            _source_bootstrap_fingerprint(project_root, source_root),
-            sort_keys=True,
-            separators=(",", ":"),
-        ),
-        encoding="utf-8",
+    _write_json_atomic(
+        stamp_path,
+        _source_bootstrap_fingerprint(project_root, source_root),
     )
 
 
@@ -859,7 +890,13 @@ def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
 
     apps_path = _apps_path_for_active_app(active_app_path)
     app_name = active_app_path.name
-    env = AgiEnv.for_app(
+    session_factory = getattr(AgiEnv, "session_for_app", None)
+    if not callable(session_factory):
+        raise RuntimeError(
+            "This ANALYSIS page requires an AgiEnv version with session_for_app(); "
+            "upgrade AGILAB before opening concurrent UI sessions."
+        )
+    env = session_factory(
         apps_path=apps_path,
         app=app_name,
         verbose=0,
@@ -879,6 +916,7 @@ def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
 
 
 BgCommand = str | Sequence[str]
+_ANALYSIS_PREPARATION_TOKEN_ENV = "AGILAB_ANALYSIS_PREPARATION_TOKEN"
 
 
 def _split_local_command(value: str) -> list[str]:
@@ -906,8 +944,13 @@ def _format_bg_command(cmd: BgCommand) -> str:
 
 
 def exec_bg(
-    agi_env: AgiEnv, cmd: BgCommand, cwd: str, process_env: dict[str, str] | None = None
-) -> None:
+    agi_env: AgiEnv,
+    cmd: BgCommand,
+    cwd: str,
+    process_env: dict[str, str] | None = None,
+    *,
+    owned_process_group: bool = False,
+) -> subprocess.Popen[Any]:
     """
     Execute background command
     Args:
@@ -919,7 +962,8 @@ def exec_bg(
     """
     stdout = open(agi_env.out_log, "ab", buffering=0)
     stderr = open(agi_env.err_log, "ab", buffering=0)
-    env = dict(os.environ)
+    build_env = getattr(agi_env, "_build_env_for_instance", None)
+    env = build_env() if callable(build_env) else dict(os.environ)
     env.pop("PYTHONPATH", None)
     env.pop("VIRTUAL_ENV", None)
     if process_env:
@@ -933,47 +977,496 @@ def exec_bg(
     else:
         command = [str(part) for part in cmd]
         shell = False
-    return subprocess.Popen(
+    popen_kwargs: dict[str, Any] = {}
+    ownership_token: str | None = None
+    ownership_started_at: float | None = None
+    ownership_username: str | None = None
+    if owned_process_group:
+        ownership_token = secrets.token_hex(16)
+        ownership_started_at = time.time()
+        with contextlib.suppress(psutil.Error, OSError):
+            ownership_username = psutil.Process(os.getpid()).username()
+        env[_ANALYSIS_PREPARATION_TOKEN_ENV] = ownership_token
+        if os.name == "nt":  # pragma: no cover - exercised on Windows CI
+            popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            popen_kwargs["start_new_session"] = True
+    process = subprocess.Popen(
         command,
         shell=shell,
         cwd=cwd,
         stdout=stdout,
         stderr=stderr,
         env=env,
+        **popen_kwargs,
     )
+    setattr(process, "_agilab_owned_process_group", owned_process_group)
+    setattr(
+        process,
+        "_agilab_owned_process_group_id",
+        process.pid if owned_process_group and os.name != "nt" else None,
+    )
+    setattr(process, "_agilab_owned_process_token", ownership_token)
+    setattr(process, "_agilab_owned_process_started_at", ownership_started_at)
+    setattr(process, "_agilab_owned_process_username", ownership_username)
+    return process
 
 
-def _terminate_process_quietly(process: subprocess.Popen[Any]) -> None:
-    """Terminate a background process without surfacing timeout noise in the UI."""
-    process.terminate()
+def _sidecar_session_key(service_kind: str, key: str) -> str:
+    digest = hashlib.sha256(f"{service_kind}\0{key}".encode("utf-8")).hexdigest()[:20]
+    return f"sidecar_lease__{service_kind}__{digest}"
+
+
+_ANALYSIS_PREPARATION_PROCESS_TIMEOUT_SECONDS = 300.0
+_ANALYSIS_PREPARATION_TERMINATE_TIMEOUT_SECONDS = 1.0
+
+
+def _remember_sidecar_lease(service_kind: str, key: str, lease: SidecarLease) -> None:
+    st.session_state[_sidecar_session_key(service_kind, key)] = {
+        "endpoint": lease.endpoint,
+        "token": lease.token,
+        "pid": lease.pid,
+        "process_started_at": lease.process_started_at,
+        "health_signature": lease.health_signature,
+    }
+
+
+def _remembered_sidecar_lease(service_kind: str, key: str) -> dict[str, Any] | None:
+    value = st.session_state.get(_sidecar_session_key(service_kind, key))
+    return value if isinstance(value, dict) else None
+
+
+def _preparation_process_token(process: subprocess.Popen[Any]) -> str | None:
+    token = getattr(process, "_agilab_owned_process_token", None)
+    return token if isinstance(token, str) and token else None
+
+
+def _owned_preparation_token_processes(
+    process: subprocess.Popen[Any],
+) -> tuple[list[psutil.Process], list[int]]:
+    token = _preparation_process_token(process)
+    if token is None:
+        return [], []
+    started_at = getattr(process, "_agilab_owned_process_started_at", None)
+    username = getattr(process, "_agilab_owned_process_username", None)
+    matches: list[psutil.Process] = []
+    uncertain_candidates: list[int] = []
+    for candidate in psutil.process_iter(attrs=["pid"]):
+        if candidate.pid == os.getpid():
+            continue
+        try:
+            if isinstance(started_at, (int, float)) and (
+                candidate.create_time() < float(started_at) - 1.0
+            ):
+                continue
+            if isinstance(username, str) and username and candidate.username() != username:
+                continue
+        except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess, OSError):
+            # Without basic time/owner identity this remains an unrelated
+            # protected system process, not a plausible token candidate.
+            continue
+        try:
+            if candidate.environ().get(_ANALYSIS_PREPARATION_TOKEN_ENV) == token:
+                matches.append(candidate)
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (psutil.AccessDenied, OSError):
+            # The launch time and OS owner narrow this to a plausible owned
+            # candidate without treating unrelated protected system processes
+            # as fatal. Its environment cannot be silently treated as no match.
+            uncertain_candidates.append(candidate.pid)
+    return matches, uncertain_candidates
+
+
+def _known_preparation_descendants(
+    process: subprocess.Popen[Any],
+) -> list[psutil.Process]:
     try:
-        process.wait(timeout=1)
-    except subprocess.TimeoutExpired:
+        if process.poll() is not None:
+            return []
+        return psutil.Process(int(process.pid)).children(recursive=True)
+    except (
+        AttributeError,
+        ProcessLookupError,
+        TypeError,
+        ValueError,
+        psutil.AccessDenied,
+        psutil.NoSuchProcess,
+        psutil.ZombieProcess,
+    ):
+        return []
+
+
+def _unique_preparation_processes(
+    processes: Sequence[psutil.Process],
+) -> list[psutil.Process]:
+    unique: list[psutil.Process] = []
+    seen: set[int] = set()
+    for candidate in processes:
+        if candidate.pid in seen:
+            continue
+        seen.add(candidate.pid)
+        unique.append(candidate)
+    return unique
+
+
+def _live_preparation_processes(
+    processes: Sequence[psutil.Process],
+) -> list[psutil.Process]:
+    live: list[psutil.Process] = []
+    for candidate in _unique_preparation_processes(processes):
+        try:
+            if candidate.is_running() and candidate.status() != psutil.STATUS_ZOMBIE:
+                live.append(candidate)
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (psutil.AccessDenied, OSError):
+            live.append(candidate)
+    return live
+
+
+def _preparation_group_has_live_member(process_group_id: int) -> bool:
+    getpgid = getattr(os, "getpgid", None)
+    if not callable(getpgid):
+        return True
+    for candidate in psutil.process_iter(attrs=["pid", "status"]):
+        try:
+            if getpgid(candidate.pid) != process_group_id:
+                continue
+            if candidate.info.get("status") != psutil.STATUS_ZOMBIE:
+                return True
+        except (ProcessLookupError, psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (PermissionError, OSError, psutil.AccessDenied):
+            return True
+    return False
+
+
+def _preparation_group_exists(process_group_id: int) -> bool:
+    killpg = getattr(os, "killpg", None)
+    if not callable(killpg):
+        raise RuntimeError("POSIX process-group signaling is unavailable")
+    try:
+        killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError as exc:
+        if not _preparation_group_has_live_member(process_group_id):
+            return False
+        raise RuntimeError(
+            f"cannot inspect preparation process group {process_group_id}: {exc}"
+        ) from exc
+    except OSError as exc:
+        raise RuntimeError(
+            f"cannot inspect preparation process group {process_group_id}: {exc}"
+        ) from exc
+    return True
+
+
+def _preparation_group_has_token(process_group_id: int, token: str) -> bool:
+    getpgid = getattr(os, "getpgid", None)
+    if not callable(getpgid):
+        return False
+    inaccessible_members: list[int] = []
+    for candidate in psutil.process_iter(attrs=["pid"]):
+        try:
+            if getpgid(candidate.pid) != process_group_id:
+                continue
+        except (ProcessLookupError, psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (PermissionError, OSError) as exc:
+            raise RuntimeError(
+                f"cannot inspect preparation group member {candidate.pid}: {exc}"
+            ) from exc
+        try:
+            if candidate.environ().get(_ANALYSIS_PREPARATION_TOKEN_ENV) == token:
+                return True
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (psutil.AccessDenied, PermissionError, OSError):
+            inaccessible_members.append(candidate.pid)
+    if inaccessible_members:
+        raise RuntimeError(
+            "cannot prove preparation process-group ownership; member environment "
+            f"unavailable for pid(s) {inaccessible_members}"
+        )
+    return False
+
+
+def _preparation_parent_owns_group(
+    process: subprocess.Popen[Any],
+    process_group_id: int,
+) -> bool:
+    getpgid = getattr(os, "getpgid", None)
+    if not callable(getpgid):
+        return False
+    try:
+        return process.poll() is None and getpgid(int(process.pid)) == process_group_id
+    except (AttributeError, ProcessLookupError, TypeError, ValueError, OSError):
+        return False
+
+
+def _signal_owned_preparation_group(
+    process: subprocess.Popen[Any],
+    process_group_id: int,
+    sig: int,
+) -> bool:
+    if not _preparation_group_exists(process_group_id):
+        return False
+    token = _preparation_process_token(process)
+    if not _preparation_parent_owns_group(process, process_group_id) and not (
+        token is not None and _preparation_group_has_token(process_group_id, token)
+    ):
+        if not _preparation_group_exists(process_group_id):
+            return False
+        raise RuntimeError(
+            f"cannot prove ownership of live preparation process group {process_group_id}"
+        )
+    killpg = getattr(os, "killpg", None)
+    if not callable(killpg):
+        raise RuntimeError("POSIX process-group signaling is unavailable")
+    try:
+        killpg(process_group_id, sig)
+    except ProcessLookupError:
+        return False
+    except (PermissionError, OSError) as exc:
+        raise RuntimeError(
+            f"cannot signal preparation process group {process_group_id}: {exc}"
+        ) from exc
+    return True
+
+
+def _wait_for_preparation_group_exit(
+    process: subprocess.Popen[Any],
+    process_group_id: int,
+    *,
+    timeout: float,
+) -> bool:
+    deadline = time.monotonic() + timeout
+    while True:
+        with contextlib.suppress(AttributeError, ProcessLookupError, OSError):
+            process.poll()
+        if not _preparation_group_exists(process_group_id):
+            return True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(0.05, remaining))
+
+
+def _terminate_process_quietly(
+    process: subprocess.Popen[Any],
+    *,
+    parent_reaped: bool = False,
+) -> None:
+    """Terminate and prove absence of one owned preparation process tree."""
+
+    timeout = _ANALYSIS_PREPARATION_TERMINATE_TIMEOUT_SECONDS
+    owns_group = bool(getattr(process, "_agilab_owned_process_group", False))
+    process_group_id = getattr(process, "_agilab_owned_process_group_id", None)
+    if owns_group and os.name != "nt" and not isinstance(process_group_id, int):
+        process_group_id = getattr(process, "pid", None)
+    token = _preparation_process_token(process)
+
+    if not parent_reaped:
+        try:
+            parent_reaped = process.poll() is not None
+        except (AttributeError, OSError):
+            parent_reaped = False
+    if parent_reaped and not owns_group and token is None:
         return
 
+    token_processes, _token_uncertainties = _owned_preparation_token_processes(
+        process
+    )
+    descendants = _unique_preparation_processes(
+        [
+            *_known_preparation_descendants(process),
+            *token_processes,
+        ]
+    )
+    cleanup_errors: list[str] = []
 
-def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) -> bool:
-    """Start the view's Streamlit in a separate process (one per session)."""
-    if _is_port_open(port):
-        return True
-    env = st.session_state["env"]
-    ip = "127.0.0.1"
-    uv, uv_process_env = _local_uv_command(env, ip)
-    attempts: list[str] = []
-    last_error = ""
-    project_roots = _iter_page_project_roots(view_page)
-    if not project_roots:
-        env.logger.error("Could not determine project root for page: %s", view_page)
-        attempts.append(f"No uv project root with pyproject.toml for {view_page}")
-        last_error = f"No uv project root with pyproject.toml for {view_page}"
-    log_file, err_file = _page_log_paths(view_page, env.AGILAB_LOG_ABS)
-    env.out_log = log_file
-    env.err_log = err_file
+    group_gone = True
+    if owns_group and os.name != "nt" and isinstance(process_group_id, int):
+        try:
+            _signal_owned_preparation_group(process, process_group_id, signal.SIGTERM)
+            group_gone = _wait_for_preparation_group_exit(
+                process,
+                process_group_id,
+                timeout=timeout,
+            )
+        except RuntimeError as exc:
+            cleanup_errors.append(str(exc))
+            group_gone = False
 
-    for page_root in project_roots:
-        page_home = str(page_root)
-        env.logger.info("Trying analysis page sidecar project root: %s", page_home)
-        attempts.append(f"Trying uv project root: {page_home}")
+    terminated: list[psutil.Process] = []
+    for descendant in descendants:
+        try:
+            descendant.terminate()
+            terminated.append(descendant)
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            continue
+        except (psutil.AccessDenied, OSError) as exc:
+            cleanup_errors.append(f"could not terminate pid {descendant.pid}: {exc}")
+
+    if not parent_reaped:
+        try:
+            process.terminate()
+        except ProcessLookupError:
+            parent_reaped = True
+        except (AttributeError, OSError) as exc:
+            cleanup_errors.append(f"could not terminate parent: {exc}")
+        if not parent_reaped:
+            try:
+                process.wait(timeout=timeout)
+                parent_reaped = True
+            except ProcessLookupError:
+                parent_reaped = True
+            except subprocess.TimeoutExpired:
+                pass
+            except (AttributeError, OSError) as exc:
+                cleanup_errors.append(f"could not reap parent: {exc}")
+
+    _gone, alive = psutil.wait_procs(terminated, timeout=timeout)
+    if not parent_reaped or alive or not group_gone:
+        if owns_group and os.name != "nt" and isinstance(process_group_id, int):
+            try:
+                _signal_owned_preparation_group(process, process_group_id, signal.SIGKILL)
+            except RuntimeError as exc:
+                cleanup_errors.append(str(exc))
+
+        kill_token_processes, _token_uncertainties = (
+            _owned_preparation_token_processes(process)
+        )
+        kill_candidates = _unique_preparation_processes(
+            [
+                *alive,
+                *kill_token_processes,
+            ]
+        )
+        killed: list[psutil.Process] = []
+        for descendant in kill_candidates:
+            try:
+                descendant.kill()
+                killed.append(descendant)
+            except (psutil.NoSuchProcess, psutil.ZombieProcess):
+                continue
+            except (psutil.AccessDenied, OSError) as exc:
+                cleanup_errors.append(f"could not kill pid {descendant.pid}: {exc}")
+
+        if not parent_reaped:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                parent_reaped = True
+            except (AttributeError, OSError) as exc:
+                cleanup_errors.append(f"could not kill parent: {exc}")
+            if not parent_reaped:
+                try:
+                    process.wait(timeout=timeout)
+                    parent_reaped = True
+                except ProcessLookupError:
+                    parent_reaped = True
+                except subprocess.TimeoutExpired:
+                    pass
+                except (AttributeError, OSError) as exc:
+                    cleanup_errors.append(f"could not reap killed parent: {exc}")
+
+        _gone, alive = psutil.wait_procs(killed, timeout=timeout)
+        if owns_group and os.name != "nt" and isinstance(process_group_id, int):
+            try:
+                group_gone = _wait_for_preparation_group_exit(
+                    process,
+                    process_group_id,
+                    timeout=timeout,
+                )
+            except RuntimeError as exc:
+                cleanup_errors.append(str(exc))
+                group_gone = False
+
+    if not parent_reaped:
+        with contextlib.suppress(AttributeError, OSError):
+            parent_reaped = process.poll() is not None
+    remaining_token_processes, token_uncertainties = (
+        _owned_preparation_token_processes(process)
+    )
+    remaining = _live_preparation_processes(
+        [
+            *alive,
+            *remaining_token_processes,
+        ]
+    )
+    if not parent_reaped or not group_gone or remaining or token_uncertainties:
+        details = list(cleanup_errors)
+        if not parent_reaped:
+            details.append(
+                f"parent pid {getattr(process, 'pid', 'unknown')} was not reaped"
+            )
+        if not group_gone:
+            details.append(f"process group {process_group_id} remains live")
+        if remaining:
+            details.append(
+                f"remaining descendant PIDs {[child.pid for child in remaining]}"
+            )
+        if token_uncertainties:
+            details.append(
+                "ownership token unavailable for recent same-user candidate pid(s) "
+                f"{token_uncertainties}"
+            )
+        raise RuntimeError(
+            "Could not prove analysis environment-preparation subprocess cleanup: "
+            + "; ".join(details)
+        )
+
+
+def _wait_owned_preparation_process(process: subprocess.Popen[Any]) -> int:
+    """Wait for an environment-preparation child and reap it on interruption."""
+
+    try:
+        return_code = process.wait(
+            timeout=_ANALYSIS_PREPARATION_PROCESS_TIMEOUT_SECONDS
+        )
+        _terminate_process_quietly(process, parent_reaped=True)
+        return return_code
+    except subprocess.TimeoutExpired as exc:
+        _terminate_process_quietly(process)
+        raise RuntimeError(
+            "Analysis environment preparation timed out; its owned subprocess "
+            "tree was stopped before another session may retry."
+        ) from exc
+    except BaseException:
+        _terminate_process_quietly(process)
+        raise
+
+
+def _ensure_prepared_analysis_sidecar(
+    *,
+    env: Any,
+    view_page: Path,
+    active_app: str,
+    page_root: Path,
+    project: str,
+    registry_key: str,
+    uv: list[str],
+    uv_process_env: dict[str, str],
+) -> SidecarLease:
+    """Prepare one page environment and publish its sidecar under one lease."""
+    page_root = page_root.resolve(strict=False)
+    page_home = str(page_root)
+    preparation_scope = page_home
+    with DEFAULT_SIDECAR_REGISTRY.preparation_guard(
+        service_kind="analysis-view-preparation",
+        project=preparation_scope,
+        key=preparation_scope,
+    ):
+        existing = DEFAULT_SIDECAR_REGISTRY.get(
+            service_kind="analysis-view",
+            project=project,
+            key=registry_key,
+        )
+        if existing is not None:
+            return existing
 
         if _page_sync_is_fresh(page_root):
             env.logger.info(
@@ -991,13 +1484,17 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
             ]
             env.logger.info(_format_bg_command(sync_cmd))
             sync_process = exec_bg(
-                env, sync_cmd, cwd=page_home, process_env=uv_process_env
+                env,
+                sync_cmd,
+                cwd=page_home,
+                process_env=uv_process_env,
+                owned_process_group=True,
             )
-            sync_code = sync_process.wait()
+            sync_code = _wait_owned_preparation_process(sync_process)
             if sync_code != 0:
-                last_error = f"sync failed with code {sync_code} for {page_home}"
-                env.logger.error(last_error)
-                continue
+                raise RuntimeError(
+                    f"sync failed with code {sync_code} for {page_home}"
+                )
             try:
                 _write_page_sync_stamp(page_root)
             except OSError as exc:
@@ -1028,9 +1525,13 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                 ]
                 env.logger.info(_format_bg_command(pip_probe_cmd))
                 pip_probe_process = exec_bg(
-                    env, pip_probe_cmd, cwd=page_home, process_env=uv_process_env
+                    env,
+                    pip_probe_cmd,
+                    cwd=page_home,
+                    process_env=uv_process_env,
+                    owned_process_group=True,
                 )
-                if pip_probe_process.wait() != 0:
+                if _wait_owned_preparation_process(pip_probe_process) != 0:
                     ensure_cmd = [
                         *uv,
                         "--preview-features",
@@ -1044,15 +1545,17 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                     ]
                     env.logger.info(_format_bg_command(ensure_cmd))
                     ensure_process = exec_bg(
-                        env, ensure_cmd, cwd=page_home, process_env=uv_process_env
+                        env,
+                        ensure_cmd,
+                        cwd=page_home,
+                        process_env=uv_process_env,
+                        owned_process_group=True,
                     )
-                    ensure_code = ensure_process.wait()
+                    ensure_code = _wait_owned_preparation_process(ensure_process)
                     if ensure_code != 0:
-                        last_error = (
+                        raise RuntimeError(
                             f"ensurepip failed with code {ensure_code} for {page_home}"
                         )
-                        env.logger.error(last_error)
-                        continue
 
                 install_cmd = [
                     *uv,
@@ -1070,15 +1573,17 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                 ]
                 env.logger.info(_format_bg_command(install_cmd))
                 install_process = exec_bg(
-                    env, install_cmd, cwd=page_home, process_env=uv_process_env
+                    env,
+                    install_cmd,
+                    cwd=page_home,
+                    process_env=uv_process_env,
+                    owned_process_group=True,
                 )
-                install_code = install_process.wait()
+                install_code = _wait_owned_preparation_process(install_process)
                 if install_code != 0:
-                    last_error = (
+                    raise RuntimeError(
                         f"pip install failed with code {install_code} for {page_home}"
                     )
-                    env.logger.error(last_error)
-                    continue
                 try:
                     _write_source_bootstrap_stamp(page_root, source_root)
                 except OSError as exc:
@@ -1088,60 +1593,111 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                         exc,
                     )
 
-        run_cmd = [
-            *uv,
-            "run",
-            "--project",
-            page_home,
-            "python",
-            "-m",
-            "streamlit",
-            "run",
-            str(view_page),
-            "--server.port",
-            str(port),
-            "--server.address",
-            "127.0.0.1",
-            "--server.headless",
-            "true",
-            "--server.enableCORS",
-            "false",
-            "--server.enableXsrfProtection",
-            "false",
-            "--browser.gatherUsageStats",
-            "false",
-        ]
-        if active_app:
-            run_cmd.extend(["--", "--active-app", active_app])
-        env.logger.info(_format_bg_command(run_cmd))
-        run_process = exec_bg(env, run_cmd, cwd=page_home, process_env=uv_process_env)
+        def _launch_page(allocated_port: int, _token: str):
+            run_cmd = [
+                *uv,
+                "run",
+                "--project",
+                page_home,
+                "python",
+                "-m",
+                "streamlit",
+                "run",
+                str(view_page),
+                "--server.port",
+                str(allocated_port),
+                "--server.address",
+                "127.0.0.1",
+                "--server.headless",
+                "true",
+                "--server.enableCORS",
+                "false",
+                "--server.enableXsrfProtection",
+                "false",
+                "--browser.gatherUsageStats",
+                "false",
+            ]
+            if active_app:
+                run_cmd.extend(["--", "--active-app", active_app])
+            env.logger.info(_format_bg_command(run_cmd))
+            return exec_bg(
+                env,
+                run_cmd,
+                cwd=page_home,
+                process_env=uv_process_env,
+            )
 
-        # Wait a bit for the port to come up
-        for _ in range(240):
-            if _is_port_open(port):
-                return True
-            if run_process.poll() is not None:
-                break
-            time.sleep(0.1)
+        return DEFAULT_SIDECAR_REGISTRY.ensure(
+            service_kind="analysis-view",
+            project=project,
+            key=registry_key,
+            launcher=_launch_page,
+        )
 
-        if run_process.poll() is not None and run_process.returncode != 0:
-            last_error = f"Sidecar process exited with code {run_process.returncode} for {page_home}"
+
+def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) -> bool:
+    """Start or reuse a process-verified Streamlit sidecar."""
+    _ = port  # retained for compatibility; the registry allocates the endpoint.
+    env = st.session_state["env"]
+    ip = "127.0.0.1"
+    uv, uv_process_env = _local_uv_command(env, ip)
+    attempts: list[str] = []
+    last_error = ""
+    registry_key = f"{view_key}|{view_page.resolve(strict=False)}|{active_app}"
+    project = str(active_app or getattr(env, "app", "") or view_page.parent)
+
+    try:
+        existing = DEFAULT_SIDECAR_REGISTRY.get(
+            service_kind="analysis-view",
+            project=project,
+            key=registry_key,
+        )
+    except SidecarRegistryError as exc:
+        attempts.append(str(exc))
+        st.session_state[f"sidecar_attempts__{view_key}"] = attempts
+        env.logger.error("Analysis sidecar ownership check failed: %s", exc)
+        return False
+    if existing is not None:
+        _remember_sidecar_lease("analysis-view", view_key, existing)
+        return True
+
+    project_roots = _iter_page_project_roots(view_page)
+    if not project_roots:
+        env.logger.error("Could not determine project root for page: %s", view_page)
+        attempts.append(f"No uv project root with pyproject.toml for {view_page}")
+        last_error = f"No uv project root with pyproject.toml for {view_page}"
+    log_file, err_file = _page_log_paths(view_page, env.AGILAB_LOG_ABS)
+    env.out_log = log_file
+    env.err_log = err_file
+
+    for page_root in project_roots:
+        page_home = str(page_root)
+        env.logger.info("Trying analysis page sidecar project root: %s", page_home)
+        attempts.append(f"Trying uv project root: {page_home}")
+        try:
+            lease = _ensure_prepared_analysis_sidecar(
+                env=env,
+                view_page=view_page,
+                active_app=active_app,
+                page_root=page_root,
+                project=project,
+                registry_key=registry_key,
+                uv=uv,
+                uv_process_env=uv_process_env,
+            )
+        except RuntimeError as exc:
+            last_error = f"Sidecar launch failed for {page_home}: {exc}"
             env.logger.error(last_error)
             attempts.append(last_error)
             continue
-        if _is_port_open(port):
-            return True
-
-        if run_process.poll() is None:
-            _terminate_process_quietly(run_process)
-        last_error = f"Sidecar streamlit did not open port {port} for {page_home}"
-        attempts.append(last_error)
+        _remember_sidecar_lease("analysis-view", view_key, lease)
+        return True
 
     if last_error:
         env.logger.error("Failed to start analysis sidecar for %s", view_page)
         env.logger.error(last_error)
         page_venv = _find_venv_for(view_page)
-        fallback_targets = []
+        fallback_targets: list[tuple[str, list[str], str]] = []
         if page_venv is not None:
             python = _python_in_venv(page_venv)
             fallback_targets.append(
@@ -1154,7 +1710,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                         "run",
                         str(view_page),
                         "--server.port",
-                        str(port),
+                        "{port}",
                         "--server.address",
                         "127.0.0.1",
                         "--server.headless",
@@ -1180,7 +1736,7 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                     "run",
                     str(view_page),
                     "--server.port",
-                    str(port),
+                    "{port}",
                     "--server.address",
                     "127.0.0.1",
                     "--server.headless",
@@ -1199,33 +1755,32 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
 
         for label, fallback_cmd, fallback_pythonpath in fallback_targets:
             attempts.append(f"Trying fallback command: {label}")
-            run_process = exec_bg(
-                env,
-                fallback_cmd,
-                cwd=str(view_page.parent),
-                process_env={"PYTHONPATH": fallback_pythonpath},
-            )
-            for _ in range(240):
-                if _is_port_open(port):
-                    return True
-                if run_process.poll() is not None:
-                    break
-                time.sleep(0.1)
-            if run_process.poll() is not None and run_process.returncode != 0:
-                last_error = (
-                    f"Fallback command '{label}' exited with code "
-                    f"{run_process.returncode} for {view_page}"
+            def _launch_fallback(allocated_port: int, _token: str):
+                command = [
+                    str(allocated_port) if part == "{port}" else part
+                    for part in fallback_cmd
+                ]
+                return exec_bg(
+                    env,
+                    command,
+                    cwd=str(view_page.parent),
+                    process_env={"PYTHONPATH": fallback_pythonpath},
                 )
-                env.logger.error(last_error)
-                attempts.append(last_error)
-                continue
 
-            if run_process.poll() is None:
-                _terminate_process_quietly(run_process)
-            if not _is_port_open(port):
-                last_error = f"Fallback command '{label}' did not open port {port} for {view_page}"
+            try:
+                lease = DEFAULT_SIDECAR_REGISTRY.ensure(
+                    service_kind="analysis-view",
+                    project=project,
+                    key=registry_key,
+                    launcher=_launch_fallback,
+                )
+            except SidecarRegistryError as exc:
+                last_error = f"Fallback command '{label}' failed for {view_page}: {exc}"
                 attempts.append(last_error)
                 env.logger.error(last_error)
+                continue
+            _remember_sidecar_lease("analysis-view", view_key, lease)
+            return True
         st.session_state[f"sidecar_attempts__{view_key}"] = attempts
     return False
 
@@ -2886,49 +3441,64 @@ def _is_hosted_analysis_runtime(env: AgiEnv) -> bool:
     return bool(space_host or space_id)
 
 
+class HostedAnalysisBusyError(RuntimeError):
+    """Raised when another hosted inline view owns process import state."""
+
+
+_HOSTED_INLINE_RENDER_LEASE = HOSTED_INLINE_RENDER_SESSION_LEASE
+
+
 async def _render_view_page_inline(view_path: Path, active_app: str) -> None:
-    """Render an apps-page inline in the current Streamlit process."""
+    """Render one hosted apps-page under a fail-fast process-state lease.
+
+    Generic apps-pages still depend on ``sys.argv`` and import-path compatibility.
+    The nonblocking lease prevents those globals from interleaving across
+    Streamlit sessions; a future hosted subprocess/proxy renderer can replace
+    this single compatibility boundary.
+    """
+    if not _HOSTED_INLINE_RENDER_LEASE.acquire(blocking=False):
+        raise HostedAnalysisBusyError(
+            "Another hosted analysis view is rendering. Wait for it to finish, then retry."
+        )
+
     resolved_view = Path(view_path).resolve()
-    if not resolved_view.exists():
-        raise FileNotFoundError(f"Analysis view does not exist: {resolved_view}")
-
-    module_name = f"agilab_analysis_inline_{resolved_view.stem}_{_short_page_token(resolved_view)}"
-    module_dir = str(resolved_view.parent)
-    original_argv = list(sys.argv)
-    inserted_path = False
-    sys.modules.pop(module_name, None)
-
-    if module_dir not in sys.path:
-        sys.path.insert(0, module_dir)
-        inserted_path = True
-
     try:
-        sys.argv = [resolved_view.name]
-        if active_app:
-            sys.argv.extend(["--active-app", active_app])
+        if not resolved_view.exists():
+            raise FileNotFoundError(f"Analysis view does not exist: {resolved_view}")
 
-        spec = importlib.util.spec_from_file_location(module_name, resolved_view)
-        if spec is None or spec.loader is None:
-            raise ModuleNotFoundError(
-                f"Unable to load analysis view from {resolved_view}"
-            )
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
-        spec.loader.exec_module(module)
+        module_name = f"agilab_analysis_inline_{resolved_view.stem}_{_short_page_token(resolved_view)}"
+        original_module = sys.modules.get(module_name)
+        try:
+            render_argv = [resolved_view.name]
+            if active_app:
+                render_argv.extend(["--active-app", active_app])
 
-        entrypoint = getattr(module, "main", None)
-        if callable(entrypoint):
-            result = entrypoint()
-            if inspect.isawaitable(result):
-                await result
+            with isolated_import_process_state(
+                argv=render_argv,
+                prepend_paths=(resolved_view.parent,),
+                module_roots=(resolved_view.parent,),
+            ):
+                spec = importlib.util.spec_from_file_location(module_name, resolved_view)
+                if spec is None or spec.loader is None:
+                    raise ModuleNotFoundError(
+                        f"Unable to load analysis view from {resolved_view}"
+                    )
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[module_name] = module
+                spec.loader.exec_module(module)
+
+                entrypoint = getattr(module, "main", None)
+                if callable(entrypoint):
+                    result = entrypoint()
+                    if inspect.isawaitable(result):
+                        await result
+        finally:
+            if original_module is None:
+                sys.modules.pop(module_name, None)
+            else:
+                sys.modules[module_name] = original_module
     finally:
-        sys.argv = original_argv
-        if inserted_path:
-            try:
-                sys.path.remove(module_dir)
-            except ValueError:
-                pass
-        sys.modules.pop(module_name, None)
+        _HOSTED_INLINE_RENDER_LEASE.release()
 
 
 def _project_root_for_notebook(
@@ -2978,6 +3548,11 @@ def _notebook_sidecar_token_key(notebook_key: str) -> str:
 
 
 def _notebook_sidecar_token(notebook_key: str) -> str:
+    remembered = _remembered_sidecar_lease("notebook", notebook_key)
+    if remembered:
+        registered_token = remembered.get("token")
+        if isinstance(registered_token, str) and registered_token:
+            return registered_token
     session_key = _notebook_sidecar_token_key(notebook_key)
     token = st.session_state.get(session_key)
     if not isinstance(token, str) or not token:
@@ -3004,14 +3579,12 @@ def _ensure_notebook_sidecar(
     project_root: Path,
     token: str | None = None,
 ) -> bool:
-    """Start a local JupyterLab sidecar rooted at the active project."""
-    if _is_port_open(port):
-        return True
+    """Start or reuse a process-verified JupyterLab sidecar."""
+    _ = port  # retained for compatibility; the registry allocates the endpoint.
     env = st.session_state["env"]
     ip = "127.0.0.1"
     uv, uv_process_env = _local_uv_command(env, ip)
     attempts: list[str] = []
-    last_error = ""
 
     log_file, err_file = _notebook_log_paths(notebook_path, env.AGILAB_LOG_ABS)
     env.out_log = log_file
@@ -3020,56 +3593,66 @@ def _ensure_notebook_sidecar(
     project_home = str(project_root.resolve())
     sidecar_token = token or _notebook_sidecar_token(notebook_key)
     tornado_settings = _notebook_iframe_tornado_settings_arg()
-    run_cmd = [
-        *uv,
-        "--preview-features",
-        "extra-build-dependencies",
-        "run",
-        "--project",
-        project_home,
-        "--with",
-        "jupyterlab",
-        "--with",
-        "ipykernel",
-        "jupyter",
-        "lab",
-        "--no-browser",
-        "--ServerApp.ip=127.0.0.1",
-        f"--ServerApp.port={port}",
-        "--ServerApp.open_browser=False",
-        f"--ServerApp.token={sidecar_token}",
-        "--ServerApp.password=",
-        f"--ServerApp.allow_origin_pat={_NOTEBOOK_ALLOW_ORIGIN_PAT}",
-        f"--ServerApp.root_dir={project_home}",
-        f"--ServerApp.tornado_settings={tornado_settings}",
-    ]
-    env.logger.info(
-        "Starting project notebook sidecar: %s", _format_bg_command(run_cmd)
-    )
     attempts.append(f"Trying JupyterLab sidecar rooted at: {project_home}")
-    run_process = exec_bg(env, run_cmd, cwd=project_home, process_env=uv_process_env)
 
-    for _ in range(240):
-        if _is_port_open(port):
-            return True
-        if run_process.poll() is not None:
-            break
-        time.sleep(0.1)
+    def _launch_notebook(allocated_port: int, registered_token: str):
+        run_cmd = [
+            *uv,
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--project",
+            project_home,
+            "--with",
+            "jupyterlab",
+            "--with",
+            "ipykernel",
+            "jupyter",
+            "lab",
+            "--no-browser",
+            "--ServerApp.ip=127.0.0.1",
+            f"--ServerApp.port={allocated_port}",
+            "--ServerApp.open_browser=False",
+            f"--ServerApp.token={registered_token}",
+            "--ServerApp.password=",
+            f"--ServerApp.allow_origin_pat={_NOTEBOOK_ALLOW_ORIGIN_PAT}",
+            f"--ServerApp.root_dir={project_home}",
+            f"--ServerApp.tornado_settings={tornado_settings}",
+        ]
+        logged_cmd = [
+            "--ServerApp.token=<redacted>"
+            if part.startswith("--ServerApp.token=")
+            else part
+            for part in run_cmd
+        ]
+        env.logger.info(
+            "Starting project notebook sidecar: %s", _format_bg_command(logged_cmd)
+        )
+        return exec_bg(
+            env,
+            run_cmd,
+            cwd=project_home,
+            process_env=uv_process_env,
+        )
 
-    if run_process.poll() is not None and run_process.returncode != 0:
-        last_error = f"Notebook sidecar exited with code {run_process.returncode} for {project_home}"
+    try:
+        lease = DEFAULT_SIDECAR_REGISTRY.ensure(
+            service_kind="notebook",
+            project=project_home,
+            key=project_home,
+            launcher=_launch_notebook,
+            token=sidecar_token,
+        )
+    except SidecarRegistryError as exc:
+        last_error = f"Notebook sidecar ownership/start check failed: {exc}"
         attempts.append(last_error)
         env.logger.error(last_error)
-    elif run_process.poll() is None:
-        _terminate_process_quietly(run_process)
-        last_error = f"Notebook sidecar did not open port {port} for {project_home}"
-        attempts.append(last_error)
-        env.logger.error(last_error)
+        st.session_state[f"notebook_sidecar_attempts__{notebook_key}"] = attempts
+        return False
 
-    if last_error:
-        env.logger.error("Failed to start notebook sidecar for %s", notebook_path)
-    st.session_state[f"notebook_sidecar_attempts__{notebook_key}"] = attempts
-    return False
+    _remember_sidecar_lease("notebook", notebook_key, lease)
+    st.session_state[_notebook_sidecar_token_key(notebook_key)] = lease.token
+    return True
 
 
 # --- helper: hide the parent (this page's) Streamlit sidebar when embedding a child ---
@@ -3095,11 +3678,13 @@ def _hide_parent_sidebar():
 def _read_config(path: Path) -> dict:
     try:
         if path.exists():
-            with open(path, "rb") as f:
-                return tomllib.load(f)
+            return read_app_settings(path)
     except (OSError, tomllib.TOMLDecodeError) as e:
         st.error(f"Error loading configuration: {e}")
     return {}
+
+
+_ANALYSIS_APP_SETTINGS_KEYS = ("pages", "notebooks", "app_surface")
 
 
 def _normalize_view_name(value: str) -> str:
@@ -3107,11 +3692,63 @@ def _normalize_view_name(value: str) -> str:
     return _analysis_normalize_view_name(value)
 
 
-def _write_config(path: Path, cfg: dict):
+def _write_config(
+    path: Path,
+    cfg: dict,
+    *,
+    keys: Sequence[str] | None = None,
+    previous: dict | None = None,
+) -> None:
+    """Merge this session's owned leaf changes into the latest settings."""
+
+    patch_keys = tuple(cfg) if keys is None else tuple(keys)
+
+    missing = object()
+
+    def _changed_paths(
+        before_value: Any,
+        after_value: Any,
+        prefix: tuple[str, ...],
+    ) -> list[tuple[str, ...]]:
+        if before_value is missing and isinstance(after_value, dict):
+            before_value = {}
+        if before_value == after_value:
+            return []
+        if isinstance(before_value, dict) and isinstance(after_value, dict):
+            paths: list[tuple[str, ...]] = []
+            for child_key in sorted(set(before_value) | set(after_value)):
+                paths.extend(
+                    _changed_paths(
+                        before_value.get(child_key, missing),
+                        after_value.get(child_key, missing),
+                        (*prefix, child_key),
+                    )
+                )
+            return paths or [prefix]
+        return [prefix]
+
+    if previous is None:
+        owned_paths = [(key,) for key in patch_keys]
+    else:
+        owned_paths = []
+        for key in patch_keys:
+            owned_paths.extend(
+                _changed_paths(
+                    previous.get(key, missing),
+                    cfg.get(key, missing),
+                    (key,),
+                )
+            )
+    if not owned_paths:
+        return
+
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "wb") as f:
-            tomli_w.dump(prepare_app_settings_for_write(cfg), f)
+        update_app_settings_owned(
+            path,
+            cfg,
+            owned_paths=owned_paths,
+            dump_fn=tomli_w.dump,
+        )
     except (OSError, ValueError) as e:
         st.error(f"Error updating configuration: {e}")
 
@@ -3205,6 +3842,7 @@ async def main():
 
     # Load config and ensure structure
     cfg = _read_config(app_settings)
+    config_before_migrations = deepcopy(cfg)
     if "pages" not in cfg:
         cfg["pages"] = {}
     migrated_cfg = False
@@ -3231,7 +3869,13 @@ async def main():
                 )
                 migrated_cfg = True
     if migrated_cfg:
-        _write_config(app_settings, cfg)
+        _write_config(
+            app_settings,
+            cfg,
+            keys=_ANALYSIS_APP_SETTINGS_KEYS,
+            previous=config_before_migrations,
+        )
+    config_before_selection = deepcopy(cfg)
     _render_analysis_project_sidebar_label(project, active_app_path, cfg)
     configured_views: list[str] = [
         str(v)
@@ -3490,7 +4134,12 @@ async def main():
             persisted_notebooks["selected"] = selected_notebooks
             config_changed = True
     if config_changed:
-        _write_config(app_settings, cfg)
+        _write_config(
+            app_settings,
+            cfg,
+            keys=_ANALYSIS_APP_SETTINGS_KEYS,
+            previous=config_before_selection,
+        )
 
     _render_sidebar_launchers(
         sidebar_selected_views=selected_views,
@@ -3627,6 +4276,14 @@ async def render_notebook_page(notebook_path: Path):
     sidecar_ready = _ensure_notebook_sidecar(
         notebook_key, resolved_notebook, port, project_root, token=sidecar_token
     )
+    registered_notebook = _remembered_sidecar_lease("notebook", notebook_key)
+    if registered_notebook:
+        endpoint = str(registered_notebook.get("endpoint", "") or "").rstrip("/")
+        registered_token = registered_notebook.get("token")
+        if isinstance(registered_token, str) and registered_token:
+            sidecar_token = registered_token
+    else:
+        endpoint = f"http://127.0.0.1:{port}"
 
     qp = st.query_params
     extras = {}
@@ -3673,7 +4330,7 @@ async def render_notebook_page(notebook_path: Path):
                 st.markdown("Attempt summary:")
                 st.code("\n".join(sidecar_attempts), language="bash")
         return
-    url = f"http://127.0.0.1:{port}/lab/tree/{notebook_url_path}?{query}"
+    url = f"{endpoint}/lab/tree/{notebook_url_path}?{query}"
     env.logger.info(
         "notebook url: http://127.0.0.1:%s/lab/tree/%s?token=<redacted>",
         port,
@@ -3714,7 +4371,11 @@ async def render_view_page(
         env.logger.info(
             "Hosted runtime detected; rendering analysis view inline: %s", view_path
         )
-        await _render_view_page_inline(view_path, active_app_arg)
+        try:
+            await _render_view_page_inline(view_path, active_app_arg)
+        except HostedAnalysisBusyError as exc:
+            st.error("This hosted analysis renderer is busy with another session.")
+            st.caption(str(exc))
         return
 
     try:
@@ -3762,7 +4423,13 @@ async def render_view_page(
                 st.markdown("Attempt summary:")
                 st.code("\n".join(sidecar_attempts), language="bash")
         return
-    url = f"http://127.0.0.1:{port}/?{query}"
+    registered_view = _remembered_sidecar_lease("analysis-view", view_key)
+    endpoint = (
+        str(registered_view.get("endpoint", "") or "").rstrip("/")
+        if registered_view
+        else f"http://127.0.0.1:{port}"
+    )
+    url = f"{endpoint}/?{query}"
     env.logger.info("page url: %s", url)
     st.iframe(url, height=900)
 

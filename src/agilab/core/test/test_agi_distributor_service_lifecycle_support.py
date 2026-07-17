@@ -9,7 +9,7 @@ import pytest
 
 from agi_cluster.agi_distributor import AGI
 import agi_cluster.agi_distributor.agi_distributor as agi_distributor_module
-from agi_cluster.agi_distributor import service_lifecycle_support
+from agi_cluster.agi_distributor import service_lifecycle_support, service_state_support
 from agi_env import AgiEnv
 from agi_node.agi_dispatcher import BaseWorker
 
@@ -44,6 +44,8 @@ def _reset_agi_service_state():
         "_service_cleanup_failed_ttl_sec": AGI._service_cleanup_failed_ttl_sec,
         "_service_cleanup_heartbeat_max_files": AGI._service_cleanup_heartbeat_max_files,
         "_service_cleanup_heartbeat_ttl_sec": AGI._service_cleanup_heartbeat_ttl_sec,
+        "_service_cleanup_unproven": AGI._service_cleanup_unproven,
+        "_service_runtime_shutdown_proven": AGI._service_runtime_shutdown_proven,
         "_service_futures": dict(AGI._service_futures),
         "_service_heartbeat_timeout": AGI._service_heartbeat_timeout,
         "_service_poll_interval": AGI._service_poll_interval,
@@ -86,6 +88,8 @@ def _reset_agi_service_state():
     AGI._service_stop_timeout = 30.0
     AGI._service_poll_interval = None
     AGI._service_heartbeat_timeout = None
+    AGI._service_cleanup_unproven = False
+    AGI._service_runtime_shutdown_proven = False
     AGI._service_started_at = None
     AGI._service_submit_counter = 0
     AGI._service_worker_args = {}
@@ -113,6 +117,10 @@ def _reset_agi_service_state():
     AGI._service_cleanup_failed_ttl_sec = snapshot["_service_cleanup_failed_ttl_sec"]
     AGI._service_cleanup_heartbeat_max_files = snapshot["_service_cleanup_heartbeat_max_files"]
     AGI._service_cleanup_heartbeat_ttl_sec = snapshot["_service_cleanup_heartbeat_ttl_sec"]
+    AGI._service_cleanup_unproven = snapshot["_service_cleanup_unproven"]
+    AGI._service_runtime_shutdown_proven = snapshot[
+        "_service_runtime_shutdown_proven"
+    ]
     AGI._service_futures = snapshot["_service_futures"]
     AGI._service_heartbeat_timeout = snapshot["_service_heartbeat_timeout"]
     AGI._service_poll_interval = snapshot["_service_poll_interval"]
@@ -137,8 +145,21 @@ def _reset_agi_service_state():
 
 
 class _FakeFuture:
-    def __init__(self, status: str = "pending"):
+    def __init__(
+        self,
+        status: str = "pending",
+        *,
+        key: str | None = None,
+        kind: str | None = None,
+    ):
         self.status = status
+        self.key = key
+        self.kind = kind
+        self.cancel_calls = 0
+
+    def cancel(self):
+        self.cancel_calls += 1
+        self.status = "cancelled"
 
 
 class _FakeClient:
@@ -146,6 +167,7 @@ class _FakeClient:
         self._workers = workers
         self.status = "running"
         self.submissions: list[dict[str, object]] = []
+        self.loop_futures: list[_FakeFuture] = []
 
     def submit(self, *args, **kwargs):
         fn = args[0] if args else None
@@ -157,15 +179,35 @@ class _FakeClient:
                 "kwargs": kwargs,
             }
         )
-        return _FakeFuture()
+        future = _FakeFuture(
+            status="running" if fn_name == "loop" else "finished",
+            key=kwargs.get("key"),
+            kind=fn_name,
+        )
+        if fn_name == "loop":
+            self.loop_futures.append(future)
+        return future
 
     def gather(self, futures, errors="raise"):
+        if any(getattr(future, "kind", None) == "break_loop" for future in futures):
+            for loop_future in self.loop_futures:
+                loop_future.status = "finished"
         if isinstance(futures, list):
             return [None for _ in futures]
         return []
 
     def scheduler_info(self):
         return {"workers": {f"tcp://{worker}": {} for worker in self._workers}}
+
+
+def _install_fake_future_reacquisition(monkeypatch, client: _FakeClient) -> None:
+    def _reacquire(_client, key):
+        assert _client is client
+        future = _FakeFuture(status="running", key=str(key), kind="loop")
+        client.loop_futures.append(future)
+        return future
+
+    monkeypatch.setattr(service_lifecycle_support, "_reacquire_service_future", _reacquire)
 
 
 def _real_service_stub_new(**_kwargs):
@@ -261,7 +303,15 @@ def test_submit_service_loops_returns_worker_future_map():
     assert list(futures.keys()) == ["127.0.0.1:8787"]
     loop_call = [entry for entry in client.submissions if entry["fn"] == "loop"][0]
     assert loop_call["kwargs"]["poll_interval"] == 2.5
-    assert loop_call["kwargs"]["key"] == "agi-loop-loop-minimal_app-127.0.0.1-8787"
+    assert str(loop_call["kwargs"]["key"]).startswith(
+        "agi-loop-loop-minimal_app-127.0.0.1-8787-"
+    )
+    AGI._service_workers = ["127.0.0.1:8787"]
+    AGI._service_futures = futures
+    state = AGI._service_state_payload(env)
+    assert state["service_loop_keys"] == {
+        "127.0.0.1:8787": loop_call["kwargs"]["key"]
+    }
 
 
 @pytest.mark.asyncio
@@ -278,25 +328,35 @@ async def test_service_restart_workers_restarts_and_tracks_futures(monkeypatch, 
     AGI._mode = AGI.DASK_MODE
     AGI._service_poll_interval = 0.2
     AGI._service_queue_root = None
-    AGI._service_workers = []
-    AGI._service_futures = {}
+    worker = "127.0.0.1:8787"
+    old_loop = _FakeFuture(status="running", key="old-loop")
+    AGI._service_workers = [worker]
+    AGI._service_futures = {worker: old_loop}
 
     class _RestartClient:
         def __init__(self):
             self.calls = []
-            self._gather_calls = 0
 
         def scheduler_info(self):
-            return {"workers": {"tcp://127.0.0.1:8787": {}}}
+            return {"workers": {f"tcp://{worker}": {}}}
 
         def submit(self, fn, *args, **kwargs):
-            self.calls.append(getattr(fn, "__name__", str(fn)))
-            return _FakeFuture(status="running")
+            fn_name = getattr(fn, "__name__", str(fn))
+            self.calls.append(fn_name)
+            if fn_name == "loop":
+                # The replacement must never be submitted while the prior
+                # worker execution can still overlap it.
+                assert old_loop.status == "finished"
+                return _FakeFuture(
+                    status="running",
+                    key=str(kwargs["key"]),
+                    kind=fn_name,
+                )
+            return _FakeFuture(status="finished", kind=fn_name)
 
         def gather(self, futures, errors="raise"):
-            self._gather_calls += 1
-            if self._gather_calls == 1:
-                raise RuntimeError("ignore break gather failure")
+            if any(future.kind == "break_loop" for future in futures):
+                old_loop.status = "finished"
             return [None for _ in futures]
 
     client = _RestartClient()
@@ -306,9 +366,10 @@ async def test_service_restart_workers_restarts_and_tracks_futures(monkeypatch, 
 
     monkeypatch.setattr(AGI, "_init_service_queue", staticmethod(_fake_init_queue))
 
-    restarted = await AGI._service_restart_workers(env, client, ["127.0.0.1:8787"])
-    assert restarted == ["127.0.0.1:8787"]
-    assert AGI._service_futures["127.0.0.1:8787"].status == "running"
+    restarted = await AGI._service_restart_workers(env, client, [worker])
+    assert restarted == [worker]
+    assert AGI._service_futures[worker] is not old_loop
+    assert AGI._service_futures[worker].status == "running"
     assert {"break_loop", "_new", "loop"}.issubset(set(client.calls))
 
 
@@ -319,15 +380,17 @@ async def test_service_restart_workers_propagates_unexpected_break_loop_bug(monk
     AGI._mode = AGI.DASK_MODE
     AGI._service_poll_interval = 0.2
     AGI._service_queue_root = None
-    AGI._service_workers = []
-    AGI._service_futures = {}
+    worker = "127.0.0.1:8787"
+    old_loop = _FakeFuture(status="running", key="old-loop")
+    AGI._service_workers = [worker]
+    AGI._service_futures = {worker: old_loop}
 
     class _RestartClient:
         def scheduler_info(self):
-            return {"workers": {"tcp://127.0.0.1:8787": {}}}
+            return {"workers": {f"tcp://{worker}": {}}}
 
         def submit(self, fn, *args, **kwargs):
-            return _FakeFuture(status="running")
+            return _FakeFuture(status="finished", kind=getattr(fn, "__name__", ""))
 
         def gather(self, futures, errors="raise"):
             raise ValueError("unexpected break gather bug")
@@ -338,7 +401,188 @@ async def test_service_restart_workers_propagates_unexpected_break_loop_bug(monk
     monkeypatch.setattr(AGI, "_init_service_queue", staticmethod(_fake_init_queue))
 
     with pytest.raises(ValueError, match="unexpected break gather bug"):
-        await AGI._service_restart_workers(env, _RestartClient(), ["127.0.0.1:8787"])
+        await AGI._service_restart_workers(env, _RestartClient(), [worker])
+    assert AGI._service_futures == {worker: old_loop}
+    assert AGI._service_cleanup_unproven is True
+
+
+@pytest.mark.asyncio
+async def test_service_restart_partial_loop_submission_retains_unproven_replacement(
+    monkeypatch,
+    tmp_path,
+):
+    env = _minimal_app_env()
+    workers = ["w1", "w2"]
+    old_futures = {
+        worker: _FakeFuture(status="running", key=f"old-{worker}")
+        for worker in workers
+    }
+    AGI._args = {"sample": 1}
+    AGI._mode = AGI.DASK_MODE
+    AGI._service_workers = list(workers)
+    AGI._service_futures = dict(old_futures)
+    AGI._service_apply_queue_root(tmp_path / "queue", create=True)
+
+    class _PartialRestartClient:
+        def __init__(self):
+            self.break_gathers = 0
+            self.loop_submissions = 0
+            self.replacement: _FakeFuture | None = None
+
+        def scheduler_info(self):
+            return {"workers": {f"tcp://{worker}": {} for worker in workers}}
+
+        def submit(self, fn, *args, **kwargs):
+            fn_name = getattr(fn, "__name__", "")
+            if fn_name == "loop":
+                self.loop_submissions += 1
+                if self.loop_submissions == 2:
+                    raise RuntimeError("injected second replacement submit failure")
+                self.replacement = _FakeFuture(
+                    status="running",
+                    key=str(kwargs["key"]),
+                    kind=fn_name,
+                )
+                return self.replacement
+            return _FakeFuture(status="finished", kind=fn_name)
+
+        def gather(self, futures, errors="raise"):
+            if any(future.kind == "break_loop" for future in futures):
+                self.break_gathers += 1
+                if self.break_gathers == 1:
+                    for future in old_futures.values():
+                        future.status = "finished"
+            return [None for _ in futures]
+
+    client = _PartialRestartClient()
+    monkeypatch.setattr(AGI, "_service_write_state", staticmethod(lambda *_args: None))
+
+    def _wait(futures, **_kwargs):
+        return (
+            {future for future in futures if future.status in {"finished", "error"}},
+            {future for future in futures if future.status not in {"finished", "error"}},
+        )
+
+    with pytest.raises(
+        RuntimeError,
+        match="injected second replacement submit failure",
+    ):
+        await service_lifecycle_support.service_restart_workers(
+            AGI,
+            env,
+            client,
+            workers,
+            wait_fn=_wait,
+        )
+
+    assert client.replacement is not None
+    assert AGI._service_futures == {"w1": client.replacement}
+    assert AGI._service_cleanup_unproven is True
+    assert client.replacement.status == "running"
+
+
+@pytest.mark.asyncio
+async def test_service_restart_partial_publication_failure_forces_runtime_shutdown(
+    monkeypatch,
+    tmp_path,
+):
+    env = _minimal_app_env()
+    workers = ["w1", "w2"]
+    old_futures = {
+        worker: _FakeFuture(status="running", key=f"old-{worker}")
+        for worker in workers
+    }
+    AGI._args = {"sample": 1}
+    AGI._mode = AGI.DASK_MODE
+    AGI._service_workers = list(workers)
+    AGI._service_futures = dict(old_futures)
+    AGI._service_apply_queue_root(tmp_path / "queue", create=True)
+
+    class _PartialRestartClient:
+        def __init__(self):
+            self.break_gathers = 0
+            self.loop_submissions = 0
+            self.replacement: _FakeFuture | None = None
+
+        def scheduler_info(self):
+            return {"workers": {f"tcp://{worker}": {} for worker in workers}}
+
+        def submit(self, fn, *args, **kwargs):
+            fn_name = getattr(fn, "__name__", "")
+            if fn_name == "loop":
+                self.loop_submissions += 1
+                if self.loop_submissions == 2:
+                    raise RuntimeError("injected second replacement submit failure")
+                self.replacement = _FakeFuture(
+                    status="running",
+                    key=str(kwargs["key"]),
+                    kind=fn_name,
+                )
+                return self.replacement
+            return _FakeFuture(status="finished", kind=fn_name)
+
+        def gather(self, futures, errors="raise"):
+            if any(future.kind == "break_loop" for future in futures):
+                self.break_gathers += 1
+                if self.break_gathers == 1:
+                    for future in old_futures.values():
+                        future.status = "finished"
+            return [None for _ in futures]
+
+    client = _PartialRestartClient()
+    AGI._dask_client = client
+    stop_calls = 0
+
+    async def _stop():
+        nonlocal stop_calls
+        stop_calls += 1
+        assert client.replacement is not None
+        client.replacement.status = "finished"
+        AGI._dask_client = None
+
+    def _wait(futures, **_kwargs):
+        return (
+            {future for future in futures if future.status in {"finished", "error"}},
+            {
+                future
+                for future in futures
+                if future.status not in {"finished", "error"}
+            },
+        )
+
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(
+        AGI,
+        "_service_write_state",
+        staticmethod(
+            lambda *_args: (_ for _ in ()).throw(
+                service_state_support.ServiceStateUnavailableError(
+                    "partial restart state replace remains locked"
+                )
+            )
+        ),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="injected second replacement submit failure",
+    ):
+        await service_lifecycle_support.service_restart_workers(
+            AGI,
+            env,
+            client,
+            workers,
+            wait_fn=_wait,
+        )
+
+    assert stop_calls == 1
+    assert client.replacement is not None
+    assert client.replacement.status == "finished"
+    assert AGI._dask_client is None
+    assert AGI._service_futures == old_futures
+    assert AGI._service_workers == workers
+    assert AGI._service_runtime_shutdown_proven is True
+    assert AGI._service_cleanup_unproven is True
 
 
 @pytest.mark.asyncio
@@ -383,7 +627,105 @@ async def test_service_auto_restart_unhealthy_restarts_and_persists(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_service_recover_allow_stale_cleanup_clears_state_on_failure(tmp_path, monkeypatch):
+async def test_service_auto_restart_state_publish_failure_forces_runtime_shutdown(
+    monkeypatch,
+):
+    env = _minimal_app_env()
+    old_future = _FakeFuture(status="finished", key="old-loop-w1", kind="loop")
+    replacement = _FakeFuture(status="running", key="new-loop-w1", kind="loop")
+    AGI._service_workers = ["w1"]
+    AGI._service_futures = {"w1": old_future}
+
+    class _PendingReplacementClient(_FakeClient):
+        def gather(self, futures, errors="raise"):
+            if isinstance(futures, list):
+                return [None for _ in futures]
+            return []
+
+    client = _PendingReplacementClient(["w1"])
+    AGI._dask_client = client
+    stop_calls = 0
+
+    async def _connected(_client):
+        assert _client is client
+        return ["w1"]
+
+    async def _restart(_env, _client, _workers):
+        assert _client is client
+        assert _workers == ["w1"]
+        AGI._service_futures = {"w1": replacement}
+        return ["w1"]
+
+    async def _stop():
+        nonlocal stop_calls
+        stop_calls += 1
+        replacement.status = "finished"
+        AGI._dask_client = None
+
+    def _wait(futures, **_kwargs):
+        return (
+            {
+                future
+                for future in futures
+                if future.status in {"finished", "error"}
+            },
+            {
+                future
+                for future in futures
+                if future.status not in {"finished", "error"}
+            },
+        )
+
+    monkeypatch.setattr(AGI, "_service_connected_workers", staticmethod(_connected))
+    monkeypatch.setattr(
+        AGI,
+        "_service_unhealthy_workers",
+        staticmethod(lambda _workers: {"w1": "missing-heartbeat"}),
+    )
+    monkeypatch.setattr(AGI, "_service_restart_workers", staticmethod(_restart))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(
+        AGI,
+        "_service_write_state",
+        staticmethod(
+            lambda *_args: (_ for _ in ()).throw(
+                service_state_support.ServiceStateUnavailableError(
+                    "restart state replace remains locked"
+                )
+            )
+        ),
+    )
+
+    with pytest.raises(
+        service_state_support.ServiceStateUnavailableError,
+        match="restart state replace remains locked",
+    ):
+        await service_lifecycle_support.service_auto_restart_unhealthy(
+            AGI,
+            env,
+            client,
+            wait_fn=_wait,
+        )
+
+    assert stop_calls == 1
+    assert AGI._service_futures == {"w1": old_future}
+    assert AGI._service_workers == ["w1"]
+    assert AGI._service_cleanup_unproven is True
+    assert AGI._service_runtime_shutdown_proven is True
+    assert replacement.status == "finished"
+    assert AGI._dask_client is None
+    break_submissions = [
+        submission
+        for submission in client.submissions
+        if submission["fn"] == "break_loop"
+    ]
+    assert len(break_submissions) == 1
+    assert break_submissions[0]["kwargs"]["workers"] == ["w1"]
+    assert break_submissions[0]["kwargs"]["allow_other_workers"] is False
+
+
+@pytest.mark.asyncio
+async def test_service_recover_preserves_state_on_transient_failure(tmp_path, monkeypatch):
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     queue_dir = tmp_path / "service_queue"
     queue_dir.mkdir(parents=True, exist_ok=True)
@@ -399,6 +741,7 @@ async def test_service_recover_allow_stale_cleanup_clears_state_on_failure(tmp_p
             "scheduler": "127.0.0.1:8786",
             "workers": {"127.0.0.1": 1},
             "service_workers": ["127.0.0.1:8787"],
+            "service_loop_keys": {"127.0.0.1:8787": "persisted-loop-8787"},
             "queue_dir": str(queue_dir),
             "args": {},
         },
@@ -411,10 +754,153 @@ async def test_service_recover_allow_stale_cleanup_clears_state_on_failure(tmp_p
 
     recovered = await AGI._service_recover(env, allow_stale_cleanup=True)
     assert recovered is False
-    assert AGI._service_read_state(env) is None
-    assert AGI._service_queue_root is None
-    assert AGI._service_workers == []
+    assert AGI._service_read_state(env) is not None
+    assert AGI._service_queue_root == queue_dir
+    assert AGI._service_workers == ["127.0.0.1:8787"]
     assert AGI._service_futures == {}
+    assert AGI._service_cleanup_unproven is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("shutdown_on_stop", [False, True])
+async def test_legacy_v1_state_requires_or_performs_full_runtime_shutdown(
+    monkeypatch,
+    tmp_path,
+    shutdown_on_stop,
+):
+    env = _minimal_app_env()
+    worker = "127.0.0.1:8787"
+    queue_dir = tmp_path / "queue"
+    queue_dir.mkdir(parents=True)
+    state_path = AGI._service_state_path(env)
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "target": env.target,
+            "app": env.app,
+            "mode": AGI.DASK_MODE,
+            "run_type": "run --no-sync",
+            "scheduler": "127.0.0.1:8786",
+            "workers": {"127.0.0.1": 1},
+            "service_workers": [worker],
+            # Legacy v1 intentionally has no service_loop_keys field.
+            "queue_dir": str(queue_dir),
+            "args": {},
+        },
+    )
+    client = _FakeClient([worker])
+    stops = []
+
+    async def _connect(*_args, **_kwargs):
+        return client
+
+    async def _stop():
+        stops.append("stop")
+        AGI._dask_client = None
+
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_connect))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+
+    result = await AGI.serve(
+        env,
+        action="stop",
+        shutdown_on_stop=shutdown_on_stop,
+    )
+
+    if shutdown_on_stop:
+        assert result["status"] == "stopped"
+        assert result["legacy_full_shutdown"] is True
+        assert stops == ["stop"]
+        assert not state_path.exists()
+        assert AGI._service_workers == []
+        assert AGI._service_cleanup_unproven is False
+        assert AGI._lifecycle_service_token is None
+    else:
+        assert result["status"] == "error"
+        assert result["recovery_required"] is True
+        assert stops == []
+        assert state_path.exists()
+        assert AGI._service_workers == [worker]
+        assert AGI._service_cleanup_unproven is True
+        assert AGI._lifecycle_service_token is not None
+
+
+@pytest.mark.asyncio
+async def test_legacy_v1_stop_retries_state_clear_from_runtime_shutdown_proof(
+    monkeypatch,
+    tmp_path,
+):
+    env = _minimal_app_env()
+    worker = "127.0.0.1:8787"
+    queue_dir = tmp_path / "queue"
+    queue_dir.mkdir(parents=True)
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "target": env.target,
+            "app": env.app,
+            "mode": AGI.DASK_MODE,
+            "run_type": "run --no-sync",
+            "scheduler": "127.0.0.1:8786",
+            "workers": {"127.0.0.1": 1},
+            "service_workers": [worker],
+            "queue_dir": str(queue_dir),
+            "args": {},
+        },
+    )
+    client = _FakeClient([worker])
+    stop_calls = 0
+    clear_calls = 0
+    real_clear_state = AGI._service_clear_state
+
+    async def _connect(*_args, **_kwargs):
+        return client
+
+    async def _stop():
+        nonlocal stop_calls
+        stop_calls += 1
+        AGI._dask_client = None
+
+    def _clear_state(service_env):
+        nonlocal clear_calls
+        clear_calls += 1
+        if clear_calls == 1:
+            raise service_state_support.ServiceStateUnavailableError(
+                "legacy state unlink remains locked"
+            )
+        real_clear_state(service_env)
+
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_connect))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_service_clear_state", staticmethod(_clear_state))
+
+    with pytest.raises(
+        service_state_support.ServiceStateUnavailableError,
+        match="legacy state unlink remains locked",
+    ):
+        await AGI.serve(env, action="stop", shutdown_on_stop=True)
+
+    assert stop_calls == 1
+    assert AGI._dask_client is None
+    assert AGI._service_futures == {}
+    assert AGI._service_workers == [worker]
+    assert AGI._service_runtime_shutdown_proven is True
+    assert AGI._service_cleanup_unproven is True
+    assert AGI._lifecycle_service_token is not None
+
+    result = await AGI.serve(env, action="stop", shutdown_on_stop=True)
+
+    assert result["status"] == "stopped"
+    assert result["pending"] == []
+    assert stop_calls == 1
+    assert clear_calls == 2
+    assert AGI._service_futures == {}
+    assert AGI._service_workers == []
+    assert AGI._service_runtime_shutdown_proven is False
+    assert AGI._service_cleanup_unproven is False
+    assert AGI._lifecycle_service_token is None
 
 
 @pytest.mark.asyncio
@@ -574,24 +1060,247 @@ async def test_agi_serve_stop_returns_idle_when_nothing_to_stop(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_agi_serve_stop_returns_error_when_client_missing(monkeypatch):
+@pytest.mark.parametrize("shutdown_on_stop", [False, True])
+async def test_agi_serve_stop_retains_ownership_when_client_missing(
+    monkeypatch,
+    shutdown_on_stop,
+):
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
+    state_path = AGI._service_state_path(env)
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "service_workers": ["w1"],
+            "service_loop_keys": {"w1": "loop-w1"},
+        },
+    )
     AGI._dask_client = None
     AGI._jobs = object()
-    AGI._service_futures = {"w1": _FakeFuture("running")}
+    loop_future = _FakeFuture("running", key="loop-w1")
+    AGI._service_futures = {"w1": loop_future}
     AGI._service_workers = ["w1"]
-    calls = {"clean": 0}
+    calls = {"clean": 0, "stop": 0, "clear": 0, "reset": 0}
 
+    async def _stop():
+        calls["stop"] += 1
+
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
     monkeypatch.setattr(
         AGI,
         "_clean_job",
         staticmethod(lambda *_a, **_k: calls.__setitem__("clean", calls["clean"] + 1)),
     )
+    monkeypatch.setattr(
+        AGI,
+        "_service_clear_state",
+        staticmethod(lambda _env: calls.__setitem__("clear", calls["clear"] + 1)),
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_reset_service_queue_state",
+        staticmethod(lambda: calls.__setitem__("reset", calls["reset"] + 1)),
+    )
 
-    result = await AGI.serve(env, action="stop", shutdown_on_stop=False)
+    result = await AGI.serve(
+        env,
+        action="stop",
+        shutdown_on_stop=shutdown_on_stop,
+    )
     assert result["status"] == "error"
+    assert result["recovery_required"] is True
     assert "w1" in result["pending"]
-    assert calls["clean"] == 1
+    assert calls == {"clean": 0, "stop": 0, "clear": 0, "reset": 0}
+    assert AGI._service_futures == {"w1": loop_future}
+    assert AGI._service_workers == ["w1"]
+    assert AGI._service_cleanup_unproven is True
+    assert AGI._lifecycle_service_token is not None
+    assert state_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_serve_stop_retains_ownership_when_state_clear_fails(monkeypatch):
+    env = _minimal_app_env()
+    worker = "127.0.0.1:8787"
+    client = _FakeClient([worker])
+    loop_future = _FakeFuture(status="finished", key="loop-8787")
+    AGI._dask_client = client
+    AGI._service_futures = {worker: loop_future}
+    AGI._service_workers = [worker]
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(
+            AGI,
+            "_service_clear_state",
+            staticmethod(
+                lambda _env: (_ for _ in ()).throw(
+                    service_state_support.ServiceStateUnavailableError(
+                        "state unlink remains locked"
+                    )
+                )
+            ),
+        )
+
+        with pytest.raises(
+            service_state_support.ServiceStateUnavailableError,
+            match="state unlink remains locked",
+        ):
+            await AGI.serve(env, action="stop", shutdown_on_stop=False)
+
+    assert AGI._service_futures == {worker: loop_future}
+    assert AGI._service_workers == [worker]
+    assert AGI._service_cleanup_unproven is True
+    assert AGI._lifecycle_service_token is not None
+
+
+@pytest.mark.asyncio
+async def test_serve_stop_retries_state_clear_after_runtime_already_shut_down(monkeypatch):
+    env = _minimal_app_env()
+    worker = "127.0.0.1:8787"
+
+    class _CloseAwareClient(_FakeClient):
+        def __init__(self):
+            super().__init__([])
+            self.shutdown_calls = 0
+
+        def scheduler_info(self):
+            if self.status == "closed":
+                raise RuntimeError("Dask client is already closed")
+            return super().scheduler_info()
+
+        def submit(self, *args, **kwargs):
+            if self.status == "closed":
+                raise RuntimeError("Dask client is already closed")
+            return super().submit(*args, **kwargs)
+
+        async def shutdown(self):
+            if self.status == "closed":
+                raise RuntimeError("Dask client is already closed")
+            self.shutdown_calls += 1
+            self.status = "closed"
+
+    client = _CloseAwareClient()
+    loop_future = _FakeFuture(status="finished", key="loop-8787")
+    AGI._dask_client = client
+    AGI._service_futures = {worker: loop_future}
+    AGI._service_workers = [worker]
+    AGI._service_write_state(env, AGI._service_state_payload(env))
+
+    async def _close_connections():
+        return None
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_close_connections))
+    monkeypatch.setattr(AGI, "_runtime_cleanup_task", None, raising=False)
+    monkeypatch.setattr(AGI, "_runtime_cleanup_phase", None, raising=False)
+    monkeypatch.setattr(AGI, "_worker_launch_tasks", [], raising=False)
+    monkeypatch.setattr(AGI, "_scheduler_launch_tasks", [], raising=False)
+    monkeypatch.setattr(AGI, "_startup_in_progress", False, raising=False)
+
+    clear_calls = 0
+    real_clear_state = AGI._service_clear_state
+
+    def _clear_state(service_env):
+        nonlocal clear_calls
+        clear_calls += 1
+        if clear_calls == 1:
+            raise service_state_support.ServiceStateUnavailableError(
+                "state unlink remains locked"
+            )
+        real_clear_state(service_env)
+
+    monkeypatch.setattr(AGI, "_service_clear_state", staticmethod(_clear_state))
+
+    with pytest.raises(
+        service_state_support.ServiceStateUnavailableError,
+        match="state unlink remains locked",
+    ):
+        await AGI.serve(env, action="stop", shutdown_on_stop=True)
+
+    assert client.status == "closed"
+    assert client.shutdown_calls == 1
+    assert AGI._dask_client is None
+    assert AGI._service_futures == {worker: loop_future}
+    assert AGI._service_workers == [worker]
+    assert AGI._service_cleanup_unproven is True
+    assert AGI._lifecycle_service_token is not None
+
+    result = await AGI.serve(env, action="stop", shutdown_on_stop=True)
+
+    assert result["status"] == "stopped"
+    assert result["pending"] == []
+    assert client.shutdown_calls == 1
+    assert clear_calls == 2
+    assert AGI._service_futures == {}
+    assert AGI._service_workers == []
+    assert AGI._service_cleanup_unproven is False
+    assert AGI._lifecycle_service_token is None
+
+
+@pytest.mark.asyncio
+async def test_serve_stop_missing_future_retries_state_clear_from_shutdown_proof(
+    monkeypatch,
+):
+    env = _minimal_app_env()
+    worker = "127.0.0.1:8787"
+    client = _FakeClient([worker])
+    AGI._dask_client = client
+    AGI._service_futures = {}
+    AGI._service_workers = [worker]
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "service_workers": [worker],
+            "service_loop_keys": {},
+        },
+    )
+
+    stop_calls = 0
+    clear_calls = 0
+    real_clear_state = AGI._service_clear_state
+
+    async def _stop():
+        nonlocal stop_calls
+        stop_calls += 1
+        AGI._dask_client = None
+
+    def _clear_state(service_env):
+        nonlocal clear_calls
+        clear_calls += 1
+        if clear_calls == 1:
+            raise service_state_support.ServiceStateUnavailableError(
+                "missing-Future state unlink remains locked"
+            )
+        real_clear_state(service_env)
+
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_service_clear_state", staticmethod(_clear_state))
+
+    with pytest.raises(
+        service_state_support.ServiceStateUnavailableError,
+        match="missing-Future state unlink remains locked",
+    ):
+        await AGI.serve(env, action="stop", shutdown_on_stop=True)
+
+    assert stop_calls == 1
+    assert AGI._dask_client is None
+    assert AGI._service_futures == {}
+    assert AGI._service_workers == [worker]
+    assert AGI._service_runtime_shutdown_proven is True
+    assert AGI._service_cleanup_unproven is True
+    assert AGI._lifecycle_service_token is not None
+
+    result = await AGI.serve(env, action="stop", shutdown_on_stop=True)
+
+    assert result["status"] == "stopped"
+    assert result["pending"] == []
+    assert stop_calls == 1
+    assert clear_calls == 2
+    assert AGI._service_futures == {}
+    assert AGI._service_workers == []
+    assert AGI._service_runtime_shutdown_proven is False
+    assert AGI._service_cleanup_unproven is False
+    assert AGI._lifecycle_service_token is None
 
 
 @pytest.mark.asyncio
@@ -640,6 +1349,7 @@ async def test_agi_serve_start_status_stop_supports_agidataworker(monkeypatch):
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     env.base_worker_cls = "AgiDataWorker"
     fake_client = _FakeClient(["127.0.0.1:8787"])
+    _install_fake_future_reacquisition(monkeypatch, fake_client)
 
     async def _fake_start(_scheduler):
         AGI._dask_client = fake_client
@@ -784,6 +1494,298 @@ async def test_agi_serve_start_uses_sync_when_client_already_running(monkeypatch
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "failure_stage",
+    ["queue-init", "loop-submit", "state-write", "final-response"],
+)
+async def test_serve_start_failure_releases_owned_runtime_and_futures(
+    monkeypatch,
+    tmp_path,
+    failure_stage,
+):
+    env = _minimal_app_env()
+    env.base_worker_cls = "PandasWorker"
+    calls = {"stop": 0, "clear": 0, "reset": 0, "clean_job": 0}
+
+    class _StartupClient(_FakeClient):
+        def __init__(self):
+            super().__init__(["127.0.0.1:8787", "127.0.0.1:8788"])
+            self.loop_futures: list[_FakeFuture] = []
+
+        def submit(self, *args, **kwargs):
+            fn = args[0] if args else None
+            if getattr(fn, "__name__", "") == "loop":
+                if failure_stage == "loop-submit" and self.loop_futures:
+                    raise RuntimeError("injected loop-submit failure")
+                future = _FakeFuture()
+                self.loop_futures.append(future)
+                return future
+            return super().submit(*args, **kwargs)
+
+    client = _StartupClient()
+
+    async def _recover(*_args, **_kwargs):
+        return False
+
+    async def _start(_scheduler):
+        AGI._dask_client = client
+
+    async def _stop():
+        calls["stop"] += 1
+
+    monkeypatch.setattr(AGI, "_service_recover", staticmethod(_recover))
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(
+        AGI,
+        "_service_clear_state",
+        staticmethod(lambda _env: calls.__setitem__("clear", calls["clear"] + 1)),
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_reset_service_queue_state",
+        staticmethod(lambda: calls.__setitem__("reset", calls["reset"] + 1)),
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_clean_job",
+        staticmethod(lambda *_args, **_kwargs: calls.__setitem__("clean_job", calls["clean_job"] + 1)),
+    )
+
+    if failure_stage == "queue-init":
+        monkeypatch.setattr(
+            AGI,
+            "_init_service_queue",
+            staticmethod(
+                lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                    RuntimeError("injected queue-init failure")
+                )
+            ),
+        )
+
+    monkeypatch.setattr(
+        AGI,
+        "_service_write_state",
+        staticmethod(
+            lambda *_args, **_kwargs: (
+                (_ for _ in ()).throw(RuntimeError("injected state-write failure"))
+                if failure_stage == "state-write"
+                else None
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_service_finalize_response",
+        staticmethod(
+            lambda _env, payload, **_kwargs: (
+                (_ for _ in ()).throw(RuntimeError("injected final-response failure"))
+                if failure_stage == "final-response"
+                else payload
+            )
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match=f"injected {failure_stage} failure"):
+        await service_lifecycle_support.serve(
+            AGI,
+            env,
+            workers={"127.0.0.1": 2},
+            mode=AGI.DASK_MODE,
+            action="start",
+            service_queue_dir=tmp_path / "queue",
+            background_job_manager_factory=lambda: object(),
+        )
+
+    assert calls["stop"] == 1
+    assert calls["clear"] == 1
+    assert calls["reset"] == 1
+    assert calls["clean_job"] == 1
+    assert AGI._service_futures == {}
+    assert AGI._service_workers == []
+    if failure_stage == "loop-submit":
+        assert len(client.loop_futures) == 1
+    if failure_stage in {"loop-submit", "state-write", "final-response"}:
+        assert client.loop_futures
+        assert all(future.cancel_calls == 1 for future in client.loop_futures)
+
+
+@pytest.mark.asyncio
+async def test_failed_start_cleanup_retains_ownership_when_runtime_stop_is_unproven():
+    warnings = []
+
+    class _BadFuture:
+        def cancel(self):
+            raise RuntimeError("cancel cleanup failed")
+
+    async def _bad_stop():
+        raise RuntimeError("runtime cleanup failed")
+
+    def _raise(message):
+        raise RuntimeError(message)
+
+    agi = SimpleNamespace(
+        _service_futures={"worker": object()},
+        _service_workers=["worker"],
+        _jobs=object(),
+        _service_clear_state=lambda _env: _raise("state cleanup must remain retained"),
+        _reset_service_queue_state=lambda: _raise("queue cleanup must remain retained"),
+        _stop=_bad_stop,
+        _clean_job=lambda _force: _raise("job cleanup failed"),
+    )
+    future = _BadFuture()
+
+    await service_lifecycle_support._cleanup_failed_service_start(
+        agi,
+        env=object(),
+        owned_futures={"worker": future},
+        runtime_started_here=True,
+        log=SimpleNamespace(
+            warning=lambda message, *args: warnings.append(message % args if args else message)
+        ),
+    )
+
+    assert agi._service_futures == {"worker": future}
+    assert agi._service_workers == ["worker"]
+    assert agi._service_cleanup_unproven is True
+    assert len(warnings) == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("runtime_stop_fails", [False, True])
+async def test_failed_start_on_reused_runtime_uses_shutdown_for_unpublished_future(
+    monkeypatch,
+    tmp_path,
+    runtime_stop_fails,
+):
+    env = _minimal_app_env()
+    env.base_worker_cls = "PandasWorker"
+    cleanup_calls = {"clear": 0, "reset": 0, "stop": 0}
+
+    class _RunningAfterCancelFuture(_FakeFuture):
+        def __init__(self):
+            super().__init__(status="running", key="reused-runtime-loop")
+
+        def cancel(self):
+            self.cancel_calls += 1
+            # Dask can acknowledge client-side cancellation while the worker
+            # function continues to execute. Keep the execution status running
+            # to reproduce that distinction.
+
+    class _ReusedClient(_FakeClient):
+        def __init__(self):
+            super().__init__(["127.0.0.1:8787"])
+            self.loop_future = _RunningAfterCancelFuture()
+            self.break_futures: list[_FakeFuture] = []
+
+        def submit(self, *args, **kwargs):
+            fn = args[0] if args else None
+            fn_name = getattr(fn, "__name__", "")
+            self.submissions.append(
+                {"fn": fn_name, "args": args[1:], "kwargs": kwargs}
+            )
+            if fn_name == "loop":
+                return self.loop_future
+            if fn_name == "break_loop":
+                future = _FakeFuture(status="finished")
+                self.break_futures.append(future)
+                return future
+            return _FakeFuture(status="finished")
+
+    client = _ReusedClient()
+    AGI._dask_client = client
+
+    async def _recover(*_args, **_kwargs):
+        return False
+
+    async def _sync():
+        return None
+
+    async def _stop():
+        cleanup_calls["stop"] += 1
+        if runtime_stop_fails:
+            raise RuntimeError("injected full runtime stop failure")
+        client.loop_future.status = "finished"
+        AGI._dask_client = None
+
+    def _wait(futures, **_kwargs):
+        if all(future in client.break_futures for future in futures):
+            return set(futures), set()
+        return set(), set(futures)
+
+    monkeypatch.setattr(AGI, "_service_recover", staticmethod(_recover))
+    monkeypatch.setattr(AGI, "_sync", staticmethod(_sync))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(
+        AGI,
+        "_service_write_state",
+        staticmethod(
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                RuntimeError("injected state-write failure")
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_service_clear_state",
+        staticmethod(
+            lambda _env: cleanup_calls.__setitem__(
+                "clear",
+                cleanup_calls["clear"] + 1,
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_reset_service_queue_state",
+        staticmethod(
+            lambda: cleanup_calls.__setitem__(
+                "reset",
+                cleanup_calls["reset"] + 1,
+            )
+        ),
+    )
+    monkeypatch.setattr(AGI, "_clean_job", staticmethod(lambda *_args, **_kwargs: None))
+
+    with pytest.raises(RuntimeError, match="injected state-write failure"):
+        await service_lifecycle_support.serve(
+            AGI,
+            env,
+            workers={"127.0.0.1": 1},
+            mode=AGI.DASK_MODE,
+            action="start",
+            service_queue_dir=tmp_path / "queue",
+            background_job_manager_factory=lambda: object(),
+            wait_fn=_wait,
+        )
+
+    break_submissions = [
+        submission
+        for submission in client.submissions
+        if submission["fn"] == "break_loop"
+    ]
+    assert len(break_submissions) == 1
+    assert break_submissions[0]["kwargs"]["workers"] == ["127.0.0.1:8787"]
+    assert break_submissions[0]["kwargs"]["allow_other_workers"] is False
+    assert client.loop_future.cancel_calls == 1
+    assert cleanup_calls["stop"] == 1
+    if runtime_stop_fails:
+        assert client.loop_future.status == "running"
+        assert AGI._service_futures == {"127.0.0.1:8787": client.loop_future}
+        assert AGI._service_workers == ["127.0.0.1:8787"]
+        assert AGI._service_cleanup_unproven is True
+        assert AGI._service_runtime_shutdown_proven is False
+        assert cleanup_calls == {"clear": 0, "reset": 0, "stop": 1}
+    else:
+        assert client.loop_future.status == "finished"
+        assert AGI._service_futures == {}
+        assert AGI._service_workers == []
+        assert AGI._service_cleanup_unproven is False
+        assert AGI._service_runtime_shutdown_proven is False
+        assert cleanup_calls == {"clear": 1, "reset": 1, "stop": 1}
+
+
+@pytest.mark.asyncio
 async def test_agi_serve_start_raises_when_client_not_obtained(monkeypatch):
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     env.base_worker_cls = "PandasWorker"
@@ -795,11 +1797,19 @@ async def test_agi_serve_start_raises_when_client_not_obtained(monkeypatch):
     async def _start(_scheduler):
         return True
 
+    cleanup_calls = []
+
+    async def _stop():
+        cleanup_calls.append("stop")
+
     monkeypatch.setattr(AGI, "_service_recover", staticmethod(_recover))
     monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
 
     with pytest.raises(RuntimeError, match=r"Failed to obtain Dask client"):
         await AGI.serve(env, action="start", workers={"127.0.0.1": 1}, mode=AGI.DASK_MODE)
+    assert cleanup_calls == ["stop"]
+    assert AGI._startup_in_progress is False
 
 
 @pytest.mark.asyncio
@@ -994,6 +2004,7 @@ async def test_agi_serve_status_recovers_persistent_state(monkeypatch, tmp_path)
             "scheduler_port": 8786,
             "workers": {"127.0.0.1": 1},
             "service_workers": ["127.0.0.1:8787"],
+            "service_loop_keys": {"127.0.0.1:8787": "persisted-loop-8787"},
             "queue_dir": str(queue_dir),
             "args": {},
             "poll_interval": 1.0,
@@ -1003,16 +2014,96 @@ async def test_agi_serve_status_recovers_persistent_state(monkeypatch, tmp_path)
     )
 
     fake_client = _FakeClient(["127.0.0.1:8787"])
+    _install_fake_future_reacquisition(monkeypatch, fake_client)
 
     async def _fake_connect(*_args, **_kwargs):
         return fake_client
 
     monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_fake_connect))
+    recovery_calls = []
+    monkeypatch.setattr(
+        AGI,
+        "_recover_orphaned_service_tasks",
+        staticmethod(lambda: recovery_calls.append("recover") or {"recovered": 0, "preserved": 0}),
+    )
 
     status = await AGI.serve(env, action="status")
     assert status["status"] == "running"
     assert status["workers"] == ["127.0.0.1:8787"]
     assert status["queue_dir"] == str(queue_dir)
+    assert recovery_calls == ["recover"]
+    assert AGI._service_futures["127.0.0.1:8787"].key == "persisted-loop-8787"
+
+    stopped = await AGI.serve(env, action="stop", shutdown_on_stop=False)
+    assert stopped["status"] == "stopped"
+    assert stopped["pending"] == []
+    assert AGI._service_read_state(env) is None
+
+
+@pytest.mark.asyncio
+async def test_serve_status_reports_recovery_required_for_legacy_ownership(
+    monkeypatch,
+    tmp_path,
+):
+    env = _minimal_app_env()
+    worker = "127.0.0.1:8787"
+    queue_dir = tmp_path / "service_queue"
+    queue_dir.mkdir(parents=True)
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "target": env.target,
+            "app": env.app,
+            "mode": AGI.DASK_MODE,
+            "run_type": "run --no-sync",
+            "scheduler": "127.0.0.1:8786",
+            "workers": {"127.0.0.1": 1},
+            "service_workers": [worker],
+            "queue_dir": str(queue_dir),
+            "args": {},
+        },
+    )
+    client = _FakeClient([worker])
+
+    async def _connect(*_args, **_kwargs):
+        return client
+
+    async def _unexpected_restart(*_args, **_kwargs):
+        raise AssertionError("auto-restart must not run without Future ownership")
+
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_connect))
+    monkeypatch.setattr(
+        AGI,
+        "_service_auto_restart_unhealthy",
+        staticmethod(_unexpected_restart),
+    )
+
+    status = await AGI.serve(env, action="status")
+
+    assert status["status"] == "error"
+    assert status["recovery_required"] is True
+    assert status["pending"] == [worker]
+    assert AGI._service_workers == [worker]
+    assert AGI._service_futures == {}
+    assert AGI._service_cleanup_unproven is True
+    assert AGI._lifecycle_service_token is not None
+
+
+@pytest.mark.asyncio
+async def test_serve_status_treats_unreadable_state_as_retained_ownership():
+    env = _minimal_app_env()
+    state_path = AGI._service_state_path(env)
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text("{not-json", encoding="utf-8")
+
+    status = await AGI.serve(env, action="status")
+
+    assert status["status"] == "error"
+    assert status["recovery_required"] is True
+    assert AGI._service_cleanup_unproven is True
+    assert AGI._lifecycle_service_token is not None
+    assert state_path.exists()
 
 
 @pytest.mark.asyncio
@@ -1035,6 +2126,7 @@ async def test_agi_submit_recovers_persistent_state(monkeypatch, tmp_path):
             "scheduler_port": 8786,
             "workers": {"127.0.0.1": 1},
             "service_workers": ["127.0.0.1:8787"],
+            "service_loop_keys": {"127.0.0.1:8787": "persisted-loop-8787"},
             "queue_dir": str(queue_dir),
             "args": {},
             "poll_interval": 1.0,
@@ -1044,6 +2136,7 @@ async def test_agi_submit_recovers_persistent_state(monkeypatch, tmp_path):
     )
 
     fake_client = _FakeClient(["127.0.0.1:8787"])
+    _install_fake_future_reacquisition(monkeypatch, fake_client)
 
     async def _fake_connect(*_args, **_kwargs):
         return fake_client
@@ -1083,6 +2176,7 @@ async def test_agi_status_auto_restarts_stale_heartbeat(monkeypatch, tmp_path):
             "scheduler_port": 8786,
             "workers": {"127.0.0.1": 1},
             "service_workers": ["127.0.0.1:8787"],
+            "service_loop_keys": {"127.0.0.1:8787": "persisted-loop-8787"},
             "queue_dir": str(queue_dir),
             "args": {},
             "poll_interval": 0.1,
@@ -1107,6 +2201,7 @@ async def test_agi_status_auto_restarts_stale_heartbeat(monkeypatch, tmp_path):
     )
 
     fake_client = _FakeClient(["127.0.0.1:8787"])
+    _install_fake_future_reacquisition(monkeypatch, fake_client)
 
     async def _fake_connect(*_args, **_kwargs):
         return fake_client
@@ -1228,7 +2323,7 @@ async def test_agi_service_real_dask_e2e_self_heal_submit_stop(monkeypatch, tmp_
 
 
 @pytest.mark.asyncio
-async def test_service_recover_missing_scheduler_cleans_stale_state(monkeypatch, tmp_path):
+async def test_service_recover_missing_scheduler_preserves_ownership(monkeypatch, tmp_path):
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
     queue_root = tmp_path / "queue"
     queue_root.mkdir(parents=True, exist_ok=True)
@@ -1261,8 +2356,50 @@ async def test_service_recover_missing_scheduler_cleans_stale_state(monkeypatch,
     recovered = await AGI._service_recover(env, allow_stale_cleanup=True)
 
     assert recovered is False
-    assert calls["cleared"] == 1
-    assert calls["reset"] == 1
+    assert calls == {"cleared": 0, "reset": 0}
+    assert AGI._service_cleanup_unproven is True
+
+
+@pytest.mark.asyncio
+async def test_serve_stop_transient_recovery_failure_preserves_state_and_lease(
+    monkeypatch,
+    tmp_path,
+):
+    env = _minimal_app_env()
+    queue_root = tmp_path / "queue"
+    queue_root.mkdir(parents=True)
+    state_path = AGI._service_state_path(env)
+    AGI._service_write_state(
+        env,
+        {
+            "schema": "agi.service.state.v1",
+            "target": env.target,
+            "app": env.app,
+            "mode": AGI.DASK_MODE,
+            "run_type": "run --no-sync",
+            "scheduler": "127.0.0.1:8786",
+            "workers": {"127.0.0.1": 1},
+            "service_workers": ["127.0.0.1:8787"],
+            "service_loop_keys": {"127.0.0.1:8787": "persisted-loop-8787"},
+            "queue_dir": str(queue_root),
+            "args": {},
+        },
+    )
+
+    async def _fail_connect(*_args, **_kwargs):
+        raise RuntimeError("transient scheduler connection failure")
+
+    monkeypatch.setattr(AGI, "_connect_scheduler_with_retry", staticmethod(_fail_connect))
+
+    result = await AGI.serve(env, action="stop", shutdown_on_stop=True)
+
+    assert result["status"] == "error"
+    assert result["recovery_required"] is True
+    assert result["pending"] == ["127.0.0.1:8787"]
+    assert AGI._service_workers == ["127.0.0.1:8787"]
+    assert AGI._service_cleanup_unproven is True
+    assert AGI._lifecycle_service_token is not None
+    assert state_path.exists()
 
 
 @pytest.mark.asyncio
@@ -1324,31 +2461,101 @@ async def test_serve_status_reports_missing_client_and_future_states(monkeypatch
 
 
 @pytest.mark.asyncio
+async def test_serve_status_reports_dead_retained_launch_ownership(monkeypatch):
+    env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
+
+    class _DoneLaunchTask:
+        def done(self):
+            return True
+
+        def cancelled(self):
+            return False
+
+        def exception(self):
+            return ConnectionError("scheduler transport exited")
+
+    AGI._service_workers = ["w1"]
+    AGI._service_futures = {"w1": _FakeFuture(status="running")}
+    AGI._dask_client = SimpleNamespace(status="running")
+    AGI._scheduler_launch_tasks = {_DoneLaunchTask()}
+    monkeypatch.setattr(
+        AGI,
+        "_service_finalize_response",
+        staticmethod(lambda _env, payload, **_kwargs: payload),
+    )
+
+    result = await service_lifecycle_support.serve(
+        AGI,
+        env,
+        action="status",
+        background_job_manager_factory=lambda: object(),
+    )
+
+    assert result["status"] == "error"
+    assert result["launch_errors"] == ["scheduler transport exited"]
+    assert "action='stop'" in result["message"]
+
+    with pytest.raises(RuntimeError, match="launch ownership is unhealthy"):
+        await service_lifecycle_support.serve(
+            AGI,
+            env,
+            action="start",
+            background_job_manager_factory=lambda: object(),
+        )
+
+
+@pytest.mark.asyncio
 async def test_serve_stop_handles_partial_timeout_and_empty_future_map(monkeypatch):
     env = AgiEnv(apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0)
-    AGI._dask_client = SimpleNamespace(
-        submit=lambda *_args, **_kwargs: _FakeFuture(status="submitted"),
-        gather=lambda *_args, **_kwargs: None,
-    )
-    AGI._service_futures = {"w1": _FakeFuture(status="running"), "w2": _FakeFuture(status="running")}
+    class _PartialStopClient:
+        def submit(self, fn, *_args, **_kwargs):
+            return _FakeFuture(
+                status="finished",
+                kind=getattr(fn, "__name__", ""),
+            )
+
+        def gather(self, *_args, **_kwargs):
+            return None
+
+        def scheduler_info(self):
+            return {"workers": {"tcp://w1": {}, "tcp://w2": {}}}
+
+    AGI._dask_client = _PartialStopClient()
+    first = _FakeFuture(status="running", key="loop-w1")
+    second = _FakeFuture(status="running", key="loop-w2")
+    AGI._service_futures = {"w1": first, "w2": second}
     AGI._service_workers = ["w1", "w2"]
     warnings = []
     stops = []
+    cleanups = {"clear": 0, "reset": 0}
 
     monkeypatch.setattr(AGI, "_service_finalize_response", staticmethod(lambda _env, payload, **_kwargs: payload))
-    monkeypatch.setattr(AGI, "_service_clear_state", staticmethod(lambda _env: None))
-    monkeypatch.setattr(AGI, "_reset_service_queue_state", staticmethod(lambda: None))
+    monkeypatch.setattr(
+        AGI,
+        "_service_clear_state",
+        staticmethod(lambda _env: cleanups.__setitem__("clear", cleanups["clear"] + 1)),
+    )
+    monkeypatch.setattr(
+        AGI,
+        "_reset_service_queue_state",
+        staticmethod(lambda: cleanups.__setitem__("reset", cleanups["reset"] + 1)),
+    )
+    monkeypatch.setattr(AGI, "_service_write_state", staticmethod(lambda *_args: None))
 
     async def _fake_stop():
         stops.append("stop")
 
     monkeypatch.setattr(AGI, "_stop", staticmethod(_fake_stop))
 
+    def _partial_wait(futures, **_kwargs):
+        futures[0].status = "finished"
+        return {futures[0]}, set(futures[1:])
+
     result = await service_lifecycle_support.serve(
         AGI,
         env,
         action="stop",
-        wait_fn=lambda futures, **_kwargs: ({next(iter(futures))}, set(list(futures)[1:])),
+        wait_fn=_partial_wait,
         log=SimpleNamespace(
             info=lambda *_args, **_kwargs: None,
             warning=lambda message, *args: warnings.append(message % args if args else message),
@@ -1360,10 +2567,15 @@ async def test_serve_stop_handles_partial_timeout_and_empty_future_map(monkeypat
     assert result["status"] == "partial"
     assert result["pending"] == ["w2"]
     assert warnings
-    assert stops == ["stop"]
+    assert stops == []
+    assert cleanups == {"clear": 0, "reset": 0}
+    assert AGI._service_futures == {"w2": second}
+    assert AGI._service_workers == ["w2"]
+    assert AGI._service_cleanup_unproven is True
 
     AGI._service_futures = {}
     AGI._service_workers = ["w3"]
+    AGI._service_cleanup_unproven = False
     result = await service_lifecycle_support.serve(
         AGI,
         env,
@@ -1377,9 +2589,12 @@ async def test_serve_stop_handles_partial_timeout_and_empty_future_map(monkeypat
         background_job_manager_factory=lambda: object(),
     )
 
-    assert result["status"] == "stopped"
-    assert result["workers"] == ["w3"]
-    assert result["pending"] == []
+    assert result["status"] == "partial"
+    assert result["workers"] == []
+    assert result["pending"] == ["w3"]
+    assert result["recovery_required"] is True
+    assert AGI._service_workers == ["w3"]
+    assert AGI._service_cleanup_unproven is True
 
 
 @pytest.mark.asyncio
@@ -1494,7 +2709,10 @@ async def test_serve_stop_handles_wait_timeout_error_as_partial(monkeypatch):
     assert result["status"] == "partial"
     assert result["workers"] == ["w-done"]
     assert result["pending"] == ["w-stuck"]
-    assert cleanups == {"clear_state": 1, "reset_queue": 1}
+    assert cleanups == {"clear_state": 0, "reset_queue": 0}
+    assert AGI._service_futures == {"w-stuck": pending}
+    assert AGI._service_workers == ["w-stuck"]
+    assert AGI._service_cleanup_unproven is True
 
 
 @pytest.mark.asyncio

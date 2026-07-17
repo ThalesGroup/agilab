@@ -652,10 +652,10 @@ def _active_app_settings_from_file(env: Any) -> dict[str, Any]:
     except (TypeError, ValueError):
         return {}
     try:
-        if not path.is_file():
-            return {}
-        with path.open("rb") as handle:
-            payload = tomllib.load(handle)
+        # Keep agi-env optional for importing the base package.
+        from agi_env.app_settings_support import read_app_settings
+
+        payload = read_app_settings(path)
     except (OSError, RuntimeError, tomllib.TOMLDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
@@ -1186,7 +1186,12 @@ def _file_content_signature(path: Path | None) -> tuple[str, str]:
     except (OSError, RuntimeError, TypeError, ValueError):
         return (str(path), "")
     try:
-        payload = resolved.read_bytes()
+        # Keep agi-env optional for importing the base package.
+        from agi_env.runtime.atomic_write_support import (
+            run_with_windows_file_sharing_retry,
+        )
+
+        payload = run_with_windows_file_sharing_retry(resolved.read_bytes)
     except OSError:
         return (str(resolved), "")
     return (str(resolved), hashlib.sha256(payload).hexdigest())

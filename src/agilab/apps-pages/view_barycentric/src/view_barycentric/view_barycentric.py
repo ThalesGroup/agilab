@@ -28,7 +28,6 @@ import logging
 import numpy as np
 from pathlib import Path
 import pandas as pd
-import toml as toml
 import plotly.graph_objects as go
 from barviz import Simplex, Collection, Scrawler, Attributes
 from math import sqrt, cos, sin
@@ -55,9 +54,8 @@ _ensure_repo_on_path()
 
 from agi_pages.runtime import render_streamlit_page_header, reset_scoped_session_state
 from agi_env import AgiEnv
-from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
 from agi_gui.pagelib import find_files, load_df, JumpToMain, update_datadir, _dump_toml_payload
-import tomllib as _toml
 
 logger = logging.getLogger(__name__)
 
@@ -447,8 +445,7 @@ def page(env):
     settings_path = Path(env.app_settings_file)
     persisted = {}
     try:
-        with open(settings_path, "rb") as fh:
-            persisted = _toml.load(fh)
+        persisted = read_app_settings(settings_path)
     except Exception:
         persisted = {}
     raw_view_settings = persisted.get("view_barycentric", {}) if isinstance(persisted, dict) else {}
@@ -543,17 +540,22 @@ def page(env):
         "datadir": str(st.session_state.get("datadir", "")),
         "df_file": st.session_state.get(DF_FILE_KEY, ""),
     }
-    mutated = False
+    changed_keys: list[str] = []
     for k, v in save_fields.items():
         if view_settings.get(k) != v and v not in (None, ""):
             view_settings[k] = v
-            mutated = True
-    if mutated:
+            changed_keys.append(k)
+    if changed_keys:
         persisted["view_barycentric"] = view_settings
         try:
-            settings_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(settings_path, "wb") as fh:
-                _dump_toml_payload(prepare_app_settings_for_write(persisted), fh)
+            persisted, _ = update_app_settings_owned(
+                settings_path,
+                persisted,
+                owned_paths=tuple(
+                    ("view_barycentric", key) for key in changed_keys
+                ),
+                dump_fn=_dump_toml_payload,
+            )
         except Exception:
             logger.warning("Unable to persist view_barycentric settings to %s", settings_path, exc_info=True)
 
@@ -594,7 +596,7 @@ def page(env):
 
             if "project" in st.session_state:
                 st.markdown(f"{env.target} worker arguments:")
-                settings = toml.load(env.app_settings_file)
+                settings = read_app_settings(env.app_settings_file)
                 current_filename = Path(__file__).stem
                 # set default values
                 if (
@@ -725,7 +727,7 @@ def main():
         st.session_state["apps_path"] = str(active_app.parent)
         st.session_state["app"] = app
 
-        env = getattr(AgiEnv, "for_app", AgiEnv)(
+        env = AgiEnv.session_for_app(
             apps_path=active_app.parent,
             app=app,
             verbose=1,

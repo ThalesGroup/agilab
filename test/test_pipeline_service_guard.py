@@ -120,7 +120,7 @@ def test_ensure_safe_service_template_preserves_manual_file(tmp_path):
     assert template_path.read_text(encoding="utf-8") == manual_content
 
 
-def test_pipeline_lock_rejects_parallel_and_recycles_stale(tmp_path, monkeypatch):
+def test_pipeline_lock_rejects_parallel_and_preserves_live_stale_looking_owner(tmp_path, monkeypatch):
     module = _load_pipeline_module()
     monkeypatch.setattr(module, "_push_run_log", lambda *args, **kwargs: None)
     monkeypatch.setattr(module.st, "warning", lambda *args, **kwargs: None)
@@ -150,6 +150,14 @@ def test_pipeline_lock_rejects_parallel_and_recycles_stale(tmp_path, monkeypatch
     os.utime(lock_path, (stale_time, stale_time))
     monkeypatch.setenv("AGILAB_PIPELINE_LOCK_TTL_SEC", "1")
 
+    # Metadata age alone must never evict a process that still holds the OS
+    # lock; the heartbeat can race with an observer changing file timestamps.
+    assert module._acquire_pipeline_run_lock(env, "idx") is None
+
+    module._release_pipeline_run_lock(first, "idx")
+    assert lock_path.exists()
+    assert module._read_pipeline_lock_payload(lock_path) == {}
+
     recycled = module._acquire_pipeline_run_lock(env, "idx")
     assert recycled is not None
     assert recycled["token"] != first["token"]
@@ -160,7 +168,8 @@ def test_pipeline_lock_rejects_parallel_and_recycles_stale(tmp_path, monkeypatch
     assert Path(recycled["path"]).exists()
 
     module._release_pipeline_run_lock(recycled, "idx")
-    assert not Path(recycled["path"]).exists()
+    assert Path(recycled["path"]).exists()
+    assert module._read_pipeline_lock_payload(Path(recycled["path"])) == {}
 
 
 def test_pipeline_lock_ttl_seconds_falls_back_on_invalid_env(monkeypatch):

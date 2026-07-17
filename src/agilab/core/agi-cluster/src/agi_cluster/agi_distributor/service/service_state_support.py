@@ -7,6 +7,7 @@ import os
 import re
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union, cast
 
@@ -16,14 +17,20 @@ if TYPE_CHECKING:
     from dask.distributed import Client
 
 from agi_env import AgiEnv
+from agi_env.runtime.atomic_write_support import run_with_windows_file_sharing_retry
 
 logger = logging.getLogger(__name__)
 
 _SERVICE_IO_EXCEPTIONS = (OSError, ValueError, TypeError, json.JSONDecodeError)
 _SERVICE_FALLBACK_EXCEPTIONS = (AttributeError, OSError, RuntimeError)
 _SERVICE_EXPORT_EXCEPTIONS = _SERVICE_IO_EXCEPTIONS + (RuntimeError,)
+SERVICE_TASK_SCHEMA = "agi.service.task.v1"
 SERVICE_TASK_SUFFIX = ".task.json"
 LEGACY_SERVICE_TASK_SUFFIX = ".task.pkl"
+
+
+class ServiceStateUnavailableError(RuntimeError):
+    """Raised when persisted service ownership exists but cannot be verified."""
 
 
 def _fallback_service_path(env: AgiEnv, relative_path: Path) -> Path:
@@ -95,15 +102,25 @@ def service_state_path(env: AgiEnv) -> Path:
 
 def service_read_state(agi_cls: Any, env: AgiEnv, *, log: Any = logger) -> Optional[Dict[str, Any]]:
     state_path = agi_cls._service_state_path(env)
-    if not state_path.exists():
-        return None
-    try:
+
+    def _read_payload() -> Any:
         with open(state_path, "r", encoding="utf-8") as stream:
-            payload = json.load(stream)
-        return payload if isinstance(payload, dict) else None
+            return json.load(stream)
+
+    try:
+        payload = run_with_windows_file_sharing_retry(_read_payload)
+    except FileNotFoundError:
+        return None
     except _SERVICE_IO_EXCEPTIONS as exc:
         log.warning("Failed to read service state from %s: %s", state_path, exc)
-        return None
+        raise ServiceStateUnavailableError(
+            f"Persisted service state at {state_path} is unreadable"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise ServiceStateUnavailableError(
+            f"Persisted service state at {state_path} is not a JSON object"
+        )
+    return payload
 
 
 def _atomic_write(
@@ -126,7 +143,9 @@ def _atomic_write(
             open_kwargs["encoding"] = encoding
         with os.fdopen(fd, mode, **open_kwargs) as stream:
             write_fn(stream)
-        os.replace(tmp_path, output_path)
+        run_with_windows_file_sharing_retry(
+            lambda: os.replace(tmp_path, output_path)
+        )
     finally:
         if tmp_path.exists():
             try:
@@ -147,11 +166,19 @@ def service_write_state(agi_cls: Any, env: AgiEnv, payload: Dict[str, Any]) -> N
 
 def service_clear_state(agi_cls: Any, env: AgiEnv, *, log: Any = logger) -> None:
     state_path = agi_cls._service_state_path(env)
+
+    def _unlink_state() -> None:
+        state_path.unlink()
+
     try:
-        if state_path.exists():
-            state_path.unlink()
+        run_with_windows_file_sharing_retry(_unlink_state)
+    except FileNotFoundError:
+        return
     except OSError as exc:
-        log.debug("Failed to remove service state file %s: %s", state_path, exc)
+        log.warning("Failed to remove service state file %s: %s", state_path, exc)
+        raise ServiceStateUnavailableError(
+            f"Persisted service state at {state_path} could not be removed"
+        ) from exc
 
 
 def service_health_path(
@@ -340,20 +367,284 @@ def init_service_queue(
         agi_cls._service_apply_queue_root(queue_root, create=True),
     )
 
-    for stale_dir in (queue_paths["pending"], queue_paths["running"]):
-        for pattern in (f"*{SERVICE_TASK_SUFFIX}", f"*{LEGACY_SERVICE_TASK_SUFFIX}"):
-            for stale_task in sorted(stale_dir.glob(pattern), key=lambda candidate: candidate.name):
-                try:
-                    stale_task.unlink()
-                except FileNotFoundError:
-                    continue
-    for heartbeat_file in sorted(queue_paths["heartbeats"].glob("*.json"), key=lambda candidate: candidate.name):
+    # Initialization is intentionally non-destructive.  Pending tasks may
+    # have been accepted by another controller, running tasks need heartbeat-
+    # aware reconciliation, and heartbeats are ownership evidence.  Recovery
+    # is an explicit, conservative step below.
+    return queue_paths
+
+
+def recover_orphaned_service_tasks(
+    agi_cls: Any,
+    *,
+    now: Optional[float] = None,
+    heartbeat_timeout: Optional[float] = None,
+) -> Dict[str, int]:
+    """Move only expired running claims to failed evidence.
+
+    A missing heartbeat alone is not sufficient: a new worker can claim a task
+    just before its next beat.  The running file must also be older than the
+    configured timeout.  For an old claim, a heartbeat preserves it only when
+    its worker-incarnation token matches the claim; a replacement worker using
+    the same scheduler name cannot adopt stale work.  Pending tasks and fresh
+    claims are always preserved. Legacy pickle claims are moved as opaque
+    failed artifacts and are never deserialized.
+    """
+
+    running_dir = agi_cls._service_queue_running
+    failed_dir = agi_cls._service_queue_failed
+    if running_dir is None or failed_dir is None or not running_dir.exists():
+        return {"recovered": 0, "preserved": 0}
+
+    current_time = time.time() if now is None else float(now)
+    timeout = (
+        float(heartbeat_timeout)
+        if heartbeat_timeout is not None
+        else float(agi_cls._service_heartbeat_timeout_value())
+    )
+    timeout = max(timeout, 0.1)
+    heartbeat_payloads = agi_cls._service_read_heartbeat_payloads()
+    failed_dir.mkdir(parents=True, exist_ok=True)
+    recovered = 0
+    preserved = 0
+
+    # A previous controller can crash after atomically renaming a running task
+    # to its hidden recovery claim. Reconcile those claims before scanning the
+    # canonical names: finish an already-published terminal move, or restore an
+    # uncontested claim so normal age/incarnation checks decide its fate.
+    hidden_claim_pattern = re.compile(
+        rf"^\.(?P<name>.+{re.escape(SERVICE_TASK_SUFFIX)})\.recovery-[^.]+\.tmp$"
+    )
+    done_dir = getattr(agi_cls, "_service_queue_done", None)
+    for hidden_claim in sorted(
+        running_dir.glob(".*.recovery-*.tmp"),
+        key=lambda candidate: candidate.name,
+    ):
+        match = hidden_claim_pattern.match(hidden_claim.name)
+        if match is None:
+            continue
+        canonical = running_dir / match.group("name")
+        if canonical.exists():
+            # Never overwrite competing evidence. A later recovery pass can
+            # reconcile this claim after the canonical owner reaches terminal
+            # state.
+            preserved += 1
+            continue
         try:
-            heartbeat_file.unlink()
+            os.replace(hidden_claim, canonical)
         except FileNotFoundError:
             continue
 
-    return queue_paths
+    def _heartbeat_is_live_for_claim(
+        task_payload: Dict[str, Any],
+        heartbeat_payload: Dict[str, Any],
+    ) -> tuple[bool, Optional[float]]:
+        try:
+            heartbeat_age_value = current_time - float(heartbeat_payload.get("timestamp"))
+        except (TypeError, ValueError):
+            heartbeat_age_value = None
+        heartbeat_state_value = str(heartbeat_payload.get("state", "") or "").lower()
+        claim = task_payload.get("claim")
+        claim_payload = claim if isinstance(claim, dict) else {}
+        claim_incarnation = str(claim_payload.get("worker_incarnation", "") or "")
+        heartbeat_incarnation = str(
+            heartbeat_payload.get("worker_incarnation", "") or ""
+        )
+        heartbeat_live_value = (
+            heartbeat_age_value is not None
+            and heartbeat_age_value <= timeout
+            and heartbeat_state_value not in {"stopped", "failed"}
+            and bool(claim_incarnation)
+            and claim_incarnation == heartbeat_incarnation
+        )
+        return heartbeat_live_value, heartbeat_age_value
+
+    def _terminal_task_filename(task_payload: Dict[str, Any], fallback: str) -> str:
+        claim = task_payload.get("claim")
+        claim_payload = claim if isinstance(claim, dict) else {}
+        candidate = str(claim_payload.get("task_filename", "") or "")
+        if (
+            candidate
+            and Path(candidate).name == candidate
+            and candidate.endswith(SERVICE_TASK_SUFFIX)
+        ):
+            return candidate
+        return fallback
+
+    def _terminal_matches_claim(
+        terminal_path: Path,
+        task_payload: Dict[str, Any],
+        *,
+        expected_status: str,
+    ) -> bool:
+        try:
+            terminal_payload = json.loads(terminal_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, OSError, json.JSONDecodeError):
+            return False
+        if not isinstance(terminal_payload, dict):
+            return False
+        if terminal_payload.get("schema") != SERVICE_TASK_SCHEMA:
+            return False
+        if str(terminal_payload.get("status", "") or "") != expected_status:
+            return False
+
+        task_claim = task_payload.get("claim")
+        terminal_claim = terminal_payload.get("claim")
+        task_claim_payload = task_claim if isinstance(task_claim, dict) else {}
+        terminal_claim_payload = terminal_claim if isinstance(terminal_claim, dict) else {}
+        task_incarnation = str(
+            task_claim_payload.get("worker_incarnation", "") or ""
+        )
+        terminal_incarnation = str(
+            terminal_claim_payload.get("worker_incarnation", "") or ""
+        )
+        task_id = str(task_payload.get("task_id", "") or "")
+        terminal_task_id = str(terminal_payload.get("task_id", "") or "")
+        task_worker = str(task_payload.get("worker", "") or "")
+        terminal_worker = str(terminal_payload.get("worker", "") or "")
+
+        # A filename alone is not enough to discard evidence: require at least
+        # one durable task identity and require every available identity to
+        # match the already-published terminal payload.
+        if not task_incarnation and not task_id:
+            return False
+        if task_incarnation and task_incarnation != terminal_incarnation:
+            return False
+        if task_id and task_id != terminal_task_id:
+            return False
+        if task_worker and task_worker != terminal_worker:
+            return False
+        return True
+
+    for running_path in sorted(
+        running_dir.glob(f"*{SERVICE_TASK_SUFFIX}"),
+        key=lambda candidate: candidate.name,
+    ):
+        try:
+            mtime = running_path.stat().st_mtime
+            payload = json.loads(running_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+
+        terminal_filename = _terminal_task_filename(payload, running_path.name)
+        terminal_candidates = (
+            (
+                done_dir / terminal_filename if done_dir is not None else None,
+                "done",
+            ),
+            (failed_dir / terminal_filename, "failed"),
+        )
+        terminal_duplicate = False
+        for terminal_path, expected_status in terminal_candidates:
+            if terminal_path is None or not _terminal_matches_claim(
+                terminal_path,
+                payload,
+                expected_status=expected_status,
+            ):
+                continue
+            try:
+                running_path.unlink()
+            except FileNotFoundError:
+                pass
+            else:
+                recovered += 1
+            terminal_duplicate = True
+            break
+        if terminal_duplicate:
+            continue
+
+        task_age = max(0.0, current_time - float(mtime))
+        worker = str(payload.get("worker", "") or "")
+        heartbeat = heartbeat_payloads.get(worker, {})
+        heartbeat_live, heartbeat_age = _heartbeat_is_live_for_claim(payload, heartbeat)
+        if task_age <= timeout or heartbeat_live:
+            preserved += 1
+            continue
+
+        recovery_claim = running_dir / (
+            f".{running_path.name}.recovery-{uuid.uuid4().hex}.tmp"
+        )
+        try:
+            os.replace(running_path, recovery_claim)
+        except FileNotFoundError:
+            # The worker completed or another recovery owner claimed it.
+            continue
+
+        # A heartbeat can race the directory scan. Re-read it after atomically
+        # claiming the task, and restore the claim if the worker is live.
+        latest_heartbeat = agi_cls._service_read_heartbeat_payloads().get(worker, {})
+        latest_live, _ = _heartbeat_is_live_for_claim(payload, latest_heartbeat)
+        if latest_live:
+            try:
+                os.replace(recovery_claim, running_path)
+            except FileNotFoundError:
+                pass
+            preserved += 1
+            continue
+
+        payload.update(
+            {
+                "status": "failed",
+                "finished_at": current_time,
+                "error": "orphaned service task recovered after worker heartbeat expired",
+                "recovery": {
+                    "reason": "expired-worker-heartbeat",
+                    "task_age_sec": round(task_age, 3),
+                    "heartbeat_age_sec": (
+                        round(heartbeat_age, 3) if heartbeat_age is not None else None
+                    ),
+                },
+            }
+        )
+        terminal_filename = _terminal_task_filename(payload, running_path.name)
+        failed_path = failed_dir / terminal_filename
+        if failed_path.exists():
+            base_name = terminal_filename[: -len(SERVICE_TASK_SUFFIX)]
+            failed_path = failed_dir / (
+                f"{base_name}.orphaned-{uuid.uuid4().hex[:8]}{SERVICE_TASK_SUFFIX}"
+            )
+        try:
+            _atomic_write(
+                failed_path,
+                lambda stream, data=payload: json.dump(data, stream, sort_keys=True),
+                mode="w",
+                encoding="utf-8",
+            )
+        except BaseException:
+            # Never strand the only task evidence under a hidden claim name.
+            try:
+                os.replace(recovery_claim, running_path)
+            except FileNotFoundError:
+                pass
+            raise
+        try:
+            recovery_claim.unlink()
+        except FileNotFoundError:
+            pass
+        recovered += 1
+
+    for legacy_path in sorted(
+        running_dir.glob(f"*{LEGACY_SERVICE_TASK_SUFFIX}"),
+        key=lambda candidate: candidate.name,
+    ):
+        try:
+            if current_time - legacy_path.stat().st_mtime <= timeout:
+                preserved += 1
+                continue
+            destination = failed_dir / legacy_path.name
+            if destination.exists():
+                base_name = legacy_path.name[: -len(LEGACY_SERVICE_TASK_SUFFIX)]
+                destination = failed_dir / (
+                    f"{base_name}.orphaned-{uuid.uuid4().hex[:8]}{LEGACY_SERVICE_TASK_SUFFIX}"
+                )
+            os.replace(legacy_path, destination)
+            recovered += 1
+        except FileNotFoundError:
+            continue
+
+    return {"recovered": recovered, "preserved": preserved}
 
 
 def service_queue_counts(agi_cls: Any) -> Dict[str, int]:
@@ -499,6 +790,11 @@ def service_apply_runtime_config(
 
 
 def service_state_payload(agi_cls: Any, env: AgiEnv) -> Dict[str, Any]:
+    service_loop_keys = {
+        worker: str(key)
+        for worker, future in agi_cls._service_futures.items()
+        if (key := getattr(future, "key", None)) not in (None, "")
+    }
     return {
         "schema": "agi.service.state.v1",
         "target": env.target,
@@ -510,6 +806,7 @@ def service_state_payload(agi_cls: Any, env: AgiEnv) -> Dict[str, Any]:
         "scheduler_port": getattr(agi_cls, "_scheduler_port", None),
         "workers": agi_cls._workers,
         "service_workers": list(agi_cls._service_workers),
+        "service_loop_keys": service_loop_keys,
         "queue_dir": str(agi_cls._service_queue_root) if agi_cls._service_queue_root else None,
         "args": agi_cls._args or {},
         "poll_interval": agi_cls._service_poll_interval,

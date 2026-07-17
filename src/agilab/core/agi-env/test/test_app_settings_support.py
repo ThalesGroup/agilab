@@ -1,8 +1,79 @@
 from pathlib import Path
+import shutil
+import subprocess
+import sys
+import threading
+import time
+import tomllib
 
 import pytest
 
 import agi_env.app_settings_support as app_settings_module
+import agi_env.runtime.atomic_write_support as atomic_write_module
+
+
+def test_app_settings_lock_times_out_instead_of_freezing_session(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = tmp_path / "app_settings.toml"
+    monkeypatch.setattr(app_settings_module, "_APP_SETTINGS_LOCK_TIMEOUT_SECONDS", 0.01)
+
+    with app_settings_module.app_settings_file_lock(settings):
+        with pytest.raises(TimeoutError, match="Another session"):
+            with app_settings_module.app_settings_file_lock(settings):
+                raise AssertionError("nested lock unexpectedly acquired")
+
+
+def test_read_app_settings_retries_transient_windows_sharing_violation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = tmp_path / "app_settings.toml"
+    settings.write_text('[args]\nstatus = "ready"\n', encoding="utf-8")
+    real_read_text = Path.read_text
+    attempts = 0
+
+    def _transient_read_text(path: Path, *args, **kwargs) -> str:
+        nonlocal attempts
+        if path == settings:
+            attempts += 1
+            if attempts == 1:
+                raise PermissionError("sharing violation")
+        return real_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(atomic_write_module, "_is_windows", lambda: True)
+    monkeypatch.setattr(atomic_write_module.time, "sleep", lambda _delay: None)
+    monkeypatch.setattr(Path, "read_text", _transient_read_text)
+
+    assert app_settings_module.read_app_settings(settings) == {
+        "args": {"status": "ready"}
+    }
+    assert attempts == 2
+
+
+def test_read_app_settings_surfaces_parse_errors_without_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = tmp_path / "app_settings.toml"
+    settings.write_text("[args\n", encoding="utf-8")
+    real_read_text = Path.read_text
+    attempts = 0
+
+    def _counted_read_text(path: Path, *args, **kwargs) -> str:
+        nonlocal attempts
+        if path == settings:
+            attempts += 1
+        return real_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(atomic_write_module, "_is_windows", lambda: True)
+    monkeypatch.setattr(Path, "read_text", _counted_read_text)
+
+    with pytest.raises(tomllib.TOMLDecodeError):
+        app_settings_module.read_app_settings(settings)
+
+    assert attempts == 1
 
 
 def test_prepare_app_settings_for_write_sanitizes_and_stamps_metadata(tmp_path: Path):
@@ -71,6 +142,253 @@ def test_prepare_app_settings_for_write_rejects_invalid_metadata():
         app_settings_module.prepare_app_settings_for_write(
             {"__meta__": {"schema": "agilab.app_settings.v2", "version": 2}}
         )
+
+
+def test_update_app_settings_serializes_disjoint_thread_updates(tmp_path: Path) -> None:
+    settings = tmp_path / "app_settings.toml"
+    settings.write_text('[unrelated]\nowner = "preserved"\n', encoding="utf-8")
+    first_entered = threading.Event()
+    release_first = threading.Event()
+    second_started = threading.Event()
+    errors: list[BaseException] = []
+
+    def _write_pages() -> None:
+        try:
+            def _update(payload):
+                payload["pages"] = {"view_module": ["view_maps"]}
+                first_entered.set()
+                assert release_first.wait(timeout=5)
+                return True
+
+            app_settings_module.update_app_settings(settings, _update)
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    def _write_cluster() -> None:
+        try:
+            second_started.set()
+
+            def _update(payload):
+                payload["cluster"] = {"cluster_enabled": False}
+                return True
+
+            app_settings_module.update_app_settings(settings, _update)
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    pages_thread = threading.Thread(target=_write_pages)
+    cluster_thread = threading.Thread(target=_write_cluster)
+    pages_thread.start()
+    assert first_entered.wait(timeout=5)
+    cluster_thread.start()
+    assert second_started.wait(timeout=5)
+    time.sleep(0.05)
+    release_first.set()
+    pages_thread.join(timeout=5)
+    cluster_thread.join(timeout=5)
+
+    assert not pages_thread.is_alive()
+    assert not cluster_thread.is_alive()
+    assert errors == []
+    payload = tomllib.loads(settings.read_text(encoding="utf-8"))
+    assert payload["pages"] == {"view_module": ["view_maps"]}
+    assert payload["cluster"] == {"cluster_enabled": False}
+    assert payload["unrelated"] == {"owner": "preserved"}
+
+
+def test_update_app_settings_owned_merges_stale_cross_writer_leaves(
+    tmp_path: Path,
+) -> None:
+    settings = tmp_path / "app_settings.toml"
+    settings.write_text(
+        "[cluster]\nscheduler = \"old\"\n\n"
+        "[cluster.service_health]\nallow_idle = false\n",
+        encoding="utf-8",
+    )
+    service_snapshot = {
+        "cluster": {
+            "scheduler": "old",
+            "service_health": {"allow_idle": True},
+        }
+    }
+    cluster_snapshot = {
+        "cluster": {
+            "scheduler": "new",
+            "service_health": {"allow_idle": False},
+        }
+    }
+
+    app_settings_module.update_app_settings_owned(
+        settings,
+        service_snapshot,
+        owned_paths=(("cluster", "service_health"),),
+    )
+    app_settings_module.update_app_settings_owned(
+        settings,
+        cluster_snapshot,
+        owned_paths=(("cluster", "scheduler"),),
+    )
+
+    payload = tomllib.loads(settings.read_text(encoding="utf-8"))
+    assert payload["cluster"] == {
+        "scheduler": "new",
+        "service_health": {"allow_idle": True},
+    }
+
+
+def test_update_app_settings_owned_defaults_only_fill_missing_latest_leaves(
+    tmp_path: Path,
+) -> None:
+    settings = tmp_path / "app_settings.toml"
+    app_settings_module.update_app_settings_owned(
+        settings,
+        {"cluster": {"scheduler": "remote"}},
+        owned_paths=(),
+        default_paths=(("cluster", "scheduler"),),
+    )
+
+    # A second pre-seeded session may initialize other missing leaves, but its
+    # stale scheduler default must not replace the first session's value.
+    latest, changed = app_settings_module.update_app_settings_owned(
+        settings,
+        {
+            "cluster": {
+                "scheduler": "stale",
+                "cluster_enabled": True,
+            }
+        },
+        owned_paths=(),
+        default_paths=(
+            ("cluster", "scheduler"),
+            ("cluster", "cluster_enabled"),
+        ),
+    )
+
+    assert changed is True
+    assert latest["cluster"] == {
+        "scheduler": "remote",
+        "cluster_enabled": True,
+    }
+    assert tomllib.loads(settings.read_text(encoding="utf-8"))["cluster"] == {
+        "scheduler": "remote",
+        "cluster_enabled": True,
+    }
+
+
+def test_update_app_settings_owned_serializes_disjoint_processes(
+    tmp_path: Path,
+) -> None:
+    settings = tmp_path / "app_settings.toml"
+    settings.write_text('[unrelated]\nowner = "preserved"\n', encoding="utf-8")
+    start_marker = tmp_path / "start"
+    worker_code = (
+        "import sys, time\n"
+        "from pathlib import Path\n"
+        "from agi_env.app_settings_support import update_app_settings_owned\n"
+        "settings, section, value, marker = sys.argv[1:]\n"
+        "while not Path(marker).exists():\n"
+        "    time.sleep(0.01)\n"
+        "update_app_settings_owned(settings, {section: {'value': value}}, "
+        "owned_paths=((section,),))\n"
+    )
+    processes = [
+        subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                worker_code,
+                str(settings),
+                section,
+                value,
+                str(start_marker),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for section, value in (("pages", "maps"), ("cluster", "local"))
+    ]
+    start_marker.touch()
+    results = [process.communicate(timeout=15) for process in processes]
+
+    assert [process.returncode for process in processes] == [0, 0], results
+    payload = tomllib.loads(settings.read_text(encoding="utf-8"))
+    assert payload["pages"] == {"value": "maps"}
+    assert payload["cluster"] == {"value": "local"}
+    assert payload["unrelated"] == {"owner": "preserved"}
+
+
+def test_update_app_settings_writer_failure_preserves_prior_valid_toml(
+    tmp_path: Path,
+) -> None:
+    settings = tmp_path / "app_settings.toml"
+    original = '[cluster]\ncluster_enabled = true\n'
+    settings.write_text(original, encoding="utf-8")
+
+    def _update(payload):
+        payload["pages"] = {"view_module": ["view_maps"]}
+        return True
+
+    def _broken_writer(_payload, stream):
+        stream.write(b"partial")
+        raise OSError("disk full")
+
+    with pytest.raises(OSError, match="disk full"):
+        app_settings_module.update_app_settings(
+            settings,
+            _update,
+            dump_fn=_broken_writer,
+        )
+
+    assert settings.read_text(encoding="utf-8") == original
+    assert list(tmp_path.glob(".app_settings.toml.*.tmp")) == []
+
+
+def test_update_app_settings_publication_failure_preserves_prior_valid_toml(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = tmp_path / "app_settings.toml"
+    original = '[cluster]\ncluster_enabled = true\n'
+    settings.write_text(original, encoding="utf-8")
+
+    def _update(payload):
+        payload["pages"] = {"view_module": ["view_maps"]}
+        return True
+
+    def _fail_replace(_source, _target):
+        raise OSError("publication failed")
+
+    monkeypatch.setattr(atomic_write_module.os, "replace", _fail_replace)
+    with pytest.raises(OSError, match="publication failed"):
+        app_settings_module.update_app_settings(settings, _update)
+
+    assert settings.read_text(encoding="utf-8") == original
+    assert list(tmp_path.glob(".app_settings.toml.*.tmp")) == []
+
+
+def test_update_app_settings_fsyncs_parent_after_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = tmp_path / "nested" / "app_settings.toml"
+    synced: list[Path] = []
+    monkeypatch.setattr(
+        app_settings_module,
+        "_fsync_directory",
+        lambda path: synced.append(path),
+    )
+
+    def _update(payload):
+        payload["pages"] = {"view_module": ["view_maps"]}
+        return True
+
+    app_settings_module.update_app_settings(settings, _update)
+
+    assert synced == [settings.parent]
+    assert tomllib.loads(settings.read_text(encoding="utf-8"))["pages"] == {
+        "view_module": ["view_maps"]
+    }
 
 
 def test_app_settings_aliases_and_candidate_paths(tmp_path: Path):
@@ -177,6 +495,53 @@ def test_find_source_and_user_app_settings_cover_workspace_seed_paths(tmp_path: 
         find_source_file=lambda _app_name=None: None,
     )
     assert unresolved == tmp_path / "resources" / "apps" / "blank_project" / "app_settings.toml"
+
+
+def test_resolve_user_app_settings_serializes_atomic_first_creation(
+    tmp_path: Path,
+) -> None:
+    resources_path = tmp_path / "resources"
+    source_a = tmp_path / "source-a.toml"
+    source_b = tmp_path / "source-b.toml"
+    source_a.write_text('[owner]\nname = "alpha"\n', encoding="utf-8")
+    source_b.write_text('[owner]\nname = "beta"\n', encoding="utf-8")
+    copy_started = threading.Event()
+    release_copy = threading.Event()
+    errors: list[BaseException] = []
+
+    def _blocking_copy(source: Path, target: Path) -> object:
+        copy_started.set()
+        assert release_copy.wait(timeout=5)
+        return shutil.copy2(source, target)
+
+    def _resolve(source: Path, copy_file=shutil.copy2) -> None:
+        try:
+            app_settings_module.resolve_user_app_settings_file(
+                target_app="demo_project",
+                resources_path=resources_path,
+                find_source_file=lambda _app=None: source,
+                copy_file=copy_file,
+            )
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    first = threading.Thread(target=_resolve, args=(source_a, _blocking_copy))
+    second = threading.Thread(target=_resolve, args=(source_b,))
+    first.start()
+    assert copy_started.wait(timeout=5)
+    second.start()
+    workspace_file = (
+        resources_path / "apps" / "demo_project" / "app_settings.toml"
+    )
+    assert not workspace_file.exists()
+    release_copy.set()
+    first.join(timeout=5)
+    second.join(timeout=5)
+
+    assert errors == []
+    assert workspace_file.read_text(encoding="utf-8") == source_a.read_text(
+        encoding="utf-8"
+    )
 
 
 def test_app_settings_source_roots_collect_aliases_repo_builtin_worker_and_export(tmp_path: Path):

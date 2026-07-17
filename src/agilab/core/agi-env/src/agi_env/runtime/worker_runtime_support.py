@@ -192,8 +192,6 @@ def _configure_worker_python_runtime(
     python_supports_free_threading_fn,
 ) -> None:
     distribution_tree = env_obj.wenv_abs / "distribution_tree.json"
-    if distribution_tree.exists():
-        distribution_tree.unlink()
     env_obj.distribution_tree = distribution_tree
 
     pythonpath_entries = env_obj._collect_pythonpath_entries()

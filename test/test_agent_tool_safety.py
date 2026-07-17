@@ -223,6 +223,32 @@ def test_progress_recorder_writes_append_only_redacted_ndjson(tmp_path) -> None:
     assert "env://OPENAI_API_KEY" not in raw
 
 
+def test_progress_recorder_recovers_only_an_unterminated_crash_tail(tmp_path) -> None:
+    module = _load_module()
+    log_path = tmp_path / "progress.ndjson"
+    recorder = module.ProgressRecorder(log_path, run_id="agent-run")
+    recorder.emit("tool_start")
+    with log_path.open("ab") as handle:
+        handle.write(b'{"partial"')
+
+    assert [row["event"] for row in module.load_progress_events(log_path)] == [
+        "tool_start"
+    ]
+    recorder.emit("tool_end", status="pass")
+
+    assert [row["event"] for row in module.load_progress_events(log_path)] == [
+        "tool_start",
+        "tool_end",
+    ]
+    quarantined = list(tmp_path.glob(f".{log_path.name}.partial.*.jsonl"))
+    assert len(quarantined) == 1
+    assert quarantined[0].read_bytes() == b'{"partial"'
+
+    log_path.write_text('{}\n{broken}\n{}\n', encoding="utf-8")
+    with pytest.raises(json.JSONDecodeError):
+        module.load_progress_events(log_path)
+
+
 def test_load_progress_events_returns_empty_list_for_missing_path(tmp_path) -> None:
     module = _load_module()
 

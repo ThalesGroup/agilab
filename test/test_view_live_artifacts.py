@@ -269,6 +269,10 @@ def test_live_artifacts_rebuilds_env_when_session_env_points_to_another_apps_roo
             created.append((apps_path, app, verbose))
             super().__init__(apps_path=apps_path, app=app, verbose=verbose)
 
+        @classmethod
+        def session_for_app(cls, **kwargs):
+            return cls(**kwargs)
+
     fake_streamlit = SimpleNamespace(session_state={"env": stale_env})
     monkeypatch.setattr(module, "st", fake_streamlit)
     monkeypatch.setattr(module, "AgiEnv", FakeAgiEnv)

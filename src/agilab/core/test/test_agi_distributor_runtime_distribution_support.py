@@ -3,13 +3,22 @@ from __future__ import annotations
 import asyncio
 import os
 import shlex
+import subprocess
+import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from zipfile import ZipFile
 
+import psutil
 import pytest
 
-from agi_cluster.agi_distributor import AGI, runtime_distribution_support, uv_source_support
+from agi_cluster.agi_distributor import (
+    AGI,
+    background_jobs_support,
+    runtime_distribution_support,
+    uv_source_support,
+)
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
 
@@ -37,6 +46,13 @@ def _reset_agi_runtime_distribution_state():
         "_dask_log_level",
         "_rapids_enabled",
         "_workers_data_path",
+        "_worker_launch_tasks",
+        "_scheduler_launch_tasks",
+        "_startup_in_progress",
+        "_service_cleanup_unproven",
+        "_runtime_cleanup_task",
+        "_runtime_cleanup_phase",
+        "_runtime_shutdown_client",
     ]
     snapshot = {field: getattr(AGI, field, None) for field in fields}
     try:
@@ -61,8 +77,18 @@ def _reset_agi_runtime_distribution_state():
         AGI._dask_log_level = "critical"
         AGI._rapids_enabled = False
         AGI._workers_data_path = None
+        AGI._worker_launch_tasks = set()
+        AGI._scheduler_launch_tasks = set()
+        AGI._startup_in_progress = False
+        AGI._service_cleanup_unproven = False
+        AGI._runtime_cleanup_task = None
+        AGI._runtime_cleanup_phase = None
+        AGI._runtime_shutdown_client = None
         yield
     finally:
+        cleanup_task = getattr(AGI, "_runtime_cleanup_task", None)
+        if isinstance(cleanup_task, asyncio.Task) and not cleanup_task.done():
+            cleanup_task.cancel()
         for field, value in snapshot.items():
             setattr(AGI, field, value)
 
@@ -289,6 +315,37 @@ def test_worker_port_range_defaults_to_pinned_range(monkeypatch):
 def test_worker_port_range_ephemeral_disables_pinning():
     env = SimpleNamespace(envars={"AGILAB_DASK_WORKER_PORT_RANGE": "ephemeral"})
     assert runtime_distribution_support._worker_port_range(env) is None
+
+
+@pytest.mark.asyncio
+async def test_start_acquires_remote_target_leases_before_scheduler_bootstrap():
+    events = []
+
+    async def _acquire(ip):
+        events.append(f"lease:{ip}")
+
+    async def _start_scheduler(_scheduler):
+        events.append("scheduler")
+        return False
+
+    agi_cls = SimpleNamespace(
+        env=SimpleNamespace(is_local=lambda ip: ip == "127.0.0.1"),
+        _workers={"10.0.0.3": 1, "127.0.0.1": 1},
+        _get_scheduler=lambda _scheduler: ("10.0.0.2", 8786),
+        _lifecycle_call_token="a" * 32,
+        _dask_log_level=None,
+        _acquire_remote_target_lease=_acquire,
+        _start_scheduler=_start_scheduler,
+    )
+
+    started = await runtime_distribution_support.start(
+        agi_cls,
+        "10.0.0.2",
+        set_env_var_fn=lambda *_args, **_kwargs: None,
+    )
+
+    assert started is False
+    assert events == ["lease:10.0.0.2", "lease:10.0.0.3", "scheduler"]
 
 
 @pytest.mark.asyncio
@@ -522,7 +579,8 @@ async def test_stop_retires_workers_and_shutdown(monkeypatch):
         async def shutdown(self):
             self.shutdown_calls += 1
 
-    AGI._dask_client = _Client()
+    client = _Client()
+    AGI._dask_client = client
     AGI._mode_auto = False
     AGI._mode = AGI.DASK_MODE
     AGI._TIMEOUT = 3
@@ -538,8 +596,9 @@ async def test_stop_retires_workers_and_shutdown(monkeypatch):
 
     await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
 
-    assert AGI._dask_client.retire_calls >= 1
-    assert AGI._dask_client.shutdown_calls == 1
+    assert client.retire_calls >= 1
+    assert client.shutdown_calls == 1
+    assert AGI._dask_client is None
     assert closed["count"] == 1
 
 
@@ -565,7 +624,8 @@ async def test_stop_supports_sync_scheduler_shutdown_calls(monkeypatch):
             self.shutdown_calls += 1
             return {"status": "stopped"}
 
-    AGI._dask_client = _Client()
+    client = _Client()
+    AGI._dask_client = client
     AGI._mode_auto = False
     AGI._mode = AGI.DASK_MODE
     AGI._TIMEOUT = 3
@@ -581,14 +641,114 @@ async def test_stop_supports_sync_scheduler_shutdown_calls(monkeypatch):
 
     await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
 
-    assert AGI._dask_client.retire_calls >= 1
-    assert AGI._dask_client.shutdown_calls == 1
+    assert client.retire_calls >= 1
+    assert client.shutdown_calls == 1
+    assert AGI._dask_client is None
     assert closed["count"] == 1
 
 
 @pytest.mark.asyncio
+async def test_stop_retry_does_not_query_a_proven_closed_client(monkeypatch):
+    class _Client:
+        def __init__(self):
+            self.closed = False
+            self.info_calls = 0
+            self.shutdown_calls = 0
+
+        async def scheduler_info(self):
+            self.info_calls += 1
+            if self.closed:
+                raise RuntimeError("closed client must not be queried")
+            return {"workers": {}}
+
+        async def shutdown(self):
+            self.shutdown_calls += 1
+            self.closed = True
+
+    client = _Client()
+    AGI._dask_client = client
+    AGI._mode_auto = False
+    closed_connections = {"count": 0}
+
+    async def _fake_close_all():
+        closed_connections["count"] += 1
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
+
+    await runtime_distribution_support.stop(AGI)
+    # A retained lifecycle lease may call runtime stop again when state-file
+    # cleanup failed after the first successful runtime shutdown.
+    await runtime_distribution_support.stop(AGI)
+
+    assert client.info_calls == 1
+    assert client.shutdown_calls == 1
+    assert closed_connections["count"] == 2
+    assert AGI._dask_client is None
+
+
+@pytest.mark.asyncio
+async def test_stop_retry_reuses_client_shutdown_proof_until_process_cleanup_succeeds(
+    monkeypatch,
+):
+    class _Client:
+        def __init__(self):
+            self.closed = False
+            self.info_calls = 0
+            self.shutdown_calls = 0
+
+        async def scheduler_info(self):
+            self.info_calls += 1
+            if self.closed:
+                raise RuntimeError("closed client must not be queried")
+            return {"workers": {}}
+
+        async def shutdown(self):
+            self.shutdown_calls += 1
+            self.closed = True
+
+    process_cleanup_calls = {"count": 0}
+
+    async def _terminate_jobs(_agi_cls, *, log):
+        process_cleanup_calls["count"] += 1
+        if process_cleanup_calls["count"] == 1:
+            raise runtime_distribution_support.RuntimeCleanupRequiredError(
+                "owned child is still exiting"
+            )
+
+    async def _fake_close_all():
+        return None
+
+    client = _Client()
+    AGI._dask_client = client
+    AGI._mode_auto = False
+    monkeypatch.setattr(
+        runtime_distribution_support,
+        "_terminate_owned_background_jobs",
+        _terminate_jobs,
+    )
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
+
+    with pytest.raises(
+        runtime_distribution_support.RuntimeCleanupRequiredError,
+        match="owned child is still exiting",
+    ):
+        await runtime_distribution_support.stop(AGI)
+
+    assert AGI._dask_client is client
+    assert AGI._runtime_shutdown_client is client
+
+    await runtime_distribution_support.stop(AGI)
+
+    assert client.info_calls == 1
+    assert client.shutdown_calls == 1
+    assert process_cleanup_calls["count"] == 2
+    assert AGI._dask_client is None
+    assert AGI._runtime_shutdown_client is None
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("phase", ["scheduler_info", "retire_workers", "shutdown"])
-async def test_stop_swallows_expected_operational_errors(monkeypatch, phase):
+async def test_stop_marks_operational_cleanup_errors_unproven(monkeypatch, phase):
     class _Client:
         def __init__(self):
             self.shutdown_calls = 0
@@ -624,9 +784,14 @@ async def test_stop_swallows_expected_operational_errors(monkeypatch, phase):
 
     monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
 
-    await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
+    with pytest.raises(
+        runtime_distribution_support.RuntimeCleanupRequiredError,
+        match="cleanup remains unproven",
+    ):
+        await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
 
     assert closed["count"] == 1
+    assert AGI._service_cleanup_unproven is True
 
 
 @pytest.mark.asyncio
@@ -1352,6 +1517,10 @@ async def test_run_debug_branch_returns_list_result(tmp_path, monkeypatch):
 
     async def _fake_run(*_args, **_kwargs):
         calls["run"] += 1
+        calls["pid_namespaced"] = (
+            (wenv_abs / "dask_worker_0.pid").exists()
+            and not (tmp_path / "dask_worker_0.pid").exists()
+        )
         return ["ok", "done"]
 
     async def _fake_kill(*_args, **_kwargs):
@@ -1372,9 +1541,8 @@ async def test_run_debug_branch_returns_list_result(tmp_path, monkeypatch):
     assert calls["new"] == 1
     assert calls["run"] == 1
     assert calls["kill"] == 1
-    # New contract: the pid file is written next to the wenv (the location the
-    # cleanup scanners glob) and removed again when run_local exits.
-    assert not (tmp_path / "dask_worker_0.pid").exists()
+    assert calls["pid_namespaced"] is True
+    assert not (wenv_abs / "dask_worker_0.pid").exists()
 
 
 @pytest.mark.asyncio
@@ -1703,7 +1871,9 @@ def test_remote_dask_worker_command_uses_posix_paths_for_windows_manager():
     )
 
     assert "--project wenv/flight_telemetry_worker" in command
-    assert "--pid-file wenv/dask_worker_0_0.pid" in command
+    assert (
+        "--pid-file wenv/flight_telemetry_worker/dask_worker_0_0.pid" in command
+    )
     assert "\\" not in command
 
 
@@ -1820,16 +1990,20 @@ async def test_stop_shuts_down_client_after_partial_benchmark(monkeypatch):
     monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
     AGI._TIMEOUT = 2
 
-    AGI._dask_client = _Client()
+    owned_client = _Client()
+    AGI._dask_client = owned_client
     AGI._mode_auto = False
     AGI._mode = 5  # partial-range benchmark final mode
     await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
-    assert AGI._dask_client.shutdown_calls == 1
+    assert owned_client.shutdown_calls == 1
+    assert AGI._dask_client is None
 
-    AGI._dask_client = _Client()
+    deferred_client = _Client()
+    AGI._dask_client = deferred_client
     AGI._mode_auto = True
     await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
-    assert AGI._dask_client.shutdown_calls == 0
+    assert deferred_client.shutdown_calls == 0
+    assert AGI._dask_client is deferred_client
 
 
 def test_clean_job_respects_cond_and_verbosity():
@@ -1957,3 +2131,421 @@ async def test_main_dask_run_stops_cluster_when_distribute_raises(monkeypatch):
     # _update_capacity is skipped because distribute failed, but _stop must run.
     assert "stop" in calls
     assert "update_capacity" not in calls
+
+
+@pytest.mark.asyncio
+async def test_main_dask_run_stops_cluster_when_startup_raises(monkeypatch):
+    class _Jobs:
+        def flush(self):
+            return None
+
+    calls = []
+
+    async def _fail_start(_scheduler):
+        calls.append("start")
+        raise ConnectionError("scheduler launch failed")
+
+    async def _stop():
+        calls.append("stop")
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_fail_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_clean_job", staticmethod(lambda _cond: None))
+    AGI._mode = AGI.DASK_MODE
+
+    with pytest.raises(ConnectionError, match="scheduler launch failed"):
+        await runtime_distribution_support.main(
+            AGI,
+            "127.0.0.1",
+            background_job_manager_factory=lambda: _Jobs(),
+        )
+
+    assert calls == ["start", "stop"]
+    assert AGI._startup_in_progress is False
+
+
+@pytest.mark.asyncio
+async def test_stop_cancels_and_awaits_scheduler_and_worker_launch_tasks(monkeypatch):
+    cleaned = []
+    blocker = asyncio.Event()
+
+    async def _launch(label):
+        try:
+            await blocker.wait()
+        finally:
+            cleaned.append(label)
+
+    scheduler_task = asyncio.create_task(_launch("scheduler"))
+    worker_task = asyncio.create_task(_launch("worker"))
+    await asyncio.sleep(0)
+    AGI._dask_client = None
+    AGI._scheduler_launch_tasks = {scheduler_task}
+    AGI._worker_launch_tasks = {worker_task}
+
+    async def _close_all():
+        cleaned.append("connections")
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_close_all))
+    await runtime_distribution_support.stop(AGI)
+
+    assert scheduler_task.cancelled()
+    assert worker_task.cancelled()
+    assert set(cleaned) == {"scheduler", "worker", "connections"}
+    assert AGI._scheduler_launch_tasks == set()
+    assert AGI._worker_launch_tasks == set()
+
+
+@pytest.mark.asyncio
+async def test_stop_drains_owned_cleanup_under_repeated_cancellation(monkeypatch):
+    launch_cleanup_started = asyncio.Event()
+    allow_launch_cleanup = asyncio.Event()
+    launch_cleanup_finished = asyncio.Event()
+    connections_started = asyncio.Event()
+    allow_connections = asyncio.Event()
+    connections_finished = asyncio.Event()
+
+    async def _launch():
+        try:
+            await asyncio.Event().wait()
+        finally:
+            launch_cleanup_started.set()
+            await allow_launch_cleanup.wait()
+            launch_cleanup_finished.set()
+
+    launch_task = asyncio.create_task(_launch())
+    await asyncio.sleep(0)
+    AGI._dask_client = None
+    AGI._scheduler_launch_tasks = {launch_task}
+    AGI._worker_launch_tasks = set()
+
+    async def _close_all():
+        connections_started.set()
+        await allow_connections.wait()
+        connections_finished.set()
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_close_all))
+    stop_task = asyncio.create_task(runtime_distribution_support.stop(AGI))
+
+    await launch_cleanup_started.wait()
+    stop_task.cancel()
+    await asyncio.sleep(0)
+    stop_task.cancel()
+    await asyncio.sleep(0)
+    assert not launch_task.done()
+
+    allow_launch_cleanup.set()
+    await connections_started.wait()
+    stop_task.cancel()
+    await asyncio.sleep(0)
+    stop_task.cancel()
+    await asyncio.sleep(0)
+    allow_connections.set()
+
+    with pytest.raises(asyncio.CancelledError):
+        await stop_task
+
+    assert launch_task.cancelled()
+    assert launch_cleanup_finished.is_set()
+    assert connections_finished.is_set()
+    assert AGI._scheduler_launch_tasks == set()
+    assert AGI._service_cleanup_unproven is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("blocked_phase", ["client-shutdown", "connections"])
+async def test_stop_times_out_repeated_cancellation_and_reuses_owned_cleanup_task(
+    monkeypatch,
+    blocked_phase,
+):
+    cleanup_entered = asyncio.Event()
+    allow_cleanup = asyncio.Event()
+    connections_finished = asyncio.Event()
+
+    class _Client:
+        async def scheduler_info(self):
+            return {"workers": {}}
+
+        async def shutdown(self):
+            if blocked_phase == "client-shutdown":
+                cleanup_entered.set()
+                await allow_cleanup.wait()
+
+    AGI._dask_client = _Client() if blocked_phase == "client-shutdown" else None
+    AGI._mode_auto = False
+
+    async def _close_all():
+        if blocked_phase == "connections":
+            cleanup_entered.set()
+            await allow_cleanup.wait()
+        connections_finished.set()
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_close_all))
+    stop_task = asyncio.create_task(
+        runtime_distribution_support.stop(AGI, cleanup_timeout=0.05)
+    )
+
+    await asyncio.wait_for(cleanup_entered.wait(), timeout=1)
+    stop_task.cancel()
+    await asyncio.sleep(0)
+    stop_task.cancel()
+
+    with pytest.raises(
+        runtime_distribution_support.RuntimeCleanupRequiredError,
+        match="owned cleanup task and lifecycle lease were retained",
+    ):
+        await stop_task
+
+    owned_cleanup = AGI._runtime_cleanup_task
+    assert isinstance(owned_cleanup, asyncio.Task)
+    assert not owned_cleanup.done()
+    assert AGI._service_cleanup_unproven is True
+    assert AGI._runtime_cleanup_phase == blocked_phase
+
+    allow_cleanup.set()
+    await runtime_distribution_support.stop(AGI, cleanup_timeout=1.0)
+
+    assert owned_cleanup.done()
+    assert AGI._runtime_cleanup_task is None
+    assert AGI._service_cleanup_unproven is False
+    assert connections_finished.is_set()
+
+
+@pytest.mark.asyncio
+async def test_stop_marks_cleanup_unproven_when_connection_cleanup_fails(monkeypatch):
+    AGI._dask_client = None
+    AGI._scheduler_launch_tasks = set()
+    AGI._worker_launch_tasks = set()
+
+    async def _close_all():
+        raise RuntimeError("connection cleanup failed")
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_close_all))
+
+    with pytest.raises(
+        runtime_distribution_support.RuntimeCleanupRequiredError,
+        match="connection cleanup failed",
+    ):
+        await runtime_distribution_support.stop(AGI)
+
+    assert AGI._service_cleanup_unproven is True
+
+
+@pytest.mark.asyncio
+async def test_stop_terminates_owned_local_jobs_after_partial_startup(monkeypatch):
+    calls = []
+
+    class _Process:
+        def poll(self):
+            return None
+
+        def terminate(self):
+            calls.append("terminate")
+
+        def wait(self, timeout):
+            calls.append(("wait", timeout))
+            if calls.count(("wait", timeout)) == 1:
+                raise subprocess.TimeoutExpired("dask-worker", timeout)
+            return 0
+
+        def kill(self):
+            calls.append("kill")
+
+    process = _Process()
+    AGI._jobs = SimpleNamespace(running=[SimpleNamespace(process=process)])
+    AGI._dask_client = None
+    AGI._mode_auto = True
+    AGI._startup_in_progress = True
+
+    async def _close_all():
+        calls.append("connections")
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_close_all))
+
+    await runtime_distribution_support.stop(AGI)
+
+    assert calls == [
+        "terminate",
+        ("wait", 3.0),
+        "kill",
+        ("wait", 3.0),
+        "connections",
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(os.name != "posix", reason="POSIX process-group regression")
+async def test_stop_terminates_child_after_background_wrapper_exits(monkeypatch, tmp_path):
+    child_pid_file = tmp_path / "child.pid"
+    parent_code = "\n".join(
+        [
+            "import subprocess",
+            "import sys",
+            "from pathlib import Path",
+            "child = subprocess.Popen(",
+            "    [sys.executable, '-c', 'import time; time.sleep(120)']",
+            ")",
+            "Path(sys.argv[1]).write_text(str(child.pid), encoding='utf-8')",
+        ]
+    )
+    manager = background_jobs_support.BackgroundProcessManager()
+    job = manager.new(
+        [sys.executable, "-c", parent_code, str(child_pid_file)],
+        cwd=tmp_path,
+    )
+    child_pid: int | None = None
+
+    def _is_live_process(pid: int) -> bool:
+        try:
+            process = psutil.Process(pid)
+            return process.is_running() and process.status() != psutil.STATUS_ZOMBIE
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            return False
+
+    async def _wait_until(predicate, *, timeout: float = 5.0) -> None:
+        deadline = asyncio.get_running_loop().time() + timeout
+        while not predicate():
+            if asyncio.get_running_loop().time() >= deadline:
+                raise TimeoutError("background process condition was not reached")
+            await asyncio.sleep(0.02)
+
+    try:
+        await _wait_until(child_pid_file.is_file)
+        child_pid = int(child_pid_file.read_text(encoding="utf-8"))
+        await _wait_until(lambda: job.process.poll() is not None)
+        assert _is_live_process(child_pid)
+
+        # This refresh retires the successful wrapper from ``running``. The
+        # separate ownership record must still make its child discoverable.
+        assert manager.result(job.num) is job.process
+        assert job not in manager.running
+        assert job in manager.owned
+
+        AGI._jobs = manager
+        AGI._dask_client = None
+        AGI._mode_auto = True
+        AGI._startup_in_progress = True
+
+        async def _fake_close_all():
+            return None
+
+        monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
+
+        await runtime_distribution_support.stop(AGI)
+        await _wait_until(lambda: not _is_live_process(child_pid))
+
+        assert job not in manager.owned
+        assert job.num not in manager.all
+    finally:
+        if child_pid is not None and _is_live_process(child_pid):
+            child = psutil.Process(child_pid)
+            child.kill()
+            try:
+                child.wait(timeout=3)
+            except (psutil.NoSuchProcess, psutil.TimeoutExpired):
+                pass
+
+
+@pytest.mark.asyncio
+async def test_owned_job_cleanup_rejects_inaccessible_token_candidate(monkeypatch):
+    started_at = time.time()
+    username = psutil.Process(os.getpid()).username()
+
+    class _CompletedWrapper:
+        pid = 7101
+
+        @staticmethod
+        def poll():
+            return 0
+
+    class _InaccessibleCandidate:
+        pid = 7102
+
+        @staticmethod
+        def create_time():
+            return started_at
+
+        @staticmethod
+        def username():
+            return username
+
+        def environ(self):
+            raise psutil.AccessDenied(self.pid)
+
+    job = SimpleNamespace(
+        process=_CompletedWrapper(),
+        ownership_token="owned-token",
+        ownership_started_at=started_at,
+        process_group_id=None,
+        num=7,
+    )
+    manager = SimpleNamespace(
+        owned=[job],
+        running=[],
+        completed=[],
+        dead=[],
+        all={7: job},
+    )
+    monkeypatch.setattr(
+        runtime_distribution_support.psutil,
+        "process_iter",
+        lambda attrs: iter([_InaccessibleCandidate()]),
+    )
+
+    with pytest.raises(
+        runtime_distribution_support.RuntimeCleanupRequiredError,
+        match="ownership token unavailable.*7102",
+    ):
+        await runtime_distribution_support._terminate_owned_background_jobs(
+            SimpleNamespace(_jobs=manager)
+        )
+
+    assert manager.owned == [job]
+    assert manager.all == {7: job}
+
+
+@pytest.mark.asyncio
+async def test_stop_marks_kill_wait_timeout_as_recovery_required(monkeypatch):
+    calls = []
+
+    class _Process:
+        pid = 4321
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            calls.append("terminate")
+
+        def wait(self, timeout):
+            calls.append(("wait", timeout))
+            raise subprocess.TimeoutExpired("dask-worker", timeout)
+
+        def kill(self):
+            calls.append("kill")
+
+    process = _Process()
+    AGI._jobs = SimpleNamespace(running=[SimpleNamespace(process=process)])
+    AGI._dask_client = None
+    AGI._mode_auto = True
+    AGI._startup_in_progress = True
+
+    async def _close_all():
+        calls.append("connections")
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_close_all))
+
+    with pytest.raises(
+        runtime_distribution_support.RuntimeCleanupRequiredError,
+        match="kill/wait",
+    ):
+        await runtime_distribution_support.stop(AGI)
+
+    assert calls == [
+        "terminate",
+        ("wait", 3.0),
+        "kill",
+        ("wait", 3.0),
+        "connections",
+    ]
+    assert AGI._service_cleanup_unproven is True
+    assert AGI._runtime_cleanup_task is None

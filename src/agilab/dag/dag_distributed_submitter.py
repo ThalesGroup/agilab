@@ -6,10 +6,13 @@ import os
 import subprocess
 import sys
 import threading
+import time
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, TextIO
+
+from .dag_idempotency import execute_idempotently, write_json_atomic
 
 from agilab.orchestrate.orchestrate_page_support import compute_run_mode
 
@@ -100,6 +103,7 @@ def build_multi_app_dag_distributed_stage_submitter(
         artifact: dict[str, Any],
         execution_contract: dict[str, Any],
         timestamp: str,
+        idempotency_token: str,
     ) -> Mapping[str, Any]:
         return submit_distributed_stage(
             config=config,
@@ -111,6 +115,7 @@ def build_multi_app_dag_distributed_stage_submitter(
             artifact=artifact,
             execution_contract=execution_contract,
             timestamp=timestamp,
+            idempotency_token=idempotency_token,
         )
 
     return _submit_stage
@@ -164,14 +169,56 @@ def submit_distributed_stage(
     artifact: Mapping[str, Any],
     execution_contract: Mapping[str, Any],
     timestamp: str,
+    idempotency_token: str,
+) -> Mapping[str, Any]:
+    unit_id = str(unit.get("id", "") or "stage").strip() or "stage"
+    token = str(idempotency_token).strip()
+    if not token:
+        raise RuntimeError(f"Distributed DAG stage `{unit_id}` requires an idempotency token.")
+    return execute_idempotently(
+        run_root=run_root,
+        unit_id=unit_id,
+        idempotency_token=token,
+        scope="distributed-submitter",
+        callback=lambda: _submit_distributed_stage_once(
+            config=config,
+            runner_fn=runner_fn,
+            repo_root=repo_root,
+            lab_dir=lab_dir,
+            run_root=run_root,
+            unit=unit,
+            artifact=artifact,
+            execution_contract=execution_contract,
+            timestamp=timestamp,
+            idempotency_token=token,
+        ),
+    )
+
+
+def _submit_distributed_stage_once(
+    *,
+    config: DagDistributedStageConfig,
+    runner_fn: DagStageRunner,
+    repo_root: Path,
+    lab_dir: Path,
+    run_root: Path,
+    unit: Mapping[str, Any],
+    artifact: Mapping[str, Any],
+    execution_contract: Mapping[str, Any],
+    timestamp: str,
+    idempotency_token: str,
 ) -> Mapping[str, Any]:
     unit_id = str(unit.get("id", "") or "stage").strip() or "stage"
     app_name = str(unit.get("app", "") or "").strip()
     if not app_name:
         raise RuntimeError(f"Distributed DAG stage `{unit_id}` is missing its app name.")
+    token = str(idempotency_token).strip()
+    if not token:
+        raise RuntimeError(f"Distributed DAG stage `{unit_id}` requires an idempotency token.")
 
     apps_path = resolve_stage_apps_path(repo_root, app_name)
     request_payload = request_payload_from_execution_contract(execution_contract)
+    request_payload["idempotency_token"] = token
     run_root.mkdir(parents=True, exist_ok=True)
 
     runner_result = dict(
@@ -187,6 +234,7 @@ def submit_distributed_stage(
             execution_contract=dict(execution_contract),
             request_payload=request_payload,
             timestamp=timestamp,
+            idempotency_token=token,
         )
     )
     evidence_path = _distributed_evidence_path(run_root, artifact)
@@ -197,6 +245,7 @@ def submit_distributed_stage(
         "apps_path": str(apps_path),
         "artifact": dict(artifact),
         "created_at": timestamp,
+        "idempotency_token": token,
         "execution_contract": dict(execution_contract),
         "request_payload": request_payload,
         "cluster": {
@@ -209,8 +258,7 @@ def submit_distributed_stage(
         },
         "runner_result": _jsonable(runner_result),
     }
-    evidence_path.parent.mkdir(parents=True, exist_ok=True)
-    evidence_path.write_text(json.dumps(evidence_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json_atomic(evidence_path, evidence_payload)
 
     default_metrics = {
         "stage_completed": 1,
@@ -235,7 +283,9 @@ def submit_distributed_stage(
             "workers": config.workers,
             "workers_data_path": config.workers_data_path,
             "mode": config.mode,
+            "idempotency_token": token,
         },
+        "idempotency_token": token,
     }
     result.update(runner_result)
     result["summary_metrics"] = default_metrics
@@ -252,8 +302,53 @@ def run_agilab_stage_subprocess(
     app_name: str,
     request_payload: Mapping[str, Any],
     timestamp: str,
+    idempotency_token: str,
+    **kwargs: Any,
+) -> Mapping[str, Any]:
+    token = str(idempotency_token).strip()
+    if not token:
+        raise RuntimeError(f"Distributed DAG stage `{app_name}` requires an idempotency token.")
+    return execute_idempotently(
+        run_root=run_root,
+        unit_id=app_name,
+        idempotency_token=token,
+        scope="distributed-subprocess",
+        callback=lambda: _run_agilab_stage_subprocess_once(
+            config=config,
+            repo_root=repo_root,
+            run_root=run_root,
+            apps_path=apps_path,
+            app_name=app_name,
+            request_payload=request_payload,
+            timestamp=timestamp,
+            idempotency_token=token,
+            **kwargs,
+        ),
+    )
+
+
+def _run_agilab_stage_subprocess_once(
+    *,
+    config: DagDistributedStageConfig,
+    repo_root: Path,
+    run_root: Path,
+    apps_path: Path,
+    app_name: str,
+    request_payload: Mapping[str, Any],
+    timestamp: str,
+    idempotency_token: str,
     **_kwargs: Any,
 ) -> Mapping[str, Any]:
+    token = str(idempotency_token).strip()
+    if not token:
+        raise RuntimeError(f"Distributed DAG stage `{app_name}` requires an idempotency token.")
+    stage_request = dict(request_payload)
+    recorded_token = str(stage_request.get("idempotency_token", "")).strip()
+    if recorded_token and recorded_token != token:
+        raise RuntimeError(
+            f"Distributed DAG stage `{app_name}` request token does not match its execution token."
+        )
+    stage_request["idempotency_token"] = token
     run_root.mkdir(parents=True, exist_ok=True)
     script_path = run_root / "run_distributed_stage.py"
     script_path.write_text(
@@ -261,7 +356,7 @@ def run_agilab_stage_subprocess(
             config=config,
             apps_path=apps_path,
             app_name=app_name,
-            request_payload=request_payload,
+            request_payload=stage_request,
         ),
         encoding="utf-8",
     )
@@ -283,10 +378,12 @@ def run_agilab_stage_subprocess(
         )
         log_tee_thread.start()
         try:
+            command_env = os.environ.copy()
+            command_env["AGILAB_IDEMPOTENCY_TOKEN"] = token
             completed = subprocess.run(
                 command,
                 cwd=repo_root,
-                env=os.environ.copy(),
+                env=command_env,
                 text=True,
                 stdout=stdout_handle,
                 stderr=stderr_handle,
@@ -309,17 +406,18 @@ def run_agilab_stage_subprocess(
         "stderr_log": str(stderr_path),
         "stdout_tail": stdout_tail,
         "stderr_tail": stderr_tail,
+        "idempotency_token": token,
     }
     if completed.returncode:
         detail = stderr_tail.strip() or stdout_tail.strip() or f"exit {completed.returncode}"
-        raise RuntimeError(f"Distributed DAG stage `{app_name}` failed: {_tail(detail, max_chars=4000)}")
+        raise RuntimeError(f"Distributed DAG stage `{app_name}` failed: {_tail(detail, max_chars=3800)}")
     failure_detail = _stage_result_failure(stdout_tail)
     if failure_detail:
         # Defense in depth: AGI.run can swallow ProcessError/ConnectionError
         # and the script may still print a null/error result; never record
         # success evidence for such a stage.
         raise RuntimeError(
-            f"Distributed DAG stage `{app_name}` failed: {_tail(failure_detail, max_chars=4000)}"
+            f"Distributed DAG stage `{app_name}` failed: {_tail(failure_detail, max_chars=3800)}"
         )
     return payload
 
@@ -440,6 +538,7 @@ def _stage_run_script(
     return f'''\
 import asyncio
 import json
+import os
 import sys
 
 from agi_cluster.agi_distributor import AGI, RunRequest, StageRequest
@@ -450,6 +549,7 @@ APPS_PATH = {str(apps_path)!r}
 APP = {app_name!r}
 REQUEST_PAYLOAD = json.loads({request_json!r})
 WORKERS = json.loads({workers_json!r})
+os.environ["AGILAB_IDEMPOTENCY_TOKEN"] = str(REQUEST_PAYLOAD["idempotency_token"])
 
 
 async def main():
@@ -508,11 +608,38 @@ def _load_settings_file(path_value: Any) -> dict[str, Any]:
         return {}
     path = Path(path_value)
     try:
-        with path.open("rb") as handle:
-            loaded = tomllib.load(handle)
-    except (OSError, tomllib.TOMLDecodeError):
-        return {}
+        # Keep the optional agi-env dependency out of base-package imports.
+        from agi_env.app_settings_support import read_app_settings
+    except ModuleNotFoundError as exc:
+        if not str(getattr(exc, "name", "") or "").startswith("agi_env"):
+            raise
+        loaded = _read_settings_file_stdlib(path)
+    else:
+        try:
+            loaded = read_app_settings(path)
+        except (OSError, ValueError):
+            return {}
     return dict(loaded) if isinstance(loaded, Mapping) else {}
+
+
+def _read_settings_file_stdlib(path: Path) -> dict[str, Any]:
+    """Read settings when the optional ``agi-env`` package is unavailable."""
+
+    deadline = time.monotonic() + 0.5
+    while True:
+        try:
+            with path.open("rb") as stream:
+                loaded = tomllib.load(stream)
+            return dict(loaded) if isinstance(loaded, Mapping) else {}
+        except PermissionError:
+            if os.name != "nt":
+                return {}
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return {}
+            time.sleep(min(0.01, remaining))
+        except (OSError, tomllib.TOMLDecodeError):
+            return {}
 
 
 def _coerce_workers(value: Any) -> dict[str, int]:

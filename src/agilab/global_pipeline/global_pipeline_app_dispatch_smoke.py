@@ -12,6 +12,7 @@ import sys
 from types import SimpleNamespace
 from typing import Any, Mapping
 
+from agilab.dag.dag_idempotency import execute_idempotently
 from agilab.global_pipeline.global_pipeline_dispatch_state import (
     PERSISTENCE_FORMAT,
     SCHEMA as DISPATCH_STATE_SCHEMA,
@@ -205,7 +206,7 @@ def _make_env(run_root: Path, *, target: str) -> SimpleNamespace:
     )
 
 
-def _run_queue_family_app(
+def _run_queue_family_app_once(
     *,
     repo_root: Path,
     run_root: Path,
@@ -217,7 +218,11 @@ def _run_queue_family_app(
     worker_class_name: str,
     target: str,
     app_entry: str,
+    idempotency_token: str,
 ) -> dict[str, Any]:
+    token = str(idempotency_token).strip()
+    if not token:
+        raise ValueError("A non-empty idempotency token is required before real app execution.")
     _ensure_app_project_on_path(repo_root, project_name)
     _drop_app_module_cache((manager_package, worker_package))
     manager_module = importlib.import_module(manager_package)
@@ -269,13 +274,53 @@ def _run_queue_family_app(
         "summary_metrics_path": _relative(summary_path, run_root),
         "reduce_artifact_path": _relative(reduce_path, run_root),
         "summary_metrics": metrics,
+        "idempotency_token": token,
     }
+
+
+def _run_queue_family_app(
+    *,
+    repo_root: Path,
+    run_root: Path,
+    project_name: str,
+    manager_package: str,
+    worker_package: str,
+    manager_class_name: str,
+    args_class_name: str,
+    worker_class_name: str,
+    target: str,
+    app_entry: str,
+    idempotency_token: str,
+) -> dict[str, Any]:
+    token = str(idempotency_token).strip()
+    if not token:
+        raise ValueError("A non-empty idempotency token is required before real app execution.")
+    return execute_idempotently(
+        run_root=run_root,
+        unit_id=target,
+        idempotency_token=token,
+        scope="queue-family-app",
+        callback=lambda: _run_queue_family_app_once(
+            repo_root=repo_root,
+            run_root=run_root,
+            project_name=project_name,
+            manager_package=manager_package,
+            worker_package=worker_package,
+            manager_class_name=manager_class_name,
+            args_class_name=args_class_name,
+            worker_class_name=worker_class_name,
+            target=target,
+            app_entry=app_entry,
+            idempotency_token=token,
+        ),
+    )
 
 
 def run_queue_baseline_app(
     *,
     repo_root: Path,
     run_root: Path,
+    idempotency_token: str,
 ) -> dict[str, Any]:
     return _run_queue_family_app(
         repo_root=repo_root,
@@ -288,6 +333,7 @@ def run_queue_baseline_app(
         worker_class_name="UavQueueWorker",
         target="multi_app_dag_dispatch_smoke_queue",
         app_entry="uav_queue.UavQueue + uav_queue_worker.UavQueueWorker",
+        idempotency_token=idempotency_token,
     )
 
 
@@ -296,6 +342,7 @@ def run_relay_followup_app(
     repo_root: Path,
     run_root: Path,
     queue_result: Mapping[str, Any],
+    idempotency_token: str,
 ) -> dict[str, Any]:
     result = _run_queue_family_app(
         repo_root=repo_root,
@@ -308,6 +355,7 @@ def run_relay_followup_app(
         worker_class_name="UavRelayQueueWorker",
         target="multi_app_dag_dispatch_smoke_relay",
         app_entry="uav_relay_queue.UavRelayQueue + uav_relay_queue_worker.UavRelayQueueWorker",
+        idempotency_token=idempotency_token,
     )
     result["consumed_artifacts"] = [
         {
@@ -390,11 +438,16 @@ def build_app_dispatch_smoke_state(
     run_root = run_root.resolve()
     plan = build_execution_plan(repo_root=repo_root, dag_path=dag_path)
     runner_state = build_runner_state(repo_root=repo_root, dag_path=dag_path)
-    queue_result = run_queue_baseline_app(repo_root=repo_root, run_root=run_root)
+    queue_result = run_queue_baseline_app(
+        repo_root=repo_root,
+        run_root=run_root,
+        idempotency_token=f"{run_id}:{QUEUE_UNIT_ID}",
+    )
     relay_result = run_relay_followup_app(
         repo_root=repo_root,
         run_root=run_root,
         queue_result=queue_result,
+        idempotency_token=f"{run_id}:{RELAY_UNIT_ID}",
     )
     produces_by_id = _produces_by_id(plan.runnable_units)
 

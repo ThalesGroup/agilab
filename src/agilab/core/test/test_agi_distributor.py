@@ -4,6 +4,9 @@ from pathlib import Path
 import pytest
 
 from agi_cluster.agi_distributor import AGI, RunRequest
+from agi_cluster.agi_distributor.runtime.runtime_distribution_support import (
+    RuntimeCleanupRequiredError,
+)
 from agi_env import AgiEnv, normalize_path
 
 # Set AGI verbosity low to avoid extra prints during test.
@@ -66,10 +69,13 @@ async def test_stop_handles_scheduler_info_and_retire_failures(monkeypatch):
             self.shutdown_calls += 1
 
     AGI._mode_auto = False
-    AGI._dask_client = _SchedulerInfoFailsClient()
+    scheduler_info_fails_client = _SchedulerInfoFailsClient()
+    AGI._dask_client = scheduler_info_fails_client
     monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
-    await AGI._stop()
-    assert AGI._dask_client.shutdown_calls == 1
+    with pytest.raises(RuntimeCleanupRequiredError, match="scheduler inspection"):
+        await AGI._stop()
+    assert scheduler_info_fails_client.shutdown_calls == 1
+    assert AGI._dask_client is None
     assert closed["count"] == 1
 
     closed["count"] = 0
@@ -86,10 +92,13 @@ async def test_stop_handles_scheduler_info_and_retire_failures(monkeypatch):
         async def shutdown(self):
             self.shutdown_calls += 1
 
-    AGI._dask_client = _RetireFailsClient()
+    retire_fails_client = _RetireFailsClient()
+    AGI._dask_client = retire_fails_client
     monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
-    await AGI._stop()
-    assert AGI._dask_client.shutdown_calls == 1
+    with pytest.raises(RuntimeCleanupRequiredError, match="worker retirement"):
+        await AGI._stop()
+    assert retire_fails_client.shutdown_calls == 1
+    assert AGI._dask_client is None
     assert closed["count"] == 1
 
 

@@ -88,6 +88,156 @@ def test_prepare_app_settings_for_write_rejects_future_metadata_version(tmp_path
     assert not settings_file.exists()
 
 
+def test_owned_cluster_write_preserves_session_args_without_persisting_them(
+    tmp_path,
+):
+    settings_file = tmp_path / "app_settings.toml"
+    orchestrate_support.write_app_settings_toml(
+        settings_file,
+        {
+            "args": {"persisted": True},
+            "cluster": {"scheduler": "old:8780"},
+        },
+    )
+
+    session_snapshot = {
+        "args": {"persisted": True, "staged": "session-only"},
+        "cluster": {
+            "scheduler": "new:8780",
+            "cluster_enabled": True,
+        },
+    }
+    merged = orchestrate_support.write_app_settings_toml(
+        settings_file,
+        orchestrate_support.owned_app_settings_payload(
+            session_snapshot,
+            ("cluster", "scheduler"),
+            default_paths=(("cluster", "cluster_enabled"),),
+            preserved_paths=(("args",),),
+        ),
+    )
+
+    persisted = tomllib.loads(settings_file.read_text(encoding="utf-8"))
+    assert merged["args"] == session_snapshot["args"]
+    assert merged["cluster"] == {
+        "scheduler": "new:8780",
+        "cluster_enabled": True,
+    }
+    assert persisted["args"] == {"persisted": True}
+    assert persisted["cluster"] == merged["cluster"]
+
+
+def test_stale_orchestrate_sessions_merge_only_their_changed_cluster_leaves(
+    tmp_path,
+):
+    settings_file = tmp_path / "app_settings.toml"
+    initial = {
+        "cluster": {
+            "scheduler": "old:8780",
+            "user": "old-user",
+            "service_health": {"allow_idle": False},
+        }
+    }
+    orchestrate_support.write_app_settings_toml(settings_file, initial)
+    session_a_before = {"cluster": dict(initial["cluster"])}
+    session_b_before = {"cluster": dict(initial["cluster"])}
+    scheduler_widget = "cluster_scheduler__demo"
+    user_widget = "cluster_user__demo"
+    baseline_key = "cluster_widget_values__demo"
+    session_b_widgets = {}
+    orchestrate_support.reconcile_untouched_widget_values(
+        session_b_widgets,
+        baseline_key=baseline_key,
+        desired_values={
+            scheduler_widget: "old:8780",
+            user_widget: "old-user",
+        },
+    )
+    orchestrate_support.remember_rendered_widget_values(
+        session_b_widgets,
+        baseline_key=baseline_key,
+        widget_keys=(scheduler_widget, user_widget),
+    )
+
+    session_a_after = {"cluster": dict(session_a_before["cluster"])}
+    session_a_after["cluster"]["scheduler"] = "new:8780"
+    session_a_paths = orchestrate_support.changed_app_settings_paths(
+        session_a_before["cluster"],
+        session_a_after["cluster"],
+        prefix=("cluster",),
+    )
+    orchestrate_support.write_app_settings_toml(
+        settings_file,
+        orchestrate_support.owned_app_settings_payload(
+            session_a_after,
+            *session_a_paths,
+        ),
+    )
+
+    # Session B changes only its user field while its scheduler widget still
+    # carries the stale value rendered before session A's write.
+    session_b_widgets[user_widget] = "new-user"
+    orchestrate_support.reconcile_untouched_widget_values(
+        session_b_widgets,
+        baseline_key=baseline_key,
+        desired_values={
+            scheduler_widget: session_b_before["cluster"]["scheduler"],
+            user_widget: session_b_before["cluster"]["user"],
+        },
+    )
+    session_b_after = {"cluster": dict(session_b_before["cluster"])}
+    session_b_after["cluster"]["scheduler"] = session_b_widgets[scheduler_widget]
+    session_b_after["cluster"]["user"] = session_b_widgets[user_widget]
+    session_b_paths = orchestrate_support.changed_app_settings_paths(
+        session_b_before["cluster"],
+        session_b_after["cluster"],
+        prefix=("cluster",),
+    )
+    orchestrate_support.remember_rendered_widget_values(
+        session_b_widgets,
+        baseline_key=baseline_key,
+        widget_keys=(scheduler_widget, user_widget),
+    )
+    session_b_merged = orchestrate_support.write_app_settings_toml(
+        settings_file,
+        orchestrate_support.owned_app_settings_payload(
+            session_b_after,
+            *session_b_paths,
+        ),
+    )
+
+    # The next session-B rerun is a no-op. Untouched widgets must adopt the
+    # merged values before change ownership is computed, or B would restore
+    # its stale scheduler and erase session A's update.
+    orchestrate_support.reconcile_untouched_widget_values(
+        session_b_widgets,
+        baseline_key=baseline_key,
+        desired_values={
+            scheduler_widget: session_b_merged["cluster"]["scheduler"],
+            user_widget: session_b_merged["cluster"]["user"],
+        },
+    )
+    session_b_noop = {"cluster": dict(session_b_merged["cluster"])}
+    session_b_noop["cluster"]["scheduler"] = session_b_widgets[scheduler_widget]
+    session_b_noop["cluster"]["user"] = session_b_widgets[user_widget]
+    session_b_noop_paths = orchestrate_support.changed_app_settings_paths(
+        session_b_merged["cluster"],
+        session_b_noop["cluster"],
+        prefix=("cluster",),
+    )
+
+    persisted = tomllib.loads(settings_file.read_text(encoding="utf-8"))
+    assert session_a_paths == (("cluster", "scheduler"),)
+    assert session_b_paths == (("cluster", "user"),)
+    assert session_b_noop_paths == ()
+    assert session_b_widgets[scheduler_widget] == "new:8780"
+    assert persisted["cluster"] == {
+        "scheduler": "new:8780",
+        "user": "new-user",
+        "service_health": {"allow_idle": False},
+    }
+
+
 def test_evaluate_service_health_gate_detects_restart_rate():
     code, message, details = orchestrate_support.evaluate_service_health_gate(
         {

@@ -28,6 +28,7 @@ import sys
 import logging
 from ._optional_ui import require_streamlit
 from agi_env import mlflow_store
+from .sidecar_registry import DEFAULT_SIDECAR_REGISTRY
 from .pagelib_execution_support import (
     run_agi as _run_agi_impl,
     run_lab as _run_lab_impl,
@@ -1152,6 +1153,7 @@ def activate_mlflow(env=None):
         wait_for_listen_port_fn=_wait_for_listen_port,
         subproc_fn=subproc,
         cwd=os.getcwd(),
+        sidecar_registry=DEFAULT_SIDECAR_REGISTRY,
     )
 
 
@@ -1166,4 +1168,5 @@ def activate_gpt_oss(env=None):
         cwd=os.getcwd(),
         os_module=os,
         sys_module=sys,
+        sidecar_registry=DEFAULT_SIDECAR_REGISTRY,
     )

@@ -359,10 +359,6 @@ ydata-profiling = ["standard-imghdr"]
     path = "./src/agilab/apps-pages/view_forecast_analysis"
     editable = true
 
-[tool.uv.sources.agi-page-inference-report]
-    path = "./src/agilab/apps-pages/view_inference_analysis"
-    editable = true
-
 [tool.uv.sources.agi-page-live-artifacts]
     path = "./src/agilab/apps-pages/view_live_artifacts"
     editable = true

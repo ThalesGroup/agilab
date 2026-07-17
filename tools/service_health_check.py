@@ -10,10 +10,9 @@ import sys
 from pathlib import Path
 from typing import Any, Sequence
 
-import tomllib
-
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
+from agi_env.app_settings_support import read_app_settings
 
 DEFAULT_ALLOW_IDLE = False
 DEFAULT_MAX_UNHEALTHY = 0
@@ -119,8 +118,7 @@ def _load_service_health_settings(env: AgiEnv) -> dict[str, Any]:
     if not settings_path.exists():
         return {}
     try:
-        with settings_path.open("rb") as stream:
-            settings = tomllib.load(stream)
+        settings = read_app_settings(settings_path)
     except Exception:
         return {}
     cluster = settings.get("cluster")

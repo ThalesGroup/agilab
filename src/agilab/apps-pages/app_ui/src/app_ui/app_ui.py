@@ -12,6 +12,7 @@ from types import ModuleType
 from typing import Any
 
 import streamlit as st
+from agi_env.ui.sidecar_registry import isolated_import_process_state
 from agi_pages.runtime import (
     configure_streamlit_page,
     ensure_repo_on_path as _page_ensure_repo_on_path,
@@ -74,12 +75,6 @@ def _resolve_entrypoint(active_app: Path, entrypoint: object) -> Path | None:
     return None
 
 
-def _prepend_sys_path(path: Path) -> None:
-    entry = str(path)
-    sys.path[:] = [existing for existing in sys.path if existing != entry]
-    sys.path.insert(0, entry)
-
-
 def _load_module(path: Path) -> ModuleType:
     module_name = f"_agilab_app_ui_{abs(hash(str(path.resolve())))}"
     spec = importlib.util.spec_from_file_location(module_name, path)
@@ -96,18 +91,17 @@ def _load_module(path: Path) -> ModuleType:
 
 
 def _run_app_ui(entrypoint: Path, active_app: Path) -> None:
-    _prepend_sys_path(entrypoint.parent)
-    _prepend_sys_path(active_app / "src")
-    previous_argv = list(sys.argv)
-    sys.argv = [str(entrypoint), "--active-app", str(active_app)]
-    try:
+    app_src = active_app / "src"
+    with isolated_import_process_state(
+        argv=[str(entrypoint), "--active-app", str(active_app)],
+        prepend_paths=(app_src, entrypoint.parent),
+        module_roots=(app_src, entrypoint.parent),
+    ):
         module = _load_module(entrypoint)
         main_fn = getattr(module, "main", None)
         if not callable(main_fn):
             raise AttributeError(f"Configured app UI {entrypoint} does not expose main()")
         main_fn()
-    finally:
-        sys.argv = previous_argv
 
 
 def main() -> None:

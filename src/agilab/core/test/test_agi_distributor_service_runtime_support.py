@@ -32,6 +32,7 @@ def test_service_runtime_support_reexports_service_helpers(monkeypatch):
     }
     state_exports = {
         "init_service_queue",
+        "recover_orphaned_service_tasks",
         "reset_service_queue_state",
         "service_apply_queue_root",
         "service_apply_runtime_config",

@@ -22,14 +22,18 @@ def test_read_cluster_setting_handles_empty_and_invalid_files(tmp_path: Path):
 def test_read_cluster_setting_propagates_unexpected_runtime_bug(tmp_path: Path, monkeypatch):
     settings = tmp_path / "app_settings.toml"
     settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
-    original_is_file = Path.is_file
+    real_read_app_settings = share_mount_support.read_app_settings
 
-    def _runtime_is_file(self):
-        if self == settings:
+    def _runtime_read_app_settings(path):
+        if path == settings:
             raise RuntimeError("is_file bug")
-        return original_is_file(self)
+        return real_read_app_settings(path)
 
-    monkeypatch.setattr(Path, "is_file", _runtime_is_file, raising=False)
+    monkeypatch.setattr(
+        share_mount_support,
+        "read_app_settings",
+        _runtime_read_app_settings,
+    )
 
     with pytest.raises(RuntimeError, match="is_file bug"):
         share_mount_support._read_cluster_setting(settings)

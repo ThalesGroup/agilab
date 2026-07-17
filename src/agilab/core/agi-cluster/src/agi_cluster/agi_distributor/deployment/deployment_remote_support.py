@@ -19,6 +19,7 @@ from agi_cluster.agi_distributor.deployment.deployment_build_support import (
 )
 from agi_env import AgiEnv
 from agi_env.cython_build_config import cython_build_overlay_specs
+from agi_env.env_config_support import build_remote_env_update_script
 from agi_env.shares.share_runtime_support import (
     validate_local_share_root,
     validate_worker_share_root,
@@ -466,20 +467,16 @@ def _remote_env_update_command(remote_share: str, workflow_data_root: str | None
     # app outputs through the active share mode, so the share path and cluster
     # flag must be written together; Dask workers also need worker layout flags
     # because AgiEnv reads those from the persisted .env file during startup.
-    source_line = "IS_SOURCE_ENV='0'"
-    worker_line = "IS_WORKER_ENV='1'"
-    enabled_line = "AGI_CLUSTER_ENABLED='1'"
-    share_line = f"AGI_CLUSTER_SHARE={remote_share!r}"
-    workflow_root_line = f"AGILAB_WORKFLOW_DATA_ROOT={(workflow_data_root or remote_share)!r}"
-    return (
-        'mkdir -p "$HOME/.agilab" && touch "$HOME/.agilab/.env" && '
-        "{ grep -Ev '^(IS_SOURCE_ENV|IS_WORKER_ENV|AGI_CLUSTER_ENABLED|AGI_CLUSTER_SHARE|AGILAB_WORKFLOW_DATA_ROOT)=' "
-        "\"$HOME/.agilab/.env\" || true; "
-        f"printf '%s\\n' {quote(source_line)} {quote(worker_line)} "
-        f"{quote(enabled_line)} {quote(share_line)} {quote(workflow_root_line)}; }} "
-        "> \"$HOME/.agilab/.env.tmp\" && "
-        'mv "$HOME/.agilab/.env.tmp" "$HOME/.agilab/.env"'
+    script = build_remote_env_update_script(
+        {
+            "IS_SOURCE_ENV": "0",
+            "IS_WORKER_ENV": "1",
+            "AGI_CLUSTER_ENABLED": "1",
+            "AGI_CLUSTER_SHARE": remote_share,
+            "AGILAB_WORKFLOW_DATA_ROOT": workflow_data_root or remote_share,
+        }
     )
+    return "python3 - <<'PY'\n" + script + "PY"
 
 
 def _remote_share_mount_command(

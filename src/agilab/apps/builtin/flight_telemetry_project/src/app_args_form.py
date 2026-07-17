@@ -9,6 +9,7 @@ from typing import Any
 
 import streamlit as st
 from pydantic import ValidationError
+from agi_env.app_settings_support import read_app_settings
 from agi_env.streamlit_args import resolve_app_args_share_paths
 
 _HERE = Path(__file__).resolve().parent
@@ -57,8 +58,7 @@ def _flight_arg_field_names() -> set[str]:
 def _read_stored_args_payload(settings_path: Path) -> dict[str, Any] | None:
     if not settings_path.exists():
         return {}
-    with settings_path.open("rb") as handle:
-        doc = tomllib.load(handle)
+    doc = read_app_settings(settings_path)
     raw_payload = doc.get("args", {})
     if not isinstance(raw_payload, dict):
         return None

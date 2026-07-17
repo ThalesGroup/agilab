@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import multiprocessing
 import subprocess
 import sys
 import types
@@ -12,6 +13,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "src" / "agilab" / "agent_run.py"
+if str(ROOT) not in sys.path:
+    # Spawned workers must be able to import this test module even when
+    # pytest's importlib mode omits the checkout root from sys.path.
+    sys.path.insert(0, str(ROOT))
 
 
 def _load_module():
@@ -34,6 +39,25 @@ def _load_module():
         else:
             sys.modules["agilab"] = previous_package
     return module
+
+
+def _agent_run_process(output_dir: str, start, results) -> None:
+    module = _load_module()
+    start.wait(timeout=10)
+    try:
+        result = module.trace_agent_run(
+            [sys.executable, "-c", "import time; time.sleep(0.2)"],
+            agent="codex",
+            label="Concurrent claim",
+            cwd=ROOT,
+            output_dir=Path(output_dir),
+            run_id="same-run",
+            permission_level="standard",
+        )
+    except BaseException as exc:
+        results.put(("error", type(exc).__name__, str(exc)))
+    else:
+        results.put(("ok", result.returncode, ""))
 
 
 def test_agent_run_print_only_json_is_redacted(tmp_path: Path, capsys) -> None:
@@ -235,6 +259,301 @@ def test_trace_agent_run_public_python_api_executes_and_redacts(tmp_path: Path, 
     assert "session_start" in events
     assert "command_done" in events
     assert "sk-secret" not in events
+
+
+def test_agent_run_output_directory_is_exclusively_claimed_across_processes(tmp_path: Path) -> None:
+    context = multiprocessing.get_context("spawn")
+    start = context.Event()
+    results = context.Queue()
+    processes = [
+        context.Process(target=_agent_run_process, args=(str(tmp_path), start, results))
+        for _ in range(2)
+    ]
+    for process in processes:
+        process.start()
+    start.set()
+    outcomes = [results.get(timeout=15) for _ in processes]
+    for process in processes:
+        process.join(timeout=15)
+        assert process.exitcode == 0
+
+    assert sum(outcome[0] == "ok" for outcome in outcomes) == 1
+    collision = next(outcome for outcome in outcomes if outcome[0] == "error")
+    assert collision[1] == "FileExistsError"
+    assert "already claimed" in collision[2]
+    module = _load_module()
+    claim = json.loads((tmp_path / module.RUN_CLAIM_FILENAME).read_text(encoding="utf-8"))
+    manifest = module.load_agent_run_manifest(tmp_path)
+    assert claim["run_id"] == "same-run"
+    assert manifest["run_id"] == "same-run"
+    claim["schema"] = "agilab.agent_run.claim.invalid"
+    (tmp_path / module.RUN_CLAIM_FILENAME).write_text(
+        json.dumps(claim),
+        encoding="utf-8",
+    )
+    validation = module.validate_agent_run(tmp_path)
+    assert any(issue["code"] == "claim_schema" for issue in validation["issues"])
+    claim["schema"] = "agilab.agent_run.claim.v1"
+    claim["run_id"] = "other-run"
+    (tmp_path / module.RUN_CLAIM_FILENAME).write_text(
+        json.dumps(claim),
+        encoding="utf-8",
+    )
+    validation = module.validate_agent_run(tmp_path)
+    assert any(issue["code"] == "claim_run_id" for issue in validation["issues"])
+
+
+def test_agent_run_fixed_artifact_atomic_write_rolls_back_on_replace_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    target = tmp_path / "stdout.txt"
+    target.write_text("original", encoding="utf-8")
+    monkeypatch.setattr(module.os, "replace", lambda *_args: (_ for _ in ()).throw(OSError("replace failed")))
+
+    with pytest.raises(OSError, match="replace failed"):
+        module._atomic_write_text(target, "partial")
+
+    assert target.read_text(encoding="utf-8") == "original"
+    assert list(tmp_path.glob(".stdout.txt.*.tmp")) == []
+
+
+def test_agent_run_missing_executable_commits_terminal_failure_evidence(tmp_path: Path) -> None:
+    module = _load_module()
+
+    result = module.trace_agent_run(
+        [str(tmp_path / "missing-agent-executable")],
+        agent="codex",
+        label="Missing executable",
+        cwd=ROOT,
+        output_dir=tmp_path / "run",
+        run_id="missing-executable",
+        permission_level="standard",
+    )
+
+    assert result.returncode == 127
+    assert result.manifest["status"] == "fail"
+    assert result.manifest["termination"]["phase"] == "command launch"
+    assert result.manifest["termination"]["error_type"] == "FileNotFoundError"
+    run_dir = tmp_path / "run"
+    assert (run_dir / module.RUN_CLAIM_FILENAME).is_file()
+    assert (run_dir / module.MANIFEST_FILENAME).is_file()
+    assert "Agent run terminated during command launch" in (run_dir / module.STDERR_FILENAME).read_text(
+        encoding="utf-8"
+    )
+    summary = module.summarize_agent_run(run_dir)
+    assert summary.status == "fail"
+    assert summary.returncode == 127
+    assert module.validate_agent_run(run_dir)["ok"] is True
+
+    with pytest.raises(FileExistsError, match="already claimed"):
+        module.trace_agent_run(
+            [sys.executable, "-c", "print('must not reuse')"],
+            cwd=ROOT,
+            output_dir=run_dir,
+            run_id="missing-executable",
+            permission_level="standard",
+        )
+
+
+def test_agent_run_trace_setup_failure_commits_terminal_failure_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    original_initialize = module.AgentTraceStore.initialize
+    initialize_calls = 0
+    runner_called = False
+
+    def fail_first_initialize(store, metadata=None):
+        nonlocal initialize_calls
+        initialize_calls += 1
+        if initialize_calls == 1:
+            raise OSError("injected trace setup failure")
+        return original_initialize(store, metadata)
+
+    def runner(*_args, **_kwargs):
+        nonlocal runner_called
+        runner_called = True
+        return subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+    monkeypatch.setattr(module.AgentTraceStore, "initialize", fail_first_initialize)
+    result = module.trace_agent_run(
+        [sys.executable, "-c", "print('must not run')"],
+        cwd=ROOT,
+        output_dir=tmp_path,
+        run_id="trace-setup-failure",
+        permission_level="standard",
+        runner=runner,
+    )
+
+    assert runner_called is False
+    assert result.returncode == 125
+    assert result.manifest["status"] == "fail"
+    assert result.manifest["termination"]["phase"] == "trace setup"
+    assert result.manifest["termination"]["trace_recorded"] is True
+    assert module.summarize_agent_run(tmp_path).status == "fail"
+    assert module.validate_agent_run(tmp_path)["ok"] is True
+
+
+@pytest.mark.parametrize(
+    ("raised", "expected_returncode", "expected_status", "expected_reason"),
+    [
+        (KeyboardInterrupt("operator cancelled"), 130, "fail", "operator_cancelled"),
+        (SystemExit(17), 17, "fail", "system_exit"),
+        (SystemExit(0), 0, "pass", "system_exit"),
+        (SystemExit(None), 0, "pass", "system_exit"),
+    ],
+)
+def test_agent_run_interrupt_commits_terminal_evidence_before_reraise(
+    tmp_path: Path,
+    raised: BaseException,
+    expected_returncode: int,
+    expected_status: str,
+    expected_reason: str,
+) -> None:
+    module = _load_module()
+    config = module.AgentRunConfig(
+        agent="codex",
+        label="interrupted",
+        command=(sys.executable, "-c", "print('must not run')"),
+        cwd=ROOT,
+        output_dir=tmp_path,
+        run_id="interrupted-run",
+        timeout_seconds=30.0,
+        permission_level="standard",
+    )
+
+    def interrupted_runner(*_args, **_kwargs):
+        raise raised
+
+    with pytest.raises(type(raised)) as caught:
+        module.run_agent_command(config, runner=interrupted_runner)
+
+    if isinstance(raised, SystemExit):
+        assert caught.value.code == raised.code
+    manifest = module.load_agent_run_manifest(tmp_path)
+    assert manifest["status"] == expected_status
+    assert manifest["returncode"] == expected_returncode
+    assert manifest["termination"]["reason"] == expected_reason
+    assert manifest["termination"]["phase"] == "command launch"
+    assert manifest["termination"]["error_type"] == type(raised).__name__
+    assert (tmp_path / module.RUN_CLAIM_FILENAME).is_file()
+    assert (tmp_path / module.STDOUT_FILENAME).is_file()
+    assert type(raised).__name__ in (tmp_path / module.STDERR_FILENAME).read_text(
+        encoding="utf-8"
+    )
+    assert module.validate_agent_run(tmp_path)["ok"] is True
+
+    with pytest.raises(FileExistsError, match="already claimed"):
+        module.run_agent_command(config, runner=interrupted_runner)
+
+
+def test_agent_run_interrupt_is_not_masked_when_terminal_evidence_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    config = module.AgentRunConfig(
+        agent="codex",
+        label="interrupted",
+        command=(sys.executable, "-c", "print('must not run')"),
+        cwd=ROOT,
+        output_dir=tmp_path,
+        run_id="interrupted-evidence-failure",
+        timeout_seconds=30.0,
+        permission_level="standard",
+    )
+    interrupt = KeyboardInterrupt("operator cancelled")
+
+    def interrupted_runner(*_args, **_kwargs):
+        raise interrupt
+
+    monkeypatch.setattr(
+        module,
+        "_record_terminal_agent_run_failure",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            OSError("evidence unavailable")
+        ),
+    )
+
+    with pytest.raises(KeyboardInterrupt) as caught:
+        module.run_agent_command(config, runner=interrupted_runner)
+
+    assert caught.value is interrupt
+    assert (tmp_path / module.RUN_CLAIM_FILENAME).is_file()
+
+
+def test_agent_run_persistent_trace_failure_uses_terminal_manifest_as_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module.AgentTraceStore,
+        "initialize",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("trace storage unavailable")),
+    )
+
+    result = module.trace_agent_run(
+        [sys.executable, "-c", "print('must not run')"],
+        cwd=ROOT,
+        output_dir=tmp_path,
+        run_id="persistent-trace-failure",
+        permission_level="standard",
+    )
+
+    assert result.returncode == 125
+    assert result.manifest["status"] == "fail"
+    assert result.manifest["termination"]["phase"] == "trace setup"
+    assert result.manifest["termination"]["trace_recorded"] is False
+    assert result.manifest["termination"]["trace_error"] == "trace storage unavailable"
+    validation = module.validate_agent_run(tmp_path)
+    assert validation["ok"] is True
+    assert validation["issue_count"] == 0
+    assert {warning["code"] for warning in validation["warnings"]} == {"termination_trace"}
+    assert module.summarize_agent_run(tmp_path).status == "fail"
+
+
+def test_agent_run_publication_failure_recommits_terminal_failure_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    original_atomic_write = module._atomic_write_text
+    publication_failed = False
+
+    def fail_first_stdout_publication(path, text):
+        nonlocal publication_failed
+        if path.name == module.STDOUT_FILENAME and not publication_failed:
+            publication_failed = True
+            raise OSError("injected stdout publication failure")
+        return original_atomic_write(path, text)
+
+    monkeypatch.setattr(module, "_atomic_write_text", fail_first_stdout_publication)
+    result = module.trace_agent_run(
+        [sys.executable, "-c", "print('captured before publication failed')"],
+        cwd=ROOT,
+        output_dir=tmp_path,
+        run_id="publication-failure",
+        permission_level="standard",
+    )
+
+    assert publication_failed is True
+    assert result.returncode == 125
+    assert result.manifest["status"] == "fail"
+    assert result.manifest["termination"]["phase"] == "artifact publication"
+    assert "captured before publication failed" in (tmp_path / module.STDOUT_FILENAME).read_text(
+        encoding="utf-8"
+    )
+    assert "injected stdout publication failure" in (tmp_path / module.STDERR_FILENAME).read_text(
+        encoding="utf-8"
+    )
+    summary = module.summarize_agent_run(tmp_path)
+    assert summary.status == "fail"
+    assert summary.returncode == 125
+    assert module.validate_agent_run(tmp_path)["ok"] is True
 
 
 def test_agent_run_stamps_provider_config_and_permission_level(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1025,6 +1344,33 @@ def test_agent_run_validate_checks_artifact_presence_and_trace(tmp_path: Path, c
     assert payload["run"]["run_id"] == "agent-validate"
     assert "validation private output" not in json.dumps(payload)
 
+    trace_path = tmp_path / "agent_events.ndjson"
+    original_trace = trace_path.read_text(encoding="utf-8")
+    trace_path.write_text(
+        original_trace
+        + "{corrupt-interior-record\n"
+        + json.dumps(
+            {
+                "schema": "agilab.agent_trace.v1",
+                "event": "session_end",
+                "run_id": "agent-validate",
+                "sequence": 999,
+                "created_at": "later",
+                "status": "pass",
+                "message": "",
+                "metadata": {},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    corrupt = module.validate_agent_run(tmp_path)
+    assert corrupt["ok"] is False
+    assert "trace_events_invalid" in {
+        issue["code"] for issue in corrupt["issues"]
+    }
+    trace_path.write_text(original_trace, encoding="utf-8")
+
     assert module.main(["validate", str(tmp_path), "--json"]) == 0
     cli_payload = json.loads(capsys.readouterr().out)
     assert cli_payload["ok"] is True
@@ -1037,6 +1383,34 @@ def test_agent_run_validate_checks_artifact_presence_and_trace(tmp_path: Path, c
     markdown = capsys.readouterr().out
     assert "# AGILAB agent-run validation" in markdown
     assert "stdout artifact does not exist" in markdown
+
+
+def test_agent_run_validate_accepts_legacy_v1_manifest_without_claim(tmp_path: Path) -> None:
+    module = _load_module()
+
+    result = module.trace_agent_run(
+        [sys.executable, "-c", "print('legacy')"],
+        agent="codex",
+        label="Legacy v1 validation",
+        cwd=ROOT,
+        output_dir=tmp_path,
+        run_id="legacy-v1",
+        permission_level="standard",
+    )
+    assert result.returncode == 0
+
+    manifest_path = tmp_path / module.MANIFEST_FILENAME
+    manifest = module.load_agent_run_manifest(manifest_path)
+    manifest["artifacts"].pop("claim")
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / module.RUN_CLAIM_FILENAME).unlink()
+
+    validation = module.validate_agent_run(tmp_path)
+    assert validation["ok"] is True
+    assert validation["issue_count"] == 0
 
 
 def test_agent_run_timeout_records_timeout_status(tmp_path: Path) -> None:

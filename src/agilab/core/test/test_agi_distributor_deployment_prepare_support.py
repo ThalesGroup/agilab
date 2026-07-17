@@ -1165,6 +1165,7 @@ async def test_prepare_cluster_env_multi_ip_runs_every_step_and_writes_env_in_or
     remote_cmds = []
     kill_ips = []
     clean_ips = []
+    leased_ips = set()
     env_writes = []
 
     async def _fake_detect(_ip):
@@ -1179,10 +1180,16 @@ async def test_prepare_cluster_env_multi_ip_runs_every_step_and_writes_env_in_or
         return "ok"
 
     async def _fake_kill(ip, **_kwargs):
+        assert ip in leased_ips
         kill_ips.append(ip)
 
     async def _fake_clean(ip, **_kwargs):
+        assert ip in leased_ips
         clean_ips.append(ip)
+
+    async def _fake_acquire_lease(ip, *, cmd_prefix=None):
+        assert cmd_prefix == 'export PATH="$HOME/.local/bin:$PATH"; '
+        leased_ips.add(ip)
 
     def _record_set_env(key, value=None):
         env_writes.append((key, value))
@@ -1199,6 +1206,7 @@ async def test_prepare_cluster_env_multi_ip_runs_every_step_and_writes_env_in_or
         send_files_fn=_recording_send(sent),
         kill_fn=_fake_kill,
         clean_dirs_fn=_fake_clean,
+        acquire_remote_target_lease_fn=_fake_acquire_lease,
         set_env_var_fn=_record_set_env,
         log=mock.Mock(),
     )
@@ -1215,6 +1223,7 @@ async def test_prepare_cluster_env_multi_ip_runs_every_step_and_writes_env_in_or
         assert any("python install 3.13" in cmd for cmd in ip_cmds), ip
     assert set(kill_ips) == expected_ips
     assert set(clean_ips) == expected_ips
+    assert leased_ips == expected_ips
     # cli.py + staged pyproject sent to every worker.
     wenv_ips = {ip for ip, _items, remote_path in sent if remote_path == "wenv"}
     assert wenv_ips == expected_ips

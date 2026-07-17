@@ -15,11 +15,15 @@ import importlib.resources as importlib_resources
 import importlib.util
 import textwrap
 import sys
+import threading
 import time
+from collections.abc import MutableMapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlencode
 from agi_env.agi_logger import AgiLogger
+from agi_env.ui.sidecar_registry import isolated_import_process_state
 from agilab.ui.page_bootstrap import configure_page_config
 
 try:
@@ -431,12 +435,76 @@ FIRST_PROOF_HELPER_SCRIPT_PREFIXES = (
     "AGI_run_",
     "AGI_get_",
 )
-_NAVIGATION_PAGE_ROUTES: Dict[str, Any] = {}
+_NAVIGATION_PAGE_ROUTES_SESSION_KEY = "_agilab_navigation_page_routes"
+
+
+def _session_navigation_routes(*, create: bool = True) -> dict[str, Any]:
+    """Return only this Streamlit session's registered page objects."""
+
+    session_state = getattr(st, "session_state", None)
+    if session_state is None:
+        return {}
+    routes = session_state.get(_NAVIGATION_PAGE_ROUTES_SESSION_KEY)
+    if isinstance(routes, dict):
+        return routes
+    if not create:
+        return {}
+    routes = {}
+    session_state[_NAVIGATION_PAGE_ROUTES_SESSION_KEY] = routes
+    return routes
+
+
+class _SessionNavigationRoutes(MutableMapping[str, Any]):
+    """Compatibility mapping which resolves against the active session."""
+
+    def __getitem__(self, key: str) -> Any:
+        return _session_navigation_routes()[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        _session_navigation_routes()[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        del _session_navigation_routes()[key]
+
+    def __iter__(self):
+        return iter(_session_navigation_routes(create=False))
+
+    def __len__(self) -> int:
+        return len(_session_navigation_routes(create=False))
+
+
+# Compatibility surface consumed by page helpers. It never owns a Page itself;
+# every operation delegates to the currently active Streamlit session.
+_NAVIGATION_PAGE_ROUTES: MutableMapping[str, Any] = _SessionNavigationRoutes()
+
+
+@dataclass(frozen=True)
+class _NavigationPageSpec:
+    source: Any
+    title: str
+    url_path: str
+    route_ids: tuple[str, ...] = ()
+    default: bool = False
+    visibility: str | None = None
+
+    def instantiate(self) -> Any:
+        kwargs: dict[str, Any] = {
+            "title": self.title,
+            "url_path": self.url_path,
+        }
+        if self.default:
+            kwargs["default"] = True
+        if self.visibility is not None:
+            kwargs["visibility"] = self.visibility
+        return st.Page(self.source, **kwargs)
+
+
 _NAVIGATION_PAGE_CACHE: Dict[
     tuple[tuple[tuple[str, int, int], ...], str],
-    tuple[list[Any], Dict[str, Any]],
+    tuple[_NavigationPageSpec, ...],
 ] = {}
 _PAGE_MODULE_CACHE: Dict[Path, tuple[int, int, str, Any]] = {}
+_PAGE_MODULE_LOAD_LOCK = threading.RLock()
 _PAGE_RUNNER_CACHE: Dict[Path, Callable[[], None]] = {}
 _PAGE_MODULE_NAME_CACHE: Dict[str, str] = {}
 _RESOLVED_PAGE_PATH_CACHE: Dict[str, Path] = {}
@@ -1185,13 +1253,12 @@ def _render_settings_page_entry() -> None:
 
 
 def _navigation_pages() -> list[Any]:
-    """Return the supported navigation pages."""
+    """Return fresh Streamlit pages built from cached immutable specifications."""
     root = _AGILAB_ROOT
     if (
         os.environ.get("AGILAB_DISABLE_NAVIGATION_PAGE_CACHE") == "1"
         or _page_caching_disabled()
     ):
-        _NAVIGATION_PAGE_ROUTES.clear()
         _NAVIGATION_PAGE_CACHE.clear()
     if _page_caching_disabled():
         _PAGE_MODULE_CACHE.clear()
@@ -1206,91 +1273,77 @@ def _navigation_pages() -> list[Any]:
     cached = _NAVIGATION_PAGE_CACHE.get(navigation_signature)
     if cached is not None:
         _record_page_cache_stat("navigation_hit")
-        page_list, route_map = cached
-        _NAVIGATION_PAGE_ROUTES.clear()
-        _NAVIGATION_PAGE_ROUTES.update(route_map)
-        return page_list
-    _record_page_cache_stat("navigation_miss")
+        specs = cached
+    else:
+        _record_page_cache_stat("navigation_miss")
+        specs = (
+            _NavigationPageSpec(
+                _render_about_page_entry,
+                title="ABOUT",
+                url_path="",
+                default=True,
+                visibility="hidden",
+            ),
+            _NavigationPageSpec(
+                _SETTINGS_PAGE_FILE,
+                title="SETTINGS",
+                url_path="SETTINGS",
+                route_ids=("settings",),
+                visibility="hidden",
+            ),
+            _NavigationPageSpec(
+                _page_file_runner(_PROJECT_STATUS_PAGE_FILE),
+                title="PROJECT",
+                url_path="PROJECT",
+                route_ids=("project", "project_status"),
+            ),
+            _NavigationPageSpec(
+                _page_file_runner(_PROJECT_PAGE_FILE),
+                title="PROJECT EDITOR",
+                url_path="PROJECT_EDITOR",
+                route_ids=("project_editor",),
+                visibility="hidden",
+            ),
+            _NavigationPageSpec(
+                _page_file_runner(_PROJECT_PAGE_FILE),
+                title="PROJECT EDITOR",
+                url_path="PROJECT_EDIT",
+                route_ids=("project_edit",),
+                visibility="hidden",
+            ),
+            _NavigationPageSpec(
+                _page_file_runner(_PROJECT_STATUS_PAGE_FILE),
+                title="PROJECT",
+                url_path="PROJECT_STATUS",
+                visibility="hidden",
+            ),
+            _NavigationPageSpec(
+                _page_file_runner(_ORCHESTRATE_PAGE_FILE),
+                title="ORCHESTRATE",
+                url_path="ORCHESTRATE",
+                route_ids=("orchestrate",),
+            ),
+            _NavigationPageSpec(
+                _page_file_runner(_WORKFLOW_PAGE_FILE),
+                title="WORKFLOW",
+                url_path="WORKFLOW",
+                route_ids=("workflow",),
+            ),
+            _NavigationPageSpec(
+                _page_file_runner(_ANALYSIS_PAGE_FILE),
+                title="ANALYSIS",
+                url_path="ANALYSIS",
+                route_ids=("analysis",),
+            ),
+        )
+        _NAVIGATION_PAGE_CACHE[navigation_signature] = specs
 
-    main_page = st.Page(
-        _render_about_page_entry,
-        title="ABOUT",
-        url_path="",
-        default=True,
-        visibility="hidden",
-    )
-    settings_nav_page = st.Page(
-        _SETTINGS_PAGE_FILE,
-        title="SETTINGS",
-        url_path="SETTINGS",
-        visibility="hidden",
-    )
-    project_page = st.Page(
-        _page_file_runner(_PROJECT_STATUS_PAGE_FILE),
-        title="PROJECT",
-        url_path="PROJECT",
-    )
-    project_editor_page = st.Page(
-        _page_file_runner(_PROJECT_PAGE_FILE),
-        title="PROJECT EDITOR",
-        url_path="PROJECT_EDITOR",
-        visibility="hidden",
-    )
-    project_edit_legacy_page = st.Page(
-        _page_file_runner(_PROJECT_PAGE_FILE),
-        title="PROJECT EDITOR",
-        url_path="PROJECT_EDIT",
-        visibility="hidden",
-    )
-    project_status_legacy_page = st.Page(
-        _page_file_runner(_PROJECT_STATUS_PAGE_FILE),
-        title="PROJECT",
-        url_path="PROJECT_STATUS",
-        visibility="hidden",
-    )
-    orchestrate_page = st.Page(
-        _page_file_runner(_ORCHESTRATE_PAGE_FILE),
-        title="ORCHESTRATE",
-        url_path="ORCHESTRATE",
-    )
-    workflow_page = st.Page(
-        _page_file_runner(_WORKFLOW_PAGE_FILE),
-        title="WORKFLOW",
-        url_path="WORKFLOW",
-    )
-    analysis_page = st.Page(
-        _page_file_runner(_ANALYSIS_PAGE_FILE),
-        title="ANALYSIS",
-        url_path="ANALYSIS",
-    )
-    _NAVIGATION_PAGE_ROUTES.clear()
-    _NAVIGATION_PAGE_ROUTES.update(
-        {
-            "settings": settings_nav_page,
-            "project": project_page,
-            "project_status": project_page,
-            "project_editor": project_editor_page,
-            "project_edit": project_edit_legacy_page,
-            "orchestrate": orchestrate_page,
-            "workflow": workflow_page,
-            "analysis": analysis_page,
-        }
-    )
-    page_list = [
-        main_page,
-        settings_nav_page,
-        project_page,
-        project_editor_page,
-        project_edit_legacy_page,
-        project_status_legacy_page,
-        orchestrate_page,
-        workflow_page,
-        analysis_page,
-    ]
-    _NAVIGATION_PAGE_CACHE[navigation_signature] = (
-        page_list,
-        dict(_NAVIGATION_PAGE_ROUTES),
-    )
+    page_list = [spec.instantiate() for spec in specs]
+    session_routes = _session_navigation_routes()
+    session_routes.clear()
+    for spec, page in zip(specs, page_list):
+        for route_id in spec.route_ids:
+            session_routes[route_id] = page
     return page_list
 
 
@@ -1313,42 +1366,43 @@ def _page_module_name(page_file: Path) -> str:
 
 def _load_page_module(page_file: Path) -> Any:
     """Load a Streamlit page module once per source version to reduce rerun latency."""
-    resolved_page = _resolve_page_path(page_file)
-    stat = resolved_page.stat()
-    module_cache_disabled = (
-        _page_caching_disabled()
-        or os.environ.get("AGILAB_DISABLE_PAGE_MODULE_CACHE") == "1"
-    )
-    cached = _PAGE_MODULE_CACHE.get(resolved_page)
-    if (
-        not module_cache_disabled
-        and cached is not None
-        and cached[0] == stat.st_mtime_ns
-        and cached[1] == stat.st_size
-    ):
-        _record_page_cache_stat("page_module_hit")
-        return cached[3]
-    _record_page_cache_stat("page_module_miss")
-
-    module_name = cached[2] if cached is not None else _page_module_name(resolved_page)
-    spec = importlib.util.spec_from_file_location(module_name, resolved_page)
-    if spec is None or spec.loader is None:
-        raise ModuleNotFoundError(f"Unable to load page from {resolved_page}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    try:
-        spec.loader.exec_module(module)
-    except Exception:
-        sys.modules.pop(module_name, None)
-        raise
-    if not module_cache_disabled:
-        _PAGE_MODULE_CACHE[resolved_page] = (
-            stat.st_mtime_ns,
-            stat.st_size,
-            module_name,
-            module,
+    with isolated_import_process_state(), _PAGE_MODULE_LOAD_LOCK:
+        resolved_page = _resolve_page_path(page_file)
+        stat = resolved_page.stat()
+        module_cache_disabled = (
+            _page_caching_disabled()
+            or os.environ.get("AGILAB_DISABLE_PAGE_MODULE_CACHE") == "1"
         )
-    return module
+        cached = _PAGE_MODULE_CACHE.get(resolved_page)
+        if (
+            not module_cache_disabled
+            and cached is not None
+            and cached[0] == stat.st_mtime_ns
+            and cached[1] == stat.st_size
+        ):
+            _record_page_cache_stat("page_module_hit")
+            return cached[3]
+        _record_page_cache_stat("page_module_miss")
+
+        module_name = cached[2] if cached is not None else _page_module_name(resolved_page)
+        spec = importlib.util.spec_from_file_location(module_name, resolved_page)
+        if spec is None or spec.loader is None:
+            raise ModuleNotFoundError(f"Unable to load page from {resolved_page}")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        try:
+            spec.loader.exec_module(module)
+        except Exception:
+            sys.modules.pop(module_name, None)
+            raise
+        if not module_cache_disabled:
+            _PAGE_MODULE_CACHE[resolved_page] = (
+                stat.st_mtime_ns,
+                stat.st_size,
+                module_name,
+                module,
+            )
+        return module
 
 
 def _page_file_runner(page_file: Path) -> Callable[[], None]:
@@ -1386,21 +1440,22 @@ def _page_file_runner(page_file: Path) -> Callable[[], None]:
         _record_ui_timing_span(
             f"{page_label}:bootstrap", bootstrap_started_at, category="bootstrap"
         )
-        import_started_at = time.perf_counter()
-        module = _load_page_module(resolved_page)
-        _record_ui_timing_span(
-            f"{page_label}:import", import_started_at, category="import"
-        )
-        main_fn = getattr(module, "main", None)
-        if main_fn is None:
-            raise AttributeError(
-                f"Page {resolved_page} does not expose a main() function"
+        with isolated_import_process_state():
+            import_started_at = time.perf_counter()
+            module = _load_page_module(resolved_page)
+            _record_ui_timing_span(
+                f"{page_label}:import", import_started_at, category="import"
             )
-        render_started_at = time.perf_counter()
-        if inspect.iscoroutinefunction(main_fn):
-            asyncio.run(main_fn())
-        else:
-            main_fn()
+            main_fn = getattr(module, "main", None)
+            if main_fn is None:
+                raise AttributeError(
+                    f"Page {resolved_page} does not expose a main() function"
+                )
+            render_started_at = time.perf_counter()
+            if inspect.iscoroutinefunction(main_fn):
+                asyncio.run(main_fn())
+            else:
+                main_fn()
         _record_ui_timing_span(
             f"{page_label}:render", render_started_at, category="render"
         )

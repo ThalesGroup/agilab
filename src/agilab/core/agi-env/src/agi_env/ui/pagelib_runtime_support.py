@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 from agi_env import mlflow_store
+from agi_env.ui.sidecar_registry import SidecarRegistryError
 
 
 _SHELL_METACHARS = frozenset(";&|<>\n\r`$")
@@ -235,12 +236,25 @@ def activate_mlflow(
     wait_for_listen_port_fn,
     subproc_fn,
     cwd,
+    sidecar_registry=None,
 ) -> bool | None:
     """Start the local MLflow server and persist its runtime state."""
     if not env:
         return None
+
+    session_state["server_started"] = False
+    for state_key in (
+        "mlflow_port",
+        "mlflow_endpoint",
+        "mlflow_health_signature",
+    ):
+        session_state.pop(state_key, None)
     if session_state.get("mlflow_autostart_disabled"):
-        return False
+        if sidecar_registry is None:
+            return False
+        # Registry contention and ownership checks are transient. A later
+        # rerun must revalidate a service another session may have published.
+        session_state.pop("mlflow_autostart_disabled", None)
 
     session_state["rapids_default"] = True
     tracking_dir = resolve_mlflow_tracking_dir_fn(env)
@@ -248,36 +262,92 @@ def activate_mlflow(
         logger.info(f"mkdir {tracking_dir}")
     tracking_dir.mkdir(parents=True, exist_ok=True)
     env.MLFLOW_TRACKING_DIR = str(tracking_dir)
+    tracking_scope = str(tracking_dir.resolve(strict=False))
+    log_path = tracking_dir / "mlflow-server.log"
 
-    port = next_free_port_fn()
     try:
-        backend_uri = ensure_default_mlflow_experiment_fn(tracking_dir) or ensure_mlflow_backend_ready_fn(
-            tracking_dir
-        )
-        artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
-        cmd = mlflow_store.mlflow_cli_argv(
-            [
-                "server",
-                "--backend-store-uri",
-                backend_uri,
-                "--default-artifact-root",
-                artifact_uri,
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(port),
-            ],
-            sys_executable=sys.executable,
-        )
-        log_path = tracking_dir / "mlflow-server.log"
-        process = _launch_mlflow_server(subproc_fn, cmd, cwd, log_path=log_path)
-        if not wait_for_listen_port_fn(port):
+        def _command(
+            owned_port: int,
+            *,
+            backend_uri: str,
+            artifact_uri: str,
+        ) -> list[str]:
+            return mlflow_store.mlflow_cli_argv(
+                [
+                    "server",
+                    "--backend-store-uri",
+                    backend_uri,
+                    "--default-artifact-root",
+                    artifact_uri,
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    str(owned_port),
+                ],
+                sys_executable=sys.executable,
+            )
+
+        process = None
+        if sidecar_registry is not None:
+            with sidecar_registry.preparation_guard(
+                service_kind="mlflow",
+                project=tracking_scope,
+                key=tracking_scope,
+            ):
+                lease = sidecar_registry.get(
+                    service_kind="mlflow",
+                    project=tracking_scope,
+                    key=tracking_scope,
+                )
+                if lease is None:
+                    backend_uri = ensure_default_mlflow_experiment_fn(
+                        tracking_dir
+                    ) or ensure_mlflow_backend_ready_fn(tracking_dir)
+                    artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
+                    lease = sidecar_registry.ensure(
+                        service_kind="mlflow",
+                        project=tracking_scope,
+                        key=tracking_scope,
+                        launcher=lambda owned_port, _token: _launch_mlflow_server(
+                            subproc_fn,
+                            _command(
+                                owned_port,
+                                backend_uri=backend_uri,
+                                artifact_uri=artifact_uri,
+                            ),
+                            cwd,
+                            log_path=log_path,
+                        ),
+                    )
+            port = lease.port
+            endpoint = lease.endpoint
+            session_state["mlflow_health_signature"] = lease.health_signature
+        else:
+            backend_uri = ensure_default_mlflow_experiment_fn(
+                tracking_dir
+            ) or ensure_mlflow_backend_ready_fn(tracking_dir)
+            artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
+            port = next_free_port_fn()
+            endpoint = f"http://127.0.0.1:{port}"
+            process = _launch_mlflow_server(
+                subproc_fn,
+                _command(
+                    port,
+                    backend_uri=backend_uri,
+                    artifact_uri=artifact_uri,
+                ),
+                cwd,
+                log_path=log_path,
+            )
+
+        if sidecar_registry is None and not wait_for_listen_port_fn(port):
             session_state["server_started"] = False
             session_state["mlflow_autostart_disabled"] = True
             session_state["mlflow_log_path"] = str(log_path)
             session_state.pop("mlflow_port", None)
-            _terminate_process_tree(process)
-            poll = getattr(process, "poll", None)
+            if process is not None:
+                _terminate_process_tree(process)
+            poll = getattr(process, "poll", None) if process is not None else None
             returncode = poll() if callable(poll) else None
             status = (
                 f"Failed to start the MLflow server: the process did not open its listening port. "
@@ -290,7 +360,10 @@ def activate_mlflow(
             return False
         session_state["server_started"] = True
         session_state["mlflow_port"] = port
+        session_state["mlflow_endpoint"] = endpoint
         session_state["mlflow_log_path"] = str(log_path)
+        session_state.pop("mlflow_autostart_disabled", None)
+        session_state.pop("mlflow_status_message", None)
         return True
     except mlflow_store.MissingMlflowCliError as exc:
         session_state["server_started"] = False
@@ -300,6 +373,16 @@ def activate_mlflow(
         warning = getattr(streamlit, "warning", None)
         if callable(warning):
             warning(f"MLflow is optional and was not started automatically. {exc}")
+        return False
+    except SidecarRegistryError as exc:
+        log_path = tracking_dir / "mlflow-server.log"
+        status = f"{exc}. Startup log: {log_path}"
+        session_state["server_started"] = False
+        session_state.pop("mlflow_autostart_disabled", None)
+        session_state["mlflow_log_path"] = str(log_path)
+        session_state["mlflow_status_message"] = status
+        session_state.pop("mlflow_port", None)
+        streamlit.error(f"Failed to start the server: {status}")
         return False
     except (RuntimeError, OSError, ValueError, AttributeError) as exc:
         session_state["server_started"] = False
@@ -318,14 +401,26 @@ def activate_gpt_oss(
     cwd,
     os_module=os,
     sys_module=sys,
+    sidecar_registry=None,
 ) -> bool:
     """Start a local GPT-OSS Responses API server when the dependency is available."""
     if not env:
         return False
 
-    if session_state.get("gpt_oss_server_started"):
+    if session_state.get("gpt_oss_server_started") and sidecar_registry is None:
         return True
 
+    for state_key in (
+        "gpt_oss_server_started",
+        "gpt_oss_port",
+        "gpt_oss_endpoint",
+        "gpt_oss_health_signature",
+        "gpt_oss_backend_active",
+        "gpt_oss_checkpoint_active",
+        "gpt_oss_extra_args_active",
+    ):
+        session_state.pop(state_key, None)
+    env.envars.pop("GPT_OSS_ENDPOINT", None)
     session_state.pop("gpt_oss_autostart_failed", None)
     try:
         import gpt_oss  # noqa: F401  # ty: ignore[unresolved-import]
@@ -379,28 +474,62 @@ def activate_gpt_oss(
     else:
         env.envars.pop("GPT_OSS_EXTRA_ARGS", None)
 
-    port = next_free_port_fn()
-    cmd = [
-        python_exec,
-        "-m",
-        "gpt_oss.responses_api.serve",
-        "--inference-backend",
-        backend,
-        "--port",
-        str(int(port)),
-    ]
-    if checkpoint and backend != "stub":
-        cmd.extend(["--checkpoint", checkpoint])
-    cmd.extend(extra_argv)
+    def _command(owned_port: int) -> list[str]:
+        cmd = [
+            python_exec,
+            "-m",
+            "gpt_oss.responses_api.serve",
+            "--inference-backend",
+            backend,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(int(owned_port)),
+        ]
+        if checkpoint and backend != "stub":
+            cmd.extend(["--checkpoint", checkpoint])
+        cmd.extend(extra_argv)
+        return cmd
+
+    active_app = getattr(env, "active_app", None)
+    if active_app:
+        project_scope = str(Path(active_app).expanduser().resolve(strict=False))
+    else:
+        apps_path = getattr(env, "apps_path", None)
+        app_name = str(getattr(env, "app", "") or "").strip()
+        if apps_path and app_name:
+            project_scope = str(
+                (Path(apps_path).expanduser() / app_name).resolve(strict=False)
+            )
+        else:
+            project_scope = str(Path(cwd).expanduser().resolve(strict=False))
 
     try:
-        subproc_fn(cmd, cwd)
+        if sidecar_registry is not None:
+            lease = sidecar_registry.ensure(
+                service_kind="gpt-oss",
+                project=project_scope,
+                key="|".join((backend, checkpoint, extra_args, str(python_exec))),
+                launcher=lambda owned_port, _token: subproc_fn(
+                    _command(owned_port),
+                    cwd,
+                    start_new_session=True,
+                ),
+                endpoint_builder=lambda owned_port: f"http://127.0.0.1:{owned_port}/v1/responses",
+                exclusive_for_project=True,
+            )
+            port = lease.port
+            endpoint = lease.endpoint
+            session_state["gpt_oss_health_signature"] = lease.health_signature
+        else:
+            port = next_free_port_fn()
+            subproc_fn(_command(port), cwd)
+            endpoint = f"http://127.0.0.1:{port}/v1/responses"
     except (RuntimeError, OSError, ValueError) as exc:
         streamlit.error(f"Failed to start GPT-OSS server: {exc}")
         session_state["gpt_oss_autostart_failed"] = True
         return False
 
-    endpoint = f"http://127.0.0.1:{port}/v1/responses"
     session_state["gpt_oss_server_started"] = True
     session_state["gpt_oss_port"] = port
     session_state["gpt_oss_endpoint"] = endpoint

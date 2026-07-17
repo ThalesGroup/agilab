@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import builtins
 import importlib.util
 import sys
+import threading
+import time
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
+
+import pytest
 
 MODULE_PATH = Path("src/agilab/app_surface.py")
+IMPLEMENTATION_MODULE_PATH = Path("src/agilab/app_management/app_surface.py")
 
 
 def _load_app_surface_module():
@@ -15,6 +21,30 @@ def _load_app_surface_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def test_base_app_surface_import_does_not_require_optional_agi_env(
+    monkeypatch,
+) -> None:
+    real_import = builtins.__import__
+
+    def _without_agi_env(name, *args, **kwargs):
+        if name == "agi_env" or name.startswith("agi_env."):
+            raise ModuleNotFoundError("No module named 'agi_env'", name="agi_env")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _without_agi_env)
+    spec = importlib.util.spec_from_file_location(
+        "agilab_app_surface_base_import_test",
+        IMPLEMENTATION_MODULE_PATH,
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    with pytest.raises(ModuleNotFoundError, match=r"agilab\[ui\]"):
+        module._isolated_import_process_state()
 
 
 def _write_app_surface_project(tmp_path: Path) -> Path:
@@ -156,6 +186,103 @@ def test_render_app_surface_calls_project_render_hook_and_restores_argv(tmp_path
         }
     ]
     assert sys.argv == before_argv
+
+
+def test_render_app_surface_serializes_and_restores_project_import_state(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_app_surface_module()
+    coordination = ModuleType("agilab_app_surface_test_coordination")
+    coordination.lock = threading.Lock()
+    coordination.alpha_started = threading.Event()
+    coordination.release_alpha = threading.Event()
+    coordination.records = []
+    coordination.active = 0
+    coordination.max_active = 0
+
+    def _enter(value: str, argv: list[str]) -> None:
+        with coordination.lock:
+            coordination.active += 1
+            coordination.max_active = max(
+                coordination.max_active,
+                coordination.active,
+            )
+            coordination.records.append((value, list(argv)))
+        if value == "alpha":
+            coordination.alpha_started.set()
+            assert coordination.release_alpha.wait(timeout=5)
+
+    def _exit() -> None:
+        with coordination.lock:
+            coordination.active -= 1
+
+    coordination.enter = _enter
+    coordination.exit = _exit
+    monkeypatch.setitem(sys.modules, coordination.__name__, coordination)
+
+    apps: list[tuple[Path, Path]] = []
+    for app_name in ("alpha", "beta"):
+        active_app = tmp_path / f"{app_name}_project"
+        source_root = active_app / "src"
+        source_root.mkdir(parents=True)
+        (source_root / "helper.py").write_text(
+            f'VALUE = "{app_name}"\n',
+            encoding="utf-8",
+        )
+        entrypoint = source_root / "app_surface.py"
+        entrypoint.write_text(
+            "import sys\n"
+            "import helper\n"
+            "import agilab_app_surface_test_coordination as coordination\n\n"
+            "def render(**_kwargs):\n"
+            "    coordination.enter(helper.VALUE, sys.argv)\n"
+            "    coordination.exit()\n",
+            encoding="utf-8",
+        )
+        apps.append((entrypoint, active_app))
+
+    original_argv = list(sys.argv)
+    original_path = list(sys.path)
+    original_helper = sys.modules.get("helper")
+    errors: list[BaseException] = []
+
+    def _render(entrypoint: Path, active_app: Path) -> None:
+        try:
+            assert module.render_app_surface(
+                active_app,
+                mode="analysis",
+                config={"app_surface": {"entrypoint": entrypoint.name}},
+            )
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    first = threading.Thread(target=_render, args=apps[0])
+    second = threading.Thread(target=_render, args=apps[1])
+    first.start()
+    assert coordination.alpha_started.wait(timeout=5)
+    second.start()
+    time.sleep(0.05)
+    assert coordination.max_active == 1
+    coordination.release_alpha.set()
+    first.join(timeout=5)
+    second.join(timeout=5)
+
+    assert all(not worker.is_alive() for worker in (first, second))
+    assert errors == []
+    assert [record[0] for record in coordination.records] == ["alpha", "beta"]
+    for (entrypoint, active_app), (_value, argv) in zip(
+        apps,
+        coordination.records,
+    ):
+        assert argv == [str(entrypoint), "--active-app", str(active_app)]
+    assert coordination.max_active == 1
+    assert sys.argv == original_argv
+    assert sys.path == original_path
+    assert sys.modules.get("helper") is original_helper
+    assert not any(
+        name.startswith("_agilab_app_surface_") for name in sys.modules
+    )
 
 
 def test_app_surface_config_and_selection_edge_cases(tmp_path: Path) -> None:

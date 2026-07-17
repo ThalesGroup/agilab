@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
@@ -15,6 +16,29 @@ DEPLOY_TIMING_TRACE_SCHEMA = "agilab-deploy-timing-v1"
 DEPLOY_STAGE_CACHE_HASH_LIMIT = 8 * 1024 * 1024
 DEPLOY_COPY_STAMP_SCHEMA = "agilab-deploy-copy-stamp-v1"
 DEPLOY_COPY_STAMP_FILENAME = ".agilab-copy-stamp.json"
+
+
+def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    """Publish JSON through a unique same-directory temporary file."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=str(path.parent),
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
 
 def _env_value(envars: Any, key: str) -> str | None:
     raw = os.environ.get(key)
@@ -65,13 +89,7 @@ def _write_deploy_stage_cache(path: Path, state: dict[str, Any]) -> None:
         "stages": state.get("stages") if isinstance(state.get("stages"), dict) else {},
     }
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_name(f"{path.name}.tmp")
-        tmp_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        tmp_path.replace(path)
+        _atomic_write_json(path, payload)
     except OSError:
         return
 
@@ -96,13 +114,7 @@ def _write_deploy_timing_trace(
         "results": results,
     }
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_name(f"{path.name}.tmp")
-        tmp_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        tmp_path.replace(path)
+        _atomic_write_json(path, payload)
     except OSError:
         return
 
@@ -242,13 +254,7 @@ def _deploy_copy_stamp_matches(
 
 def _write_deploy_copy_stamp(stamp_path: Path, payload: dict[str, Any]) -> None:
     try:
-        stamp_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = stamp_path.with_name(f"{stamp_path.name}.tmp")
-        tmp_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        tmp_path.replace(stamp_path)
+        _atomic_write_json(stamp_path, payload)
     except OSError:
         return
 

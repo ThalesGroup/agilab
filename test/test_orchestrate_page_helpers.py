@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+from concurrent.futures import ThreadPoolExecutor
 import importlib
 import importlib.util
 import json
@@ -223,6 +224,78 @@ def test_orchestrate_readiness_cards_use_compact_path_captions(tmp_path):
         == "3 files"
     )
     assert module._compact_path_caption("short status") == "short status"
+
+
+def test_orchestrate_flight_imports_are_app_scoped_and_restore_process_state(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_orchestrate_module()
+
+    def _build_app(project: str):
+        app_root = tmp_path / f"{project}_project"
+        app_src = app_root / "src"
+        app_src.mkdir(parents=True)
+        settings_file = app_src / "app_settings.toml"
+        settings_file.write_text("", encoding="utf-8")
+        (app_src / "flight_telemetry.py").write_text(
+            "\n".join(
+                [
+                    "from pathlib import Path",
+                    f"PROJECT = {project!r}",
+                    "class FlightArgs:",
+                    "    def __init__(self, **payload):",
+                    "        self.payload = payload",
+                    "    def to_toml_payload(self):",
+                    "        return {'project': PROJECT, **self.payload}",
+                    "def apply_source_defaults(args):",
+                    "    return args",
+                    "def load_args_from_toml(_path):",
+                    "    return FlightArgs(loaded=True)",
+                    "def dump_args_to_toml(_args, path):",
+                    "    Path(path).write_text(PROJECT, encoding='utf-8')",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return SimpleNamespace(
+            active_app=app_root,
+            app_settings_file=settings_file,
+        )
+
+    alpha_env = _build_app("alpha")
+    beta_env = _build_app("beta")
+    sentinel = types.ModuleType("flight_telemetry")
+    sentinel.PROJECT = "sentinel"
+    monkeypatch.setitem(sys.modules, "flight_telemetry", sentinel)
+    original_path = list(sys.path)
+
+    def _exercise(env, project: str):
+        loaded = module._load_flight_args_payload(env)
+        persisted = module._persist_flight_args_payload(env, {"value": project})
+        return loaded, persisted, Path(env.app_settings_file).read_text(encoding="utf-8")
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        alpha_future = executor.submit(_exercise, alpha_env, "alpha")
+        beta_future = executor.submit(_exercise, beta_env, "beta")
+        alpha_result = alpha_future.result(timeout=5)
+        beta_result = beta_future.result(timeout=5)
+
+    assert alpha_result == (
+        {"project": "alpha", "loaded": True},
+        {"project": "alpha", "value": "alpha"},
+        "alpha",
+    )
+    assert beta_result == (
+        {"project": "beta", "loaded": True},
+        {"project": "beta", "value": "beta"},
+        "beta",
+    )
+    assert sys.path == original_path
+    assert sys.modules["flight_telemetry"] is sentinel
+    assert str(alpha_env.active_app / "src") not in sys.path
+    assert str(beta_env.active_app / "src") not in sys.path
 
 
 def test_orchestrate_workplan_chunk_rendering_accepts_rich_chunk_records():

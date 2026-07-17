@@ -9,7 +9,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, MutableMapping, Optional
 
+from agi_env.app_settings_support import update_app_settings
 from agi_env.credential_store_support import CLUSTER_CREDENTIALS_KEY, KEYRING_SENTINEL
+from agi_env.ui.sidecar_registry import hosted_inline_render_guard
 
 try:  # pragma: no cover - optional import fallback is exercised through behavior tests
     import tomli_w as _tomli_writer
@@ -69,7 +71,8 @@ def parse_startup_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="App name or path to select on startup (mirrors ?active_app= query parameter).",
         default=None,
     )
-    args, _ = parser.parse_known_args(argv)
+    with hosted_inline_render_guard():
+        args, _ = parser.parse_known_args(argv)
     return args
 
 
@@ -196,26 +199,29 @@ def _existing_env_matches_apps_path(env: Any, apps_path: Path) -> bool:
     return False
 
 
-def _recover_existing_env_for_apps_path(agi_env_cls: Any, apps_path: Path) -> Any | None:
-    current = getattr(agi_env_cls, "current", None)
-    if not callable(current):
-        return None
-    try:
-        env = current()
-    except RuntimeError:
-        return None
-    return env if _existing_env_matches_apps_path(env, apps_path) else None
+def _streamlit_session_factory(agi_env_cls: Any) -> Callable[..., Any]:
+    """Return the required UI factory or fail with an upgrade path."""
+    session_factory = getattr(agi_env_cls, "session", None)
+    if not callable(session_factory):
+        raise RuntimeError(
+            "This AGILAB UI requires AgiEnv.session() so each Streamlit session "
+            "owns an isolated environment. Upgrade agi-env, restart AGILAB, and "
+            "open a new browser session."
+        )
+    return session_factory
 
 
-def _reset_agi_env_singleton(agi_env_cls: Any) -> bool:
-    reset = getattr(agi_env_cls, "reset", None)
-    if not callable(reset):
-        return False
-    try:
-        reset()
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        return False
-    return True
+def _create_streamlit_session_env(agi_env_cls: Any, *, apps_path: Path, verbose: int) -> Any:
+    """Create a UI-owned environment without borrowing the CLI singleton."""
+
+    session_factory = _streamlit_session_factory(agi_env_cls)
+    env = session_factory(apps_path=apps_path, verbose=verbose)
+    if not getattr(env, "_agilab_session_scoped", False):
+        raise RuntimeError(
+            "AgiEnv.session() returned a legacy shared environment. Upgrade agi-env, "
+            "restart AGILAB, and open a new browser session."
+        )
+    return env
 
 
 def persist_preinit_launch_env(
@@ -447,13 +453,33 @@ def _rebootstrap_active_app_path(env: Any, target_path: Path, target_name: str, 
     """Switch to a resolved project path without using name-only change_app."""
     previous_init_done = getattr(env, "init_done", None)
     try:
-        type(env).__init__(
-            env,
-            apps_path=target_path.parent,
-            app=target_name,
-            verbose=getattr(env, "verbose", None),
-            _agilab_reinitialize=True,
-        )
+        reinitialize = getattr(env, "reinitialize_for_app", None)
+        if callable(reinitialize):
+            reinitialize(
+                apps_path=target_path.parent,
+                app=target_name,
+                verbose=getattr(env, "verbose", None),
+            )
+        else:
+            env_cls = type(env)
+            lock = getattr(env_cls, "_lock", None)
+            if lock is None:
+                env_cls.__init__(
+                    env,
+                    apps_path=target_path.parent,
+                    app=target_name,
+                    verbose=getattr(env, "verbose", None),
+                    _agilab_reinitialize=True,
+                )
+            else:
+                with lock:
+                    env_cls.__init__(
+                        env,
+                        apps_path=target_path.parent,
+                        app=target_name,
+                        verbose=getattr(env, "verbose", None),
+                        _agilab_reinitialize=True,
+                    )
         if previous_init_done is not None:
             env.init_done = previous_init_done
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -637,14 +663,21 @@ def disable_cluster_in_app_settings(settings_path: Path) -> bool:
         raise RuntimeError("Writing settings requires the 'tomli-w' package.")
     if not settings_path.exists():
         return False
-    payload = tomllib.loads(settings_path.read_text(encoding="utf-8"))
-    cluster = payload.get("cluster")
-    if not isinstance(cluster, dict) or cluster.get("cluster_enabled") is False:
-        return False
-    cluster["cluster_enabled"] = False
-    with settings_path.open("wb") as handle:
-        _tomli_writer.dump(payload, handle)
-    return True
+
+    def _disable_cluster(payload: dict[str, Any]) -> bool:
+        cluster = payload.get("cluster")
+        if not isinstance(cluster, dict) or cluster.get("cluster_enabled") is False:
+            return False
+        cluster["cluster_enabled"] = False
+        return True
+
+    _payload, changed = update_app_settings(
+        settings_path,
+        _disable_cluster,
+        create_missing=False,
+        dump_fn=_tomli_writer.dump,
+    )
+    return changed
 
 
 def handle_cluster_share_startup_error(
@@ -723,37 +756,21 @@ def bootstrap_page_environment(
         environ=ports.environ,
     )
 
-    try:
-        env = ports.agi_env_cls(apps_path=apps_path, verbose=1)
-    except RuntimeError as exc:
-        if _is_already_initialised_env_error(exc):
-            env = _recover_existing_env_for_apps_path(ports.agi_env_cls, apps_path)
-            if env is not None:
-                streamlit.session_state["env"] = env
-            elif _reset_agi_env_singleton(ports.agi_env_cls):
-                persist_preinit_launch_env(
-                    ports.agi_env_cls,
-                    preinit_updates,
-                    environ=ports.environ,
-                )
-                try:
-                    env = ports.agi_env_cls(apps_path=apps_path, verbose=1)
-                except RuntimeError as retry_exc:
-                    if handle_data_root_failure(retry_exc, agi_env_cls=ports.agi_env_cls):
-                        return BootstrapResult(env=None, handled_recovery=True)
-                    if is_cluster_share_startup_error(retry_exc):
-                        handle_cluster_share_startup_error(
-                            streamlit=streamlit,
-                            exc=retry_exc,
-                            env_file_path=env_file_path,
-                            args=args,
-                            ports=ports,
-                        )
-                        return BootstrapResult(env=None, handled_recovery=True)
-                    raise
-            else:
-                raise
-        else:
+    _streamlit_session_factory(ports.agi_env_cls)
+    warm_env = streamlit.session_state.get("env")
+    if (
+        getattr(warm_env, "_agilab_session_scoped", False)
+        and _existing_env_matches_apps_path(warm_env, apps_path)
+    ):
+        env = warm_env
+    else:
+        try:
+            env = _create_streamlit_session_env(
+                ports.agi_env_cls,
+                apps_path=apps_path,
+                verbose=1,
+            )
+        except RuntimeError as exc:
             if handle_data_root_failure(exc, agi_env_cls=ports.agi_env_cls):
                 return BootstrapResult(env=None, handled_recovery=True)
             if is_cluster_share_startup_error(exc):
@@ -780,7 +797,9 @@ def bootstrap_page_environment(
     streamlit.session_state["IS_WORKER_ENV"] = env.is_worker_env
 
     services_enabled = ports.background_services_enabled()
-    if services_enabled and not streamlit.session_state.get("server_started"):
+    if services_enabled:
+        # The process registry, not a session boolean, is the ownership source
+        # of truth. Re-entering bootstrap must verify or relaunch the service.
         ports.activate_mlflow(env)
 
     remember_active_app(env, ports.store_last_active_app)

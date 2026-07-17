@@ -90,7 +90,8 @@ def initialize_agi_env_instance(
     )
     envars = loaded.envars
 
-    _propagate_streamlit_message_size(envars)
+    if not getattr(env, "_agilab_session_scoped", False):
+        _propagate_streamlit_message_size(envars)
     package = _resolve_package_bootstrap(loaded.repo_agilab_dir)
 
     apps_path, override_builtin_apps_path = _resolve_requested_apps_path_from_env(
@@ -413,7 +414,7 @@ def _sync_repository_app_links(
         copy_existing_projects_fn=env.copy_existing_projects,
         create_symlink_windows_fn=env_cls.create_symlink_windows,
         symlink_fn=os.symlink,
-        logger=env_cls.logger,
+        logger=env.logger,
         os_name=os.name,
         path_cls=Path,
     )
@@ -564,11 +565,11 @@ def _resolve_worker_base_class(env, *, env_cls) -> None:
 
     env.base_worker_cls, env._base_worker_module = (None, None)
     if (not env.is_source_env) and (not env.is_worker_env):
-        env_cls.logger.debug(
+        env.logger.debug(
             f"Missing {env.target_worker_class} definition; expected {env.worker_path} (packaged end-user env)"
         )
     else:
-        env_cls.logger.info(f"Missing {env.target_worker_class} definition; expected {env.worker_path}")
+        env.logger.info(f"Missing {env.target_worker_class} definition; expected {env.worker_path}")
 
 
 def _configure_credentials_and_project_state(env, *, env_cls, envars) -> None:
@@ -582,7 +583,7 @@ def _configure_credentials_and_project_state(env, *, env_cls, envars) -> None:
 
     env.projects = env.get_projects(env.apps_path, env.builtin_apps_path)
     if not env.projects:
-        env_cls.logger.info(f"Could not find any target project app in {env.agilab_pck / 'apps'}.")
+        env.logger.info(f"Could not find any target project app in {env.agilab_pck / 'apps'}.")
 
     env.setup_app = env.active_app / "build.py"
     env.setup_app_module = getattr(env, "worker_setup_app_module", None) or "build"
@@ -627,7 +628,7 @@ def _extract_packaged_dataset_if_needed(env, *, env_cls) -> None:
     try:
         env.unzip_data(Path(dataset_archive), env.app_data_rel, force_extract=True)
     except (OSError, RuntimeError, ValueError, TypeError) as exc:  # pragma: no cover - defensive guard
-        env_cls.logger.warning("Failed to extract packaged dataset %s: %s", dataset_archive, exc)
+        env.logger.warning("Failed to extract packaged dataset %s: %s", dataset_archive, exc)
 
 
 def _finalize_non_worker_runtime(
@@ -639,7 +640,7 @@ def _finalize_non_worker_runtime(
 ) -> None:
     ensure_dir_fn(env.app_src)
     app_src_str = str(env.app_src)
-    if app_src_str not in sys.path:
+    if not getattr(env, "_agilab_session_scoped", False) and app_src_str not in sys.path:
         sys.path.append(app_src_str)
 
     examples_candidates = [

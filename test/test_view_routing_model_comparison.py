@@ -258,7 +258,7 @@ def test_routing_model_comparison_scoped_env_reuses_or_initializes(
     app_path = tmp_path / "apps" / "routing_app"
     app_path.mkdir(parents=True)
     streamlit = _StreamlitStub()
-    reused_env = object()
+    reused_env = SimpleNamespace(apps_path=app_path.parent, app=app_path.name)
     streamlit.session_state["env"] = reused_env
     resets: list[tuple[dict[str, object], Path]] = []
 
@@ -267,33 +267,39 @@ def test_routing_model_comparison_scoped_env_reuses_or_initializes(
     monkeypatch.setattr(
         module,
         "reset_scoped_session_state",
-        lambda state, scope_key, active, prefixes: resets.append((state, active)),
+        lambda state, scope_key, active, prefixes: (
+            resets.append((state, active)) or False
+        ),
     )
 
     assert module._ensure_app_scoped_env() is reused_env
     assert resets == [(streamlit.session_state, app_path)]
 
-    streamlit.session_state.clear()
+    stale_env = SimpleNamespace(
+        apps_path=app_path.parent,
+        app="other_routing_app",
+    )
+    streamlit.session_state["env"] = stale_env
     created: list[dict[str, object]] = []
 
     class FakeAgiEnv:
         @staticmethod
-        def current():
-            raise RuntimeError("no current env")
-
-        @staticmethod
-        def for_app(**kwargs):
+        def session_for_app(**kwargs):
             env = type("Env", (), {})()
             created.append(kwargs)
             return env
 
     monkeypatch.setattr(module, "AgiEnv", FakeAgiEnv)
+    monkeypatch.setattr(
+        module, "reset_scoped_session_state", lambda *_args, **_kwargs: False
+    )
 
     env = module._ensure_app_scoped_env()
 
     assert created == [
         {"apps_path": app_path.parent, "app": app_path.name, "verbose": 0}
     ]
+    assert env is not stale_env
     assert getattr(env, "init_done") is True
     assert streamlit.session_state["env"] is env
 
@@ -1060,6 +1066,8 @@ def test_routing_model_comparison_app_test_renders_demand_matrix(
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
         at = AppTest.from_file(str(MODULE_PATH), default_timeout=30)
         at.session_state["env"] = SimpleNamespace(
+            apps_path=app.parent,
+            app=app.name,
             agi_share_path_abs="",
             st_resources=tmp_path / "resources",
         )

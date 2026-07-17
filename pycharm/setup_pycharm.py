@@ -10,6 +10,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional, Iterable, Dict, List
 
+from agilab.environment.env_file_utils import read_mutable_env_text
+
 _RUNTIME_TARGET_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -69,7 +71,7 @@ class Config:
             return data
 
         try:
-            for raw_line in env_path.read_text().splitlines():
+            for raw_line in read_mutable_env_text(env_path).splitlines():
                 line = raw_line.strip()
                 if not line or line.startswith("#") or "=" not in line:
                     continue

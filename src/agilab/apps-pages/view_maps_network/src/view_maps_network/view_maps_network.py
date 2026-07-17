@@ -26,11 +26,9 @@ import numpy as np
 import plotly.graph_objects as go
 import matplotlib.colors as mcolors
 import glob
-import json
 import re
-import tomllib
 from urllib.parse import quote, urlencode
-from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
 try:
     import tomli_w as _toml_writer  # type: ignore[import-not-found]
 
@@ -86,12 +84,12 @@ except ModuleNotFoundError:
 
 try:
     from allocation_support import (
-        _coerce_alloc_time_index,
+        _coerce_alloc_time_index as _coerce_alloc_time_index,
         _drop_index_levels_shadowing_columns,
         _nearest_row,
-        _normalize_allocations_frame,
-        _parse_allocations_cell,
-        _pick_ci_column,
+        _normalize_allocations_frame as _normalize_allocations_frame,
+        _parse_allocations_cell as _parse_allocations_cell,
+        _pick_ci_column as _pick_ci_column,
         load_allocations,
         safe_literal_eval,
     )
@@ -101,10 +99,10 @@ try:
         _candidate_node_ids,
         _canonical_edge_pair,
         _coerce_list_cell,
-        _coerce_numeric_float,
-        _coerce_numeric_int,
+        _coerce_numeric_float as _coerce_numeric_float,
+        _coerce_numeric_int as _coerce_numeric_int,
         _filter_allocation_rows_for_selected_nodes,
-        _format_node_label,
+        _format_node_label as _format_node_label,
         _normalize_node_id_series,
         _normalize_node_id_value,
         _preferred_node_id_from_row,
@@ -120,7 +118,7 @@ try:
         _candidate_files_from_globs,
         _choose_existing_declared_path,
         _expand_glob_patterns,
-        _find_latest_allocations,
+        _find_latest_allocations as _find_latest_allocations,
         _is_baseline_alloc_path,
         _quick_share_edges_paths,
         _quick_share_traj_globs,
@@ -133,12 +131,12 @@ except ModuleNotFoundError:
     if page_dir_str not in sys.path:
         sys.path.insert(0, page_dir_str)
     from allocation_support import (
-        _coerce_alloc_time_index,
+        _coerce_alloc_time_index as _coerce_alloc_time_index,
         _drop_index_levels_shadowing_columns,
         _nearest_row,
-        _normalize_allocations_frame,
-        _parse_allocations_cell,
-        _pick_ci_column,
+        _normalize_allocations_frame as _normalize_allocations_frame,
+        _parse_allocations_cell as _parse_allocations_cell,
+        _pick_ci_column as _pick_ci_column,
         load_allocations,
         safe_literal_eval,
     )
@@ -148,10 +146,10 @@ except ModuleNotFoundError:
         _candidate_node_ids,
         _canonical_edge_pair,
         _coerce_list_cell,
-        _coerce_numeric_float,
-        _coerce_numeric_int,
+        _coerce_numeric_float as _coerce_numeric_float,
+        _coerce_numeric_int as _coerce_numeric_int,
         _filter_allocation_rows_for_selected_nodes,
-        _format_node_label,
+        _format_node_label as _format_node_label,
         _normalize_node_id_series,
         _normalize_node_id_value,
         _preferred_node_id_from_row,
@@ -167,7 +165,7 @@ except ModuleNotFoundError:
         _candidate_files_from_globs,
         _choose_existing_declared_path,
         _expand_glob_patterns,
-        _find_latest_allocations,
+        _find_latest_allocations as _find_latest_allocations,
         _is_baseline_alloc_path,
         _quick_share_edges_paths,
         _quick_share_traj_globs,
@@ -410,10 +408,9 @@ def _ensure_app_settings_loaded(env: AgiEnv) -> None:
     path = Path(env.app_settings_file)
     if path.exists():
         try:
-            with open(path, "rb") as handle:
-                st.session_state["app_settings"] = tomllib.load(handle)
-                return
-        except (OSError, tomllib.TOMLDecodeError):
+            st.session_state["app_settings"] = read_app_settings(path)
+            return
+        except (OSError, ValueError):
             pass
     st.session_state["app_settings"] = {}
 
@@ -438,18 +435,32 @@ def _sanitize_toml_payload(value: Any) -> Any:
     return value
 
 
-def _persist_app_settings(env: AgiEnv) -> None:
+def _persist_app_settings(env: AgiEnv, owned_keys: tuple[str, ...]) -> None:
     settings = st.session_state.get("app_settings")
     if not isinstance(settings, dict):
         return
+    vm_settings = settings.get("view_maps_network")
+    if not isinstance(vm_settings, dict):
+        vm_settings = {}
+    if not owned_keys:
+        return
     path = Path(env.app_settings_file)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "wb") as handle:
-            _dump_toml(
-                prepare_app_settings_for_write(_sanitize_toml_payload(settings), sanitize=False),
-                handle,
-            )
+        latest, _ = update_app_settings_owned(
+            path,
+            _sanitize_toml_payload(settings),
+            owned_paths=tuple(
+                ("view_maps_network", key) for key in owned_keys
+            ),
+            dump_fn=_dump_toml,
+        )
+        latest_vm_settings = latest.get("view_maps_network")
+        vm_settings.clear()
+        if isinstance(latest_vm_settings, dict):
+            vm_settings.update(latest_vm_settings)
+        settings.clear()
+        settings.update(latest)
+        settings["view_maps_network"] = vm_settings
     except (OSError, RuntimeError, ValueError) as exc:
         logger.warning(f"Unable to persist app_settings to {path}: {exc}")
 
@@ -500,7 +511,7 @@ active_app_path = _resolve_active_app()
 app_scope_changed = _reset_app_scoped_session_state(active_app_path)
 if 'env' not in st.session_state or app_scope_changed:
     app_name = active_app_path.name
-    env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=app_name, verbose=0)
+    env = AgiEnv.session_for_app(apps_path=active_app_path.parent, app=app_name, verbose=0)
     env.init_done = True
     st.session_state['env'] = env
     st.session_state['IS_SOURCE_ENV'] = env.is_source_env
@@ -3024,13 +3035,13 @@ def page():
         "layout_type_select": st.session_state.get("layout_type_select", "spring"),
         "metric_type_select": st.session_state.get("metric_type_select", ""),
     }
-    vm_mutated = False
+    vm_changed_keys: list[str] = []
     for key, value in new_vm_settings.items():
         if vm_settings.get(key) != value:
             vm_settings[key] = value
-            vm_mutated = True
-    if vm_mutated:
-        _persist_app_settings(env)
+            vm_changed_keys.append(key)
+    if vm_changed_keys:
+        _persist_app_settings(env, tuple(vm_changed_keys))
 
     datadir_path = Path(st.session_state.datadir).expanduser()
     def _visible_only(paths):
@@ -3376,7 +3387,7 @@ def page():
     st.sidebar.caption(f"{shown_count} / {len(available_node_ids)} flights shown")
     if vm_settings.get("selected_flights_filter") != selected_node_ids:
         vm_settings["selected_flights_filter"] = selected_node_ids
-        _persist_app_settings(env)
+        _persist_app_settings(env, ("selected_flights_filter",))
 
     if selected_node_set:
         df_std = df_std[df_std["id_col"].isin(selected_node_set)].copy()
@@ -3474,7 +3485,7 @@ def page():
 
     if vm_settings.get("edges_file") != edges_clean:
         vm_settings["edges_file"] = edges_clean
-        _persist_app_settings(env)
+        _persist_app_settings(env, ("edges_file",))
 
     link_options = _detect_link_columns(df_std)
     if loaded_edges:
@@ -4238,7 +4249,10 @@ def page():
         vm_settings["allocations_file"] = alloc_clean
         vm_settings["baseline_allocations_file"] = baseline_clean
         vm_settings["traj_glob"] = traj_clean
-        _persist_app_settings(env)
+        _persist_app_settings(
+            env,
+            ("allocations_file", "baseline_allocations_file", "traj_glob"),
+        )
     alloc_df = (
         load_allocations(alloc_path_obj)
         if alloc_path_obj is not None and alloc_path_obj.exists()

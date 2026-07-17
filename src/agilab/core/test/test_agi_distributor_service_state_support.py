@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import json
 import os
 import time
@@ -24,7 +25,8 @@ def _build_env(
     resolve_share_path=None,
 ):
     if resolve_share_path is None:
-        resolve_share_path = lambda rel: tmp_path / "share" / rel
+        def resolve_share_path(rel):
+            return tmp_path / "share" / rel
     return SimpleNamespace(
         target=target,
         app=app,
@@ -174,17 +176,55 @@ def test_service_safe_worker_name_fallback_and_explicit_timeout():
     assert service_state_support.service_safe_worker_name(":::") == "worker"
 
 
-def test_service_read_state_returns_none_for_invalid_payload(tmp_path):
+def test_service_read_state_raises_for_unreadable_or_invalid_payload(tmp_path):
     agi = _build_agi()
     env = _build_env(tmp_path)
     state_path = tmp_path / "state.json"
     agi._service_state_path = lambda _env: state_path
 
     state_path.write_text("not-json", encoding="utf-8")
-    assert service_state_support.service_read_state(agi, env) is None
+    with pytest.raises(service_state_support.ServiceStateUnavailableError):
+        service_state_support.service_read_state(agi, env)
 
     state_path.write_text(json.dumps(["not-a-dict"]), encoding="utf-8")
+    with pytest.raises(service_state_support.ServiceStateUnavailableError):
+        service_state_support.service_read_state(agi, env)
+
+    state_path.unlink()
     assert service_state_support.service_read_state(agi, env) is None
+
+
+def test_service_read_state_uses_bounded_sharing_retry(monkeypatch, tmp_path):
+    agi = _build_agi()
+    env = _build_env(tmp_path)
+    state_path = tmp_path / "service_state.json"
+    state_path.write_text('{"schema": "x"}', encoding="utf-8")
+    agi._service_state_path = lambda _env: state_path
+    real_open = builtins.open
+    attempts = {"open": 0, "retry": 0}
+
+    def _transient_open(*args, **kwargs):
+        attempts["open"] += 1
+        if attempts["open"] == 1:
+            raise PermissionError("sharing violation")
+        return real_open(*args, **kwargs)
+
+    def _bounded_retry(operation):
+        attempts["retry"] += 1
+        try:
+            return operation()
+        except PermissionError:
+            return operation()
+
+    monkeypatch.setattr(builtins, "open", _transient_open)
+    monkeypatch.setattr(
+        service_state_support,
+        "run_with_windows_file_sharing_retry",
+        _bounded_retry,
+    )
+
+    assert service_state_support.service_read_state(agi, env) == {"schema": "x"}
+    assert attempts == {"open": 2, "retry": 1}
 
 
 def test_service_write_state_roundtrip_and_clear(tmp_path):
@@ -259,7 +299,7 @@ def test_atomic_write_ignores_temp_cleanup_failures(monkeypatch, tmp_path):
         )
 
 
-def test_service_clear_state_logs_oserror(monkeypatch, tmp_path):
+def test_service_clear_state_raises_on_unlink_failure(monkeypatch, tmp_path):
     agi = _build_agi()
     env = _build_env(tmp_path)
     state_path = tmp_path / "service_state.json"
@@ -275,13 +315,22 @@ def test_service_clear_state_logs_oserror(monkeypatch, tmp_path):
 
     monkeypatch.setattr(Path, "unlink", _fake_unlink)
 
-    service_state_support.service_clear_state(
-        agi,
-        env,
-        log=SimpleNamespace(debug=lambda message, *args: logs.append(message % args if args else message)),
-    )
+    with pytest.raises(
+        service_state_support.ServiceStateUnavailableError,
+        match="could not be removed",
+    ):
+        service_state_support.service_clear_state(
+            agi,
+            env,
+            log=SimpleNamespace(
+                warning=lambda message, *args: logs.append(
+                    message % args if args else message
+                )
+            ),
+        )
 
     assert logs and "Failed to remove service state file" in logs[0]
+    assert state_path.exists()
 
 
 def test_service_finalize_response_health_only_adds_export_path():
@@ -420,7 +469,7 @@ def test_service_queue_counts_reads_task_files(tmp_path):
     }
 
 
-def test_init_service_queue_removes_stale_pending_running_and_heartbeats(tmp_path):
+def test_init_service_queue_preserves_pending_running_and_heartbeats(tmp_path):
     agi = _build_agi()
     env = _build_env(tmp_path, target="minimal_app_project", app="minimal_app_project")
     queue_root = tmp_path / "queue"
@@ -437,12 +486,12 @@ def test_init_service_queue_removes_stale_pending_running_and_heartbeats(tmp_pat
     queue_paths = service_state_support.init_service_queue(agi, env, service_queue_dir=queue_root)
 
     assert queue_paths["root"] == queue_root
-    assert stale_pending.exists() is False
-    assert stale_running.exists() is False
-    assert stale_heartbeat.exists() is False
+    assert stale_pending.exists() is True
+    assert stale_running.exists() is True
+    assert stale_heartbeat.exists() is True
 
 
-def test_init_service_queue_ignores_missing_files_during_cleanup(monkeypatch, tmp_path):
+def test_init_service_queue_does_not_unlink_existing_files(monkeypatch, tmp_path):
     agi = _build_agi()
     env = _build_env(tmp_path, target="minimal_app_project", app="minimal_app_project")
     queue_root = tmp_path / "queue"
@@ -467,6 +516,289 @@ def test_init_service_queue_ignores_missing_files_during_cleanup(monkeypatch, tm
     queue_paths = service_state_support.init_service_queue(agi, env, service_queue_dir=queue_root)
 
     assert queue_paths["root"] == queue_root
+
+
+def test_recover_orphaned_service_tasks_preserves_live_and_fails_expired(tmp_path):
+    agi = _build_agi()
+    env = _build_env(tmp_path)
+    paths = service_state_support.init_service_queue(
+        agi,
+        env,
+        service_queue_dir=tmp_path / "queue",
+    )
+    now = time.time()
+    expired = paths["running"] / "expired.task.json"
+    live = paths["running"] / "live.task.json"
+    pending = paths["pending"] / "pending.task.json"
+    expired.write_text(json.dumps({"schema": "agi.service.task.v1", "worker": "dead"}), encoding="utf-8")
+    live.write_text(
+        json.dumps(
+            {
+                "schema": "agi.service.task.v1",
+                "worker": "live",
+                "claim": {"worker_incarnation": "live-incarnation"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    pending.write_text(json.dumps({"schema": "agi.service.task.v1", "worker": "dead"}), encoding="utf-8")
+    os.utime(expired, (now - 30, now - 30))
+    os.utime(live, (now - 30, now - 30))
+    (paths["heartbeats"] / "live.json").write_text(
+        json.dumps(
+            {
+                "worker": "live",
+                "worker_incarnation": "live-incarnation",
+                "timestamp": now - 1,
+                "state": "running",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = service_state_support.recover_orphaned_service_tasks(
+        agi,
+        now=now,
+        heartbeat_timeout=10,
+    )
+
+    assert result == {"recovered": 1, "preserved": 1}
+    assert not expired.exists()
+    assert live.exists()
+    assert pending.exists()
+    failed_payload = json.loads((paths["failed"] / expired.name).read_text(encoding="utf-8"))
+    assert failed_payload["status"] == "failed"
+    assert failed_payload["recovery"]["reason"] == "expired-worker-heartbeat"
+
+
+def test_recover_orphaned_service_tasks_preserves_new_claim_without_heartbeat(tmp_path):
+    agi = _build_agi()
+    env = _build_env(tmp_path)
+    paths = service_state_support.init_service_queue(
+        agi,
+        env,
+        service_queue_dir=tmp_path / "queue",
+    )
+    running = paths["running"] / "new.task.json"
+    running.write_text(
+        json.dumps({"schema": "agi.service.task.v1", "worker": "starting"}),
+        encoding="utf-8",
+    )
+
+    result = service_state_support.recover_orphaned_service_tasks(
+        agi,
+        now=time.time(),
+        heartbeat_timeout=10,
+    )
+
+    assert result == {"recovered": 0, "preserved": 1}
+    assert running.exists()
+
+
+def test_recover_orphaned_service_tasks_rejects_replacement_worker_heartbeat(tmp_path):
+    agi = _build_agi()
+    env = _build_env(tmp_path)
+    paths = service_state_support.init_service_queue(
+        agi,
+        env,
+        service_queue_dir=tmp_path / "queue",
+    )
+    now = time.time()
+    running = paths["running"] / "old-incarnation.task.json"
+    running.write_text(
+        json.dumps(
+            {
+                "schema": "agi.service.task.v1",
+                "worker": "worker-1",
+                "claim": {"worker_incarnation": "old-incarnation"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    os.utime(running, (now - 30, now - 30))
+    (paths["heartbeats"] / "worker-1.json").write_text(
+        json.dumps(
+            {
+                "worker": "worker-1",
+                "worker_incarnation": "replacement-incarnation",
+                "timestamp": now,
+                "state": "processing",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = service_state_support.recover_orphaned_service_tasks(
+        agi,
+        now=now,
+        heartbeat_timeout=10,
+    )
+
+    assert result == {"recovered": 1, "preserved": 0}
+    assert not running.exists()
+    assert (paths["failed"] / running.name).exists()
+
+
+def test_recover_orphaned_service_tasks_rechecks_racing_heartbeat(tmp_path):
+    agi = _build_agi()
+    env = _build_env(tmp_path)
+    paths = service_state_support.init_service_queue(
+        agi,
+        env,
+        service_queue_dir=tmp_path / "queue",
+    )
+    now = time.time()
+    running = paths["running"] / "racing.task.json"
+    running.write_text(
+        json.dumps(
+            {
+                "schema": "agi.service.task.v1",
+                "worker": "worker-1",
+                "claim": {"worker_incarnation": "incarnation-1"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    os.utime(running, (now - 30, now - 30))
+    reads = iter(
+        [
+            {
+                "worker-1": {
+                    "worker_incarnation": "incarnation-1",
+                    "timestamp": now - 30,
+                    "state": "processing",
+                }
+            },
+            {
+                "worker-1": {
+                    "worker_incarnation": "incarnation-1",
+                    "timestamp": now,
+                    "state": "processing",
+                }
+            },
+        ]
+    )
+    agi._service_read_heartbeat_payloads = lambda: next(reads)
+
+    result = service_state_support.recover_orphaned_service_tasks(
+        agi,
+        now=now,
+        heartbeat_timeout=10,
+    )
+
+    assert result == {"recovered": 0, "preserved": 1}
+    assert running.exists()
+    assert list(paths["running"].glob("*.recovery-*.tmp")) == []
+
+
+def test_recover_orphaned_service_tasks_restores_stranded_hidden_claim(tmp_path):
+    agi = _build_agi()
+    env = _build_env(tmp_path)
+    paths = service_state_support.init_service_queue(
+        agi,
+        env,
+        service_queue_dir=tmp_path / "queue",
+    )
+    now = time.time()
+    task_name = "stranded.task.json"
+    hidden_claim = paths["running"] / f".{task_name}.recovery-crashed.tmp"
+    hidden_claim.write_text(
+        json.dumps(
+            {
+                "schema": "agi.service.task.v1",
+                "worker": "worker-1",
+                "claim": {"worker_incarnation": "incarnation-1"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    os.utime(hidden_claim, (now - 30, now - 30))
+
+    result = service_state_support.recover_orphaned_service_tasks(
+        agi,
+        now=now,
+        heartbeat_timeout=10,
+    )
+
+    assert result == {"recovered": 1, "preserved": 0}
+    assert not hidden_claim.exists()
+    assert not (paths["running"] / task_name).exists()
+    assert (paths["failed"] / task_name).exists()
+
+
+def test_recover_orphaned_service_tasks_completes_stranded_terminal_move(tmp_path):
+    agi = _build_agi()
+    env = _build_env(tmp_path)
+    paths = service_state_support.init_service_queue(
+        agi,
+        env,
+        service_queue_dir=tmp_path / "queue",
+    )
+    task_name = "terminal.task.json"
+    hidden_claim = paths["running"] / f".{task_name}.recovery-crashed.tmp"
+    running_payload = {
+        "schema": "agi.service.task.v1",
+        "task_id": "terminal-task",
+        "worker": "worker-1",
+        "claim": {"worker_incarnation": "incarnation-1"},
+    }
+    terminal_payload = {**running_payload, "status": "failed", "error": "work failed"}
+    hidden_claim.write_text(json.dumps(running_payload), encoding="utf-8")
+    (paths["failed"] / task_name).write_text(
+        json.dumps(terminal_payload),
+        encoding="utf-8",
+    )
+
+    result = service_state_support.recover_orphaned_service_tasks(agi)
+
+    assert result == {"recovered": 1, "preserved": 0}
+    assert not hidden_claim.exists()
+    assert json.loads((paths["failed"] / task_name).read_text(encoding="utf-8")) == terminal_payload
+
+
+def test_recover_orphaned_service_tasks_removes_verified_post_terminal_duplicate(tmp_path):
+    agi = _build_agi()
+    env = _build_env(tmp_path)
+    paths = service_state_support.init_service_queue(
+        agi,
+        env,
+        service_queue_dir=tmp_path / "queue",
+    )
+    now = time.time()
+    terminal_name = "completed.task.json"
+    running = paths["running"] / "completed.claim-abc.task.json"
+    claim = {
+        "worker_incarnation": "incarnation-1",
+        "task_filename": terminal_name,
+    }
+    running_payload = {
+        "schema": "agi.service.task.v1",
+        "task_id": "task-1",
+        "worker": "worker-1",
+        "claim": claim,
+    }
+    terminal_payload = {
+        **running_payload,
+        "status": "done",
+        "finished_at": now - 20,
+    }
+    running.write_text(json.dumps(running_payload), encoding="utf-8")
+    os.utime(running, (now - 30, now - 30))
+    (paths["done"] / terminal_name).write_text(
+        json.dumps(terminal_payload),
+        encoding="utf-8",
+    )
+
+    result = service_state_support.recover_orphaned_service_tasks(
+        agi,
+        now=now,
+        heartbeat_timeout=10,
+    )
+
+    assert result == {"recovered": 1, "preserved": 0}
+    assert not running.exists()
+    assert (paths["done"] / terminal_name).exists()
+    assert list(paths["failed"].glob("*.task.json")) == []
 
 
 def test_service_state_path_falls_back_when_resolve_share_path_is_missing(tmp_path):

@@ -6,10 +6,14 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import threading
+import tomllib
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+
+from agi_env.ui import sidecar_registry as sidecar_registry_module
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "src" / "agilab" / "main_page.py"
 SPEC = importlib.util.spec_from_file_location("agilab_about_helpers", MODULE_PATH)
@@ -252,8 +256,19 @@ def _make_bootstrap_ports(
     services_enabled: bool = False,
     last_app: object = None,
     environ: dict[str, str] | None = None,
+    add_session_factory: bool = True,
 ):
     bootstrap = about_agilab._about_bootstrap
+    if add_session_factory and isinstance(agi_env_cls, type) and not callable(
+        getattr(agi_env_cls, "session", None)
+    ):
+        @classmethod
+        def session(cls, *args, **kwargs):
+            env = cls(*args, **kwargs)
+            env._agilab_session_scoped = True
+            return env
+
+        agi_env_cls.session = session
     calls = SimpleNamespace(activated=[], stored=[])
     ports = bootstrap.BootstrapPorts(
         agi_env_cls=agi_env_cls,
@@ -1131,6 +1146,34 @@ def test_bootstrap_resolve_apps_path_prefers_cli_then_env(tmp_path):
     )
 
 
+def test_parse_startup_args_times_out_behind_peer_hosted_render(monkeypatch):
+    bootstrap = about_agilab._about_bootstrap
+    outcomes: list[BaseException | object] = []
+    monkeypatch.setattr(
+        sidecar_registry_module,
+        "_HOSTED_INLINE_RENDER_LOCK_TIMEOUT_SECONDS",
+        0.01,
+    )
+
+    def _parse() -> None:
+        try:
+            outcomes.append(bootstrap.parse_startup_args([]))
+        except BaseException as exc:
+            outcomes.append(exc)
+
+    sidecar_registry_module.HOSTED_INLINE_RENDER_LEASE.acquire()
+    try:
+        peer = threading.Thread(target=_parse)
+        peer.start()
+        peer.join(timeout=1)
+    finally:
+        sidecar_registry_module.HOSTED_INLINE_RENDER_LEASE.release()
+
+    assert not peer.is_alive()
+    assert len(outcomes) == 1
+    assert isinstance(outcomes[0], sidecar_registry_module.SidecarRegistryBusyError)
+
+
 def test_bootstrap_resolve_apps_path_from_agilab_path_file(tmp_path):
     bootstrap = about_agilab._about_bootstrap
     install_root = tmp_path / "agi-space"
@@ -1793,6 +1836,9 @@ user = "agi"
 
     payload = settings_path.read_text(encoding="utf-8")
     assert "cluster_enabled = false" in payload
+    parsed_payload = tomllib.loads(payload)
+    assert parsed_payload["args"] == {"data_in": "flight_telemetry/dataset"}
+    assert parsed_payload["cluster"]["user"] == "agi"
     assert ("success", f"Disabled cluster mode in `{settings_path}`.") in fake_st.events
     assert ("rerun", "") in fake_st.events
     assert fake_st.stopped is False
@@ -1997,7 +2043,9 @@ def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
     assert fake_st.warnings == []
 
 
-def test_bootstrap_page_environment_reuses_warm_env_singleton(tmp_path, monkeypatch):
+def test_bootstrap_page_environment_replaces_legacy_warm_env_without_borrowing_singleton(
+    tmp_path, monkeypatch
+):
     bootstrap = about_agilab._about_bootstrap
     apps_path = tmp_path / "apps"
     app_path = apps_path / "sb3_trainer_project"
@@ -2017,28 +2065,46 @@ def test_bootstrap_page_environment_reuses_warm_env_singleton(tmp_path, monkeypa
         CLUSTER_CREDENTIALS="",
         envars={},
         init_done=False,
+        _agilab_session_scoped=False,
     )
 
     class WarmAgiEnv:
+        current_calls = 0
+        session_calls = 0
+
         @classmethod
         def current(cls):
+            cls.current_calls += 1
             return existing_env
+
+        @classmethod
+        def session(cls, *, apps_path: Path, verbose: int):
+            cls.session_calls += 1
+            return SimpleNamespace(
+                apps_path=apps_path,
+                app="sb3_trainer_project",
+                active_app=apps_path / "sb3_trainer_project",
+                projects={"sb3_trainer_project"},
+                is_source_env=True,
+                is_worker_env=False,
+                OPENAI_API_KEY="",
+                CLUSTER_CREDENTIALS="",
+                envars={},
+                init_done=False,
+                verbose=verbose,
+                _agilab_session_scoped=True,
+            )
 
         @staticmethod
         def set_env_var(key: str, value: str) -> None:
             set_env_calls.append((key, value))
-
-        def __init__(self, *, apps_path: Path, verbose: int):
-            raise RuntimeError(
-                "AgiEnv is already initialised with a different configuration; "
-                "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
-            )
 
     def apply_request(env, requested):
         requested_apps.append(requested)
         return False
 
     fake_st = _FakeStreamlit()
+    fake_st.session_state["env"] = existing_env
     monkeypatch.setattr(
         bootstrap,
         "default_agilab_path_file",
@@ -2059,16 +2125,122 @@ def test_bootstrap_page_environment_reuses_warm_env_singleton(tmp_path, monkeypa
         ports=ports,
     )
 
-    assert result.env is existing_env
-    assert fake_st.session_state["env"] is existing_env
+    assert result.env is not existing_env
+    assert fake_st.session_state["env"] is result.env
+    assert result.env._agilab_session_scoped is True
     assert fake_st.session_state["first_run"] is False
-    assert existing_env.init_done is True
+    assert result.env.init_done is True
     assert requested_apps == [None]
-    assert refreshed_envs == [existing_env]
+    assert refreshed_envs == [result.env]
     assert port_calls.activated == []
+    assert WarmAgiEnv.current_calls == 0
+    assert WarmAgiEnv.session_calls == 1
 
 
-def test_bootstrap_page_environment_reuses_warm_source_builtin_singleton(
+def test_bootstrap_session_factory_failure_never_borrows_cli_singleton(
+    tmp_path, monkeypatch
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    apps_path.mkdir()
+    current_calls: list[str] = []
+
+    class SessionAgiEnv:
+        @staticmethod
+        def set_env_var(_key: str, _value: str) -> None:
+            return None
+
+        @classmethod
+        def session(cls, *, apps_path: Path, verbose: int):
+            assert apps_path == tmp_path / "apps"
+            assert verbose == 1
+            raise RuntimeError(
+                "AgiEnv is already initialised with a different configuration; "
+                "the UI session factory must not borrow it."
+            )
+
+        @classmethod
+        def current(cls):
+            current_calls.append("current")
+            return object()
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(
+        bootstrap,
+        "default_agilab_path_file",
+        lambda **_kwargs: tmp_path / "missing-agilab-path",
+    )
+    ports, _calls = _make_bootstrap_ports(SessionAgiEnv, environ={})
+
+    with pytest.raises(RuntimeError, match="UI session factory"):
+        bootstrap.bootstrap_page_environment(
+            streamlit=fake_st,
+            env_file_path=tmp_path / ".env",
+            load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+            logger=None,
+            apply_active_app_request=lambda *_args: False,
+            handle_data_root_failure=lambda _exc, **_kwargs: False,
+            refresh_env_from_file=lambda _env: None,
+            clean_openai_key=lambda value: value,
+            store_cluster_credentials=lambda *_args, **_kwargs: True,
+            ports=ports,
+        )
+
+    assert current_calls == []
+    assert "env" not in fake_st.session_state
+
+
+def test_bootstrap_requires_session_factory_with_actionable_upgrade_error(
+    tmp_path, monkeypatch
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    apps_path.mkdir()
+
+    class LegacyAgiEnv:
+        init_calls = 0
+
+        @staticmethod
+        def set_env_var(_key: str, _value: str) -> None:
+            return None
+
+        def __init__(self, **_kwargs):
+            type(self).init_calls += 1
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(
+        bootstrap,
+        "default_agilab_path_file",
+        lambda **_kwargs: tmp_path / "missing-agilab-path",
+    )
+    ports, _calls = _make_bootstrap_ports(
+        LegacyAgiEnv,
+        environ={},
+        add_session_factory=False,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"requires AgiEnv\.session\(\).*new browser session",
+    ):
+        bootstrap.bootstrap_page_environment(
+            streamlit=fake_st,
+            env_file_path=tmp_path / ".env",
+            load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+            logger=None,
+            apply_active_app_request=lambda *_args: False,
+            handle_data_root_failure=lambda _exc, **_kwargs: False,
+            refresh_env_from_file=lambda _env: None,
+            clean_openai_key=lambda value: value,
+            store_cluster_credentials=lambda *_args, **_kwargs: True,
+            ports=ports,
+        )
+
+    assert LegacyAgiEnv.init_calls == 0
+    assert "env" not in fake_st.session_state
+
+
+def test_bootstrap_page_environment_reuses_matching_session_scoped_warm_env(
     tmp_path, monkeypatch
 ):
     bootstrap = about_agilab._about_bootstrap
@@ -2089,24 +2261,20 @@ def test_bootstrap_page_environment_reuses_warm_source_builtin_singleton(
         CLUSTER_CREDENTIALS="",
         envars={},
         init_done=False,
+        _agilab_session_scoped=True,
     )
 
     class WarmBuiltinAgiEnv:
         @classmethod
-        def current(cls):
-            return existing_env
+        def session(cls, **_kwargs):
+            raise AssertionError("matching session-scoped env must be reused")
 
         @staticmethod
         def set_env_var(_key: str, _value: str) -> None:
             return None
 
-        def __init__(self, *, apps_path: Path, verbose: int):
-            raise RuntimeError(
-                "AgiEnv is already initialised with a different configuration; "
-                "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
-            )
-
     fake_st = _FakeStreamlit()
+    fake_st.session_state["env"] = existing_env
     monkeypatch.setattr(
         bootstrap,
         "default_agilab_path_file",
@@ -2133,7 +2301,7 @@ def test_bootstrap_page_environment_reuses_warm_source_builtin_singleton(
     assert refreshed_envs == [existing_env]
 
 
-def test_bootstrap_page_environment_rejects_warm_env_with_different_apps_path(
+def test_bootstrap_page_environment_replaces_warm_env_with_different_apps_path(
     tmp_path, monkeypatch
 ):
     bootstrap = about_agilab._about_bootstrap
@@ -2146,7 +2314,7 @@ def test_bootstrap_page_environment_rejects_warm_env_with_different_apps_path(
     existing_env = SimpleNamespace(
         apps_path=stale_apps_path,
         app="sb3_trainer_project",
-        active_app=app_path,
+        active_app=stale_apps_path / "sb3_trainer_project",
         projects={"sb3_trainer_project"},
         is_source_env=True,
         is_worker_env=False,
@@ -2154,24 +2322,40 @@ def test_bootstrap_page_environment_rejects_warm_env_with_different_apps_path(
         CLUSTER_CREDENTIALS="",
         envars={},
         init_done=False,
+        _agilab_session_scoped=True,
     )
 
     class WarmAgiEnv:
+        current_calls = 0
+
         @classmethod
         def current(cls):
+            cls.current_calls += 1
             return existing_env
+
+        @classmethod
+        def session(cls, *, apps_path: Path, verbose: int):
+            return SimpleNamespace(
+                apps_path=apps_path,
+                app="sb3_trainer_project",
+                active_app=apps_path / "sb3_trainer_project",
+                projects={"sb3_trainer_project"},
+                is_source_env=True,
+                is_worker_env=False,
+                OPENAI_API_KEY="",
+                CLUSTER_CREDENTIALS="",
+                envars={},
+                init_done=False,
+                verbose=verbose,
+                _agilab_session_scoped=True,
+            )
 
         @staticmethod
         def set_env_var(_key: str, _value: str) -> None:
             return None
 
-        def __init__(self, *, apps_path: Path, verbose: int):
-            raise RuntimeError(
-                "AgiEnv is already initialised with a different configuration; "
-                "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
-            )
-
     fake_st = _FakeStreamlit()
+    fake_st.session_state["env"] = existing_env
     monkeypatch.setattr(
         bootstrap,
         "default_agilab_path_file",
@@ -2179,22 +2363,26 @@ def test_bootstrap_page_environment_rejects_warm_env_with_different_apps_path(
     )
     ports, _port_calls = _make_bootstrap_ports(WarmAgiEnv, environ={})
 
-    with pytest.raises(RuntimeError, match="already initialised"):
-        bootstrap.bootstrap_page_environment(
-            streamlit=fake_st,
-            env_file_path=tmp_path / ".env",
-            load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
-            logger=None,
-            apply_active_app_request=lambda *_args: False,
-            handle_data_root_failure=lambda _exc, **_kwargs: False,
-            refresh_env_from_file=lambda _env: None,
-            clean_openai_key=lambda value: value,
-            store_cluster_credentials=lambda *_args, **_kwargs: True,
-            ports=ports,
-        )
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=tmp_path / ".env",
+        load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+        logger=None,
+        apply_active_app_request=lambda *_args: False,
+        handle_data_root_failure=lambda _exc, **_kwargs: False,
+        refresh_env_from_file=lambda _env: None,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+        ports=ports,
+    )
+
+    assert result.env is not existing_env
+    assert result.env.apps_path == apps_path
+    assert result.env._agilab_session_scoped is True
+    assert WarmAgiEnv.current_calls == 0
 
 
-def test_bootstrap_page_environment_resets_unusable_warm_env_singleton(
+def test_bootstrap_page_environment_never_resets_or_borrows_unusable_warm_singleton(
     tmp_path, monkeypatch
 ):
     bootstrap = about_agilab._about_bootstrap
@@ -2218,13 +2406,16 @@ def test_bootstrap_page_environment_resets_unusable_warm_env_singleton(
         CLUSTER_CREDENTIALS="",
         envars={},
         init_done=False,
+        _agilab_session_scoped=False,
     )
 
     class ResettableWarmAgiEnv:
         reset_called = False
+        current_calls = 0
 
         @classmethod
         def current(cls):
+            cls.current_calls += 1
             return existing_env
 
         @classmethod
@@ -2235,25 +2426,25 @@ def test_bootstrap_page_environment_resets_unusable_warm_env_singleton(
         def set_env_var(key: str, value: str) -> None:
             set_env_calls.append((key, value))
 
-        def __init__(self, *, apps_path: Path, verbose: int):
-            if not type(self).reset_called:
-                raise RuntimeError(
-                    "AgiEnv is already initialised with a different configuration; "
-                    "use AgiEnv.reset() for a fresh environment or change_app() to switch apps."
-                )
-            self.apps_path = apps_path
-            self.app = "flight_telemetry_project"
-            self.active_app = apps_path / self.app
-            self.projects = {"flight_telemetry_project"}
-            self.is_source_env = True
-            self.is_worker_env = False
-            self.OPENAI_API_KEY = ""
-            self.CLUSTER_CREDENTIALS = ""
-            self.envars = {}
-            self.init_done = False
-            self.verbose = verbose
+        @classmethod
+        def session(cls, *, apps_path: Path, verbose: int):
+            return SimpleNamespace(
+                apps_path=apps_path,
+                app="flight_telemetry_project",
+                active_app=apps_path / "flight_telemetry_project",
+                projects={"flight_telemetry_project"},
+                is_source_env=True,
+                is_worker_env=False,
+                OPENAI_API_KEY="",
+                CLUSTER_CREDENTIALS="",
+                envars={},
+                init_done=False,
+                verbose=verbose,
+                _agilab_session_scoped=True,
+            )
 
     fake_st = _FakeStreamlit()
+    fake_st.session_state["env"] = existing_env
     monkeypatch.setattr(
         bootstrap,
         "default_agilab_path_file",
@@ -2278,7 +2469,8 @@ def test_bootstrap_page_environment_resets_unusable_warm_env_singleton(
     assert result.env.apps_path == apps_path
     assert fake_st.session_state["env"] is result.env
     assert result.env.init_done is True
-    assert ResettableWarmAgiEnv.reset_called is True
+    assert ResettableWarmAgiEnv.reset_called is False
+    assert ResettableWarmAgiEnv.current_calls == 0
     assert refreshed_envs == [result.env]
     assert ("APPS_PATH", str(apps_path)) in set_env_calls
 
@@ -2590,15 +2782,6 @@ def test_bootstrap_path_matching_and_payload_project_edges(tmp_path):
         )
         is False
     )
-    assert bootstrap._recover_existing_env_for_apps_path(SimpleNamespace(current=None), apps_path) is None
-
-    class RaisingCurrent:
-        @staticmethod
-        def current():
-            raise RuntimeError("not initialised")
-
-    assert bootstrap._recover_existing_env_for_apps_path(RaisingCurrent, apps_path) is None
-
     package_project = (
         tmp_path
         / "agi-app-demo"
@@ -2880,6 +3063,7 @@ def test_bootstrap_page_environment_uses_injected_ports_and_services(tmp_path):
         return bool(requested)
 
     fake_st = _FakeStreamlit()
+    fake_st.session_state["server_started"] = True
     ports, port_calls = _make_bootstrap_ports(
         FakeAgiEnv,
         services_enabled=True,
@@ -3243,7 +3427,7 @@ def test_env_file_helpers_parse_write_preview_and_upsert(tmp_path, monkeypatch):
     assert env_file.read_text(encoding="utf-8").splitlines() == [
         "",
         "# plain comment",
-        "AGI_PYTHON_VERSION=3.12",
+        "#AGI_PYTHON_VERSION='3.12'",
         "OPENAI_API_KEY=secret",
         "DUP=updated",
         "BROKEN LINE",
@@ -3256,6 +3440,27 @@ def test_env_file_helpers_parse_write_preview_and_upsert(tmp_path, monkeypatch):
     rewritten = env_file.read_text(encoding="utf-8")
     assert "OPENAI_API_KEY=new-secret" in rewritten
     assert rewritten.endswith("APPENDED=yes\n")
+
+
+def test_env_editor_write_reloads_file_and_preserves_disjoint_update(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        '# preserved comment\nQUOTED="keep value"\nEDIT=old\n',
+        encoding="utf-8",
+    )
+    stale_entries = about_agilab._read_env_file(env_file)
+
+    about_agilab._upsert_env_var(env_file, "CONCURRENT", "added")
+    about_agilab._write_env_file(
+        env_file,
+        stale_entries,
+        {"EDIT": "new"},
+        None,
+    )
+
+    assert env_file.read_text(encoding="utf-8") == (
+        '# preserved comment\nQUOTED="keep value"\nEDIT=new\nCONCURRENT=added\n'
+    )
 
 
 def test_handle_data_root_failure_renders_share_recovery_paths(tmp_path, monkeypatch):
@@ -4530,6 +4735,27 @@ def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeyp
     assert not any(
         "OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption"
     )
+
+
+def test_main_page_sidebar_uses_current_session_settings_page(monkeypatch):
+    fake_st = _FakeStreamlit()
+    current_settings_page = SimpleNamespace(url_path="SETTINGS")
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(
+        about_agilab,
+        "docs_menu_url",
+        lambda _html_file: "https://docs.example/agilab-help.html",
+    )
+    about_agilab._NAVIGATION_PAGE_ROUTES["settings"] = current_settings_page
+
+    about_agilab.render_sidebar_settings_link()
+
+    page_links = [
+        value for kind, value in fake_st.events if kind == "sidebar.page_link"
+    ]
+    assert page_links == [
+        {"page": current_settings_page, "kwargs": {"label": "Settings"}}
+    ]
 
 
 def test_main_page_sidebar_links_active_app_readme(tmp_path, monkeypatch):

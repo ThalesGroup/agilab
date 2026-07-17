@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import importlib.util
+import multiprocessing
+import os
+import stat
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 
 REPORT_PATH = Path("tools/global_pipeline_runner_state_report.py").resolve()
@@ -25,6 +31,52 @@ def _load_core_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _read_runner_state_until_stopped(
+    state_path: str,
+    stop_event,
+    result_queue,
+) -> None:
+    module = _load_core_module()
+    reads = 0
+    try:
+        while not stop_event.is_set() or reads < 25:
+            state = module.load_runner_state(Path(state_path))
+            generation = int(state["generation"])
+            values = state["values"]
+            if len(values) != 4096 or any(value != generation for value in values):
+                raise AssertionError(f"partial runner-state generation observed: {generation}")
+            reads += 1
+    except BaseException as exc:
+        result_queue.put((False, reads, repr(exc)))
+        return
+    result_queue.put((True, reads, ""))
+
+
+def _attempt_runner_state_transaction(
+    state_path: str,
+    expected_revision: str,
+    start_event,
+    execution_count,
+    result_queue,
+) -> None:
+    module = _load_core_module()
+    start_event.wait(timeout=5)
+    try:
+        with module.runner_state_transaction(
+            Path(state_path),
+            expected_revision=expected_revision,
+        ) as transaction:
+            with execution_count.get_lock():
+                execution_count.value += 1
+            next_state = dict(transaction.state)
+            next_state["events"] = [*transaction.state.get("events", []), {"kind": "completed"}]
+            transaction.commit(next_state)
+    except module.RunnerStateConflictError:
+        result_queue.put("conflict")
+        return
+    result_queue.put("committed")
 
 
 def test_runner_state_report_builds_dispatch_projection() -> None:
@@ -291,3 +343,227 @@ def test_runner_state_helper_and_failure_edges(tmp_path: Path, monkeypatch) -> N
     proof = module.persist_runner_state(repo_root=tmp_path, output_path=tmp_path / "state.json")
     assert proof.ok is False
     assert proof.issues[0].location == "persistence.round_trip"
+
+
+def test_runner_state_atomic_replace_prevents_multiprocess_partial_reads(tmp_path: Path) -> None:
+    module = _load_core_module()
+    state_path = tmp_path / "runner_state.json"
+    module.write_runner_state(state_path, {"generation": 0, "values": [0] * 4096})
+    context = multiprocessing.get_context("spawn")
+    stop_event = context.Event()
+    result_queue = context.Queue()
+    reader = context.Process(
+        target=_read_runner_state_until_stopped,
+        args=(str(state_path), stop_event, result_queue),
+    )
+    reader.start()
+    try:
+        for generation in range(1, 41):
+            module.write_runner_state(
+                state_path,
+                {"generation": generation, "values": [generation] * 4096},
+            )
+    finally:
+        stop_event.set()
+        reader.join(timeout=15)
+        if reader.is_alive():
+            reader.terminate()
+            reader.join(timeout=5)
+
+    assert reader.exitcode == 0
+    ok, reads, error = result_queue.get(timeout=2)
+    assert ok, error
+    assert reads >= 25
+
+
+def test_runner_state_read_retries_windows_sharing_violation(monkeypatch, tmp_path: Path) -> None:
+    module = _load_core_module()
+    state_path = tmp_path / "runner_state.json"
+    state_path.write_text('{"generation": 1}\n', encoding="utf-8")
+    real_read_text = Path.read_text
+    attempts = 0
+
+    def _transient_read_text(path: Path, *args, **kwargs):
+        nonlocal attempts
+        if path == state_path:
+            attempts += 1
+            if attempts == 1:
+                raise PermissionError("sharing violation")
+        return real_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(module, "_is_windows", lambda: True)
+    monkeypatch.setattr(module.time, "sleep", lambda _delay: None)
+    monkeypatch.setattr(Path, "read_text", _transient_read_text)
+
+    assert module.load_runner_state(state_path) == {"generation": 1}
+    assert attempts == 2
+
+
+def test_runner_state_replace_retries_windows_sharing_violation(monkeypatch, tmp_path: Path) -> None:
+    module = _load_core_module()
+    state_path = tmp_path / "runner_state.json"
+    real_replace = module.os.replace
+    attempts = 0
+
+    def _transient_replace(source, destination):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise PermissionError("sharing violation")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(module, "_is_windows", lambda: True)
+    monkeypatch.setattr(module.time, "sleep", lambda _delay: None)
+    monkeypatch.setattr(module.os, "replace", _transient_replace)
+
+    module.write_runner_state(state_path, {"generation": 1})
+
+    assert module.load_runner_state(state_path) == {"generation": 1}
+    assert attempts == 2
+
+
+def test_runner_state_lock_times_out_instead_of_freezing_session(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_core_module()
+    state_path = tmp_path / "runner_state.json"
+    monkeypatch.setattr(module, "_RUNNER_STATE_LOCK_TIMEOUT_SECONDS", 0.01)
+
+    with module._exclusive_runner_state_lock(state_path):
+        with pytest.raises(TimeoutError, match="Another session"):
+            with module._exclusive_runner_state_lock(state_path):
+                raise AssertionError("nested lock unexpectedly acquired")
+
+
+def test_runner_state_write_refuses_stale_revision(tmp_path: Path) -> None:
+    module = _load_core_module()
+    state_path = tmp_path / "runner_state.json"
+    initial = {"generation": 1, "events": [{"kind": "created"}]}
+    module.write_runner_state(state_path, initial)
+    stale_revision = module.runner_state_revision(initial)
+    current = {"generation": 2, "events": [{"kind": "created"}, {"kind": "completed"}]}
+    module.write_runner_state(
+        state_path,
+        current,
+        expected_revision=stale_revision,
+    )
+
+    with pytest.raises(module.RunnerStateConflictError, match="another session"):
+        module.write_runner_state(
+            state_path,
+            {"generation": 3, "events": [{"kind": "stale overwrite"}]},
+            expected_revision=stale_revision,
+        )
+
+    assert module.load_runner_state(state_path) == current
+
+
+def test_runner_state_directory_fsync_failure_keeps_committed_write_successful(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_core_module()
+    state_path = tmp_path / "runner_state.json"
+    state = {"generation": 1, "events": [{"kind": "created"}]}
+    real_fsync = module.os.fsync
+
+    def _fail_directory_fsync(fd):
+        if stat.S_ISDIR(module.os.fstat(fd).st_mode):
+            raise OSError("directory fsync unavailable")
+        return real_fsync(fd)
+
+    monkeypatch.setattr(module.os, "fsync", _fail_directory_fsync)
+    evidence_published = False
+    with module.runner_state_write_transaction(
+        state_path,
+        state,
+        expected_revision=module.MISSING_RUNNER_STATE_REVISION,
+    ) as written_path:
+        assert written_path == state_path
+        evidence_published = True
+
+    assert evidence_published
+    assert module.load_runner_state(state_path) == state
+
+
+def test_windows_directory_flush_fails_closed_when_durability_is_unproven(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_core_module()
+    observed_paths: list[Path] = []
+    monkeypatch.setattr(module, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(
+        module,
+        "_flush_windows_directory",
+        lambda path: observed_paths.append(path) or False,
+    )
+
+    assert module._fsync_runner_state_directory(tmp_path) is False
+    assert observed_paths == [tmp_path]
+
+
+def test_new_directory_hierarchy_flushes_each_parent_entry(monkeypatch, tmp_path: Path) -> None:
+    module = _load_core_module()
+    flushed: list[Path] = []
+    monkeypatch.setattr(
+        module,
+        "_fsync_runner_state_directory",
+        lambda path: flushed.append(path) or True,
+    )
+    target = tmp_path / "new-lab" / ".agilab"
+
+    assert module._ensure_directory_hierarchy_durable(target) is True
+    assert target.is_dir()
+    assert target in flushed
+    assert target.parent in flushed
+    assert tmp_path in flushed
+
+
+@pytest.mark.skipif(os.name != "nt", reason="real Windows directory handle required")
+def test_windows_directory_flush_real_helper_succeeds(tmp_path: Path) -> None:
+    module = _load_core_module()
+
+    assert module._flush_windows_directory(tmp_path) is True
+
+
+def test_runner_state_transaction_serializes_stale_multiprocess_sessions(tmp_path: Path) -> None:
+    module = _load_core_module()
+    state_path = tmp_path / "runner_state.json"
+    initial = {"events": [{"kind": "created"}]}
+    module.write_runner_state(state_path, initial)
+    expected_revision = module.runner_state_revision(initial)
+    context = multiprocessing.get_context("spawn")
+    start_event = context.Event()
+    execution_count = context.Value("i", 0)
+    result_queue = context.Queue()
+    sessions = [
+        context.Process(
+            target=_attempt_runner_state_transaction,
+            args=(
+                str(state_path),
+                expected_revision,
+                start_event,
+                execution_count,
+                result_queue,
+            ),
+        )
+        for _index in range(2)
+    ]
+    for session in sessions:
+        session.start()
+    start_event.set()
+    for session in sessions:
+        session.join(timeout=15)
+        if session.is_alive():
+            session.terminate()
+            session.join(timeout=5)
+
+    assert [session.exitcode for session in sessions] == [0, 0]
+    assert sorted(result_queue.get(timeout=2) for _index in sessions) == ["committed", "conflict"]
+    assert execution_count.value == 1
+    assert module.load_runner_state(state_path)["events"] == [
+        {"kind": "created"},
+        {"kind": "completed"},
+    ]

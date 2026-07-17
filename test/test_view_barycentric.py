@@ -762,6 +762,10 @@ def test_view_barycentric_main_reports_missing_app_and_page_errors(monkeypatch, 
             self.is_source_env = True
             self.is_worker_env = False
 
+        @classmethod
+        def session_for_app(cls, *, apps_path, app, verbose):
+            return cls(apps_path, app, verbose)
+
     monkeypatch.setattr(module, "AgiEnv", FakeEnv)
     monkeypatch.setattr(module, "page", lambda env: (_ for _ in ()).throw(RuntimeError("page boom")))
     monkeypatch.setattr(

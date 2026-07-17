@@ -6,6 +6,18 @@ import inspect
 class AgiEnvMeta(type):
     """Delegate class attribute access to the singleton instance."""
 
+    def __call__(cls, *args, **kwargs):  # type: ignore[override]
+        """Keep singleton allocation and initialization under one bounded guard."""
+
+        try:
+            construction_guard = type.__getattribute__(
+                cls, "_bounded_construction_guard"
+            )
+        except AttributeError:
+            return super().__call__(*args, **kwargs)
+        with construction_guard():
+            return super().__call__(*args, **kwargs)
+
     def __getattribute__(cls, name):  # type: ignore[override]
         if name in {"_instance", "_lock", "current", "reset", "__dict__", "__weakref__"}:
             return super().__getattribute__(name)

@@ -21,6 +21,12 @@ from agilab.orchestrate.orchestrate_page_support import (
     ORCHESTRATE_ACTION_LABELS,
     orchestrate_snippet_runtime_root,
 )
+from agilab.orchestrate.orchestrate_support import (
+    changed_app_settings_paths,
+    owned_app_settings_payload,
+    reconcile_untouched_widget_values,
+    remember_rendered_widget_values,
+)
 from agilab.workflow.action_execution import ActionResult, render_action_result
 
 SERVICE_MODE_POOL = 1
@@ -150,6 +156,45 @@ def service_health_gate_keys(app: str) -> ServiceHealthGateKeys:
         allow_idle=f"service_health_allow_idle__{app}",
         max_unhealthy=f"service_health_max_unhealthy__{app}",
         max_restart_rate=f"service_health_max_restart_rate__{app}",
+    )
+
+
+def service_health_widget_baseline_key(app: str) -> str:
+    return f"service_health_widget_values__{app}"
+
+
+def service_health_widget_values(
+    app: str,
+    defaults: Mapping[str, Any],
+) -> dict[str, Any]:
+    keys = service_health_gate_keys(app)
+    return {
+        keys.allow_idle: bool(defaults["allow_idle"]),
+        keys.max_unhealthy: int(defaults["max_unhealthy"]),
+        keys.max_restart_rate: float(defaults["max_restart_rate"]),
+    }
+
+
+def changed_service_health_widget_paths(
+    session_state: Mapping[str, Any],
+    *,
+    app: str,
+    rendered_baseline: Mapping[str, Any],
+) -> tuple[tuple[str, ...], ...]:
+    """Return health leaves explicitly changed since this session rendered."""
+
+    keys = service_health_gate_keys(app)
+    fields_by_widget = {
+        keys.allow_idle: "allow_idle",
+        keys.max_unhealthy: "max_unhealthy",
+        keys.max_restart_rate: "max_restart_rate",
+    }
+    return tuple(
+        ("cluster", "service_health", field)
+        for widget_key, field in fields_by_widget.items()
+        if widget_key in rendered_baseline
+        and widget_key in session_state
+        and session_state[widget_key] != rendered_baseline[widget_key]
     )
 
 
@@ -631,6 +676,33 @@ async def render_service_panel(
 
         service_health_defaults = resolve_service_health_defaults(cluster_params, deps)
 
+        service_health_baseline_key = service_health_widget_baseline_key(env.app)
+        rendered_health_baseline = st.session_state.get(
+            service_health_baseline_key
+        )
+        has_rendered_health_baseline = isinstance(
+            rendered_health_baseline,
+            Mapping,
+        )
+        service_health_owned_paths = (
+            changed_service_health_widget_paths(
+                st.session_state,
+                app=env.app,
+                rendered_baseline=rendered_health_baseline,
+            )
+            if has_rendered_health_baseline
+            else ()
+        )
+        service_health_values = service_health_widget_values(
+            env.app,
+            service_health_defaults,
+        )
+        reconcile_untouched_widget_values(
+            st.session_state,
+            baseline_key=service_health_baseline_key,
+            desired_values=service_health_values,
+        )
+
         gate_keys = ensure_service_health_gate_defaults(
             st.session_state,
             app=env.app,
@@ -667,12 +739,34 @@ async def render_service_panel(
             "max_unhealthy": int(service_health_max_unhealthy),
             "max_restart_rate": float(service_health_max_restart_rate),
         }
-        if cluster_params.get("service_health") != updated_service_health_settings:
+        remember_rendered_widget_values(
+            st.session_state,
+            baseline_key=service_health_baseline_key,
+            widget_keys=service_health_values,
+        )
+        existing_service_health = cluster_params.get("service_health")
+        service_health_default_paths = (
+            changed_app_settings_paths(
+                existing_service_health
+                if isinstance(existing_service_health, Mapping)
+                else {},
+                updated_service_health_settings,
+                prefix=("cluster", "service_health"),
+            )
+            if not has_rendered_health_baseline
+            else ()
+        )
+        if service_health_owned_paths or service_health_default_paths:
             cluster_params["service_health"] = updated_service_health_settings
             st.session_state.app_settings["cluster"] = cluster_params
             st.session_state.app_settings = deps.write_app_settings_toml(
                 env.app_settings_file,
-                st.session_state.app_settings,
+                owned_app_settings_payload(
+                    st.session_state.app_settings,
+                    *service_health_owned_paths,
+                    default_paths=service_health_default_paths,
+                    preserved_paths=(("args",),),
+                ),
             )
             try:
                 deps.clear_load_toml_cache()

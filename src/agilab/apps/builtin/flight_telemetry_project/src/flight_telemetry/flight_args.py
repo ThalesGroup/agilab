@@ -7,8 +7,6 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
-import tomllib
-
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from agi_env.app_args import (
@@ -189,14 +187,6 @@ def dump_args_to_toml(
     create_missing: bool = True,
 ) -> None:
     """Persist arguments back to the TOML file (overwriting only the section)."""
-
-    settings_path = Path(settings_path)
-    doc: dict[str, Any] = {}
-    if settings_path.exists():
-        with settings_path.open("rb") as handle:
-            doc = tomllib.load(handle)
-    elif not create_missing:
-        raise FileNotFoundError(f"Settings file not found: {settings_path}")
 
     dump_model_to_toml(
         args,

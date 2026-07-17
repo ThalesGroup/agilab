@@ -154,8 +154,10 @@ def load_settings_file(settings_path: Path | str | None) -> dict[str, Any]:
     if not path.exists():
         return {}
     try:
-        with path.open("rb") as stream:
-            loaded = tomllib.load(stream)
+        # Keep agi-env optional for importing the base package.
+        from agi_env.app_settings_support import read_app_settings
+
+        loaded = read_app_settings(path)
     except (OSError, tomllib.TOMLDecodeError):
         return {}
     return dict(loaded) if isinstance(loaded, dict) else {}
@@ -165,9 +167,17 @@ def persist_diagnostics_verbose(settings_path: Path | str | None, verbose: Any) 
     if settings_path in (None, ""):
         return {}
     path = Path(settings_path)
-    settings = load_settings_file(path)
-    update_settings_diagnostics(settings, verbose)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("wb") as stream:
-        tomli_w.dump(settings, stream)
+    # Keep agi-env optional for importing the base package.
+    from agi_env.app_settings_support import update_app_settings
+
+    def _update(settings: dict[str, Any]) -> bool:
+        update_settings_diagnostics(settings, verbose)
+        return True
+
+    settings, _changed = update_app_settings(
+        path,
+        _update,
+        dump_fn=tomli_w.dump,
+        prepare_fn=lambda payload: payload,
+    )
     return settings

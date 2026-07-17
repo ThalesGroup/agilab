@@ -14,8 +14,7 @@ import plotly.graph_objects as go
 from plotly.colors import qualitative as plotly_qualitative
 from plotly.subplots import make_subplots
 import streamlit as st
-import tomllib
-from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
 from agi_pages.runtime import (
     active_app_scope_value,
     configure_streamlit_page,
@@ -85,7 +84,7 @@ def _ensure_repo_on_path() -> None:
 
 _ensure_repo_on_path()
 
-from agi_env import AgiEnv
+from agi_env import AgiEnv  # noqa: E402
 
 
 def _resolve_active_app() -> Path:
@@ -95,15 +94,16 @@ def _resolve_active_app() -> Path:
 def _ensure_app_scoped_env() -> AgiEnv:
     env = st.session_state.get("env")
     scope_key = st.session_state.get(APP_SCOPE_KEY)
-    if env is not None and scope_key is None:
-        inferred_scope_key = env_app_scope_value(env)
-        if inferred_scope_key is None:
-            return env
-        st.session_state[APP_SCOPE_KEY] = inferred_scope_key
-        scope_key = inferred_scope_key
+    inferred_env_scope = env_app_scope_value(env)
+    if env is not None and scope_key is None and inferred_env_scope is None:
+        # Lightweight embedded callers may provide an app-agnostic facade rather
+        # than a complete AgiEnv. Preserve that explicit injection when neither
+        # side exposes an app scope to compare.
+        return env
 
     active_app_path = _resolve_active_app()
-    if scope_key != active_app_scope_value(active_app_path):
+    active_scope_key = active_app_scope_value(active_app_path)
+    if scope_key != active_scope_key:
         reset_scoped_session_state(
             st.session_state,
             APP_SCOPE_KEY,
@@ -111,11 +111,16 @@ def _ensure_app_scoped_env() -> AgiEnv:
             keys=APP_SCOPED_SESSION_KEYS,
         )
 
-    if "env" not in st.session_state:
-        env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+    if inferred_env_scope == active_scope_key:
+        # The scope reset above intentionally clears every app-owned key,
+        # including ``env``. Rebind the already-proven matching environment
+        # instead of returning through a now-missing session-state entry.
+        st.session_state["env"] = env
+    else:
+        env = AgiEnv.session_for_app(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
         env.init_done = True
         st.session_state["env"] = env
-    return st.session_state["env"]
+    return env
 
 
 def _ensure_app_settings_loaded(env: AgiEnv) -> None:
@@ -124,27 +129,37 @@ def _ensure_app_settings_loaded(env: AgiEnv) -> None:
     path = Path(env.app_settings_file)
     if path.exists():
         try:
-            with path.open("rb") as handle:
-                st.session_state["app_settings"] = tomllib.load(handle)
-                return
-        except (OSError, tomllib.TOMLDecodeError):
+            st.session_state["app_settings"] = read_app_settings(path)
+            return
+        except (OSError, ValueError):
             pass
     st.session_state["app_settings"] = {}
 
 
-def _persist_app_settings(env: AgiEnv) -> None:
+def _persist_app_settings(env: AgiEnv, owned_keys: tuple[str, ...]) -> None:
     settings = st.session_state.get("app_settings")
     if not isinstance(settings, dict):
         return
+    page_settings = settings.get(PAGE_KEY)
+    if not isinstance(page_settings, dict):
+        page_settings = {}
+    if not owned_keys:
+        return
     path = Path(env.app_settings_file)
     try:
-        prepared_settings = prepare_app_settings_for_write(settings)
-    except ValueError:
-        return
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("wb") as handle:
-            _dump_toml(prepared_settings, handle)
+        latest, _ = update_app_settings_owned(
+            path,
+            settings,
+            owned_paths=tuple((PAGE_KEY, key) for key in owned_keys),
+            dump_fn=_dump_toml,
+        )
+        latest_page_settings = latest.get(PAGE_KEY)
+        page_settings.clear()
+        if isinstance(latest_page_settings, dict):
+            page_settings.update(latest_page_settings)
+        settings.clear()
+        settings.update(latest)
+        settings[PAGE_KEY] = page_settings
     except (OSError, RuntimeError):
         pass
 
@@ -701,7 +716,9 @@ def main() -> None:
                 "x_axis": st.session_state.get(X_AXIS_KEY, "step"),
             }
         )
-        _persist_app_settings(env)
+        _persist_app_settings(
+            env, ("base_dir_choice", "input_datadir", "datadir_rel", "x_axis")
+        )
         st.stop()
 
     trainer_roots = _discover_training_roots(data_root)
@@ -715,7 +732,9 @@ def main() -> None:
                 "x_axis": st.session_state.get(X_AXIS_KEY, "step"),
             }
         )
-        _persist_app_settings(env)
+        _persist_app_settings(
+            env, ("base_dir_choice", "input_datadir", "datadir_rel", "x_axis")
+        )
         st.stop()
 
     trainer_labels = {_relative_label(path, data_root): path for path in trainer_roots}
@@ -825,7 +844,20 @@ def main() -> None:
             "x_axis": x_axis_option,
         }
     )
-    _persist_app_settings(env)
+    _persist_app_settings(
+        env,
+        (
+            "base_dir_choice",
+            "input_datadir",
+            "datadir_rel",
+            "trainer_rel",
+            "trainer_rels",
+            "run_rel",
+            "run_rels",
+            "selected_tags",
+            "x_axis",
+        ),
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover - script entrypoint

@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 from agi_cluster.agi_distributor.deployment_stage_cache_support import (
+    _atomic_write_json,
     _deploy_stage_file_fingerprint,
 )
 from agi_cluster.agi_distributor.deployment_venv_support import (
@@ -137,13 +138,7 @@ def _write_editable_install_cache(path: Path, state: dict[str, Any]) -> None:
         else {},
     }
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_name(f"{path.name}.tmp")
-        tmp_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        tmp_path.replace(path)
+        _atomic_write_json(path, payload)
     except OSError:
         return
 

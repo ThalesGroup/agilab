@@ -5,11 +5,11 @@ import os
 import shlex
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Pattern, Sequence, Type
 
 from agi_env import AgiEnv
+from agi_env.app_settings_support import read_app_settings
 from agi_env.snippet_contract import (
     is_supported_snippet_api,
     is_generated_agi_snippet,
@@ -55,11 +55,10 @@ def safe_service_start_template(env: AgiEnv, marker: str) -> str:
     try:
         app_settings_path = Path(env.app_settings_file)
         if app_settings_path.exists():
-            with app_settings_path.open("rb") as stream:
-                loaded = tomllib.load(stream)
+            loaded = read_app_settings(app_settings_path)
             if isinstance(loaded, dict):
                 settings = loaded
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError, tomllib.TOMLDecodeError):
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         settings = {}
 
     cluster = settings.get("cluster", {}) if isinstance(settings.get("cluster"), dict) else {}

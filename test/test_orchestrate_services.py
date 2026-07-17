@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 import importlib
 from types import SimpleNamespace
+import tomllib
 
 from pathlib import Path
 import sys
@@ -30,6 +32,7 @@ def _import_agilab_module(module_name: str):
 
 
 orchestrate_services = _import_agilab_module("agilab.orchestrate_services")
+orchestrate_support = _import_agilab_module("agilab.orchestrate_support")
 
 
 def _deps():
@@ -1401,3 +1404,214 @@ def test_render_service_panel_skips_redundant_service_health_write(monkeypatch, 
     )
 
     assert writes == []
+
+
+def test_stale_service_widgets_adopt_health_merged_by_another_session(
+    monkeypatch,
+    tmp_path,
+):
+    writes: list[tuple[object, object]] = []
+    old_health = {
+        "allow_idle": False,
+        "max_unhealthy": 0,
+        "max_restart_rate": 0.25,
+    }
+    latest_health = {
+        "allow_idle": True,
+        "max_unhealthy": 2,
+        "max_restart_rate": 0.5,
+    }
+    latest_cluster = {
+        "cluster_enabled": True,
+        "service_health": dict(latest_health),
+    }
+    old_widget_values = orchestrate_services.service_health_widget_values(
+        "demo",
+        old_health,
+    )
+    baseline_key = orchestrate_services.service_health_widget_baseline_key("demo")
+    session_state = _SessionState(
+        {
+            "args_serialized": "foo=1",
+            "app_settings": {"cluster": latest_cluster},
+            **old_widget_values,
+            baseline_key: dict(old_widget_values),
+        }
+    )
+    fake_st = _service_st(session_state)
+    monkeypatch.setattr(orchestrate_services, "st", fake_st)
+
+    deps = orchestrate_services.OrchestrateServiceDeps(
+        reset_traceback_skip=lambda: None,
+        append_log_lines=lambda lines, payload: lines.append(payload),
+        extract_result_dict_from_output=lambda raw: None,
+        evaluate_service_health_gate=lambda *args, **kwargs: (0, "ok", {}),
+        coerce_bool_setting=lambda value, default: default if value is None else bool(value),
+        coerce_int_setting=lambda value, default, minimum=0: max(
+            minimum,
+            default if value is None else int(value),
+        ),
+        coerce_float_setting=lambda value, default, minimum=0.0, maximum=1.0: min(
+            maximum,
+            max(minimum, default if value is None else float(value)),
+        ),
+        write_app_settings_toml=lambda path, payload: writes.append((path, payload)) or payload,
+        clear_load_toml_cache=lambda: None,
+        log_display_max_lines=100,
+        install_log_height=320,
+    )
+    env = SimpleNamespace(
+        app="demo",
+        apps_path=tmp_path,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params=latest_cluster,
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=deps,
+        )
+    )
+
+    latest_widget_values = orchestrate_services.service_health_widget_values(
+        "demo",
+        latest_health,
+    )
+    assert writes == []
+    assert latest_cluster["service_health"] == latest_health
+    assert {
+        key: session_state[key] for key in latest_widget_values
+    } == latest_widget_values
+    assert session_state[baseline_key] == latest_widget_values
+
+
+def test_stale_service_sessions_merge_distinct_health_widget_leaves(
+    monkeypatch,
+    tmp_path,
+):
+    settings_file = tmp_path / "app_settings.toml"
+    initial_health = {
+        "allow_idle": False,
+        "max_unhealthy": 0,
+        "max_restart_rate": 0.25,
+    }
+    initial_settings = {
+        "args": {},
+        "cluster": {
+            "cluster_enabled": True,
+            "service_health": dict(initial_health),
+        },
+    }
+    orchestrate_support.write_app_settings_toml(
+        settings_file,
+        initial_settings,
+    )
+
+    baseline_key = orchestrate_services.service_health_widget_baseline_key("demo")
+    initial_widget_values = orchestrate_services.service_health_widget_values(
+        "demo",
+        initial_health,
+    )
+
+    def _stale_session():
+        app_settings = deepcopy(initial_settings)
+        session_state = _SessionState(
+            {
+                "args_serialized": "foo=1",
+                "app_settings": app_settings,
+                **initial_widget_values,
+                baseline_key: dict(initial_widget_values),
+            }
+        )
+        return session_state, app_settings["cluster"]
+
+    writes: list[tuple[str, tuple[tuple[str, ...], ...]]] = []
+
+    def _deps_for(session_name: str):
+        def _write(path, payload):
+            writes.append((session_name, payload.owned_paths))
+            return orchestrate_support.write_app_settings_toml(path, payload)
+
+        return orchestrate_services.OrchestrateServiceDeps(
+            reset_traceback_skip=lambda: None,
+            append_log_lines=lambda lines, payload: lines.append(payload),
+            extract_result_dict_from_output=lambda raw: None,
+            evaluate_service_health_gate=lambda *args, **kwargs: (0, "ok", {}),
+            coerce_bool_setting=lambda value, default: (
+                default if value is None else bool(value)
+            ),
+            coerce_int_setting=lambda value, default, minimum=0: max(
+                minimum,
+                default if value is None else int(value),
+            ),
+            coerce_float_setting=lambda value, default, minimum=0.0, maximum=1.0: min(
+                maximum,
+                max(minimum, default if value is None else float(value)),
+            ),
+            write_app_settings_toml=_write,
+            clear_load_toml_cache=lambda: None,
+            log_display_max_lines=100,
+            install_log_height=320,
+        )
+
+    env = SimpleNamespace(
+        app="demo",
+        apps_path=tmp_path,
+        app_settings_file=settings_file,
+    )
+    gate_keys = orchestrate_services.service_health_gate_keys("demo")
+
+    session_a, cluster_a = _stale_session()
+    session_a[gate_keys.allow_idle] = True
+    monkeypatch.setattr(orchestrate_services, "st", _service_st(session_a))
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params=cluster_a,
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=_deps_for("session-a"),
+        )
+    )
+
+    session_b, cluster_b = _stale_session()
+    session_b[gate_keys.max_unhealthy] = 2
+    monkeypatch.setattr(orchestrate_services, "st", _service_st(session_b))
+    asyncio.run(
+        orchestrate_services.render_service_panel(
+            env=env,
+            project_path=tmp_path,
+            cluster_params=cluster_b,
+            verbose=1,
+            scheduler='"127.0.0.1:8786"',
+            workers="{'127.0.0.1': 1}",
+            deps=_deps_for("session-b"),
+        )
+    )
+
+    persisted = tomllib.loads(settings_file.read_text(encoding="utf-8"))
+    assert writes == [
+        (
+            "session-a",
+            (("cluster", "service_health", "allow_idle"),),
+        ),
+        (
+            "session-b",
+            (("cluster", "service_health", "max_unhealthy"),),
+        ),
+    ]
+    assert persisted["cluster"]["service_health"] == {
+        "allow_idle": True,
+        "max_unhealthy": 2,
+        "max_restart_rate": 0.25,
+    }
+    assert session_b["app_settings"]["cluster"]["service_health"] == persisted[
+        "cluster"
+    ]["service_health"]

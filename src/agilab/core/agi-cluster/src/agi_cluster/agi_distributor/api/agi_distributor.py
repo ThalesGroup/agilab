@@ -39,6 +39,7 @@ from agi_cluster.agi_distributor import (
     deployment_prepare_support,
     deployment_remote_support,
     entrypoint_support,
+    lifecycle_guard_support,
     runtime_distribution_support,
     runtime_misc_support,
     scheduler_io_support,
@@ -165,6 +166,11 @@ class AGI:
     _target: Optional[str] = None
     verbose: Optional[int] = None
     _worker_init_error: bool = False
+    _worker_launch_tasks: Set[Any] = set()
+    _worker_launch_errors: List[BaseException] = []
+    _scheduler_launch_tasks: Set[Any] = set()
+    _scheduler_launch_errors: List[BaseException] = []
+    _startup_in_progress: bool = False
     _workers: Optional[Dict[str, int]] = None
     _workers_data_path: Optional[str] = None
     _capacity: Optional[Dict[str, float]] = None
@@ -205,6 +211,25 @@ class AGI:
     _service_cleanup_heartbeat_max_files: int = 1000
     _service_submit_counter: int = 0
     _service_worker_args: Dict[str, Any] = {}
+    _service_cleanup_unproven: bool = False
+    _service_runtime_shutdown_proven: bool = False
+    # ``AGI`` keeps a class-based compatibility surface.  These fields are
+    # managed by lifecycle_guard_support so concurrent event loops/threads and
+    # separate processes cannot cross-wire that shared mutable state.
+    _lifecycle_state_lock: Any = None
+    _lifecycle_call_token: Optional[str] = None
+    _lifecycle_call_owner: Any = None
+    _lifecycle_call_target: Optional[Path] = None
+    _lifecycle_call_operation: Optional[str] = None
+    _lifecycle_call_depth: int = 0
+    _lifecycle_remote_token: Optional[str] = None
+    _lifecycle_remote_recovery_tokens: tuple[str, ...] = ()
+    _lifecycle_pending_release_lease: Any = None
+    _lifecycle_service_token: Optional[str] = None
+    _lifecycle_service_target: Optional[Path] = None
+    _lifecycle_service_operation: Optional[str] = None
+    _lifecycle_service_lease: Any = None
+    _remote_target_leases: Dict[str, cleanup_support.RemoteTargetLease] = {}
 
     def __init__(self, target: str, verbose: int = 1):
         """
@@ -244,16 +269,17 @@ class AGI:
             ValueError: If `mode` is invalid.
             RuntimeError: If the target module fails to load.
         """
-        return await entrypoint_support.run(
-            AGI,
-            env=env,
-            request=request,
-            workers_default=_workers_default,
-            process_error_type=ProcessError,
-            format_exception_chain_fn=_format_exception_chain,
-            traceback_format_exc_fn=traceback.format_exc,
-            log=logger,
-        )
+        async with lifecycle_guard_support.LifecycleOperation(AGI, env, "run"):
+            return await entrypoint_support.run(
+                AGI,
+                env=env,
+                request=request,
+                workers_default=_workers_default,
+                process_error_type=ProcessError,
+                format_exception_chain_fn=_format_exception_chain,
+                traceback_format_exc_fn=traceback.format_exc,
+                log=logger,
+            )
 
     @staticmethod
     def _wrap_worker_chunk(payload: Any, worker_index: int) -> Any:
@@ -369,6 +395,10 @@ class AGI:
         return service_runtime_support.service_queue_counts(AGI)
 
     @staticmethod
+    def _recover_orphaned_service_tasks() -> Dict[str, int]:
+        return service_runtime_support.recover_orphaned_service_tasks(AGI)
+
+    @staticmethod
     def _service_cleanup_artifacts() -> Dict[str, int]:
         return service_runtime_support.service_cleanup_artifacts(AGI)
 
@@ -474,32 +504,76 @@ class AGI:
             health_output_path: Optional[Union[str, Path]] = None,
             **args: Any,
     ) -> Dict[str, Any]:
-        return await service_runtime_support.serve(
+        command = (action or "start").lower()
+        operation = lifecycle_guard_support.LifecycleOperation(
             AGI,
             env,
-            scheduler=scheduler,
-            workers=workers,
-            verbose=verbose,
-            mode=mode,
-            rapids_enabled=rapids_enabled,
-            action=action,
-            poll_interval=poll_interval,
-            shutdown_on_stop=shutdown_on_stop,
-            stop_timeout=stop_timeout,
-            service_queue_dir=service_queue_dir,
-            heartbeat_timeout=heartbeat_timeout,
-            cleanup_done_ttl_sec=cleanup_done_ttl_sec,
-            cleanup_failed_ttl_sec=cleanup_failed_ttl_sec,
-            cleanup_heartbeat_ttl_sec=cleanup_heartbeat_ttl_sec,
-            cleanup_done_max_files=cleanup_done_max_files,
-            cleanup_failed_max_files=cleanup_failed_max_files,
-            cleanup_heartbeat_max_files=cleanup_heartbeat_max_files,
-            health_output_path=health_output_path,
-            background_job_manager_factory=bg.BackgroundJobManager,
-            wait_fn=wait,
-            log=logger,
-            **args,
+            f"serve:{command}",
+            service_command=True,
         )
+        async with operation:
+            try:
+                result = await service_runtime_support.serve(
+                    AGI,
+                    env,
+                    scheduler=scheduler,
+                    workers=workers,
+                    verbose=verbose,
+                    mode=mode,
+                    rapids_enabled=rapids_enabled,
+                    action=action,
+                    poll_interval=poll_interval,
+                    shutdown_on_stop=shutdown_on_stop,
+                    stop_timeout=stop_timeout,
+                    service_queue_dir=service_queue_dir,
+                    heartbeat_timeout=heartbeat_timeout,
+                    cleanup_done_ttl_sec=cleanup_done_ttl_sec,
+                    cleanup_failed_ttl_sec=cleanup_failed_ttl_sec,
+                    cleanup_heartbeat_ttl_sec=cleanup_heartbeat_ttl_sec,
+                    cleanup_done_max_files=cleanup_done_max_files,
+                    cleanup_failed_max_files=cleanup_failed_max_files,
+                    cleanup_heartbeat_max_files=cleanup_heartbeat_max_files,
+                    health_output_path=health_output_path,
+                    background_job_manager_factory=bg.BackgroundJobManager,
+                    wait_fn=wait,
+                    log=logger,
+                    **args,
+                )
+            except BaseException:
+                if (
+                    AGI._service_cleanup_unproven
+                    or AGI._service_runtime_shutdown_proven
+                    or AGI._service_futures
+                    or AGI._service_workers
+                    or AGI._dask_client is not None
+                    or bool(getattr(getattr(AGI, "_jobs", None), "running", None))
+                ):
+                    operation.retain_for_service_on_error()
+                raise
+            status = str(result.get("status", "")).lower()
+            if command == "stop":
+                jobs = getattr(getattr(AGI, "_jobs", None), "running", None) or []
+                runtime_retained = AGI._dask_client is not None or bool(jobs)
+                stop_unproven = (
+                    status not in {"idle", "stopped"}
+                    or AGI._service_cleanup_unproven
+                    or AGI._service_runtime_shutdown_proven
+                    or bool(AGI._service_futures)
+                    or bool(AGI._service_workers)
+                )
+                if stop_unproven:
+                    operation.retain_for_service()
+                elif shutdown_on_stop or not runtime_retained:
+                    operation.release_service()
+                    AGI._service_cleanup_unproven = False
+                else:
+                    # A stopped service may intentionally retain its Dask
+                    # runtime. Keep serialization until a later stop requests
+                    # shutdown; otherwise a normal run can cross-wire it.
+                    operation.retain_for_service()
+            elif status in {"running", "degraded"} or AGI._service_futures or AGI._service_workers:
+                operation.retain_for_service()
+            return result
 
     @staticmethod
     async def submit(
@@ -511,16 +585,39 @@ class AGI:
             task_name: Optional[str] = None,
             **args: Any,
     ) -> Dict[str, Any]:
-        return await service_runtime_support.submit(
+        effective_env = env or AGI.env
+        if effective_env is None:
+            raise ValueError("env is required when AGI has not been initialised yet")
+        operation = lifecycle_guard_support.LifecycleOperation(
             AGI,
-            env=env,
-            workers=workers,
-            work_plan=work_plan,
-            work_plan_metadata=work_plan_metadata,
-            task_id=task_id,
-            task_name=task_name,
-            **args,
+            effective_env,
+            "submit",
+            service_command=True,
         )
+        async with operation:
+            try:
+                result = await service_runtime_support.submit(
+                    AGI,
+                    env=env,
+                    workers=workers,
+                    work_plan=work_plan,
+                    work_plan_metadata=work_plan_metadata,
+                    task_id=task_id,
+                    task_name=task_name,
+                    **args,
+                )
+            except BaseException:
+                if (
+                    AGI._service_cleanup_unproven
+                    or AGI._service_futures
+                    or AGI._service_workers
+                    or AGI._dask_client is not None
+                    or bool(getattr(getattr(AGI, "_jobs", None), "running", None))
+                ):
+                    operation.retain_for_service_on_error()
+                raise
+            operation.retain_for_service()
+            return result
 
     @staticmethod
     async def _benchmark(
@@ -632,12 +729,19 @@ class AGI:
         )
 
     @staticmethod
-    async def _kill(ip: Optional[str] = None, current_pid: Optional[int] = None, force: bool = True) -> Optional[Any]:
+    async def _kill(
+            ip: Optional[str] = None,
+            current_pid: Optional[int] = None,
+            force: bool = True,
+            *,
+            force_scan: bool = False,
+    ) -> Optional[Any]:
         return await cleanup_support.kill_processes(
             AGI,
             ip=ip,
             current_pid=current_pid,
             force=force,
+            force_scan=force_scan,
             gethostbyname_fn=socket.gethostbyname,
             run_fn=AgiEnv.run,
             copy_fn=shutil.copy,
@@ -669,6 +773,18 @@ class AGI:
             getuser_fn=getpass.getuser,
             getpid_fn=os.getpid,
             rmtree_fn=shutil.rmtree,
+        )
+
+    @staticmethod
+    def _force_clean_dirs_local() -> None:
+        """Explicit operator recovery; ordinary deploy cleanup is target-scoped."""
+
+        cleanup_support.force_clean_dirs_local(
+            AGI,
+            process_iter_fn=psutil.process_iter,
+            getuser_fn=getpass.getuser,
+            getpid_fn=os.getpid,
+            rmtree_fn=shutil.rmtree,
             gettempdir_fn=gettempdir,
         )
 
@@ -680,6 +796,23 @@ class AGI:
             makedirs_fn=os.makedirs,
             remove_dir_forcefully_fn=AGI._remove_dir_forcefully,
         )
+
+    @staticmethod
+    async def _acquire_remote_target_lease(
+            ip: str,
+            *,
+            cmd_prefix: Optional[str] = None,
+    ) -> cleanup_support.RemoteTargetLease:
+        return await cleanup_support.acquire_remote_target_lease(
+            AGI,
+            ip,
+            cmd_prefix=cmd_prefix,
+            detect_export_cmd_fn=AGI._detect_export_cmd,  # ty: ignore[invalid-argument-type]
+        )
+
+    @staticmethod
+    async def _release_remote_target_leases() -> None:
+        await cleanup_support.release_remote_target_leases(AGI)
 
     @staticmethod
     async def _clean_nodes(scheduler_addr: Optional[str], force: bool = True) -> Set[str]:
@@ -729,6 +862,7 @@ class AGI:
             send_files_fn=AGI.send_files,
             kill_fn=AGI._kill,
             clean_dirs_fn=AGI._clean_dirs,
+            acquire_remote_target_lease_fn=AGI._acquire_remote_target_lease,
             mkdtemp_fn=mkdtemp,
             process_error_type=ProcessError,
             set_env_var_fn=AgiEnv.set_env_var,
@@ -810,16 +944,17 @@ class AGI:
             verbose: Optional[int] = None,
             **args: Any,
     ) -> Any:
-        return await entrypoint_support.install(
-            AGI,
-            env=env,
-            scheduler=scheduler,
-            workers=workers,
-            workers_data_path=workers_data_path,
-            modes_enabled=modes_enabled,
-            verbose=verbose,
-            args=args,
-        )
+        async with lifecycle_guard_support.LifecycleOperation(AGI, env, "install"):
+            return await entrypoint_support.install(
+                AGI,
+                env=env,
+                scheduler=scheduler,
+                workers=workers,
+                workers_data_path=workers_data_path,
+                modes_enabled=modes_enabled,
+                verbose=verbose,
+                args=args,
+            )
 
     @staticmethod
     async def update(
@@ -830,15 +965,19 @@ class AGI:
             verbose: Optional[int] = None,
             **args: Any,
     ) -> Any:
-        return await entrypoint_support.update(
-            AGI,
-            env=env,
-            scheduler=scheduler,
-            workers=workers,
-            modes_enabled=modes_enabled,
-            verbose=verbose,
-            args=args,
-        )
+        effective_env = env or AGI.env
+        if effective_env is None:
+            raise ValueError("env is required when AGI has not been initialised yet")
+        async with lifecycle_guard_support.LifecycleOperation(AGI, effective_env, "update"):
+            return await entrypoint_support.update(
+                AGI,
+                env=env,
+                scheduler=scheduler,
+                workers=workers,
+                modes_enabled=modes_enabled,
+                verbose=verbose,
+                args=args,
+            )
 
     @staticmethod
     async def get_distrib(
@@ -848,14 +987,15 @@ class AGI:
             verbose: int = 0,
             **args: Any,
     ) -> Any:
-        return await entrypoint_support.get_distrib(
-            AGI,
-            env=env,
-            scheduler=scheduler,
-            workers=workers,
-            verbose=verbose,
-            args=args,
-        )
+        async with lifecycle_guard_support.LifecycleOperation(AGI, env, "get-distrib"):
+            return await entrypoint_support.get_distrib(
+                AGI,
+                env=env,
+                scheduler=scheduler,
+                workers=workers,
+                verbose=verbose,
+                args=args,
+            )
 
     # Backward compatibility alias
     @staticmethod
@@ -866,14 +1006,15 @@ class AGI:
             verbose: int = 0,
             **args: Any,
     ) -> Any:
-        return await entrypoint_support.distribute(
-            AGI,
-            env=env,
-            scheduler=scheduler,
-            workers=workers,
-            verbose=verbose,
-            args=args,
-        )
+        async with lifecycle_guard_support.LifecycleOperation(AGI, env, "distribute"):
+            return await entrypoint_support.distribute(
+                AGI,
+                env=env,
+                scheduler=scheduler,
+                workers=workers,
+                verbose=verbose,
+                args=args,
+            )
 
     @staticmethod
     async def _start_scheduler(scheduler: Optional[str]) -> bool:
