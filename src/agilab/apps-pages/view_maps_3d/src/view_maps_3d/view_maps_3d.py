@@ -314,17 +314,36 @@ def initialize_csv_files():
         st.session_state["df_file"] = dataset_files_rel[0] if dataset_files_rel else None
 
 
+def _clear_beam_selection_state() -> None:
+    """Clear cached beam selections after the beam directory changes."""
+    for key in (
+        "beam_file",
+        "beam_files",
+        "beam_csv_files",
+        "dfs_beams",
+        _vm3d_key("beam_files"),
+    ):
+        if key in st.session_state:
+            del st.session_state[key]
+
+
 def initialize_beam_files():
     """Initialize beam CSV files in the session state."""
-    if (
-            "beam_csv_files" not in st.session_state
-            or not st.session_state["beam_csv_files"]
-    ):
-        files = find_files(st.session_state.beamdir)
+    beamdir = Path(st.session_state.beamdir)
+    if not beamdir.exists() or not beamdir.is_dir():
+        st.session_state["beam_csv_files"] = []
+        st.session_state["beam_files"] = []
+        st.session_state[_vm3d_key("beam_files")] = []
+        st.session_state["dfs_beams"] = {}
+        st.session_state["beam_file"] = None
+        return
+
+    if "beam_csv_files" not in st.session_state or not st.session_state["beam_csv_files"]:
+        files = find_files(beamdir)
         visible = []
         for f in files:
             try:
-                parts = f.relative_to(st.session_state.beamdir).parts
+                parts = f.relative_to(beamdir).parts
             except (TypeError, ValueError):
                 parts = f.parts
             if any(part.startswith(".") for part in parts):
@@ -333,7 +352,7 @@ def initialize_beam_files():
         st.session_state["beam_csv_files"] = visible
     if "beam_file" not in st.session_state:
         beam_csv_files_rel = [
-            Path(file).relative_to(st.session_state.beamdir).as_posix()
+            Path(file).relative_to(beamdir).as_posix()
             for file in st.session_state.beam_csv_files
         ]
         st.session_state["beam_file"] = (
@@ -414,10 +433,7 @@ def update_datadir(var_key, widget_key):
 
 def update_beamdir(var_key, widget_key):
     """Update the beam directory and reinitialize beam files."""
-    if "beam_file" in st.session_state:
-        del st.session_state["beam_file"]
-    if "beam_csv_files" in st.session_state:
-        del st.session_state["beam_csv_files"]
+    _clear_beam_selection_state()
     update_var(var_key, widget_key)
     initialize_beam_files()
 
