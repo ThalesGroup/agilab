@@ -19,6 +19,7 @@ from agi_cluster.agi_distributor.deployment.deployment_resolver_env_support impo
     _uv_resolver_mode as _uv_resolver_mode,
 )
 from agi_cluster.agi_distributor.deployment.deployment_venv_support import (
+    project_venv_python as _project_venv_python,
     project_site_packages_dir as _project_site_packages_dir,
 )
 from agi_env import AgiEnv
@@ -85,6 +86,18 @@ def _project_uv(env: Any) -> str:
         return f"{resolver_prefix}{env.uv}"
     cmd_prefix = str(env.envars.get("127.0.0.1_CMD_PREFIX", "")).strip()
     return " ".join(part for part in (resolver_prefix + cmd_prefix, "PYTHON_GIL=0", env.uv) if part)
+
+
+def _command_path_arg(value: str | Path, *, os_name: str = os.name) -> str:
+    path_value = str(value)
+    if os_name == "nt":
+        if any(
+            character in path_value
+            for character in ('"', "\r", "\n", "\0", "%", "!")
+        ):
+            raise ValueError(f"Unsafe Windows command path: {path_value!r}")
+        return f'"{path_value}"'
+    return quote(path_value)
 
 
 def _env_truthy(envars: Any, key: str) -> bool:
@@ -380,27 +393,41 @@ def _worker_pyproject_source(env: Any) -> Path:
     return worker_pyproject_src
 
 
-def _core_install_commands(*, env: Any, uv: str, app_path_arg: str) -> list[str]:
+def _core_install_commands(
+    *,
+    env: Any,
+    uv: str,
+    app_path: Path,
+    os_name: str = os.name,
+) -> list[str]:
     commands: list[str] = []
     offline_flag = _uv_offline_flag(env)
+    app_venv_python = _project_venv_python(app_path, os_name=os_name)
+    if not app_venv_python.is_file():
+        raise FileNotFoundError(
+            "App manager virtualenv Python is missing before the worker build: "
+            f"{app_venv_python}. Run AGI.install for the app before building workers."
+        )
+    app_venv_python_arg = _command_path_arg(app_venv_python, os_name=os_name)
     core_packages = (
         ("agi-env", getattr(env, "agi_env", None)),
         ("agi-node", getattr(env, "agi_node", None)),
     )
     if getattr(env, "is_source_env", False):
         editable_specs = [
-            f"-e '{source_path}'"
+            f"-e {_command_path_arg(source_path, os_name=os_name)}"
             for _package_name, source_path in core_packages
             if source_path
         ]
         if editable_specs:
             commands.append(
-                f"{uv} {offline_flag}--project {app_path_arg} pip install --upgrade --no-deps "
+                f"{uv} {offline_flag}pip install --python {app_venv_python_arg} "
+                "--upgrade --no-deps "
                 + " ".join(editable_specs)
             )
     else:
         commands.append(
-            f"{uv} --project {app_path_arg} pip install "
+            f"{uv} pip install --python {app_venv_python_arg} "
             + " ".join(package_name for package_name, _source_path in core_packages)
         )
     return commands
@@ -547,7 +574,7 @@ async def build_lib_local(
     module_cmd = _build_module_command(env)
     app_path_arg = f"\"{app_path}\""
     wenv_arg = f"\"{wenv_abs}\""
-    core_install_commands = _core_install_commands(env=env, uv=uv, app_path_arg=app_path_arg)
+    core_install_commands = _core_install_commands(env=env, uv=uv, app_path=app_path)
     build_overlay_args = _build_run_overlay_args(env)
 
     _stage_worker_build_project(

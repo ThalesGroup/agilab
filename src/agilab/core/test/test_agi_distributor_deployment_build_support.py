@@ -508,6 +508,9 @@ def _build_env(tmp_path: Path, *, base_worker_cls: str = "PandasWorker", free_th
     app_src = app_path / "src" / "demo_worker"
     app_src.mkdir(parents=True, exist_ok=True)
     (app_src / "demo_worker.py").write_text("VALUE = 1\n", encoding="utf-8")
+    app_venv_python = deployment_build_support._project_venv_python(app_path)
+    app_venv_python.parent.mkdir(parents=True, exist_ok=True)
+    app_venv_python.write_text("", encoding="utf-8")
     wenv_abs = tmp_path / "wenv"
     (wenv_abs / "dist").mkdir(parents=True, exist_ok=True)
     worker_pyproject = tmp_path / "worker_pyproject.toml"
@@ -543,6 +546,76 @@ def _build_env(tmp_path: Path, *, base_worker_cls: str = "PandasWorker", free_th
     )
 
 
+def test_core_install_commands_target_existing_manager_venv(tmp_path):
+    env = _build_env(tmp_path)
+    app_path = tmp_path / "app with spaces"
+    app_venv_python = deployment_build_support._project_venv_python(app_path)
+    app_venv_python.parent.mkdir(parents=True)
+    app_venv_python.write_text("", encoding="utf-8")
+
+    commands = deployment_build_support._core_install_commands(
+        env=env,
+        uv="uv",
+        app_path=app_path,
+    )
+
+    assert commands == [
+        "uv pip install --python "
+        f"{deployment_build_support._command_path_arg(app_venv_python)} "
+        "agi-env agi-node"
+    ]
+    assert "--project" not in commands[0]
+
+
+def test_core_install_commands_fail_when_manager_venv_is_missing(tmp_path):
+    env = _build_env(tmp_path)
+    app_path = tmp_path / "missing-app"
+
+    with pytest.raises(FileNotFoundError, match="Run AGI.install"):
+        deployment_build_support._core_install_commands(
+            env=env,
+            uv="uv",
+            app_path=app_path,
+        )
+
+
+def test_core_install_commands_use_cmd_quotes_with_windows_resolver_prefix(tmp_path):
+    env = _build_env(tmp_path)
+    env.is_source_env = True
+    env.agi_env = tmp_path / "core sources" / "agi-env"
+    env.agi_node = tmp_path / "core sources" / "agi-node"
+    app_path = tmp_path / "app with spaces"
+    app_venv_python = deployment_build_support._project_venv_python(
+        app_path,
+        os_name="nt",
+    )
+    app_venv_python.parent.mkdir(parents=True)
+    app_venv_python.write_text("", encoding="utf-8")
+    uv = 'set "UV_INDEX_URL=https://mirror.local/simple" && uv'
+
+    commands = deployment_build_support._core_install_commands(
+        env=env,
+        uv=uv,
+        app_path=app_path,
+        os_name="nt",
+    )
+
+    assert commands == [
+        f'{uv} pip install --python "{app_venv_python}" --upgrade --no-deps '
+        f'-e "{env.agi_env}" -e "{env.agi_node}"'
+    ]
+    assert "'" not in commands[0]
+
+
+@pytest.mark.parametrize("unsafe_character", ["%", "!"])
+def test_command_path_arg_rejects_windows_expansion_characters(unsafe_character):
+    with pytest.raises(ValueError, match="Unsafe Windows command path"):
+        deployment_build_support._command_path_arg(
+            f"C:\\AGILAB{unsafe_character}Work\\app",
+            os_name="nt",
+        )
+
+
 @pytest.mark.asyncio
 async def test_build_lib_local_non_cython_uploads_egg(tmp_path):
     env = _build_env(tmp_path)
@@ -573,8 +646,17 @@ async def test_build_lib_local_non_cython_uploads_egg(tmp_path):
     )
 
     assert (env.wenv_abs / env.worker_pyproject.name).exists()
-    assert any("pip install agi-env agi-node" in cmd for cmd, _ in commands)
-    assert not any("pip install agi-env agi-node agi-cluster" in cmd for cmd, _ in commands)
+    app_venv_python = deployment_build_support._command_path_arg(
+        deployment_build_support._project_venv_python(env.active_app)
+    )
+    assert any(
+        f"pip install --python {app_venv_python} agi-env agi-node" in cmd
+        for cmd, _ in commands
+    )
+    assert not any(
+        f"pip install --python {app_venv_python} agi-env agi-node agi-cluster" in cmd
+        for cmd, _ in commands
+    )
     assert any("bdist_egg" in cmd for cmd, _ in commands)
     assert str(egg_path) in uploads
 
@@ -717,14 +799,17 @@ async def test_build_lib_local_uses_editable_core_installs_in_source_env(monkeyp
     core_runtime_installs = [
         cmd
         for cmd, _ in commands
-        if f'--offline --project "{env.active_app}" pip install --upgrade --no-deps'
-        in cmd
+        if "--offline pip install --python" in cmd and "--upgrade --no-deps" in cmd
     ]
     assert any(
-        f"-e '{env.agi_env}'" in cmd and f"-e '{env.agi_node}'" in cmd
+        f"-e {deployment_build_support._command_path_arg(env.agi_env)}" in cmd
+        and f"-e {deployment_build_support._command_path_arg(env.agi_node)}" in cmd
         for cmd in core_runtime_installs
     )
-    assert not any(f"-e '{env.agi_cluster}'" in cmd for cmd in core_runtime_installs)
+    assert not any(
+        f"-e {deployment_build_support._command_path_arg(env.agi_cluster)}" in cmd
+        for cmd in core_runtime_installs
+    )
     assert any(
         _editable_overlay_arg(env.agi_env) in cmd
         and _editable_overlay_arg(env.agi_node) in cmd
@@ -770,13 +855,17 @@ async def test_build_lib_local_uses_uv_index_url_mirror_when_internet_disabled(
     core_runtime_installs = [
         cmd
         for cmd, _ in commands
-        if f'--project "{env.active_app}" pip install --upgrade --no-deps' in cmd
+        if "pip install --python" in cmd and "--upgrade --no-deps" in cmd
     ]
     assert any(
-        f"-e '{env.agi_env}'" in cmd and f"-e '{env.agi_node}'" in cmd
+        f"-e {deployment_build_support._command_path_arg(env.agi_env)}" in cmd
+        and f"-e {deployment_build_support._command_path_arg(env.agi_node)}" in cmd
         for cmd in core_runtime_installs
     )
-    assert not any(f"-e '{env.agi_cluster}'" in cmd for cmd in core_runtime_installs)
+    assert not any(
+        f"-e {deployment_build_support._command_path_arg(env.agi_cluster)}" in cmd
+        for cmd in core_runtime_installs
+    )
     assert any(
         _editable_overlay_arg(env.agi_env) in cmd
         and _editable_overlay_arg(env.agi_node) in cmd
