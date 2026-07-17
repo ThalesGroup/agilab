@@ -1954,6 +1954,32 @@ def test_init_apps_sets_files_and_only_copies_missing_resource_files(tmp_path: P
     assert existing.read_text(encoding="utf-8") == '{"kept": true}\n'
 
 
+def test_init_apps_logs_app_settings_validation_warnings(tmp_path: Path):
+    env = object.__new__(AgiEnv)
+    env.app_src = tmp_path / "demo_project" / "src"
+    env.app_src.mkdir(parents=True)
+    env.resources_path = tmp_path / "home" / ".agilab"
+    env.resources_path.mkdir(parents=True)
+    env.active_app = tmp_path / "demo_project"
+    env.agilab_pck = tmp_path / "agilab_pkg"
+    (env.agilab_pck / "resources").mkdir(parents=True)
+    workspace_settings = env.resources_path / "apps" / "demo_project" / "app_settings.toml"
+    workspace_settings.parent.mkdir(parents=True)
+    workspace_settings.write_text("[cluster]\nverbose = true\n", encoding="utf-8")
+
+    env.find_source_app_settings_file = lambda: None
+    env.resolve_user_app_settings_file = lambda: workspace_settings
+    env.logger = mock.Mock()
+
+    env._init_apps()
+
+    assert env.logger.info.call_count == 1
+    logged_message = env.logger.info.call_args[0][0]
+    assert str(workspace_settings) in logged_message
+    assert "cluster.verbose" in logged_message
+    env.logger.warning.assert_not_called()
+
+
 def test_ensure_repository_app_link_covers_missing_existing_and_success(tmp_path: Path):
     env = object.__new__(AgiEnv)
     env.app = "demo_project"

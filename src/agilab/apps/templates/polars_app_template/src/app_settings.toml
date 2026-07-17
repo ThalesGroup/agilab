@@ -2,7 +2,7 @@
 data_in = "polars_app/dataset"
 
 [cluster]
-verbose = true
+verbose = 1
 cython = false
 rapids = false
 pool = false
