@@ -121,6 +121,12 @@ Skill catalog and security checks are local-first. Use ``./dev skills`` or the
 ``skills`` workflow-parity profile; AGILAB no longer relies on a dedicated
 GitHub Actions workflow for this agent-skill scan.
 
+Shared skills are canonical under ``.claude/skills`` and mirrored into
+``.codex/skills``. Tokki reads the canonical tree directly
+(``tokki skills list --skills-dir .claude/skills``), so no third repo mirror
+exists; ``python3 tools/sync_agent_skills.py --check`` verifies tree drift and
+Tokki skill visibility as a read-only, model-free validation route.
+
 Context routing
 ---------------
 
