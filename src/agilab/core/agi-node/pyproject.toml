@@ -34,7 +34,7 @@ keywords = [
     "pandas",
     "polars",
 ]
-dependencies = ["agi-env==2026.07.17", "cython>=3.1,<4", "humanize>=4.10,<5", "numpy>=2.2,<3", "pandas>=2.3,<4", "parso>=0.8,<1", "polars>=1.35,<2", "psutil>=7,<8", "py7zr>=1.1,<1.2", "setuptools>=68,<83"]
+dependencies = ["agi-env==2026.07.17", "cython>=3.1,<4", "humanize>=4.10,<5", "numpy>=2.2,<3", "pandas>=2.3,<4", "parso>=0.8,<1", "polars>=1.35,<2", "psutil>=7,<8", "py7zr>=1.1,<1.2", "setuptools>=83,<84"]
 
 [project.entry-points."agi_env.runtime_packages"]
 agi-node = "agi_node.agi_env_runtime:RUNTIME_PACKAGE_SPEC"
