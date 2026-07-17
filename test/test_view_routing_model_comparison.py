@@ -650,7 +650,51 @@ def test_routing_model_comparison_figures_handle_empty_and_visible_models() -> N
     models = ["ILP", "PPO-GNN"]
 
     assert len(module.build_overview_figure(alloc_df, summary, models).data) >= 4
-    assert len(module.build_time_figure(alloc_df, models).data) == 8
+    time_figure = module.build_time_figure(alloc_df, models)
+    assert len(time_figure.data) == 4
+    assert time_figure.data[0].name == "Requested bandwidth"
+    assert time_figure.data[1].name == "ILP delivered bandwidth"
+    assert time_figure.data[2].name == "Requested bandwidth"
+    assert time_figure.data[3].name == "PPO-GNN delivered bandwidth"
+    assert time_figure.data[0].showlegend is True
+    assert time_figure.data[2].showlegend is False
+    assert [
+        annotation.text for annotation in time_figure.layout.annotations
+    ] == [
+        "ILP: requested vs delivered bandwidth",
+        "PPO-GNN: requested vs delivered bandwidth",
+    ]
+    satisfaction_figure = module.build_demand_satisfaction_heatmap_figure(
+        alloc_df, models
+    )
+    assert len(satisfaction_figure.data) == 2
+    assert satisfaction_figure.data[0].mode == "markers"
+    assert satisfaction_figure.data[0].marker.symbol == "square"
+    assert satisfaction_figure.data[0].marker.size == 5
+    assert satisfaction_figure.data[0].marker.cmin == 0.0
+    assert satisfaction_figure.data[0].marker.cmax == 1.0
+    assert satisfaction_figure.data[0].marker.showscale is True
+    assert satisfaction_figure.data[0].marker.line.width == 0.5
+    assert satisfaction_figure.data[1].marker.showscale is True
+    assert satisfaction_figure.data[1].marker.colorbar.title.text == "Satisfaction ratio"
+    assert satisfaction_figure.layout.height == 840
+    assert satisfaction_figure.layout.yaxis.tickmode == "array"
+    assert satisfaction_figure.layout.yaxis.showticklabels is True
+    assert satisfaction_figure.layout.yaxis2.showticklabels is True
+    assert satisfaction_figure.layout.plot_bgcolor is None
+    assert satisfaction_figure.layout.paper_bgcolor is None
+    assert [
+        annotation.text for annotation in satisfaction_figure.layout.annotations
+    ] == [
+        "ILP: raw active demand satisfaction over time",
+        "PPO-GNN: raw active demand satisfaction over time",
+    ]
+    assert satisfaction_figure.layout.xaxis.showgrid is True
+    assert satisfaction_figure.layout.xaxis.title.text == "Time index"
+    assert satisfaction_figure.layout.xaxis2.title.text == "Time index"
+    assert satisfaction_figure.layout.xaxis.showticklabels is True
+    assert satisfaction_figure.layout.xaxis2.showticklabels is True
+    assert satisfaction_figure.layout.yaxis.showgrid is True
     demand_figure = module.build_demand_matrix_figure(alloc_df, models)
     assert len(demand_figure.data) == 8
     ratio_traces = [
@@ -832,8 +876,12 @@ def test_routing_model_comparison_main_renders_pipeline(
 
     call_names = [name for name, _args in streamlit.calls]
     assert "expander" in call_names
-    assert call_names.count("plotly_chart") == 4
+    assert call_names.count("plotly_chart") == 5
     assert "dataframe" in call_names
+    assert any(
+        name == "subheader" and args[0] == "Demand Satisfaction Over Time"
+        for name, args in streamlit.calls
+    )
     assert any(
         name == "tabs" and "Demand Matrix" in args for name, args in streamlit.calls
     )
