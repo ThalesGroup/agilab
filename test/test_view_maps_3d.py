@@ -330,6 +330,7 @@ def test_view_maps_3d_initializes_visible_dataset_files(monkeypatch, tmp_path) -
 def test_view_maps_3d_initializes_visible_beam_files(monkeypatch, tmp_path) -> None:
     module = _load_view_maps_3d_module()
     beamdir = tmp_path / "beams"
+    beamdir.mkdir()
     visible = beamdir / "beam.csv"
     hidden = beamdir / ".shadow" / "ignored.csv"
 
@@ -399,6 +400,31 @@ def test_view_maps_3d_get_palette_and_update_beamdir(monkeypatch, tmp_path) -> N
     assert "beam_csv_files" not in state
     assert state["beamdir"] == str(tmp_path / "new_beams")
     assert calls == ["called"]
+
+
+def test_view_maps_3d_update_beamdir_handles_invalid_directory(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    invalid_beamdir = tmp_path / "missing_beams"
+    state = _State(
+        beamdir="old",
+        beam_file="old.csv",
+        beam_files=["old.csv"],
+        beam_csv_files=["old.csv"],
+        dfs_beams={"old.csv": pd.DataFrame({"x": [1]})},
+        input_beamdir=str(invalid_beamdir),
+    )
+    state[module._vm3d_key("beam_files")] = ["old.csv"]
+
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
+
+    module.update_beamdir("beamdir", "input_beamdir")
+
+    assert state["beamdir"] == str(invalid_beamdir)
+    assert state["beam_csv_files"] == []
+    assert state["beam_files"] == []
+    assert state[module._vm3d_key("beam_files")] == []
+    assert state["dfs_beams"] == {}
+    assert state["beam_file"] is None
 
 
 def test_view_maps_3d_update_datadir_clears_cached_dataset_state(monkeypatch) -> None:
