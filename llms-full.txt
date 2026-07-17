@@ -114,9 +114,9 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   license: BSD-3-Clause (see repo LICENSE)
   updated: 2026-05-06
   preview: # Plan Before Code Use this skill to force a planning pass before coding. The goal is not paperwork. The goal is to improve sequencing, reduce avoidable edits, and catch bad assumptions before touching files.
-- repo-skill-maintenance: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills. (.claude/skills/repo-skill-maintenance/SKILL.md)
+- repo-skill-maintenance: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, drift checks, and Tokki skill visibility. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling agent skill copies without overwriting unrelated skills. (.claude/skills/repo-skill-maintenance/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-06-24
+  updated: 2026-07-16
   preview: # Repo Skill Maintenance Use this skill when working on the shared skill trees in `agilab`. The goal is to keep one canonical source for shared skills, keep the repo Codex mirror valid, and avoid the accidental bulk-sync regressions that can overwrite
 - report-qa-docx: Review DOCX reports for missing figures, stale wording, duplicate sections, caption drift, and local consistency issues. Use this skill when a user asks for a quality pass on a Word report, wants to compare exported versus source versions, or needs a review-driven cleanup checklist before delivery. (.claude/skills/report-qa-docx/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)

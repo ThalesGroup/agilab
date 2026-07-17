@@ -1291,6 +1291,10 @@ def _skills_profile(skills: Sequence[str] | None) -> list[CommandSpec]:
                 ],
             ),
             CommandSpec(
+                label="check shared skill drift and tokki visibility",
+                argv=["python3", "tools/sync_agent_skills.py", "--check"],
+            ),
+            CommandSpec(
                 label="generate public agent skill catalog",
                 argv=["python3", "tools/agent_skill_catalog.py", "--apply"],
             ),
