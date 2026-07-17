@@ -630,81 +630,246 @@ def build_overview_figure(
 
 
 def build_time_figure(alloc_df: pd.DataFrame, models: list[str]) -> go.Figure:
-    time_df = alloc_df.copy()
-    time_df["latency_ms_routed"] = time_df["latency_ms"].where(time_df["routed"])
-    time_kpi = time_df.groupby(
+    if not models:
+        return go.Figure()
+
+    time_kpi = alloc_df.groupby(
         ["model", "time_index"], as_index=False, observed=False
     ).agg(
-        mean_satisfaction=("satisfaction_ratio", "mean"),
-        total_delivered_mbps=("delivered_mbps", "sum"),
-        mean_latency_ms=("latency_ms_routed", "mean"),
-        latency_violation_rate=("latency_violation", "mean"),
+        requested_mbps=("requested_mbps", "sum"),
+        delivered_mbps=("delivered_mbps", "sum"),
     )
     fig = make_subplots(
-        rows=2,
-        cols=2,
-        subplot_titles=(
-            "Mean Satisfaction Over Time",
-            "Total Delivered Bandwidth Over Time",
-            "Mean Latency Over Time",
-            "Latency Violation Rate Over Time",
+        rows=len(models),
+        cols=1,
+        subplot_titles=tuple(
+            f"{model}: requested vs delivered bandwidth" for model in models
         ),
+        shared_xaxes=True,
+        vertical_spacing=0.08 if len(models) > 1 else 0.02,
     )
-    for model in models:
-        group = time_kpi[time_kpi["model"] == model]
+    for row, model in enumerate(models, start=1):
+        group = time_kpi[time_kpi["model"] == model].sort_values("time_index")
         color = MODEL_COLORS.get(model, "#64748b")
         fig.add_trace(
             go.Scatter(
                 x=group["time_index"],
-                y=group["mean_satisfaction"],
+                y=group["requested_mbps"],
                 mode="lines",
-                name=model,
-                line=dict(color=color),
+                name="Requested bandwidth",
+                line=dict(color="#94a3b8", dash="dash", width=2),
+                legendgroup="requested-bandwidth",
+                legendrank=0,
+                showlegend=row == 1,
             ),
-            row=1,
+            row=row,
             col=1,
         )
         fig.add_trace(
             go.Scatter(
                 x=group["time_index"],
-                y=group["total_delivered_mbps"],
+                y=group["delivered_mbps"],
                 mode="lines",
-                showlegend=False,
-                line=dict(color=color),
+                name=f"{model} delivered bandwidth",
+                line=dict(color=color, width=2.5),
+                fill="tonexty",
+                legendgroup=model,
+                legendrank=row,
+                showlegend=True,
             ),
-            row=1,
-            col=2,
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=group["time_index"],
-                y=group["mean_latency_ms"],
-                mode="lines",
-                showlegend=False,
-                line=dict(color=color),
-            ),
-            row=2,
+            row=row,
             col=1,
         )
-        fig.add_trace(
-            go.Scatter(
-                x=group["time_index"],
-                y=group["latency_violation_rate"],
-                mode="lines",
-                showlegend=False,
-                line=dict(color=color),
-            ),
-            row=2,
-            col=2,
-        )
-    fig.update_layout(height=720, margin=dict(l=20, r=20, t=70, b=30))
-    fig.update_yaxes(
-        range=[0, 1.05], row=1, col=1, title_text="Mean delivered / requested"
+    fig.update_layout(
+        height=max(320, 260 * len(models)),
+        margin=dict(l=20, r=20, t=70, b=30),
+        legend_traceorder="normal",
     )
-    fig.update_yaxes(title_text="Delivered bandwidth (Mbps)", row=1, col=2)
-    fig.update_yaxes(title_text="Latency (ms)", row=2, col=1)
-    fig.update_yaxes(range=[0, 1.05], row=2, col=2, title_text="Violation rate")
-    fig.update_xaxes(title_text="Time index")
+    for row in range(1, len(models) + 1):
+        fig.update_yaxes(title_text="Bandwidth (Mbps)", row=row, col=1)
+    fig.update_xaxes(title_text="Time index", row=len(models), col=1)
+    return fig
+
+
+def build_demand_satisfaction_heatmap_figure(
+    alloc_df: pd.DataFrame,
+    models: list[str],
+) -> go.Figure:
+    """Build raw active-demand satisfaction heatmaps over time for each model."""
+
+    plot_df = alloc_df.copy()
+    if plot_df.empty:
+        return go.Figure()
+    if "active" in plot_df.columns:
+        active_mask = plot_df["active"].map(
+            lambda value: True if pd.isna(value) else bool(value)
+        )
+        plot_df = plot_df[active_mask].copy()
+    if plot_df.empty:
+        return go.Figure()
+    if "demand" not in plot_df.columns:
+        plot_df["demand"] = (
+            plot_df["source_label"].astype(str)
+            + " -> "
+            + plot_df["destination_label"].astype(str)
+        )
+
+    plot_df = plot_df.sort_values(
+        [
+            "model",
+            "time_index",
+            "demand",
+            "requested_mbps",
+            "source_label",
+            "destination_label",
+        ],
+        ascending=[True, True, True, False, True, True],
+        kind="stable",
+    ).copy()
+    available_models = set(plot_df["model"])
+    visible_models = [model for model in models if model in available_models]
+    if plot_df.empty or not visible_models:
+        return go.Figure()
+
+    demand_order_df = (
+        plot_df.groupby("demand", as_index=False, observed=False)
+        .agg(
+            total_requested_mbps=("requested_mbps", "sum"),
+            mean_satisfaction_ratio=("satisfaction_ratio", "mean"),
+        )
+        .sort_values(
+            ["total_requested_mbps", "mean_satisfaction_ratio", "demand"],
+            ascending=[False, False, True],
+        )
+    )
+    demand_order = demand_order_df["demand"].astype(str).tolist()
+
+    fig = make_subplots(
+        rows=len(visible_models),
+        cols=1,
+        shared_xaxes=True,
+        subplot_titles=tuple(
+            f"{model}: raw active demand satisfaction over time"
+            for model in visible_models
+        ),
+        vertical_spacing=0.08 if len(visible_models) > 1 else 0.02,
+    )
+
+    demand_positions = {
+        demand: position for position, demand in enumerate(demand_order)
+    }
+
+    for row, model in enumerate(visible_models, start=1):
+        model_rows = plot_df[plot_df["model"] == model].copy()
+        if model_rows.empty:
+            continue
+        model_rows["demand_position"] = model_rows["demand"].map(demand_positions)
+        model_rows = model_rows.dropna(subset=["demand_position"]).copy()
+        if model_rows.empty:
+            continue
+        model_rows["demand_position"] = model_rows["demand_position"].astype(float)
+        cell_counts = model_rows.groupby(
+            ["demand", "time_index"], sort=False, dropna=False
+        )["demand"].transform("size")
+        cell_occurrence = model_rows.groupby(
+            ["demand", "time_index"], sort=False, dropna=False
+        ).cumcount()
+        stack_step = 0.26
+        model_rows["y_position"] = model_rows["demand_position"] + (
+            cell_occurrence - (cell_counts - 1) / 2.0
+        ) * stack_step
+        model_rows["cell_occurrence"] = cell_occurrence + 1
+        model_rows["cell_count"] = cell_counts
+        customdata = np.column_stack(
+            [
+                model_rows["satisfaction_ratio"].to_numpy(dtype=float),
+                model_rows["requested_mbps"].to_numpy(dtype=float),
+                model_rows["source_label"].astype(str).to_numpy(),
+                model_rows["destination_label"].astype(str).to_numpy(),
+                model_rows["cell_occurrence"].to_numpy(dtype=float),
+                model_rows["cell_count"].to_numpy(dtype=float),
+            ]
+        )
+        fig.add_trace(
+            go.Scattergl(
+                x=model_rows["time_index"],
+                y=model_rows["y_position"],
+                mode="markers",
+                name=model,
+                showlegend=False,
+                customdata=customdata,
+                marker=dict(
+                    symbol="square",
+                    size=5,
+                    color=model_rows["satisfaction_ratio"],
+                    colorscale="Viridis",
+                    cmin=0.0,
+                    cmax=1.0,
+                    showscale=True,
+                    colorbar=dict(title="Satisfaction ratio"),
+                    line=dict(color="#f8fafc", width=0.5),
+                ),
+                hovertemplate=(
+                    "Time index %{x}<br>"
+                    "Demand %{customdata[2]} -> %{customdata[3]}<br>"
+                    "Raw row %{customdata[4]:.0f} of %{customdata[5]:.0f}<br>"
+                    "Satisfaction %{customdata[0]:.0%}<br>"
+                    "Requested %{customdata[1]:.1f} Mbps<extra>"
+                    f"{model}</extra>"
+                ),
+            ),
+            row=row,
+            col=1,
+        )
+        subplot_axis_name = "yaxis" if row == 1 else f"yaxis{row}"
+        subplot_domain = fig.layout[subplot_axis_name].domain
+        colorbar = fig.data[-1].marker.colorbar
+        colorbar.y = (subplot_domain[0] + subplot_domain[1]) / 2.0
+        colorbar.len = subplot_domain[1] - subplot_domain[0]
+        colorbar.yanchor = "middle"
+        colorbar.x = 1.02
+        colorbar.thickness = 14
+        colorbar.thicknessmode = "pixels"
+
+    panel_height = max(420, 24 * len(demand_order) + 160)
+    fig.update_layout(
+        height=panel_height * len(visible_models),
+        margin=dict(l=52, r=96, t=88, b=56),
+        hovermode="closest",
+    )
+    fig.update_annotations(font_size=14)
+    fig.update_xaxes(
+        tickangle=-45,
+        tickfont=dict(size=12),
+        automargin=True,
+        showgrid=True,
+        gridcolor="rgba(148, 163, 184, 0.35)",
+        gridwidth=1.2,
+        zeroline=False,
+    )
+    for row in range(1, len(visible_models) + 1):
+        fig.update_yaxes(
+            title_text="Demand" if row == 1 else None,
+            tickfont=dict(size=11),
+            automargin=True,
+            row=row,
+            col=1,
+            showticklabels=True,
+            tickmode="array",
+            tickvals=list(range(len(demand_order))),
+            ticktext=demand_order,
+            range=[-0.6, len(demand_order) - 0.4],
+            showgrid=True,
+            gridcolor="rgba(148, 163, 184, 0.30)",
+            gridwidth=1.2,
+            zeroline=False,
+        )
+        fig.update_xaxes(
+            title_text="Time index",
+            row=row,
+            col=1,
+            showticklabels=True,
+        )
     return fig
 
 
@@ -1119,7 +1284,20 @@ def main() -> None:
         )
 
     with time_tab:
+        st.caption(
+            "Each panel compares requested bandwidth against delivered bandwidth "
+            "for one model. The shaded gap shows unmet demand over time."
+        )
         st.plotly_chart(build_time_figure(alloc_df, models), width="stretch")
+        st.subheader("Demand Satisfaction Over Time")
+        st.caption(
+            "Only active rows are shown. Repeated source/destination/time cells "
+            "are lightly stacked so the raw demand rows remain visible."
+        )
+        st.plotly_chart(
+            build_demand_satisfaction_heatmap_figure(alloc_df, models),
+            width="stretch",
+        )
 
     with demand_tab:
         st.caption(
