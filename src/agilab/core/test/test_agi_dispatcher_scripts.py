@@ -1556,6 +1556,7 @@ def test_post_main_copies_trajectory_files_when_linking_fails(tmp_path, monkeypa
         share_target_name="demo",
         dataset_archive=dataset_archive,
         agilab_pck=tmp_path,
+        active_app=tmp_path / "demo_project",
         resolve_share_path=lambda _target: dest_arg,
         unzip_data=lambda *_args, **_kwargs: None,
         share_root_path=lambda: tmp_path / "share-root",
@@ -1577,7 +1578,9 @@ def test_post_main_extracts_optional_trajectory_archive_and_links_sat_folder(tmp
     dataset_archive.write_text("placeholder", encoding="utf-8")
     dest_arg = tmp_path / "share" / "demo"
     dataset_root = dest_arg / "dataset"
-    trajectory_archive = dataset_archive.parent / "Trajectory.7z"
+    active_app = tmp_path / "demo_project"
+    trajectory_archive = active_app / "src" / "Trajectory.7z"
+    trajectory_archive.parent.mkdir(parents=True, exist_ok=True)
     trajectory_archive.write_text("placeholder", encoding="utf-8")
     extracted = {}
 
@@ -1585,6 +1588,7 @@ def test_post_main_extracts_optional_trajectory_archive_and_links_sat_folder(tmp
         share_target_name="demo",
         dataset_archive=dataset_archive,
         agilab_pck=tmp_path,
+        active_app=active_app,
         resolve_share_path=lambda _target: dest_arg,
         unzip_data=lambda *_args, **_kwargs: None,
         share_root_path=lambda: tmp_path / "share-root",
@@ -1621,6 +1625,7 @@ def test_post_main_reports_optional_dataset_seeding_exception(tmp_path, monkeypa
         share_target_name="demo",
         dataset_archive=dataset_archive,
         agilab_pck=tmp_path,
+        active_app=tmp_path / "demo_project",
         resolve_share_path=lambda _target: dest_arg,
         unzip_data=lambda *_args, **_kwargs: None,
         share_root_path=lambda: (_ for _ in ()).throw(
@@ -1750,7 +1755,9 @@ def test_post_main_returns_zero_when_large_cleanup_fails(tmp_path, monkeypatch, 
 def test_post_main_returns_zero_when_trajectory_archive_extracts_no_samples(tmp_path, monkeypatch, capsys):
     dataset_archive = tmp_path / "dataset.7z"
     dataset_archive.write_text("placeholder", encoding="utf-8")
-    trajectory_archive = dataset_archive.parent / "Trajectory.7z"
+    active_app = tmp_path / "demo_project"
+    trajectory_archive = active_app / "src" / "Trajectory.7z"
+    trajectory_archive.parent.mkdir(parents=True, exist_ok=True)
     trajectory_archive.write_text("placeholder", encoding="utf-8")
     dest_arg = tmp_path / "share" / "demo"
 
@@ -1758,6 +1765,7 @@ def test_post_main_returns_zero_when_trajectory_archive_extracts_no_samples(tmp_
         share_target_name="demo",
         dataset_archive=dataset_archive,
         agilab_pck=tmp_path,
+        active_app=active_app,
         resolve_share_path=lambda _target: dest_arg,
         unzip_data=lambda *_args, **_kwargs: None,
         share_root_path=lambda: tmp_path / "share-root",
@@ -1923,6 +1931,7 @@ def test_post_main_copy_fallback_skips_existing_destinations(tmp_path, monkeypat
         share_target_name="demo",
         dataset_archive=dataset_archive,
         agilab_pck=tmp_path / "pkg",
+        active_app=tmp_path / "demo_project",
         resolve_share_path=lambda _target: dest_arg,
         unzip_data=_fake_unzip,
         share_root_path=lambda: tmp_path / "share-root",
@@ -2114,6 +2123,7 @@ def test_post_main_returns_zero_when_preferred_link_fails_without_trajectory_fal
         share_target_name="demo",
         dataset_archive=dataset_archive,
         agilab_pck=tmp_path / "pkg",
+        active_app=tmp_path / "demo_project",
         resolve_share_path=lambda _target: dest_arg,
         unzip_data=_fake_unzip,
         share_root_path=lambda: share_root,
@@ -3549,7 +3559,9 @@ def test_post_main_keeps_existing_preferred_sat_symlink(tmp_path, monkeypatch):
 def test_post_main_extracts_then_copies_when_link_unavailable(tmp_path, monkeypatch):
     dataset_archive = tmp_path / "dataset.7z"
     dataset_archive.write_text("x", encoding="utf-8")
-    trajectory_archive = tmp_path / "Trajectory.7z"
+    active_app = tmp_path / "demo_project"
+    trajectory_archive = active_app / "src" / "Trajectory.7z"
+    trajectory_archive.parent.mkdir(parents=True, exist_ok=True)
     trajectory_archive.write_text("x", encoding="utf-8")
 
     class DummyEnv:
@@ -3557,6 +3569,7 @@ def test_post_main_extracts_then_copies_when_link_unavailable(tmp_path, monkeypa
             self.share_target_name = "demo"
             self.dataset_archive = dataset_archive
             self.agilab_pck = tmp_path / "pkg"
+            self.active_app = active_app
 
         def resolve_share_path(self, _target):
             return tmp_path / "share-dest"
@@ -3593,6 +3606,7 @@ def test_post_main_ignores_optional_seeding_exception(tmp_path, monkeypatch):
             self.share_target_name = "demo"
             self.dataset_archive = dataset_archive
             self.agilab_pck = tmp_path / "pkg"
+            self.active_app = tmp_path / "demo_project"
 
         def resolve_share_path(self, _target):
             return tmp_path / "share-dest"

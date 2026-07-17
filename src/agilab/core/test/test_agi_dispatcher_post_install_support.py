@@ -126,7 +126,6 @@ def test_execute_post_install_unzips_and_delegates_optional_seed(tmp_path):
     assert seed_calls == [
         {
             "env": env,
-            "dataset_archive": dataset_archive,
             "dest_arg": tmp_path / "share" / "demo",
         }
     ]
@@ -271,9 +270,7 @@ def test_apply_preferred_sat_dataset_preserves_existing_samples_when_requested(t
 
 def test_apply_trajectory_sat_dataset_extracts_archive_and_links_sat_folder(tmp_path, monkeypatch):
     lines = []
-    dataset_archive = tmp_path / "dataset.7z"
     trajectory_archive = tmp_path / "Trajectory.7z"
-    dataset_archive.write_text("x", encoding="utf-8")
     trajectory_archive.write_text("x", encoding="utf-8")
     dataset_root = tmp_path / "dataset"
     sat_folder = dataset_root / "sat"
@@ -290,7 +287,7 @@ def test_apply_trajectory_sat_dataset_extracts_archive_and_links_sat_folder(tmp_
     monkeypatch.setattr(post_mod, "_extract_archive", _fake_extract)
 
     result = post_mod._apply_trajectory_sat_dataset(
-        dataset_archive=dataset_archive,
+        trajectory_archive=trajectory_archive,
         dataset_root=dataset_root,
         sat_folder=sat_folder,
         print_fn=lines.append,
@@ -307,8 +304,8 @@ def test_apply_trajectory_sat_dataset_extracts_archive_and_links_sat_folder(tmp_
 
 def test_apply_trajectory_sat_dataset_copies_when_linking_fails(tmp_path, monkeypatch):
     lines = []
-    dataset_archive = tmp_path / "dataset.7z"
-    dataset_archive.write_text("x", encoding="utf-8")
+    trajectory_archive = tmp_path / "Trajectory.7z"
+    trajectory_archive.write_text("x", encoding="utf-8")
     dataset_root = tmp_path / "dataset"
     trajectory_folder = dataset_root / "Trajectory"
     trajectory_folder.mkdir(parents=True, exist_ok=True)
@@ -319,7 +316,7 @@ def test_apply_trajectory_sat_dataset_copies_when_linking_fails(tmp_path, monkey
     monkeypatch.setattr(post_mod, "_try_link_dir", lambda *_args, **_kwargs: False)
 
     result = post_mod._apply_trajectory_sat_dataset(
-        dataset_archive=dataset_archive,
+        trajectory_archive=trajectory_archive,
         dataset_root=dataset_root,
         sat_folder=sat_folder,
         print_fn=lines.append,
@@ -332,16 +329,53 @@ def test_apply_trajectory_sat_dataset_copies_when_linking_fails(tmp_path, monkey
 
 
 def test_apply_trajectory_sat_dataset_returns_zero_when_no_samples_available(tmp_path):
-    dataset_archive = tmp_path / "dataset.7z"
-    dataset_archive.write_text("x", encoding="utf-8")
+    trajectory_archive = tmp_path / "Trajectory.7z"  # does not exist on disk
     dataset_root = tmp_path / "dataset"
     sat_folder = dataset_root / "sat"
 
     result = post_mod._apply_trajectory_sat_dataset(
-        dataset_archive=dataset_archive,
+        trajectory_archive=trajectory_archive,
         dataset_root=dataset_root,
         sat_folder=sat_folder,
     )
 
     assert result == 0
     assert not sat_folder.exists()
+
+
+def test_apply_trajectory_sat_dataset_returns_zero_when_no_archive_found(tmp_path):
+    dataset_root = tmp_path / "dataset"
+    sat_folder = dataset_root / "sat"
+
+    result = post_mod._apply_trajectory_sat_dataset(
+        trajectory_archive=None,
+        dataset_root=dataset_root,
+        sat_folder=sat_folder,
+    )
+
+    assert result == 0
+    assert not sat_folder.exists()
+
+
+def test_find_trajectory_archive_locates_file_outside_the_worker_subdir(tmp_path):
+    # Regression test: link_sim ships Trajectory.7z under "src/optional sat/",
+    # a different subdirectory than its worker package (and dataset.7z), not
+    # as a literal sibling of dataset.7z. The lookup must search the whole
+    # src tree rather than assume a fixed sibling layout.
+    active_app = tmp_path / "link_sim_project"
+    optional_sat = active_app / "src" / "optional sat"
+    optional_sat.mkdir(parents=True, exist_ok=True)
+    archive = optional_sat / "Trajectory.7z"
+    archive.write_text("x", encoding="utf-8")
+    (active_app / "src" / "link_sim_worker").mkdir(parents=True, exist_ok=True)
+
+    resolved = post_mod._find_trajectory_archive(active_app)
+
+    assert resolved == archive
+
+
+def test_find_trajectory_archive_returns_none_when_absent(tmp_path):
+    active_app = tmp_path / "demo_project"
+    (active_app / "src").mkdir(parents=True, exist_ok=True)
+
+    assert post_mod._find_trajectory_archive(active_app) is None
