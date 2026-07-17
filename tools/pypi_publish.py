@@ -2119,6 +2119,8 @@ def _format_package_list(package_names: list[str]) -> str:
         return "the selected packages"
     if len(quoted) == 1:
         return quoted[0]
+    if len(quoted) == 2:
+        return f"{quoted[0]} and {quoted[1]}"
     return ", ".join(quoted[:-1]) + f", and {quoted[-1]}"
 
 
@@ -2132,19 +2134,75 @@ def _release_date_from_tag(tag: str) -> str:
     return f"{year:04d}-{month:02d}-{day:02d}"
 
 
-def _changelog_section(chosen_version: str, tag: str, package_names: list[str]) -> str:
-    release_url = github_release_url(tag)
-    release_date = _release_date_from_tag(tag)
+def _release_changed_notes(package_names: list[str], chosen_version: str) -> str:
     packages = _format_package_list(package_names)
     return (
-        f"## [{chosen_version}] - {release_date}\n\n"
-        f"GitHub Release: {release_url}\n\n"
-        "### Changed\n\n"
         f"- Published AGILAB `{chosen_version}` to PyPI for {packages}.\n"
         "- Updated release metadata so public docs, changelog, PyPI, and GitHub "
         "Releases point to the same source tag.\n"
         "- Kept release automation active so future PyPI publishes create or "
         "update the matching GitHub Release after pushing the tag.\n"
+    )
+
+
+def _merge_release_changed_notes(
+    unreleased_body: str,
+    *,
+    package_names: list[str],
+    chosen_version: str,
+) -> str:
+    body = unreleased_body.strip()
+    notes = _release_changed_notes(package_names, chosen_version)
+    if not body:
+        return f"### Changed\n\n{notes}"
+
+    changed_heading = re.search(r"^### Changed[ \t]*\n", body, flags=re.MULTILINE)
+    if changed_heading:
+        return (
+            body[: changed_heading.end()]
+            + "\n"
+            + notes
+            + body[changed_heading.end() :].lstrip("\n")
+        ).rstrip()
+    return f"{body}\n\n### Changed\n\n{notes}".rstrip()
+
+
+def _consume_unreleased_body(text: str) -> tuple[str, str]:
+    unreleased_re = re.compile(
+        r"^(?P<heading>## Unreleased[^\n]*\n)(?P<body>.*?)(?=^## \[|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    match = unreleased_re.search(text)
+    if not match:
+        return text, ""
+    body = match.group("body").strip()
+    cleared = (
+        text[: match.start()]
+        + match.group("heading").rstrip()
+        + "\n\n"
+        + text[match.end() :]
+    )
+    return cleared, body
+
+
+def _changelog_section(
+    chosen_version: str,
+    tag: str,
+    package_names: list[str],
+    *,
+    unreleased_body: str = "",
+) -> str:
+    release_url = github_release_url(tag)
+    release_date = _release_date_from_tag(tag)
+    release_notes = _merge_release_changed_notes(
+        unreleased_body,
+        package_names=package_names,
+        chosen_version=chosen_version,
+    )
+    return (
+        f"## [{chosen_version}] - {release_date}\n\n"
+        f"GitHub Release: {release_url}\n\n"
+        f"{release_notes}\n"
     )
 
 
@@ -2155,14 +2213,22 @@ def update_changelog_release_entry(chosen_version: str, tag: str, package_names:
         return
 
     text = path.read_text(encoding="utf-8")
-    section = _changelog_section(chosen_version, tag, package_names)
     heading_re = re.compile(
         rf"^## \[{re.escape(chosen_version)}\] - .+?(?=^## \[|\Z)",
         re.MULTILINE | re.DOTALL,
     )
     if heading_re.search(text):
-        updated = heading_re.sub(section.rstrip() + "\n\n", text, count=1)
+        # Repair runs must not erase detailed notes already recorded for the
+        # release or consume newer work that has since entered Unreleased.
+        updated = text
     else:
+        text, unreleased_body = _consume_unreleased_body(text)
+        section = _changelog_section(
+            chosen_version,
+            tag,
+            package_names,
+            unreleased_body=unreleased_body,
+        )
         first_heading = re.search(r"^## \[", text, flags=re.MULTILINE)
         if first_heading:
             updated = text[: first_heading.start()] + section + "\n" + text[first_heading.start():]

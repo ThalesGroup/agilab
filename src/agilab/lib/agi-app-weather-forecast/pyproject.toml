@@ -1,5 +1,5 @@
 [project]
-version = "2026.06.24"
+version = "2026.07.17"
 name = "agi-app-weather-forecast"
 description = "AGILAB weather-forecast notebook-migration demo with forecast analysis artifacts"
 requires-python = ">=3.12"

@@ -1191,6 +1191,69 @@ def test_update_public_release_references_updates_docs_changelog_and_test(tmp_pa
     assert refreshed_release_proofs == ["2026.04.24"]
 
 
+def test_changelog_release_entry_moves_unreleased_notes_into_new_release(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text(
+        "# Changelog\n\n"
+        "## Unreleased\n\n"
+        "### Security\n\n"
+        "- Hardened the runtime boundary.\n\n"
+        "### Changed\n\n"
+        "- Added replay evidence.\n\n"
+        "## [2026.07.04] - 2026-07-04\n\n"
+        "Previous release.\n",
+        encoding="utf-8",
+    )
+
+    module.update_changelog_release_entry(
+        "2026.07.17",
+        "v2026.07.17",
+        ["agi-core", "agilab"],
+    )
+
+    text = changelog.read_text(encoding="utf-8")
+    assert "## Unreleased\n\n## [2026.07.17]" in text
+    release = text.split("## [2026.07.17]", 1)[1].split("## [2026.07.04]", 1)[0]
+    assert "- Hardened the runtime boundary." in release
+    assert "- Added replay evidence." in release
+    assert release.count("### Changed") == 1
+    assert "Published AGILAB `2026.07.17` to PyPI for `agi-core` and `agilab`." in release
+
+
+def test_changelog_release_entry_repair_preserves_existing_notes_and_unreleased(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text(
+        "# Changelog\n\n"
+        "## Unreleased\n\n"
+        "### Fixed\n\n"
+        "- A fix merged after the release.\n\n"
+        "## [2026.07.17] - 2026-07-17\n\n"
+        "GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17\n\n"
+        "### Security\n\n"
+        "- Original detailed release note.\n",
+        encoding="utf-8",
+    )
+
+    module.update_changelog_release_entry(
+        "2026.07.17",
+        "v2026.07.17",
+        ["agilab"],
+    )
+
+    text = changelog.read_text(encoding="utf-8")
+    assert "- A fix merged after the release." in text
+    assert "- Original detailed release note." in text
+    assert text.count("## [2026.07.17]") == 1
+
+
 def test_update_public_demo_release_test_skips_manifest_backed_constant(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)

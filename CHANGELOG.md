@@ -28,6 +28,16 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 - Hardened shared-path resolution and artifact path joins so shared datasets,
   outputs, and evidence stay confined to the resolved cluster-share root and
   reject traversal outside it (#802).
+- Made project/archive replacement transactional and tightened generated-code,
+  connector, SSH transport, and model-loading trust checks so invalid inputs
+  fail closed without replacing live state.
+
+### Added
+
+- Added workflow cockpit/autopilot preflight and machine-readable workflow
+  automation evidence for reviewing dependency-aware execution before a run.
+- Added routing demand-matrix analysis and improved notebook import/export
+  round-trip evidence and safety checks.
 
 ### Changed
 
@@ -40,6 +50,26 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 - Routed generated artifacts through the configured output roots so exports
   honor explicit export directories and active workflow data roots before any
   local fallback path (#798).
+- Prepared cluster environments concurrently and exposed bounded live
+  deployment and worker logs through ORCHESTRATE.
+- Updated Streamlit launchers, page templates, and page-config ownership for
+  the current supported Streamlit contract.
+
+### Fixed
+
+- Hardened concurrent distributed-runtime lifecycle access and durable service
+  state publication across start, restart, cleanup, transport, and background
+  job flows, preventing stale ownership and leaked replacement processes
+  (#815).
+- Restored Windows core validation and preserved compatibility-shim module
+  metadata across synchronized runtime namespaces.
+- Corrected workflow run reattachment, app dependency synchronization, and
+  shared-root input/output resolution across built-in projects.
+
+### Removed
+
+- Removed the obsolete inference-analysis page and its public bundle surface
+  (#814).
 
 ## [2026.07.04] - 2026-07-04
 
