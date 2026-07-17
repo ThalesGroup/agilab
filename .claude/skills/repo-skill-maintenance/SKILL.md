@@ -1,9 +1,9 @@
 ---
 name: repo-skill-maintenance
-description: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills.
+description: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, drift checks, and Tokki skill visibility. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling agent skill copies without overwriting unrelated skills.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-24
+  updated: 2026-07-16
 ---
 
 # Repo Skill Maintenance
@@ -18,6 +18,9 @@ newer Codex-specific content.
 
 - Shared source of truth: `.claude/skills/`
 - Repo Codex mirror: `.codex/skills/`
+- Tokki skill source: the canonical `.claude/skills/` tree, read directly with
+  `tokki skills list --skills-dir .claude/skills --json`. Tokki has no repo
+  mirror; do not create `.tokki/skills` or `.agilab/skills` copies.
 - Personal or tool-managed home skills:
   - `~/.codex/skills/` for local-only skills
   - `~/.codex/skills/.system/` for system-managed skills
@@ -70,14 +73,18 @@ for private-domain skills.
    - `SKILL.md`
    - optional `agents/openai.yaml`
    - optional `references/`, `scripts/`, `assets/`
-4. Sync only the intended skill or skills into `.codex/skills/`:
+4. Sync only the intended skill or skills into `.codex/skills/`. The sync
+   validates the canonical tree first, then regenerates the Codex skill index,
+   badges, catalog, capability manifest, and agenticweb surfaces, and finishes
+   by verifying Tokki skill visibility:
 
 ```bash
 python3 tools/sync_agent_skills.py --skills <skill-name> [<skill-name> ...]
 ```
 
-5. Validate and regenerate the Codex index plus public agent discovery surfaces
-   once after all intended skill syncs:
+5. Confirm the Codex index plus public agent discovery surfaces are valid and
+   current. The sync in step 4 already regenerated them; rerun these
+   explicitly after manual reconciliation or when in doubt:
 
 ```bash
 python3 tools/codex_skills.py --root .codex/skills validate --strict
@@ -96,9 +103,19 @@ python3 tools/agenticweb_manifest.py --check
 python3 tools/agent_instruction_contract.py --check
 ```
 
-7. If a user-managed home skill is being migrated, replace the home copy with a
+7. Verify tree drift and Tokki skill visibility with the read-only check. It
+   compares the canonical and mirror trees file by file, then confirms the
+   Tokki agent enumerates every canonical skill (skipped with a notice when
+   the `tokki` CLI is not installed). The command is registered as a Tokki
+   model-free validation route in `.tokki/model-free-commands`:
+
+```bash
+python3 tools/sync_agent_skills.py --check
+```
+
+8. If a user-managed home skill is being migrated, replace the home copy with a
    symlink back to the repo Codex copy instead of keeping two real directories.
-8. Update repo-facing skill docs when the catalog changes:
+9. Update repo-facing skill docs when the catalog changes:
    - `.claude/skills/README.md`
    - `.codex/skills/README.md`
    - root `README.md` if the repo-level agent workflow description changed
@@ -107,13 +124,20 @@ python3 tools/agent_instruction_contract.py --check
 
 - Do not run `python3 tools/sync_agent_skills.py --all` unless you have already
   reconciled any older Claude/Codex drift on purpose.
-- When multiple skills are being edited in one pipeline, do not validate and
-  regenerate the Codex index after each individual skill. Sync all touched
-  skills in one targeted command, then run validation and generation once.
+- When multiple skills are being edited in one pipeline, sync all touched
+  skills in one targeted command so the Codex index and discovery surfaces
+  regenerate once, instead of running one sync per skill.
 - Do not treat `.codex/skills/.generated/*` as the only generated output of a
   skill change. Skill text can also affect `llms-full.txt`,
   `agilab-capabilities.json`, and `agenticweb.md`; regenerate and check the
   whole agent discovery surface before push.
+- Do not create a third repo skills tree for Tokki. Tokki consumes the
+  canonical `.claude/skills/` tree; in this repo, `tokki skills capture` and
+  `tokki skills promote` must always pass an explicit `--skills-dir` because
+  the Claude and Codex trees are distinct real directories.
+- Keep the Tokki model-free route for this tool limited to
+  `python3 tools/sync_agent_skills.py --check`; the sync itself mutates the
+  mirror and must stay a reviewed, modeled action.
 - Do not migrate `~/.codex/skills/.system` into the repo.
 - Do not leave a copied third-party skill with missing repo-required frontmatter
   such as `license`.

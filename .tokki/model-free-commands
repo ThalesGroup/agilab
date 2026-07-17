@@ -27,6 +27,7 @@ exact ./dev flow release-proof
 exact ./dev flow dependency-policy
 exact ./dev flow shared-core-typing
 exact ./dev flow builtin-app-tests
+exact python3 tools/sync_agent_skills.py --check
 exact uv --preview-features extra-build-dependencies run python tools/agent_context_router.py --check
 exact uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --check --check-github-runs --compact
 exact uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json

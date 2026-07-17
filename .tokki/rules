@@ -52,6 +52,16 @@
   worktrees/branches, or write `parallel_stage.toml`. Keep the allowlist to
   read-only or `--output`-gated commands.
 
+## Skill surface updates
+- Repo skills are canonical in `.claude/skills`; `.codex/skills` is the synced
+  mirror. Tokki reads the canonical tree via
+  `tokki skills list --skills-dir .claude/skills --json`.
+- After skill edits, run `python3 tools/sync_agent_skills.py --skills <skill>`
+  and finish with `python3 tools/sync_agent_skills.py --check` (model-free
+  validation route) to confirm tree drift and Tokki skill visibility.
+- Never run `tokki skills capture` or `tokki skills promote` here without an
+  explicit `--skills-dir`; do not create `.agilab/skills` or `.tokki/skills`.
+
 ## Cluster, workers, and generated artifacts
 - If allocation artifacts show all `no_path` or `reject`, first compare them
   with fresh local and remote worker smoke results. Runtime or deployed-worker

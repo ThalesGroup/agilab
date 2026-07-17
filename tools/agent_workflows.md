@@ -179,6 +179,35 @@ there are local changes; if the tree is clean, it falls back to the diff
 against `origin/main` for impact validation and uses the agent workflow docs as
 the context-routing example.
 
+## Shared skill trees and Tokki visibility
+
+Repo-managed skills are canonical under `.claude/skills` and mirrored into
+`.codex/skills`. The Tokki agent reads the canonical tree directly, so no
+third repo mirror exists:
+
+```bash
+tokki skills list --skills-dir .claude/skills --json
+```
+
+Update a shared skill with the targeted sync, then verify tree drift and
+Tokki skill visibility with the read-only check:
+
+```bash
+python3 tools/sync_agent_skills.py --skills <skill-name>
+python3 tools/sync_agent_skills.py --check
+```
+
+The sync also refreshes the Codex skill index, badges, catalog, capability
+manifest, and agenticweb surfaces. The `--check` mode compares the canonical
+and mirror trees file by file, then confirms Tokki enumerates every canonical
+skill; it skips the Tokki step with a notice when the `tokki` CLI is not
+installed. The check is registered as a Tokki model-free validation route in
+`.tokki/model-free-commands`; confirm the route with:
+
+```bash
+tokki learn model-free check --root . -- python3 tools/sync_agent_skills.py --check
+```
+
 ## Skill quality and security scans
 
 Changed repo-managed skills are scanned locally. `AGENT_SKILLS.md` lists the

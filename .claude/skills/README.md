@@ -5,7 +5,9 @@ Each skill is a folder containing a `SKILL.md` entrypoint and any supporting ass
 
 These shared repo skills are authored under `.claude/skills/` and mirrored into
 `.codex/skills/` for Codex consumption. The `SKILL.md` format is shared, so one
-canonical source can serve both agents.
+canonical source can serve both agents. The Tokki agent reads this canonical
+tree directly (`tokki skills list --skills-dir .claude/skills`), so no third
+repo mirror exists.
 
 ## How Skills Are Used
 
@@ -81,5 +83,7 @@ Use:
 - `python3 tools/sync_agent_skills.py --all` only after intentionally reconciling older Claude/Codex skill drift
 - `python3 tools/codex_skills.py --root .codex/skills validate --strict`
 - `python3 tools/codex_skills.py --root .codex/skills generate`
+- `python3 tools/sync_agent_skills.py --check` to verify Claude/Codex tree
+  drift and Tokki skill visibility without syncing
 
-Do not hand-edit both trees for the same shared skill. Edit `.claude/skills/`, sync the specific skill into `.codex/skills/`, then regenerate the Codex index. Keep `~/.codex/skills/` for personal or machine-local skills only, especially anything unrelated to AGILAB or unsuitable for the public repo.
+Do not hand-edit both trees for the same shared skill. Edit `.claude/skills/`, then sync the specific skill into `.codex/skills/`; the sync regenerates the Codex index and public discovery surfaces and verifies Tokki skill visibility. Keep `~/.codex/skills/` for personal or machine-local skills only, especially anything unrelated to AGILAB or unsuitable for the public repo.
