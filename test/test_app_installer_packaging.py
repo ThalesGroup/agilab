@@ -5,6 +5,7 @@ import asyncio
 import importlib.util
 import json
 import py_compile
+import re
 import runpy
 import sqlite3
 import subprocess
@@ -1098,6 +1099,74 @@ def test_packaged_example_readmes_teach_safe_adaptation() -> None:
         assert "Expected Output" in readme_text
 
 
+EXPECTED_OUTPUT_PLANNED_ARTIFACT_EXAMPLES = {
+    # These READMEs intentionally describe planned/future artifacts (a real
+    # notebook execution or a downstream training app) rather than files the
+    # packaged preview script itself writes.
+    "notebook_to_dask",
+}
+
+
+def _expected_output_basenames(readme_text: str) -> set[str]:
+    """Extract artifact basenames named in a README's "Expected Output" section."""
+
+    section_lines: list[str] = []
+    capturing = False
+    for line in readme_text.splitlines():
+        if line.strip().startswith("## Expected Output"):
+            capturing = True
+            continue
+        if capturing and line.strip().startswith("## "):
+            break
+        if capturing:
+            section_lines.append(line)
+
+    basenames: set[str] = set()
+    in_fenced_block = False
+    for line in section_lines:
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fenced_block = not in_fenced_block
+            continue
+        if not in_fenced_block or not stripped:
+            continue
+        if stripped.startswith("~/log/execute/"):
+            if stripped.endswith("/"):
+                continue
+            basenames.add(stripped.rsplit("/", 1)[-1])
+        elif re.fullmatch(r"[\w./-]+\.[A-Za-z0-9]+", stripped):
+            basenames.add(stripped.rsplit("/", 1)[-1])
+    return basenames
+
+
+def test_packaged_example_readmes_expected_output_matches_preview_script_writes() -> None:
+    """README "Expected Output" artifact names must be real, not stale or aspirational."""
+
+    checked_any = False
+    for example_name, script_names in EXAMPLE_PREVIEWS.items():
+        if example_name in EXPECTED_OUTPUT_PLANNED_ARTIFACT_EXAMPLES:
+            continue
+
+        readme = EXAMPLES_ROOT / example_name / "README.md"
+        basenames = _expected_output_basenames(readme.read_text(encoding="utf-8"))
+        if not basenames:
+            continue
+
+        script_text = "\n".join(
+            (EXAMPLES_ROOT / example_name / script_name).read_text(encoding="utf-8")
+            for script_name in script_names
+            if script_name.endswith(".py")
+        )
+        checked_any = True
+        for basename in sorted(basenames):
+            assert basename in script_text, (
+                f"{readme} promises artifact {basename!r} but no script under "
+                f"examples/{example_name} writes a file with that name"
+            )
+
+    assert checked_any
+
+
 def test_packaged_example_readmes_are_included_as_package_data() -> None:
     package_data = _agi_apps_package_data("agilab.examples")
 
@@ -1766,15 +1835,36 @@ def test_service_mode_health_gate_rejects_non_running_service() -> None:
     assert unhealthy["reason"] == "unhealthy workers 1 exceeds limit 0"
 
 
+def _all_example_python_scripts() -> list[Path]:
+    """AGI_*.py run/install scripts plus preview_*.py scripts across every packaged example."""
+
+    return sorted(
+        {
+            *EXAMPLES_ROOT.glob("*/AGI_*.py"),
+            *EXAMPLES_ROOT.glob("*/preview_*.py"),
+        }
+    )
+
+
 def test_packaged_examples_avoid_magic_mode_literals() -> None:
     magic_mode_fragments = ("mode=13", "mode=15", "modes_enabled=13", "modes_enabled=15")
-    scripts = sorted(EXAMPLES_ROOT.glob("*/AGI_*.py"))
+    scripts = _all_example_python_scripts()
 
     assert scripts
     for script in scripts:
         text = script.read_text(encoding="utf-8")
         for fragment in magic_mode_fragments:
-            assert fragment not in text
+            assert fragment not in text, f"{script} contains magic mode literal {fragment!r}"
+
+
+def test_packaged_preview_examples_avoid_private_agi_internals() -> None:
+    preview_scripts = sorted(EXAMPLES_ROOT.glob("*/preview_*.py"))
+
+    assert preview_scripts
+    for script in preview_scripts:
+        text = script.read_text(encoding="utf-8")
+        assert "AGI._" not in text, f"{script} references a private AGI internal"
+        assert "asyncio.get_event_loop()" not in text, f"{script} uses the legacy event-loop runner"
 
 
 def test_packaged_examples_use_public_api_and_modern_runner() -> None:
