@@ -475,11 +475,15 @@ hash-verifiable `.agipack` archive for portable handoff with
 signing with `agilab sign proof.agipack --key signer.pem --signature
 proof.agipack.sig.json` and trust-policy verification with `agilab verify
 proof.agipack --signature proof.agipack.sig.json --trust-policy policy.toml`.
-For fail-closed evidence, maintainers can run `./dev robust`; it executes a P0
-robustness matrix of synthetic bad states covering cluster shares, public UI
-binds, service health gates, evidence manifests, notebook import, app settings,
-and Streamlit route contracts. A scenario passes only when the bad state is
-rejected with a clear remediation and replay command.
+For fail-closed evidence, maintainers can run `./dev robust`; it executes the
+fast P0 matrix of synthetic bad states covering cluster shares, public UI binds,
+service health gates, evidence manifests, notebook import, app settings, and
+Streamlit route contracts. Run `./dev robust --profile p1-recovery` for stale
+runner-state conflict rejection, crash-partial agent-trace repair, interrupted
+workflow-evidence publication recovery, and immutable-manifest tamper detection.
+`./dev robust --profile all` runs both profiles and is the repository guardrail
+and production-readiness evidence gate. A scenario passes only when the bad
+state is rejected or recovered with a clear remediation and replay command.
 For adoption-surface evidence, maintainers can run `./dev app-contracts`; it
 checks that built-in apps, worker manifests, reducer expectations, promoted PyPI
 app packages, the app catalog, and public app docs stay aligned. The same guard

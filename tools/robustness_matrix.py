@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run AGILAB P0 robustness scenarios against known bad states."""
+"""Run AGILAB fail-closed and crash-recovery robustness scenarios."""
 
 from __future__ import annotations
 
@@ -12,12 +12,13 @@ from pathlib import Path
 import re
 import sys
 import tempfile
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "agilab.robustness_matrix.v1"
 DEFAULT_PROFILE = "p0"
+RECOVERY_PROFILE = "p1-recovery"
 
 
 def _ensure_repo_on_path(repo_root: Path) -> None:
@@ -317,6 +318,232 @@ def _streamlit_route_static_guard(repo_root: Path, tmp_root: Path) -> ScenarioOb
     )
 
 
+def _runner_state_stale_writer_rejected(repo_root: Path, tmp_root: Path) -> ScenarioObservation:
+    _ensure_repo_on_path(repo_root)
+    from agilab.global_pipeline.global_pipeline_runner_state import (
+        RunnerStateConflictError,
+        load_runner_state,
+        runner_state_revision,
+        write_runner_state,
+    )
+
+    state_path = tmp_root / "runner_state.json"
+    initial = {"generation": 1, "events": [{"kind": "created"}]}
+    current = {
+        "generation": 2,
+        "events": [{"kind": "created"}, {"kind": "completed"}],
+    }
+    write_runner_state(state_path, initial)
+    stale_revision = runner_state_revision(initial)
+    write_runner_state(state_path, current, expected_revision=stale_revision)
+
+    try:
+        write_runner_state(
+            state_path,
+            {"generation": 3, "events": [{"kind": "stale overwrite"}]},
+            expected_revision=stale_revision,
+        )
+    except RunnerStateConflictError as exc:
+        preserved = load_runner_state(state_path) == current
+        return ScenarioObservation(
+            passed=preserved and "another session" in str(exc),
+            observed=str(exc),
+            details={
+                "conflict_type": type(exc).__name__,
+                "current_generation": load_runner_state(state_path).get("generation"),
+                "stale_write_preserved_current_state": preserved,
+            },
+            evidence=("src/agilab/global_pipeline/global_pipeline_runner_state.py",),
+        )
+    return ScenarioObservation(
+        passed=False,
+        observed="A stale runner-state revision overwrote newer state.",
+        details={"current_state": load_runner_state(state_path)},
+        evidence=("src/agilab/global_pipeline/global_pipeline_runner_state.py",),
+    )
+
+
+def _agent_trace_partial_tail_recovers(repo_root: Path, tmp_root: Path) -> ScenarioObservation:
+    _ensure_repo_on_path(repo_root)
+    from agilab.agent_runtime.agent_trace import (
+        EVENTS_FILENAME,
+        AgentTraceStore,
+        load_trace_events,
+    )
+
+    partial_tail = b'{"partial"'
+    store = AgentTraceStore(tmp_root, run_id="robustness-recovery", agent="codex")
+    first = store.append("session_start")
+    with store.events_path.open("ab") as handle:
+        handle.write(partial_tail)
+
+    second = store.append("session_end", status="pass")
+    events = load_trace_events(tmp_root)
+    quarantined = sorted(tmp_root.glob(f".{EVENTS_FILENAME}.partial.*.jsonl"))
+    passed = (
+        (first.sequence, second.sequence) == (1, 2)
+        and [event.sequence for event in events] == [1, 2]
+        and len(quarantined) == 1
+        and quarantined[0].read_bytes() == partial_tail
+        and store.events_path.read_bytes().endswith(b"\n")
+    )
+    return ScenarioObservation(
+        passed=passed,
+        observed=(
+            "The crash-partial JSONL tail was quarantined and sequence 2 appended cleanly."
+            if passed
+            else "The crash-partial JSONL tail was not recovered without trace loss."
+        ),
+        details={
+            "event_sequences": [event.sequence for event in events],
+            "quarantine_count": len(quarantined),
+            "quarantined_bytes": len(quarantined[0].read_bytes()) if quarantined else 0,
+        },
+        evidence=("src/agilab/agent_runtime/agent_trace.py",),
+    )
+
+
+def _recovery_workflow_state() -> dict[str, Any]:
+    return {
+        "schema": "agilab.global_pipeline_runner_state.v1",
+        "run_id": "robustness-recovery",
+        "run_status": "completed",
+        "created_at": "2026-07-20T00:00:00Z",
+        "updated_at": "2026-07-20T00:00:01Z",
+        "source": {
+            "source_type": "multi_app_dag",
+            "dag_path": "",
+            "plan_schema": "agilab.multi_app_dag.v1",
+            "plan_runner_status": "controlled_contract_stage_execution",
+            "execution_order": [],
+        },
+        "summary": {
+            "unit_count": 0,
+            "completed_count": 0,
+            "failed_count": 0,
+            "available_artifact_ids": [],
+        },
+        "units": [],
+        "artifacts": [],
+        "events": [],
+    }
+
+
+def _write_recovery_runner_state(tmp_root: Path) -> tuple[Path, Path, dict[str, Any]]:
+    state = _recovery_workflow_state()
+    lab_dir = tmp_root / "lab"
+    state_path = lab_dir / ".agilab" / "runner_state.json"
+    state_path.parent.mkdir(parents=True)
+    state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return lab_dir, state_path, state
+
+
+def _workflow_evidence_interrupted_publish_recovers(
+    repo_root: Path,
+    tmp_root: Path,
+) -> ScenarioObservation:
+    _ensure_repo_on_path(repo_root)
+    from agilab.workflow import workflow_run_manifest
+
+    lab_dir, state_path, state = _write_recovery_runner_state(tmp_root)
+    real_write = workflow_run_manifest._write_json_fsync
+    write_count = 0
+    injected_failure = False
+    failure_message = ""
+
+    def _fail_during_staging(path: Path, payload: Mapping[str, Any]) -> None:
+        nonlocal write_count
+        write_count += 1
+        real_write(path, payload)
+        if write_count == 2:
+            raise OSError("simulated evidence publication interruption")
+
+    workflow_run_manifest._write_json_fsync = _fail_during_staging
+    try:
+        workflow_run_manifest.write_workflow_run_evidence(
+            state=state,
+            state_path=state_path,
+            repo_root=repo_root,
+            lab_dir=lab_dir,
+            trigger={"surface": "robustness-matrix", "fault": "interrupted-publish"},
+        )
+    except OSError as exc:
+        injected_failure = "simulated evidence publication interruption" in str(exc)
+        failure_message = str(exc)
+    finally:
+        workflow_run_manifest._write_json_fsync = real_write
+
+    evidence_root = workflow_run_manifest.workflow_evidence_root(lab_dir)
+    latest_path = evidence_root / workflow_run_manifest.LATEST_WORKFLOW_EVIDENCE_FILENAME
+    partial_manifests = list(
+        evidence_root.glob(f"*/{workflow_run_manifest.WORKFLOW_RUN_MANIFEST_FILENAME}")
+    )
+    staging_dirs = list(evidence_root.glob(".*.staging"))
+    hidden_after_failure = not latest_path.exists() and not partial_manifests and not staging_dirs
+
+    bundle = workflow_run_manifest.write_workflow_run_evidence(
+        state=state,
+        state_path=state_path,
+        repo_root=repo_root,
+        lab_dir=lab_dir,
+        trigger={"surface": "robustness-matrix", "fault": "interrupted-publish"},
+    )
+    recovered = workflow_run_manifest.load_workflow_run_manifest(bundle.manifest_path)
+    passed = injected_failure and hidden_after_failure and recovered.get("status") == "pass"
+    return ScenarioObservation(
+        passed=passed,
+        observed=(
+            "Interrupted evidence staging stayed invisible and the same publication recovered cleanly."
+            if passed
+            else "Interrupted evidence staging leaked partial state or failed to recover."
+        ),
+        details={
+            "injected_failure": injected_failure,
+            "failure_message": failure_message,
+            "hidden_after_failure": hidden_after_failure,
+            "recovered_status": recovered.get("status"),
+            "staging_dirs_after_failure": len(staging_dirs),
+        },
+        evidence=("src/agilab/workflow/workflow_run_manifest.py",),
+    )
+
+
+def _workflow_evidence_tampering_rejected(repo_root: Path, tmp_root: Path) -> ScenarioObservation:
+    _ensure_repo_on_path(repo_root)
+    from agilab.workflow import workflow_run_manifest
+
+    lab_dir, state_path, state = _write_recovery_runner_state(tmp_root)
+    bundle = workflow_run_manifest.write_workflow_run_evidence(
+        state=state,
+        state_path=state_path,
+        repo_root=repo_root,
+        lab_dir=lab_dir,
+        trigger={"surface": "robustness-matrix", "fault": "manifest-tampering"},
+    )
+    manifest = json.loads(bundle.manifest_path.read_text(encoding="utf-8"))
+    manifest["status"] = "fail"
+    bundle.manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    try:
+        workflow_run_manifest.load_workflow_run_manifest(bundle.manifest_path)
+    except ValueError as exc:
+        message = str(exc)
+        return ScenarioObservation(
+            passed="completion hash mismatch" in message,
+            observed=message,
+            details={"exception_type": type(exc).__name__},
+            evidence=("src/agilab/workflow/workflow_run_manifest.py",),
+        )
+    return ScenarioObservation(
+        passed=False,
+        observed="A modified immutable workflow manifest passed verification.",
+        evidence=("src/agilab/workflow/workflow_run_manifest.py",),
+    )
+
+
 SCENARIOS: tuple[RobustnessScenario, ...] = (
     RobustnessScenario(
         id="cluster_share_same_as_local_fails_closed",
@@ -426,6 +653,46 @@ SCENARIOS: tuple[RobustnessScenario, ...] = (
         replay_command=_replay_command("streamlit_routes_do_not_hardcode_pages_directory"),
         runner=_streamlit_route_static_guard,
     ),
+    RobustnessScenario(
+        id="stale_runner_state_writer_is_rejected",
+        domain="runner-state",
+        fault="A stale session tries to overwrite a newer durable runner-state revision.",
+        expected_behavior="Reject the stale compare-and-swap write and preserve current state.",
+        remediation="Reload runner state and retry from the current revision.",
+        replay_command=_replay_command("stale_runner_state_writer_is_rejected"),
+        runner=_runner_state_stale_writer_rejected,
+        profiles=(RECOVERY_PROFILE,),
+    ),
+    RobustnessScenario(
+        id="crash_partial_agent_trace_tail_is_quarantined",
+        domain="agent-trace",
+        fault="An agent process stops after writing an unterminated partial JSONL record.",
+        expected_behavior="Quarantine only the partial tail and continue the event sequence without loss.",
+        remediation="Inspect the quarantine artifact, then replay from the preserved complete events.",
+        replay_command=_replay_command("crash_partial_agent_trace_tail_is_quarantined"),
+        runner=_agent_trace_partial_tail_recovers,
+        profiles=(RECOVERY_PROFILE,),
+    ),
+    RobustnessScenario(
+        id="interrupted_workflow_evidence_publish_recovers",
+        domain="workflow-evidence",
+        fault="Workflow evidence publication stops after only part of the staging bundle is written.",
+        expected_behavior="Expose no partial bundle and allow a clean retry of the same publication.",
+        remediation="Retry evidence publication; investigate the original filesystem interruption.",
+        replay_command=_replay_command("interrupted_workflow_evidence_publish_recovers"),
+        runner=_workflow_evidence_interrupted_publish_recovers,
+        profiles=(RECOVERY_PROFILE,),
+    ),
+    RobustnessScenario(
+        id="tampered_workflow_evidence_manifest_is_rejected",
+        domain="workflow-evidence",
+        fault="A completed immutable workflow manifest is modified after publication.",
+        expected_behavior="Reject the bundle because its completion-marker hash no longer matches.",
+        remediation="Restore or regenerate the workflow evidence bundle from trusted run state.",
+        replay_command=_replay_command("tampered_workflow_evidence_manifest_is_rejected"),
+        runner=_workflow_evidence_tampering_rejected,
+        profiles=(RECOVERY_PROFILE,),
+    ),
 )
 
 
@@ -442,6 +709,7 @@ def _scenario_to_result(
         "observed": observation.observed,
         "remediation": scenario.remediation,
         "replay_command": scenario.replay_command,
+        "profiles": list(scenario.profiles),
         "evidence": list(observation.evidence),
         "details": observation.details or {},
         "cleanup_status": "pending",
@@ -510,6 +778,7 @@ def build_report(
         "status": "pass" if not failed and results else "fail",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "profile": profile,
+        "available_profiles": [DEFAULT_PROFILE, RECOVERY_PROFILE, "all"],
         "summary": {
             "scenario_count": len(results),
             "passed": len(results) - len(failed),
@@ -524,13 +793,13 @@ def build_report(
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Run synthetic P0 robustness scenarios. A scenario passes when the "
-            "known bad state is rejected with a clear recovery contract."
+            "Run fail-closed P0 or crash-recovery P1 robustness scenarios. A scenario "
+            "passes when the known bad state is rejected or recovered with a clear contract."
         )
     )
     parser.add_argument(
         "--profile",
-        choices=(DEFAULT_PROFILE, "all"),
+        choices=(DEFAULT_PROFILE, RECOVERY_PROFILE, "all"),
         default=DEFAULT_PROFILE,
         help="Scenario profile to run.",
     )
