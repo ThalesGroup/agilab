@@ -15,25 +15,13 @@ import pytest
 from agi_cluster.agi_distributor import cli as cli_mod
 
 
-def test_bootstrap_cli_runs_before_new_agi_env_is_installed(tmp_path):
-    legacy_root = tmp_path / "legacy-site"
-    legacy_agi_env = legacy_root / "agi_env"
-    legacy_agi_env.mkdir(parents=True)
-    (legacy_agi_env / "__init__.py").write_text("", encoding="utf-8")
-    (legacy_agi_env / "data_archive_support.py").write_text(
-        "def validate_archive_members_stay_within_dest(*args, **kwargs):\n"
-        "    return None\n",
-        encoding="utf-8",
-    )
+def test_bootstrap_cli_runs_without_worker_dependencies(tmp_path):
     bootstrap_cli = tmp_path / "worker-cli.py"
     shutil.copy2(Path(cli_mod.__file__), bootstrap_cli)
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(legacy_root)
 
     completed = subprocess.run(
-        [sys.executable, str(bootstrap_cli), "platform"],
+        [sys.executable, "-S", str(bootstrap_cli), "platform"],
         cwd=tmp_path,
-        env=env,
         capture_output=True,
         text=True,
         check=False,
@@ -41,6 +29,48 @@ def test_bootstrap_cli_runs_before_new_agi_env_is_installed(tmp_path):
     )
 
     assert completed.returncode == 0, completed.stderr
+
+
+def test_bootstrap_cli_manages_remote_lease_without_worker_dependencies(tmp_path):
+    bootstrap_cli = tmp_path / "worker-cli.py"
+    shutil.copy2(Path(cli_mod.__file__), bootstrap_cli)
+    target = tmp_path / "wenv" / "demo_worker"
+    token = "a" * 32
+
+    acquire = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            str(bootstrap_cli),
+            "target-lease-acquire",
+            str(target),
+            token,
+            "install",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    release = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            str(bootstrap_cli),
+            "target-lease-release",
+            str(target),
+            token,
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+
+    assert acquire.returncode == 0, acquire.stderr
+    assert release.returncode == 0, release.stderr
 
 
 def test_get_processes_containing_parses_unix_ps(monkeypatch):
@@ -1106,6 +1136,20 @@ def test_unzip_extracts_egg_contents(tmp_path):
     extracted = root / "src" / "demo_pkg" / "data.txt"
     assert extracted.exists()
     assert extracted.read_text(encoding="utf-8") == "hello"
+
+
+@pytest.mark.parametrize("member_name", ("../escape.txt", "/escape.txt", "C:\\escape.txt"))
+def test_unzip_rejects_archive_members_outside_worker_source(tmp_path, member_name):
+    root = tmp_path / "worker"
+    root.mkdir(parents=True, exist_ok=True)
+    egg_path = root / "unsafe.egg"
+    with zipfile.ZipFile(egg_path, "w") as zf:
+        zf.writestr(member_name, "unsafe")
+
+    with pytest.raises(RuntimeError, match="Unsafe archive member path"):
+        cli_mod.unzip(str(root))
+
+    assert not (tmp_path / "escape.txt").exists()
 
 
 def test_python_version_returns_structured_tag():

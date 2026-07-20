@@ -12,6 +12,19 @@ import pytest
 from agi_cluster.agi_distributor import transport_support
 
 
+def test_loggable_ssh_command_omits_heredoc_body():
+    command = "export PATH=$PATH; python3 - <<'PY'\nsecret_body\nPY"
+
+    rendered = transport_support._loggable_ssh_command(command)
+
+    assert rendered == "export PATH=$PATH; python3 - <<'PY' [heredoc body omitted]"
+    assert "secret_body" not in rendered
+
+
+def test_loggable_ssh_command_preserves_regular_commands():
+    assert transport_support._loggable_ssh_command("uname -s") == "uname -s"
+
+
 @pytest.mark.asyncio
 async def test_send_file_local_relative_destination(monkeypatch, tmp_path):
     home = tmp_path / "home"

@@ -306,6 +306,8 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
         "uv",
         "run",
         "--no-sync",
+        "--with",
+        "psutil>=7,<8",
         "python",
         "w env's/cli.py",
         "kill",
@@ -804,6 +806,8 @@ async def test_clean_dirs_removes_local_wenv_and_execs_remote(tmp_path):
         "/usr/bin/uv",
         "run",
         "--no-sync",
+        "--with",
+        "psutil>=7,<8",
         "-p",
         "3.13",
         "python",
@@ -844,11 +848,12 @@ async def test_remote_target_lease_token_wraps_remote_clean_lifecycle(tmp_path):
     await cleanup_support.release_remote_target_leases(agi_cls)
 
     assert lease.token == "a" * 32
-    assert [argv[7] for _ip, argv in calls] == [
+    assert [argv[argv.index("python") + 2] for _ip, argv in calls] == [
         "target-lease-acquire",
         "clean",
         "target-lease-release",
     ]
+    assert calls[1][1][3:5] == ["--with", "psutil>=7,<8"]
     assert calls[1][1][-1] == "a" * 32
     assert agi_cls._remote_target_leases == {}
 

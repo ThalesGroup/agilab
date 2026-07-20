@@ -2253,7 +2253,11 @@ async def _render_distribution_panel(
             else:
                 if snippet_exists and snippet_not_empty:
                     try:
-                        with _with_app_args_env(args_env):
+                        # External app forms commonly import their app package
+                        # directly (for example ``import link_sim``). Run them
+                        # from the selected app's source scope, not just the
+                        # AGILAB UI environment.
+                        with _active_app_import_scope(env), _with_app_args_env(args_env):
                             runpy.run_path(
                                 app_args_form,
                                 init_globals={**globals(), "env": args_env},
