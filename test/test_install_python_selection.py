@@ -48,7 +48,7 @@ def test_installers_repair_incompatible_generated_virtualenvs() -> None:
 
 
 def test_repo_default_python_pin_uses_standard_gil_build() -> None:
-    assert REPO_PYTHON_VERSION.read_text(encoding="utf-8").strip() == "3.14+gil"
+    assert REPO_PYTHON_VERSION.read_text(encoding="utf-8").strip() == "3.13"
 
 
 def test_root_installer_syncs_ui_dependencies_before_root_tests() -> None:
