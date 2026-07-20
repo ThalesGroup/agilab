@@ -749,7 +749,7 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     fake_agilab_package = ModuleType("agilab")
     fake_agilab_package.__path__ = []
     monkeypatch.setitem(module.sys.modules, "agilab", fake_agilab_package)
-    module._ensure_repo_on_path()
+    module.ensure_repo_on_path(module.__file__)
     assert str(src_root) in module.sys.path
     assert str(repo_root) in module.sys.path
     assert str(src_root / "agilab") in fake_agilab_package.__path__
@@ -757,7 +757,7 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     fake_agilab_tuple_package = ModuleType("agilab")
     fake_agilab_tuple_package.__path__ = ()
     monkeypatch.setitem(module.sys.modules, "agilab", fake_agilab_tuple_package)
-    module._ensure_repo_on_path()
+    module.ensure_repo_on_path(module.__file__)
     assert fake_agilab_tuple_package.__path__ == [str(src_root / "agilab")]
 
     run_manifest_path = src_root / "agilab" / "run_manifest.py"
@@ -1045,7 +1045,7 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     module.st = SimpleNamespace(error=errors.append, stop=stop_now)
     monkeypatch.setattr(module.sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(tmp_path / "missing_app")])
     with pytest.raises(RuntimeError, match="stop"):
-        module._resolve_active_app()
+        module.resolve_active_app_path(error_fn=module.st.error, stop_fn=module.st.stop)
     assert any("Provided --active-app path not found" in message for message in errors)
 
 
@@ -1446,7 +1446,7 @@ def test_view_release_decision_settings_and_status_edge_helpers(monkeypatch, tmp
     monkeypatch.setattr(module.sys, "argv", [Path(PAGE_PATH).name])
     monkeypatch.delenv("AGILAB_ACTIVE_APP", raising=False)
     with pytest.raises(RuntimeError, match="stop"):
-        module._resolve_active_app()
+        module.resolve_active_app_path(error_fn=module.st.error, stop_fn=module.st.stop)
     assert errors == ["Missing --active-app argument."]
 
     app_root = tmp_path / "apps" / "demo_project"

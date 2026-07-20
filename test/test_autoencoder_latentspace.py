@@ -165,7 +165,7 @@ def test_autoencoder_latentspace_ensure_repo_on_path_adds_src_and_repo(monkeypat
 
     monkeypatch.setattr(module, "__file__", str(module_path))
     monkeypatch.setattr(module.sys, "path", [])
-    module._ensure_repo_on_path()
+    module.ensure_repo_on_path(module.__file__)
 
     assert str(src_root) in module.sys.path
     assert str(repo_root) in module.sys.path

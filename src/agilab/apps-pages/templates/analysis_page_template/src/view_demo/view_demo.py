@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 from typing import Any
 
 import streamlit as st
-from agi_pages.runtime import configure_streamlit_page
+from agi_pages.runtime import configure_streamlit_page, resolve_active_app_path
 
 try:
     from agi_env import AgiEnv
@@ -31,38 +30,13 @@ PAGE_LAYOUT = "wide"
 PAGE_HELP_HTML = "explore-help.html"
 
 
-def _query_param_value(value: object) -> str:
-    if isinstance(value, (list, tuple)):
-        return str(value[0]) if value else ""
-    return str(value) if value is not None else ""
-
-
-def _parse_active_app() -> str:
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--active-app")
-    args, _ = parser.parse_known_args()
-    if args.active_app:
-        return str(args.active_app)
-
-    for key in ("active_app", "active-app", "project"):
-        value = _query_param_value(st.query_params.get(key, ""))
-        if value:
-            return value
-    return ""
-
-
-def _load_project_env(active_app: str) -> Any:
+def _load_project_env(active_app_path: Path) -> Any:
     if AgiEnv is None:
         st.error("This page requires the agi-env package in its page environment.")
         st.error(f"Import error: {_AGI_ENV_IMPORT_ERROR}")
         st.stop()
 
-    active_app_path = Path(active_app).expanduser().resolve()
-    if not active_app_path.exists():
-        st.error(f"Provided active project path does not exist: {active_app_path}")
-        st.stop()
-
-    return AgiEnv.session_for_app(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+    return getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
 
 
 def _dataset_root(env: Any) -> Path | None:
@@ -87,13 +61,25 @@ def _render_page_chrome() -> None:
 def main() -> None:
     _render_page_chrome()
 
-    active_app = _parse_active_app().strip()
-    if not active_app:
-        st.info("Open this page from AGILAB Analysis so the active project is passed in.")
+    try:
+        # The shared resolver accepts the standard ``--active-app`` launch
+        # argument and the equivalent ANALYSIS query parameters.
+        active_app = resolve_active_app_path(
+            use_environment=False,
+            query_params=st.query_params,
+            query_param_keys=("active_app", "active-app", "project"),
+            missing_message="Open this page from AGILAB Analysis so the active project is passed in.",
+            error_fn=st.error,
+            missing_fn=st.info,
+            stop_fn=st.stop,
+        )
+    except (FileNotFoundError, ValueError):
+        # Streamlit's real ``stop`` raises before this point; the return keeps
+        # the template safe under lightweight test doubles as well.
         return
 
     env = _load_project_env(active_app)
-    st.subheader(str(getattr(env, "app", active_app)))
+    st.subheader(str(getattr(env, "app", active_app.name)))
     st.caption(f"Project path: {getattr(env, 'active_app', active_app)}")
 
     dataset_root = _dataset_root(env)

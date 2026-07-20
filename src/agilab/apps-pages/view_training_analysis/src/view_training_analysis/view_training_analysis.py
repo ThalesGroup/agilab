@@ -14,15 +14,15 @@ import plotly.graph_objects as go
 from plotly.colors import qualitative as plotly_qualitative
 from plotly.subplots import make_subplots
 import streamlit as st
-from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
+from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_pages.runtime import (
-    active_app_scope_value,
     configure_streamlit_page,
+    ensure_app_settings_loaded,
+    ensure_app_scoped_env,
     env_app_scope_value,
-    ensure_repo_on_path as _page_ensure_repo_on_path,
+    ensure_repo_on_path,
     render_streamlit_page_header,
     resolve_active_app_path,
-    reset_scoped_session_state,
 )
 
 try:
@@ -78,88 +78,56 @@ SCALAR_FRAME_COLUMNS = ["tag", "step", "wall_time", "value"]
 EMBED_QUERY_VALUES = {"1", "true", "yes", "on"}
 
 
-def _ensure_repo_on_path() -> None:
-    _page_ensure_repo_on_path(__file__)
+ensure_repo_on_path(__file__)
 
-
-_ensure_repo_on_path()
-
-from agi_env import AgiEnv  # noqa: E402
-
-
-def _resolve_active_app() -> Path:
-    return resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
+from agi_env import AgiEnv
 
 
 def _ensure_app_scoped_env() -> AgiEnv:
-    env = st.session_state.get("env")
-    scope_key = st.session_state.get(APP_SCOPE_KEY)
-    inferred_env_scope = env_app_scope_value(env)
-    if env is not None and scope_key is None and inferred_env_scope is None:
-        # Lightweight embedded callers may provide an app-agnostic facade rather
-        # than a complete AgiEnv. Preserve that explicit injection when neither
-        # side exposes an app scope to compare.
+    cached_env = st.session_state.get("env")
+    if (
+        cached_env is not None
+        and APP_SCOPE_KEY not in st.session_state
+        and env_app_scope_value(cached_env) is None
+    ):
+        # Embedded app surfaces can inject a lightweight environment without
+        # path metadata.  Preserve that explicit injection; normal page envs
+        # carry app identity and go through the strict shared scope check.
+        return cached_env
+
+    active_app_path = resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
+
+    def _create_env(app_path: Path) -> AgiEnv:
+        env = getattr(AgiEnv, "for_app", AgiEnv)(
+            apps_path=app_path.parent,
+            app=app_path.name,
+            verbose=0,
+        )
+        env.init_done = True
         return env
 
-    active_app_path = _resolve_active_app()
-    active_scope_key = active_app_scope_value(active_app_path)
-    if scope_key != active_scope_key:
-        reset_scoped_session_state(
-            st.session_state,
-            APP_SCOPE_KEY,
-            active_app_path,
-            keys=APP_SCOPED_SESSION_KEYS,
-        )
-
-    if inferred_env_scope == active_scope_key:
-        # The scope reset above intentionally clears every app-owned key,
-        # including ``env``. Rebind the already-proven matching environment
-        # instead of returning through a now-missing session-state entry.
-        st.session_state["env"] = env
-    else:
-        env = AgiEnv.session_for_app(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
-        env.init_done = True
-        st.session_state["env"] = env
-    return env
+    return ensure_app_scoped_env(
+        st.session_state,
+        active_app_path,
+        scope_key=APP_SCOPE_KEY,
+        env_factory=_create_env,
+        keys=APP_SCOPED_SESSION_KEYS,
+    )
 
 
-def _ensure_app_settings_loaded(env: AgiEnv) -> None:
-    if "app_settings" in st.session_state:
-        return
-    path = Path(env.app_settings_file)
-    if path.exists():
-        try:
-            st.session_state["app_settings"] = read_app_settings(path)
-            return
-        except (OSError, ValueError):
-            pass
-    st.session_state["app_settings"] = {}
-
-
-def _persist_app_settings(env: AgiEnv, owned_keys: tuple[str, ...]) -> None:
+def _persist_app_settings(env: AgiEnv) -> None:
     settings = st.session_state.get("app_settings")
     if not isinstance(settings, dict):
         return
-    page_settings = settings.get(PAGE_KEY)
-    if not isinstance(page_settings, dict):
-        page_settings = {}
-    if not owned_keys:
-        return
     path = Path(env.app_settings_file)
     try:
-        latest, _ = update_app_settings_owned(
-            path,
-            settings,
-            owned_paths=tuple((PAGE_KEY, key) for key in owned_keys),
-            dump_fn=_dump_toml,
-        )
-        latest_page_settings = latest.get(PAGE_KEY)
-        page_settings.clear()
-        if isinstance(latest_page_settings, dict):
-            page_settings.update(latest_page_settings)
-        settings.clear()
-        settings.update(latest)
-        settings[PAGE_KEY] = page_settings
+        prepared_settings = prepare_app_settings_for_write(settings)
+    except ValueError:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("wb") as handle:
+            _dump_toml(prepared_settings, handle)
     except (OSError, RuntimeError):
         pass
 
@@ -649,6 +617,24 @@ def _build_scalar_figure(
     return fig
 
 
+def _render_kpi_header(scalar_df: pd.DataFrame, *, run_count: int) -> None:
+    """Render neutral, read-only context for the loaded training evidence."""
+
+    tag_count = int(scalar_df["tag"].dropna().nunique()) if "tag" in scalar_df else 0
+    latest_step = pd.to_numeric(
+        scalar_df.get("step", pd.Series(dtype="float64")),
+        errors="coerce",
+    ).max()
+    latest_step_value = "n/a" if pd.isna(latest_step) else f"{int(latest_step):,}"
+    render_columns = getattr(st, "columns", None)
+    if not callable(render_columns):
+        return
+    columns = render_columns(3)
+    columns[0].metric("Runs loaded", f"{run_count:,}")
+    columns[1].metric("Metric tags", f"{tag_count:,}")
+    columns[2].metric("Latest step", latest_step_value)
+
+
 def main() -> None:
     embed_mode = _is_embed_mode(getattr(st, "query_params", {}))
     configure_streamlit_page(
@@ -661,7 +647,7 @@ def main() -> None:
 
     env = _ensure_app_scoped_env()
 
-    _ensure_app_settings_loaded(env)
+    ensure_app_settings_loaded(st.session_state, env)
 
     if embed_mode:
         st.caption("Training analysis")
@@ -716,9 +702,7 @@ def main() -> None:
                 "x_axis": st.session_state.get(X_AXIS_KEY, "step"),
             }
         )
-        _persist_app_settings(
-            env, ("base_dir_choice", "input_datadir", "datadir_rel", "x_axis")
-        )
+        _persist_app_settings(env)
         st.stop()
 
     trainer_roots = _discover_training_roots(data_root)
@@ -732,9 +716,7 @@ def main() -> None:
                 "x_axis": st.session_state.get(X_AXIS_KEY, "step"),
             }
         )
-        _persist_app_settings(
-            env, ("base_dir_choice", "input_datadir", "datadir_rel", "x_axis")
-        )
+        _persist_app_settings(env)
         st.stop()
 
     trainer_labels = {_relative_label(path, data_root): path for path in trainer_roots}
@@ -814,6 +796,7 @@ def main() -> None:
         st.stop()
 
     scalar_df = pd.concat(run_frames, ignore_index=True)
+    _render_kpi_header(scalar_df, run_count=len(run_frames))
     available_tags = sorted(scalar_df["tag"].dropna().unique().tolist())
     selected_tags = st.sidebar.multiselect(
         "TensorBoard variables",
@@ -844,20 +827,7 @@ def main() -> None:
             "x_axis": x_axis_option,
         }
     )
-    _persist_app_settings(
-        env,
-        (
-            "base_dir_choice",
-            "input_datadir",
-            "datadir_rel",
-            "trainer_rel",
-            "trainer_rels",
-            "run_rel",
-            "run_rels",
-            "selected_tags",
-            "x_axis",
-        ),
-    )
+    _persist_app_settings(env)
 
 
 if __name__ == "__main__":  # pragma: no cover - script entrypoint

@@ -11,20 +11,19 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import argparse
-import os
 import json
 from pathlib import Path
 import re
 import sys
-from urllib.parse import urlencode
 
 import pandas as pd
 from pandas.api.types import is_integer_dtype, is_numeric_dtype
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
+import tomllib as _toml
+from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_pages.runtime import ensure_repo_on_path, resolve_active_app_path
 
 try:
     import tomli_w as _toml_writer  # type: ignore[import-not-found]
@@ -48,22 +47,13 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for lightweight envs
             ) from _toml_import_error
 
 
-def _ensure_repo_on_path() -> None:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "agilab"
-        if candidate.is_dir():
-            src_root = candidate.parent
-            repo_root = src_root.parent
-            for entry in (str(src_root), str(repo_root)):
-                if entry not in sys.path:
-                    sys.path.insert(0, entry)
-            break
+ensure_repo_on_path(__file__)
 
-
-_ensure_repo_on_path()
-
-from agi_pages.runtime import render_streamlit_page_header, reset_scoped_session_state
+from agi_pages.runtime import (
+    render_app_page_context,
+    render_streamlit_page_header,
+    reset_scoped_session_state,
+)
 
 
 def _default_app() -> Path | None:
@@ -86,23 +76,6 @@ from agi_gui.pagelib import find_files, load_df, update_datadir
 var = ["discrete", "continuous", "lat", "long"]
 
 
-def _analysis_return_url(app: str) -> str:
-    return f"/ANALYSIS?{urlencode({'active_app': app})}"
-
-
-def _render_app_page_context(app: str, active_app: Path) -> None:
-    columns = st.columns(2)
-    with columns[0]:
-        st.caption(f"`{app}`")
-    with columns[1]:
-        link_button = getattr(st, "link_button", None)
-        url = _analysis_return_url(app)
-        if callable(link_button):
-            link_button("Back to ANALYSIS", url, type="secondary", width="content")
-        else:
-            st.caption(f"Back to ANALYSIS: {url}")
-    with st.expander("Runtime context", expanded=False):
-        st.code(str(active_app), language="text")
 var_default = [0, None]
 DATASET_EXTENSIONS = (".csv", ".parquet", ".json")
 FILE_TYPE_OPTIONS = ("csv", "parquet", "json", "all")
@@ -361,7 +334,8 @@ def _load_map_defaults(env: AgiEnv) -> dict[str, float]:
     """Read custom map settings from app_settings.toml when available."""
 
     try:
-        data = read_app_settings(env.app_settings_file)
+        with open(env.app_settings_file, "rb") as fh:
+            data = _toml.load(fh)
     except FileNotFoundError:
         data = {}
     map_cfg = data.get("ui", {}).get(
@@ -378,10 +352,11 @@ def _load_map_defaults(env: AgiEnv) -> dict[str, float]:
 def _load_view_maps_settings(env: AgiEnv) -> tuple[dict, dict]:
     """Return the full TOML payload and the view_maps subsection."""
     try:
-        data = read_app_settings(env.app_settings_file)
+        with open(env.app_settings_file, "rb") as fh:
+            data = _toml.load(fh)
     except FileNotFoundError:
         data = {}
-    except (OSError, ValueError):
+    except (OSError, _toml.TOMLDecodeError):
         data = {}
     view_section = data.get("view_maps")
     if not isinstance(view_section, dict):
@@ -389,29 +364,13 @@ def _load_view_maps_settings(env: AgiEnv) -> tuple[dict, dict]:
     return data, view_section
 
 
-def _persist_view_maps_settings(
-    env: AgiEnv,
-    base_settings: dict,
-    view_settings: dict,
-    owned_keys: tuple[str, ...],
-) -> dict:
+def _persist_view_maps_settings(env: AgiEnv, base_settings: dict, view_settings: dict) -> dict:
     """Write the updated view_maps settings back to disk."""
     payload = dict(base_settings) if isinstance(base_settings, dict) else {}
     payload["view_maps"] = view_settings
-    if not owned_keys:
-        return payload
     try:
-        latest, _ = update_app_settings_owned(
-            env.app_settings_file,
-            payload,
-            owned_paths=tuple(("view_maps", key) for key in owned_keys),
-            dump_fn=_dump_toml_payload,
-        )
-        merged = dict(payload)
-        merged.update(
-            (key, value) for key, value in latest.items() if key != "__meta__"
-        )
-        return merged
+        with open(env.app_settings_file, "wb") as fh:
+            _dump_toml_payload(prepare_app_settings_for_write(payload), fh)
     except (OSError, RuntimeError):
         pass
     return payload
@@ -488,9 +447,7 @@ def page(env):
     st.session_state["_view_maps_last_datadir"] = str(datadir)
     if view_settings.get("datadir") != st.session_state["datadir"]:
         view_settings["datadir"] = st.session_state["datadir"]
-        full_settings = _persist_view_maps_settings(
-            env, full_settings, view_settings, ("datadir",)
-        )
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
     datadir_widget_key = _vm_key("input_datadir")
     if st.session_state.get(datadir_widget_key) != st.session_state["datadir"]:
         st.session_state[datadir_widget_key] = st.session_state["datadir"]
@@ -835,9 +792,7 @@ def page(env):
     )
     if overlay_default != show_coordinate_overlay:
         view_settings["show_coordinate_overlay"] = show_coordinate_overlay
-        full_settings = _persist_view_maps_settings(
-            env, full_settings, view_settings, ("show_coordinate_overlay",)
-        )
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
 
     overlay_lat_col = None
     overlay_lon_col = None
@@ -887,9 +842,7 @@ def page(env):
             }.items():
                 if view_settings.get(setting_name) != setting_value:
                     view_settings[setting_name] = setting_value
-                    full_settings = _persist_view_maps_settings(
-                        env, full_settings, view_settings, (setting_name,)
-                    )
+                    full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
         else:
             st.sidebar.caption("No coordinate columns available for overlay.")
 
@@ -919,9 +872,7 @@ def page(env):
     )
     if view_settings.get("unique_threshold", 10) != unique_threshold:
         view_settings["unique_threshold"] = int(unique_threshold)
-        full_settings = _persist_view_maps_settings(
-            env, full_settings, view_settings, ("unique_threshold",)
-        )
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
 
     range_default = int(view_settings.get("range_threshold", 200))
     range_threshold_key = _vm_key("range_threshold")
@@ -939,9 +890,7 @@ def page(env):
     )
     if view_settings.get("range_threshold", 200) != range_threshold:
         view_settings["range_threshold"] = int(range_threshold)
-        full_settings = _persist_view_maps_settings(
-            env, full_settings, view_settings, ("range_threshold",)
-        )
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
 
     # Loop through numeric columns and classify them based on the unique value count.
     for col in numeric_cols:
@@ -1149,18 +1098,16 @@ def page(env):
         "long",
         "coltype",
     ]
-    changed_keys: list[str] = []
+    mutated = False
     for key in persist_keys:
         val = st.session_state.get(key)
         if val is None:
             continue
         if view_settings.get(key) != val:
             view_settings[key] = val
-            changed_keys.append(key)
-    if changed_keys:
-        full_settings = _persist_view_maps_settings(
-            env, full_settings, view_settings, tuple(changed_keys)
-        )
+            mutated = True
+    if mutated:
+        full_settings = _persist_view_maps_settings(env, full_settings, view_settings)
 
 # -------------------- Main Application Entry -------------------- #
 def main():
@@ -1169,24 +1116,13 @@ def main():
     """
 
     try:
-        parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
-        parser.add_argument(
-            "--active-app",
-            dest="active_app",
-            type=str,
-            help="Active app path (e.g. src/agilab/apps/builtin/flight_telemetry_project)",
+        active_app = resolve_active_app_path(
+            error_fn=st.error,
+            stop_fn=lambda: st.stop(),
+            not_found_stop_fn=lambda: sys.exit(1),
+            missing_message="Error: missing --active-app argument.",
+            not_found_message="Error: provided --active-app path not found: {path}",
         )
-        args, _ = parser.parse_known_args()
-
-        active_app_value = args.active_app or os.environ.get("AGILAB_ACTIVE_APP")
-        if not active_app_value:
-            st.error("Error: missing --active-app argument.")
-            st.stop()
-
-        active_app = Path(active_app_value).expanduser()
-        if not active_app.exists():
-            st.error(f"Error: provided --active-app path not found: {active_app}")
-            sys.exit(1)
 
         _reset_app_scoped_session_state(active_app)
         if "coltype" not in st.session_state:
@@ -1197,8 +1133,8 @@ def main():
         st.session_state["apps_path"] = str(active_app.parent)
         st.session_state["app"] = app
 
-        _render_app_page_context(app, active_app)
-        env = AgiEnv.session_for_app(
+        render_app_page_context(st, app, active_app)
+        env = getattr(AgiEnv, "for_app", AgiEnv)(
             apps_path=active_app.parent,
             app=app,
             verbose=1,

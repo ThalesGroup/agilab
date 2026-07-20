@@ -166,71 +166,6 @@ from the app's versioned ``app_settings.toml`` source file (for example
 use. You can edit it manually (PROJECT → APP-SETTINGS) or use Analysis →
 Choose analysis views, which writes the same list for you.
 
-Page interface contract
------------------------
-
-Every page bundle interacts with AGILAB through a small, stable interface.
-Keeping to this contract is what lets one bundle serve many projects without
-app-specific wiring. The shared helpers live in ``agi_pages.runtime``.
-
-**Launch arguments.** ANALYSIS launches a bundle as a Streamlit script and
-passes the active project explicitly:
-
-.. code-block:: bash
-
-   streamlit run src/<page>/<page>.py -- --active-app /path/to/<project>
-
-Pages resolve this with ``agi_pages.runtime.resolve_active_app_path``, which
-falls back to the ``AGILAB_ACTIVE_APP`` environment variable. A page must not
-guess the project from its own location on disk.
-
-**Per-page settings.** Each bundle owns the ``[pages.<module>]`` table in the
-project's workspace ``app_settings.toml`` (seeded as described above). A
-bundle defines and reads its own keys there and must tolerate the table being
-absent:
-
-.. code-block:: toml
-
-   [pages]
-   view_module = ["view_maps_network"]
-
-   [pages.view_maps_network]
-   dataset_base_choice = "AGI_CLUSTER_SHARE"
-   dataset_subpath = "<app>/pipeline"
-
-Other bundles and tools must not repurpose a table owned by another page.
-
-**Session-state scoping.** Streamlit session state persists across the pages a
-user visits. Bundles namespace their widget keys with a stable prefix and
-reset page-owned state when the active app changes, using
-``agi_pages.runtime.reset_scoped_session_state`` together with
-``active_app_scope_value`` (or ``env_app_scope_value`` when an AGILAB
-environment object is available).
-
-**Artifact discovery.** Pages read pipeline outputs through the environment,
-never from hard-coded paths. ``agi_pages.runtime.artifact_root`` returns the
-conventional per-page export root
-(``${AGILAB_EXPORT_ABS}/<target>/<page_subdir>``), and
-``agi_pages.runtime.discover_files`` globs deterministically and returns an
-empty list for invalid roots.
-
-**Page chrome.** ``agi_pages.runtime.configure_streamlit_page`` and
-``agi_pages.runtime.render_streamlit_page_header`` apply the shared page
-configuration, logo, and title so bundles stay visually consistent.
-
-**App-surface handoff.** App-owned surfaces (cockpits) deep-link back to the
-generic ANALYSIS overview with query parameters instead of importing page
-code: ``?active_app=<project>&current_page=main&hide_app_surface=true``.
-List the project's configured pages as plain text (module name plus
-description) and let the user pick one from the ANALYSIS page launcher;
-``current_page`` is matched against a page's *resolved absolute script path*,
-not its module name, so building a working deep link to one specific page
-requires that resolved path, which a cockpit does not have on hand.
-
-A defensive-input rule applies throughout: malformed settings, missing
-artifacts, and absent optional fields must degrade to an explanatory message
-in the page, never a traceback.
-
 Included page bundles
 ---------------------
 
@@ -271,6 +206,11 @@ pulled by the umbrella dependency graph.
      - ``agi-page-timeseries-forecast``
      - Forecast metrics and prediction review for time-series workflows.
      - Included in ``agi-pages``.
+   * - ``view_inference_analysis``
+     - ``agi-page-inference-report``
+     - Canonical allocation comparison with active-demand, outcome, failure,
+       and flow-matrix diagnostics across exported runs.
+     - Included in ``agi-pages``.
    * - ``view_live_artifacts``
      - ``agi-page-live-artifacts``
      - Dynamic artifact, manifest, evidence, and log monitor for active apps.
@@ -293,7 +233,7 @@ pulled by the umbrella dependency graph.
      - Included in ``agi-pages``.
    * - ``view_routing_model_comparison``
      - ``agi-page-routing-model-comparison``
-     - Routing-model allocation comparison for candidate/baseline decisions.
+     - Compatibility route backed by ``view_inference_analysis``.
      - Included in ``agi-pages``.
    * - ``view_queue_resilience``
      - ``agi-page-queue-health``
@@ -364,12 +304,11 @@ Network topology viewer synchronised with geographic views.
 view_routing_model_comparison
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Routing-model comparison dashboard for allocation-decision evidence.
+Compatibility entrypoint for existing routing-model comparison launchers.
 
-- Input: baseline and candidate routing exports from queue-analysis runs.
-- Output: allocation deltas, decision summaries, and model-comparison charts.
-- UI convention: the page focuses on side-by-side evidence so candidate routing
-  behavior can be reviewed before promotion or handoff.
+- It delegates to ``view_inference_analysis`` so old project manifests and
+  package entrypoints keep working without a second comparison implementation.
+- New app configurations should declare ``view_inference_analysis`` directly.
 
 view_queue_resilience
 ^^^^^^^^^^^^^^^^^^^^^
@@ -430,6 +369,19 @@ Forecast evidence page for time-series prediction workflows.
 - Input: ``forecast_metrics.json`` and ``forecast_predictions.csv`` from the
   selected export directory.
 - Output: metric summaries, forecast/prediction overlays, and run metadata.
+
+view_inference_analysis
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Canonical inference and allocation comparison page for producer-agnostic
+result exports.
+
+- Input: ``allocations_steps`` files in JSON, JSONL/NDJSON, CSV, or parquet
+  form.
+- Output: side-by-side run metrics, active-demand reconciliation, outcome and
+  latency-target failures, bearer diagnostics, and label-safe flow matrices.
+- Workspace settings preserve data-source, run-selection, threshold, failure,
+  profile, and detailed-run controls.
 
 view_live_artifacts
 ^^^^^^^^^^^^^^^^^^^

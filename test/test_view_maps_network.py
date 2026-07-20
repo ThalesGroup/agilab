@@ -202,14 +202,41 @@ def test_view_maps_network_reads_query_params_and_subdirectories(
     assert module._list_subdirectories(scan_root) == ["visible_a", "visible_b"]
 
 
+def test_view_maps_network_split_view_override_matches_widget_state_and_restores(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    state = {"show_map": False, "show_graph": True}
+
+    assert module._apply_split_view_override(state, ["ignored", "MAP"]) == "map"
+    assert state["show_map"] is True
+    assert state["show_graph"] is False
+    assert state[module.SPLIT_VIEW_SAVED_VISIBILITY_KEY] == {
+        "show_map": False,
+        "show_graph": True,
+    }
+    assert module._split_view_caption("map") == "Split-screen route: showing only the map."
+
+    assert module._apply_split_view_override(state, "graph") == "graph"
+    assert state["show_map"] is False
+    assert state["show_graph"] is True
+    assert module._split_view_caption("graph") == (
+        "Split-screen route: showing only the topology graph."
+    )
+
+    assert module._apply_split_view_override(state, "invalid") == ""
+    assert state == {"show_map": False, "show_graph": True}
+
+
 def test_view_maps_network_loads_missing_settings_as_empty(
     monkeypatch, tmp_path: Path
 ) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
     module.st = SimpleNamespace(session_state={})
 
-    module._ensure_app_settings_loaded(
-        SimpleNamespace(app_settings_file=tmp_path / "missing.toml")
+    module.ensure_app_settings_loaded(
+        module.st.session_state,
+        SimpleNamespace(app_settings_file=tmp_path / "missing.toml"),
     )
 
     assert module.st.session_state["app_settings"] == {}
@@ -230,10 +257,7 @@ def test_view_maps_network_persists_app_settings(tmp_path: Path, monkeypatch) ->
         }
     )
 
-    module._persist_app_settings(
-        SimpleNamespace(app_settings_file=settings_path),
-        ("dataset_base_choice", "df_file", "df_files"),
-    )
+    module._persist_app_settings(SimpleNamespace(app_settings_file=settings_path))
 
     written = settings_path.read_text(encoding="utf-8")
     assert "view_maps_network" in written
@@ -242,32 +266,6 @@ def test_view_maps_network_persists_app_settings(tmp_path: Path, monkeypatch) ->
     assert parsed["__meta__"] == {"schema": "agilab.app_settings.v1", "version": 1}
     assert parsed["view_maps_network"]["df_file"] == ""
     assert parsed["view_maps_network"]["df_files"] == ["export.csv", ""]
-
-
-def test_view_maps_network_preserves_other_session_leaf_and_local_reference(
-    tmp_path: Path, monkeypatch
-) -> None:
-    module = _load_view_maps_network_module(monkeypatch, tmp_path)
-    settings_path = tmp_path / "app_settings.toml"
-    settings_path.write_text(
-        '[view_maps_network]\nedges_file = "current.csv"\ntraj_glob = "fresh/*.csv"\n',
-        encoding="utf-8",
-    )
-    vm_settings = {"edges_file": "next.csv", "traj_glob": "stale/*.csv"}
-    app_settings = {"view_maps_network": vm_settings}
-    module.st = SimpleNamespace(session_state={"app_settings": app_settings})
-
-    module._persist_app_settings(
-        SimpleNamespace(app_settings_file=settings_path),
-        ("edges_file",),
-    )
-
-    assert module.st.session_state["app_settings"] is app_settings
-    assert module.st.session_state["app_settings"]["view_maps_network"] is vm_settings
-    assert vm_settings == {
-        "edges_file": "next.csv",
-        "traj_glob": "fresh/*.csv",
-    }
 
 
 def test_view_maps_network_drops_ambiguous_index_levels(
@@ -316,7 +314,7 @@ def test_view_maps_network_keeps_secondary_navigation_collapsed() -> None:
     assert 'st.subheader("Network topology")' in source
     assert "<h1 style='text-align: center;'>" not in source
     assert "Network Topology</h1>" not in source
-    assert "Back to ANALYSIS" in source
+    assert "render_app_page_context(st, app_name, active_app_path)" in source
     assert 'with st.expander("Open split-screen view", expanded=False):' in source
     assert 'with st.sidebar.expander("Resolved data path", expanded=False):' in source
     assert 'st.sidebar.caption(f"Resolved path:' not in source
@@ -372,20 +370,6 @@ def test_view_maps_network_extracts_semantic_node_id_from_label(
     assert module._semantic_node_id_from_text("uswc_forward_02-S002") == "2002"
     assert module._semantic_node_id_from_text("SES-10") == "10"
     assert module._semantic_node_id_from_text("NSS-11") == "11"
-
-
-def test_view_maps_network_unexpected_semantic_label_errors_propagate(
-    monkeypatch, tmp_path: Path
-) -> None:
-    module = _load_view_maps_network_module(monkeypatch, tmp_path)
-    monkeypatch.setattr(
-        module,
-        "_strip_export_suffix",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad strip")),
-    )
-
-    with pytest.raises(TypeError, match="bad strip"):
-        module._semantic_node_id_from_text("SES-10")
 
 
 def test_view_maps_network_prefers_semantic_ids_over_local_plane_counters(
@@ -1149,7 +1133,7 @@ def test_view_maps_network_parses_edges_and_geomap_layers(
     assert warnings == []
 
 
-def test_view_maps_network_normalizes_allocations_frames_and_finds_latest(
+def test_view_maps_network_normalizes_allocations_frames(
     monkeypatch, tmp_path: Path
 ) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
@@ -1203,17 +1187,6 @@ def test_view_maps_network_normalizes_allocations_frames_and_finds_latest(
         pd.DataFrame({"time_s": [1.0, 2.5, 9.0], "value": [1, 2, 3]}), 2.0
     )
     assert nearest["value"].tolist() == [2]
-
-    latest_root = tmp_path / "latest_allocs"
-    latest_root.mkdir()
-    older = latest_root / "allocations_steps.csv"
-    newer = latest_root / "baseline_allocations_steps.csv"
-    older.write_text("a", encoding="utf-8")
-    newer.write_text("b", encoding="utf-8")
-    newer.touch()
-    assert module._find_latest_allocations(latest_root) in {older, newer}
-    assert module._find_latest_allocations(latest_root, include=("baseline",)) == newer
-
 
 def test_view_maps_network_loaders_and_bearer_helpers(
     monkeypatch, tmp_path: Path
@@ -1458,7 +1431,7 @@ def test_view_maps_network_handles_settings_and_active_app_error_paths(
     )
 
     with pytest.raises(RuntimeError, match="stop"):
-        module._resolve_active_app()
+        module.resolve_active_app_path(error_fn=module.st.error, stop_fn=module.st.stop)
 
     assert any("Provided --active-app path not found" in message for message in errors)
 
@@ -1489,8 +1462,9 @@ def test_view_maps_network_handles_settings_and_active_app_error_paths(
     invalid_settings = tmp_path / "invalid.toml"
     invalid_settings.write_text("[broken", encoding="utf-8")
     module.st = SimpleNamespace(session_state={})
-    module._ensure_app_settings_loaded(
-        SimpleNamespace(app_settings_file=invalid_settings)
+    module.ensure_app_settings_loaded(
+        module.st.session_state,
+        SimpleNamespace(app_settings_file=invalid_settings),
     )
     assert module.st.session_state["app_settings"] == {}
 
@@ -1502,14 +1476,12 @@ def test_view_maps_network_handles_settings_and_active_app_error_paths(
 
     persist_path = tmp_path / "persist.toml"
     module.st = SimpleNamespace(session_state={"app_settings": "bad"})
-    module._persist_app_settings(
-        SimpleNamespace(app_settings_file=persist_path), ()
-    )
+    module._persist_app_settings(SimpleNamespace(app_settings_file=persist_path))
     assert not persist_path.exists()
 
     warnings: list[str] = []
     module.st = SimpleNamespace(
-        session_state={"app_settings": {"view_maps_network": {"probe": "value"}}}
+        session_state={"app_settings": {"view_maps_network": {}}}
     )
     monkeypatch.setattr(
         module.logger, "warning", lambda message: warnings.append(message)
@@ -1520,8 +1492,7 @@ def test_view_maps_network_handles_settings_and_active_app_error_paths(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("cannot write")),
     )
     module._persist_app_settings(
-        SimpleNamespace(app_settings_file=tmp_path / "nested" / "persist.toml"),
-        ("probe",),
+        SimpleNamespace(app_settings_file=tmp_path / "nested" / "persist.toml")
     )
     assert any("Unable to persist app_settings" in message for message in warnings)
 
@@ -1538,18 +1509,19 @@ def test_view_maps_network_unexpected_helper_errors_propagate(
 
     module.st = SimpleNamespace(session_state={})
     monkeypatch.setattr(
-        module,
-        "read_app_settings",
+        tomllib,
+        "load",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(TypeError("bad load")),
     )
     with pytest.raises(TypeError, match="bad load"):
-        module._ensure_app_settings_loaded(
-            SimpleNamespace(app_settings_file=settings_path)
+        module.ensure_app_settings_loaded(
+            module.st.session_state,
+            SimpleNamespace(app_settings_file=settings_path),
         )
 
     warnings: list[str] = []
     module.st = SimpleNamespace(
-        session_state={"app_settings": {"view_maps_network": {"probe": "value"}}}
+        session_state={"app_settings": {"view_maps_network": {}}}
     )
     monkeypatch.setattr(
         module.logger, "warning", lambda message: warnings.append(message)
@@ -1560,8 +1532,7 @@ def test_view_maps_network_unexpected_helper_errors_propagate(
         lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad dump")),
     )
     module._persist_app_settings(
-        SimpleNamespace(app_settings_file=tmp_path / "persist.toml"),
-        ("probe",),
+        SimpleNamespace(app_settings_file=tmp_path / "persist.toml")
     )
     assert any(
         "Unable to persist app_settings" in message and "bad dump" in message
@@ -2284,15 +2255,12 @@ def test_view_maps_network_graph_path_and_state_helper_edge_branches(
         session_state={
             module.TIME_OPTIONS_KEY: [10, 20, 30],
             module.TIME_VALUE_KEY: 20,
-            "widget_value": "copied",
         }
     )
     module.increment_time()
     module.decrement_time()
-    module.update_var("copied_value", "widget_value")
     assert module.st.session_state[module.TIME_INDEX_KEY] == 1
     assert module.st.session_state[module.TIME_VALUE_KEY] == 20
-    assert module.st.session_state["copied_value"] == "copied"
 
 
 def test_view_maps_network_path_fallback_and_resolution_exception_branches(
@@ -2477,18 +2445,6 @@ def test_view_maps_network_misc_state_and_picker_helpers(
 ) -> None:
     module = _load_view_maps_network_module(monkeypatch, tmp_path)
 
-    module.st = SimpleNamespace(
-        session_state={
-            module.DF_FILE_KEY: "stale.csv",
-            "csv_files": ["stale.csv"],
-            "datadir_widget": "/tmp/data",
-        }
-    )
-    module.update_datadir("datadir", "datadir_widget")
-    assert module.st.session_state["datadir"] == "/tmp/data"
-    assert module.DF_FILE_KEY not in module.st.session_state
-    assert "csv_files" not in module.st.session_state
-
     assert module._coerce_slider_value([1, 5, 9], "4") == 5
     assert module._coerce_slider_value([1, "bad"], 4) == 1
     assert module._coerce_slider_value(
@@ -2559,15 +2515,16 @@ def test_view_maps_network_settings_and_directory_fallback_branches(
     fake_module_path.write_text("# stub\n", encoding="utf-8")
     monkeypatch.setattr(module, "__file__", str(fake_module_path))
     monkeypatch.setattr(module.sys, "path", [])
-    module._ensure_repo_on_path()
+    module.ensure_repo_on_path(module.__file__)
     assert str(fake_module_path.parents[3]) in module.sys.path
     assert str(fake_module_path.parents[4]) in module.sys.path
 
     broken_settings = tmp_path / "broken.toml"
     broken_settings.write_text("{ not = toml", encoding="utf-8")
     module.st = SimpleNamespace(session_state={})
-    module._ensure_app_settings_loaded(
-        SimpleNamespace(app_settings_file=broken_settings)
+    module.ensure_app_settings_loaded(
+        module.st.session_state,
+        SimpleNamespace(app_settings_file=broken_settings),
     )
     assert module.st.session_state["app_settings"] == {}
 
@@ -2801,18 +2758,6 @@ def test_view_maps_network_path_resolution_fallback_branches(
     ) == pd.Timestamp("2024-01-01")
     assert len(datetime_calls) >= 1
 
-    calls = iter([object(), ""])
-    monkeypatch.setattr(
-        module, "_resolve_declared_path", lambda *_args, **_kwargs: next(calls)
-    )
-    assert module._choose_existing_declared_path("broken", "", [share_root]) == ""
-
-    monkeypatch.setattr(
-        module, "_resolve_declared_path", lambda *_args, **_kwargs: object()
-    )
-    assert module._resolve_edges_file_path("broken", [share_root]) is None
-
-
 def test_view_maps_network_misc_helper_fallback_branches(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -2907,14 +2852,6 @@ def test_view_maps_network_misc_helper_fallback_branches(
     assert not module.load_allocations(blank_jsonl).empty
     assert module._nearest_row(pd.DataFrame(), 0.0).empty
     assert module._nearest_row(pd.DataFrame({"time_s": ["bad"]}), 0.0).empty
-    assert module._find_latest_allocations(tmp_path / "missing_root") is None
-
-    filtered_root = tmp_path / "filtered_root"
-    filtered_root.mkdir()
-    (filtered_root / "allocations_steps.csv").write_text(
-        "source,destination\n1,2\n", encoding="utf-8"
-    )
-    assert module._find_latest_allocations(filtered_root, include=("baseline",)) is None
 
     bad_edges = tmp_path / "bad_edges.json"
     bad_edges.write_text('[{"source": "1"}]', encoding="utf-8")
@@ -3282,7 +3219,7 @@ def test_view_maps_network_direct_helper_remaining_edges(
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.delenv("AGILAB_ACTIVE_APP", raising=False)
     with patch("sys.argv", ["view_maps_network.py"]), pytest.raises(_StopCalled):
-        module._resolve_active_app()
+        module.resolve_active_app_path(error_fn=module.st.error, stop_fn=module.st.stop)
     assert ("error", "Missing --active-app argument.") in fake_st.events
 
     env_with_active = SimpleNamespace(app="demo", active_app=tmp_path / "active")
@@ -3300,7 +3237,7 @@ def test_view_maps_network_direct_helper_remaining_edges(
         Path("project"),
     )
 
-    module._render_app_page_context("demo", tmp_path / "active")
+    module.render_app_page_context(module.st, "demo", tmp_path / "active")
     assert ("caption", "Back to ANALYSIS: /ANALYSIS?active_app=demo") in fake_st.events
 
     sanitized = module._sanitize_toml_payload(

@@ -181,7 +181,7 @@ def test_view_scenario_cockpit_helper_edge_cases(monkeypatch, tmp_path) -> None:
 
     module.__file__ = str(tmp_path / "outside" / "view_scenario_cockpit.py")
     monkeypatch.setattr(sys, "path", [])
-    module._ensure_repo_on_path()
+    module.ensure_repo_on_path(module.__file__)
     assert sys.path == []
 
     errors: list[str] = []
@@ -192,7 +192,7 @@ def test_view_scenario_cockpit_helper_edge_cases(monkeypatch, tmp_path) -> None:
     module.st = SimpleNamespace(error=errors.append, stop=stop_now)
     monkeypatch.setattr(sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(tmp_path / "missing_app")])
     with pytest.raises(RuntimeError, match="stop"):
-        module._resolve_active_app()
+        module.resolve_active_app_path(error_fn=module.st.error, stop_fn=module.st.stop)
     assert any("Provided --active-app path not found" in message for message in errors)
 
     env = SimpleNamespace(AGILAB_EXPORT_ABS=tmp_path / "export", target="demo")

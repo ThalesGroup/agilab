@@ -15,7 +15,7 @@ import streamlit as st
 from agi_env.ui.sidecar_registry import isolated_import_process_state
 from agi_pages.runtime import (
     configure_streamlit_page,
-    ensure_repo_on_path as _page_ensure_repo_on_path,
+    ensure_repo_on_path,
     resolve_active_app_path,
 )
 
@@ -27,15 +27,7 @@ def _safe_page_config() -> None:
     configure_streamlit_page(st, title="App UI")
 
 
-def _ensure_repo_on_path() -> None:
-    _page_ensure_repo_on_path(__file__)
-
-
-_ensure_repo_on_path()
-
-
-def _resolve_active_app(argv: list[str] | None = None) -> Path:
-    return resolve_active_app_path(argv)
+ensure_repo_on_path(__file__)
 
 
 def _read_toml(path: Path) -> dict[str, Any]:
@@ -106,7 +98,7 @@ def _run_app_ui(entrypoint: Path, active_app: Path) -> None:
 
 def main() -> None:
     try:
-        active_app = _resolve_active_app()
+        active_app = resolve_active_app_path()
         config = _configured_app_ui(active_app)
         entrypoint = _resolve_entrypoint(active_app, config.get("entrypoint"))
         if entrypoint is None:

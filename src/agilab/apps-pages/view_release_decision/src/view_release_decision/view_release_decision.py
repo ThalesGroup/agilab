@@ -4,12 +4,10 @@
 
 from __future__ import annotations
 
-import argparse
 from collections.abc import Mapping
 import hashlib
 import importlib.util
 import json
-import os
 import shlex
 import sys
 from datetime import datetime, UTC
@@ -18,38 +16,15 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
-
-
-def _ensure_repo_on_path() -> None:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "agilab"
-        if candidate.is_dir():
-            src_root = candidate.parent
-            repo_root = src_root.parent
-            for entry in (str(src_root), str(repo_root)):
-                if entry not in sys.path:
-                    sys.path.insert(0, entry)
-            package = sys.modules.get("agilab")
-            package_path = str(src_root / "agilab")
-            package_paths = getattr(package, "__path__", None)
-            if package_paths is not None and package_path not in list(package_paths):
-                try:
-                    package_paths.append(package_path)
-                except AttributeError:
-                    package.__path__ = [*package_paths, package_path]
-            break
-
-
-_ensure_repo_on_path()
-
 from agi_pages.runtime import (
-    active_app_scope_value,
     configure_streamlit_page,
-    env_app_scope_value,
+    ensure_repo_on_path,
     render_streamlit_page_header,
+    resolve_active_app_path,
     reset_scoped_session_state,
 )
+
+ensure_repo_on_path(__file__)
 from agi_env import AgiEnv
 from agi_env.connector_registry import ConnectorPathRegistry, build_connector_path_registry
 from agilab.data_connectors.data_connector_facility import (
@@ -109,37 +84,6 @@ RUN_MANIFEST_FILENAME = _run_manifest_module.RUN_MANIFEST_FILENAME
 load_run_manifest = _run_manifest_module.load_run_manifest
 manifest_passed = _run_manifest_module.manifest_passed
 manifest_summary = _run_manifest_module.manifest_summary
-
-
-def _resolve_active_app() -> Path:
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--active-app", dest="active_app", type=str)
-    args, _ = parser.parse_known_args()
-    active_app_value = args.active_app or os.environ.get("AGILAB_ACTIVE_APP")
-    if not active_app_value:
-        st.error("Missing --active-app argument.")
-        st.stop()
-    active_app_path = Path(active_app_value).expanduser().resolve()
-    if not active_app_path.exists():
-        st.error(f"Provided --active-app path not found: {active_app_path}")
-        st.stop()
-    return active_app_path
-
-
-def _ensure_app_scoped_env() -> AgiEnv:
-    active_app_path = _resolve_active_app()
-    env = st.session_state.get("env")
-    if env_app_scope_value(env) == active_app_scope_value(active_app_path):
-        return env
-
-    env = AgiEnv.session_for_app(
-        apps_path=active_app_path.parent,
-        app=active_app_path.name,
-        verbose=0,
-    )
-    env.init_done = True
-    st.session_state["env"] = env
-    return env
 
 
 def _connector_path_registry(env: AgiEnv) -> ConnectorPathRegistry:
@@ -2119,7 +2063,13 @@ def _render_release_decision_connector_live_ui(
 
 configure_streamlit_page(st, title="Evidence cockpit")
 
-env = _ensure_app_scoped_env()
+if "env" not in st.session_state:
+    active_app_path = resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
+    env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+    env.init_done = True
+    st.session_state["env"] = env
+else:
+    env = st.session_state["env"]
 _reset_app_scoped_session_defaults(st, env)
 
 render_streamlit_page_header(

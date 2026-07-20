@@ -15,7 +15,7 @@ from agi_pages.runtime import (
     configure_streamlit_page,
     discover_files as _page_discover_files,
     env_app_scope_value,
-    ensure_repo_on_path as _page_ensure_repo_on_path,
+    ensure_repo_on_path,
     load_json_object,
     render_streamlit_page_header,
     resolve_active_app_path,
@@ -37,11 +37,7 @@ WIDE_EXCLUDE_COLUMNS = {
 }
 
 
-def _ensure_repo_on_path() -> None:
-    _page_ensure_repo_on_path(__file__)
-
-
-_ensure_repo_on_path()
+ensure_repo_on_path(__file__)
 
 from agi_env import AgiEnv
 
@@ -60,10 +56,6 @@ APP_SCOPED_SESSION_KEYS = (
 )
 
 
-def _resolve_active_app() -> Path:
-    return resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
-
-
 def _ensure_app_scoped_env() -> AgiEnv:
     env = st.session_state.get("env")
     scope_key = st.session_state.get(APP_SCOPE_KEY)
@@ -74,7 +66,7 @@ def _ensure_app_scoped_env() -> AgiEnv:
         st.session_state[APP_SCOPE_KEY] = inferred_scope_key
         scope_key = inferred_scope_key
 
-    active_app_path = _resolve_active_app()
+    active_app_path = resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
     if scope_key != active_app_scope_value(active_app_path):
         reset_scoped_session_state(
             st.session_state,

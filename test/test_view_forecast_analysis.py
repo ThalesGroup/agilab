@@ -127,7 +127,7 @@ def test_view_forecast_analysis_helper_branches(monkeypatch, tmp_path) -> None:
     module_path.write_text("# stub\n", encoding="utf-8")
     monkeypatch.setattr(module, "__file__", str(module_path))
     monkeypatch.setattr(sys, "path", [])
-    module._ensure_repo_on_path()
+    module.ensure_repo_on_path(module.__file__)
     assert str(src_root) in sys.path
     assert str(repo_root) in sys.path
 
@@ -137,7 +137,7 @@ def test_view_forecast_analysis_helper_branches(monkeypatch, tmp_path) -> None:
     module.st = SimpleNamespace(error=errors.append, stop=stop_now)
     monkeypatch.setattr(sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(tmp_path / "missing_app")])
     with pytest.raises(RuntimeError, match="stop"):
-        module._resolve_active_app()
+        module.resolve_active_app_path(error_fn=module.st.error, stop_fn=module.st.stop)
     assert any("Provided --active-app path not found" in message for message in errors)
 
     assert module._discover_files(tmp_path / "missing", "[") == []

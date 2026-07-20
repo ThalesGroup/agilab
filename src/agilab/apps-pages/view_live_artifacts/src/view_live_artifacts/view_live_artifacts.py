@@ -14,7 +14,7 @@ from typing import Any, Iterable
 import streamlit as st
 from agi_pages.runtime import (
     configure_streamlit_page,
-    ensure_repo_on_path as _page_ensure_repo_on_path,
+    ensure_repo_on_path,
     relative_label,
     render_streamlit_page_header,
     reset_scoped_session_state,
@@ -89,11 +89,7 @@ class ArtifactPreview:
     error: str = ""
 
 
-def _ensure_repo_on_path() -> None:
-    _page_ensure_repo_on_path(__file__)
-
-
-_ensure_repo_on_path()
+ensure_repo_on_path(__file__)
 
 from agi_env import AgiEnv
 
@@ -266,10 +262,6 @@ def refresh_run_every(enabled: bool, interval_seconds: int | float | str) -> str
     except (TypeError, ValueError):
         seconds = 5
     return f"{seconds}s"
-
-
-def _resolve_active_app() -> Path:
-    return resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
 
 
 def _reset_app_scoped_session_state(active_app_path: Path) -> bool:
@@ -449,7 +441,7 @@ def _render_live_or_static_panel(root: Path, patterns: tuple[str, ...], max_file
 
 def main() -> None:
     configure_streamlit_page(st, title="Live artifacts")
-    active_app_path = _resolve_active_app()
+    active_app_path = resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
     _reset_app_scoped_session_state(active_app_path)
     env = _active_env(active_app_path)
 

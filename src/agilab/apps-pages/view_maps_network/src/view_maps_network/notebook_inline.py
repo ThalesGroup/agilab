@@ -3,6 +3,7 @@ from __future__ import annotations
 import glob
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -14,25 +15,22 @@ from agi_env.app_settings_support import read_app_settings
 
 logger = logging.getLogger(__name__)
 
-
-def _coerce_str_list(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        raw_items = value.replace(";", ",").replace("\n", ",").split(",")
-    elif isinstance(value, (list, tuple, set)):
-        raw_items = [str(item) for item in value]
-    else:
-        raw_items = [str(value)]
-    items: list[str] = []
-    seen: set[str] = set()
-    for item in raw_items:
-        cleaned = str(item).strip()
-        if not cleaned or cleaned in seen:
-            continue
-        seen.add(cleaned)
-        items.append(cleaned)
-    return items
+try:
+    from .settings_support import (
+        coerce_str_list as _coerce_str_list,  # noqa: F401
+        first_nonempty_setting as _first_nonempty_setting,
+        setting_list as _setting_list,
+    )
+except ImportError:
+    page_dir = Path(__file__).resolve().parent
+    page_dir_str = str(page_dir)
+    if page_dir_str not in sys.path:
+        sys.path.insert(0, page_dir_str)
+    from settings_support import (
+        coerce_str_list as _coerce_str_list,  # noqa: F401
+        first_nonempty_setting as _first_nonempty_setting,
+        setting_list as _setting_list,
+    )
 
 
 def _read_toml_dict(path: str | Path | None) -> dict[str, Any]:
@@ -70,32 +68,6 @@ def _page_setting_sources(export_payload: dict[str, Any]) -> list[dict[str, Any]
             if isinstance(nested, dict):
                 sources.append(nested)
     return sources
-
-
-def _first_nonempty_setting(sources: list[dict[str, Any]], *keys: str) -> str:
-    for source in sources:
-        if not isinstance(source, dict):
-            continue
-        for key in keys:
-            value = source.get(key)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-    return ""
-
-
-def _setting_list(sources: list[dict[str, Any]], *keys: str) -> list[str]:
-    items: list[str] = []
-    seen: set[str] = set()
-    for source in sources:
-        if not isinstance(source, dict):
-            continue
-        for key in keys:
-            for item in _coerce_str_list(source.get(key)):
-                if item in seen:
-                    continue
-                seen.add(item)
-                items.append(item)
-    return items
 
 
 def _candidate_base_dirs(export_payload: dict[str, Any], sources: list[dict[str, Any]]) -> list[Path]:

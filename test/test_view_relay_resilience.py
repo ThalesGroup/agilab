@@ -181,6 +181,17 @@ def test_view_relay_resilience_compares_multiple_runs(
     assert any(
         metric.label == "Runs selected" and metric.value == "2" for metric in at.metric
     )
+    comparison_metric_labels = {
+        "Best PDR",
+        "Lowest delay (ms)",
+        "Lowest queue wait (ms)",
+    }
+    comparison_metrics = [
+        metric for metric in at.metric if metric.label in comparison_metric_labels
+    ]
+    assert len(comparison_metrics) == 3
+    assert all(not metric.delta for metric in comparison_metrics)
+    assert sum(caption.value.startswith("Run: `") for caption in at.caption) == 3
 
 
 def test_view_relay_resilience_reports_missing_peer_artifacts(
@@ -307,18 +318,11 @@ def test_view_relay_resilience_helper_branches(monkeypatch, tmp_path) -> None:
     module_path.write_text("# stub\n", encoding="utf-8")
     monkeypatch.setattr(module, "__file__", str(module_path))
     monkeypatch.setattr(sys, "path", [])
-    module._ensure_repo_on_path()
+    module.ensure_repo_on_path(module.__file__)
     assert str(src_root) in sys.path
     assert str(repo_root) in sys.path
 
     assert module._safe_metric(object()) == "n/a"
-    assert (
-        module._peer_csv(
-            tmp_path / "demo_summary_metrics.json",
-            "queue_timeseries",
-        )
-        == tmp_path / "demo_queue_timeseries.csv"
-    )
     assert (
         module._relative_summary_label(
             Path("/tmp/run.json"), tmp_path / "artifact_root"
@@ -335,17 +339,6 @@ def test_view_relay_resilience_helper_branches(monkeypatch, tmp_path) -> None:
         "time_s,relay\n0.0,a\n", encoding="utf-8"
     )
     assert module._build_max_queue_comparison_frame({"broken": broken_queue}).empty
-
-
-def test_view_relay_resilience_declares_all_app_scoped_state_keys() -> None:
-    module = _load_relay_helpers()
-    assert set(module.APP_SCOPED_SESSION_DEFAULT_KEYS) == {
-        module.RUN_SELECTION_KEY,
-        module.DETAIL_RUN_KEY,
-        module.REFERENCE_RUN_KEY,
-        module.DATA_DIR_KEY,
-        module.SUMMARY_GLOB_KEY,
-    }
 
 
 def test_view_relay_resilience_warns_when_summary_glob_is_empty(

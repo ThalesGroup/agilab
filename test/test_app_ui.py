@@ -29,13 +29,13 @@ def test_app_ui_resolves_project_scoped_entrypoint(tmp_path: Path) -> None:
     ui.write_text("def main(): pass\n", encoding="utf-8")
     outside.write_text("def main(): pass\n", encoding="utf-8")
 
-    assert module._resolve_active_app(["--active-app", str(app)]) == app.resolve()
+    assert module.resolve_active_app_path(["--active-app", str(app)]) == app.resolve()
     assert module._resolve_entrypoint(app, "demo/ui.py") == ui.resolve()
     assert module._resolve_entrypoint(app, "../outside.py") is None
     assert module._resolve_entrypoint(app, str(outside)) is None
     assert module._resolve_entrypoint(app, "") is None
     with pytest.raises(FileNotFoundError, match="Provided --active-app path not found"):
-        module._resolve_active_app(["--active-app", str(tmp_path / "missing_project")])
+        module.resolve_active_app_path(["--active-app", str(tmp_path / "missing_project")])
 
 
 def test_app_ui_reads_missing_or_invalid_settings_as_empty(tmp_path: Path) -> None:
