@@ -4,6 +4,7 @@ import importlib.util
 import json
 import shutil
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -286,6 +287,7 @@ def test_release_proof_github_run_check_accepts_workflow_file_fallback_name(monk
         repo_root=Path.cwd(),
         github_repo="ThalesGroup/agilab",
         max_age_days=45,
+        now=datetime(2026, 6, 5, tzinfo=UTC),
     )
 
     assert check["status"] == "pass"
