@@ -112,6 +112,82 @@ ensure_enduser_venv() {
   fi
 }
 
+ensure_enduser_project_python() {
+  local project_file="${AGI_SPACE}/pyproject.toml"
+  if [[ ! -f "$project_file" ]]; then
+    "${UV_PREVIEW[@]}" init --bare --no-workspace --python "$AGI_PYTHON_UV_SPEC" "$AGI_SPACE"
+  fi
+
+  "${UV_PREVIEW[@]}" run --no-project -p "$AGI_PYTHON_UV_SPEC" python - "$project_file" "$AGI_PYTHON_VERSION" <<'PY'
+from __future__ import annotations
+
+import re
+import sys
+import tomllib
+from pathlib import Path
+
+
+project_file = Path(sys.argv[1])
+python_version = sys.argv[2]
+if not re.fullmatch(r"\d+\.\d+(?:\.\d+)?", python_version):
+    raise SystemExit(f"Unsupported AGI_PYTHON_VERSION for agi-space metadata: {python_version!r}")
+
+text = project_file.read_text(encoding="utf-8")
+project = tomllib.loads(text).get("project", {})
+if project.get("name") != "agi-space":
+    raise SystemExit(
+        f"Refusing to rewrite non-AGILAB project metadata at {project_file}; "
+        "expected project.name = 'agi-space'."
+    )
+
+expected = f">={python_version}"
+current = project.get("requires-python")
+if current != expected:
+    pattern = re.compile(r'(?m)^requires-python\s*=\s*(["\']).*?\1\s*$')
+    updated, replacements = pattern.subn(
+        f'requires-python = "{expected}"', text, count=1
+    )
+    if replacements != 1:
+        raise SystemExit(
+            f"Unable to repair requires-python in installer-managed project {project_file}."
+        )
+    project_file.write_text(updated, encoding="utf-8")
+    print(
+        f"[info] Aligned agi-space requires-python from {current!r} to {expected!r}.",
+        file=sys.stderr,
+    )
+PY
+
+  (
+    cd "$AGI_SPACE"
+    "${UV_PREVIEW[@]}" python pin "$AGI_PYTHON_UV_SPEC"
+  )
+}
+
+ensure_enduser_pip() {
+  local python_bin="${VENV}/bin/python"
+  if [[ ! -x "$python_bin" ]]; then
+    echo -e "${RED}[error] Missing end-user Python interpreter at ${python_bin}.${NC}" >&2
+    exit 1
+  fi
+  if ! "$python_bin" -m pip --version >/dev/null 2>&1; then
+    echo -e "${BLUE}[info] Bootstrapping pip in the end-user environment.${NC}"
+    "$python_bin" -m ensurepip --upgrade
+  fi
+  if ! "$python_bin" -m pip --version >/dev/null 2>&1; then
+    echo -e "${RED}[error] pip is unavailable in the end-user environment after ensurepip.${NC}" >&2
+    exit 1
+  fi
+}
+
+bootstrap_enduser_environment() {
+  normalize_python_selection
+  ensure_enduser_project_python
+  ensure_enduser_venv
+  "${UV_PREVIEW[@]}" sync -p "$AGI_PYTHON_UV_SPEC"
+  ensure_enduser_pip
+}
+
 run_remote_shell_installer() {
   local url="$1"
   local label="$2"
@@ -644,15 +720,10 @@ else
   echo -e "${BLUE}[info] Using existing venv (use --force-rebuild to recreate)${NC}"
 fi
 
-if [ ! -f pyproject.toml ]; then
-    uv init --bare --no-workspace
-fi
-
-# OPTIMIZATION 2: Use uv sync which respects lock files
-${UV_PREVIEW[@]} sync
-
-# Ensure pip is available inside the venv for any tooling that shells out to python -m pip
-${UV_PREVIEW[@]} run python -m ensurepip --upgrade || true
+# Normalize and pin Python before the first project sync. This prevents an
+# ambient free-threaded interpreter from creating stale project metadata or a
+# venv that is replaced after pip has already been bootstrapped.
+bootstrap_enduser_environment
 
 # -----------------------------
 # Installation modes
@@ -676,8 +747,6 @@ case "${SOURCE}" in
     }
 
     [[ -n "${AGI_INSTALL_PATH:-}" && -d "${AGI_INSTALL_PATH}" ]] || { echo -e "${RED}Error: Missing or invalid install path: ${AGI_INSTALL_PATH}${NC}" >&2; exit 1; }
-    ensure_enduser_venv
-
     # OPTIMIZATION 3: Create lock file ONCE at repo root if it doesn't exist
     pushd "${AGI_INSTALL_ROOT}" >/dev/null
     if [[ ! -f "uv.lock" || "${FORCE_REBUILD}" -eq 1 ]]; then
@@ -867,6 +936,7 @@ install_offline_assistant
 if [[ -n "${INSTALL_LOCAL_MODELS}" ]]; then
   install_requested_local_models "${INSTALL_LOCAL_MODELS}"
 fi
+ensure_enduser_pip
 popd >/dev/null
 
 # Some uv operations materialize helper folders inside the venv root when
@@ -883,7 +953,14 @@ done
 # -----------------------------
 echo -e "${BLUE}====================================${NC}"
 echo -e "${BLUE}Installed packages in agi-space/.venv:${NC}"
-if ! "${VENV}/bin/python" -m pip list | grep -E '^(agilab|agi-)' ; then
+if ! installed_packages="$("${VENV}/bin/python" -m pip list)"; then
+  echo -e "${RED}[error] Unable to list packages from the end-user environment.${NC}" >&2
+  exit 1
+fi
+agi_packages="$(printf '%s\n' "$installed_packages" | grep -E '^(agilab|agi-)' || true)"
+if [[ -n "$agi_packages" ]]; then
+  printf '%s\n' "$agi_packages"
+else
   echo "(No agi* packages detected.)"
 fi
 echo -e "${BLUE}====================================${NC}"

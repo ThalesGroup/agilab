@@ -1348,7 +1348,10 @@ run_root_tests() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
     pushd "$repo_root" > /dev/null
-    if ! $UV run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --no-sync -m pytest src/agilab/test --cov=src/agilab --cov-report=term-missing --cov-report=xml:coverage-agilab.xml; then
+    echo -e "${BLUE}Syncing repository UI dependencies for root tests...${NC}"
+    remove_incompatible_project_venv "$repo_root" "repository root"
+    $UV sync -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --extra ui
+    if ! $UV run -p "${AGI_PYTHON_UV_SPEC:-$AGI_PYTHON_VERSION}" --extra ui --no-sync -m pytest src/agilab/test --cov=src/agilab --cov-report=term-missing --cov-report=xml:coverage-agilab.xml; then
         echo -e "${RED}Agilab unit tests failed. Aborting install.${NC}"
         popd > /dev/null
         exit 1
