@@ -1128,43 +1128,110 @@ def _expected_output_basenames(readme_text: str) -> set[str]:
         if stripped.startswith("```"):
             in_fenced_block = not in_fenced_block
             continue
-        if not in_fenced_block or not stripped:
+        if not stripped:
             continue
-        if stripped.startswith("~/log/execute/"):
-            if stripped.endswith("/"):
-                continue
-            basenames.add(stripped.rsplit("/", 1)[-1])
-        elif re.fullmatch(r"[\w./-]+\.[A-Za-z0-9]+", stripped):
-            basenames.add(stripped.rsplit("/", 1)[-1])
+        if in_fenced_block:
+            if stripped.startswith("~/log/execute/"):
+                if not stripped.endswith("/"):
+                    basenames.add(stripped.rsplit("/", 1)[-1])
+            elif _looks_like_artifact_filename(stripped):
+                basenames.add(stripped.rsplit("/", 1)[-1])
+            continue
+        # Some READMEs name the artifact inline in prose rather than in a
+        # fenced block (`~/log/execute/<app>/runner_state.json`). Those were
+        # previously skipped outright, which silently excluded the example.
+        for span in re.findall(r"`([^`]+)`", stripped):
+            span = span.strip()
+            if span.startswith("~/log/execute/") and not span.endswith("/"):
+                basenames.add(span.rsplit("/", 1)[-1])
     return basenames
+
+
+# A version string ("1.2.3") or a bare decimal ("0.42") is not a filename. Require
+# the suffix to start with a letter so dotted numeric tokens inside an Expected
+# Output block are not mistaken for promised artifacts.
+_ARTIFACT_FILENAME_RE = re.compile(r"[\w./-]+\.[A-Za-z][A-Za-z0-9]*")
+
+
+def _looks_like_artifact_filename(token: str) -> bool:
+    return bool(_ARTIFACT_FILENAME_RE.fullmatch(token))
+
+
+def _string_constants(script_text: str) -> set[str]:
+    """Every string literal in a script, excluding comments and docstrings.
+
+    Substring matching over raw source lets an artifact name survive in a
+    comment or stale docstring after the code that wrote it is gone, which is
+    exactly the drift this gate exists to catch.
+    """
+
+    tree = ast.parse(script_text)
+    docstrings: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            body = getattr(node, "body", None)
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+                if isinstance(body[0].value.value, str):
+                    docstrings.add(id(body[0].value))
+    return {
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and id(node) not in docstrings
+    }
+
+
+# Examples whose Expected Output section legitimately names no concrete artifact
+# basename (planned/future artifacts only). Every other packaged preview example
+# must yield at least one, so a README that stops matching the extractor fails
+# loudly instead of being silently skipped.
+EXPECTED_OUTPUT_NO_ARTIFACT_EXAMPLES: set[str] = set()
 
 
 def test_packaged_example_readmes_expected_output_matches_preview_script_writes() -> None:
     """README "Expected Output" artifact names must be real, not stale or aspirational."""
 
-    checked_any = False
+    checked: set[str] = set()
     for example_name, script_names in EXAMPLE_PREVIEWS.items():
         if example_name in EXPECTED_OUTPUT_PLANNED_ARTIFACT_EXAMPLES:
             continue
 
         readme = EXAMPLES_ROOT / example_name / "README.md"
         basenames = _expected_output_basenames(readme.read_text(encoding="utf-8"))
-        if not basenames:
-            continue
 
-        script_text = "\n".join(
-            (EXAMPLES_ROOT / example_name / script_name).read_text(encoding="utf-8")
-            for script_name in script_names
-            if script_name.endswith(".py")
+        # Do not silently skip: an example that yields nothing means the README
+        # drifted out of a shape the extractor understands, which would let the
+        # whole gate degrade to checking almost nothing while still passing.
+        if example_name in EXPECTED_OUTPUT_NO_ARTIFACT_EXAMPLES:
+            assert not basenames, (
+                f"{readme} now names artifacts; remove {example_name!r} from "
+                "EXPECTED_OUTPUT_NO_ARTIFACT_EXAMPLES"
+            )
+            continue
+        assert basenames, (
+            f"{readme} has an '## Expected Output' section but no artifact filename "
+            "could be extracted from it; keep artifact paths in a fenced block"
         )
-        checked_any = True
+
+        literals: set[str] = set()
+        for script_name in script_names:
+            if not script_name.endswith(".py"):
+                continue
+            script = EXAMPLES_ROOT / example_name / script_name
+            literals |= _string_constants(script.read_text(encoding="utf-8"))
+
+        checked.add(example_name)
         for basename in sorted(basenames):
-            assert basename in script_text, (
+            assert any(basename == value or basename in value for value in literals), (
                 f"{readme} promises artifact {basename!r} but no script under "
-                f"examples/{example_name} writes a file with that name"
+                f"examples/{example_name} references that name in a string literal "
+                "(a mention in a comment or docstring does not count)"
             )
 
-    assert checked_any
+    expected = set(EXAMPLE_PREVIEWS) - EXPECTED_OUTPUT_PLANNED_ARTIFACT_EXAMPLES
+    expected -= EXPECTED_OUTPUT_NO_ARTIFACT_EXAMPLES
+    assert checked == expected, f"examples not actually checked: {sorted(expected - checked)}"
 
 
 def test_packaged_example_readmes_are_included_as_package_data() -> None:
@@ -1846,15 +1913,80 @@ def _all_example_python_scripts() -> list[Path]:
     )
 
 
+_MODE_KEYWORDS = {"mode", "modes_enabled"}
+
+
+def _numeric_mode_keyword_arguments(script_text: str) -> list[str]:
+    """Any `mode=`/`modes_enabled=` keyword bound to a raw numeric literal.
+
+    Matching on source text can only ever enumerate the spellings someone
+    thought of; `mode=7`, `mode=0x0d` and `mode = 13` all read differently but
+    are the same defect. The AST sees the value, not the spelling.
+    """
+
+    offenders: list[str] = []
+    for node in ast.walk(ast.parse(script_text)):
+        if not isinstance(node, ast.Call):
+            continue
+        for keyword in node.keywords:
+            if keyword.arg not in _MODE_KEYWORDS:
+                continue
+            if isinstance(keyword.value, ast.Constant) and isinstance(
+                keyword.value.value, int
+            ):
+                offenders.append(f"{keyword.arg}={keyword.value.value}")
+    return offenders
+
+
 def test_packaged_examples_avoid_magic_mode_literals() -> None:
-    magic_mode_fragments = ("mode=13", "mode=15", "modes_enabled=13", "modes_enabled=15")
     scripts = _all_example_python_scripts()
 
     assert scripts
     for script in scripts:
-        text = script.read_text(encoding="utf-8")
-        for fragment in magic_mode_fragments:
-            assert fragment not in text, f"{script} contains magic mode literal {fragment!r}"
+        offenders = _numeric_mode_keyword_arguments(script.read_text(encoding="utf-8"))
+        assert not offenders, (
+            f"{script} passes raw numeric mode literals {offenders}; use the public "
+            "AGI.PYTHON_MODE / AGI.CYTHON_MODE / AGI.DASK_MODE constants"
+        )
+
+
+def _deprecated_api_usages(script_text: str) -> list[str]:
+    """Private AGI internals and the legacy event-loop runner, via AST.
+
+    Substring checks match a single spelling: `from asyncio import
+    get_event_loop` and `AGI as _A; _A._run(...)` both slip past a raw
+    `"asyncio.get_event_loop()" not in text` / `"AGI._" not in text` gate.
+    """
+
+    tree = ast.parse(script_text)
+    usages: list[str] = []
+
+    # Names bound to the AGI class, so aliased access is still caught.
+    agi_aliases = {"AGI"}
+    loop_aliases: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name == "AGI":
+                    agi_aliases.add(alias.asname or alias.name)
+                if node.module == "asyncio" and alias.name == "get_event_loop":
+                    loop_aliases.add(alias.asname or alias.name)
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            value = node.value
+            if isinstance(value, ast.Name) and value.id in agi_aliases:
+                if node.attr.startswith("_"):
+                    usages.append(f"{value.id}.{node.attr}")
+            if (
+                isinstance(value, ast.Name)
+                and value.id == "asyncio"
+                and node.attr == "get_event_loop"
+            ):
+                usages.append("asyncio.get_event_loop")
+        elif isinstance(node, ast.Name) and node.id in loop_aliases:
+            usages.append(f"get_event_loop (imported as {node.id})")
+    return usages
 
 
 def test_packaged_preview_examples_avoid_private_agi_internals() -> None:
@@ -1862,17 +1994,16 @@ def test_packaged_preview_examples_avoid_private_agi_internals() -> None:
 
     assert preview_scripts
     for script in preview_scripts:
-        text = script.read_text(encoding="utf-8")
-        assert "AGI._" not in text, f"{script} references a private AGI internal"
-        assert "asyncio.get_event_loop()" not in text, f"{script} uses the legacy event-loop runner"
+        usages = _deprecated_api_usages(script.read_text(encoding="utf-8"))
+        assert not usages, f"{script} uses deprecated/private APIs: {sorted(set(usages))}"
 
 
 def test_packaged_examples_use_public_api_and_modern_runner() -> None:
     for script in _expected_script_paths():
         text = script.read_text(encoding="utf-8")
 
-        assert "AGI._" not in text
-        assert "asyncio.get_event_loop()" not in text
+        usages = _deprecated_api_usages(text)
+        assert not usages, f"{script} uses deprecated/private APIs: {sorted(set(usages))}"
         assert "asyncio.run(main())" in text
         assert "def agilab_apps_path() -> Path:" in text
         assert "open(f\"{Path.home()}" not in text
