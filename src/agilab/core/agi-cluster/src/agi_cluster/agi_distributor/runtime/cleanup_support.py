@@ -30,6 +30,7 @@ from agi_env.runtime.destructive_path_support import (
 logger = logging.getLogger(__name__)
 REMOVE_DIR_RETRY_EXCEPTIONS = (OSError, shutil.Error)
 CMD_PREFIX_LOOKUP_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
+_BOOTSTRAP_PSUTIL_SPEC = "psutil>=7,<8"
 _DASK_CMD_MARKERS = (
     "dask-scheduler",
     "dask-worker",
@@ -213,7 +214,12 @@ async def kill_processes(
         ip,
         detect_export_cmd_fn=detect_export_cmd_fn,
     )
-    kill_prefix = f"{cmd_prefix}{_remote_words(uv)} run --no-sync python"
+    # This copied bootstrap CLI runs before the worker environment exists.
+    # Process ownership discovery needs psutil, unlike lease and archive commands.
+    kill_prefix = (
+        f"{cmd_prefix}{_remote_words(uv)} run --no-sync "
+        f"--with {_remote_arg(_BOOTSTRAP_PSUTIL_SPEC)} python"
+    )
     if env.is_local(ip):
         if not cli_abs.exists():
             copy_fn(resolve_worker_cli_path(env), cli_abs)
@@ -798,6 +804,7 @@ async def clean_dirs(
     )
     cmd = (
         f"{cmd_prefix}{_remote_words(uv)} run --no-sync "
+        f"--with {_remote_arg(_BOOTSTRAP_PSUTIL_SPEC)} "
         f"-p {_remote_arg(env.python_version)} python "
         f"{_remote_arg(cli)} clean {_remote_arg(wenv)}{token_arg}"
     )

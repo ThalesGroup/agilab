@@ -279,6 +279,17 @@ def _verbose_logging_enabled() -> bool:
     return verbose > 0 or bool(getattr(AgiEnv, "debug", False))
 
 
+def _loggable_ssh_command(cmd: str) -> str:
+    """Keep generated heredoc commands readable without changing execution."""
+
+    marker = "python3 - <<'PY'"
+    if marker not in cmd:
+        return cmd
+
+    prefix, _body = cmd.split(marker, 1)
+    return f"{prefix}{marker} [heredoc body omitted]"
+
+
 def is_private_ssh_key_file(path: Path) -> bool:
     """Return True when ``path`` looks like a usable private SSH key."""
 
@@ -614,7 +625,7 @@ async def exec_ssh(
 ) -> str:
     try:
         async with agi_cls.get_ssh_connection(ip) as conn:
-            msg = f"[{ip}] {cmd}"
+            msg = f"[{ip}] {_loggable_ssh_command(cmd)}"
             if _verbose_logging_enabled():
                 log.info(msg)
             result = await conn.run(cmd, check=True)

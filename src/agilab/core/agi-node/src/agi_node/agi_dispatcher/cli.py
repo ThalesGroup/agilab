@@ -3,13 +3,14 @@
 import os
 import sys
 import contextlib
+import importlib
 import signal
 import logging
 import json
 import hashlib
 import shlex
 import uuid
-from pathlib import Path, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from tempfile import gettempdir
 import shutil
 import subprocess
@@ -18,10 +19,6 @@ import platform
 import threading
 import time
 import faulthandler
-
-import psutil
-
-from agi_env.data_archive_support import validate_archive_members_stay_within_dest
 
 faulthandler.enable()
 
@@ -81,7 +78,70 @@ _PID_RECORD_SCHEMA = "agilab-dask-pid-owner-v1"
 _PID_START_TOLERANCE_SECONDS = 1.0
 _REMOTE_TARGET_LEASE_SCHEMA = "agilab-remote-target-lease-v1"
 
+
+class _LazyPsutil:
+    """Load psutil only for process-management commands.
+
+    This module is copied to ``~/wenv/cli.py`` and lease commands execute it
+    before the worker environment, including optional third-party packages,
+    exists.
+    """
+
+    def __init__(self) -> None:
+        object.__setattr__(self, "_module", None)
+
+    def _load(self):
+        module = object.__getattribute__(self, "_module")
+        if module is None:
+            try:
+                module = importlib.import_module("psutil")
+            except ImportError as exc:
+                raise RuntimeError(
+                    "psutil is required for AGILAB process-management commands."
+                ) from exc
+            object.__setattr__(self, "_module", module)
+        return module
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+    def __setattr__(self, name, value) -> None:
+        if name == "_module":
+            object.__setattr__(self, name, value)
+            return
+        setattr(self._load(), name, value)
+
+    def __delattr__(self, name) -> None:
+        delattr(self._load(), name)
+
+
+psutil = _LazyPsutil()
+
 # ---------------- helpers ----------------
+def validate_archive_members_stay_within_dest(archive, dest: Path) -> None:
+    """Reject ZIP entries that escape ``dest`` without importing ``agi_env``."""
+
+    member_names = None
+    for method_name in ("getnames", "namelist"):
+        getnames = getattr(archive, method_name, None)
+        if callable(getnames):
+            member_names = [str(name) for name in getnames()]
+            break
+    if member_names is None:
+        return
+
+    resolved_dest = dest.resolve()
+    for member_name in member_names:
+        normalized = member_name.replace("\\", "/")
+        posix_member = PurePosixPath(normalized)
+        windows_member = PureWindowsPath(member_name)
+        if posix_member.is_absolute() or windows_member.is_absolute() or windows_member.drive:
+            raise RuntimeError(f"Unsafe archive member path in '{member_name}'")
+        target = (resolved_dest / Path(*posix_member.parts)).resolve()
+        if not target.is_relative_to(resolved_dest):
+            raise RuntimeError(f"Unsafe archive member path in '{member_name}'")
+
+
 def _resolved_destructive_path(value):
     try:
         return Path(value).expanduser().resolve(strict=False)
