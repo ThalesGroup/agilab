@@ -2063,13 +2063,14 @@ def _render_release_decision_connector_live_ui(
 
 configure_streamlit_page(st, title="Evidence cockpit")
 
-if "env" not in st.session_state:
-    active_app_path = resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
+active_app_path = resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
+existing_env = st.session_state.get("env")
+if existing_env is None or Path(getattr(existing_env, "active_app", "")).resolve() != active_app_path.resolve():
     env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
     env.init_done = True
     st.session_state["env"] = env
 else:
-    env = st.session_state["env"]
+    env = existing_env
 _reset_app_scoped_session_defaults(st, env)
 
 render_streamlit_page_header(

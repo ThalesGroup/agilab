@@ -22,7 +22,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 import tomllib as _toml
-from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_env.app_settings_support import prepare_app_settings_for_write, read_app_settings
 from agi_pages.runtime import ensure_repo_on_path, resolve_active_app_path
 
 try:
@@ -352,8 +352,7 @@ def _load_map_defaults(env: AgiEnv) -> dict[str, float]:
 def _load_view_maps_settings(env: AgiEnv) -> tuple[dict, dict]:
     """Return the full TOML payload and the view_maps subsection."""
     try:
-        with open(env.app_settings_file, "rb") as fh:
-            data = _toml.load(fh)
+        data = read_app_settings(env.app_settings_file)
     except FileNotFoundError:
         data = {}
     except (OSError, _toml.TOMLDecodeError):
@@ -364,13 +363,33 @@ def _load_view_maps_settings(env: AgiEnv) -> tuple[dict, dict]:
     return data, view_section
 
 
-def _persist_view_maps_settings(env: AgiEnv, base_settings: dict, view_settings: dict) -> dict:
+def _persist_view_maps_settings(
+    env: AgiEnv,
+    base_settings: dict,
+    view_settings: dict,
+    owned_keys: tuple[str, ...] = (),
+) -> dict:
     """Write the updated view_maps settings back to disk."""
     payload = dict(base_settings) if isinstance(base_settings, dict) else {}
     payload["view_maps"] = view_settings
+    if not owned_keys:
+        try:
+            with open(env.app_settings_file, "wb") as fh:
+                _dump_toml_payload(prepare_app_settings_for_write(payload), fh)
+        except (OSError, RuntimeError):
+            pass
+        return payload
     try:
-        with open(env.app_settings_file, "wb") as fh:
-            _dump_toml_payload(prepare_app_settings_for_write(payload), fh)
+        from agi_env.app_settings_support import update_app_settings_owned
+        latest, _ = update_app_settings_owned(
+            env.app_settings_file,
+            payload,
+            owned_paths=tuple(("view_maps", key) for key in owned_keys),
+            dump_fn=_dump_toml_payload,
+        )
+        merged = dict(payload)
+        merged.update((key, value) for key, value in latest.items() if key != "__meta__")
+        return merged
     except (OSError, RuntimeError):
         pass
     return payload
