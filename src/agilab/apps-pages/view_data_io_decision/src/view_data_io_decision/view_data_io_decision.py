@@ -14,7 +14,7 @@ from agi_pages.runtime import (
     artifact_root as _page_artifact_root,
     configure_streamlit_page,
     discover_files as _page_discover_files,
-    ensure_repo_on_path as _page_ensure_repo_on_path,
+    ensure_repo_on_path,
     relative_label as _page_relative_label,
     render_streamlit_page_header,
     resolve_active_app_path,
@@ -22,11 +22,7 @@ from agi_pages.runtime import (
 )
 
 
-def _ensure_repo_on_path() -> None:
-    _page_ensure_repo_on_path(__file__)
-
-
-_ensure_repo_on_path()
+ensure_repo_on_path(__file__)
 
 from agi_env import AgiEnv
 
@@ -39,10 +35,6 @@ APP_SCOPED_SESSION_DEFAULT_KEYS = (
     RUN_SELECTION_KEY,
     SUMMARY_GLOB_KEY,
 )
-
-
-def _resolve_active_app() -> Path:
-    return resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
 
 
 def _default_artifact_root(env: AgiEnv) -> Path:
@@ -97,7 +89,7 @@ def _read_csv_if_present(path: Path) -> pd.DataFrame:
 
 configure_streamlit_page(st, title="Decision evidence")
 
-active_app_path = _resolve_active_app()
+active_app_path = resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
 app_scope_changed = _reset_app_scoped_session_defaults(active_app_path)
 if "env" not in st.session_state or app_scope_changed:
     env = AgiEnv.session_for_app(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)

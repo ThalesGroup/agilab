@@ -15,17 +15,13 @@ from agi_pages.queue_resilience import (
     render_queue_resilience_run,
 )
 from agi_pages.runtime import (
-    ensure_repo_on_path as _page_ensure_repo_on_path,
+    ensure_repo_on_path,
 )
 
 
-def _ensure_repo_on_path() -> None:
-    _page_ensure_repo_on_path(__file__)
+ensure_repo_on_path(__file__)
 
-
-_ensure_repo_on_path()
-
-from agi_env import AgiEnv  # noqa: E402
+from agi_env import AgiEnv
 
 
 DATA_DIR_KEY = "queue_resilience_datadir"
@@ -58,20 +54,9 @@ def _load_page_meta() -> tuple[str, str]:
 
 PAGE_LOGO, PAGE_TITLE = _load_page_meta()
 
-
-def _create_env(active_app_path: Path) -> AgiEnv:
-    env = AgiEnv.session_for_app(
-        apps_path=active_app_path.parent,
-        app=active_app_path.name,
-        verbose=0,
-    )
-    env.init_done = True
-    return env
-
-
 page_context = prepare_queue_resilience_page(
     st,
-    env_factory=_create_env,
+    AgiEnv,
     title=PAGE_TITLE,
     logo_title=PAGE_LOGO,
     caption=(

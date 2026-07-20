@@ -385,7 +385,7 @@ def test_view_maps_repo_path_helpers(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(module, "__file__", str(module_path))
     monkeypatch.setattr(module.sys, "path", [])
 
-    module._ensure_repo_on_path()
+    module.ensure_repo_on_path(module.__file__)
 
     assert str(src_root) in module.sys.path
     assert str(repo_root) in module.sys.path
@@ -840,10 +840,7 @@ def test_view_maps_bootstrap_keeps_absolute_app_path_out_of_main_status() -> Non
     source = MODULE_PATH.read_text(encoding="utf-8")
 
     assert 'st.info(f"active_app:' not in source
-    assert "_render_app_page_context(app, active_app)" in source
-    assert 'st.caption(f"`{app}`")' in source
-    assert "Back to ANALYSIS" in source
-    assert 'st.expander("Runtime context", expanded=False)' in source
+    assert "render_app_page_context(st, app, active_app)" in source
     assert 'with st.sidebar.expander("Data source", expanded=False):' in source
     assert 'st.sidebar.text_input(\n        "Data Directory"' not in source
 

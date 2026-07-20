@@ -62,6 +62,8 @@ def _agent_run_process(output_dir: str, start, results) -> None:
 
 def test_agent_run_print_only_json_is_redacted(tmp_path: Path, capsys) -> None:
     module = _load_module()
+    sensitive_argument = "agent-redaction-probe-7b917b42"
+    output_dir = tmp_path / "review-checkout"
 
     exit_code = module.main(
         [
@@ -72,7 +74,7 @@ def test_agent_run_print_only_json_is_redacted(tmp_path: Path, capsys) -> None:
             "--run-id",
             "agent-test",
             "--output-dir",
-            str(tmp_path),
+            str(output_dir),
             "--env",
             "OPENAI_API_KEY=sk-secret",
             "--protocol-adapter",
@@ -85,7 +87,7 @@ def test_agent_run_print_only_json_is_redacted(tmp_path: Path, capsys) -> None:
             "--print-only",
             "--",
             "codex",
-            "review",
+            sensitive_argument,
         ]
     )
 
@@ -110,10 +112,10 @@ def test_agent_run_print_only_json_is_redacted(tmp_path: Path, capsys) -> None:
     assert payload["events"][0]["type"] == "agent.run.planned"
     assert payload["events"][0]["protocol_adapters"] == ["ag-ui"]
     assert payload["events"][0]["capabilities"] == ["app-as-tool"]
-    assert payload["artifacts"]["agent_trace"]["events"] == str(tmp_path / "agent_events.ndjson")
+    assert payload["artifacts"]["agent_trace"]["events"] == str(output_dir / "agent_events.ndjson")
     assert payload["artifacts"]["agent_trace"]["exists"] is False
     assert "sk-secret" not in json.dumps(payload)
-    assert "review" not in json.dumps(payload)
+    assert sensitive_argument not in json.dumps(payload)
 
 
 def test_agent_run_can_include_full_command_args_when_requested(tmp_path: Path, capsys) -> None:

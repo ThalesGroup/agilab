@@ -220,7 +220,10 @@ def test_live_artifacts_resolve_active_app_delegates_to_runtime(monkeypatch, tmp
 
     monkeypatch.setattr(module, "resolve_active_app_path", fake_resolve_active_app_path)
 
-    assert module._resolve_active_app() == tmp_path / "apps" / "demo_project"
+    assert module.resolve_active_app_path(
+        error_fn=fake_streamlit.error,
+        stop_fn=fake_streamlit.stop,
+    ) == tmp_path / "apps" / "demo_project"
 
 
 def test_live_artifacts_resets_path_scoped_state_on_active_app_change(monkeypatch, tmp_path: Path) -> None:
@@ -513,8 +516,14 @@ def test_live_artifacts_main_wires_page_controls_and_panel(monkeypatch, tmp_path
         def caption(self, value: str) -> None:
             calls.append(("caption", value))
 
+        def error(self, value: str) -> None:
+            calls.append(("error", value))
+
+        def stop(self) -> None:
+            raise AssertionError("stop should not be called")
+
     monkeypatch.setattr(module, "st", FakeStreamlit())
-    monkeypatch.setattr(module, "_resolve_active_app", lambda: app_path)
+    monkeypatch.setattr(module, "resolve_active_app_path", lambda **_kwargs: app_path)
     monkeypatch.setattr(module, "_active_env", lambda active_app_path: env)
     monkeypatch.setattr(
         module,

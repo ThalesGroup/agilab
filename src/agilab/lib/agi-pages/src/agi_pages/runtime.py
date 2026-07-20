@@ -6,10 +6,11 @@ import argparse
 import json
 import math
 import os
-import re
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlencode
 
 
 def ensure_repo_on_path(anchor: str | Path) -> None:
@@ -24,38 +25,119 @@ def ensure_repo_on_path(anchor: str | Path) -> None:
             for entry in (str(src_root), str(repo_root)):
                 if entry not in sys.path:
                     sys.path.insert(0, entry)
+            # ``agilab`` can already be imported from another checkout or an
+            # installed namespace package when a source page is launched.
+            # Extend that package in place so later ``agilab.*`` imports use
+            # the source tree selected by the page anchor as well.
+            package = sys.modules.get("agilab")
+            package_path = str(candidate)
+            package_paths = getattr(package, "__path__", None)
+            if package_paths is not None and package_path not in list(package_paths):
+                try:
+                    package_paths.append(package_path)
+                except AttributeError:
+                    package.__path__ = [*package_paths, package_path]
             break
 
 
 def resolve_active_app_path(
     argv: list[str] | None = None,
     *,
+    use_environment: bool = True,
+    query_params: Any | None = None,
+    query_param_keys: tuple[str, ...] = (),
+    missing_message: str = "Missing --active-app argument.",
+    not_found_message: str = "Provided --active-app path not found: {path}",
     error_fn: Callable[[str], Any] | None = None,
+    missing_fn: Callable[[str], Any] | None = None,
     stop_fn: Callable[[], Any] | None = None,
+    not_found_stop_fn: Callable[[], Any] | None = None,
 ) -> Path:
-    """Resolve ``--active-app`` from page CLI arguments."""
+    """Resolve an active app from page CLI, environment, or query arguments."""
 
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--active-app", dest="active_app", type=str)
     args, _ = parser.parse_known_args(argv)
-    active_app_value = args.active_app or os.environ.get("AGILAB_ACTIVE_APP")
+    active_app_value = args.active_app
+    if not active_app_value and use_environment:
+        active_app_value = os.environ.get("AGILAB_ACTIVE_APP")
+    if not active_app_value and query_params is not None:
+        for key in query_param_keys:
+            value = query_params.get(key, "")
+            if isinstance(value, (list, tuple)):
+                value = value[0] if value else ""
+            if value is not None and str(value).strip():
+                active_app_value = str(value).strip()
+                break
     if not active_app_value:
-        message = "Missing --active-app argument."
-        if error_fn is not None:
-            error_fn(message)
+        reporter = missing_fn or error_fn
+        if reporter is not None:
+            reporter(missing_message)
         if stop_fn is not None:
             stop_fn()
-        raise ValueError(message)
+        raise ValueError(missing_message)
     active_app_path = Path(active_app_value).expanduser().resolve()
     if active_app_path.exists():
         return active_app_path
 
-    message = f"Provided --active-app path not found: {active_app_path}"
+    message = not_found_message.format(path=active_app_path)
     if error_fn is not None:
         error_fn(message)
-    if stop_fn is not None:
-        stop_fn()
+    failure_stop_fn = not_found_stop_fn or stop_fn
+    if failure_stop_fn is not None:
+        failure_stop_fn()
     raise FileNotFoundError(message)
+
+
+def analysis_return_url(app: str) -> str:
+    """Return the standard ANALYSIS URL for an app-owned page."""
+
+    return f"/ANALYSIS?{urlencode({'active_app': app})}"
+
+
+def render_app_page_context(streamlit: Any, app: str, active_app: str | Path) -> None:
+    """Render the shared active-app caption, return link, and path details."""
+
+    columns = streamlit.columns(2)
+    with columns[0]:
+        streamlit.caption(f"`{app}`")
+    with columns[1]:
+        link_button = getattr(streamlit, "link_button", None)
+        url = analysis_return_url(app)
+        if callable(link_button):
+            link_button("Back to ANALYSIS", url, type="secondary", width="content")
+        else:
+            streamlit.caption(f"Back to ANALYSIS: {url}")
+    with streamlit.expander("Runtime context", expanded=False):
+        streamlit.code(str(active_app), language="text")
+
+
+def ensure_app_settings_loaded(
+    session_state: Any,
+    env: Any,
+    *,
+    key: str = "app_settings",
+) -> Any:
+    """Load mutable workspace app settings into session state once."""
+
+    if key in session_state:
+        return session_state[key]
+
+    settings: dict[str, Any] = {}
+    try:
+        path = Path(env.app_settings_file)
+    except (AttributeError, TypeError, ValueError):
+        path = None
+    if path is not None and path.exists():
+        try:
+            with path.open("rb") as handle:
+                payload = tomllib.load(handle)
+            if isinstance(payload, dict):
+                settings = payload
+        except (OSError, tomllib.TOMLDecodeError):
+            pass
+    session_state[key] = settings
+    return settings
 
 
 def active_app_scope_value(active_app: str | Path) -> str:
@@ -64,8 +146,8 @@ def active_app_scope_value(active_app: str | Path) -> str:
     return str(Path(active_app).expanduser().resolve())
 
 
-def _env_concrete_app_scope_value(env: Any) -> str | None:
-    """Return the established primary live app identity for an environment."""
+def env_app_scope_value(env: Any) -> str | None:
+    """Infer the active-app session-scope key from an AGILAB environment object."""
 
     app_path = getattr(env, "app_path", None)
     if app_path:
@@ -80,60 +162,6 @@ def _env_concrete_app_scope_value(env: Any) -> str | None:
     return None
 
 
-def _env_matches_active_app_scope(env: Any, active_scope: str) -> bool:
-    """Return whether live environment fields prove the requested app scope.
-
-    ``AgiEnv`` can intentionally resolve an app to its bundled implementation
-    under its configured ``builtin_apps_path`` (or the legacy
-    ``apps_path / 'builtin'`` location). Those are the sole accepted
-    alternatives to the requested ``apps_path / app`` location. Conflicting
-    live fields are not interchangeable: a stale marker or an ``apps_path`` /
-    ``app`` pair cannot override a different concrete ``active_app``.
-    """
-
-    app_path = getattr(env, "app_path", None)
-    if app_path:
-        return active_app_scope_value(app_path) == active_scope
-
-    active_app = getattr(env, "active_app", None)
-    if active_app:
-        env_active_scope = active_app_scope_value(active_app)
-        if env_active_scope == active_scope:
-            return True
-        apps_path = getattr(env, "apps_path", None)
-        app = getattr(env, "app", None)
-        if not apps_path or not app:
-            return False
-        requested_scope = active_app_scope_value(Path(apps_path) / str(app))
-        builtin_roots = [getattr(env, "builtin_apps_path", None)]
-        builtin_roots.append(Path(apps_path) / "builtin")
-        builtin_scopes = {
-            active_app_scope_value(Path(root) / str(app))
-            for root in builtin_roots
-            if root
-        }
-        return active_scope == requested_scope and env_active_scope in builtin_scopes
-
-    apps_path = getattr(env, "apps_path", None)
-    app = getattr(env, "app", None)
-    return (
-        bool(apps_path and app)
-        and active_app_scope_value(Path(apps_path) / str(app)) == active_scope
-    )
-
-
-def env_app_scope_value(env: Any) -> str | None:
-    """Infer the active-app session-scope key from an AGILAB environment object."""
-
-    concrete_scope = _env_concrete_app_scope_value(env)
-    if concrete_scope is not None:
-        return concrete_scope
-    bound_scope = getattr(env, "_agilab_active_app_scope", None)
-    if bound_scope:
-        return active_app_scope_value(bound_scope)
-    return None
-
-
 def ensure_app_scoped_env(
     session_state: Any,
     active_app: str | Path,
@@ -144,60 +172,43 @@ def ensure_app_scoped_env(
     keys: tuple[str, ...] = (),
     prefixes: tuple[str, ...] = (),
 ) -> Any:
-    """Return an environment whose app identity matches the active page scope.
+    """Return an environment aligned with the active app session scope.
 
-    Streamlit pages share one session-state mapping. A page-local scope marker
-    therefore cannot prove that the shared cached environment still belongs to
-    the same app: another page may have replaced it since the marker was set.
-    Reuse is allowed only when the environment exposes a matching app identity.
-    Page-owned state is cleared whenever its recorded scope changes or an
-    unscoped/stale environment must be replaced.
+    Page bundles share one Streamlit session while users switch projects.  A
+    cached environment is reusable only when the recorded page scope and, when
+    available, the environment's own app path both match the requested app.
+    Unknown unscoped environments are rebuilt instead of being trusted.
     """
 
     active_app_path = Path(active_app).expanduser().resolve()
     active_scope = active_app_scope_value(active_app_path)
     cached_env = session_state.get(env_key)
-    cached_matches = cached_env is not None and _env_matches_active_app_scope(
-        cached_env,
-        active_scope,
-    )
+    recorded_scope = session_state.get(scope_key)
+    cached_scope = env_app_scope_value(cached_env) if cached_env is not None else None
 
-    if cached_env is not None and cached_matches:
-        try:
-            cached_env._agilab_active_app_scope = active_scope
-        except (AttributeError, TypeError):
-            pass
-        reset_scoped_session_state(
-            session_state,
-            scope_key,
-            active_app_path,
-            keys=keys,
-            prefixes=prefixes,
-        )
-        session_state[env_key] = cached_env
+    scope_matches = recorded_scope == active_scope
+    env_matches = cached_env is not None and cached_scope in {None, active_scope}
+    if scope_matches and env_matches:
         return cached_env
 
-    replacement = env_factory(active_app_path)
-    replacement_scope = env_app_scope_value(replacement)
-    if not _env_matches_active_app_scope(replacement, active_scope):
-        raise ValueError(
-            "Environment factory returned an app scope that does not match "
-            f"the requested app: expected {active_scope!r}, got {replacement_scope!r}"
-        )
-    try:
-        replacement._agilab_active_app_scope = active_scope
-    except (AttributeError, TypeError):
-        pass
-    exact_keys = set((env_key, *keys))
-    for key in list(session_state.keys()):
-        if key == scope_key:
-            continue
-        key_text = str(key)
-        if key in exact_keys or any(key_text.startswith(prefix) for prefix in prefixes):
-            session_state.pop(key, None)
+    # A warm environment can predate the page-specific scope marker.  Preserve
+    # it only when its own app identity proves that it belongs to this app.
+    if recorded_scope is None and cached_env is not None and cached_scope == active_scope:
+        session_state[scope_key] = active_scope
+        return cached_env
+
+    reset_keys = tuple(dict.fromkeys((env_key, *keys)))
+    reset_scoped_session_state(
+        session_state,
+        scope_key,
+        active_app_path,
+        keys=reset_keys,
+        prefixes=prefixes,
+    )
+    env = env_factory(active_app_path)
+    session_state[env_key] = env
     session_state[scope_key] = active_scope
-    session_state[env_key] = replacement
-    return replacement
+    return env
 
 
 def reset_scoped_session_state(
@@ -212,9 +223,7 @@ def reset_scoped_session_state(
 ) -> bool:
     """Clear page-owned session state when the active app scope changes."""
 
-    normalized_scope = (
-        active_app_scope_value(scope_value) if normalize_scope else str(scope_value)
-    )
+    normalized_scope = active_app_scope_value(scope_value) if normalize_scope else str(scope_value)
     previous_scope = session_state.get(scope_key)
     if previous_scope == normalized_scope:
         return False
@@ -226,9 +235,7 @@ def reset_scoped_session_state(
             if key == scope_key:
                 continue
             key_text = str(key)
-            if key in exact_keys or any(
-                key_text.startswith(prefix) for prefix in prefixes
-            ):
+            if key in exact_keys or any(key_text.startswith(prefix) for prefix in prefixes):
                 session_state.pop(key, None)
 
     session_state[scope_key] = normalized_scope
@@ -245,10 +252,7 @@ def discover_files(base: Path, pattern: str) -> list[Path]:
     """Return matching files in deterministic order, swallowing invalid glob roots."""
 
     try:
-        return sorted(
-            [path for path in base.glob(pattern) if path.is_file()],
-            key=lambda path: path.as_posix(),
-        )
+        return sorted([path for path in base.glob(pattern) if path.is_file()], key=lambda path: path.as_posix())
     except (OSError, RuntimeError, TypeError, ValueError):
         return []
 
@@ -295,16 +299,6 @@ def safe_metric(value: Any, *, digits: int = 3) -> str:
     return f"{numeric:.{digits}f}"
 
 
-def _page_title_from_header(title: str) -> str:
-    """Derive a clean browser-tab title from a visible page header."""
-
-    text = str(title or "").strip()
-    if not text:
-        return "AGILab"
-    cleaned = re.sub(r"^:[^:]+:\s*", "", text).strip()
-    return cleaned or text
-
-
 def configure_streamlit_page(
     streamlit: Any,
     *,
@@ -344,11 +338,6 @@ def render_streamlit_page_header(
 ) -> None:
     """Render the common AGILAB analysis-page logo, title, and optional caption."""
 
-    configure_streamlit_page(
-        streamlit,
-        title=_page_title_from_header(title),
-        layout="wide",
-    )
     if show_logo:
         if render_logo_fn is None:
             from agi_gui.pagelib import render_logo as _render_logo

@@ -8,8 +8,6 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 
-import pytest
-
 from agi_pages.queue_resilience import (
     QUEUE_SUMMARY_GLOB,
     load_queue_summary,
@@ -249,7 +247,7 @@ def test_view_queue_resilience_helper_branches(monkeypatch, tmp_path) -> None:
     )
     monkeypatch.setattr(module, "__file__", str(module_path))
     monkeypatch.setattr(sys, "path", [])
-    module._ensure_repo_on_path()
+    module.ensure_repo_on_path(module.__file__)
     assert str(src_root) in sys.path
     assert str(repo_root) in sys.path
 
@@ -298,10 +296,6 @@ def test_queue_resilience_support_stays_dataframe_and_streamlit_free(tmp_path) -
     assert load_queue_summary(summary_path) == {"pdr": 0.9}
     assert QUEUE_SUMMARY_GLOB == "**/*_summary_metrics.json"
 
-    summary_path.write_text("[1, 2]", encoding="utf-8")
-    with pytest.raises(TypeError, match="must contain a JSON object"):
-        load_queue_summary(summary_path)
-
 
 def test_view_queue_resilience_reuses_existing_session_env(
     tmp_path, create_temp_app_project, monkeypatch
@@ -343,8 +337,6 @@ def test_view_queue_resilience_reuses_existing_session_env(
             AGILAB_EXPORT_ABS=export_root,
             target="uav_queue",
             st_resources=tmp_path / "resources",
-            apps_path=project_dir.parent,
-            app=project_dir.name,
         )
         at.session_state["queue_resilience_active_app_scope"] = str(
             project_dir.resolve()

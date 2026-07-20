@@ -161,6 +161,91 @@ def test_discover_builtin_projects_ignores_untracked_workspace_dirs(tmp_path: Pa
     assert module.discover_builtin_projects(tmp_path) == (tracked_project,)
 
 
+def test_discover_page_bundles_ignores_untracked_workspace_dirs(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_module()
+    pages_root = tmp_path / module.APPS_PAGES_REL
+    tracked_page = pages_root / "view_maps"
+    ignored_page = pages_root / "view_inference_analysis"
+    tracked_page.mkdir(parents=True)
+    ignored_page.mkdir()
+    (tracked_page / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+    (ignored_page / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+
+    def _fake_run(*args, **kwargs):
+        return module.subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="src/agilab/apps-pages/view_maps/pyproject.toml\0",
+            stderr="",
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", _fake_run)
+
+    assert module.discover_page_bundle_projects(tmp_path) == (tracked_page,)
+
+
+def test_page_pyproject_contract_rejects_polluted_untracked_local_source(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_module()
+    page_root = tmp_path / "src/agilab/apps-pages/view_routing_model_comparison"
+    ignored_source = tmp_path / "src/agilab/apps-pages/view_inference_analysis"
+    page_root.mkdir(parents=True)
+    ignored_source.mkdir()
+    page_pyproject = page_root / "pyproject.toml"
+    page_pyproject.write_text(
+        "\n".join(
+            [
+                "[project]",
+                'name = "agi-page-routing-model-comparison"',
+                'version = "1.0"',
+                "",
+                '[project.entry-points."agilab.pages"]',
+                'view_routing_model_comparison = "view_routing_model_comparison:bundle_root"',
+                "",
+                "[tool.uv.sources]",
+                'agi-page-inference-report = { path = "../view_inference_analysis", editable = true }',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    ignored_manifest = ignored_source / "pyproject.toml"
+    ignored_manifest.write_text(
+        '[project]\nname = "agi-page-inference-report"\nversion = "1.0"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        module,
+        "_tracked_repo_files",
+        lambda _repo_root: {
+            "src/agilab/apps-pages/view_routing_model_comparison/pyproject.toml"
+        },
+    )
+
+    errors = module._page_pyproject_contract_errors(
+        tmp_path,
+        {"agi-page-routing-model-comparison": "view_routing_model_comparison"},
+        {
+            "agi-page-routing-model-comparison": (
+                "src/agilab/apps-pages/view_routing_model_comparison"
+            )
+        },
+    )
+
+    assert errors["agi-page-routing-model-comparison"]["local_source_errors"] == {
+        "agi-page-inference-report": {
+            "path": "../view_inference_analysis",
+            "manifest": "src/agilab/apps-pages/view_inference_analysis/pyproject.toml",
+            "reason": "untracked",
+        }
+    }
+
+
 def test_load_module_supports_package_imports_without_preexisting_src_path(monkeypatch):
     module = _load_module()
     src_path = str((ROOT / "src").resolve())

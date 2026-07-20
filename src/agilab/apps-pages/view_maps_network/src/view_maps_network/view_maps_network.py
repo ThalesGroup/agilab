@@ -12,7 +12,6 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import sys
-import argparse
 import importlib
 import os
 from pathlib import Path
@@ -28,7 +27,7 @@ import matplotlib.colors as mcolors
 import glob
 import re
 from urllib.parse import quote, urlencode
-from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
+from agi_env.app_settings_support import prepare_app_settings_for_write
 try:
     import tomli_w as _toml_writer  # type: ignore[import-not-found]
 
@@ -52,6 +51,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for lightweight envs
 from streamlit.runtime.scriptrunner import RerunException
 from typing import Any, Optional
 from agi_env.agi_logger import AgiLogger
+from agi_pages.runtime import ensure_repo_on_path
 
 try:
     from edge_selection import CUSTOM_OPTION, NONE_OPTION, resolve_edges_picker_state
@@ -84,12 +84,12 @@ except ModuleNotFoundError:
 
 try:
     from allocation_support import (
-        _coerce_alloc_time_index as _coerce_alloc_time_index,
+        _coerce_alloc_time_index,
         _drop_index_levels_shadowing_columns,
         _nearest_row,
-        _normalize_allocations_frame as _normalize_allocations_frame,
-        _parse_allocations_cell as _parse_allocations_cell,
-        _pick_ci_column as _pick_ci_column,
+        _normalize_allocations_frame,
+        _parse_allocations_cell,
+        _pick_ci_column,
         load_allocations,
         safe_literal_eval,
     )
@@ -99,16 +99,15 @@ try:
         _candidate_node_ids,
         _canonical_edge_pair,
         _coerce_list_cell,
-        _coerce_numeric_float as _coerce_numeric_float,
-        _coerce_numeric_int as _coerce_numeric_int,
+        _coerce_numeric_float,
+        _coerce_numeric_int,
         _filter_allocation_rows_for_selected_nodes,
-        _format_node_label as _format_node_label,
+        _format_node_label,
         _normalize_node_id_series,
         _normalize_node_id_value,
         _preferred_node_id_from_row,
         _resolve_node_id,
         _semantic_node_id_from_text,
-        _strip_export_suffix,
     )
     from path_support import (
         _allocation_search_roots,
@@ -118,7 +117,6 @@ try:
         _candidate_files_from_globs,
         _choose_existing_declared_path,
         _expand_glob_patterns,
-        _find_latest_allocations as _find_latest_allocations,
         _is_baseline_alloc_path,
         _quick_share_edges_paths,
         _quick_share_traj_globs,
@@ -131,12 +129,12 @@ except ModuleNotFoundError:
     if page_dir_str not in sys.path:
         sys.path.insert(0, page_dir_str)
     from allocation_support import (
-        _coerce_alloc_time_index as _coerce_alloc_time_index,
+        _coerce_alloc_time_index,
         _drop_index_levels_shadowing_columns,
         _nearest_row,
-        _normalize_allocations_frame as _normalize_allocations_frame,
-        _parse_allocations_cell as _parse_allocations_cell,
-        _pick_ci_column as _pick_ci_column,
+        _normalize_allocations_frame,
+        _parse_allocations_cell,
+        _pick_ci_column,
         load_allocations,
         safe_literal_eval,
     )
@@ -146,16 +144,15 @@ except ModuleNotFoundError:
         _candidate_node_ids,
         _canonical_edge_pair,
         _coerce_list_cell,
-        _coerce_numeric_float as _coerce_numeric_float,
-        _coerce_numeric_int as _coerce_numeric_int,
+        _coerce_numeric_float,
+        _coerce_numeric_int,
         _filter_allocation_rows_for_selected_nodes,
-        _format_node_label as _format_node_label,
+        _format_node_label,
         _normalize_node_id_series,
         _normalize_node_id_value,
         _preferred_node_id_from_row,
         _resolve_node_id,
         _semantic_node_id_from_text,
-        _strip_export_suffix,
     )
     from path_support import (
         _allocation_search_roots,
@@ -165,60 +162,12 @@ except ModuleNotFoundError:
         _candidate_files_from_globs,
         _choose_existing_declared_path,
         _expand_glob_patterns,
-        _find_latest_allocations as _find_latest_allocations,
         _is_baseline_alloc_path,
         _quick_share_edges_paths,
         _quick_share_traj_globs,
         _resolve_declared_path,
         _resolve_edges_file_path,
     )
-
-def _semantic_node_id_from_text(value: Any) -> str | None:
-    text = _strip_export_suffix(value)
-    if not text:
-        return None
-    digits = "".join(ch for ch in text if ch.isdigit())
-    if not digits:
-        return None
-    try:
-        return str(int(digits))
-    except ValueError:
-        return None
-
-
-def _choose_existing_declared_path(current_value: str, default_value: str, base_dirs: list[Path]) -> str:
-    for candidate in (current_value, default_value):
-        raw = (candidate or "").strip()
-        if not raw:
-            continue
-        resolved = _resolve_declared_path(raw, base_dirs)
-        try:
-            path = Path(resolved).expanduser()
-        except (OSError, RuntimeError, TypeError, ValueError):
-            continue
-        if path.exists():
-            return str(path)
-
-    raw_current = (current_value or "").strip()
-    if raw_current:
-        return _resolve_declared_path(raw_current, base_dirs)
-
-    raw_default = (default_value or "").strip()
-    if raw_default:
-        return _resolve_declared_path(raw_default, base_dirs)
-    return ""
-
-
-def _resolve_edges_file_path(value: str, base_dirs: list[Path]) -> Path | None:
-    raw = (value or "").strip()
-    if not raw:
-        return None
-    resolved = _resolve_declared_path(raw, base_dirs)
-    try:
-        return Path(resolved).expanduser()
-    except (OSError, RuntimeError, TypeError, ValueError):
-        return None
-
 
 logger = AgiLogger.get_logger(__name__)
 _TRAILING_EXPORT_TIMESTAMP_RE = re.compile(r"[_-]\d{4}-\d{2}-\d{2}(?:[_-]\d{2}-\d{2}-\d{2})?$")
@@ -246,47 +195,17 @@ def _get_cmap(name: str, lut: int | None = None):
         ) from exc
 
 
-def _ensure_repo_on_path() -> None:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "agilab"
-        if candidate.is_dir():
-            src_root = candidate.parent
-            repo_root = src_root.parent
-            for entry in (str(src_root), str(repo_root)):
-                if entry not in sys.path:
-                    sys.path.insert(0, entry)
-            break
+ensure_repo_on_path(__file__)
 
-
-_ensure_repo_on_path()
-
-from agi_pages.runtime import render_streamlit_page_header, reset_scoped_session_state
+from agi_pages.runtime import (
+    ensure_app_settings_loaded,
+    render_app_page_context,
+    render_streamlit_page_header,
+    resolve_active_app_path,
+    reset_scoped_session_state,
+)
 from agi_env import AgiEnv
 import agi_gui.pagelib as pagelib
-
-
-def _resolve_active_app() -> Path:
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument(
-        "--active-app",
-        dest="active_app",
-        type=str,
-    )
-    args, _ = parser.parse_known_args()
-    active_app_value = args.active_app or os.environ.get("AGILAB_ACTIVE_APP")
-    if not active_app_value:
-        st.error("Missing --active-app argument.")
-        st.stop()
-    active_app_path = Path(active_app_value).expanduser()
-    if not active_app_path.exists():
-        st.error(f"Provided --active-app path not found: {active_app_path}")
-        st.stop()
-    return active_app_path
-
-
-def _analysis_return_url(app: str) -> str:
-    return f"/ANALYSIS?{urlencode({'active_app': app})}"
 
 
 def _active_app_context_from_env(env: Any) -> tuple[str, Path]:
@@ -387,34 +306,6 @@ def _reset_app_scoped_session_state(active_app_path: Path) -> bool:
     )
 
 
-def _render_app_page_context(app: str, active_app: Path) -> None:
-    columns = st.columns(2)
-    with columns[0]:
-        st.caption(f"`{app}`")
-    with columns[1]:
-        link_button = getattr(st, "link_button", None)
-        url = _analysis_return_url(app)
-        if callable(link_button):
-            link_button("Back to ANALYSIS", url, type="secondary", width="content")
-        else:
-            st.caption(f"Back to ANALYSIS: {url}")
-    with st.expander("Runtime context", expanded=False):
-        st.code(str(active_app), language="text")
-
-
-def _ensure_app_settings_loaded(env: AgiEnv) -> None:
-    if "app_settings" in st.session_state:
-        return
-    path = Path(env.app_settings_file)
-    if path.exists():
-        try:
-            st.session_state["app_settings"] = read_app_settings(path)
-            return
-        except (OSError, ValueError):
-            pass
-    st.session_state["app_settings"] = {}
-
-
 def _sanitize_toml_payload(value: Any) -> Any:
     if value is None:
         return ""
@@ -435,32 +326,18 @@ def _sanitize_toml_payload(value: Any) -> Any:
     return value
 
 
-def _persist_app_settings(env: AgiEnv, owned_keys: tuple[str, ...]) -> None:
+def _persist_app_settings(env: AgiEnv) -> None:
     settings = st.session_state.get("app_settings")
     if not isinstance(settings, dict):
         return
-    vm_settings = settings.get("view_maps_network")
-    if not isinstance(vm_settings, dict):
-        vm_settings = {}
-    if not owned_keys:
-        return
     path = Path(env.app_settings_file)
     try:
-        latest, _ = update_app_settings_owned(
-            path,
-            _sanitize_toml_payload(settings),
-            owned_paths=tuple(
-                ("view_maps_network", key) for key in owned_keys
-            ),
-            dump_fn=_dump_toml,
-        )
-        latest_vm_settings = latest.get("view_maps_network")
-        vm_settings.clear()
-        if isinstance(latest_vm_settings, dict):
-            vm_settings.update(latest_vm_settings)
-        settings.clear()
-        settings.update(latest)
-        settings["view_maps_network"] = vm_settings
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "wb") as handle:
+            _dump_toml(
+                prepare_app_settings_for_write(_sanitize_toml_payload(settings), sanitize=False),
+                handle,
+            )
     except (OSError, RuntimeError, ValueError) as exc:
         logger.warning(f"Unable to persist app_settings to {path}: {exc}")
 
@@ -507,11 +384,11 @@ render_streamlit_page_header(
     logo_title="Cartography Visualization",
 )
 
-active_app_path = _resolve_active_app()
+active_app_path = resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
 app_scope_changed = _reset_app_scoped_session_state(active_app_path)
 if 'env' not in st.session_state or app_scope_changed:
     app_name = active_app_path.name
-    env = AgiEnv.session_for_app(apps_path=active_app_path.parent, app=app_name, verbose=0)
+    env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=app_name, verbose=0)
     env.init_done = True
     st.session_state['env'] = env
     st.session_state['IS_SOURCE_ENV'] = env.is_source_env
@@ -522,8 +399,8 @@ else:
     env = st.session_state['env']
     app_name, active_app_path = _active_app_context_from_env(env)
 
-_ensure_app_settings_loaded(env)
-_render_app_page_context(app_name, active_app_path)
+ensure_app_settings_loaded(st.session_state, env)
+render_app_page_context(st, app_name, active_app_path)
 
 if "TABLE_MAX_ROWS" not in st.session_state:
     st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
@@ -1241,6 +1118,11 @@ _LINK_LABELS = {
 }
 PAGE_KEY_PREFIX = "view_maps_network"
 
+# New page-owned controls use this namespace.  Older data and visibility
+# controls intentionally keep their persisted bare names because app settings,
+# notebook links, and query parameters already use them.  Those legacy keys are
+# still app-scoped: every one is listed in APP_SCOPED_SESSION_DEFAULT_KEYS and
+# cleared when the active app changes.
 
 def _vmn_key(name: str) -> str:
     return f"{PAGE_KEY_PREFIX}:{name}"
@@ -1261,6 +1143,41 @@ DF_FILES_KEY = _vmn_key("df_files")
 DF_SELECT_MODE_KEY = _vmn_key("df_select_mode")
 DF_FILE_REGEX_KEY = _vmn_key("df_file_regex")
 DF_REGEX_SELECT_ALL_KEY = _vmn_key("df_regex_select_all")
+SPLIT_VIEW_SAVED_VISIBILITY_KEY = _vmn_key("split_view_saved_visibility")
+
+
+def _split_view_mode(value: Any) -> str:
+    if isinstance(value, (list, tuple)):
+        value = value[-1] if value else ""
+    normalized = str(value or "").strip().lower()
+    return normalized if normalized in {"map", "graph"} else ""
+
+
+def _apply_split_view_override(session_state: Any, value: Any) -> str:
+    """Apply or clear a query-owned map/graph visibility override before widgets render."""
+
+    mode = _split_view_mode(value)
+    saved_visibility = session_state.get(SPLIT_VIEW_SAVED_VISIBILITY_KEY)
+    if mode:
+        if not isinstance(saved_visibility, dict):
+            session_state[SPLIT_VIEW_SAVED_VISIBILITY_KEY] = {
+                "show_map": bool(session_state.get("show_map", True)),
+                "show_graph": bool(session_state.get("show_graph", True)),
+            }
+        session_state["show_map"] = mode == "map"
+        session_state["show_graph"] = mode == "graph"
+        return mode
+
+    if isinstance(saved_visibility, dict):
+        session_state["show_map"] = bool(saved_visibility.get("show_map", True))
+        session_state["show_graph"] = bool(saved_visibility.get("show_graph", True))
+        session_state.pop(SPLIT_VIEW_SAVED_VISIBILITY_KEY, None)
+    return ""
+
+
+def _split_view_caption(mode: str) -> str:
+    visible_surface = "map" if mode == "map" else "topology graph"
+    return f"Split-screen route: showing only the {visible_surface}."
 
 
 def _coerce_slider_value(options: list[Any], current: Any, *, prefer_last: bool = False) -> Any:
@@ -2905,6 +2822,10 @@ def page():
     qp_alloc_pair = _read_query_param("alloc_pair")
     if qp_alloc_pair is not None and qp_alloc_pair.strip():
         st.session_state["_alloc_pair_qp"] = qp_alloc_pair.strip()
+    split_view_mode = _apply_split_view_override(
+        st.session_state,
+        _read_query_param("view"),
+    )
 
     # Data directory + presets (base paths without app suffix)
     export_base = env.AGILAB_EXPORT_ABS
@@ -3035,13 +2956,15 @@ def page():
         "layout_type_select": st.session_state.get("layout_type_select", "spring"),
         "metric_type_select": st.session_state.get("metric_type_select", ""),
     }
-    vm_changed_keys: list[str] = []
+    vm_mutated = False
     for key, value in new_vm_settings.items():
+        if split_view_mode and key in {"show_map", "show_graph"}:
+            continue
         if vm_settings.get(key) != value:
             vm_settings[key] = value
-            vm_changed_keys.append(key)
-    if vm_changed_keys:
-        _persist_app_settings(env, tuple(vm_changed_keys))
+            vm_mutated = True
+    if vm_mutated:
+        _persist_app_settings(env)
 
     datadir_path = Path(st.session_state.datadir).expanduser()
     def _visible_only(paths):
@@ -3387,7 +3310,7 @@ def page():
     st.sidebar.caption(f"{shown_count} / {len(available_node_ids)} flights shown")
     if vm_settings.get("selected_flights_filter") != selected_node_ids:
         vm_settings["selected_flights_filter"] = selected_node_ids
-        _persist_app_settings(env, ("selected_flights_filter",))
+        _persist_app_settings(env)
 
     if selected_node_set:
         df_std = df_std[df_std["id_col"].isin(selected_node_set)].copy()
@@ -3485,7 +3408,7 @@ def page():
 
     if vm_settings.get("edges_file") != edges_clean:
         vm_settings["edges_file"] = edges_clean
-        _persist_app_settings(env, ("edges_file",))
+        _persist_app_settings(env)
 
     link_options = _detect_link_columns(df_std)
     if loaded_edges:
@@ -3529,8 +3452,21 @@ def page():
     st.session_state.setdefault("show_topology_links", True)
     st.session_state.setdefault("jitter_overlap", False)
     st.session_state.setdefault("show_metrics", False)
-    show_map = st.sidebar.checkbox("Show map view", key="show_map")
-    show_graph = st.sidebar.checkbox("Show topology graph", key="show_graph")
+    split_view_help = "Controlled by the split-screen route in this browser window."
+    show_map = st.sidebar.checkbox(
+        "Show map view",
+        key="show_map",
+        disabled=bool(split_view_mode),
+        help=split_view_help if split_view_mode else None,
+    )
+    show_graph = st.sidebar.checkbox(
+        "Show topology graph",
+        key="show_graph",
+        disabled=bool(split_view_mode),
+        help=split_view_help if split_view_mode else None,
+    )
+    if split_view_mode:
+        st.sidebar.caption(_split_view_caption(split_view_mode))
     jitter_overlap = st.sidebar.checkbox("Separate overlapping nodes", key="jitter_overlap")
     show_metrics = st.sidebar.checkbox("Show metrics table", key="show_metrics")
     marker_options = ["Dots", "Plane icons"]
@@ -3890,13 +3826,6 @@ def page():
 
     # Layout containers based on toggles (side-by-side columns)
     map_container = graph_container = None
-    qps = st.query_params
-    view_param = (qps.get("view", [""])[0] if isinstance(qps.get("view"), list) else qps.get("view", "")) or ""
-    view_param = view_param.lower()
-    if view_param == "map":  # pragma: no cover - dual-screen query-param path
-        show_map, show_graph = True, False
-    elif view_param == "graph":  # pragma: no cover - dual-screen query-param path
-        show_map, show_graph = False, True
     if show_map and show_graph:
         col1, col2 = st.columns([4, 4])
         map_container, graph_container = col1, col2
@@ -4249,10 +4178,7 @@ def page():
         vm_settings["allocations_file"] = alloc_clean
         vm_settings["baseline_allocations_file"] = baseline_clean
         vm_settings["traj_glob"] = traj_clean
-        _persist_app_settings(
-            env,
-            ("allocations_file", "baseline_allocations_file", "traj_glob"),
-        )
+        _persist_app_settings(env)
     alloc_df = (
         load_allocations(alloc_path_obj)
         if alloc_path_obj is not None and alloc_path_obj.exists()
@@ -4391,7 +4317,6 @@ def page():
             st.caption(f"Decision step: {t_sel}")
         else:
             t_sel = st.select_slider("Decision step", options=times, key=DECISION_STEP_KEY)
-            st.session_state["alloc_time_index"] = t_sel
             st.session_state["alloc_time_index"] = t_sel
         st.query_params["alloc_time_index"] = str(t_sel)
         alloc_step = (
@@ -4613,16 +4538,6 @@ def main():
         import traceback
         st.caption("Full traceback")
         st.code(traceback.format_exc(), language="text", height=400)
-
-def update_var(var_key, widget_key):
-    st.session_state[var_key] = st.session_state[widget_key]
-
-def update_datadir(var_key, widget_key):
-    if DF_FILE_KEY in st.session_state:
-        del st.session_state[DF_FILE_KEY]
-    if "csv_files" in st.session_state:
-        del st.session_state["csv_files"]
-    update_var(var_key, widget_key)
 
 if __name__ == "__main__":
     main()

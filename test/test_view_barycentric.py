@@ -833,7 +833,7 @@ def test_view_barycentric_repo_path_and_visible_file_helpers(monkeypatch, tmp_pa
 
     monkeypatch.setattr(module, "__file__", str(module_path))
     monkeypatch.setattr(module.sys, "path", [])
-    module._ensure_repo_on_path()
+    module.ensure_repo_on_path(module.__file__)
 
     assert str(src_root) in module.sys.path
     assert str(repo_root) in module.sys.path
@@ -1032,7 +1032,11 @@ def test_view_barycentric_main_reports_outer_exception(monkeypatch) -> None:
     module = _load_module()
     errors: list[str] = []
 
-    monkeypatch.setattr(module.argparse, "ArgumentParser", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("arg boom")))
+    monkeypatch.setattr(
+        module,
+        "resolve_active_app_path",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("arg boom")),
+    )
     monkeypatch.setattr(
         module,
         "st",

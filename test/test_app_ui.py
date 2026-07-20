@@ -29,13 +29,13 @@ def test_app_ui_resolves_project_scoped_entrypoint(tmp_path: Path) -> None:
     ui.write_text("def main(): pass\n", encoding="utf-8")
     outside.write_text("def main(): pass\n", encoding="utf-8")
 
-    assert module._resolve_active_app(["--active-app", str(app)]) == app.resolve()
+    assert module.resolve_active_app_path(["--active-app", str(app)]) == app.resolve()
     assert module._resolve_entrypoint(app, "demo/ui.py") == ui.resolve()
     assert module._resolve_entrypoint(app, "../outside.py") is None
     assert module._resolve_entrypoint(app, str(outside)) is None
     assert module._resolve_entrypoint(app, "") is None
     with pytest.raises(FileNotFoundError, match="Provided --active-app path not found"):
-        module._resolve_active_app(["--active-app", str(tmp_path / "missing_project")])
+        module.resolve_active_app_path(["--active-app", str(tmp_path / "missing_project")])
 
 
 def test_app_ui_reads_missing_or_invalid_settings_as_empty(tmp_path: Path) -> None:
@@ -111,6 +111,7 @@ def test_app_ui_runs_app_main_with_script_local_imports(
     tmp_path: Path,
 ) -> None:
     module = _load_module()
+    original_path = list(sys.path)
     app = tmp_path / "demo_project"
     ui = app / "src" / "demo" / "ui.py"
     marker = tmp_path / "local_import.txt"
@@ -132,18 +133,30 @@ def test_app_ui_runs_app_main_with_script_local_imports(
     module._run_app_ui(ui, app)
 
     assert marker.read_text(encoding="utf-8") == "script-local-core"
-    assert sys.path[:2] == [str((app / "src").resolve()), str(ui.parent.resolve())]
+    assert sys.path == original_path
 
 
-def test_app_ui_reorders_path_and_rejects_entrypoint_without_main(
+def test_app_ui_temporarily_reorders_path_and_rejects_entrypoint_without_main(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     module = _load_module()
     app = tmp_path / "demo_project"
     ui = app / "src" / "demo" / "ui.py"
+    marker = tmp_path / "import_path.txt"
     ui.parent.mkdir(parents=True)
-    ui.write_text("VALUE = 1\n", encoding="utf-8")
+    ui.write_text(
+        "\n".join(
+            [
+                "from pathlib import Path",
+                "import sys",
+                f"Path({str(marker)!r}).write_text('|'.join(sys.path[:2]), encoding='utf-8')",
+                "VALUE = 1",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(sys, "path", [str(app / "src"), "existing"])
     previous_argv = list(sys.argv)
 
@@ -151,7 +164,10 @@ def test_app_ui_reorders_path_and_rejects_entrypoint_without_main(
         module._run_app_ui(ui, app)
 
     assert sys.argv == previous_argv
-    assert sys.path[:3] == [str(app / "src"), str(ui.parent), "existing"]
+    assert marker.read_text(encoding="utf-8") == (
+        f"{(app / 'src').resolve()}|{ui.parent.resolve()}"
+    )
+    assert sys.path == [str(app / "src"), "existing"]
 
 
 def test_app_ui_load_module_reports_missing_spec_and_cleans_failed_import(

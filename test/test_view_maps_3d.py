@@ -303,7 +303,7 @@ def test_view_maps_3d_repo_path_helpers(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(module, "__file__", str(module_path))
     monkeypatch.setattr(module.sys, "path", [])
 
-    module._ensure_repo_on_path()
+    module.ensure_repo_on_path(module.__file__)
 
     assert str(src_root) in module.sys.path
     assert str(repo_root) in module.sys.path

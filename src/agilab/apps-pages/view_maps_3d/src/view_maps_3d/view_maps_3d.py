@@ -14,7 +14,6 @@
 import html
 import os
 import sys
-import argparse
 from pathlib import Path
 import re
 
@@ -26,23 +25,11 @@ import geojson
 import random
 
 from agi_env.agi_logger import AgiLogger
+from agi_pages.runtime import ensure_repo_on_path, resolve_active_app_path
 
 logger = AgiLogger.get_logger(__name__)
 
-def _ensure_repo_on_path() -> None:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "agilab"
-        if candidate.is_dir():
-            src_root = candidate.parent
-            repo_root = src_root.parent
-            for entry in (str(src_root), str(repo_root)):
-                if entry not in sys.path:
-                    sys.path.insert(0, entry)
-            break
-
-
-_ensure_repo_on_path()
+ensure_repo_on_path(__file__)
 
 from agi_pages.runtime import render_streamlit_page_header, reset_scoped_session_state
 
@@ -1397,24 +1384,13 @@ def main():
     Main function to run the application.
     """
     try:
-        parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
-        parser.add_argument(
-            "--active-app",
-            dest="active_app",
-            type=str,
-            help="Active app path (e.g. src/agilab/apps/builtin/flight_telemetry_project)",
+        active_app = resolve_active_app_path(
+            error_fn=st.error,
+            stop_fn=lambda: st.stop(),
+            not_found_stop_fn=lambda: sys.exit(1),
+            missing_message="Error: missing --active-app argument.",
+            not_found_message="Error: provided --active-app path not found: {path}",
         )
-        args, _ = parser.parse_known_args()
-
-        active_app_value = args.active_app or os.environ.get("AGILAB_ACTIVE_APP")
-        if not active_app_value:
-            st.error("Error: missing --active-app argument.")
-            st.stop()
-
-        active_app = Path(active_app_value).expanduser()
-        if not active_app.exists():
-            st.error(f"Error: provided --active-app path not found: {active_app}")
-            sys.exit(1)
 
         _reset_app_scoped_session_state(active_app)
         # Short app name

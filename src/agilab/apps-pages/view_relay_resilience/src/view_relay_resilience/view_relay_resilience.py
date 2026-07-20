@@ -17,19 +17,15 @@ from agi_pages.queue_resilience import (
     render_queue_resilience_run,
 )
 from agi_pages.runtime import (
-    ensure_repo_on_path as _page_ensure_repo_on_path,
+    ensure_repo_on_path,
     relative_label as _page_relative_label,
     safe_metric as _safe_metric,
 )
 
 
-def _ensure_repo_on_path() -> None:
-    _page_ensure_repo_on_path(__file__)
+ensure_repo_on_path(__file__)
 
-
-_ensure_repo_on_path()
-
-from agi_env import AgiEnv  # noqa: E402
+from agi_env import AgiEnv
 
 RUN_SELECTION_KEY = "relay_resilience_selected_runs"
 DETAIL_RUN_KEY = "relay_resilience_detail_run"
@@ -162,19 +158,9 @@ def _build_max_queue_comparison_frame(selected_paths: dict[str, Path]) -> pd.Dat
     return pd.concat(queue_frames, axis=1).sort_index()
 
 
-def _create_env(active_app_path: Path) -> AgiEnv:
-    env = AgiEnv.session_for_app(
-        apps_path=active_app_path.parent,
-        app=active_app_path.name,
-        verbose=0,
-    )
-    env.init_done = True
-    return env
-
-
 page_context = prepare_queue_resilience_page(
     st,
-    env_factory=_create_env,
+    AgiEnv,
     title="Relay resilience analysis",
     logo_title="Relay Resilience Analysis",
     caption=(
@@ -267,28 +253,31 @@ if len(selected_run_labels) > 1 and not comparison_df.empty:
         _safe_metric(comparison_df.loc[best_pdr_idx, "pdr"])
         if best_pdr_idx is not None
         else "n/a",
-        comparison_df.loc[best_pdr_idx, "run_label"]
-        if best_pdr_idx is not None
-        else None,
     )
+    if best_pdr_idx is not None:
+        comparison_cols[1].caption(
+            f"Run: `{comparison_df.loc[best_pdr_idx, 'run_label']}`"
+        )
     comparison_cols[2].metric(
         "Lowest delay (ms)",
         _safe_metric(comparison_df.loc[lowest_delay_idx, "mean_e2e_delay_ms"])
         if lowest_delay_idx is not None
         else "n/a",
-        comparison_df.loc[lowest_delay_idx, "run_label"]
-        if lowest_delay_idx is not None
-        else None,
     )
+    if lowest_delay_idx is not None:
+        comparison_cols[2].caption(
+            f"Run: `{comparison_df.loc[lowest_delay_idx, 'run_label']}`"
+        )
     comparison_cols[3].metric(
         "Lowest queue wait (ms)",
         _safe_metric(comparison_df.loc[lowest_queue_idx, "mean_queue_wait_ms"])
         if lowest_queue_idx is not None
         else "n/a",
-        comparison_df.loc[lowest_queue_idx, "run_label"]
-        if lowest_queue_idx is not None
-        else None,
     )
+    if lowest_queue_idx is not None:
+        comparison_cols[3].caption(
+            f"Run: `{comparison_df.loc[lowest_queue_idx, 'run_label']}`"
+        )
     st.dataframe(comparison_df, width="stretch", hide_index=True)
     st.caption(
         f"Reference run: `{reference_run_label}`. Positive `delta_pdr_vs_ref` is better; negative "

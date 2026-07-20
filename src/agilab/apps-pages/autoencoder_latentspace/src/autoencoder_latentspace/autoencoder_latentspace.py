@@ -19,24 +19,10 @@ import numpy as np
 from pathlib import Path
 import streamlit as st
 import pandas as pd
-import argparse
 from barviz import Simplex, Collection, Scrawler, Attributes # CAUTION: Place it at the first line to avoid other pagelib import instabilities
+from agi_pages.runtime import ensure_repo_on_path, resolve_active_app_path
 
-
-def _ensure_repo_on_path() -> None:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "agilab"
-        if candidate.is_dir():
-            src_root = candidate.parent
-            repo_root = src_root.parent
-            for entry in (str(src_root), str(repo_root)):
-                if entry not in sys.path:
-                    sys.path.insert(0, entry)
-            break
-
-
-_ensure_repo_on_path()
+ensure_repo_on_path(__file__)
 
 from agi_pages.runtime import active_app_scope_value, render_streamlit_page_header, reset_scoped_session_state
 from agi_env import AgiEnv
@@ -682,19 +668,11 @@ def main():
     Main function to run the application.
     """
     try:
-        parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
-        parser.add_argument(
-            "--active-app",
-            type=str,
-            help="Path to the active app (e.g. src/agilab/apps/builtin/flight_telemetry_project)",
-            required=True,
+        active_app = resolve_active_app_path(
+            error_fn=st.error,
+            stop_fn=lambda: sys.exit(1),
+            not_found_message="Error: provided --active-app path not found: {path}",
         )
-        args, _ = parser.parse_known_args()
-
-        active_app = Path(args.active_app).expanduser()
-        if not active_app.exists():
-            st.error(f"Error: provided --active-app path not found: {active_app}")
-            sys.exit(1)
 
         _reset_state_for_active_app(active_app.resolve())
 

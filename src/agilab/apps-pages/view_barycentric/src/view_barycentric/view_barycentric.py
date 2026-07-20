@@ -21,9 +21,8 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import sys
-import os
 import math
+import sys
 import logging
 import numpy as np
 from pathlib import Path
@@ -34,23 +33,9 @@ from math import sqrt, cos, sin
 import streamlit as st
 from sklearn.preprocessing import StandardScaler
 from scipy.signal import savgol_filter
-import argparse
+from agi_pages.runtime import ensure_repo_on_path, resolve_active_app_path
 
-
-def _ensure_repo_on_path() -> None:
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "agilab"
-        if candidate.is_dir():
-            src_root = candidate.parent
-            repo_root = src_root.parent
-            for entry in (str(src_root), str(repo_root)):
-                if entry not in sys.path:
-                    sys.path.insert(0, entry)
-            break
-
-
-_ensure_repo_on_path()
+ensure_repo_on_path(__file__)
 
 from agi_pages.runtime import render_streamlit_page_header, reset_scoped_session_state
 from agi_env import AgiEnv
@@ -699,24 +684,13 @@ def main():
     Main function to run the application.
     """
     try:
-        parser = argparse.ArgumentParser(description="Run the AGI Streamlit View with optional parameters.")
-        parser.add_argument(
-            "--active-app",
-            dest="active_app",
-            type=str,
-            help="Active app path (e.g. src/agilab/apps/builtin/flight_telemetry_project)",
+        active_app = resolve_active_app_path(
+            error_fn=st.error,
+            stop_fn=lambda: st.stop(),
+            not_found_stop_fn=lambda: sys.exit(1),
+            missing_message="Error: missing --active-app argument.",
+            not_found_message="Error: provided --active-app path not found: {path}",
         )
-        args, _ = parser.parse_known_args()
-
-        active_app_value = args.active_app or os.environ.get("AGILAB_ACTIVE_APP")
-        if not active_app_value:
-            st.error("Error: missing --active-app argument.")
-            st.stop()
-
-        active_app = Path(active_app_value).expanduser()
-        if not active_app.exists():
-            st.error(f"Error: provided --active-app path not found: {active_app}")
-            sys.exit(1)
 
         _reset_app_scoped_session_state(active_app)
         if "coltype" not in st.session_state:
