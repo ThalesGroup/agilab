@@ -223,6 +223,12 @@ def test_robust_shortcut_keeps_matrix_arguments():
     ]
 
 
+def test_robust_shortcut_usage_names_recovery_profiles():
+    usage = agilab_dev._usage()
+
+    assert "--profile p1-recovery or all" in usage
+
+
 def test_parallel_stage_shortcut_runs_parallel_stage_tool():
     assert agilab_dev.planned_commands(
         ["parallel-stage", "--check", "parallel_stage.toml"]

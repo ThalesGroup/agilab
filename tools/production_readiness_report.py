@@ -282,6 +282,67 @@ def _check_architecture_scorecard(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_runtime_robustness_matrix(repo_root: Path) -> dict[str, Any]:
+    required_recovery_scenarios = {
+        "stale_runner_state_writer_is_rejected",
+        "crash_partial_agent_trace_tail_is_quarantined",
+        "interrupted_workflow_evidence_publish_recovers",
+        "tampered_workflow_evidence_manifest_is_rejected",
+    }
+    try:
+        robustness_matrix = _load_tool_module("robustness_matrix")
+        report = robustness_matrix.build_report(repo_root=repo_root, profile="all")
+        scenarios = report.get("scenarios", [])
+        scenario_ids = {
+            str(scenario.get("id"))
+            for scenario in scenarios
+            if isinstance(scenario, Mapping) and scenario.get("id")
+        }
+        failed = [
+            str(scenario.get("id"))
+            for scenario in scenarios
+            if isinstance(scenario, Mapping) and scenario.get("status") != "pass"
+        ]
+        missing_recovery_scenarios = sorted(required_recovery_scenarios - scenario_ids)
+        ok = (
+            report.get("schema") == robustness_matrix.SCHEMA
+            and report.get("profile") == "all"
+            and report.get("status") == "pass"
+            and not failed
+            and not missing_recovery_scenarios
+        )
+        summary = (
+            "the full fail-closed and crash-recovery robustness matrix passes"
+            if ok
+            else "the runtime robustness matrix is failing or missing required recovery scenarios"
+        )
+        details = {
+            "schema": report.get("schema"),
+            "profile": report.get("profile"),
+            "available_profiles": report.get("available_profiles", []),
+            "scenario_count": report.get("summary", {}).get("scenario_count", 0),
+            "domains": report.get("summary", {}).get("domains", []),
+            "failed": failed,
+            "missing_recovery_scenarios": missing_recovery_scenarios,
+        }
+    except Exception as exc:
+        ok = False
+        summary = str(exc)
+        details = {
+            "error": str(exc),
+            "failed": [],
+            "missing_recovery_scenarios": sorted(required_recovery_scenarios),
+        }
+    return _check_result(
+        "runtime_robustness_matrix",
+        "Runtime robustness matrix",
+        ok,
+        summary,
+        evidence=["tools/robustness_matrix.py", "test/test_robustness_matrix.py"],
+        details=details,
+    )
+
+
 def _check_compatibility_matrix(repo_root: Path) -> dict[str, Any]:
     matrix_path = repo_root / "docs" / "source" / "data" / "compatibility_matrix.toml"
     required_validated_ids = {
@@ -835,6 +896,7 @@ def build_report(*, repo_root: Path = REPO_ROOT, run_docs_profile: bool = False)
         _check_docs_workflow_profile(repo_root),
         _check_production_readiness_workflow_profile(repo_root),
         _check_architecture_scorecard(repo_root),
+        _check_runtime_robustness_matrix(repo_root),
         _check_compatibility_matrix(repo_root),
         _check_service_health_contract(repo_root),
         _check_controlled_pilot_readiness_gate(repo_root),

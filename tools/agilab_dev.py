@@ -562,7 +562,7 @@ High-frequency mappings:
   test      -> Run targeted pytest with -q and repo-wide coverage disabled, while keeping all extra pytest arguments.
   lint      -> Run Ruff through the repo dev extra on the default clean guardrail slice; pass paths for custom scope.
   regress   -> Use the GA regression selector on staged files and run the selected pytest subset.
-  robust    -> Run the P0 robustness matrix of fail-closed bad-state scenarios.
+  robust    -> Run P0 fail-closed scenarios; use --profile p1-recovery or all for recovery evidence.
   parallel-stage -> Create or validate a function + split rule + reducer contract for parallel execution.
   app-contracts -> Check built-in app, PyPI package, app catalog, and public-doc alignment.
   builtin-app-tests -> Run built-in app tests inside each app's own uv project environment.

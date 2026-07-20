@@ -35,6 +35,7 @@ def test_build_report_passes_static_production_readiness_contracts() -> None:
         "docs_workflow_parity_profile",
         "production_readiness_workflow_profile",
         "architecture_scorecard",
+        "runtime_robustness_matrix",
         "compatibility_matrix_validated_paths",
         "service_health_json_prometheus",
         "controlled_pilot_readiness_gate",
@@ -63,6 +64,7 @@ def test_build_report_includes_shared_adoption_hardening_controls() -> None:
         "cluster_share_fail_fast",
         "controlled_pilot_readiness_gate",
         "architecture_scorecard",
+        "runtime_robustness_matrix",
         "production_boundary_docs",
     }:
         check = checks[check_id]
@@ -126,6 +128,28 @@ def test_architecture_scorecard_is_scoped_and_evidence_backed() -> None:
         "architecture_capacity_model_trust_boundary",
         "architecture_hardening_gap_register",
         "architecture_claim_boundary",
+    }
+
+
+def test_runtime_robustness_matrix_executes_fail_closed_and_recovery_profiles() -> None:
+    module = _load_module()
+
+    report = module.build_report(run_docs_profile=False)
+    check = next(
+        check for check in report["checks"] if check["id"] == "runtime_robustness_matrix"
+    )
+
+    assert check["status"] == "pass"
+    assert check["details"]["profile"] == "all"
+    assert check["details"]["scenario_count"] >= 16
+    assert check["details"]["failed"] == []
+    assert check["details"]["missing_recovery_scenarios"] == []
+    assert {"runner-state", "agent-trace", "workflow-evidence"} <= set(
+        check["details"]["domains"]
+    )
+    assert set(check["evidence"]) == {
+        "tools/robustness_matrix.py",
+        "test/test_robustness_matrix.py",
     }
 
 

@@ -37,6 +37,50 @@ def test_robustness_matrix_p0_passes_against_current_contracts() -> None:
     assert scenarios["invalid_notebook_import_fails_preflight"]["status"] == "pass"
     assert scenarios["streamlit_routes_do_not_hardcode_pages_directory"]["status"] == "pass"
     assert "replay_command" in scenarios["invalid_run_manifest_fails_verification"]
+    assert all(scenario["profiles"] == ["p0"] for scenario in scenarios.values())
+
+
+def test_robustness_matrix_p1_recovery_passes_against_current_contracts() -> None:
+    module = _load_module()
+
+    report = module.build_report(repo_root=Path.cwd(), profile=module.RECOVERY_PROFILE)
+
+    assert report["schema"] == module.SCHEMA
+    assert report["status"] == "pass"
+    assert report["profile"] == "p1-recovery"
+    assert report["available_profiles"] == ["p0", "p1-recovery", "all"]
+    assert report["summary"]["scenario_count"] >= 4
+    assert report["summary"]["failed"] == 0
+    scenarios = {scenario["id"]: scenario for scenario in report["scenarios"]}
+    assert {
+        "stale_runner_state_writer_is_rejected",
+        "crash_partial_agent_trace_tail_is_quarantined",
+        "interrupted_workflow_evidence_publish_recovers",
+        "tampered_workflow_evidence_manifest_is_rejected",
+    } <= set(scenarios)
+    assert all(
+        scenario["profiles"] == ["p1-recovery"] for scenario in scenarios.values()
+    )
+    assert scenarios["stale_runner_state_writer_is_rejected"]["details"][
+        "stale_write_preserved_current_state"
+    ] is True
+    assert scenarios["interrupted_workflow_evidence_publish_recovers"]["details"][
+        "hidden_after_failure"
+    ] is True
+
+
+def test_robustness_matrix_all_profile_combines_fail_closed_and_recovery() -> None:
+    module = _load_module()
+
+    report = module.build_report(repo_root=Path.cwd(), profile="all")
+
+    assert report["status"] == "pass"
+    assert report["profile"] == "all"
+    assert report["summary"]["scenario_count"] == len(module.SCENARIOS)
+    assert {scenario["profiles"][0] for scenario in report["scenarios"]} == {
+        "p0",
+        "p1-recovery",
+    }
 
 
 def test_robustness_matrix_reports_synthetic_failed_scenario() -> None:
@@ -112,3 +156,4 @@ def test_robustness_matrix_lists_scenarios(capsys) -> None:
     assert code == 0
     assert "cluster_share_same_as_local_fails_closed\tcluster" in captured.out
     assert "streamlit_routes_do_not_hardcode_pages_directory\tui-routing" in captured.out
+    assert "interrupted_workflow_evidence_publish_recovers\tworkflow-evidence" in captured.out
