@@ -71,11 +71,10 @@ def main() -> None:
             missing_message="Open this page from AGILAB Analysis so the active project is passed in.",
             error_fn=st.error,
             missing_fn=st.info,
-            stop_fn=st.stop,
         )
     except (FileNotFoundError, ValueError):
-        # Streamlit's real ``stop`` raises before this point; the return keeps
-        # the template safe under lightweight test doubles as well.
+        # A generated page should render the actionable resolver message and
+        # return cleanly when it is opened outside an active project context.
         return
 
     env = _load_project_env(active_app)

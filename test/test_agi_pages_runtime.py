@@ -418,16 +418,21 @@ def test_agi_pages_runtime_ensure_repo_on_path(monkeypatch, tmp_path: Path) -> N
     page_file.parent.mkdir(parents=True)
     page_file.write_text("# page\n", encoding="utf-8")
 
+    agilab_package = sys.modules["agilab"]
+    monkeypatch.setattr(agilab_package, "__path__", list(agilab_package.__path__))
     monkeypatch.setattr(sys, "path", [])
     runtime.ensure_repo_on_path(page_file)
 
     assert str(src_root) in sys.path
     assert str(repo_root) in sys.path
+    assert str(src_root / "agilab") in agilab_package.__path__
     first_path = list(sys.path)
+    first_package_path = list(agilab_package.__path__)
 
     runtime.ensure_repo_on_path(page_file)
 
     assert sys.path == first_path
+    assert list(agilab_package.__path__) == first_package_path
 
 
 def test_agi_pages_runtime_ensure_repo_on_path_ignores_unmatched_anchor(

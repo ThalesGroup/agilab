@@ -476,6 +476,24 @@ def _tracked_children(repo_root: Path, root_rel: Path) -> set[str] | None:
     return children
 
 
+def _tracked_repo_files(repo_root: Path) -> set[str] | None:
+    """Return repository-relative tracked files for git checkouts."""
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "ls-files", "-z"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except (OSError, ValueError):
+        return None
+    if result.returncode != 0:
+        return None
+    return {Path(item).as_posix() for item in result.stdout.split("\0") if item}
+
+
 def discover_builtin_projects(repo_root: Path) -> tuple[Path, ...]:
     builtin_root = repo_root / BUILTIN_APPS_REL
     tracked_project_names = _tracked_builtin_project_names(repo_root)
@@ -500,6 +518,15 @@ def discover_page_bundle_projects(repo_root: Path) -> tuple[Path, ...]:
     pages_root = repo_root / APPS_PAGES_REL
     if not pages_root.is_dir():
         return ()
+    tracked_page_names = _tracked_children(repo_root, APPS_PAGES_REL)
+    if tracked_page_names is not None:
+        return tuple(
+            sorted(
+                pages_root / name
+                for name in tracked_page_names
+                if (pages_root / name / "pyproject.toml").is_file()
+            )
+        )
     return tuple(
         sorted(
             path
@@ -868,12 +895,66 @@ def _agi_pages_public_modules(repo_root: Path) -> tuple[str, ...]:
     )
 
 
+def _local_page_source_errors(
+    repo_root: Path,
+    pyproject_path: Path,
+    pyproject: Mapping[str, Any],
+    *,
+    tracked_files: set[str] | None,
+) -> dict[str, dict[str, str]]:
+    """Report local uv sources that are missing from the checked-in tree."""
+
+    tool = pyproject.get("tool", {})
+    uv = tool.get("uv", {}) if isinstance(tool, Mapping) else {}
+    sources = uv.get("sources", {}) if isinstance(uv, Mapping) else {}
+    if not isinstance(sources, Mapping):
+        return {}
+
+    errors: dict[str, dict[str, str]] = {}
+    resolved_repo_root = repo_root.resolve()
+    for dependency, source in sorted(sources.items()):
+        if not isinstance(source, Mapping):
+            continue
+        raw_path = source.get("path")
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            continue
+        source_path = (pyproject_path.parent / raw_path).resolve()
+        manifest_path = (
+            source_path
+            if source_path.name == "pyproject.toml"
+            else source_path / "pyproject.toml"
+        )
+        try:
+            relative_manifest = manifest_path.relative_to(resolved_repo_root).as_posix()
+        except ValueError:
+            errors[str(dependency)] = {
+                "path": raw_path,
+                "manifest": str(manifest_path),
+                "reason": "outside_repository",
+            }
+            continue
+        if not manifest_path.is_file():
+            errors[str(dependency)] = {
+                "path": raw_path,
+                "manifest": relative_manifest,
+                "reason": "missing",
+            }
+        elif tracked_files is not None and relative_manifest not in tracked_files:
+            errors[str(dependency)] = {
+                "path": raw_path,
+                "manifest": relative_manifest,
+                "reason": "untracked",
+            }
+    return errors
+
+
 def _page_pyproject_contract_errors(
     repo_root: Path,
     package_to_module: Mapping[str, str],
     package_specs: Mapping[str, str],
 ) -> dict[str, dict[str, Any]]:
     errors: dict[str, dict[str, Any]] = {}
+    tracked_files = _tracked_repo_files(repo_root)
     for package, module in sorted(package_to_module.items()):
         pyproject_path = repo_root / package_specs[package] / "pyproject.toml"
         try:
@@ -907,6 +988,14 @@ def _page_pyproject_contract_errors(
                 agilab_pages.get(module) if isinstance(agilab_pages, dict) else None
             )
             mismatch["expected_entry_point"] = expected_entry_point
+        local_source_errors = _local_page_source_errors(
+            repo_root,
+            pyproject_path,
+            pyproject,
+            tracked_files=tracked_files,
+        )
+        if local_source_errors:
+            mismatch["local_source_errors"] = local_source_errors
         if set(mismatch) != {"module", "pyproject"}:
             errors[package] = mismatch
     return errors
