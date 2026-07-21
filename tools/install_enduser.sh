@@ -30,6 +30,27 @@ configure_uv_link_mode() {
 configure_uv_link_mode
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+repo_python_default() {
+  local pin_file="${1:-${REPO_ROOT:-${SCRIPT_DIR}/..}/.python-version}"
+  local fallback="3.13"
+  if [[ ! -e "$pin_file" ]]; then
+    printf '%s\n' "$fallback"
+    return 0
+  fi
+  if [[ ! -r "$pin_file" ]]; then
+    echo -e "${RED}[error] Cannot read repository Python pin: ${pin_file}.${NC}" >&2
+    return 1
+  fi
+
+  local pinned
+  IFS= read -r pinned < "$pin_file" || true
+  if [[ ! "$pinned" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+    echo -e "${RED}[error] Invalid repository Python pin '${pinned}' in ${pin_file}; expected major.minor or major.minor.patch.${NC}" >&2
+    return 1
+  fi
+  printf '%s\n' "$pinned"
+}
+
 python_uv_spec_for_version() {
   local version="${1:-}"
   case "$version" in
@@ -46,9 +67,57 @@ python_uv_spec_for_version() {
   esac
 }
 
+python_selector_version() {
+  local selector="${1:-}"
+  if [[ "$selector" =~ ^(cpython-|python)?[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) ]]; then
+    return 1
+  fi
+  if [[ -x "$selector" ]]; then
+    "$selector" - <<'PY'
+import sys
+
+if "t" in getattr(sys, "abiflags", "") or not getattr(
+    sys, "_is_gil_enabled", lambda: True
+)():
+    raise SystemExit(1)
+print(".".join(str(part) for part in sys.version_info[:3]))
+PY
+    return
+  fi
+
+  if [[ "$selector" =~ ^([0-9]+\.[0-9]+(\.[0-9]+)?)(\+gil)?$ ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+  elif [[ "$selector" =~ ^cpython-([0-9]+\.[0-9]+(\.[0-9]+)?)([^0-9].*)?$ ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+  elif [[ "$selector" =~ ^python([0-9]+\.[0-9]+(\.[0-9]+)?)([^0-9].*)?$ ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+  else
+    return 1
+  fi
+}
+
+validate_python_selector() {
+  local python_version="$1"
+  local selector="$2"
+  local selector_version
+  if ! selector_version="$(python_selector_version "$selector")"; then
+    echo -e "${RED}[error] Unsupported AGI_PYTHON_UV_SPEC '${selector}': use a standard GIL Python selector or executable path.${NC}" >&2
+    return 1
+  fi
+  case "$selector_version" in
+    "$python_version"|"$python_version".*) return 0 ;;
+    *)
+      echo -e "${RED}[error] AGI_PYTHON_UV_SPEC '${selector}' selects Python ${selector_version}, but AGI_PYTHON_VERSION '${python_version}' requires a matching interpreter. Unset AGI_PYTHON_UV_SPEC or provide a matching selector.${NC}" >&2
+      return 1
+      ;;
+  esac
+}
+
 normalize_python_selection() {
-  local raw="${AGI_PYTHON_VERSION:-3.14}"
-  [[ -n "$raw" ]] || raw="3.14"
+  local raw="${AGI_PYTHON_VERSION:-}"
+  if [[ -z "$raw" ]]; then
+    raw="$(repo_python_default)" || exit 1
+  fi
   if [[ "$raw" == *freethreaded* \
      || "$raw" =~ (^|[^[:alnum:]])python3\.[0-9]+t([^[:alnum:]]|$) \
      || "$raw" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) ]]; then
@@ -60,6 +129,10 @@ normalize_python_selection() {
     exit 1
   fi
   AGI_PYTHON_VERSION="${raw%%+*}"
+  if [[ ! "$AGI_PYTHON_VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+    echo -e "${RED}[error] Invalid AGI_PYTHON_VERSION '${raw}': expected major.minor or major.minor.patch.${NC}" >&2
+    exit 1
+  fi
   AGI_PYTHON_FREE_THREADED=0
   local desired_uv_spec
   desired_uv_spec="$(python_uv_spec_for_version "$AGI_PYTHON_VERSION")"
@@ -68,10 +141,12 @@ normalize_python_selection() {
   fi
   if [[ "$AGI_PYTHON_UV_SPEC" == *freethreaded* \
      || "$AGI_PYTHON_UV_SPEC" =~ (^|[^[:alnum:]])python3\.[0-9]+t([^[:alnum:]]|$) \
+     || "$AGI_PYTHON_UV_SPEC" =~ ^cpython-[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) \
      || "$AGI_PYTHON_UV_SPEC" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) ]]; then
     echo -e "${RED}[error] Unsupported AGI_PYTHON_UV_SPEC '${AGI_PYTHON_UV_SPEC}': end-user installs require a standard GIL Python interpreter.${NC}" >&2
     exit 1
   fi
+  validate_python_selector "$AGI_PYTHON_VERSION" "$AGI_PYTHON_UV_SPEC" || exit 1
   export AGI_PYTHON_VERSION
   export AGI_PYTHON_FREE_THREADED
   export AGI_PYTHON_UV_SPEC
@@ -597,6 +672,9 @@ if (( DRY_RUN )); then
   print_dry_run_plan
   exit 0
 fi
+
+# Validate the interpreter contract before any existing venv can be removed.
+normalize_python_selection
 
 if [[ "$SOURCE" == "local" ]]; then
   if [[ -z "${AGI_INSTALL_PATH}" || ! -d "${AGI_INSTALL_PATH}" ]]; then

@@ -12,7 +12,7 @@ import stat
 import sys
 import time
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath
 from tempfile import gettempdir
 from typing import Any, Awaitable, Callable, Optional
 
@@ -21,6 +21,7 @@ from asyncssh.process import ProcessError
 
 from agi_cluster.agi_distributor.api.worker_cli_support import resolve_worker_cli_path
 from agi_env import AgiEnv
+from agi_env.process_support import project_virtualenv_script_path
 from agi_env.runtime.destructive_path_support import (
     safe_destructive_path,
     safe_worker_runtime_cleanup_path,
@@ -55,13 +56,58 @@ class RemoteTargetLease:
 
 
 def _remote_arg(value: Any) -> str:
-    if isinstance(value, Path):
+    if isinstance(value, PurePath):
         return shlex.quote(value.as_posix())
     return shlex.quote(str(value))
 
 
 def _remote_words(value: Any) -> str:
     return " ".join(shlex.quote(part) for part in shlex.split(str(value), posix=True))
+
+
+def _bootstrap_uv_python(uv: Any, *, python_version: Any | None = None) -> str:
+    """Return the dependency bootstrap used only when no worker venv exists."""
+
+    version_arg = (
+        f" -p {_remote_arg(python_version)}" if python_version not in (None, "") else ""
+    )
+    # PEP 508 comparison operators trigger AGILAB's shell-aware runner.  Double
+    # quotes preserve this one controlled token under both POSIX shells and
+    # Windows cmd.exe; shlex.quote would emit POSIX-only single quotes.
+    return (
+        f'{_remote_words(uv)} run --no-sync --with "{_BOOTSTRAP_PSUTIL_SPEC}"'
+        f"{version_arg} python"
+    )
+
+
+def _remote_worker_python(wenv: Any) -> PurePosixPath:
+    if isinstance(wenv, PurePath):
+        text = wenv.as_posix()
+    else:
+        text = str(wenv).replace("\\", "/")
+    return PurePosixPath(text) / ".venv" / "bin" / "python"
+
+
+def _remote_process_command(
+    *,
+    cmd_prefix: str,
+    uv: Any,
+    wenv: Any,
+    cli: Any,
+    action: str,
+    arguments: tuple[Any, ...],
+    python_version: Any | None = None,
+) -> str:
+    """Prefer installed worker dependencies and fall back only when absent."""
+
+    worker_python = _remote_worker_python(wenv)
+    rendered_args = "".join(f" {_remote_arg(value)}" for value in arguments)
+    payload = f"{_remote_arg(cli)} {action}{rendered_args}"
+    return (
+        f"{cmd_prefix}if [ -x {_remote_arg(worker_python)} ]; then "
+        f"{_remote_arg(worker_python)} {payload}; else "
+        f"{_bootstrap_uv_python(uv, python_version=python_version)} {payload}; fi"
+    )
 
 
 def _remote_target_key(value: Any) -> str:
@@ -197,6 +243,7 @@ async def kill_processes(
     run_path_fn: Callable[..., Any] = runpy.run_path,
     sys_module: Any = sys,
     path_cls: type[Path] = Path,
+    os_name: str = os.name,
     detect_export_cmd_fn: Optional[Callable[[str], Awaitable[str]]] = None,
     log: Any = logger,
 ) -> Optional[Any]:
@@ -206,7 +253,6 @@ async def kill_processes(
     ip = ip or localhost
     current_pid = current_pid or os.getpid()
 
-    cmds: list[str] = []
     cli_rel = env.wenv_rel.parent / "cli.py"
     cli_abs = env.wenv_abs.parent / cli_rel.name
     cmd_prefix = await _remote_cmd_prefix(
@@ -214,49 +260,65 @@ async def kill_processes(
         ip,
         detect_export_cmd_fn=detect_export_cmd_fn,
     )
-    # This copied bootstrap CLI runs before the worker environment exists.
-    # Process ownership discovery needs psutil, unlike lease and archive commands.
-    kill_prefix = (
-        f"{cmd_prefix}{_remote_words(uv)} run --no-sync "
-        f"--with {_remote_arg(_BOOTSTRAP_PSUTIL_SPEC)} python"
-    )
     if env.is_local(ip):
         if not cli_abs.exists():
             copy_fn(resolve_worker_cli_path(env), cli_abs)
-        if force:
-            exclude_arg = f" {_remote_arg(current_pid)}" if current_pid else ""
-            kill_command = "kill-force" if force_scan else "kill"
-            target_arg = "" if force_scan else f" {_remote_arg(env.wenv_abs)}"
-            cmds.append(
-                f"{kill_prefix} {_remote_arg(cli_abs)} {kill_command}"
-                f"{target_arg}{exclude_arg}"
-            )
-    elif force:
+        if not force:
+            return None
         kill_command = "kill-force" if force_scan else "kill"
-        target_arg = "" if force_scan else f" {_remote_arg(env.wenv_rel)}"
-        cmds.append(
-            f"{kill_prefix} {_remote_arg(cli_rel)} {kill_command}{target_arg}"
+        local_args = [] if force_scan else [env.wenv_abs]
+        if current_pid:
+            local_args.append(current_pid)
+        if env.debug:
+            sys_module.argv = [
+                str(cli_abs),
+                kill_command,
+                *(str(value) for value in local_args),
+            ]
+            run_path_fn(sys_module.argv[0], run_name="__main__")
+            return None
+
+        worker_python = project_virtualenv_script_path(
+            env.wenv_abs,
+            "python",
+            os_name=os_name,
         )
+        # The manager has already imported this module and therefore has a
+        # working psutil/agi-node runtime.  Reuse that interpreter when a
+        # partially installed worker has no venv; this avoids both network
+        # resolution and cmd.exe parsing of PEP 508 comparison operators.
+        python_prefix = (
+            _remote_arg(worker_python)
+            if worker_python.exists()
+            else _remote_arg(getattr(sys_module, "executable", sys.executable))
+        )
+        rendered_args = "".join(f" {_remote_arg(value)}" for value in local_args)
+        cmd = (
+            f"{cmd_prefix}{python_prefix} {_remote_arg(cli_abs)} "
+            f"{kill_command}{rendered_args}"
+        )
+        await run_fn(cmd, str(env.wenv_abs))
+        return None
 
-    last_res = None
-    for cmd in cmds:
-        cwd = str(env.wenv_abs)
-        if env.is_local(ip):
-            if env.debug:
-                sys_module.argv = shlex.split(cmd.split("python ", 1)[1], posix=True)
-                run_path_fn(sys_module.argv[0], run_name="__main__")
-            else:
-                await run_fn(cmd, cwd)
-        else:
-            last_res = await agi_cls.exec_ssh(ip, cmd)
-
-        if isinstance(last_res, dict):
-            out = last_res.get("stdout", "")
-            err = last_res.get("stderr", "")
-            log.info(out)
-            if err:
-                log.error(err)
-
+    if not force:
+        return None
+    kill_command = "kill-force" if force_scan else "kill"
+    remote_args = () if force_scan else (env.wenv_rel,)
+    cmd = _remote_process_command(
+        cmd_prefix=cmd_prefix,
+        uv=uv,
+        wenv=env.wenv_rel,
+        cli=cli_rel,
+        action=kill_command,
+        arguments=remote_args,
+    )
+    last_res = await agi_cls.exec_ssh(ip, cmd)
+    if isinstance(last_res, dict):
+        out = last_res.get("stdout", "")
+        err = last_res.get("stderr", "")
+        log.info(out)
+        if err:
+            log.error(err)
     return last_res
 
 
@@ -797,15 +859,16 @@ async def clean_dirs(
         and getattr(agi_cls, "_lifecycle_call_token", None)
     ):
         lease = await acquire_remote_lease(ip, cmd_prefix=cmd_prefix)
-    token_arg = (
-        f" {_remote_arg(lease.token)}"
-        if isinstance(lease, RemoteTargetLease)
-        else ""
+    command_args = (
+        (wenv, lease.token) if isinstance(lease, RemoteTargetLease) else (wenv,)
     )
-    cmd = (
-        f"{cmd_prefix}{_remote_words(uv)} run --no-sync "
-        f"--with {_remote_arg(_BOOTSTRAP_PSUTIL_SPEC)} "
-        f"-p {_remote_arg(env.python_version)} python "
-        f"{_remote_arg(cli)} clean {_remote_arg(wenv)}{token_arg}"
+    cmd = _remote_process_command(
+        cmd_prefix=cmd_prefix,
+        uv=uv,
+        wenv=wenv,
+        cli=cli,
+        action="clean",
+        arguments=command_args,
+        python_version=env.python_version,
     )
     await agi_cls.exec_ssh(ip, cmd)

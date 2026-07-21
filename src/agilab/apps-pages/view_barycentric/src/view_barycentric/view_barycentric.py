@@ -37,7 +37,11 @@ from agi_pages.runtime import ensure_repo_on_path, resolve_active_app_path
 
 ensure_repo_on_path(__file__)
 
-from agi_pages.runtime import render_streamlit_page_header, reset_scoped_session_state
+from agi_pages.runtime import (
+    configure_streamlit_page,
+    render_streamlit_page_header,
+    reset_scoped_session_state,
+)
 from agi_env import AgiEnv
 from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
 from agi_gui.pagelib import find_files, load_df, JumpToMain, update_datadir, _dump_toml_payload
@@ -47,6 +51,7 @@ logger = logging.getLogger(__name__)
 var = ["discrete", "continuous", "lat", "long"]
 var_default = [0, None]
 
+configure_streamlit_page(st, title="Barycentric Graph")
 render_streamlit_page_header(st, title=":chart_with_upwards_trend: Barycentric Graph", show_logo=False)
 
 

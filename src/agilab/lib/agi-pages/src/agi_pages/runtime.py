@@ -146,8 +146,8 @@ def active_app_scope_value(active_app: str | Path) -> str:
     return str(Path(active_app).expanduser().resolve())
 
 
-def env_app_scope_value(env: Any) -> str | None:
-    """Infer the active-app session-scope key from an AGILAB environment object."""
+def _env_concrete_app_scope_value(env: Any) -> str | None:
+    """Return the established primary live app identity for an environment."""
 
     app_path = getattr(env, "app_path", None)
     if app_path:
@@ -162,6 +162,60 @@ def env_app_scope_value(env: Any) -> str | None:
     return None
 
 
+def _env_matches_active_app_scope(env: Any, active_scope: str) -> bool:
+    """Return whether live environment fields prove the requested app scope.
+
+    ``AgiEnv`` can resolve an app to its bundled implementation under its
+    configured ``builtin_apps_path`` (or the legacy ``apps_path / 'builtin'``
+    location). Those are the sole accepted alternatives to the requested
+    ``apps_path / app`` location. Conflicting live fields are not
+    interchangeable: a stale marker or an ``apps_path`` / ``app`` pair cannot
+    override a different concrete ``active_app``.
+    """
+
+    app_path = getattr(env, "app_path", None)
+    if app_path:
+        return active_app_scope_value(app_path) == active_scope
+
+    active_app = getattr(env, "active_app", None)
+    if active_app:
+        env_active_scope = active_app_scope_value(active_app)
+        if env_active_scope == active_scope:
+            return True
+        apps_path = getattr(env, "apps_path", None)
+        app = getattr(env, "app", None)
+        if not apps_path or not app:
+            return False
+        requested_scope = active_app_scope_value(Path(apps_path) / str(app))
+        builtin_roots = [getattr(env, "builtin_apps_path", None)]
+        builtin_roots.append(Path(apps_path) / "builtin")
+        builtin_scopes = {
+            active_app_scope_value(Path(root) / str(app))
+            for root in builtin_roots
+            if root
+        }
+        return active_scope == requested_scope and env_active_scope in builtin_scopes
+
+    apps_path = getattr(env, "apps_path", None)
+    app = getattr(env, "app", None)
+    return (
+        bool(apps_path and app)
+        and active_app_scope_value(Path(apps_path) / str(app)) == active_scope
+    )
+
+
+def env_app_scope_value(env: Any) -> str | None:
+    """Infer the active-app session-scope key from an AGILAB environment object."""
+
+    concrete_scope = _env_concrete_app_scope_value(env)
+    if concrete_scope is not None:
+        return concrete_scope
+    bound_scope = getattr(env, "_agilab_active_app_scope", None)
+    if bound_scope:
+        return active_app_scope_value(bound_scope)
+    return None
+
+
 def ensure_app_scoped_env(
     session_state: Any,
     active_app: str | Path,
@@ -172,43 +226,60 @@ def ensure_app_scoped_env(
     keys: tuple[str, ...] = (),
     prefixes: tuple[str, ...] = (),
 ) -> Any:
-    """Return an environment aligned with the active app session scope.
+    """Return an environment whose app identity matches the active page scope.
 
-    Page bundles share one Streamlit session while users switch projects.  A
-    cached environment is reusable only when the recorded page scope and, when
-    available, the environment's own app path both match the requested app.
-    Unknown unscoped environments are rebuilt instead of being trusted.
+    Streamlit pages share one session-state mapping. A page-local scope marker
+    therefore cannot prove that the shared cached environment still belongs to
+    the same app: another page may have replaced it since the marker was set.
+    Reuse is allowed only when the environment exposes a matching app identity.
+    Page-owned state is cleared whenever its recorded scope changes or an
+    unscoped/stale environment must be replaced.
     """
 
     active_app_path = Path(active_app).expanduser().resolve()
     active_scope = active_app_scope_value(active_app_path)
     cached_env = session_state.get(env_key)
-    recorded_scope = session_state.get(scope_key)
-    cached_scope = env_app_scope_value(cached_env) if cached_env is not None else None
-
-    scope_matches = recorded_scope == active_scope
-    env_matches = cached_env is not None and cached_scope in {None, active_scope}
-    if scope_matches and env_matches:
-        return cached_env
-
-    # A warm environment can predate the page-specific scope marker.  Preserve
-    # it only when its own app identity proves that it belongs to this app.
-    if recorded_scope is None and cached_env is not None and cached_scope == active_scope:
-        session_state[scope_key] = active_scope
-        return cached_env
-
-    reset_keys = tuple(dict.fromkeys((env_key, *keys)))
-    reset_scoped_session_state(
-        session_state,
-        scope_key,
-        active_app_path,
-        keys=reset_keys,
-        prefixes=prefixes,
+    cached_matches = cached_env is not None and _env_matches_active_app_scope(
+        cached_env,
+        active_scope,
     )
-    env = env_factory(active_app_path)
-    session_state[env_key] = env
+
+    if cached_env is not None and cached_matches:
+        try:
+            cached_env._agilab_active_app_scope = active_scope
+        except (AttributeError, TypeError):
+            pass
+        reset_scoped_session_state(
+            session_state,
+            scope_key,
+            active_app_path,
+            keys=keys,
+            prefixes=prefixes,
+        )
+        session_state[env_key] = cached_env
+        return cached_env
+
+    replacement = env_factory(active_app_path)
+    replacement_scope = env_app_scope_value(replacement)
+    if not _env_matches_active_app_scope(replacement, active_scope):
+        raise ValueError(
+            "Environment factory returned an app scope that does not match "
+            f"the requested app: expected {active_scope!r}, got {replacement_scope!r}"
+        )
+    try:
+        replacement._agilab_active_app_scope = active_scope
+    except (AttributeError, TypeError):
+        pass
+    exact_keys = set((env_key, *keys))
+    for key in list(session_state.keys()):
+        if key == scope_key:
+            continue
+        key_text = str(key)
+        if key in exact_keys or any(key_text.startswith(prefix) for prefix in prefixes):
+            session_state.pop(key, None)
     session_state[scope_key] = active_scope
-    return env
+    session_state[env_key] = replacement
+    return replacement
 
 
 def reset_scoped_session_state(

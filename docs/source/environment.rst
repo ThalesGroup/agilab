@@ -25,8 +25,11 @@ rather than shown as one of the workflow pages.
      - ``flight_telemetry_project``
      - App loaded when no explicit project is provided.
    * - ``AGI_PYTHON_VERSION``
-     - ``3.14``
-     - Default Python version passed to ``uv`` for the manager environment and as the fallback worker version when no host-specific override is set.
+     - repository ``.python-version`` (currently ``3.13``)
+     - Default Python version passed to ``uv`` for the manager environment and
+       as the fallback worker version when no host-specific override is set.
+       Installers validate the repository pin before creating or replacing an
+       environment.
    * - ``AGI_PYTHON_UV_SPEC``
      - derived from ``AGI_PYTHON_VERSION``
      - Exact uv interpreter selector used by installer sync commands. For Python 3.14 this defaults to the standard GIL build, for example ``3.14+gil``, while page bundles with stricter ``requires-python`` metadata receive a compatible selector such as ``3.12`` for ``==3.12.*``.

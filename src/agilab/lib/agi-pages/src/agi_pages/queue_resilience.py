@@ -1,7 +1,7 @@
 """Shared lifecycle and rendering support for queue-resilience pages.
 
-The owning page bundles inject their Streamlit and dataframe implementations so
-``agi-pages`` keeps its lightweight dependency boundary.
+The owning page bundles inject their Streamlit, environment, and dataframe
+implementations so ``agi-pages`` keeps its lightweight dependency boundary.
 """
 
 from __future__ import annotations
@@ -61,8 +61,8 @@ class QueueResilienceRun:
 
 def prepare_queue_resilience_page(
     streamlit: Any,
-    env_type: Any,
     *,
+    env_factory: Callable[[Path], Any],
     title: str,
     logo_title: str,
     caption: str,
@@ -71,12 +71,7 @@ def prepare_queue_resilience_page(
     app_scope_key: str,
     app_scoped_keys: tuple[str, ...],
 ) -> QueueResiliencePageContext:
-    """Render common page setup and return the available queue summaries.
-
-    ``env_type`` is injected by the page bundle to avoid importing ``agi-env``
-    from this support package.  The shared runtime also rebuilds a cached
-    environment when the active app changes.
-    """
+    """Render common page setup and return the available queue summaries."""
 
     configure_streamlit_page(streamlit, title=title)
     active_app_path = resolve_active_app_path(
@@ -84,21 +79,11 @@ def prepare_queue_resilience_page(
         stop_fn=streamlit.stop,
     )
 
-    def create_env(app_path: Path) -> Any:
-        factory = getattr(env_type, "for_app", env_type)
-        env = factory(
-            apps_path=app_path.parent,
-            app=app_path.name,
-            verbose=0,
-        )
-        env.init_done = True
-        return env
-
     env = ensure_app_scoped_env(
         streamlit.session_state,
         active_app_path,
         scope_key=app_scope_key,
-        env_factory=create_env,
+        env_factory=env_factory,
         keys=app_scoped_keys,
     )
     render_streamlit_page_header(

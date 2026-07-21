@@ -135,6 +135,25 @@ START_TIME=$(date +%s)
 
 UV_PREVIEW=(uv --preview-features extra-build-dependencies)
 
+repo_python_default() {
+  local script_dir repo_root pin_file="${1:-}" pinned
+  if [[ -z "$pin_file" ]]; then
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    repo_root="$(cd "${script_dir}/../.." && pwd)"
+    pin_file="${repo_root}/.python-version"
+  fi
+  if [[ ! -e "$pin_file" ]]; then
+    printf '%s\n' "3.13"
+    return 0
+  fi
+  IFS= read -r pinned < "$pin_file" || true
+  if [[ ! "$pinned" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+    echo -e "${RED}Invalid repository Python pin '${pinned}' in ${pin_file}; expected major.minor or major.minor.patch.${NC}" >&2
+    return 1
+  fi
+  printf '%s\n' "$pinned"
+}
+
 python_uv_spec_for_version() {
   local version="${1:-}"
   case "$version" in
@@ -152,9 +171,14 @@ python_uv_spec_for_version() {
 }
 
 normalize_agi_python_version() {
-  local raw="${1:-3.14}"
+  local raw="${1:-}"
+  if [[ -z "$raw" ]]; then
+    raw="$(repo_python_default)" || return 1
+  fi
   raw="$(printf '%s' "$raw" | sed -E 's/^[[:space:]]+//;s/[[:space:]]+$//')"
-  [[ -n "$raw" ]] || raw="3.14"
+  if [[ -z "$raw" ]]; then
+    raw="$(repo_python_default)" || return 1
+  fi
 
   case "${AGI_PYTHON_FREE_THREADED:-0}" in
     1|true|TRUE|yes|YES|on|ON)
@@ -165,6 +189,7 @@ normalize_agi_python_version() {
 
   if [[ "$raw" == *freethreaded* \
      || "$raw" =~ (^|[^[:alnum:]])python3\.[0-9]+t([^[:alnum:]]|$) \
+     || "$raw" =~ ^cpython-[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) \
      || "$raw" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) ]]; then
     echo -e "${RED}Unsupported AGI_PYTHON_VERSION '${raw}': install_apps.sh requires a standard GIL Python interpreter. Freethreaded Python can force native dependency builds for binary-heavy packages such as Polars. Re-run with AGI_PYTHON_VERSION=3.14.6 or AGI_PYTHON_VERSION=3.13.14.${NC}" >&2
     return 1
@@ -187,7 +212,10 @@ normalize_agi_python_version() {
 
 normalize_agi_python_uv_spec() {
   local raw="${1:-}"
-  local python_version="${2:-${AGI_PYTHON_VERSION:-3.14}}"
+  local python_version="${2:-${AGI_PYTHON_VERSION:-}}"
+  if [[ -z "$python_version" ]]; then
+    python_version="$(repo_python_default)" || return 1
+  fi
   local desired_uv_spec
   desired_uv_spec="$(python_uv_spec_for_version "$python_version")"
   raw="$(printf '%s' "$raw" | sed -E 's/^[[:space:]]+//;s/[[:space:]]+$//')"
@@ -196,6 +224,7 @@ normalize_agi_python_uv_spec() {
   fi
   if [[ "$raw" == *freethreaded* \
      || "$raw" =~ (^|[^[:alnum:]])python3\.[0-9]+t([^[:alnum:]]|$) \
+     || "$raw" =~ ^cpython-[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) \
      || "$raw" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) ]]; then
     echo -e "${RED}Unsupported AGI_PYTHON_UV_SPEC '${raw}': install_apps.sh requires a standard GIL Python interpreter.${NC}" >&2
     return 1
@@ -213,7 +242,7 @@ run_with_agilab_python_env() {
     "$@"
 }
 
-if ! AGI_PYTHON_VERSION="$(normalize_agi_python_version "${AGI_PYTHON_VERSION:-3.14}")"; then
+if ! AGI_PYTHON_VERSION="$(normalize_agi_python_version "${AGI_PYTHON_VERSION:-}")"; then
   exit 1
 fi
 if ! AGI_PYTHON_UV_SPEC="$(normalize_agi_python_uv_spec "${AGI_PYTHON_UV_SPEC:-}" "$AGI_PYTHON_VERSION")"; then

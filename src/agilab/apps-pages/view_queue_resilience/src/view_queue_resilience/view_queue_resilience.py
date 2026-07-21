@@ -54,9 +54,20 @@ def _load_page_meta() -> tuple[str, str]:
 
 PAGE_LOGO, PAGE_TITLE = _load_page_meta()
 
+
+def _create_env(active_app_path: Path) -> AgiEnv:
+    env = AgiEnv.session_for_app(
+        apps_path=active_app_path.parent,
+        app=active_app_path.name,
+        verbose=0,
+    )
+    env.init_done = True
+    return env
+
+
 page_context = prepare_queue_resilience_page(
     st,
-    AgiEnv,
+    env_factory=_create_env,
     title=PAGE_TITLE,
     logo_title=PAGE_LOGO,
     caption=(

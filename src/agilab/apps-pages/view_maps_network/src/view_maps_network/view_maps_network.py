@@ -27,7 +27,7 @@ import matplotlib.colors as mcolors
 import glob
 import re
 from urllib.parse import quote, urlencode
-from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_env.app_settings_support import update_app_settings_owned
 try:
     import tomli_w as _toml_writer  # type: ignore[import-not-found]
 
@@ -198,7 +198,9 @@ def _get_cmap(name: str, lut: int | None = None):
 ensure_repo_on_path(__file__)
 
 from agi_pages.runtime import (
+    configure_streamlit_page,
     ensure_app_settings_loaded,
+    ensure_app_scoped_env,
     render_app_page_context,
     render_streamlit_page_header,
     resolve_active_app_path,
@@ -326,18 +328,30 @@ def _sanitize_toml_payload(value: Any) -> Any:
     return value
 
 
-def _persist_app_settings(env: AgiEnv) -> None:
+def _persist_app_settings(env: AgiEnv, owned_keys: tuple[str, ...]) -> None:
     settings = st.session_state.get("app_settings")
     if not isinstance(settings, dict):
         return
+    vm_settings = settings.get("view_maps_network")
+    if not isinstance(vm_settings, dict):
+        vm_settings = {}
+    if not owned_keys:
+        return
     path = Path(env.app_settings_file)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "wb") as handle:
-            _dump_toml(
-                prepare_app_settings_for_write(_sanitize_toml_payload(settings), sanitize=False),
-                handle,
-            )
+        latest, _ = update_app_settings_owned(
+            path,
+            _sanitize_toml_payload(settings),
+            owned_paths=tuple(("view_maps_network", key) for key in owned_keys),
+            dump_fn=_dump_toml,
+        )
+        latest_vm_settings = latest.get("view_maps_network")
+        vm_settings.clear()
+        if isinstance(latest_vm_settings, dict):
+            vm_settings.update(latest_vm_settings)
+        settings.clear()
+        settings.update(latest)
+        settings["view_maps_network"] = vm_settings
     except (OSError, RuntimeError, ValueError) as exc:
         logger.warning(f"Unable to persist app_settings to {path}: {exc}")
 
@@ -378,6 +392,7 @@ def _list_subdirectories(base: Path) -> list[str]:
     return []
 
 
+configure_streamlit_page(st, title="Maps Network Graph")
 render_streamlit_page_header(
     st,
     title=":world_map: Maps Network Graph",
@@ -385,19 +400,31 @@ render_streamlit_page_header(
 )
 
 active_app_path = resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
-app_scope_changed = _reset_app_scoped_session_state(active_app_path)
-if 'env' not in st.session_state or app_scope_changed:
-    app_name = active_app_path.name
-    env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=app_name, verbose=0)
-    env.init_done = True
-    st.session_state['env'] = env
-    st.session_state['IS_SOURCE_ENV'] = env.is_source_env
-    st.session_state['IS_WORKER_ENV'] = env.is_worker_env
-    st.session_state['apps_path'] = str(active_app_path.parent)
-    st.session_state['app'] = app_name
-else:
-    env = st.session_state['env']
-    app_name, active_app_path = _active_app_context_from_env(env)
+
+
+def _create_env(app_path: Path) -> AgiEnv:
+    scoped_env = AgiEnv.session_for_app(
+        apps_path=app_path.parent,
+        app=app_path.name,
+        verbose=0,
+    )
+    scoped_env.init_done = True
+    return scoped_env
+
+
+env = ensure_app_scoped_env(
+    st.session_state,
+    active_app_path,
+    scope_key=APP_SCOPE_KEY,
+    env_factory=_create_env,
+    keys=APP_SCOPED_SESSION_DEFAULT_KEYS,
+    prefixes=APP_SCOPED_SESSION_KEY_PREFIXES,
+)
+app_name = active_app_path.name
+st.session_state['IS_SOURCE_ENV'] = env.is_source_env
+st.session_state['IS_WORKER_ENV'] = env.is_worker_env
+st.session_state['apps_path'] = str(active_app_path.parent)
+st.session_state['app'] = active_app_path.name
 
 ensure_app_settings_loaded(st.session_state, env)
 render_app_page_context(st, app_name, active_app_path)
@@ -2956,15 +2983,15 @@ def page():
         "layout_type_select": st.session_state.get("layout_type_select", "spring"),
         "metric_type_select": st.session_state.get("metric_type_select", ""),
     }
-    vm_mutated = False
+    vm_changed_keys: list[str] = []
     for key, value in new_vm_settings.items():
         if split_view_mode and key in {"show_map", "show_graph"}:
             continue
         if vm_settings.get(key) != value:
             vm_settings[key] = value
-            vm_mutated = True
-    if vm_mutated:
-        _persist_app_settings(env)
+            vm_changed_keys.append(key)
+    if vm_changed_keys:
+        _persist_app_settings(env, tuple(vm_changed_keys))
 
     datadir_path = Path(st.session_state.datadir).expanduser()
     def _visible_only(paths):
@@ -3310,7 +3337,7 @@ def page():
     st.sidebar.caption(f"{shown_count} / {len(available_node_ids)} flights shown")
     if vm_settings.get("selected_flights_filter") != selected_node_ids:
         vm_settings["selected_flights_filter"] = selected_node_ids
-        _persist_app_settings(env)
+        _persist_app_settings(env, ("selected_flights_filter",))
 
     if selected_node_set:
         df_std = df_std[df_std["id_col"].isin(selected_node_set)].copy()
@@ -3408,7 +3435,7 @@ def page():
 
     if vm_settings.get("edges_file") != edges_clean:
         vm_settings["edges_file"] = edges_clean
-        _persist_app_settings(env)
+        _persist_app_settings(env, ("edges_file",))
 
     link_options = _detect_link_columns(df_std)
     if loaded_edges:
@@ -4178,7 +4205,10 @@ def page():
         vm_settings["allocations_file"] = alloc_clean
         vm_settings["baseline_allocations_file"] = baseline_clean
         vm_settings["traj_glob"] = traj_clean
-        _persist_app_settings(env)
+        _persist_app_settings(
+            env,
+            ("allocations_file", "baseline_allocations_file", "traj_glob"),
+        )
     alloc_df = (
         load_allocations(alloc_path_obj)
         if alloc_path_obj is not None and alloc_path_obj.exists()

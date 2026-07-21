@@ -8,10 +8,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
+import signal
+import subprocess
 import sys
 import tempfile
+import time
 from typing import Any, Callable, Mapping, Sequence
 
 
@@ -19,6 +23,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "agilab.robustness_matrix.v1"
 DEFAULT_PROFILE = "p0"
 RECOVERY_PROFILE = "p1-recovery"
+_AGENT_TRACE_PARTIAL_TAIL = b'{"partial"'
+_CHILD_READY_TIMEOUT_SECONDS = 10.0
+_CHILD_REAP_TIMEOUT_SECONDS = 5.0
+_CHILD_SELF_EXIT_SECONDS = 20.0
 
 
 def _ensure_repo_on_path(repo_root: Path) -> None:
@@ -363,6 +371,80 @@ def _runner_state_stale_writer_rejected(repo_root: Path, tmp_root: Path) -> Scen
     )
 
 
+def _agent_trace_crash_child(
+    repo_root: Path,
+    trace_root: Path,
+    ready_path: Path,
+    expected_parent_pid: int,
+) -> int:
+    """Write a durable partial tail while locked, then wait to be killed by its parent."""
+
+    _ensure_repo_on_path(repo_root)
+    from agilab.agent_runtime.agent_trace import EVENTS_FILENAME, trace_file_lock
+
+    events_path = trace_root / EVENTS_FILENAME
+    with trace_file_lock(events_path):
+        with events_path.open("ab") as handle:
+            handle.write(_AGENT_TRACE_PARTIAL_TAIL)
+            handle.flush()
+            os.fsync(handle.fileno())
+        ready_path.parent.mkdir(parents=True, exist_ok=True)
+        with ready_path.open("w", encoding="utf-8") as handle:
+            handle.write("ready\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        deadline = time.monotonic() + _CHILD_SELF_EXIT_SECONDS
+        while time.monotonic() < deadline:
+            if os.getppid() != expected_parent_pid:
+                return 2
+            time.sleep(0.05)
+        return 3
+
+
+def _wait_for_owned_child_ready(
+    process: subprocess.Popen[str],
+    ready_path: Path,
+) -> bool:
+    deadline = time.monotonic() + _CHILD_READY_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            return False
+        try:
+            if ready_path.read_text(encoding="utf-8") == "ready\n":
+                return True
+        except (OSError, UnicodeError):
+            pass
+        time.sleep(0.01)
+    return False
+
+
+def _kill_owned_child(process: subprocess.Popen[str]) -> bool:
+    if process.poll() is not None:
+        return False
+    try:
+        process.kill()
+    except OSError:
+        if process.poll() is None:
+            raise
+        return False
+    return True
+
+
+def _reap_owned_child(process: subprocess.Popen[str]) -> tuple[int | None, str]:
+    """Bound cleanup and diagnostics to the exact child process created by this scenario."""
+
+    try:
+        _stdout, stderr = process.communicate(timeout=_CHILD_REAP_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        _kill_owned_child(process)
+        try:
+            _stdout, stderr = process.communicate(timeout=_CHILD_REAP_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            return process.poll(), "owned child did not exit after bounded kill and reap"
+    stderr_text = (stderr or "").strip()
+    return process.returncode, stderr_text[-500:]
+
+
 def _agent_trace_partial_tail_recovers(repo_root: Path, tmp_root: Path) -> ScenarioObservation:
     _ensure_repo_on_path(repo_root)
     from agilab.agent_runtime.agent_trace import (
@@ -371,30 +453,70 @@ def _agent_trace_partial_tail_recovers(repo_root: Path, tmp_root: Path) -> Scena
         load_trace_events,
     )
 
-    partial_tail = b'{"partial"'
     store = AgentTraceStore(tmp_root, run_id="robustness-recovery", agent="codex")
     first = store.append("session_start")
-    with store.events_path.open("ab") as handle:
-        handle.write(partial_tail)
+    ready_path = tmp_root / "child-ready"
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--_agent-trace-crash-child",
+            str(repo_root),
+            str(tmp_root),
+            str(ready_path),
+            str(os.getpid()),
+        ],
+        cwd=repo_root,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    child_ready = False
+    scenario_kill_requested = False
+    try:
+        child_ready = _wait_for_owned_child_ready(process, ready_path)
+        if child_ready:
+            scenario_kill_requested = _kill_owned_child(process)
+    finally:
+        _kill_owned_child(process)
+        child_returncode, child_stderr_tail = _reap_owned_child(process)
+
+    termination_method = "SIGKILL" if os.name == "posix" else "TerminateProcess"
+    abrupt_child_termination_observed = (
+        child_ready and scenario_kill_requested and child_returncode not in (None, 0)
+    )
+    if os.name == "posix" and hasattr(signal, "SIGKILL"):
+        abrupt_child_termination_observed = (
+            abrupt_child_termination_observed
+            and child_returncode == -int(signal.SIGKILL)
+        )
 
     second = store.append("session_end", status="pass")
     events = load_trace_events(tmp_root)
     quarantined = sorted(tmp_root.glob(f".{EVENTS_FILENAME}.partial.*.jsonl"))
     passed = (
-        (first.sequence, second.sequence) == (1, 2)
+        abrupt_child_termination_observed
+        and (first.sequence, second.sequence) == (1, 2)
         and [event.sequence for event in events] == [1, 2]
         and len(quarantined) == 1
-        and quarantined[0].read_bytes() == partial_tail
+        and quarantined[0].read_bytes() == _AGENT_TRACE_PARTIAL_TAIL
         and store.events_path.read_bytes().endswith(b"\n")
     )
     return ScenarioObservation(
         passed=passed,
         observed=(
-            "The crash-partial JSONL tail was quarantined and sequence 2 appended cleanly."
+            "An owned child process was abruptly terminated after fsyncing a partial JSONL "
+            "tail; the tail was quarantined and sequence 2 appended cleanly."
             if passed
-            else "The crash-partial JSONL tail was not recovered without trace loss."
+            else "The owned child-process crash was not observed or its partial tail was not "
+            "recovered without trace loss."
         ),
         details={
+            "abrupt_child_termination_observed": abrupt_child_termination_observed,
+            "child_ready": child_ready,
+            "child_returncode": child_returncode,
+            "child_stderr_tail": child_stderr_tail,
+            "termination_method": termination_method if scenario_kill_requested else "",
             "event_sequences": [event.sequence for event in events],
             "quarantine_count": len(quarantined),
             "quarantined_bytes": len(quarantined[0].read_bytes()) if quarantined else 0,
@@ -813,11 +935,27 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--compact", action="store_true", help="Emit compact JSON.")
     parser.add_argument("--json", action="store_true", help="Alias for --compact.")
     parser.add_argument("--list-scenarios", action="store_true", help="List scenario ids and exit.")
+    parser.add_argument(
+        "--_agent-trace-crash-child",
+        nargs=4,
+        help=argparse.SUPPRESS,
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(list(argv) if argv is not None else None)
+    if args._agent_trace_crash_child:
+        repo_root, trace_root, ready_path = (
+            Path(value) for value in args._agent_trace_crash_child[:3]
+        )
+        expected_parent_pid = int(args._agent_trace_crash_child[3])
+        return _agent_trace_crash_child(
+            repo_root,
+            trace_root,
+            ready_path,
+            expected_parent_pid,
+        )
     if args.list_scenarios:
         for scenario in SCENARIOS:
             print(f"{scenario.id}\t{scenario.domain}")

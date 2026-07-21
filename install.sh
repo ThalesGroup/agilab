@@ -58,6 +58,27 @@ python_uv_spec_for_version() {
     esac
 }
 
+repo_python_default() {
+    local pin_file="${1:-${CURRENT_PATH:-.}/.python-version}"
+    local fallback="3.13"
+    if [[ ! -e "$pin_file" ]]; then
+        printf '%s\n' "$fallback"
+        return 0
+    fi
+    if [[ ! -r "$pin_file" ]]; then
+        echo -e "${RED}Cannot read repository Python pin: ${pin_file}.${NC}" >&2
+        return 1
+    fi
+
+    local pinned
+    IFS= read -r pinned < "$pin_file" || true
+    if [[ ! "$pinned" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+        echo -e "${RED}Invalid repository Python pin '${pinned}' in ${pin_file}; expected major.minor or major.minor.patch.${NC}" >&2
+        return 1
+    fi
+    printf '%s\n' "$pinned"
+}
+
 configure_uv_link_mode() {
     local requested="${AGILAB_UV_LINK_MODE:-${UV_LINK_MODE:-hardlink}}"
     case "$requested" in
@@ -926,18 +947,20 @@ install_dependencies() {
 
 choose_python_version() {
     echo -e "${BLUE}Choosing Python version...${NC}"
+    local default_python
+    default_python="$(repo_python_default "${CURRENT_PATH}/.python-version")" || exit 1
     if (( NON_INTERACTIVE )); then
-        PYTHON_VERSION="${AGI_PYTHON_VERSION:-3.14}"
+        PYTHON_VERSION="${AGI_PYTHON_VERSION:-$default_python}"
         echo "Non-interactive mode; defaulting Python version to $PYTHON_VERSION"
     else
         if [[ -t 0 ]]; then
-            read -p "Enter Python major version [3.14]: " PYTHON_VERSION
+            read -p "Enter Python major version [${default_python}]: " PYTHON_VERSION
         else
-            PYTHON_VERSION="${AGI_PYTHON_VERSION:-3.14}"
+            PYTHON_VERSION="${AGI_PYTHON_VERSION:-$default_python}"
             echo "Non-interactive shell; defaulting Python version to $PYTHON_VERSION"
         fi
     fi
-    PYTHON_VERSION=${PYTHON_VERSION:-3.14}
+    PYTHON_VERSION=${PYTHON_VERSION:-$default_python}
     if [[ "$PYTHON_VERSION" == *freethreaded* \
        || "$PYTHON_VERSION" =~ (^|[^[:alnum:]])python3\.[0-9]+t([^[:alnum:]]|$) \
        || "$PYTHON_VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?t($|[^[:alnum:]]) ]]; then
@@ -1144,8 +1167,8 @@ append_default_env_comments() {
             printf '%s\n' "$line" >> "$env_file"
         fi
     done <<'EOF'
-# AGI_PYTHON_VERSION="3.14"
-# 127.0.0.1_PYTHON_VERSION="3.14"
+# AGI_PYTHON_VERSION="3.13"
+# 127.0.0.1_PYTHON_VERSION="3.13"
 # AGI_PYTHON_FREE_THREADED="1"
 # IS_SOURCE_ENV="1"
 # IS_WORKER_ENV="0"

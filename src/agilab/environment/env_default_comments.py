@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 USER_ENV_DEFAULT_COMMENT_LINES: tuple[str, ...] = (
-    '# AGI_PYTHON_VERSION="3.14"',
-    '# 127.0.0.1_PYTHON_VERSION="3.14"',
+    '# AGI_PYTHON_VERSION="3.13"',
+    '# 127.0.0.1_PYTHON_VERSION="3.13"',
     '# AGI_PYTHON_FREE_THREADED="1"',
     '# IS_SOURCE_ENV="1"',
     '# IS_WORKER_ENV="0"',

@@ -10,6 +10,7 @@ import runpy
 import sqlite3
 import subprocess
 import sys
+import textwrap
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
@@ -1182,6 +1183,30 @@ def _string_constants(script_text: str) -> set[str]:
     }
 
 
+def _source_and_parseable_string_trees(script_text: str) -> list[tuple[str, ast.AST]]:
+    """The live module plus one level of non-docstring literals that contain Python."""
+
+    trees: list[tuple[str, ast.AST]] = [("source", ast.parse(script_text))]
+    for literal in sorted(_string_constants(script_text)):
+        dedented = textwrap.dedent(literal).strip()
+        candidates = [dedented]
+        lines = dedented.splitlines()
+        if (
+            len(lines) >= 2
+            and lines[0].strip().lower() in {"```python", "```py"}
+            and lines[-1].strip() == "```"
+        ):
+            candidates.insert(0, "\n".join(lines[1:-1]))
+        for candidate in dict.fromkeys(candidates):
+            try:
+                literal_tree = ast.parse(candidate)
+            except (SyntaxError, ValueError):
+                continue
+            trees.append(("string literal", literal_tree))
+            break
+    return trees
+
+
 # Examples whose Expected Output section legitimately names no concrete artifact
 # basename (planned/future artifacts only). Every other packaged preview example
 # must yield at least one, so a README that stops matching the extractor fails
@@ -1917,7 +1942,7 @@ _MODE_KEYWORDS = {"mode", "modes_enabled"}
 
 
 def _numeric_mode_keyword_arguments(script_text: str) -> list[str]:
-    """Any `mode=`/`modes_enabled=` keyword bound to a raw numeric literal.
+    """Any source or embedded Python `mode=` keyword bound to a raw numeric literal.
 
     Matching on source text can only ever enumerate the spellings someone
     thought of; `mode=7`, `mode=0x0d` and `mode = 13` all read differently but
@@ -1925,17 +1950,95 @@ def _numeric_mode_keyword_arguments(script_text: str) -> list[str]:
     """
 
     offenders: list[str] = []
-    for node in ast.walk(ast.parse(script_text)):
-        if not isinstance(node, ast.Call):
-            continue
-        for keyword in node.keywords:
-            if keyword.arg not in _MODE_KEYWORDS:
+    for origin, tree in _source_and_parseable_string_trees(script_text):
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
                 continue
-            if isinstance(keyword.value, ast.Constant) and isinstance(
-                keyword.value.value, int
-            ):
-                offenders.append(f"{keyword.arg}={keyword.value.value}")
+            for keyword in node.keywords:
+                if keyword.arg not in _MODE_KEYWORDS:
+                    continue
+                if isinstance(keyword.value, ast.Constant) and isinstance(
+                    keyword.value.value, int
+                ):
+                    offenders.append(f"{origin}: {keyword.arg}={keyword.value.value}")
     return offenders
+
+
+def _deprecated_api_usages(script_text: str) -> list[str]:
+    """Private AGI internals and the legacy event-loop runner, via source/snippet ASTs.
+
+    Substring checks match a single spelling: `from asyncio import
+    get_event_loop` and `AGI as _A; _A._run(...)` both slip past a raw
+    `"asyncio.get_event_loop()" not in text` / `"AGI._" not in text` gate.
+    """
+
+    usages: list[str] = []
+
+    for origin, tree in _source_and_parseable_string_trees(script_text):
+        # Names bound to the AGI class within this source unit, so aliased
+        # access is caught without linking unrelated string literals together.
+        agi_aliases = {"AGI"}
+        loop_aliases: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    if alias.name == "AGI":
+                        agi_aliases.add(alias.asname or alias.name)
+                    if node.module == "asyncio" and alias.name == "get_event_loop":
+                        loop_aliases.add(alias.asname or alias.name)
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute):
+                value = node.value
+                if isinstance(value, ast.Name) and value.id in agi_aliases:
+                    if node.attr.startswith("_"):
+                        usages.append(f"{origin}: {value.id}.{node.attr}")
+                if (
+                    isinstance(value, ast.Name)
+                    and value.id == "asyncio"
+                    and node.attr == "get_event_loop"
+                ):
+                    usages.append(f"{origin}: asyncio.get_event_loop")
+            elif isinstance(node, ast.Name) and node.id in loop_aliases:
+                usages.append(f"{origin}: get_event_loop (imported as {node.id})")
+    return usages
+
+
+def test_example_ast_gates_inspect_parseable_python_string_literals() -> None:
+    direct_source = "AGI._run(app_env, mode=7)\n"
+    source = '''
+GENERATED = """
+    from agi_env import AGI as _A
+    import asyncio
+    _A._run(app_env, mode=0x0d)
+    asyncio.get_event_loop().run_until_complete(main())
+"""
+FENCED = """```python
+from asyncio import get_event_loop as loop
+loop().run_until_complete(main())
+```"""
+'''
+
+    assert _numeric_mode_keyword_arguments(direct_source) == ["source: mode=7"]
+    assert _deprecated_api_usages(direct_source) == ["source: AGI._run"]
+    assert _numeric_mode_keyword_arguments(source) == ["string literal: mode=13"]
+    usages = set(_deprecated_api_usages(source))
+    assert "string literal: _A._run" in usages
+    assert "string literal: asyncio.get_event_loop" in usages
+    assert "string literal: get_event_loop (imported as loop)" in usages
+
+
+def test_example_ast_gates_ignore_docs_comments_prose_and_non_python_literals() -> None:
+    source = '''
+"""Documentation may mention AGI._run(app_env, mode=13)."""
+# AGI._run(app_env, mode=13)
+GUIDANCE = "Do not copy AGI._run(app_env, mode=13); prefer asyncio.run(main())."
+CONFIG = '{"mode": 13}'
+RUST = "fn mode() { 13 }"
+'''
+
+    assert _numeric_mode_keyword_arguments(source) == []
+    assert _deprecated_api_usages(source) == []
 
 
 def test_packaged_examples_avoid_magic_mode_literals() -> None:
@@ -1948,45 +2051,6 @@ def test_packaged_examples_avoid_magic_mode_literals() -> None:
             f"{script} passes raw numeric mode literals {offenders}; use the public "
             "AGI.PYTHON_MODE / AGI.CYTHON_MODE / AGI.DASK_MODE constants"
         )
-
-
-def _deprecated_api_usages(script_text: str) -> list[str]:
-    """Private AGI internals and the legacy event-loop runner, via AST.
-
-    Substring checks match a single spelling: `from asyncio import
-    get_event_loop` and `AGI as _A; _A._run(...)` both slip past a raw
-    `"asyncio.get_event_loop()" not in text` / `"AGI._" not in text` gate.
-    """
-
-    tree = ast.parse(script_text)
-    usages: list[str] = []
-
-    # Names bound to the AGI class, so aliased access is still caught.
-    agi_aliases = {"AGI"}
-    loop_aliases: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            for alias in node.names:
-                if alias.name == "AGI":
-                    agi_aliases.add(alias.asname or alias.name)
-                if node.module == "asyncio" and alias.name == "get_event_loop":
-                    loop_aliases.add(alias.asname or alias.name)
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Attribute):
-            value = node.value
-            if isinstance(value, ast.Name) and value.id in agi_aliases:
-                if node.attr.startswith("_"):
-                    usages.append(f"{value.id}.{node.attr}")
-            if (
-                isinstance(value, ast.Name)
-                and value.id == "asyncio"
-                and node.attr == "get_event_loop"
-            ):
-                usages.append("asyncio.get_event_loop")
-        elif isinstance(node, ast.Name) and node.id in loop_aliases:
-            usages.append(f"get_event_loop (imported as {node.id})")
-    return usages
 
 
 def test_packaged_preview_examples_avoid_private_agi_internals() -> None:

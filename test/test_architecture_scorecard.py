@@ -86,7 +86,7 @@ def test_remote_dask_worker_command_quotes_dynamic_fragments() -> None:
     assert tokens[:2] == ["env", "AGILAB_REMOTE=1"]
     assert "worker env/worker's env" in tokens
     assert "tcp://scheduler.example; touch /tmp/bad" in tokens
-    assert "worker env/worker pid.pid" in tokens
+    assert "worker env/worker's env/worker pid.pid" in tokens
     assert "; touch /tmp/bad --no-nanny" not in command
 
 
