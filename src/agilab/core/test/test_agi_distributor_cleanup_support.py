@@ -295,7 +295,7 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
     assert "--with" not in local_runs[0][0]
     local_argv = shlex.split(local_runs[0][0], posix=True)
     assert local_argv == [
-        Path(sys.executable).as_posix(),
+        str(Path(sys.executable)),
         (wenv_parent / "cli.py").as_posix(),
         "kill",
         wenv_abs.as_posix(),
@@ -407,7 +407,7 @@ async def test_kill_processes_uses_manager_python_for_partial_windows_worker(tmp
 
     assert len(runs) == 1
     argv = shlex.split(runs[0][0], posix=True)
-    assert argv[0] == manager_python.as_posix()
+    assert argv[0] == str(manager_python)
     assert argv[-3:] == ["kill", wenv_abs.as_posix(), "321"]
     assert "--with" not in argv
     assert "<" not in runs[0][0]
@@ -451,7 +451,7 @@ async def test_kill_processes_local_debug_uses_run_path_and_skips_current_pid(tm
     )
 
     assert current_pid_file.exists()
-    assert run_path_calls == [((wenv_parent / "cli.py").as_posix(), "__main__")]
+    assert run_path_calls == [(str(wenv_parent / "cli.py"), "__main__")]
 
 
 def test_clean_dirs_local_kills_dask_processes_before_verified_delete(tmp_path):
