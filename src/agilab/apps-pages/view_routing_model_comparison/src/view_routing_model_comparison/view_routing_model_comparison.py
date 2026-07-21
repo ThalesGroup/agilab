@@ -262,6 +262,20 @@ def step_time_s(step: dict[str, Any]) -> float:
     return safe_float(step.get("time_index")) * TIME_STEP_S
 
 
+DECISION_TIMING_COLUMNS = (
+    "decision_preparation_time_ns",
+    "decision_core_time_ns",
+    "decision_realization_time_ns",
+    "decision_time_ns",
+)
+
+
+def _step_timing(step: dict[str, Any], key: str) -> float:
+    """Read a step-level timing value, returning NaN for legacy artifacts."""
+
+    return safe_float(step.get(key))
+
+
 def load_steps(path: Path) -> list[dict[str, Any]]:
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
@@ -278,6 +292,10 @@ def load_allocations(file_signatures: tuple[tuple[str, str, int], ...]) -> pd.Da
         for step in load_steps(path):
             time_index = int(step.get("time_index", -1))
             time_s = step_time_s(step)
+            step_timing = {
+                key: _step_timing(step, key) for key in DECISION_TIMING_COLUMNS
+            }
+            active_demands = safe_float(step.get("active_demands"))
             for allocation in step.get("allocations", []):
                 if not isinstance(allocation, dict):
                     continue
@@ -320,9 +338,184 @@ def load_allocations(file_signatures: tuple[tuple[str, str, int], ...]) -> pd.Da
                             or allocation.get("path_labels")
                             or ""
                         ),
+                        "active_demands": active_demands,
+                        **step_timing,
                     }
                 )
     return filter_active_demands(pd.DataFrame(rows))
+
+
+def build_decision_timing_data(alloc_df: pd.DataFrame) -> pd.DataFrame:
+    """Return one timing record per model and simulation step.
+
+    Timing is exported at step level but copied into each allocation row.  This
+    function deliberately deduplicates those rows so demand count cannot inflate
+    the measured decision time.
+    """
+
+    columns = ["model", "time_index", "time_s", "active_demands", *DECISION_TIMING_COLUMNS]
+    if alloc_df.empty:
+        return pd.DataFrame(columns=columns)
+    available = [column for column in columns if column in alloc_df.columns]
+    timing = alloc_df[available].drop_duplicates(
+        subset=["model", "time_index"], keep="first"
+    ).copy()
+    if "active_demands" in timing.columns and timing["active_demands"].isna().any():
+        # PPO-GNN exports the per-allocation ``active`` flag but older files do
+        # not include the step-level count. Use the already filtered active rows
+        # as a compatibility fallback for workload scaling.
+        if "active" in alloc_df.columns:
+            active_counts = (
+                alloc_df.loc[alloc_df["active"].isna() | alloc_df["active"].eq(True)]
+                .groupby(["model", "time_index"], observed=False)
+                .size()
+                .rename("_active_demands_from_rows")
+                .reset_index()
+            )
+            timing = timing.merge(
+                active_counts,
+                on=["model", "time_index"],
+                how="left",
+                validate="one_to_one",
+            )
+            timing["active_demands"] = timing["active_demands"].fillna(
+                timing["_active_demands_from_rows"]
+            )
+            timing = timing.drop(columns=["_active_demands_from_rows"])
+    for column in DECISION_TIMING_COLUMNS:
+        if column not in timing:
+            timing[column] = math.nan
+    for column in DECISION_TIMING_COLUMNS:
+        timing[column.replace("_ns", "_ms")] = timing[column] / 1_000_000.0
+    return timing
+
+
+def build_decision_timing_summary(timing_df: pd.DataFrame) -> pd.DataFrame:
+    columns = [
+        "model",
+        "decision_count",
+        "core_median_ms",
+        "core_p95_ms",
+        "total_median_ms",
+        "total_p95_ms",
+        "total_max_ms",
+        "total_time_s",
+    ]
+    rows: list[dict[str, Any]] = []
+    for model, group in timing_df.groupby("model", observed=False):
+        core = group["decision_core_time_ms"].dropna().to_numpy(dtype=float)
+        total = group["decision_time_ms"].dropna().to_numpy(dtype=float)
+        rows.append(
+            {
+                "model": model,
+                "decision_count": int(len(total)),
+                "core_median_ms": float(np.median(core)) if len(core) else math.nan,
+                "core_p95_ms": float(np.percentile(core, 95)) if len(core) else math.nan,
+                "total_median_ms": float(np.median(total)) if len(total) else math.nan,
+                "total_p95_ms": float(np.percentile(total, 95)) if len(total) else math.nan,
+                "total_max_ms": float(np.max(total)) if len(total) else math.nan,
+                "total_time_s": float(total.sum() / 1000.0) if len(total) else math.nan,
+            }
+        )
+    return pd.DataFrame(rows, columns=columns)
+
+
+def build_decision_timing_distribution_figure(
+    timing_df: pd.DataFrame, models: list[str]
+) -> go.Figure:
+    fig = go.Figure()
+    for model in models:
+        rows = timing_df[timing_df["model"] == model]
+        for column, label in (
+            ("decision_core_time_ms", "Core decision"),
+            ("decision_time_ms", "Total decision"),
+        ):
+            values = rows[column].dropna()
+            if values.empty:
+                continue
+            fig.add_trace(
+                go.Violin(
+                    x=[model] * len(values),
+                    y=values,
+                    name=f"{model} – {label}",
+                    legendgroup=label,
+                    line=dict(color=MODEL_COLORS[model]),
+                    fillcolor=MODEL_COLORS[model],
+                    opacity=0.45 if label == "Total decision" else 0.7,
+                    box=dict(visible=True),
+                    meanline=dict(visible=True),
+                    points=False,
+                )
+            )
+    fig.update_layout(
+        title="Decision-Time Distribution",
+        yaxis_title="Time (ms)",
+        violinmode="group",
+        margin=dict(l=40, r=30, t=60, b=80),
+    )
+    return fig
+
+
+def build_decision_timing_over_time_figure(
+    timing_df: pd.DataFrame, models: list[str]
+) -> go.Figure:
+    fig = go.Figure()
+    for model in models:
+        rows = timing_df[timing_df["model"] == model].sort_values("time_index")
+        rows = rows.dropna(subset=["decision_time_ms"])
+        if rows.empty:
+            continue
+        fig.add_trace(
+            go.Scatter(
+                x=rows["time_s"],
+                y=rows["decision_time_ms"],
+                mode="lines+markers",
+                name=model,
+                line=dict(color=MODEL_COLORS[model]),
+                customdata=rows[["time_index", "active_demands"]].to_numpy(),
+                hovertemplate=(
+                    "time=%{x:.1f}s<br>decision=%{y:.3f} ms"
+                    "<br>step=%{customdata[0]}<br>active demands=%{customdata[1]}<extra>"
+                    + model
+                    + "</extra>"
+                ),
+            )
+        )
+    fig.update_layout(
+        title="Total Decision Time Over Simulation",
+        xaxis_title="Simulation time (s)",
+        yaxis_title="Total decision time (ms)",
+        margin=dict(l=40, r=30, t=60, b=60),
+    )
+    return fig
+
+
+def build_decision_timing_scaling_figure(
+    timing_df: pd.DataFrame, models: list[str]
+) -> go.Figure:
+    fig = go.Figure()
+    for model in models:
+        rows = timing_df[timing_df["model"] == model].dropna(
+            subset=["decision_time_ms", "active_demands"]
+        )
+        if rows.empty:
+            continue
+        fig.add_trace(
+            go.Scatter(
+                x=rows["active_demands"],
+                y=rows["decision_time_ms"],
+                mode="markers",
+                name=model,
+                marker=dict(color=MODEL_COLORS[model], size=7, opacity=0.75),
+            )
+        )
+    fig.update_layout(
+        title="Decision Time Versus Active Demands",
+        xaxis_title="Active demands",
+        yaxis_title="Total decision time (ms)",
+        margin=dict(l=40, r=30, t=60, b=60),
+    )
+    return fig
 
 
 def filter_active_demands(alloc_df: pd.DataFrame) -> pd.DataFrame:
@@ -1253,11 +1446,29 @@ def main() -> None:
     has_legacy_activity = alloc_df["active"].isna().any()
     summary_df = build_summary(alloc_df)
     models = [model for model in MODEL_ORDER if model in set(alloc_df["model"])]
+    timing_df = build_decision_timing_data(alloc_df)
+    timing_summary = build_decision_timing_summary(timing_df)
 
     render_metric_row(summary_df)
 
-    summary_tab, dashboard_tab, time_tab, demand_tab, path_tab, failures_tab = st.tabs(
-        ["Summary", "Dashboard", "Over Time", "Demand Matrix", "Paths", "Failures"]
+    (
+        summary_tab,
+        dashboard_tab,
+        time_tab,
+        timing_tab,
+        demand_tab,
+        path_tab,
+        failures_tab,
+    ) = st.tabs(
+        [
+            "Summary",
+            "Dashboard",
+            "Over Time",
+            "Decision Timing",
+            "Demand Matrix",
+            "Paths",
+            "Failures",
+        ]
     )
     with summary_tab:
         st.subheader("Model Summary")
@@ -1298,6 +1509,47 @@ def main() -> None:
             build_demand_satisfaction_heatmap_figure(alloc_df, models),
             width="stretch",
         )
+
+    with timing_tab:
+        st.subheader("Decision Timing")
+        st.caption(
+            "Timing is measured once per model decision step. Core time covers the "
+            "solver or policy decision; total time includes preparation and realization. "
+            "Values are converted from nanoseconds to milliseconds."
+        )
+        if timing_summary["decision_count"].sum() == 0:
+            st.info(
+                "Decision timing is unavailable in the selected allocation exports. "
+                "Regenerate each model output with the timing fields to compare them."
+            )
+        else:
+            st.dataframe(timing_summary, width="stretch")
+            missing_models = [
+                model
+                for model in models
+                if timing_summary.loc[
+                    timing_summary["model"] == model, "decision_count"
+                ].sum()
+                == 0
+            ]
+            if missing_models:
+                st.warning(
+                    "Timing is unavailable for: "
+                    + ", ".join(missing_models)
+                    + ". They are excluded from timing plots."
+                )
+            st.plotly_chart(
+                build_decision_timing_distribution_figure(timing_df, models),
+                width="stretch",
+            )
+            st.plotly_chart(
+                build_decision_timing_over_time_figure(timing_df, models),
+                width="stretch",
+            )
+            st.plotly_chart(
+                build_decision_timing_scaling_figure(timing_df, models),
+                width="stretch",
+            )
 
     with demand_tab:
         st.caption(

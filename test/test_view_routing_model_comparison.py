@@ -251,6 +251,79 @@ def test_routing_model_comparison_covers_fallback_helper_branches(
     assert module._default_pipeline_root(empty_env, {}) is None
 
 
+def test_decision_timing_is_deduplicated_and_converted_to_milliseconds() -> None:
+    module = _load_module()
+    allocations = pd.DataFrame(
+        [
+            {
+                "model": "ILP",
+                "time_index": 0,
+                "time_s": 0.0,
+                "active_demands": 2,
+                "active": True,
+                "decision_preparation_time_ns": 100_000_000,
+                "decision_core_time_ns": 20_000_000,
+                "decision_realization_time_ns": 5_000_000,
+                "decision_time_ns": 125_000_000,
+            },
+            # The exporter repeats step timing on every allocation row.
+            {
+                "model": "ILP",
+                "time_index": 0,
+                "time_s": 0.0,
+                "active_demands": 2,
+                "active": True,
+                "decision_preparation_time_ns": 100_000_000,
+                "decision_core_time_ns": 20_000_000,
+                "decision_realization_time_ns": 5_000_000,
+                "decision_time_ns": 125_000_000,
+            },
+            {
+                "model": "Path-AC",
+                "time_index": 1,
+                "time_s": 60.0,
+                "active_demands": 3,
+                "active": True,
+                "decision_preparation_time_ns": 200_000_000,
+                "decision_core_time_ns": 10_000_000,
+                "decision_realization_time_ns": 10_000_000,
+                "decision_time_ns": 220_000_000,
+            },
+        ]
+    )
+    timing = module.build_decision_timing_data(allocations)
+    assert len(timing) == 2
+    assert timing.loc[timing["model"] == "ILP", "decision_time_ms"].iloc[0] == 125.0
+
+    summary = module.build_decision_timing_summary(timing).set_index("model")
+    assert summary.loc["ILP", "decision_count"] == 1
+    assert summary.loc["ILP", "core_median_ms"] == 20.0
+    assert summary.loc["Path-AC", "total_time_s"] == 0.22
+
+    distribution = module.build_decision_timing_distribution_figure(
+        timing, ["ILP", "Path-AC"]
+    )
+    over_time = module.build_decision_timing_over_time_figure(
+        timing, ["ILP", "Path-AC"]
+    )
+    scaling = module.build_decision_timing_scaling_figure(
+        timing, ["ILP", "Path-AC"]
+    )
+    assert len(distribution.data) == 4
+    assert len(over_time.data) == 2
+    assert len(scaling.data) == 2
+
+
+def test_decision_timing_summary_handles_legacy_exports() -> None:
+    module = _load_module()
+    timing = module.build_decision_timing_data(
+        pd.DataFrame([{"model": "PPO-GNN", "time_index": 0, "time_s": 0.0}])
+    )
+    summary = module.build_decision_timing_summary(timing)
+    assert summary.loc[0, "decision_count"] == 0
+    assert math.isnan(summary.loc[0, "total_median_ms"])
+
+
 def test_routing_model_comparison_scoped_env_reuses_or_initializes(
     monkeypatch, tmp_path: Path
 ) -> None:
