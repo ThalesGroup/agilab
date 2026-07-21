@@ -37,6 +37,7 @@ def _build_cluster_env(
     *,
     internet_on: str = "1",
     verbose: int = 0,
+    worker_uv_spec: str | None = None,
 ) -> SimpleNamespace:
     cluster_pck = tmp_path / "cluster_pck"
     (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
@@ -49,7 +50,7 @@ def _build_cluster_env(
     uvproject = tmp_path / "uv.toml"
     uvproject.write_text("[tool.uv]\n", encoding="utf-8")
 
-    return SimpleNamespace(
+    env = SimpleNamespace(
         dist_rel=Path("wenv/dist"),
         wenv_rel=Path("wenv"),
         pyvers_worker="3.13",
@@ -63,6 +64,9 @@ def _build_cluster_env(
         target_worker="demo_worker",
         verbose=verbose,
     )
+    if worker_uv_spec is not None:
+        env.pyvers_worker_uv_spec = worker_uv_spec
+    return env
 
 
 def _build_agi(
@@ -563,6 +567,7 @@ ilp_worker = { path = "../deps/ilp_worker" }
     payload = sent_to_wenv[0]
     pyproject_item = next(item for item in payload if item["name"] == "pyproject.toml")
     assert "_uv_sources/ilp_worker" in pyproject_item["content"]
+    assert 'requires-python = ">=3.12"' in pyproject_item["content"]
     staged_item = next(item for item in payload if item["name"] == "_uv_sources")
     assert staged_item["is_dir"] is True
     assert "ilp_worker/milp.py" in staged_item["children"]
@@ -942,7 +947,7 @@ async def test_prepare_cluster_env_python_install_unknown_error_bubbles(tmp_path
 
 
 @pytest.mark.asyncio
-async def test_prepare_cluster_env_falls_back_to_original_pyproject_when_extra_seed_fails(tmp_path):
+async def test_prepare_cluster_env_fallback_still_normalizes_python_floor(tmp_path):
     env = _build_cluster_env(tmp_path)
     agi_cls = _build_agi(env)
     sent = []
@@ -975,8 +980,44 @@ async def test_prepare_cluster_env_falls_back_to_original_pyproject_when_extra_s
 
     sent_to_wenv = [items for _ip, items, remote_path in sent if remote_path == "wenv"]
     assert sent_to_wenv
-    assert any("worker_pyproject.toml" == item["name"] for item in sent_to_wenv[0])
-    assert not any(item["name"] == "pyproject.toml" for item in sent_to_wenv[0])
+    pyproject_item = next(item for item in sent_to_wenv[0] if item["name"] == "pyproject.toml")
+    assert 'requires-python = ">=3.12"' in pyproject_item["content"]
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_uses_qualified_worker_python_selector(tmp_path):
+    env = _build_cluster_env(tmp_path, worker_uv_spec="3.14.6+gil")
+    agi_cls = _build_agi(env)
+    remote_cmds: list[str] = []
+
+    async def _fake_detect(_ip):
+        return ""
+
+    async def _fake_exec(_ip, cmd):
+        remote_cmds.append(cmd)
+        if "python find" in cmd:
+            return "Python 3.14.6"
+        return "ok"
+
+    async def _noop(*_args, **_kwargs):
+        return None
+
+    await deployment_prepare_support.prepare_cluster_env(
+        agi_cls,
+        "127.0.0.1",
+        envar_truthy_fn=_truthy,
+        detect_export_cmd_fn=_fake_detect,
+        ensure_optional_extras_fn=lambda *_a, **_k: None,
+        stage_uv_sources_fn=lambda **_kwargs: [],
+        run_exec_ssh_fn=_fake_exec,
+        send_files_fn=lambda *_a, **_k: _noop(),
+        kill_fn=_noop,
+        clean_dirs_fn=_noop,
+        set_env_var_fn=lambda key, value=None: env.envars.__setitem__(key, value),
+        log=mock.Mock(),
+    )
+
+    assert any("python find 3.14.6+gil" in cmd for cmd in remote_cmds)
 
 
 @pytest.mark.asyncio

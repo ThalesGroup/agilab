@@ -391,11 +391,12 @@ Use this runbook whenever you:
 - **Shared core approval gate**: Do not edit shared core technology without explicit user approval first.
   Shared core includes `src/agilab/core/agi-env`, `src/agilab/core/agi-node`, `src/agilab/core/agi-cluster`,
   `src/agilab/core/agi-core`, shared installer/build/deploy tooling, and generic helpers reused across apps/pages.
-  Default to app-local fixes first. If you believe a core change is required, stop and explain:
-  - why an app-local fix is insufficient
-  - which shared files/modules need to change
-  - the expected blast radius across apps/workflows
-  - the test or regression plan you will use after approval
+  Default to app-local fixes first. If a core change is required, do not silently defer it or substitute an
+  incomplete app-local workaround: explain why the app-local fix is insufficient, name the shared files/modules,
+  state the blast radius, and give the regression/validation plan, then ask the user for an explicit decision.
+  A direct user instruction to fix/do the named shared-core issue is approval to proceed within that stated scope;
+  record the approval and affected files in the plan and PR evidence. If approval is absent, pause only that shared
+  change while continuing independent in-scope work and clearly report the blocker.
 - **agi-core owner gate**: Treat `src/agilab/core/agi-core/**` as owner-protected even after
   shared-core approval. Only GitHub actor `jpmorard` may change this path. The local pre-push
   hook and repo-guardrails CI run `tools/agi_core_change_guard.py`; agents should not stage or

@@ -788,7 +788,7 @@ async def deploy_remote_worker(
 
     wenv_rel = env.wenv_rel
     dist_abs = env.dist_abs
-    pyvers = env.pyvers_worker
+    pyvers = getattr(env, "pyvers_worker_uv_spec", None) or env.pyvers_worker
     # Operator-managed shell prefix; trusted input prepended verbatim.
     cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
     uv = _remote_tool(cmd_prefix, env.uv_worker)
@@ -902,7 +902,7 @@ async def deploy_remote_worker(
 
     remote_site_packages = worker_site_packages_dir_fn(
         PurePosixPath(wenv_rel.as_posix()),
-        pyvers,
+        env.pyvers_worker,
         windows=False,
     )
     remote_uv_sources = PurePosixPath(wenv_rel.as_posix()) / "_uv_sources"
