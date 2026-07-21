@@ -4,6 +4,7 @@ import json
 import os
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,6 +22,28 @@ def _write_task(path: Path, payload: dict[str, object]) -> None:
         json.dumps({"schema": SERVICE_TASK_SCHEMA, **payload}, sort_keys=True),
         encoding="utf-8",
     )
+
+
+def _read_json_with_permission_retry(
+    path: Path,
+    *,
+    timeout: float = 0.5,
+    read_text_fn: Callable[[Path], str] | None = None,
+    monotonic_fn: Callable[[], float] = time.monotonic,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> dict[str, object]:
+    """Read concurrently replaced JSON while tolerating Windows sharing races."""
+
+    reader = read_text_fn or (lambda source: source.read_text(encoding="utf-8"))
+    deadline = monotonic_fn() + max(timeout, 0.0)
+    while True:
+        try:
+            return json.loads(reader(path))
+        except PermissionError:
+            remaining = deadline - monotonic_fn()
+            if remaining <= 0:
+                raise
+            sleep_fn(min(0.01, remaining))
 
 
 class DummyWorker(BaseWorker):
@@ -79,6 +102,53 @@ def test_make_heartbeat_writer_persists_payload(tmp_path):
         write_heartbeat,
         "worker_incarnation",
     )
+
+
+def test_heartbeat_json_reader_retries_only_transient_permission_errors(tmp_path):
+    heartbeat_file = tmp_path / "heartbeat.json"
+    heartbeat_file.write_text('{"state": "processing"}', encoding="utf-8")
+    attempts = 0
+
+    def _deny_once(path: Path) -> str:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise PermissionError("heartbeat replacement in progress")
+        return path.read_text(encoding="utf-8")
+
+    assert _read_json_with_permission_retry(
+        heartbeat_file,
+        read_text_fn=_deny_once,
+        sleep_fn=lambda _delay: None,
+    ) == {"state": "processing"}
+    assert attempts == 2
+
+    denied_attempts = 0
+    monotonic_values = iter((10.0, 10.1, 10.5))
+    sleep_delays: list[float] = []
+
+    def _always_denied(_path: Path) -> str:
+        nonlocal denied_attempts
+        denied_attempts += 1
+        raise PermissionError("heartbeat remains locked")
+
+    with pytest.raises(PermissionError, match="remains locked"):
+        _read_json_with_permission_retry(
+            heartbeat_file,
+            timeout=0.5,
+            read_text_fn=_always_denied,
+            monotonic_fn=lambda: next(monotonic_values),
+            sleep_fn=sleep_delays.append,
+        )
+    assert denied_attempts == 2
+    assert sleep_delays == [0.01]
+
+    with pytest.raises(json.JSONDecodeError):
+        _read_json_with_permission_retry(
+            heartbeat_file,
+            read_text_fn=lambda _path: "{",
+            sleep_fn=lambda _delay: None,
+        )
 
 
 def test_service_loop_without_worker_override_stops_cleanly():
@@ -197,12 +267,15 @@ def test_service_loop_refreshes_heartbeat_during_long_task(tmp_path):
     assert work_started.wait(timeout=2)
 
     heartbeat_file = next((queue_root / "heartbeats").glob("*.json"))
-    first = json.loads(heartbeat_file.read_text(encoding="utf-8"))
-    deadline = time.time() + 2
+    first = _read_json_with_permission_retry(heartbeat_file)
+    deadline = time.monotonic() + 2
     refreshed = first
-    while time.time() < deadline and refreshed["timestamp"] <= first["timestamp"]:
+    while (
+        time.monotonic() < deadline
+        and refreshed["timestamp"] <= first["timestamp"]
+    ):
         time.sleep(0.05)
-        refreshed = json.loads(heartbeat_file.read_text(encoding="utf-8"))
+        refreshed = _read_json_with_permission_retry(heartbeat_file)
 
     assert refreshed["state"] == "processing"
     assert refreshed["timestamp"] > first["timestamp"]
