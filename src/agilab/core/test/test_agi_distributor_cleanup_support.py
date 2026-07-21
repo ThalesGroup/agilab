@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -291,8 +292,10 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
 
     assert copied
     assert local_runs
-    local_argv = shlex.split(local_runs[0][0].split("python ", 1)[1], posix=True)
+    assert "--with" not in local_runs[0][0]
+    local_argv = shlex.split(local_runs[0][0], posix=True)
     assert local_argv == [
+        Path(sys.executable).as_posix(),
         (wenv_parent / "cli.py").as_posix(),
         "kill",
         wenv_abs.as_posix(),
@@ -301,8 +304,23 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
     assert all(cwd == str(wenv_abs) for _cmd, cwd in local_runs)
     assert len(remote_runs) == 1
     assert remote_runs[0][0] == "10.0.0.2"
-    remote_argv = shlex.split(remote_runs[0][1].split(";", 1)[1], posix=True)
-    assert remote_argv == [
+    remote_command = remote_runs[0][1].split(";", 1)[1]
+    assert remote_command.startswith("if [ -x ")
+    assert ".venv/bin/python" in remote_command
+    assert "; then " in remote_command
+    assert "; else " in remote_command
+    assert " || " not in remote_command
+    direct_command = remote_command.split("; then ", 1)[1].split("; else ", 1)[0]
+    direct_argv = shlex.split(direct_command, posix=True)
+    assert direct_argv == [
+        "w env's/demo worker/.venv/bin/python",
+        "w env's/cli.py",
+        "kill",
+        "w env's/demo worker",
+    ]
+    fallback_command = remote_command.split("; else ", 1)[1].rsplit("; fi", 1)[0]
+    fallback_argv = shlex.split(fallback_command, posix=True)
+    assert fallback_argv == [
         "uv",
         "run",
         "--no-sync",
@@ -320,6 +338,79 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
     assert (wenv_parent / "ok.pid").exists()
     assert log.info.called
     assert log.error.called
+
+
+@pytest.mark.asyncio
+async def test_kill_processes_prefers_installed_windows_worker_python(tmp_path):
+    wenv_abs = tmp_path / "worker env"
+    worker_python = wenv_abs / ".venv" / "Scripts" / "python.exe"
+    worker_python.parent.mkdir(parents=True)
+    worker_python.write_text("", encoding="utf-8")
+    cli_abs = wenv_abs.parent / "cli.py"
+    cli_abs.write_text("print('cli')\n", encoding="utf-8")
+    env = SimpleNamespace(
+        uv="uv",
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("wenv/demo worker"),
+        envars={},
+        debug=False,
+        is_local=lambda _ip: True,
+    )
+    runs = []
+
+    async def _run(cmd, cwd):
+        runs.append((cmd, cwd))
+
+    await cleanup_support.kill_processes(
+        SimpleNamespace(env=env),
+        current_pid=321,
+        gethostbyname_fn=lambda _name: "127.0.0.1",
+        run_fn=_run,
+        os_name="nt",
+    )
+
+    assert len(runs) == 1
+    argv = shlex.split(runs[0][0], posix=True)
+    assert argv[0] == worker_python.as_posix()
+    assert argv[-3:] == ["kill", wenv_abs.as_posix(), "321"]
+    assert "--with" not in argv
+
+
+@pytest.mark.asyncio
+async def test_kill_processes_uses_manager_python_for_partial_windows_worker(tmp_path):
+    wenv_abs = tmp_path / "worker env"
+    wenv_abs.mkdir(parents=True)
+    cli_abs = wenv_abs.parent / "cli.py"
+    cli_abs.write_text("print('cli')\n", encoding="utf-8")
+    manager_python = tmp_path / "manager env" / "Scripts" / "python.exe"
+    env = SimpleNamespace(
+        uv="uv",
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("wenv/demo worker"),
+        envars={},
+        debug=False,
+        is_local=lambda _ip: True,
+    )
+    runs = []
+
+    async def _run(cmd, cwd):
+        runs.append((cmd, cwd))
+
+    await cleanup_support.kill_processes(
+        SimpleNamespace(env=env),
+        current_pid=321,
+        gethostbyname_fn=lambda _name: "127.0.0.1",
+        run_fn=_run,
+        os_name="nt",
+        sys_module=SimpleNamespace(executable=str(manager_python), argv=[]),
+    )
+
+    assert len(runs) == 1
+    argv = shlex.split(runs[0][0], posix=True)
+    assert argv[0] == manager_python.as_posix()
+    assert argv[-3:] == ["kill", wenv_abs.as_posix(), "321"]
+    assert "--with" not in argv
+    assert "<" not in runs[0][0]
 
 
 @pytest.mark.asyncio
@@ -351,7 +442,9 @@ async def test_kill_processes_local_debug_uses_run_path_and_skips_current_pid(tm
         agi_cls,
         current_pid=999,
         gethostbyname_fn=lambda _name: "127.0.0.1",
-        run_fn=lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("run_fn should not be used in debug mode")),
+        run_fn=lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("run_fn should not be used in debug mode")
+        ),
         run_path_fn=lambda path, run_name=None: run_path_calls.append((path, run_name)),
         sys_module=SimpleNamespace(argv=[]),
         log=mock.Mock(),
@@ -801,8 +894,24 @@ async def test_clean_dirs_removes_local_wenv_and_execs_remote(tmp_path):
     assert removed == []
     assert made_dirs == []
     assert ssh_calls
-    argv = shlex.split(ssh_calls[0][1].split("&& ", 1)[1], posix=True)
-    assert argv == [
+    command = ssh_calls[0][1].split("&& ", 1)[1]
+    assert command.startswith("if [ -x ")
+    assert " || " not in command
+    direct = shlex.split(
+        command.split("; then ", 1)[1].split("; else ", 1)[0],
+        posix=True,
+    )
+    assert direct == [
+        "w env's/.venv/bin/python",
+        "cli.py",
+        "clean",
+        "w env's",
+    ]
+    fallback = shlex.split(
+        command.split("; else ", 1)[1].rsplit("; fi", 1)[0],
+        posix=True,
+    )
+    assert fallback == [
         "/usr/bin/uv",
         "run",
         "--no-sync",
@@ -828,7 +937,7 @@ async def test_remote_target_lease_token_wraps_remote_clean_lifecycle(tmp_path):
     calls = []
 
     async def _exec(ip, cmd):
-        calls.append((ip, shlex.split(cmd, posix=True)))
+        calls.append((ip, cmd))
         return "ok"
 
     agi_cls = SimpleNamespace(
@@ -848,13 +957,19 @@ async def test_remote_target_lease_token_wraps_remote_clean_lifecycle(tmp_path):
     await cleanup_support.release_remote_target_leases(agi_cls)
 
     assert lease.token == "a" * 32
-    assert [argv[argv.index("python") + 2] for _ip, argv in calls] == [
-        "target-lease-acquire",
-        "clean",
-        "target-lease-release",
-    ]
-    assert calls[1][1][3:5] == ["--with", "psutil>=7,<8"]
-    assert calls[1][1][-1] == "a" * 32
+    acquire_argv = shlex.split(calls[0][1], posix=True)
+    release_argv = shlex.split(calls[2][1], posix=True)
+    assert acquire_argv[acquire_argv.index("python") + 2] == "target-lease-acquire"
+    assert release_argv[release_argv.index("python") + 2] == "target-lease-release"
+    clean_command = calls[1][1]
+    assert " || " not in clean_command
+    assert " clean " in clean_command
+    fallback = shlex.split(
+        clean_command.split("; else ", 1)[1].rsplit("; fi", 1)[0],
+        posix=True,
+    )
+    assert fallback[3:5] == ["--with", "psutil>=7,<8"]
+    assert fallback[-1] == "a" * 32
     assert agi_cls._remote_target_leases == {}
 
 

@@ -111,7 +111,8 @@ def _check_runtime_guardrails(repo_root: Path) -> dict[str, Any]:
         label="Runtime fail-closed guardrails",
         pass_summary=(
             "robustness matrix covers public UI bind, cluster share, evidence manifest, "
-            "notebook import, service, route, stale-state, trace-repair, and evidence-recovery bad states"
+            "notebook import, service, route, stale-state, owned child-process crash recovery, "
+            "trace repair, and evidence-recovery bad states"
         ),
         fail_summary="runtime robustness matrix does not cover the expected architecture guardrails",
         required={
@@ -124,6 +125,8 @@ def _check_runtime_guardrails(repo_root: Path) -> dict[str, Any]:
                 "RECOVERY_PROFILE = \"p1-recovery\"",
                 "stale_runner_state_writer_is_rejected",
                 "crash_partial_agent_trace_tail_is_quarantined",
+                "abrupt_child_termination_observed",
+                "_CHILD_SELF_EXIT_SECONDS",
                 "interrupted_workflow_evidence_publish_recovers",
                 "tampered_workflow_evidence_manifest_is_rejected",
             ],
@@ -131,6 +134,7 @@ def _check_runtime_guardrails(repo_root: Path) -> dict[str, Any]:
                 "test_robustness_matrix_p0_passes_against_current_contracts",
                 "test_robustness_matrix_p1_recovery_passes_against_current_contracts",
                 "test_robustness_matrix_all_profile_combines_fail_closed_and_recovery",
+                "abrupt_child_termination_observed",
             ],
         },
     )

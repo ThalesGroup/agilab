@@ -4,6 +4,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 
 MODULE_PATH = Path("tools/production_readiness_report.py").resolve()
@@ -144,6 +145,10 @@ def test_runtime_robustness_matrix_executes_fail_closed_and_recovery_profiles() 
     assert check["details"]["scenario_count"] >= 16
     assert check["details"]["failed"] == []
     assert check["details"]["missing_recovery_scenarios"] == []
+    assert check["details"]["missing_recovery_evidence"] == []
+    assert check["details"]["abrupt_child_termination_observed"] is True
+    assert check["details"]["crash_termination_method"] in {"SIGKILL", "TerminateProcess"}
+    assert check["details"]["crash_child_returncode"] not in (None, 0)
     assert {"runner-state", "agent-trace", "workflow-evidence"} <= set(
         check["details"]["domains"]
     )
@@ -151,6 +156,49 @@ def test_runtime_robustness_matrix_executes_fail_closed_and_recovery_profiles() 
         "tools/robustness_matrix.py",
         "test/test_robustness_matrix.py",
     }
+
+
+def test_runtime_robustness_matrix_requires_observed_abrupt_child_termination(
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    scenario_ids = {
+        "stale_runner_state_writer_is_rejected",
+        "crash_partial_agent_trace_tail_is_quarantined",
+        "interrupted_workflow_evidence_publish_recovers",
+        "tampered_workflow_evidence_manifest_is_rejected",
+    }
+    fake_report = {
+        "schema": "agilab.robustness_matrix.v1",
+        "profile": "all",
+        "status": "pass",
+        "available_profiles": ["p0", "p1-recovery", "all"],
+        "summary": {
+            "scenario_count": len(scenario_ids),
+            "domains": ["agent-trace", "runner-state", "workflow-evidence"],
+        },
+        "scenarios": [
+            {
+                "id": scenario_id,
+                "status": "pass",
+                "details": {},
+            }
+            for scenario_id in sorted(scenario_ids)
+        ],
+    }
+    fake_robustness_matrix = SimpleNamespace(
+        SCHEMA="agilab.robustness_matrix.v1",
+        build_report=lambda **_kwargs: fake_report,
+    )
+    monkeypatch.setattr(module, "_load_tool_module", lambda _name: fake_robustness_matrix)
+
+    check = module._check_runtime_robustness_matrix(Path.cwd())
+
+    assert check["status"] == "fail"
+    assert check["details"]["abrupt_child_termination_observed"] is False
+    assert check["details"]["missing_recovery_evidence"] == [
+        "crash_partial_agent_trace_tail_is_quarantined:abrupt_child_termination_observed"
+    ]
 
 
 def test_docs_workflow_profile_check_reports_expected_sphinx_command() -> None:

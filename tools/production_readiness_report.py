@@ -298,23 +298,45 @@ def _check_runtime_robustness_matrix(repo_root: Path) -> dict[str, Any]:
             for scenario in scenarios
             if isinstance(scenario, Mapping) and scenario.get("id")
         }
+        scenario_by_id = {
+            str(scenario.get("id")): scenario
+            for scenario in scenarios
+            if isinstance(scenario, Mapping) and scenario.get("id")
+        }
         failed = [
             str(scenario.get("id"))
             for scenario in scenarios
             if isinstance(scenario, Mapping) and scenario.get("status") != "pass"
         ]
         missing_recovery_scenarios = sorted(required_recovery_scenarios - scenario_ids)
+        crash_scenario = scenario_by_id.get("crash_partial_agent_trace_tail_is_quarantined", {})
+        crash_details = crash_scenario.get("details", {})
+        if not isinstance(crash_details, Mapping):
+            crash_details = {}
+        abrupt_child_termination_observed = (
+            crash_details.get("abrupt_child_termination_observed") is True
+        )
+        missing_recovery_evidence = (
+            []
+            if abrupt_child_termination_observed
+            else [
+                "crash_partial_agent_trace_tail_is_quarantined:"
+                "abrupt_child_termination_observed"
+            ]
+        )
         ok = (
             report.get("schema") == robustness_matrix.SCHEMA
             and report.get("profile") == "all"
             and report.get("status") == "pass"
             and not failed
             and not missing_recovery_scenarios
+            and not missing_recovery_evidence
         )
         summary = (
-            "the full fail-closed and crash-recovery robustness matrix passes"
+            "the full fail-closed and owned child-process crash-recovery matrix passes"
             if ok
-            else "the runtime robustness matrix is failing or missing required recovery scenarios"
+            else "the runtime robustness matrix is failing, missing required recovery scenarios, "
+            "or lacks observed abrupt child-process termination evidence"
         )
         details = {
             "schema": report.get("schema"),
@@ -324,6 +346,10 @@ def _check_runtime_robustness_matrix(repo_root: Path) -> dict[str, Any]:
             "domains": report.get("summary", {}).get("domains", []),
             "failed": failed,
             "missing_recovery_scenarios": missing_recovery_scenarios,
+            "missing_recovery_evidence": missing_recovery_evidence,
+            "abrupt_child_termination_observed": abrupt_child_termination_observed,
+            "crash_termination_method": crash_details.get("termination_method", ""),
+            "crash_child_returncode": crash_details.get("child_returncode"),
         }
     except Exception as exc:
         ok = False
@@ -332,6 +358,11 @@ def _check_runtime_robustness_matrix(repo_root: Path) -> dict[str, Any]:
             "error": str(exc),
             "failed": [],
             "missing_recovery_scenarios": sorted(required_recovery_scenarios),
+            "missing_recovery_evidence": [
+                "crash_partial_agent_trace_tail_is_quarantined:"
+                "abrupt_child_termination_observed"
+            ],
+            "abrupt_child_termination_observed": False,
         }
     return _check_result(
         "runtime_robustness_matrix",

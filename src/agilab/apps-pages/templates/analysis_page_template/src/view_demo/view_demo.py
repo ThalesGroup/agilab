@@ -36,7 +36,11 @@ def _load_project_env(active_app_path: Path) -> Any:
         st.error(f"Import error: {_AGI_ENV_IMPORT_ERROR}")
         st.stop()
 
-    return getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
+    return AgiEnv.session_for_app(
+        apps_path=active_app_path.parent,
+        app=active_app_path.name,
+        verbose=0,
+    )
 
 
 def _dataset_root(env: Any) -> Path | None:

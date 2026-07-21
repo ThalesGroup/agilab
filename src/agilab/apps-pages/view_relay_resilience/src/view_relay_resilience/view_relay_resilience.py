@@ -158,9 +158,19 @@ def _build_max_queue_comparison_frame(selected_paths: dict[str, Path]) -> pd.Dat
     return pd.concat(queue_frames, axis=1).sort_index()
 
 
+def _create_env(active_app_path: Path) -> AgiEnv:
+    env = AgiEnv.session_for_app(
+        apps_path=active_app_path.parent,
+        app=active_app_path.name,
+        verbose=0,
+    )
+    env.init_done = True
+    return env
+
+
 page_context = prepare_queue_resilience_page(
     st,
-    AgiEnv,
+    env_factory=_create_env,
     title="Relay resilience analysis",
     logo_title="Relay Resilience Analysis",
     caption=(

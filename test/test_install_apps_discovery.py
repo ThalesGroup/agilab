@@ -222,22 +222,19 @@ printf 'PROMPT_FOR_APPS=%s\n' "$PROMPT_FOR_APPS"
 
 def _run_normalize_agi_python_version(raw: str, *, free_threaded: str = "0") -> subprocess.CompletedProcess[str]:
     script_text = INSTALL_APPS_SH.read_text(encoding="utf-8")
-    python_uv_spec_body = _extract_function(
-        script_text,
-        "python_uv_spec_for_version",
-        "normalize_agi_python_version",
-    )
     function_body = _extract_function(
         script_text,
         "normalize_agi_python_version",
-        "configure_uv_link_mode",
+        "normalize_agi_python_uv_spec",
     )
     bash_script = f"""#!/usr/bin/env bash
 set -euo pipefail
 RED=""
 NC=""
 AGI_PYTHON_FREE_THREADED="$2"
-{python_uv_spec_body}
+repo_python_default() {{
+  printf '%s\n' "3.13"
+}}
 {function_body}
 normalize_agi_python_version "$1"
 """
@@ -537,6 +534,7 @@ def test_install_apps_cli_selection_normalization(
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
+        ("", "3.13"),
         ("3.14", "3.14"),
         ("3.14.6-macos-aarch64-none", "3.14.6"),
         ("cpython-3.13.14-macos-aarch64-none", "3.13.14"),
@@ -558,6 +556,7 @@ def test_install_apps_python_version_normalization_accepts_standard_interpreters
     [
         ("3.14.6+freethreaded-macos-aarch64-none", "0"),
         ("/Users/agi/.local/bin/python3.14t", "0"),
+        ("cpython-3.14.0t-macos-aarch64-none", "0"),
         ("3.14.6", "1"),
     ],
 )

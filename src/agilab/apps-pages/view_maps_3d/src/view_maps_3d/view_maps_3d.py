@@ -31,7 +31,11 @@ logger = AgiLogger.get_logger(__name__)
 
 ensure_repo_on_path(__file__)
 
-from agi_pages.runtime import render_streamlit_page_header, reset_scoped_session_state
+from agi_pages.runtime import (
+    configure_streamlit_page,
+    render_streamlit_page_header,
+    reset_scoped_session_state,
+)
 
 
 def _default_app() -> Path | None:
@@ -172,6 +176,7 @@ def _list_dataset_files(base_dir: Path, ext_choice: str = "all") -> list[Path]:
     return visible
 
 
+configure_streamlit_page(st, title="Cartography-3D Visualization")
 render_streamlit_page_header(st, title=":world_map: Cartography-3D Visualization", show_logo=False)
 
 

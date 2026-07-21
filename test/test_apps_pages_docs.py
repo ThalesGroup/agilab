@@ -19,6 +19,15 @@ def _page_modules() -> list[str]:
     )
 
 
+def _page_source_files() -> list[Path]:
+    """Return tracked page sources without traversing package-local environments."""
+
+    paths = set(APPS_PAGES_ROOT.glob("*.py"))
+    paths.update(APPS_PAGES_ROOT.glob("*/src/**/*.py"))
+    paths.update(APPS_PAGES_ROOT.glob("templates/**/src/**/*.py"))
+    return sorted(paths)
+
+
 def test_apps_pages_catalog_documents_every_source_bundle() -> None:
     catalog = (DOCS_SOURCE / "apps-pages.rst").read_text(encoding="utf-8")
     page_modules = _page_modules()
@@ -87,17 +96,115 @@ def test_view_prefix_remains_the_generic_page_family() -> None:
 
 
 def test_apps_pages_never_borrow_the_process_agienv_singleton() -> None:
-    source_files = sorted(APPS_PAGES_ROOT.rglob("*.py"))
+    source_files = _page_source_files()
+    source_files.append(
+        REPO_ROOT / "src/agilab/lib/agi-pages/src/agi_pages/queue_resilience.py"
+    )
     offenders: list[str] = []
     for source_file in source_files:
         source = source_file.read_text(encoding="utf-8", errors="ignore")
-        if (
-            "AgiEnv.for_app(" in source
-            or 'getattr(AgiEnv, "for_app"' in source
-            or "AgiEnv.current()" in source
-            or "AgiEnv(" in source
-        ):
+        tree = ast.parse(source)
+        borrows_singleton = False
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr == "for_app"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "AgiEnv"
+            ):
+                borrows_singleton = True
+                break
+            if (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr == "current"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "AgiEnv"
+            ):
+                borrows_singleton = True
+                break
+            if isinstance(node.func, ast.Name) and node.func.id == "AgiEnv":
+                borrows_singleton = True
+                break
+            if (
+                isinstance(node.func, ast.Name)
+                and node.func.id == "getattr"
+                and len(node.args) >= 2
+                and isinstance(node.args[0], ast.Name)
+                and node.args[0].id == "AgiEnv"
+                and isinstance(node.args[1], ast.Constant)
+                and node.args[1].value == "for_app"
+            ):
+                borrows_singleton = True
+                break
+        if borrows_singleton:
             offenders.append(str(source_file.relative_to(REPO_ROOT)))
+
+    assert offenders == []
+
+
+def test_apps_pages_configure_streamlit_before_rendering_shared_header() -> None:
+    class _DirectBodyCallVisitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, int]] = []
+
+        def visit_Call(self, node: ast.Call) -> None:
+            call_name = getattr(node.func, "id", None) or getattr(
+                node.func, "attr", None
+            )
+            if call_name:
+                self.calls.append((call_name, node.lineno))
+            self.generic_visit(node)
+
+        def visit_FunctionDef(self, _node: ast.FunctionDef) -> None:
+            return
+
+        def visit_AsyncFunctionDef(self, _node: ast.AsyncFunctionDef) -> None:
+            return
+
+        def visit_ClassDef(self, _node: ast.ClassDef) -> None:
+            return
+
+    offenders: list[str] = []
+    for source_file in _page_source_files():
+        tree = ast.parse(source_file.read_text(encoding="utf-8", errors="ignore"))
+        module_visitor = _DirectBodyCallVisitor()
+        for statement in tree.body:
+            module_visitor.visit(statement)
+        module_configure_lines = [
+            line
+            for name, line in module_visitor.calls
+            if name == "configure_streamlit_page"
+        ]
+        owners: list[ast.Module | ast.FunctionDef | ast.AsyncFunctionDef] = [tree]
+        owners.extend(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        )
+        for owner in owners:
+            visitor = _DirectBodyCallVisitor()
+            for statement in owner.body:
+                visitor.visit(statement)
+            configure_lines = [
+                line for name, line in visitor.calls if name == "configure_streamlit_page"
+            ]
+            if owner is not tree:
+                configure_lines.extend(module_configure_lines)
+            header_lines = [
+                line
+                for name, line in visitor.calls
+                if name == "render_streamlit_page_header"
+            ]
+            if any(
+                not any(configure_line < header_line for configure_line in configure_lines)
+                for header_line in header_lines
+            ):
+                owner_name = getattr(owner, "name", "<module>")
+                offenders.append(
+                    f"{source_file.relative_to(REPO_ROOT)}:{owner_name}"
+                )
 
     assert offenders == []
 

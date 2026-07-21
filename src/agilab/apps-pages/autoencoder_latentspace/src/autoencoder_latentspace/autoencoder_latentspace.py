@@ -24,7 +24,12 @@ from agi_pages.runtime import ensure_repo_on_path, resolve_active_app_path
 
 ensure_repo_on_path(__file__)
 
-from agi_pages.runtime import active_app_scope_value, render_streamlit_page_header, reset_scoped_session_state
+from agi_pages.runtime import (
+    active_app_scope_value,
+    configure_streamlit_page,
+    render_streamlit_page_header,
+    reset_scoped_session_state,
+)
 from agi_env import AgiEnv
 from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
 from agi_gui.pagelib import load_df, sidebar_views, initialize_csv_files, _dump_toml_payload
@@ -66,6 +71,7 @@ def _ae_key(name: str) -> str:
     return f"{PAGE_KEY}:{name}"
 
 
+configure_streamlit_page(st, title="Dimension Reduction")
 render_streamlit_page_header(st, title=":chart_with_downwards_trend: Dimension Reduction", show_logo=False)
 
 # Function to lazily import plotly

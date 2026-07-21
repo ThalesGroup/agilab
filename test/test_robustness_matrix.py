@@ -64,6 +64,14 @@ def test_robustness_matrix_p1_recovery_passes_against_current_contracts() -> Non
     assert scenarios["stale_runner_state_writer_is_rejected"]["details"][
         "stale_write_preserved_current_state"
     ] is True
+    crash_details = scenarios["crash_partial_agent_trace_tail_is_quarantined"]["details"]
+    assert crash_details["abrupt_child_termination_observed"] is True
+    assert crash_details["child_ready"] is True
+    assert crash_details["child_returncode"] not in (None, 0)
+    assert crash_details["termination_method"] in {"SIGKILL", "TerminateProcess"}
+    assert crash_details["event_sequences"] == [1, 2]
+    assert crash_details["quarantine_count"] == 1
+    assert module._CHILD_SELF_EXIT_SECONDS > module._CHILD_READY_TIMEOUT_SECONDS
     assert scenarios["interrupted_workflow_evidence_publish_recovers"]["details"][
         "hidden_after_failure"
     ] is True

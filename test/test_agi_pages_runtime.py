@@ -167,6 +167,68 @@ def test_agi_pages_runtime_ensures_app_scoped_env_reuses_matching_cache(
     assert state["page:choice"] == "kept"
 
 
+def test_agi_pages_runtime_accepts_matching_apps_path_when_active_app_is_builtin(
+    tmp_path: Path,
+) -> None:
+    apps_path = tmp_path / "apps"
+    app = apps_path / "demo_project"
+    builtin_apps_path = tmp_path / "builtin-apps"
+    builtin_app = builtin_apps_path / "demo_project"
+    app.mkdir(parents=True)
+    builtin_app.mkdir(parents=True)
+    env = SimpleNamespace(
+        active_app=builtin_app,
+        apps_path=apps_path,
+        app=app.name,
+        builtin_apps_path=builtin_apps_path,
+    )
+    state = {"scope": str(app.resolve()), "env": env}
+
+    assert runtime.env_app_scope_value(env) == str(builtin_app.resolve())
+    assert (
+        runtime.ensure_app_scoped_env(
+            state,
+            app,
+            scope_key="scope",
+            env_factory=lambda _active: pytest.fail("matching environment was rebuilt"),
+        )
+        is env
+    )
+    assert state["env"] is env
+
+
+def test_agi_pages_runtime_reuses_matching_environment_after_scope_switch(
+    tmp_path: Path,
+) -> None:
+    old_app = tmp_path / "apps" / "old_project"
+    new_app = tmp_path / "apps" / "new_project"
+    old_app.mkdir(parents=True)
+    new_app.mkdir()
+    env = SimpleNamespace(apps_path=new_app.parent, app=new_app.name)
+    state = {
+        "scope": str(old_app.resolve()),
+        "env": env,
+        "page:choice": "stale",
+        "global": "kept",
+    }
+
+    resolved = runtime.ensure_app_scoped_env(
+        state,
+        new_app,
+        scope_key="scope",
+        env_factory=lambda _active: pytest.fail("matching environment was rebuilt"),
+        keys=("env",),
+        prefixes=("page:",),
+    )
+
+    assert resolved is env
+    assert state == {
+        "scope": str(new_app.resolve()),
+        "env": env,
+        "global": "kept",
+    }
+
+
 def test_agi_pages_runtime_ensures_app_scoped_env_rebuilds_stale_cache(
     tmp_path: Path,
 ) -> None:
@@ -203,25 +265,126 @@ def test_agi_pages_runtime_ensures_app_scoped_env_rebuilds_stale_cache(
     }
 
 
-def test_agi_pages_runtime_ensures_app_scoped_env_rebuilds_unknown_unscoped_cache(
+def test_agi_pages_runtime_rebuilds_stale_environment_despite_matching_marker(
+    tmp_path: Path,
+) -> None:
+    old_app = tmp_path / "apps" / "old_project"
+    new_app = tmp_path / "apps" / "new_project"
+    old_app.mkdir(parents=True)
+    new_app.mkdir()
+    stale_env = SimpleNamespace(
+        apps_path=old_app.parent,
+        app=old_app.name,
+        _agilab_active_app_scope=new_app,
+    )
+    replacement = SimpleNamespace(apps_path=new_app.parent, app=new_app.name)
+    state = {
+        "scope": str(new_app.resolve()),
+        "env": stale_env,
+        "exact": "stale",
+        "page:choice": "stale",
+        "global": "kept",
+    }
+    created: list[Path] = []
+
+    resolved = runtime.ensure_app_scoped_env(
+        state,
+        new_app,
+        scope_key="scope",
+        env_factory=lambda active: created.append(active) or replacement,
+        keys=("exact",),
+        prefixes=("page:",),
+    )
+
+    assert resolved is replacement
+    assert created == [new_app.resolve()]
+    assert state == {
+        "scope": str(new_app.resolve()),
+        "env": replacement,
+        "global": "kept",
+    }
+
+
+def test_agi_pages_runtime_rebuilds_conflicting_live_environment_identity(
+    tmp_path: Path,
+) -> None:
+    apps_path = tmp_path / "apps"
+    old_app = apps_path / "old_project"
+    new_app = apps_path / "new_project"
+    old_app.mkdir(parents=True)
+    new_app.mkdir()
+    stale_env = SimpleNamespace(
+        active_app=old_app,
+        apps_path=apps_path,
+        app=new_app.name,
+        _agilab_active_app_scope=new_app,
+    )
+    replacement = SimpleNamespace(
+        active_app=new_app,
+        apps_path=apps_path,
+        app=new_app.name,
+    )
+    state = {"scope": str(new_app.resolve()), "env": stale_env}
+
+    resolved = runtime.ensure_app_scoped_env(
+        state,
+        new_app,
+        scope_key="scope",
+        env_factory=lambda _active: replacement,
+    )
+
+    assert resolved is replacement
+    assert state["env"] is replacement
+
+
+def test_agi_pages_runtime_rebuilds_unknown_unscoped_cache_even_with_matching_marker(
     tmp_path: Path,
 ) -> None:
     app = tmp_path / "apps" / "demo_project"
     app.mkdir(parents=True)
     unknown_env = SimpleNamespace()
     new_env = SimpleNamespace(apps_path=app.parent, app=app.name)
-    state = {"env": unknown_env}
+    state = {
+        "scope": str(app.resolve()),
+        "env": unknown_env,
+        "page:choice": "stale",
+    }
 
     resolved = runtime.ensure_app_scoped_env(
         state,
         app,
         scope_key="scope",
         env_factory=lambda _active: new_env,
+        prefixes=("page:",),
     )
 
     assert resolved is new_env
-    assert state["env"] is new_env
-    assert state["scope"] == str(app.resolve())
+    assert state == {"scope": str(app.resolve()), "env": new_env}
+
+
+def test_agi_pages_runtime_rejects_factory_environment_for_another_app(
+    tmp_path: Path,
+) -> None:
+    requested_app = tmp_path / "apps" / "requested_project"
+    other_app = tmp_path / "apps" / "other_project"
+    requested_app.mkdir(parents=True)
+    other_app.mkdir()
+    cached_env = SimpleNamespace()
+    state: dict[str, object] = {"env": cached_env, "page:choice": "kept"}
+
+    with pytest.raises(ValueError, match="does not match the requested app"):
+        runtime.ensure_app_scoped_env(
+            state,
+            requested_app,
+            scope_key="scope",
+            env_factory=lambda _active: SimpleNamespace(
+                apps_path=other_app.parent,
+                app=other_app.name,
+            ),
+            prefixes=("page:",),
+        )
+
+    assert state == {"env": cached_env, "page:choice": "kept"}
 
 
 def test_agi_pages_runtime_file_helpers_are_deterministic(tmp_path: Path) -> None:

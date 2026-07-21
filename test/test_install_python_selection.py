@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 import subprocess
 import sys
 import tomllib
@@ -9,8 +10,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ROOT_INSTALLER = REPO_ROOT / "install.sh"
+WINDOWS_INSTALLER = REPO_ROOT / "install.ps1"
 CORE_INSTALLER = REPO_ROOT / "src/agilab/core/install.sh"
 ENDUSER_INSTALLER = REPO_ROOT / "tools/install_enduser.sh"
+APPS_INSTALLER = REPO_ROOT / "src/agilab/install_apps.sh"
 REPO_PYTHON_VERSION = REPO_ROOT / ".python-version"
 
 
@@ -51,6 +54,124 @@ def test_repo_default_python_pin_uses_standard_gil_build() -> None:
     assert REPO_PYTHON_VERSION.read_text(encoding="utf-8").strip() == "3.13"
 
 
+def test_windows_installer_default_follows_repo_python_pin() -> None:
+    text = WINDOWS_INSTALLER.read_text(encoding="utf-8")
+
+    assert 'Join-Path $CurrentPath ".python-version"' in text
+    assert "$defaultPython = Get-RepoPythonDefault" in text
+    assert 'Read-Host "Enter Python major version [$defaultPython]"' in text
+    assert '$requested = $defaultPython' in text
+
+
+def test_installers_read_validated_repo_python_default(tmp_path: Path) -> None:
+    pin = tmp_path / ".python-version"
+    pin.write_text("3.12.9\n", encoding="utf-8")
+
+    for installer in (ROOT_INSTALLER, ENDUSER_INSTALLER):
+        function = _extract_shell_function(
+            installer.read_text(encoding="utf-8"),
+            "repo_python_default",
+        )
+        completed = subprocess.run(
+            [
+                "bash",
+                "-c",
+                "\n".join(
+                    (
+                        "set -euo pipefail",
+                        "RED=''",
+                        "NC=''",
+                        function,
+                        f"repo_python_default {shlex.quote(str(pin))}",
+                    )
+                ),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert completed.stdout.strip() == "3.12.9"
+
+        fallback = subprocess.run(
+            [
+                "bash",
+                "-c",
+                "\n".join(
+                    (
+                        "set -euo pipefail",
+                        "RED=''",
+                        "NC=''",
+                        function,
+                        f"repo_python_default {shlex.quote(str(tmp_path / 'missing'))}",
+                    )
+                ),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert fallback.stdout.strip() == "3.13"
+
+
+def test_installers_reject_malformed_repo_python_default(tmp_path: Path) -> None:
+    pin = tmp_path / ".python-version"
+    pin.write_text("python-latest\n", encoding="utf-8")
+
+    for installer in (ROOT_INSTALLER, ENDUSER_INSTALLER):
+        function = _extract_shell_function(
+            installer.read_text(encoding="utf-8"),
+            "repo_python_default",
+        )
+        completed = subprocess.run(
+            [
+                "bash",
+                "-c",
+                "\n".join(
+                    (
+                        "set -euo pipefail",
+                        "RED=''",
+                        "NC=''",
+                        function,
+                        f"repo_python_default {shlex.quote(str(pin))}",
+                    )
+                ),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert completed.returncode != 0
+        assert "Invalid repository Python pin" in completed.stderr
+
+
+def test_standalone_app_installer_uses_repo_python_default(tmp_path: Path) -> None:
+    pin = tmp_path / ".python-version"
+    pin.write_text("3.12.8\n", encoding="utf-8")
+    text = APPS_INSTALLER.read_text(encoding="utf-8")
+    repo_default = _extract_shell_function(text, "repo_python_default")
+    normalize = _extract_shell_function(text, "normalize_agi_python_version")
+    completed = subprocess.run(
+        [
+            "bash",
+            "-c",
+            "\n".join(
+                (
+                    "set -euo pipefail",
+                    "RED=''",
+                    "NC=''",
+                    repo_default,
+                    f"repo_python_default {shlex.quote(str(pin))}",
+                )
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.stdout.strip() == "3.12.8"
+    assert '${AGI_PYTHON_VERSION:-3.14}' not in text
+    assert 'cpython-[0-9]+\\.[0-9]+' in normalize
+
+
 def test_root_installer_syncs_ui_dependencies_before_root_tests() -> None:
     root_tests = _extract_shell_function(
         ROOT_INSTALLER.read_text(encoding="utf-8"), "run_root_tests"
@@ -78,6 +199,8 @@ def test_core_installer_rejects_freethreaded_python_version_text() -> None:
 def test_enduser_installer_uses_gil_python_for_314_local_source_installs() -> None:
     text = ENDUSER_INSTALLER.read_text(encoding="utf-8")
     python_uv_spec = _extract_shell_function(text, "python_uv_spec_for_version")
+    selector_version = _extract_shell_function(text, "python_selector_version")
+    validate_selector = _extract_shell_function(text, "validate_python_selector")
     normalize_python = _extract_shell_function(text, "normalize_python_selection")
     completed = subprocess.run(
         [
@@ -103,6 +226,8 @@ def test_enduser_installer_uses_gil_python_for_314_local_source_installs() -> No
                     "AGI_PYTHON_VERSION='3.14.6'",
                     "AGI_PYTHON_UV_SPEC='3.14.6'",
                     python_uv_spec,
+                    selector_version,
+                    validate_selector,
                     normalize_python,
                     "normalize_python_selection",
                     "printf '%s\\n' \"$AGI_PYTHON_UV_SPEC\"",
@@ -126,12 +251,104 @@ def test_enduser_installer_uses_gil_python_for_314_local_source_installs() -> No
     assert 'if ! "${VENV}/bin/python" -m pip list | grep' not in text
 
 
+def test_enduser_default_follows_repo_pin_and_mismatch_fails_fast(
+    tmp_path: Path,
+) -> None:
+    pin = tmp_path / ".python-version"
+    pin.write_text("3.13\n", encoding="utf-8")
+    text = ENDUSER_INSTALLER.read_text(encoding="utf-8")
+    functions = "\n\n".join(
+        _extract_shell_function(text, name)
+        for name in (
+            "repo_python_default",
+            "python_uv_spec_for_version",
+            "python_selector_version",
+            "validate_python_selector",
+            "normalize_python_selection",
+        )
+    )
+    common = (
+        "set -euo pipefail",
+        "RED=''",
+        "NC=''",
+        f"REPO_ROOT={shlex.quote(str(tmp_path))}",
+        "unset AGI_PYTHON_VERSION AGI_PYTHON_UV_SPEC AGI_PYTHON_FREE_THREADED || true",
+        functions,
+    )
+    defaulted = subprocess.run(
+        [
+            "bash",
+            "-c",
+            "\n".join(
+                (
+                    *common,
+                    "normalize_python_selection",
+                    'printf "%s|%s\\n" "$AGI_PYTHON_VERSION" "$AGI_PYTHON_UV_SPEC"',
+                )
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert defaulted.stdout.strip() == "3.13|3.13"
+
+    mismatched = subprocess.run(
+        [
+            "bash",
+            "-c",
+            "\n".join(
+                (
+                    *common,
+                    "AGI_PYTHON_VERSION=3.13",
+                    "AGI_PYTHON_UV_SPEC=3.14+gil",
+                    "normalize_python_selection",
+                    "printf 'must-not-run\\n'",
+                )
+            ),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert mismatched.returncode != 0
+    assert "selects Python 3.14" in mismatched.stderr
+    assert "must-not-run" not in mismatched.stdout
+
+    freethreaded_selector = subprocess.run(
+        [
+            "bash",
+            "-c",
+            "\n".join(
+                (
+                    *common,
+                    "AGI_PYTHON_VERSION=3.13",
+                    "AGI_PYTHON_UV_SPEC=cpython-3.13.9t-windows-x86_64-none",
+                    "normalize_python_selection",
+                    "printf 'must-not-run\\n'",
+                )
+            ),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert freethreaded_selector.returncode != 0
+    assert "standard GIL Python interpreter" in freethreaded_selector.stderr
+    assert "must-not-run" not in freethreaded_selector.stdout
+
+    first_normalize = text.index(
+        "# Validate the interpreter contract before any existing venv can be removed."
+    )
+    assert first_normalize < text.index("rm -fr .venv uv.lock")
+
+
 def test_enduser_bootstrap_repairs_polluted_metadata_and_guarantees_pip(
     tmp_path: Path,
 ) -> None:
     text = ENDUSER_INSTALLER.read_text(encoding="utf-8")
     function_names = (
         "python_uv_spec_for_version",
+        "python_selector_version",
+        "validate_python_selector",
         "normalize_python_selection",
         "remove_incompatible_enduser_venv",
         "ensure_enduser_venv",

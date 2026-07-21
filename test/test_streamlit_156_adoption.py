@@ -28,6 +28,16 @@ FIRST_PARTY_STREAMLIT_MANIFESTS = [
 ]
 
 
+def _first_party_python_sources(root: Path) -> list[Path]:
+    sources: list[Path] = []
+    for path in sorted(root.rglob("*.py")):
+        relative_parts = path.relative_to(root).parts
+        if any(part == "build" or part.startswith(".venv") for part in relative_parts):
+            continue
+        sources.append(path)
+    return sources
+
+
 def test_first_party_streamlit_manifests_require_156_when_pinned() -> None:
     stale = []
     for manifest in FIRST_PARTY_STREAMLIT_MANIFESTS:
@@ -156,10 +166,21 @@ def test_source_checkout_streamlit_config_matches_packaged_theme() -> None:
 
 def test_first_party_streamlit_code_uses_width_api() -> None:
     offenders = []
-    for path in sorted(Path("src/agilab").rglob("*.py")):
-        if ".venv" in path.parts or "build" in path.parts:
-            continue
+    for path in _first_party_python_sources(Path("src/agilab")):
         if b"use_container_width" in path.read_bytes():
             offenders.append(str(path))
 
     assert offenders == []
+
+
+def test_first_party_streamlit_inventory_ignores_polluted_local_venvs(tmp_path: Path) -> None:
+    first_party = tmp_path / "page.py"
+    linked_venv = tmp_path / ".venv.agilab-linking" / "lib" / "site-packages" / "streamlit.py"
+    first_party.write_text("import streamlit\n", encoding="utf-8")
+    linked_venv.parent.mkdir(parents=True)
+    linked_venv.write_text("use_container_width = True\n", encoding="utf-8")
+
+    sources = _first_party_python_sources(tmp_path)
+
+    assert first_party in sources
+    assert linked_venv not in sources

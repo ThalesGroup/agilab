@@ -337,6 +337,8 @@ def test_view_queue_resilience_reuses_existing_session_env(
             AGILAB_EXPORT_ABS=export_root,
             target="uav_queue",
             st_resources=tmp_path / "resources",
+            apps_path=project_dir.parent,
+            app=project_dir.name,
         )
         at.session_state["queue_resilience_active_app_scope"] = str(
             project_dir.resolve()

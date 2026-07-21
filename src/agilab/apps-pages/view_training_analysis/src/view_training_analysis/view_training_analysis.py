@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from collections import Counter
+import logging
 import math
 from pathlib import Path
 from typing import Any
@@ -14,7 +15,7 @@ import plotly.graph_objects as go
 from plotly.colors import qualitative as plotly_qualitative
 from plotly.subplots import make_subplots
 import streamlit as st
-from agi_env.app_settings_support import prepare_app_settings_for_write
+from agi_env.app_settings_support import update_app_settings_owned
 from agi_pages.runtime import (
     configure_streamlit_page,
     ensure_app_settings_loaded,
@@ -24,6 +25,8 @@ from agi_pages.runtime import (
     render_streamlit_page_header,
     resolve_active_app_path,
 )
+
+logger = logging.getLogger(__name__)
 
 try:
     import tomli_w as _toml_writer  # type: ignore[import-not-found]
@@ -98,7 +101,7 @@ def _ensure_app_scoped_env() -> AgiEnv:
     active_app_path = resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)
 
     def _create_env(app_path: Path) -> AgiEnv:
-        env = getattr(AgiEnv, "for_app", AgiEnv)(
+        env = AgiEnv.session_for_app(
             apps_path=app_path.parent,
             app=app_path.name,
             verbose=0,
@@ -115,21 +118,32 @@ def _ensure_app_scoped_env() -> AgiEnv:
     )
 
 
-def _persist_app_settings(env: AgiEnv) -> None:
+def _persist_app_settings(env: AgiEnv, owned_keys: tuple[str, ...]) -> None:
     settings = st.session_state.get("app_settings")
     if not isinstance(settings, dict):
         return
+    page_settings = settings.get(PAGE_KEY)
+    if not isinstance(page_settings, dict):
+        page_settings = {}
+    if not owned_keys:
+        return
     path = Path(env.app_settings_file)
     try:
-        prepared_settings = prepare_app_settings_for_write(settings)
-    except ValueError:
-        return
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("wb") as handle:
-            _dump_toml(prepared_settings, handle)
-    except (OSError, RuntimeError):
-        pass
+        latest, _ = update_app_settings_owned(
+            path,
+            settings,
+            owned_paths=tuple((PAGE_KEY, key) for key in owned_keys),
+            dump_fn=_dump_toml,
+        )
+        latest_page_settings = latest.get(PAGE_KEY)
+        page_settings.clear()
+        if isinstance(latest_page_settings, dict):
+            page_settings.update(latest_page_settings)
+        settings.clear()
+        settings.update(latest)
+        settings[PAGE_KEY] = page_settings
+    except (OSError, RuntimeError) as exc:
+        logger.warning("Unable to persist app_settings to %s: %s", path, exc)
 
 
 def _get_page_state() -> dict[str, Any]:
@@ -702,7 +716,9 @@ def main() -> None:
                 "x_axis": st.session_state.get(X_AXIS_KEY, "step"),
             }
         )
-        _persist_app_settings(env)
+        _persist_app_settings(
+            env, ("base_dir_choice", "input_datadir", "datadir_rel", "x_axis")
+        )
         st.stop()
 
     trainer_roots = _discover_training_roots(data_root)
@@ -716,7 +732,9 @@ def main() -> None:
                 "x_axis": st.session_state.get(X_AXIS_KEY, "step"),
             }
         )
-        _persist_app_settings(env)
+        _persist_app_settings(
+            env, ("base_dir_choice", "input_datadir", "datadir_rel", "x_axis")
+        )
         st.stop()
 
     trainer_labels = {_relative_label(path, data_root): path for path in trainer_roots}
@@ -827,7 +845,20 @@ def main() -> None:
             "x_axis": x_axis_option,
         }
     )
-    _persist_app_settings(env)
+    _persist_app_settings(
+        env,
+        (
+            "base_dir_choice",
+            "input_datadir",
+            "datadir_rel",
+            "trainer_rel",
+            "trainer_rels",
+            "run_rel",
+            "run_rels",
+            "selected_tags",
+            "x_axis",
+        ),
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover - script entrypoint

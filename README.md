@@ -479,8 +479,10 @@ For fail-closed evidence, maintainers can run `./dev robust`; it executes the
 fast P0 matrix of synthetic bad states covering cluster shares, public UI binds,
 service health gates, evidence manifests, notebook import, app settings, and
 Streamlit route contracts. Run `./dev robust --profile p1-recovery` for stale
-runner-state conflict rejection, crash-partial agent-trace repair, interrupted
-workflow-evidence publication recovery, and immutable-manifest tamper detection.
+runner-state conflict rejection, crash-partial agent-trace repair after an owned
+child is abruptly terminated (`SIGKILL` on POSIX and `TerminateProcess` on
+Windows), interrupted workflow-evidence publication recovery, and
+immutable-manifest tamper detection.
 `./dev robust --profile all` runs both profiles and is the repository guardrail
 and production-readiness evidence gate. A scenario passes only when the bad
 state is rejected or recovered with a clear remediation and replay command.

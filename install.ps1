@@ -589,16 +589,33 @@ function Test-SymlinkPrivilege {
     }
 }
 
+function Get-RepoPythonDefault {
+    $pinFile = Join-Path $CurrentPath ".python-version"
+    if (-not (Test-Path -LiteralPath $pinFile)) {
+        return "3.13"
+    }
+    try {
+        $pinned = (Get-Content -LiteralPath $pinFile -Raw -ErrorAction Stop).Trim()
+    } catch {
+        throw "Cannot read repository Python pin: $pinFile."
+    }
+    if ($pinned -notmatch '^\d+\.\d+(?:\.\d+)?$') {
+        throw "Invalid repository Python pin '$pinned' in $pinFile; expected major.minor or major.minor.patch."
+    }
+    return $pinned
+}
+
 function Select-PythonVersion {
     Write-Info "Choosing Python version..."
+    $defaultPython = Get-RepoPythonDefault
     if ($NonInteractiveMode) {
-        $requested = if (-not [string]::IsNullOrWhiteSpace($env:AGI_PYTHON_VERSION)) { $env:AGI_PYTHON_VERSION } else { "3.14" }
+        $requested = if (-not [string]::IsNullOrWhiteSpace($env:AGI_PYTHON_VERSION)) { $env:AGI_PYTHON_VERSION } else { $defaultPython }
         Write-Info "Non-interactive mode; defaulting Python version to $requested"
     } else {
-        $requested = Read-Host "Enter Python major version [3.14]"
+        $requested = Read-Host "Enter Python major version [$defaultPython]"
     }
     if ([string]::IsNullOrWhiteSpace($requested)) {
-        $requested = "3.14"
+        $requested = $defaultPython
     }
     Write-Info "You selected Python version $requested"
 
@@ -791,8 +808,8 @@ function Add-DefaultEnvComments {
 
     $existing = @(Get-Content -LiteralPath $EnvFile -ErrorAction SilentlyContinue)
     $defaults = @(
-        '# AGI_PYTHON_VERSION="3.14"',
-        '# 127.0.0.1_PYTHON_VERSION="3.14"',
+        '# AGI_PYTHON_VERSION="3.13"',
+        '# 127.0.0.1_PYTHON_VERSION="3.13"',
         '# AGI_PYTHON_FREE_THREADED="1"',
         '# IS_SOURCE_ENV="1"',
         '# IS_WORKER_ENV="0"',
