@@ -23,6 +23,24 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Changed
+
+- Aligned clean and source installers with the repository Python pin and
+  validated standard-GIL interpreter selections before replacing an existing
+  environment.
+- Expanded Apple-silicon local/offline model compatibility to MLX 0.32.
+- Hardened post-publish recovery against stale PyPI index data and made
+  Hugging Face Space publication independent of the `hf` CLI.
+
+### Fixed
+
+- Isolated queue and relay resilience runtime sessions by app scope, revalidated
+  live environment identity after page transitions, and centralized their
+  shared presentation helpers in `agi-pages` so stale state cannot leak across
+  analysis pages (#833).
+- Fixed ORCHESTRATE custom argument forms so they import within the selected
+  app source scope, including LinkSim forms.
+
 ## [2026.07.17] - 2026-07-17
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17

@@ -85,6 +85,8 @@ def subprocess_env(
     if env_root is None:
         env_root = Path(env.get(APP_TEST_ENV_ROOT_ENV, str(DEFAULT_APP_TEST_ENVS_ROOT)))
     env["UV_PROJECT_ENVIRONMENT"] = str(env_root / target.name)
+    # Ignored app-local .venv links must not override the repo test interpreter.
+    env["UV_PYTHON"] = sys.executable
     return env
 
 
