@@ -634,3 +634,41 @@ def test_flight_telemetry_worker_emits_reduce_artifact(monkeypatch, tmp_path):
     assert artifact.payload["speed_kernel_runtimes"][0] in {"python", "cython"}
     assert artifact.payload["speed_dtype_contracts"] == ["float64-contiguous"]
     assert artifact.payload["speed_kernel_checksum_m"] > 0.0
+
+
+def test_flight_args_codec_hooks_round_trip(monkeypatch, tmp_path):
+    # AGILAB ORCHESTRATE args-codec contract: the manager package exports
+    # load_args_payload / persist_args_payload so the generic page needs no
+    # app-specific imports.
+    repo_root = Path(__file__).resolve().parents[1]
+    app_src = repo_root / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project" / "src"
+    monkeypatch.syspath_prepend(str(app_src))
+    existing = sys.modules.get("flight_telemetry")
+    if existing is not None and not hasattr(existing, "__path__"):
+        monkeypatch.delitem(sys.modules, "flight_telemetry", raising=False)
+    import flight_telemetry
+
+    settings_file = tmp_path / "app_settings.toml"
+    payload = flight_telemetry.persist_args_payload(
+        {"data_source": "file"}, settings_file
+    )
+    assert payload["files"] == "*"
+    assert settings_file.is_file()
+
+    loaded = flight_telemetry.load_args_payload(settings_file)
+    assert loaded == payload
+
+    with pytest.raises(ValueError):
+        flight_telemetry.persist_args_payload(
+            {"data_source": "not-a-source"}, settings_file
+        )
+
+
+def test_orchestrate_page_has_no_app_specific_imports():
+    repo_root = Path(__file__).resolve().parents[1]
+    page_source = (repo_root / "src" / "agilab" / "pages" / "2_ORCHESTRATE.py").read_text(
+        encoding="utf-8"
+    )
+    assert "flight_telemetry" not in page_source
+    assert "load_args_payload" in page_source
+    assert "persist_args_payload" in page_source
