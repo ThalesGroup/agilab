@@ -188,7 +188,8 @@ def _raise_process_error(
     command_context: str | None = None,
 ) -> None:
     if proc is not None:
-        proc.kill()
+        with contextlib.suppress(ProcessLookupError, OSError):
+            proc.kill()
     if logger:
         if command_context:
             logger.error(command_context)

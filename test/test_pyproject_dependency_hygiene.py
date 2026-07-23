@@ -64,14 +64,27 @@ def _payload_dependency_pyprojects() -> list[Path]:
 
 
 def _optional_dependency_names(path: Path, extra: str) -> set[str]:
-    data = _load_pyproject(path)
-    dependencies = data.get("project", {}).get("optional-dependencies", {}).get(extra, [])
-    return {Requirement(dependency).name.lower() for dependency in dependencies}
+    return {requirement.name.lower() for requirement in _optional_dependencies(path, extra)}
 
 
-def _optional_dependencies(path: Path, extra: str) -> list[Requirement]:
+def _optional_dependencies(path: Path, extra: str, _seen: frozenset[str] = frozenset()) -> list[Requirement]:
     data = _load_pyproject(path)
-    return [Requirement(dependency) for dependency in data.get("project", {}).get("optional-dependencies", {}).get(extra, [])]
+    project_name = data.get("project", {}).get("name", "").lower()
+    requirements: list[Requirement] = []
+    for dependency in data.get("project", {}).get("optional-dependencies", {}).get(extra, []):
+        requirement = Requirement(dependency)
+        # Expand self-referential extras (e.g. offline = ["agilab[local-llm]"])
+        # into the aliased extra's concrete requirements.
+        if requirement.name.lower() == project_name and requirement.extras:
+            for aliased_extra in requirement.extras:
+                if aliased_extra in _seen:
+                    continue
+                requirements.extend(
+                    _optional_dependencies(path, aliased_extra, _seen | {extra})
+                )
+        else:
+            requirements.append(requirement)
+    return requirements
 
 
 def _has_version_floor(requirement: Requirement) -> bool:
@@ -390,6 +403,10 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
     for extra_name, dependencies in optional_dependencies.items():
         for dependency in dependencies:
             requirement = Requirement(dependency)
+            if requirement.name.lower() == "agilab" and requirement.extras:
+                # Self-referential extra alias; expanded requirements are
+                # checked under the aliased extra itself.
+                continue
             if not _has_version_floor(requirement):
                 violations.append(f"{extra_name}: {requirement}")
             if not _is_internal_requirement(requirement) and not _has_upper_bound(requirement):

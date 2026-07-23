@@ -1218,11 +1218,11 @@ async def deploy_local_worker(
             if hw_rapids_capable:
                 cmd_manager = (
                     f"{extra_indexes}{uv} {offline_flag}{run_type}{manager_python_arg} --config-file uv_config.toml "
-                    f"--project '{manager_sync_project}' --active --no-install-project"
+                    f"--project {_shell_arg(manager_sync_project)} --active --no-install-project"
                 )
             else:
                 cmd_manager = (
-                    f"{extra_indexes}{uv} {offline_flag}{run_type}{manager_python_arg} --project '{manager_sync_project}' "
+                    f"{extra_indexes}{uv} {offline_flag}{run_type}{manager_python_arg} --project {_shell_arg(manager_sync_project)} "
                     f"--active --no-install-project"
                 )
             if env.verbose > 0:
@@ -1230,10 +1230,10 @@ async def deploy_local_worker(
             await run_fn(cmd_manager, app_path)
     else:
         if hw_rapids_capable:
-            cmd_manager = f"{extra_indexes}{uv} {offline_flag}{run_type}{manager_python_arg} --config-file uv_config.toml --project '{app_path}'"
+            cmd_manager = f"{extra_indexes}{uv} {offline_flag}{run_type}{manager_python_arg} --config-file uv_config.toml --project {_shell_arg(app_path)}"
         else:
             cmd_manager = (
-                f"{extra_indexes}{uv} {offline_flag}{run_type}{manager_python_arg} --project '{app_path}'"
+                f"{extra_indexes}{uv} {offline_flag}{run_type}{manager_python_arg} --project {_shell_arg(app_path)}"
             )
         if env.verbose > 0:
             log.info(f"Installing manager: {cmd_manager}")
@@ -1515,7 +1515,7 @@ async def deploy_local_worker(
         ]
         worker_stage_inputs = _deploy_stage_project_inputs(wenv_abs, app_path)
         cmd_worker = (
-            f'{worker_extra_indexes}{uv_worker} --project "{wenv_abs}" add agi-env'
+            f"{worker_extra_indexes}{uv_worker} --project {_shell_arg(wenv_abs)} add agi-env"
         )
         await deploy_plan.run(
             _DeployPlanNode(
@@ -1531,7 +1531,7 @@ async def deploy_local_worker(
             )
         )
         cmd_worker = (
-            f'{worker_extra_indexes}{uv_worker} --project "{wenv_abs}" add agi-node'
+            f"{worker_extra_indexes}{uv_worker} --project {_shell_arg(wenv_abs)} add agi-node"
         )
         await deploy_plan.run(
             _DeployPlanNode(
@@ -1815,20 +1815,25 @@ async def deploy_local_worker(
     )
 
     started_at = time.perf_counter()
+    post_install_status = "ran"
     if env.user and env.user != getpass.getuser():
         try:
             await agi_cls.exec_ssh("127.0.0.1", post_install_cmd)
         except ConnectionError as exc:
             log.warning(
-                "SSH execution failed on localhost (%s), falling back to local run.",
+                "SSH execution failed on localhost (%s); running post-install as %s "
+                "instead of %s — worker artifacts may end up owned by the wrong user.",
                 exc,
+                getpass.getuser(),
+                env.user,
             )
+            post_install_status = "ran-degraded-local-user"
             await run_fn(post_install_cmd, wenv_abs)
     else:
         await run_fn(post_install_cmd, wenv_abs)
     deploy_plan.record_timing(
         "worker-post-install",
-        "ran",
+        post_install_status,
         time.perf_counter() - started_at,
     )
 
@@ -1842,7 +1847,10 @@ async def deploy_local_worker(
         except FileNotFoundError as exc:
             log.error("Missing cli.py for local worker: %s", exc)
             raise
-    cmd = f'{uv_worker} run --no-sync --project "{wenv_abs}" python "{cli}" threaded'
+    cmd = (
+        f"{uv_worker} run --no-sync --project {_shell_arg(wenv_abs)} "
+        f"python {_shell_arg(cli)} threaded"
+    )
     started_at = time.perf_counter()
     await run_fn(cmd, wenv_abs)
     deploy_plan.record_timing(
