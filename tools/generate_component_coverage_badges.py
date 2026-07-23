@@ -4,8 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _badge_svg import render_badge  # noqa: E402
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -85,45 +89,10 @@ def badge_color(percent: float) -> str:
     return "#e05d44"
 
 
-def text_width(text: str) -> int:
-    return 10 + len(text) * 7
-
-
 def format_percent(percent: float) -> str:
     # Truncate instead of rounding so badges stay stable across tiny local/CI
     # coverage deltas near threshold boundaries.
     return f"{int(percent)}%"
-
-
-def render_badge(label: str, value: str, color: str) -> str:
-    left = text_width(label)
-    right = text_width(value)
-    total = left + right
-    left_mid = left / 2
-    right_mid = left + right / 2
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{total}" height="20" role="img" aria-label="{label}: {value}">
-<linearGradient id="b" x2="0" y2="100%">
-  <stop offset="0" stop-color="#fff" stop-opacity=".7"/>
-  <stop offset=".1" stop-opacity=".1"/>
-  <stop offset=".9" stop-opacity=".3"/>
-  <stop offset="1" stop-opacity=".5"/>
-</linearGradient>
-<mask id="a">
-  <rect width="{total}" height="20" rx="3" fill="#fff"/>
-</mask>
-<g mask="url(#a)">
-  <rect width="{left}" height="20" fill="#555"/>
-  <rect x="{left}" width="{right}" height="20" fill="{color}"/>
-  <rect width="{total}" height="20" fill="url(#b)"/>
-</g>
-<g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
-  <text x="{left_mid}" y="15" fill="#010101" fill-opacity=".3">{label}</text>
-  <text x="{left_mid}" y="14">{label}</text>
-  <text x="{right_mid}" y="15" fill="#010101" fill-opacity=".3">{value}</text>
-  <text x="{right_mid}" y="14">{value}</text>
-</g>
-</svg>
-"""
 
 
 def compute_from_component_xml(path: Path) -> float | None:
