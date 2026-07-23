@@ -74,6 +74,21 @@ def test_direct_streamlit_public_bind_is_refused_without_controls():
 
 
 @pytest.mark.parametrize(
+    "host", ["192.168.1.20", "10.0.0.5", "[2001:db8::1]", "lab-host.example.com"]
+)
+def test_non_loopback_interface_binds_are_refused_without_controls(host):
+    # Regression: binding a specific LAN/WAN interface IP or hostname is just
+    # as exposed as a 0.0.0.0 wildcard bind and must require the same controls.
+    with pytest.raises(PublicBindPolicyError):
+        enforce_public_bind_policy({"AGILAB_UI_HOST": host})
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "127.0.1.1", "::1", "[::1]", "localhost"])
+def test_loopback_binds_never_require_controls(host):
+    assert enforce_public_bind_policy({"AGILAB_UI_HOST": host}) == host
+
+
+@pytest.mark.parametrize(
     "environment",
     [
         {"AGILAB_UI_HOST": "0.0.0.0", "AGILAB_PUBLIC_BIND_OK": "1"},

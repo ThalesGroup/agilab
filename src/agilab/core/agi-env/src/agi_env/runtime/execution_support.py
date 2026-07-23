@@ -96,6 +96,42 @@ def _command_requires_shell(cmd: str) -> bool:
     )
 
 
+_ENV_ASSIGNMENT_TOKEN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _default_shell_executable() -> str | None:
+    """One shell for every run entry point: bash on POSIX, default on Windows."""
+    return None if sys.platform == "win32" else "/bin/bash"
+
+
+def _split_leading_env_assignments(cmd: str) -> tuple[dict[str, str], list[str]] | None:
+    """Split ``VAR=value ... prog args`` into env updates plus argv.
+
+    Returns ``None`` when the command needs real shell handling: it contains
+    shell syntax or builtins, has no leading assignment, cannot be tokenized,
+    or an assignment value references shell expansion (``$``/backtick), which
+    only a shell can resolve.
+    """
+    if SHELL_SYNTAX_PATTERN.search(cmd) or SHELL_BUILTIN_PATTERN.match(cmd):
+        return None
+    if not SHELL_ASSIGNMENT_PATTERN.match(cmd):
+        return None
+    try:
+        tokens = shlex.split(cmd)
+    except ValueError:
+        return None
+    env_updates: dict[str, str] = {}
+    argv = list(tokens)
+    while argv and _ENV_ASSIGNMENT_TOKEN.match(argv[0]):
+        key, _, value = argv.pop(0).partition("=")
+        if "$" in value or "`" in value:
+            return None
+        env_updates[key] = value
+    if not argv:
+        return None
+    return env_updates, argv
+
+
 async def _spawn_process(
     *,
     cmd: str,
@@ -106,6 +142,20 @@ async def _spawn_process(
     stdout: int | None = asyncio.subprocess.PIPE,
     stderr: int | None = asyncio.subprocess.PIPE,
 ) -> asyncio.subprocess.Process:
+    # ``VAR=value prog args`` commands need no shell: apply the assignments to
+    # the child env and exec directly. This keeps env-prefixed deploy commands
+    # working on Windows, where the fallback shell (cmd.exe) cannot parse
+    # POSIX-style leading assignments.
+    assignment_split = _split_leading_env_assignments(cmd)
+    if assignment_split is not None:
+        env_updates, argv = assignment_split
+        return await asyncio.create_subprocess_exec(
+            *argv,
+            stdout=stdout,
+            stderr=stderr,
+            cwd=str(cwd) if cwd else None,
+            env={**process_env, **env_updates},
+        )
     if _command_requires_shell(cmd):
         if not allow_shell:
             raise ValueError(f"Shell syntax is not allowed for this command: {cmd}")
@@ -249,7 +299,7 @@ async def run(
 
     process_env = _create_process_env(venv=venv, build_env_fn=build_env_fn)
     cmd = apply_inline_path_export(cmd, process_env)
-    shell_executable = None if sys.platform == "win32" else "/bin/bash"
+    shell_executable = _default_shell_executable()
 
     if not wait:
         if not cmd:
@@ -347,7 +397,7 @@ async def run_bg(
         cmd=cmd,
         cwd=cwd,
         process_env=process_env,
-        shell_executable=None,
+        shell_executable=_default_shell_executable(),
     )
 
     out_cb, err_cb = _resolve_stream_callbacks(log_callback=log_callback, logger=logger)
@@ -400,7 +450,7 @@ async def run_async(
 
     process_env = _create_process_env(venv=venv, build_env_fn=build_env_fn)
     process_env["PYTHONUNBUFFERED"] = "1"
-    shell_executable = None if os.name == "nt" else "/bin/bash"
+    shell_executable = _default_shell_executable()
 
     if isinstance(cmd, (list, tuple)):
         cmd = " ".join(cmd)
