@@ -288,6 +288,30 @@ agilab = "bad"
         {"agi-core": "1"},
         expected_operator="==",
     ) == []
+    internal_rows = core._internal_dependency_constraint_rows(
+        {
+            "agilab": {
+                "name": "AGILAB",
+                "dependencies": ["agi_core==1"],
+                "optional_dependencies": ["agilab[local-llm]"],
+            }
+        },
+        {"agilab": "2", "agi-core": "1"},
+        expected_operator="==",
+        include_optional=True,
+    )
+    assert internal_rows == [
+        {
+            "package": "agilab",
+            "dependency": "agi-core",
+            "operator": "==",
+            "expected_operator": "==",
+            "pinned_version": "1",
+            "expected_version": "1",
+            "aligned": True,
+            "specifier": "agi_core==1",
+        }
+    ]
 
 
 def test_supply_chain_attestation_reports_release_graph_and_payload_budget_issues(
@@ -387,6 +411,8 @@ def test_supply_chain_attestation_accepts_partial_umbrella_post_release(
             "name = 'agilab'\n"
             f"version = '{root_version}'\n"
             f"dependencies = ['agi-core=={library_version}', 'agi-gui=={library_version}', 'agi-pages=={library_version}', 'agi-apps=={library_version}']\n"
+            "[project.optional-dependencies]\n"
+            "offline = ['agilab[local-llm]']\n"
         ),
         "src/agilab/core/agi-core/pyproject.toml": (
             "[project]\n"

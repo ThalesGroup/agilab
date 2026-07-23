@@ -15,7 +15,7 @@ from typing import Any, Mapping
 
 SCHEMA = "agilab.supply_chain_attestation.v1"
 CREATED_AT = "2026-04-25T00:00:34Z"
-UPDATED_AT = "2026-05-16T00:00:00Z"
+UPDATED_AT = "2026-07-23T00:00:00Z"
 CORE_PYPROJECTS = {
     "agi-core": Path("src/agilab/core/agi-core/pyproject.toml"),
     "agi-env": Path("src/agilab/core/agi-env/pyproject.toml"),
@@ -246,6 +246,12 @@ def _dependency_name(dependency: str) -> str:
     return parts[0] if parts else ""
 
 
+def _normalized_distribution_name(name: str) -> str:
+    """Return the PEP 503-style name used for dependency identity checks."""
+
+    return re.sub(r"[-_.]+", "-", name.strip()).lower()
+
+
 def _agilab_version_key(version: str) -> tuple[tuple[int, ...], int] | None:
     match = _AGILAB_VERSION_RE.match(version)
     if not match:
@@ -299,7 +305,14 @@ def _internal_dependency_constraint_rows(
     include_optional: bool = False,
 ) -> list[dict[str, Any]]:
     rows = []
+    normalized_expected_versions = {
+        _normalized_distribution_name(name): version
+        for name, version in expected_versions.items()
+    }
     for package_name, metadata in sorted(package_metadata.items()):
+        normalized_package_name = _normalized_distribution_name(
+            str(metadata.get("name") or package_name)
+        )
         dependencies = list(metadata.get("dependencies", []))
         if include_optional:
             dependencies.extend(metadata.get("optional_dependencies", []))
@@ -308,13 +321,20 @@ def _internal_dependency_constraint_rows(
             if parts is None:
                 continue
             dependency_name, operator, version = parts
-            expected_version = expected_versions.get(dependency_name)
+            normalized_dependency_name = _normalized_distribution_name(
+                dependency_name
+            )
+            if normalized_dependency_name == normalized_package_name:
+                continue
+            expected_version = normalized_expected_versions.get(
+                normalized_dependency_name
+            )
             if expected_version is None:
                 continue
             rows.append(
                 {
                     "package": package_name,
-                    "dependency": dependency_name,
+                    "dependency": normalized_dependency_name,
                     "operator": operator,
                     "expected_operator": expected_operator,
                     "pinned_version": version,
