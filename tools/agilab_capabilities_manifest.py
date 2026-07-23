@@ -212,7 +212,7 @@ STREAMLIT_PAGES: tuple[dict[str, Any], ...] = (
     {
         "title": "PROJECT",
         "url_path": "PROJECT",
-        "source": "src/agilab/pages/1_PROJECT.py",
+        "source": "src/agilab/pages/PROJECT_EDITOR.py",
         "visible_in_nav": False,
         "purpose": "project selection, creation, import, export, and package updates",
     },

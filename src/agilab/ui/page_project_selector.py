@@ -12,7 +12,7 @@ from agilab.ui.ui_performance import path_stat_signature, ui_discovery_cache_ena
 NAVIGATION_PAGE_ROUTES_ATTR = "_NAVIGATION_PAGE_ROUTES"
 NAVIGATION_PAGE_ROUTES_SESSION_KEY = "_agilab_navigation_page_routes"
 PROJECT_EDITOR_ROUTE_ID = "project_editor"
-PROJECT_EDITOR_PAGE_PATH = Path("pages/1_PROJECT.py")
+PROJECT_EDITOR_PAGE_PATH = Path("pages/PROJECT_EDITOR.py")
 PROJECT_ROUTE_ID = PROJECT_EDITOR_ROUTE_ID
 PROJECT_PAGE_PATH = PROJECT_EDITOR_PAGE_PATH
 MAIN_NAVIGATION_MODULES = ("__main__", "agilab.main_page")

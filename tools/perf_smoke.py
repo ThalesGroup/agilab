@@ -166,7 +166,7 @@ def scenario_catalog() -> dict[str, PerfScenario]:
             name="ui-project-status-page-import",
             description="PROJECT status Streamlit page module import startup.",
             command=_file_import_command(
-                streamlit_pages_root / "1_PROJECT_STATUS.py",
+                streamlit_pages_root / "PROJECT.py",
                 "agilab_perf_ui_project_status_page",
             ),
         ),
@@ -174,7 +174,7 @@ def scenario_catalog() -> dict[str, PerfScenario]:
             name="ui-project-editor-page-import",
             description="PROJECT editor Streamlit page module import startup.",
             command=_file_import_command(
-                streamlit_pages_root / "1_PROJECT.py",
+                streamlit_pages_root / "PROJECT_EDITOR.py",
                 "agilab_perf_ui_project_editor_page",
             ),
         ),

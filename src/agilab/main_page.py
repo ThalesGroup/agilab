@@ -227,8 +227,8 @@ _AGILAB_RESOURCES_PATH = _AGILAB_ROOT / "resources"
 _AGILAB_PAGES_ROOT = _AGILAB_ROOT / "pages"
 _NAVIGATION_PAGE_FILES: tuple[Path, ...] = (
     _AGILAB_PAGES_ROOT / "0_SETTINGS.py",
-    _AGILAB_PAGES_ROOT / "1_PROJECT_STATUS.py",
-    _AGILAB_PAGES_ROOT / "1_PROJECT.py",
+    _AGILAB_PAGES_ROOT / "PROJECT.py",
+    _AGILAB_PAGES_ROOT / "PROJECT_EDITOR.py",
     _AGILAB_PAGES_ROOT / "2_ORCHESTRATE.py",
     _AGILAB_PAGES_ROOT / "3_WORKFLOW.py",
     _AGILAB_PAGES_ROOT / "4_ANALYSIS.py",
@@ -1301,18 +1301,20 @@ def _navigation_pages() -> list[Any]:
                 _page_file_runner(_PROJECT_PAGE_FILE),
                 title="PROJECT EDITOR",
                 url_path="PROJECT_EDITOR",
-                route_ids=("project_editor",),
+                route_ids=("project_editor", "project_edit"),
                 visibility="hidden",
             ),
+            # Deprecated URL aliases kept as redirects for old deep links;
+            # remove after a deprecation window. They must never grow: new
+            # pages get exactly one canonical URL.
             _NavigationPageSpec(
-                _page_file_runner(_PROJECT_PAGE_FILE),
+                _navigation_redirect_runner("project_editor"),
                 title="PROJECT EDITOR",
                 url_path="PROJECT_EDIT",
-                route_ids=("project_edit",),
                 visibility="hidden",
             ),
             _NavigationPageSpec(
-                _page_file_runner(_PROJECT_STATUS_PAGE_FILE),
+                _navigation_redirect_runner("project"),
                 title="PROJECT",
                 url_path="PROJECT_STATUS",
                 visibility="hidden",
@@ -1403,6 +1405,29 @@ def _load_page_module(page_file: Path) -> Any:
                 module,
             )
         return module
+
+
+_NAVIGATION_REDIRECT_RUNNER_CACHE: Dict[str, Callable[[], None]] = {}
+
+
+def _navigation_redirect_runner(route_id: str) -> Callable[[], None]:
+    """Return a page callable that redirects a deprecated URL alias to its
+    canonical route registered in the active session."""
+
+    cached = _NAVIGATION_REDIRECT_RUNNER_CACHE.get(route_id)
+    if cached is not None:
+        return cached
+
+    def _redirect_page() -> None:
+        target = _session_navigation_routes(create=False).get(route_id)
+        switch_page_fn = getattr(st, "switch_page", None)
+        if target is None or not callable(switch_page_fn):
+            return
+        switch_page_fn(target)
+
+    _redirect_page.__name__ = f"_redirect_to_{route_id}"
+    _NAVIGATION_REDIRECT_RUNNER_CACHE[route_id] = _redirect_page
+    return _redirect_page
 
 
 def _page_file_runner(page_file: Path) -> Callable[[], None]:

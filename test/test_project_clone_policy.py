@@ -14,7 +14,7 @@ import pytest
 from pathspec.gitignore import GitIgnoreSpec
 
 
-MODULE_PATH = Path("src/agilab/pages/1_PROJECT.py")
+MODULE_PATH = Path("src/agilab/pages/PROJECT_EDITOR.py")
 SAMPLE_HELPER_PATH = Path("src/agilab/notebook_import_sample.py")
 BUILTIN_APPS_ROOT = Path("src/agilab/apps/builtin")
 LAB_STAGE_SOURCES = {

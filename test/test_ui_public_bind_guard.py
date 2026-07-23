@@ -206,7 +206,7 @@ def test_main_page_entrypoint_enforces_public_bind_guard():
 
 def test_direct_streamlit_pages_enforce_public_bind_guard():
     for page_name in (
-        "1_PROJECT.py",
+        "PROJECT_EDITOR.py",
         "2_ORCHESTRATE.py",
         "3_WORKFLOW.py",
         "4_ANALYSIS.py",

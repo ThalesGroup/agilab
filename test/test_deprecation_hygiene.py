@@ -74,7 +74,7 @@ def test_core_sources_do_not_use_deprecated_astor_or_distutils_sysconfig() -> No
         ROOT / "src/agilab/core/agi-env/src/agi_env/project_clone_support.py",
         ROOT / "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/base_worker.py",
         ROOT / "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/agi_dispatcher.py",
-        ROOT / "src/agilab/pages/1_PROJECT.py",
+        ROOT / "src/agilab/pages/PROJECT_EDITOR.py",
     ]
     offenders: list[str] = []
     for source in sources:

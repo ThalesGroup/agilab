@@ -18,7 +18,7 @@ _PROJECT_EDITOR_PAGE_MODULE = "agilab_project_edit_page_shared"
 
 def _load_project_editor_page_module() -> ModuleType:
     """Load the editor page so PROJECT can reuse project operation handlers."""
-    module_path = Path(__file__).with_name("1_PROJECT.py")
+    module_path = Path(__file__).with_name("PROJECT_EDITOR.py")
     source_mtime_ns = module_path.stat().st_mtime_ns
     cached = sys.modules.get(_PROJECT_EDITOR_PAGE_MODULE)
     if (
