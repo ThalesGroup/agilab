@@ -281,8 +281,8 @@ def test_deploy_local_worker_command_strings_are_shell_safe() -> None:
     # Regression: worker-add commands must quote the project path so home
     # directories containing spaces do not split into multiple argv tokens.
     assert "--project {wenv_abs} add" not in source
-    assert '--project "{wenv_abs}" add agi-env' in source
-    assert '--project "{wenv_abs}" add agi-node' in source
+    assert "--project {_shell_arg(wenv_abs)} add agi-env" in source
+    assert "--project {_shell_arg(wenv_abs)} add agi-node" in source
 
 
 def test_cleanup_editable_ignores_missing_entries():
@@ -3040,7 +3040,10 @@ async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localho
         "uv sync" in cmd and str(wenv_abs) in cmd and "--extra pandas-worker" in cmd
         for cmd, _ in commands
     )
-    assert any(f'python "{existing_cli}" threaded' in cmd for cmd, _ in commands)
+    assert any(
+        f"python {shlex.quote(str(existing_cli))} threaded" in cmd
+        for cmd, _ in commands
+    )
 
 
 @pytest.mark.asyncio

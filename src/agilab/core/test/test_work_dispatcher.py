@@ -622,6 +622,35 @@ async def test_load_module_requests_install_when_explicitly_enabled(monkeypatch,
     assert len(import_calls) == 2
 
 
+@pytest.mark.asyncio
+async def test_load_module_maps_import_name_to_distribution_name(monkeypatch, tmp_path):
+    # Regression: ModuleNotFoundError carries the *import* name (e.g. "yaml"),
+    # but `uv add` needs the PyPI distribution name (e.g. "pyyaml").
+    import_calls = []
+
+    def fake_import(name):
+        import_calls.append(name)
+        if len(import_calls) == 1:
+            raise ModuleNotFoundError("No module named 'yaml'", name="yaml")
+        return "module"
+
+    recorded: list[tuple[str, Path]] = []
+
+    async def fake_run(cmd, app_path):
+        recorded.append((cmd, app_path))
+
+    monkeypatch.setattr(dispatcher_module.importlib, "import_module", fake_import)
+    monkeypatch.setattr(dispatcher_module.AgiEnv, "run", fake_run)
+    monkeypatch.setenv("AGILAB_RUNTIME_AUTO_INSTALL", "1")
+
+    env = SimpleNamespace(uv="uv", active_app=tmp_path)
+
+    result = await WorkDispatcher._load_module("demo", env=env)
+
+    assert result == "module"
+    assert recorded == [("uv add --upgrade pyyaml", tmp_path)]
+
+
 def test_missing_module_name_preserves_case():
     # Regression: PyPI/dist names are case-sensitive, so the auto-install name
     # must keep the original casing instead of being lowercased.

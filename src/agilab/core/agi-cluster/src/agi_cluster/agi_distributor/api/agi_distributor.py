@@ -116,7 +116,7 @@ _node_src = _bootstrap_node_src()
 from agi_node.agi_dispatcher import WorkDispatcher, BaseWorker
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"
-_workers_default = {socket.gethostbyname("localhost"): 1}
+_workers_default = {"127.0.0.1": 1}
 
 from agi_env.agi_logger import AgiLogger
 

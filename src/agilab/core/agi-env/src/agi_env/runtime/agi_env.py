@@ -834,6 +834,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
 
     # Simplified: keep single copy_missing implementation defined later using _copy_file
 
+    @staticmethod
     def _update_env_file(updates: dict):
         AgiEnv._ensure_defaults()
         env_file = AgiEnv.resources_path / ".env"

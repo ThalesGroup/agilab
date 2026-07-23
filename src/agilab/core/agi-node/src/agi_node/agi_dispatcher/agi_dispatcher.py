@@ -31,18 +31,28 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import datetime
 import logging
-import socket
 
 from agi_env import AgiEnv
 
 logger = logging.getLogger(__name__)
-workers_default = {socket.gethostbyname("localhost"): 1}
+workers_default = {"127.0.0.1": 1}
 RUN_STAGES_KEY = "_agilab_run_stages"
 
 # Conservative module/distribution name allow-list for runtime auto-install.
 # The auto-install command is executed through a shell, so the name must not
 # contain metacharacters that could be routed by the shell.
 _SAFE_MODULE_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+# Import names and PyPI distribution names differ for common packages. Runtime
+# auto-install receives the *import* name from ModuleNotFoundError, so it must
+# be resolved to the distribution name before being handed to `uv add`.
+_IMPORT_TO_DISTRIBUTION = {
+    "PIL": "pillow",
+    "cv2": "opencv-python",
+    "dotenv": "python-dotenv",
+    "sklearn": "scikit-learn",
+    "yaml": "pyyaml",
+}
 
 
 class WorkDispatcher:
@@ -487,6 +497,9 @@ class WorkDispatcher:
             module_to_install = WorkDispatcher._missing_module_name(e)
             if not module_to_install:
                 raise
+            module_to_install = _IMPORT_TO_DISTRIBUTION.get(
+                module_to_install, module_to_install
+            )
             if not _SAFE_MODULE_NAME_RE.match(module_to_install):
                 logger.error(
                     "runtime dependency auto-install refused for unsafe module name %r; "
