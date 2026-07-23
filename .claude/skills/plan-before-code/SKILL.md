@@ -145,6 +145,13 @@ For substantial tasks, the user should see:
 - a concise plan before edits
 - an update when the diagnosis changes
 - validation before final close-out
+- an explicit interruption checkpoint: if a guard, approval boundary, ambiguity,
+  or environmental limitation blocks the planned fix, state the blocker and the
+  required decision, ask for it, and resume after approval rather than silently
+  substituting a workaround or stopping with a known residual defect
+- close-out must state the outcome as fixed, validated, awaiting approval, or
+  blocked, plus the recurrence guard or regression used when the task exposed a
+  reusable failure class
 
 ## References
 

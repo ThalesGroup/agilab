@@ -12,6 +12,9 @@ from asyncssh.process import ProcessError
 
 from agi_cluster.agi_distributor import cli as distributor_cli, deployment_remote_support
 from agi_cluster.agi_distributor.api.worker_cli_support import resolve_worker_cli_path
+from agi_cluster.agi_distributor.deployment.deployment_python_support import (
+    _normalize_worker_requires_python_floor,
+)
 from agi_env import AgiEnv
 
 
@@ -252,6 +255,9 @@ async def prepare_cluster_env(
     dist_rel = env.dist_rel
     wenv_rel = env.wenv_rel
     pyvers_worker = env.pyvers_worker
+    pyvers_worker_uv_spec = (
+        getattr(env, "pyvers_worker_uv_spec", None) or pyvers_worker
+    )
 
     remote_command_failures = _exception_types(process_error_type, RuntimeError, OSError)
     staged_pyproject_fallback_errors = _exception_types(
@@ -315,7 +321,9 @@ async def prepare_cluster_env(
     # re-running the platform probe over SSH once per worker in the same flow.
     agi_cls._legacy_intel_macos_ips = set(legacy_intel_macos_ips)
 
-    if legacy_intel_macos_ips and pyvers_worker != "3.12":
+    if legacy_intel_macos_ips and (
+        pyvers_worker != "3.12" or pyvers_worker_uv_spec != "3.12"
+    ):
         log.warning(
             "Detected legacy Intel macOS worker(s) %s; selecting Python 3.12 for all worker environments instead of %s",
             ", ".join(sorted(legacy_intel_macos_ips)),
@@ -324,6 +332,8 @@ async def prepare_cluster_env(
         pyvers_worker = "3.12"
         env.pyvers_worker = "3.12"
         env.python_version = "3.12"
+        pyvers_worker_uv_spec = "3.12"
+        env.pyvers_worker_uv_spec = pyvers_worker_uv_spec
         env.uv_worker = env.uv
 
     async def _prepare_remote_worker(ip: str) -> list[tuple[str, Any]]:
@@ -388,11 +398,11 @@ async def prepare_cluster_env(
         if await _remote_uv_python_available(
             ip,
             uv,
-            pyvers_worker,
+            pyvers_worker_uv_spec,
             run_exec_ssh_fn=run_exec_ssh_fn,
             remote_command_failures=remote_command_failures,
         ):
-            log.info("[%s] Python interpreter '%s' is already available to uv; skipping install.", ip, pyvers_worker)
+            log.info("[%s] Python interpreter '%s' is already available to uv; skipping install.", ip, pyvers_worker_uv_spec)
         else:
             try:
                 await run_exec_ssh_fn(
@@ -401,7 +411,7 @@ async def prepare_cluster_env(
                         uv,
                         "python",
                         "install",
-                        pyvers_worker,
+                        pyvers_worker_uv_spec,
                     ),
                 )
             except process_error_type as exc:
@@ -409,7 +419,7 @@ async def prepare_cluster_env(
                     log.warning(
                         "[%s] uv could not download interpreter '%s'; assuming a system interpreter is available",
                         ip,
-                        pyvers_worker,
+                        pyvers_worker_uv_spec,
                     )
                 else:
                     raise
@@ -429,11 +439,17 @@ async def prepare_cluster_env(
         try:
             pyproject_src = env.worker_pyproject if env.worker_pyproject.exists() else env.manager_pyproject
             if pyproject_src.exists():
+                staged_tmp_dir = Path(mkdtemp_fn(prefix=f"agilab_{env.target_worker}_pyproject_"))
+                tmp_pyproject = staged_tmp_dir / "pyproject.toml"
+                shutil.copy(pyproject_src, tmp_pyproject)
+                _normalize_worker_requires_python_floor(
+                    tmp_pyproject,
+                    raise_on_parse_error=True,
+                )
+                normalized_pyproject = tmp_pyproject.read_text(encoding="utf-8")
                 extras_to_seed = set(getattr(agi_cls, "agi_workers", {}).values())
+                staged_entries: list[Path] = []
                 try:
-                    staged_tmp_dir = Path(mkdtemp_fn(prefix=f"agilab_{env.target_worker}_pyproject_"))
-                    tmp_pyproject = staged_tmp_dir / "pyproject.toml"
-                    shutil.copy(pyproject_src, tmp_pyproject)
                     ensure_optional_extras_fn(tmp_pyproject, extras_to_seed)
                     staged_entries = stage_uv_sources_fn(
                         src_pyproject=pyproject_src,
@@ -441,13 +457,14 @@ async def prepare_cluster_env(
                         stage_root=staged_tmp_dir,
                         log_rewrites=bool(getattr(env, "verbose", 0)),
                     )
-                    files_to_send.append(tmp_pyproject)
-                    files_to_send.extend(staged_entries)
                 except staged_pyproject_fallback_errors:
-                    if staged_tmp_dir is not None:
-                        shutil.rmtree(staged_tmp_dir, ignore_errors=True)
-                        staged_tmp_dir = None
-                    files_to_send.append(pyproject_src)
+                    # Optional staging may have partially rewritten the temp
+                    # manifest before failing.  Keep the fallback payload at
+                    # the normalized baseline; never send a half-staged file.
+                    tmp_pyproject.write_text(normalized_pyproject, encoding="utf-8")
+                    staged_entries = []
+                files_to_send.append(tmp_pyproject)
+                files_to_send.extend(staged_entries)
             if env.uvproject.exists():
                 files_to_send.append(env.uvproject)
             await send_files_fn(env, ip, files_to_send, wenv_rel)

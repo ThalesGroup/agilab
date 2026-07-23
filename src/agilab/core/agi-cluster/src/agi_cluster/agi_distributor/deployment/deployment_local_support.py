@@ -100,6 +100,9 @@ from agi_cluster.agi_distributor.deployment_venv_support import (
     project_venv_root as _project_venv_root,
     python_version_tuple as _python_version_tuple,  # noqa: F401
 )
+from agi_cluster.agi_distributor.deployment.deployment_python_support import (
+    _normalize_worker_requires_python_floor as _normalize_worker_requires_python_floor,
+)
 from agi_cluster.agi_distributor.deployment_worker_venv_cache_support import (
     SHARED_WORKER_VENV_DIR_ENV as SHARED_WORKER_VENV_DIR_ENV,
     SHARED_WORKER_VENV_ENV as SHARED_WORKER_VENV_ENV,
@@ -115,7 +118,6 @@ FORCE_REMOVE_EXCEPTIONS = (OSError, shutil.Error)
 DEPENDENCY_PARSE_EXCEPTIONS = (InvalidRequirement,)
 PYPROJECT_PARSE_EXCEPTIONS = (OSError, tomlkit.exceptions.ParseError)  # ty: ignore[possibly-missing-submodule]
 PERF_TRACE_ENV = "AGILAB_PERF_TRACE"
-MIN_WORKER_REQUIRES_PYTHON = ">=3.12"
 DEPENDENCY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
     "pillow": ("PIL",),
     "python-dotenv": ("dotenv",),
@@ -136,84 +138,6 @@ def _worker_python_uv_spec(env: Any, fallback: str | None) -> str | None:
         or getattr(env, "python_uv_spec", None)
         or fallback
     )
-
-
-def _python_version_prefix_tuple(version: str) -> tuple[int, ...]:
-    parts: list[int] = []
-    for part in version.strip().split("."):
-        if not part.isdigit():
-            break
-        parts.append(int(part))
-    return tuple(parts)
-
-
-def _raise_requires_python_floor(
-    requires_python: str | None,
-    *,
-    minimum_spec: str = MIN_WORKER_REQUIRES_PYTHON,
-) -> str | None:
-    if not requires_python:
-        return minimum_spec
-
-    minimum_version = minimum_spec.removeprefix(">=")
-    minimum_tuple = _python_version_prefix_tuple(minimum_version)
-    parts = [part.strip() for part in str(requires_python).split(",") if part.strip()]
-    if not parts:
-        return minimum_spec
-
-    changed = False
-    has_floor = False
-    normalized: list[str] = []
-    for part in parts:
-        if part.startswith(">="):
-            has_floor = True
-            current_tuple = _python_version_prefix_tuple(part.removeprefix(">="))
-            if current_tuple and current_tuple < minimum_tuple:
-                normalized.append(minimum_spec)
-                changed = True
-            else:
-                normalized.append(part)
-        else:
-            normalized.append(part)
-
-    if not has_floor:
-        if any(part.startswith(("==", "===", "~=")) for part in parts):
-            return requires_python
-        normalized.insert(0, minimum_spec)
-        changed = True
-
-    result = ",".join(normalized)
-    return result if changed else requires_python
-
-
-def _normalize_worker_requires_python_floor(
-    pyproject_file: Path,
-    *,
-    minimum_spec: str = MIN_WORKER_REQUIRES_PYTHON,
-) -> bool:
-    try:
-        data = tomlkit.parse(pyproject_file.read_text())
-    except PYPROJECT_PARSE_EXCEPTIONS:
-        return False
-
-    project_tbl = data.get("project")
-    if not (
-        hasattr(project_tbl, "get") and hasattr(project_tbl, "__setitem__")
-    ):
-        project_tbl = tomlkit.table()
-
-    current = project_tbl.get("requires-python")
-    updated = _raise_requires_python_floor(
-        str(current) if current is not None else None,
-        minimum_spec=minimum_spec,
-    )
-    if updated is None or updated == current:
-        return False
-
-    project_tbl["requires-python"] = updated
-    data["project"] = project_tbl
-    atomic_write_text(pyproject_file, tomlkit.dumps(data))
-    return True
 
 
 def _manager_python_uv_spec(env: Any, fallback: str | None) -> str | None:

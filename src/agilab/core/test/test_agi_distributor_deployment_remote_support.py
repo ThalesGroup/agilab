@@ -628,6 +628,7 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
         dist_rel=Path("worker_env/dist"),
         dist_abs=dist_abs,
         pyvers_worker="3.13",
+        pyvers_worker_uv_spec="3.14.6+gil",
         envars={},
         uv_worker="uv --quiet",
         is_source_env=False,
@@ -677,7 +678,7 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
 
     assert any("demo_worker-0.0.1.egg" in names for _, names, _ in send_calls)
     assert any("python -c 'import pip'" in cmd for cmd in ssh_calls)
-    assert any("uv --quiet run -p 3.13" in cmd for cmd in ssh_calls)
+    assert any("uv --quiet run -p 3.14.6+gil" in cmd for cmd in ssh_calls)
     assert not any("'uv --quiet'" in cmd for cmd in ssh_calls)
     assert not any("ensurepip" in cmd for cmd in ssh_calls)
     assert not any("dask[distributed]" in cmd for cmd in ssh_calls)

@@ -75,16 +75,21 @@ Use this runbook whenever you:
   confirmation after local validation). When a change maps cleanly to one of the repo workflow
   profiles, prefer `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>`
   over handwritten command variants.
-- **Fix prevention close-out / Bug-class sweep contract**: For logged or
-  reproducible failures, preserve the smallest
-  repro first, identify the root cause, choose the right layer, and add the
-  smallest regression, guard, robot scenario, or validation that would have
-  caught it. Sweep only sibling apps, shared helpers, manifests, or generated
-  artifacts that can plausibly share the same failure class. For browser-only
-  failures, validate the browser/dev-log surface rather than stopping at unit
-  tests or AppTest. For agent-process defects, add or tighten the durable rule in
-  `AGENT_LEARNINGS.md`, `AGENTS.md`, a repo skill, or tooling. If automation is
-  not practical, document why and name the closest manual or robot validation.
+- **Completion and prevention contract (Fix prevention close-out / Bug-class sweep)**: Every interruption caused by a guard,
+  approval boundary, ambiguity, or environmental limitation must be made explicit:
+  state what is blocked, why, what decision or authority is needed, and what can
+  continue safely. Ask for the missing decision instead of silently substituting
+  a workaround or stopping with a known residual defect; when approval arrives,
+  resume the original task. For logged or reproducible failures, preserve the
+  smallest repro, identify the root cause, fix the correct layer, and add the
+  smallest regression, guard, robot scenario, or validation that would have caught
+  it. Sweep only sibling apps, shared helpers, manifests, or generated artifacts
+  that plausibly share the same failure class. For browser-only failures, validate
+  the browser/dev-log surface rather than stopping at unit tests or AppTest. For
+  agent-process defects, add or tighten the durable rule in `AGENT_LEARNINGS.md`,
+  `AGENTS.md`, a repo skill, or tooling. If automation is not practical, document
+  why and name the closest manual or robot validation. Close out with a clear
+  status: fixed, validated, awaiting approval, or blocked.
 - **Streamlit duplicate-widget triage**: For duplicate element ID errors, first
   check whether the page, app surface, or entrypoint is being executed twice.
   Add stable widget keys for repeated controls, but do not mask duplicate
@@ -391,11 +396,12 @@ Use this runbook whenever you:
 - **Shared core approval gate**: Do not edit shared core technology without explicit user approval first.
   Shared core includes `src/agilab/core/agi-env`, `src/agilab/core/agi-node`, `src/agilab/core/agi-cluster`,
   `src/agilab/core/agi-core`, shared installer/build/deploy tooling, and generic helpers reused across apps/pages.
-  Default to app-local fixes first. If you believe a core change is required, stop and explain:
-  - why an app-local fix is insufficient
-  - which shared files/modules need to change
-  - the expected blast radius across apps/workflows
-  - the test or regression plan you will use after approval
+  Default to app-local fixes first. If a core change is required, do not silently defer it or substitute an
+  incomplete app-local workaround: explain why the app-local fix is insufficient, name the shared files/modules,
+  state the blast radius, and give the regression/validation plan, then ask the user for an explicit decision.
+  A direct user instruction to fix/do the named shared-core issue is approval to proceed within that stated scope;
+  record the approval and affected files in the plan and PR evidence. If approval is absent, pause only that shared
+  change while continuing independent in-scope work and clearly report the blocker.
 - **agi-core owner gate**: Treat `src/agilab/core/agi-core/**` as owner-protected even after
   shared-core approval. Only GitHub actor `jpmorard` may change this path. The local pre-push
   hook and repo-guardrails CI run `tools/agi_core_change_guard.py`; agents should not stage or
