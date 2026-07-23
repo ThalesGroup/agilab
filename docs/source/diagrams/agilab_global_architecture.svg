@@ -138,7 +138,7 @@
 
   <rect width="1460" height="900" fill="url(#background)" rx="42" ry="42" />
 
-  <g id="header" transform="translate(58,58)">
+  <g id="header" transform="translate(58,50)">
     <text class="page-title" x="0" y="0">AGILAB global architecture</text>
     <text class="page-subtitle" x="0" y="34">
       <tspan x="0" dy="0">One app contract across UI, notebooks, CLI, local runs, clusters, evidence, and export.</tspan>
@@ -147,7 +147,7 @@
   </g>
 
   <line class="lane" x1="58" y1="406" x2="1402" y2="406" />
-  <text class="section-label" x="58" y="130">Primary control path</text>
+  <text class="section-label" x="58" y="136">Primary control path</text>
   <text class="section-label" x="58" y="444">Runtime split and shared state</text>
   <text class="section-label" x="58" y="674">Operational guardrails</text>
 
