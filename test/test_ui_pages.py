@@ -887,7 +887,8 @@ def test_agilab_main_page_refuses_unprotected_public_bind(mock_ui_env):
 
     assert not list(at.exception)
     assert any(
-        "refuses to bind the Streamlit UI publicly" in item.value for item in at.error
+        "refuses to bind the Streamlit UI on non-loopback host" in item.value
+        for item in at.error
     )
 
 

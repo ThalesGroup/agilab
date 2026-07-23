@@ -130,6 +130,64 @@ def test_spawn_process_does_not_shell_fallback_plain_commands(tmp_path: Path, mo
         )
 
 
+def test_spawn_process_execs_env_assignment_prefix_without_shell(
+    tmp_path: Path, monkeypatch
+):
+    # ``VAR=value prog args`` must run via exec with the assignments moved into
+    # the child env: the Windows fallback shell (cmd.exe) cannot parse POSIX
+    # leading assignments.
+    captured: dict[str, object] = {}
+
+    async def _fake_exec(*args, **kwargs):
+        captured["argv"] = args
+        captured["env"] = kwargs["env"]
+        return _FakeProc(stdout_lines=[b""], stderr_lines=[b""])
+
+    async def _unexpected_shell(*_args, **_kwargs):
+        raise AssertionError("assignment prefix must not promote to shell")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", _unexpected_shell)
+
+    asyncio.run(
+        execution_support._spawn_process(
+            cmd="PIP_INDEX_URL=https://test.pypi.org/simple UV_X=1 uv sync --active",
+            cwd=tmp_path,
+            process_env={"PYTHONUNBUFFERED": "1"},
+            shell_executable="/bin/bash",
+        )
+    )
+
+    assert captured["argv"] == ("uv", "sync", "--active")
+    assert captured["env"]["PIP_INDEX_URL"] == "https://test.pypi.org/simple"
+    assert captured["env"]["UV_X"] == "1"
+    assert captured["env"]["PYTHONUNBUFFERED"] == "1"
+
+
+def test_spawn_process_keeps_shell_for_assignment_values_needing_expansion(
+    tmp_path: Path, monkeypatch
+):
+    async def _unexpected_exec(*_args, **_kwargs):
+        raise AssertionError("values with shell expansion must keep the shell")
+
+    async def _fake_shell(*_args, **_kwargs):
+        return _FakeProc(stdout_lines=[b""], stderr_lines=[b""])
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _unexpected_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
+
+    proc = asyncio.run(
+        execution_support._spawn_process(
+            cmd='PATH="/opt/bin:$PATH" uv sync',
+            cwd=tmp_path,
+            process_env={"PYTHONUNBUFFERED": "1"},
+            shell_executable="/bin/bash",
+        )
+    )
+
+    assert isinstance(proc, _FakeProc)
+
+
 def test_spawn_process_can_disable_shell_syntax(tmp_path: Path):
     with pytest.raises(ValueError, match="Shell syntax is not allowed"):
         asyncio.run(
