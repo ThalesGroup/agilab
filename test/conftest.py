@@ -139,58 +139,51 @@ def isolate_home_for_root_tests(tmp_path, monkeypatch):
     (localappdata_agilab / ".agilab-path").write_text(str(repo_agilab_dir) + "\n", encoding="utf-8")
 
 
-@pytest.fixture(autouse=True)
-def preserve_real_user_state_for_root_tests(tmp_path):
-    """
-    Root tests, especially Streamlit AppTests, must not leak writes into the
-    developer's real ~/.agilab, ~/.local/share/agilab, or ~/export trees.
-    """
-
-    tracked_files = [
+def _real_user_state_fingerprint() -> dict[str, tuple[int, int]]:
+    """Fingerprint (mtime_ns, size) of real-HOME files root tests must not touch."""
+    tracked = [
         REAL_HOME / ".agilab" / ".env",
         REAL_HOME / ".local" / "share" / "agilab" / "app_state.toml",
         REAL_HOME / ".local" / "share" / "agilab" / ".last-active-app",
     ]
-    tracked_export_root = REAL_HOME / "export"
-    backup_root = tmp_path / "real_user_state_backup"
-
-    for src in tracked_files:
-        if not src.exists():
+    export_root = REAL_HOME / "export"
+    if export_root.exists():
+        tracked.extend(sorted(export_root.rglob("AGI_*.py")))
+    fingerprint: dict[str, tuple[int, int]] = {}
+    for path in tracked:
+        try:
+            stat = path.stat()
+        except OSError:
             continue
-        dst = backup_root / src.relative_to(REAL_HOME)
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
+        fingerprint[str(path)] = (stat.st_mtime_ns, stat.st_size)
+    return fingerprint
 
-    export_snapshots: list[tuple[Path, Path]] = []
-    if tracked_export_root.exists():
-        for src in tracked_export_root.rglob("AGI_*.py"):
-            dst = backup_root / src.relative_to(REAL_HOME)
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dst)
-            export_snapshots.append((src, dst))
 
+@pytest.fixture(autouse=True, scope="session")
+def assert_real_user_state_untouched_by_root_tests():
+    """
+    Root tests, especially Streamlit AppTests, must not leak writes into the
+    developer's real ~/.agilab, ~/.local/share/agilab, or ~/export trees.
+
+    Isolation itself is the job of ``isolate_home_for_root_tests``; this guard
+    only *detects* leaks. It deliberately never restores, deletes, or rewrites
+    real user files: the previous per-test backup/restore approach could lose
+    or corrupt real ~/.agilab and ~/export contents under pytest-xdist
+    interleaving or an interrupted run.
+    """
+
+    before = _real_user_state_fingerprint()
     yield
-
-    for src in tracked_files:
-        backup = backup_root / src.relative_to(REAL_HOME)
-        if backup.exists():
-            src.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(backup, src)
-        elif src.exists():
-            src.unlink()
-
-    if tracked_export_root.exists():
-        current_exports = list(tracked_export_root.rglob("AGI_*.py"))
-        for src in current_exports:
-            backup = backup_root / src.relative_to(REAL_HOME)
-            if not backup.exists():
-                src.unlink()
-
-    for src, backup in export_snapshots:
-        if not backup.exists():
-            continue
-        src.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(backup, src)
+    after = _real_user_state_fingerprint()
+    if after != before:
+        changed = sorted(
+            set(before) ^ set(after)
+            | {path for path in set(before) & set(after) if before[path] != after[path]}
+        )
+        raise AssertionError(
+            "root tests leaked writes into real user state (HOME isolation "
+            f"failed) for: {changed}"
+        )
 
 
 @pytest.fixture

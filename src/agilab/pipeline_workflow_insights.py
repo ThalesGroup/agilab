@@ -1,4 +1,9 @@
-"""Compatibility shim for ``agilab.pipeline_workflow_insights``."""
+"""Compatibility shim for ``agilab.pipeline_workflow_insights``.
+
+The implementation now lives in ``agilab.pipeline.pipeline_workflow_insights``. Keep this shim so existing
+imports continue to work while internal code migrates to the classified
+package layout.
+"""
 
 from __future__ import annotations
 

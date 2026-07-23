@@ -1,4 +1,9 @@
-"""Compatibility shim for AGI lifecycle guard helpers."""
+"""Compatibility shim for ``agi_cluster.agi_distributor.lifecycle_guard_support``.
+
+The implementation now lives in ``agi_cluster.agi_distributor.runtime.lifecycle_guard_support``. Keep this shim so existing
+imports continue to work while internal code migrates to the classified
+package layout.
+"""
 
 from __future__ import annotations
 
