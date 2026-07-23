@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 
@@ -57,6 +58,7 @@ def test_build_pytest_command_keeps_forwarded_args_after_separator():
 def test_subprocess_env_uses_isolated_app_environment(monkeypatch, tmp_path):
     monkeypatch.setenv("VIRTUAL_ENV", "/repo/.venv")
     monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", "/repo/.venv-dev")
+    monkeypatch.setenv("UV_PYTHON", "/polluted/project/.venv/bin/python")
     monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "1")
     monkeypatch.setenv("AGILAB_BUILTIN_APP_TEST_ENV_ROOT", str(tmp_path / "app-envs"))
     target = builtin_app_tests.BuiltinAppTestTarget(
@@ -69,6 +71,7 @@ def test_subprocess_env_uses_isolated_app_environment(monkeypatch, tmp_path):
     assert "VIRTUAL_ENV" not in env
     assert "UV_RUN_RECURSION_DEPTH" not in env
     assert env["UV_PROJECT_ENVIRONMENT"] == str(tmp_path / "app-envs" / target.name)
+    assert env["UV_PYTHON"] == sys.executable
 
 
 def test_app_test_env_root_uses_temporary_directory_by_default(monkeypatch):

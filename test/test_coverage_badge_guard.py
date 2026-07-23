@@ -69,6 +69,19 @@ def test_changed_coverage_components_ignores_coverage_tooling_tests() -> None:
     assert changed == {}
 
 
+def test_changed_coverage_components_ignores_non_gui_policy_tests() -> None:
+    module = _load_module()
+
+    changed = module.changed_coverage_components(
+        [
+            "test/test_builtin_app_tests.py",
+            "test/test_pyproject_dependency_hygiene.py",
+        ]
+    )
+
+    assert changed == {}
+
+
 def test_changed_coverage_components_ignores_release_and_public_docs_tests() -> None:
     module = _load_module()
 

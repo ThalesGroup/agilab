@@ -126,15 +126,43 @@ def _marker_excludes_python_below(requirement: Requirement, floor: tuple[int, in
     return not requirement.marker.evaluate(env)
 
 
-def _project_pyprojects() -> list[Path]:
-    ignored_parts = {".venv", "build", "dist", "__pycache__"}
+def _project_pyprojects(
+    repo_root: Path = REPO_ROOT,
+    src_package: Path = SRC_PACKAGE,
+) -> list[Path]:
+    ignored_parts = {"build", "dist", "__pycache__"}
     return [
-        REPO_ROOT / "pyproject.toml",
+        repo_root / "pyproject.toml",
         *[
             path
-            for path in sorted(SRC_PACKAGE.rglob("pyproject.toml"))
-            if not ignored_parts.intersection(path.relative_to(SRC_PACKAGE).parts)
+            for path in sorted(src_package.rglob("pyproject.toml"))
+            if not any(
+                part in ignored_parts or part.startswith(".venv")
+                for part in path.relative_to(src_package).parts
+            )
         ],
+    ]
+
+
+def test_project_pyprojects_ignore_prefixed_virtual_environments(tmp_path: Path) -> None:
+    src_package = tmp_path / "src" / "agilab"
+    root_pyproject = tmp_path / "pyproject.toml"
+    package_pyproject = src_package / "owned" / "pyproject.toml"
+    polluted_pyproject = (
+        src_package
+        / "owned"
+        / ".venv.agilab-linking"
+        / "site-packages"
+        / "third-party"
+        / "pyproject.toml"
+    )
+    for path in (root_pyproject, package_pyproject, polluted_pyproject):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("[project]\nrequires-python = \">=3.12\"\n", encoding="utf-8")
+
+    assert _project_pyprojects(tmp_path, src_package) == [
+        root_pyproject,
+        package_pyproject,
     ]
 
 
