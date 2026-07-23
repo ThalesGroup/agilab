@@ -23,8 +23,15 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.07.17.1] - 2026-07-23
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17_1
+
 ### Changed
 
+- Published AGILAB `2026.07.17.1` to PyPI for `agi-page-queue-health`, `agi-page-relay-health`, `agi-pages`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 - Aligned clean and source installers with the repository Python pin and
   validated standard-GIL interpreter selections before replacing an existing
   environment.
@@ -869,3 +876,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.06.24]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.24
 [2026.07.04]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.04
 [2026.07.17]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17
+[2026.07.17.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17_1
