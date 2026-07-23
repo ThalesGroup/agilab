@@ -20,6 +20,19 @@ from agi_cluster.agi_distributor import (
 )
 
 
+def _path_in_cmd(path: object, cmd: str) -> bool:
+    """Match a path in a command regardless of separator style.
+
+    Deployment quotes project/CLI paths through ``_shell_arg``, which renders
+    ``Path`` values via ``as_posix()`` so forward slashes survive POSIX
+    ``shlex.split`` on every platform. On Windows ``str(path)`` still uses
+    backslashes, so assertions must accept either form.
+    """
+    native = str(path)
+    posix = Path(native).as_posix()
+    return native in cmd or posix in cmd
+
+
 def _venv_python(project: Path, *, os_name: str | None = None) -> Path:
     return deployment_local_support._project_venv_python(
         project,
@@ -77,7 +90,7 @@ def _has_worker_core_add_command(
     return any(
         " add " in cmd
         and "--editable" in cmd
-        and str(wenv_abs) in cmd
+        and _path_in_cmd(wenv_abs, cmd)
         and all(f'"{project}"' in cmd for project in projects)
         for cmd, _ in commands
     )
@@ -2794,23 +2807,23 @@ async def test_deploy_local_worker_reuses_cached_uv_stages(tmp_path):
 
     assert (wenv_abs / ".agilab-stage-cache.json").exists()
     assert any(
-        cmd.startswith("uv sync") and str(app_path) in cmd for cmd, _ in first_commands
+        cmd.startswith("uv sync") and _path_in_cmd(app_path, cmd) for cmd, _ in first_commands
     )
     assert any(
-        cmd.startswith("uv sync") and str(wenv_abs) in cmd for cmd, _ in first_commands
+        cmd.startswith("uv sync") and _path_in_cmd(wenv_abs, cmd) for cmd, _ in first_commands
     )
     assert any(" add agi-env" in cmd for cmd, _ in first_commands)
     assert not any(
-        cmd.startswith("uv sync") and str(app_path) in cmd for cmd, _ in commands
+        cmd.startswith("uv sync") and _path_in_cmd(app_path, cmd) for cmd, _ in commands
     )
     assert not any(
-        cmd.startswith("uv sync") and str(wenv_abs) in cmd for cmd, _ in commands
+        cmd.startswith("uv sync") and _path_in_cmd(wenv_abs, cmd) for cmd, _ in commands
     )
     assert not any(
         " add agi-env" in cmd or " add agi-node" in cmd for cmd, _ in commands
     )
     assert any(
-        "pip install --python" in cmd and str(app_path) in cmd for cmd, _ in commands
+        "pip install --python" in cmd and _path_in_cmd(app_path, cmd) for cmd, _ in commands
     )
     assert any("threaded" in cmd for cmd, _ in commands)
 
@@ -3023,12 +3036,12 @@ async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localho
     )
     assert any(
         "uv sync --python 3.13 --config-file uv_config.toml --project" in cmd
-        and str(app_path) in cmd
+        and _path_in_cmd(app_path, cmd)
         for cmd, _ in commands
     )
     assert any(
         "uv sync --python 3.13 --config-file uv_config.toml --project" in cmd
-        and str(wenv_abs) in cmd
+        and _path_in_cmd(wenv_abs, cmd)
         for cmd, _ in commands
     )
     wenv_token = wenv_abs.as_posix()
@@ -3037,11 +3050,11 @@ async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localho
         for cmd, _ in commands
     )
     assert not any(
-        "uv sync" in cmd and str(wenv_abs) in cmd and "--extra pandas-worker" in cmd
+        "uv sync" in cmd and _path_in_cmd(wenv_abs, cmd) and "--extra pandas-worker" in cmd
         for cmd, _ in commands
     )
     assert any(
-        f"python {shlex.quote(str(existing_cli))} threaded" in cmd
+        (_path_in_cmd(existing_cli, cmd) and "python " in cmd and "threaded" in cmd)
         for cmd, _ in commands
     )
 
@@ -3211,7 +3224,7 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
         f'--no-deps "{cluster_project}"' in cmd and str(app_path) in cwd
         for cmd, cwd in commands
     )
-    assert not any("add agi-env" in cmd and str(wenv_abs) in cmd for cmd, _ in commands)
+    assert not any("add agi-env" in cmd and _path_in_cmd(wenv_abs, cmd) for cmd, _ in commands)
     assert any("config-file uv_config.toml" in cmd for cmd, _ in commands)
     assert any(
         "pip install --python" in cmd and str(wenv_abs / ".venv") in cmd
@@ -3727,7 +3740,7 @@ async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
 
     assert agi_cls._install_done_local is True
     assert any(
-        "uv --offline sync" in cmd and str(app_path) in cmd for cmd, _ in commands
+        "uv --offline sync" in cmd and _path_in_cmd(app_path, cmd) for cmd, _ in commands
     )
     assert any(
         (
@@ -3947,7 +3960,7 @@ path = "../sat_trajectory_project"
     assert any(
         "--project" in cmd
         and "--active --no-install-project" in cmd
-        and str(staged_overlay_root) in cmd
+        and _path_in_cmd(staged_overlay_root, cmd)
         for cmd, _ in commands
     )
     assert any(
@@ -4144,7 +4157,7 @@ path = "../sat_trajectory_project"
         "sync " in cmd
         and "--project" in cmd
         and "--active --no-install-project" in cmd
-        and str(staged_overlay_root) in cmd
+        and _path_in_cmd(staged_overlay_root, cmd)
         for cmd, _ in commands
     )
     manager_python = _venv_python(app_path)
