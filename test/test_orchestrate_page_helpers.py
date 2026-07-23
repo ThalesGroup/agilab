@@ -226,7 +226,7 @@ def test_orchestrate_readiness_cards_use_compact_path_captions(tmp_path):
     assert module._compact_path_caption("short status") == "short status"
 
 
-def test_orchestrate_flight_imports_are_app_scoped_and_restore_process_state(
+def test_orchestrate_args_codec_imports_are_app_scoped_and_restore_process_state(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -238,22 +238,16 @@ def test_orchestrate_flight_imports_are_app_scoped_and_restore_process_state(
         app_src.mkdir(parents=True)
         settings_file = app_src / "app_settings.toml"
         settings_file.write_text("", encoding="utf-8")
-        (app_src / "flight_telemetry.py").write_text(
+        (app_src / f"{project}.py").write_text(
             "\n".join(
                 [
                     "from pathlib import Path",
                     f"PROJECT = {project!r}",
-                    "class FlightArgs:",
-                    "    def __init__(self, **payload):",
-                    "        self.payload = payload",
-                    "    def to_toml_payload(self):",
-                    "        return {'project': PROJECT, **self.payload}",
-                    "def apply_source_defaults(args):",
-                    "    return args",
-                    "def load_args_from_toml(_path):",
-                    "    return FlightArgs(loaded=True)",
-                    "def dump_args_to_toml(_args, path):",
+                    "def load_args_payload(_path):",
+                    "    return {'project': PROJECT, 'loaded': True}",
+                    "def persist_args_payload(args, path):",
                     "    Path(path).write_text(PROJECT, encoding='utf-8')",
+                    "    return {'project': PROJECT, **args}",
                     "",
                 ]
             ),
@@ -261,19 +255,20 @@ def test_orchestrate_flight_imports_are_app_scoped_and_restore_process_state(
         )
         return SimpleNamespace(
             active_app=app_root,
+            app=f"{project}_project",
             app_settings_file=settings_file,
         )
 
     alpha_env = _build_app("alpha")
     beta_env = _build_app("beta")
-    sentinel = types.ModuleType("flight_telemetry")
+    sentinel = types.ModuleType("alpha")
     sentinel.PROJECT = "sentinel"
-    monkeypatch.setitem(sys.modules, "flight_telemetry", sentinel)
+    monkeypatch.setitem(sys.modules, "alpha", sentinel)
     original_path = list(sys.path)
 
     def _exercise(env, project: str):
-        loaded = module._load_flight_args_payload(env)
-        persisted = module._persist_flight_args_payload(env, {"value": project})
+        loaded = module._load_args_payload_via_codec(env)
+        persisted = module._persist_args_payload_via_codec(env, {"value": project})
         return loaded, persisted, Path(env.app_settings_file).read_text(encoding="utf-8")
 
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -293,9 +288,27 @@ def test_orchestrate_flight_imports_are_app_scoped_and_restore_process_state(
         "beta",
     )
     assert sys.path == original_path
-    assert sys.modules["flight_telemetry"] is sentinel
+    assert sys.modules["alpha"] is sentinel
     assert str(alpha_env.active_app / "src") not in sys.path
     assert str(beta_env.active_app / "src") not in sys.path
+
+
+def test_orchestrate_args_codec_returns_none_for_apps_without_hooks(
+    tmp_path: Path,
+) -> None:
+    module = _load_orchestrate_module()
+    app_root = tmp_path / "plain_project"
+    (app_root / "src").mkdir(parents=True)
+    settings_file = app_root / "src" / "app_settings.toml"
+    settings_file.write_text("", encoding="utf-8")
+    env = SimpleNamespace(
+        active_app=app_root,
+        app="plain_project",
+        app_settings_file=settings_file,
+    )
+
+    assert module._load_args_payload_via_codec(env) is None
+    assert module._persist_args_payload_via_codec(env, {"value": 1}) is None
 
 
 def test_orchestrate_workplan_chunk_rendering_accepts_rich_chunk_records():

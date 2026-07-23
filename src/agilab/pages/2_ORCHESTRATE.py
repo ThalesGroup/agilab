@@ -369,28 +369,48 @@ def _active_app_import_scope(env: Any):
     )
 
 
-def _load_flight_args_payload(env: Any) -> dict[str, Any]:
+def _args_codec_package(env: Any) -> str:
+    """Manager package name for the active app (``foo_project`` -> ``foo``)."""
+    return str(getattr(env, "app", "") or "").removesuffix("_project")
+
+
+def _resolve_args_codec_hook(env: Any, hook_name: str) -> Callable[..., Any] | None:
+    """Look up an optional args-codec hook exported by the active app.
+
+    Apps that want typed args validation/normalization in the generic args
+    editor export ``load_args_payload(settings_file)`` and
+    ``persist_args_payload(args, settings_file)`` from their manager package.
+    The generic page stays app-agnostic: no app is imported unless it declares
+    the hooks, and apps without them fall back to the plain TOML path.
+    """
+    package = _args_codec_package(env)
+    if not package:
+        return None
+    try:
+        module = importlib.import_module(package)
+    except ImportError:
+        return None
+    hook = getattr(module, hook_name, None)
+    return hook if callable(hook) else None
+
+
+def _load_args_payload_via_codec(env: Any) -> dict[str, Any] | None:
     with _active_app_import_scope(env):
-        from flight_telemetry import apply_source_defaults, load_args_from_toml
+        hook = _resolve_args_codec_hook(env, "load_args_payload")
+        if hook is None:
+            return None
+        return dict(hook(env.app_settings_file))
 
-        args_model = apply_source_defaults(load_args_from_toml(env.app_settings_file))
-        return args_model.to_toml_payload()
 
-
-def _persist_flight_args_payload(
+def _persist_args_payload_via_codec(
     env: Any,
     args_input: dict[str, Any],
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
     with _active_app_import_scope(env):
-        from flight_telemetry import (
-            apply_source_defaults,
-            dump_args_to_toml,
-            FlightArgs,
-        )
-
-        parsed_args = apply_source_defaults(FlightArgs(**args_input))
-        dump_args_to_toml(parsed_args, env.app_settings_file)
-        return parsed_args.to_toml_payload()
+        hook = _resolve_args_codec_hook(env, "persist_args_payload")
+        if hook is None:
+            return None
+        return dict(hook(args_input, env.app_settings_file))
 
 
 def background_services_enabled(*args: Any, **kwargs: Any) -> Any:
@@ -1039,20 +1059,21 @@ def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None
     session_settings = st.session_state.get("app_settings")
     app_settings = merge_app_settings_sources(file_settings, session_settings)
 
-    if env.app == "flight_telemetry_project":
-        try:
-            app_settings["args"] = _load_flight_args_payload(env)
-        except (
-            ImportError,
-            AttributeError,
-            OSError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-            tomllib.TOMLDecodeError,
-        ) as exc:
-            st.warning(f"Unable to load Flight args: {exc}")
-            app_settings.setdefault("args", {})
+    try:
+        codec_args = _load_args_payload_via_codec(env)
+    except (
+        ImportError,
+        AttributeError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+        tomllib.TOMLDecodeError,
+    ) as exc:
+        st.warning(f"Unable to load app args: {exc}")
+        codec_args = None
+    if codec_args is not None:
+        app_settings["args"] = codec_args
     else:
         app_settings.setdefault("args", {})
 
@@ -1531,16 +1552,22 @@ def render_generic_ui() -> None:
     if is_args_reload_required:
         st.session_state["args_input"] = args_input
         app_settings_file = env.app_settings_file
-        if env.app == "flight_telemetry_project":
-            from pydantic import ValidationError
-
+        persisted_args = None
+        codec_error: ValueError | None = None
+        try:
+            # pydantic ValidationError subclasses ValueError, so app codecs can
+            # raise either without the generic page importing pydantic.
+            persisted_args = _persist_args_payload_via_codec(env, args_input)
+        except ValueError as exc:
+            codec_error = exc
+        if codec_error is not None:
             try:
-                persisted_args = _persist_flight_args_payload(env, args_input)
-            except ValidationError as exc:
-                messages = env.humanize_validation_errors(exc)
+                messages = env.humanize_validation_errors(codec_error)
                 st.warning("\n".join(messages))
-            else:
-                st.session_state.app_settings["args"] = persisted_args
+            except (AttributeError, TypeError):
+                st.warning(str(codec_error))
+        elif persisted_args is not None:
+            st.session_state.app_settings["args"] = persisted_args
         else:
             existing_app_settings = load_toml_file(app_settings_file)
             existing_app_settings.setdefault("args", {})

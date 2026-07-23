@@ -196,6 +196,26 @@ def dump_args_to_toml(
     )
 
 
+def load_args_payload(settings_path: str | Path) -> dict[str, Any]:
+    """AGILAB args-codec hook: load, default, and normalize args for the UI."""
+
+    return apply_source_defaults(load_args_from_toml(settings_path)).to_toml_payload()
+
+
+def persist_args_payload(
+    args: dict[str, Any],
+    settings_path: str | Path,
+) -> dict[str, Any]:
+    """AGILAB args-codec hook: validate, persist, and echo the normalized args.
+
+    Raises pydantic ``ValidationError`` (a ``ValueError``) on invalid input.
+    """
+
+    parsed = apply_source_defaults(FlightArgs(**args))
+    dump_args_to_toml(parsed, settings_path)
+    return parsed.to_toml_payload()
+
+
 ArgsModel = FlightArgs
 ArgsOverrides = FlightArgsTD
 
