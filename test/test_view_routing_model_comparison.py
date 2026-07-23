@@ -63,11 +63,9 @@ class _Sidebar:
         *,
         pipeline_text: str | None = None,
         selected_models: list[str] | None = None,
-        failure_rows: int = 100,
     ) -> None:
         self.pipeline_text = pipeline_text
         self.selected_models = selected_models
-        self.failure_rows = failure_rows
 
     def text_input(self, _label: str, *, value: str, key: str) -> str:
         return value if self.pipeline_text is None else self.pipeline_text
@@ -81,9 +79,6 @@ class _Sidebar:
         key: str,
     ) -> list[str]:
         return default if self.selected_models is None else self.selected_models
-
-    def number_input(self, *args: object, **kwargs: object) -> int:
-        return self.failure_rows
 
 
 class _StreamlitStub:
@@ -447,7 +442,6 @@ def test_routing_model_comparison_loads_and_summarizes_allocations(
     alloc_df = module.add_latency_targets(alloc_df)
     summary = module.build_summary(alloc_df)
     demand_matrix = module.build_demand_matrix_data(alloc_df)
-    failures = module.build_failure_table(alloc_df)
 
     assert set(alloc_df["model"]) == {"ILP", "PPO-GNN"}
     assert alloc_df["outcome"].tolist().count("fulfilled") == 1
@@ -462,8 +456,6 @@ def test_routing_model_comparison_loads_and_summarizes_allocations(
     assert demand_by_pair.loc[("ILP", "C", "D"), "unmet_bandwidth_ratio"] == 1.0
     assert demand_by_pair.loc[("ILP", "C", "D"), "unrouted_rate"] == 1.0
     assert demand_by_pair.loc[("PPO-GNN", "A", "B"), "mean_latency_ms"] == 45.0
-    assert len(failures) == 2
-    assert "latency_over_target_ms" in failures.columns
 
 
 def test_routing_model_comparison_filters_to_active_demand_schedule(
@@ -523,7 +515,6 @@ def test_routing_model_comparison_filters_to_active_demand_schedule(
     )
 
     alloc_df = module.load_allocations(module.available_file_signatures(base))
-    failures = module.build_failure_table(module.add_latency_targets(alloc_df.copy()))
 
     assert len(alloc_df) == 4
     assert set(alloc_df["model"]) == {"ILP", "PPO-GNN"}
@@ -534,8 +525,6 @@ def test_routing_model_comparison_filters_to_active_demand_schedule(
     }
     assert alloc_df["requested_mbps"].sum() == 55.0
     assert alloc_df.loc[alloc_df["source_label"] == "active-source", "active"].all()
-    assert "active-unrouted-source" in set(failures["source_label"])
-    assert "inactive-source" not in set(failures["source_label"])
 
 
 def test_routing_model_comparison_retains_legacy_rows_without_active_evidence(
@@ -741,15 +730,22 @@ def test_routing_model_comparison_figures_handle_empty_and_visible_models() -> N
         alloc_df, models
     )
     assert len(satisfaction_figure.data) == 2
-    assert satisfaction_figure.data[0].mode == "markers"
-    assert satisfaction_figure.data[0].marker.symbol == "square"
-    assert satisfaction_figure.data[0].marker.size == 5
-    assert satisfaction_figure.data[0].marker.cmin == 0.0
-    assert satisfaction_figure.data[0].marker.cmax == 1.0
-    assert satisfaction_figure.data[0].marker.showscale is True
-    assert satisfaction_figure.data[0].marker.line.width == 0.5
-    assert satisfaction_figure.data[1].marker.showscale is True
-    assert satisfaction_figure.data[1].marker.colorbar.title.text == "Satisfaction ratio"
+    assert satisfaction_figure.data[0].type == "heatmap"
+    assert satisfaction_figure.data[0].xgap == 1
+    assert satisfaction_figure.data[0].ygap == 1
+    assert satisfaction_figure.data[0].showscale is True
+    assert satisfaction_figure.data[1].showscale is True
+    assert float(satisfaction_figure.data[0].z[0][0]) == pytest.approx(1.0, rel=1e-6)
+    assert float(satisfaction_figure.data[1].z[0][0]) == pytest.approx(0.5, rel=1e-6)
+    assert float(satisfaction_figure.data[0].customdata[0][0][1]) == pytest.approx(
+        1.0, rel=1e-6
+    )
+    assert float(satisfaction_figure.data[1].customdata[0][0][1]) == pytest.approx(
+        0.5, rel=1e-6
+    )
+    assert satisfaction_figure.data[0].colorbar.title.text == "Satisfaction ratio"
+    assert satisfaction_figure.data[1].colorbar.title.text == "Satisfaction ratio"
+    assert satisfaction_figure.data[0].colorbar.y != satisfaction_figure.data[1].colorbar.y
     assert satisfaction_figure.layout.height == 840
     assert satisfaction_figure.layout.yaxis.tickmode == "array"
     assert satisfaction_figure.layout.yaxis.showticklabels is True
@@ -759,8 +755,8 @@ def test_routing_model_comparison_figures_handle_empty_and_visible_models() -> N
     assert [
         annotation.text for annotation in satisfaction_figure.layout.annotations
     ] == [
-        "ILP: raw active demand satisfaction over time",
-        "PPO-GNN: raw active demand satisfaction over time",
+        "ILP: aggregated active-demand satisfaction over time",
+        "PPO-GNN: aggregated active-demand satisfaction over time",
     ]
     assert satisfaction_figure.layout.xaxis.showgrid is True
     assert satisfaction_figure.layout.xaxis.title.text == "Time index"
@@ -784,6 +780,62 @@ def test_routing_model_comparison_figures_handle_empty_and_visible_models() -> N
     assert module._format_summary(summary).columns.tolist() == models
     assert module.build_demand_matrix_data(pd.DataFrame()).empty
     assert len(module.build_demand_matrix_figure(pd.DataFrame(), models).data) == 0
+
+
+def test_routing_model_comparison_heatmap_aggregates_duplicate_cells_and_caps_height() -> None:
+    module = _load_module()
+    rows: list[dict[str, object]] = []
+    for model, first_delivered, second_delivered in (
+        ("ILP", 10.0, 15.0),
+        ("PPO-GNN", 8.0, 12.0),
+    ):
+        for demand_index in range(60):
+            source_label = f"source-{demand_index}"
+            destination_label = f"destination-{demand_index}"
+            rows.extend(
+                [
+                    {
+                        "model": model,
+                        "time_index": 0,
+                        "source_label": source_label,
+                        "destination_label": destination_label,
+                        "requested_mbps": 10.0,
+                        "delivered_mbps": first_delivered,
+                        "active": True,
+                    },
+                    {
+                        "model": model,
+                        "time_index": 0,
+                        "source_label": source_label,
+                        "destination_label": destination_label,
+                        "requested_mbps": 30.0,
+                        "delivered_mbps": second_delivered,
+                        "active": True,
+                    },
+                ]
+            )
+
+    fig = module.build_demand_satisfaction_heatmap_figure(
+        pd.DataFrame(rows),
+        ["ILP", "PPO-GNN"],
+    )
+
+    assert len(fig.data) == 2
+    assert fig.data[0].type == "heatmap"
+    assert fig.data[0].xgap == 1
+    assert fig.data[0].ygap == 1
+    assert fig.data[0].showscale is True
+    assert fig.data[1].showscale is True
+    assert fig.layout.height == 1520
+    assert len(fig.layout.yaxis.tickvals) <= 24
+    assert float(fig.data[0].z[0][0]) == pytest.approx(0.625, rel=1e-6)
+    assert float(fig.data[0].customdata[0][0][1]) == pytest.approx(0.625, rel=1e-6)
+    assert fig.data[0].customdata[0][0][2] == 2.0
+    assert fig.data[0].customdata[0][0][3] == 40.0
+    assert fig.data[0].customdata[0][0][4] == 25.0
+    assert fig.data[0].colorbar.title.text == "Satisfaction ratio"
+    assert fig.data[1].colorbar.title.text == "Satisfaction ratio"
+    assert fig.data[0].colorbar.y != fig.data[1].colorbar.y
 
 
 def test_demand_matrix_caps_delivery_and_preserves_full_node_identity() -> None:
@@ -847,29 +899,6 @@ def test_routing_model_comparison_empty_helpers_and_metrics(monkeypatch) -> None
     assert module.add_latency_targets(empty) is empty
     empty_allocations = pd.DataFrame(columns=["model"])
     assert module.build_summary(empty_allocations).empty
-    failures = module.build_failure_table(
-        pd.DataFrame(
-            [
-                {
-                    "model": "ILP",
-                    "time_index": 0,
-                    "source_label": "A",
-                    "destination_label": "B",
-                    "outcome": "fulfilled",
-                    "requested_mbps": 1.0,
-                    "delivered_mbps": 1.0,
-                    "satisfaction_ratio": 1.0,
-                    "latency_ms": 10.0,
-                    "latency_target_used_ms": 20.0,
-                    "latency_violation": False,
-                    "hop_count": 1,
-                    "bearers": "SAT",
-                    "path": "A -> B",
-                }
-            ]
-        )
-    )
-    assert failures.empty
 
     streamlit = _StreamlitStub()
     monkeypatch.setattr(module, "st", streamlit)

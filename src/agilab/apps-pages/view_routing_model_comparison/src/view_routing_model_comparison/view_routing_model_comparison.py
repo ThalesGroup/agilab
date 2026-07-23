@@ -599,6 +599,17 @@ def filter_active_demands(alloc_df: pd.DataFrame) -> pd.DataFrame:
     return filtered
 
 
+def _sample_tick_positions(length: int, max_ticks: int = 24) -> list[int]:
+    if length <= 0:
+        return []
+    if length <= max_ticks:
+        return list(range(length))
+    positions = np.unique(
+        np.round(np.linspace(0, length - 1, max_ticks)).astype(int)
+    )
+    return positions.tolist()
+
+
 def add_latency_targets(alloc_df: pd.DataFrame) -> pd.DataFrame:
     if alloc_df.empty:
         return alloc_df
@@ -888,7 +899,7 @@ def build_demand_satisfaction_heatmap_figure(
     alloc_df: pd.DataFrame,
     models: list[str],
 ) -> go.Figure:
-    """Build raw active-demand satisfaction heatmaps over time for each model."""
+    """Build aggregated active-demand satisfaction heatmaps over time."""
 
     plot_df = alloc_df.copy()
     if plot_df.empty:
@@ -907,25 +918,38 @@ def build_demand_satisfaction_heatmap_figure(
             + plot_df["destination_label"].astype(str)
         )
 
-    plot_df = plot_df.sort_values(
-        [
-            "model",
-            "time_index",
-            "demand",
-            "requested_mbps",
-            "source_label",
-            "destination_label",
-        ],
-        ascending=[True, True, True, False, True, True],
-        kind="stable",
-    ).copy()
     available_models = set(plot_df["model"])
     visible_models = [model for model in models if model in available_models]
     if plot_df.empty or not visible_models:
         return go.Figure()
 
+    plot_df["time_index"] = pd.to_numeric(plot_df["time_index"], errors="coerce")
+    plot_df["requested_mbps"] = pd.to_numeric(
+        plot_df["requested_mbps"], errors="coerce"
+    )
+    plot_df["delivered_mbps"] = pd.to_numeric(
+        plot_df["delivered_mbps"], errors="coerce"
+    )
+    plot_df = plot_df.dropna(subset=["time_index"]).copy()
+    if plot_df.empty:
+        return go.Figure()
+    plot_df["time_index"] = plot_df["time_index"].astype(int)
+
+    cell_kpis = (
+        plot_df.groupby(["model", "demand", "time_index"], as_index=False, observed=False)
+        .agg(
+            requested_mbps=("requested_mbps", "sum"),
+            delivered_mbps=("delivered_mbps", "sum"),
+            raw_rows=("demand", "size"),
+        )
+    )
+    requested_total = cell_kpis["requested_mbps"].replace(0.0, np.nan)
+    cell_kpis["satisfaction_ratio"] = (
+        cell_kpis["delivered_mbps"] / requested_total
+    ).clip(lower=0.0, upper=1.0)
+
     demand_order_df = (
-        plot_df.groupby("demand", as_index=False, observed=False)
+        cell_kpis.groupby("demand", as_index=False, observed=False)
         .agg(
             total_requested_mbps=("requested_mbps", "sum"),
             mean_satisfaction_ratio=("satisfaction_ratio", "mean"),
@@ -936,95 +960,109 @@ def build_demand_satisfaction_heatmap_figure(
         )
     )
     demand_order = demand_order_df["demand"].astype(str).tolist()
+    time_order = (
+        plot_df["time_index"].dropna().astype(int).sort_values().unique().tolist()
+    )
+    if not demand_order or not time_order:
+        return go.Figure()
 
     fig = make_subplots(
         rows=len(visible_models),
         cols=1,
         shared_xaxes=True,
         subplot_titles=tuple(
-            f"{model}: raw active demand satisfaction over time"
+            f"{model}: aggregated active-demand satisfaction over time"
             for model in visible_models
         ),
         vertical_spacing=0.08 if len(visible_models) > 1 else 0.02,
     )
 
-    demand_positions = {
-        demand: position for position, demand in enumerate(demand_order)
-    }
+    time_tick_positions = _sample_tick_positions(len(time_order), max_ticks=24)
+    time_tick_values = [time_order[position] for position in time_tick_positions]
+    y_tick_positions = _sample_tick_positions(len(demand_order), max_ticks=24)
+    y_tick_text = [demand_order[position] for position in y_tick_positions]
 
     for row, model in enumerate(visible_models, start=1):
-        model_rows = plot_df[plot_df["model"] == model].copy()
+        model_rows = cell_kpis[cell_kpis["model"] == model].copy()
         if model_rows.empty:
             continue
-        model_rows["demand_position"] = model_rows["demand"].map(demand_positions)
-        model_rows = model_rows.dropna(subset=["demand_position"]).copy()
-        if model_rows.empty:
-            continue
-        model_rows["demand_position"] = model_rows["demand_position"].astype(float)
-        cell_counts = model_rows.groupby(
-            ["demand", "time_index"], sort=False, dropna=False
-        )["demand"].transform("size")
-        cell_occurrence = model_rows.groupby(
-            ["demand", "time_index"], sort=False, dropna=False
-        ).cumcount()
-        stack_step = 0.26
-        model_rows["y_position"] = model_rows["demand_position"] + (
-            cell_occurrence - (cell_counts - 1) / 2.0
-        ) * stack_step
-        model_rows["cell_occurrence"] = cell_occurrence + 1
-        model_rows["cell_count"] = cell_counts
-        customdata = np.column_stack(
-            [
-                model_rows["satisfaction_ratio"].to_numpy(dtype=float),
-                model_rows["requested_mbps"].to_numpy(dtype=float),
-                model_rows["source_label"].astype(str).to_numpy(),
-                model_rows["destination_label"].astype(str).to_numpy(),
-                model_rows["cell_occurrence"].to_numpy(dtype=float),
-                model_rows["cell_count"].to_numpy(dtype=float),
-            ]
+        subplot_axis_name = "yaxis" if row == 1 else f"yaxis{row}"
+        subplot_domain = fig.layout[subplot_axis_name].domain
+        colorbar_center = (subplot_domain[0] + subplot_domain[1]) / 2.0
+        colorbar_len = subplot_domain[1] - subplot_domain[0]
+        satisfaction_matrix = (
+            model_rows.pivot(
+                index="demand",
+                columns="time_index",
+                values="satisfaction_ratio",
+            )
+            .reindex(index=demand_order, columns=time_order)
         )
+        requested_matrix = (
+            model_rows.pivot(
+                index="demand",
+                columns="time_index",
+                values="requested_mbps",
+            )
+            .reindex(index=demand_order, columns=time_order)
+        )
+        delivered_matrix = (
+            model_rows.pivot(
+                index="demand",
+                columns="time_index",
+                values="delivered_mbps",
+            )
+            .reindex(index=demand_order, columns=time_order)
+        )
+        raw_rows_matrix = (
+            model_rows.pivot(index="demand", columns="time_index", values="raw_rows")
+            .reindex(index=demand_order, columns=time_order)
+        )
+        hover_rows = np.empty((len(demand_order), len(time_order), 5), dtype=object)
+        hover_rows[..., 0] = np.asarray(demand_order, dtype=object)[:, None]
+        hover_rows[..., 1] = satisfaction_matrix.fillna(np.nan).to_numpy(dtype=float)
+        hover_rows[..., 2] = raw_rows_matrix.fillna(0.0).to_numpy(dtype=float)
+        hover_rows[..., 3] = requested_matrix.fillna(0.0).to_numpy(dtype=float)
+        hover_rows[..., 4] = delivered_matrix.fillna(0.0).to_numpy(dtype=float)
         fig.add_trace(
-            go.Scattergl(
-                x=model_rows["time_index"],
-                y=model_rows["y_position"],
-                mode="markers",
+            go.Heatmap(
+                z=satisfaction_matrix.to_numpy(dtype=float),
+                x=time_order,
+                y=list(range(len(demand_order))),
+                xgap=1,
+                ygap=1,
+                colorscale="Viridis",
+                zmin=0.0,
+                zmax=1.0,
+                hoverongaps=False,
+                zsmooth=False,
                 name=model,
-                showlegend=False,
-                customdata=customdata,
-                marker=dict(
-                    symbol="square",
-                    size=5,
-                    color=model_rows["satisfaction_ratio"],
-                    colorscale="Viridis",
-                    cmin=0.0,
-                    cmax=1.0,
-                    showscale=True,
-                    colorbar=dict(title="Satisfaction ratio"),
-                    line=dict(color="#f8fafc", width=0.5),
+                customdata=hover_rows,
+                showscale=True,
+                colorbar=dict(
+                    title="Satisfaction ratio",
+                    y=colorbar_center,
+                    len=colorbar_len,
+                    yanchor="middle",
+                    x=1.02,
+                    thickness=14,
+                    thicknessmode="pixels",
                 ),
                 hovertemplate=(
                     "Time index %{x}<br>"
-                    "Demand %{customdata[2]} -> %{customdata[3]}<br>"
-                    "Raw row %{customdata[4]:.0f} of %{customdata[5]:.0f}<br>"
-                    "Satisfaction %{customdata[0]:.0%}<br>"
-                    "Requested %{customdata[1]:.1f} Mbps<extra>"
+                    "Demand %{customdata[0]}<br>"
+                    "Aggregated satisfaction %{customdata[1]:.0%}<br>"
+                    "Raw rows %{customdata[2]:.0f}<br>"
+                    "Requested %{customdata[3]:.1f} Mbps<br>"
+                    "Delivered %{customdata[4]:.1f} Mbps<extra>"
                     f"{model}</extra>"
                 ),
             ),
             row=row,
             col=1,
         )
-        subplot_axis_name = "yaxis" if row == 1 else f"yaxis{row}"
-        subplot_domain = fig.layout[subplot_axis_name].domain
-        colorbar = fig.data[-1].marker.colorbar
-        colorbar.y = (subplot_domain[0] + subplot_domain[1]) / 2.0
-        colorbar.len = subplot_domain[1] - subplot_domain[0]
-        colorbar.yanchor = "middle"
-        colorbar.x = 1.02
-        colorbar.thickness = 14
-        colorbar.thicknessmode = "pixels"
 
-    panel_height = max(420, 24 * len(demand_order) + 160)
+    panel_height = max(420, min(760, 12 * len(demand_order) + 160))
     fig.update_layout(
         height=panel_height * len(visible_models),
         margin=dict(l=52, r=96, t=88, b=56),
@@ -1049,8 +1087,8 @@ def build_demand_satisfaction_heatmap_figure(
             col=1,
             showticklabels=True,
             tickmode="array",
-            tickvals=list(range(len(demand_order))),
-            ticktext=demand_order,
+            tickvals=y_tick_positions,
+            ticktext=y_tick_text,
             range=[-0.6, len(demand_order) - 0.4],
             showgrid=True,
             gridcolor="rgba(148, 163, 184, 0.30)",
@@ -1062,6 +1100,14 @@ def build_demand_satisfaction_heatmap_figure(
             row=row,
             col=1,
             showticklabels=True,
+            tickmode="array",
+            tickvals=time_tick_values,
+            ticktext=[str(value) for value in time_tick_values],
+            range=[min(time_order) - 0.6, max(time_order) + 0.6],
+            showgrid=True,
+            gridcolor="rgba(148, 163, 184, 0.35)",
+            gridwidth=1.2,
+            zeroline=False,
         )
     return fig
 
@@ -1328,39 +1374,6 @@ def build_demand_matrix_figure(
             )
     return fig
 
-
-def build_failure_table(alloc_df: pd.DataFrame) -> pd.DataFrame:
-    table = alloc_df.copy()
-    table["latency_over_target_ms"] = (
-        table["latency_ms"] - table["latency_target_used_ms"]
-    )
-    failures = table[
-        (table["outcome"] != "fulfilled") | (table["latency_violation"])
-    ].copy()
-    columns = [
-        "model",
-        "time_index",
-        "source_label",
-        "destination_label",
-        "outcome",
-        "requested_mbps",
-        "delivered_mbps",
-        "satisfaction_ratio",
-        "latency_ms",
-        "latency_target_used_ms",
-        "latency_over_target_ms",
-        "hop_count",
-        "bearers",
-        "path",
-    ]
-    if failures.empty:
-        return failures[columns]
-    return failures.sort_values(
-        ["latency_violation", "satisfaction_ratio", "latency_over_target_ms"],
-        ascending=[False, True, False],
-    )[columns]
-
-
 def _format_summary(summary_df: pd.DataFrame) -> pd.DataFrame:
     return summary_df.set_index("model").T
 
@@ -1402,14 +1415,6 @@ def main() -> None:
         options=MODEL_ORDER,
         default=available_models or MODEL_ORDER,
         key=f"{PAGE_KEY}_selected_models",
-    )
-    limit_failures = st.sidebar.number_input(
-        "Failure rows",
-        min_value=10,
-        max_value=500,
-        value=100,
-        step=10,
-        key=f"{PAGE_KEY}_failure_rows",
     )
 
     missing_files = [
@@ -1458,7 +1463,6 @@ def main() -> None:
         timing_tab,
         demand_tab,
         path_tab,
-        failures_tab,
     ) = st.tabs(
         [
             "Summary",
@@ -1467,7 +1471,6 @@ def main() -> None:
             "Decision Timing",
             "Demand Matrix",
             "Paths",
-            "Failures",
         ]
     )
     with summary_tab:
@@ -1502,8 +1505,9 @@ def main() -> None:
         st.plotly_chart(build_time_figure(alloc_df, models), width="stretch")
         st.subheader("Demand Satisfaction Over Time")
         st.caption(
-            "Only active rows are shown. Repeated source/destination/time cells "
-            "are lightly stacked so the raw demand rows remain visible."
+            "Only active rows are shown. Source/destination/time cells are "
+            "aggregated into one heatmap cell so large runs stay readable, and "
+            "hover text still shows how many raw rows contributed."
         )
         st.plotly_chart(
             build_demand_satisfaction_heatmap_figure(alloc_df, models),
@@ -1563,10 +1567,6 @@ def main() -> None:
 
     with path_tab:
         st.plotly_chart(build_path_figure(alloc_df, models), width="stretch")
-
-    with failures_tab:
-        failures = build_failure_table(alloc_df)
-        st.dataframe(failures.head(int(limit_failures)), width="stretch")
 
 
 if __name__ == "__main__":  # pragma: no cover
