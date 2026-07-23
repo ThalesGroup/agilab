@@ -36,7 +36,7 @@ def test_scenario_catalog_contains_expected_builtins() -> None:
     assert "ui-analysis-page-import" in scenarios
     assert "ui-browser-core-page-load" in scenarios
     assert scenarios["base-worker-import"].command[0] == sys.executable
-    assert "1_PROJECT_STATUS.py" in " ".join(
+    assert "PROJECT.py" in " ".join(
         scenarios["ui-project-status-page-import"].command
     )
     browser_command = scenarios["ui-browser-core-page-load"].command

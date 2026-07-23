@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-17T15:49:10Z",
+  "generated_at_utc": "2026-07-23T08:07:15Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -230,7 +230,7 @@
     {
       "title": "PROJECT",
       "url_path": "PROJECT",
-      "source": "src/agilab/pages/1_PROJECT.py",
+      "source": "src/agilab/pages/PROJECT_EDITOR.py",
       "visible_in_nav": false,
       "purpose": "project selection, creation, import, export, and package updates",
       "exists": true
@@ -1656,7 +1656,8 @@
       "sources": [
         "src/agilab/global_pipeline/global_pipeline_runner_state.py",
         "src/agilab/pipeline/pipeline_lab.py",
-        "tools/global_pipeline_dispatch_state_report.py"
+        "tools/global_pipeline_dispatch_state_report.py",
+        "tools/robustness_matrix.py"
       ]
     },
     {
@@ -1763,7 +1764,8 @@
         "src/agilab/dag/multi_app_dag.py",
         "src/agilab/dag/multi_app_dag_templates.py",
         "src/agilab/examples/inter_project_dag/preview_inter_project_dag.py",
-        "src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/project/flight_telemetry_project/dag_templates/flight_to_weather.json"
+        "src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/project/flight_telemetry_project/dag_templates/flight_to_weather.json",
+        "tools/robustness_matrix.py"
       ]
     },
     {

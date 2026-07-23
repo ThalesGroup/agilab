@@ -196,7 +196,7 @@ def test_cli_json_output_is_machine_readable(capsys) -> None:
     rc = agent_context_router.main(
         [
             "--files",
-            "src/agilab/pages/1_PROJECT.py",
+            "src/agilab/pages/PROJECT_EDITOR.py",
             "--prompt",
             "fix Streamlit sidebar state",
             "--json",

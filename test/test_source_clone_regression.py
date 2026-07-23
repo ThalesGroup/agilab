@@ -446,7 +446,7 @@ from agi_env import AgiEnv
 
 root = Path.cwd()
 marker = "NOTEBOOK_IMPORT_RELEASE_SMOKE"
-project_page = root / "src/agilab/pages/1_PROJECT.py"
+project_page = root / "src/agilab/pages/PROJECT_EDITOR.py"
 spec = importlib.util.spec_from_file_location("agilab_project_notebook_release_smoke", project_page)
 if spec is None or spec.loader is None:
     raise RuntimeError(f"unable to load PROJECT page from {project_page}")

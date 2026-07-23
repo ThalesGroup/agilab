@@ -173,7 +173,7 @@ def test_primary_pages_keep_homogeneous_support_field_order() -> None:
     workflow_source = Path("src/agilab/pages/3_WORKFLOW.py").read_text(
         encoding="utf-8"
     )
-    project_source = Path("src/agilab/pages/1_PROJECT.py").read_text(
+    project_source = Path("src/agilab/pages/PROJECT_EDITOR.py").read_text(
         encoding="utf-8"
     )
     project_sidebar_source = Path("src/agilab/projects/project_sidebar_support.py").read_text(
@@ -291,7 +291,7 @@ def _load_project_page_module():
         / "src"
         / "agilab"
         / "pages"
-        / "1_PROJECT.py"
+        / "PROJECT_EDITOR.py"
     )
     module_name = "agilab_project_page_for_tests"
     spec = importlib.util.spec_from_file_location(module_name, module_path)
@@ -309,7 +309,7 @@ def _load_project_status_page_module():
         / "src"
         / "agilab"
         / "pages"
-        / "1_PROJECT_STATUS.py"
+        / "PROJECT.py"
     )
     module_name = "agilab_project_status_page_for_tests"
     spec = importlib.util.spec_from_file_location(module_name, module_path)
@@ -673,11 +673,11 @@ def _write_minimal_run_manifest(
 def test_first_party_pages_configure_docs_menu_items() -> None:
     expected = {
         "src/agilab/main_page.py": ("get_about_content()",),
-        "src/agilab/pages/1_PROJECT.py": (
+        "src/agilab/pages/PROJECT_EDITOR.py": (
             "render_page_chrome(",
             'docs_html_file="edit-help.html"',
         ),
-        "src/agilab/pages/1_PROJECT_STATUS.py": (
+        "src/agilab/pages/PROJECT.py": (
             "render_page_chrome(",
             "render_project_dashboard(env)",
             'docs_html_file="edit-help.html"',
@@ -987,7 +987,7 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     assert 'route_ids=("project", "project_status")' in source
     assert "_page_file_runner(_PROJECT_PAGE_FILE)" in source
     assert 'url_path="PROJECT_EDITOR"' in source
-    assert 'route_ids=("project_editor",)' in source
+    assert 'route_ids=("project_editor", "project_edit")' in source
     assert 'url_path="PROJECT_STATUS"' in source
     assert 'visibility="hidden"' in source
     assert 'title="ORCHESTRATE"' in source
@@ -995,11 +995,11 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     assert 'title="ANALYSIS"' in source
     assert 'target.columns([0.76, 0.24], vertical_alignment="bottom")' in selector_source
     assert 'PROJECT_EDITOR_ROUTE_ID = "project_editor"' in selector_source
-    assert 'PROJECT_EDITOR_PAGE_PATH = Path("pages/1_PROJECT.py")' in selector_source
+    assert 'PROJECT_EDITOR_PAGE_PATH = Path("pages/PROJECT_EDITOR.py")' in selector_source
     assert "switch_to_project_page(streamlit, active_app=selection)" in selector_source
     assert "switch_to_project_page(st, active_app=selected_lab)" not in pipeline_source
-    assert 'streamlit.switch_page(Path("pages/1_PROJECT.py"))' not in selector_source
-    assert 'st.switch_page(Path("pages/1_PROJECT.py"))' not in pipeline_source
+    assert 'streamlit.switch_page(Path("pages/PROJECT_EDITOR.py"))' not in selector_source
+    assert 'st.switch_page(Path("pages/PROJECT_EDITOR.py"))' not in pipeline_source
     assert 'st.sidebar.markdown(f"### [MLflow]({mlflow_url})")' in pipeline_source
     assert (
         'st.sidebar.columns([0.64, 0.36], vertical_alignment="center")'
@@ -2818,7 +2818,7 @@ def test_pipeline_page_restores_missing_export_stages_from_project_source(mock_u
 
 def test_edit_page_load(mock_ui_env):
     """Test that the EDIT page loads without exceptions."""
-    at = _app_test("src/agilab/pages/1_PROJECT.py")
+    at = _app_test("src/agilab/pages/PROJECT_EDITOR.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
@@ -2877,7 +2877,7 @@ def test_edit_page_load(mock_ui_env):
 
 def test_project_sidebar_orders_active_project_before_actions():
     """The sidebar should start with selection controls before project actions."""
-    source = Path("src/agilab/pages/1_PROJECT.py").read_text(encoding="utf-8")
+    source = Path("src/agilab/pages/PROJECT_EDITOR.py").read_text(encoding="utf-8")
     sidebar_body = source[source.index("def render_project_sidebar(") :]
 
     active_project_index = sidebar_body.index("_render_active_project_sidebar(env)")
@@ -2918,7 +2918,7 @@ def test_project_sidebar_orders_active_project_before_actions():
     assert "Source KLOC" in source
     assert "Project Name (no suffix)" not in source
     assert "New Project Name (no suffix)" not in source
-    project_status_source = Path("src/agilab/pages/1_PROJECT_STATUS.py").read_text(
+    project_status_source = Path("src/agilab/pages/PROJECT.py").read_text(
         encoding="utf-8"
     )
     chrome_index = project_status_source.index("render_page_chrome(")
@@ -2933,7 +2933,7 @@ def test_project_sidebar_orders_active_project_before_actions():
 
 
 def test_project_sidebar_action_buttons_have_stable_keys():
-    source = Path("src/agilab/pages/1_PROJECT.py").read_text(encoding="utf-8")
+    source = Path("src/agilab/pages/PROJECT_EDITOR.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
     expected = {
         "Create": "project_create_sidebar_btn",
@@ -2973,7 +2973,7 @@ def test_project_sidebar_action_buttons_have_stable_keys():
 
 
 def test_project_status_reloads_editor_helpers_when_source_changes():
-    source = Path("src/agilab/pages/1_PROJECT_STATUS.py").read_text(encoding="utf-8")
+    source = Path("src/agilab/pages/PROJECT.py").read_text(encoding="utf-8")
     loader_body = source.split("def _load_project_editor_page_module", 1)[1].split(
         "def _on_project_change", 1
     )[0]
@@ -3674,7 +3674,7 @@ def test_project_metrics_count_ui_pages_and_format_kloc(tmp_path):
     project_page = _load_project_page_module()
     project = tmp_path / "demo_project"
     (project / "pages").mkdir(parents=True)
-    (project / "pages" / "1_PROJECT.py").write_text("import streamlit as st\n", encoding="utf-8")
+    (project / "pages" / "PROJECT_EDITOR.py").write_text("import streamlit as st\n", encoding="utf-8")
     (project / "pages" / "__init__.py").write_text("", encoding="utf-8")
     package = project / "src" / "demo_project"
     package.mkdir(parents=True)
@@ -3689,7 +3689,7 @@ def test_project_metrics_count_ui_pages_and_format_kloc(tmp_path):
 
 def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_actions(mock_ui_env):
     """The visible PROJECT page keeps Edit and reuses PROJECT sidebar actions."""
-    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
+    at = _app_test("src/agilab/pages/PROJECT.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
@@ -3772,7 +3772,7 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
 
 
 def test_project_status_create_action_exposes_environment_strategy(mock_ui_env):
-    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
+    at = _app_test("src/agilab/pages/PROJECT.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
@@ -3796,7 +3796,7 @@ def test_project_status_create_action_exposes_environment_strategy(mock_ui_env):
 
 
 def test_project_editor_page_routes_sidebar_actions(mock_ui_env):
-    at = _app_test("src/agilab/pages/1_PROJECT.py")
+    at = _app_test("src/agilab/pages/PROJECT_EDITOR.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
@@ -3819,7 +3819,7 @@ def test_project_editor_page_routes_sidebar_actions(mock_ui_env):
 
 
 def test_project_status_notebook_import_query_opens_file_selector(mock_ui_env):
-    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
+    at = _app_test("src/agilab/pages/PROJECT.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
@@ -3880,7 +3880,7 @@ def test_project_status_notebook_import_query_opens_file_selector(mock_ui_env):
 
 def test_project_page_guided_sample_import_hides_manual_sidebar_controls(mock_ui_env):
     project_page = _load_project_page_module()
-    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
+    at = _app_test("src/agilab/pages/PROJECT.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )
@@ -4039,7 +4039,7 @@ def test_project_page_readme_query_opens_edit_section_once():
 
 
 def test_project_page_maps_legacy_clone_action_to_create(mock_ui_env):
-    at = _app_test("src/agilab/pages/1_PROJECT_STATUS.py")
+    at = _app_test("src/agilab/pages/PROJECT.py")
     env = AgiEnv(
         apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0
     )

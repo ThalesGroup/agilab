@@ -33,7 +33,7 @@ Target horizon: `0-6 weeks`
 
 - Landed: add an `Environment Health` summary panel.
 - Scope: app path resolution, share path validity, cluster share vs local share, API key presence, worker install availability, and app settings path provenance.
-- Current surfaces: [PROJECT page](../src/agilab/pages/1_PROJECT.py) and [ORCHESTRATE page](../src/agilab/pages/2_ORCHESTRATE.py) share the same renderer in [environment_health.py](../src/agilab/environment_health.py).
+- Current surfaces: [PROJECT EDITOR page](../src/agilab/pages/PROJECT_EDITOR.py) and [ORCHESTRATE page](../src/agilab/pages/2_ORCHESTRATE.py) share the same renderer in [environment_health.py](../src/agilab/environment_health.py).
 
 - Standardize long-action feedback across install, execute, service health, and project clone/rename.
 - Every action should emit start, current step, success summary, classified failure, and next action.
