@@ -256,10 +256,10 @@ def test_decision_timing_is_deduplicated_and_converted_to_milliseconds() -> None
                 "time_s": 0.0,
                 "active_demands": 2,
                 "active": True,
-                "decision_preparation_time_ns": 100_000_000,
-                "decision_core_time_ns": 20_000_000,
-                "decision_realization_time_ns": 5_000_000,
-                "decision_time_ns": 125_000_000,
+                "decision_preparation_time_ns": 60_000_000,
+                "decision_core_time_ns": 30_000_000,
+                "decision_realization_time_ns": 10_000_000,
+                "decision_time_ns": 100_000_000,
             },
             # The exporter repeats step timing on every allocation row.
             {
@@ -268,10 +268,43 @@ def test_decision_timing_is_deduplicated_and_converted_to_milliseconds() -> None
                 "time_s": 0.0,
                 "active_demands": 2,
                 "active": True,
-                "decision_preparation_time_ns": 100_000_000,
-                "decision_core_time_ns": 20_000_000,
-                "decision_realization_time_ns": 5_000_000,
-                "decision_time_ns": 125_000_000,
+                "decision_preparation_time_ns": 60_000_000,
+                "decision_core_time_ns": 30_000_000,
+                "decision_realization_time_ns": 10_000_000,
+                "decision_time_ns": 100_000_000,
+            },
+            {
+                "model": "ILP",
+                "time_index": 1,
+                "time_s": 60.0,
+                "active_demands": 2,
+                "active": True,
+                "decision_preparation_time_ns": 120_000_000,
+                "decision_core_time_ns": 60_000_000,
+                "decision_realization_time_ns": 20_000_000,
+                "decision_time_ns": 200_000_000,
+            },
+            {
+                "model": "ILP",
+                "time_index": 2,
+                "time_s": 120.0,
+                "active_demands": 5,
+                "active": True,
+                "decision_preparation_time_ns": 240_000_000,
+                "decision_core_time_ns": 120_000_000,
+                "decision_realization_time_ns": 40_000_000,
+                "decision_time_ns": 400_000_000,
+            },
+            {
+                "model": "Path-AC",
+                "time_index": 0,
+                "time_s": 0.0,
+                "active_demands": 3,
+                "active": True,
+                "decision_preparation_time_ns": 90_000_000,
+                "decision_core_time_ns": 45_000_000,
+                "decision_realization_time_ns": 15_000_000,
+                "decision_time_ns": 150_000_000,
             },
             {
                 "model": "Path-AC",
@@ -279,21 +312,32 @@ def test_decision_timing_is_deduplicated_and_converted_to_milliseconds() -> None
                 "time_s": 60.0,
                 "active_demands": 3,
                 "active": True,
-                "decision_preparation_time_ns": 200_000_000,
-                "decision_core_time_ns": 10_000_000,
-                "decision_realization_time_ns": 10_000_000,
-                "decision_time_ns": 220_000_000,
+                "decision_preparation_time_ns": 150_000_000,
+                "decision_core_time_ns": 75_000_000,
+                "decision_realization_time_ns": 25_000_000,
+                "decision_time_ns": 250_000_000,
+            },
+            {
+                "model": "Path-AC",
+                "time_index": 2,
+                "time_s": 120.0,
+                "active_demands": 6,
+                "active": True,
+                "decision_preparation_time_ns": 300_000_000,
+                "decision_core_time_ns": 150_000_000,
+                "decision_realization_time_ns": 50_000_000,
+                "decision_time_ns": 500_000_000,
             },
         ]
     )
     timing = module.build_decision_timing_data(allocations)
-    assert len(timing) == 2
-    assert timing.loc[timing["model"] == "ILP", "decision_time_ms"].iloc[0] == 125.0
+    assert len(timing) == 6
+    assert timing.loc[timing["model"] == "ILP", "decision_time_ms"].iloc[0] == 100.0
 
     summary = module.build_decision_timing_summary(timing).set_index("model")
-    assert summary.loc["ILP", "decision_count"] == 1
-    assert summary.loc["ILP", "core_median_ms"] == 20.0
-    assert summary.loc["Path-AC", "total_time_s"] == 0.22
+    assert summary.loc["ILP", "decision_count"] == 3
+    assert summary.loc["ILP", "core_median_ms"] == 60.0
+    assert summary.loc["Path-AC", "total_time_s"] == 0.9
 
     distribution = module.build_decision_timing_distribution_figure(
         timing, ["ILP", "Path-AC"]
@@ -307,6 +351,14 @@ def test_decision_timing_is_deduplicated_and_converted_to_milliseconds() -> None
     assert len(distribution.data) == 4
     assert len(over_time.data) == 2
     assert len(scaling.data) == 2
+    assert list(scaling.data[0].x) == [2, 5]
+    assert list(scaling.data[0].y) == [150.0, 400.0]
+    assert list(scaling.data[0].error_y.array) == [25.0, 0.0]
+    assert list(scaling.data[0].error_y.arrayminus) == [25.0, 0.0]
+    assert list(scaling.data[1].x) == [3, 6]
+    assert list(scaling.data[1].y) == [200.0, 500.0]
+    assert list(scaling.data[1].error_y.array) == [25.0, 0.0]
+    assert list(scaling.data[1].error_y.arrayminus) == [25.0, 0.0]
 
 
 def test_decision_timing_summary_handles_legacy_exports() -> None:
@@ -917,7 +969,46 @@ def test_routing_model_comparison_empty_helpers_and_metrics(monkeypatch) -> None
         ]
     )
     module.render_metric_row(sparse_summary)
-    assert [name for name, _args in streamlit.calls].count("metric") == 2
+    assert [name for name, _args in streamlit.calls].count("metric") == 1
+
+
+def test_routing_model_comparison_reports_fastest_model_by_median(monkeypatch) -> None:
+    module = _load_module()
+
+    summary = pd.DataFrame(
+        [
+            {
+                "model": "ILP",
+                "served_bandwidth_ratio": 1.0,
+                "mean_latency_ms": 12.0,
+                "latency_violation_rate": 0.05,
+                "routed_count": 10,
+            },
+            {
+                "model": "PPO-GNN",
+                "served_bandwidth_ratio": 0.8,
+                "mean_latency_ms": 30.0,
+                "latency_violation_rate": 0.20,
+                "routed_count": 10,
+            },
+        ]
+    )
+    timing_summary = pd.DataFrame(
+        [
+            {"model": "ILP", "decision_count": 2, "total_median_ms": 123.4},
+            {"model": "PPO-GNN", "decision_count": 2, "total_median_ms": 180.0},
+        ]
+    )
+
+    streamlit = _StreamlitStub()
+    monkeypatch.setattr(module, "st", streamlit)
+    module.render_metric_row(summary, timing_summary)
+
+    metric_calls = [args for name, args in streamlit.calls if name == "metric"]
+    fastest = next(call for call in metric_calls if call[0] == "Fastest model")
+    assert fastest[1] == "ILP"
+    assert fastest[2] == "123.4 ms"
+    assert len(metric_calls) == 4
 
 
 def test_routing_model_comparison_package_bundle_root() -> None:

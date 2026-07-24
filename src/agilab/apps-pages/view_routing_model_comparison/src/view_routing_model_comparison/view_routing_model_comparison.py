@@ -500,19 +500,68 @@ def build_decision_timing_scaling_figure(
         )
         if rows.empty:
             continue
+        rows = rows.copy()
+        rows["active_demands"] = pd.to_numeric(rows["active_demands"], errors="coerce")
+        rows = rows.dropna(subset=["active_demands"])
+        if rows.empty:
+            continue
+        rows["active_demands"] = rows["active_demands"].round().astype(int)
+        grouped = (
+            rows.groupby("active_demands", as_index=False, observed=False)
+            .agg(
+                sample_count=("decision_time_ms", "count"),
+                median_ms=("decision_time_ms", "median"),
+                lower_ms=(
+                    "decision_time_ms",
+                    lambda values: float(np.percentile(values.to_numpy(dtype=float), 25)),
+                ),
+                upper_ms=(
+                    "decision_time_ms",
+                    lambda values: float(np.percentile(values.to_numpy(dtype=float), 75)),
+                ),
+            )
+            .sort_values("active_demands")
+        )
+        if grouped.empty:
+            continue
+        color = MODEL_COLORS[model]
         fig.add_trace(
             go.Scatter(
-                x=rows["active_demands"],
-                y=rows["decision_time_ms"],
-                mode="markers",
+                x=grouped["active_demands"],
+                y=grouped["median_ms"],
+                mode="lines+markers",
                 name=model,
-                marker=dict(color=MODEL_COLORS[model], size=7, opacity=0.75),
+                legendgroup=model,
+                line=dict(color=color, width=3),
+                marker=dict(color=color, size=7),
+                error_y=dict(
+                    type="data",
+                    symmetric=False,
+                    array=(grouped["upper_ms"] - grouped["median_ms"]).to_numpy(),
+                    arrayminus=(grouped["median_ms"] - grouped["lower_ms"]).to_numpy(),
+                    thickness=1.5,
+                    width=4,
+                    color=color,
+                    visible=True,
+                ),
+                customdata=grouped[["sample_count", "lower_ms", "upper_ms"]].to_numpy(),
+                hovertemplate=(
+                    "active demands=%{x}<br>"
+                    "median decision=%{y:.3f} ms<br>"
+                    "samples=%{customdata[0]}<br>"
+                    "p25=%{customdata[1]:.3f} ms<br>"
+                    "p75=%{customdata[2]:.3f} ms<extra>"
+                    + model
+                    + "</extra>"
+                ),
             )
         )
     fig.update_layout(
         title="Decision Time Versus Active Demands",
         xaxis_title="Active demands",
-        yaxis_title="Total decision time (ms)",
+        yaxis_title="Decision time (ms)",
+        hovermode="x unified",
+        legend_title="Model",
         margin=dict(l=40, r=30, t=60, b=60),
     )
     return fig
@@ -699,7 +748,10 @@ def available_file_signatures(base_dir: Path) -> tuple[tuple[str, str, int], ...
     return tuple(signatures)
 
 
-def render_metric_row(summary_df: pd.DataFrame) -> None:
+def render_metric_row(
+    summary_df: pd.DataFrame,
+    timing_summary: pd.DataFrame | None = None,
+) -> None:
     if summary_df.empty:
         return
     best_served = summary_df.sort_values(
@@ -715,8 +767,15 @@ def render_metric_row(summary_df: pd.DataFrame) -> None:
         .sort_values("latency_violation_rate")
         .head(1)
     )
-    total_decisions = int(summary_df["routed_count"].sum())
-    cols = st.columns(4)
+    fastest_model = None
+    if timing_summary is not None and not timing_summary.empty:
+        timing_rows = timing_summary.dropna(subset=["total_median_ms"]).sort_values(
+            "total_median_ms"
+        )
+        if not timing_rows.empty:
+            fastest_model = timing_rows.iloc[0]
+
+    cols = st.columns(4 if fastest_model is not None else 3)
     cols[0].metric(
         "Best served ratio",
         str(best_served["model"]),
@@ -734,7 +793,12 @@ def render_metric_row(summary_df: pd.DataFrame) -> None:
             str(row["model"]),
             f"{row['latency_violation_rate']:.3f}",
         )
-    cols[3].metric("Routed decisions", f"{total_decisions:,}")
+    if fastest_model is not None:
+        cols[3].metric(
+            "Fastest model",
+            str(fastest_model["model"]),
+            f"{fastest_model['total_median_ms']:.1f} ms",
+        )
 
 
 def build_overview_figure(
@@ -1454,7 +1518,7 @@ def main() -> None:
     timing_df = build_decision_timing_data(alloc_df)
     timing_summary = build_decision_timing_summary(timing_df)
 
-    render_metric_row(summary_df)
+    render_metric_row(summary_df, timing_summary)
 
     (
         summary_tab,
