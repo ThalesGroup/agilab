@@ -282,6 +282,24 @@ def load_steps(path: Path) -> list[dict[str, Any]]:
     return payload if isinstance(payload, list) else []
 
 
+def iter_allocation_records(path: Path):
+    """Yield (step, allocation) dict pairs from a JSON or Parquet artifact.
+
+    Parquet rows carry the step-level fields on every row, so the same record
+    serves as both the step and the allocation.
+    """
+
+    if path.suffix == ".parquet":
+        frame = pd.read_parquet(path)
+        for record in frame.to_dict("records"):
+            yield record, record
+        return
+    for step in load_steps(path):
+        for allocation in step.get("allocations", []):
+            if isinstance(allocation, dict):
+                yield step, allocation
+
+
 @st.cache_data(show_spinner=False)
 def load_allocations(file_signatures: tuple[tuple[str, str, int], ...]) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
@@ -289,59 +307,57 @@ def load_allocations(file_signatures: tuple[tuple[str, str, int], ...]) -> pd.Da
         path = Path(path_text)
         if not path.exists():
             continue
-        for step in load_steps(path):
-            time_index = int(step.get("time_index", -1))
+        for step, allocation in iter_allocation_records(path):
+            time_index_value = safe_float(step.get("time_index", -1))
+            time_index = int(time_index_value) if math.isfinite(time_index_value) else -1
             time_s = step_time_s(step)
             step_timing = {
                 key: _step_timing(step, key) for key in DECISION_TIMING_COLUMNS
             }
             active_demands = safe_float(step.get("active_demands"))
-            for allocation in step.get("allocations", []):
-                if not isinstance(allocation, dict):
-                    continue
-                source_label = allocation.get("source_label") or allocation.get(
-                    "source"
-                )
-                destination_label = allocation.get(
-                    "destination_label"
-                ) or allocation.get("destination")
-                requested = safe_float(allocation.get("bandwidth"))
-                delivered = safe_float(allocation.get("delivered_bandwidth"))
-                satisfaction = get_satisfaction(allocation)
-                routed = is_routed(allocation)
-                bearers = [
-                    normalize_bearer(bearer)
-                    for bearer in parse_list_value(allocation.get("bearers"))
-                ]
-                rows.append(
-                    {
-                        "model": model,
-                        "time_index": time_index,
-                        "time_s": time_s,
-                        "source_label": str(source_label),
-                        "destination_label": str(destination_label),
-                        "demand": f"{source_label} -> {destination_label}",
-                        "requested_mbps": requested,
-                        "delivered_mbps": delivered,
-                        "active": safe_bool(allocation.get("active")),
-                        "satisfaction_ratio": satisfaction,
-                        "routed": routed,
-                        "outcome": demand_outcome(routed, satisfaction),
-                        "latency_ms": get_latency_ms(allocation),
-                        "latency_target_ms": get_latency_target_ms(allocation),
-                        "hop_count": hop_count(allocation),
-                        "sat_edge_count": sum(bearer == "SAT" for bearer in bearers),
-                        "ivdl_edge_count": sum(bearer == "IVDL" for bearer in bearers),
-                        "bearers": " -> ".join(bearers),
-                        "path": str(
-                            allocation.get("path")
-                            or allocation.get("path_labels")
-                            or ""
-                        ),
-                        "active_demands": active_demands,
-                        **step_timing,
-                    }
-                )
+            source_label = allocation.get("source_label") or allocation.get(
+                "source"
+            )
+            destination_label = allocation.get(
+                "destination_label"
+            ) or allocation.get("destination")
+            requested = safe_float(allocation.get("bandwidth"))
+            delivered = safe_float(allocation.get("delivered_bandwidth"))
+            satisfaction = get_satisfaction(allocation)
+            routed = is_routed(allocation)
+            bearers = [
+                normalize_bearer(bearer)
+                for bearer in parse_list_value(allocation.get("bearers"))
+            ]
+            rows.append(
+                {
+                    "model": model,
+                    "time_index": time_index,
+                    "time_s": time_s,
+                    "source_label": str(source_label),
+                    "destination_label": str(destination_label),
+                    "demand": f"{source_label} -> {destination_label}",
+                    "requested_mbps": requested,
+                    "delivered_mbps": delivered,
+                    "active": safe_bool(allocation.get("active")),
+                    "satisfaction_ratio": satisfaction,
+                    "routed": routed,
+                    "outcome": demand_outcome(routed, satisfaction),
+                    "latency_ms": get_latency_ms(allocation),
+                    "latency_target_ms": get_latency_target_ms(allocation),
+                    "hop_count": hop_count(allocation),
+                    "sat_edge_count": sum(bearer == "SAT" for bearer in bearers),
+                    "ivdl_edge_count": sum(bearer == "IVDL" for bearer in bearers),
+                    "bearers": " -> ".join(bearers),
+                    "path": str(
+                        allocation.get("path")
+                        or allocation.get("path_labels")
+                        or ""
+                    ),
+                    "active_demands": active_demands,
+                    **step_timing,
+                }
+            )
     return filter_active_demands(pd.DataFrame(rows))
 
 
@@ -694,6 +710,9 @@ def available_file_signatures(base_dir: Path) -> tuple[tuple[str, str, int], ...
     signatures: list[tuple[str, str, int]] = []
     for model, rel_path in MODEL_FILES.items():
         path = base_dir / rel_path
+        parquet_path = path.with_suffix(".parquet")
+        if parquet_path.exists():
+            path = parquet_path
         mtime_ns = path.stat().st_mtime_ns if path.exists() else 0
         signatures.append((model, str(path), mtime_ns))
     return tuple(signatures)
