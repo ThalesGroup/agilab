@@ -212,10 +212,11 @@ rather than shown as one of the workflow pages.
      - Optional pointer to the repository checkout containing apps or overrides.
        Treat it as an executable-code boundary. For shared/team installs, set
        ``AGILAB_STRICT_APPS_REPOSITORY=1`` or ``AGILAB_SHARED_MODE=1`` and
-       populate ``AGILAB_APPS_REPOSITORY_ALLOWLIST`` with the reviewed checkout
-       path. Strict mode refuses unallowlisted repositories and floating Git
-       branches unless ``AGILAB_DEV_APPS_REPOSITORY=1`` is set for an explicit
-       development install.
+       populate ``AGILAB_APPS_REPOSITORY_ALLOWLIST`` with the exact reviewed
+       repository origin URL, not the local checkout path. Strict mode refuses
+       unallowlisted repositories and floating Git branches unless
+       ``AGILAB_DEV_APPS_REPOSITORY=1`` is set for an explicit development
+       install.
    * - ``AGILAB_UI_HOST``
      - ``127.0.0.1``
      - Host passed by the ``agilab`` CLI to Streamlit. Keep the default for
