@@ -74,7 +74,9 @@ def test_test_shortcut_keeps_pytest_arguments():
             "ui",
             "--extra",
             "notebook",
-            "pytest",
+            "python",
+            "-m",
+            "tools.testing.pytest_entrypoint",
             "-q",
             "-o",
             "addopts=",
@@ -95,7 +97,9 @@ def test_test_shortcut_keeps_headless_core_tests_free_of_ui_extra():
             "--preview-features",
             "extra-build-dependencies",
             "run",
-            "pytest",
+            "python",
+            "-m",
+            "tools.testing.pytest_entrypoint",
             "-q",
             "-o",
             "addopts=",
@@ -124,7 +128,11 @@ def test_test_shortcut_splits_repository_groups_by_dependency_contract():
         "-m",
         "tools.testing.root_test_runner",
     ]
-    assert commands[1][4] == "pytest"
+    assert commands[1][4:7] == [
+        "python",
+        "-m",
+        "tools.testing.pytest_entrypoint",
+    ]
     assert commands[1][-1] == "src/agilab/core/test"
     assert commands[4][4:6] == ["--extra", "ui"]
     assert commands[4][-1] == "src/agilab/lib/agi-gui/test"

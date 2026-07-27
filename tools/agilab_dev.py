@@ -75,7 +75,9 @@ def _pytest_command(*args: str, extras: Sequence[str] = ()) -> list[str]:
     return [
         *UV_RUN,
         *extra_args,
-        "pytest",
+        "python",
+        "-m",
+        "tools.testing.pytest_entrypoint",
         "-q",
         "-o",
         "addopts=",

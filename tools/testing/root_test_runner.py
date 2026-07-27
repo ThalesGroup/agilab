@@ -10,7 +10,6 @@ runs the remaining root files in a separate process.
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
@@ -18,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tools.coverage_shard_plan import static_chunk_args
+from tools.testing.pytest_entrypoint import cleaned_test_environment
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ROOT_TEST_DIR = REPO_ROOT / "test"
@@ -116,7 +116,7 @@ def _pytest_command(group: RootTestGroup) -> tuple[str, ...]:
     return (
         sys.executable,
         "-m",
-        "pytest",
+        "tools.testing.pytest_entrypoint",
         "-q",
         "-o",
         "addopts=",
@@ -128,10 +128,7 @@ def _pytest_command(group: RootTestGroup) -> tuple[str, ...]:
 def _pytest_environment() -> dict[str, str]:
     """Keep nested uv operations from mutating the runner's environment."""
 
-    env = dict(os.environ)
-    for name in ("UV_PROJECT_ENVIRONMENT", "UV_RUN_RECURSION_DEPTH", "VIRTUAL_ENV"):
-        env.pop(name, None)
-    return env
+    return cleaned_test_environment()
 
 
 def run_root_test_groups(

@@ -88,7 +88,11 @@ def test_root_test_runner_continues_after_failure_and_aggregates_exit(
 
     assert module.run_root_test_groups(groups, runner=runner) == 3
     assert len(calls) == 2
-    assert all(call[0][:3] == (sys.executable, "-m", "pytest") for call in calls)
+    assert all(
+        call[0][:3]
+        == (sys.executable, "-m", "tools.testing.pytest_entrypoint")
+        for call in calls
+    )
     assert all(call[1:3] == (REPO_ROOT, False) for call in calls)
     for _, _, _, env in calls:
         assert "UV_PROJECT_ENVIRONMENT" not in env
