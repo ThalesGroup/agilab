@@ -1,0 +1,100 @@
+name: root-test-suite
+
+# The root `test/` directory holds the repository's contract, guard, policy and
+# page-behaviour tests. Until this workflow existed no job ran it as a directory:
+# `coverage.yml` and `windows-core-tests.yml` name component test dirs, and the
+# `coverage.yml` shard plan enumerates root modules by hand, covering 108 of 323.
+# The remaining 215 ran nowhere, which let several contract tests sit red on
+# `main` for over a week while every pull request reported green.
+#
+# This job runs the whole directory so that gap cannot reopen. Known failures are
+# quarantined in `test/known-failures.txt` rather than skipped silently; that file
+# is meant to shrink, and anything not listed there must pass.
+
+on:
+  pull_request:
+    branches: ["**"]
+    paths:
+      - ".github/workflows/root-test-suite.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "src/**"
+      - "test/**"
+      - "tools/**"
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/root-test-suite.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "src/**"
+      - "test/**"
+      - "tools/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  root-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.10.7"
+
+      - name: Run the root test suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Node ids must not contain whitespace; the quarantine list is checked
+          # for that below so this deliberate word-splitting stays safe.
+          deselect_args=""
+          count=0
+          if [ -f test/known-failures.txt ]; then
+            while IFS= read -r entry; do
+              case "$entry" in
+                ''|'#'*) continue ;;
+              esac
+              case "$entry" in
+                *[[:space:]]*)
+                  echo "::error::quarantine entry contains whitespace: $entry"
+                  exit 1
+                  ;;
+              esac
+              deselect_args="$deselect_args --deselect $entry"
+              count=$((count + 1))
+            done < test/known-failures.txt
+          fi
+          echo "quarantined entries: $count"
+          # `-o addopts=''` drops the repo-wide coverage flags; this job gates
+          # correctness, and coverage.yml already owns the coverage reporting.
+          # shellcheck disable=SC2086
+          uv --preview-features extra-build-dependencies run \
+            python -m pytest -q -o addopts='' --import-mode=importlib \
+            -p no:randomly -rf \
+            --junitxml test-results/root-test-suite.xml \
+            $deselect_args \
+            test
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: root-test-suite-results
+          path: test-results/root-test-suite.xml
+          if-no-files-found: warn
