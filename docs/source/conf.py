@@ -50,9 +50,21 @@ def _should_use_agilab_path_fallback(
     return not current_source_available and not _is_site_packages_path(path)
 
 
+# Checkouts of the public framework that were actually used for this build. When
+# the repo being documented is not the public one, its builtin app projects still
+# have to be importable or their autodoc pages render an empty API Reference.
+framework_roots: list[Path] = []
+
+
+def _note_framework_root(root: Path) -> None:
+    if root.exists() and root not in framework_roots:
+        framework_roots.append(root)
+
+
 # Prefer the pinned public framework submodule when present.
 if (repo_root / ".external/agilab/src").exists():
     _add_path(repo_root / ".external/agilab/src")
+    _note_framework_root(repo_root / ".external/agilab")
 if (repo_root / ".external/agilab/src/agilab").exists():
     _add_agilab_lib_paths(repo_root / ".external/agilab/src/agilab")
 if (repo_root / ".external/agilab/src/agilab/core").exists():
@@ -81,8 +93,11 @@ if agi_path is not None and _should_use_agilab_path_fallback(
     if agi_path.name == "agilab" and (agi_path / "__init__.py").exists():
         _add_path(agi_path.parent)
         _add_agilab_lib_paths(agi_path)
+        # `.agilab-path` points at `<repo>/src/agilab`; the checkout root is two up.
+        _note_framework_root(agi_path.parents[1])
 
     _add_path(agi_path / "src")
+    _note_framework_root(agi_path)
     if (agi_path / "src/agilab/core").exists():
         _add_agilab_lib_paths(agi_path / "src/agilab")
         _add_core_paths(agi_path / "src/agilab/core")
@@ -112,28 +127,36 @@ except Exception as e:
 project_root = repo_root
 
 
-def _is_generated_root_project_src(src: Path) -> bool:
-    """Skip local generated project workspaces accidentally left at repo root."""
+def _is_generated_root_project_src(src: Path, root: Path | None = None) -> bool:
+    """Skip local generated project workspaces accidentally left at a repo root."""
     project_dir = src.parent
-    return project_dir.parent == project_root and project_dir.name.endswith("_project")
+    return project_dir.parent == (root or project_root) and project_dir.name.endswith(
+        "_project"
+    )
 
 
-for proj in [
-    "*project",
-    "agilab/cluster",
-    "agilab/node",
-    "agilab/env",
-]:
-    for src in sorted(project_root.rglob(f"{proj}/src")):
-        if _is_generated_root_project_src(src):
-            continue
-        path = str(src)
-        if not src.exists():
-            print(path, "does not exist; skipping")
-            continue
-        if path not in sys.path:
-            print(f"Adding {path} to sys.path")
-            sys.path.insert(0, path)
+# Scan the repo being documented first, then any public-framework checkout it
+# borrowed code from, so `apps/builtin/*_project` modules are importable even when
+# the public framework is a sibling or submodule rather than this repo.
+scan_roots = [project_root, *(r for r in framework_roots if r != project_root)]
+
+for scan_root in scan_roots:
+    for proj in [
+        "*project",
+        "agilab/cluster",
+        "agilab/node",
+        "agilab/env",
+    ]:
+        for src in sorted(scan_root.rglob(f"{proj}/src")):
+            if _is_generated_root_project_src(src, scan_root):
+                continue
+            path = str(src)
+            if not src.exists():
+                print(path, "does not exist; skipping")
+                continue
+            if path not in sys.path:
+                print(f"Adding {path} to sys.path")
+                sys.path.insert(0, path)
 
 # -- Project Information -----------------------------------------------------
 
@@ -306,6 +329,9 @@ autodoc_mock_imports = [
     "dask",
     "dask.distributed",
     "distributed",
+    # Worker kernels import cython for the ahead-of-execution compilation path;
+    # it is a build-time dep of the workers, not of the docs environment.
+    "cython",
 ]
 
 # -- MyST Parser Configuration -----------------------------------------------
