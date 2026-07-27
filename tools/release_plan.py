@@ -139,7 +139,7 @@ def changed_paths_since(repo_root: Path, base_ref: str) -> list[str]:
     """Return paths changed between a base ref and HEAD."""
 
     completed = subprocess.run(
-        ["git", "diff", "--name-only", base_ref, "HEAD"],
+        ["git", "diff", "--no-renames", "--name-only", "-z", base_ref, "HEAD"],
         cwd=repo_root,
         check=False,
         capture_output=True,
@@ -148,7 +148,7 @@ def changed_paths_since(repo_root: Path, base_ref: str) -> list[str]:
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout or "").strip()
         raise ValueError(f"Could not compute changed paths since {base_ref!r}: {detail}")
-    return [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+    return [path for path in completed.stdout.split("\0") if path]
 
 
 _EXACT_INTERNAL_DEP_RE = re.compile(

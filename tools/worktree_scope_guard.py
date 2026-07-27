@@ -88,11 +88,11 @@ def _run_git(args: Sequence[str]) -> str:
         stderr=subprocess.PIPE,
         text=True,
     )
-    return completed.stdout.strip()
+    return completed.stdout
 
 
-def _split_lines(value: str) -> tuple[str, ...]:
-    return tuple(line.strip() for line in value.splitlines() if line.strip())
+def _split_git_paths(value: str) -> tuple[str, ...]:
+    return tuple(path for path in value.split("\0") if path)
 
 
 def changed_files(
@@ -101,15 +101,19 @@ def changed_files(
     include_untracked: bool = False,
     git: GitRunner = _run_git,
 ) -> tuple[str, ...]:
-    """Return changed paths from the local worktree, ignoring deleted-only noise."""
+    """Return changed paths, including tracked deletions and type changes."""
     paths: set[str] = set()
     if staged:
-        paths.update(_split_lines(git(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])))
+        paths.update(
+            _split_git_paths(git(["diff", "--no-renames", "--cached", "--name-only", "-z"]))
+        )
     else:
-        paths.update(_split_lines(git(["diff", "--name-only", "--diff-filter=ACMR"])))
-        paths.update(_split_lines(git(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])))
+        paths.update(_split_git_paths(git(["diff", "--no-renames", "--name-only", "-z"])))
+        paths.update(
+            _split_git_paths(git(["diff", "--no-renames", "--cached", "--name-only", "-z"]))
+        )
     if include_untracked:
-        paths.update(_split_lines(git(["ls-files", "--others", "--exclude-standard"])))
+        paths.update(_split_git_paths(git(["ls-files", "--others", "--exclude-standard", "-z"])))
     return tuple(sorted(paths))
 
 

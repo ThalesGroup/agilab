@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 
@@ -58,6 +59,64 @@ def test_scan_skill_reports_unreferenced_support_file_as_low(tmp_path: Path) -> 
 
     assert any(finding.rule == "unreferenced-support-file" for finding in findings)
     assert {finding.severity for finding in findings} == {"low"}
+
+
+def test_changed_skill_deleting_skill_md_blocks_quality_gate(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def git(*args: str) -> str:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return completed.stdout.strip()
+
+    git("init", "--quiet")
+    git("config", "user.name", "AGILAB Test")
+    git("config", "user.email", "agilab-test@example.invalid")
+    skills_root = repo / ".codex/skills"
+    skill_dir = _write_skill(skills_root, "demo", "Use this workflow.")
+    references = skill_dir / "references"
+    references.mkdir()
+    (references / "guide.md").write_text("Supporting guidance.\n", encoding="utf-8")
+    git("add", ".codex/skills/demo")
+    git("commit", "--quiet", "-m", "add skill")
+    base = git("rev-parse", "HEAD")
+
+    (skill_dir / "SKILL.md").unlink()
+    git("add", "--all")
+    git("commit", "--quiet", "-m", "delete skill entrypoint")
+    monkeypatch.setattr(module, "REPO_ROOT", repo)
+
+    selected = module.changed_skill_dirs(base, [skills_root])
+    findings = module.scan(selected)
+
+    assert selected == [skill_dir.resolve()]
+    assert any(finding.rule == "missing-skill-md" for finding in findings)
+    assert (
+        module.main(
+            [
+                "--roots",
+                str(skills_root),
+                "--changed-only",
+                "--base-ref",
+                base,
+                "--external-validator",
+                "off",
+                "--fail-on",
+                "high",
+            ]
+        )
+        == 2
+    )
 
 
 def test_external_validator_can_be_required_or_skipped(monkeypatch) -> None:

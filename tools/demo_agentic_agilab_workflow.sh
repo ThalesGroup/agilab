@@ -68,16 +68,16 @@ PY=("${UV[@]}" python)
 AGILAB=("${UV[@]}" agilab)
 
 CHANGED_FILES=()
-while IFS= read -r path; do
+while IFS= read -r -d '' path; do
   if [[ -n "$path" ]]; then
     CHANGED_FILES+=("$path")
   fi
 done < <(
   {
-    git diff --name-only
-    git diff --cached --name-only
-    git ls-files --others --exclude-standard
-  } | sort -u
+    git diff --no-renames --name-only -z
+    git diff --no-renames --cached --name-only -z
+    git ls-files --others --exclude-standard -z
+  } | sort -zu
 )
 
 ROUTER_FILES=()

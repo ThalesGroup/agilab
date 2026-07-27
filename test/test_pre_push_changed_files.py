@@ -184,7 +184,7 @@ def test_pre_push_records_use_default_branch_merge_base_for_topic_update():
         calls.append(list(args))
         if args[:2] == ["merge-base", "localsha"]:
             return "default-base-sha"
-        return "docs/source/getting-started.rst\nsrc/agilab/main_page.py"
+        return "docs/source/getting-started.rst\0src/agilab/main_page.py\0"
 
     stdin_text = "refs/heads/topic localsha refs/heads/topic remotesha\n"
     changed = pre_push_changed_files.changed_files_from_pre_push(stdin_text, git=fake_git)
@@ -194,8 +194,9 @@ def test_pre_push_records_use_default_branch_merge_base_for_topic_update():
         ["merge-base", "localsha", "origin/main"],
         [
             "diff",
+            "--no-renames",
             "--name-only",
-            "--diff-filter=ACMR",
+            "-z",
             "default-base-sha",
             "localsha",
         ],
@@ -207,7 +208,7 @@ def test_pre_push_records_keep_remote_sha_for_main_update():
 
     def fake_git(args):
         calls.append(list(args))
-        return "tools/release_plan.py"
+        return "tools/release_plan.py\0"
 
     stdin_text = "refs/heads/main localsha refs/heads/main remotesha\n"
     changed = pre_push_changed_files.changed_files_from_pre_push(
@@ -217,7 +218,7 @@ def test_pre_push_records_keep_remote_sha_for_main_update():
 
     assert changed == ("tools/release_plan.py",)
     assert calls == [
-        ["diff", "--name-only", "--diff-filter=ACMR", "remotesha", "localsha"]
+        ["diff", "--no-renames", "--name-only", "-z", "remotesha", "localsha"]
     ]
 
 

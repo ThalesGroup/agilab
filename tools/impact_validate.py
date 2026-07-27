@@ -190,16 +190,18 @@ def _run_git(args: Sequence[str]) -> list[str]:
     )
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip() or f"git {' '.join(args)} failed")
-    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    return [path for path in proc.stdout.split("\0") if path]
 
 
 def _collect_changed_files(args: argparse.Namespace) -> list[str]:
     if args.files:
         return _normalize_paths(args.files)
     if args.staged:
-        return _normalize_paths(_run_git(["diff", "--cached", "--name-only", "--diff-filter=ACMR"]))
-    tracked = _run_git(["diff", "--name-only", "--diff-filter=ACMR", args.base])
-    untracked = _run_git(["ls-files", "--others", "--exclude-standard"])
+        return _normalize_paths(
+            _run_git(["diff", "--no-renames", "--cached", "--name-only", "-z"])
+        )
+    tracked = _run_git(["diff", "--no-renames", "--name-only", "-z", args.base])
+    untracked = _run_git(["ls-files", "--others", "--exclude-standard", "-z"])
     return _normalize_paths([*tracked, *untracked])
 
 

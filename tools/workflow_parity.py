@@ -560,13 +560,15 @@ def select_ui_robot_profiles_for_files(paths: Sequence[str]) -> list[str]:
 def _git_changed_files(base: str = "") -> list[str]:
     commands = []
     if base:
-        commands.append(["git", "diff", "--name-only", f"{base}...HEAD"])
+        commands.append(
+            ["git", "diff", "--no-renames", "--name-only", "-z", f"{base}...HEAD"]
+        )
     else:
         commands.extend(
             [
-                ["git", "diff", "--name-only", "HEAD"],
-                ["git", "diff", "--cached", "--name-only"],
-                ["git", "ls-files", "--others", "--exclude-standard"],
+                ["git", "diff", "--no-renames", "--name-only", "-z", "HEAD"],
+                ["git", "diff", "--no-renames", "--cached", "--name-only", "-z"],
+                ["git", "ls-files", "--others", "--exclude-standard", "-z"],
             ]
         )
     paths: list[str] = []
@@ -582,8 +584,7 @@ def _git_changed_files(base: str = "") -> list[str]:
         )
         if completed.returncode != 0:
             continue
-        for line in completed.stdout.splitlines():
-            path = line.strip()
+        for path in completed.stdout.split("\0"):
             if path and path not in seen:
                 paths.append(path)
                 seen.add(path)

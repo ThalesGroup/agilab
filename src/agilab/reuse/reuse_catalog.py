@@ -417,9 +417,9 @@ def _surface_path(repo_root: Path, kind: str, surface_id: str) -> Path:
 
 def git_changed_paths(repo_root: Path, *, base_ref: str = "HEAD") -> tuple[str, ...]:
     commands = (
-        ("git", "diff", "--name-only", "--diff-filter=ACMR", base_ref, "--"),
-        ("git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", "--"),
-        ("git", "ls-files", "--others", "--exclude-standard"),
+        ("git", "diff", "--no-renames", "--name-only", "-z", base_ref, "--"),
+        ("git", "diff", "--no-renames", "--cached", "--name-only", "-z", "--"),
+        ("git", "ls-files", "--others", "--exclude-standard", "-z"),
     )
     paths: set[str] = set()
     for command in commands:
@@ -433,7 +433,7 @@ def git_changed_paths(repo_root: Path, *, base_ref: str = "HEAD") -> tuple[str, 
             )
         except (OSError, subprocess.CalledProcessError):
             continue
-        paths.update(line.strip() for line in result.stdout.splitlines() if line.strip())
+        paths.update(path for path in result.stdout.split("\0") if path)
     return tuple(sorted(paths))
 
 

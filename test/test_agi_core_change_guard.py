@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 
@@ -13,6 +14,36 @@ assert spec is not None and spec.loader is not None
 guard = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = guard
 spec.loader.exec_module(guard)
+
+
+def _git(repo: Path, *args: str) -> str:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.strip()
+
+
+def _repo_with_protected_file(
+    tmp_path: Path,
+    *,
+    filename: str = "pyproject.toml",
+) -> tuple[Path, Path, str]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "--quiet")
+    _git(repo, "config", "user.name", "AGILAB Test")
+    _git(repo, "config", "user.email", "agilab-test@example.invalid")
+    _git(repo, "config", "core.quotePath", "true")
+    protected = repo / "src/agilab/core/agi-core" / filename
+    protected.parent.mkdir(parents=True)
+    protected.write_text("[project]\nname = 'agi-core'\n", encoding="utf-8")
+    _git(repo, "add", protected.relative_to(repo).as_posix())
+    _git(repo, "commit", "--quiet", "-m", "add protected file")
+    return repo, protected, _git(repo, "rev-parse", "HEAD")
 
 
 def test_protected_path_detection_is_limited_to_agi_core() -> None:
@@ -54,3 +85,50 @@ def test_other_actor_can_change_unprotected_paths() -> None:
     )
 
     assert result.passed
+
+
+def test_changed_files_between_includes_deleted_protected_path(tmp_path: Path) -> None:
+    repo, protected, base = _repo_with_protected_file(tmp_path)
+
+    protected.unlink()
+    _git(repo, "add", "--all")
+    _git(repo, "commit", "--quiet", "-m", "delete protected file")
+    head = _git(repo, "rev-parse", "HEAD")
+
+    changed = guard.changed_files_between(base, head, repo_root=repo)
+    result = guard.evaluate(changed, actor="other-user")
+
+    assert changed == ("src/agilab/core/agi-core/pyproject.toml",)
+    assert not result.passed
+
+
+def test_changed_files_between_includes_protected_rename_source(tmp_path: Path) -> None:
+    repo, protected, base = _repo_with_protected_file(tmp_path)
+    moved = repo / "src/agilab/core/moved.py"
+    protected.rename(moved)
+    _git(repo, "add", "--all")
+    _git(repo, "commit", "--quiet", "-m", "move protected file")
+    head = _git(repo, "rev-parse", "HEAD")
+
+    changed = guard.changed_files_between(base, head, repo_root=repo)
+    result = guard.evaluate(changed, actor="other-user")
+
+    assert changed == (
+        "src/agilab/core/agi-core/pyproject.toml",
+        "src/agilab/core/moved.py",
+    )
+    assert not result.passed
+
+
+def test_changed_files_between_preserves_unicode_protected_path(tmp_path: Path) -> None:
+    repo, protected, base = _repo_with_protected_file(tmp_path, filename="mód.py")
+    protected.write_text("VALUE = 2\n", encoding="utf-8")
+    _git(repo, "add", protected.relative_to(repo).as_posix())
+    _git(repo, "commit", "--quiet", "-m", "update unicode protected file")
+    head = _git(repo, "rev-parse", "HEAD")
+
+    changed = guard.changed_files_between(base, head, repo_root=repo)
+    result = guard.evaluate(changed, actor="other-user")
+
+    assert changed == ("src/agilab/core/agi-core/mód.py",)
+    assert not result.passed

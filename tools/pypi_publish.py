@@ -1771,23 +1771,30 @@ def find_docs_repository() -> Tuple[pathlib.Path | None, str | None]:
 
 def _git_status_paths(repo: pathlib.Path) -> list[str]:
     proc = subprocess.run(
-        ["git", "status", "--porcelain"],
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
         cwd=str(repo),
         check=True,
         text=True,
         capture_output=True,
     )
     paths: list[str] = []
-    for line in proc.stdout.splitlines():
-        if not line:
+    records = proc.stdout.split("\0")
+    index = 0
+    while index < len(records):
+        record = records[index]
+        index += 1
+        if not record:
             continue
-        path = line[3:]
-        if " -> " in path:
-            path = path.split(" -> ", 1)[1]
-        path = path.strip()
-        if path:
-            paths.append(path)
-    return paths
+        if len(record) < 4 or record[2] != " ":
+            raise RuntimeError(f"unexpected git status record: {record!r}")
+        status = record[:2]
+        paths.append(record[3:])
+        if "R" in status or "C" in status:
+            if index >= len(records) or not records[index]:
+                raise RuntimeError(f"missing source path for git status record: {record!r}")
+            paths.append(records[index])
+            index += 1
+    return sorted(set(paths))
 
 
 def _is_docs_repo_release_path(path: str) -> bool:
@@ -1824,13 +1831,22 @@ def _git_ahead_behind(repo: pathlib.Path, upstream: str) -> tuple[int, int]:
 
 def _git_commit_paths(repo: pathlib.Path, revision: str) -> list[str]:
     proc = subprocess.run(
-        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", revision],
+        [
+            "git",
+            "diff-tree",
+            "--no-renames",
+            "--no-commit-id",
+            "--name-only",
+            "-z",
+            "-r",
+            revision,
+        ],
         cwd=str(repo),
         check=True,
         text=True,
         capture_output=True,
     )
-    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    return [path for path in proc.stdout.split("\0") if path]
 
 
 def _git_commit_summary(repo: pathlib.Path, revision: str) -> str:
@@ -1890,12 +1906,12 @@ def ensure_docs_repo_release_ready(repo: pathlib.Path) -> list[str]:
     if not dirty_paths:
         return []
     release_paths = [path for path in dirty_paths if _is_docs_repo_release_path(path)]
-    ignored_paths = [path for path in dirty_paths if not _is_docs_repo_release_path(path)]
-    if ignored_paths:
-        print(
-            "[git] docs repository has unrelated dirty paths outside release-managed docs/source/; "
-            "ignoring them for docs release: "
-            + ", ".join(sorted(ignored_paths))
+    unrelated_paths = [path for path in dirty_paths if not _is_docs_repo_release_path(path)]
+    if unrelated_paths:
+        raise SystemExit(
+            "ERROR: docs repository has dirty paths outside release-managed docs/source/; "
+            "refusing to create a mixed-scope release commit: "
+            + ", ".join(sorted(unrelated_paths))
         )
     return release_paths
 
@@ -2405,7 +2421,7 @@ def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
     unique_paths = sorted(set(dirty_paths))
     run(["git", "add", "-A", "--", *unique_paths], cwd=docs_repo)
     diff_status = subprocess.run(
-        ["git", "diff", "--cached", "--quiet"],
+        ["git", "diff", "--cached", "--quiet", "--", *unique_paths],
         cwd=str(docs_repo),
         check=False,
     )
@@ -2413,7 +2429,17 @@ def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
         print("[git] no staged docs repository changes to commit")
         return
 
-    run(["git", "commit", "-m", f"docs(release): sync docs for {chosen_version}"], cwd=docs_repo)
+    run(
+        [
+            "git",
+            "commit",
+            "-m",
+            f"docs(release): sync docs for {chosen_version}",
+            "--",
+            *unique_paths,
+        ],
+        cwd=docs_repo,
+    )
     print(f"[git] committed docs repository changes for {chosen_version}")
     if push:
         ensure_docs_repo_push_ready(docs_repo)

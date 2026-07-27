@@ -166,7 +166,7 @@ def _git_lines(args: Sequence[str]) -> list[str]:
     )
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip() or f"git {' '.join(args)} failed")
-    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    return [path for path in proc.stdout.split("\0") if path]
 
 
 def collect_changed_files(args: argparse.Namespace) -> list[str]:
@@ -174,10 +174,10 @@ def collect_changed_files(args: argparse.Namespace) -> list[str]:
         return impact_validate._normalize_paths(args.files)
     if args.staged:
         return impact_validate._normalize_paths(
-            _git_lines(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])
+            _git_lines(["diff", "--no-renames", "--cached", "--name-only", "-z"])
         )
-    tracked = _git_lines(["diff", "--name-only", "--diff-filter=ACMR", args.base])
-    untracked = _git_lines(["ls-files", "--others", "--exclude-standard"])
+    tracked = _git_lines(["diff", "--no-renames", "--name-only", "-z", args.base])
+    untracked = _git_lines(["ls-files", "--others", "--exclude-standard", "-z"])
     return impact_validate._normalize_paths([*tracked, *untracked])
 
 
@@ -229,7 +229,7 @@ def _discover_test_files_with_git(test_roots: Sequence[str]) -> list[str]:
     if not roots:
         return []
     paths = _git_lines(
-        ["ls-files", "--cached", "--others", "--exclude-standard", "--", *roots]
+        ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", *roots]
     )
     return sorted(
         {

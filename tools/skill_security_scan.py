@@ -56,7 +56,16 @@ def changed_skill_dirs(base_ref: str, roots: Iterable[Path]) -> list[Path]:
     if not root_args:
         return []
     result = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=ACMR", f"{base_ref}...HEAD", "--", *root_args],
+        [
+            "git",
+            "diff",
+            "--no-renames",
+            "--name-only",
+            "-z",
+            f"{base_ref}...HEAD",
+            "--",
+            *root_args,
+        ],
         cwd=REPO_ROOT,
         text=True,
         capture_output=True,
@@ -65,7 +74,7 @@ def changed_skill_dirs(base_ref: str, roots: Iterable[Path]) -> list[Path]:
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "git diff failed")
     dirs: set[Path] = set()
-    for raw in result.stdout.splitlines():
+    for raw in result.stdout.split("\0"):
         rel = Path(raw)
         if len(rel.parts) >= 3 and rel.parts[1] == "skills":
             candidate = REPO_ROOT / rel.parts[0] / rel.parts[1] / rel.parts[2]
