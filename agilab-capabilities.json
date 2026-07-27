@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-27T13:04:04Z",
+  "generated_at_utc": "2026-07-27T15:20:00Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 36,
     "public_app_count": 15,
     "agent_skill_count": 33,
-    "evidence_schema_count": 233,
+    "evidence_schema_count": 234,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -941,7 +941,7 @@
       "name": "repo-skill-maintenance",
       "description": "Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, drift checks, and Tokki skill visibility. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling agent skill copies without overwriting unrelated skills.",
       "path": ".claude/skills/repo-skill-maintenance/SKILL.md",
-      "updated": "2026-07-16"
+      "updated": "2026-07-27"
     },
     {
       "name": "report-qa-docx",
@@ -1747,6 +1747,13 @@
       "sources": [
         "src/agilab/apps/builtin/mission_decision_project/src/mission_decision/artifacts.py",
         "src/agilab/lib/agi-app-mission-decision/src/agi_app_mission_decision/project/mission_decision_project/src/mission_decision/artifacts.py"
+      ]
+    },
+    {
+      "schema": "agilab.mlflow.handoff.v1",
+      "sources": [
+        "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/runtime/manager_mlflow_support.py",
+        "src/agilab/core/agi-cluster/test/test_manager_mlflow_support.py"
       ]
     },
     {

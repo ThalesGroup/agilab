@@ -38,11 +38,16 @@ def _fake_repo(module, monkeypatch, tmp_path: Path) -> tuple[Path, Path]:
     repo_root = tmp_path / "repo"
     claude_root = repo_root / ".claude" / "skills"
     codex_root = repo_root / ".codex" / "skills"
+    project_agent_skills_root = repo_root / ".agents" / "skills"
     claude_root.mkdir(parents=True)
     codex_root.mkdir(parents=True)
+    project_agent_skills_root.mkdir(parents=True)
     monkeypatch.setattr(module, "ROOT", repo_root)
     monkeypatch.setattr(module, "CLAUDE_ROOT", claude_root)
     monkeypatch.setattr(module, "CODEX_ROOT", codex_root)
+    monkeypatch.setattr(
+        module, "PROJECT_AGENT_SKILLS_ROOT", project_agent_skills_root
+    )
     monkeypatch.setattr(module, "validate_skills_root", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "refresh_codex_skill_index", lambda **_kwargs: None)
     monkeypatch.setattr(module, "refresh_skill_badges", lambda **_kwargs: None)
@@ -213,6 +218,37 @@ def test_sync_validates_canonical_tree_before_mutating_mirror(tmp_path, monkeypa
     assert not (codex_root / "alpha").exists()
 
 
+@pytest.mark.parametrize("args", [["--check"], ["--all"], ["--skills", "alpha"]])
+@pytest.mark.parametrize(
+    "skills_root_name", ["CLAUDE_ROOT", "PROJECT_AGENT_SKILLS_ROOT"]
+)
+def test_top_level_symlinked_skill_is_rejected_before_mirror_mutation(
+    tmp_path, monkeypatch, args, skills_root_name
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    _write_skill(claude_root, "alpha", body="Canonical wording.")
+    mirror_skill = _write_skill(codex_root, "alpha", body="Mirror sentinel.")
+    mirror_before = (mirror_skill / "SKILL.md").read_bytes()
+    external_root = tmp_path / "external-skills"
+    external_skill = _write_skill(external_root, "developing-with-streamlit")
+    link = getattr(module, skills_root_name) / external_skill.name
+    try:
+        link.symlink_to(external_skill, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"directory symlinks unavailable: {error}")
+
+    with pytest.raises(
+        SystemExit,
+        match=r"Refusing top-level symlinked skill entries.*streamlit skills --global",
+    ):
+        module.main(args)
+
+    assert not (codex_root / external_skill.name).exists()
+    assert (mirror_skill / "SKILL.md").read_bytes() == mirror_before
+
+
 def test_check_passes_for_symlinked_directory_content_after_sync(tmp_path, monkeypatch) -> None:
     module = _load_module()
     claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
@@ -225,6 +261,7 @@ def test_check_passes_for_symlinked_directory_content_after_sync(tmp_path, monke
 
     assert module.main(["--skills", "alpha"]) == 0
     assert (codex_root / "alpha" / "linkdir" / "inner.md").is_file()
+    assert not (codex_root / "alpha" / "linkdir").is_symlink()
     assert module.main(["--check"]) == 0
 
 

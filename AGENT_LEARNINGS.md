@@ -32,6 +32,9 @@ is not a scratchpad or task log.
   badges into a rendered expander unless the user explicitly asks for removal.
 - When external agent-instruction projects inspire AGILAB, extract the
   AGILAB-native operating primitive and reject generic boilerplate replacement.
+- Before installing third-party agent skills, inspect the install mode and
+  filesystem result. Run `streamlit skills --global` because project mode adds
+  repo-local symlinks; verify the home copy and project discovery separately.
 - When a pre-push guard fails, do not bypass it silently. Re-run the underlying
   guard with useful output, classify whether the failure belongs to the current
   diff, a real repository contract, or polluted local filesystem state, then

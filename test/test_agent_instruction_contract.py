@@ -140,6 +140,31 @@ def test_contract_detects_missing_shell_url_quoting_marker(tmp_path: Path) -> No
     assert "shell-url-quoting" in evidence_by_path["AGENT_LEARNINGS.md"]["required_terms_missing"]
 
 
+def test_contract_detects_missing_streamlit_global_install_marker(tmp_path: Path) -> None:
+    module = _load_module()
+    _write_minimal_contract_tree(module, tmp_path)
+    learnings = tmp_path / "AGENT_LEARNINGS.md"
+    learnings.write_text(
+        learnings.read_text(encoding="utf-8").replace("streamlit skills --global", ""),
+        encoding="utf-8",
+    )
+
+    report = module.build_report(tmp_path)
+
+    assert report["status"] == "fail"
+    assert any(
+        issue["rule"] == "agent-instruction-required-term"
+        and issue["path"] == "AGENT_LEARNINGS.md"
+        and "streamlit-skills-global" in issue["message"]
+        for issue in report["issues"]
+    )
+    evidence_by_path = {row["path"]: row for row in report["file_evidence"]}
+    assert (
+        "streamlit-skills-global"
+        in evidence_by_path["AGENT_LEARNINGS.md"]["required_terms_missing"]
+    )
+
+
 def test_contract_detects_missing_tokki_routing_marker_in_short_contract(tmp_path: Path) -> None:
     module = _load_module()
     _write_minimal_contract_tree(module, tmp_path)
