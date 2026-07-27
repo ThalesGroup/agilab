@@ -22,8 +22,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CLAUDE_ROOT = ROOT / ".claude" / "skills"
 CODEX_ROOT = ROOT / ".codex" / "skills"
+PROJECT_AGENT_SKILLS_ROOT = ROOT / ".agents" / "skills"
 SKIP_NAMES = {"README.md", ".DS_Store"}
 TOKKI_LIST_TIMEOUT_SECONDS = 120
+
+
+def reject_top_level_skill_symlinks(root: Path) -> None:
+    """Fail before external installer links can pollute repo skill roots."""
+    symlinks = sorted(path.name for path in root.iterdir() if path.is_symlink())
+    if not symlinks:
+        return
+    raise SystemExit(
+        f"Refusing top-level symlinked skill entries in {root}: "
+        f"{', '.join(symlinks)}. Install external skills outside the repo "
+        "(for Streamlit, use `streamlit skills --global`) and keep "
+        "repo-managed skills as real directories."
+    )
 
 
 def iter_skill_dirs(root: Path) -> list[Path]:
@@ -234,6 +248,9 @@ def main(argv: list[str]) -> int:
     if not CLAUDE_ROOT.exists():
         raise SystemExit(f"Missing source skills root: {CLAUDE_ROOT}")
 
+    for skills_root in (CLAUDE_ROOT, PROJECT_AGENT_SKILLS_ROOT):
+        if skills_root.exists() or skills_root.is_symlink():
+            reject_top_level_skill_symlinks(skills_root)
     skill_dirs = iter_skill_dirs(CLAUDE_ROOT)
     if args.skills:
         selected = set(args.skills)

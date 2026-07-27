@@ -127,6 +127,7 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("prune", "Prune entries"),
             RequiredTerm("contract-command", "python3 tools/agent_instruction_contract.py --check"),
             RequiredTerm("shell-url-quoting", "gh api repos/.../file?ref=main"),
+            RequiredTerm("streamlit-skills-global", "streamlit skills --global"),
             RequiredTerm("tokki-routing", "tokki run --"),
             RequiredTerm("agent-provenance", "tools/agent_commit_provenance_guard.py"),
         ),

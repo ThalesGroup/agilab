@@ -3,7 +3,7 @@ name: repo-skill-maintenance
 description: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, drift checks, and Tokki skill visibility. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling agent skill copies without overwriting unrelated skills.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-07-16
+  updated: 2026-07-27
 ---
 
 # Repo Skill Maintenance
@@ -22,8 +22,15 @@ newer Codex-specific content.
   `tokki skills list --skills-dir .claude/skills --json`. Tokki has no repo
   mirror; do not create `.tokki/skills` or `.agilab/skills` copies.
 - Personal or tool-managed home skills:
-  - `~/.codex/skills/` for local-only skills
+  - `~/.agents/skills/` for portable copies owned by upstream installers;
+    current Codex also scans this cross-agent location
+  - `~/.codex/skills/` for Codex-installer-managed and existing Codex-specific
+    local skills
   - `~/.codex/skills/.system/` for system-managed skills
+
+Do not duplicate the same named user skill across home roots merely to make it
+appear in one already-running session. Check the agent's refreshed skill
+inventory; if discovery does not refresh, start a new turn or restart Codex.
 
 Do not hand-edit both repo trees for the same shared skill.
 
@@ -45,14 +52,17 @@ Keep these out of the public repo-managed trees:
 - machine-local skills with hard-coded usernames, absolute private paths, or
   personal service accounts
 
-Use `~/.codex/skills/` for personal local skills and the relevant private repo
-for private-domain skills.
+Keep an upstream installer's portable copy in `~/.agents/skills/`, use
+`~/.codex/skills/` when the Codex skill installer owns the copy, and use the
+relevant private repo for private-domain skills. Do not relocate or duplicate
+an installer-owned skill merely to normalize these home roots.
 
 ## When to use
 
 - Add a new shared repo skill
 - Update an existing shared skill
-- Migrate a user-managed skill from `~/.codex/skills` into the repo
+- Migrate a user-managed skill from `~/.agents/skills` or
+  `~/.codex/skills` into the repo
 - Reconcile drift between the Claude and Codex repo skill trees
 - Refresh the generated Codex skill index after skill changes
 
@@ -120,6 +130,50 @@ python3 tools/sync_agent_skills.py --check
    - `.codex/skills/README.md`
    - root `README.md` if the repo-level agent workflow description changed
 
+## External installer safety
+
+- Inspect an external skill installer's current `--help` and its actual
+  filesystem output before choosing project or global mode. Do not infer copy
+  versus symlink behavior from the destination path or an older release.
+- From an AGILAB checkout whose environment already contains Streamlit, run the
+  official installer in global mode without changing that environment:
+
+```bash
+uv --preview-features extra-build-dependencies run --no-sync streamlit skills --global --yes
+```
+
+  If a lean task worktree does not have Streamlit installed, run this command
+  from the active source checkout instead of syncing dependencies into the task
+  worktree merely for skill installation. The default project mode creates an
+  environment-specific symlink beneath `.agents/skills/` and, when the user's
+  `~/.claude/` directory exists, another beneath `.claude/skills/`. The
+  `.claude/skills/` link enters AGILAB's filesystem-driven catalog; the
+  `.agents/skills/` link is still repo pollution. Committing either link
+  violates the repository-wide no-symlink CI guard.
+- `tools/sync_agent_skills.py` rejects every top-level symlink entry in both the
+  canonical `.claude/skills/` root and the project `.agents/skills/` root before
+  check or sync mode. Remove the polluted project link and reinstall globally;
+  reviewed links nested inside a real repo-managed skill remain supported.
+- Streamlit global mode downloads and copies its small
+  `developing-with-streamlit` meta skill into `~/.agents/skills/` and, when
+  `~/.claude/` exists, `~/.claude/skills/`. Its `discover.py` resolves the
+  version-matched full skill from the selected project's installed Streamlit at
+  use time. Verify the home copy, project discovery, and the agent's refreshed
+  skill inventory separately instead of calling the skill live from install
+  output alone:
+
+```bash
+test ! -L ~/.agents/skills/developing-with-streamlit
+python3 ~/.agents/skills/developing-with-streamlit/scripts/discover.py --project-dir "$PWD"
+```
+
+  A copied global meta skill is not tied to the venv that ran the installer;
+  discovery only requires the target project to keep a supported Streamlit
+  installation. Point `--project-dir` at the checkout whose environment
+  actually contains Streamlit. A lean task worktree without AGILAB's UI extra
+  should return the installer's actionable `Streamlit is not installed`
+  diagnostic; that does not mean the global meta skill is broken.
+
 ## Guardrails
 
 - Do not run `python3 tools/sync_agent_skills.py --all` unless you have already
@@ -141,7 +195,10 @@ python3 tools/sync_agent_skills.py --check
 - Do not migrate `~/.codex/skills/.system` into the repo.
 - Do not leave a copied third-party skill with missing repo-required frontmatter
   such as `license`.
-- Do not keep duplicate real directories in both the repo and `~/.codex/skills`
+- Do not copy an upstream global skill into the public repo merely to make it
+  visible in the current agent session. Keep the installer-owned home copy and
+  verify discovery in a fresh turn or restarted session when necessary.
+- Do not keep duplicate real directories in both the repo and a user skill root
   for the same shared skill.
 - If a skill is domain-specific to another repo, keep it there instead of forcing
   it into `agilab`.
