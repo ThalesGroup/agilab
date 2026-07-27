@@ -37,8 +37,12 @@ def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None
     assert "public-evidence-sample" in text
     assert "retention-days: 7" in text
     assert (
-        "publish-library-packages:\n    needs:\n      - test\n      - release-evidence\n"
+        "build-library-packages:\n    needs:\n      - test\n      - release-evidence\n"
         "      - supply-chain-evidence"
+    ) in text
+    assert (
+        "publish-library-packages:\n    needs:\n      - release-plan\n"
+        "      - build-library-packages"
     ) in text
     assert "      - release-plan" in text
 
@@ -71,27 +75,30 @@ def test_pypi_publish_blocks_downstream_publish_jobs_when_preflight_fails() -> N
     assert "needs.test.result == 'success'" in text
     assert "needs.release-evidence.result == 'success'" in text
     assert "needs.supply-chain-evidence.result == 'success'" in text
-    assert (
-        "publish-agilab:\n"
-        "    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true' "
-        "&& needs.test.result == 'success' "
-    ) in text
+    build_agilab = jobs["build-agilab"]
+    assert "!cancelled()" in build_agilab["if"]
+    assert "always()" not in build_agilab["if"]
+    assert "needs.test.result == 'success'" in build_agilab["if"]
+    assert "needs.release-evidence.result == 'success'" in build_agilab["if"]
+    assert "needs.supply-chain-evidence.result == 'success'" in build_agilab["if"]
+    publish_agilab = jobs["publish-agilab"]
+    assert "needs.build-agilab.result == 'success'" in publish_agilab["if"]
+    assert set(publish_agilab["needs"]) == {
+        "release-plan",
+        "build-agilab",
+        "publish-library-packages",
+    }
     assert (
         "pypi-provenance-evidence:\n"
         "    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' "
         "&& needs.test.result == 'success' "
     ) in text
-    assert (
-        "publish-agilab:\n"
-        "    if:"
-    ) in text and (
-        "    needs:\n"
-        "      - test\n"
-        "      - release-evidence\n"
-        "      - supply-chain-evidence\n"
-        "      - release-plan\n"
-        "      - publish-library-packages"
-    ) in text
+    assert set(build_agilab["needs"]) == {
+        "test",
+        "release-evidence",
+        "supply-chain-evidence",
+        "release-plan",
+    }
 
 
 def test_pypi_publish_materializes_lfs_assets_before_tests_and_builds() -> None:
@@ -243,8 +250,8 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "--download-dir dist" in text
     assert "steps.agilab-pypi-reuse.outputs.all-exist != 'true'" in text
     assert "steps.agilab-pypi-state.outputs.all-exist != 'true'" in text
-    assert "PYPI_TRUSTED_PUBLISHING" in text
-    assert "PyPI publication requires Trusted Publishing/OIDC" in text
+    assert "PYPI_TRUSTED_PUBLISHING" not in text
+    assert "PyPI publication requires Trusted Publishing/OIDC" not in text
     assert 'uv --preview-features extra-build-dependencies build --project "${{ matrix.project }}" --wheel' in text
     assert 'uv --preview-features extra-build-dependencies build --project "${{ matrix.project }}"' in text
     assert "uv --preview-features extra-build-dependencies build\n" in text
@@ -257,8 +264,10 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "Upload ${{ matrix.package }} workflow-only distribution evidence" in text
     assert "release-dist-agilab" in text
     assert "packages-dir: dist-library/" not in text
-    assert "packages-dir: ${{ matrix.dist }}" in text
-    assert "packages-dir: dist/" in text
+    assert "packages-dir: publish-artifact/${{ matrix.dist }}" in text
+    assert "packages-dir: publish-artifact/dist/" in text
+    assert "Download immutable ${{ matrix.package }} distribution artifact" in text
+    assert "Download immutable agilab distribution artifact" in text
     assert "Build ${{ matrix.package }}" in text
     assert "Verify ${{ matrix.package }}" in text
     assert "PYPI_API_TOKEN" not in text
@@ -288,13 +297,8 @@ def test_pypi_publish_reuses_unchanged_artifacts_without_rebuilding_or_republish
     assert "Build ${{ matrix.package }}" in text
     assert "Verify ${{ matrix.package }}" in text
     assert "Record ${{ matrix.package }} release artifact hashes" in text
-    assert text.count("steps.library-pypi-reuse.outputs.all-exist != 'true'") >= 7
-    assert (
-        "if: steps.library-pypi-reuse.outputs.all-exist != 'true' "
-        "&& steps.library-pypi-state.outputs.all-exist != 'true' "
-        "&& matrix.publish_to_pypi == 'true' "
-        "&& steps.library-trusted-publishing.outputs.enabled == 'true'"
-    ) in text
+    assert text.count("steps.library-pypi-reuse.outputs.all-exist != 'true'") >= 6
+    assert "needs.build-library-packages.result == 'success'" in text
 
     assert "Check whether agilab can reuse PyPI artifacts" in text
     assert "--project ." in text
@@ -305,12 +309,8 @@ def test_pypi_publish_reuses_unchanged_artifacts_without_rebuilding_or_republish
     assert "Build agilab" in text
     assert "Verify agilab" in text
     assert "Record agilab release artifact hashes" in text
-    assert text.count("steps.agilab-pypi-reuse.outputs.all-exist != 'true'") >= 7
-    assert (
-        "if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' "
-        "&& steps.agilab-pypi-state.outputs.all-exist != 'true' "
-        "&& steps.agilab-trusted-publishing.outputs.enabled == 'true'"
-    ) in text
+    assert text.count("steps.agilab-pypi-reuse.outputs.all-exist != 'true'") >= 6
+    assert "needs.build-agilab.result == 'success'" in text
 
     assert "Upload ${{ matrix.package }} public release distribution evidence" in text
     assert "if: matrix.publish_to_pypi == 'true'" in text
@@ -521,11 +521,17 @@ def test_test_pypi_publish_uses_the_local_shortcut() -> None:
 
     assert "./dev publish-testpypi" in text
     assert "2026.05.12rc1" in text
-    assert "TestPyPI may auto-create .postN retries" in text
-    assert "TWINE_USERNAME: __token__" in text
-    assert "TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}" in text
+    assert "next available TestPyPI .postN retry" in text
+    assert "user: __token__" in text
+    assert "password: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}" in text
     assert "requirements: .github/requirements/ci-publish.txt" in text
     assert 'UV_NO_SYNC: "1"' in text
+    assert "--build-only" in text
+    assert "actions/upload-artifact@" in text
+    assert "actions/download-artifact@" in text
+    assert "repository-url: https://test.pypi.org/legacy/" in text
+    assert "packages-dir: testpypi-artifact/distributions/" in text
+    assert "TWINE_PASSWORD" not in text
 
     assert "CORE = [" not in text
     assert "versions.json" not in text

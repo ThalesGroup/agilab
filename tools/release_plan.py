@@ -667,16 +667,40 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
             "workflow must omit already-published package versions from publish/provenance/retention by default"
         ),
         "uses: ./.github/actions/setup-locked-python-tools": (
-            "credentialed release jobs must install Python tools through the locked local action"
+            "release tooling jobs must install Python tools through the locked local action"
         ),
         "requirements: .github/requirements/ci-publish.txt": (
-            "release-plan and publisher jobs must use the hash-locked publishing toolchain"
+            "release-plan and unprivileged build jobs must use the hash-locked publishing toolchain"
         ),
         "requirements: .github/requirements/ci-pypi-web.txt": (
             "PyPI retention must use the hash-locked web automation toolchain"
         ),
         "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}": (
             "library publish matrix must be generated from the release plan"
+        ),
+        "build-library-packages:": (
+            "library distributions must be built before entering the OIDC publisher job"
+        ),
+        "build-agilab:": (
+            "the umbrella distribution must be built before entering the OIDC publisher job"
+        ),
+        "needs.build-library-packages.result == 'success'": (
+            "library publishing must consume a successful unprivileged build"
+        ),
+        "needs.build-agilab.result == 'success'": (
+            "umbrella publishing must consume a successful unprivileged build"
+        ),
+        "Download immutable ${{ matrix.package }} distribution artifact": (
+            "library publishing must download the exact current-run build artifact"
+        ),
+        "Download immutable agilab distribution artifact": (
+            "umbrella publishing must download the exact current-run build artifact"
+        ),
+        "packages-dir: publish-artifact/${{ matrix.dist }}": (
+            "library publishing must upload only the downloaded build payload"
+        ),
+        "packages-dir: publish-artifact/dist/": (
+            "umbrella publishing must upload only the downloaded build payload"
         ),
         "needs.release-plan.outputs.library_selected == 'true'": (
             "library publish job must be skippable for umbrella-only releases"

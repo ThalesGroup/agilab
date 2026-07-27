@@ -6,7 +6,11 @@ on:
       runner:
         description: "Runner label for this workflow. Use ubuntu-latest or self-hosted."
         required: false
+        type: choice
         default: "ubuntu-latest"
+        options:
+          - ubuntu-latest
+          - self-hosted
       project_name:
         description: "PyPI project name to be created by the next trusted publish."
         required: true
@@ -49,9 +53,40 @@ jobs:
         with:
           requirements: .github/requirements/ci-pypi-web.txt
 
+      - name: Validate pending publisher inputs
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+          PYPI_ENVIRONMENT: ${{ inputs.pypi_environment }}
+          PUBLISHER_OWNER: ${{ inputs.owner }}
+          PUBLISHER_REPOSITORY: ${{ inputs.repository }}
+          PUBLISHER_WORKFLOW: ${{ inputs.workflow_filename }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import re
+
+          validators = {
+              "PROJECT_NAME": r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,198}[A-Za-z0-9])?",
+              "PYPI_ENVIRONMENT": r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,253}[A-Za-z0-9])?",
+              "PUBLISHER_OWNER": r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?",
+              "PUBLISHER_REPOSITORY": r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?",
+              "PUBLISHER_WORKFLOW": r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,248}[A-Za-z0-9])?\.ya?ml",
+          }
+          for name, pattern in validators.items():
+              value = os.environ.get(name, "")
+              if re.fullmatch(pattern, value) is None:
+                  raise SystemExit(f"Invalid {name.lower().replace('_', ' ')} format")
+          PY
+
       - name: Register pending trusted publisher
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_NAME: ${{ inputs.project_name }}
+          PYPI_ENVIRONMENT: ${{ inputs.pypi_environment }}
+          PUBLISHER_OWNER: ${{ inputs.owner }}
+          PUBLISHER_REPOSITORY: ${{ inputs.repository }}
+          PUBLISHER_WORKFLOW: ${{ inputs.workflow_filename }}
           PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}
           PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
           PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
@@ -61,11 +96,11 @@ jobs:
           set -euo pipefail
           python tools/pypi_pending_trusted_publisher.py \
             --repo pypi \
-            --project-name "${{ inputs.project_name }}" \
-            --owner "${{ inputs.owner }}" \
-            --repository "${{ inputs.repository }}" \
-            --workflow-filename "${{ inputs.workflow_filename }}" \
-            --environment "${{ inputs.pypi_environment }}" \
+            --project-name "$PROJECT_NAME" \
+            --owner "$PUBLISHER_OWNER" \
+            --repository "$PUBLISHER_REPOSITORY" \
+            --workflow-filename "$PUBLISHER_WORKFLOW" \
+            --environment "$PYPI_ENVIRONMENT" \
             --github-confirm-login-repository "$GITHUB_REPOSITORY" \
             --github-confirm-login-variable "PYPI_CONFIRM_LOGIN_URL" \
             --github-confirm-login-timeout 900 \

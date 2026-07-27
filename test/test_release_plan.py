@@ -373,7 +373,7 @@ def test_release_plan_current_workflow_consumes_generated_matrix() -> None:
     [
         (
             ".github/requirements/ci-publish.txt",
-            "publisher jobs must use the hash-locked publishing toolchain",
+            "unprivileged build jobs must use the hash-locked publishing toolchain",
         ),
         (
             ".github/requirements/ci-pypi-web.txt",

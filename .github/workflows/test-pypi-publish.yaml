@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Optional rehearsal version, for example 2026.05.12, 2026.05.12rc1, or v2026.05.12. TestPyPI may auto-create .postN retries."
+        description: "Optional rehearsal version, for example 2026.05.12, 2026.05.12rc1, or v2026.05.12. The build selects the next available TestPyPI .postN retry."
         required: false
 
 concurrency:
@@ -15,7 +15,7 @@ env:
   PYTHON_VERSION: "3.13"
 
 jobs:
-  publish-testpypi:
+  build-testpypi:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -38,25 +38,78 @@ jobs:
         with:
           requirements: .github/requirements/ci-publish.txt
 
-      - name: Build and upload all TestPyPI packages with one unified version
+      - name: Build and verify all TestPyPI packages with one unified version
         env:
-          BASE_VERSION: ${{ github.event.inputs.version }}
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}
+          BASE_VERSION: ${{ inputs.version }}
           UV_NO_SYNC: "1"
-          # Stream the full publisher log to the Actions log; the compact
-          # summary's log file lives on the ephemeral runner and is lost.
           AGILAB_DEV_OUTPUT: raw
         run: |
           set -euo pipefail
-          if [ -z "${TWINE_PASSWORD:-}" ]; then
-            echo "ERROR: Missing TEST_PYPI_API_TOKEN or TEST_PYPI_SECRET" >&2
-            exit 2
-          fi
           args=()
           if [ -n "${BASE_VERSION:-}" ]; then
             base="${BASE_VERSION#refs/tags/}"
             base="${base#v}"
+            if [[ ! "$base" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?((a|b|rc)[0-9]+)?(\.post[0-9]+)?$ ]]; then
+              echo "ERROR: Invalid TestPyPI version format" >&2
+              exit 2
+            fi
             args+=(--version "$base")
           fi
-          ./dev publish-testpypi "${args[@]}"
+          ./dev publish-testpypi --build-only "${args[@]}"
+
+      - name: Stage immutable TestPyPI distribution artifact
+        run: |
+          set -euo pipefail
+          rm -rf testpypi-artifact
+          mkdir -p testpypi-artifact/distributions
+          while IFS= read -r -d '' distribution; do
+            destination="testpypi-artifact/distributions/$(basename "$distribution")"
+            if [ -e "$destination" ]; then
+              echo "ERROR: Duplicate TestPyPI distribution filename: $destination" >&2
+              exit 2
+            fi
+            cp "$distribution" "$destination"
+          done < <(
+            find . -type f \( -path '*/dist/*.whl' -o -path '*/dist/*.tar.gz' \) \
+              -not -path './.venv/*' -not -path './.venv-dev/*' -print0
+          )
+          find testpypi-artifact/distributions -type f -print -quit | grep -q .
+          (
+            cd testpypi-artifact
+            find distributions -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          )
+
+      - name: Upload immutable TestPyPI distribution artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: testpypi-distributions-${{ github.run_id }}-${{ github.run_attempt }}
+          path: testpypi-artifact
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: false
+
+  # No TestPyPI GitHub Environment is currently configured. Keep the API token
+  # scoped to the pinned publisher action and never execute checkout, shell, or
+  # repository code in this credentialed artifact-consumer job.
+  publish-testpypi:
+    needs: build-testpypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Download immutable TestPyPI distribution artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: testpypi-distributions-${{ github.run_id }}-${{ github.run_attempt }}
+          path: testpypi-artifact
+
+      - name: Publish distributions to TestPyPI
+        uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: testpypi-artifact/distributions/
+          attestations: false
+          print-hash: true
+          skip-existing: true

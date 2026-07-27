@@ -6,7 +6,11 @@ on:
       runner:
         description: "Runner label. Use self-hosted/static-IP for unattended PyPI web deletion."
         required: false
+        type: choice
         default: "ubuntu-latest"
+        options:
+          - ubuntu-latest
+          - self-hosted
       protect_version:
         description: "PyPI release version to keep. Older releases are deleted."
         required: true
@@ -37,21 +41,47 @@ jobs:
         with:
           requirements: .github/requirements/ci-pypi-web.txt
 
+      - name: Validate retention inputs
+        env:
+          PROTECT_VERSION: ${{ inputs.protect_version }}
+          RELEASE_PACKAGES: ${{ inputs.packages }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import re
+
+          version = os.environ.get("PROTECT_VERSION", "")
+          version_pattern = r"\d+\.\d+\.\d+(?:\.\d+)?(?:(?:a|b|rc)\d+)?(?:\.post\d+)?"
+          if re.fullmatch(version_pattern, version, flags=re.IGNORECASE) is None:
+              raise SystemExit("Invalid protected PyPI version format")
+
+          package_pattern = re.compile(
+              r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,198}[A-Za-z0-9])?"
+          )
+          packages = os.environ.get("RELEASE_PACKAGES", "")
+          for package in re.split(r"[\s,]+", packages.strip()):
+              if package and package_pattern.fullmatch(package) is None:
+                  raise SystemExit(f"Invalid PyPI package name: {package!r}")
+          PY
+
       - name: Delete older PyPI releases and keep the protected release only
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROTECT_VERSION: ${{ inputs.protect_version }}
           PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}
           PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
           PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
           PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
           PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}
+          RELEASE_PACKAGES: ${{ inputs.packages }}
         run: |
           set -euo pipefail
           test -n "${PYPI_CONFIRM_READER_TOKEN:-}" || {
             echo "PYPI_CONFIRM_READER_TOKEN secret is required to read the temporary PyPI confirmation variable." >&2
             exit 2
           }
-          packages="${{ inputs.packages }}"
+          packages="$RELEASE_PACKAGES"
           package_file="$(mktemp)"
           if [[ -z "$packages" ]]; then
             python - <<'PY' > "$package_file"
@@ -73,7 +103,7 @@ jobs:
           python tools/pypi_release_retention.py \
             --repo pypi \
             --packages-file "$package_file" \
-            --protect-version "${{ inputs.protect_version }}" \
+            --protect-version "$PROTECT_VERSION" \
             --select-visible-protected-packages \
             --confirm-delete \
             --direct-web-only \

@@ -385,7 +385,7 @@ jobs:
           args+=(--release-mode "$RELEASE_MODE")
           python tools/pypi_release_version_policy.py "${args[@]}"
 
-  publish-library-packages:
+  build-library-packages:
     needs:
       - test
       - release-evidence
@@ -397,12 +397,8 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}
-    environment:
-      name: ${{ matrix.pypi_environment }}
-      url: https://pypi.org/project/${{ matrix.pypi_project }}/
     permissions:
       contents: read
-      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -420,18 +416,6 @@ jobs:
         uses: ./.github/actions/setup-locked-python-tools
         with:
           requirements: .github/requirements/ci-publish.txt
-
-      - name: Resolve PyPI trusted publishing mode
-        id: library-trusted-publishing
-        env:
-          PYPI_TRUSTED_PUBLISHING: ${{ vars.PYPI_TRUSTED_PUBLISHING || secrets.PYPI_TRUSTED_PUBLISHING }}
-        run: |
-          set -euo pipefail
-          if [[ "${PYPI_TRUSTED_PUBLISHING:-}" == "true" ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Check whether ${{ matrix.package }} can reuse PyPI artifacts
         id: library-pypi-reuse
@@ -495,6 +479,7 @@ jobs:
             test-results/release-artifacts/${{ matrix.package }}/*
           if-no-files-found: error
           retention-days: 90
+          overwrite: false
 
       - name: Upload ${{ matrix.package }} workflow-only distribution evidence
         if: matrix.publish_to_pypi != 'true'
@@ -506,17 +491,7 @@ jobs:
             test-results/release-artifacts/${{ matrix.package }}/*
           if-no-files-found: error
           retention-days: 90
-
-      - name: Ensure PyPI auth is configured for library packages
-        if: steps.library-pypi-reuse.outputs.all-exist != 'true' && steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true'
-        run: |
-          set -euo pipefail
-          if [ "${{ steps.library-trusted-publishing.outputs.enabled }}" = "true" ]; then
-            echo "Using PyPI trusted publishing."
-            exit 0
-          fi
-          echo "ERROR: PyPI publication requires Trusted Publishing/OIDC. Configure a PyPI trusted publisher for this workflow and set repository variable PYPI_TRUSTED_PUBLISHING=true." >&2
-          exit 2
+          overwrite: false
 
       - name: Report trusted publisher claim for ${{ matrix.package }}
         if: steps.library-pypi-reuse.outputs.all-exist != 'true' && steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true'
@@ -526,29 +501,52 @@ jobs:
             --package "${{ matrix.package }}" \
             --github-step-summary "$GITHUB_STEP_SUMMARY"
 
-      # PyPI OIDC tokens are project-scoped. The matrix gives each PyPI
-      # project a distinct GitHub environment claim.
+  # PyPI OIDC tokens are project-scoped. The matrix gives each PyPI project a
+  # distinct GitHub environment claim. This job consumes only an immutable,
+  # exact-name artifact from the current workflow run; it never checks out or
+  # executes repository code while OIDC is available.
+  publish-library-packages:
+    needs:
+      - release-plan
+      - build-library-packages
+    if: ${{ always() && needs.release-plan.outputs.library_selected == 'true' && needs.build-library-packages.result == 'success' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}
+    environment:
+      name: ${{ matrix.pypi_environment }}
+      url: https://pypi.org/project/${{ matrix.pypi_project }}/
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download immutable ${{ matrix.package }} distribution artifact
+        if: matrix.publish_to_pypi == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-dist-${{ matrix.package }}
+          path: publish-artifact
+
       - name: Publish ${{ matrix.package }} to PyPI with trusted publishing
-        if: steps.library-pypi-reuse.outputs.all-exist != 'true' && steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true' && steps.library-trusted-publishing.outputs.enabled == 'true'
+        if: matrix.publish_to_pypi == 'true'
         uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # release/v1
         with:
-          packages-dir: ${{ matrix.dist }}
+          packages-dir: publish-artifact/${{ matrix.dist }}
+          print-hash: true
           skip-existing: true
-  publish-agilab:
-    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true' && needs.test.result == 'success' && needs.release-evidence.result == 'success' && needs.supply-chain-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') }}
+
+  build-agilab:
+    if: ${{ !cancelled() && needs.release-plan.outputs.umbrella_selected == 'true' && needs.test.result == 'success' && needs.release-evidence.result == 'success' && needs.supply-chain-evidence.result == 'success' }}
     needs:
       - test
       - release-evidence
       - supply-chain-evidence
       - release-plan
-      - publish-library-packages
     runs-on: ubuntu-latest
-    environment:
-      name: pypi-agilab
-      url: https://pypi.org/project/agilab/
     permissions:
       contents: read
-      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -566,18 +564,6 @@ jobs:
         uses: ./.github/actions/setup-locked-python-tools
         with:
           requirements: .github/requirements/ci-publish.txt
-
-      - name: Resolve PyPI trusted publishing mode
-        id: agilab-trusted-publishing
-        env:
-          PYPI_TRUSTED_PUBLISHING: ${{ vars.PYPI_TRUSTED_PUBLISHING || secrets.PYPI_TRUSTED_PUBLISHING }}
-        run: |
-          set -euo pipefail
-          if [[ "${PYPI_TRUSTED_PUBLISHING:-}" == "true" ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Check whether agilab can reuse PyPI artifacts
         id: agilab-pypi-reuse
@@ -640,17 +626,7 @@ jobs:
             test-results/release-artifacts/agilab/*
           if-no-files-found: error
           retention-days: 90
-
-      - name: Ensure PyPI auth is configured for agilab
-        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' && steps.agilab-pypi-state.outputs.all-exist != 'true'
-        run: |
-          set -euo pipefail
-          if [ "${{ steps.agilab-trusted-publishing.outputs.enabled }}" = "true" ]; then
-            echo "Using PyPI trusted publishing."
-            exit 0
-          fi
-          echo "ERROR: PyPI publication requires Trusted Publishing/OIDC. Configure a PyPI trusted publisher for this workflow and set repository variable PYPI_TRUSTED_PUBLISHING=true." >&2
-          exit 2
+          overwrite: false
 
       - name: Report trusted publisher claim for agilab
         if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' && steps.agilab-pypi-state.outputs.all-exist != 'true'
@@ -660,11 +636,34 @@ jobs:
             --package agilab \
             --github-step-summary "$GITHUB_STEP_SUMMARY"
 
+  # The protected PyPI environment and OIDC permission exist only in this
+  # artifact-consumer job. The pinned download action checks the immutable
+  # artifact digest before the pinned publisher action uploads distributions.
+  publish-agilab:
+    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true' && needs.build-agilab.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') }}
+    needs:
+      - release-plan
+      - build-agilab
+      - publish-library-packages
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi-agilab
+      url: https://pypi.org/project/agilab/
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download immutable agilab distribution artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-dist-agilab
+          path: publish-artifact
+
       - name: Publish agilab to PyPI with trusted publishing
-        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' && steps.agilab-pypi-state.outputs.all-exist != 'true' && steps.agilab-trusted-publishing.outputs.enabled == 'true'
         uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # release/v1
         with:
-          packages-dir: dist/
+          packages-dir: publish-artifact/dist/
+          print-hash: true
           skip-existing: true
 
   pypi-provenance-evidence:

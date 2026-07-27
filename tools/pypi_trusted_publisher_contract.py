@@ -97,10 +97,17 @@ def validate_workflow_contract(
     required_fragments = {
         "id-token: write": "workflow must grant OIDC token permission",
         "uses: pypa/gh-action-pypi-publish@": "workflow must use trusted publishing action",
-        "PYPI_TRUSTED_PUBLISHING": "workflow must keep the trusted-publishing gate",
+        "actions/download-artifact@": "publisher jobs must consume immutable workflow artifacts",
+        "build-agilab:": "agilab build must run outside the OIDC publisher job",
+        "Download immutable agilab distribution artifact": (
+            "agilab publisher must download the unprivileged build artifact"
+        ),
     }
     if any(claim.project != "agilab" for claim in claims):
         required_fragments["tools/release_plan.py"] = "generated library release matrix"
+        required_fragments["build-library-packages:"] = (
+            "library builds must run outside the OIDC publisher matrix"
+        )
         required_fragments[
             "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}"
         ] = "library release matrix generated from package contract"
@@ -110,6 +117,9 @@ def validate_workflow_contract(
         required_fragments[
             "url: https://pypi.org/project/${{ matrix.pypi_project }}/"
         ] = "matrix-specific PyPI project URLs"
+        required_fragments[
+            "Download immutable ${{ matrix.package }} distribution artifact"
+        ] = "matrix publisher must download the unprivileged build artifact"
         required_fragments['--package "${{ matrix.package }}"'] = (
             "matrix-specific trusted publisher claim reporting"
         )

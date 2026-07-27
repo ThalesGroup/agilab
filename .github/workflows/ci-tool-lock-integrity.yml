@@ -1,0 +1,98 @@
+name: ci-tool-lock-integrity
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/actions/setup-locked-python-tools/**"
+      - ".github/requirements/ci-*"
+      - ".github/workflows/ci-tool-lock-integrity.yml"
+      - "tools/hf_space_release_sync.py"
+      - "tools/pypi_pending_trusted_publisher.py"
+      - "tools/pypi_publish.py"
+      - "tools/pypi_release_retention.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/actions/setup-locked-python-tools/**"
+      - ".github/requirements/ci-*"
+      - ".github/workflows/ci-tool-lock-integrity.yml"
+      - "tools/hf_space_release_sync.py"
+      - "tools/pypi_pending_trusted_publisher.py"
+      - "tools/pypi_publish.py"
+      - "tools/pypi_release_retention.py"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-locks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+
+      - name: Clean-install publishing lock
+        uses: ./.github/actions/setup-locked-python-tools
+        with:
+          requirements: .github/requirements/ci-publish.txt
+
+      - name: Import-smoke publishing tools
+        env:
+          PIP_NO_INDEX: "1"
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import packaging
+          import tomlkit
+          import twine
+          import yaml
+          import tools.pypi_publish
+          PY
+
+      - name: Clean-install PyPI web lock
+        uses: ./.github/actions/setup-locked-python-tools
+        with:
+          requirements: .github/requirements/ci-pypi-web.txt
+
+      - name: Import-smoke PyPI web tools
+        env:
+          PIP_NO_INDEX: "1"
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import packaging
+          import requests
+          import tools.pypi_pending_trusted_publisher
+          import tools.pypi_release_retention
+          PY
+          pypi-cleanup --help >/dev/null
+
+      - name: Clean-install Hugging Face release lock
+        uses: ./.github/actions/setup-locked-python-tools
+        with:
+          requirements: .github/requirements/ci-hf-release.txt
+
+      - name: Import-smoke Hugging Face release tools
+        env:
+          PIP_NO_INDEX: "1"
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import click
+          import huggingface_hub
+          import packaging
+          import tomlkit
+          import tools.hf_space_release_sync
+          import tools.pypi_publish
+          PY
