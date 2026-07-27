@@ -18,9 +18,19 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 #     notebook_export_support -> 3592, pipeline_lab -> 6318
 # Both remain decomposition candidates; raising the ceiling records the current
 # size honestly rather than pretending the older number still holds.
+#
+# Lowered 2026-07-27 for notebook_export_support, 3700 -> 2450, after the
+# ~1250-line `_helper_cell` template moved to notebook_helper_cell.py. The module
+# is 2334 lines, below even the 3100 ceiling that predated #807. A budget only
+# ratchets if it tracks reality downward too, so paying the debt reclaims the
+# ceiling instead of leaving the headroom to be silently refilled.
+#
+# notebook_helper_cell.py is deliberately unbudgeted: it is emitted source for
+# exported notebooks, and its size reflects the generated runtime rather than
+# control flow anyone reads top to bottom.
 MID_LAYER_MODULE_LINE_BUDGETS = {
     "src/agilab/pipeline/pipeline_lab.py": 6400,
-    "src/agilab/notebooks/notebook_export_support.py": 3700,
+    "src/agilab/notebooks/notebook_export_support.py": 2450,
     "src/agilab/orchestrate/orchestrate_page_support.py": 2050,
 }
 
