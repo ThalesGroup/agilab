@@ -97,8 +97,9 @@ def test_fetch_metadata_and_preflight_reads_wheel_entry_points(monkeypatch):
             "2026.5.18": [
                 {
                     "packagetype": "bdist_wheel",
-                    "url": "https://files.pythonhosted.org/weather.whl",
-                    "digests": {"sha256": "abc"},
+                    "filename": "agi_app_weather_forecast-2026.5.18-py3-none-any.whl",
+                    "url": "https://files.pythonhosted.org/agi_app_weather_forecast-2026.5.18-py3-none-any.whl",
+                    "digests": {"sha256": "a" * 64},
                     "provenance": {"available": True},
                 },
                 {"packagetype": "sdist", "digests": {"sha256": "def"}},
@@ -122,12 +123,93 @@ def test_fetch_metadata_and_preflight_reads_wheel_entry_points(monkeypatch):
     assert metadata.sdist_available is True
     assert metadata.provenance_available is True
     assert metadata.entry_points == ("weather_forecast=agi_app_weather_forecast:project_root",)
+    assert metadata.wheel_sha256 == "a" * 64
 
     preflight = module.preflight_pypi_app_install("agi-app-weather-forecast", opener=opener, python_version="3.13.1")
 
     assert preflight.status == "pass"
+    assert preflight.resolved_requirement == "agi-app-weather-forecast==2026.5.18"
     assert preflight.checks["entry_point"].startswith("pass:")
     assert preflight.checks["agi-core_compatibility"].startswith("pass:")
+
+
+def test_constrained_requirement_inspects_and_installs_the_selected_release():
+    module = _load_module()
+    selected_wheel = _wheel_bytes(
+        "[agilab.apps]\ndemo = agi_app_demo:project_root\n"
+    )
+    project_payload = {
+        "info": {"version": "2.0.0"},
+        "releases": {
+            "1.5.0": [
+                {
+                    "filename": "agi_app_demo-1.5.0-py3-none-any.whl",
+                    "packagetype": "bdist_wheel",
+                    "url": "https://files.pythonhosted.org/agi_app_demo-1.5.0-py3-none-any.whl",
+                    "digests": {"sha256": "1" * 64},
+                }
+            ],
+            "2.0.0": [
+                {
+                    "filename": "agi_app_demo-2.0.0-py3-none-any.whl",
+                    "packagetype": "bdist_wheel",
+                    "url": "https://files.pythonhosted.org/agi_app_demo-2.0.0-py3-none-any.whl",
+                    "digests": {"sha256": "2" * 64},
+                }
+            ],
+        },
+    }
+    selected_payload = {
+        "info": {
+            "version": "1.5.0",
+            "requires_python": ">=3.12",
+            "requires_dist": [],
+        },
+        "urls": project_payload["releases"]["1.5.0"],
+    }
+    opened: list[str] = []
+
+    def opener(request, **_kwargs):
+        url = request.full_url
+        opened.append(url)
+        if url.endswith("/pypi/agi-app-demo/json"):
+            return _Response(json.dumps(project_payload).encode("utf-8"))
+        if url.endswith("/pypi/agi-app-demo/1.5.0/json"):
+            return _Response(json.dumps(selected_payload).encode("utf-8"))
+        if url.endswith("agi_app_demo-1.5.0-py3-none-any.whl"):
+            return _Response(
+                selected_wheel,
+                headers={"Content-Length": str(len(selected_wheel))},
+            )
+        raise AssertionError(url)
+
+    preflight = module.preflight_pypi_app_install(
+        "agi-app-demo>=1,<2",
+        opener=opener,
+        python_version="3.13.1",
+    )
+
+    assert preflight.status == "pass"
+    assert preflight.resolved_requirement == "agi-app-demo==1.5.0"
+    assert preflight.metadata is not None
+    assert preflight.metadata.wheel_sha256 == "1" * 64
+    assert all("2.0.0-py3-none-any.whl" not in url for url in opened)
+
+    calls: list[tuple[str, ...]] = []
+
+    def runner(command, **_kwargs):
+        calls.append(tuple(command))
+        return SimpleNamespace(returncode=0, stdout="installed", stderr="")
+
+    result = module.run_pypi_app_install(
+        "agi-app-demo>=1,<2",
+        preflight=preflight,
+        runner=runner,
+    )
+
+    assert result.status == "success"
+    assert result.requirement == "agi-app-demo==1.5.0"
+    assert calls[0][-1].endswith(f"#sha256={'1' * 64}")
 
 
 def test_list_installed_pypi_apps_discovers_agilab_entry_points(tmp_path: Path):
@@ -177,11 +259,26 @@ def test_management_commands_report_runner_results():
         calls.append((tuple(command), kwargs))
         return SimpleNamespace(returncode=0, stdout="ok\n", stderr="")
 
+    metadata = module.PypiAppMetadata(
+        package="agi-app-weather-forecast",
+        version="2026.5.18",
+        wheel_url="https://files.pythonhosted.org/agi_app_weather_forecast-2026.5.18-py3-none-any.whl",
+        wheel_sha256="a" * 64,
+    )
+    preflight = module.PypiAppPreflight(
+        status="pass",
+        requirement="agi-app-weather-forecast",
+        package="agi-app-weather-forecast",
+        resolved_requirement="agi-app-weather-forecast==2026.5.18",
+        metadata=metadata,
+    )
+
     install = module.run_pypi_app_install(
         "agi-app-weather-forecast",
         runner=runner,
         python_executable="/tmp/python",
         uv_executable="/tmp/uv",
+        preflight=preflight,
     )
     remove = module.run_pypi_app_uninstall(
         "agi-app-weather-forecast",
@@ -192,9 +289,51 @@ def test_management_commands_report_runner_results():
 
     assert install.status == "success"
     assert remove.status == "success"
-    assert calls[0][0][-1] == "agi-app-weather-forecast"
+    assert calls[0][0][-1] == (
+        "https://files.pythonhosted.org/agi_app_weather_forecast-2026.5.18-py3-none-any.whl"
+        f"#sha256={'a' * 64}"
+    )
+    assert install.requirement == "agi-app-weather-forecast==2026.5.18"
     assert calls[1][0][-1] == "agi-app-weather-forecast"
     assert calls[0][1]["timeout"] == module.PYPI_APP_INSTALL_TIMEOUT_SECONDS
+
+
+@pytest.mark.parametrize(
+    ("approved_package", "resolved_requirement", "metadata_package"),
+    (
+        ("agi-app-other", "agi-app-demo==1.0.0", "agi-app-demo"),
+        ("agi-app-demo", "agi-app-other==1.0.0", "agi-app-demo"),
+        ("agi-app-demo", "agi-app-demo==2.0.0", "agi-app-demo"),
+        ("agi-app-demo", "agi-app-demo==1.0.0", "agi-app-other"),
+    ),
+)
+def test_install_rejects_preflight_identity_mismatches(
+    approved_package: str,
+    resolved_requirement: str,
+    metadata_package: str,
+) -> None:
+    module = _load_module()
+    preflight = module.PypiAppPreflight(
+        status="pass",
+        requirement="agi-app-demo",
+        package=approved_package,
+        resolved_requirement=resolved_requirement,
+        metadata=module.PypiAppMetadata(
+            package=metadata_package,
+            version="1.0.0",
+            wheel_url=(
+                "https://files.pythonhosted.org/"
+                f"{metadata_package.replace('-', '_')}-1.0.0-py3-none-any.whl"
+            ),
+            wheel_sha256="a" * 64,
+        ),
+    )
+
+    result = module.run_pypi_app_install("agi-app-demo", preflight=preflight)
+
+    assert result.status == "error"
+    assert result.command == ()
+    assert "do not match the request" in result.output_tail
 
 
 def test_cli_search_and_dry_run_outputs_json(capsys):
@@ -366,15 +505,56 @@ def test_pypi_metadata_helpers_cover_error_and_size_edges():
             opener=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("bad json")),
         )
 
-    metadata = module.fetch_pypi_app_metadata(
-        "agi-app-demo",
-        opener=lambda *_args, **_kwargs: _Response(
-            json.dumps({"info": [], "urls": [{"packagetype": "bdist_wheel"}]}).encode("utf-8")
+    with pytest.raises(ValueError, match="No non-yanked PyPI release"):
+        module.fetch_pypi_app_metadata(
+            "agi-app-demo",
+            opener=lambda *_args, **_kwargs: _Response(
+                json.dumps(
+                    {"info": [], "urls": [{"packagetype": "bdist_wheel"}]}
+                ).encode("utf-8")
+            ),
+            inspect_wheel=False,
+        )
+
+
+@pytest.mark.parametrize(
+    ("wheel_url", "wheel_sha256", "message"),
+    (
+        (
+            "https://example.test/agi_app_demo-1.0.0-py3-none-any.whl",
+            "a" * 64,
+            "trusted files.pythonhosted.org",
         ),
-        inspect_wheel=False,
+        (
+            "https://files.pythonhosted.org/other-1.0.0-py3-none-any.whl",
+            "a" * 64,
+            "project does not match",
+        ),
+        (
+            "https://files.pythonhosted.org/agi_app_demo-2.0.0-py3-none-any.whl",
+            "a" * 64,
+            "version does not match",
+        ),
+        (
+            "https://files.pythonhosted.org/agi_app_demo-1.0.0-py3-none-any.whl",
+            "not-a-digest",
+            "valid wheel SHA-256",
+        ),
+    ),
+)
+def test_trusted_wheel_target_rejects_cross_origin_and_identity_mismatches(
+    wheel_url: str, wheel_sha256: str, message: str
+) -> None:
+    module = _load_module()
+    metadata = module.PypiAppMetadata(
+        package="agi-app-demo",
+        version="1.0.0",
+        wheel_url=wheel_url,
+        wheel_sha256=wheel_sha256,
     )
-    assert metadata.package == "agi-app-demo"
-    assert metadata.package_url == "https://pypi.org/project/agi-app-demo/"
+
+    with pytest.raises(ValueError, match=message):
+        module._trusted_wheel_install_target(metadata)
 
 
 def test_preflight_reports_python_entry_point_and_dependency_failures(monkeypatch):
@@ -400,8 +580,8 @@ def test_preflight_reports_python_entry_point_and_dependency_failures(monkeypatc
     result = module.preflight_pypi_app_install("agi-app-demo", python_version="3.13.0")
 
     assert result.status == "fail"
-    assert result.checks["wheel"] == "warning: no wheel published"
-    assert result.checks["entry_point"] == "fail: latest wheel has no agilab.apps entry point"
+    assert result.checks["wheel"] == "fail: no wheel published"
+    assert result.checks["entry_point"] == "fail: selected wheel has no agilab.apps entry point"
     assert any("Python 3.13.0 does not satisfy" in issue for issue in result.issues)
     assert any("installed 2025.1.1 does not satisfy" in issue for issue in result.issues)
 
@@ -411,14 +591,16 @@ def test_preflight_reports_python_entry_point_and_dependency_failures(monkeypatc
         requires_python="not-a-specifier",
         wheel_available=True,
         wheel_metadata_checked=False,
+        wheel_url="https://files.pythonhosted.org/demo-1.0.0-py3-none-any.whl",
+        wheel_sha256="a" * 64,
     )
     monkeypatch.setattr(module, "fetch_pypi_app_metadata", lambda *_args, **_kwargs: unknown)
 
     result = module.preflight_pypi_app_install("agi-app-demo", python_version="3.13.0")
 
-    assert result.status == "pass"
+    assert result.status == "fail"
     assert result.checks["python"].startswith("unknown:")
-    assert result.checks["entry_point"] == "unknown: wheel metadata was not inspected"
+    assert result.checks["entry_point"] == "fail: selected wheel metadata was not inspected"
 
 
 def test_cli_non_json_and_management_branches(monkeypatch, capsys):
@@ -469,9 +651,27 @@ def test_cli_non_json_and_management_branches(monkeypatch, capsys):
     assert module.main(["install", "agi-app-demo"]) == 1
     assert "preflight failed" in capsys.readouterr().err
 
-    monkeypatch.setattr(module, "preflight_pypi_app_install", lambda *_args, **_kwargs: success)
+    passing_preflight = module.PypiAppPreflight(
+        status="pass",
+        requirement="agi-app-demo",
+        package="agi-app-demo",
+        resolved_requirement="agi-app-demo==1.0.0",
+        metadata=module.PypiAppMetadata(
+            package="agi-app-demo",
+            version="1.0.0",
+            wheel_url="https://files.pythonhosted.org/agi_app_demo-1.0.0-py3-none-any.whl",
+            wheel_sha256="a" * 64,
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "preflight_pypi_app_install",
+        lambda *_args, **_kwargs: passing_preflight,
+    )
     monkeypatch.setattr(module, "run_pypi_app_install", lambda *_args, **_kwargs: success)
-    assert module.main(["install", "agi-app-demo", "--skip-preflight"]) == 0
+    assert module.main(["install", "agi-app-demo", "--skip-preflight"]) == 2
+    assert "no longer supported" in capsys.readouterr().err
+    assert module.main(["install", "agi-app-demo"]) == 0
     assert "installed" in capsys.readouterr().out
 
     monkeypatch.setattr(module, "installed_app_package_names", lambda: ())

@@ -23,6 +23,7 @@ import re
 import sys
 import stat
 import json
+from contextvars import ContextVar
 from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -33,10 +34,20 @@ import datetime
 import logging
 
 from agi_env import AgiEnv
+from agi_env.runtime.atomic_write_support import atomic_write_text
+
+from .distribution_cache_support import (
+    DISTRIBUTION_CACHE_SCHEMA,
+    build_cache_context,
+)
 
 logger = logging.getLogger(__name__)
 workers_default = {"127.0.0.1": 1}
 RUN_STAGES_KEY = "_agilab_run_stages"
+_ACTIVE_DISTRIBUTION_CAPACITIES: ContextVar[tuple[float, ...] | None] = ContextVar(
+    "agilab_distribution_capacities",
+    default=None,
+)
 
 # Conservative module/distribution name allow-list for runtime auto-install.
 # The auto-install command is executed through a shell, so the name must not
@@ -109,12 +120,101 @@ class WorkDispatcher:
         return _convert(workers_plan)
 
     @staticmethod
-    async def _do_distrib(env, workers, args):
+    def _cache_json_default(obj):
+        if isinstance(obj, (datetime.date, datetime.datetime)):
+            return obj.isoformat()
+        if isinstance(obj, Path):
+            return str(obj)
+        raise TypeError(f"Type {type(obj)} not serializable")
+
+    @staticmethod
+    def _normalize_cache_value(value):
+        return json.loads(
+            json.dumps(
+                value,
+                default=WorkDispatcher._cache_json_default,
+                sort_keys=True,
+            )
+        )
+
+    @staticmethod
+    def _worker_slots(workers):
+        return [
+            str(worker)
+            for worker, count in workers.items()
+            for _ in range(int(count))
+        ]
+
+    @staticmethod
+    def _load_cached_distribution(
+        file,
+        *,
+        workers,
+        worker_slots,
+        cache_args,
+        cache_context,
+    ):
+        try:
+            data = json.loads(file.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            logger.warning("Ignoring unreadable distribution cache %s: %s", file, exc)
+            return None
+
+        if not isinstance(data, dict):
+            logger.warning("Ignoring malformed distribution cache %s: expected an object", file)
+            return None
+        if data.get("schema") != DISTRIBUTION_CACHE_SCHEMA:
+            return None
+        if (
+            data.get("workers") != workers
+            or data.get("worker_slots") != worker_slots
+            or data.get("target_args") != cache_args
+            or data.get("cache_context") != cache_context
+        ):
+            return None
+
+        workers_plan = data.get("work_plan")
+        workers_plan_metadata = data.get("work_plan_metadata", [])
+        if not isinstance(workers_plan, list) or not isinstance(
+            workers_plan_metadata, list
+        ):
+            logger.warning(
+                "Ignoring malformed distribution cache %s: work plan payloads must be lists",
+                file,
+            )
+            return None
+        return workers_plan, workers_plan_metadata
+
+    @staticmethod
+    def _write_distribution_cache(file, data):
+        serialized = json.dumps(
+            data,
+            default=WorkDispatcher._cache_json_default,
+            indent=2,
+            sort_keys=True,
+        )
+        atomic_write_text(file, f"{serialized}\n", encoding="utf-8")
+
+    @staticmethod
+    async def _do_distrib(env, workers, args, *, capacities=None):
         """Build the distribution plan for ``env`` given worker layout and args."""
         target_args, run_stages = WorkDispatcher._split_dispatch_args(args)
         cache_args = dict(target_args)
         if run_stages:
             cache_args[RUN_STAGES_KEY] = run_stages
+        normalized_cache_args = WorkDispatcher._normalize_cache_value(cache_args)
+        normalized_workers = WorkDispatcher._normalize_cache_value(workers)
+        worker_slots = WorkDispatcher._worker_slots(workers)
+
+        active_capacities = None
+        if capacities is not None:
+            active_capacities = tuple(
+                float(value)
+                for value in WorkDispatcher._normalize_worker_capacities(
+                    capacities,
+                    workers,
+                )
+            )
 
         target_module = await WorkDispatcher._load_module(
             env.target,
@@ -130,32 +230,51 @@ class WorkDispatcher:
         WorkDispatcher._apply_run_stages(target_inst, run_stages)
 
         file = env.distribution_tree
-        workers_plan = []
-        workers_plan_metadata = []
-        rebuild_tree = False
+        cache_context = build_cache_context(
+            target_inst,
+            capacities=active_capacities,
+        )
+        cached_distribution = None
         if file.exists():
-            with open(file, "r") as f:
-                data = json.load(f)
-            workers_plan = data.get("work_plan")
-            workers_plan_metadata = data.get("work_plan_metadata", [])
-            if workers_plan is None or (
-                data["workers"] != workers
-                or data["target_args"] != cache_args
-            ):
-                rebuild_tree = True
+            cached_distribution = WorkDispatcher._load_cached_distribution(
+                file,
+                workers=normalized_workers,
+                worker_slots=worker_slots,
+                cache_args=normalized_cache_args,
+                cache_context=cache_context,
+            )
 
-        if not file.exists() or rebuild_tree:
-            (
-                workers_plan,
-                workers_plan_metadata,
-                part,
-                nb_unit,
-                weight_unit,
-            ) = target_inst.build_distribution(workers)
+        if cached_distribution is not None:
+            workers_plan, workers_plan_metadata = cached_distribution
+        else:
+            capacity_token = _ACTIVE_DISTRIBUTION_CAPACITIES.set(active_capacities)
+            try:
+                (
+                    workers_plan,
+                    workers_plan_metadata,
+                    part,
+                    nb_unit,
+                    weight_unit,
+                ) = target_inst.build_distribution(workers)
+            finally:
+                _ACTIVE_DISTRIBUTION_CAPACITIES.reset(capacity_token)
+
+            cache_context_after = build_cache_context(
+                target_inst,
+                capacities=active_capacities,
+            )
+            if cache_context != cache_context_after:
+                raise RuntimeError(
+                    "distribution inputs changed while the work plan was being built"
+                )
+            cache_context = cache_context_after
 
             data = {
-                "target_args": cache_args,
-                "workers": workers,
+                "schema": DISTRIBUTION_CACHE_SCHEMA,
+                "cache_context": cache_context,
+                "target_args": normalized_cache_args,
+                "workers": normalized_workers,
+                "worker_slots": worker_slots,
                 "work_plan_metadata": workers_plan_metadata,
                 "work_plan": WorkDispatcher._convert_functions_to_names(workers_plan),
                 "partition_key": part,
@@ -163,25 +282,16 @@ class WorkDispatcher:
                 "weights_unit": weight_unit,
             }
 
-            def convert_dates(obj):
-                if isinstance(obj, (datetime.date, datetime.datetime)):
-                    return obj.isoformat()
-                raise TypeError(f"Type {type(obj)} not serializable")
-
-            with open(file, "w") as f:
-                json.dump(data, f, default=convert_dates, indent=2)
+            WorkDispatcher._write_distribution_cache(file, data)
 
             # Normalize the in-memory plan exactly like the cached copy
             # (callables -> names, tuples -> lists, datetimes -> isoformat)
             # so cache-miss and cache-hit runs dispatch identical payloads.
-            normalized = json.loads(
-                json.dumps(
-                    {
-                        "work_plan": data["work_plan"],
-                        "work_plan_metadata": workers_plan_metadata,
-                    },
-                    default=convert_dates,
-                )
+            normalized = WorkDispatcher._normalize_cache_value(
+                {
+                    "work_plan": data["work_plan"],
+                    "work_plan_metadata": workers_plan_metadata,
+                }
             )
             workers_plan = normalized["work_plan"]
             workers_plan_metadata = normalized["work_plan_metadata"]
@@ -249,13 +359,13 @@ class WorkDispatcher:
 
     @staticmethod
     def make_chunks(
-    nchunk2: int,
-    weights: List[Any],
-    capacities: Optional[List[Any]] = None,
-    workers: Dict = None,  # ty: ignore[invalid-parameter-default]
-    verbose: int = 0,
-    threshold: int = 12,
-) -> List[List[List[Any]]]:
+        nchunk2: int,
+        weights: List[Any],
+        capacities: Optional[List[Any]] = None,
+        workers: Dict = None,  # ty: ignore[invalid-parameter-default]
+        verbose: int = 0,
+        threshold: int = 12,
+    ) -> List[List[List[Any]]]:
         """Partitions the nchunk2 weighted into n chuncks, in a smart way
         chunks and chunks_sizes must be left to None
 
@@ -274,6 +384,8 @@ class WorkDispatcher:
         """
         if not workers:
             workers = workers_default
+        if capacities is None:
+            capacities = _ACTIVE_DISTRIBUTION_CAPACITIES.get()
         capacities = WorkDispatcher._normalize_worker_capacities(capacities, workers)  # ty: ignore[invalid-assignment]
 
         if len(weights) > 1:

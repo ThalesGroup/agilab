@@ -16,6 +16,7 @@ import polars as pl
 from agi_env import AgiEnv
 from agi_cluster.agi_distributor import runtime_misc_support
 from agi_cluster.agi_distributor.run_request_support import RunRequest
+from agi_cluster.agi_distributor.runtime.worker_endpoint_support import worker_host
 from agi_node.agi_dispatcher.base_worker import BaseWorker
 
 
@@ -44,28 +45,23 @@ def _manager_path(env: AgiEnv) -> Path:
 
 
 def _worker_host(worker: Any) -> str:
-    value = str(worker or "").strip()
-    if "://" in value:
-        value = value.rsplit("://", 1)[-1]
-    if "@" in value:
-        value = value.rsplit("@", 1)[-1]
-    if value.startswith("[") and "]" in value:
-        return value[1:value.index("]")]
-    if value.count(":") == 1:
-        value = value.split(":", 1)[0]
-    return value
+    """Compatibility alias for the centralized endpoint parser."""
+
+    return worker_host(worker)
 
 
 def _worker_count_for_host(workers: Mapping[str, int] | None, host: str) -> int | None:
     if not workers:
         return None
-    if host in workers:
-        return int(workers[host])
+    normalized_host = worker_host(host)
     localhost_aliases = {"localhost", "127.0.0.1", "::1"}
-    if host in localhost_aliases:
-        for alias in localhost_aliases:
-            if alias in workers:
-                return int(workers[alias])
+    for worker, count in workers.items():
+        configured_host = worker_host(worker)
+        if configured_host == normalized_host or (
+            configured_host in localhost_aliases
+            and normalized_host in localhost_aliases
+        ):
+            return int(count)
     return None
 
 

@@ -1389,6 +1389,7 @@ def _render_pypi_app_install_action(env) -> None:
 
         preflight_payload = st.session_state.get(preflight_key)
         preflight_passed = False
+        install_requirement = requirement
         if isinstance(preflight_payload, dict):
             payload_requirement = str(preflight_payload.get("requirement") or "")
             if payload_requirement != requirement:
@@ -1396,6 +1397,11 @@ def _render_pypi_app_install_action(env) -> None:
             else:
                 preflight_status = str(preflight_payload.get("status") or "").lower()
                 preflight_passed = preflight_status in {"pass", "success"}
+                resolved_requirement = str(
+                    preflight_payload.get("resolved_requirement") or ""
+                )
+                if preflight_passed and resolved_requirement:
+                    install_requirement = resolved_requirement
         _render_pypi_metadata_summary(
             preflight_payload if isinstance(preflight_payload, dict) else None
         )
@@ -1421,11 +1427,11 @@ def _render_pypi_app_install_action(env) -> None:
                 st,
                 ActionSpec(
                     name="Install agi-app",
-                    start_message=f"Installing {requirement}...",
+                    start_message=f"Installing {install_requirement}...",
                     failure_title="agi-app install failed.",
                     failure_next_action="Check the agi-app name, Python version support, and PyPI availability.",
                 ),
-                lambda: _install_pypi_app_package(requirement),
+                lambda: _install_pypi_app_package(install_requirement),
                 on_success=lambda _result: _refresh_projects_after_pypi_app_install(
                     env
                 ),

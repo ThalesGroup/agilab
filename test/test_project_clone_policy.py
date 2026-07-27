@@ -1580,33 +1580,49 @@ def test_pypi_app_requirement_validation_and_install_command():
             module._normalize_pypi_app_requirement(bad_value)
 
 
-def test_install_pypi_app_package_reports_success_and_failure():
+def test_install_pypi_app_package_reports_success_and_failure(monkeypatch):
     module = _load_project_module()
-    calls: list[tuple[tuple[str, ...], dict[str, object]]] = []
+    calls: list[tuple[str, dict[str, object]]] = []
 
-    def success_runner(command, **kwargs):
-        calls.append((tuple(command), kwargs))
-        return SimpleNamespace(returncode=0, stdout="installed\n", stderr="")
+    def successful_install(requirement, **kwargs):
+        calls.append((requirement, kwargs))
+        return module._pypi_app_packages_module.PypiAppCommandResult(
+            status="success",
+            requirement="agi-app-weather-forecast==2026.7.17",
+            command=("uv", "pip", "install", "trusted-wheel"),
+            returncode=0,
+            output_tail="installed",
+        )
+
+    monkeypatch.setattr(module, "_run_pypi_app_install", successful_install)
 
     success = module._install_pypi_app_package(
         "agi-app-weather-forecast",
-        runner=success_runner,
+        runner=object(),
         python_executable="/tmp/python",
         uv_executable="/tmp/uv",
     )
 
     assert success.status == "success"
-    assert success.data["requirement"] == "agi-app-weather-forecast"
-    assert calls[0][0][-1] == "agi-app-weather-forecast"
-    assert calls[0][1]["timeout"] == module.PYPI_APP_INSTALL_TIMEOUT_SECONDS
+    assert success.data["requirement"] == "agi-app-weather-forecast==2026.7.17"
+    assert calls[0][0] == "agi-app-weather-forecast"
+    assert calls[0][1]["python_executable"] == "/tmp/python"
     assert "Refresh PROJECT" in success.next_action
 
-    def failure_runner(command, **kwargs):
-        return SimpleNamespace(returncode=1, stdout="", stderr="No matching distribution found\n")
+    def failed_install(requirement, **_kwargs):
+        return module._pypi_app_packages_module.PypiAppCommandResult(
+            status="error",
+            requirement=requirement,
+            command=(),
+            returncode=1,
+            output_tail="No matching distribution found",
+        )
+
+    monkeypatch.setattr(module, "_run_pypi_app_install", failed_install)
 
     failure = module._install_pypi_app_package(
         "agi-app-missing-demo",
-        runner=failure_runner,
+        runner=object(),
         python_executable="/tmp/python",
         uv_executable="/tmp/uv",
     )

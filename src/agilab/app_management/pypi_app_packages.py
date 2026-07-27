@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from dataclasses import asdict, dataclass, field
@@ -21,6 +22,7 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 try:
     from packaging.requirements import Requirement
     from packaging.specifiers import InvalidSpecifier, SpecifierSet
+    from packaging.utils import canonicalize_name, parse_wheel_filename
     from packaging.version import InvalidVersion, Version
 except ModuleNotFoundError:  # pragma: no cover - packaging is supplied by AGILAB's core stack.
     Requirement = None  # type: ignore[assignment]
@@ -28,6 +30,8 @@ except ModuleNotFoundError:  # pragma: no cover - packaging is supplied by AGILA
     Version = None  # type: ignore[assignment]
     InvalidSpecifier = Exception  # type: ignore[assignment]
     InvalidVersion = Exception  # type: ignore[assignment]
+    canonicalize_name = None  # type: ignore[assignment]
+    parse_wheel_filename = None  # type: ignore[assignment]
 
 
 PYPI_APP_INSTALL_TIMEOUT_SECONDS = 15 * 60
@@ -86,6 +90,8 @@ class PypiAppMetadata:
     entry_points: tuple[str, ...] = ()
     wheel_metadata_checked: bool = False
     hashes: tuple[str, ...] = ()
+    wheel_url: str = ""
+    wheel_sha256: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -96,6 +102,7 @@ class PypiAppPreflight:
     status: str
     requirement: str
     package: str
+    resolved_requirement: str = ""
     metadata: PypiAppMetadata | None = None
     checks: Mapping[str, str] = field(default_factory=dict)
     issues: tuple[str, ...] = ()
@@ -157,6 +164,7 @@ def pypi_app_install_command(
     *,
     python_executable: str | None = None,
     uv_executable: str | None = None,
+    install_target: str | None = None,
 ) -> tuple[str, ...]:
     uv = uv_executable or shutil.which("uv") or "uv"
     return (
@@ -168,7 +176,7 @@ def pypi_app_install_command(
         "--python",
         python_executable or sys.executable,
         "--upgrade",
-        normalize_pypi_app_requirement(requirement),
+        install_target or normalize_pypi_app_requirement(requirement),
     )
 
 
@@ -203,12 +211,60 @@ def run_pypi_app_install(
     runner: Callable[..., Any] = subprocess.run,
     python_executable: str | None = None,
     uv_executable: str | None = None,
+    opener: Callable[..., Any] = urllib.request.urlopen,
+    preflight: PypiAppPreflight | None = None,
 ) -> PypiAppCommandResult:
     normalized = normalize_pypi_app_requirement(requirement)
+    approved = preflight or preflight_pypi_app_install(normalized, opener=opener)
+    if approved.requirement != normalized:
+        return PypiAppCommandResult(
+            "error",
+            normalized,
+            (),
+            1,
+            "preflight requirement does not match the requested package",
+        )
+    if approved.status != "pass" or approved.metadata is None:
+        return PypiAppCommandResult(
+            "error",
+            normalized,
+            (),
+            1,
+            "; ".join(approved.issues) or "PyPI app preflight failed",
+        )
+    requested_package = pypi_app_package_name(normalized)
+    expected_resolution = f"{requested_package}=={approved.metadata.version}"
+    try:
+        approved_package = pypi_app_package_name(approved.package)
+        metadata_package = pypi_app_package_name(approved.metadata.package)
+        resolved_requirement = normalize_pypi_app_requirement(
+            approved.resolved_requirement
+        )
+    except ValueError as exc:
+        return PypiAppCommandResult(
+            "error", normalized, (), 1, f"invalid preflight identity: {exc}"
+        )
+    if (
+        approved_package != requested_package
+        or metadata_package != requested_package
+        or resolved_requirement != expected_resolution
+    ):
+        return PypiAppCommandResult(
+            "error",
+            normalized,
+            (),
+            1,
+            "preflight package and resolved release do not match the request",
+        )
+    try:
+        install_target = _trusted_wheel_install_target(approved.metadata)
+    except ValueError as exc:
+        return PypiAppCommandResult("error", normalized, (), 1, str(exc))
     command = pypi_app_install_command(
-        normalized,
+        resolved_requirement,
         python_executable=python_executable,
         uv_executable=uv_executable,
+        install_target=install_target,
     )
     completed = runner(
         command,
@@ -225,7 +281,7 @@ def run_pypi_app_install(
     returncode = int(getattr(completed, "returncode", 1))
     return PypiAppCommandResult(
         "success" if returncode == 0 else "error",
-        normalized,
+        resolved_requirement,
         command,
         returncode,
         output_tail,
@@ -354,8 +410,9 @@ def _open_url(
     return opener(request, timeout=timeout)
 
 
-def _pypi_json_url(package: str) -> str:
-    return f"https://pypi.org/pypi/{package}/json"
+def _pypi_json_url(package: str, version: str = "") -> str:
+    suffix = f"/{version}" if version else ""
+    return f"https://pypi.org/pypi/{package}{suffix}/json"
 
 
 def _distribution_project_url(info: Mapping[str, Any]) -> str:
@@ -380,11 +437,116 @@ def _release_files(payload: Mapping[str, Any], version: str) -> tuple[Mapping[st
     return ()
 
 
+def _best_wheel_file(files: Sequence[Mapping[str, Any]]) -> Mapping[str, Any] | None:
+    wheels = [
+        file_info
+        for file_info in files
+        if str(file_info.get("packagetype") or "") == "bdist_wheel"
+        and not bool(file_info.get("yanked"))
+    ]
+    if not wheels:
+        return None
+    return min(
+        wheels,
+        key=lambda item: (
+            not str(item.get("filename") or "").endswith("py3-none-any.whl"),
+            str(item.get("filename") or item.get("url") or ""),
+        ),
+    )
+
+
 def _best_wheel_url(files: Sequence[Mapping[str, Any]]) -> str:
-    for file_info in files:
-        if str(file_info.get("packagetype") or "") == "bdist_wheel":
-            return str(file_info.get("url") or "")
-    return ""
+    """Return the deterministic wheel URL retained for compatibility callers."""
+
+    wheel = _best_wheel_file(files)
+    return str(wheel.get("url") or "") if wheel is not None else ""
+
+
+def _wheel_sha256(file_info: Mapping[str, Any] | None) -> str:
+    if file_info is None:
+        return ""
+    digests = file_info.get("digests")
+    if not isinstance(digests, Mapping):
+        return ""
+    digest = str(digests.get("sha256") or "").lower()
+    return digest if re.fullmatch(r"[0-9a-f]{64}", digest) else ""
+
+
+def _trusted_wheel_install_target(metadata: PypiAppMetadata) -> str:
+    parsed = urllib.parse.urlsplit(metadata.wheel_url)
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != "files.pythonhosted.org"
+        or parsed.port not in {None, 443}
+        or not parsed.path.endswith(".whl")
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError(
+            "preflight did not resolve a trusted files.pythonhosted.org wheel URL"
+        )
+    if not re.fullmatch(r"[0-9a-f]{64}", metadata.wheel_sha256):
+        raise ValueError("preflight did not resolve a valid wheel SHA-256 digest")
+    if parse_wheel_filename is None or canonicalize_name is None or Version is None:
+        raise ValueError(
+            "The packaging dependency is required to verify wheel identity."
+        )
+    filename = urllib.parse.unquote(Path(parsed.path).name)
+    try:
+        wheel_name, wheel_version, _build, _tags = parse_wheel_filename(filename)
+        expected_version = Version(metadata.version)
+    except (InvalidVersion, ValueError) as exc:
+        raise ValueError(
+            "preflight resolved an invalid wheel filename or version"
+        ) from exc
+    if canonicalize_name(wheel_name) != canonicalize_name(metadata.package):
+        raise ValueError("preflight wheel project does not match the requested package")
+    if wheel_version != expected_version:
+        raise ValueError("preflight wheel version does not match the resolved release")
+    return f"{metadata.wheel_url}#sha256={metadata.wheel_sha256}"
+
+
+def _selected_release_version(
+    payload: Mapping[str, Any], requirement: str
+) -> str:
+    if Requirement is None or Version is None:
+        raise ValueError(
+            "The packaging dependency is required to resolve PyPI app versions."
+        )
+    parsed_requirement = Requirement(requirement)
+    releases = payload.get("releases")
+    if not isinstance(releases, Mapping):
+        releases = {}
+    candidates: list[Version] = []
+    for raw_version, raw_files in releases.items():
+        if not isinstance(raw_files, list) or not any(
+            isinstance(item, Mapping) and not bool(item.get("yanked"))
+            for item in raw_files
+        ):
+            continue
+        try:
+            version = Version(str(raw_version))
+        except InvalidVersion:
+            continue
+        if parsed_requirement.specifier and version not in parsed_requirement.specifier:
+            continue
+        candidates.append(version)
+    if candidates:
+        return str(max(candidates))
+
+    info = payload.get("info")
+    latest = str(info.get("version") or "").strip() if isinstance(info, Mapping) else ""
+    if latest:
+        try:
+            version = Version(latest)
+        except InvalidVersion:
+            version = None
+        if version is not None and (
+            not parsed_requirement.specifier
+            or version in parsed_requirement.specifier
+        ):
+            return str(version)
+    raise ValueError(f"No non-yanked PyPI release satisfies {requirement}.")
 
 
 def _wheel_entry_points_from_bytes(data: bytes) -> tuple[str, ...]:
@@ -428,11 +590,14 @@ def fetch_pypi_app_metadata(
     opener: Callable[..., Any] = urllib.request.urlopen,
     inspect_wheel: bool = True,
 ) -> PypiAppMetadata:
-    """Fetch PyPI JSON metadata and, when feasible, app entry points from the latest wheel."""
+    """Resolve and inspect the exact PyPI release selected by ``requirement``."""
 
-    package = pypi_app_package_name(requirement)
+    normalized = normalize_pypi_app_requirement(requirement)
+    package = pypi_app_package_name(normalized)
     try:
-        payload = _read_json_response(_open_url(_pypi_json_url(package), opener=opener))
+        project_payload = _read_json_response(
+            _open_url(_pypi_json_url(package), opener=opener)
+        )
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             raise ValueError(f"{package} is not available on PyPI.") from exc
@@ -442,11 +607,35 @@ def fetch_pypi_app_metadata(
     except Exception as exc:
         raise ValueError(f"PyPI metadata lookup failed for {package}: {exc}.") from exc
 
+    if not isinstance(project_payload, Mapping):
+        raise ValueError(  # noqa: TRY004 - normalized as a user-facing lookup failure.
+            f"PyPI metadata lookup failed for {package}: invalid JSON object."
+        )
+    version = _selected_release_version(project_payload, normalized)
+    project_info = project_payload.get("info")
+    latest_version = (
+        str(project_info.get("version") or "").strip()
+        if isinstance(project_info, Mapping)
+        else ""
+    )
+    if version == latest_version:
+        payload = project_payload
+    else:
+        try:
+            payload = _read_json_response(
+                _open_url(_pypi_json_url(package, version), opener=opener)
+            )
+        except Exception as exc:
+            raise ValueError(
+                f"PyPI metadata lookup failed for {package} {version}: {exc}."
+            ) from exc
+
     info = payload.get("info") if isinstance(payload, Mapping) else {}
     if not isinstance(info, Mapping):
         info = {}
-    version = str(info.get("version") or "").strip()
-    files = _release_files(payload, version)
+    files = tuple(
+        item for item in _release_files(payload, version) if not bool(item.get("yanked"))
+    )
     wheel_available = any(str(file_info.get("packagetype") or "") == "bdist_wheel" for file_info in files)
     sdist_available = any(str(file_info.get("packagetype") or "") == "sdist" for file_info in files)
     signed_files = any(bool(file_info.get("has_sig")) for file_info in files)
@@ -461,8 +650,11 @@ def fetch_pypi_app_metadata(
     )
     entry_points: tuple[str, ...] = ()
     wheel_metadata_checked = False
+    wheel_file = _best_wheel_file(files)
+    wheel_url = str(wheel_file.get("url") or "") if wheel_file is not None else ""
+    wheel_sha256 = _wheel_sha256(wheel_file)
     if inspect_wheel and wheel_available:
-        entry_points_or_none = _download_wheel_entry_points(_best_wheel_url(files), opener=opener)
+        entry_points_or_none = _download_wheel_entry_points(wheel_url, opener=opener)
         if entry_points_or_none is not None:
             wheel_metadata_checked = True
             entry_points = entry_points_or_none
@@ -482,6 +674,8 @@ def fetch_pypi_app_metadata(
         entry_points=entry_points,
         wheel_metadata_checked=wheel_metadata_checked,
         hashes=hashes,
+        wheel_url=wheel_url,
+        wheel_sha256=wheel_sha256,
     )
 
 
@@ -559,10 +753,18 @@ def preflight_pypi_app_install(
         )
 
     checks["pypi"] = "pass"
-    checks["wheel"] = "pass" if metadata.wheel_available else "warning: no wheel published"
+    checks["resolved_release"] = f"pass: {package}=={metadata.version}"
+    checks["wheel"] = "pass" if metadata.wheel_available else "fail: no wheel published"
+    if not metadata.wheel_available:
+        issues.append(checks["wheel"])
     checks["sdist"] = "pass" if metadata.sdist_available else "warning: no source distribution published"
-    checks["provenance"] = "pass" if metadata.provenance_available else "unknown: PyPI JSON exposes no attestation for the latest files"
+    checks["provenance"] = "pass" if metadata.provenance_available else "unknown: PyPI JSON exposes no attestation for the selected release"
     checks["signature"] = "pass" if metadata.signed_files else "unknown: no detached signature advertised"
+    if metadata.wheel_sha256:
+        checks["artifact_hash"] = f"pass: sha256:{metadata.wheel_sha256}"
+    else:
+        checks["artifact_hash"] = "fail: selected wheel has no valid SHA-256 digest"
+        issues.append(checks["artifact_hash"])
 
     current_python = python_version or _python_version_string()
     python_satisfied = _version_satisfies_spec(current_python, metadata.requires_python)
@@ -577,10 +779,11 @@ def preflight_pypi_app_install(
     if metadata.wheel_metadata_checked and metadata.entry_points:
         checks["entry_point"] = f"pass: {', '.join(metadata.entry_points)}"
     elif metadata.wheel_metadata_checked:
-        checks["entry_point"] = "fail: latest wheel has no agilab.apps entry point"
+        checks["entry_point"] = "fail: selected wheel has no agilab.apps entry point"
         issues.append(checks["entry_point"])
     else:
-        checks["entry_point"] = "unknown: wheel metadata was not inspected"
+        checks["entry_point"] = "fail: selected wheel metadata was not inspected"
+        issues.append(checks["entry_point"])
 
     checks.update(_dependency_compatibility(metadata.requires_dist))
     for key, detail in checks.items():
@@ -591,6 +794,7 @@ def preflight_pypi_app_install(
         "fail" if issues else "pass",
         normalized,
         package,
+        resolved_requirement=f"{package}=={metadata.version}",
         metadata=metadata,
         checks=checks,
         issues=tuple(issues),
@@ -686,17 +890,29 @@ def _app_install(args: argparse.Namespace) -> int:
         else:
             print(" ".join(command))
         return 0
-    if not args.skip_preflight:
-        preflight = preflight_pypi_app_install(requirement)
-        if preflight.status != "pass":
-            if args.json:
-                _print_json(preflight.as_dict())
-            else:
-                print(f"preflight failed for {requirement}", file=sys.stderr)
-                for issue in preflight.issues:
-                    print(f"- {issue}", file=sys.stderr)
-            return 1
-    return _run_management_command(run_pypi_app_install(requirement), json_output=args.json)
+    if args.skip_preflight:
+        message = (
+            "--skip-preflight is no longer supported; exact-release wheel and "
+            "SHA-256 verification are mandatory"
+        )
+        if args.json:
+            _print_json({"status": "fail", "issues": [message]})
+        else:
+            print(message, file=sys.stderr)
+        return 2
+    preflight = preflight_pypi_app_install(requirement)
+    if preflight.status != "pass":
+        if args.json:
+            _print_json(preflight.as_dict())
+        else:
+            print(f"preflight failed for {requirement}", file=sys.stderr)
+            for issue in preflight.issues:
+                print(f"- {issue}", file=sys.stderr)
+        return 1
+    return _run_management_command(
+        run_pypi_app_install(requirement, preflight=preflight),
+        json_output=args.json,
+    )
 
 
 def _app_update(args: argparse.Namespace) -> int:
@@ -767,7 +983,11 @@ def _build_parser(
 
     install_parser = subparsers.add_parser("install", help="Install one trusted agi-app-* package.")
     install_parser.add_argument("requirement")
-    install_parser.add_argument("--skip-preflight", action="store_true")
+    install_parser.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Deprecated compatibility flag; trusted artifact preflight cannot be bypassed.",
+    )
     install_parser.add_argument("--dry-run", action="store_true")
     install_parser.add_argument("--json", action="store_true")
     install_parser.set_defaults(func=_app_install)

@@ -33,6 +33,9 @@ Generate a Job manifest
 -----------------------
 
 Pick an image that already contains AGILAB and the app payload you want to run.
+``--image`` is required and has no default. AGILAB does not publish a container
+image, so this is an image you build and push to your own registry; the
+``registry.example.com`` values below are placeholders, not pullable artifacts.
 The default command is the packaged first proof:
 ``python -m agilab.lab_run first-proof --json --max-seconds 60``.
 
@@ -40,7 +43,7 @@ The default command is the packaged first proof:
 
    agilab kubernetes-job \
      --app flight_telemetry_project \
-     --image ghcr.io/thalesgroup/agilab:2026.07.17.1 \
+     --image registry.example.com/agilab:2026.07.17.1 \
      --namespace agilab \
      --pvc agilab-artifacts \
      --output /tmp/agilab-flight-first-proof-job.yaml
@@ -61,7 +64,7 @@ Pass the container command after ``--``:
 
    agilab kubernetes-job \
      --app flight_telemetry_project \
-     --image ghcr.io/thalesgroup/agilab:2026.07.17.1 \
+     --image registry.example.com/agilab:2026.07.17.1 \
      --env OPENAI_MODEL=gpt-4.1-mini \
      --output /tmp/agilab-job.yaml \
      -- \
