@@ -13,7 +13,6 @@ SCAN_ROOTS = (
 
 def _python_files() -> list[Path]:
     skipped_parts = {
-        ".venv",
         "__pycache__",
         "build",
         "dist",
@@ -24,6 +23,12 @@ def _python_files() -> list[Path]:
     for root in SCAN_ROOTS:
         for path in root.rglob("*.py"):
             if skipped_parts.intersection(path.parts):
+                continue
+            # Environments are not repo source. Match by prefix: alongside plain
+            # `.venv`, app and page bundles create siblings such as
+            # `.venv.agilab-linking`, whose third-party contents would otherwise
+            # be scanned as if they were ours.
+            if any(part.startswith(".venv") for part in path.parts):
                 continue
             files.append(path)
     return sorted(files)
