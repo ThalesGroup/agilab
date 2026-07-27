@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import subprocess
 import sys
 import time
+from pathlib import Path
 from unittest import mock
 
+import agi_env.execution_support as execution_support
 import psutil
 import pytest
-
-import agi_env.execution_support as execution_support
 
 
 class _FakeStream:
@@ -325,14 +324,19 @@ def test_kill_and_wait_terminates_verified_owned_posix_group(monkeypatch):
     killpg_calls: list[tuple[int, int]] = []
 
     monkeypatch.setattr(execution_support.os, "name", "posix")
-    monkeypatch.setattr(execution_support.os, "getpgid", lambda pid: pid)
-    monkeypatch.setattr(execution_support.os, "getpgrp", lambda: 9876)
+    monkeypatch.setattr(
+        execution_support.os, "getpgid", lambda pid: pid, raising=False
+    )
+    monkeypatch.setattr(
+        execution_support.os, "getpgrp", lambda: 9876, raising=False
+    )
     monkeypatch.setattr(
         execution_support.os,
         "killpg",
         lambda process_group, signal_number: killpg_calls.append(
             (process_group, signal_number)
         ),
+        raising=False,
     )
 
     asyncio.run(execution_support._kill_and_wait(proc))
