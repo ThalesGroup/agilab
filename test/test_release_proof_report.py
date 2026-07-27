@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-
 MODULE_PATH = Path("tools/release_proof_report.py").resolve()
 
 
@@ -25,8 +24,13 @@ def _load_module():
     return module
 
 
-def test_release_proof_manifest_renders_checked_in_page() -> None:
+def test_release_proof_manifest_renders_checked_in_page(monkeypatch) -> None:
     module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "_local_release_app_count",
+        lambda _repo_root, _release_ref: 15,
+    )
 
     report = module.build_report(
         manifest_path=Path("docs/source/data/release_proof.toml"),
@@ -51,6 +55,33 @@ def test_release_proof_manifest_renders_checked_in_page() -> None:
     assert release_apps["details"] == {
         "expected_app_count": 15,
         "local_release_app_count": 15,
+    }
+
+
+def test_release_proof_allows_unavailable_local_tag_tree(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "_local_release_app_count",
+        lambda _repo_root, _release_ref: None,
+    )
+
+    report = module.build_report(
+        manifest_path=Path("docs/source/data/release_proof.toml"),
+        output_path=Path("docs/source/release-proof.rst"),
+    )
+
+    release_apps = next(
+        check for check in report["checks"] if check["id"] == "release_app_inventory"
+    )
+    assert report["status"] == "pass"
+    assert release_apps["status"] == "pass"
+    assert release_apps["summary"] == (
+        "manifest records the release app count; local tag tree is unavailable"
+    )
+    assert release_apps["details"] == {
+        "expected_app_count": 15,
+        "local_release_app_count": None,
     }
 
 
