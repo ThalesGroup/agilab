@@ -366,3 +366,43 @@ def test_release_plan_current_workflow_consumes_generated_matrix() -> None:
     )
 
     assert missing == []
+
+
+@pytest.mark.parametrize(
+    ("requirements", "expected_message"),
+    [
+        (
+            ".github/requirements/ci-publish.txt",
+            "publisher jobs must use the hash-locked publishing toolchain",
+        ),
+        (
+            ".github/requirements/ci-pypi-web.txt",
+            "PyPI retention must use the hash-locked web automation toolchain",
+        ),
+        (
+            ".github/requirements/ci-hf-release.txt",
+            "HF Space sync must use the hash-locked HF CLI dependency set",
+        ),
+    ],
+)
+def test_release_plan_workflow_contract_requires_locked_toolchains(
+    tmp_path: Path,
+    requirements: str,
+    expected_message: str,
+) -> None:
+    module = _load_module()
+    live = (REPO_ROOT / ".github/workflows/pypi-publish.yaml").read_text(
+        encoding="utf-8"
+    )
+    workflow = tmp_path / "pypi-publish.yaml"
+    workflow.write_text(
+        live.replace(
+            f"requirements: {requirements}",
+            "requirements: .github/requirements/unlocked.txt",
+        ),
+        encoding="utf-8",
+    )
+
+    missing = module.validate_workflow_contract(workflow)
+
+    assert any(expected_message in error for error in missing)

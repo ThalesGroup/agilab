@@ -42,6 +42,9 @@ on:
     tags:
       - "v*.*.*"
 
+permissions:
+  contents: read
+
 concurrency:
   group: pypi-publish-${{ github.ref }}
   cancel-in-progress: true
@@ -56,14 +59,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install uv
-        run: python -m pip install --upgrade --no-cache-dir uv
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.10.7"
 
       - name: Run strict AGILAB audit review
         env:
@@ -106,17 +113,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
           lfs: true
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install uv
-        run: python -m pip install --upgrade --no-cache-dir uv
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.10.7"
 
       - name: Resolve Playwright version for browser cache key
         id: playwright-version
@@ -174,14 +183,17 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           lfs: true
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install uv
-        run: python -m pip install --upgrade --no-cache-dir uv
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.10.7"
 
       - name: Build sample external evidence payload
         run: |
@@ -203,7 +215,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           for attempt in 1 2 3 4 5 6; do
             if uv --preview-features extra-build-dependencies run \
               python tools/github_actions_artifact_index.py \
@@ -247,14 +259,17 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           lfs: true
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install uv
-        run: python -m pip install --upgrade --no-cache-dir uv
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.10.7"
 
       - name: Generate per-profile SBOM and vulnerability evidence
         run: |
@@ -297,14 +312,17 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install release-plan dependencies
-        run: python -m pip install --upgrade --no-cache-dir packaging pyyaml
+      - name: Set up locked release-plan dependencies
+        uses: ./.github/actions/setup-locked-python-tools
+        with:
+          requirements: .github/requirements/ci-publish.txt
 
       - name: Render release package plan
         id: release-plan
@@ -385,23 +403,35 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    env:
-      PYPI_TRUSTED_PUBLISHING: ${{ vars.PYPI_TRUSTED_PUBLISHING || secrets.PYPI_TRUSTED_PUBLISHING }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
           lfs: true
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install uv and twine
-        run: python -m pip install --upgrade --no-cache-dir uv twine
+      - name: Set up locked publishing dependencies
+        uses: ./.github/actions/setup-locked-python-tools
+        with:
+          requirements: .github/requirements/ci-publish.txt
+
+      - name: Resolve PyPI trusted publishing mode
+        id: library-trusted-publishing
+        env:
+          PYPI_TRUSTED_PUBLISHING: ${{ vars.PYPI_TRUSTED_PUBLISHING || secrets.PYPI_TRUSTED_PUBLISHING }}
+        run: |
+          set -euo pipefail
+          if [[ "${PYPI_TRUSTED_PUBLISHING:-}" == "true" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Check whether ${{ matrix.package }} can reuse PyPI artifacts
         id: library-pypi-reuse
@@ -481,7 +511,7 @@ jobs:
         if: steps.library-pypi-reuse.outputs.all-exist != 'true' && steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true'
         run: |
           set -euo pipefail
-          if [ "${PYPI_TRUSTED_PUBLISHING:-}" = "true" ]; then
+          if [ "${{ steps.library-trusted-publishing.outputs.enabled }}" = "true" ]; then
             echo "Using PyPI trusted publishing."
             exit 0
           fi
@@ -499,7 +529,7 @@ jobs:
       # PyPI OIDC tokens are project-scoped. The matrix gives each PyPI
       # project a distinct GitHub environment claim.
       - name: Publish ${{ matrix.package }} to PyPI with trusted publishing
-        if: steps.library-pypi-reuse.outputs.all-exist != 'true' && steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
+        if: steps.library-pypi-reuse.outputs.all-exist != 'true' && steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true' && steps.library-trusted-publishing.outputs.enabled == 'true'
         uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # release/v1
         with:
           packages-dir: ${{ matrix.dist }}
@@ -519,23 +549,35 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    env:
-      PYPI_TRUSTED_PUBLISHING: ${{ vars.PYPI_TRUSTED_PUBLISHING || secrets.PYPI_TRUSTED_PUBLISHING }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
           lfs: true
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install uv and twine
-        run: python -m pip install --upgrade --no-cache-dir uv twine
+      - name: Set up locked publishing dependencies
+        uses: ./.github/actions/setup-locked-python-tools
+        with:
+          requirements: .github/requirements/ci-publish.txt
+
+      - name: Resolve PyPI trusted publishing mode
+        id: agilab-trusted-publishing
+        env:
+          PYPI_TRUSTED_PUBLISHING: ${{ vars.PYPI_TRUSTED_PUBLISHING || secrets.PYPI_TRUSTED_PUBLISHING }}
+        run: |
+          set -euo pipefail
+          if [[ "${PYPI_TRUSTED_PUBLISHING:-}" == "true" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Check whether agilab can reuse PyPI artifacts
         id: agilab-pypi-reuse
@@ -603,7 +645,7 @@ jobs:
         if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' && steps.agilab-pypi-state.outputs.all-exist != 'true'
         run: |
           set -euo pipefail
-          if [ "${PYPI_TRUSTED_PUBLISHING:-}" = "true" ]; then
+          if [ "${{ steps.agilab-trusted-publishing.outputs.enabled }}" = "true" ]; then
             echo "Using PyPI trusted publishing."
             exit 0
           fi
@@ -619,7 +661,7 @@ jobs:
             --github-step-summary "$GITHUB_STEP_SUMMARY"
 
       - name: Publish agilab to PyPI with trusted publishing
-        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' && steps.agilab-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
+        if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' && steps.agilab-pypi-state.outputs.all-exist != 'true' && steps.agilab-trusted-publishing.outputs.enabled == 'true'
         uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # release/v1
         with:
           packages-dir: dist/
@@ -642,6 +684,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -692,6 +736,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Download release distribution artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -738,7 +784,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           release_tag="${RELEASE_TAG#refs/tags/}"
           if [[ "$release_tag" != v* ]]; then
             release_tag="v${release_tag}"
@@ -763,29 +809,33 @@ jobs:
       contents: read
       actions: write
     env:
-      PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
-      PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
-      PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
-      PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}
-      PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}
       PYPI_RETENTION_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install PyPI retention dependencies
-        run: python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup requests
+      - name: Set up locked PyPI web dependencies
+        uses: ./.github/actions/setup-locked-python-tools
+        with:
+          requirements: .github/requirements/ci-pypi-web.txt
 
       - name: Delete older PyPI releases once package history exceeds configured threshold
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}
+          PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
+          PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
+          PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
+          PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           test -n "${PYPI_CONFIRM_READER_TOKEN:-}" || {
             echo "PYPI_CONFIRM_READER_TOKEN secret is required to read the temporary PyPI confirmation variable." >&2
             exit 2
@@ -869,6 +919,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           lfs: true
+          persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
@@ -922,11 +973,9 @@ jobs:
       actions: read
     env:
       RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
-      HF_TOKEN: ${{ secrets.HF_TOKEN }}
       HF_SPACE_ID: ${{ vars.AGILAB_HF_SPACE_ID || 'jpmorard/agilab' }}
       HF_SPACE_PROFILE: ${{ vars.AGILAB_HF_SPACE_PROFILE || 'first-proof' }}
       PROVENANCE_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout release source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -934,19 +983,24 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           lfs: true
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install HF release sync dependencies
-        run: python -m pip install --upgrade --no-cache-dir huggingface_hub click
+      - name: Set up locked HF release dependencies
+        uses: ./.github/actions/setup-locked-python-tools
+        with:
+          requirements: .github/requirements/ci-hf-release.txt
 
       - name: Deploy and validate Hugging Face Space
         id: hf-sync
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           test -n "${HF_TOKEN:-}" || {
             echo "HF_TOKEN secret is required so every release syncs the public Hugging Face Space." >&2
             exit 2
@@ -958,8 +1012,10 @@ jobs:
             --json
 
       - name: Update public release proof with HF Space commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           hf_commit="${{ steps.hf-sync.outputs.hf_space_commit }}"
           test -n "$hf_commit"
 
@@ -970,6 +1026,7 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
           git fetch origin main
           git switch -C main origin/main
 

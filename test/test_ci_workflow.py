@@ -270,6 +270,29 @@ def test_clean_public_install_avoids_stale_pip_cache_warnings() -> None:
     assert "python -m pip install --upgrade pip --no-cache-dir" in text
 
 
+def test_base_python_compat_exercises_supported_boundaries_through_the_cli() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    compat_block = text.split("  base-python-compat:", 1)[1].split(
+        "  clean-public-install:", 1
+    )[0]
+
+    assert 'python-version: ["3.12", "3.14"]' in compat_block
+    assert (
+        "python -m pytest -q --noconftest -c /dev/null -p no:cacheprovider "
+        "test/test_lab_run.py"
+    ) in compat_block
+    assert "agilab --version" in compat_block
+    assert compat_block.count("run --no-project") == 2
+    assert compat_block.count("--with-editable .") == 2
+    assert compat_block.count("--with pytest==9.1.1") == 1
+    assert "Validate base package import" not in compat_block
+
+    primary_python_313_block = text.split("  local-only-policy:", 1)[1].split(
+        "  base-python-compat:", 1
+    )[0]
+    assert 'python-version: "3.13"' in primary_python_313_block
+
+
 def test_docs_workflows_block_stale_release_proof_github_runs() -> None:
     for path in (DOCS_SOURCE_GUARD_WORKFLOW_PATH, DOCS_PUBLISH_WORKFLOW_PATH):
         text = path.read_text(encoding="utf-8")

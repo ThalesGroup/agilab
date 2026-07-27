@@ -219,7 +219,8 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "pypi_publish_selected: ${{ steps.release-plan.outputs.pypi_publish_selected }}" in text
     assert "pypi_existing_packages: ${{ steps.release-plan.outputs.pypi_existing_packages }}" in text
     assert "provenance_packages: ${{ steps.release-plan.outputs.provenance_packages }}" in text
-    assert "python -m pip install --upgrade --no-cache-dir packaging" in text
+    assert "uses: ./.github/actions/setup-locked-python-tools" in text
+    assert "requirements: .github/requirements/ci-publish.txt" in text
     assert "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}" in text
     assert "needs.release-plan.outputs.library_selected == 'true'" in text
     assert "needs.release-plan.outputs.umbrella_selected == 'true'" in text
@@ -291,7 +292,8 @@ def test_pypi_publish_reuses_unchanged_artifacts_without_rebuilding_or_republish
     assert (
         "if: steps.library-pypi-reuse.outputs.all-exist != 'true' "
         "&& steps.library-pypi-state.outputs.all-exist != 'true' "
-        "&& matrix.publish_to_pypi == 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'"
+        "&& matrix.publish_to_pypi == 'true' "
+        "&& steps.library-trusted-publishing.outputs.enabled == 'true'"
     ) in text
 
     assert "Check whether agilab can reuse PyPI artifacts" in text
@@ -307,7 +309,7 @@ def test_pypi_publish_reuses_unchanged_artifacts_without_rebuilding_or_republish
     assert (
         "if: steps.agilab-pypi-reuse.outputs.all-exist != 'true' "
         "&& steps.agilab-pypi-state.outputs.all-exist != 'true' "
-        "&& env.PYPI_TRUSTED_PUBLISHING == 'true'"
+        "&& steps.agilab-trusted-publishing.outputs.enabled == 'true'"
     ) in text
 
     assert "Upload ${{ matrix.package }} public release distribution evidence" in text
@@ -351,7 +353,7 @@ def test_pypi_publish_attests_and_uploads_release_supply_chain_assets() -> None:
     assert "pypi-provenance-evidence" in text
     assert "publish-release-assets:" in text
     assert "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c" in text
-    assert "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26" in text
+    assert "actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6" in text
     assert "attestations: write" in text
     assert "artifact-metadata: write" in text
     assert "subject-path: github-release-assets/**" in text
@@ -398,7 +400,7 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     assert "HF_TOKEN: ${{ secrets.HF_TOKEN }}" in text
     assert "HF_SPACE_ID: ${{ vars.AGILAB_HF_SPACE_ID || 'jpmorard/agilab' }}" in text
     assert "ref: ${{ github.sha }}" in text
-    assert "huggingface_hub click" in text
+    assert "requirements: .github/requirements/ci-hf-release.txt" in text
     assert "tools/hf_space_release_sync.py" in text
     assert "HF_TOKEN secret is required" in text
     assert "--github-output \"$GITHUB_OUTPUT\"" in text
@@ -440,7 +442,7 @@ def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_asse
     assert "vars.PYPI_RETENTION_MIN_PUBLISHED_RELEASES" in text
     assert "must be an integer >= 2" in text
     assert "Delete older PyPI releases once package history exceeds configured threshold" in text
-    assert "python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup requests" in text
+    assert "requirements: .github/requirements/ci-pypi-web.txt" in retention_block
     assert "tools/pypi_release_retention.py" in text
     assert "--confirm-delete" in text
     assert "--direct-web-only" in text
@@ -522,6 +524,8 @@ def test_test_pypi_publish_uses_the_local_shortcut() -> None:
     assert "TestPyPI may auto-create .postN retries" in text
     assert "TWINE_USERNAME: __token__" in text
     assert "TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}" in text
+    assert "requirements: .github/requirements/ci-publish.txt" in text
+    assert 'UV_NO_SYNC: "1"' in text
 
     assert "CORE = [" not in text
     assert "versions.json" not in text

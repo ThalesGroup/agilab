@@ -36,14 +36,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.13"
 
-      - name: Install PyPI web automation dependencies
-        run: python -m pip install --upgrade --no-cache-dir packaging requests
+      - name: Set up locked PyPI web dependencies
+        uses: ./.github/actions/setup-locked-python-tools
+        with:
+          requirements: .github/requirements/ci-pypi-web.txt
 
       - name: Register pending trusted publisher
         env:
@@ -54,7 +58,7 @@ jobs:
           PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
           PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           python tools/pypi_pending_trusted_publisher.py \
             --repo pypi \
             --project-name "${{ inputs.project_name }}" \

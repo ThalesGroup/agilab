@@ -232,7 +232,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.13", "3.14"]
+        python-version: ["3.12", "3.14"]
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -247,23 +247,22 @@ jobs:
         with:
           version: "0.10.7"
 
-      - name: Validate base package import
+      - name: Validate base CLI runtime
         run: |
           set -euo pipefail
           uv --preview-features extra-build-dependencies run --no-project \
             --python "${{ matrix.python-version }}" \
             --with-editable . \
-            python - <<'PY'
-          import sys
-          import agilab.lab_run
-
-          expected = tuple(map(int, "${{ matrix.python-version }}".split(".")))
-          if sys.version_info[:2] != expected:
-              raise SystemExit(
-                  f"expected Python {expected}, got {sys.version_info[:2]}"
-              )
-          print(f"base package import ok on Python {sys.version.split()[0]}")
-          PY
+            --with pytest==9.1.1 \
+            python -m pytest -q --noconftest -c /dev/null -p no:cacheprovider test/test_lab_run.py
+          version_output="$(
+            uv --preview-features extra-build-dependencies run --no-project \
+              --python "${{ matrix.python-version }}" \
+              --with-editable . \
+              agilab --version
+          )"
+          [[ "$version_output" == "agilab "* ]]
+          printf '%s\n' "$version_output"
 
   clean-public-install:
     name: clean-public-install (${{ matrix.os }})

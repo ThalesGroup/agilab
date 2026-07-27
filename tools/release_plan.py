@@ -666,8 +666,14 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "--skip-existing-pypi": (
             "workflow must omit already-published package versions from publish/provenance/retention by default"
         ),
-        "python -m pip install --upgrade --no-cache-dir packaging": (
-            "release-plan job must install the lightweight dependency needed for PyPI artifact checks"
+        "uses: ./.github/actions/setup-locked-python-tools": (
+            "credentialed release jobs must install Python tools through the locked local action"
+        ),
+        "requirements: .github/requirements/ci-publish.txt": (
+            "release-plan and publisher jobs must use the hash-locked publishing toolchain"
+        ),
+        "requirements: .github/requirements/ci-pypi-web.txt": (
+            "PyPI retention must use the hash-locked web automation toolchain"
         ),
         "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}": (
             "library publish matrix must be generated from the release plan"
@@ -803,8 +809,8 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "ref: ${{ github.sha }}": (
             "HF Space sync must deploy from the workflow SHA, not a stale manual release_tag checkout"
         ),
-        "huggingface_hub click": (
-            "HF Space sync must install the current HF CLI dependency set explicitly"
+        "requirements: .github/requirements/ci-hf-release.txt": (
+            "HF Space sync must use the hash-locked HF CLI dependency set"
         ),
         "tools/hf_space_release_sync.py": "workflow must use the release HF Space sync tool",
         "HF_TOKEN secret is required": "workflow must fail closed when HF_TOKEN is not configured",
