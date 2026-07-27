@@ -56,24 +56,32 @@ def _check_result(
     }
 
 
-def _optional_check_result(
+def _artifact_check_result(
     check_id: str,
     label: str,
     provided: bool,
     valid: bool,
     summary: str,
     *,
+    required: bool,
     evidence: Sequence[str] = (),
     details: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    status = "pass" if (not provided or valid) else "fail"
+    if not provided:
+        status = "fail" if required else "skipped"
+    else:
+        status = "pass" if valid else "fail"
     return {
         "id": check_id,
         "label": label,
         "status": status,
         "summary": summary,
         "evidence": list(evidence),
-        "details": {"provided": provided, **(details or {})},
+        "details": {
+            "provided": provided,
+            "required": required,
+            **(details or {}),
+        },
     }
 
 
@@ -749,6 +757,7 @@ def build_report(
     repo_root: Path = REPO_ROOT,
     pip_audit_json: Path | None = None,
     sbom_json: Path | None = None,
+    require_scan_artifacts: bool = False,
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     security_path = repo_root / "SECURITY.md"
@@ -827,17 +836,29 @@ def build_report(
 
     pip_audit_provided, pip_audit_payload, pip_audit_error = _read_json_artifact(pip_audit_json)
     vulnerability_count = _pip_audit_vulnerability_count(pip_audit_payload)
+    pip_audit_valid = pip_audit_error is None and vulnerability_count == 0
+    if not pip_audit_provided:
+        pip_audit_summary = (
+            "required pip-audit artifact was not provided"
+            if require_scan_artifacts
+            else "pip-audit artifact not provided; check skipped"
+        )
+    elif pip_audit_error is not None or vulnerability_count is None:
+        pip_audit_summary = "pip-audit artifact is invalid"
+    elif vulnerability_count:
+        pip_audit_summary = (
+            f"pip-audit artifact reports {vulnerability_count} known vulnerabilities"
+        )
+    else:
+        pip_audit_summary = "pip-audit artifact is valid"
     checks.append(
-        _optional_check_result(
+        _artifact_check_result(
             "pip_audit_artifact_valid",
-            "pip-audit artifact is valid when provided",
+            "pip-audit artifact is present and vulnerability-free",
             pip_audit_provided,
-            pip_audit_error is None and vulnerability_count is not None,
-            "pip-audit artifact is valid"
-            if pip_audit_provided and pip_audit_error is None
-            else "pip-audit artifact not provided; command contract is documented"
-            if not pip_audit_provided
-            else "pip-audit artifact is invalid",
+            pip_audit_valid,
+            pip_audit_summary,
+            required=require_scan_artifacts,
             evidence=[str(pip_audit_json)] if pip_audit_json is not None else [],
             details={
                 "error": pip_audit_error,
@@ -851,22 +872,27 @@ def build_report(
     sbom_valid = (
         sbom_error is None
         and isinstance(sbom_payload, dict)
-        and (
-            sbom_payload.get("bomFormat") == "CycloneDX"
-            or component_count is not None
-        )
+        and sbom_payload.get("bomFormat") == "CycloneDX"
+        and component_count is not None
     )
+    if not sbom_provided:
+        sbom_summary = (
+            "required SBOM artifact was not provided"
+            if require_scan_artifacts
+            else "SBOM artifact not provided; check skipped"
+        )
+    elif sbom_valid:
+        sbom_summary = "CycloneDX SBOM artifact is valid"
+    else:
+        sbom_summary = "SBOM artifact is invalid"
     checks.append(
-        _optional_check_result(
+        _artifact_check_result(
             "sbom_artifact_valid",
-            "SBOM artifact is valid when provided",
+            "CycloneDX SBOM artifact is present and valid",
             sbom_provided,
             sbom_valid,
-            "CycloneDX SBOM artifact is valid"
-            if sbom_provided and sbom_valid
-            else "SBOM artifact not provided; command contract is documented"
-            if not sbom_provided
-            else "SBOM artifact is invalid",
+            sbom_summary,
+            required=require_scan_artifacts,
             evidence=[str(sbom_json)] if sbom_json is not None else [],
             details={
                 "error": sbom_error,
@@ -875,7 +901,9 @@ def build_report(
         )
     )
 
-    failed = [check for check in checks if check["status"] != "pass"]
+    passed = [check for check in checks if check["status"] == "pass"]
+    failed = [check for check in checks if check["status"] == "fail"]
+    skipped = [check for check in checks if check["status"] == "skipped"]
     return {
         "report": "AGILAB security hygiene report",
         "schema": SCHEMA,
@@ -888,8 +916,10 @@ def build_report(
         },
         "summary": {
             "check_count": len(checks),
-            "passed": len(checks) - len(failed),
+            "passed": len(passed),
             "failed": len(failed),
+            "skipped": len(skipped),
+            "scan_artifacts_required": require_scan_artifacts,
             "pip_audit_artifact_provided": pip_audit_provided,
             "sbom_artifact_provided": sbom_provided,
             "pip_audit_command": PIP_AUDIT_COMMAND,
@@ -905,6 +935,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--pip-audit-json", type=Path, default=None)
     parser.add_argument("--sbom-json", type=Path, default=None)
+    parser.add_argument(
+        "--require-scan-artifacts",
+        action="store_true",
+        help="Fail when pip-audit or CycloneDX SBOM evidence is missing.",
+    )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--compact", action="store_true")
     return parser
@@ -915,6 +950,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = build_report(
         pip_audit_json=args.pip_audit_json,
         sbom_json=args.sbom_json,
+        require_scan_artifacts=args.require_scan_artifacts,
     )
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)

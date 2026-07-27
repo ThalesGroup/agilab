@@ -218,6 +218,33 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "--head-ref \"$AGILAB_CORE_CHANGE_HEAD\"" in text
 
 
+def test_ci_security_hygiene_uses_required_supply_chain_artifacts() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    scan_step = text.split("- name: Generate base supply-chain evidence", 1)[1].split(
+        "- name: Validate security hygiene report", 1
+    )[0]
+    security_step = text.split("- name: Validate security hygiene report", 1)[1].split(
+        "- name: Upload local proof artifacts", 1
+    )[0]
+
+    assert "tools/profile_supply_chain_scan.py" in scan_step
+    assert "--profile base" in scan_step
+    assert "--output-dir test-results/supply-chain" in scan_step
+    assert "--run" in scan_step
+    assert "--pip-audit-json test-results/supply-chain/base/pip-audit.json" in security_step
+    assert "--sbom-json test-results/supply-chain/base/sbom-cyclonedx.json" in security_step
+    assert "--require-scan-artifacts" in security_step
+    assert text.index("Generate base supply-chain evidence") < text.index(
+        "Validate security hygiene report"
+    )
+
+    upload_step = text.split("- name: Upload local proof artifacts", 1)[1].split(
+        "- name: Confirm extended test policy", 1
+    )[0]
+    assert "security-hygiene.json" in upload_step
+    assert "test-results/supply-chain/base/**" in upload_step
+
+
 def test_root_pytest_discovers_all_existing_core_package_tests() -> None:
     config = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
     pytest_options = config["tool"]["pytest"]["ini_options"]
