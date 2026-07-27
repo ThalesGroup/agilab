@@ -53,6 +53,15 @@ function Set-UvLinkMode {
 
 Set-UvLinkMode
 
+function Invoke-AppsRepositoryPolicy {
+    param([Parameter(Mandatory=$true)][string]$Repository)
+    $policyScript = Join-Path $PSScriptRoot "security/apps_repository_policy.py"
+    & uv --preview-features extra-build-dependencies run --no-project --no-config python -I $policyScript --repository $Repository
+    if ($LASTEXITCODE -ne 0) {
+        throw "APPS_REPOSITORY trust validation failed."
+    }
+}
+
 function Import-DotEnv {
     param([string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) { return }
@@ -490,6 +499,7 @@ $AGILAB_REPOSITORY    = Fix-WindowsDrivePath $AGILAB_REPOSITORY
 $APPS_REPOSITORY  = Fix-WindowsDrivePath $APPS_REPOSITORY
 
 if (-not [string]::IsNullOrEmpty($APPS_REPOSITORY)) {
+  Invoke-AppsRepositoryPolicy -Repository $APPS_REPOSITORY
   $RepoRoot = Resolve-PhysicalPath $APPS_REPOSITORY
   if (-not $RepoRoot) { $RepoRoot = $APPS_REPOSITORY }
   Write-Color BLUE ("Using repository root: {0}" -f $RepoRoot)
