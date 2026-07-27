@@ -10,8 +10,12 @@ import pytest
 import numpy as np
 
 import agi_node.agi_dispatcher.agi_dispatcher as dispatcher_module
+import agi_env.runtime.atomic_write_support as atomic_write_support
 from agi_node.agi_dispatcher import WorkDispatcher
 from agi_node.agi_dispatcher.agi_dispatcher import RUN_STAGES_KEY
+from agi_node.agi_dispatcher.distribution_cache_support import (
+    DISTRIBUTION_CACHE_SCHEMA,
+)
 
 
 def test_convert_functions_to_names_handles_nested_callables():
@@ -199,6 +203,287 @@ async def test_do_distrib_builds_and_caches_plan(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_do_distrib_invalidates_cache_for_input_add_delete_and_content_mutation(
+    tmp_path,
+    monkeypatch,
+):
+    plan_path = tmp_path / "plan.json"
+    input_dir = tmp_path / "inputs"
+    input_dir.mkdir()
+    first_input = input_dir / "a.txt"
+    first_input.write_text("alpha", encoding="utf-8")
+    planner_state = tmp_path / "planner.state"
+    planner_state.write_text("one", encoding="utf-8")
+    env = SimpleNamespace(
+        target="InputWorker",
+        target_class="InputWorker",
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir()
+
+    class InputWorker:
+        build_calls = 0
+
+        def __init__(self, _env, **kwargs):
+            self.args = SimpleNamespace(data_in=Path(kwargs["data_in"]))
+            self.planner_state = Path(kwargs["planner_state"])
+
+        def distribution_cache_inputs(self):
+            return [self.planner_state]
+
+        def build_distribution(self, assigned_workers):
+            type(self).build_calls += 1
+            assert assigned_workers == {"127.0.0.1": 1}
+            payload = [
+                f"{path.name}:{path.read_text(encoding='utf-8')}"
+                for path in sorted(self.args.data_in.glob("*.txt"))
+            ]
+            return (
+                [[payload]],
+                [[
+                    {
+                        "files": len(payload),
+                        "planner_state": self.planner_state.read_text(encoding="utf-8"),
+                    }
+                ]],
+                "file",
+                len(payload),
+                "items",
+            )
+
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(InputWorker=InputWorker)),
+    )
+    args = {"data_in": str(input_dir), "planner_state": str(planner_state)}
+    workers = {"127.0.0.1": 1}
+
+    first_result = await WorkDispatcher._do_distrib(env, workers, args)
+    await WorkDispatcher._do_distrib(env, workers, args)
+    assert InputWorker.build_calls == 1
+    assert first_result[1] == [[["a.txt:alpha"]]]
+
+    planner_state.write_text("two", encoding="utf-8")
+    hook_result = await WorkDispatcher._do_distrib(env, workers, args)
+    assert InputWorker.build_calls == 2
+    assert hook_result[2][0][0]["planner_state"] == "two"
+
+    second_input = input_dir / "b.txt"
+    second_input.write_text("bravo", encoding="utf-8")
+    added_result = await WorkDispatcher._do_distrib(env, workers, args)
+    assert InputWorker.build_calls == 3
+    assert added_result[1] == [[["a.txt:alpha", "b.txt:bravo"]]]
+
+    first_input.write_text("ALPHA", encoding="utf-8")
+    mutated_result = await WorkDispatcher._do_distrib(env, workers, args)
+    assert InputWorker.build_calls == 4
+    assert mutated_result[1][0][0][0] == "a.txt:ALPHA"
+
+    second_input.unlink()
+    deleted_result = await WorkDispatcher._do_distrib(env, workers, args)
+    assert InputWorker.build_calls == 5
+    assert deleted_result[1] == [[["a.txt:ALPHA"]]]
+
+
+@pytest.mark.asyncio
+async def test_do_distrib_recovers_from_corrupt_cache_and_publishes_current_schema(
+    tmp_path,
+    monkeypatch,
+):
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text('{"work_plan":', encoding="utf-8")
+    env = SimpleNamespace(
+        target="DemoWorker",
+        target_class="DemoWorker",
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir()
+
+    class DemoWorker:
+        build_calls = 0
+
+        def __init__(self, _env, **_kwargs):
+            pass
+
+        def build_distribution(self, _assigned_workers):
+            type(self).build_calls += 1
+            return [["fresh"]], [[{"fresh": True}]], "partition", 1, "items"
+
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(DemoWorker=DemoWorker)),
+    )
+
+    result = await WorkDispatcher._do_distrib(
+        env,
+        {"127.0.0.1": 1},
+        {"alpha": 1},
+    )
+
+    assert result[1] == [["fresh"]]
+    assert DemoWorker.build_calls == 1
+    assert json.loads(plan_path.read_text(encoding="utf-8"))["schema"] == DISTRIBUTION_CACHE_SCHEMA
+
+
+@pytest.mark.asyncio
+async def test_do_distrib_atomic_cache_publication_preserves_previous_plan_on_interruption(
+    tmp_path,
+    monkeypatch,
+):
+    plan_path = tmp_path / "plan.json"
+    input_dir = tmp_path / "inputs"
+    input_dir.mkdir()
+    input_path = input_dir / "payload.txt"
+    input_path.write_text("before", encoding="utf-8")
+    env = SimpleNamespace(
+        target="InputWorker",
+        target_class="InputWorker",
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir()
+
+    class InputWorker:
+        def __init__(self, _env, **kwargs):
+            self.args = SimpleNamespace(data_in=Path(kwargs["data_in"]))
+
+        def build_distribution(self, _assigned_workers):
+            value = input_path.read_text(encoding="utf-8")
+            return [[value]], [[{"value": value}]], "partition", 1, "items"
+
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(InputWorker=InputWorker)),
+    )
+    args = {"data_in": str(input_dir)}
+    workers = {"127.0.0.1": 1}
+    await WorkDispatcher._do_distrib(env, workers, args)
+    previous_cache = plan_path.read_bytes()
+    input_path.write_text("after", encoding="utf-8")
+
+    def _interrupt_publication(_operation):
+        raise OSError("simulated interrupted publication")
+
+    monkeypatch.setattr(
+        atomic_write_support,
+        "run_with_windows_file_sharing_retry",
+        _interrupt_publication,
+    )
+    with pytest.raises(OSError, match="simulated interrupted publication"):
+        await WorkDispatcher._do_distrib(env, workers, args)
+
+    assert plan_path.read_bytes() == previous_cache
+    assert list(tmp_path.glob(".plan.json.*.tmp")) == []
+
+
+@pytest.mark.asyncio
+async def test_do_distrib_invalidates_cache_when_planner_changes(tmp_path, monkeypatch):
+    plan_path = tmp_path / "plan.json"
+    env = SimpleNamespace(
+        target="DemoWorker",
+        target_class="DemoWorker",
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir()
+    build_calls = []
+
+    class DemoWorker:
+        def __init__(self, _env, **_kwargs):
+            pass
+
+        def build_distribution(self, _assigned_workers):
+            build_calls.append("first")
+            return [["first"]], [[]], "partition", 1, "items"
+
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(DemoWorker=DemoWorker)),
+    )
+    workers = {"127.0.0.1": 1}
+    first_result = await WorkDispatcher._do_distrib(env, workers, {})
+
+    def _replacement_plan(self, _assigned_workers):
+        build_calls.append("replacement")
+        return [["replacement"]], [[]], "partition", 1, "items"
+
+    monkeypatch.setattr(DemoWorker, "build_distribution", _replacement_plan)
+    replacement_result = await WorkDispatcher._do_distrib(env, workers, {})
+
+    assert first_result[1] == [["first"]]
+    assert replacement_result[1] == [["replacement"]]
+    assert build_calls == ["first", "replacement"]
+
+
+@pytest.mark.asyncio
+async def test_do_distrib_uses_capacity_ratio_and_invalidates_capacity_cache(
+    tmp_path,
+    monkeypatch,
+):
+    plan_path = tmp_path / "plan.json"
+    env = SimpleNamespace(
+        target="CapacityWorker",
+        target_class="CapacityWorker",
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir()
+
+    class CapacityWorker:
+        build_calls = 0
+
+        def __init__(self, _env, **_kwargs):
+            pass
+
+        def build_distribution(self, assigned_workers):
+            type(self).build_calls += 1
+            chunks = WorkDispatcher.make_chunks(
+                5,
+                [(f"job-{index}", 1.0) for index in range(5)],
+                workers=assigned_workers,
+                threshold=0,
+            )
+            return chunks, [[] for _ in chunks], "job", 5, "items"
+
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(CapacityWorker=CapacityWorker)),
+    )
+    workers = {"node-a": 2}
+
+    first = await WorkDispatcher._do_distrib(
+        env,
+        workers,
+        {},
+        capacities=[1.0, 4.0],
+    )
+    cached = await WorkDispatcher._do_distrib(
+        env,
+        workers,
+        {},
+        capacities=[1.0, 4.0],
+    )
+    reversed_capacity = await WorkDispatcher._do_distrib(
+        env,
+        workers,
+        {},
+        capacities=[4.0, 1.0],
+    )
+
+    assert [len(chunk) for chunk in first[1]] == [1, 4]
+    assert cached == first
+    assert [len(chunk) for chunk in reversed_capacity[1]] == [4, 1]
+    assert CapacityWorker.build_calls == 2
+
+
+@pytest.mark.asyncio
 async def test_do_distrib_preserves_multiple_worker_assignments(tmp_path, monkeypatch):
     plan_path = tmp_path / "plan.json"
     env = SimpleNamespace(
@@ -229,6 +514,53 @@ async def test_do_distrib_preserves_multiple_worker_assignments(tmp_path, monkey
     assert loaded_workers == {"192.168.20.111": 1, "192.168.20.130": 1}
     assert work_plan == [["chunk-a"], ["chunk-b"]]
     assert metadata == [{"meta": 1}, {"meta": 2}]
+
+
+@pytest.mark.asyncio
+async def test_do_distrib_invalidates_cache_when_worker_slot_order_changes(
+    tmp_path,
+    monkeypatch,
+):
+    plan_path = tmp_path / "plan.json"
+    env = SimpleNamespace(
+        target="OrderedWorker",
+        target_class="OrderedWorker",
+        app_src=tmp_path / "app",
+        distribution_tree=plan_path,
+    )
+    env.app_src.mkdir()
+
+    class OrderedWorker:
+        build_calls = 0
+
+        def __init__(self, _env, **_kwargs):
+            pass
+
+        def build_distribution(self, assigned_workers):
+            type(self).build_calls += 1
+            slots = [
+                worker
+                for worker, count in assigned_workers.items()
+                for _ in range(count)
+            ]
+            return [[worker] for worker in slots], [[] for _ in slots], "worker", 1, "items"
+
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(OrderedWorker=OrderedWorker)),
+    )
+
+    first = await WorkDispatcher._do_distrib(env, {"worker-a": 1, "worker-b": 1}, {})
+    reordered = await WorkDispatcher._do_distrib(
+        env,
+        {"worker-b": 1, "worker-a": 1},
+        {},
+    )
+
+    assert first[1] == [["worker-a"], ["worker-b"]]
+    assert reordered[1] == [["worker-b"], ["worker-a"]]
+    assert OrderedWorker.build_calls == 2
 
 
 @pytest.mark.asyncio

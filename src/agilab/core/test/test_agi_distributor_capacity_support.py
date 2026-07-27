@@ -75,8 +75,13 @@ def test_capacity_support_private_helper_edges(monkeypatch, tmp_path):
         capacity_support._manager_path(SimpleNamespace(manager_path=str(tmp_path)))
 
     assert capacity_support._worker_host("ssh://user@[fe80::1]:22") == "fe80::1"
+    assert capacity_support._worker_host("fe80::1") == "fe80::1"
     assert capacity_support._worker_host("user@10.0.0.2:8787") == "10.0.0.2"
     assert capacity_support._worker_host("") == ""
+    assert capacity_support._worker_count_for_host(
+        {"ssh://user@localhost:22": 2},
+        "127.0.0.1",
+    ) == 2
     assert capacity_support._node_count(None) == 1
     assert capacity_support._node_count({"user@10.0.0.2:8787": 1, "ssh://user@10.0.0.2": 1}) == 1
 

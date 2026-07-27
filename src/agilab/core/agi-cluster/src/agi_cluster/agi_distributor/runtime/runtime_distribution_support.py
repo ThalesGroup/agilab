@@ -15,6 +15,7 @@ from zipfile import BadZipFile, ZipFile
 import psutil
 
 from agi_cluster.agi_distributor import background_jobs_support, deployment_remote_support
+from agi_cluster.agi_distributor.runtime.worker_endpoint_support import worker_host
 from agi_env.process_support import project_virtualenv_script_path
 
 
@@ -705,24 +706,63 @@ def scale_cluster(agi_cls: Any, *, log: Any = logger) -> None:
     if not agi_cls._dask_workers:
         return
 
-    nb_kept_workers = {}
+    configured_workers: dict[str, int] = {}
+    for configured_worker, count in (agi_cls._workers or {}).items():
+        host = worker_host(configured_worker)
+        if host:
+            configured_workers[host] = configured_workers.get(host, 0) + int(count)
+
+    nb_kept_workers: dict[str, int] = {}
     workers_to_remove = []
+    retained_workers: list[tuple[str, str]] = []
     for dask_worker in agi_cls._dask_workers:
-        ip = dask_worker.split(":")[0]
-        if ip in agi_cls._workers:
-            if ip not in nb_kept_workers:
-                nb_kept_workers[ip] = 0
-            if nb_kept_workers[ip] >= agi_cls._workers[ip]:
+        host = worker_host(dask_worker)
+        configured_host = host
+        if host not in configured_workers and host in {"localhost", "127.0.0.1", "::1"}:
+            configured_host = next(
+                (
+                    alias
+                    for alias in ("localhost", "127.0.0.1", "::1")
+                    if alias in configured_workers
+                ),
+                host,
+            )
+        if configured_host in configured_workers:
+            if configured_host not in nb_kept_workers:
+                nb_kept_workers[configured_host] = 0
+            if nb_kept_workers[configured_host] >= configured_workers[configured_host]:
                 workers_to_remove.append(dask_worker)
             else:
-                nb_kept_workers[ip] += 1
+                nb_kept_workers[configured_host] += 1
+                retained_workers.append((configured_host, dask_worker))
         else:
             workers_to_remove.append(dask_worker)
 
     if workers_to_remove:
         log.info(f"unused workers: {len(workers_to_remove)}")
-        for worker in workers_to_remove:
-            agi_cls._dask_workers.remove(worker)
+    # Group retained Dask endpoints in configured-worker order. WorkDispatcher
+    # expands the worker mapping in this same order, so plan indices, calibrated
+    # capacities, and submitted Dask endpoints stay aligned even when the
+    # scheduler reports workers in a different order.
+    agi_cls._dask_workers = [
+        dask_worker
+        for configured_host in configured_workers
+        for retained_host, dask_worker in retained_workers
+        if retained_host == configured_host
+    ]
+
+
+def _ordered_worker_capacities(
+    dask_workers: list[str],
+    capacity_by_worker: Any,
+) -> list[float] | None:
+    if not dask_workers:
+        return None
+    capacities = capacity_by_worker if isinstance(capacity_by_worker, dict) else {}
+    normalized_capacity = {
+        str(worker).split("/")[-1]: value for worker, value in capacities.items()
+    }
+    return [float(normalized_capacity.get(worker, 1.0)) for worker in dask_workers]
 
 
 async def distribute(
@@ -742,36 +782,63 @@ async def distribute(
     ]
     log.info(f"AGI run mode={agi_cls._mode} on {list(agi_cls._dask_workers)} ... ")
 
+    # First trim unknown/excess scheduler workers using the configured topology.
+    # The calibrated capacity vector must describe exactly the worker order that
+    # the planner will target.
+    agi_cls._scale_cluster()
+    dask_workers = list(agi_cls._dask_workers)
+    client = agi_cls._dask_client
+
+    if dask_workers:
+        await _call_client_blocking(
+            agi_cls._dask_client.gather,
+            [
+                client.submit(
+                    base_worker_cls._new,
+                    env=0 if env.debug else None,
+                    app=_manager_app_name(env),
+                    mode=agi_cls._mode,
+                    verbose=agi_cls.verbose,
+                    worker_id=worker_id,
+                    worker=worker,
+                    args=_worker_startup_args(agi_cls),
+                    workers=[worker],
+                )
+                for worker_id, worker in enumerate(dask_workers)
+            ],
+        )
+
+        # Capacity collection depends on initialized BaseWorker state, but must
+        # precede build_distribution so the normal (non-benchmark) plan uses it.
+        await agi_cls._calibration()
+    else:
+        agi_cls._capacity = {}
+
+    planner_capacities = _ordered_worker_capacities(
+        dask_workers,
+        getattr(agi_cls, "_capacity", None),
+    )
     agi_cls._workers, workers_plan, workers_plan_metadata = await work_dispatcher_cls._do_distrib(
-        env, agi_cls._workers, agi_cls._args
+        env,
+        agi_cls._workers,
+        agi_cls._args,
+        capacities=planner_capacities,
     )
     agi_cls._work_plan = workers_plan
     agi_cls._work_plan_metadata = workers_plan_metadata
 
+    # A planner can return fewer non-empty chunks than the configured topology.
+    # Apply that reduced topology before submission so idle workers are retired.
     agi_cls._scale_cluster()
-
     dask_workers = list(agi_cls._dask_workers)
-    client = agi_cls._dask_client
-
-    await _call_client_blocking(
-        agi_cls._dask_client.gather,
-        [
-            client.submit(
-                base_worker_cls._new,
-                env=0 if env.debug else None,
-                app=_manager_app_name(env),
-                mode=agi_cls._mode,
-                verbose=agi_cls.verbose,
-                worker_id=worker_id,
-                worker=worker,
-                args=_worker_startup_args(agi_cls),
-                workers=[worker],
-            )
-            for worker_id, worker in enumerate(dask_workers)
-        ],
-    )
-
-    await agi_cls._calibration()
+    if workers_plan and not dask_workers:
+        raise RuntimeError(
+            "Distribution produced a non-empty workload but no configured Dask workers were retained"
+        )
+    if len(workers_plan or []) > len(dask_workers):
+        raise RuntimeError(
+            "Distribution produced more non-empty worker chunks than retained Dask workers"
+        )
 
     started_at = time_fn()
     futures = {}
@@ -783,6 +850,11 @@ async def distribute(
             plan_payload,
             metadata_payload,
             workers=[worker_addr],
+        )
+
+    if workers_plan and not futures:
+        raise RuntimeError(
+            "Distribution produced a non-empty workload but submitted no worker futures"
         )
 
     gathered_logs = (
