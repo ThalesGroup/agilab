@@ -87,7 +87,32 @@ def project_version(project_path: Path) -> str:
 def project_version_newer_than_manifest(project_path: Path, manifest_path: Path) -> bool:
     """Return whether the checkout version is ahead of public release proof."""
     _package_name, package_version, _package_spec = release_package_spec(manifest_path)
-    return _version_sort_key(project_version(project_path)) > _version_sort_key(package_version)
+    checkout_version = project_version(project_path)
+    if not any(char.isdigit() for char in checkout_version) or not any(
+        char.isdigit() for char in package_version
+    ):
+        return False
+    return _version_sort_key(checkout_version) > _version_sort_key(package_version)
+
+
+def source_version_relation(manifest_path: Path) -> str:
+    """Return the manifest's explicit source-to-release version relation."""
+
+    with manifest_path.open("rb") as stream:
+        manifest = tomllib.load(stream)
+    release = manifest.get("release", {})
+    if not isinstance(release, dict):
+        return ""
+    return str(release.get("source_version_relation", "") or "").strip()
+
+
+def should_skip_public_install(project_path: Path, manifest_path: Path) -> bool:
+    """Return whether explicit source-ahead mode permits a non-strict install skip."""
+
+    return (
+        source_version_relation(manifest_path) == "ahead"
+        and project_version_newer_than_manifest(project_path, manifest_path)
+    )
 
 
 def pypi_release_visible(
@@ -229,12 +254,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--check-source-ahead",
         "--check-project-newer-than-manifest",
+        dest="check_source_ahead",
         action="store_true",
         help=(
-            "Exit 0 when pyproject.toml declares a version newer than the "
-            "release-proof manifest. CI uses this to skip stale public-package "
-            "checks during non-strict pre-release branches."
+            "Exit 0 only when the manifest explicitly declares source_version_relation "
+            "= 'ahead' and pyproject.toml is newer. CI uses this explicit mode to "
+            "skip public-package checks during non-strict pre-release branches."
         ),
     )
     args = parser.parse_args(argv)
@@ -243,21 +270,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     check_modes = [
         args.check_available_only,
         args.check_installable_only,
-        args.check_project_newer_than_manifest,
+        args.check_source_ahead,
     ]
     if sum(bool(mode) for mode in check_modes) > 1:
         parser.error(
             "--check-available-only, --check-installable-only, and "
-            "--check-project-newer-than-manifest are mutually exclusive"
+            "--check-source-ahead are mutually exclusive"
         )
-    if args.check_project_newer_than_manifest:
-        if project_version_newer_than_manifest(args.project, args.manifest):
+    if args.check_source_ahead:
+        if should_skip_public_install(args.project, args.manifest):
             print(
-                f"[install] {args.project} version is newer than {args.manifest} release proof"
+                f"[install] {args.manifest} explicitly declares source-ahead mode "
+                f"and {args.project} is newer"
             )
             return 0
         print(
-            f"[install] {args.project} version is not newer than {args.manifest} release proof",
+            f"[install] explicit source-ahead mode does not permit skipping the "
+            f"public install for {args.project}",
             file=sys.stderr,
         )
         return 1

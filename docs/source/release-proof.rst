@@ -18,23 +18,23 @@ Current public release
    * - Item
      - Public evidence
    * - Package version
-     - ``agilab[examples]==2026.07.17`` on `PyPI <https://pypi.org/project/agilab/>`__
+     - ``agilab[examples]==2026.07.17.1`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
-     - `v2026.07.17 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17>`__
+     - `v2026.07.17_1 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17_1>`__
    * - Dataset release
      - `datasets-2f602a17b4745f05 <https://github.com/ThalesGroup/agilab/releases/tag/datasets-2f602a17b4745f05>`__ for ``13`` tracked dataset files; manifest ``2f602a17b4745f05cf3b2612d720675b7063cabf90164326a25bc080b2396a0f``
    * - Hosted demo
-     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``6bd20209f1e5530979cd8dbb680369978c2af72b``
+     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``2fe632da08dad04cd24f15af153e4d37ab3f1894``
    * - Public guardrails
-     - `repo-guardrails run 29581036644 <https://github.com/ThalesGroup/agilab/actions/runs/29581036644>`__ passed repository guardrails and clean package first-proof jobs
+     - `repo-guardrails run 30244336462 <https://github.com/ThalesGroup/agilab/actions/runs/30244336462>`__ at commit ``411267613c11`` passed repository guardrails at the recorded post-release main commit; clean-install jobs were skipped and are not claimed as release proof
    * - Docs source guard
-     - `docs-source-guard run 29578565212 <https://github.com/ThalesGroup/agilab/actions/runs/29578565212>`__ passed docs mirror and release-proof consistency checks
+     - `docs-source-guard run 30244336406 <https://github.com/ThalesGroup/agilab/actions/runs/30244336406>`__ at commit ``411267613c11`` passed docs mirror and release-proof consistency checks
    * - Docs publish
-     - `docs-publish run 29578565385 <https://github.com/ThalesGroup/agilab/actions/runs/29578565385>`__ built the public documentation from the managed docs mirror
+     - `docs-publish run 30244336436 <https://github.com/ThalesGroup/agilab/actions/runs/30244336436>`__ at commit ``411267613c11`` built the public documentation from the managed docs mirror
    * - Coverage
-     - `coverage run 29581036655 <https://github.com/ThalesGroup/agilab/actions/runs/29581036655>`__ passed component coverage and badge freshness checks
+     - `coverage run 30244336419 <https://github.com/ThalesGroup/agilab/actions/runs/30244336419>`__ at commit ``411267613c11`` passed component coverage and badge freshness checks
    * - PyPI publish
-     - `pypi-publish run 29576361178 <https://github.com/ThalesGroup/agilab/actions/runs/29576361178>`__ passed the public release proof workflow gate
+     - `pypi-publish run 29984947394 <https://github.com/ThalesGroup/agilab/actions/runs/29984947394>`__ at commit ``1e13a4eec5e1`` tested and published the release artifacts from the recorded release commit
 
 What was proved
 ---------------
@@ -43,20 +43,24 @@ What was proved
 
   .. code-block:: bash
 
-     python -m pip install "agilab[examples]==2026.07.17"
+     python -m pip install "agilab[examples]==2026.07.17.1"
      python -m agilab.lab_run first-proof --json --max-seconds 60
 
-- The public GitHub Actions matrix validated the packaged first proof on
-  Ubuntu, macOS, and Windows runners.
+- The pinned GitHub Actions rows record successful repository, documentation,
+  coverage, and release-publication workflows at their exact commits. A
+  successful workflow is not presented as proof for jobs that the workflow
+  skipped.
 - The release proof records the hosted Hugging Face Space URL and commit. Live
   public-demo availability is checked only when a public-demo-smoke run is
   pinned or supplied separately.
-- The checked-in ``docs/source/data/ui_robot_evidence.json`` records the pinned
-  release UI robot matrix evidence, including app/page/widget counts and zero
-  detected UI failures for that run. Use ``tools/ui_robot_coverage_contract.py
-  --json`` and the local ``ui-robot-matrix`` profile to verify the current
-  checkout after apps are added or removed. Pinned UI robot evidence: run
-  ``25577485125``, commit ``2a36df530b48``, generated ``2026-05-08T20:34:30Z``.
+- The checked-in ``docs/source/data/ui_robot_evidence.json`` records a
+  successful historical UI robot baseline. It is not release-bound UI proof for
+  this release because its commit and 10-app inventory predate the 15-app
+  release inventory. Use ``tools/ui_robot_coverage_contract.py --json`` and the
+  local ``ui-robot-matrix`` profile to verify the current checkout. Historical
+  UI robot baseline: run ``25577485125``, commit ``2a36df530b48``, generated
+  ``2026-05-08T20:34:30Z``. It records ``10`` apps while this release expects
+  ``15``; it is not UI proof for this release.
 - The public demo scope includes the lightweight ``flight_telemetry_project``
   and ``weather_forecast_project`` routes documented in :doc:`agilab-demo` and
   aligned with the packaged examples catalog.
@@ -75,7 +79,7 @@ the current source checkout:
    python -m venv .venv
    . .venv/bin/activate
    python -m pip install --upgrade pip
-   python -m pip install "agilab[examples]==2026.07.17"
+   python -m pip install "agilab[examples]==2026.07.17.1"
    python -m agilab.lab_run first-proof --json --max-seconds 60
 
 Use :doc:`quick-start` when you want the fuller source-checkout path with the
@@ -95,20 +99,22 @@ command:
 
 Pass ``--github-release-tag``, ``--github-release-url``, ``--hf-space-commit``,
 or ``--github-head-sha`` only when public evidence changes outside the default
-local repository and latest successful ``main`` workflow state. Use
-``tools/ui_robot_evidence.py --run-id <run>`` when the release should pin a
-specific UI robot evidence run.
+local repository and latest successful ``main`` workflow state. Set
+``ui_robot.mode = "release"`` only when the evidence head commit and app count
+match the represented release; otherwise keep the artifact labeled as a
+historical baseline.
 
 Scope and limits
 ----------------
 
 This evidence proves the public package smoke, hosted demo identity, and
 documented first-proof routes. It proves live hosted-demo availability only
-when a public-demo-smoke run is pinned or supplied separately. It does not
-certify every remote cluster topology, every GPU stack, private app
-repositories, cloud accounts, security posture, or long-running production
-operations. Those areas remain environment-dependent and are tracked in
-:doc:`compatibility-matrix`.
+when a public-demo-smoke run is pinned or supplied separately. The checked-in
+UI robot artifact is a historical baseline and does not prove the current
+release UI matrix. This page does not certify every remote cluster topology,
+every GPU stack, private app repositories, cloud accounts, security posture, or
+long-running production operations. Those areas remain environment-dependent
+and are tracked in :doc:`compatibility-matrix`.
 
 Related pages
 -------------

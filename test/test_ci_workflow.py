@@ -188,6 +188,9 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "os: [ubuntu-latest, macos-latest, windows-latest]" in text
     assert "tools/install_release_proof_package.py" in text
     assert "Check release package is installable from PyPI" in text
+    assert "python tools/install_release_proof_package.py --check-source-ahead" in text
+    assert "--check-project-newer-than-manifest" not in text
+    assert "Release proof explicitly declares source-ahead mode" in text
     assert "python tools/install_release_proof_package.py --check-installable-only" in text
     assert "steps.release-package.outputs.available == 'true'" in text
     assert "GITHUB_EVENT_NAME" in text

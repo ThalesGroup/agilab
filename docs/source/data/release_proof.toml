@@ -4,9 +4,9 @@ intro = [
   "This page is the public verification index for the current AGILAB release. It records install, CI, demo, and scope evidence in one place so reviewers can check the release without inferring status from scattered badges.",
 ]
 proof_bullets = [
-  "The public GitHub Actions matrix validated the packaged first proof on Ubuntu, macOS, and Windows runners.",
+  "The pinned GitHub Actions rows record successful repository, documentation, coverage, and release-publication workflows at their exact commits. A successful workflow is not presented as proof for jobs that the workflow skipped.",
   "The release proof records the hosted Hugging Face Space URL and commit. Live public-demo availability is checked only when a public-demo-smoke run is pinned or supplied separately.",
-  "The checked-in ``docs/source/data/ui_robot_evidence.json`` records the pinned release UI robot matrix evidence, including app/page/widget counts and zero detected UI failures for that run. Use ``tools/ui_robot_coverage_contract.py --json`` and the local ``ui-robot-matrix`` profile to verify the current checkout after apps are added or removed.",
+  "The checked-in ``docs/source/data/ui_robot_evidence.json`` records a successful historical UI robot baseline. It is not release-bound UI proof for this release because its commit and 10-app inventory predate the 15-app release inventory. Use ``tools/ui_robot_coverage_contract.py --json`` and the local ``ui-robot-matrix`` profile to verify the current checkout.",
   "The public demo scope includes the lightweight ``flight_telemetry_project`` and ``weather_forecast_project`` routes documented in :doc:`agilab-demo` and aligned with the packaged examples catalog.",
   "The release tag, PyPI package, public documentation, and hosted demo point to the same public product story: browser preview, local first proof, then source-checkout expansion.",
 ]
@@ -20,60 +20,71 @@ related_pages = [
 
 [release]
 package_name = "agilab"
-package_version = "2026.07.17"
+package_version = "2026.07.17.1"
+source_version_relation = "exact"
 package_extras = [
   "examples",
 ]
 pypi_url = "https://pypi.org/project/agilab/"
-github_release_tag = "v2026.07.17"
-github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17"
+github_release_tag = "v2026.07.17_1"
+github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17_1"
+github_release_commit = "1e13a4eec5e1fdddf4d89c9d39deba4c6c322abd"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
-hf_space_commit = "6bd20209f1e5530979cd8dbb680369978c2af72b"
+hf_space_commit = "2fe632da08dad04cd24f15af153e4d37ab3f1894"
 dataset_release_tag = "datasets-2f602a17b4745f05"
 dataset_manifest_sha256 = "2f602a17b4745f05cf3b2612d720675b7063cabf90164326a25bc080b2396a0f"
 dataset_count = 13
 dataset_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/datasets-2f602a17b4745f05"
 
+[ui_robot]
+mode = "historical"
+expected_app_count = 15
+
 [[ci_runs]]
 id = "release-guardrails"
 label = "Public guardrails"
 workflow = "repo-guardrails"
-run_id = "29581036644"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/29581036644"
-summary = "passed repository guardrails and clean package first-proof jobs"
+run_id = "30244336462"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/30244336462"
+head_sha = "411267613c11109af85d6139a180bf72e9e999a8"
+summary = "passed repository guardrails at the recorded post-release main commit; clean-install jobs were skipped and are not claimed as release proof"
 
 [[ci_runs]]
 id = "docs-source-guard"
 label = "Docs source guard"
 workflow = "docs-source-guard"
-run_id = "29578565212"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/29578565212"
+run_id = "30244336406"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/30244336406"
+head_sha = "411267613c11109af85d6139a180bf72e9e999a8"
 summary = "passed docs mirror and release-proof consistency checks"
 
 [[ci_runs]]
 id = "docs-publish"
 label = "Docs publish"
 workflow = "docs-publish"
-run_id = "29578565385"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/29578565385"
+run_id = "30244336436"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/30244336436"
+head_sha = "411267613c11109af85d6139a180bf72e9e999a8"
 summary = "built the public documentation from the managed docs mirror"
 
 [[ci_runs]]
 id = "coverage"
 label = "Coverage"
 workflow = "coverage"
-run_id = "29581036655"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/29581036655"
+run_id = "30244336419"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/30244336419"
+head_sha = "411267613c11109af85d6139a180bf72e9e999a8"
 summary = "passed component coverage and badge freshness checks"
 
 [[ci_runs]]
 id = "pypi-publish"
 label = "PyPI publish"
 workflow = "pypi-publish"
-run_id = "29576361178"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/29576361178"
-summary = "passed the public release proof workflow gate"
+run_id = "29984947394"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/29984947394"
+head_sha = "1e13a4eec5e1fdddf4d89c9d39deba4c6c322abd"
+summary = "tested and published the release artifacts from the recorded release commit"
 
 [proof_command]
 summary = "A clean package install can run the public first proof:"
@@ -99,7 +110,7 @@ commands = [
   "uv --preview-features extra-build-dependencies run python tools/ui_robot_evidence.py --compact",
   "uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --refresh-from-local --refresh-from-github --render --check --check-github-runs --compact",
 ]
-follow_up = "Pass ``--github-release-tag``, ``--github-release-url``, ``--hf-space-commit``, or ``--github-head-sha`` only when public evidence changes outside the default local repository and latest successful ``main`` workflow state. Use ``tools/ui_robot_evidence.py --run-id <run>`` when the release should pin a specific UI robot evidence run."
+follow_up = "Pass ``--github-release-tag``, ``--github-release-url``, ``--hf-space-commit``, or ``--github-head-sha`` only when public evidence changes outside the default local repository and latest successful ``main`` workflow state. Set ``ui_robot.mode = \"release\"`` only when the evidence head commit and app count match the represented release; otherwise keep the artifact labeled as a historical baseline."
 
 [scope]
-paragraph = "This evidence proves the public package smoke, hosted demo identity, and documented first-proof routes. It proves live hosted-demo availability only when a public-demo-smoke run is pinned or supplied separately. It does not certify every remote cluster topology, every GPU stack, private app repositories, cloud accounts, security posture, or long-running production operations. Those areas remain environment-dependent and are tracked in :doc:`compatibility-matrix`."
+paragraph = "This evidence proves the public package smoke, hosted demo identity, and documented first-proof routes. It proves live hosted-demo availability only when a public-demo-smoke run is pinned or supplied separately. The checked-in UI robot artifact is a historical baseline and does not prove the current release UI matrix. This page does not certify every remote cluster topology, every GPU stack, private app repositories, cloud accounts, security posture, or long-running production operations. Those areas remain environment-dependent and are tracked in :doc:`compatibility-matrix`."
