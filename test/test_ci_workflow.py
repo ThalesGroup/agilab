@@ -261,9 +261,16 @@ def test_windows_core_tests_workflow_matches_failure_tracker_command() -> None:
     assert "test-results/windows-core-tests.txt" in text
     assert "test-results/windows-core-tests.xml" in text
     assert "test-results/windows-core-warning-report.json" in text
-    assert "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2" in text
+    assert (
+        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1"
+        in text
+    )
     assert "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7" in text
-    assert "astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2" in text
+    assert (
+        "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0"
+        in text
+    )
+    assert "prune-cache: true" in text
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7" in text
 
 

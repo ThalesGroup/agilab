@@ -8,7 +8,7 @@ WORKFLOW_ROOT = Path(".github/workflows")
 LOCKED_TOOLS_ACTION = Path(".github/actions/setup-locked-python-tools/action.yml")
 LOCK_INTEGRITY_WORKFLOW = WORKFLOW_ROOT / "ci-tool-lock-integrity.yml"
 REQUIREMENTS_ROOT = Path(".github/requirements")
-SETUP_UV_SHA = "11f9893b081a58869d3b5fccaea48c9e9e46f990"
+SETUP_UV_SHA = "c771a70e6277c0a99b617c7a806ffedaca235ff9"
 
 LOCKED_TOOL_JOBS = {
     ("pypi-publish.yaml", "release-plan"): ".github/requirements/ci-publish.txt",
@@ -354,6 +354,7 @@ def test_locked_python_tools_action_uses_pinned_uv_and_hashed_installs() -> None
 
     assert steps[0]["uses"] == f"astral-sh/setup-uv@{SETUP_UV_SHA}"
     assert steps[0]["with"]["version"] == "0.10.7"
+    assert steps[0]["with"]["prune-cache"] is True
     install_step = steps[1]
     assert (
         'uv venv --python "$(command -v python)" "$environment_path"'

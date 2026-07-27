@@ -68,6 +68,7 @@ jobs:
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.10.7"
+          prune-cache: true
 
       - name: Resolve Playwright version for browser cache key
         id: playwright-version
@@ -162,7 +163,8 @@ jobs:
           uv --preview-features extra-build-dependencies run --extra dev pytest -q -o addopts='' \
             test/test_package_split_contract.py \
             test/test_pypi_publish_workflow.py \
-            test/test_compat_shim_inventory.py
+            test/test_compat_shim_inventory.py \
+            test/test_github_actions_node_runtime.py
 
       - name: Validate app contract matrix
         run: |
@@ -254,6 +256,7 @@ jobs:
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: "0.10.7"
+          prune-cache: true
 
       - name: Validate base CLI runtime
         run: |
