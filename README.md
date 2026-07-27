@@ -143,8 +143,9 @@ notebook / MLflow / UI handoff
 
 The flow is reversible where it matters for long-term reuse: WORKFLOW can export
 the saved pipeline as a runnable `agi-core` supervisor notebook, so the code,
-stage order, runtime hints, and review context remain usable outside the
-workbench.
+stage order, runtime hints, and review context remain usable through the stable,
+release-gated core runtime handoff technology if the AGILAB UI or distributed
+runtime is no longer the right interface for that work.
 
 ## Demo Routes
 

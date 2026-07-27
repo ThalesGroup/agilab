@@ -241,8 +241,17 @@ def _commit_evidence(root: Path, branch: str, sha: str) -> CommitEvidence:
     )
 
 
-def _rev_list(root: Path, rev_range: str) -> tuple[str, ...]:
-    output = _run_git(root, ["rev-list", "--reverse", rev_range], check=False)
+def _rev_list(
+    root: Path,
+    rev_range: str,
+    *,
+    excluded_refs: Iterable[str] = (),
+) -> tuple[str, ...]:
+    args = ["rev-list", "--reverse", rev_range]
+    excluded = tuple(ref for ref in excluded_refs if ref)
+    if excluded:
+        args.extend(("--not", *excluded))
+    output = _run_git(root, args, check=False)
     return tuple(line for line in output.splitlines() if line.strip())
 
 
@@ -344,7 +353,11 @@ def check_pre_push_specs(
         rev_range = _rev_range_for_spec(root, spec, base_ref=base_ref)
         if not rev_range:
             continue
-        for sha in _rev_list(root, rev_range):
+        # An existing agent branch may merge an updated default branch before
+        # its next push. Those already-public base commits retain their human
+        # provenance and are not agent-authored branch work; only inspect the
+        # pushed commits that are not already reachable from the base ref.
+        for sha in _rev_list(root, rev_range, excluded_refs=(base_ref,)):
             evidence = _commit_evidence(root, branch, sha)
             commits.append(evidence)
             issues.extend(evidence.issues)

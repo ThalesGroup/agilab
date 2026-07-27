@@ -5,7 +5,6 @@ import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
-
 WORKFLOW_PATH = Path(".github/workflows/ci.yml")
 COVERAGE_WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
 DOCS_SOURCE_GUARD_WORKFLOW_PATH = Path(".github/workflows/docs-source-guard.yaml")
@@ -198,6 +197,10 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "python -m pip install agilab" not in text
     assert "agilab first-proof --json --no-manifest --max-seconds 60" in text
     assert "uv --preview-features extra-build-dependencies run --extra dev ruff --version" in text
+    assert "Validate fast repository contracts" in text
+    assert "test/test_package_split_contract.py" in text
+    assert "test/test_pypi_publish_workflow.py" in text
+    assert "test/test_compat_shim_inventory.py" in text
     assert "tools/app_contract_matrix.py --output app-contract-matrix.json --quiet" in text
     assert "app-contract-matrix.json" in text
     assert "Validate robustness recovery matrix" in text

@@ -8,9 +8,7 @@ the repo root it imports ``test...`` modules from here, so we extend
 
 from pathlib import Path
 from pkgutil import extend_path
-import importlib
 import sys
-import types
 
 __path__ = extend_path(__path__, __name__)  # type: ignore[misc]
 
@@ -36,20 +34,6 @@ def _ensure_source_agilab_package_path() -> None:
     spec = getattr(pkg, "__spec__", None)
     if spec is not None and getattr(spec, "submodule_search_locations", None) is not None:
         spec.submodule_search_locations = list(pkg.__path__)
-
-
-def import_agilab_module(module_name: str):
-    """Import an ``agilab.*`` module from the repo source tree even if another package is already loaded."""
-    pkg = sys.modules.get("agilab")
-    package_root = str(_SRC_ROOT / "agilab")
-    if pkg is None or not hasattr(pkg, "__path__"):
-        pkg = types.ModuleType("agilab")
-        pkg.__path__ = [package_root]
-        sys.modules["agilab"] = pkg
-    else:
-        _ensure_source_agilab_package_path()
-    importlib.invalidate_caches()
-    return importlib.import_module(module_name)
 
 
 _ensure_source_agilab_package_path()

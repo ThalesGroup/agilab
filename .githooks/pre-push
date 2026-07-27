@@ -70,14 +70,22 @@ else
 fi
 
 if [[ "${DOCS_CHANGED:-1}" == "1" ]]; then
+  docs_source_args=(--skip-missing-source)
+  if [[ -n "${AGILAB_DOCS_SOURCE:-}" ]]; then
+    if [[ ! -d "$AGILAB_DOCS_SOURCE" ]]; then
+      echo "[agilab pre-push] AGILAB_DOCS_SOURCE is not a directory: $AGILAB_DOCS_SOURCE" >&2
+      exit 1
+    fi
+    docs_source_args=(--source "$AGILAB_DOCS_SOURCE")
+  fi
   run_guard_python tools/sync_docs_source.py \
     --verify-stamp \
     --quiet
   run_guard_python tools/sync_docs_source.py \
+    "${docs_source_args[@]}" \
     --check \
     --delete \
-    --quiet \
-    --skip-missing-source
+    --quiet
 else
   echo "[agilab pre-push] docs mirror inputs unchanged; skipping docs mirror guard." >&2
 fi

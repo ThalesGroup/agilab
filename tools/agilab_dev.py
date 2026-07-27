@@ -3,15 +3,16 @@
 
 from __future__ import annotations
 
+import os
 import shlex
 import subprocess
 import sys
-import os
-from datetime import datetime, timezone
+import tempfile
+from collections.abc import Sequence
+from contextlib import contextmanager
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
-from typing import Sequence
-
 
 ROOT = Path(__file__).resolve().parents[1]
 UV_RUN = ("uv", "--preview-features", "extra-build-dependencies", "run")
@@ -51,6 +52,14 @@ DEFAULT_UNDEFINED_NAME_LINT_TARGETS = (
     "src/agilab/core/agi-env/src/agi_env/ui/pagelib.py",
     "src/agilab/core/agi-env/test/test_pagelib.py",
 )
+ROOT_TEST_EXTRAS = ("dev", "ui", "viz", "notebook")
+PYTEST_PATH_GROUPS: tuple[tuple[tuple[str, ...], str], ...] = (
+    ((), "src/agilab/core/test"),
+    ((), "src/agilab/core/agi-cluster/test"),
+    ((), "src/agilab/core/agi-env/test"),
+    (("ui",), "src/agilab/lib/agi-gui/test"),
+    ((), "src/agilab/lib/agi-web/test"),
+)
 
 
 def _uv_python(*args: str) -> list[str]:
@@ -59,6 +68,33 @@ def _uv_python(*args: str) -> list[str]:
 
 def _uv_dev(*args: str) -> list[str]:
     return [*UV_RUN, "--extra", "dev", *args]
+
+
+def _pytest_command(*args: str, extras: Sequence[str] = ()) -> list[str]:
+    extra_args = [item for extra in extras for item in ("--extra", extra)]
+    return [
+        *UV_RUN,
+        *extra_args,
+        "python",
+        "-m",
+        "tools.testing.pytest_entrypoint",
+        "-q",
+        "-o",
+        "addopts=",
+        "--import-mode=importlib",
+        *args,
+    ]
+
+
+def _root_test_command() -> list[str]:
+    extra_args = [item for extra in ROOT_TEST_EXTRAS for item in ("--extra", extra)]
+    return [
+        *UV_RUN,
+        *extra_args,
+        "python",
+        "-m",
+        "tools.testing.root_test_runner",
+    ]
 
 
 def _subprocess_env() -> dict[str, str]:
@@ -70,6 +106,54 @@ def _subprocess_env() -> dict[str, str]:
         env.get(DEV_UV_PROJECT_ENVIRONMENT_ENV, str(DEFAULT_DEV_UV_PROJECT_ENVIRONMENT)),
     )
     return env
+
+
+@contextmanager
+def _execution_env(shortcut: str):
+    """Yield an isolated environment for collection-sensitive repository tests."""
+
+    if shortcut != "test":
+        yield _subprocess_env()
+        return
+
+    with tempfile.TemporaryDirectory(prefix="agilab-dev-test-home-") as raw_home:
+        test_home = Path(raw_home)
+        state_root = test_home / ".local" / "share" / "agilab"
+        config_root = test_home / ".agilab"
+        state_root.mkdir(parents=True)
+        config_root.mkdir(parents=True)
+        (state_root / ".agilab-path").write_text(
+            str(ROOT / "src" / "agilab") + "\n", encoding="utf-8"
+        )
+        (config_root / ".env").write_text(
+            "AGI_CLUSTER_SHARE=\nAGI_LOCAL_SHARE=\nAPPS_REPOSITORY=\nOPENAI_API_KEY=\n",
+            encoding="utf-8",
+        )
+        env = _subprocess_env()
+        for sensitive_name in (
+            "APPS_REPOSITORY",
+            "AZURE_OPENAI_API_KEY",
+            "CLUSTER_CREDENTIALS",
+            "OPENAI_API_KEY",
+        ):
+            env.pop(sensitive_name, None)
+        home_drive = test_home.drive
+        home_path = (
+            str(test_home)[len(home_drive) :] if home_drive else str(test_home)
+        )
+        env.update(
+            {
+                "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+                "HOME": str(test_home),
+                "USERPROFILE": str(test_home),
+                "HOMEDRIVE": home_drive,
+                "HOMEPATH": home_path,
+                "XDG_DATA_HOME": str(test_home / ".local" / "share"),
+                "LOCALAPPDATA": str(test_home / "AppData" / "Local"),
+                "APPDATA": str(test_home / "AppData" / "Roaming"),
+            }
+        )
+        yield env
 
 
 def _split_leading_values(
@@ -185,7 +269,7 @@ def _dedupe_keep_order(lines: Sequence[str]) -> list[str]:
 
 def _compact_log_path(command: Sequence[str], output: str) -> Path:
     DEV_LOG_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     family = Path(command[0]).name if command else "command"
     digest = sha256(
         ("\0".join(command) + "\n" + output).encode("utf-8", "replace")
@@ -212,7 +296,7 @@ def _summary_lines(
     tail_budget = max(1, max_lines - min(len(signals), signal_budget))
 
     selected: list[str] = []
-    if len(signals) > signal_budget and signal_budget > 1:
+    if len(signals) > signal_budget > 1:
         signal_sample = [signals[0], *signals[-(signal_budget - 1) :]]
     else:
         signal_sample = signals[-signal_budget:]
@@ -260,15 +344,18 @@ def _print_compact_result(
         )
 
 
-def _run_compact(command: Sequence[str], *, max_lines: int) -> int:
+def _run_compact(
+    command: Sequence[str], *, max_lines: int, env: dict[str, str] | None = None
+) -> int:
     completed = subprocess.run(
         command,
         cwd=ROOT,
-        env=_subprocess_env(),
+        env=env or _subprocess_env(),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         errors="replace",
+        check=False,
     )
     _print_compact_result(
         command,
@@ -298,16 +385,18 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
         return [_uv_python("tools/bugfix_validate.py", *helper_args)]
 
     if command == "test":
+        if args:
+            root_tests_selected = any(
+                item == "test" or item.startswith("test/") for item in args
+            )
+            extras = ("ui", "notebook") if root_tests_selected else ()
+            return [_pytest_command(*args, extras=extras)]
         return [
-            [
-                *UV_RUN,
-                "pytest",
-                "-q",
-                "-o",
-                "addopts=",
-                "--import-mode=importlib",
-                *args,
-            ]
+            _root_test_command(),
+            *(
+            _pytest_command(path, extras=extras)
+            for extras, path in PYTEST_PATH_GROUPS
+            ),
         ]
 
     if command == "lint":
@@ -618,20 +707,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     commands = planned_commands(args)
-    for command in commands:
-        output = sys.stdout if print_only else sys.stderr
-        print(shlex.join(command), file=output, flush=True)
-        if print_only:
-            continue
-        if raw_output:
-            completed = subprocess.run(command, cwd=ROOT, env=_subprocess_env())
-            if completed.returncode:
-                return completed.returncode
-        else:
-            returncode = _run_compact(command, max_lines=summary_lines)
+    aggregate_returncode = 0
+    keep_going = args[0] == "test" and len(commands) > 1
+    with _execution_env(args[0]) as execution_env:
+        for command in commands:
+            output = sys.stdout if print_only else sys.stderr
+            print(shlex.join(command), file=output, flush=True)
+            if print_only:
+                continue
+            if raw_output:
+                completed = subprocess.run(
+                    command, cwd=ROOT, env=execution_env, check=False
+                )
+                returncode = completed.returncode
+            else:
+                returncode = _run_compact(
+                    command,
+                    max_lines=summary_lines,
+                    env=execution_env,
+                )
             if returncode:
-                return returncode
-    return 0
+                if not keep_going:
+                    return returncode
+                aggregate_returncode = returncode
+    return aggregate_returncode
 
 
 if __name__ == "__main__":

@@ -18,6 +18,11 @@ def test_compat_shim_inventory_is_capped() -> None:
     inventory = compat_shim_inventory.build_inventory()
 
     assert inventory["total"] <= compat_shim_inventory.DEFAULT_MAX_COUNT
+    assert inventory["baseline"] == compat_shim_inventory.COMPAT_SHIM_BASELINE
+    assert inventory["baseline"]["owner"]
+    assert inventory["baseline"]["removal_milestone"] == (
+        "2027.01 compatibility cleanup"
+    )
     assert inventory["total"] > 0
     assert "src/agilab" in inventory["by_area"]
     assert inventory["files"] == sorted(inventory["files"])

@@ -99,6 +99,51 @@ def test_pre_push_allows_explicit_agent_identity_on_agent_branch(tmp_path: Path)
     assert report["issues"] == []
 
 
+def test_pre_push_excludes_public_base_commits_after_branch_update(tmp_path: Path) -> None:
+    module = _load_module()
+    _init_repo(tmp_path)
+    _git(tmp_path, "switch", "-c", "agent/provenance")
+    _git(tmp_path, "config", "user.name", module.DEFAULT_AGENT_NAME)
+    _git(tmp_path, "config", "user.email", module.DEFAULT_AGENT_EMAIL)
+    (tmp_path / "agent.txt").write_text("first agent change\n", encoding="utf-8")
+    _git(tmp_path, "add", "agent.txt")
+    _git(tmp_path, "commit", "-m", "first agent change")
+    remote_head = _git(tmp_path, "rev-parse", "HEAD")
+
+    _git(tmp_path, "switch", "main")
+    _git(tmp_path, "config", "user.name", "Jean-Pierre MORARD")
+    _git(tmp_path, "config", "user.email", "jean-pierre.morard@thalesgroup.com")
+    (tmp_path / "main.txt").write_text("public main change\n", encoding="utf-8")
+    _git(tmp_path, "add", "main.txt")
+    _git(tmp_path, "commit", "-m", "public main change")
+    public_main_head = _git(tmp_path, "rev-parse", "HEAD")
+
+    _git(tmp_path, "switch", "agent/provenance")
+    _git(tmp_path, "config", "user.name", module.DEFAULT_AGENT_NAME)
+    _git(tmp_path, "config", "user.email", module.DEFAULT_AGENT_EMAIL)
+    _git(tmp_path, "merge", "--no-edit", "main")
+    (tmp_path / "agent.txt").write_text("second agent change\n", encoding="utf-8")
+    _git(tmp_path, "add", "agent.txt")
+    _git(tmp_path, "commit", "-m", "second agent change")
+    local_head = _git(tmp_path, "rev-parse", "HEAD")
+    spec = module.PushSpec(
+        "refs/heads/agent/provenance",
+        local_head,
+        "refs/heads/agent/provenance",
+        remote_head,
+    )
+
+    report = module.check_pre_push_specs(tmp_path, [spec], base_ref="main")
+
+    assert report["status"] == "pass"
+    assert report["issues"] == []
+    checked_commits = {
+        commit["sha"] for commit in report["evidence"]["commits"]
+    }
+    assert public_main_head not in checked_commits
+    assert local_head in checked_commits
+
+
 def test_git_history_inventory_flags_direct_guillaume_local_identity(tmp_path: Path) -> None:
     module = _load_module()
     _init_repo(tmp_path)

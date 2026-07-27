@@ -1,19 +1,16 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from types import SimpleNamespace
 
 import pytest
-import tomllib
 
 from agilab.notebooks.notebook_export_support import (
     NotebookExportContext,
     build_notebook_document,
 )
-from test import import_agilab_module
-
-
-pipeline_editor = import_agilab_module("agilab.pipeline.pipeline_editor")
+from agilab.pipeline import pipeline_editor
 
 
 class _State(dict):

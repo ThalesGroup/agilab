@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import importlib.util
 import logging
-from pathlib import Path
+import shutil
 import subprocess
 import sys
-from types import SimpleNamespace
 import xml.etree.ElementTree as ET
-
+from pathlib import Path
+from types import SimpleNamespace
 
 MODULE_PATH = Path("pycharm/setup_pycharm.py")
 SPEC = importlib.util.spec_from_file_location("setup_pycharm_test_module", MODULE_PATH)
@@ -621,7 +621,39 @@ def _option(config: ET.Element, name: str) -> str:
 
 
 def test_gen_app_script_preserves_builtin_app_venv_bindings(tmp_path: Path) -> None:
-    script = Path.cwd() / "pycharm" / "gen_app_script.py"
+    source_root = Path.cwd()
+    sandbox_root = tmp_path / "repo"
+    sandbox_pycharm = sandbox_root / "pycharm"
+    sandbox_pycharm.mkdir(parents=True)
+    shutil.copy2(
+        source_root / "pycharm" / "gen_app_script.py",
+        sandbox_pycharm / "gen_app_script.py",
+    )
+    shutil.copytree(
+        source_root / "pycharm" / "app-scripts",
+        sandbox_pycharm / "app-scripts",
+    )
+    sandbox_app = (
+        sandbox_root
+        / "src"
+        / "agilab"
+        / "apps"
+        / "builtin"
+        / "flight_telemetry_project"
+    )
+    sandbox_app.mkdir(parents=True)
+    shutil.copy2(
+        source_root
+        / "src"
+        / "agilab"
+        / "apps"
+        / "builtin"
+        / "flight_telemetry_project"
+        / "pyproject.toml",
+        sandbox_app / "pyproject.toml",
+    )
+    (sandbox_root / ".idea" / "runConfigurations").mkdir(parents=True)
+    script = sandbox_pycharm / "gen_app_script.py"
 
     subprocess.run(
         [sys.executable, str(script), "builtin/flight_telemetry_project"],
@@ -631,7 +663,7 @@ def test_gen_app_script_preserves_builtin_app_venv_bindings(tmp_path: Path) -> N
         text=True,
     )
 
-    run_config = _read_generated_config(tmp_path, "_flight_telemetry_run.xml")
+    run_config = _read_generated_config(sandbox_root, "_flight_telemetry_run.xml")
     run_module = run_config.find("module")
     assert run_module is not None
     assert run_module.get("name") == "flight_telemetry_project"
@@ -639,25 +671,31 @@ def test_gen_app_script_preserves_builtin_app_venv_bindings(tmp_path: Path) -> N
     assert _option(run_config, "IS_MODULE_SDK") == "false"
     assert _option(run_config, "WORKING_DIRECTORY") == "$ProjectFileDir$/src/agilab/apps/builtin/flight_telemetry_project"
 
-    worker_config = _read_generated_config(tmp_path, "_flight_telemetry_lib_worker.xml")
+    worker_config = _read_generated_config(sandbox_root, "_flight_telemetry_lib_worker.xml")
     assert _option(worker_config, "SDK_NAME") == "uv (flight_telemetry_worker)"
     assert _option(worker_config, "WORKING_DIRECTORY") == "$USER_HOME$/wenv/flight_telemetry_worker"
     assert "$USER_HOME$/wenv/flight_telemetry_worker" in _option(worker_config, "PARAMETERS")
     assert "wenv/builtin" not in _option(worker_config, "PARAMETERS")
 
-    install_config = _read_generated_config(tmp_path, "_flight_telemetry_install.xml")
+    install_config = _read_generated_config(sandbox_root, "_flight_telemetry_install.xml")
     install_module = install_config.find("module")
     assert install_module is not None
     assert install_module.get("name") == "agi-cluster"
     assert _option(install_config, "SDK_NAME") == "uv (agi-cluster)"
 
-    preinstall_config = _read_generated_config(tmp_path, "_flight_telemetry_preinstall_manager.xml")
+    preinstall_config = _read_generated_config(
+        sandbox_root,
+        "_flight_telemetry_preinstall_manager.xml",
+    )
     assert "$USER_HOME$/wenv/flight_telemetry_worker/src/flight_telemetry_worker/flight_telemetry_worker.py" in _option(
         preinstall_config,
         "PARAMETERS",
     )
 
-    manager_test = _read_generated_config(tmp_path, "_flight_telemetry_test_manager.xml")
+    manager_test = _read_generated_config(
+        sandbox_root,
+        "_flight_telemetry_test_manager.xml",
+    )
     assert _option(manager_test, "SCRIPT_NAME").endswith("/test/test_flight_telemetry_manager.py")
 
 

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import sys
 import tomllib
 from pathlib import Path
-import sys
 
 from packaging.markers import default_environment
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
@@ -21,8 +20,15 @@ import agilab as _agilab_package  # noqa: E402
 if str(SRC_PACKAGE) not in _agilab_package.__path__:
     _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
 
-from agilab.app_management.app_template_registry import discover_app_templates  # noqa: E402
-from package_split_contract import PACKAGE_NAMES, ROOT_EXTRA_INTERNAL_REQUIREMENTS  # noqa: E402
+from package_split_contract import (  # noqa: E402
+    PACKAGE_NAMES,
+    ROOT_EXTRA_INTERNAL_REQUIREMENTS,
+    is_self_extra_alias,
+)
+
+from agilab.app_management.app_template_registry import (
+    discover_app_templates,  # noqa: E402
+)
 
 
 def _load_pyproject(path: Path) -> dict:
@@ -75,7 +81,7 @@ def _optional_dependencies(path: Path, extra: str, _seen: frozenset[str] = froze
         requirement = Requirement(dependency)
         # Expand self-referential extras (e.g. offline = ["agilab[local-llm]"])
         # into the aliased extra's concrete requirements.
-        if requirement.name.lower() == project_name and requirement.extras:
+        if is_self_extra_alias(requirement, project_name=project_name):
             for aliased_extra in requirement.extras:
                 if aliased_extra in _seen:
                     continue
