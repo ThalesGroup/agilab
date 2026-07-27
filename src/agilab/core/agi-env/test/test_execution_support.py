@@ -4,8 +4,10 @@ import asyncio
 from pathlib import Path
 import subprocess
 import sys
+import time
 from unittest import mock
 
+import psutil
 import pytest
 
 import agi_env.execution_support as execution_support
@@ -201,6 +203,43 @@ def test_spawn_process_can_disable_shell_syntax(tmp_path: Path):
         )
 
 
+@pytest.mark.parametrize(
+    ("os_name", "expects_owned_session"),
+    [("posix", True), ("nt", False)],
+)
+def test_spawn_process_marks_owned_session_only_on_posix(
+    tmp_path: Path,
+    monkeypatch,
+    os_name: str,
+    expects_owned_session: bool,
+):
+    captured: dict[str, object] = {}
+    proc = _FakeProc()
+
+    async def _fake_exec(*_args, **kwargs):
+        captured.update(kwargs)
+        return proc
+
+    monkeypatch.setattr(execution_support.os, "name", os_name)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
+
+    result = asyncio.run(
+        execution_support._spawn_process(
+            cmd="echo hi",
+            cwd=tmp_path,
+            process_env={"PYTHONUNBUFFERED": "1"},
+            start_owned_session=True,
+        )
+    )
+
+    assert result is proc
+    assert captured.get("start_new_session", False) is expects_owned_session
+    assert (
+        bool(getattr(proc, "_agilab_started_new_session", False))
+        is expects_owned_session
+    )
+
+
 def test_spawn_process_propagates_unexpected_exec_bug(tmp_path: Path, monkeypatch):
     async def _raise_exec(*_args, **_kwargs):
         raise RuntimeError("exec bug")
@@ -277,6 +316,41 @@ def test_run_cancellation_kills_and_reaps_spawned_process(tmp_path: Path, monkey
         assert proc.reaped is True
 
     asyncio.run(_case())
+
+
+def test_kill_and_wait_terminates_verified_owned_posix_group(monkeypatch):
+    proc = _FakeProc()
+    proc.pid = 4321
+    proc._agilab_started_new_session = True
+    killpg_calls: list[tuple[int, int]] = []
+
+    monkeypatch.setattr(execution_support.os, "name", "posix")
+    monkeypatch.setattr(execution_support.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(execution_support.os, "getpgrp", lambda: 9876)
+    monkeypatch.setattr(
+        execution_support.os,
+        "killpg",
+        lambda process_group, signal_number: killpg_calls.append(
+            (process_group, signal_number)
+        ),
+    )
+
+    asyncio.run(execution_support._kill_and_wait(proc))
+
+    assert killpg_calls == [(4321, execution_support.signal.SIGKILL)]
+    assert proc.kill_calls == 0
+    assert proc.wait_calls == 1
+
+
+def test_kill_and_wait_windows_uses_exact_child_handle(monkeypatch):
+    proc = _FakeProc()
+    proc._agilab_started_new_session = True
+    monkeypatch.setattr(execution_support.os, "name", "nt")
+
+    asyncio.run(execution_support._kill_and_wait(proc))
+
+    assert proc.kill_calls == 1
+    assert proc.wait_calls == 1
 
 
 def test_stream_process_output_collects_lines_and_waits_for_proc():
@@ -642,6 +716,130 @@ def test_run_async_uses_shell_for_shell_syntax(tmp_path: Path, monkeypatch):
     result = asyncio.run(execution_support.run_async("echo hi; echo bye", venv=tmp_path, cwd=tmp_path))
 
     assert result == "stderr line"
+
+
+def test_run_async_cancellation_kills_and_reaps_spawned_process(
+    tmp_path: Path,
+    monkeypatch,
+):
+    async def _case():
+        proc = _CancellationProc()
+        spawn = mock.AsyncMock(return_value=proc)
+        monkeypatch.setattr(execution_support, "_spawn_process", spawn)
+
+        task = asyncio.create_task(
+            execution_support.run_async("echo ok", venv=tmp_path, cwd=tmp_path)
+        )
+        await proc.wait_started.wait()
+        task.cancel()
+
+        cleanup_observed = False
+        repeated_cancellation_waited_for_cleanup = False
+        try:
+            await asyncio.wait_for(proc.cleanup_started.wait(), timeout=0.2)
+            cleanup_observed = True
+            task.cancel()
+            await asyncio.sleep(0)
+            repeated_cancellation_waited_for_cleanup = not task.done()
+        except asyncio.TimeoutError:
+            pass
+        finally:
+            proc.allow_cleanup.set()
+
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert spawn.await_args.kwargs["start_owned_session"] is True
+        assert cleanup_observed is True
+        assert repeated_cancellation_waited_for_cleanup is True
+        assert proc.kill_calls == 1
+        assert proc.wait_calls == 2
+        assert proc.reaped is True
+
+    asyncio.run(_case())
+
+
+def test_run_async_timeout_kills_reaps_and_reports_command(
+    tmp_path: Path,
+    monkeypatch,
+):
+    proc = _FakeProc()
+    spawn = mock.AsyncMock(return_value=proc)
+    monkeypatch.setattr(execution_support, "_spawn_process", spawn)
+    monkeypatch.setattr(
+        execution_support,
+        "_stream_process_output",
+        mock.AsyncMock(side_effect=asyncio.TimeoutError()),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"Command timed out after 0\.25 seconds: echo slow",
+    ):
+        asyncio.run(
+            execution_support.run_async(
+                "echo slow",
+                venv=tmp_path,
+                cwd=tmp_path,
+                timeout=0.25,
+            )
+        )
+
+    assert spawn.await_args.kwargs["start_owned_session"] is True
+    assert proc.kill_calls == 1
+    assert proc.wait_calls == 1
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX process-group contract")
+def test_run_async_timeout_terminates_owned_posix_descendant(tmp_path: Path):
+    child_pid_file = tmp_path / "descendant.pid"
+    launcher = tmp_path / "launch_descendant.py"
+    launcher.write_text(
+        "\n".join(
+            [
+                "import subprocess",
+                "import sys",
+                "import time",
+                "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])",
+                "with open(sys.argv[1], 'w', encoding='utf-8') as stream:",
+                "    stream.write(str(child.pid))",
+                "time.sleep(30)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    cmd = subprocess.list2cmdline(
+        [sys.executable, str(launcher), str(child_pid_file)]
+    )
+
+    def _descendant_is_live(pid: int) -> bool:
+        try:
+            process = psutil.Process(pid)
+            return process.is_running() and process.status() != psutil.STATUS_ZOMBIE
+        except (psutil.NoSuchProcess, psutil.ZombieProcess):
+            return False
+
+    child_pid = None
+    try:
+        with pytest.raises(RuntimeError, match="Command timed out after"):
+            asyncio.run(
+                execution_support.run_async(
+                    cmd,
+                    cwd=tmp_path,
+                    timeout=0.5,
+                    build_env_fn=lambda _venv: {},
+                )
+            )
+        child_pid = int(child_pid_file.read_text(encoding="utf-8"))
+        deadline = time.monotonic() + 2.0
+        while _descendant_is_live(child_pid) and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert _descendant_is_live(child_pid) is False
+    finally:
+        if child_pid is not None and _descendant_is_live(child_pid):
+            process = psutil.Process(child_pid)
+            process.kill()
+            process.wait(timeout=2.0)
 
 
 def test_run_async_propagates_unexpected_exec_bug(tmp_path: Path, monkeypatch):
