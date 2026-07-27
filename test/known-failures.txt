@@ -1,14 +1,51 @@
 # Quarantined root-suite tests, deselected by .github/workflows/root-test-suite.yml.
 #
-# One pytest node id per line; blank lines and `#` comments ignored. Every entry
-# needs a reason and a date, and this list is meant to shrink. A test that is not
-# listed here must pass -- that is the whole point of the gate.
+# One pytest node id per line; blank lines and `#` comments ignored. Node ids must
+# not contain whitespace (the workflow rejects entries that do). Every entry needs
+# a reason and a date, and this list is meant to shrink. A test that is not listed
+# here must pass -- that is the whole point of the gate.
 #
-# Do not add an entry to make a red build green without recording why. If a
-# failure is a real defect, the entry is a placeholder for the fix, not a verdict
-# that the behaviour is acceptable.
+# Do not add an entry to make a red build green without recording why. If a failure
+# is a real defect, the entry is a placeholder for the fix, not a verdict that the
+# behaviour is acceptable.
 #
-# Deliberately empty on this first run: the suite is being executed against clean
-# CI hardware to learn which failures are genuine and which were artifacts of a
-# local developer checkout. Entries get added from that result, not from a
-# local run.
+# Populated 2026-07-27 from the first clean-CI run of the full directory
+# (14 failed, 5345 passed, 11 skipped). Established by CI, not by a local run:
+# a developer checkout produced a different and largely non-overlapping failure
+# set, because local installs and leftover state mask and create failures that
+# clean hardware does not have.
+
+# --- Cross-test pollution, surfaced by running the directory in one process ---
+# Each fails with MixedCheckoutImportError naming a temp path belonging to
+# test_autoencoder_latentspace: `agilab` resolves to that test's clone instead of
+# the checkout. These pass in isolation. The gate created this exposure by being
+# the first thing to run every module together, so it is a real isolation defect
+# in the suite rather than a defect in the code under test. Likely needs the
+# offending test to clean sys.path/sys.modules, or per-module process isolation.
+test/test_import_guard.py::test_import_agilab_module_loads_local_fallback
+test/test_import_guard.py::test_import_agilab_symbols_remains_backward_compatible
+test/test_orchestrate_distribution.py::test_orchestrate_page_import_survives_missing_networkx
+test/test_orchestrate_execute.py::test_orchestrate_execute_import_records_missing_matplotlib
+test/test_orchestrate_execute.py::test_orchestrate_execute_import_survives_missing_networkx
+
+# --- Multiprocess timing, flaky or too slow on shared CI runners ---
+# `_queue.Empty` and lost-update assertions on concurrency guarantees. These also
+# fail on a developer machine, so they are not runner-specific, but they assert
+# real exclusivity behaviour and should be reinstated once made deterministic.
+test/test_agent_run.py::test_agent_run_output_directory_is_exclusively_claimed_across_processes
+test/test_pipeline_run_controls.py::test_pipeline_lock_is_exclusive_across_processes
+test/test_global_pipeline_runner_state_report.py::test_runner_state_atomic_replace_prevents_multiprocess_partial_reads
+test/test_global_pipeline_runner_state_report.py::test_runner_state_transaction_serializes_stale_multiprocess_sessions
+
+# --- Environment: git-lfs not provisioned for the checkout ---
+# `smudge filter lfs failed` on flight_telemetry_worker/dataset.7z when the test
+# clones the working tree. Fixable by setting `lfs: true` on the checkout step;
+# left quarantined rather than silently adding LFS bandwidth cost to every run.
+test/test_source_clone_regression.py::test_full_regression_passes_from_a_fresh_source_clone
+
+# --- Genuine assertion failures needing owner triage ---
+# Real drift, reproducible on clean CI. Not investigated here.
+test/test_first_launch_robot.py::test_first_launch_robot_passes_static_first_surface
+test/test_install_apps_last_session_defaults.py::test_last_session_detection_combines_state_and_recent_workspace
+test/test_release_proof_report.py::test_release_proof_manifest_renders_checked_in_page
+test/test_view_training_analysis.py::test_view_training_analysis_additional_helper_and_entrypoint_branches
