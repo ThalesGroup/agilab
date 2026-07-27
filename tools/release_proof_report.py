@@ -37,6 +37,8 @@ GITHUB_RUN_FIELDS = (
 DEFAULT_GITHUB_BRANCH = "main"
 DEFAULT_GITHUB_RUN_LIMIT = 50
 DEFAULT_GITHUB_MAX_AGE_DAYS = 45
+SOURCE_VERSION_RELATIONS = frozenset({"exact", "ahead"})
+UI_ROBOT_EVIDENCE_MODES = frozenset({"release", "historical"})
 DEFAULT_GITHUB_WORKFLOWS = (
     "repo-guardrails",
     "docs-source-guard",
@@ -44,7 +46,10 @@ DEFAULT_GITHUB_WORKFLOWS = (
     "coverage",
 )
 GITHUB_WORKFLOW_SUMMARIES = {
-    "repo-guardrails": "passed repository guardrails and clean package first-proof jobs",
+    "repo-guardrails": (
+        "passed repository guardrails; skipped jobs remain out of scope unless "
+        "separately evidenced"
+    ),
     "docs-source-guard": "passed docs mirror and release-proof consistency checks",
     "docs-publish": "built the public documentation from the managed docs mirror",
     "coverage": "passed component coverage and badge freshness checks",
@@ -227,8 +232,11 @@ def _required_list(name: str, manifest: Mapping[str, Any]) -> list[Any]:
     return value
 
 
-def _ui_robot_provenance_suffix(evidence_path: Path | None) -> str:
-    """Return a sentence pinning the UI-robot run date/id/sha, or "" if absent.
+def _ui_robot_provenance_suffix(
+    evidence_path: Path | None,
+    ui_robot: Mapping[str, Any],
+) -> str:
+    """Return an honest UI-robot provenance and release-binding sentence.
 
     The provenance lives in ui_robot_evidence.json (the single source of truth),
     so the rendered page surfaces the evidence age instead of hiding it.
@@ -241,6 +249,7 @@ def _ui_robot_provenance_suffix(evidence_path: Path | None) -> str:
         return ""
     generated_at = str(evidence.get("generated_at") or "").strip()
     source = evidence.get("source") or {}
+    result = evidence.get("result") or {}
     run_id = str(source.get("run_id") or "").strip()
     head_sha = str(source.get("head_sha") or "").strip()
     parts: list[str] = []
@@ -250,9 +259,24 @@ def _ui_robot_provenance_suffix(evidence_path: Path | None) -> str:
         parts.append(f"commit ``{head_sha[:12]}``")
     if generated_at:
         parts.append(f"generated ``{generated_at}``")
-    if not parts:
-        return ""
-    return " Pinned UI robot evidence: " + ", ".join(parts) + "."
+    mode = str(ui_robot.get("mode", "") or "").strip()
+    prefix = (
+        " Release-bound UI robot evidence: "
+        if mode == "release"
+        else " Historical UI robot baseline: "
+    )
+    suffix = prefix + (", ".join(parts) if parts else "provenance unavailable") + "."
+    if mode == "historical":
+        actual_app_count = result.get("app_count")
+        expected_app_count = ui_robot.get("expected_app_count")
+        if actual_app_count is not None and expected_app_count is not None:
+            suffix += (
+                f" It records ``{actual_app_count}`` apps while this release expects "
+                f"``{expected_app_count}``; it is not UI proof for this release."
+            )
+        else:
+            suffix += " It is not UI proof for this release."
+    return suffix
 
 
 def render_release_proof(
@@ -262,6 +286,7 @@ def render_release_proof(
 ) -> str:
     context = _template_context(manifest)
     release = _required_table("release", manifest)
+    ui_robot = _required_table("ui_robot", manifest)
     proof_command = _required_table("proof_command", manifest)
     verification = _required_table("verification", manifest)
     scope = _required_table("scope", manifest)
@@ -280,6 +305,18 @@ def render_release_proof(
         ]
     )
     _append_paragraphs(lines, _required_list("intro", manifest), context)
+    if str(release.get("source_version_relation", "") or "").strip() == "ahead":
+        lines.extend(["", ".. note::", ""])
+        _append_wrapped(
+            lines,
+            (
+                "The source checkout is intentionally ahead of the public release "
+                f"``{context['package_version']}``. The package and links below still "
+                "describe that exact published release."
+            ),
+            initial_indent="   ",
+            subsequent_indent="   ",
+        )
 
     lines.extend(
         [
@@ -346,10 +383,12 @@ def render_release_proof(
         run_id = str(run["run_id"])
         url = str(run["url"])
         summary = _format_template(str(run["summary"]), context)
+        head_sha = str(run.get("head_sha", "") or "").strip()
+        commit_suffix = f" at commit ``{head_sha[:12]}``" if head_sha else ""
         lines.extend(
             [
                 f"   * - {label}",
-                f"     - `{workflow} run {run_id} <{url}>`__ {summary}",
+                f"     - `{workflow} run {run_id} <{url}>`__{commit_suffix} {summary}",
             ]
         )
 
@@ -357,7 +396,7 @@ def render_release_proof(
     _append_wrapped(lines, _format_template(str(proof_command["summary"]), context), initial_indent="- ")
     _append_code_block(lines, proof_command.get("commands", []), context, indent="  ")
     lines.append("")
-    provenance_suffix = _ui_robot_provenance_suffix(ui_robot_evidence_path)
+    provenance_suffix = _ui_robot_provenance_suffix(ui_robot_evidence_path, ui_robot)
     for bullet in _format_templates(proof_bullets, context):
         if provenance_suffix and "ui_robot_evidence.json" in bullet:
             bullet = bullet + provenance_suffix
@@ -439,6 +478,58 @@ def _version_not_newer(left: str, right: str) -> bool:
     return padded_left <= padded_right
 
 
+def _version_is_newer(left: str, right: str) -> bool:
+    """Return True when left is strictly newer than right."""
+
+    if _version_key(left) is None or _version_key(right) is None:
+        return False
+    return left != right and not _version_not_newer(left, right)
+
+
+def _source_version_check(
+    release: Mapping[str, Any],
+    project_version: str | None,
+) -> tuple[bool, str, dict[str, Any]]:
+    manifest_version = str(release.get("package_version", "") or "")
+    relation = str(release.get("source_version_relation", "") or "").strip()
+    relation_is_valid = relation in SOURCE_VERSION_RELATIONS
+    if project_version is None:
+        passed = relation_is_valid
+        summary = (
+            "pyproject.toml not present; source-version relation is valid"
+            if passed
+            else "release source-version relation is missing or invalid"
+        )
+    elif relation == "exact":
+        passed = project_version == manifest_version
+        summary = (
+            "manifest package version exactly matches pyproject.toml"
+            if passed
+            else "exact release proof does not match pyproject.toml"
+        )
+    elif relation == "ahead":
+        passed = _version_is_newer(project_version, manifest_version)
+        summary = (
+            "source checkout is explicitly and strictly ahead of the public release"
+            if passed
+            else "source-ahead mode requires pyproject.toml to be newer than the manifest"
+        )
+    else:
+        passed = False
+        summary = "release source-version relation is missing or invalid"
+    return (
+        passed,
+        summary,
+        {
+            "pyproject_version": project_version,
+            "manifest_version": manifest_version,
+            "source_version_relation": relation,
+            "allowed_relations": sorted(SOURCE_VERSION_RELATIONS),
+            "exact_match": project_version == manifest_version,
+        },
+    )
+
+
 def _run_git(repo_root: Path, args: Sequence[str]) -> str | None:
     completed = subprocess.run(
         ["git", *args],
@@ -470,6 +561,24 @@ def _latest_local_release_tag(repo_root: Path, package_version: str) -> str | No
 def _local_tag_exists(repo_root: Path, tag: str) -> bool:
     output = _run_git(repo_root, ["tag", "--list", tag])
     return bool(output and output.splitlines())
+
+
+def _local_tag_commit(repo_root: Path, tag: str) -> str | None:
+    if not tag:
+        return None
+    return _run_git(repo_root, ["rev-list", "-n", "1", tag])
+
+
+def _local_release_app_count(repo_root: Path, release_ref: str) -> int | None:
+    if not release_ref:
+        return None
+    output = _run_git(
+        repo_root,
+        ["ls-tree", "-d", "--name-only", f"{release_ref}:src/agilab/apps/builtin"],
+    )
+    if output is None:
+        return None
+    return len([line for line in output.splitlines() if line.strip()])
 
 
 def _github_repo_base_url(repo_root: Path) -> str | None:
@@ -682,6 +791,7 @@ def refresh_manifest_from_github(
             by_workflow[workflow] = entry
         entry["run_id"] = _github_run_id(run)
         entry["url"] = str(run["url"])
+        entry["head_sha"] = str(run["headSha"])
         entry["summary"] = GITHUB_WORKFLOW_SUMMARIES.get(
             workflow,
             "passed the public release proof workflow gate",
@@ -707,7 +817,9 @@ def refresh_manifest_from_local(
     package_version = _load_project_version(repo_root) or str(release.get("package_version", ""))
     if package_version:
         release["package_version"] = package_version
+        release["source_version_relation"] = "exact"
 
+    previous_tag = str(release.get("github_release_tag", "") or "")
     tag = github_release_tag or _latest_local_release_tag(repo_root, package_version)
     if tag:
         release["github_release_tag"] = tag
@@ -715,6 +827,11 @@ def refresh_manifest_from_local(
         release["github_release_url"] = github_release_url or (
             f"{base_url}/releases/tag/{tag}" if base_url else str(release.get("github_release_url", ""))
         )
+        tag_commit = _local_tag_commit(repo_root, tag)
+        if tag_commit:
+            release["github_release_commit"] = tag_commit
+        elif tag != previous_tag:
+            release.pop("github_release_commit", None)
     elif github_release_url:
         release["github_release_url"] = github_release_url
 
@@ -735,13 +852,41 @@ def _text_contains(path: Path, expected: str) -> bool | None:
     return expected in path.read_text(encoding="utf-8")
 
 
+def _pypi_badge_version(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    text = path.read_text(encoding="utf-8")
+    match = re.search(r"""aria-label=["']pypi:\s*v([^"']+)["']""", text)
+    return match.group(1).strip() if match else ""
+
+
+def _latest_changelog_release(text: str) -> tuple[str | None, str]:
+    matches = list(re.finditer(r"(?m)^## \[([^\]]+)\][^\n]*$", text))
+    if not matches:
+        return None, ""
+    latest = matches[0]
+    section_end = matches[1].start() if len(matches) > 1 else len(text)
+    return latest.group(1).strip(), text[latest.start() : section_end]
+
+
+def _changelog_section_has_release_url(section: str, release_url: str) -> bool:
+    return f"GitHub Release: {release_url}" in {
+        line.strip() for line in section.splitlines()
+    }
+
+
 def _ci_run_urls_are_consistent(ci_runs: Sequence[Any]) -> bool:
     for run in ci_runs:
         if not isinstance(run, Mapping):
             return False
         run_id = str(run.get("run_id", ""))
         url = str(run.get("url", ""))
-        if not run_id or not url.endswith(f"/actions/runs/{run_id}"):
+        head_sha = str(run.get("head_sha", ""))
+        if (
+            not run_id
+            or not url.endswith(f"/actions/runs/{run_id}")
+            or re.fullmatch(r"[0-9a-f]{40}", head_sha) is None
+        ):
             return False
     return True
 
@@ -813,6 +958,11 @@ def _github_ci_runs_check(
         expected_url = str(run.get("url", "") or "")
         if expected_url and github_run["url"] and expected_url != github_run["url"]:
             run_failures.append("manifest URL differs from GitHub run URL")
+        expected_head_sha = str(run.get("head_sha", "") or "")
+        if not expected_head_sha:
+            run_failures.append("manifest head_sha is missing")
+        elif github_run["headSha"] != expected_head_sha:
+            run_failures.append("manifest head_sha differs from GitHub run head SHA")
         if age_days is None:
             run_failures.append("run createdAt timestamp is missing or invalid")
         elif age_days > max_age_days:
@@ -826,6 +976,7 @@ def _github_ci_runs_check(
                 "status": github_run["status"],
                 "conclusion": github_run["conclusion"],
                 "head_sha": github_run["headSha"],
+                "expected_head_sha": expected_head_sha,
                 "created_at": github_run["createdAt"],
                 "age_days": age_days,
                 "url": github_run["url"],
@@ -867,6 +1018,8 @@ def _load_ui_robot_evidence_module() -> Any:
 def _ui_robot_evidence_check(
     evidence_path: Path,
     *,
+    release: Mapping[str, Any],
+    ui_robot: Mapping[str, Any],
     repo_root: Path,
     github_repo: str | None,
     check_github_runs: bool,
@@ -891,6 +1044,41 @@ def _ui_robot_evidence_check(
         for check in validation_checks
         if check.get("status") != "pass"
     ]
+    mode = str(ui_robot.get("mode", "") or "").strip()
+    expected_release_commit = str(
+        release.get("github_release_commit", "") or ""
+    ).strip()
+    expected_app_count = ui_robot.get("expected_app_count")
+    evidence_head_sha = str(source.get("head_sha", "") or "").strip()
+    evidence_app_count = result.get("app_count")
+    if mode not in UI_ROBOT_EVIDENCE_MODES:
+        failures.append(
+            "manifest: ui_robot.mode must be one of "
+            + ", ".join(sorted(UI_ROBOT_EVIDENCE_MODES))
+        )
+    if type(expected_app_count) is not int or expected_app_count < 0:
+        failures.append(
+            "manifest: ui_robot.expected_app_count must be a non-negative integer"
+        )
+    represented_release = (
+        mode == "release"
+        and bool(expected_release_commit)
+        and evidence_head_sha == expected_release_commit
+        and evidence_app_count == expected_app_count
+    )
+    if mode == "release":
+        if not expected_release_commit:
+            failures.append(
+                "release: github_release_commit is required for release-bound UI evidence"
+            )
+        elif evidence_head_sha != expected_release_commit:
+            failures.append(
+                "release: UI evidence head SHA does not match github_release_commit"
+            )
+        if evidence_app_count != expected_app_count:
+            failures.append(
+                "release: UI evidence app_count does not match ui_robot.expected_app_count"
+            )
     github_run: dict[str, Any] | None = None
     if check_github_runs:
         try:
@@ -927,20 +1115,30 @@ def _ui_robot_evidence_check(
         except Exception as exc:
             failures.append(f"github: {exc}")
 
+    if failures:
+        summary = "UI robot matrix evidence is missing, failed, or inconsistent"
+    elif mode == "historical":
+        summary = "UI robot historical baseline is healthy but is not proof for the current release"
+    else:
+        summary = "UI robot evidence is bound to the release commit and expected app inventory"
     return _check_result(
         "ui_robot_evidence",
         not failures,
-        (
-            "UI robot matrix evidence is present, successful, and references a valid run"
-            if not failures
-            else "UI robot matrix evidence is missing, failed, or inconsistent"
-        ),
-        evidence=[str(evidence_path.relative_to(repo_root)) if evidence_path.is_relative_to(repo_root) else str(evidence_path)],
+        summary,
+        evidence=[
+            str(evidence_path.relative_to(repo_root))
+            if evidence_path.is_relative_to(repo_root)
+            else str(evidence_path)
+        ],
         details={
             "run_id": source.get("run_id", ""),
             "run_url": source.get("run_url", ""),
             "head_sha": source.get("head_sha", ""),
             "app_count": result.get("app_count", 0),
+            "mode": mode,
+            "expected_release_commit": expected_release_commit,
+            "expected_app_count": expected_app_count,
+            "represents_release": represented_release,
             "page_count": result.get("page_count", 0),
             "widget_count": result.get("widget_count", 0),
             "interacted_count": result.get("interacted_count", 0),
@@ -968,10 +1166,12 @@ def build_report(
         ui_robot_evidence_path=manifest_path.parent / UI_ROBOT_EVIDENCE_RELATIVE_PATH.name,
     )
     release = _required_table("release", manifest)
+    ui_robot = _required_table("ui_robot", manifest)
     ci_runs = _required_list("ci_runs", manifest)
     package_version = str(release["package_version"])
     github_release_url = str(release["github_release_url"])
     github_release_tag = str(release["github_release_tag"])
+    github_release_commit = str(release.get("github_release_commit", "") or "").strip()
     dataset_release_tag = str(release.get("dataset_release_tag", "") or "")
     dataset_release_url = str(release.get("dataset_release_url", "") or "")
     dataset_manifest_sha256 = str(release.get("dataset_manifest_sha256", "") or "")
@@ -979,33 +1179,83 @@ def build_report(
     checks: list[dict[str, Any]] = []
 
     project_version = _load_project_version(repo_root)
-    version_is_not_newer = (
-        project_version is None or _version_not_newer(package_version, project_version)
+    version_matches, version_summary, version_details = _source_version_check(
+        release,
+        project_version,
     )
     checks.append(
         _check_result(
             "pyproject_version",
-            version_is_not_newer,
-            (
-                "manifest package version is not newer than pyproject.toml"
-                if project_version is not None
-                else "pyproject.toml not present; skipped package version cross-check"
-            ),
+            version_matches,
+            version_summary,
             evidence=["pyproject.toml", str(manifest_path)],
-            details={
-                "pyproject_version": project_version,
-                "manifest_version": package_version,
-                "exact_match": project_version == package_version,
-            },
+            details=version_details,
         )
     )
+    expected_release_url_suffix = f"/releases/tag/{github_release_tag}"
     checks.append(
         _check_result(
             "github_release_url",
-            github_release_tag in github_release_url,
-            "manifest GitHub release URL contains the release tag",
+            github_release_url.rstrip("/").endswith(expected_release_url_suffix),
+            "manifest GitHub release URL ends with the exact release tag",
             evidence=[str(manifest_path)],
             details={"tag": github_release_tag, "url": github_release_url},
+        )
+    )
+    local_release_commit = _local_tag_commit(repo_root, github_release_tag)
+    release_commit_matches = bool(github_release_commit) and (
+        local_release_commit is None or local_release_commit == github_release_commit
+    )
+    if not github_release_commit:
+        release_commit_summary = "manifest does not record the release commit"
+    elif local_release_commit is None:
+        release_commit_summary = "manifest records the release commit; local tag is unavailable"
+    elif release_commit_matches:
+        release_commit_summary = "manifest release commit matches the local tag"
+    else:
+        release_commit_summary = "manifest release commit differs from the local tag"
+    checks.append(
+        _check_result(
+            "github_release_commit",
+            release_commit_matches,
+            release_commit_summary,
+            evidence=[str(manifest_path), github_release_tag],
+            details={
+                "manifest_commit": github_release_commit,
+                "local_tag_commit": local_release_commit,
+            },
+        )
+    )
+    expected_app_count = ui_robot.get("expected_app_count")
+    local_release_app_count = _local_release_app_count(repo_root, github_release_tag)
+    release_app_count_matches = (
+        type(expected_app_count) is int
+        and expected_app_count >= 0
+        and (
+            local_release_app_count is None
+            or local_release_app_count == expected_app_count
+        )
+    )
+    if type(expected_app_count) is not int or expected_app_count < 0:
+        release_app_count_summary = "manifest release app count is missing or invalid"
+    elif local_release_app_count is None:
+        release_app_count_summary = (
+            "manifest records the release app count; local tag tree is unavailable"
+        )
+    elif release_app_count_matches:
+        release_app_count_summary = "manifest app count matches the release tag inventory"
+    else:
+        release_app_count_summary = "manifest app count differs from the release tag inventory"
+    checks.append(
+        _check_result(
+            "release_app_inventory",
+            release_app_count_matches,
+            release_app_count_summary,
+            evidence=[str(manifest_path), github_release_tag],
+            details={
+                "expected_app_count": expected_app_count,
+                "local_release_app_count": local_release_app_count,
+            },
         )
     )
     if dataset_release_url:
@@ -1034,28 +1284,61 @@ def build_report(
             )
         )
     badge_path = repo_root / "badges" / "pypi-version-agilab.svg"
-    badge_contains = _text_contains(badge_path, f"v{package_version}")
+    badge_version = _pypi_badge_version(badge_path)
+    badge_matches = badge_path.exists() and badge_version == package_version
+    if not badge_path.exists():
+        badge_summary = "PyPI badge is missing"
+    elif not badge_version:
+        badge_summary = "PyPI badge does not expose a version in its aria-label"
+    elif badge_matches:
+        badge_summary = "PyPI badge exactly matches manifest package version"
+    else:
+        badge_summary = "PyPI badge version differs from the manifest"
     checks.append(
         _check_result(
             "pypi_badge_version",
-            badge_contains is not False,
-            (
-                "PyPI badge contains manifest package version"
-                if badge_contains is not None
-                else "PyPI badge not present; skipped badge cross-check"
-            ),
-            evidence=[str(badge_path.relative_to(repo_root)) if badge_path.exists() else str(badge_path)],
+            badge_matches,
+            badge_summary,
+            evidence=[
+                str(badge_path.relative_to(repo_root))
+                if badge_path.exists()
+                else str(badge_path)
+            ],
+            details={
+                "badge_version": badge_version,
+                "manifest_version": package_version,
+            },
         )
     )
     changelog = repo_root / "CHANGELOG.md"
     changelog_text = changelog.read_text(encoding="utf-8") if changelog.exists() else ""
+    latest_changelog_version, latest_changelog_section = _latest_changelog_release(
+        changelog_text
+    )
+    changelog_release_url_matches = _changelog_section_has_release_url(
+        latest_changelog_section,
+        github_release_url,
+    )
+    changelog_matches = changelog.exists() and (
+        latest_changelog_version == package_version
+        and changelog_release_url_matches
+    )
+    changelog_summary = (
+        "CHANGELOG latest release entry exactly matches the manifest"
+        if changelog_matches
+        else "CHANGELOG latest release entry is missing or differs from the manifest"
+    )
     checks.append(
         _check_result(
             "changelog_release",
-            not changelog.exists()
-            or (f"## [{package_version}]" in changelog_text and github_release_url in changelog_text),
-            "CHANGELOG current release entry matches the manifest",
+            changelog_matches,
+            changelog_summary,
             evidence=["CHANGELOG.md", str(manifest_path)],
+            details={
+                "latest_changelog_version": latest_changelog_version,
+                "manifest_version": package_version,
+                "release_url_in_latest_section": changelog_release_url_matches,
+            },
         )
     )
     readme = repo_root / "README.md"
@@ -1076,13 +1359,15 @@ def build_report(
         _check_result(
             "ci_run_urls",
             _ci_run_urls_are_consistent(ci_runs),
-            "CI run URLs match their run IDs",
+            "CI run URLs match their run IDs and record exact commit identities",
             evidence=[str(manifest_path)],
         )
     )
     checks.append(
         _ui_robot_evidence_check(
             manifest_path.parent / UI_ROBOT_EVIDENCE_RELATIVE_PATH.name,
+            release=release,
+            ui_robot=ui_robot,
             repo_root=repo_root,
             github_repo=github_repo,
             check_github_runs=check_github_runs,
@@ -1119,6 +1404,11 @@ def build_report(
             "package_version": package_version,
             "github_release_tag": github_release_tag,
             "github_release_url": github_release_url,
+            "github_release_commit": github_release_commit,
+            "source_version_relation": str(
+                release.get("source_version_relation", "") or ""
+            ),
+            "expected_app_count": expected_app_count,
             "dataset_release_tag": dataset_release_tag,
             "dataset_release_url": dataset_release_url,
             "hf_space_url": str(release["hf_space_url"]),

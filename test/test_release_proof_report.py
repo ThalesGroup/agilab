@@ -38,11 +38,19 @@ def test_release_proof_manifest_renders_checked_in_page() -> None:
     assert {check["id"] for check in report["checks"]} >= {
         "pyproject_version",
         "pypi_badge_version",
+        "release_app_inventory",
         "dataset_manifest",
         "changelog_release",
         "readme_release_proof_link",
         "ui_robot_evidence",
         "rendered_page",
+    }
+    release_apps = next(
+        check for check in report["checks"] if check["id"] == "release_app_inventory"
+    )
+    assert release_apps["details"] == {
+        "expected_app_count": 15,
+        "local_release_app_count": 15,
     }
 
 
@@ -58,6 +66,7 @@ def test_release_proof_renders_ui_robot_run_provenance(tmp_path: Path) -> None:
                     "run_id": "25577485125",
                     "head_sha": "2a36df530b48ce992fdd1c388d47ab0f46b5239a",
                 },
+                "result": {"app_count": 10},
             }
         ),
         encoding="utf-8",
@@ -67,12 +76,14 @@ def test_release_proof_renders_ui_robot_run_provenance(tmp_path: Path) -> None:
     with_prov = " ".join(module.render_release_proof(manifest, ui_robot_evidence_path=evidence_path).split())
     without_prov = module.render_release_proof(manifest)
 
-    # The pinned run id, short sha, and date are surfaced on the page...
-    assert "Pinned UI robot evidence: run ``25577485125``" in with_prov
+    # Historical evidence is surfaced without claiming it proves this release.
+    assert "Historical UI robot baseline: run ``25577485125``" in with_prov
     assert "commit ``2a36df530b48``" in with_prov
     assert "generated ``2026-05-08T20:34:30Z``" in with_prov
-    # ...and absent when no evidence file is available.
-    assert "Pinned UI robot evidence" not in without_prov
+    assert "records ``10`` apps" in with_prov
+    assert "not UI proof for this release" in with_prov
+    # Provenance is absent when no evidence file is available.
+    assert "Historical UI robot baseline" not in without_prov
 
 
 def test_release_proof_cli_check_emits_machine_readable_report(capsys) -> None:
@@ -102,6 +113,11 @@ def test_release_proof_refresh_from_local_updates_manifest_and_page(
 
     monkeypatch.setattr(module, "_text_contains", _text_contains)
     monkeypatch.setattr(module, "_local_tag_exists", lambda _repo_root, _tag: True)
+    monkeypatch.setattr(
+        module,
+        "_local_tag_commit",
+        lambda _repo_root, _tag: "test-release-commit",
+    )
     docs_source = tmp_path / "docs" / "source"
     data_dir = docs_source / "data"
     data_dir.mkdir(parents=True)
@@ -127,8 +143,10 @@ def test_release_proof_refresh_from_local_updates_manifest_and_page(
     assert exit_code == 0
     assert payload["release"]["package_version"] == module._load_project_version(Path.cwd())
     assert refreshed["release"]["package_version"] == module._load_project_version(Path.cwd())
+    assert refreshed["release"]["source_version_relation"] == "exact"
     assert refreshed["release"]["github_release_tag"] == "v2026.05.01-2"
     assert refreshed["release"]["github_release_url"].endswith("/releases/tag/v2026.05.01-2")
+    assert refreshed["release"]["github_release_commit"] == "test-release-commit"
     dataset_release_tag = refreshed["release"]["dataset_release_tag"]
     assert dataset_release_tag.startswith("datasets-")
     assert refreshed["release"]["dataset_release_url"].endswith(
@@ -140,6 +158,23 @@ def test_release_proof_refresh_from_local_updates_manifest_and_page(
         refreshed,
         ui_robot_evidence_path=data_dir / "ui_robot_evidence.json",
     )
+
+
+def test_release_proof_refresh_drops_stale_commit_for_unresolved_new_tag(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+    manifest["release"]["github_release_commit"] = "stale-commit"
+
+    refreshed = module.refresh_manifest_from_local(
+        manifest,
+        repo_root=tmp_path,
+        github_release_tag="v2099.01.01",
+    )
+
+    assert refreshed["release"]["github_release_tag"] == "v2099.01.01"
+    assert "github_release_commit" not in refreshed["release"]
 
 
 def test_release_proof_refresh_from_github_updates_ci_runs(monkeypatch) -> None:
@@ -216,6 +251,7 @@ def test_release_proof_refresh_from_github_updates_ci_runs(monkeypatch) -> None:
     by_workflow = {run["workflow"]: run for run in refreshed["ci_runs"]}
     assert by_workflow["repo-guardrails"]["id"] == "release-guardrails"
     assert by_workflow["repo-guardrails"]["run_id"] == "102"
+    assert by_workflow["repo-guardrails"]["head_sha"] == "abc123"
     assert by_workflow["docs-source-guard"]["run_id"] == "103"
     assert by_workflow["docs-publish"]["run_id"] == "104"
     assert by_workflow["coverage"]["run_id"] == "105"
@@ -246,6 +282,7 @@ def test_release_proof_github_run_check_detects_failed_or_stale_runs(monkeypatch
                 "workflow": "repo-guardrails",
                 "run_id": "42",
                 "url": "https://github.com/ThalesGroup/agilab/actions/runs/42",
+                "head_sha": "abc123",
             }
         ],
         repo_root=Path.cwd(),
@@ -282,6 +319,7 @@ def test_release_proof_github_run_check_accepts_workflow_file_fallback_name(monk
                 "workflow": "pypi-publish",
                 "run_id": "42",
                 "url": "https://github.com/ThalesGroup/agilab/actions/runs/42",
+                "head_sha": "abc123",
             }
         ],
         repo_root=Path.cwd(),
@@ -291,6 +329,23 @@ def test_release_proof_github_run_check_accepts_workflow_file_fallback_name(monk
     )
 
     assert check["status"] == "pass"
+
+    mismatch = module._github_ci_runs_check(
+        [
+            {
+                "workflow": "pypi-publish",
+                "run_id": "42",
+                "url": "https://github.com/ThalesGroup/agilab/actions/runs/42",
+                "head_sha": "different",
+            }
+        ],
+        repo_root=Path.cwd(),
+        github_repo="ThalesGroup/agilab",
+        max_age_days=45,
+        now=datetime(2026, 6, 5, tzinfo=UTC),
+    )
+    assert mismatch["status"] == "fail"
+    assert "head_sha differs" in " ".join(mismatch["details"]["failures"])
 
 
 def test_release_proof_ui_robot_evidence_check_validates_github_run(
@@ -372,6 +427,8 @@ def test_release_proof_ui_robot_evidence_check_validates_github_run(
 
     check = module._ui_robot_evidence_check(
         evidence_path,
+        release={"github_release_commit": "abc123"},
+        ui_robot={"mode": "release", "expected_app_count": 10},
         repo_root=Path.cwd(),
         github_repo="ThalesGroup/agilab",
         check_github_runs=True,
@@ -380,6 +437,42 @@ def test_release_proof_ui_robot_evidence_check_validates_github_run(
     assert check["status"] == "pass"
     assert check["details"]["run_id"] == "25577485125"
     assert check["details"]["failed_count"] == 0
+
+
+def test_release_proof_ui_robot_historical_mode_is_not_release_proof() -> None:
+    module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+    release = manifest["release"]
+    ui_robot = manifest["ui_robot"]
+    evidence_path = Path("docs/source/data/ui_robot_evidence.json")
+
+    historical_check = module._ui_robot_evidence_check(
+        evidence_path,
+        release=release,
+        ui_robot=ui_robot,
+        repo_root=Path.cwd(),
+        github_repo=None,
+        check_github_runs=False,
+    )
+    release_check = module._ui_robot_evidence_check(
+        evidence_path,
+        release=release,
+        ui_robot={"mode": "release", "expected_app_count": 15},
+        repo_root=Path.cwd(),
+        github_repo=None,
+        check_github_runs=False,
+    )
+
+    assert historical_check["status"] == "pass"
+    assert historical_check["details"]["mode"] == "historical"
+    assert historical_check["details"]["app_count"] == 10
+    assert historical_check["details"]["expected_app_count"] == 15
+    assert historical_check["details"]["represents_release"] is False
+    assert "not proof for the current release" in historical_check["summary"]
+    assert release_check["status"] == "fail"
+    failures = " ".join(release_check["details"]["failures"])
+    assert "head SHA" in failures
+    assert "app_count" in failures
 
 
 def test_release_proof_renderer_fails_unknown_template_key(tmp_path: Path) -> None:
@@ -441,7 +534,7 @@ def test_release_proof_manifest_and_toml_helpers_fail_clearly(tmp_path: Path) ->
     assert wrapped == ["-"]
 
 
-def test_release_proof_version_comparison_accepts_package_lag() -> None:
+def test_release_proof_version_comparison_helpers() -> None:
     module = _load_module()
 
     assert module._version_key("2026.05.11-2") == (2026, 5, 11, 2)
@@ -452,6 +545,92 @@ def test_release_proof_version_comparison_accepts_package_lag() -> None:
     assert not module._version_not_newer("2026.05.12", "2026.05.11")
     assert module._version_not_newer("snapshot", "snapshot")
     assert not module._version_not_newer("snapshot", "release")
+    assert not module._version_is_newer("snapshot", "release")
+
+
+def test_release_proof_requires_exact_version_unless_source_ahead_is_explicit() -> None:
+    module = _load_module()
+
+    exact_release = {
+        "package_version": "2026.07.17",
+        "source_version_relation": "exact",
+    }
+    source_ahead_release = {
+        "package_version": "2026.07.17",
+        "source_version_relation": "ahead",
+    }
+
+    exact_passed, _summary, exact_details = module._source_version_check(
+        exact_release,
+        "2026.07.17",
+    )
+    stale_passed, _summary, _details = module._source_version_check(
+        exact_release,
+        "2026.07.17.1",
+    )
+    ahead_passed, _summary, ahead_details = module._source_version_check(
+        source_ahead_release,
+        "2026.07.17.1",
+    )
+    ahead_same_passed, _summary, _details = module._source_version_check(
+        source_ahead_release,
+        "2026.07.17",
+    )
+
+    assert exact_passed
+    assert exact_details["exact_match"] is True
+    assert not stale_passed
+    assert ahead_passed
+    assert ahead_details["source_version_relation"] == "ahead"
+    assert not ahead_same_passed
+
+
+def test_release_proof_source_ahead_rendering_is_explicit() -> None:
+    module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+    manifest["release"]["source_version_relation"] = "ahead"
+
+    rendered = " ".join(module.render_release_proof(manifest).split())
+
+    assert "source checkout is intentionally ahead" in rendered
+    assert "still describe that exact published release" in rendered
+
+
+def test_release_proof_badge_version_does_not_accept_substring_collision(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    badge = tmp_path / "badge.svg"
+    badge.write_text(
+        '<svg role="img" aria-label="pypi: v2026.07.17.11"></svg>',
+        encoding="utf-8",
+    )
+
+    assert module._pypi_badge_version(badge) == "2026.07.17.11"
+    assert module._pypi_badge_version(badge) != "2026.07.17.1"
+
+
+def test_release_proof_changelog_requires_latest_release_section() -> None:
+    module = _load_module()
+    historical_url = "https://example.test/releases/tag/v2026.07.17"
+    changelog = (
+        "# Changelog\n\n"
+        "## Unreleased\n\n"
+        "## [2026.07.17.1] - 2026-07-23\n\n"
+        "GitHub Release: https://example.test/releases/tag/v2026.07.17_1\n\n"
+        "## [2026.07.17] - 2026-07-17\n\n"
+        f"GitHub Release: {historical_url}\n"
+    )
+
+    version, section = module._latest_changelog_release(changelog)
+
+    assert version == "2026.07.17.1"
+    assert f"GitHub Release: {historical_url}" not in section.splitlines()
+    assert not module._changelog_section_has_release_url(section, historical_url)
+    assert module._changelog_section_has_release_url(
+        section,
+        "https://example.test/releases/tag/v2026.07.17_1",
+    )
 
 
 def test_release_proof_load_project_version_handles_missing_or_invalid_pyproject(

@@ -8,6 +8,7 @@ import logging
 import os
 import re
 import shlex
+import signal
 import subprocess
 import sys
 import traceback
@@ -139,9 +140,29 @@ async def _spawn_process(
     process_env: dict[str, str],
     shell_executable: str | None = None,
     allow_shell: bool = True,
+    start_owned_session: bool = False,
     stdout: int | None = asyncio.subprocess.PIPE,
     stderr: int | None = asyncio.subprocess.PIPE,
 ) -> asyncio.subprocess.Process:
+    # POSIX sessions give cancellation/timeout cleanup a process-group
+    # ownership boundary. Windows deliberately keeps direct-child ownership:
+    # there is no asyncio group-kill equivalent and broad taskkill matching is
+    # unsafe. In both cases the launched child itself is always killed/reaped.
+    session_options = (
+        {"start_new_session": True}
+        if start_owned_session and os.name != "nt"
+        else {}
+    )
+
+    async def _record_owned_session(
+        awaitable: Awaitable[asyncio.subprocess.Process],
+    ) -> asyncio.subprocess.Process:
+        proc = await awaitable
+        if session_options:
+            with contextlib.suppress(AttributeError, TypeError):
+                setattr(proc, "_agilab_started_new_session", True)
+        return proc
+
     # ``VAR=value prog args`` commands need no shell: apply the assignments to
     # the child env and exec directly. This keeps env-prefixed deploy commands
     # working on Windows, where the fallback shell (cmd.exe) cannot parse
@@ -149,31 +170,40 @@ async def _spawn_process(
     assignment_split = _split_leading_env_assignments(cmd)
     if assignment_split is not None:
         env_updates, argv = assignment_split
-        return await asyncio.create_subprocess_exec(
-            *argv,
-            stdout=stdout,
-            stderr=stderr,
-            cwd=str(cwd) if cwd else None,
-            env={**process_env, **env_updates},
+        return await _record_owned_session(
+            asyncio.create_subprocess_exec(
+                *argv,
+                stdout=stdout,
+                stderr=stderr,
+                cwd=str(cwd) if cwd else None,
+                env={**process_env, **env_updates},
+                **session_options,
+            )
         )
     if _command_requires_shell(cmd):
         if not allow_shell:
             raise ValueError(f"Shell syntax is not allowed for this command: {cmd}")
-        return await asyncio.create_subprocess_shell(
-            cmd,
+        return await _record_owned_session(
+            asyncio.create_subprocess_shell(
+                cmd,
+                stdout=stdout,
+                stderr=stderr,
+                cwd=str(cwd) if cwd else None,
+                env=process_env,
+                executable=shell_executable,
+                **session_options,
+            )
+        )
+    cmd_list = shlex.split(cmd)
+    return await _record_owned_session(
+        asyncio.create_subprocess_exec(
+            *cmd_list,
             stdout=stdout,
             stderr=stderr,
             cwd=str(cwd) if cwd else None,
             env=process_env,
-            executable=shell_executable,
+            **session_options,
         )
-    cmd_list = shlex.split(cmd)
-    return await asyncio.create_subprocess_exec(
-        *cmd_list,
-        stdout=stdout,
-        stderr=stderr,
-        cwd=str(cwd) if cwd else None,
-        env=process_env,
     )
 
 
@@ -196,12 +226,39 @@ async def _stream_process_output(
 
 
 async def _kill_and_wait(proc: asyncio.subprocess.Process) -> None:
-    """Terminate a timed-out subprocess and reap it when the platform permits."""
+    """Kill the owned subprocess boundary and reap its direct child.
 
-    kill = getattr(proc, "kill", None)
-    if callable(kill):
-        with contextlib.suppress(ProcessLookupError, OSError):
-            kill()
+    ``run_async`` starts a new POSIX session, so a live child whose process
+    group still equals its PID proves ownership of that group and lets cleanup
+    include descendants. Other launches and Windows fall back to the exact
+    child handle; no PID scanning or broad process matching is performed.
+    """
+
+    killed_owned_group = False
+    if os.name != "nt" and bool(
+        getattr(proc, "_agilab_started_new_session", False)
+    ):
+        try:
+            pid = int(proc.pid)
+            process_group = os.getpgid(pid)
+            if process_group == pid and process_group != os.getpgrp():
+                os.killpg(process_group, signal.SIGKILL)
+                killed_owned_group = True
+        except (
+            AttributeError,
+            ProcessLookupError,
+            PermissionError,
+            TypeError,
+            ValueError,
+            OSError,
+        ):
+            pass
+
+    if not killed_owned_group:
+        kill = getattr(proc, "kill", None)
+        if callable(kill):
+            with contextlib.suppress(ProcessLookupError, OSError):
+                kill()
     with contextlib.suppress(asyncio.TimeoutError, ProcessLookupError, OSError):
         await asyncio.wait_for(proc.wait(), timeout=5)
 
@@ -464,6 +521,7 @@ async def run_async(
             cwd=cwd,
             process_env=process_env,
             shell_executable=shell_executable,
+            start_owned_session=True,
         )
 
         out_cb, err_cb = _resolve_stream_callbacks(log_callback=log_callback, logger=logger)
@@ -475,10 +533,20 @@ async def run_async(
             result=result,
             wait_for_exit=True,
         )
+    except asyncio.CancelledError:
+        if proc is not None:
+            await _kill_and_wait_shielded(proc)
+        raise
+    except asyncio.TimeoutError as err:
+        if proc is not None:
+            await _kill_and_wait(proc)
+        raise RuntimeError(f"Command timed out after {timeout} seconds: {cmd}") from err
     except PROCESS_WRAP_EXCEPTIONS as err:
+        if proc is not None:
+            await _kill_and_wait(proc)
         _raise_process_error(
             err,
-            proc=proc,
+            proc=None,
             logger=logger,
             wrap_message=f"Subprocess execution error for: {cmd}",
             command_context=f"Error during: {cmd}",

@@ -1,6 +1,7 @@
 """Tests for the shared in-worker pool engine (agi_node.agi_dispatcher.worker_pool_support)."""
 
 import logging
+import threading
 import time
 from concurrent.futures import Future
 from concurrent.futures.process import BrokenProcessPool
@@ -308,8 +309,8 @@ def test_timed_out_chunk_raises_and_abandons_pool(monkeypatch):
         worker_pool_support.exec_multi_process(
             worker, {0: [["slow1", "slow2"]]}, None, _pandas_hooks(StuckPool)
         )
-    # The stuck pool was abandoned without waiting, so the with-block exit
-    # cannot hang behind the stuck task.
+    # The stuck pool is abandoned without waiting. The executor lifecycle must
+    # not invoke a second, blocking shutdown after this call.
     assert (False, True) in StuckPool.abandoned
 
 
@@ -328,11 +329,48 @@ def test_abandon_stuck_pool_terminates_process_children():
 
         def shutdown(self, wait=True, cancel_futures=False):
             self.shutdown_calls.append((wait, cancel_futures))
+            # Match ProcessPoolExecutor: shutdown clears the private process
+            # table even when wait=False.
+            self._processes = None
 
     executor = FakeExecutor()
+    processes = list(executor._processes.values())
     worker_pool_support._abandon_stuck_pool(executor)
     assert executor.shutdown_calls == [(False, True)]
-    assert all(p.terminated for p in executor._processes.values())
+    assert all(process.terminated for process in processes)
+
+
+def test_thread_pool_timeout_returns_before_straggler_finishes(monkeypatch):
+    release_work = threading.Event()
+    work_finished = threading.Event()
+
+    class SlowWorker(EngineWorker):
+        def _actual_work_pool(self, x):
+            try:
+                release_work.wait(timeout=1.0)
+                return pd.DataFrame({"col": [x]})
+            finally:
+                work_finished.set()
+
+    monkeypatch.setattr(worker_pool_support, "_POOL_TIMEOUT_GRACE_SECONDS", 0.02)
+    worker = SlowWorker(mode=1)
+    worker.args = {"output_format": "csv", "pool_item_timeout": 0.02}
+
+    started_at = time.perf_counter()
+    try:
+        with pytest.raises(RuntimeError, match="thread-pool stragglers"):
+            worker_pool_support.exec_multi_process(
+                worker,
+                {0: [["slow"]]},
+                None,
+                _pandas_hooks(worker_pool_support.ThreadPoolExecutor),
+            )
+    finally:
+        elapsed = time.perf_counter() - started_at
+        release_work.set()
+        assert work_finished.wait(timeout=1.0)
+
+    assert elapsed < 0.4
 
 
 # --- executor backend selection -------------------------------------------

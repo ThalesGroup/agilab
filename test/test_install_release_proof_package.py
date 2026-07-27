@@ -97,6 +97,84 @@ def test_project_version_newer_than_manifest_rejects_same_version(tmp_path: Path
     assert not module.project_version_newer_than_manifest(project, manifest)
 
 
+def test_public_install_skip_requires_explicit_source_ahead_mode(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    manifest = tmp_path / "release_proof.toml"
+    project = tmp_path / "pyproject.toml"
+    project.write_text(
+        '[project]\nname = "agilab"\nversion = "2026.07.17.1"\n',
+        encoding="utf-8",
+    )
+    manifest.write_text(
+        "[release]\n"
+        'package_name = "agilab"\n'
+        'package_version = "2026.07.17"\n'
+        'source_version_relation = "exact"\n',
+        encoding="utf-8",
+    )
+
+    assert module.project_version_newer_than_manifest(project, manifest)
+    assert not module.should_skip_public_install(project, manifest)
+    assert (
+        module.main(
+            [
+                "--project",
+                str(project),
+                "--manifest",
+                str(manifest),
+                "--check-source-ahead",
+            ]
+        )
+        == 1
+    )
+
+    manifest.write_text(
+        "[release]\n"
+        'package_name = "agilab"\n'
+        'package_version = "2026.07.17"\n'
+        'source_version_relation = "ahead"\n',
+        encoding="utf-8",
+    )
+
+    assert module.should_skip_public_install(project, manifest)
+    assert (
+        module.main(
+            [
+                "--project",
+                str(project),
+                "--manifest",
+                str(manifest),
+                "--check-source-ahead",
+            ]
+        )
+        == 0
+    )
+
+
+def test_public_install_skip_rejects_same_version_in_source_ahead_mode(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    manifest = tmp_path / "release_proof.toml"
+    manifest.write_text(
+        "[release]\n"
+        'package_name = "agilab"\n'
+        'package_version = "2026.07.17.1"\n'
+        'source_version_relation = "ahead"\n',
+        encoding="utf-8",
+    )
+    project = tmp_path / "pyproject.toml"
+    project.write_text(
+        '[project]\nname = "agilab"\nversion = "2026.07.17.1"\n',
+        encoding="utf-8",
+    )
+
+    assert module.source_version_relation(manifest) == "ahead"
+    assert not module.should_skip_public_install(project, manifest)
+
+
 def test_current_release_proof_installs_public_example_payload() -> None:
     module = _load_module()
 
