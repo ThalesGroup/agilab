@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -30,6 +31,18 @@ from package_split_contract import (  # noqa: E402
     project_path,
     pyproject_path,
 )
+
+
+def test_package_split_contract_imports_without_site_packages() -> None:
+    completed = subprocess.run(
+        [sys.executable, "-S", str(TOOLS_ROOT / "package_split_contract.py")],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
 
 
 def _load_toml(path: Path) -> dict:

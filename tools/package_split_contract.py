@@ -3,11 +3,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
-
-from packaging.requirements import Requirement
-from packaging.utils import canonicalize_name
 
 
 @dataclass(frozen=True)
@@ -215,14 +213,21 @@ ROOT_EXTRA_INTERNAL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
 }
 
 
+def _canonicalize_distribution_name(value: str) -> str:
+    return re.sub(r"[-_.]+", "-", value).lower()
+
+
 def is_self_extra_alias(
-    requirement: Requirement, *, project_name: str
+    requirement: object, *, project_name: str
 ) -> bool:
     """Return whether a requirement aliases an extra of its own project."""
 
+    extras = getattr(requirement, "extras", ())
+    requirement_name = str(getattr(requirement, "name", ""))
     return bool(
-        requirement.extras
-        and canonicalize_name(requirement.name) == canonicalize_name(project_name)
+        extras
+        and _canonicalize_distribution_name(requirement_name)
+        == _canonicalize_distribution_name(project_name)
     )
 
 
