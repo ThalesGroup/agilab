@@ -285,6 +285,15 @@ def test_docs_workflows_block_stale_release_proof_github_runs() -> None:
     assert "run --extra ui pytest -q -o addopts='' test/test_sync_docs_source.py" not in guard_text
 
 
+def test_docs_source_guard_fetches_release_tags_for_exact_proof() -> None:
+    guard_text = DOCS_SOURCE_GUARD_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    checkout_block = guard_text.split("- name: Checkout", 1)[1].split(
+        "- name: Setup Python", 1
+    )[0]
+    assert "fetch-depth: 0" in checkout_block
+
+
 def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
     text = UI_ROBOT_MATRIX_WORKFLOW_PATH.read_text(encoding="utf-8")
 
