@@ -120,7 +120,6 @@ def _pytest_command(group: RootTestGroup) -> tuple[str, ...]:
         "-q",
         "-o",
         "addopts=",
-        "--import-mode=importlib",
         *group.pytest_args,
     )
 
