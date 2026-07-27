@@ -93,9 +93,13 @@ def build_root_test_groups() -> tuple[RootTestGroup, ...]:
         _repo_relative(path) for path in sorted(ROOT_TEST_DIR.glob("test_*.py"))
     )
     general = tuple(path for path in discovered if path not in classified)
-    groups: list[RootTestGroup] = []
-    if general:
-        groups.append(RootTestGroup("general", general, general))
+    # The unclassified root tests contain several dynamic-import and Streamlit
+    # harnesses that intentionally replace process-global modules. Give each
+    # file its own interpreter so one test module cannot corrupt a later one.
+    groups = [
+        RootTestGroup(f"general:{Path(path).stem}", (path,), (path,))
+        for path in general
+    ]
     groups.extend(chunk_groups)
 
     planned = {path for group in groups for path in group.test_files}

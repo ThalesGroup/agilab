@@ -35,10 +35,14 @@ def test_root_test_plan_covers_every_root_file_in_stable_groups() -> None:
     }
     planned = {path for group in groups for path in group.test_files}
     by_name = {group.name: group for group in groups}
+    general_groups = [
+        group for group in groups if group.name.startswith("general:")
+    ]
 
     assert discovered <= planned
-    assert [group.name for group in groups] == [
-        "general",
+    assert len(general_groups) > 100
+    assert all(len(group.test_files) == 1 for group in general_groups)
+    assert [group.name for group in groups[-7:]] == [
         "support",
         "pipeline",
         "robots",
@@ -48,7 +52,13 @@ def test_root_test_plan_covers_every_root_file_in_stable_groups() -> None:
         "reports",
     ]
     assert "test/test_view_training_analysis.py" in by_name["views"].test_files
-    assert "test/test_view_training_analysis.py" not in by_name["general"].test_files
+    assert not any(
+        "test/test_view_training_analysis.py" in group.test_files
+        for group in general_groups
+    )
+    assert by_name["general:test_execution_playground_forms"].test_files == (
+        "test/test_execution_playground_forms.py",
+    )
     assert by_name["pages-flow"].pytest_args[-2:] == (
         "-k",
         "execute_page or experiment_page or pipeline_page_project_selectbox",
@@ -85,5 +95,5 @@ def test_root_test_runner_list_mode_is_side_effect_free(capsys) -> None:
     assert module.main(["--list"]) == 0
 
     output = capsys.readouterr().out
-    assert "general\t" in output
+    assert "general:test_agenticweb_manifest\t1" in output
     assert "views\t" in output
