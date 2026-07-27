@@ -188,6 +188,9 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "os: [ubuntu-latest, macos-latest, windows-latest]" in text
     assert "tools/install_release_proof_package.py" in text
     assert "Check release package is installable from PyPI" in text
+    assert "python tools/install_release_proof_package.py --check-source-ahead" in text
+    assert "--check-project-newer-than-manifest" not in text
+    assert "Release proof explicitly declares source-ahead mode" in text
     assert "python tools/install_release_proof_package.py --check-installable-only" in text
     assert "steps.release-package.outputs.available == 'true'" in text
     assert "GITHUB_EVENT_NAME" in text
@@ -280,6 +283,15 @@ def test_docs_workflows_block_stale_release_proof_github_runs() -> None:
         "-o addopts='' test/test_sync_docs_source.py test/test_release_proof_report.py"
     ) in guard_text
     assert "run --extra ui pytest -q -o addopts='' test/test_sync_docs_source.py" not in guard_text
+
+
+def test_docs_source_guard_fetches_release_tags_for_exact_proof() -> None:
+    guard_text = DOCS_SOURCE_GUARD_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    checkout_block = guard_text.split("- name: Checkout", 1)[1].split(
+        "- name: Setup Python", 1
+    )[0]
+    assert "fetch-depth: 0" in checkout_block
 
 
 def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
