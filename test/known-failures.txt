@@ -1,0 +1,14 @@
+# Quarantined root-suite tests, deselected by .github/workflows/root-test-suite.yml.
+#
+# One pytest node id per line; blank lines and `#` comments ignored. Every entry
+# needs a reason and a date, and this list is meant to shrink. A test that is not
+# listed here must pass -- that is the whole point of the gate.
+#
+# Do not add an entry to make a red build green without recording why. If a
+# failure is a real defect, the entry is a placeholder for the fix, not a verdict
+# that the behaviour is acceptable.
+#
+# Deliberately empty on this first run: the suite is being executed against clean
+# CI hardware to learn which failures are genuine and which were artifacts of a
+# local developer checkout. Entries get added from that result, not from a
+# local run.
