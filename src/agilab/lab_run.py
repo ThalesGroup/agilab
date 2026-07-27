@@ -689,12 +689,18 @@ def _run_env(argv: list[str]) -> int:
 
 
 def _run_app(argv: list[str]) -> int:
-    if argv[:1] == ["surface"]:
-        return _run_app_surface(argv[1:])
-
     from agilab import pypi_app_packages
 
-    return pypi_app_packages.main(argv)
+    return pypi_app_packages.main(
+        argv,
+        extra_subcommands=(
+            (
+                "surface",
+                "Open an app UI backend; `--list` shows the available backends.",
+                _run_app_surface,
+            ),
+        ),
+    )
 
 
 def _run_kubernetes_job(argv: list[str]) -> int:
@@ -1065,6 +1071,95 @@ def _load_streamlit_cli():
     return stcli
 
 
+# Subcommands are dispatched from `raw_argv` below, before the argparse parser is
+# built, so argparse cannot advertise them on its own. This table exists purely to
+# make them discoverable from `agilab --help`; test_cli_help_discoverability keeps
+# it in sync with the dispatch ladder.
+_SUBCOMMAND_GROUPS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
+    (
+        "Getting started",
+        (
+            ("first-proof", "Run the packaged first proof and emit install/run evidence."),
+            ("dry-run", "Plan the first proof without executing it."),
+            ("doctor", "Diagnose the local install, cluster share, and worker setup."),
+            ("app", "Manage app packages; `app surface` opens an app UI backend."),
+            ("pytorch-playground", "Launch the PyTorch playground app surface."),
+        ),
+    ),
+    (
+        "Evidence and proof",
+        (
+            ("prove", "Write a portable AGILAB proof pack."),
+            ("verify", "Verify a run manifest, optionally requiring a signature."),
+            ("sign", "Sign a .agipack proof capsule with Ed25519."),
+            ("replay", "Print or execute a recorded replay command."),
+            ("policy-check", "Evaluate a manifest against a policy."),
+            ("cards", "Generate model/dataset/prompt/eval cards."),
+            ("metadata-store", "Append a run to a local metadata store."),
+            ("export-lineage", "Export lineage/observability formats."),
+            ("export-traces", "Export OpenTelemetry-shaped trace JSON."),
+        ),
+    ),
+    (
+        "Workflows and agents",
+        (
+            ("workflow", "Validate stage, dependency, and artifact-flow contracts."),
+            ("agent-run", "Wrap coding-agent actions with redacted manifests and traces."),
+            ("reuse", "Suggest or validate reusable apps and pages."),
+            ("pages", "`pages suggest` proposes reusable page bundles."),
+            ("projects", "`projects suggest` proposes reusable project layouts."),
+        ),
+    ),
+    (
+        "Reports and release",
+        (
+            ("security-check", "Run the local security hygiene profile."),
+            ("adoption-report", "Summarize adoption/compatibility posture."),
+            ("story", "Render the storyboard walkthrough."),
+            ("promotion-dossier", "Assemble the promotion dossier."),
+            ("publish", "Run the publish path."),
+            ("release", "Run the release path."),
+        ),
+    ),
+    (
+        "Bridges and deployment",
+        (
+            ("export", "Export to Quarto, HF Space, MLflow, Airflow, or Dagster."),
+            ("run", "Run a Quarto doc, DuckDB query, or notebook."),
+            ("init", "Scaffold editor integration, e.g. `init vscode`."),
+            ("import", "Import from an external system, e.g. `import mlflow`."),
+            ("mcp", "Serve the AGILAB MCP endpoint."),
+            ("kubernetes-job", "Render a Kubernetes Job manifest for an app."),
+            ("env", "`env footprint` reports the resolved environment footprint."),
+        ),
+    ),
+)
+
+# Accepted spellings that intentionally do not get their own help line.
+_SUBCOMMAND_ALIASES: dict[str, str] = {
+    "storyboard": "story",
+    "run-story": "story",
+    "dossier": "promotion-dossier",
+    "k8s-job": "kubernetes-job",
+    "project": "projects",
+}
+
+
+def _subcommand_epilog() -> str:
+    lines = ["subcommands:"]
+    width = max(
+        len(name) for _, entries in _SUBCOMMAND_GROUPS for name, _ in entries
+    )
+    for title, entries in _SUBCOMMAND_GROUPS:
+        lines.append("")
+        lines.append(f"  {title}:")
+        for name, help_text in entries:
+            lines.append(f"    {name.ljust(width)}  {help_text}")
+    lines.append("")
+    lines.append("Run `agilab <subcommand> --help` for subcommand options.")
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     _guard_against_uvx_in_source_tree()
     raw_argv = list(sys.argv[1:] if argv is None else argv)
@@ -1141,7 +1236,9 @@ def main(argv: list[str] | None = None) -> int:
         return _run_pytorch_playground(raw_argv[1:])
 
     parser = argparse.ArgumentParser(
-        description="Run AGILAB application with custom options."
+        description="Run AGILAB application with custom options.",
+        epilog=_subcommand_epilog(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--apps-path",

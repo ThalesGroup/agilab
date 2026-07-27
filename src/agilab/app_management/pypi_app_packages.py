@@ -738,9 +738,18 @@ def _app_remove(args: argparse.Namespace) -> int:
     )
 
 
-def _build_parser() -> argparse.ArgumentParser:
+def _build_parser(
+    extra_subcommands: Sequence[tuple[str, str, Callable[[list[str]], int]]] = (),
+) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Manage AGILAB PyPI app packages.")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # Subcommands owned by a caller (currently `agilab app surface`, which lives in
+    # lab_run). Registered here so one parser is the single source of help truth.
+    for name, help_text, handler in extra_subcommands:
+        extra_parser = subparsers.add_parser(name, help=help_text)
+        extra_parser.add_argument("args", nargs=argparse.REMAINDER)
+        extra_parser.set_defaults(func=lambda parsed, _handler=handler: _handler(parsed.args))
 
     list_parser = subparsers.add_parser("list", help="List installed agi-app-* packages.")
     list_parser.add_argument("--json", action="store_true")
@@ -777,7 +786,11 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = _build_parser()
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    extra_subcommands: Sequence[tuple[str, str, Callable[[list[str]], int]]] = (),
+) -> int:
+    parser = _build_parser(extra_subcommands)
     args = parser.parse_args(list(sys.argv[1:] if argv is None else argv))
     return args.func(args)

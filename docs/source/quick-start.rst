@@ -36,7 +36,8 @@ Fast adoption path:
 Prerequisites
 -------------
 
-- Python 3.12+ with `uv <https://docs.astral.sh/uv/>`_ installed.
+- Python 3.12, 3.13, or 3.14 (the package declares ``requires-python = ">=3.12,<3.15"``)
+  with `uv <https://docs.astral.sh/uv/>`_ installed.
   Use the installer command for your platform from the uv documentation; the
   common macOS/Linux bootstrap is ``curl -LsSf https://astral.sh/uv/install.sh | sh``.
 - macOS or Linux shell for the source-checkout installer. On native Windows,
