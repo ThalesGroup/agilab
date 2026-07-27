@@ -151,6 +151,17 @@ class BaseWorker(ArtifactContract, abc.ABC):
     def work_init(self) -> None:
         """Per-works()-call initialization hook; default is a no-op."""
 
+    def distribution_cache_inputs(self) -> Iterable[Path | str]:
+        """Return additional filesystem inputs that determine the work plan.
+
+        ``WorkDispatcher`` automatically fingerprints conventional argument
+        fields such as ``data_in`` and ``submission_inbox``. Applications whose
+        planner reads other filesystem locations can expose those roots here
+        without changing the stable ``build_distribution(workers)`` signature.
+        """
+
+        return ()
+
     def _actual_work_pool(self, x: Any = None) -> Any:
         """Process one work item; dataframe families must override this."""
         raise NotImplementedError(

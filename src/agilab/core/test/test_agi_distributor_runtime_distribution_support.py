@@ -105,6 +105,21 @@ def test_dask_env_prefix_and_scale_cluster_trim_workers():
     assert AGI._dask_workers == ["10.0.0.1:1001"]
 
 
+def test_scale_cluster_uses_central_parser_for_bracketed_and_raw_ipv6_workers():
+    AGI._workers = {"2001:db8::1": 2}
+    AGI._dask_workers = [
+        "[2001:0db8::1]:1001",
+        "2001:db8::1",
+        "[2001:db8::2]:1002",
+    ]
+
+    runtime_distribution_support.scale_cluster(AGI)
+
+    assert AGI._dask_workers == ["[2001:0db8::1]:1001", "2001:db8::1"]
+    assert runtime_distribution_support.worker_host("tcp://user@[2001:0db8::1]:1001") == "2001:db8::1"
+    assert runtime_distribution_support.worker_host("2001:0db8::1") == "2001:db8::1"
+
+
 def test_sanitize_worker_upload_artifacts_removes_top_level_ui_modules(tmp_path):
     wenv_abs = tmp_path / "worker_env"
     src_dir = wenv_abs / "src"
@@ -1049,7 +1064,7 @@ async def test_distribute_wraps_payloads_and_logs_worker_outputs(monkeypatch):
 
     class _Dispatcher:
         @staticmethod
-        async def _do_distrib(_env, workers, _args):
+        async def _do_distrib(_env, workers, _args, *, capacities=None):
             return workers, [["step"]], [[{"meta": 1}]]
 
     class _Worker:
@@ -1301,7 +1316,7 @@ async def test_distribute_in_debug_mode_backfills_empty_worker_logs(monkeypatch)
 
     class _Dispatcher:
         @staticmethod
-        async def _do_distrib(_env, workers, _args):
+        async def _do_distrib(_env, workers, _args, *, capacities=None):
             return workers, [["step"]], [[{"meta": 1}]]
 
     class _Worker:
@@ -1356,7 +1371,7 @@ async def test_distribute_in_debug_mode_backfills_known_workers_when_no_futures(
 
     class _Dispatcher:
         @staticmethod
-        async def _do_distrib(_env, workers, _args):
+        async def _do_distrib(_env, workers, _args, *, capacities=None):
             return workers, [], []
 
     AGI.env = SimpleNamespace(
@@ -1404,7 +1419,7 @@ async def test_distribute_in_debug_mode_handles_empty_scheduler_worker_list(monk
 
     class _Dispatcher:
         @staticmethod
-        async def _do_distrib(_env, workers, _args):
+        async def _do_distrib(_env, workers, _args, *, capacities=None):
             return workers, [], []
 
     AGI.env = SimpleNamespace(
@@ -1435,6 +1450,38 @@ async def test_distribute_in_debug_mode_handles_empty_scheduler_worker_list(monk
     )
 
     assert result == "mode=4 0.0"
+
+
+@pytest.mark.asyncio
+async def test_distribute_rejects_nonempty_plan_when_no_workers_are_retained():
+    class _Client:
+        def scheduler_info(self):
+            return {"workers": {}}
+
+    class _Dispatcher:
+        @staticmethod
+        async def _do_distrib(_env, workers, _args, *, capacities=None):
+            assert capacities is None
+            return workers, [["orphaned-work"]], [[{"meta": 1}]]
+
+    AGI.env = SimpleNamespace(
+        debug=False,
+        target_worker="demo_worker",
+        target="demo",
+        mode2str=lambda mode: f"mode={mode}",
+    )
+    AGI._dask_client = _Client()
+    AGI._workers = {"127.0.0.1": 1}
+    AGI._args = {}
+    AGI._mode = AGI.DASK_MODE
+    AGI.verbose = 0
+
+    with pytest.raises(RuntimeError, match="non-empty workload"):
+        await runtime_distribution_support.distribute(
+            AGI,
+            work_dispatcher_cls=_Dispatcher,
+            base_worker_cls=BaseWorker,
+        )
 
 
 @pytest.mark.asyncio
@@ -1589,8 +1636,8 @@ async def test_distribute_executes_new_calibration_and_works(monkeypatch):
         def scheduler_info(self):
             return {
                 "workers": {
-                    "tcp://127.0.0.1:8787": {},
                     "tcp://10.0.0.2:8788": {},
+                    "tcp://127.0.0.1:8787": {},
                 }
             }
 
@@ -1615,14 +1662,16 @@ async def test_distribute_executes_new_calibration_and_works(monkeypatch):
     AGI._mode = AGI.DASK_MODE
     AGI.verbose = 0
     AGI.debug = False
-    called = {"calibration": 0}
+    called = {"calibration": 0, "planner_capacities": None}
 
-    async def _fake_distrib(_env, workers, _args):
+    async def _fake_distrib(_env, workers, _args, *, capacities=None):
+        assert called["calibration"] == 1
+        called["planner_capacities"] = capacities
         return workers, [["step-a"], ["step-b"]], [[{"m": 1}], [{"m": 2}]]
 
     async def _fake_calibration():
         called["calibration"] += 1
-        AGI._capacity = {"127.0.0.1:8787": 1.0, "10.0.0.2:8788": 1.0}
+        AGI._capacity = {"127.0.0.1:8787": 1.0, "10.0.0.2:8788": 4.0}
 
     monkeypatch.setattr(WorkDispatcher, "_do_distrib", staticmethod(_fake_distrib))
     monkeypatch.setattr(AGI, "_calibration", staticmethod(_fake_calibration))
@@ -1635,6 +1684,8 @@ async def test_distribute_executes_new_calibration_and_works(monkeypatch):
     )
     assert result.startswith("dask ")
     assert called["calibration"] == 1
+    assert called["planner_capacities"] == [1.0, 4.0]
+    assert AGI._dask_workers == ["127.0.0.1:8787", "10.0.0.2:8788"]
     assert AGI._work_plan == [["step-a"], ["step-b"]]
     assert AGI._work_plan_metadata == [[{"m": 1}], [{"m": 2}]]
     assert "BaseWorker._new" not in AGI._dask_client.submissions
