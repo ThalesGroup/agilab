@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import subprocess
 import sys
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "tools" / "pre_push_changed_files.py"
@@ -91,6 +92,55 @@ def test_classify_infra_scopes_do_not_count_as_mixed_push_scope():
     assert state.scope_count == 0
 
 
+def test_pre_push_docs_guard_accepts_an_isolated_canonical_source():
+    hook = (ROOT / ".githooks" / "pre-push").read_text(encoding="utf-8")
+
+    assert 'if [[ -n "${AGILAB_DOCS_SOURCE:-}" ]]' in hook
+    assert 'docs_source_args=(--source "$AGILAB_DOCS_SOURCE")' in hook
+    assert '"${docs_source_args[@]}" \\' in hook
+
+
+def test_pre_push_docs_source_override_fails_closed_when_missing(
+    tmp_path: Path,
+) -> None:
+    hook_root = tmp_path / "repo"
+    hooks_dir = hook_root / ".githooks"
+    hooks_dir.mkdir(parents=True)
+    hook_path = hooks_dir / "pre-push"
+    hook_path.write_text(
+        (ROOT / ".githooks" / "pre-push").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    hook_path.chmod(0o755)
+    (hooks_dir / "guard_python.sh").write_text(
+        """run_guard_python() {
+  if [[ "$1" == "tools/pre_push_changed_files.py" ]]; then
+    printf '%s\\n' 'DOCS_CHANGED=1' 'RELEASE_PROOF_CHANGED=0' \\
+      'APP_CONTRACTS_CHANGED=0' 'AGI_CORE_PROTECTED_CHANGED=0' \\
+      'AGENT_INSTRUCTIONS_CHANGED=0' 'MIXED_SCOPE=0' 'DETECTION_FAILED=0'
+  fi
+}
+""",
+        encoding="utf-8",
+    )
+    missing_source = tmp_path / "missing-canonical-source"
+    env = dict(os.environ)
+    env["AGILAB_DOCS_SOURCE"] = str(missing_source)
+
+    completed = subprocess.run(
+        [str(hook_path)],
+        cwd=hook_root,
+        input="",
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert f"AGILAB_DOCS_SOURCE is not a directory: {missing_source}" in completed.stderr
+
+
 def test_classify_agent_instruction_change_runs_agent_instruction_guard_only():
     state = pre_push_changed_files.classify_changed_files(["AGENTS.md"])
 
@@ -127,18 +177,48 @@ def test_classify_many_product_scopes_blocks_mixed_push_scope():
     assert state.scope_count == 3
 
 
-def test_pre_push_records_use_remote_sha_as_diff_base():
+def test_pre_push_records_use_default_branch_merge_base_for_topic_update():
     calls = []
 
     def fake_git(args):
         calls.append(list(args))
+        if args[:2] == ["merge-base", "localsha"]:
+            return "default-base-sha"
         return "docs/source/getting-started.rst\nsrc/agilab/main_page.py"
 
     stdin_text = "refs/heads/topic localsha refs/heads/topic remotesha\n"
     changed = pre_push_changed_files.changed_files_from_pre_push(stdin_text, git=fake_git)
 
     assert changed == ("docs/source/getting-started.rst", "src/agilab/main_page.py")
-    assert calls == [["diff", "--name-only", "--diff-filter=ACMR", "remotesha", "localsha"]]
+    assert calls == [
+        ["merge-base", "localsha", "origin/main"],
+        [
+            "diff",
+            "--name-only",
+            "--diff-filter=ACMR",
+            "default-base-sha",
+            "localsha",
+        ],
+    ]
+
+
+def test_pre_push_records_keep_remote_sha_for_main_update():
+    calls = []
+
+    def fake_git(args):
+        calls.append(list(args))
+        return "tools/release_plan.py"
+
+    stdin_text = "refs/heads/main localsha refs/heads/main remotesha\n"
+    changed = pre_push_changed_files.changed_files_from_pre_push(
+        stdin_text,
+        git=fake_git,
+    )
+
+    assert changed == ("tools/release_plan.py",)
+    assert calls == [
+        ["diff", "--name-only", "--diff-filter=ACMR", "remotesha", "localsha"]
+    ]
 
 
 def test_main_reads_pre_push_spec_file_for_hook_guard_state(tmp_path, monkeypatch, capsys):

@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "tools" / "agilab_dev.py"
 
@@ -71,7 +70,13 @@ def test_test_shortcut_keeps_pytest_arguments():
             "--preview-features",
             "extra-build-dependencies",
             "run",
-            "pytest",
+            "--extra",
+            "ui",
+            "--extra",
+            "notebook",
+            "python",
+            "-m",
+            "tools.testing.pytest_entrypoint",
             "-q",
             "-o",
             "addopts=",
@@ -81,6 +86,56 @@ def test_test_shortcut_keeps_pytest_arguments():
             "windows",
         ]
     ]
+
+
+def test_test_shortcut_keeps_headless_core_tests_free_of_ui_extra():
+    assert agilab_dev.planned_commands(
+        ["test", "src/agilab/core/agi-env/test/test_optional_ui_split.py"]
+    ) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "-m",
+            "tools.testing.pytest_entrypoint",
+            "-q",
+            "-o",
+            "addopts=",
+            "--import-mode=importlib",
+            "src/agilab/core/agi-env/test/test_optional_ui_split.py",
+        ]
+    ]
+
+
+def test_test_shortcut_splits_repository_groups_by_dependency_contract():
+    commands = agilab_dev.planned_commands(["test"])
+
+    assert len(commands) == len(agilab_dev.PYTEST_PATH_GROUPS) + 1
+    assert commands[0][4:12] == [
+        "--extra",
+        "dev",
+        "--extra",
+        "ui",
+        "--extra",
+        "viz",
+        "--extra",
+        "notebook",
+    ]
+    assert commands[0][-3:] == [
+        "python",
+        "-m",
+        "tools.testing.root_test_runner",
+    ]
+    assert commands[1][4:7] == [
+        "python",
+        "-m",
+        "tools.testing.pytest_entrypoint",
+    ]
+    assert commands[1][-1] == "src/agilab/core/test"
+    assert commands[4][4:6] == ["--extra", "ui"]
+    assert commands[4][-1] == "src/agilab/lib/agi-gui/test"
 
 
 def test_lint_shortcut_provisions_ruff_from_dev_extra_by_default():
@@ -454,6 +509,35 @@ def test_dev_shortcuts_allow_named_isolated_uv_environment(monkeypatch):
     assert env["UV_PROJECT_ENVIRONMENT"] == "/tmp/agilab-dev"
 
 
+def test_test_execution_env_isolates_checkout_state_and_credentials(monkeypatch):
+    for name in (
+        "APPS_REPOSITORY",
+        "AZURE_OPENAI_API_KEY",
+        "CLUSTER_CREDENTIALS",
+        "OPENAI_API_KEY",
+    ):
+        monkeypatch.setenv(name, "must-not-leak")
+
+    with agilab_dev._execution_env("test") as env:
+        isolated_home = Path(env["HOME"])
+        assert env["USERPROFILE"] == str(isolated_home)
+        assert env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"
+        assert all(
+            name not in env
+            for name in (
+                "APPS_REPOSITORY",
+                "AZURE_OPENAI_API_KEY",
+                "CLUSTER_CREDENTIALS",
+                "OPENAI_API_KEY",
+            )
+        )
+        assert (
+            isolated_home / ".local" / "share" / "agilab" / ".agilab-path"
+        ).read_text(encoding="utf-8") == str(agilab_dev.ROOT / "src" / "agilab") + "\n"
+
+    assert not isolated_home.exists()
+
+
 def test_main_keeps_machine_readable_shortcut_stdout_clean(
     capsys, monkeypatch, tmp_path
 ):
@@ -463,7 +547,7 @@ def test_main_keeps_machine_readable_shortcut_stdout_clean(
         returncode = 0
         stdout = "ok\n"
 
-    def fake_run(command, *, cwd, env, stdout, stderr, text, errors):
+    def fake_run(command, *, cwd, env, stdout, stderr, text, errors, check):
         calls.append(
             (
                 command,
@@ -520,18 +604,16 @@ def test_main_compact_output_prints_signal_summary_and_writes_full_log(
 ):
     class Completed:
         returncode = 1
-        stdout = "\n".join(
-            [
-                "collecting tests",
-                "line that should stay only in the artifact",
-                "ERROR first failure",
-                "Traceback (most recent call last)",
-                "FAILED test_demo.py::test_demo",
-                "short tail",
-            ]
+        stdout = (
+            "collecting tests\n"
+            "line that should stay only in the artifact\n"
+            "ERROR first failure\n"
+            "Traceback (most recent call last)\n"
+            "FAILED test_demo.py::test_demo\n"
+            "short tail"
         )
 
-    def fake_run(command, *, cwd, env, stdout, stderr, text, errors):
+    def fake_run(command, *, cwd, env, stdout, stderr, text, errors, check):
         assert env["UV_PROJECT_ENVIRONMENT"] == str(
             agilab_dev.DEFAULT_DEV_UV_PROJECT_ENVIRONMENT
         )
@@ -562,7 +644,7 @@ def test_main_raw_output_keeps_streaming_subprocess_call(capsys, monkeypatch):
     class Completed:
         returncode = 0
 
-    def fake_run(command, *, cwd, env):
+    def fake_run(command, *, cwd, env, check):
         calls.append(
             (
                 command,

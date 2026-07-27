@@ -167,7 +167,11 @@ Use this runbook whenever you:
   release assets. If the guard should ignore them, fix or tighten the guard at
   the inventory layer and add a polluted-workspace regression; if bypassing is
   still necessary, state the exact unrelated guard failure and the targeted
-  check that was run.
+  check that was run. For canonical docs validation from an isolated clean
+  worktree, set `AGILAB_DOCS_SOURCE` to that worktree's `docs/source` directory
+  so the pre-push mirror guard verifies the intended source instead of the
+  conventional sibling checkout; do not bypass the guard merely because the
+  sibling checkout contains unrelated user work.
 - **Reasonable factorization check**: When adding new code, look for nearby
   existing helpers, contracts, or patterns that can reasonably be reused or
   extended instead of duplicating logic. Factor only when it reduces real

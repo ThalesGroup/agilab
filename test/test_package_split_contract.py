@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
 
+import pytest
 from packaging.requirements import Requirement
 from packaging.version import Version
-import pytest
 from setuptools import find_packages
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TOOLS_ROOT = REPO_ROOT / "tools"
@@ -26,10 +26,24 @@ from package_split_contract import (  # noqa: E402
     ROOT_EXTRA_INTERNAL_REQUIREMENTS,
     UMBRELLA_PACKAGE_CONTRACT,
     WHEEL_ONLY_PACKAGE_NAMES,
+    is_self_extra_alias,
     package_by_name,
     project_path,
     pyproject_path,
+    self_extra_alias_constraint_allows_project,
 )
+
+
+def test_package_split_contract_imports_without_site_packages() -> None:
+    completed = subprocess.run(
+        [sys.executable, "-S", str(TOOLS_ROOT / "package_split_contract.py")],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
 
 
 def _load_toml(path: Path) -> dict:
@@ -156,6 +170,19 @@ def test_internal_dependencies_follow_bundle_or_asset_version_policy() -> None:
         for section, dependencies in dependency_sections.items():
             for dependency in dependencies:
                 requirement = Requirement(dependency)
+                if is_self_extra_alias(requirement, project_name=package.name):
+                    # Alias extras are policy-neutral indirections. Their concrete
+                    # requirements are validated in the referenced extra itself,
+                    # but a supplied exact self-pin must still match this project.
+                    if not self_extra_alias_constraint_allows_project(
+                        requirement,
+                        project_name=package.name,
+                        project_version=str(project.get("version", "")),
+                    ):
+                        violations.append(
+                            f"{package.name}:{section}:{requirement}: self-extra constraint must allow {project.get('version')}"
+                        )
+                    continue
                 if requirement.name.lower() not in internal_names:
                     continue
                 exact_version = _exact_pin(requirement)
@@ -179,6 +206,30 @@ def test_internal_dependencies_follow_bundle_or_asset_version_policy() -> None:
                     )
 
     assert violations == []
+
+
+@pytest.mark.parametrize(
+    ("requirement", "expected"),
+    [
+        ("agilab[local-llm]", True),
+        ("agilab[local-llm]==2026.07.17.1", True),
+        ("agilab[local-llm]==0", False),
+        ("agilab[local-llm]<1", False),
+        ("agilab[local-llm]==2026.07.17.1,!=2026.07.17.1", False),
+    ],
+)
+def test_self_extra_alias_exact_pin_must_match_project(
+    requirement: str,
+    expected: bool,
+) -> None:
+    assert (
+        self_extra_alias_constraint_allows_project(
+            Requirement(requirement),
+            project_name="agilab",
+            project_version="2026.07.17.1",
+        )
+        is expected
+    )
 
 
 def test_queue_resilience_pages_require_the_shared_runtime_release() -> None:

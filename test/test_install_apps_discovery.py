@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
-
 INSTALL_APPS_SH = Path(__file__).resolve().parents[1] / "src/agilab/install_apps.sh"
+REPO_ROOT = INSTALL_APPS_SH.parents[2]
 
 
 def _extract_function(script_text: str, function_name: str, next_function_name: str) -> str:
@@ -160,7 +161,10 @@ def _run_validate_apps_repository_policy(
     strict: bool,
     allowlist: str = "",
     allow_floating: bool = False,
+    cwd: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    uv = shutil.which("uv")
+    assert uv is not None
     script_text = INSTALL_APPS_SH.read_text(encoding="utf-8")
     start = script_text.index("parse_list_to_array() {")
     end = script_text.index("\n# Detect whether", start)
@@ -171,6 +175,8 @@ RED=''
 YELLOW=''
 BLUE=''
 NC=''
+UV_PREVIEW=({uv!r} --preview-features extra-build-dependencies)
+AGILAB_APPS_REPOSITORY_POLICY_SCRIPT={str(REPO_ROOT / "src/agilab/security/apps_repository_policy.py")!r}
 {function_body}
 validate_apps_repository_policy "$1"
 """
@@ -186,6 +192,7 @@ validate_apps_repository_policy "$1"
         capture_output=True,
         text=True,
         env=env,
+        cwd=cwd,
     )
 
 
@@ -194,7 +201,7 @@ def _run_install_apps_selection_from_cli(raw: str) -> dict[str, str]:
     function_body = _extract_function(
         script_text,
         "set_install_apps_selection_from_cli",
-        "is_truthy",
+        "validate_apps_repository_policy",
     )
     bash_script = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -480,11 +487,24 @@ def test_validate_apps_repository_policy_rejects_floating_branch_in_strict_mode(
     repo_root = tmp_path / "apps_repo"
     repo_root.mkdir()
     subprocess.run(["git", "init", "-b", "main"], cwd=repo_root, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=repo_root, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo_root, check=True)
+    (repo_root / "README.md").write_text("reviewed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=repo_root, check=True)
+    subprocess.run(["git", "commit", "-m", "reviewed"], cwd=repo_root, check=True, capture_output=True, text=True)
+    origin = "https://example.invalid/reviewed-apps.git"
+    subprocess.run(
+        ["git", "remote", "add", "origin", origin],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
     result = _run_validate_apps_repository_policy(
         repo_root,
         strict=True,
-        allowlist=str(repo_root.resolve()),
+        allowlist=origin,
     )
 
     assert result.returncode == 1
@@ -494,11 +514,90 @@ def test_validate_apps_repository_policy_rejects_floating_branch_in_strict_mode(
 def test_validate_apps_repository_policy_requires_allowlist_in_strict_mode(tmp_path: Path) -> None:
     repo_root = tmp_path / "apps_repo"
     repo_root.mkdir()
+    subprocess.run(["git", "init", "-b", "main"], cwd=repo_root, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=repo_root, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo_root, check=True)
+    (repo_root / "README.md").write_text("reviewed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=repo_root, check=True)
+    subprocess.run(["git", "commit", "-m", "reviewed"], cwd=repo_root, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "https://example.invalid/reviewed-apps.git"],
+        cwd=repo_root,
+        check=True,
+    )
+    subprocess.run(["git", "checkout", "--detach"], cwd=repo_root, check=True, capture_output=True, text=True)
 
     result = _run_validate_apps_repository_policy(repo_root, strict=True)
 
     assert result.returncode == 1
     assert "AGILAB_APPS_REPOSITORY_ALLOWLIST" in result.stderr
+
+
+def test_validate_apps_repository_policy_accepts_allowlisted_detached_origin(
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path / "apps_repo"
+    repo_root.mkdir()
+    subprocess.run(["git", "init", "-b", "main"], cwd=repo_root, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=repo_root, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo_root, check=True)
+    (repo_root / "README.md").write_text("reviewed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=repo_root, check=True)
+    subprocess.run(["git", "commit", "-m", "reviewed"], cwd=repo_root, check=True, capture_output=True, text=True)
+    origin = "https://example.invalid/reviewed-apps.git"
+    subprocess.run(["git", "remote", "add", "origin", origin], cwd=repo_root, check=True)
+    subprocess.run(["git", "checkout", "--detach"], cwd=repo_root, check=True, capture_output=True, text=True)
+
+    result = _run_validate_apps_repository_policy(
+        repo_root,
+        strict=True,
+        allowlist=origin,
+    )
+
+    assert result.returncode == 0
+    assert "pinned" in result.stdout.lower()
+
+
+def test_validate_apps_repository_policy_ignores_shadow_module_in_launch_cwd(
+    tmp_path: Path,
+) -> None:
+    launch_cwd = tmp_path / "untrusted-cwd"
+    shadow = launch_cwd / "agilab" / "security" / "apps_repository_policy.py"
+    shadow.parent.mkdir(parents=True)
+    (launch_cwd / "agilab" / "__init__.py").write_text("", encoding="utf-8")
+    (shadow.parent / "__init__.py").write_text("", encoding="utf-8")
+    shadow.write_text("print('SHADOW POLICY EXECUTED')\n", encoding="utf-8")
+    backend_sentinel = launch_cwd / "UNTRUSTED-BACKEND-EXECUTED"
+    (launch_cwd / "pyproject.toml").write_text(
+        """
+[project]
+name = "untrusted-launch-project"
+version = "0.0.0"
+
+[build-system]
+requires = []
+build-backend = "untrusted_backend"
+backend-path = ["."]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    (launch_cwd / "untrusted_backend.py").write_text(
+        "from pathlib import Path\nPath('UNTRUSTED-BACKEND-EXECUTED').write_text('bad')\n",
+        encoding="utf-8",
+    )
+
+    result = _run_validate_apps_repository_policy(
+        tmp_path / "missing-apps-repository",
+        strict=True,
+        allowlist="https://example.invalid/reviewed-apps.git",
+        cwd=launch_cwd,
+    )
+
+    assert result.returncode == 1
+    assert "SHADOW POLICY EXECUTED" not in result.stdout
+    assert "missing path" in result.stderr
+    assert not backend_sentinel.exists()
 
 
 def test_install_apps_preserves_caller_apps_repository_over_env_file() -> None:

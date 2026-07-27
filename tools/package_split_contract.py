@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -210,6 +211,43 @@ ROOT_EXTRA_INTERNAL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "examples": ("agi-apps",),
     "pages": ("agi-pages",),
 }
+
+
+def _canonicalize_distribution_name(value: str) -> str:
+    return re.sub(r"[-_.]+", "-", value).lower()
+
+
+def is_self_extra_alias(
+    requirement: object, *, project_name: str
+) -> bool:
+    """Return whether a requirement aliases an extra of its own project."""
+
+    extras = getattr(requirement, "extras", ())
+    requirement_name = str(getattr(requirement, "name", ""))
+    return bool(
+        extras
+        and _canonicalize_distribution_name(requirement_name)
+        == _canonicalize_distribution_name(project_name)
+    )
+
+
+def self_extra_alias_constraint_allows_project(
+    requirement: object,
+    *,
+    project_name: str,
+    project_version: str,
+) -> bool:
+    """Reject self-extra constraints that exclude the project being installed."""
+
+    if not is_self_extra_alias(requirement, project_name=project_name):
+        return True
+    specifier_set = getattr(requirement, "specifier", None)
+    if specifier_set is None or not str(specifier_set):
+        return True
+    contains = getattr(specifier_set, "contains", None)
+    if not callable(contains):
+        return False
+    return bool(contains(project_version, prereleases=True))
 
 
 def package_by_name(name: str) -> PackageContract:

@@ -33,9 +33,16 @@ def _make_env(
         "reset_target = false\n",
         encoding="utf-8",
     )
+    share_root = tmp_path / "share"
+
+    def _resolve_share_path(value: str) -> Path:
+        return share_root / value
+
     return SimpleNamespace(
         app_settings_file=str(settings_file),
         humanize_validation_errors=lambda exc: [str(item) for item in exc.errors()],
+        resolve_share_path=_resolve_share_path,
+        resolve_share_input_path=_resolve_share_path,
     )
 
 

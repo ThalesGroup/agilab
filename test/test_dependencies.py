@@ -1,6 +1,6 @@
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 from typing import Dict, List, Optional, Tuple
 
 import pytest
@@ -47,12 +47,6 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default="https://pypi.org",
         help="Base index URL to read metadata from (default: PyPI).",
     )
-    group.addoption(
-        "--allow-mismatch",
-        action="store_true",
-        default=False,
-        help="Allow differing published versions, only enforce inter-package requirement compatibility.",
-    )
 
 
 # test_dependencies.py
@@ -61,7 +55,6 @@ def settings(pytestconfig) -> Dict[str, Optional[str]]:
     return {
         "target_version": pytestconfig.getoption("target_version", default=None),  # None => use latest
         "index_url": pytestconfig.getoption("index_url", default="https://pypi.org"),
-        "allow_mismatch": pytestconfig.getoption("allow_mismatch", default=False),
     }
 
 
@@ -85,10 +78,6 @@ def versions_and_requires(settings) -> Dict[str, Tuple[str, List[str]]]:
     return out
 
 
-def _all_equal(values: List[str]) -> bool:
-    return all(v == values[0] for v in values)
-
-
 def _parse_requirements(reqs: List[str]) -> List[Requirement]:
     parsed = []
     for r in reqs:
@@ -101,18 +90,22 @@ def _parse_requirements(reqs: List[str]) -> List[Requirement]:
     return parsed
 
 
-def test_versions_aligned(versions_and_requires, settings):
-    """
-    Ensures all packages share the same version (unless --allow-mismatch),
-    using either the explicitly provided --version or each package's latest.
-    """
-    versions = {pkg: ver for pkg, (ver, _) in versions_and_requires.items()}
-    if settings["allow_mismatch"]:
-        pytest.skip("Version equality check skipped due to --allow-mismatch.")
-    assert _all_equal(list(versions.values())), (
-        "Versions are not aligned across packages.\n"
-        + "\n".join(f"- {pkg}: {ver}" for pkg, ver in versions.items())
-    )
+def test_versions_are_valid_and_respect_an_explicit_target(
+    versions_and_requires,
+    settings,
+):
+    """Allow impact-scoped releases while still validating resolved versions."""
+
+    versions = {
+        pkg: Version(version)
+        for pkg, (version, _) in versions_and_requires.items()
+    }
+    assert set(versions) == set(PKGS)
+
+    target = settings["target_version"]
+    if target is not None:
+        expected = Version(target)
+        assert all(version == expected for version in versions.values())
 
 
 @pytest.mark.parametrize("pkg", PKGS)

@@ -3,23 +3,43 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import importlib.util
 import json
 import os
-from pathlib import Path
 import re
 import tomllib
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from agilab.environment.env_file_utils import read_mutable_env_text
 
 try:
+    from agilab.security import apps_repository_policy as _apps_repository_policy
+except ImportError:  # pragma: no cover - supports direct script execution.
+    import apps_repository_policy as _apps_repository_policy  # type: ignore[no-redef]
+
+evaluate_apps_repository_policy = (
+    _apps_repository_policy.evaluate_apps_repository_policy
+)
+APPS_ALLOWLIST_ENV = _apps_repository_policy.APPS_ALLOWLIST_ENV
+APPS_ALLOWLIST_FILE_ENV = _apps_repository_policy.APPS_ALLOWLIST_FILE_ENV
+_apps_repository_allowlist = _apps_repository_policy.apps_repository_allowlist
+_git_config_value = _apps_repository_policy._git_config_value
+_git_head_state = _apps_repository_policy._git_head_state
+_git_origin_url = _apps_repository_policy._git_origin_url
+_redact_url = _apps_repository_policy._redact_url
+_resolve_git_dir = _apps_repository_policy._resolve_git_dir
+_split_allowlist = _apps_repository_policy._split_allowlist
+
+try:
     from .untrusted_content_boundary import build_external_source_boundary
 except ImportError:  # pragma: no cover - supports direct script execution.
     try:
-        from untrusted_content_boundary import build_external_source_boundary  # type: ignore[no-redef]
+        from untrusted_content_boundary import (
+            build_external_source_boundary,  # type: ignore[no-redef]
+        )
     except ImportError:
         _boundary_path = Path(__file__).resolve().parent / "untrusted_content_boundary.py"
         _boundary_spec = importlib.util.spec_from_file_location(
@@ -38,13 +58,10 @@ SCHEMA_VERSION = 1
 DEFAULT_ARTIFACT_MAX_AGE_DAYS = 30
 PROFILES = ("local", "shared", "cluster", "public-ui")
 SECRET_KEY_RE = re.compile(r"(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)", re.IGNORECASE)
-HEX_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 LOCAL_HOSTS = {"", "127.0.0.1", "localhost", "::1"}
 EXPOSED_HOSTS = {"0.0.0.0", "::"}
 PUBLIC_BIND_OK_ENV = "AGILAB_PUBLIC_BIND_OK"
 PUBLIC_BIND_EVIDENCE_ENV = "AGILAB_PUBLIC_BIND_EVIDENCE"
-APPS_ALLOWLIST_ENV = "AGILAB_APPS_REPOSITORY_ALLOWLIST"
-APPS_ALLOWLIST_FILE_ENV = "AGILAB_APPS_REPOSITORY_ALLOWLIST_FILE"
 PLACEHOLDER_SECRET_VALUES = {
     "empty",
     "none",
@@ -125,191 +142,33 @@ def _resolve_path(raw_path: str | None, *, cwd: Path) -> Path | None:
     return path
 
 
-def _resolve_git_dir(repo: Path) -> Path | None:
-    dot_git = repo / ".git"
-    if dot_git.is_dir():
-        return dot_git
-    if dot_git.is_file():
-        text = dot_git.read_text(encoding="utf-8", errors="ignore").strip()
-        if text.startswith("gitdir:"):
-            git_dir = Path(text.split(":", 1)[1].strip()).expanduser()
-            if not git_dir.is_absolute():
-                git_dir = dot_git.parent / git_dir
-            return git_dir
-    return None
-
-
-def _git_config_value(repo: Path, section: str, key: str) -> str | None:
-    git_dir = _resolve_git_dir(repo)
-    if git_dir is None:
-        return None
-    config_path = git_dir / "config"
-    if not config_path.is_file():
-        return None
-    current_section: str | None = None
-    for raw_line in config_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith(("#", ";")):
-            continue
-        if line.startswith("[") and line.endswith("]"):
-            current_section = line[1:-1].strip()
-            continue
-        if current_section != section or "=" not in line:
-            continue
-        raw_key, raw_value = line.split("=", 1)
-        if raw_key.strip() == key:
-            return raw_value.strip()
-    return None
-
-
-def _git_origin_url(repo: Path) -> str | None:
-    return _git_config_value(repo, 'remote "origin"', "url")
-
-
-def _redact_url(value: str | None) -> str | None:
-    if not value:
-        return value
-    return re.sub(r"(https?://)[^/@:\s]+(:[^/@\s]+)?@", r"\1<redacted>@", value)
-
-
-def _split_allowlist(value: str) -> list[str]:
-    return [item.strip() for item in re.split(r"[\n,;]", value) if item.strip()]
-
-
-def _apps_repository_allowlist(config: Mapping[str, str], *, cwd: Path) -> list[str]:
-    allowlist = _split_allowlist(str(config.get(APPS_ALLOWLIST_ENV) or ""))
-    file_path = _resolve_path(config.get(APPS_ALLOWLIST_FILE_ENV), cwd=cwd)
-    if file_path and file_path.is_file():
-        for raw_line in file_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-            line = raw_line.strip()
-            if line and not line.startswith("#"):
-                allowlist.extend(_split_allowlist(line))
-    return sorted(set(allowlist))
-
-
-def _git_head_state(repo: Path) -> dict[str, Any]:
-    git_dir = _resolve_git_dir(repo)
-    if git_dir is None:
-        return {"is_git_checkout": False}
-    head_path = git_dir / "HEAD"
-    if not head_path.is_file():
-        return {"is_git_checkout": True, "head_state": "unknown"}
-    head = head_path.read_text(encoding="utf-8", errors="ignore").strip()
-    if head.startswith("ref:"):
-        ref = head.split(":", 1)[1].strip()
-        short = ref.removeprefix("refs/heads/").removeprefix("refs/tags/")
-        return {
-            "is_git_checkout": True,
-            "head_state": "branch" if ref.startswith("refs/heads/") else "ref",
-            "ref": ref,
-            "name": short,
-        }
-    if HEX_SHA_RE.match(head):
-        return {"is_git_checkout": True, "head_state": "detached", "commit": head}
-    return {"is_git_checkout": True, "head_state": "unknown", "head": head[:64]}
-
-
 def _check_apps_repository(config: Mapping[str, str], *, cwd: Path, profile: str = "local") -> Check:
-    path = _resolve_path(config.get("APPS_REPOSITORY"), cwd=cwd)
-    if path is None:
-        return Check(
-            "apps_repository_pin",
-            "External apps repository pinning",
-            "pass",
-            "APPS_REPOSITORY is not configured.",
-            "No action required unless you install external apps.",
-            {},
-        )
-    if not path.exists():
-        return Check(
-            "apps_repository_pin",
-            "External apps repository pinning",
-            _status_for_profile(profile=profile),
-            "APPS_REPOSITORY points to a missing path.",
-            "Point APPS_REPOSITORY to an allowlisted reviewed checkout, pinned commit, or immutable tag.",
-            {"path": str(path)},
-        )
-    if not path.is_dir():
-        return Check(
-            "apps_repository_pin",
-            "External apps repository pinning",
-            _status_for_profile(profile=profile),
-            "APPS_REPOSITORY is not a directory.",
-            "Use a reviewed Git checkout directory for external apps.",
-            {"path": str(path)},
-        )
-    git_state = _git_head_state(path)
-    if not git_state.get("is_git_checkout"):
-        return Check(
-            "apps_repository_pin",
-            "External apps repository pinning",
-            _status_for_profile(profile=profile),
-            "APPS_REPOSITORY is not a Git checkout.",
-            "Use an allowlisted Git checkout pinned to a commit SHA or immutable tag before shared use.",
-            {"path": str(path), **git_state},
-        )
-    if git_state.get("head_state") == "branch":
-        return Check(
-            "apps_repository_pin",
-            "External apps repository pinning",
-            _status_for_profile(profile=profile),
-            "APPS_REPOSITORY is on a floating branch.",
-            "Checkout a reviewed commit SHA or immutable tag before installing external apps in shared environments.",
-            {"path": str(path), **git_state},
-        )
-    origin_url = _git_origin_url(path)
-    allowlist = _apps_repository_allowlist(config, cwd=cwd)
-    details = {
-        "path": str(path),
-        **git_state,
-        "origin_url": _redact_url(origin_url),
-        "allowlist_configured": bool(allowlist),
-        "untrusted_content_boundary": build_external_source_boundary(
+    result = evaluate_apps_repository_policy(
+        config,
+        cwd=cwd,
+        strict=_is_hardening_profile(profile),
+        allow_floating=False,
+    )
+    details = dict(result.details)
+    raw_path = details.get("path")
+    if raw_path:
+        path = Path(str(raw_path))
+        details["untrusted_content_boundary"] = build_external_source_boundary(
             path,
             source_kind="external_app_repository",
             source_name="APPS_REPOSITORY",
             trust_status="untrusted",
             metadata={
-                "origin_url": _redact_url(origin_url),
-                "allowlist_configured": bool(allowlist),
+                "origin_url": details.get("origin_url"),
+                "allowlist_configured": details.get("allowlist_configured", False),
             },
-        ),
-    }
-    if _is_hardening_profile(profile):
-        if not origin_url:
-            return Check(
-                "apps_repository_pin",
-                "External apps repository pinning",
-                "fail",
-                "APPS_REPOSITORY is pinned but has no origin URL to match against an allowlist.",
-                (
-                    "Set a reviewed origin URL and configure "
-                    f"{APPS_ALLOWLIST_ENV} or {APPS_ALLOWLIST_FILE_ENV} before shared use."
-                ),
-                details,
-            )
-        if origin_url not in allowlist:
-            return Check(
-                "apps_repository_pin",
-                "External apps repository pinning",
-                "fail",
-                "APPS_REPOSITORY origin is not in the configured allowlist.",
-                (
-                    "Add the exact reviewed origin URL to "
-                    f"{APPS_ALLOWLIST_ENV} or {APPS_ALLOWLIST_FILE_ENV}, then rerun the gate."
-                ),
-                details | {"allowlist_size": len(allowlist)},
-            )
+        )
     return Check(
         "apps_repository_pin",
         "External apps repository pinning",
-        "pass",
-        (
-            "APPS_REPOSITORY is pinned and allowlisted."
-            if _is_hardening_profile(profile)
-            else "APPS_REPOSITORY is a Git checkout and is not on a floating branch."
-        ),
-        "Keep the referenced commit reviewed and scanned.",
+        result.status,
+        result.summary,
+        result.remediation,
         details,
     )
 

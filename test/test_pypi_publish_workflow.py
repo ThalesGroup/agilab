@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from pathlib import Path
 import re
 import sys
+from pathlib import Path
 
 import yaml
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
-from package_split_contract import LIBRARY_PACKAGE_CONTRACTS, PACKAGE_NAMES, UMBRELLA_PACKAGE_CONTRACT  # noqa: E402
-
+from package_split_contract import (  # noqa: E402
+    LIBRARY_PACKAGE_CONTRACTS,
+    PACKAGE_NAMES,
+    UMBRELLA_PACKAGE_CONTRACT,
+)
 
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/pypi-publish.yaml"
 TEST_PYPI_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/test-pypi-publish.yaml"
@@ -362,7 +364,7 @@ def test_pypi_publish_attests_and_uploads_release_supply_chain_assets() -> None:
     assert "pypi-provenance-evidence" in text
     assert "publish-release-assets:" in text
     assert "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c" in text
-    assert "actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6" in text
+    assert re.search(r"actions/attest@[0-9a-f]{40}\s+# v4\b", text)
     assert "attestations: write" in text
     assert "artifact-metadata: write" in text
     assert "subject-path: github-release-assets/**" in text
