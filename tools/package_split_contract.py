@@ -231,6 +231,25 @@ def is_self_extra_alias(
     )
 
 
+def self_extra_alias_constraint_allows_project(
+    requirement: object,
+    *,
+    project_name: str,
+    project_version: str,
+) -> bool:
+    """Reject self-extra constraints that exclude the project being installed."""
+
+    if not is_self_extra_alias(requirement, project_name=project_name):
+        return True
+    specifier_set = getattr(requirement, "specifier", None)
+    if specifier_set is None or not str(specifier_set):
+        return True
+    contains = getattr(specifier_set, "contains", None)
+    if not callable(contains):
+        return False
+    return bool(contains(project_version, prereleases=True))
+
+
 def package_by_name(name: str) -> PackageContract:
     for package in PACKAGE_CONTRACTS:
         if package.name == name:

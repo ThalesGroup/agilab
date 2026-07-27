@@ -30,6 +30,7 @@ from package_split_contract import (  # noqa: E402
     package_by_name,
     project_path,
     pyproject_path,
+    self_extra_alias_constraint_allows_project,
 )
 
 
@@ -171,7 +172,16 @@ def test_internal_dependencies_follow_bundle_or_asset_version_policy() -> None:
                 requirement = Requirement(dependency)
                 if is_self_extra_alias(requirement, project_name=package.name):
                     # Alias extras are policy-neutral indirections. Their concrete
-                    # requirements are validated in the referenced extra itself.
+                    # requirements are validated in the referenced extra itself,
+                    # but a supplied exact self-pin must still match this project.
+                    if not self_extra_alias_constraint_allows_project(
+                        requirement,
+                        project_name=package.name,
+                        project_version=str(project.get("version", "")),
+                    ):
+                        violations.append(
+                            f"{package.name}:{section}:{requirement}: self-extra constraint must allow {project.get('version')}"
+                        )
                     continue
                 if requirement.name.lower() not in internal_names:
                     continue
@@ -196,6 +206,30 @@ def test_internal_dependencies_follow_bundle_or_asset_version_policy() -> None:
                     )
 
     assert violations == []
+
+
+@pytest.mark.parametrize(
+    ("requirement", "expected"),
+    [
+        ("agilab[local-llm]", True),
+        ("agilab[local-llm]==2026.07.17.1", True),
+        ("agilab[local-llm]==0", False),
+        ("agilab[local-llm]<1", False),
+        ("agilab[local-llm]==2026.07.17.1,!=2026.07.17.1", False),
+    ],
+)
+def test_self_extra_alias_exact_pin_must_match_project(
+    requirement: str,
+    expected: bool,
+) -> None:
+    assert (
+        self_extra_alias_constraint_allows_project(
+            Requirement(requirement),
+            project_name="agilab",
+            project_version="2026.07.17.1",
+        )
+        is expected
+    )
 
 
 def test_queue_resilience_pages_require_the_shared_runtime_release() -> None:
