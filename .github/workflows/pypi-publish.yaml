@@ -509,7 +509,7 @@ jobs:
     needs:
       - release-plan
       - build-library-packages
-    if: ${{ always() && needs.release-plan.outputs.library_selected == 'true' && needs.build-library-packages.result == 'success' }}
+    if: ${{ !cancelled() && needs.release-plan.outputs.library_selected == 'true' && needs.build-library-packages.result == 'success' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -640,7 +640,7 @@ jobs:
   # artifact-consumer job. The pinned download action checks the immutable
   # artifact digest before the pinned publisher action uploads distributions.
   publish-agilab:
-    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true' && needs.build-agilab.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') }}
+    if: ${{ !cancelled() && needs.release-plan.outputs.umbrella_selected == 'true' && needs.build-agilab.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') }}
     needs:
       - release-plan
       - build-agilab

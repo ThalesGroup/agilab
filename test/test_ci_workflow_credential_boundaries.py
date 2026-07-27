@@ -43,6 +43,21 @@ CREDENTIAL_HARDENED_WORKFLOWS = (
     "test-pypi-publish.yaml",
 )
 
+LOCK_INTEGRITY_TRIGGER_PATHS = {
+    ".github/workflows/pypi-pending-trusted-publisher.yaml",
+    ".github/workflows/pypi-publish.yaml",
+    ".github/workflows/pypi-release-retention.yaml",
+    ".github/workflows/test-pypi-publish.yaml",
+    "dev",
+    "tools/agilab_dev.py",
+    "tools/ci_tool_lock_integrity.py",
+    "tools/hf_space_release_sync.py",
+    "tools/package_split_contract.py",
+    "tools/pypi_*.py",
+    "tools/release_*.py",
+    "tools/sync_docs_source.py",
+}
+
 EXPECTED_DIRECT_PINS = {
     "ci-hf-release.in": [
         "click==8.4.2",
@@ -226,6 +241,8 @@ def test_distribution_publish_jobs_do_not_execute_checkout_or_local_code() -> No
         job = release["jobs"][job_name]
         assert job["permissions"] == {"contents": "read", "id-token": "write"}
         assert "environment" in job
+        assert "!cancelled()" in job["if"], job_name
+        assert "always()" not in job["if"], job_name
         assert all("run" not in step for step in job["steps"]), job_name
         assert {step["uses"] for step in job["steps"]} <= allowed_release_actions
         assert all(
@@ -358,9 +375,10 @@ def test_ci_tool_locks_have_a_path_scoped_unprivileged_install_smoke() -> None:
     assert "id-token" not in serialized
     assert "workflow_dispatch" in trigger
     for event_name in ("pull_request", "push"):
-        paths = trigger[event_name]["paths"]
+        paths = set(trigger[event_name]["paths"])
         assert ".github/actions/setup-locked-python-tools/**" in paths
         assert ".github/requirements/ci-*" in paths
+        assert LOCK_INTEGRITY_TRIGGER_PATHS <= paths
 
     job = workflow["jobs"]["verify-locks"]
     assert job["permissions"] == {"contents": "read"}
@@ -376,6 +394,8 @@ def test_ci_tool_locks_have_a_path_scoped_unprivileged_install_smoke() -> None:
         ".github/requirements/ci-hf-release.txt",
     ]
     run_text = "\n".join(str(step.get("run", "")) for step in steps)
+    assert "python tools/ci_tool_lock_integrity.py" in run_text
+    assert "--requirements-dir .github/requirements" in run_text
     import_smokes = [
         step for step in steps if step.get("name", "").startswith("Import-smoke")
     ]

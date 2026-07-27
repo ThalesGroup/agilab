@@ -7,10 +7,18 @@ on:
       - ".github/actions/setup-locked-python-tools/**"
       - ".github/requirements/ci-*"
       - ".github/workflows/ci-tool-lock-integrity.yml"
+      - ".github/workflows/pypi-pending-trusted-publisher.yaml"
+      - ".github/workflows/pypi-publish.yaml"
+      - ".github/workflows/pypi-release-retention.yaml"
+      - ".github/workflows/test-pypi-publish.yaml"
+      - "dev"
+      - "tools/agilab_dev.py"
+      - "tools/ci_tool_lock_integrity.py"
       - "tools/hf_space_release_sync.py"
-      - "tools/pypi_pending_trusted_publisher.py"
-      - "tools/pypi_publish.py"
-      - "tools/pypi_release_retention.py"
+      - "tools/package_split_contract.py"
+      - "tools/pypi_*.py"
+      - "tools/release_*.py"
+      - "tools/sync_docs_source.py"
   push:
     branches:
       - main
@@ -18,10 +26,18 @@ on:
       - ".github/actions/setup-locked-python-tools/**"
       - ".github/requirements/ci-*"
       - ".github/workflows/ci-tool-lock-integrity.yml"
+      - ".github/workflows/pypi-pending-trusted-publisher.yaml"
+      - ".github/workflows/pypi-publish.yaml"
+      - ".github/workflows/pypi-release-retention.yaml"
+      - ".github/workflows/test-pypi-publish.yaml"
+      - "dev"
+      - "tools/agilab_dev.py"
+      - "tools/ci_tool_lock_integrity.py"
       - "tools/hf_space_release_sync.py"
-      - "tools/pypi_pending_trusted_publisher.py"
-      - "tools/pypi_publish.py"
-      - "tools/pypi_release_retention.py"
+      - "tools/package_split_contract.py"
+      - "tools/pypi_*.py"
+      - "tools/release_*.py"
+      - "tools/sync_docs_source.py"
 
 permissions:
   contents: read
@@ -41,6 +57,12 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.13"
+
+      - name: Verify direct lock pins match source inputs
+        run: |
+          set -euo pipefail
+          python tools/ci_tool_lock_integrity.py \
+            --requirements-dir .github/requirements
 
       - name: Clean-install publishing lock
         uses: ./.github/actions/setup-locked-python-tools

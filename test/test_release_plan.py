@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -357,6 +358,38 @@ def test_release_plan_job_gate_validation_flags_semantic_violations(tmp_path: Pa
     assert module.validate_workflow_job_gates(
         REPO_ROOT / ".github/workflows/pypi-publish.yaml"
     ) == []
+
+
+def test_release_plan_job_gate_contract_covers_credentialed_publishers() -> None:
+    module = _load_module()
+
+    for job_name in ("publish-library-packages", "publish-agilab"):
+        contract = module.JOB_GATE_CONTRACT[job_name]
+        assert "!cancelled()" in contract["if_required"]
+        assert "always()" in contract["if_forbidden"]
+
+
+@pytest.mark.parametrize("job_name", ["publish-library-packages", "publish-agilab"])
+def test_release_plan_job_gate_validation_rejects_always_for_credentialed_publishers(
+    tmp_path: Path, job_name: str
+) -> None:
+    module = _load_module()
+    live_path = REPO_ROOT / ".github/workflows/pypi-publish.yaml"
+    document = yaml.safe_load(live_path.read_text(encoding="utf-8"))
+    condition = document["jobs"][job_name]["if"]
+    assert "!cancelled()" in condition
+    document["jobs"][job_name]["if"] = condition.replace(
+        "!cancelled()", "always()", 1
+    )
+    workflow = tmp_path / "pypi-publish.yaml"
+    workflow.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+
+    missing = module.validate_workflow_job_gates(workflow)
+
+    assert any(
+        f"job '{job_name}' if-gate must not use \"always()\"" in error
+        for error in missing
+    )
 
 
 def test_release_plan_current_workflow_consumes_generated_matrix() -> None:

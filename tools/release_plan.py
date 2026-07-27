@@ -533,6 +533,36 @@ JOB_GATE_CONTRACT: dict[str, dict[str, Any]] = {
         ),
         "if_forbidden": ("always()",),
     },
+    "publish-library-packages": {
+        "description": (
+            "credentialed library publication must stop when a release run is "
+            "cancelled and consume only a successful unprivileged build"
+        ),
+        "needs": {"release-plan", "build-library-packages"},
+        "if_required": (
+            "!cancelled()",
+            "needs.release-plan.outputs.library_selected == 'true'",
+            "needs.build-library-packages.result == 'success'",
+        ),
+        "if_forbidden": ("always()",),
+    },
+    "publish-agilab": {
+        "description": (
+            "credentialed umbrella publication must stop when a release run is "
+            "cancelled and consume only successful prerequisite artifacts"
+        ),
+        "needs": {"release-plan", "build-agilab", "publish-library-packages"},
+        "if_required": (
+            "!cancelled()",
+            "needs.release-plan.outputs.umbrella_selected == 'true'",
+            "needs.build-agilab.result == 'success'",
+            (
+                "needs.publish-library-packages.result == 'success' || "
+                "needs.publish-library-packages.result == 'skipped'"
+            ),
+        ),
+        "if_forbidden": ("always()",),
+    },
     "publish-dataset-release-assets": {
         "description": (
             "dataset release assets must pass the audit and still run when the "

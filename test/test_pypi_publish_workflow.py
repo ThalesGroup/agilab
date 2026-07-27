@@ -81,7 +81,16 @@ def test_pypi_publish_blocks_downstream_publish_jobs_when_preflight_fails() -> N
     assert "needs.test.result == 'success'" in build_agilab["if"]
     assert "needs.release-evidence.result == 'success'" in build_agilab["if"]
     assert "needs.supply-chain-evidence.result == 'success'" in build_agilab["if"]
+    publish_library_packages = jobs["publish-library-packages"]
+    assert "!cancelled()" in publish_library_packages["if"]
+    assert "always()" not in publish_library_packages["if"]
+    assert (
+        "needs.build-library-packages.result == 'success'"
+        in publish_library_packages["if"]
+    )
     publish_agilab = jobs["publish-agilab"]
+    assert "!cancelled()" in publish_agilab["if"]
+    assert "always()" not in publish_agilab["if"]
     assert "needs.build-agilab.result == 'success'" in publish_agilab["if"]
     assert set(publish_agilab["needs"]) == {
         "release-plan",
