@@ -21,7 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 #
 # Lowered 2026-07-27 for notebook_export_support, 3700 -> 2450, after the
 # ~1250-line `_helper_cell` template moved to notebook_helper_cell.py. The module
-# is 2334 lines, below even the 3100 ceiling that predated #807. A budget only
+# is 2336 lines, below even the 3100 ceiling that predated #807. A budget only
 # ratchets if it tracks reality downward too, so paying the debt reclaims the
 # ceiling instead of leaving the headroom to be silently refilled.
 #
