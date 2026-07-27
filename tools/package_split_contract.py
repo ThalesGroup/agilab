@@ -6,6 +6,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
+
 
 @dataclass(frozen=True)
 class PackageContract:
@@ -210,6 +213,17 @@ ROOT_EXTRA_INTERNAL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "examples": ("agi-apps",),
     "pages": ("agi-pages",),
 }
+
+
+def is_self_extra_alias(
+    requirement: Requirement, *, project_name: str
+) -> bool:
+    """Return whether a requirement aliases an extra of its own project."""
+
+    return bool(
+        requirement.extras
+        and canonicalize_name(requirement.name) == canonicalize_name(project_name)
+    )
 
 
 def package_by_name(name: str) -> PackageContract:

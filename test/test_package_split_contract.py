@@ -5,11 +5,10 @@ import sys
 import tomllib
 from pathlib import Path
 
+import pytest
 from packaging.requirements import Requirement
 from packaging.version import Version
-import pytest
 from setuptools import find_packages
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TOOLS_ROOT = REPO_ROOT / "tools"
@@ -26,6 +25,7 @@ from package_split_contract import (  # noqa: E402
     ROOT_EXTRA_INTERNAL_REQUIREMENTS,
     UMBRELLA_PACKAGE_CONTRACT,
     WHEEL_ONLY_PACKAGE_NAMES,
+    is_self_extra_alias,
     package_by_name,
     project_path,
     pyproject_path,
@@ -156,6 +156,10 @@ def test_internal_dependencies_follow_bundle_or_asset_version_policy() -> None:
         for section, dependencies in dependency_sections.items():
             for dependency in dependencies:
                 requirement = Requirement(dependency)
+                if is_self_extra_alias(requirement, project_name=package.name):
+                    # Alias extras are policy-neutral indirections. Their concrete
+                    # requirements are validated in the referenced extra itself.
+                    continue
                 if requirement.name.lower() not in internal_names:
                     continue
                 exact_version = _exact_pin(requirement)

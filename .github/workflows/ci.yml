@@ -156,6 +156,14 @@ jobs:
           set -euo pipefail
           uv --preview-features extra-build-dependencies run --extra dev ruff --version
 
+      - name: Validate fast repository contracts
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run --extra dev pytest -q -o addopts='' \
+            test/test_package_split_contract.py \
+            test/test_pypi_publish_workflow.py \
+            test/test_compat_shim_inventory.py
+
       - name: Validate app contract matrix
         run: |
           set -euo pipefail
@@ -223,7 +231,7 @@ jobs:
 
       - name: Confirm extended test policy
         run: |
-          echo "GitHub Actions CI runs repository guardrails plus a minimal first-proof command contract."
+          echo "GitHub Actions CI runs repository guardrails, fast repository contracts, and a minimal first-proof command contract."
           echo "Run local workflow parity profiles before push for full test coverage."
 
   base-python-compat:

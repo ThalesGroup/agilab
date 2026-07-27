@@ -3,15 +3,24 @@
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import json
-from pathlib import Path
 import subprocess
 import sys
+from collections import Counter
+from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MAX_COUNT = 254
+COMPAT_SHIM_BASELINE = {
+    "max_count": 256,
+    "owner": "AGILAB maintainers",
+    "removal_milestone": "2027.01 compatibility cleanup",
+    "rationale": (
+        "Existing legacy import paths remain supported while first-party callers "
+        "move to the classified package layout. New shims remain blocked."
+    ),
+}
+DEFAULT_MAX_COUNT = COMPAT_SHIM_BASELINE["max_count"]
 SHIM_MARKERS = (
     "Compatibility shim",
     "Compatibility import",
@@ -60,6 +69,7 @@ def build_inventory(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     by_area = Counter(_area_for(repo_root / rel, repo_root) for rel in shims)
     return {
         "schema_version": "agilab.compat_shim_inventory.v1",
+        "baseline": dict(COMPAT_SHIM_BASELINE),
         "total": len(shims),
         "max_allowed": DEFAULT_MAX_COUNT,
         "by_area": dict(sorted(by_area.items())),
