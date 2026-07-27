@@ -5,6 +5,7 @@ import io
 import json
 import sys
 from pathlib import Path
+from urllib import request
 from zipfile import ZipFile
 
 import pytest
@@ -17,20 +18,19 @@ package_paths = getattr(package, "__path__", None)
 if package_paths is not None and str(SRC_ROOT / "agilab") not in list(package_paths):
     package_paths.append(str(SRC_ROOT / "agilab"))
 
+from agilab import ci_provider_artifacts as provider_artifacts
 from agilab.ci.ci_artifact_harvest import (
     build_ci_artifact_harvest,
     sample_ci_artifacts,
 )
-from agilab import ci_provider_artifacts as provider_artifacts
 from agilab.ci.ci_provider_artifacts import (
     build_artifact_index_from_archives,
-    build_gitlab_ci_artifact_index,
     build_github_actions_artifact_index,
+    build_gitlab_ci_artifact_index,
     write_sample_ci_provider_archive,
     write_sample_github_actions_archive,
     write_sample_github_actions_directory,
 )
-
 
 TOOL_PATH = Path("tools/github_actions_artifact_index.py").resolve()
 GENERIC_TOOL_PATH = Path("tools/ci_provider_artifact_index.py").resolve()
@@ -439,7 +439,13 @@ def test_live_gitlab_allows_explicit_enterprise_host(tmp_path: Path) -> None:
 
     def fake_urlopen(req: object) -> _Response:
         headers = getattr(req, "headers", {})
-        token_headers.append(headers.get("Private-token") or headers.get("PRIVATE-TOKEN"))
+        unredirected = getattr(req, "unredirected_hdrs", {})
+        token_headers.append(
+            headers.get("Private-token")
+            or headers.get("PRIVATE-TOKEN")
+            or unredirected.get("Private-token")
+            or unredirected.get("PRIVATE-TOKEN")
+        )
         url = str(getattr(req, "full_url"))
         requested_urls.append(url)
         if url.endswith("/pipelines/987654321/jobs?scope[]=success&per_page=100&page=1"):
@@ -472,6 +478,38 @@ def test_live_gitlab_allows_explicit_enterprise_host(tmp_path: Path) -> None:
     ]
     assert token_headers == ["secret-token", "secret-token"]
     assert index["provider"] == "gitlab_ci"
+
+
+@pytest.mark.parametrize(
+    "redirect_url",
+    [
+        "https://gitlab.com/users/sign_in",
+        "https://objects.example.invalid/artifacts/42.zip",
+    ],
+)
+def test_gitlab_private_token_is_never_forwarded_across_redirects(
+    redirect_url: str,
+) -> None:
+    initial = provider_artifacts._gitlab_request(
+        "https://gitlab.com/api/v4/projects/thales%2Fagilab/jobs/42/artifacts",
+        token="secret-token",
+    )
+
+    assert "Private-token" not in initial.headers
+    assert initial.unredirected_hdrs["Private-token"] == "secret-token"
+
+    redirected = request.HTTPRedirectHandler().redirect_request(
+        initial,
+        None,
+        302,
+        "Found",
+        {},
+        redirect_url,
+    )
+
+    assert redirected is not None
+    assert "Private-token" not in redirected.headers
+    assert "Private-token" not in redirected.unredirected_hdrs
 
 
 def test_provider_archive_edge_cases_cover_validation_and_duplicates(tmp_path: Path) -> None:
@@ -560,7 +598,7 @@ def test_provider_download_helpers_cover_skips_headers_and_default_filenames(tmp
     req = provider_artifacts._github_artifact_download_request("https://example.invalid/a.zip", token=None)
     assert "Authorization" not in req.headers
     assert "Authorization" not in req.unredirected_hdrs
-    assert "PRIVATE-TOKEN" not in provider_artifacts._gitlab_headers(None)
+    assert "PRIVATE-TOKEN" not in provider_artifacts._gitlab_headers()
 
     class _ZipResponse:
         def __enter__(self) -> "_ZipResponse":

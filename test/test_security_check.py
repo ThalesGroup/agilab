@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import importlib.util
 import json
+import os
 import runpy
+import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SECURITY_CHECK_PATH = ROOT / "src" / "agilab" / "security_check.py"
@@ -21,6 +22,41 @@ SPEC.loader.exec_module(security_check)
 
 def _touch_now(path: Path) -> None:
     path.write_text("{}", encoding="utf-8")
+
+
+def _init_apps_repository(
+    path: Path,
+    *,
+    origin: str | None = None,
+) -> None:
+    path.mkdir(exist_ok=True)
+    subprocess.run(
+        ["git", "init", "-b", "main"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=path, check=True)
+    (path / "README.md").write_text("reviewed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=path, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "reviewed"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    if origin:
+        subprocess.run(["git", "remote", "add", "origin", origin], cwd=path, check=True)
+    subprocess.run(
+        ["git", "checkout", "--detach"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def test_env_file_parser_path_resolution_and_secret_placeholders(tmp_path: Path):
@@ -126,9 +162,7 @@ def test_apps_repository_check_reports_missing_file_nongit_and_pinned_checkout(t
     assert nongit_check.status == "warn"
     assert "not a Git checkout" in nongit_check.summary
 
-    git_dir = app_dir / ".git"
-    git_dir.mkdir()
-    (git_dir / "HEAD").write_text("0123456789abcdef0123456789abcdef01234567\n", encoding="utf-8")
+    _init_apps_repository(app_dir)
     pinned_check = security_check._check_apps_repository(
         {"APPS_REPOSITORY": str(app_dir)},
         cwd=tmp_path,
@@ -143,14 +177,8 @@ def test_apps_repository_check_reports_missing_file_nongit_and_pinned_checkout(t
 
 def test_shared_profile_requires_apps_repository_origin_allowlist(tmp_path: Path):
     apps = tmp_path / "apps"
-    git_dir = apps / ".git"
-    git_dir.mkdir(parents=True)
     origin = "https://github.com/ThalesGroup/agilab-apps"
-    (git_dir / "HEAD").write_text("0123456789abcdef0123456789abcdef01234567\n", encoding="utf-8")
-    (git_dir / "config").write_text(
-        f'[remote "origin"]\n    url = {origin}\n',
-        encoding="utf-8",
-    )
+    _init_apps_repository(apps, origin=origin)
 
     missing_allowlist = security_check._check_apps_repository(
         {"APPS_REPOSITORY": str(apps)},
@@ -184,15 +212,203 @@ def test_shared_profile_requires_apps_repository_origin_allowlist(tmp_path: Path
     assert allowlisted_by_file.status == "pass"
 
 
-def test_shared_profile_requires_origin_url_for_pinned_apps_repository(tmp_path: Path):
-    apps = tmp_path / "apps"
+def test_apps_repository_policy_is_shared_by_security_gate_and_installers() -> None:
+    from agilab.security import apps_repository_policy
+
+    assert security_check.evaluate_apps_repository_policy is apps_repository_policy.evaluate_apps_repository_policy
+
+    bash = (Path("src/agilab/install_apps.sh")).read_text(encoding="utf-8")
+    powershell = (Path("src/agilab/install_apps.ps1")).read_text(encoding="utf-8")
+    policy_path = "security/apps_repository_policy.py"
+    assert policy_path in bash
+    assert policy_path in powershell
+    assert "BASH_SOURCE[0]" in bash
+    assert "$PSScriptRoot" in powershell
+    assert "run --no-project --no-config python -I" in bash
+    assert "run --no-project --no-config python -I" in powershell
+    assert "AGILAB_APPS_POLICY_PYTHON" not in bash
+    assert "AGILAB_APPS_POLICY_PYTHON" not in powershell
+
+
+def test_apps_repository_policy_rejects_forged_git_metadata(tmp_path: Path) -> None:
+    apps = tmp_path / "forged-apps"
     git_dir = apps / ".git"
     git_dir.mkdir(parents=True)
-    (git_dir / "HEAD").write_text("0123456789abcdef0123456789abcdef01234567\n", encoding="utf-8")
-    (git_dir / "config").write_text(
-        "\n# ignored\n[remote \"upstream\"]\n    fetch = +refs/heads/*:refs/remotes/upstream/*\n",
+    origin = "https://example.invalid/reviewed-apps.git"
+    (git_dir / "HEAD").write_text(
+        "0123456789abcdef0123456789abcdef01234567\n",
         encoding="utf-8",
     )
+    (git_dir / "config").write_text(
+        f'[remote "origin"]\n    url = {origin}\n',
+        encoding="utf-8",
+    )
+
+    check = security_check._check_apps_repository(
+        {
+            "APPS_REPOSITORY": str(apps),
+            "AGILAB_APPS_REPOSITORY_ALLOWLIST": origin,
+        },
+        cwd=tmp_path,
+        profile="shared",
+    )
+
+    assert check.status == "fail"
+    assert "not a Git checkout" in check.summary
+    assert check.details["git_verified"] is False
+
+
+def test_shared_apps_repository_policy_rejects_dirty_detached_checkout(
+    tmp_path: Path,
+) -> None:
+    apps = tmp_path / "apps"
+    origin = "https://example.invalid/reviewed-apps.git"
+    _init_apps_repository(apps, origin=origin)
+    (apps / "README.md").write_text("unreviewed change\n", encoding="utf-8")
+
+    check = security_check._check_apps_repository(
+        {
+            "APPS_REPOSITORY": str(apps),
+            "AGILAB_APPS_REPOSITORY_ALLOWLIST": origin,
+        },
+        cwd=tmp_path,
+        profile="shared",
+    )
+
+    assert check.status == "fail"
+    assert "unreviewed working-tree content" in check.summary
+    assert check.details["worktree_clean"] is False
+
+
+def test_shared_apps_repository_policy_rejects_ignored_executable_content(
+    tmp_path: Path,
+) -> None:
+    apps = tmp_path / "apps"
+    origin = "https://example.invalid/reviewed-apps.git"
+    _init_apps_repository(apps, origin=origin)
+    (apps / ".gitignore").write_text("apps-pages/\n", encoding="utf-8")
+    subprocess.run(["git", "add", ".gitignore"], cwd=apps, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "ignore local pages"],
+        cwd=apps,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    ignored_page = apps / "apps-pages" / "unreviewed_page"
+    ignored_page.mkdir(parents=True)
+    (ignored_page / "page.py").write_text("raise SystemExit('unreviewed')\n", encoding="utf-8")
+
+    check = security_check._check_apps_repository(
+        {
+            "APPS_REPOSITORY": str(apps),
+            "AGILAB_APPS_REPOSITORY_ALLOWLIST": origin,
+        },
+        cwd=tmp_path,
+        profile="shared",
+    )
+
+    assert check.status == "fail"
+    assert "unreviewed working-tree content" in check.summary
+    assert check.details["worktree_clean"] is False
+
+
+def test_apps_repository_policy_ignores_git_environment_repository_redirection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trusted = tmp_path / "trusted"
+    origin = "https://example.invalid/reviewed-apps.git"
+    _init_apps_repository(trusted, origin=origin)
+    untrusted = tmp_path / "not-a-repository"
+    untrusted.mkdir()
+    monkeypatch.setenv("GIT_DIR", str(trusted / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(trusted))
+
+    check = security_check._check_apps_repository(
+        {
+            "APPS_REPOSITORY": str(untrusted),
+            "AGILAB_APPS_REPOSITORY_ALLOWLIST": origin,
+        },
+        cwd=tmp_path,
+        profile="shared",
+    )
+
+    assert check.status == "fail"
+    assert "not a Git checkout" in check.summary
+    assert check.details["git_verified"] is False
+
+
+def test_apps_repository_policy_ignores_git_environment_origin_spoofing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    apps = tmp_path / "apps"
+    _init_apps_repository(apps)
+    spoofed_origin = "https://example.invalid/reviewed-apps.git"
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "remote.origin.url")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", spoofed_origin)
+
+    check = security_check._check_apps_repository(
+        {
+            "APPS_REPOSITORY": str(apps),
+            "AGILAB_APPS_REPOSITORY_ALLOWLIST": spoofed_origin,
+        },
+        cwd=tmp_path,
+        profile="shared",
+    )
+
+    assert check.status == "fail"
+    assert "no origin URL" in check.summary
+    assert check.details["origin_url"] is None
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX fsmonitor hook fixture")
+def test_apps_repository_policy_does_not_execute_repository_fsmonitor_hook(
+    tmp_path: Path,
+) -> None:
+    apps = tmp_path / "apps"
+    origin = "https://example.invalid/reviewed-apps.git"
+    _init_apps_repository(apps, origin=origin)
+    sentinel = tmp_path / "FSMONITOR-EXECUTED"
+    hook = tmp_path / "fsmonitor-hook"
+    hook.write_text(
+        f"#!/bin/sh\nprintf executed > {str(sentinel)!r}\n",
+        encoding="utf-8",
+    )
+    hook.chmod(0o755)
+    subprocess.run(
+        ["git", "config", "core.fsmonitor", str(hook)],
+        cwd=apps,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "status", "--porcelain=v1"],
+        cwd=apps,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert sentinel.is_file(), "fixture must prove ordinary git status executes the hook"
+    sentinel.unlink()
+
+    check = security_check._check_apps_repository(
+        {
+            "APPS_REPOSITORY": str(apps),
+            "AGILAB_APPS_REPOSITORY_ALLOWLIST": origin,
+        },
+        cwd=tmp_path,
+        profile="shared",
+    )
+
+    assert check.status == "pass"
+    assert not sentinel.exists()
+
+
+def test_shared_profile_requires_origin_url_for_pinned_apps_repository(tmp_path: Path):
+    apps = tmp_path / "apps"
+    _init_apps_repository(apps)
 
     check = security_check._check_apps_repository(
         {"APPS_REPOSITORY": str(apps)},

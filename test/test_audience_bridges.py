@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import importlib
 import builtins
+import importlib
 import json
-from pathlib import Path
+import os
 import subprocess
 import sys
-from types import SimpleNamespace
-from types import ModuleType
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -15,9 +15,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from agilab import agent_run, bridge_cli, run_manifest  # noqa: E402
 import agilab_mcp  # noqa: E402
-from agilab_mcp import manifest_tools, server as mcp_server  # noqa: E402
+from agilab import agent_run, bridge_cli, run_manifest  # noqa: E402
+from agilab_mcp import manifest_tools  # noqa: E402
+from agilab_mcp import server as mcp_server
 
 
 def _write_manifest(
@@ -825,7 +826,7 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         output_dir=agent_dir,
         run_id="agent-codex",
         permission_level="standard",
-        tags=("review",),
+        tags=("quality-review",),
         metadata={"branch": "main"},
         protocol_adapters=("mcp",),
         capabilities=("evidence-review",),
@@ -839,13 +840,13 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     agent_runs = manifest_tools.list_agent_runs(
         agent_root,
         agent="codex",
-        tag="review",
+        tag="quality review",
         metadata={"branch": "main"},
-        protocol_adapter="mcp",
-        capability="evidence-review",
+        protocol_adapter="MCP",
+        capability="evidence review",
     )["runs"]
     assert agent_runs[0]["run_id"] == "agent-codex"
-    assert agent_runs[0]["tags"] == ["review"]
+    assert agent_runs[0]["tags"] == ["quality-review"]
     assert agent_runs[0]["metadata"] == {"branch": "main"}
     assert (
         manifest_tools.summarize_agent_run(agent_dir)["summary"]["status"]
@@ -864,10 +865,10 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     context_payload = manifest_tools.agent_context(
         agent_root,
         agent="codex",
-        tag="review",
+        tag="quality review",
         metadata={"branch": "main"},
-        protocol_adapter="mcp",
-        capability="evidence-review",
+        protocol_adapter="MCP",
+        capability="evidence review",
     )
     assert context_payload["context"]["match_count"] == 1
     assert context_payload["context"]["latest"]["handoff"]["run"]["run_id"] == "agent-codex"
@@ -924,7 +925,7 @@ def test_mcp_tools_and_jsonrpc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
                 "arguments": {
                     "log_root": str(agent_root),
                     "agent": "codex",
-                    "tag": "review",
+                        "tag": "quality review",
                     "metadata": {"branch": "main"},
                 },
             },
@@ -1228,6 +1229,177 @@ def test_manifest_tools_reject_paths_outside_allowed_roots(
         manifest_tools.list_agent_runs(log_root=outside)
     with pytest.raises(ValueError, match="outside configured read roots"):
         manifest_tools.agent_quickstart(capabilities_path=outside_manifest)
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        lambda manifest, _root: manifest_tools.read_agent_run(manifest),
+        lambda manifest, _root: manifest_tools.summarize_agent_run(manifest),
+        lambda manifest, _root: manifest_tools.agent_handoff(manifest),
+        lambda manifest, _root: manifest_tools.agent_next_actions(manifest),
+        lambda manifest, _root: manifest_tools.compare_agent_runs(manifest, manifest),
+        lambda manifest, _root: manifest_tools.validate_agent_run(manifest),
+        lambda _manifest, root: manifest_tools.list_agent_runs(root),
+        lambda _manifest, root: manifest_tools.agent_context(root),
+        lambda _manifest, root: manifest_tools.agent_lineage(root, run_id="forged-run"),
+    ],
+)
+def test_manifest_tools_reject_transitive_agent_resource_paths_outside_allowed_roots(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation,
+) -> None:
+    allowed = tmp_path / "allowed"
+    outside = tmp_path / "outside"
+    run_dir = allowed / "agents" / "forged-run"
+    run_dir.mkdir(parents=True)
+    outside.mkdir()
+    outside_events = outside / "agent_events.ndjson"
+    outside_events.write_text(
+        json.dumps(
+            {
+                "schema": "agilab.agent_trace.v1",
+                "sequence": 1,
+                "timestamp": "2026-07-27T00:00:00Z",
+                "run_id": "forged-run",
+                "event": "run_started",
+                "status": "running",
+                "message": "outside secret",
+                "metadata": {},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest_path = run_dir / agent_run.MANIFEST_FILENAME
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": agent_run.TRACE_KIND,
+                "run_id": "forged-run",
+                "agent": "codex",
+                "label": "forged",
+                "status": "pass",
+                "returncode": 0,
+                "command": {"argv_sha256": "hash", "argv": []},
+                "context": {"tags": [], "metadata": {}},
+                "protocols": {"adapters": [], "capabilities": []},
+                "permission": {},
+                "timing": {"duration_seconds": 0.0},
+                "artifacts": {
+                    "manifest": str(manifest_path),
+                    "agent_trace": {"events": str(outside_events)},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AGILAB_MCP_ALLOWED_ROOTS", str(allowed))
+
+    with pytest.raises(ValueError, match="outside configured read roots"):
+        operation(manifest_path, allowed / "agents")
+
+
+def test_manifest_tools_handoff_reads_exact_contained_trace_resource(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_root = tmp_path / "manifests"
+    manifest_root.mkdir()
+    safe_events = tmp_path / "reviewed-events.ndjson"
+    default_events = tmp_path / "agent_events.ndjson"
+
+    def event(message: str) -> str:
+        return json.dumps(
+            {
+                "schema": "agilab.agent_trace.v1",
+                "sequence": 1,
+                "created_at": "2026-07-27T00:00:00Z",
+                "run_id": "derived-parent-run",
+                "event": "command_start",
+                "status": "running",
+                "message": message,
+                "metadata": {},
+            }
+        ) + "\n"
+
+    safe_events.write_text(event("reviewed trace"), encoding="utf-8")
+    default_events.write_text(event("OUTSIDE-SENTINEL"), encoding="utf-8")
+    manifest_path = manifest_root / agent_run.MANIFEST_FILENAME
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": agent_run.TRACE_KIND,
+                "run_id": "derived-parent-run",
+                "agent": "codex",
+                "status": "pass",
+                "command": {"argv_sha256": "hash", "argv": []},
+                "artifacts": {
+                    "manifest": str(manifest_path),
+                    "agent_trace": {"events": str(safe_events)},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(
+        "AGILAB_MCP_ALLOWED_ROOTS",
+        os.pathsep.join((str(manifest_root), str(safe_events))),
+    )
+
+    payload = manifest_tools.agent_handoff(manifest_path)["handoff"]
+
+    assert payload["trace"]["event_count"] == 1
+    assert payload["trace"]["events"][0]["message"] == "reviewed trace"
+    assert "OUTSIDE-SENTINEL" not in json.dumps(payload)
+
+
+def test_manifest_tools_reject_transitive_run_artifact_symlink_escape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    allowed = tmp_path / "allowed"
+    outside = tmp_path / "outside"
+    allowed.mkdir()
+    outside.mkdir()
+    outside_artifact = outside / "secret.txt"
+    outside_artifact.write_text("outside secret\n", encoding="utf-8")
+    escaped_link = allowed / "artifact.txt"
+    escaped_link.symlink_to(outside_artifact)
+    manifest_path = _write_manifest(allowed)
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["artifacts"][0]["path"] = str(escaped_link)
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setenv("AGILAB_MCP_ALLOWED_ROOTS", str(allowed))
+
+    with pytest.raises(ValueError, match="outside configured read roots"):
+        manifest_tools.list_artifacts(manifest_path)
+
+
+def test_manifest_tools_quarto_export_does_not_reopen_validated_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    monkeypatch.setenv("AGILAB_MCP_ALLOWED_ROOTS", str(tmp_path))
+    real_loader = bridge_cli._load_run_manifest
+    loaded_paths: list[Path] = []
+
+    def load_once(path: Path):
+        loaded_paths.append(path)
+        if len(loaded_paths) > 1:
+            raise AssertionError("validated manifest was reopened")
+        return real_loader(path)
+
+    monkeypatch.setattr(bridge_cli, "_load_run_manifest", load_once)
+
+    payload = manifest_tools.export_quarto_report(
+        manifest_path,
+        tmp_path / "contained-report.qmd",
+    )
+
+    assert payload["status"] == "pass"
+    assert loaded_paths == [manifest_path.resolve()]
 
 
 def test_manifest_tools_do_not_allow_launch_cwd_by_default(
