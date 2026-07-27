@@ -79,6 +79,10 @@ _POOL_ITEM_BOUNDARY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
 _POOL_RUNTIME_WORKER: Any = None
 
 
+class _PoolItemTimeoutError(RuntimeError):
+    """Internal marker for an executor that has already been abandoned."""
+
+
 @dataclass(frozen=True)
 class PoolFrameHooks:
     """Per worker-family hooks used by the shared pool engine."""
@@ -325,16 +329,30 @@ def exec_multi_process(
     )
 
     worker.work_init()
-    with executor_factory(
+    executor_manager = executor_factory(
         max_workers=width,
         initializer=_pool_child_init,
         initargs=(worker, worker.pool_vars),
-    ) as executor:
+    )
+    executor = executor_manager.__enter__()
+    try:
         for work_id, work in enumerate(chunks):
             results = _run_chunk(
                 executor, worker, hooks, work_id, list(work), width, item_timeout
             )
             _finish_chunk(worker, hooks, results)
+    except _PoolItemTimeoutError:
+        # _run_chunk already requested non-blocking shutdown. Calling normal
+        # context-manager exit here would call shutdown(wait=True), wait for a
+        # thread straggler, and violate the configured deadline.
+        raise
+    except BaseException:
+        # Preserve normal context-manager cleanup and suppression semantics for
+        # every non-timeout exit.
+        if not executor_manager.__exit__(*sys.exc_info()):
+            raise
+    else:
+        executor_manager.__exit__(None, None, None)
 
 
 def _batches(indexed: list[tuple[int, Any]], chunksize: int) -> list[list[tuple[int, Any]]]:
@@ -351,21 +369,23 @@ def _abandon_stuck_pool(executor: Any) -> None:
     task). Thread pools cannot be force-stopped; their stragglers are left
     running and the caller's error message says so.
     """
+    processes = getattr(executor, "_processes", None)
+    owned_processes = list(processes.values()) if isinstance(processes, dict) else []
     try:
         executor.shutdown(wait=False, cancel_futures=True)
     # Defensive: a stuck pool must not be able to mask the timeout error.
     except Exception:
         pass
-    processes = getattr(executor, "_processes", None)
-    if isinstance(processes, dict):
-        for process in list(processes.values()):
-            terminate = getattr(process, "terminate", None)
-            if callable(terminate):
-                try:
-                    terminate()
-                # Defensive: child reaping is best-effort during abandonment.
-                except Exception:
-                    pass
+    # ProcessPoolExecutor clears its private process table during shutdown,
+    # including wait=False, so retain the exact handles before that call.
+    for process in owned_processes:
+        terminate = getattr(process, "terminate", None)
+        if callable(terminate):
+            try:
+                terminate()
+            # Defensive: child reaping is best-effort during abandonment.
+            except Exception:
+                pass
 
 
 def _run_chunk(
@@ -408,7 +428,7 @@ def _run_chunk(
         preview = ", ".join(repr(item) for item in pending[:3])
         if len(pending) > 3:
             preview += ", ..."
-        raise RuntimeError(
+        raise _PoolItemTimeoutError(
             f"{hooks.family}.work_pool exceeded the {item_timeout}s per-item time "
             f"budget on chunk #{work_id} ({deadline:.1f}s chunk deadline); "
             f"{len(pending)} item(s) still pending: {preview}. Process-pool "
