@@ -70,10 +70,15 @@ else
 fi
 
 if [[ "${DOCS_CHANGED:-1}" == "1" ]]; then
+  docs_source_args=()
+  if [[ -n "${AGILAB_DOCS_SOURCE:-}" ]]; then
+    docs_source_args=(--source "$AGILAB_DOCS_SOURCE")
+  fi
   run_guard_python tools/sync_docs_source.py \
     --verify-stamp \
     --quiet
   run_guard_python tools/sync_docs_source.py \
+    "${docs_source_args[@]}" \
     --check \
     --delete \
     --quiet \

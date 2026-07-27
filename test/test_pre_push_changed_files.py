@@ -91,6 +91,14 @@ def test_classify_infra_scopes_do_not_count_as_mixed_push_scope():
     assert state.scope_count == 0
 
 
+def test_pre_push_docs_guard_accepts_an_isolated_canonical_source():
+    hook = (ROOT / ".githooks" / "pre-push").read_text(encoding="utf-8")
+
+    assert 'if [[ -n "${AGILAB_DOCS_SOURCE:-}" ]]' in hook
+    assert 'docs_source_args=(--source "$AGILAB_DOCS_SOURCE")' in hook
+    assert '"${docs_source_args[@]}" \\' in hook
+
+
 def test_classify_agent_instruction_change_runs_agent_instruction_guard_only():
     state = pre_push_changed_files.classify_changed_files(["AGENTS.md"])
 
