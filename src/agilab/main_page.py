@@ -977,9 +977,20 @@ def _refresh_share_dir(env: Any, new_value: str) -> None:
     _about_env_editor._refresh_share_dir(env, new_value)
 
 
-def _handle_data_root_failure(exc: Exception, *, agi_env_cls: Any) -> bool:
+def _handle_data_root_failure(
+    exc: Exception,
+    *,
+    agi_env_cls: Any,
+    env_file_path: Path | None = None,
+    render_intro: bool = True,
+) -> bool:
     _sync_env_editor_module()
-    return _about_env_editor._handle_data_root_failure(exc, agi_env_cls=agi_env_cls)
+    return _about_env_editor._handle_data_root_failure(
+        exc,
+        agi_env_cls=agi_env_cls,
+        env_file_path=env_file_path or ENV_FILE_PATH,
+        render_intro=render_intro,
+    )
 
 
 def _strip_dotenv_quotes(value: str) -> str:

@@ -137,32 +137,55 @@ def _refresh_share_dir(env: Any, new_value: str) -> None:
         st.warning(f"AGI_CLUSTER_SHARE update saved but data directory is still unreachable: {exc}")
 
 
-def _handle_data_root_failure(exc: Exception, *, agi_env_cls: Any) -> bool:
+def _handle_data_root_failure(
+    exc: Exception,
+    *,
+    agi_env_cls: Any,
+    env_file_path: Path | None = None,
+    render_intro: bool = True,
+) -> bool:
     """Render a recovery UI when the AGI share directory is unavailable."""
     message = str(exc)
     if "AGI_CLUSTER_SHARE" not in message and "data directory" not in message:
         return False
 
     agi_env_cls._ensure_defaults()
+    active_env_file_path = (env_file_path or ENV_FILE_PATH).expanduser()
+    try:
+        persisted_value = _load_env_file_map(active_env_file_path).get("AGI_CLUSTER_SHARE", "")
+    except (OSError, RuntimeError, TypeError, ValueError):
+        persisted_value = ""
     current_value = (
         st.session_state.get("agi_share_path_override_input")
         or agi_env_cls.envars.get("AGI_CLUSTER_SHARE")
         or os.environ.get("AGI_CLUSTER_SHARE")
+        or persisted_value
         or agi_env_cls.envars.get("AGI_LOCAL_SHARE")
         or ""
     )
-    share_dir_path = Path(str(current_value)).expanduser()
+    if current_value:
+        try:
+            share_dir_path: Path | None = _resolve_share_dir_path(
+                str(current_value), home_path=Path(agi_env_cls.home_abs)
+            )
+        except ValueError:
+            share_dir_path = Path(str(current_value)).expanduser()
+    else:
+        share_dir_path = None
 
-    st.error(
-        "AGILAB cannot reach the configured AGI share directory. "
-        "Mount the expected path or override `AGI_CLUSTER_SHARE` before continuing."
-    )
-    st.code(message)
+    if render_intro:
+        st.error(
+            "AGILAB cannot reach the configured AGI share directory. "
+            "Mount the expected path or override `AGI_CLUSTER_SHARE` before continuing."
+        )
+        st.code(message)
     st.info(
-        f"The value is persisted in `{ENV_FILE_PATH}` so CLI and Streamlit stay in sync. "
+        f"The value is persisted in `{active_env_file_path}` so CLI and Streamlit stay in sync. "
         "Point it to a mounted folder (local path or NFS mount) that AGILAB can create files in."
     )
-    st.write(f"Current setting: `{current_value}` (expands to `{share_dir_path}`)")
+    current_display = str(current_value) if current_value else "not configured"
+    expanded_display = str(share_dir_path) if share_dir_path is not None else "not configured"
+    st.write(f"Current setting: `{current_display}` (expands to `{expanded_display}`)")
 
     key = "agi_share_path_override_input"
     if key not in st.session_state or not st.session_state[key]:
