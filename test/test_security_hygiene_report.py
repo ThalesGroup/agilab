@@ -28,6 +28,10 @@ def test_security_hygiene_report_passes_static_contract(tmp_path: Path) -> None:
 
     assert report["schema"] == "agilab.security_hygiene.v1"
     assert report["status"] == "pass"
+    assert report["summary"]["passed"] == report["summary"]["check_count"] - 2
+    assert report["summary"]["failed"] == 0
+    assert report["summary"]["skipped"] == 2
+    assert report["summary"]["scan_artifacts_required"] is False
     assert report["summary"]["pip_audit_artifact_provided"] is False
     assert report["summary"]["sbom_artifact_provided"] is False
     assert "pip-audit --format json" in report["summary"]["pip_audit_command"]
@@ -78,6 +82,8 @@ def test_security_hygiene_report_passes_static_contract(tmp_path: Path) -> None:
     assert checks["installers_expose_dry_run_profiles"]["status"] == "pass"
     assert checks["central_command_runner_shell_fallback_is_syntax_gated"]["status"] == "pass"
     assert checks["github_actions_are_pinned_to_commit_sha"]["status"] == "pass"
+    assert checks["pip_audit_artifact_valid"]["status"] == "skipped"
+    assert checks["sbom_artifact_valid"]["status"] == "skipped"
 
     output = tmp_path / "security-hygiene.json"
     assert module.main(["--output", str(output), "--compact"]) == 0
@@ -218,13 +224,63 @@ def test_security_hygiene_report_accepts_scan_artifacts(tmp_path: Path) -> None:
         repo_root=Path.cwd(),
         pip_audit_json=pip_audit,
         sbom_json=sbom,
+        require_scan_artifacts=True,
     )
 
     assert report["status"] == "pass"
+    assert report["summary"]["passed"] == report["summary"]["check_count"]
+    assert report["summary"]["failed"] == 0
+    assert report["summary"]["skipped"] == 0
+    assert report["summary"]["scan_artifacts_required"] is True
     checks = {check["id"]: check for check in report["checks"]}
+    assert checks["pip_audit_artifact_valid"]["status"] == "pass"
     assert checks["pip_audit_artifact_valid"]["details"]["provided"] is True
+    assert checks["pip_audit_artifact_valid"]["details"]["required"] is True
     assert checks["pip_audit_artifact_valid"]["details"]["vulnerability_count"] == 0
+    assert checks["sbom_artifact_valid"]["status"] == "pass"
     assert checks["sbom_artifact_valid"]["details"]["component_count"] == 1
+
+
+def test_security_hygiene_report_rejects_missing_required_scan_artifacts() -> None:
+    module = _load_module()
+
+    report = module.build_report(repo_root=Path.cwd(), require_scan_artifacts=True)
+
+    assert report["status"] == "fail"
+    assert report["summary"]["failed"] == 2
+    assert report["summary"]["skipped"] == 0
+    checks = {check["id"]: check for check in report["checks"]}
+    assert checks["pip_audit_artifact_valid"]["status"] == "fail"
+    assert checks["sbom_artifact_valid"]["status"] == "fail"
+    assert module.main(["--require-scan-artifacts", "--compact"]) == 1
+
+
+def test_security_hygiene_report_rejects_vulnerable_audit_artifact(tmp_path: Path) -> None:
+    module = _load_module()
+    pip_audit = tmp_path / "pip-audit.json"
+    pip_audit.write_text(
+        json.dumps({"dependencies": [{"name": "agilab", "vulns": [{"id": "GHSA-test"}]}]}),
+        encoding="utf-8",
+    )
+
+    report = module.build_report(repo_root=Path.cwd(), pip_audit_json=pip_audit)
+
+    checks = {check["id"]: check for check in report["checks"]}
+    assert report["status"] == "fail"
+    assert checks["pip_audit_artifact_valid"]["status"] == "fail"
+    assert checks["pip_audit_artifact_valid"]["details"]["vulnerability_count"] == 1
+
+
+def test_security_hygiene_report_rejects_non_cyclonedx_sbom(tmp_path: Path) -> None:
+    module = _load_module()
+    sbom = tmp_path / "sbom.json"
+    sbom.write_text(json.dumps({"components": []}), encoding="utf-8")
+
+    report = module.build_report(repo_root=Path.cwd(), sbom_json=sbom)
+
+    checks = {check["id"]: check for check in report["checks"]}
+    assert report["status"] == "fail"
+    assert checks["sbom_artifact_valid"]["status"] == "fail"
 
 
 def test_security_hygiene_report_rejects_invalid_scan_artifact(tmp_path: Path) -> None:
@@ -246,3 +302,4 @@ def test_security_hygiene_main_prints_pretty_json(capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["schema"] == "agilab.security_hygiene.v1"
     assert payload["status"] == "pass"
+    assert payload["summary"]["skipped"] == 2

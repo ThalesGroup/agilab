@@ -212,10 +212,24 @@ jobs:
             --screenshot-dir frontend-smoke-screenshots \
             | tee frontend-smoke-robot.json
 
+      - name: Generate base supply-chain evidence
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run \
+            python tools/profile_supply_chain_scan.py \
+            --profile base \
+            --output-dir test-results/supply-chain \
+            --run
+
       - name: Validate security hygiene report
         run: |
           set -euo pipefail
-          python tools/security_hygiene_report.py --output security-hygiene.json --compact
+          python tools/security_hygiene_report.py \
+            --pip-audit-json test-results/supply-chain/base/pip-audit.json \
+            --sbom-json test-results/supply-chain/base/sbom-cyclonedx.json \
+            --require-scan-artifacts \
+            --output security-hygiene.json \
+            --compact
 
       - name: Upload local proof artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -229,6 +243,7 @@ jobs:
             frontend-smoke-robot.json
             frontend-smoke-screenshots/**
             security-hygiene.json
+            test-results/supply-chain/base/**
           if-no-files-found: ignore
 
       - name: Confirm extended test policy
