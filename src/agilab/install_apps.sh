@@ -70,7 +70,15 @@ detect_last_session_apps() {
     local -a candidate_mtimes=()
     while IFS= read -r dir; do
       [[ -d "$dir" ]] || continue
-      mtime="$(stat -f %m "$dir" 2>/dev/null || stat -c %Y "$dir" 2>/dev/null || echo 0)"
+      if mtime="$(stat -f '%m' "$dir" 2>/dev/null)" \
+        && [[ "$mtime" =~ ^[0-9]+$ ]]; then
+        :
+      elif mtime="$(stat -c '%Y' "$dir" 2>/dev/null)" \
+        && [[ "$mtime" =~ ^[0-9]+$ ]]; then
+        :
+      else
+        mtime=0
+      fi
       candidate_names+=("$(basename -- "$dir")")
       candidate_mtimes+=("$mtime")
       if (( mtime > newest )); then
