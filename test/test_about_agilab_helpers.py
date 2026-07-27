@@ -1765,6 +1765,7 @@ def test_bootstrap_page_environment_handles_cluster_share_startup_error(
     monkeypatch, tmp_path
 ):
     bootstrap = about_agilab._about_bootstrap
+    generic_recovery_calls: list[dict[str, object]] = []
 
     class FailingAgiEnv:
         def __init__(self, *_args, **_kwargs):
@@ -1780,13 +1781,17 @@ def test_bootstrap_page_environment_handles_cluster_share_startup_error(
     fake_st = _FakeStreamlit()
     fake_st.query_params["active_app"] = "flight_telemetry_project"
 
+    def render_share_override(exc, **kwargs):
+        generic_recovery_calls.append({"exc": exc, **kwargs})
+        return True
+
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
         load_env_file_map=lambda _path: {},
         logger=object(),
         apply_active_app_request=lambda *_args: False,
-        handle_data_root_failure=lambda *_args, **_kwargs: False,
+        handle_data_root_failure=render_share_override,
         refresh_env_from_file=lambda _env: None,
         clean_openai_key=lambda value: value,
         store_cluster_credentials=lambda *_args, **_kwargs: True,
@@ -1801,6 +1806,12 @@ def test_bootstrap_page_environment_handles_cluster_share_startup_error(
         body for kind, body in fake_st.events if kind == "button"
     ]
     assert "AGI_CLUSTER_SHARE" in error_message
+    assert len(generic_recovery_calls) == 1
+    recovery_call = generic_recovery_calls[0]
+    assert isinstance(recovery_call["exc"], RuntimeError)
+    assert recovery_call["agi_env_cls"] is FailingAgiEnv
+    assert recovery_call["env_file_path"] == tmp_path / ".env"
+    assert recovery_call["render_intro"] is False
 
 
 def test_bootstrap_cluster_share_startup_error_can_disable_stale_app_setting(tmp_path):
@@ -3535,6 +3546,42 @@ def test_handle_data_root_failure_renders_share_recovery_paths(tmp_path, monkeyp
     assert FakeAgiEnv.saved[-1] == ("AGI_CLUSTER_SHARE", "newshare")
     assert fake_st.session_state["first_run"] is True
     assert ("rerun", "") in fake_st.events
+
+
+def test_handle_data_root_failure_reads_persisted_share_when_runtime_state_empty(
+    tmp_path, monkeypatch
+):
+    env_file = tmp_path / ".agilab/.env"
+    env_file.parent.mkdir(parents=True)
+    persisted_share = tmp_path / "clustershare/agi"
+    env_file.write_text(f"AGI_CLUSTER_SHARE={persisted_share}\n", encoding="utf-8")
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.delenv("AGI_CLUSTER_SHARE", raising=False)
+    monkeypatch.delenv("AGI_LOCAL_SHARE", raising=False)
+
+    class EmptyRuntimeAgiEnv:
+        home_abs = tmp_path
+        envars: dict[str, str] = {}
+
+        @classmethod
+        def _ensure_defaults(cls):
+            return None
+
+        @classmethod
+        def set_env_var(cls, _key: str, _value: str):
+            raise AssertionError("the recovery form was not submitted")
+
+    assert about_agilab._handle_data_root_failure(
+        RuntimeError("data directory missing"),
+        agi_env_cls=EmptyRuntimeAgiEnv,
+        env_file_path=env_file,
+    )
+
+    expected_status = f"Current setting: `{persisted_share}` (expands to `{persisted_share}`)"
+    assert ("write", expected_status) in fake_st.events
+    assert fake_st.session_state["agi_share_path_override_input"] == str(persisted_share)
+    assert all("(expands to `.`)" not in body for _kind, body in fake_st.events)
 
 
 def test_render_env_editor_saves_updates_and_redacted_preview(tmp_path, monkeypatch):

@@ -687,6 +687,7 @@ def handle_cluster_share_startup_error(
     env_file_path: Path,
     args: argparse.Namespace,
     ports: BootstrapPorts,
+    handle_data_root_failure: Callable[..., bool] | None = None,
 ) -> None:
     """Render cluster-share recovery controls before stopping startup."""
     app_name = startup_active_app_name(streamlit, args, ports)
@@ -711,6 +712,14 @@ def handle_cluster_share_startup_error(
             if callable(rerun):
                 rerun()
             return
+
+    if handle_data_root_failure is not None:
+        handle_data_root_failure(
+            exc,
+            agi_env_cls=ports.agi_env_cls,
+            env_file_path=env_file_path,
+            render_intro=False,
+        )
 
     stop = getattr(streamlit, "stop", None)
     if callable(stop):
@@ -771,8 +780,6 @@ def bootstrap_page_environment(
                 verbose=1,
             )
         except RuntimeError as exc:
-            if handle_data_root_failure(exc, agi_env_cls=ports.agi_env_cls):
-                return BootstrapResult(env=None, handled_recovery=True)
             if is_cluster_share_startup_error(exc):
                 handle_cluster_share_startup_error(
                     streamlit=streamlit,
@@ -780,7 +787,14 @@ def bootstrap_page_environment(
                     env_file_path=env_file_path,
                     args=args,
                     ports=ports,
+                    handle_data_root_failure=handle_data_root_failure,
                 )
+                return BootstrapResult(env=None, handled_recovery=True)
+            if handle_data_root_failure(
+                exc,
+                agi_env_cls=ports.agi_env_cls,
+                env_file_path=env_file_path,
+            ):
                 return BootstrapResult(env=None, handled_recovery=True)
             raise
 
