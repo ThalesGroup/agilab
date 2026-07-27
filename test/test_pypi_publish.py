@@ -2349,7 +2349,7 @@ def test_git_commit_version_blocks_dirty_release_metadata_after_commit(monkeypat
     ]
 
 
-def test_ensure_docs_repo_release_ready_ignores_unrelated_dirty_paths(tmp_path, monkeypatch, capsys) -> None:
+def test_ensure_docs_repo_release_ready_rejects_unrelated_dirty_paths(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
 
     docs_repo = tmp_path / "thales_agilab"
@@ -2357,8 +2357,43 @@ def test_ensure_docs_repo_release_ready_ignores_unrelated_dirty_paths(tmp_path, 
 
     monkeypatch.setattr(module, "_git_status_paths", lambda _repo: ["docs/source/quick-start.rst", "apps/templates"])
 
-    assert module.ensure_docs_repo_release_ready(docs_repo) == ["docs/source/quick-start.rst"]
-    assert "ignoring them for docs release: apps/templates" in capsys.readouterr().out
+    with pytest.raises(SystemExit, match="mixed-scope release commit") as exc_info:
+        module.ensure_docs_repo_release_ready(docs_repo)
+
+    assert "apps/templates" in str(exc_info.value)
+
+
+def test_git_status_paths_preserves_cross_boundary_rename_source(tmp_path) -> None:
+    module = _load_pypi_publish()
+    docs_repo = tmp_path / "thales_agilab"
+    docs_repo.mkdir()
+
+    def git(*args: str) -> str:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=docs_repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return completed.stdout.strip()
+
+    git("init", "--quiet")
+    git("config", "user.name", "AGILAB Test")
+    git("config", "user.email", "agilab-test@example.invalid")
+    outside = docs_repo / "outside.txt"
+    outside.write_text("outside\n", encoding="utf-8")
+    git("add", "outside.txt")
+    git("commit", "--quiet", "-m", "initial")
+    (docs_repo / "docs/source").mkdir(parents=True)
+    git("mv", "outside.txt", "docs/source/moved.txt")
+
+    assert module._git_status_paths(docs_repo) == [
+        "docs/source/moved.txt",
+        "outside.txt",
+    ]
+    with pytest.raises(SystemExit, match="outside.txt"):
+        module.ensure_docs_repo_release_ready(docs_repo)
 
 
 def test_generate_docs_in_docs_repository_runs_in_docs_repo(monkeypatch, tmp_path) -> None:
@@ -2418,9 +2453,66 @@ def test_git_commit_docs_repository_pushes_only_release_managed_docs_paths(monke
 
     assert calls == [
         (["git", "add", "-A", "--", "docs/source/demos.rst", "docs/source/quick-start.rst"], docs_repo),
-        (["git", "commit", "-m", "docs(release): sync docs for 2026.04.21"], docs_repo),
+        (
+            [
+                "git",
+                "commit",
+                "-m",
+                "docs(release): sync docs for 2026.04.21",
+                "--",
+                "docs/source/demos.rst",
+                "docs/source/quick-start.rst",
+            ],
+            docs_repo,
+        ),
         (["git", "push", "origin", "main"], docs_repo),
     ]
+
+
+def test_git_commit_docs_repository_leaves_unrelated_staged_change_outside_commit(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    module = _load_pypi_publish()
+    docs_repo = tmp_path / "thales_agilab"
+    docs_repo.mkdir()
+
+    def git(*args: str) -> str:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=docs_repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return completed.stdout.strip()
+
+    git("init", "--quiet")
+    git("config", "user.name", "AGILAB Test")
+    git("config", "user.email", "agilab-test@example.invalid")
+    docs_path = docs_repo / "docs/source/release.rst"
+    docs_path.parent.mkdir(parents=True)
+    docs_path.write_text("old docs\n", encoding="utf-8")
+    outside = docs_repo / "outside.txt"
+    outside.write_text("old outside\n", encoding="utf-8")
+    git("add", "docs/source/release.rst", "outside.txt")
+    git("commit", "--quiet", "-m", "initial")
+
+    docs_path.write_text("new docs\n", encoding="utf-8")
+    outside.write_text("new outside\n", encoding="utf-8")
+    git("add", "outside.txt")
+
+    monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "test"))
+    monkeypatch.setattr(
+        module,
+        "ensure_docs_repo_release_ready",
+        lambda _repo: ["docs/source/release.rst"],
+    )
+
+    module.git_commit_docs_repository("2026.04.21")
+
+    assert git("show", "--format=", "--name-only", "HEAD") == "docs/source/release.rst"
+    assert git("diff", "--cached", "--name-only") == "outside.txt"
 
 
 def test_docs_repository_commit_required_for_release_link_updates() -> None:
@@ -2508,7 +2600,7 @@ def test_create_and_push_tag_includes_docs_repo_when_requested(monkeypatch, tmp_
 
     monkeypatch.setattr(module, "find_apps_repository", lambda: (None, None))
     monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "default"))
-    monkeypatch.setattr(module, "_git_status_paths", lambda _repo: ["apps/templates"])
+    monkeypatch.setattr(module, "_git_status_paths", lambda _repo: [])
     monkeypatch.setattr(module, "_tag_exists", lambda _tag, repo=None: False)
     monkeypatch.setattr(
         module,
@@ -2532,14 +2624,13 @@ def test_create_and_push_tag_blocks_uncommitted_docs_release_paths(monkeypatch, 
 
     monkeypatch.setattr(module, "find_apps_repository", lambda: (None, None))
     monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "default"))
-    monkeypatch.setattr(module, "_git_status_paths", lambda _repo: ["docs/source/quick-start.rst", "apps/templates"])
+    monkeypatch.setattr(module, "_git_status_paths", lambda _repo: ["docs/source/quick-start.rst"])
     monkeypatch.setattr(module, "_create_tag_in_repo", lambda *_args, **_kwargs: None)
 
     try:
         module.create_and_push_tag("2026.04.21", include_apps_repo=False, include_docs_repo=True)
     except SystemExit as exc:
         assert "docs/source/quick-start.rst" in str(exc)
-        assert "apps/templates" not in str(exc)
     else:
         raise AssertionError("create_and_push_tag() should reject uncommitted docs release paths")
 

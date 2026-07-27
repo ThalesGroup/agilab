@@ -148,21 +148,49 @@ def _normalize_paths(paths: Iterable[str]) -> list[str]:
     return sorted(normalized)
 
 
+def _split_git_paths(value: str) -> list[str]:
+    return [path for path in value.split("\0") if path]
+
+
 def changed_files(base: str | None, *, include_untracked: bool = False) -> list[str]:
     resolved_base = base or _default_base()
     changed: list[str] = []
-    diff_base = _run_git(["diff", "--name-only", "--diff-filter=ACMR", f"{resolved_base}...HEAD"], check=False)
+    diff_base = _run_git(
+        ["diff", "--no-renames", "--name-only", "-z", f"{resolved_base}...HEAD"],
+        check=False,
+    )
     if diff_base.returncode == 0:
-        changed.extend(diff_base.stdout.splitlines())
+        changed.extend(_split_git_paths(diff_base.stdout))
     else:
-        diff_base = _run_git(["diff", "--name-only", "--diff-filter=ACMR", resolved_base], check=False)
+        diff_base = _run_git(
+            ["diff", "--no-renames", "--name-only", "-z", resolved_base],
+            check=False,
+        )
         if diff_base.returncode == 0:
-            changed.extend(diff_base.stdout.splitlines())
+            changed.extend(_split_git_paths(diff_base.stdout))
 
-    changed.extend(_run_git(["diff", "--name-only", "--diff-filter=ACMR"], check=False).stdout.splitlines())
-    changed.extend(_run_git(["diff", "--cached", "--name-only", "--diff-filter=ACMR"], check=False).stdout.splitlines())
+    changed.extend(
+        _split_git_paths(
+            _run_git(["diff", "--no-renames", "--name-only", "-z"], check=False).stdout
+        )
+    )
+    changed.extend(
+        _split_git_paths(
+            _run_git(
+                ["diff", "--no-renames", "--cached", "--name-only", "-z"],
+                check=False,
+            ).stdout
+        )
+    )
     if include_untracked:
-        changed.extend(_run_git(["ls-files", "--others", "--exclude-standard"], check=False).stdout.splitlines())
+        changed.extend(
+            _split_git_paths(
+                _run_git(
+                    ["ls-files", "--others", "--exclude-standard", "-z"],
+                    check=False,
+                ).stdout
+            )
+        )
     return _normalize_paths(changed)
 
 

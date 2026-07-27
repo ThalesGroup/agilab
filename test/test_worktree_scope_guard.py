@@ -106,10 +106,10 @@ def test_changed_files_uses_staged_or_full_diff():
     def fake_git(args):
         calls.append(tuple(args))
         if "--cached" in args:
-            return "staged.py\n"
+            return "staged.py\0"
         if "ls-files" in args:
-            return "new.py\n"
-        return "dirty.py\n"
+            return "new.py\0"
+        return "dirty.py\0"
 
     assert scope_guard.changed_files(git=fake_git) == ("dirty.py", "staged.py")
     assert scope_guard.changed_files(staged=True, git=fake_git) == ("staged.py",)
@@ -118,6 +118,9 @@ def test_changed_files_uses_staged_or_full_diff():
         "new.py",
         "staged.py",
     )
+    assert all(not any(part.startswith("--diff-filter=") for part in call) for call in calls)
+    assert all("--no-renames" in call for call in calls if call[0] == "diff")
+    assert all("-z" in call for call in calls)
 
 
 def test_main_includes_untracked_by_default(capsys, monkeypatch):

@@ -1243,25 +1243,27 @@ def test_git_changed_files_collects_unique_paths(monkeypatch) -> None:
     def _fake_run(argv, **_kwargs):
         calls.append(list(argv))
         if argv[:2] == ["git", "diff"] and argv[-1] == "HEAD":
-            return SimpleNamespace(returncode=0, stdout="tools/a.py\nshared.py\n")
-        if argv == ["git", "diff", "--name-only", "origin/main...HEAD"]:
-            return SimpleNamespace(returncode=0, stdout="tools/a.py\nshared.py\n")
-        if argv[:3] == ["git", "diff", "--cached"]:
+            return SimpleNamespace(returncode=0, stdout="tools/a.py\0shared.py\0")
+        if argv == ["git", "diff", "--no-renames", "--name-only", "-z", "origin/main...HEAD"]:
+            return SimpleNamespace(returncode=0, stdout="tools/a.py\0shared.py\0")
+        if argv[:4] == ["git", "diff", "--no-renames", "--cached"]:
             return SimpleNamespace(returncode=1, stdout="")
-        return SimpleNamespace(returncode=0, stdout="shared.py\nuntracked.py\n")
+        return SimpleNamespace(returncode=0, stdout="shared.py\0untracked.py\0")
 
     monkeypatch.setattr(module.subprocess, "run", _fake_run)
 
     assert module._git_changed_files() == ["tools/a.py", "shared.py", "untracked.py"]
     assert calls == [
-        ["git", "diff", "--name-only", "HEAD"],
-        ["git", "diff", "--cached", "--name-only"],
-        ["git", "ls-files", "--others", "--exclude-standard"],
+        ["git", "diff", "--no-renames", "--name-only", "-z", "HEAD"],
+        ["git", "diff", "--no-renames", "--cached", "--name-only", "-z"],
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"],
     ]
 
     calls.clear()
     assert module._git_changed_files("origin/main") == ["tools/a.py", "shared.py"]
-    assert calls == [["git", "diff", "--name-only", "origin/main...HEAD"]]
+    assert calls == [
+        ["git", "diff", "--no-renames", "--name-only", "-z", "origin/main...HEAD"]
+    ]
 
 
 def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> None:

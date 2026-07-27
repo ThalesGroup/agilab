@@ -518,8 +518,8 @@ def test_collect_changed_files_uses_unstaged_and_untracked(monkeypatch) -> None:
 
     assert files == ["src/agilab/pipeline_ai.py", "test/test_new_selector.py"]
     assert calls == [
-        ["diff", "--name-only", "--diff-filter=ACMR", "HEAD~1"],
-        ["ls-files", "--others", "--exclude-standard"],
+        ["diff", "--no-renames", "--name-only", "-z", "HEAD~1"],
+        ["ls-files", "--others", "--exclude-standard", "-z"],
     ]
 
 
@@ -788,6 +788,7 @@ def test_discover_test_files_uses_git_and_caches_result(tmp_path: Path, monkeypa
             "--cached",
             "--others",
             "--exclude-standard",
+            "-z",
             "--",
             *module.DEFAULT_TEST_ROOTS,
         ]

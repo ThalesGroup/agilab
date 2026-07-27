@@ -113,11 +113,15 @@ def _run_git(args: Sequence[str]) -> str:
         stderr=subprocess.PIPE,
         text=True,
     )
-    return completed.stdout.strip()
+    return completed.stdout if "-z" in args else completed.stdout.strip()
 
 
 def _split_lines(value: str) -> tuple[str, ...]:
     return tuple(line.strip() for line in value.splitlines() if line.strip())
+
+
+def _split_git_paths(value: str) -> tuple[str, ...]:
+    return tuple(path for path in value.split("\0") if path)
 
 
 def _remote_default_base(git: GitRunner) -> str:
@@ -171,7 +175,13 @@ def changed_files_from_pre_push(stdin_text: str, *, git: GitRunner = _run_git) -
 
     if not records:
         base = _remote_default_base(git)
-        return tuple(sorted(_split_lines(git(["diff", "--name-only", "--diff-filter=ACMR", f"{base}...HEAD"]))))
+        return tuple(
+            sorted(
+                _split_git_paths(
+                    git(["diff", "--no-renames", "--name-only", "-z", f"{base}...HEAD"])
+                )
+            )
+        )
 
     for _local_ref, local_sha, remote_ref, remote_sha in records:
         if local_sha == ZERO_SHA:
@@ -182,7 +192,11 @@ def changed_files_from_pre_push(stdin_text: str, *, git: GitRunner = _run_git) -
             remote_sha=remote_sha,
             git=git,
         )
-        changed.update(_split_lines(git(["diff", "--name-only", "--diff-filter=ACMR", base, local_sha])))
+        changed.update(
+            _split_git_paths(
+                git(["diff", "--no-renames", "--name-only", "-z", base, local_sha])
+            )
+        )
     return tuple(sorted(changed))
 
 

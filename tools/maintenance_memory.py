@@ -194,7 +194,7 @@ def _run_git(args: Sequence[str], *, repo_root: Path = REPO_ROOT) -> list[str]:
     )
     if proc.returncode:
         raise RuntimeError(proc.stderr.strip() or f"git {' '.join(args)} failed")
-    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    return [path for path in proc.stdout.split("\0") if path]
 
 
 def _sources_from_notes(memory_root: Path) -> list[str]:
@@ -214,7 +214,7 @@ def _collect_sources(args: argparse.Namespace) -> list[str]:
         return _sources_from_notes(memory_root)
     if args.staged:
         return _normalize_paths(
-            _run_git(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])
+            _run_git(["diff", "--no-renames", "--cached", "--name-only", "-z"])
         )
     return _normalize_paths(args.files or [])
 

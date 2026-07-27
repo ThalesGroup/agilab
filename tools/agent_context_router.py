@@ -107,7 +107,7 @@ def _matches_any(path: str, patterns: Iterable[str]) -> bool:
 def _git_changed_files(*, staged: bool, changed: bool) -> list[str]:
     if not staged and not changed:
         return []
-    args = ["git", "diff", "--name-only"]
+    args = ["git", "diff", "--no-renames", "--name-only", "-z"]
     if staged:
         args.append("--cached")
     elif changed:
@@ -123,7 +123,7 @@ def _git_changed_files(*, staged: bool, changed: bool) -> list[str]:
     )
     if completed.returncode != 0:
         raise RuntimeError(completed.stderr.strip() or "git diff failed")
-    return [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+    return [path for path in completed.stdout.split("\0") if path]
 
 
 def load_skill_index(capabilities_path: Path = DEFAULT_CAPABILITIES) -> dict[str, dict[str, str]]:

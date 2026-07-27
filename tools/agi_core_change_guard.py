@@ -62,16 +62,16 @@ def _run_git(args: Sequence[str], *, repo_root: Path = REPO_ROOT) -> str:
         stderr=subprocess.PIPE,
         text=True,
     )
-    return completed.stdout.strip()
+    return completed.stdout if "-z" in args else completed.stdout.strip()
 
 
 def changed_files_between(base_ref: str, head_ref: str, *, repo_root: Path = REPO_ROOT) -> tuple[str, ...]:
     base = EMPTY_TREE_SHA if normalize_actor(base_ref) == ZERO_SHA else base_ref
     output = _run_git(
-        ["diff", "--name-only", "--diff-filter=ACMR", base, head_ref],
+        ["diff", "--no-renames", "--name-only", "-z", base, head_ref],
         repo_root=repo_root,
     )
-    return tuple(line.strip() for line in output.splitlines() if line.strip())
+    return tuple(path for path in output.split("\0") if path)
 
 
 def read_changed_files(path: Path) -> tuple[str, ...]:
