@@ -122,6 +122,15 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--retries", type=int, default=1, help="Twine upload retries (default: 1)")
     ap.add_argument("--dry-run", action="store_true", help="Plan only; print decisions and exit before build/upload")
     ap.add_argument(
+        "--build-only",
+        action="store_true",
+        help=(
+            "Build and verify distributions without upload, cleanup, git, or docs side effects. "
+            "This supports an unprivileged build job followed by a credentialed "
+            "artifact-only publisher."
+        ),
+    )
+    ap.add_argument(
         "--packages",
         nargs="+",
         choices=ALL_PACKAGE_NAMES,
@@ -244,6 +253,7 @@ class Cfg:
     release_preflight: bool = True
     delete_former_github_release: bool = False
     delete_pypi_releases: list[str] | None = None
+    build_only: bool = False
 
 
 def make_cfg(args: argparse.Namespace) -> Cfg:
@@ -275,6 +285,7 @@ def make_cfg(args: argparse.Namespace) -> Cfg:
         gen_docs=bool(getattr(args, "gen_docs", False)),
         release_preflight=bool(getattr(args, "release_preflight", True)),
         delete_pypi_releases=list(getattr(args, "delete_pypi_release", []) or []),
+        build_only=bool(getattr(args, "build_only", False)),
     )
 
 
@@ -564,7 +575,7 @@ def require_safe_pypi_release(cfg: Cfg) -> None:
             "ERROR: --delete-former-github-release requires --repo pypi --git-tag "
             "because it runs after the new GitHub Release has been created."
         )
-    if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only:
+    if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only or cfg.build_only:
         return
     missing: list[str] = []
     if not cfg.git_commit_version:
@@ -2547,8 +2558,26 @@ def main():
     print(f"[config] repo={cfg.repo} python={sys.executable} dist={cfg.dist} "
           f"skip_existing={cfg.skip_existing} retries={cfg.retries} clean={not cfg.skip_cleanup}")
 
+    if cfg.build_only and any(
+        (
+            cfg.purge_before,
+            cfg.purge_after,
+            cfg.cleanup_only,
+            cfg.yank_previous,
+            cfg.git_tag,
+            cfg.git_commit_version,
+            cfg.gen_docs,
+            bool(cfg.delete_pypi_releases),
+            cfg.delete_former_github_release,
+        )
+    ):
+        raise SystemExit(
+            "ERROR: --build-only cannot be combined with cleanup, yank, git, docs, "
+            "or release-deletion operations."
+        )
+
     require_safe_pypi_release(cfg)
-    if cfg.pypirc_check:
+    if cfg.pypirc_check and not cfg.build_only:
         assert_pypirc_has(cfg.repo)
     run_release_preflight(cfg)
     if cfg.gen_docs or (cfg.repo == "pypi" and cfg.git_tag):
@@ -2711,6 +2740,16 @@ def main():
 
         # Twine
         twine_check(all_files)
+        if cfg.build_only:
+            print(
+                f"[build-only] verified {len(all_files)} distribution "
+                "artifact(s); upload skipped"
+            )
+            if release_snapshot is not None:
+                restore_release_file_state(release_snapshot)
+                release_snapshot = None
+            release_finalized = True
+            return
         twine_upload(all_files, cfg.repo, cfg.skip_existing, cfg.retries)
         if not cfg.dry_run and cfg.repo == "pypi" and UPLOAD_COLLISION_DETECTED:
             raise SystemExit(

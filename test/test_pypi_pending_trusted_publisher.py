@@ -508,8 +508,14 @@ def test_pending_trusted_publisher_workflow_uses_release_web_credentials() -> No
     assert "PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}" in text
     assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in text
     assert "PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}" in text
-    assert "--project-name \"${{ inputs.project_name }}\"" in text
-    assert "--environment \"${{ inputs.pypi_environment }}\"" in text
+    assert "Validate pending publisher inputs" in text
+    assert "PROJECT_NAME: ${{ inputs.project_name }}" in text
+    assert "PYPI_ENVIRONMENT: ${{ inputs.pypi_environment }}" in text
+    assert '--project-name "$PROJECT_NAME"' in text
+    assert '--owner "$PUBLISHER_OWNER"' in text
+    assert '--repository "$PUBLISHER_REPOSITORY"' in text
+    assert '--workflow-filename "$PUBLISHER_WORKFLOW"' in text
+    assert '--environment "$PYPI_ENVIRONMENT"' in text
     assert "--github-confirm-login-variable \"PYPI_CONFIRM_LOGIN_URL\"" in text
     assert "--github-token \"${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}\"" in text
     assert "--github-confirm-login-cleanup-token \"$GITHUB_TOKEN\"" in text

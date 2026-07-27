@@ -1658,6 +1658,78 @@ def test_main_dry_run_restores_release_files(tmp_path, monkeypatch) -> None:
     assert pyproject.read_text(encoding="utf-8") == original_text
 
 
+def test_main_build_only_verifies_without_credentials_or_upload_and_restores_metadata(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir(parents=True)
+    pyproject = project_dir / "pyproject.toml"
+    original_text = (
+        "[project]\n"
+        "name = 'agi-env'\n"
+        "version = '2026.03.16'\n"
+        "dependencies = []\n"
+    )
+    pyproject.write_text(original_text, encoding="utf-8")
+    order: list[str] = []
+
+    cfg = _base_cfg(
+        module,
+        repo="testpypi",
+        version="2026.03.23",
+        packages=["agi-env"],
+        build_only=True,
+        pypirc_check=True,
+    )
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(
+        module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path)
+    )
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(
+        module, "sync_builtin_app_versions", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        module,
+        "dist_files",
+        lambda _project_dir: [str(project_dir / "dist" / "fake.whl")],
+    )
+    monkeypatch.setattr(
+        module,
+        "assert_pypirc_has",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("build-only must not read upload credentials")
+        ),
+    )
+    monkeypatch.setattr(
+        module, "uv_build_project", lambda *_args, **_kwargs: order.append("build")
+    )
+    monkeypatch.setattr(module, "twine_check", lambda _files: order.append("check"))
+    monkeypatch.setattr(
+        module,
+        "twine_upload",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("build-only must not upload")
+        ),
+    )
+    monkeypatch.setattr(
+        module, "update_selected_badges", lambda *_args, **_kwargs: None
+    )
+
+    module.main()
+
+    assert order == ["build", "check"]
+    assert pyproject.read_text(encoding="utf-8") == original_text
+
+
 def test_main_dry_run_does_not_report_stale_dist_artifacts(tmp_path, monkeypatch, capsys) -> None:
     module = _load_pypi_publish()
 

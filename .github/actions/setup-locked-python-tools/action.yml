@@ -1,0 +1,39 @@
+name: Set up locked Python tools
+description: Install hash-locked CI tools before any workflow credential is exposed.
+
+inputs:
+  requirements:
+    description: Repository-relative hashed requirements file under .github/requirements.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up pinned uv
+      uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+      with:
+        version: "0.10.7"
+
+    - name: Install hash-locked Python tools
+      shell: bash
+      env:
+        INPUT_REQUIREMENTS: ${{ inputs.requirements }}
+      run: |
+        set -euo pipefail
+        if [[ ! "$INPUT_REQUIREMENTS" =~ ^\.github/requirements/ci-[a-z0-9-]+\.txt$ ]]; then
+          echo "Unsupported CI requirements path: $INPUT_REQUIREMENTS" >&2
+          exit 2
+        fi
+        requirements_path="$GITHUB_WORKSPACE/$INPUT_REQUIREMENTS"
+        test -f "$requirements_path"
+        environment_name="$(basename "$INPUT_REQUIREMENTS" .txt)"
+        environment_path="$RUNNER_TEMP/agilab-$environment_name"
+        uv venv --python "$(command -v python)" "$environment_path"
+        uv pip install \
+          --python "$environment_path/bin/python" \
+          --require-hashes \
+          --no-build \
+          --no-cache \
+          --requirements "$requirements_path"
+        printf '%s\n' "$environment_path/bin" >> "$GITHUB_PATH"
+        printf 'AGILAB_DEV_UV_PROJECT_ENVIRONMENT=%s\n' "$environment_path" >> "$GITHUB_ENV"

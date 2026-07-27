@@ -1,0 +1,3 @@
+packaging==26.2
+pypi-cleanup==0.1.10
+requests==2.34.2

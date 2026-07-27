@@ -203,8 +203,11 @@ def _pypi_trusted_publishing_check(repo_root: Path) -> dict[str, Any]:
     text = _read_text(workflow)
     passed = (
         "id-token: write" in text
-        and "PYPI_TRUSTED_PUBLISHING" in text
-        and "PyPI publication requires Trusted Publishing/OIDC" in text
+        and "build-library-packages:" in text
+        and "build-agilab:" in text
+        and "Download immutable ${{ matrix.package }} distribution artifact" in text
+        and "Download immutable agilab distribution artifact" in text
+        and "uses: pypa/gh-action-pypi-publish@" in text
         and "PYPI_API_TOKEN" not in text
         and "PYPI_SECRET" not in text
         and "PYPI_TOKEN" not in text
@@ -214,7 +217,7 @@ def _pypi_trusted_publishing_check(repo_root: Path) -> dict[str, Any]:
         "pypi_trusted_publishing_only",
         "PyPI publishing requires OIDC Trusted Publishing",
         passed,
-        "The PyPI workflow refuses long-lived token publishing and requires Trusted Publishing/OIDC",
+        "The PyPI workflow builds without credentials and publishes immutable artifacts with OIDC",
         evidence=[".github/workflows/pypi-publish.yaml"],
     )
 

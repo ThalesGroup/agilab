@@ -533,6 +533,36 @@ JOB_GATE_CONTRACT: dict[str, dict[str, Any]] = {
         ),
         "if_forbidden": ("always()",),
     },
+    "publish-library-packages": {
+        "description": (
+            "credentialed library publication must stop when a release run is "
+            "cancelled and consume only a successful unprivileged build"
+        ),
+        "needs": {"release-plan", "build-library-packages"},
+        "if_required": (
+            "!cancelled()",
+            "needs.release-plan.outputs.library_selected == 'true'",
+            "needs.build-library-packages.result == 'success'",
+        ),
+        "if_forbidden": ("always()",),
+    },
+    "publish-agilab": {
+        "description": (
+            "credentialed umbrella publication must stop when a release run is "
+            "cancelled and consume only successful prerequisite artifacts"
+        ),
+        "needs": {"release-plan", "build-agilab", "publish-library-packages"},
+        "if_required": (
+            "!cancelled()",
+            "needs.release-plan.outputs.umbrella_selected == 'true'",
+            "needs.build-agilab.result == 'success'",
+            (
+                "needs.publish-library-packages.result == 'success' || "
+                "needs.publish-library-packages.result == 'skipped'"
+            ),
+        ),
+        "if_forbidden": ("always()",),
+    },
     "publish-dataset-release-assets": {
         "description": (
             "dataset release assets must pass the audit and still run when the "
@@ -666,11 +696,41 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "--skip-existing-pypi": (
             "workflow must omit already-published package versions from publish/provenance/retention by default"
         ),
-        "python -m pip install --upgrade --no-cache-dir packaging": (
-            "release-plan job must install the lightweight dependency needed for PyPI artifact checks"
+        "uses: ./.github/actions/setup-locked-python-tools": (
+            "release tooling jobs must install Python tools through the locked local action"
+        ),
+        "requirements: .github/requirements/ci-publish.txt": (
+            "release-plan and unprivileged build jobs must use the hash-locked publishing toolchain"
+        ),
+        "requirements: .github/requirements/ci-pypi-web.txt": (
+            "PyPI retention must use the hash-locked web automation toolchain"
         ),
         "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}": (
             "library publish matrix must be generated from the release plan"
+        ),
+        "build-library-packages:": (
+            "library distributions must be built before entering the OIDC publisher job"
+        ),
+        "build-agilab:": (
+            "the umbrella distribution must be built before entering the OIDC publisher job"
+        ),
+        "needs.build-library-packages.result == 'success'": (
+            "library publishing must consume a successful unprivileged build"
+        ),
+        "needs.build-agilab.result == 'success'": (
+            "umbrella publishing must consume a successful unprivileged build"
+        ),
+        "Download immutable ${{ matrix.package }} distribution artifact": (
+            "library publishing must download the exact current-run build artifact"
+        ),
+        "Download immutable agilab distribution artifact": (
+            "umbrella publishing must download the exact current-run build artifact"
+        ),
+        "packages-dir: publish-artifact/${{ matrix.dist }}": (
+            "library publishing must upload only the downloaded build payload"
+        ),
+        "packages-dir: publish-artifact/dist/": (
+            "umbrella publishing must upload only the downloaded build payload"
         ),
         "needs.release-plan.outputs.library_selected == 'true'": (
             "library publish job must be skippable for umbrella-only releases"
@@ -803,8 +863,8 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "ref: ${{ github.sha }}": (
             "HF Space sync must deploy from the workflow SHA, not a stale manual release_tag checkout"
         ),
-        "huggingface_hub click": (
-            "HF Space sync must install the current HF CLI dependency set explicitly"
+        "requirements: .github/requirements/ci-hf-release.txt": (
+            "HF Space sync must use the hash-locked HF CLI dependency set"
         ),
         "tools/hf_space_release_sync.py": "workflow must use the release HF Space sync tool",
         "HF_TOKEN secret is required": "workflow must fail closed when HF_TOKEN is not configured",
