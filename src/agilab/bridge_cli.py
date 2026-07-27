@@ -7,7 +7,6 @@ import csv
 import hashlib
 import json
 import platform
-from pathlib import Path
 import re
 import shlex
 import shutil
@@ -15,6 +14,7 @@ import subprocess
 import sys
 import textwrap
 import time
+from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from agilab import run_manifest
@@ -493,6 +493,31 @@ def export_quarto_report(
     which: Callable[[str], str | None] = shutil.which,
 ) -> dict[str, Any]:
     manifest, manifest_payload, resolved_manifest = _load_run_manifest(manifest_path)
+    return _export_quarto_report_loaded(
+        manifest,
+        manifest_payload,
+        resolved_manifest,
+        output_path,
+        render=render,
+        quarto_bin=quarto_bin,
+        runner=runner,
+        which=which,
+    )
+
+
+def _export_quarto_report_loaded(
+    manifest: run_manifest.RunManifest,
+    manifest_payload: Mapping[str, Any],
+    resolved_manifest: Path,
+    output_path: Path,
+    *,
+    render: bool = False,
+    quarto_bin: str = "quarto",
+    runner: Runner = subprocess.run,
+    which: Callable[[str], str | None] = shutil.which,
+) -> dict[str, Any]:
+    """Export an already validated manifest without reopening its source path."""
+
     output = output_path.expanduser().resolve(strict=False)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(

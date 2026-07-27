@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -15,12 +13,17 @@ import subprocess
 import sys
 import tempfile
 import time
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 from uuid import uuid4
 
 from agilab.agent_runtime.agent_config import load_agent_config, resolve_agent_provider
-from agilab.agent_runtime.agent_tool_safety import evaluate_tool_permission, normalize_permission_level
+from agilab.agent_runtime.agent_tool_safety import (
+    evaluate_tool_permission,
+    normalize_permission_level,
+)
 from agilab.agent_runtime.agent_trace import (
     AgentTraceStore,
     load_trace_events,
@@ -28,7 +31,6 @@ from agilab.agent_runtime.agent_trace import (
     validate_event_sequence,
 )
 from agilab.security.secret_uri import redact_text
-
 
 TRACE_KIND = "agilab.agent_run.v1"
 MANIFEST_FILENAME = "agent_run_manifest.json"
@@ -1644,7 +1646,7 @@ def agent_handoff_payload(manifest_or_path: dict[str, object] | Path | str) -> d
     permission_map = permission if isinstance(permission, dict) else {}
     trace_events: list[dict[str, object]] = []
     if summary.trace_events_path:
-        for event in load_trace_events(summary.trace_events_path.parent):
+        for event in load_trace_events(summary.trace_events_path):
             trace_events.append(
                 {
                     "sequence": event.sequence,
@@ -1863,10 +1865,12 @@ def agent_context_payload(
     protocol_adapters: Sequence[str] = (),
     capabilities: Sequence[str] = (),
     limit: int = 20,
+    _summaries: Sequence[AgentRunSummary] | None = None,
+    _latest_manifest: dict[str, object] | Path | str | None = None,
 ) -> dict[str, object]:
     """Build a safe context pack from matching agent-run evidence."""
 
-    summaries = list_agent_runs(
+    summaries = list(_summaries) if _summaries is not None else list_agent_runs(
         root,
         agent=agent,
         status=status,
@@ -1883,9 +1887,10 @@ def agent_context_payload(
     latest_handoff: dict[str, object] | None = None
     latest_next_actions: dict[str, object] | None = None
     if summaries and str(summaries[0].manifest_path):
+        latest_source = _latest_manifest or summaries[0].manifest_path
         try:
-            latest_handoff = agent_handoff_payload(summaries[0].manifest_path)
-            latest_next_actions = agent_next_actions_payload(summaries[0].manifest_path)
+            latest_handoff = agent_handoff_payload(latest_source)
+            latest_next_actions = agent_next_actions_payload(latest_source)
         except (OSError, json.JSONDecodeError, ValueError):
             latest_handoff = None
             latest_next_actions = None
@@ -1959,10 +1964,11 @@ def agent_lineage_payload(
     root: Path | str | None = None,
     *,
     run_id: str,
+    _summaries: Sequence[AgentRunSummary] | None = None,
 ) -> dict[str, object]:
     """Build a follow-up lineage graph from agent-run metadata."""
 
-    summaries = list_agent_runs(root, limit=None)
+    summaries = list(_summaries) if _summaries is not None else list_agent_runs(root, limit=None)
     by_run_id = {summary.run_id: summary for summary in summaries if summary.run_id}
     children_by_parent: dict[str, list[AgentRunSummary]] = {}
     parent_by_child: dict[str, str] = {}
@@ -2086,7 +2092,7 @@ def _trace_event_count(summary: AgentRunSummary) -> int:
     if not summary.trace_events_path:
         return 0
     try:
-        return len(load_trace_events(summary.trace_events_path.parent))
+        return len(load_trace_events(summary.trace_events_path))
     except OSError:
         return 0
 
@@ -2292,7 +2298,7 @@ def validate_agent_run(manifest_or_path: dict[str, object] | Path | str) -> dict
     if summary.trace_events_path:
         if summary.trace_events_path.exists():
             try:
-                trace_events = load_trace_events(summary.trace_events_path.parent)
+                trace_events = load_trace_events(summary.trace_events_path)
             except (OSError, TypeError, ValueError) as exc:
                 if not terminal_trace_unavailable:
                     fail("trace_events_invalid", str(exc))

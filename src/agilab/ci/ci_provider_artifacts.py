@@ -9,13 +9,12 @@ import hashlib
 import ipaddress
 import json
 import os
-from collections.abc import Callable, Mapping, Sequence
-from pathlib import Path
 import re
 import tempfile
+from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
 from typing import Any
-from urllib import parse
-from urllib import request
+from urllib import parse, request
 from zipfile import ZipFile
 
 from agilab.ci.ci_artifact_harvest import (
@@ -23,7 +22,6 @@ from agilab.ci.ci_artifact_harvest import (
     REQUIRED_ARTIFACT_KINDS,
     sample_ci_artifacts,
 )
-
 
 SCHEMA = "agilab.ci_provider_artifact_index.v1"
 PROVIDER = "github_actions"
@@ -268,11 +266,17 @@ def _github_artifact_download_request(url: str, token: str | None) -> request.Re
     return req
 
 
-def _gitlab_headers(token: str | None) -> dict[str, str]:
-    headers = {"User-Agent": DEFAULT_USER_AGENT}
+def _gitlab_headers() -> dict[str, str]:
+    return {"User-Agent": DEFAULT_USER_AGENT}
+
+
+def _gitlab_request(url: str, token: str | None) -> request.Request:
+    """Authenticate the initial GitLab request without forwarding auth on redirects."""
+
+    req = request.Request(url, headers=_gitlab_headers())
     if token:
-        headers["PRIVATE-TOKEN"] = token
-    return headers
+        req.add_unredirected_header("PRIVATE-TOKEN", token)
+    return req
 
 
 def _normalize_gitlab_host(value: str) -> str:
@@ -368,7 +372,7 @@ def _read_json_url(url: str, *, token: str | None, urlopen: UrlOpen) -> dict[str
 
 
 def _read_gitlab_json_url(url: str, *, token: str | None, urlopen: UrlOpen) -> list[Any]:
-    req = request.Request(url, headers=_gitlab_headers(token))
+    req = _gitlab_request(url, token)
     with urlopen(req) as response:
         payload = json.loads(response.read().decode("utf-8"))
     if not isinstance(payload, list):
@@ -504,7 +508,7 @@ def download_gitlab_ci_artifacts(
         name = _safe_id(str(artifact.get("name", "") or "job"))
         target = destination / f"{name}-{job_id}-{_safe_id(filename)}.zip"
         url = f"{base_url}/api/v4/projects/{encoded_project}/jobs/{job_id}/artifacts"
-        req = request.Request(url, headers=_gitlab_headers(token))
+        req = _gitlab_request(url, token)
         with urlopen(req) as response:
             target.write_bytes(response.read())
         paths.append(target)

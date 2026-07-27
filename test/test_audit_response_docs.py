@@ -1,6 +1,5 @@
-from pathlib import Path
 import tomllib
-
+from pathlib import Path
 
 DOCS_SOURCE = Path("docs/source")
 
@@ -104,6 +103,7 @@ def test_release_proof_page_collects_public_audit_evidence() -> None:
 
 def test_environment_docs_scope_local_secret_persistence() -> None:
     environment = (DOCS_SOURCE / "environment.rst").read_text(encoding="utf-8")
+    normalized_environment = " ".join(environment.split())
 
     assert "OS keyrings" in environment
     assert "enterprise vaults" in environment
@@ -113,6 +113,10 @@ def test_environment_docs_scope_local_secret_persistence() -> None:
     assert "not a shared secret manager" in environment
     assert "AGILAB_GENERATED_CODE_PROCESS_LIMITS" in environment
     assert "AGILAB_APPS_REPOSITORY_ALLOWLIST" in environment
+    assert "exact reviewed repository origin URL, not the local checkout path" in (
+        normalized_environment
+    )
+    assert "with the reviewed checkout path" not in normalized_environment
 
 
 def test_faq_separates_public_and_maintainer_docs_paths() -> None:
