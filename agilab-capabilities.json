@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-23T08:07:15Z",
+  "generated_at_utc": "2026-07-27T13:04:04Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -1785,6 +1785,7 @@
       "schema": "agilab.notebook_export.v1",
       "sources": [
         "src/agilab/notebooks/notebook_export_support.py",
+        "src/agilab/notebooks/notebook_helper_cell.py",
         "src/agilab/notebooks/notebook_pipeline_import.py"
       ]
     },
