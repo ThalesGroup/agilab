@@ -108,9 +108,20 @@ def test_test_shortcut_keeps_headless_core_tests_free_of_ui_extra():
 def test_test_shortcut_splits_repository_groups_by_dependency_contract():
     commands = agilab_dev.planned_commands(["test"])
 
-    assert len(commands) == len(agilab_dev.PYTEST_PATH_GROUPS)
-    assert commands[0][4:8] == ["--extra", "ui", "--extra", "notebook"]
-    assert commands[0][-1] == "test"
+    assert len(commands) == len(agilab_dev.PYTEST_PATH_GROUPS) + 1
+    assert commands[0][4:10] == [
+        "--extra",
+        "ui",
+        "--extra",
+        "viz",
+        "--extra",
+        "notebook",
+    ]
+    assert commands[0][-3:] == [
+        "python",
+        "-m",
+        "tools.testing.root_test_runner",
+    ]
     assert commands[1][4] == "pytest"
     assert commands[1][-1] == "src/agilab/core/test"
     assert commands[4][4:6] == ["--extra", "ui"]

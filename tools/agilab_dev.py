@@ -52,8 +52,8 @@ DEFAULT_UNDEFINED_NAME_LINT_TARGETS = (
     "src/agilab/core/agi-env/src/agi_env/ui/pagelib.py",
     "src/agilab/core/agi-env/test/test_pagelib.py",
 )
+ROOT_TEST_EXTRAS = ("ui", "viz", "notebook")
 PYTEST_PATH_GROUPS: tuple[tuple[tuple[str, ...], str], ...] = (
-    (("ui", "notebook"), "test"),
     ((), "src/agilab/core/test"),
     ((), "src/agilab/core/agi-cluster/test"),
     ((), "src/agilab/core/agi-env/test"),
@@ -81,6 +81,17 @@ def _pytest_command(*args: str, extras: Sequence[str] = ()) -> list[str]:
         "addopts=",
         "--import-mode=importlib",
         *args,
+    ]
+
+
+def _root_test_command() -> list[str]:
+    extra_args = [item for extra in ROOT_TEST_EXTRAS for item in ("--extra", extra)]
+    return [
+        *UV_RUN,
+        *extra_args,
+        "python",
+        "-m",
+        "tools.testing.root_test_runner",
     ]
 
 
@@ -379,8 +390,11 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
             extras = ("ui", "notebook") if root_tests_selected else ()
             return [_pytest_command(*args, extras=extras)]
         return [
+            _root_test_command(),
+            *(
             _pytest_command(path, extras=extras)
             for extras, path in PYTEST_PATH_GROUPS
+            ),
         ]
 
     if command == "lint":
