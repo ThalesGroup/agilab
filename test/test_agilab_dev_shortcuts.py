@@ -109,7 +109,9 @@ def test_test_shortcut_splits_repository_groups_by_dependency_contract():
     commands = agilab_dev.planned_commands(["test"])
 
     assert len(commands) == len(agilab_dev.PYTEST_PATH_GROUPS) + 1
-    assert commands[0][4:10] == [
+    assert commands[0][4:12] == [
+        "--extra",
+        "dev",
         "--extra",
         "ui",
         "--extra",

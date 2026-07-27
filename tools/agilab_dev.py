@@ -52,7 +52,7 @@ DEFAULT_UNDEFINED_NAME_LINT_TARGETS = (
     "src/agilab/core/agi-env/src/agi_env/ui/pagelib.py",
     "src/agilab/core/agi-env/test/test_pagelib.py",
 )
-ROOT_TEST_EXTRAS = ("ui", "viz", "notebook")
+ROOT_TEST_EXTRAS = ("dev", "ui", "viz", "notebook")
 PYTEST_PATH_GROUPS: tuple[tuple[tuple[str, ...], str], ...] = (
     ((), "src/agilab/core/test"),
     ((), "src/agilab/core/agi-cluster/test"),
