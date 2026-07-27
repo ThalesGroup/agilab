@@ -15,6 +15,7 @@ from zipfile import BadZipFile, ZipFile
 import psutil
 
 from agi_cluster.agi_distributor import background_jobs_support, deployment_remote_support
+from agi_cluster.agi_distributor.runtime import manager_mlflow_support
 from agi_cluster.agi_distributor.runtime.worker_endpoint_support import worker_host
 from agi_env.process_support import project_virtualenv_script_path
 
@@ -871,6 +872,13 @@ async def distribute(
 
     for worker, worker_log in worker_logs.items():
         log.info(f"\n=== Worker {worker} logs ===\n{worker_log}")
+
+    handoff_results = manager_mlflow_support.register_shared_mlflow_handoffs(
+        agi_cls,
+        log=log,
+    )
+    if handoff_results:
+        log.info("Registered %s shared MLflow handoff(s) on the manager", len(handoff_results))
 
     runtime = time_fn() - started_at
     log.info(f"{env.mode2str(agi_cls._mode)} {runtime}")
