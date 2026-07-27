@@ -139,6 +139,22 @@ def _new_branch_base(local_sha: str, git: GitRunner) -> str:
     return f"{local_sha}^"
 
 
+def _push_diff_base(
+    *,
+    local_sha: str,
+    remote_ref: str,
+    remote_sha: str,
+    git: GitRunner,
+) -> str:
+    """Return a base that represents the pushed branch, not merged main drift."""
+
+    if remote_sha == ZERO_SHA:
+        return _new_branch_base(local_sha, git)
+    if remote_ref.startswith("refs/heads/") and remote_ref != "refs/heads/main":
+        return _new_branch_base(local_sha, git)
+    return remote_sha
+
+
 def parse_pre_push_records(stdin_text: str) -> tuple[tuple[str, str, str, str], ...]:
     records: list[tuple[str, str, str, str]] = []
     for raw_line in stdin_text.splitlines():
@@ -157,10 +173,15 @@ def changed_files_from_pre_push(stdin_text: str, *, git: GitRunner = _run_git) -
         base = _remote_default_base(git)
         return tuple(sorted(_split_lines(git(["diff", "--name-only", "--diff-filter=ACMR", f"{base}...HEAD"]))))
 
-    for _local_ref, local_sha, _remote_ref, remote_sha in records:
+    for _local_ref, local_sha, remote_ref, remote_sha in records:
         if local_sha == ZERO_SHA:
             continue
-        base = _new_branch_base(local_sha, git) if remote_sha == ZERO_SHA else remote_sha
+        base = _push_diff_base(
+            local_sha=local_sha,
+            remote_ref=remote_ref,
+            remote_sha=remote_sha,
+            git=git,
+        )
         changed.update(_split_lines(git(["diff", "--name-only", "--diff-filter=ACMR", base, local_sha])))
     return tuple(sorted(changed))
 
