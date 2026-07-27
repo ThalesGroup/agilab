@@ -67,23 +67,34 @@ def test_root_test_plan_covers_every_root_file_in_stable_groups() -> None:
 
 def test_root_test_runner_continues_after_failure_and_aggregates_exit(
     capsys,
+    monkeypatch,
 ) -> None:
     module = _load_module()
     groups = (
         module.RootTestGroup("first", ("test/test_first.py",), ("test/test_first.py",)),
         module.RootTestGroup("second", ("test/test_second.py",), ("test/test_second.py",)),
     )
-    calls: list[tuple[tuple[str, ...], Path, bool]] = []
+    calls: list[tuple[tuple[str, ...], Path, bool, dict[str, str]]] = []
     returncodes = iter((3, 0))
 
-    def runner(command, *, cwd, check):
-        calls.append((tuple(command), cwd, check))
+    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", "/unsafe/shared-venv")
+    monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "1")
+    monkeypatch.setenv("VIRTUAL_ENV", "/unsafe/active-venv")
+    monkeypatch.setenv("AGILAB_TEST_SENTINEL", "preserved")
+
+    def runner(command, *, cwd, check, env):
+        calls.append((tuple(command), cwd, check, env))
         return SimpleNamespace(returncode=next(returncodes))
 
     assert module.run_root_test_groups(groups, runner=runner) == 3
     assert len(calls) == 2
     assert all(call[0][:3] == (sys.executable, "-m", "pytest") for call in calls)
-    assert all(call[1:] == (REPO_ROOT, False) for call in calls)
+    assert all(call[1:3] == (REPO_ROOT, False) for call in calls)
+    for _, _, _, env in calls:
+        assert "UV_PROJECT_ENVIRONMENT" not in env
+        assert "UV_RUN_RECURSION_DEPTH" not in env
+        assert "VIRTUAL_ENV" not in env
+        assert env["AGILAB_TEST_SENTINEL"] == "preserved"
     captured = capsys.readouterr().err
     assert "[root-test] first: failed exit=3" in captured
     assert "[root-test] second: passed" in captured

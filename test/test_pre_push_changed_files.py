@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import subprocess
 import sys
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "tools" / "pre_push_changed_files.py"
@@ -97,6 +98,47 @@ def test_pre_push_docs_guard_accepts_an_isolated_canonical_source():
     assert 'if [[ -n "${AGILAB_DOCS_SOURCE:-}" ]]' in hook
     assert 'docs_source_args=(--source "$AGILAB_DOCS_SOURCE")' in hook
     assert '"${docs_source_args[@]}" \\' in hook
+
+
+def test_pre_push_docs_source_override_fails_closed_when_missing(
+    tmp_path: Path,
+) -> None:
+    hook_root = tmp_path / "repo"
+    hooks_dir = hook_root / ".githooks"
+    hooks_dir.mkdir(parents=True)
+    hook_path = hooks_dir / "pre-push"
+    hook_path.write_text(
+        (ROOT / ".githooks" / "pre-push").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    hook_path.chmod(0o755)
+    (hooks_dir / "guard_python.sh").write_text(
+        """run_guard_python() {
+  if [[ "$1" == "tools/pre_push_changed_files.py" ]]; then
+    printf '%s\\n' 'DOCS_CHANGED=1' 'RELEASE_PROOF_CHANGED=0' \\
+      'APP_CONTRACTS_CHANGED=0' 'AGI_CORE_PROTECTED_CHANGED=0' \\
+      'AGENT_INSTRUCTIONS_CHANGED=0' 'MIXED_SCOPE=0' 'DETECTION_FAILED=0'
+  fi
+}
+""",
+        encoding="utf-8",
+    )
+    missing_source = tmp_path / "missing-canonical-source"
+    env = dict(os.environ)
+    env["AGILAB_DOCS_SOURCE"] = str(missing_source)
+
+    completed = subprocess.run(
+        [str(hook_path)],
+        cwd=hook_root,
+        input="",
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert f"AGILAB_DOCS_SOURCE is not a directory: {missing_source}" in completed.stderr
 
 
 def test_classify_agent_instruction_change_runs_agent_instruction_guard_only():

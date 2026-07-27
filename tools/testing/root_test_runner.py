@@ -10,6 +10,7 @@ runs the remaining root files in a separate process.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
@@ -124,6 +125,15 @@ def _pytest_command(group: RootTestGroup) -> tuple[str, ...]:
     )
 
 
+def _pytest_environment() -> dict[str, str]:
+    """Keep nested uv operations from mutating the runner's environment."""
+
+    env = dict(os.environ)
+    for name in ("UV_PROJECT_ENVIRONMENT", "UV_RUN_RECURSION_DEPTH", "VIRTUAL_ENV"):
+        env.pop(name, None)
+    return env
+
+
 def run_root_test_groups(
     groups: Sequence[RootTestGroup],
     *,
@@ -138,7 +148,12 @@ def run_root_test_groups(
             file=sys.stderr,
             flush=True,
         )
-        completed = runner(_pytest_command(group), cwd=REPO_ROOT, check=False)
+        completed = runner(
+            _pytest_command(group),
+            cwd=REPO_ROOT,
+            check=False,
+            env=_pytest_environment(),
+        )
         if completed.returncode:
             aggregate_returncode = aggregate_returncode or completed.returncode
             print(
