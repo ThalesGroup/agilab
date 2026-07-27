@@ -338,10 +338,13 @@ def test_kill_and_wait_terminates_verified_owned_posix_group(monkeypatch):
         ),
         raising=False,
     )
+    monkeypatch.setattr(
+        execution_support.signal, "SIGKILL", 9, raising=False
+    )
 
     asyncio.run(execution_support._kill_and_wait(proc))
 
-    assert killpg_calls == [(4321, execution_support.signal.SIGKILL)]
+    assert killpg_calls == [(4321, 9)]
     assert proc.kill_calls == 0
     assert proc.wait_calls == 1
 
