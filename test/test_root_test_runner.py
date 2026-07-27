@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -112,3 +114,60 @@ def test_root_test_runner_list_mode_is_side_effect_free(capsys) -> None:
     output = capsys.readouterr().out
     assert "general:test_agenticweb_manifest\t1" in output
     assert "views\t" in output
+
+
+def test_root_test_runner_keeps_spawned_tests_importable_in_agilab_checkout(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    checkout = tmp_path / "agilab"
+    test_dir = checkout / "test"
+    test_dir.mkdir(parents=True)
+    (checkout / "__init__.py").write_text("", encoding="utf-8")
+    (test_dir / "__init__.py").write_text("", encoding="utf-8")
+    (test_dir / "test_spawn_case.py").write_text(
+        """from multiprocessing import get_context
+
+
+def _worker(results):
+    results.put("ok")
+
+
+def test_spawn_worker_can_reimport_test_module():
+    context = get_context("spawn")
+    results = context.Queue()
+    process = context.Process(target=_worker, args=(results,))
+    process.start()
+    process.join(timeout=10)
+    if process.is_alive():
+        process.terminate()
+        process.join()
+    assert process.exitcode == 0
+    assert results.get(timeout=2) == "ok"
+""",
+        encoding="utf-8",
+    )
+    group = module.RootTestGroup(
+        "spawn-case",
+        ("test/test_spawn_case.py",),
+        ("test/test_spawn_case.py",),
+    )
+    env = module._pytest_environment()
+    pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        str(REPO_ROOT)
+        if not pythonpath
+        else f"{REPO_ROOT}{os.pathsep}{pythonpath}"
+    )
+
+    completed = subprocess.run(
+        module._pytest_command(group),
+        cwd=checkout,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr

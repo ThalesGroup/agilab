@@ -1,0 +1,56 @@
+name: root-test-suite
+
+# The root `test/` directory holds the repository's contract, guard, policy and
+# page-behaviour tests. Until this workflow existed no job ran it as a directory:
+# `coverage.yml` and `windows-core-tests.yml` name component test dirs, while the
+# coverage shard plan enumerates only selected root modules. Unclassified root
+# files therefore had no mandatory pull-request gate, which let contract tests
+# remain red on `main` while pull requests reported green.
+#
+# This job runs the canonical isolated root-test plan so that gap cannot reopen.
+# Every root test file must belong to that plan, and every failure remains a hard
+# failure rather than being hidden behind a quarantine list.
+
+on:
+  pull_request:
+    branches: ["**"]
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  root-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.10.7"
+          prune-cache: true
+
+      - name: Run the root test suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run \
+            --extra ui \
+            --extra notebook \
+            python -m tools.testing.root_test_runner

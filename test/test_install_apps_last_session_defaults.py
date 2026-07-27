@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -17,7 +18,13 @@ def _extract_function(name: str) -> str:
     return match.group(0)
 
 
-def _run_detection(tmp_path: Path, *, state_toml: str | None, touched: dict[str, str]) -> list[str]:
+def _run_detection(
+    tmp_path: Path,
+    *,
+    state_toml: str | None,
+    touched: dict[str, str],
+    env: dict[str, str] | None = None,
+) -> list[str]:
     apps_dir = tmp_path / "apps"
     apps_dir.mkdir(parents=True, exist_ok=True)
     for app, stamp in touched.items():
@@ -37,7 +44,13 @@ def _run_detection(tmp_path: Path, *, state_toml: str | None, touched: dict[str,
         + 'printf "%s\\n" "${LAST_SESSION_APPS[@]-}"\n',
         encoding="utf-8",
     )
-    result = subprocess.run(["bash", str(script)], capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        ["bash", str(script)],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=env,
+    )
     return [line for line in result.stdout.splitlines() if line]
 
 
@@ -60,6 +73,64 @@ def test_last_session_detection_combines_state_and_recent_workspace(tmp_path: Pa
 def test_last_session_detection_handles_missing_evidence(tmp_path: Path) -> None:
     detected = _run_detection(tmp_path, state_toml=None, touched={})
     assert detected == []
+
+
+def test_last_session_detection_discards_polluted_stat_stdout(
+    tmp_path: Path,
+) -> None:
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    fake_stat = fake_bin / "stat"
+    fake_stat.write_text(
+        """#!/bin/bash
+if [[ "$1" == "-f" && "$2" == "%m" ]]; then
+  printf 'GNU filesystem report for %s\n' "$3"
+  exit "${FAKE_STAT_F_EXIT:-1}"
+fi
+if [[ "$1" == "-c" && "$2" == "%Y" ]]; then
+  case "$3" in
+    */flight_telemetry_project) printf '200000\n' ;;
+    */sat_trajectory_project) printf '150000\n' ;;
+    */old_project) printf '100000\n' ;;
+    *) exit 2 ;;
+  esac
+  exit 0
+fi
+exit 2
+""",
+        encoding="utf-8",
+    )
+    fake_stat.chmod(0o755)
+    env = {
+        **os.environ,
+        "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+    }
+    touched = {
+        "flight_telemetry_project": "202606111000",
+        "sat_trajectory_project": "202606110900",
+        "old_project": "202601010000",
+    }
+    expected = [
+        "flight_telemetry_project",
+        "sat_trajectory_project",
+    ]
+
+    failed_probe = _run_detection(
+        tmp_path / "failed-probe",
+        state_toml=None,
+        touched=touched,
+        env=env,
+    )
+    successful_nonnumeric_env = {**env, "FAKE_STAT_F_EXIT": "0"}
+    successful_nonnumeric_probe = _run_detection(
+        tmp_path / "successful-nonnumeric-probe",
+        state_toml=None,
+        touched=touched,
+        env=successful_nonnumeric_env,
+    )
+
+    assert failed_probe == expected
+    assert successful_nonnumeric_probe == expected
 
 
 def test_default_selection_is_minimal_core_plus_last_session() -> None:

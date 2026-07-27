@@ -12,6 +12,7 @@ DOCS_PUBLISH_WORKFLOW_PATH = Path(".github/workflows/docs-publish.yaml")
 ENSURE_ROADMAP_LABEL_WORKFLOW_PATH = Path(".github/workflows/ensure-roadmap-label.yaml")
 UI_ROBOT_MATRIX_WORKFLOW_PATH = Path(".github/workflows/ui-robot-matrix.yml")
 WINDOWS_CORE_TESTS_WORKFLOW_PATH = Path(".github/workflows/windows-core-tests.yml")
+ROOT_TEST_SUITE_WORKFLOW_PATH = Path(".github/workflows/root-test-suite.yml")
 ROOT_CONFTEST_PATH = Path("test/conftest.py")
 WORKFLOW_PARITY_PATH = Path("tools/workflow_parity.py")
 PYPROJECT_PATH = Path("pyproject.toml")
@@ -22,6 +23,7 @@ VALIDATION_WORKFLOW_PATHS = (
     DOCS_SOURCE_GUARD_WORKFLOW_PATH,
     ENSURE_ROADMAP_LABEL_WORKFLOW_PATH,
     WINDOWS_CORE_TESTS_WORKFLOW_PATH,
+    ROOT_TEST_SUITE_WORKFLOW_PATH,
 )
 
 VALIDATION_CONCURRENCY_GROUP = (
@@ -236,6 +238,23 @@ def test_validation_workflows_cancel_superseded_branch_runs() -> None:
         assert "concurrency:" in text, path
         assert VALIDATION_CONCURRENCY_GROUP in text, path
         assert "cancel-in-progress: true" in text, path
+
+
+def test_root_test_suite_runs_canonical_isolated_plan_on_every_change() -> None:
+    text = ROOT_TEST_SUITE_WORKFLOW_PATH.read_text(encoding="utf-8")
+    checkout = text.split("- name: Checkout", 1)[1].split(
+        "- name: Set up Python", 1
+    )[0]
+
+    assert 'pull_request:\n    branches: ["**"]\n  push:' in text
+    assert 'push:\n    branches: ["main"]\n  workflow_dispatch:' in text
+    assert "paths:" not in text
+    assert "lfs: true" in checkout
+    assert "--extra ui" in text
+    assert "--extra notebook" in text
+    assert "python -m tools.testing.root_test_runner" in text
+    assert "known-failures" not in text
+    assert "--deselect" not in text
 
 
 def test_maintenance_workflows_do_not_run_twice_for_pr_branch_pushes() -> None:
