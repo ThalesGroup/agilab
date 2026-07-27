@@ -242,10 +242,14 @@ def test_validation_workflows_cancel_superseded_branch_runs() -> None:
 
 def test_root_test_suite_runs_canonical_isolated_plan_on_every_change() -> None:
     text = ROOT_TEST_SUITE_WORKFLOW_PATH.read_text(encoding="utf-8")
+    checkout = text.split("- name: Checkout", 1)[1].split(
+        "- name: Set up Python", 1
+    )[0]
 
     assert 'pull_request:\n    branches: ["**"]\n  push:' in text
     assert 'push:\n    branches: ["main"]\n  workflow_dispatch:' in text
     assert "paths:" not in text
+    assert "lfs: true" in checkout
     assert "--extra ui" in text
     assert "--extra notebook" in text
     assert "python -m tools.testing.root_test_runner" in text
