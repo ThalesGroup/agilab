@@ -178,6 +178,100 @@ def test_resolve_local_page_docs_path_supports_recursive_docs_matches(tmp_path, 
     assert page_docs._resolve_local_page_docs_path(env, "execute-help.html") == nested_doc
 
 
+def test_resolve_local_page_docs_path_caches_recursive_search(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    package_root = repo_root / "src"
+    module_file = package_root / "agilab" / "page_docs.py"
+    module_file.parent.mkdir(parents=True)
+    module_file.write_text("pass\n", encoding="utf-8")
+    nested_doc = module_file.parent / "docs" / "nested" / "execute-help.html"
+    nested_doc.parent.mkdir(parents=True)
+    nested_doc.write_text("<html>ok</html>", encoding="utf-8")
+    env = types.SimpleNamespace(agilab_pck=package_root)
+    original_rglob = Path.rglob
+    recursive_searches = 0
+
+    def counted_rglob(path: Path, pattern: str, *args, **kwargs):
+        nonlocal recursive_searches
+        recursive_searches += 1
+        return original_rglob(path, pattern, *args, **kwargs)
+
+    page_docs._LOCAL_PAGE_DOCS_CACHE.clear()
+    monkeypatch.setattr(page_docs, "__file__", str(module_file))
+    monkeypatch.setattr(Path, "rglob", counted_rglob)
+
+    assert page_docs._resolve_local_page_docs_path(env, "execute-help.html") == nested_doc
+    assert page_docs._resolve_local_page_docs_path(env, "execute-help.html") == nested_doc
+    assert recursive_searches == 1
+
+
+def test_resolve_local_page_docs_path_refreshes_missing_and_deleted_files(
+    tmp_path,
+    monkeypatch,
+):
+    repo_root = tmp_path / "repo"
+    package_root = repo_root / "src"
+    module_file = package_root / "agilab" / "page_docs.py"
+    module_file.parent.mkdir(parents=True)
+    module_file.write_text("pass\n", encoding="utf-8")
+    env = types.SimpleNamespace(agilab_pck=package_root)
+    first_doc = module_file.parent / "docs" / "first" / "execute-help.html"
+    page_docs._LOCAL_PAGE_DOCS_CACHE.clear()
+    monkeypatch.setattr(page_docs, "__file__", str(module_file))
+
+    assert page_docs._resolve_local_page_docs_path(env, "execute-help.html") is None
+
+    first_doc.parent.mkdir(parents=True)
+    first_doc.write_text("<html>first</html>", encoding="utf-8")
+    assert page_docs._resolve_local_page_docs_path(env, "execute-help.html") == first_doc
+
+    replacement_doc = package_root / "docs" / "html" / "execute-help.html"
+    replacement_doc.parent.mkdir(parents=True)
+    replacement_doc.write_text("<html>second</html>", encoding="utf-8")
+    assert (
+        page_docs._resolve_local_page_docs_path(env, "execute-help.html")
+        == replacement_doc
+    )
+
+    replacement_doc.unlink()
+    first_doc.unlink()
+    final_doc = module_file.parent / "docs" / "third" / "execute-help.html"
+    final_doc.parent.mkdir(parents=True)
+    final_doc.write_text("<html>third</html>", encoding="utf-8")
+    assert page_docs._resolve_local_page_docs_path(env, "execute-help.html") == final_doc
+
+
+def test_resolve_local_page_docs_cache_is_bounded_and_root_scoped(
+    tmp_path,
+    monkeypatch,
+):
+    first_root = tmp_path / "first/package"
+    second_root = tmp_path / "second/package"
+    first_doc = first_root / "docs/nested/root-scoped.html"
+    second_doc = second_root / "docs/nested/root-scoped.html"
+    for doc in (first_doc, second_doc):
+        doc.parent.mkdir(parents=True)
+        doc.write_text("<html>ok</html>", encoding="utf-8")
+    page_docs._LOCAL_PAGE_DOCS_CACHE.clear()
+    monkeypatch.setattr(page_docs, "_LOCAL_PAGE_DOCS_CACHE_MAX_SIZE", 1)
+
+    assert page_docs._resolve_local_page_docs_path(
+        types.SimpleNamespace(agilab_pck=first_root),
+        "root-scoped.html",
+    ) == first_doc
+    assert page_docs._resolve_local_page_docs_path(
+        types.SimpleNamespace(agilab_pck=second_root),
+        "root-scoped.html",
+    ) == second_doc
+    assert list(page_docs._LOCAL_PAGE_DOCS_CACHE.values()) == [second_doc]
+
+    assert page_docs._resolve_local_page_docs_path(
+        types.SimpleNamespace(agilab_pck=first_root),
+        "root-scoped.html",
+    ) == first_doc
+    assert list(page_docs._LOCAL_PAGE_DOCS_CACHE.values()) == [first_doc]
+
+
 def test_resolve_local_page_docs_path_skips_empty_recursive_docs_root(tmp_path, monkeypatch):
     repo_root = tmp_path / "repo"
     package_root = repo_root / "src"

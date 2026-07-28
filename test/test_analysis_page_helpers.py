@@ -223,6 +223,158 @@ def test_discover_project_notebooks_skips_checkpoints_and_sorts(tmp_path: Path):
     assert notebooks["lab_stages.ipynb"] == (notebooks_root / "lab_stages.ipynb").resolve()
 
 
+def test_discover_project_notebooks_prunes_ignored_directories_during_walk(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_analysis_module()
+    notebooks_root = tmp_path / "notebooks"
+    included = notebooks_root / "included" / "demo.ipynb"
+    excluded = notebooks_root / ".venv" / "ignored.ipynb"
+    excluded_venv = notebooks_root / "venv" / "ignored.ipynb"
+    checkpoint = (
+        notebooks_root / ".ipynb_checkpoints" / "demo-checkpoint.ipynb"
+    )
+    included.parent.mkdir(parents=True)
+    excluded.parent.mkdir(parents=True)
+    excluded_venv.parent.mkdir(parents=True)
+    checkpoint.parent.mkdir(parents=True)
+    included.write_text("{}", encoding="utf-8")
+    excluded.write_text("{}", encoding="utf-8")
+    excluded_venv.write_text("{}", encoding="utf-8")
+    checkpoint.write_text("{}", encoding="utf-8")
+    original_walk = os.walk
+    walked_roots: list[Path] = []
+
+    def guarded_walk(root, *args, **kwargs):
+        iterator = original_walk(root, *args, **kwargs)
+        for dirpath, dirnames, filenames in iterator:
+            walked_roots.append(Path(dirpath))
+            yield dirpath, dirnames, filenames
+            if Path(dirpath) == notebooks_root:
+                assert ".venv" not in dirnames
+                assert ".ipynb_checkpoints" not in dirnames
+                assert "venv" not in dirnames
+
+    def reject_rglob(*_args, **_kwargs):
+        raise AssertionError("notebook discovery must prune with os.walk")
+
+    monkeypatch.setattr(module.os, "walk", guarded_walk)
+    monkeypatch.setattr(Path, "rglob", reject_rglob)
+
+    assert module._discover_project_notebooks_uncached(notebooks_root) == {
+        "included/demo.ipynb": included.resolve()
+    }
+    assert excluded.parent not in walked_roots
+    assert excluded_venv.parent not in walked_roots
+    assert checkpoint.parent not in walked_roots
+
+
+def test_rename_paths_and_contents_uses_one_tree_snapshot(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    bundle_root = tmp_path / "bundle"
+    source_file = bundle_root / "old_project" / "old_project.py"
+    readme = bundle_root / "README.md"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("from old_project import run\n", encoding="utf-8")
+    readme.write_text("Clone old_project.\n", encoding="utf-8")
+    original_rglob = Path.rglob
+    traversal_count = 0
+
+    def counted_rglob(path: Path, pattern: str, *args, **kwargs):
+        nonlocal traversal_count
+        if path == bundle_root and pattern == "*":
+            traversal_count += 1
+        return original_rglob(path, pattern, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "rglob", counted_rglob)
+
+    module._rename_paths_and_contents(
+        bundle_root,
+        {"old_project": "new_project"},
+    )
+
+    renamed_file = bundle_root / "new_project" / "new_project.py"
+    assert traversal_count == 1
+    assert renamed_file.read_text(encoding="utf-8") == (
+        "from new_project import run\n"
+    )
+    assert readme.read_text(encoding="utf-8") == "Clone new_project.\n"
+    assert source_file.exists() is False
+
+
+def test_rename_paths_and_contents_defers_content_writes_until_renames_succeed(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_analysis_module()
+    bundle_root = tmp_path / "bundle"
+    source_root = bundle_root / "old_project"
+    source_file = source_root / "old_project.py"
+    readme = bundle_root / "README.md"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("from old_project import run\n", encoding="utf-8")
+    readme.write_text("Clone old_project.\n", encoding="utf-8")
+    original_rename = Path.rename
+
+    def fail_parent_rename(path: Path, target: Path):
+        if path == source_root:
+            raise OSError("parent rename failed")
+        return original_rename(path, target)
+
+    monkeypatch.setattr(Path, "rename", fail_parent_rename)
+
+    with pytest.raises(OSError, match="parent rename failed"):
+        module._rename_paths_and_contents(
+            bundle_root,
+            {"old_project": "new_project"},
+        )
+
+    partially_renamed_file = source_root / "new_project.py"
+    assert partially_renamed_file.read_text(encoding="utf-8") == (
+        "from old_project import run\n"
+    )
+    assert readme.read_text(encoding="utf-8") == "Clone old_project.\n"
+
+
+def test_rename_paths_and_contents_preserves_destination_collisions(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_analysis_module()
+    bundle_root = tmp_path / "bundle"
+    source_root = bundle_root / "old_project"
+    old_file = source_root / "old_project.py"
+    existing_destination = source_root / "new_project.py"
+    source_root.mkdir(parents=True)
+    old_file.write_text("old_project source\n", encoding="utf-8")
+    existing_destination.write_text("old_project destination\n", encoding="utf-8")
+    original_rglob = Path.rglob
+    traversal_count = 0
+
+    def counted_rglob(path: Path, pattern: str, *args, **kwargs):
+        nonlocal traversal_count
+        if path == bundle_root and pattern == "*":
+            traversal_count += 1
+        return original_rglob(path, pattern, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "rglob", counted_rglob)
+
+    module._rename_paths_and_contents(
+        bundle_root,
+        {"old_project": "new_project"},
+    )
+
+    renamed_root = bundle_root / "new_project"
+    assert traversal_count == 1
+    assert (renamed_root / "old_project.py").read_text(encoding="utf-8") == (
+        "new_project source\n"
+    )
+    assert (renamed_root / "new_project.py").read_text(encoding="utf-8") == (
+        "new_project destination\n"
+    )
+
+
 def test_discover_views_uses_cache_until_directory_signature_changes(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
     module._VIEW_DISCOVERY_CACHE.clear()
@@ -275,6 +427,8 @@ def test_discover_project_notebooks_uses_cache_until_directory_signature_changes
     project_root = tmp_path / "flight_telemetry_project"
     notebooks_root = project_root / "notebooks"
     notebooks_root.mkdir(parents=True)
+    templates_root = notebooks_root / "templates"
+    templates_root.mkdir()
     first_notebook = (notebooks_root / "lab_stages.ipynb").resolve()
     first_notebook.write_text("{}", encoding="utf-8")
     calls: list[Path] = []
@@ -307,6 +461,21 @@ def test_discover_project_notebooks_uses_cache_until_directory_signature_changes
         "lab_stages.ipynb": first_notebook,
     }
     assert calls == [notebooks_root.resolve(), notebooks_root.resolve()]
+
+    template_notebook = (templates_root / "kept.ipynb").resolve()
+    template_notebook.write_text("{}", encoding="utf-8")
+    os.utime(templates_root)
+
+    assert module.discover_project_notebooks(project_root) == {
+        "extra/demo.ipynb": second_notebook,
+        "lab_stages.ipynb": first_notebook,
+        "templates/kept.ipynb": template_notebook,
+    }
+    assert calls == [
+        notebooks_root.resolve(),
+        notebooks_root.resolve(),
+        notebooks_root.resolve(),
+    ]
 
 
 def test_configured_notebook_options_filters_unavailable_entries():
