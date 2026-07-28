@@ -8,6 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+CLUSTER_SHARE_ORIGIN_ENV_FILE = "env_file"
+CLUSTER_SHARE_ORIGIN_PROCESS_ENV = "process_env"
+CLUSTER_SHARE_ORIGIN_DEFAULT = "default"
+
+
 @dataclass(frozen=True)
 class ShareRuntimeConfig:
     local_share: str
@@ -120,14 +125,20 @@ def resolve_share_runtime_config(
         or environ.get("AGI_LOCAL_SHARE")
         or default_local_share(environ=environ)
     )
-    cluster_share = (
-        envars.get("AGI_CLUSTER_SHARE")
-        or environ.get("AGI_CLUSTER_SHARE")
-        or default_cluster_share(environ=environ)
-    )
+    if envars.get("AGI_CLUSTER_SHARE"):
+        cluster_share = envars.get("AGI_CLUSTER_SHARE")
+        cluster_share_origin = CLUSTER_SHARE_ORIGIN_ENV_FILE
+    elif environ.get("AGI_CLUSTER_SHARE"):
+        cluster_share = environ.get("AGI_CLUSTER_SHARE")
+        cluster_share_origin = CLUSTER_SHARE_ORIGIN_PROCESS_ENV
+    else:
+        cluster_share = default_cluster_share(environ=environ)
+        cluster_share_origin = CLUSTER_SHARE_ORIGIN_DEFAULT
 
     share_dir_override = clean_envar_value_fn(envars, "AGI_CLUSTER_SHARE", fallback_to_process=True)
     if share_dir_override is not None:
+        if share_dir_override != cluster_share:
+            cluster_share_origin = CLUSTER_SHARE_ORIGIN_ENV_FILE
         cluster_share = share_dir_override
         try:
             envars["AGI_CLUSTER_SHARE"] = share_dir_override
@@ -147,6 +158,7 @@ def resolve_share_runtime_config(
         cluster_enabled=bool(cluster_enabled),
         env_path=env_path,
         home_path=home_path,
+        cluster_share_origin=cluster_share_origin,
     )
     return ShareRuntimeConfig(
         local_share=local_share,
