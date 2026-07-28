@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from agilab import agent_run, bridge_cli, run_manifest
-from agilab.secret_uri import redact_mapping
+from agilab.secret_uri import redact_mapping, redact_text
 
 _ALLOWED_ROOTS_ENV = "AGILAB_MCP_ALLOWED_ROOTS"
 _ALLOW_CWD_ENV = "AGILAB_MCP_ALLOW_CWD"
@@ -555,6 +555,32 @@ def validate_agent_run(manifest_path: str | Path) -> dict[str, Any]:
     }
 
 
+def _redact_evidence_payload(value: Any) -> Any:
+    """Redact secret-looking text anywhere in a derived evidence payload.
+
+    ``read_manifest`` redacts the manifest it returns, but the derived
+    summary/artifact payloads were handed back raw, so a secret pasted into a
+    run ``label`` or an artifact filename reached MCP clients verbatim.
+
+    This deliberately does *not* use :func:`redact_mapping`. That helper blanks
+    a whole value when its **key** matches ``SECRET|TOKEN|KEY|AUTH|...``, and
+    ``manifest_summary`` keys ``validation_statuses`` by validation label — so a
+    validation named ``auth_check`` would lose its pass/fail status. Redacting
+    only the text keeps every status readable.
+    """
+
+    if isinstance(value, Mapping):
+        return {
+            redact_text(key): _redact_evidence_payload(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_evidence_payload(item) for item in value]
+    if isinstance(value, str):
+        return redact_text(value)
+    return value
+
+
 def read_manifest(manifest_path: str | Path) -> dict[str, Any]:
     path = _mcp_read_path(manifest_path, purpose="manifest")
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -585,7 +611,7 @@ def summarize_run(manifest_path: str | Path) -> dict[str, Any]:
     return {
         "schema": "agilab.mcp.summarize_run.v1",
         "manifest_path": str(resolved),
-        "summary": run_manifest.manifest_summary(manifest),
+        "summary": _redact_evidence_payload(run_manifest.manifest_summary(manifest)),
     }
 
 
@@ -597,7 +623,9 @@ def list_artifacts(manifest_path: str | Path) -> dict[str, Any]:
     return {
         "schema": "agilab.mcp.list_artifacts.v1",
         "manifest_path": str(resolved),
-        "artifacts": bridge_cli._artifact_rows(manifest, resolved),
+        "artifacts": _redact_evidence_payload(
+            bridge_cli._artifact_rows(manifest, resolved)
+        ),
     }
 
 
@@ -612,8 +640,8 @@ def compare_runs(
         right_manifest,
         purpose="right run manifest",
     )
-    left_summary = run_manifest.manifest_summary(left)
-    right_summary = run_manifest.manifest_summary(right)
+    left_summary = _redact_evidence_payload(run_manifest.manifest_summary(left))
+    right_summary = _redact_evidence_payload(run_manifest.manifest_summary(right))
     return {
         "schema": "agilab.mcp.compare_runs.v1",
         "left_manifest": str(left_path),
