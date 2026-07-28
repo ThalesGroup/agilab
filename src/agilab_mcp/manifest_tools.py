@@ -54,12 +54,40 @@ def _env_truthy(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _configured_read_roots() -> tuple[Path, ...]:
+READ_BOUNDARY_SOURCE_CONFIGURED = "configured"
+READ_BOUNDARY_SOURCE_DEFAULT = "default"
+
+
+def read_boundary() -> dict[str, Any]:
+    """Describe the effective MCP read boundary and where it came from.
+
+    Without ``AGILAB_MCP_ALLOWED_ROOTS`` the boundary falls back to defaults
+    that include the whole repository checkout — ``.git`` and any tracked or
+    untracked file under it. That is a legitimate developer default, but it is
+    much broader than most deployments intend, and nothing previously said so.
+    Reporting it lets an operator (or a client) see the boundary instead of
+    having to infer it from a rejection message.
+    """
+
+    roots, source = _read_roots_with_source()
+    includes_repo_root = False
+    if source == READ_BOUNDARY_SOURCE_DEFAULT:
+        repo_root = _repo_root()
+        includes_repo_root = repo_root is not None and repo_root in roots
+    return {
+        "source": source,
+        "env_var": _ALLOWED_ROOTS_ENV,
+        "roots": [str(root) for root in roots],
+        "includes_repository_root": includes_repo_root,
+    }
+
+
+def _read_roots_with_source() -> tuple[tuple[Path, ...], str]:
     roots: list[Path] = []
     configured = os.environ.get(_ALLOWED_ROOTS_ENV, "")
     explicit_roots = [Path(item) for item in configured.split(os.pathsep) if item]
     if explicit_roots:
-        return _unique_roots(explicit_roots)
+        return _unique_roots(explicit_roots), READ_BOUNDARY_SOURCE_CONFIGURED
     for env_name in _CONFIGURED_ROOT_ENV_NAMES:
         env_value = os.environ.get(env_name)
         if env_value:
@@ -71,7 +99,11 @@ def _configured_read_roots() -> tuple[Path, ...]:
         roots.append(Path.cwd())
     home = Path.home()
     roots.extend((home / "log" / "agents", home / "log" / "execute"))
-    return _unique_roots(roots)
+    return _unique_roots(roots), READ_BOUNDARY_SOURCE_DEFAULT
+
+
+def _configured_read_roots() -> tuple[Path, ...]:
+    return _read_roots_with_source()[0]
 
 
 def _is_under_root(path: Path, root: Path) -> bool:

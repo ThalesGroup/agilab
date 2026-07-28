@@ -262,8 +262,26 @@ def server_manifest() -> dict[str, Any]:
             "local_files_only": True,
             "execution_tools_enabled": False,
             "shell_enabled": False,
+            "read_boundary": manifest_tools.read_boundary(),
         },
     }
+
+
+def read_boundary_warning() -> str | None:
+    """Return an operator warning when the read boundary is the wide default."""
+
+    boundary = manifest_tools.read_boundary()
+    if boundary["source"] != manifest_tools.READ_BOUNDARY_SOURCE_DEFAULT:
+        return None
+    if not boundary["includes_repository_root"]:
+        return None
+    return (
+        f"agilab-mcp: {boundary['env_var']} is not set, so the read boundary "
+        f"defaults to the repository checkout and every file under it "
+        f"(including .git). Set {boundary['env_var']} to the directories this "
+        f"server should expose. Effective roots: "
+        f"{', '.join(boundary['roots'])}"
+    )
 
 
 def call_tool(name: str, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -384,7 +402,16 @@ def handle_jsonrpc(payload: Mapping[str, Any]) -> dict[str, Any] | None:
         )
 
 
-def serve_stdio(stdin: Any = sys.stdin, stdout: Any = sys.stdout) -> int:
+def serve_stdio(
+    stdin: Any = sys.stdin, stdout: Any = sys.stdout, stderr: Any = None
+) -> int:
+    # Diagnostics must never touch stdout: it carries the JSON-RPC stream, and
+    # a stray line would desynchronise the client.
+    warning = read_boundary_warning()
+    if warning:
+        stream = sys.stderr if stderr is None else stderr
+        print(warning, file=stream)
+        stream.flush()
     for line in stdin:
         if not line.strip():
             continue
