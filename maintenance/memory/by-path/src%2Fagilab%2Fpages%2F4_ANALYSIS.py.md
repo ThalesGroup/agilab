@@ -1,9 +1,9 @@
 ---
 schema: agilab.maintenance_memory.v1
 source: src/agilab/pages/4_ANALYSIS.py
-source_sha256: 3675f370822e6d6ff7f15fd6bdf1965a921517ff54200c9c4106492c8f12fc18
+source_sha256: e7c08bc1b8b5a99ff21eb9343c57aaf2bd2ce13bea0bd740f7dc7a2f2634122c
 title: ANALYSIS page session environment and sidecar ownership contract
-verified_commit: cf8058b53e5f5decd974038103f1eaf2f39c8a9d
+verified_commit: f778af6d3ec49d21ba8afd37d3f26990c0eb055b
 ---
 
 # ANALYSIS page session environment and sidecar ownership contract
@@ -49,3 +49,8 @@ contained hosted inline process globals behind a fail-fast lease.
 2026-07-17 re-verification: preparation ownership now survives wrapper exit,
 uses bounded process-group/tree termination, and releases the cross-session
 guard only after parent and descendant absence are both proven.
+
+2026-07-28 re-verification: notebook discovery and clone rename traversal were
+optimized without changing session-environment, sidecar-ownership, or bounded
+preparation-cleanup behavior. Focused helpers, the AGI GUI parity profile, and
+the isolated PyTorch Playground ANALYSIS browser scenario passed.

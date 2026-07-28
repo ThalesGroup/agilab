@@ -299,6 +299,52 @@ demo_project = [
     )
 
 
+def test_discover_recipe_sources_prunes_ignored_directories_in_one_walk(
+    tmp_path,
+    monkeypatch,
+):
+    root = tmp_path / "recipes"
+    steps_file = root / "nested/lab_steps_demo.toml"
+    notebook_file = root / "demo.ipynb"
+    memory_file = root / "cards.jsonl"
+    hidden_memory_file = root / ".agilab/pipeline_recipe_memory/cards.jsonl"
+    ignored_file = root / ".venv/lab_steps_ignored.toml"
+    for path in (
+        steps_file,
+        notebook_file,
+        memory_file,
+        hidden_memory_file,
+        ignored_file,
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("", encoding="utf-8")
+    original_walk = memory.os.walk
+    walked_roots: list[Path] = []
+
+    def guarded_walk(walk_root, *args, **kwargs):
+        iterator = original_walk(walk_root, *args, **kwargs)
+        for dirpath, dirnames, filenames in iterator:
+            walked_roots.append(Path(dirpath))
+            yield dirpath, dirnames, filenames
+            if Path(dirpath) == root:
+                assert ".venv" not in dirnames
+
+    def reject_rglob(*_args, **_kwargs):
+        raise AssertionError("recipe discovery must use one pruned os.walk")
+
+    monkeypatch.setattr(memory.os, "walk", guarded_walk)
+    monkeypatch.setattr(Path, "rglob", reject_rglob)
+
+    assert memory.discover_recipe_sources([root]) == [
+        steps_file,
+        notebook_file,
+        hidden_memory_file,
+        memory_file,
+    ]
+    assert memory.discover_recipe_sources([ignored_file]) == [ignored_file]
+    assert ignored_file.parent not in walked_roots
+
+
 def test_recipe_memory_augment_and_promotion_fallback_branches(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     memory_path = tmp_path / "cards.jsonl"

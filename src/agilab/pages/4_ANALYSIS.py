@@ -1808,9 +1808,15 @@ def _analysis_discovery_cache_enabled(environ: Any = os.environ) -> bool:
 
 
 def _directory_tree_signature(
-    root: Path, *, file_suffixes: tuple[str, ...]
+    root: Path,
+    *,
+    file_suffixes: tuple[str, ...],
+    ignored_dirs: set[str] | None = None,
 ) -> tuple[Any, ...]:
     """Return a cheap invalidation signature for discovery-relevant files."""
+    ignored_dirs = (
+        _ANALYSIS_DISCOVERY_SKIP_DIRS if ignored_dirs is None else ignored_dirs
+    )
     try:
         resolved_root = root.expanduser().resolve()
     except (OSError, RuntimeError, TypeError, ValueError):
@@ -1831,7 +1837,7 @@ def _directory_tree_signature(
             dirnames[:] = sorted(
                 dirname
                 for dirname in dirnames
-                if dirname not in _ANALYSIS_DISCOVERY_SKIP_DIRS
+                if dirname not in ignored_dirs
                 and not dirname.startswith(".")
             )
             current_dir = Path(dirpath)
@@ -1929,12 +1935,23 @@ def _project_notebooks_root(project_root: str | Path | None) -> Path | None:
 def _discover_project_notebooks_uncached(notebooks_root: Path) -> dict[str, Path]:
     discovered: dict[str, Path] = {}
     try:
-        notebook_paths = sorted(
-            notebooks_root.rglob("*.ipynb"), key=lambda path: path.as_posix()
-        )
+        notebook_paths: list[Path] = []
+        for dirpath, dirnames, filenames in os.walk(notebooks_root):
+            dirnames[:] = sorted(
+                dirname
+                for dirname in dirnames
+                if dirname not in _NOTEBOOK_IGNORED_DIRS
+                and not dirname.startswith(".")
+            )
+            current_root = Path(dirpath)
+            notebook_paths.extend(
+                current_root / filename
+                for filename in sorted(filenames)
+                if filename.endswith(".ipynb") and not filename.startswith(".")
+            )
     except OSError:
         return {}
-    for notebook_path in notebook_paths:
+    for notebook_path in sorted(notebook_paths, key=lambda path: path.as_posix()):
         try:
             rel_path = notebook_path.resolve().relative_to(notebooks_root)
         except (OSError, ValueError):
@@ -1960,7 +1977,11 @@ def discover_project_notebooks(project_root: str | Path | None) -> dict[str, Pat
     if not _analysis_discovery_cache_enabled():
         return _discover_project_notebooks_uncached(notebooks_root)
 
-    signature = _directory_tree_signature(notebooks_root, file_suffixes=(".ipynb",))
+    signature = _directory_tree_signature(
+        notebooks_root,
+        file_suffixes=(".ipynb",),
+        ignored_dirs=_NOTEBOOK_IGNORED_DIRS,
+    )
     cached = _NOTEBOOK_DISCOVERY_CACHE.get(notebooks_root)
     if cached is not None and cached[0] == signature:
         return dict(cached[1])
@@ -2115,30 +2136,43 @@ def _rename_paths_and_contents(bundle_root: Path, rename_map: dict[str, str]) ->
     if not rename_map:
         return
 
-    for current in sorted(
-        (p for p in bundle_root.rglob("*") if p != bundle_root),
-        key=lambda p: len(p.relative_to(bundle_root).parts),
+    replace_exts = {".py", ".toml", ".md", ".txt", ".json", ".yaml", ".yml"}
+    snapshot = sorted(
+        bundle_root.rglob("*"),
+        key=lambda path: (
+            len(path.relative_to(bundle_root).parts),
+            path.as_posix(),
+        ),
         reverse=True,
-    ):
+    )
+    rename_events: list[tuple[Path, Path]] = []
+    for original_path in snapshot:
+        current = original_path
         new_name = _rename_segment(current.name, rename_map)
         if new_name != current.name:
             new_path = current.with_name(new_name)
             if not new_path.exists():
                 current.rename(new_path)
+                rename_events.append((current, new_path))
 
-    replace_exts = {".py", ".toml", ".md", ".txt", ".json", ".yaml", ".yml"}
-    for path in bundle_root.rglob("*"):
-        if not path.is_file():
+    for original_path in snapshot:
+        current = original_path
+        for old_path, new_path in rename_events:
+            try:
+                current = new_path / current.relative_to(old_path)
+            except ValueError:
+                continue
+        if not current.is_file():
             continue
-        if path.suffix.lower() not in replace_exts:
+        if current.suffix.lower() not in replace_exts:
             continue
         try:
-            text = path.read_text(encoding="utf-8")
+            text = current.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
         new_text = _clone_word_substitutions(text, rename_map)
         if new_text != text:
-            path.write_text(new_text, encoding="utf-8")
+            current.write_text(new_text, encoding="utf-8")
 
 
 def _clone_source_label(option_path: Path, pages_root: Path | None = None) -> str:

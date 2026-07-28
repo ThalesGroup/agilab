@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import webbrowser
+from collections import OrderedDict
 from pathlib import Path
 from typing import Mapping
 
@@ -17,6 +18,10 @@ _DOCS_LOCAL_ALIASES: dict[str, tuple[str, ...]] = {
     "explore-help.html": ("views_help.html",),
 }
 _DOCS_MENU_ITEMS_CACHE: dict[tuple[str, str], dict[str, str]] = {}
+_LOCAL_PAGE_DOCS_CACHE_MAX_SIZE = 128
+_LOCAL_PAGE_DOCS_CACHE: OrderedDict[
+    tuple[tuple[Path, ...], str], Path
+] = OrderedDict()
 
 
 def _docs_candidates(html_file: str) -> tuple[str, ...]:
@@ -74,37 +79,65 @@ def _open_remote_docs(html_file: str, anchor: str = "") -> bool:
         return False
 
 
+def _resolve_local_page_docs_path_cached(
+    roots: tuple[Path, ...], html_file: str
+) -> Path | None:
+    """Resolve and positively cache a recursive docs fallback."""
+    cache_key = (roots, html_file)
+    cached = _LOCAL_PAGE_DOCS_CACHE.get(cache_key)
+    if cached is not None:
+        if cached.is_file():
+            _LOCAL_PAGE_DOCS_CACHE.move_to_end(cache_key)
+            return cached
+        _LOCAL_PAGE_DOCS_CACHE.pop(cache_key, None)
+
+    resolved: Path | None = None
+    for root in roots:
+        docs_root = root / "docs"
+        if docs_root.exists():
+            matches = sorted(
+                path for path in docs_root.rglob(html_file) if path.is_file()
+            )
+            if matches:
+                resolved = matches[0]
+                break
+
+    if resolved is not None:
+        _LOCAL_PAGE_DOCS_CACHE[cache_key] = resolved
+        _LOCAL_PAGE_DOCS_CACHE.move_to_end(cache_key)
+        while len(_LOCAL_PAGE_DOCS_CACHE) > _LOCAL_PAGE_DOCS_CACHE_MAX_SIZE:
+            _LOCAL_PAGE_DOCS_CACHE.popitem(last=False)
+    return resolved
+
+
 def _resolve_local_page_docs_path(env, html_file: str) -> Path | None:
-    roots: list[Path] = []
     raw_root = getattr(env, "agilab_pck", None)
     if not raw_root:
         return None
     try:
         package_root = Path(raw_root).expanduser().resolve()
+        module_file = Path(__file__).resolve()
     except (OSError, RuntimeError, TypeError, ValueError):
-        package_root = None
-    if package_root is None:
         return None
-    roots.extend([package_root, package_root.parent, package_root.parent.parent])
 
-    module_file = Path(__file__).resolve()
-    roots.extend([module_file.parent, module_file.parents[1], module_file.parents[2]])
-
-    seen: set[Path] = set()
+    roots = tuple(
+        dict.fromkeys(
+            (
+                package_root,
+                package_root.parent,
+                package_root.parent.parent,
+                module_file.parent,
+                module_file.parents[1],
+                module_file.parents[2],
+            )
+        )
+    )
     for root in roots:
-        if root in seen:
-            continue
-        seen.add(root)
         for base in (root / "docs" / "build", root / "docs" / "html"):
             candidate = base / html_file
-            if candidate.exists():
+            if candidate.is_file():
                 return candidate
-        docs_root = root / "docs"
-        if docs_root.exists():
-            matches = sorted(docs_root.rglob(html_file))
-            if matches:
-                return matches[0]
-    return None
+    return _resolve_local_page_docs_path_cached(roots, html_file)
 
 
 def _open_local_page_docs(env, html_file: str, anchor: str = "") -> str:

@@ -21,6 +21,15 @@ ELIGIBLE_STATUSES = {"validated", "pass", "passed", "success", "succeeded", "com
 FAILED_STATUSES = {"fail", "failed", "error", "errored", "invalid"}
 MAX_RECIPE_SOURCES = 200
 MAX_RECIPE_CARDS = 500
+_RECIPE_SOURCE_IGNORED_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "venv",
+}
 
 _SECRET_PATTERNS = [
     re.compile(r"(sk-[A-Za-z0-9]{6})[A-Za-z0-9_\-]{8,}"),
@@ -273,6 +282,32 @@ def load_recipe_cards_from_memory(path: Path) -> list[RecipeCard]:
     return cards
 
 
+def _discover_recipe_source_candidates(root: Path) -> list[Path]:
+    lab_steps_files: list[Path] = []
+    notebook_files: list[Path] = []
+    memory_files: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(
+            dirname
+            for dirname in dirnames
+            if dirname not in _RECIPE_SOURCE_IGNORED_DIRS
+        )
+        current_root = Path(dirpath)
+        for filename in sorted(filenames):
+            candidate = current_root / filename
+            if Path(filename).match("lab_steps*.toml"):
+                lab_steps_files.append(candidate)
+            elif filename.endswith(".ipynb"):
+                notebook_files.append(candidate)
+            elif filename == "cards.jsonl":
+                memory_files.append(candidate)
+    return [
+        *sorted(lab_steps_files, key=lambda path: path.as_posix()),
+        *sorted(notebook_files, key=lambda path: path.as_posix()),
+        *sorted(memory_files, key=lambda path: path.as_posix()),
+    ]
+
+
 def discover_recipe_sources(roots: Sequence[Path | str], *, max_files: int = MAX_RECIPE_SOURCES) -> list[Path]:
     sources: list[Path] = []
     seen: set[Path] = set()
@@ -286,11 +321,7 @@ def discover_recipe_sources(roots: Sequence[Path | str], *, max_files: int = MAX
         if root.is_file():
             candidates = [root]
         elif root.is_dir():
-            candidates = [
-                *sorted(root.rglob("lab_steps*.toml")),
-                *sorted(root.rglob("*.ipynb")),
-                *sorted(root.rglob("cards.jsonl")),
-            ]
+            candidates = _discover_recipe_source_candidates(root)
         else:
             continue
         for candidate in candidates:
