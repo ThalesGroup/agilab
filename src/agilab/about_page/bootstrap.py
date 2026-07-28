@@ -4,19 +4,32 @@ from __future__ import annotations
 
 import argparse
 import os
-import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Callable, Mapping, MutableMapping, Optional
 
-from agi_env.app_settings_support import update_app_settings
+from agi_env.app_settings_support import (
+    find_source_app_settings_file,
+    read_app_settings,
+    update_app_settings,
+)
 from agi_env.credential_store_support import CLUSTER_CREDENTIALS_KEY, KEYRING_SENTINEL
+from agi_env.project.app_provider_registry import (
+    discover_installed_app_projects,
+    resolve_installed_app_project,
+)
+from agi_env.runtime.process_support import fix_windows_drive
+from agi_env.runtime.repository_support import get_apps_repository_root
 from agi_env.ui.sidecar_registry import hosted_inline_render_guard
 
 try:  # pragma: no cover - optional import fallback is exercised through behavior tests
     import tomli_w as _tomli_writer
 except ModuleNotFoundError:  # pragma: no cover - dependency is present in AGILAB envs
     _tomli_writer = None
+
+
+DEFAULT_STARTUP_APP_NAME = "flight_telemetry_project"
 
 
 @dataclass
@@ -38,6 +51,20 @@ class BootstrapPorts:
     load_last_active_app: Callable[[], Any]
     store_last_active_app: Callable[[Path], Any]
     environ: MutableMapping[str, str]
+
+
+@dataclass(frozen=True)
+class StartupAppRequest:
+    """Project selection resolved before an ``AgiEnv`` instance exists."""
+
+    name: str
+    target_path: Path
+    source: str
+    authorized_container_roots: tuple[Path, ...] = field(
+        default_factory=tuple,
+        compare=False,
+        repr=False,
+    )
 
 
 def default_bootstrap_ports() -> BootstrapPorts:
@@ -211,15 +238,59 @@ def _streamlit_session_factory(agi_env_cls: Any) -> Callable[..., Any]:
     return session_factory
 
 
-def _create_streamlit_session_env(agi_env_cls: Any, *, apps_path: Path, verbose: int) -> Any:
+def _startup_runtime_authorized_roots(
+    startup_app: StartupAppRequest,
+    env: Any,
+) -> tuple[Path, ...]:
+    """Extend startup trust with the runtime-owned built-in app container."""
+    roots = list(startup_app.authorized_container_roots)
+    builtin_apps_path = _normalize_path(getattr(env, "builtin_apps_path", None))
+    if builtin_apps_path is not None and builtin_apps_path not in roots:
+        roots.append(builtin_apps_path)
+    return tuple(roots)
+
+
+def _streamlit_env_matches_startup_request(
+    env: Any,
+    startup_app: StartupAppRequest,
+) -> bool:
+    """Accept the exact target or a same-name fallback under runtime built-ins."""
+    if getattr(env, "app", None) != startup_app.name:
+        return False
+    if _active_app_path_matches(env, startup_app.target_path):
+        return True
+    active_app = _normalize_path(getattr(env, "active_app", None))
+    builtin_apps_path = _normalize_path(getattr(env, "builtin_apps_path", None))
+    if active_app is None or builtin_apps_path is None:
+        return False
+    return active_app == (builtin_apps_path / startup_app.name).resolve(strict=False)
+
+
+def _create_streamlit_session_env(
+    agi_env_cls: Any,
+    *,
+    apps_path: Path,
+    startup_app: StartupAppRequest,
+    verbose: int,
+) -> Any:
     """Create a UI-owned environment without borrowing the CLI singleton."""
 
     session_factory = _streamlit_session_factory(agi_env_cls)
-    env = session_factory(apps_path=apps_path, verbose=verbose)
+    env = session_factory(
+        apps_path=apps_path,
+        active_app=startup_app.target_path,
+        verbose=verbose,
+    )
     if not getattr(env, "_agilab_session_scoped", False):
         raise RuntimeError(
             "AgiEnv.session() returned a legacy shared environment. Upgrade agi-env, "
             "restart AGILAB, and open a new browser session."
+        )
+    if not _streamlit_env_matches_startup_request(env, startup_app):
+        raise RuntimeError(
+            "AgiEnv.session() initialized a different project than the validated "
+            f"startup target `{startup_app.target_path}`. Restart AGILAB and select "
+            "the project again."
         )
     return env
 
@@ -452,6 +523,7 @@ def _active_app_path_matches(env: Any, target_path: Path) -> bool:
 def _rebootstrap_active_app_path(env: Any, target_path: Path, target_name: str, *, streamlit: Any) -> bool:
     """Switch to a resolved project path without using name-only change_app."""
     previous_init_done = getattr(env, "init_done", None)
+    authorized_roots = getattr(env, "_agilab_authorized_app_container_roots", ())
     try:
         reinitialize = getattr(env, "reinitialize_for_app", None)
         if callable(reinitialize):
@@ -482,13 +554,30 @@ def _rebootstrap_active_app_path(env: Any, target_path: Path, target_name: str, 
                     )
         if previous_init_done is not None:
             env.init_done = previous_init_done
+        if authorized_roots:
+            env._agilab_authorized_app_container_roots = authorized_roots
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
         streamlit.warning(_project_switch_failure_message(target_name, exc))
         return False
     return True
 
 
-def _rebootstrap_same_named_active_app(env: Any, target_path: Path, target_name: str, *, streamlit: Any) -> bool:
+def _bind_authorized_app_container_roots(
+    env: Any,
+    roots: tuple[Path, ...],
+) -> None:
+    """Bind immutable startup containers used for later query authorization."""
+    normalized: list[Path] = []
+    for root in roots:
+        resolved = _normalize_path(root)
+        if resolved is not None and resolved not in normalized:
+            normalized.append(resolved)
+    env._agilab_authorized_app_container_roots = tuple(normalized)
+
+
+def _rebootstrap_same_named_active_app(
+    env: Any, target_path: Path, target_name: str, *, streamlit: Any
+) -> bool:
     """Switch to the same project name under another root without using name-only change_app."""
     return _rebootstrap_active_app_path(
         env,
@@ -516,10 +605,8 @@ def sync_active_app_from_query(
     env: Any,
     *,
     streamlit: Any,
-    store_last_active_app: Callable[[Path], Any],
-    apply_request: Callable[[Any, Optional[str]], bool],
-) -> None:
-    """Honor ?active_app=... query parameter so all pages stay in sync."""
+) -> bool:
+    """Schedule a cold, atomic transition for a valid query-driven app change."""
     try:
         requested = streamlit.query_params.get("active_app")
     except (AttributeError, RuntimeError, TypeError):
@@ -530,21 +617,41 @@ def sync_active_app_from_query(
     else:
         requested_value = requested
 
-    changed = False
-    if requested_value:
-        changed = apply_request(env, str(requested_value))
+    transition_scheduled = False
+    if requested_value and str(requested_value) != str(getattr(env, "app", "")):
+        target_path = resolve_active_app_query_target(env, str(requested_value))
+        target_matches_current = (
+            target_path is not None
+            and target_path.name == getattr(env, "app", None)
+            and _active_app_path_matches(env, target_path)
+        )
+        if target_path is not None and not target_matches_current:
+            rerun = getattr(streamlit, "rerun", None)
+            session_state = getattr(streamlit, "session_state", None)
+            if callable(rerun) and session_state is not None:
+                try:
+                    previous_first_run = session_state.get("first_run", False)
+                except (AttributeError, RuntimeError, TypeError, ValueError):
+                    previous_first_run = False
+                try:
+                    session_state["first_run"] = True
+                    streamlit.query_params["active_app"] = str(target_path)
+                except (AttributeError, RuntimeError, TypeError, ValueError):
+                    try:
+                        session_state["first_run"] = previous_first_run
+                    except (AttributeError, RuntimeError, TypeError, ValueError):
+                        pass
+                else:
+                    transition_scheduled = True
+                    rerun()
+                    return True
 
-    if not requested_value or changed or requested_value != env.app:
+    if not requested_value or requested_value != env.app:
         try:
             streamlit.query_params["active_app"] = env.app
         except (AttributeError, RuntimeError, TypeError):
             pass
-
-    try:
-        if changed:
-            store_last_active_app(active_app_store_path(env))
-    except (OSError, RuntimeError, TypeError, ValueError):
-        pass
+    return transition_scheduled
 
 
 def persist_bootstrap_env(
@@ -618,9 +725,342 @@ def cluster_share_startup_error_message(exc: BaseException) -> str:
     return (
         f"{exc}\n\n"
         "Cluster mode is enabled for the active project, but the configured cluster share "
-        "is not available. Mount or create a writable `AGI_CLUSTER_SHARE`, then reload "
-        "AGILAB. You can also disable the stale cluster setting for this app and reload."
+        "is not mounted and writable. Mount `AGI_CLUSTER_SHARE`, then reload AGILAB. "
+        "To keep working locally, choose **Disable cluster mode and reload** below. "
+        "Cluster execution stays disabled until you mount the share and re-enable it."
     )
+
+
+def _startup_app_candidate(value: Any) -> tuple[str, str] | None:
+    """Return a valid raw startup request and project basename."""
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else None
+    text = str(value or "").strip()
+    if not text:
+        return None
+    app_name = Path(text).name
+    if not app_name.endswith(("_project", "_worker")):
+        return None
+    return text, app_name
+
+
+def _startup_apps_repository_root(
+    saved_env: Mapping[str, str], ports: BootstrapPorts
+) -> Path | None:
+    """Resolve the configured external apps root with the runtime's own rules."""
+    configured = str(
+        saved_env.get("APPS_REPOSITORY") or ports.environ.get("APPS_REPOSITORY") or ""
+    ).strip()
+    if not configured:
+        return None
+    return get_apps_repository_root(
+        envars={"APPS_REPOSITORY": configured},
+        environ=ports.environ,
+        logger=None,
+        fix_windows_drive_fn=fix_windows_drive,
+    )
+
+
+def _path_matches_startup_root_candidate(
+    path: Path,
+    app_name: str,
+    roots: tuple[Path, ...],
+) -> bool:
+    """Return whether ``path`` is an exact app candidate under an allowed root."""
+    normalized_path = _normalize_path(path)
+    if normalized_path is None:
+        return False
+    for root in roots:
+        try:
+            candidate = (root.expanduser() / app_name).resolve(strict=False)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
+        if normalized_path == candidate:
+            return True
+    return False
+
+
+def _path_is_allowed_startup_target(
+    path: Path,
+    app_name: str,
+    *,
+    container_roots: tuple[Path, ...],
+    installed_projects: tuple[Any, ...],
+) -> bool:
+    """Allow exact configured-root candidates or provider-advertised paths."""
+    if _path_matches_startup_root_candidate(path, app_name, container_roots):
+        return True
+    normalized_path = _normalize_path(path)
+    if normalized_path is None:
+        return False
+    return any(
+        normalized_path == _normalize_path(project.project_root)
+        for project in installed_projects
+    )
+
+
+def _resolve_startup_candidate_path(
+    raw_value: str,
+    app_name: str,
+    *,
+    resolver_env: Any,
+    allowed_roots: tuple[Path, ...],
+    installed_projects: tuple[Any, ...],
+) -> Path | None:
+    """Resolve one existing startup project without accepting arbitrary paths."""
+    try:
+        provided = Path(raw_value).expanduser()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+    is_plain_name = not provided.is_absolute() and provided.parent == Path(".")
+    if is_plain_name:
+        target = normalize_active_app_input(resolver_env, raw_value)
+        if target is None or not _path_is_allowed_startup_target(
+            target,
+            app_name,
+            container_roots=allowed_roots,
+            installed_projects=installed_projects,
+        ):
+            installed = resolve_installed_app_project(
+                app_name,
+                projects=installed_projects,
+            )
+            target = installed
+    else:
+        try:
+            target = provided.resolve(strict=False)
+        except (OSError, RuntimeError, ValueError):
+            return None
+
+    if target is None or not _path_is_allowed_startup_target(
+        target,
+        app_name,
+        container_roots=allowed_roots,
+        installed_projects=installed_projects,
+    ):
+        return None
+    try:
+        if not target.is_dir():
+            return None
+        return target.resolve(strict=False)
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
+def resolve_active_app_query_target(env: Any, raw_value: str) -> Path | None:
+    """Resolve a warm-session query through the cold-start trust boundary."""
+    candidate = _startup_app_candidate(raw_value)
+    if candidate is None:
+        return None
+    raw_value, app_name = candidate
+    allowed_roots = tuple(
+        root
+        for raw_root in getattr(
+            env,
+            "_agilab_authorized_app_container_roots",
+            (),
+        )
+        if (root := _normalize_path(raw_root)) is not None
+    )
+    if not allowed_roots:
+        return None
+
+    target_path = _resolve_startup_candidate_path(
+        raw_value,
+        app_name,
+        resolver_env=env,
+        allowed_roots=allowed_roots,
+        installed_projects=(),
+    )
+    if target_path is not None:
+        return target_path
+
+    try:
+        installed_projects = tuple(discover_installed_app_projects())
+    except (OSError, RuntimeError, TypeError, ValueError):
+        installed_projects = ()
+    if not installed_projects:
+        return None
+    return _resolve_startup_candidate_path(
+        raw_value,
+        app_name,
+        resolver_env=env,
+        allowed_roots=allowed_roots,
+        installed_projects=installed_projects,
+    )
+
+
+def resolve_startup_app_request(
+    *,
+    streamlit: Any,
+    args: argparse.Namespace,
+    ports: BootstrapPorts,
+    apps_path: Path,
+    saved_env: Mapping[str, str],
+    warm_env: Any | None = None,
+) -> StartupAppRequest:
+    """Resolve one existing project identity for construction and recovery.
+
+    Explicit browser and CLI requests are authoritative but must resolve under
+    the selected apps tree, configured apps repository, or an installed provider
+    root. Remembered paths may rebase by project name into those current roots.
+    """
+    builtin_apps_path = (
+        apps_path if apps_path.name == "builtin" else apps_path / "builtin"
+    )
+    apps_repository_root = _startup_apps_repository_root(saved_env, ports)
+    try:
+        installed_projects = tuple(discover_installed_app_projects())
+    except (OSError, RuntimeError, TypeError, ValueError):
+        installed_projects = ()
+    allowed_roots = tuple(
+        root
+        for root in (
+            apps_path,
+            builtin_apps_path,
+            apps_repository_root,
+        )
+        if root is not None
+    )
+    resolver_env = SimpleNamespace(
+        apps_path=apps_path,
+        builtin_apps_path=builtin_apps_path,
+        apps_repository_root=apps_repository_root,
+        projects={project.name for project in installed_projects},
+    )
+
+    def request_for(target_path: Path, source: str) -> StartupAppRequest:
+        return StartupAppRequest(
+            target_path.name,
+            target_path,
+            source,
+            authorized_container_roots=allowed_roots,
+        )
+
+    def resolve_explicit(value: Any, source: str) -> StartupAppRequest | None:
+        if isinstance(value, (list, tuple)):
+            value = value[0] if value else None
+        raw_value = str(value or "").strip()
+        if not raw_value:
+            return None
+        candidate = _startup_app_candidate(raw_value)
+        if candidate is None:
+            raise ValueError(
+                f"The {source} startup project must end in '_project' or '_worker'; "
+                f"got {raw_value!r}."
+            )
+        raw_value, app_name = candidate
+        target_path = _resolve_startup_candidate_path(
+            raw_value,
+            app_name,
+            resolver_env=resolver_env,
+            allowed_roots=allowed_roots,
+            installed_projects=installed_projects,
+        )
+        if target_path is None:
+            raise ValueError(
+                f"The {source} startup project {raw_value!r} does not resolve to an "
+                "existing app in the selected apps tree or a configured provider."
+            )
+        return request_for(target_path, source)
+
+    try:
+        query_value = streamlit.query_params.get("active_app")
+    except (AttributeError, RuntimeError, TypeError):
+        query_value = None
+
+    for source, value in (("query", query_value), ("cli", args.active_app)):
+        request = resolve_explicit(value, source)
+        if request is not None:
+            return request
+
+    try:
+        remembered_value = ports.load_last_active_app()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        remembered_value = None
+    remembered = _startup_app_candidate(remembered_value)
+    if remembered is not None:
+        raw_value, app_name = remembered
+        target_path = _resolve_startup_candidate_path(
+            raw_value,
+            app_name,
+            resolver_env=resolver_env,
+            allowed_roots=allowed_roots,
+            installed_projects=installed_projects,
+        )
+        if target_path is None:
+            target_path = _resolve_startup_candidate_path(
+                app_name,
+                app_name,
+                resolver_env=resolver_env,
+                allowed_roots=allowed_roots,
+                installed_projects=installed_projects,
+            )
+        if target_path is not None:
+            return request_for(target_path, "last")
+
+    if getattr(
+        warm_env, "_agilab_session_scoped", False
+    ) and _existing_env_matches_apps_path(warm_env, apps_path):
+        warm_candidate = _startup_app_candidate(getattr(warm_env, "app", None))
+        warm_path = _normalize_path(getattr(warm_env, "active_app", None))
+        if warm_candidate is not None and warm_path is not None:
+            _raw_value, app_name = warm_candidate
+            validated_warm_path = _resolve_startup_candidate_path(
+                str(warm_path),
+                app_name,
+                resolver_env=resolver_env,
+                allowed_roots=allowed_roots,
+                installed_projects=installed_projects,
+            )
+            if validated_warm_path is not None:
+                return request_for(validated_warm_path, "warm")
+
+    configured_default_value = str(saved_env.get("APP_DEFAULT") or "").strip()
+    if configured_default_value:
+        request = resolve_explicit(configured_default_value, "APP_DEFAULT")
+        if request is not None:
+            return request_for(request.target_path, "default")
+
+    request = resolve_explicit(DEFAULT_STARTUP_APP_NAME, "built-in default")
+    if request is None:  # pragma: no cover - the constant is non-empty
+        raise ValueError("The built-in default project is empty.")
+    return request_for(request.target_path, "default")
+
+
+def startup_app_source_settings_file(
+    startup_app: StartupAppRequest,
+    *,
+    apps_path: Path,
+    saved_env: Mapping[str, str],
+    ports: BootstrapPorts,
+) -> Path | None:
+    """Resolve source settings through the same search contract as ``AgiEnv``."""
+    builtin_apps_path = (
+        apps_path if apps_path.name == "builtin" else apps_path / "builtin"
+    )
+    source_envars = dict(ports.environ)
+    source_envars.update(saved_env)
+    source_settings = find_source_app_settings_file(
+        target_app=startup_app.name,
+        current_app=startup_app.name,
+        app_src=startup_app.target_path / "src",
+        active_app=startup_app.target_path,
+        apps_path=apps_path,
+        builtin_apps_path=builtin_apps_path,
+        apps_repository_root=_startup_apps_repository_root(saved_env, ports),
+        home_abs=Path.home(),
+        envars=source_envars,
+    )
+    if source_settings is None:
+        return None
+    try:
+        return source_settings if source_settings.is_file() else None
+    except OSError:
+        # Preserve an inaccessible selected path so the recovery write fails
+        # closed instead of treating it as an authoritatively source-less app.
+        return source_settings
 
 
 def startup_active_app_name(streamlit: Any, args: argparse.Namespace, ports: BootstrapPorts) -> str | None:
@@ -639,13 +1079,9 @@ def startup_active_app_name(streamlit: Any, args: argparse.Namespace, ports: Boo
         pass
 
     for value in candidates:
-        if isinstance(value, (list, tuple)):
-            value = value[0] if value else None
-        text = str(value or "").strip()
-        if not text:
-            continue
-        app_name = Path(text).name
-        if app_name.endswith(("_project", "_worker")):
+        candidate = _startup_app_candidate(value)
+        if candidate is not None:
+            _raw_value, app_name = candidate
             return app_name
     return None
 
@@ -654,27 +1090,83 @@ def workspace_app_settings_file(env_file_path: Path, app_name: str | None) -> Pa
     """Return the mutable per-user app settings path for a pre-init app name."""
     if not app_name:
         return None
-    return env_file_path.expanduser().parent / "apps" / app_name / "app_settings.toml"
+    settings_path = (
+        env_file_path.expanduser().parent / "apps" / app_name / "app_settings.toml"
+    )
+    _resolve_confined_workspace_settings_path(settings_path)
+    return settings_path
 
 
-def disable_cluster_in_app_settings(settings_path: Path) -> bool:
-    """Set ``[cluster].cluster_enabled`` to false in a workspace settings file."""
+def _resolve_confined_workspace_settings_path(settings_path: Path) -> Path:
+    """Resolve one direct workspace settings target without following redirects."""
+    lexical_path = settings_path.expanduser()
+    try:
+        workspace_apps_root = lexical_path.parents[1].resolve(strict=False)
+        resolved_app_dir = lexical_path.parent.resolve(strict=False)
+        resolved_settings = lexical_path.resolve(strict=False)
+    except (IndexError, OSError, RuntimeError, ValueError) as exc:
+        raise ValueError(
+            f"Cannot safely resolve workspace settings path `{lexical_path}`."
+        ) from exc
+
+    expected_app_dir = workspace_apps_root / lexical_path.parent.name
+    expected_settings = expected_app_dir / lexical_path.name
+    if resolved_app_dir != expected_app_dir or resolved_settings != expected_settings:
+        raise ValueError(
+            f"Workspace settings path `{lexical_path}` resolves outside its direct "
+            f"workspace app directory `{expected_app_dir}`."
+        )
+    return resolved_settings
+
+
+def disable_cluster_in_app_settings(
+    settings_path: Path,
+    *,
+    source_settings_path: Path | None = None,
+    source_settings_resolved: bool = False,
+) -> bool:
+    """Seed complete workspace settings, then disable cluster mode atomically."""
     if _tomli_writer is None:
         raise RuntimeError("Writing settings requires the 'tomli-w' package.")
-    if not settings_path.exists():
-        return False
+    settings_path = _resolve_confined_workspace_settings_path(settings_path)
 
     def _disable_cluster(payload: dict[str, Any]) -> bool:
+        missing_workspace = not settings_path.exists()
+        if missing_workspace:
+            if source_settings_path is not None:
+                try:
+                    source_exists = source_settings_path.is_file()
+                except OSError as exc:
+                    raise OSError(
+                        "Cannot safely create workspace settings because the selected "
+                        f"source settings `{source_settings_path}` cannot be inspected."
+                    ) from exc
+                if not source_exists:
+                    raise FileNotFoundError(
+                        "Cannot safely create workspace settings because the selected "
+                        f"source settings `{source_settings_path}` no longer exist."
+                    )
+                payload.update(read_app_settings(source_settings_path))
+            elif not source_settings_resolved:
+                raise FileNotFoundError(
+                    "Cannot safely create workspace settings because the complete "
+                    f"source settings for `{settings_path.parent.name}` were not found."
+                )
         cluster = payload.get("cluster")
-        if not isinstance(cluster, dict) or cluster.get("cluster_enabled") is False:
-            return False
+        if cluster is None:
+            cluster = {}
+            payload["cluster"] = cluster
+        elif not isinstance(cluster, dict):
+            raise ValueError("The [cluster] settings section must be a TOML table.")
+        if cluster.get("cluster_enabled") is False:
+            return missing_workspace
         cluster["cluster_enabled"] = False
         return True
 
     _payload, changed = update_app_settings(
         settings_path,
         _disable_cluster,
-        create_missing=False,
+        create_missing=True,
         dump_fn=_tomli_writer.dump,
     )
     return changed
@@ -687,31 +1179,52 @@ def handle_cluster_share_startup_error(
     env_file_path: Path,
     args: argparse.Namespace,
     ports: BootstrapPorts,
+    app_name: str | None = None,
+    source_settings_path: Path | None = None,
+    source_settings_resolved: bool = False,
     handle_data_root_failure: Callable[..., bool] | None = None,
 ) -> None:
     """Render cluster-share recovery controls before stopping startup."""
-    app_name = startup_active_app_name(streamlit, args, ports)
-    settings_path = workspace_app_settings_file(env_file_path, app_name)
+    app_name = app_name or startup_active_app_name(streamlit, args, ports)
+    settings_path_error: str | None = None
+    try:
+        settings_path = workspace_app_settings_file(env_file_path, app_name)
+    except (OSError, RuntimeError, ValueError) as path_err:
+        settings_path = None
+        settings_path_error = str(path_err)
     message = cluster_share_startup_error_message(exc)
     if settings_path is not None:
         message = f"{message}\n\nWorkspace settings: `{settings_path}`"
+    elif settings_path_error:
+        message = (
+            f"{message}\n\nAutomatic local recovery is unavailable: "
+            f"{settings_path_error}"
+        )
     streamlit.error(message)
 
     button = getattr(streamlit, "button", None)
     if callable(button) and settings_path is not None and button("Disable cluster mode and reload"):
         try:
-            changed = disable_cluster_in_app_settings(settings_path)
-        except (OSError, RuntimeError, tomllib.TOMLDecodeError) as write_err:
-            streamlit.error(f"Could not disable cluster mode in `{settings_path}`: {write_err}")
+            changed = disable_cluster_in_app_settings(
+                settings_path,
+                source_settings_path=source_settings_path,
+                source_settings_resolved=source_settings_resolved,
+            )
+        except (OSError, RuntimeError, ValueError) as write_err:
+            streamlit.error(
+                f"Could not disable cluster mode in `{settings_path}`: {write_err}"
+            )
         else:
             if changed:
                 streamlit.success(f"Disabled cluster mode in `{settings_path}`.")
-            else:
-                streamlit.info(f"Cluster mode was already disabled or missing in `{settings_path}`.")
-            rerun = getattr(streamlit, "rerun", None)
-            if callable(rerun):
-                rerun()
-            return
+                rerun = getattr(streamlit, "rerun", None)
+                if callable(rerun):
+                    rerun()
+                return
+            streamlit.error(
+                f"Cluster mode was already disabled in `{settings_path}`; startup "
+                "was not reloaded because the reported cluster failure would persist."
+            )
 
     if handle_data_root_failure is not None:
         handle_data_root_failure(
@@ -730,7 +1243,7 @@ def bootstrap_page_environment(
     *,
     streamlit: Any,
     env_file_path: Path,
-    load_env_file_map: Callable[[Path], Mapping[str, str]],
+    load_env_file_map: Callable[..., Mapping[str, str]],
     logger: Any,
     apply_active_app_request: Callable[[Any, Optional[str]], bool],
     handle_data_root_failure: Callable[..., bool],
@@ -759,6 +1272,28 @@ def bootstrap_page_environment(
 
     streamlit.session_state["apps_path"] = str(apps_path)
     preinit_updates = source_launch_env_updates(apps_path)
+    warm_env = streamlit.session_state.get("env")
+    try:
+        startup_env = load_env_file_map(env_file_path, include_commented=False)
+        startup_app = resolve_startup_app_request(
+            streamlit=streamlit,
+            args=args,
+            ports=ports,
+            apps_path=apps_path,
+            saved_env=startup_env,
+            warm_env=warm_env,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        stop_startup_with_error(
+            streamlit, f"Unable to resolve AGILAB startup project: {exc}"
+        )
+        return BootstrapResult(env=None, handled_recovery=True)
+    source_settings_path = startup_app_source_settings_file(
+        startup_app,
+        apps_path=apps_path,
+        saved_env=startup_env,
+        ports=ports,
+    )
     persist_preinit_launch_env(
         ports.agi_env_cls,
         preinit_updates,
@@ -766,10 +1301,11 @@ def bootstrap_page_environment(
     )
 
     _streamlit_session_factory(ports.agi_env_cls)
-    warm_env = streamlit.session_state.get("env")
     if (
         getattr(warm_env, "_agilab_session_scoped", False)
         and _existing_env_matches_apps_path(warm_env, apps_path)
+        and getattr(warm_env, "app", None) == startup_app.name
+        and _active_app_path_matches(warm_env, startup_app.target_path)
     ):
         env = warm_env
     else:
@@ -777,6 +1313,7 @@ def bootstrap_page_environment(
             env = _create_streamlit_session_env(
                 ports.agi_env_cls,
                 apps_path=apps_path,
+                startup_app=startup_app,
                 verbose=1,
             )
         except RuntimeError as exc:
@@ -787,6 +1324,9 @@ def bootstrap_page_environment(
                     env_file_path=env_file_path,
                     args=args,
                     ports=ports,
+                    app_name=startup_app.name,
+                    source_settings_path=source_settings_path,
+                    source_settings_resolved=True,
                     handle_data_root_failure=handle_data_root_failure,
                 )
                 return BootstrapResult(env=None, handled_recovery=True)
@@ -798,13 +1338,10 @@ def bootstrap_page_environment(
                 return BootstrapResult(env=None, handled_recovery=True)
             raise
 
-    requested_app = args.active_app
-    if not requested_app:
-        last_app = ports.load_last_active_app()
-        if last_app:
-            requested_app = persisted_active_app_request(env, last_app)
-    apply_active_app_request(env, requested_app)
-
+    _bind_authorized_app_container_roots(
+        env,
+        _startup_runtime_authorized_roots(startup_app, env),
+    )
     env.init_done = True
     streamlit.session_state["env"] = env
     streamlit.session_state["IS_SOURCE_ENV"] = env.is_source_env

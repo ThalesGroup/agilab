@@ -944,13 +944,11 @@ def _apply_active_app_request(env, request_value: Optional[str]) -> bool:
     return _about_bootstrap.apply_active_app_request(env, request_value, streamlit=st)
 
 
-def _sync_active_app_from_query(env) -> None:
+def _sync_active_app_from_query(env) -> bool:
     """Honor ?active_app=… query parameter so all pages stay in sync."""
-    _about_bootstrap.sync_active_app_from_query(
+    return _about_bootstrap.sync_active_app_from_query(
         env,
         streamlit=st,
-        store_last_active_app=store_last_active_app,
-        apply_request=_apply_active_app_request,
     )
 
 
@@ -1190,7 +1188,8 @@ def _ensure_navigation_environment(
 
     env = st.session_state["env"]
     _refresh_env_from_file(env)
-    _sync_active_app_from_query(env)
+    if _sync_active_app_from_query(env):
+        return None
     try:
         store_last_active_app(_about_bootstrap.active_app_store_path(env))
     except (OSError, RuntimeError, TypeError, ValueError):

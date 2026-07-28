@@ -869,6 +869,167 @@ def test_agilab_main_page_env_editor(mock_ui_env):
     assert any("Environment variables updated" in msg for msg in success_msgs)
 
 
+def test_agilab_main_page_recovers_from_unmounted_cluster_share(mock_ui_env):
+    home_root = mock_ui_env["apps_dir"].parent
+    project_dir = mock_ui_env["project_dir"]
+    source_settings = project_dir / "src/app_settings.toml"
+    source_settings.write_text(
+        '[args]\ndata_in = "flight_telemetry/dataset"\n\n'
+        "[cluster]\ncluster_enabled = true\nworkers = 3\n",
+        encoding="utf-8",
+    )
+    worker_source = (
+        project_dir / "src/flight_telemetry_worker/flight_telemetry_worker.py"
+    )
+    worker_source.parent.mkdir(parents=True)
+    worker_source.write_text("", encoding="utf-8")
+    missing_share = home_root / "missing-cluster-share"
+    workspace_settings = (
+        home_root / ".agilab/apps/flight_telemetry_project/app_settings.toml"
+    )
+    at = _app_test("src/agilab/main_page.py")
+
+    with patch.dict(
+        os.environ,
+        {
+            "HOME": str(home_root),
+            "AGI_CLUSTER_SHARE": str(missing_share),
+        },
+        clear=False,
+    ):
+        at.run()
+        assert not at.exception
+        assert "env" not in at.session_state
+        assert any(
+            "Cluster mode is enabled for the active project" in str(item.value)
+            for item in at.error
+        )
+        recovery_button = next(
+            button
+            for button in at.button
+            if button.label == "Disable cluster mode and reload"
+        )
+        recovery_button.click().run()
+
+    assert not at.exception
+    payload = tomllib.loads(workspace_settings.read_text(encoding="utf-8"))
+    assert payload["args"] == {"data_in": "flight_telemetry/dataset"}
+    assert payload["cluster"] == {"cluster_enabled": False, "workers": 3}
+    assert tomllib.loads(source_settings.read_text(encoding="utf-8"))["cluster"] == {
+        "cluster_enabled": True,
+        "workers": 3,
+    }
+    assert "env" in at.session_state
+    assert at.session_state["first_run"] is False
+    rendered_markdown = "\n".join(str(item.value) for item in at.markdown)
+    assert "Turn experiments into evidence-backed apps" in rendered_markdown
+    assert not [
+        button
+        for button in at.button
+        if button.label == "Disable cluster mode and reload"
+    ]
+    assert not [
+        item
+        for item in at.error
+        if "Cluster mode is enabled for the active project" in str(item.value)
+    ]
+
+
+def test_agilab_warm_query_cluster_failure_keeps_old_env_until_recovery(
+    mock_ui_env, monkeypatch
+):
+    home_root = mock_ui_env["apps_dir"].parent
+    target_project = mock_ui_env["apps_dir"] / "cluster_target_project"
+    target_source = target_project / "src/app_settings.toml"
+    target_source.parent.mkdir(parents=True)
+    target_source.write_text(
+        '[args]\ndata_in = "cluster_target/dataset"\n\n'
+        "[cluster]\ncluster_enabled = true\nworkers = 2\n",
+        encoding="utf-8",
+    )
+    target_worker = (
+        target_project
+        / "src/cluster_target_worker/cluster_target_worker.py"
+    )
+    target_worker.parent.mkdir(parents=True)
+    target_worker.write_text("", encoding="utf-8")
+    (target_project / "src/cluster_target.py").write_text("", encoding="utf-8")
+
+    missing_share = home_root / "missing-cluster-share"
+    workspace_settings = (
+        home_root / ".agilab/apps/cluster_target_project/app_settings.toml"
+    )
+    remembered_apps: list[Path] = []
+    ui_support = importlib.import_module("agi_gui.ui_support")
+    monkeypatch.setattr(
+        ui_support,
+        "store_last_active_app",
+        lambda path: remembered_apps.append(Path(path).resolve()),
+    )
+    at = _app_test("src/agilab/main_page.py")
+
+    with patch.dict(
+        os.environ,
+        {
+            "HOME": str(home_root),
+            "AGI_CLUSTER_SHARE": str(missing_share),
+        },
+        clear=False,
+    ):
+        at.run()
+        assert not at.exception
+        old_env = at.session_state["env"]
+        old_snapshot = {
+            name: getattr(old_env, name)
+            for name in (
+                "app",
+                "active_app",
+                "apps_path",
+                "_agilab_initialized",
+                "init_done",
+                "_agilab_authorized_app_container_roots",
+            )
+        }
+        remembered_before = list(remembered_apps)
+
+        at.query_params["active_app"] = "cluster_target_project"
+        at.run()
+
+        assert not at.exception
+        assert at.session_state["env"] is old_env
+        assert {
+            name: getattr(old_env, name) for name in old_snapshot
+        } == old_snapshot
+        assert at.session_state["first_run"] is True
+        assert remembered_apps == remembered_before
+        assert workspace_settings.exists() is False
+        assert any(
+            "Cluster mode is enabled for the active project" in str(item.value)
+            for item in at.error
+        )
+        recovery_button = next(
+            button
+            for button in at.button
+            if button.label == "Disable cluster mode and reload"
+        )
+        recovery_button.click().run()
+
+    assert not at.exception
+    assert at.session_state["env"] is not old_env
+    assert at.session_state["env"].app == "cluster_target_project"
+    assert at.session_state["env"]._agilab_initialized is True
+    assert at.session_state["first_run"] is False
+    assert {name: getattr(old_env, name) for name in old_snapshot} == old_snapshot
+    payload = tomllib.loads(workspace_settings.read_text(encoding="utf-8"))
+    assert payload["args"] == {"data_in": "cluster_target/dataset"}
+    assert payload["cluster"] == {"cluster_enabled": False, "workers": 2}
+    assert tomllib.loads(target_source.read_text(encoding="utf-8"))["cluster"] == {
+        "cluster_enabled": True,
+        "workers": 2,
+    }
+    assert remembered_apps[-1] == target_project.resolve()
+
+
 def test_agilab_main_page_refuses_unprotected_public_bind(mock_ui_env):
     home_root = mock_ui_env["apps_dir"].parent
     at = _app_test("src/agilab/main_page.py")
