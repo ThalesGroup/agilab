@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-27T15:20:00Z",
+  "generated_at_utc": "2026-07-28T12:59:38Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 36,
     "public_app_count": 15,
     "agent_skill_count": 33,
-    "evidence_schema_count": 234,
+    "evidence_schema_count": 235,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -2340,8 +2340,17 @@
         "docs/source/features.rst",
         "docs/source/roadmap/agilab-future-work.md",
         "src/agilab/evidence/supply_chain_attestation.py",
+        "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.supply_chain_integrity_snapshot.v1",
+      "sources": [
+        "docs/source/features.rst",
+        "src/agilab/evidence/supply_chain_attestation.py",
         "tools/kpi_evidence_bundle.py",
-        "tools/supply_chain_attestation_report.py"
+        "tools/supply_chain_attestation_report.py",
+        "tools/supply_chain_integrity_report.py"
       ]
     },
     {
