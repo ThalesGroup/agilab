@@ -14,6 +14,26 @@ logger = logging.getLogger(__name__)
 HANDOFF_SCHEMA = "agilab.mlflow.handoff.v1"
 
 
+def _truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _request_enables_mlflow(value: Any) -> bool:
+    if isinstance(value, dict):
+        if "mlflow_enabled" in value and _truthy(value.get("mlflow_enabled")):
+            return True
+        return any(_request_enables_mlflow(item) for item in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_request_enables_mlflow(item) for item in value)
+    return False
+
+
 def _workflow_root(agi_cls: Any) -> Path | None:
     raw = str(getattr(agi_cls, "_workers_data_path", "") or "").strip()
     if not raw:
@@ -144,8 +164,21 @@ def _register_handoff(path: Path, *, env: Any, mlflow: Any, log: Any) -> dict[st
 def register_shared_mlflow_handoffs(agi_cls: Any, *, log: Any = logger) -> list[dict[str, Any]]:
     """Register completed worker handoffs in the manager's local MLflow store."""
 
+    if not _request_enables_mlflow(getattr(agi_cls, "_args", None)):
+        return []
     root = _workflow_root(agi_cls)
     if root is None or not root.is_dir():
+        return []
+    handoff_paths: list[Path] = []
+    for path in sorted(root.rglob("mlflow_handoff.json")):
+        try:
+            resolved = path.resolve()
+        except OSError as exc:
+            log.warning("Failed to resolve MLflow handoff %s: %s", path, exc)
+            continue
+        if resolved.is_relative_to(root):
+            handoff_paths.append(resolved)
+    if not handoff_paths:
         return []
     try:
         import mlflow  # type: ignore
@@ -154,12 +187,9 @@ def register_shared_mlflow_handoffs(agi_cls: Any, *, log: Any = logger) -> list[
         return []
 
     results: list[dict[str, Any]] = []
-    for path in sorted(root.rglob("mlflow_handoff.json")):
+    for path in handoff_paths:
         try:
-            resolved = path.resolve()
-            if not resolved.is_relative_to(root):
-                continue
-            results.append(_register_handoff(resolved, env=agi_cls.env, mlflow=mlflow, log=log))
+            results.append(_register_handoff(path, env=agi_cls.env, mlflow=mlflow, log=log))
         except (OSError, TypeError, ValueError, RuntimeError) as exc:
             log.warning("MLflow handoff registration failed for %s: %s", path, exc)
             results.append({"status": "error", "path": str(path), "message": str(exc)})
