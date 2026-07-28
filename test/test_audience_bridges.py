@@ -1527,7 +1527,9 @@ def test_mcp_jsonrpc_error_paths_are_structured() -> None:
         {"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": ["bad"]}
     )
     assert bad_params is not None
-    assert bad_params["error"]["code"] == -32000
+    # Malformed params are a JSON-RPC "invalid params" fault, not the catch-all
+    # server-error code this previously asserted.
+    assert bad_params["error"]["code"] == mcp_server.JSONRPC_INVALID_PARAMS
     assert "tools/call params must be an object" in bad_params["error"]["message"]
 
     unknown_method = mcp_server.handle_jsonrpc(
