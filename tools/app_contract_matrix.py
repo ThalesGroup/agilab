@@ -654,7 +654,7 @@ def _project_checks(repo_root: Path, project_path: Path) -> list[Check]:
             _check(
                 f"{project_name}:worker_pyproject",
                 f"{project_name} worker pyproject",
-                bool(worker_data.get("project", {}).get("name"))
+                worker_data.get("project", {}).get("name") == worker_module.name
                 and bool(worker_data.get("project", {}).get("version"))
                 and not missing_worker_deps
                 and source_paths
@@ -666,6 +666,7 @@ def _project_checks(repo_root: Path, project_path: Path) -> list[Check]:
                 evidence=(_relative(repo_root, worker_pyproject),),
                 details={
                     "name": worker_data.get("project", {}).get("name"),
+                    "expected_name": worker_module.name,
                     "version": worker_data.get("project", {}).get("version"),
                     "missing_worker_dependencies": missing_worker_deps,
                     "source_paths": source_paths,
@@ -1295,6 +1296,36 @@ def _global_checks(
     )
 
     page_catalog_rows = _apps_pages_catalog_rows(repo_root)
+    reuse_catalog_data = _read_toml(repo_root / REUSE_CATALOG_REL)
+    reuse_page_titles = {
+        str(row.get("id")): str(row.get("title"))
+        for row in reuse_catalog_data.get("page", [])
+        if isinstance(row, dict) and row.get("id") and row.get("title")
+    }
+    page_display_title_mismatches: dict[str, dict[str, Any]] = {}
+    for module in sorted(source_page_modules):
+        page_meta_path = repo_root / APPS_PAGES_REL / module / "src" / module / "page_meta.py"
+        if not page_meta_path.is_file():
+            continue
+        page_meta = _literal_string_assignments(page_meta_path, {"PAGE_TITLE"})
+        page_title = page_meta.get("PAGE_TITLE")
+        catalog_title = reuse_page_titles.get(module)
+        if page_title != catalog_title:
+            page_display_title_mismatches[module] = {
+                "page_title": page_title,
+                "catalog_title": catalog_title,
+                "page_meta": _relative(repo_root, page_meta_path),
+            }
+    checks.append(
+        _check(
+            "page_display_titles_match_catalog",
+            "Page display titles match the reuse catalog",
+            not page_display_title_mismatches,
+            "side-effect-free page metadata uses the catalog display title",
+            evidence=(str(REUSE_CATALOG_REL), str(APPS_PAGES_REL)),
+            details={"mismatches": page_display_title_mismatches},
+        )
+    )
     expected_page_catalog = {
         module: package for package, module in page_package_to_module.items()
     }

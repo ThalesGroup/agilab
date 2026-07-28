@@ -35,8 +35,8 @@ package in isolation.
 
 ## Run In AGILAB
 
-Select `execution_pandas_project`, open `ORCHESTRATE`, then run `INSTALL` and
-`EXECUTE`. Keep the default local settings for a first proof, or disable Cython
+Select `execution_pandas_project`, open `ORCHESTRATE`, then run `Deploy scheduler & workers` and
+`RUN`. Keep the default local settings for a first proof, or disable Cython
 when you specifically want to compare the pure Python worker path. Increase
 partitions or worker count when you want a stronger distribution check.
 

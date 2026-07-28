@@ -23,7 +23,7 @@ does not require private services.
 
 1. Select `mission_decision_project` in `PROJECT`.
 2. Open `ORCHESTRATE`.
-3. Run `INSTALL`, then `EXECUTE`.
+3. Run `Deploy scheduler & workers`, then `RUN`.
 4. Open `ANALYSIS` and select `view_data_io_decision`.
 
 ## Expected Inputs

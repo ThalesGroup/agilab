@@ -966,7 +966,7 @@ def _cluster_args_share_warning(env: Any, cluster_params: dict[str, Any]) -> str
     except (OSError, RuntimeError, TypeError, ValueError):
         pass
     # SSHFS cluster-share contract: the scheduler-side AGI_CLUSTER_SHARE can be a
-    # normal local filesystem; remote workers mount it at Workers Data Path.
+    # normal local filesystem; remote workers mount it at the workflow share root.
     if (
         is_symlink
         or looks_shared
@@ -988,7 +988,7 @@ def _cluster_args_share_warning(env: Any, cluster_params: dict[str, Any]) -> str
     return (
         f"Cluster is enabled but the data directory `{share_resolved}` appears local. "
         f"(detected fstype: `{fstype}`) "
-        "Set `AGI_CLUSTER_SHARE` to the scheduler-side source path and `Workers Data Path` "
+        "Set `AGI_CLUSTER_SHARE` to the scheduler-side source path and `Workflow share root` "
         "to the worker-side SSHFS/shared mount target, or point `AGI_CLUSTER_SHARE` "
         "at a shared mount/symlink when not using the SSHFS cluster-share contract."
         f"{extra}"

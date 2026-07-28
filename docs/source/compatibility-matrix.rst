@@ -160,7 +160,7 @@ README summary alone. For normal maintenance, use the compact checks first:
    uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
    uv --preview-features extra-build-dependencies run python tools/agilab_web_robot.py --target-url https://huggingface.co/spaces/jpmorard/agilab
    uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/supply_chain_attestation_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/supply_chain_integrity_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --compact
    uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --first-proof-json first-proof.json --hf-smoke-json hf-space-smoke.json --output public-proof-scenarios.json
    uv --preview-features extra-build-dependencies run python tools/first_launch_robot.py --json --output first-launch-robot.json

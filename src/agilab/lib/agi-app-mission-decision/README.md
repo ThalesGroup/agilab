@@ -34,7 +34,7 @@ package in isolation.
 ## Run In AGILAB
 
 From the UI, select `mission_decision_project`, open `ORCHESTRATE`, then run
-`INSTALL` and `EXECUTE`. Open `ANALYSIS` with the decision-evidence page to
+`Deploy scheduler & workers` and `RUN`. Open `ANALYSIS` with the decision-evidence page to
 inspect strategy deltas and the adaptation timeline.
 
 ## Expected Inputs

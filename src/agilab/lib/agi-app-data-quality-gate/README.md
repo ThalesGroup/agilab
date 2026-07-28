@@ -53,8 +53,8 @@ built wheel.
 
 ## Run In AGILAB
 
-Select `data_quality_gate_project`, open `ORCHESTRATE`, then run `INSTALL` and
-`EXECUTE`. Open `ANALYSIS` or inspect the exported evidence directory to review
+Select `data_quality_gate_project`, open `ORCHESTRATE`, then run `Deploy scheduler & workers` and
+`RUN`. Open `ANALYSIS` or inspect the exported evidence directory to review
 the contract, drift metrics, gate decision, and artifact manifest.
 
 ## Expected Inputs

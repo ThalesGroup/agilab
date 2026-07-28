@@ -34,8 +34,8 @@ package in isolation.
 
 ## Run In AGILAB
 
-Select `execution_polars_project`, open `ORCHESTRATE`, then run `INSTALL` and
-`EXECUTE`. Start locally, then compare the output with
+Select `execution_polars_project`, open `ORCHESTRATE`, then run `Deploy scheduler & workers` and
+`RUN`. Start locally, then compare the output with
 `execution_pandas_project` if you want an engine-level contrast.
 
 ## Expected Inputs

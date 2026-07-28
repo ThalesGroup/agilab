@@ -51,6 +51,7 @@ class RunRequest:
     scheduler: str | None = None
     workers: dict[str, int] | None = None
     workers_data_path: str | None = None
+    workflow_share_root: str | None = None
     verbose: int = 0
     mode: RunMode = None
     rapids_enabled: bool = False
@@ -70,6 +71,21 @@ class RunRequest:
         object.__setattr__(self, "stages", tuple(_coerce_stage_request(stage) for stage in self.stages))
         if self.workers is not None and not isinstance(self.workers, dict):
             raise ValueError("workers must be a dict. {'ip-address':nb-worker}")
+        if (
+            self.workflow_share_root is not None
+            and self.workers_data_path is not None
+            and self.workflow_share_root != self.workers_data_path
+        ):
+            raise ValueError(
+                "workflow_share_root and legacy workers_data_path must match when both are set"
+            )
+        workflow_share_root = (
+            self.workflow_share_root
+            if self.workflow_share_root is not None
+            else self.workers_data_path
+        )
+        object.__setattr__(self, "workflow_share_root", workflow_share_root)
+        object.__setattr__(self, "workers_data_path", workflow_share_root)
 
     def to_app_kwargs(self) -> dict[str, Any]:
         payload = dict(self.params)
@@ -94,6 +110,7 @@ class RunRequest:
         allowed = {
             "scheduler",
             "workers",
+            "workflow_share_root",
             "workers_data_path",
             "verbose",
             "mode",
@@ -103,4 +120,8 @@ class RunRequest:
         unknown = set(updates) - allowed
         if unknown:
             raise TypeError(f"Unknown execution field(s): {', '.join(sorted(unknown))}")
+        if "workflow_share_root" in updates and "workers_data_path" not in updates:
+            updates["workers_data_path"] = updates["workflow_share_root"]
+        elif "workers_data_path" in updates and "workflow_share_root" not in updates:
+            updates["workflow_share_root"] = updates["workers_data_path"]
         return replace(self, **updates)

@@ -307,10 +307,13 @@ def test_app_contract_matrix_detects_promoted_catalog_drift():
 
 def test_worker_projects_depend_on_node_cli_runtime_without_cluster_stack() -> None:
     missing_dependency: list[str] = []
+    mismatched_distribution_name: list[str] = []
     unexpected_cluster_dependency: list[str] = []
     unexpected_cluster_source: list[str] = []
     for pyproject in sorted((ROOT / "src" / "agilab").rglob("*_worker/pyproject.toml")):
         metadata = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        if metadata.get("project", {}).get("name") != pyproject.parent.name:
+            mismatched_distribution_name.append(pyproject.relative_to(ROOT).as_posix())
         dependencies = tuple(metadata.get("project", {}).get("dependencies", ()))
         if not any(dependency.startswith("agi-node") for dependency in dependencies):
             missing_dependency.append(pyproject.relative_to(ROOT).as_posix())
@@ -322,6 +325,7 @@ def test_worker_projects_depend_on_node_cli_runtime_without_cluster_stack() -> N
                 unexpected_cluster_source.append(pyproject.relative_to(ROOT).as_posix())
 
     assert missing_dependency == []
+    assert mismatched_distribution_name == []
     assert unexpected_cluster_dependency == []
     assert unexpected_cluster_source == []
 

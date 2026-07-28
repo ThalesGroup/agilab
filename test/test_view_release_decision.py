@@ -398,7 +398,7 @@ def test_view_release_decision_renders_promotable_candidate_and_exports_json(tmp
     at = _run_release_page(tmp_path, monkeypatch, project_dir)
 
     assert not at.exception
-    assert any(title.value == "Evidence cockpit" for title in at.title)
+    assert any(title.value == "Promotion gate" for title in at.title)
     assert any(header.value == "Run review cockpit" for header in at.subheader)
     assert any("Promotable" in message.value for message in at.success)
     assert any(header.value == "Connector path registry" for header in at.subheader)

@@ -13,6 +13,7 @@
 
 import sys
 import importlib
+import importlib.util
 import os
 from pathlib import Path
 
@@ -52,6 +53,21 @@ from streamlit.runtime.scriptrunner import RerunException
 from typing import Any, Optional
 from agi_env.agi_logger import AgiLogger
 from agi_pages.runtime import ensure_repo_on_path
+
+
+def _load_page_meta() -> tuple[str, str]:
+    module_path = Path(__file__).with_name("page_meta.py")
+    spec = importlib.util.spec_from_file_location(
+        "view_maps_network_page_meta", module_path
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load page metadata from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.PAGE_LOGO, module.PAGE_TITLE
+
+
+PAGE_LOGO, PAGE_TITLE = _load_page_meta()
 
 try:
     from edge_selection import CUSTOM_OPTION, NONE_OPTION, resolve_edges_picker_state
@@ -392,11 +408,11 @@ def _list_subdirectories(base: Path) -> list[str]:
     return []
 
 
-configure_streamlit_page(st, title="Maps Network Graph")
+configure_streamlit_page(st, title=PAGE_TITLE)
 render_streamlit_page_header(
     st,
-    title=":world_map: Maps Network Graph",
-    logo_title="Cartography Visualization",
+    title=PAGE_TITLE,
+    logo_title=PAGE_LOGO,
 )
 
 active_app_path = resolve_active_app_path(error_fn=st.error, stop_fn=st.stop)

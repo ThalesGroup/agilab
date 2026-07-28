@@ -933,12 +933,12 @@ def snippet_source_guidance(has_snippets: bool, app_name: str) -> str:
     if has_snippets:
         return (
             f"Snippets are refreshed from the latest ORCHESTRATE run for `{app_name}`. "
-            "If they look stale, rerun INSTALL → DISTRIBUTE → RUN in ORCHESTRATE."
+            "If they look stale, rerun Deploy scheduler & workers → CHECK distribute → RUN in ORCHESTRATE."
         )
     return (
         "No ORCHESTRATE-generated snippet is available yet. "
-        "Run INSTALL → DISTRIBUTE → RUN in ORCHESTRATE first (same project) "
-        "to generate the INSTALL / DISTRIBUTE / RUN snippets, then come back to WORKFLOW."
+        "Run Deploy scheduler & workers → CHECK distribute → RUN in ORCHESTRATE first (same project) "
+        "to generate the Deploy scheduler & workers / CHECK distribute / RUN snippets, then come back to WORKFLOW."
     )
 
 

@@ -62,11 +62,11 @@ What should I run first?
 
 Run one local first-proof lane before branching out:
 
-- built-in lane: landing page -> ``1. INSTALL demo`` -> ``2. EXECUTE demo`` ->
+- built-in lane: landing page -> ``1. DEPLOY demo`` -> ``2. RUN demo`` ->
   ``3. OPEN ANALYSIS`` for ``flight_telemetry_project``
 - notebook lane: landing page -> ``Create from built-in notebook`` to create
   ``flight-telemetry-from-notebook-project``, then prove it with ORCHESTRATE
-  ``INSTALL`` and ``EXECUTE``
+  ``Deploy scheduler & workers`` and ``RUN``
 
 Do not start with clusters, external apps, service mode, or broad tests. A small
 known-good local proof gives you a baseline before you debug a larger topology.
@@ -338,7 +338,7 @@ Missing worker packages during a run
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If a worker virtual environment fails with ``ModuleNotFoundError``, rerun the
-matching ORCHESTRATE ``INSTALL`` path for the selected project. For source
+matching ORCHESTRATE ``Deploy scheduler & workers`` path for the selected project. For source
 debugging, check both dependency scopes:
 
 - manager dependencies in the app project ``pyproject.toml``

@@ -10,7 +10,7 @@ Streamlit analysis page for generic decision-evidence exports.
 Use this page after running a compatible producer such as `mission_decision_project` from AGILAB:
 
 1. `PROJECT` -> select `src/agilab/apps/builtin/mission_decision_project`.
-2. `ORCHESTRATE` -> `INSTALL`, then `EXECUTE`.
+2. `ORCHESTRATE` -> `Deploy scheduler & workers`, then `RUN`.
 3. `ANALYSIS` -> open `view_data_io_decision`.
 
 The page reads decision artifacts exported by the active app and displays:

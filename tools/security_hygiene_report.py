@@ -763,7 +763,7 @@ def build_report(
     security_path = repo_root / "SECURITY.md"
     pyproject_path = repo_root / "pyproject.toml"
     lock_path = repo_root / "uv.lock"
-    supply_chain_tool = repo_root / "tools" / "supply_chain_attestation_report.py"
+    supply_chain_tool = repo_root / "tools" / "supply_chain_integrity_report.py"
     public_proof_tool = repo_root / "tools" / "public_proof_scenarios.py"
 
     security_text = security_path.read_text(encoding="utf-8") if security_path.is_file() else ""
@@ -801,7 +801,7 @@ def build_report(
             supply_chain_tool.is_file() and public_proof_tool.is_file(),
             "supply-chain and public-proof evidence tools are available",
             evidence=[
-                "tools/supply_chain_attestation_report.py",
+                "tools/supply_chain_integrity_report.py",
                 "tools/public_proof_scenarios.py",
             ],
         ),

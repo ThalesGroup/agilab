@@ -72,7 +72,7 @@ replayable circles, XOR feature engineering, spiral capacity, and gaussian
 sanity-check variants.
 
 Open `ORCHESTRATE` when you want the reproducible AGILAB execution path: tune
-the sidebar fields, then run `INSTALL` and `RUN`. Enable loss-landscape
+the sidebar fields, then run `Deploy scheduler & workers` and `RUN`. Enable loss-landscape
 computation only when you want the heavier 3D projection in the evidence
 bundle.
 

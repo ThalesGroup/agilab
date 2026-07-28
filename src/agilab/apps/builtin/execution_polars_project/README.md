@@ -21,8 +21,8 @@ reducer evidence that can be compared against the pandas app.
 
 1. Select `execution_polars_project` in `PROJECT`.
 2. Open `ORCHESTRATE`.
-3. Run `INSTALL`.
-4. Run `EXECUTE` with the default settings.
+3. Run `Deploy scheduler & workers`.
+4. Run `RUN` with the default settings.
 5. Inspect generated CSV or Parquet outputs under `execution_polars/results`.
 
 ## Expected Inputs
@@ -49,7 +49,7 @@ totals stable.
 
 ## Troubleshooting
 
-If polars cannot be imported, run `INSTALL` again for this app instead of using
+If polars cannot be imported, run `Deploy scheduler & workers` again for this app instead of using
 the root environment. If result files are stale, enable reset in the app args or
 remove only the app-owned `execution_polars/results` directory.
 

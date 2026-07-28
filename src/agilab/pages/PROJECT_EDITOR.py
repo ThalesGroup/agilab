@@ -357,7 +357,7 @@ CLONE_ENV_STRATEGY_LABELS = {
 CLONE_ENV_STRATEGY_CAPTIONS = {
     "detach_venv": (
         "Safer for real development. The clone is created without .venv, "
-        "so run INSTALL before EXECUTE."
+        "so run Deploy scheduler & workers before RUN."
     ),
     "share_source_venv": (
         "Fast and lightweight. The clone keeps the source .venv by symlink, "
@@ -1006,7 +1006,7 @@ def _finalize_cloned_project_environment(
             _remove_path_if_present(dest_venv)
         return (
             f"Project '{dest_root.name}' was created without sharing the source .venv. "
-            "Run INSTALL before EXECUTE."
+            "Run Deploy scheduler & workers before RUN."
         )
 
     if strategy == "share_source_venv":
@@ -3452,7 +3452,7 @@ def _create_project_clone_action(
         return ActionResult.error(
             f"Project '{new_name}' was created, but local source paths could not be repaired.",
             detail=str(exc),
-            next_action="Inspect the cloned pyproject.toml files, then rerun INSTALL before EXECUTE.",
+            next_action="Inspect the cloned pyproject.toml files, then rerun Deploy scheduler & workers before RUN.",
             data={
                 "new_name": new_name,
                 "dest_root": dest_root,
@@ -3471,7 +3471,7 @@ def _create_project_clone_action(
         return ActionResult.error(
             f"Project '{new_name}' was created, but environment finalization failed.",
             detail=str(exc),
-            next_action="Check the cloned .venv state, then rerun INSTALL before EXECUTE.",
+            next_action="Check the cloned .venv state, then rerun Deploy scheduler & workers before RUN.",
             data={
                 "new_name": new_name,
                 "dest_root": dest_root,
@@ -4295,7 +4295,7 @@ def _create_project_from_notebook_action(
         )
 
     next_action = (
-        "Project created. Open ORCHESTRATE, run INSTALL, then EXECUTE. Open WORKFLOW to inspect "
+        "Project created. Open ORCHESTRATE, run Deploy scheduler & workers, then RUN. Open WORKFLOW to inspect "
         "the imported notebook stages."
         if source_kind == "packaged_sample_notebook"
         else (
@@ -4386,7 +4386,7 @@ def _rename_project_action(
             f"Project '{new_name}' was cloned, but environment preservation failed.",
             detail=str(exc),
             next_action=(
-                f"Inspect {src_path} and {dest_path}, then rerun INSTALL before EXECUTE."
+                f"Inspect {src_path} and {dest_path}, then rerun Deploy scheduler & workers before RUN."
             ),
             data={
                 "current": current,
@@ -4619,7 +4619,7 @@ def handle_project_creation():
             st.info(
                 "AGILAB's included notebook is selected. "
                 f"Click Create to build `{normalized_project_name}` from `{guided_template_name}`; "
-                "ORCHESTRATE opens next for INSTALL and EXECUTE."
+                "ORCHESTRATE opens next for Deploy scheduler & workers and RUN."
             )
             st.sidebar.caption(f"Included notebook -> `{normalized_project_name}`.")
         elif notebook_defaults:

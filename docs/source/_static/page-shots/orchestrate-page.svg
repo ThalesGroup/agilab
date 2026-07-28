@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 850" role="img" aria-labelledby="title desc">
 <title id="title">AGILAB orchestrate page vector screenshot summary</title>
-<desc id="desc">Screenshot-derived SVG summary generated from orchestrate-page.png, sha256 840b4bd8f3f33cb7. The PNG remains the canonical raster evidence.</desc>
+<desc id="desc">Synchronized vector summary of the AGILAB ORCHESTRATE page and its current deployment actions.</desc>
 <defs><linearGradient id="panelGradient" x1="0" x2="1"><stop offset="0" stop-color="#1f2c2f"/><stop offset="0.55" stop-color="#0f3033"/><stop offset="1" stop-color="#243b24"/></linearGradient></defs>
 <rect x="0" y="0" width="1440" height="850" rx="0" fill="#07111f"/>
 <rect x="0" y="0" width="300" height="850" rx="0" fill="#10293b"/>
-<text x="20" y="46" font-size="26" font-weight="700" fill="#c9d3d7" text-anchor="start">AGI Lab</text>
+<text x="20" y="46" font-size="26" font-weight="700" fill="#c9d3d7" text-anchor="start">AGILAB</text>
 <text x="28" y="94" font-size="14" font-weight="500" fill="#d6dde0" text-anchor="start">PROJECT</text>
 <rect x="20" y="111" width="260" height="28" rx="6" fill="#38546c"/>
 <text x="28" y="128" font-size="14" font-weight="800" fill="#f7f7f2" text-anchor="start">ORCHESTRATE</text>
@@ -21,7 +21,7 @@
 <rect x="380" y="168" width="980" height="40" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
 <text x="418" y="194" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Environment details</text>
 <rect x="380" y="224" width="980" height="92" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
-<text x="418" y="250" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">1. Resources and install</text>
+<text x="418" y="250" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">1. Resources and deployment</text>
 <rect x="412" y="260" width="150" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>
 <text x="487" y="279" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="middle">Share: not used</text>
 <rect x="587" y="260" width="150" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>
@@ -43,9 +43,9 @@
 <rect x="937" y="372" width="150" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>
 <text x="1012" y="391" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="middle">Enable Cluster</text>
 <rect x="380" y="448" width="980" height="68" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
-<text x="418" y="474" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Generated INSTALL snippet</text>
-<rect x="412" y="484" width="150" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>
-<text x="487" y="503" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="middle">INSTALL</text>
+<text x="418" y="474" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Generated Deploy scheduler &amp; workers snippet</text>
+<rect x="412" y="484" width="286" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>
+<text x="555" y="503" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="middle">Deploy scheduler &amp; workers</text>
 <rect x="380" y="560" width="980" height="68" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
 <text x="418" y="586" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">2. Configure run arguments</text>
 <rect x="412" y="596" width="150" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>

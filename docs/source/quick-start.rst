@@ -190,9 +190,9 @@ machine-readable proof record.
 
    The web UI landing page exposes the current first-proof path directly:
 
-   - click ``1. INSTALL demo`` to select ``flight_telemetry_project`` and run
-     the ORCHESTRATE install
-   - click ``2. EXECUTE demo`` to start the local ORCHESTRATE execution with
+   - click ``1. DEPLOY demo`` to select ``flight_telemetry_project`` and run
+     ORCHESTRATE ``Deploy scheduler & workers``
+   - click ``2. RUN demo`` to start the local ORCHESTRATE ``RUN`` action with
      cluster, benchmark, and service mode off
    - click ``3. OPEN ANALYSIS`` after evidence exists to open the built-in
      analysis route
@@ -206,14 +206,14 @@ machine-readable proof record.
    is no notebook file to locate or upload. The wizard opens ``PROJECT`` ->
    ``Create`` -> ``From notebook`` with the bundled sample already selected;
    then you click PROJECT ``Create`` and prove the imported project with
-   ORCHESTRATE ``INSTALL`` and ``EXECUTE``. For your own local notebook, use
+   ORCHESTRATE ``Deploy scheduler & workers`` and ``RUN``. For your own local notebook, use
    PROJECT -> ``Create`` -> ``From notebook`` instead of the first-proof wizard.
    Treat that as a separate starting lane: prove either the built-in flight
    project or a notebook-imported project first, not both at the same time.
 
    The notebook lane is the full adoption proof, not only an upload shortcut:
-   notebook -> PROJECT ``Create`` -> ORCHESTRATE ``INSTALL`` -> ORCHESTRATE
-   ``EXECUTE`` -> ANALYSIS -> WORKFLOW ``Download pipeline notebook``. The last
+   notebook -> PROJECT ``Create`` -> ORCHESTRATE ``Deploy scheduler & workers`` ->
+   ORCHESTRATE ``RUN`` -> ANALYSIS -> WORKFLOW ``Download pipeline notebook``. The last
    step is the no-lock-in check: the work remains available as
    ``lab_stages.ipynb`` running on the stable, production-grade ``agi-core``
    technology if the AGILAB UI or distributed runtime is no longer the right

@@ -37,7 +37,7 @@ root.
 ## Run In AGILAB
 
 Select `sklearn_pipeline_project`, then open `ORCHESTRATE`. Keep the defaults,
-run `INSTALL`, then run `RUN`. The worker exports model quality evidence and a
+run `Deploy scheduler & workers`, then run `RUN`. The worker exports model quality evidence and a
 manifest under `sklearn_pipeline/evidence`.
 
 ## Expected Inputs

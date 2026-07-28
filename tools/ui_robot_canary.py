@@ -205,7 +205,7 @@ def run_browser_canaries(widget_robot: Any, *, browser_name: str, headless: bool
             )
 
             page.set_content(
-                "<main><h1>ORCHESTRATE</h1><div style='margin-top:2000px'>INSTALL</div></main>",
+                "<main><h1>ORCHESTRATE</h1><div style='margin-top:2000px'>Deploy scheduler & workers</div></main>",
                 wait_until="domcontentloaded",
             )
             payload = page.evaluate(widget_robot.ABOVE_FOLD_COLLECTOR_JS)

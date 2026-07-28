@@ -28,7 +28,7 @@
   <rect x="170" y="180" width="226" height="34" rx="17" fill="#d7e8f7" stroke="#2f6fa3" stroke-width="2"/>
   <text class="chip-text" x="283" y="202" text-anchor="middle">Generate AGI.run(...)</text>
   <text class="card-text" x="112" y="244">1. Configure scheduler, workers, and mode flags</text>
-  <text class="card-text" x="112" y="276">2. Use INSTALL / CHECK DISTRIBUTE / RUN</text>
+  <text class="card-text" x="112" y="276">2. Use Deploy scheduler &amp; workers / CHECK distribute / RUN</text>
   <text class="card-text" x="112" y="308">3. Copy the generated snippet, do not rewrite it</text>
 
   <rect x="678" y="118" width="438" height="212" rx="24" fill="#efe8d9" stroke="#9b6c1f" stroke-width="3"/>

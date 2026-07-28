@@ -100,7 +100,7 @@ def build_smoke_report(
     elif execute:
         report["message"] = (
             "Distributed DAG stage execution requires enabled cluster settings with scheduler, "
-            "workers, and Workers Data Path."
+            "workers, and workflow share root."
         )
     if execute and config is not None and require_two_nodes and config.worker_nodes < 2:
         report["message"] = "Distributed DAG stage execution requires at least two configured worker nodes."

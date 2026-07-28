@@ -298,7 +298,7 @@ current public evaluation snapshot.
   with exact evidence commands when the proof is missing, invalid, incomplete,
   or failing
 - the release-proof profile includes the packaged notebook import lane:
-  it creates ``flight_telemetry_from_notebook_project``, runs ``INSTALL``,
+  it creates ``flight_telemetry_from_notebook_project``, runs ``Deploy scheduler & workers``,
   executes the imported project, and opens ANALYSIS far enough to prove the
   project notebook and analysis links are discoverable; it also refreshes the
   exported ``lab_stages.ipynb`` handoff and verifies the manifest, source cell
@@ -319,15 +319,14 @@ current public evaluation snapshot.
   ``agilab.public_certification_profile.v1``; it turns the compatibility
   matrix into a ``bounded_public_evidence`` profile while explicitly avoiding
   production or third-party certification claims
-- the supply-chain attestation report validates
-  ``tools/supply_chain_attestation_report.py --compact`` in
-  ``supply_chain_static_attestation`` mode against
-  ``agilab.supply_chain_attestation.v1``; it fingerprints package metadata,
+- the supply-chain integrity snapshot report validates
+  ``tools/supply_chain_integrity_report.py --compact`` and identifies itself as
+  ``agilab.supply_chain_integrity_snapshot.v1`` while retaining
+  ``agilab.supply_chain_attestation.v1`` as a compatibility schema; it fingerprints package metadata,
   lockfile, license, bundled AGI core versions, exact bundle dependency pins,
   app/page payload package versions, built-in app payload versions, runtime
   dependency lower bounds, and built-in app manifests plus package payload inventory
-  and package payload budgets without formal supply-chain
-  attestation claims
+  and package payload budgets without producing a signed provenance attestation
 - the security hygiene report validates
   ``tools/security_hygiene_report.py --compact`` in
   ``agilab.security_hygiene.v1`` mode; it checks the public security policy,
@@ -432,7 +431,7 @@ to the same contract, artifact names, stable node IDs, and provenance.
 - the distributed DAG stage smoke validator writes dry-run or live execution
   evidence with ``tools/dag_distributed_stage_smoke.py --compact``; it checks
   explicit ``nodes[].execution`` request fields, the ORCHESTRATE-derived
-  scheduler/workers/Workers Data Path contract, and the two-node distributed
+  scheduler/workers/Workflow share root contract, and the two-node distributed
   request preview before a live ``--execute`` run is attempted
 - the multi-app DAG dispatch state report writes and reads back a
   persisted run-state JSON proof with

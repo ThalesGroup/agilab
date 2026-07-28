@@ -22,8 +22,8 @@ explicit so Cython runs can be audited instead of treated as a black box.
 
 1. Select `execution_pandas_project` in `PROJECT`.
 2. Open `ORCHESTRATE`.
-3. Run `INSTALL`.
-4. Run `EXECUTE` with the default `typed_numeric` kernel.
+3. Run `Deploy scheduler & workers`.
+4. Run `RUN` with the default `typed_numeric` kernel.
 5. Inspect the result files under `execution_pandas/results`.
 
 ## Expected Inputs
@@ -53,7 +53,7 @@ change.
 
 ## Troubleshooting
 
-If `INSTALL` fails, rerun the app-local install from `ORCHESTRATE` before
+If `Deploy scheduler & workers` fails, rerun the app-local install from `ORCHESTRATE` before
 changing code. If outputs are missing, check that shared storage is writable and
 that `execution_pandas/results` was not deleted by a stale run cleanup.
 

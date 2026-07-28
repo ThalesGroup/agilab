@@ -33,8 +33,8 @@ package in isolation.
 
 ## Run In AGILAB
 
-Select `uav_relay_queue_project`, open `ORCHESTRATE`, then run `INSTALL` and
-`EXECUTE`. Inspect `view_relay_resilience`, `view_scenario_cockpit`, or
+Select `uav_relay_queue_project`, open `ORCHESTRATE`, then run `Deploy scheduler & workers` and
+`RUN`. Inspect `view_relay_resilience`, `view_scenario_cockpit`, or
 `view_maps_network` from `ANALYSIS`.
 
 ## Expected Inputs

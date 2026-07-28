@@ -22,7 +22,7 @@ and a run manifest.
 1. Select `sklearn_pipeline_project` in `PROJECT`.
 2. Open `ORCHESTRATE`.
 3. Keep the default arguments.
-4. Run `INSTALL`, then `RUN`.
+4. Run `Deploy scheduler & workers`, then `RUN`.
 
 ## Expected Inputs
 
@@ -48,7 +48,7 @@ Keep `seed=2026` so differences remain easy to explain.
 
 ## Troubleshooting
 
-If model artifacts are missing, confirm `RUN` completed after `INSTALL`. If
+If model artifacts are missing, confirm `RUN` completed after `Deploy scheduler & workers`. If
 metrics change unexpectedly, check the seed and generated dataset settings
 before changing estimator code.
 

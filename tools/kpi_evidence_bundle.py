@@ -419,12 +419,14 @@ def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
     try:
         supply_chain_attestation_report = _load_tool_module(
             repo_root,
-            "supply_chain_attestation_report",
+            "supply_chain_integrity_report",
         )
         report = supply_chain_attestation_report.build_report(repo_root=repo_root)
         summary = report.get("summary", {})
         ok = (
             report.get("status") == "pass"
+            and summary.get("canonical_schema")
+            == "agilab.supply_chain_integrity_snapshot.v1"
             and summary.get("schema") == "agilab.supply_chain_attestation.v1"
             and summary.get("execution_mode") == "supply_chain_static_attestation"
             and summary.get("package_name") == "agilab"
@@ -462,16 +464,17 @@ def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
         details = {"error": str(exc)}
     return _check_result(
         "supply_chain_attestation_report_contract",
-        "Supply-chain attestation report contract",
+        "Supply-chain integrity snapshot report contract",
         ok,
         (
-            "supply-chain attestation report fingerprints package metadata, "
+            "supply-chain integrity snapshot fingerprints package metadata, "
             "lockfile, core versions, app manifests, and package payload "
             "inventory without formal claims"
             if ok
-            else "supply-chain attestation report is failing or disconnected"
+            else "supply-chain integrity snapshot is failing or disconnected"
         ),
         evidence=[
+            "tools/supply_chain_integrity_report.py",
             "tools/supply_chain_attestation_report.py",
             "src/agilab/supply_chain_attestation.py",
             "pyproject.toml",
@@ -2361,7 +2364,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/production_readiness_report.py",
             "tools/revision_traceability_report.py",
             "tools/public_certification_profile_report.py",
-            "tools/supply_chain_attestation_report.py",
+            "tools/supply_chain_integrity_report.py",
             "tools/repository_knowledge_report.py",
             "tools/run_diff_evidence_report.py",
             "tools/ci_artifact_harvest_report.py",

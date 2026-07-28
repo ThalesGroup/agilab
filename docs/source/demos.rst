@@ -146,7 +146,7 @@ The static scenario contract is available as JSON:
   Use :doc:`execution-playground` when the demo objective is performance
   engineering rather than a domain story. Select ``execution_pandas_project``,
   keep the default ``typed_numeric`` kernel and Cython setting, run
-  ``INSTALL`` then ``EXECUTE``, and inspect the reducer evidence for
+  ``Deploy scheduler & workers`` then ``RUN``, and inspect the reducer evidence for
   ``kernel_mode``, ``kernel_runtime``, and ``dtype_contract``.
   The versioned local kernel proof records a large hot-loop speedup (a
   representative local figure on the order of hundreds of times, with matching

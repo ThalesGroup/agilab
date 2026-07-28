@@ -124,7 +124,7 @@ def test_build_install_and_run_snippets_embed_expected_values():
     assert "RunRequest(" in run_snippet
     assert "mode=15" in run_snippet
     assert 'scheduler="127.0.0.1:8786"' in run_snippet
-    assert 'workers_data_path="/tmp/share"' in run_snippet
+    assert 'workflow_share_root="/tmp/share"' in run_snippet
     assert "rapids_enabled=True" in run_snippet
     assert "benchmark_best_single_node=True" in run_snippet
     assert 'RUN_PARAMS = json.loads(\'{"foo": "bar", "n": 2}\')' in run_snippet
@@ -675,7 +675,7 @@ def test_benchmark_workers_data_path_requires_shared_path_for_remote_dask(tmp_pa
         workers_data_path="",
         local_share_path=local_share,
     ) == ""
-    assert "require Workers Data Path" in orchestrate_page_support.benchmark_workers_data_path_issue(
+    assert "require a workflow share root" in orchestrate_page_support.benchmark_workers_data_path_issue(
         modes=[4],
         workers={"192.168.1.20": 1},
         workers_data_path="",

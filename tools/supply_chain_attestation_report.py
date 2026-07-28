@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Emit AGILAB static supply-chain attestation evidence."""
+"""Compatibility entry point for AGILAB supply-chain integrity snapshots.
+
+Prefer ``tools/supply_chain_integrity_report.py`` for new automation. This
+module preserves the historical schema and command path for existing consumers.
+"""
 
 from __future__ import annotations
 
@@ -62,12 +66,12 @@ def _check_result(
 
 def _docs_check(repo_root: Path) -> dict[str, Any]:
     required = [
-        "supply-chain attestation report",
-        "tools/supply_chain_attestation_report.py --compact",
-        "agilab.supply_chain_attestation.v1",
-        "supply_chain_static_attestation",
+        "supply-chain integrity snapshot report",
+        "tools/supply_chain_integrity_report.py --compact",
+        "agilab.supply_chain_integrity_snapshot.v1",
+        "compatibility schema",
         "package payload inventory",
-        "budgets without formal",
+        "without producing",
     ]
     doc_path = repo_root / DOC_RELATIVE_PATH
     try:
@@ -80,12 +84,12 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
         details = {"error": str(exc)}
     return _check_result(
         "supply_chain_attestation_docs_reference",
-        "Supply-chain attestation docs reference",
+        "Supply-chain integrity snapshot docs reference",
         ok,
         (
-            "features docs expose the supply-chain attestation command"
+            "features docs expose the supply-chain integrity snapshot command"
             if ok
-            else "features docs do not expose the supply-chain attestation command"
+            else "features docs do not expose the supply-chain integrity snapshot command"
         ),
         evidence=[str(DOC_RELATIVE_PATH)],
         details=details,
@@ -114,11 +118,11 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
     checks = [
         _check_result(
             "supply_chain_attestation_schema",
-            "Supply-chain attestation schema",
+            "Supply-chain integrity snapshot schema",
             proof["ok"]
             and state.get("schema") == SCHEMA
             and state.get("execution_mode") == "supply_chain_static_attestation",
-            "supply-chain attestation uses the supported schema",
+            "supply-chain integrity snapshot uses the supported schema",
             evidence=["src/agilab/supply_chain_attestation.py"],
             details={
                 "schema": state.get("schema"),
@@ -129,7 +133,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         ),
         _check_result(
             "supply_chain_attestation_package_metadata",
-            "Supply-chain attestation package metadata",
+            "Supply-chain integrity snapshot package metadata",
             summary.get("package_name") == "agilab"
             and bool(summary.get("package_version"))
             and summary.get("lockfile_present") is True
@@ -140,7 +144,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         ),
         _check_result(
             "supply_chain_attestation_core_alignment",
-            "Supply-chain attestation core alignment",
+            "Supply-chain integrity snapshot core alignment",
             summary.get("core_component_count") == 4
             and summary.get("core_release_graph_aligned") is True
             and summary.get("pinned_core_dependency_count", 0) >= 1,
@@ -155,7 +159,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         ),
         _check_result(
             "supply_chain_attestation_page_lib_alignment",
-            "Supply-chain attestation page library alignment",
+            "Supply-chain integrity snapshot page library alignment",
             summary.get("page_lib_component_count") == 2
             and summary.get("page_lib_release_graph_aligned") is True
             and summary.get("pinned_page_lib_dependency_count", 0) >= 1,
@@ -170,7 +174,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         ),
         _check_result(
             "supply_chain_attestation_app_lib_alignment",
-            "Supply-chain attestation app library alignment",
+            "Supply-chain integrity snapshot app library alignment",
             summary.get("app_lib_component_count") == 1
             and summary.get("app_lib_release_graph_aligned") is True
             and summary.get("pinned_app_lib_dependency_count", 0) >= 1,
@@ -185,7 +189,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         ),
         _check_result(
             "supply_chain_attestation_internal_dependency_pins",
-            "Supply-chain attestation internal dependency pins",
+            "Supply-chain integrity snapshot internal dependency pins",
             summary.get("aligned_internal_dependency_pins") is True
             and summary.get("internal_dependency_pin_count", 0) >= 1
             and summary.get("mismatched_internal_dependency_pin_count") == 0,
@@ -204,7 +208,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         ),
         _check_result(
             "supply_chain_attestation_app_manifests",
-            "Supply-chain attestation app manifests",
+            "Supply-chain integrity snapshot app manifests",
             summary.get("builtin_app_pyproject_count") == len(state.get("builtin_app_pyprojects", []))
             and all(row.get("sha256") for row in state.get("builtin_app_pyprojects", [])),
             "built-in app pyproject manifests are included in the attestation",
@@ -213,7 +217,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         ),
         _check_result(
             "supply_chain_attestation_builtin_app_alignment",
-            "Supply-chain attestation built-in app alignment",
+            "Supply-chain integrity snapshot built-in app alignment",
             summary.get("builtin_app_pyproject_count") == len(state.get("builtin_app_pyprojects", []))
             and summary.get("aligned_builtin_app_versions") is True
             and summary.get("mismatched_builtin_app_version_count") == 0
@@ -238,7 +242,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         ),
         _check_result(
             "supply_chain_attestation_payload_inventory",
-            "Supply-chain attestation payload inventory",
+            "Supply-chain integrity snapshot payload inventory",
             summary.get("package_data_pattern_count", 0) >= 1
             and summary.get("builtin_payload_file_count", 0) >= 1
             and isinstance(summary.get("builtin_payload_extension_counts"), dict),
@@ -274,7 +278,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         ),
         _check_result(
             "supply_chain_attestation_payload_budget",
-            "Supply-chain attestation payload budget",
+            "Supply-chain integrity snapshot payload budget",
             summary.get("builtin_payload_within_budget") is True,
             (
                 "built-in app package payload stays within the public wheel budget"
@@ -286,7 +290,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         ),
         _check_result(
             "supply_chain_attestation_no_execution",
-            "Supply-chain attestation no execution",
+            "Supply-chain integrity snapshot no execution",
             summary.get("command_execution_count") == 0
             and summary.get("network_probe_count") == 0
             and summary.get("formal_supply_chain_attestation") is False,
@@ -296,9 +300,9 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         ),
         _check_result(
             "supply_chain_attestation_persistence",
-            "Supply-chain attestation persistence",
+            "Supply-chain integrity snapshot persistence",
             proof["round_trip_ok"] and Path(proof["path"]).is_file(),
-            "supply-chain attestation is unchanged after JSON write/read",
+            "supply-chain integrity snapshot is unchanged after JSON write/read",
             evidence=[proof["path"]],
             details={"path": proof["path"], "round_trip_ok": proof["round_trip_ok"]},
         ),
@@ -307,7 +311,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
     passed = sum(1 for check in checks if check["status"] == "pass")
     failed = sum(1 for check in checks if check["status"] == "fail")
     return {
-        "report": "Supply-chain attestation report",
+        "report": "Supply-chain integrity snapshot report",
         "status": "pass" if failed == 0 else "fail",
         "scope": (
             "Fingerprints package metadata, lockfile, license, bundled AGI core "
@@ -394,7 +398,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Emit AGILAB static supply-chain attestation evidence."
+        description="Emit AGILAB static supply-chain integrity snapshot evidence."
     )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--compact", action="store_true")

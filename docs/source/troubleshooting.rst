@@ -126,7 +126,7 @@ your server IP and adjust mount paths as needed. The default ``AGI_CLUSTER_SHARE
 and writable on every node: ``AgiEnv`` now fails fast instead of silently falling back
 to ``AGI_LOCAL_SHARE`` or ``$HOME/localshare``. Ensure the chosen path exists and is writable.
 In remote-worker mode, keep ``AGI_CLUSTER_SHARE`` as the scheduler-side share root and
-use **Workers Data Path** for the worker-visible SSHFS mount target; AGILAB preserves an
+use **Workflow share root** for the worker-visible SSHFS mount target; AGILAB preserves an
 existing scheduler share when those paths intentionally differ.
 If you override the default in a multi-user setup, keep one exported share root per user
 instead of pointing several operators at the same writable cluster-share directory.

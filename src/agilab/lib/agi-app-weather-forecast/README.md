@@ -33,8 +33,8 @@ package in isolation.
 
 ## Run In AGILAB
 
-Select `weather_forecast_project`, open `ORCHESTRATE`, then run `INSTALL` and
-`EXECUTE`. Open `view_forecast_analysis` from `ANALYSIS`; use
+Select `weather_forecast_project`, open `ORCHESTRATE`, then run `Deploy scheduler & workers` and
+`RUN`. Open `view_forecast_analysis` from `ANALYSIS`; use
 `view_release_decision` when you want baseline-versus-candidate promotion
 evidence.
 

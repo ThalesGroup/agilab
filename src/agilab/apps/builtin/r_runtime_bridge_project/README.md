@@ -22,7 +22,7 @@ AGILAB still owns orchestration, artifacts, manifests, and reducer evidence.
 1. Install `Rscript` and the R package `jsonlite`.
 2. Select `r_runtime_bridge_project` in `PROJECT`.
 3. Open `ORCHESTRATE`.
-4. Keep the default payload and run `INSTALL`, then `EXECUTE`.
+4. Keep the default payload and run `Deploy scheduler & workers`, then `RUN`.
 
 ## Expected Inputs
 

@@ -4,7 +4,7 @@
 <defs><linearGradient id="panelGradient" x1="0" x2="1"><stop offset="0" stop-color="#1f2c2f"/><stop offset="0.55" stop-color="#0f3033"/><stop offset="1" stop-color="#243b24"/></linearGradient></defs>
 <rect x="0" y="0" width="1440" height="850" rx="0" fill="#07111f"/>
 <rect x="0" y="0" width="300" height="850" rx="0" fill="#10293b"/>
-<text x="20" y="46" font-size="26" font-weight="700" fill="#c9d3d7" text-anchor="start">AGI Lab</text>
+<text x="20" y="46" font-size="26" font-weight="700" fill="#c9d3d7" text-anchor="start">AGILAB</text>
 <rect x="20" y="77" width="260" height="28" rx="6" fill="#38546c"/>
 <text x="28" y="94" font-size="14" font-weight="800" fill="#f7f7f2" text-anchor="start">PROJECT</text>
 <text x="28" y="128" font-size="14" font-weight="500" fill="#d6dde0" text-anchor="start">ORCHESTRATE</text>

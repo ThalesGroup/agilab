@@ -1,5 +1,5 @@
 [project]
-name = "uav_queue_project"
+name = "uav_queue_worker"
 version = "2026.05.30.post1"
 description = "Built-in AGILAB lightweight UAV relay queue example"
 requires-python = ">=3.13"

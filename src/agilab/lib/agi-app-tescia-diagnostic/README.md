@@ -55,8 +55,8 @@ a locally built wheel.
 
 ## Run In AGILAB
 
-Select `tescia_diagnostic_project`, open `ORCHESTRATE`, then run `INSTALL` and
-`EXECUTE` with bundled cases. Inspect the exported reports under `ANALYSIS` or
+Select `tescia_diagnostic_project`, open `ORCHESTRATE`, then run `Deploy scheduler & workers` and
+`RUN` with bundled cases. Inspect the exported reports under `ANALYSIS` or
 the project output directory. The argument form includes the student-answer JSON
 contract used for self-evaluation.
 For a classroom batch, select `Bundled classroom sample` in ORCHESTRATE, or

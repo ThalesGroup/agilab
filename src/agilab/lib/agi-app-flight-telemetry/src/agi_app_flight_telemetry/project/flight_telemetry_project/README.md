@@ -25,7 +25,7 @@ analysis views over the produced flight dataframe.
 
 1. Select `flight_telemetry_project` in `PROJECT`.
 2. Open `ORCHESTRATE` and review the input path.
-3. Run `INSTALL`, then `EXECUTE`.
+3. Run `Deploy scheduler & workers`, then `RUN`.
 4. Open `WORKFLOW` to inspect or extend the generated recipe.
 5. Open `ANALYSIS`, then use `view_maps` or `view_maps_network`.
 
@@ -57,7 +57,7 @@ analysis views should update while the reducer contract remains the same.
 
 ## Troubleshooting
 
-If `ANALYSIS` shows no map data, confirm that `EXECUTE` produced dataframe
+If `ANALYSIS` shows no map data, confirm that `RUN` produced dataframe
 artifacts before opening the page. If a notebook import does not suggest flight
 views, check `notebook_import_views.toml` instead of hard-coding page names.
 

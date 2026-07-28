@@ -39,16 +39,16 @@ Before configuring distributed workers, make sure the environment is ready:
   notation whenever the username is not obvious.
 - A shared writable cluster path is visible on every node. The scheduler-side
   root is ``AGI_CLUSTER_SHARE``; remote workers can see the same backing storage
-  through an SSHFS mount at **Workers Data Path**. In cluster mode, do not rely
+  through an SSHFS mount at **Workflow share root**. In cluster mode, do not rely
   on ``AGI_LOCAL_SHARE`` as a fallback.
-- For remote workers, **Workers Data Path** is the worker-visible mount target,
+- For remote workers, **Workflow share root** is the worker-visible mount target,
   not a request to rewrite the scheduler-side ``AGI_CLUSTER_SHARE``. If the
   scheduler already points ``AGI_CLUSTER_SHARE`` at an absolute share root, AGILAB
   keeps that root and passes the worker-side path separately.
 - The shared-path rule above applies to remote workers. For a local-only Dask
   cluster, where workers are ``127.0.0.1`` or ``localhost``, the scheduler and
   workers share the same local filesystem. ``AGI_CLUSTER_SHARE`` may therefore
-  be a normal local path, including APFS on macOS, and **Workers Data Path** does
+  be a normal local path, including APFS on macOS, and **Workflow share root** does
   not need to point to an SSHFS mount.
 - In multi-user environments, each operator uses a separate cluster-share root.
   Do not let several users write into the same ``AGI_CLUSTER_SHARE`` tree.
@@ -187,7 +187,7 @@ Use this short checklist the first time:
 
 1. In **ORCHESTRATE**, open **System settings** and enter the scheduler host and
    worker map.
-2. Use **INSTALL** to stage the worker runtime on the selected machines.
+2. Use **Deploy scheduler & workers** to stage the worker runtime on the selected machines.
 3. Use **CHECK DISTRIBUTE** to inspect the generated ``AGI.get_distrib(...)``
    plan and confirm the partitions land on the intended workers.
 4. Use **RUN** to generate the current ``AGI.run(...)`` snippet for that setup.
@@ -307,14 +307,14 @@ Use these habits to keep distributed runs predictable:
 - Start with one local scheduler and one remote worker before scaling to many
   nodes.
 - Treat ``AGI_CLUSTER_SHARE`` as the scheduler-side source path and
-  **Workers Data Path** as the worker-side SSHFS mount target. These paths may
+  **Workflow share root** as the worker-side SSHFS mount target. These paths may
   differ on mixed operating systems, for example a macOS scheduler path mounted
   under a Linux worker home directory, but they must expose the same backing
-  storage after SSHFS is mounted. Do not use **Workers Data Path** to replace a
+  storage after SSHFS is mounted. Do not use **Workflow share root** to replace a
   preconfigured scheduler share root.
 - Keep local-only and remote-worker clusters distinct. Local-only clusters can
   use a local ``AGI_CLUSTER_SHARE`` path directly; remote-worker clusters need a
-  worker-visible shared mount target in **Workers Data Path**.
+  worker-visible shared mount target in **Workflow share root**.
 - Keep worker SSHFS prerequisites explicit: ``sshfs`` must be installed, the
   worker must be able to SSH back to the scheduler, and the scheduler host key
   should already be present in the worker ``known_hosts`` file. AGILAB uses
@@ -323,7 +323,7 @@ Use these habits to keep distributed runs predictable:
 - Keep cluster share and local share conceptually separate. In cluster mode,
   outputs should land on the shared cluster path, not silently on local-only
   storage.
-- Re-run **INSTALL** after dependency changes, worker-environment changes, or
+- Re-run **Deploy scheduler & workers** after dependency changes, worker-environment changes, or
   app updates that affect imports.
 - Use **CHECK DISTRIBUTE** before expensive runs so the partitioning matches the
   intended worker layout.
@@ -337,18 +337,18 @@ Troubleshooting
 
 Common distributed setup failures usually fall into one of these categories:
 
-- **INSTALL hangs or never starts remotely**: verify SSH reachability, keys, and
+- **Deploy scheduler & workers hangs or never starts remotely**: verify SSH reachability, keys, and
   host trust.
 - **Workers do not join the scheduler**: verify the scheduler host is reachable
   from the workers and that the worker host definitions are correct.
 - **Outputs go to the wrong place**: verify cluster mode is enabled, the
   scheduler ``AGI_CLUSTER_SHARE`` is mounted on each remote worker with SSHFS,
-  and **Workers Data Path** matches the worker-visible mount target.
+  and **Workflow share root** matches the worker-visible mount target.
 - **Remote import errors after a successful install**: verify the worker
   environment was rebuilt from the current app and that dependencies are
   declared in the correct ``pyproject.toml`` scope.
 - **Remote Dask worker never attaches and logs mention ``Failed to spawn:
-  dask``**: re-run **INSTALL** with the current AGILAB version so the generated
+  dask``**: re-run **Deploy scheduler & workers** with the current AGILAB version so the generated
   worker environment is recreated and receives ``dask[distributed]``. This is
   part of AGILAB cluster deployment, not a dependency every app should carry.
 - **WORKFLOW runs stale cluster code**: regenerate or re-import the snippet from

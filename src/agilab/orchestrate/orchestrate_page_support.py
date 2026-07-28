@@ -635,7 +635,7 @@ def build_run_snippet(
         f"        mode={run_mode!r},",
         f"        scheduler={scheduler},",
         f"        workers={workers},",
-        f"        workers_data_path={workers_data_path_expr},",
+        f"        workflow_share_root={workers_data_path_expr},",
         f"        rapids_enabled={bool(rapids_enabled)!r},",
         f"        benchmark_best_single_node={bool(benchmark_best_single_node)!r},",
         "    )",
@@ -903,16 +903,16 @@ def benchmark_workers_data_path_issue(
     data_path_text = str(workers_data_path or "").strip()
     if not data_path_text or data_path_text.lower() == "none":
         return (
-            "Benchmark modes using Dask with non-local workers require Workers Data Path. "
-            "Use a shared path visible from the remote workers."
+            "Benchmark modes using Dask with non-local workers require a workflow share root. "
+            "Use a shared path visible from the manager and remote workers."
         )
 
     data_path = _resolved_path(data_path_text)
     local_share = _resolved_path(local_share_path)
     if data_path is not None and local_share is not None and data_path == local_share:
         return (
-            "Workers Data Path points to the local share. For Dask benchmark modes with "
-            "non-local workers, use a shared workers path instead of the manager-local path."
+            "Workflow share root points to the local share. For Dask benchmark modes with "
+            "non-local workers, use a shared workflow path instead of the manager-local path."
         )
     return ""
 

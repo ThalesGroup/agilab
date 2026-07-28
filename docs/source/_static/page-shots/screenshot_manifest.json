@@ -20,8 +20,8 @@
       ],
       "svg_summary_kind": "screenshot-derived-vector-summary",
       "svg_summary_path": "analysis-page.svg",
-      "svg_summary_sha256": "d9dc8373933b3545ae8411e60096b7f806aa4744c90c1162300a1fddf19f0081",
-      "svg_summary_size_bytes": 5491,
+      "svg_summary_sha256": "3b8c6b7c763532bac382fe3abdf5c4f30c67be99b72017123e68a8d393269e88",
+      "svg_summary_size_bytes": 5490,
       "url": "",
       "width_px": 1440
     },
@@ -40,8 +40,8 @@
       ],
       "svg_summary_kind": "screenshot-derived-vector-summary",
       "svg_summary_path": "core-pages-overview.svg",
-      "svg_summary_sha256": "e95559eec36c82452cf4e867e6563d334d3623b1ae553941a153eac2a7c3600a",
-      "svg_summary_size_bytes": 8321,
+      "svg_summary_sha256": "69a51ee01767519283b033df9387c78ffcc0b96559a4f7f4e4f9a8c3b7ab3e3c",
+      "svg_summary_size_bytes": 8349,
       "url": "",
       "width_px": 1440
     },
@@ -60,8 +60,8 @@
       ],
       "svg_summary_kind": "screenshot-derived-vector-summary",
       "svg_summary_path": "orchestrate-page.svg",
-      "svg_summary_sha256": "ae742b612cb359438734be4e21e2fd11bcaf7e2283f5c3473a4ea64f75ca7cdb",
-      "svg_summary_size_bytes": 5637,
+      "svg_summary_sha256": "007fb15666b896571eb8b1e85b378663de06b901c36ded2236b239dd18247e04",
+      "svg_summary_size_bytes": 5640,
       "url": "",
       "width_px": 1440
     },
@@ -80,8 +80,8 @@
       ],
       "svg_summary_kind": "screenshot-derived-vector-summary",
       "svg_summary_path": "project-create-page.svg",
-      "svg_summary_sha256": "e3abe232bfc8fd8c0d1fdb8290010af2786bac0ad78536de7a6b0f4a592db916",
-      "svg_summary_size_bytes": 6976,
+      "svg_summary_sha256": "b0621e58ad63b7f70adeb10a151586cad6e5fefecdbf16e617df0b46a4de321a",
+      "svg_summary_size_bytes": 6975,
       "url": "",
       "width_px": 1440
     },
@@ -100,8 +100,8 @@
       ],
       "svg_summary_kind": "screenshot-derived-vector-summary",
       "svg_summary_path": "project-page.svg",
-      "svg_summary_sha256": "77ad6c8bbdb1b2fa222c3d29a2e9f50230aded30f9cda44bae3d211c9862793f",
-      "svg_summary_size_bytes": 8519,
+      "svg_summary_sha256": "4374b08229304aa0e7d7e76a94b018f56dad88e1edc6e0d9a4797b43fcbb7076",
+      "svg_summary_size_bytes": 8518,
       "url": "",
       "width_px": 1440
     },
@@ -120,8 +120,8 @@
       ],
       "svg_summary_kind": "screenshot-derived-vector-summary",
       "svg_summary_path": "workflow-page.svg",
-      "svg_summary_sha256": "32ced868e57f15534e282833228267115d66740e68346feb6b5bfb7cfe13ba1d",
-      "svg_summary_size_bytes": 6270,
+      "svg_summary_sha256": "7d6d1968236d91667b9e8d43fd50ace51ffd168f43d83966c4ea62e8c3b9eb96",
+      "svg_summary_size_bytes": 6269,
       "url": "",
       "width_px": 1440
     }

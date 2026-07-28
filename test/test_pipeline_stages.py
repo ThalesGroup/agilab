@@ -745,7 +745,7 @@ def test_pipeline_stages_virtualenv_helpers_and_guidance(tmp_path):
     assert env_root.resolve() in roots
     assert (child / ".venv").resolve() in roots
     assert pipeline_stages._normalize_venv_root(tmp_path / "missing") is None
-    assert "Run INSTALL" in pipeline_stages.snippet_source_guidance(False, "flight_telemetry_project")
+    assert "Run Deploy scheduler & workers" in pipeline_stages.snippet_source_guidance(False, "flight_telemetry_project")
     assert "Snippets are refreshed" in pipeline_stages.snippet_source_guidance(True, "flight_telemetry_project")
 
 

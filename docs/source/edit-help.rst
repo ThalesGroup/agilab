@@ -39,8 +39,8 @@ Sidebar
     symlink. It is fast and lightweight, but deleting or rebuilding the source
     environment can break the clone too.
   - ``Working clone (no shared .venv)`` creates the project without a shared
-    ``.venv``. This is the safer choice for real development; run ``INSTALL``
-    before ``EXECUTE`` to recreate the environment for the clone.
+    ``.venv``. This is the safer choice for real development; run ``Deploy scheduler & workers``
+    before ``RUN`` to recreate the environment for the clone.
 
 - ``Rename`` now preserves the existing project ``.venv`` while switching the
   project folder to the new name, then removes the original folder and switches
@@ -74,8 +74,8 @@ What to do next:
 
 - If you chose ``Temporary clone``, you can usually inspect or edit the clone
   immediately.
-- If you chose ``Working clone``, go to :doc:`execute-help`, run ``INSTALL``,
-  then run ``EXECUTE`` before expecting the clone to behave like the source
+- If you chose ``Working clone``, go to :doc:`execute-help`, run ``Deploy scheduler & workers``,
+  then run ``RUN`` before expecting the clone to behave like the source
   project.
 - If the clone should expose optional analysis bundles, open ``APP-SETTINGS``
   and check the ``[pages]`` section.

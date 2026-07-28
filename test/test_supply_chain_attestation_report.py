@@ -8,6 +8,7 @@ import pytest
 
 
 REPORT_PATH = Path("tools/supply_chain_attestation_report.py").resolve()
+CANONICAL_REPORT_PATH = Path("tools/supply_chain_integrity_report.py").resolve()
 CORE_PATH = Path("src/agilab/supply_chain_attestation.py").resolve()
 
 
@@ -35,7 +36,7 @@ def supply_chain_attestation_artifacts(tmp_path_factory):
 
 def test_supply_chain_attestation_report_passes_contract(supply_chain_attestation_artifacts) -> None:
     report, _state = supply_chain_attestation_artifacts
-    assert report["report"] == "Supply-chain attestation report"
+    assert report["report"] == "Supply-chain integrity snapshot report"
     assert report["status"] == "pass"
     assert report["summary"]["schema"] == "agilab.supply_chain_attestation.v1"
     assert report["summary"]["execution_mode"] == "supply_chain_static_attestation"
@@ -83,6 +84,25 @@ def test_supply_chain_attestation_report_passes_contract(supply_chain_attestatio
         "supply_chain_attestation_persistence",
         "supply_chain_attestation_docs_reference",
     }
+
+
+def test_supply_chain_integrity_report_is_canonical_compatibility_surface(tmp_path: Path) -> None:
+    module = _load_module(
+        CANONICAL_REPORT_PATH, "supply_chain_integrity_report_test_module"
+    )
+
+    report = module.build_report(
+        repo_root=Path.cwd(),
+        output_path=tmp_path / "supply_chain_integrity_snapshot.json",
+    )
+
+    assert report["report"] == "Supply-chain integrity snapshot report"
+    assert report["summary"]["canonical_schema"] == (
+        "agilab.supply_chain_integrity_snapshot.v1"
+    )
+    assert report["summary"]["legacy_schema"] == "agilab.supply_chain_attestation.v1"
+    assert report["summary"]["evidence_kind"] == "inventory_snapshot"
+    assert report["summary"]["formal_supply_chain_attestation"] is False
 
 
 def test_supply_chain_attestation_records_core_and_app_manifests(supply_chain_attestation_artifacts) -> None:

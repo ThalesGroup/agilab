@@ -64,3 +64,19 @@ def test_run_request_with_execution_updates_only_runtime_controls() -> None:
     assert request.mode == 0
     with pytest.raises(TypeError, match="Unknown execution field"):
         request.with_execution(params={"seed": 1})
+
+
+def test_run_request_uses_workflow_share_root_with_legacy_alias() -> None:
+    request = RunRequest(workflow_share_root="clustershare/user/workflow/session")
+
+    assert request.workflow_share_root == "clustershare/user/workflow/session"
+    assert request.workers_data_path == "clustershare/user/workflow/session"
+    assert request.with_execution(workers_data_path="clustershare/other").workflow_share_root == (
+        "clustershare/other"
+    )
+
+    legacy = RunRequest(workers_data_path="clustershare/legacy")
+    assert legacy.workflow_share_root == "clustershare/legacy"
+
+    with pytest.raises(ValueError, match="must match"):
+        RunRequest(workflow_share_root="clustershare/new", workers_data_path="clustershare/old")
