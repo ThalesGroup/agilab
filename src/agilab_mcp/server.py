@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import sys
 from typing import Any, Callable, Mapping
@@ -11,6 +12,15 @@ from agilab_mcp import manifest_tools
 
 
 ToolFn = Callable[..., dict[str, Any]]
+
+# Standard JSON-RPC 2.0 error codes. Every failure previously reported -32000,
+# so clients could not tell a malformed request from a server fault.
+JSONRPC_PARSE_ERROR = -32700
+JSONRPC_INVALID_REQUEST = -32600
+JSONRPC_METHOD_NOT_FOUND = -32601
+JSONRPC_INVALID_PARAMS = -32602
+JSONRPC_INTERNAL_ERROR = -32603
+JSONRPC_SERVER_ERROR = -32000
 
 
 def _agent_quickstart(**kwargs: Any) -> dict[str, Any]:
@@ -263,7 +273,10 @@ def call_tool(name: str, arguments: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _jsonrpc_response(
-    request_id: Any, result: Any = None, error: Any = None, error_code: int = -32000
+    request_id: Any,
+    result: Any = None,
+    error: Any = None,
+    error_code: int = JSONRPC_SERVER_ERROR,
 ) -> dict[str, Any]:
     response = {"jsonrpc": "2.0", "id": request_id}
     if error is not None:
@@ -271,6 +284,65 @@ def _jsonrpc_response(
     else:
         response["result"] = result
     return response
+
+
+def _tool_content(payload: Any, *, is_error: bool = False) -> dict[str, Any]:
+    """Wrap a tool outcome in an MCP ``tools/call`` result.
+
+    Tool *execution* failures are reported here with ``isError`` rather than as
+    a JSON-RPC error, so the calling model sees the message and can correct
+    itself. A JSON-RPC error means the request never ran, which a client is
+    entitled to treat as a transport fault.
+    """
+
+    text = payload if isinstance(payload, str) else json.dumps(payload, sort_keys=True)
+    result: dict[str, Any] = {"content": [{"type": "text", "text": text}]}
+    if is_error:
+        result["isError"] = True
+    return result
+
+
+def _handle_tools_call(request_id: Any, params: Any) -> dict[str, Any]:
+    if not isinstance(params, Mapping):
+        return _jsonrpc_response(
+            request_id,
+            error="tools/call params must be an object",
+            error_code=JSONRPC_INVALID_PARAMS,
+        )
+
+    name = str(params.get("name", ""))
+    tool = TOOLS.get(name)
+    if tool is None:
+        return _jsonrpc_response(
+            request_id,
+            error=f"Unknown AGILAB MCP tool: {name}",
+            error_code=JSONRPC_INVALID_PARAMS,
+        )
+
+    arguments = params.get("arguments") or {}
+    if not isinstance(arguments, Mapping):
+        return _jsonrpc_response(
+            request_id,
+            error="tools/call arguments must be an object",
+            error_code=JSONRPC_INVALID_PARAMS,
+        )
+
+    # Bind before calling so an argument-shape mistake is reported as invalid
+    # params, and is not confused with a TypeError raised inside the tool.
+    try:
+        inspect.signature(tool).bind(**dict(arguments))
+    except TypeError as exc:
+        return _jsonrpc_response(
+            request_id, error=exc, error_code=JSONRPC_INVALID_PARAMS
+        )
+
+    try:
+        result = tool(**dict(arguments))
+    except Exception as exc:  # noqa: BLE001 - surfaced to the model as a tool error
+        return _jsonrpc_response(
+            request_id, _tool_content(f"{type(exc).__name__}: {exc}", is_error=True)
+        )
+    return _jsonrpc_response(request_id, _tool_content(result))
 
 
 def handle_jsonrpc(payload: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -298,25 +370,18 @@ def handle_jsonrpc(payload: Mapping[str, Any]) -> dict[str, Any] | None:
         if method == "tools/list":
             return _jsonrpc_response(request_id, {"tools": tool_descriptors()})
         if method == "tools/call":
-            params = payload.get("params") or {}
-            if not isinstance(params, Mapping):
-                raise ValueError("tools/call params must be an object")
-            result = call_tool(
-                str(params.get("name", "")), params.get("arguments") or {}
-            )
-            return _jsonrpc_response(
-                request_id,
-                {
-                    "content": [
-                        {"type": "text", "text": json.dumps(result, sort_keys=True)}
-                    ]
-                },
-            )
+            return _handle_tools_call(request_id, payload.get("params") or {})
         if method == "notifications/initialized":
             return None
-        raise ValueError(f"Unsupported method: {method}")
-    except Exception as exc:
-        return _jsonrpc_response(request_id, error=exc)
+        return _jsonrpc_response(
+            request_id,
+            error=f"Unsupported method: {method}",
+            error_code=JSONRPC_METHOD_NOT_FOUND,
+        )
+    except Exception as exc:  # noqa: BLE001 - last-resort server fault
+        return _jsonrpc_response(
+            request_id, error=exc, error_code=JSONRPC_INTERNAL_ERROR
+        )
 
 
 def serve_stdio(stdin: Any = sys.stdin, stdout: Any = sys.stdout) -> int:
@@ -329,14 +394,14 @@ def serve_stdio(stdin: Any = sys.stdin, stdout: Any = sys.stdout) -> int:
             response = _jsonrpc_response(
                 None,
                 error=f"Parse error: {exc.msg}",
-                error_code=-32700,
+                error_code=JSONRPC_PARSE_ERROR,
             )
         else:
             if not isinstance(payload, Mapping):
                 response = _jsonrpc_response(
                     None,
                     error="Invalid request",
-                    error_code=-32600,
+                    error_code=JSONRPC_INVALID_REQUEST,
                 )
             else:
                 response = handle_jsonrpc(payload)
