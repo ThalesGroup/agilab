@@ -151,6 +151,7 @@ def _handle_data_root_failure(
 
     agi_env_cls._ensure_defaults()
     active_env_file_path = (env_file_path or ENV_FILE_PATH).expanduser()
+    home_path = Path(getattr(agi_env_cls, "home_abs", None) or Path.home())
     try:
         persisted_value = _load_env_file_map(active_env_file_path).get("AGI_CLUSTER_SHARE", "")
     except (OSError, RuntimeError, TypeError, ValueError):
@@ -166,7 +167,7 @@ def _handle_data_root_failure(
     if current_value:
         try:
             share_dir_path: Path | None = _resolve_share_dir_path(
-                str(current_value), home_path=Path(agi_env_cls.home_abs)
+                str(current_value), home_path=home_path
             )
         except ValueError:
             share_dir_path = Path(str(current_value)).expanduser()
@@ -201,7 +202,7 @@ def _handle_data_root_failure(
             st.warning("AGI_CLUSTER_SHARE cannot be empty.")
         else:
             try:
-                _resolve_share_dir_path(new_value, home_path=Path(agi_env_cls.home_abs))
+                _resolve_share_dir_path(new_value, home_path=home_path)
             except ValueError as share_exc:
                 st.warning(str(share_exc))
                 return True

@@ -264,7 +264,12 @@ def _make_bootstrap_ports(
     ):
         @classmethod
         def session(cls, *args, **kwargs):
+            active_app = kwargs.pop("active_app", None)
+            if active_app is not None:
+                kwargs["app"] = Path(active_app).name
             env = cls(*args, **kwargs)
+            if active_app is not None:
+                env.active_app = Path(active_app)
             env._agilab_session_scoped = True
             return env
 
@@ -279,6 +284,15 @@ def _make_bootstrap_ports(
         environ=environ if environ is not None else {},
     )
     return ports, calls
+
+
+@pytest.fixture(autouse=True)
+def _isolate_bootstrap_installed_provider_discovery(monkeypatch):
+    monkeypatch.setattr(
+        about_agilab._about_bootstrap,
+        "discover_installed_app_projects",
+        lambda: (),
+    )
 
 
 def _event_index(events: list[tuple[str, str]], kind: str, text: str) -> int:
@@ -1530,7 +1544,7 @@ def test_bootstrap_page_environment_keeps_source_root_when_last_app_is_agi_space
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {},
+        load_env_file_map=lambda _path, **_kwargs: {},
         logger=object(),
         apply_active_app_request=apply_request,
         handle_data_root_failure=lambda *_args, **_kwargs: False,
@@ -1543,7 +1557,7 @@ def test_bootstrap_page_environment_keeps_source_root_when_last_app_is_agi_space
 
     assert result.env.active_app == source_project
     assert result.env.apps_path == source_apps
-    assert requested_apps == ["flight_telemetry_project"]
+    assert requested_apps == []
     assert port_calls.stored == [source_project]
     assert fake_st.query_params["active_app"] == "flight_telemetry_project"
 
@@ -1572,7 +1586,13 @@ def test_bootstrap_page_environment_repairs_enduser_env_before_source_agi_env_in
             events.append(("set", f"{key}={value}"))
             cls.persisted[key] = value
 
-        def __init__(self, *, apps_path: Path, verbose: int = 1):
+        def __init__(
+            self,
+            *,
+            apps_path: Path,
+            app: str = "flight_telemetry_project",
+            verbose: int = 1,
+        ):
             events.append(
                 ("init", f"IS_SOURCE_ENV={self.persisted.get('IS_SOURCE_ENV')}")
             )
@@ -1580,7 +1600,7 @@ def test_bootstrap_page_environment_repairs_enduser_env_before_source_agi_env_in
             self.builtin_apps_path = apps_path / "builtin"
             self.apps_repository_root = None
             self.verbose = verbose
-            self.app = "flight_telemetry_project"
+            self.app = app
             self.active_app = self.builtin_apps_path / self.app
             self.projects = {"flight_telemetry_project"}
             self.is_source_env = self.persisted.get("IS_SOURCE_ENV") == "1"
@@ -1604,7 +1624,7 @@ def test_bootstrap_page_environment_repairs_enduser_env_before_source_agi_env_in
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {
+        load_env_file_map=lambda _path, **_kwargs: {
             "APPS_PATH": str(stale_apps),
             "IS_SOURCE_ENV": "0",
             "IS_WORKER_ENV": "0",
@@ -1765,10 +1785,15 @@ def test_bootstrap_page_environment_handles_cluster_share_startup_error(
     monkeypatch, tmp_path
 ):
     bootstrap = about_agilab._about_bootstrap
+    (tmp_path / "apps/flight_telemetry_project").mkdir(parents=True)
     generic_recovery_calls: list[dict[str, object]] = []
+    constructed_apps: list[str] = []
 
     class FailingAgiEnv:
-        def __init__(self, *_args, **_kwargs):
+        def __init__(self, *, apps_path: Path, app: str, verbose: int):
+            assert apps_path == tmp_path / "apps"
+            assert verbose == 1
+            constructed_apps.append(app)
             raise RuntimeError(
                 "Cluster mode requires AGI_CLUSTER_SHARE to be mounted and writable. "
                 "Configured AGI_CLUSTER_SHARE='/missing/share' is not usable; env=/tmp/.env"
@@ -1779,7 +1804,6 @@ def test_bootstrap_page_environment_handles_cluster_share_startup_error(
     )
     ports, _port_calls = _make_bootstrap_ports(FailingAgiEnv)
     fake_st = _FakeStreamlit()
-    fake_st.query_params["active_app"] = "flight_telemetry_project"
 
     def render_share_override(exc, **kwargs):
         generic_recovery_calls.append({"exc": exc, **kwargs})
@@ -1788,7 +1812,7 @@ def test_bootstrap_page_environment_handles_cluster_share_startup_error(
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {},
+        load_env_file_map=lambda _path, **_kwargs: {},
         logger=object(),
         apply_active_app_request=lambda *_args: False,
         handle_data_root_failure=render_share_override,
@@ -1801,7 +1825,10 @@ def test_bootstrap_page_environment_handles_cluster_share_startup_error(
 
     assert result.handled_recovery is True
     assert fake_st.stopped is True
+    assert constructed_apps == ["flight_telemetry_project"]
     error_message = _event_body(fake_st.events, "error", "Cluster mode is enabled")
+    expected_settings = tmp_path / "apps/flight_telemetry_project/app_settings.toml"
+    assert f"Workspace settings: `{expected_settings}`" in error_message
     assert "Disable cluster mode and reload" in [
         body for kind, body in fake_st.events if kind == "button"
     ]
@@ -1865,6 +1892,130 @@ user = "agi"
     assert fake_st.stopped is False
 
 
+def test_bootstrap_cluster_share_recovery_seeds_source_settings_on_first_click(
+    tmp_path,
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    project_path = apps_path / "builtin/flight_telemetry_project"
+    source_settings = project_path / "src/app_settings.toml"
+    source_settings.parent.mkdir(parents=True)
+    source_settings.write_text(
+        '[args]\ndata_in = "flight_telemetry/dataset"\n\n'
+        "[cluster]\ncluster_enabled = true\nworkers = 4\n",
+        encoding="utf-8",
+    )
+    construction_targets: list[Path] = []
+
+    class FailingAgiEnv:
+        @classmethod
+        def session(cls, *, apps_path: Path, active_app: Path, verbose: int):
+            assert apps_path == tmp_path / "apps"
+            assert verbose == 1
+            construction_targets.append(Path(active_app))
+            raise RuntimeError(
+                "Cluster mode requires AGI_CLUSTER_SHARE to be mounted and writable. "
+                "Configured AGI_CLUSTER_SHARE='/missing/share' is not usable"
+            )
+
+        @staticmethod
+        def set_env_var(_key: str, _value: str) -> None:
+            return None
+
+    fake_st = _FakeStreamlit(button_values={"Disable cluster mode and reload": True})
+    ports, _calls = _make_bootstrap_ports(FailingAgiEnv, last_app=None, environ={})
+    env_file_path = tmp_path / ".agilab/.env"
+
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=env_file_path,
+        load_env_file_map=lambda _path, **_kwargs: {},
+        logger=None,
+        apply_active_app_request=lambda *_args: False,
+        handle_data_root_failure=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError(
+                "successful app-local recovery must not use generic recovery"
+            )
+        ),
+        refresh_env_from_file=lambda _env: None,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+        argv=["--apps-path", str(apps_path)],
+        ports=ports,
+    )
+
+    workspace_settings = (
+        tmp_path / ".agilab/apps/flight_telemetry_project/app_settings.toml"
+    )
+    payload = tomllib.loads(workspace_settings.read_text(encoding="utf-8"))
+    assert result.handled_recovery is True
+    assert construction_targets == [project_path.resolve()]
+    assert payload["args"] == {"data_in": "flight_telemetry/dataset"}
+    assert payload["cluster"] == {"cluster_enabled": False, "workers": 4}
+    assert "cluster_enabled = true" in source_settings.read_text(encoding="utf-8")
+    assert ("rerun", "") in fake_st.events
+    assert fake_st.stopped is False
+
+
+def test_bootstrap_cluster_share_recovery_creates_source_less_workspace_on_click(
+    tmp_path,
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    project_path = apps_path / "builtin/source_less_project"
+    (project_path / "src").mkdir(parents=True)
+    construction_targets: list[Path] = []
+
+    class FailingAgiEnv:
+        @classmethod
+        def session(cls, *, apps_path: Path, active_app: Path, verbose: int):
+            assert apps_path == tmp_path / "apps"
+            assert verbose == 1
+            construction_targets.append(Path(active_app))
+            raise RuntimeError(
+                "Cluster mode requires AGI_CLUSTER_SHARE to be mounted and writable. "
+                "Configured AGI_CLUSTER_SHARE='/missing/share' is not usable"
+            )
+
+        @staticmethod
+        def set_env_var(_key: str, _value: str) -> None:
+            return None
+
+    fake_st = _FakeStreamlit(
+        button_values={"Disable cluster mode and reload": True},
+    )
+    fake_st.query_params["active_app"] = "source_less_project"
+    ports, _calls = _make_bootstrap_ports(FailingAgiEnv, last_app=None, environ={})
+    env_file_path = tmp_path / ".agilab/.env"
+
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=env_file_path,
+        load_env_file_map=lambda _path, **_kwargs: {"AGI_CLUSTER_ENABLED": "true"},
+        logger=None,
+        apply_active_app_request=lambda *_args: False,
+        handle_data_root_failure=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError(
+                "successful app-local recovery must not use generic recovery"
+            )
+        ),
+        refresh_env_from_file=lambda _env: None,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+        argv=["--apps-path", str(apps_path)],
+        ports=ports,
+    )
+
+    workspace_settings = tmp_path / ".agilab/apps/source_less_project/app_settings.toml"
+    assert result.handled_recovery is True
+    assert construction_targets == [project_path.resolve()]
+    workspace_payload = tomllib.loads(workspace_settings.read_text(encoding="utf-8"))
+    assert workspace_payload["cluster"] == {"cluster_enabled": False}
+    assert (project_path / "src/app_settings.toml").exists() is False
+    assert ("rerun", "") in fake_st.events
+    assert fake_st.stopped is False
+
+
 def test_bootstrap_cluster_share_recovery_handles_disabled_missing_and_write_errors(
     tmp_path, monkeypatch
 ):
@@ -1876,7 +2027,31 @@ def test_bootstrap_cluster_share_recovery_handles_disabled_missing_and_write_err
             bootstrap.disable_cluster_in_app_settings(tmp_path / "missing.toml")
 
     missing_settings = tmp_path / "missing.toml"
-    assert bootstrap.disable_cluster_in_app_settings(missing_settings) is False
+    with pytest.raises(FileNotFoundError, match="complete source settings"):
+        bootstrap.disable_cluster_in_app_settings(missing_settings)
+
+    source_settings = tmp_path / "source/seeded_project/src/app_settings.toml"
+    source_settings.parent.mkdir(parents=True)
+    source_settings.write_text(
+        '[args]\ndata_in = "seeded/dataset"\n\n'
+        "[cluster]\ncluster_enabled = true\nworkers = 3\n",
+        encoding="utf-8",
+    )
+    seeded_settings = tmp_path / ".agilab/apps/seeded_project/app_settings.toml"
+    assert (
+        bootstrap.disable_cluster_in_app_settings(
+            seeded_settings,
+            source_settings_path=source_settings,
+        )
+        is True
+    )
+    seeded_payload = tomllib.loads(seeded_settings.read_text(encoding="utf-8"))
+    assert seeded_payload["args"] == {"data_in": "seeded/dataset"}
+    assert seeded_payload["cluster"] == {
+        "cluster_enabled": False,
+        "workers": 3,
+    }
+    assert "cluster_enabled = true" in source_settings.read_text(encoding="utf-8")
 
     disabled_settings = (
         tmp_path / ".agilab/apps/flight_telemetry_project/app_settings.toml"
@@ -1905,11 +2080,13 @@ def test_bootstrap_cluster_share_recovery_handles_disabled_missing_and_write_err
         args=bootstrap.parse_startup_args([]),
         ports=ports,
     )
-    assert (
-        "info",
-        f"Cluster mode was already disabled or missing in `{disabled_settings}`.",
-    ) in fake_st.events
-    assert ("rerun", "") in fake_st.events
+    assert any(
+        "Cluster mode was already disabled" in body
+        for kind, body in fake_st.events
+        if kind == "error"
+    )
+    assert ("rerun", "") not in fake_st.events
+    assert fake_st.stopped is True
 
     broken_settings = tmp_path / ".agilab/apps/broken_project/app_settings.toml"
     broken_settings.parent.mkdir(parents=True)
@@ -1917,7 +2094,7 @@ def test_bootstrap_cluster_share_recovery_handles_disabled_missing_and_write_err
     broken_st = ClickStreamlit()
     broken_st.query_params["active_app"] = "broken_project"
 
-    def raise_disable(_settings_path):
+    def raise_disable(_settings_path, **_kwargs):
         raise OSError("locked")
 
     monkeypatch.setattr(bootstrap, "disable_cluster_in_app_settings", raise_disable)
@@ -1936,46 +2113,325 @@ def test_bootstrap_cluster_share_recovery_handles_disabled_missing_and_write_err
     assert broken_st.stopped is True
 
 
-def test_bootstrap_sync_active_app_from_query_updates_query_and_store(tmp_path):
+def test_bootstrap_cluster_share_recovery_does_not_publish_seed_on_write_failure(
+    tmp_path, monkeypatch
+):
     bootstrap = about_agilab._about_bootstrap
-    apps_path = tmp_path / "apps"
-    apps_path.mkdir()
-    env = SimpleNamespace(apps_path=apps_path, app="default")
-    fake_st = SimpleNamespace(query_params={"active_app": "target"})
-    stored_paths: list[Path] = []
+    source_settings = tmp_path / "source/atomic_project/src/app_settings.toml"
+    source_settings.parent.mkdir(parents=True)
+    source_settings.write_text(
+        '[args]\ndata_in = "atomic/dataset"\n\n[cluster]\ncluster_enabled = true\n',
+        encoding="utf-8",
+    )
+    workspace_settings = tmp_path / ".agilab/apps/atomic_project/app_settings.toml"
 
-    def fake_apply_request(target_env, request_value):
-        assert target_env is env
-        assert request_value == "target"
-        target_env.app = "target"
-        return True
+    def fail_dump(_payload, _handle):
+        raise OSError("publication failed")
 
-    bootstrap.sync_active_app_from_query(
-        env,
-        streamlit=fake_st,
-        store_last_active_app=stored_paths.append,
-        apply_request=fake_apply_request,
+    monkeypatch.setattr(
+        bootstrap,
+        "_tomli_writer",
+        SimpleNamespace(dump=fail_dump),
     )
 
-    assert fake_st.query_params["active_app"] == "target"
-    assert stored_paths == [apps_path / "target"]
+    with pytest.raises(OSError, match="publication failed"):
+        bootstrap.disable_cluster_in_app_settings(
+            workspace_settings,
+            source_settings_path=source_settings,
+        )
+
+    assert workspace_settings.exists() is False
+    assert "cluster_enabled = true" in source_settings.read_text(encoding="utf-8")
+
+
+def test_bootstrap_cluster_share_recovery_fails_closed_if_selected_source_disappears(
+    tmp_path,
+):
+    bootstrap = about_agilab._about_bootstrap
+    source_settings = tmp_path / "source/vanished_project/src/app_settings.toml"
+    workspace_settings = tmp_path / ".agilab/apps/vanished_project/app_settings.toml"
+    fake_st = _FakeStreamlit(button_values={"Disable cluster mode and reload": True})
+    ports, _calls = _make_bootstrap_ports(object())
+
+    bootstrap.handle_cluster_share_startup_error(
+        streamlit=fake_st,
+        exc=RuntimeError("Cluster mode requires AGI_CLUSTER_SHARE"),
+        env_file_path=tmp_path / ".agilab/.env",
+        args=bootstrap.parse_startup_args([]),
+        ports=ports,
+        app_name="vanished_project",
+        source_settings_path=source_settings,
+        source_settings_resolved=True,
+    )
+
+    assert workspace_settings.exists() is False
+    assert any(
+        "selected source settings" in body and "no longer exist" in body
+        for kind, body in fake_st.events
+        if kind == "error"
+    )
+    assert ("rerun", "") not in fake_st.events
+    assert fake_st.stopped is True
+
+
+def test_bootstrap_cluster_share_recovery_rejects_workspace_app_symlink(
+    tmp_path,
+):
+    bootstrap = about_agilab._about_bootstrap
+    workspace_apps = tmp_path / ".agilab/apps"
+    workspace_apps.mkdir(parents=True)
+    outside_app = tmp_path / "outside/flight_telemetry_project"
+    outside_app.mkdir(parents=True)
+    outside_settings = outside_app / "app_settings.toml"
+    outside_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
+    redirected_app = workspace_apps / "flight_telemetry_project"
+    try:
+        redirected_app.symlink_to(outside_app, target_is_directory=True)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"directory symlinks are unavailable: {exc}")
+
+    fake_st = _FakeStreamlit(button_values={"Disable cluster mode and reload": True})
+    fake_st.query_params["active_app"] = "flight_telemetry_project"
+    ports, _calls = _make_bootstrap_ports(object())
+
+    bootstrap.handle_cluster_share_startup_error(
+        streamlit=fake_st,
+        exc=RuntimeError("Cluster mode requires AGI_CLUSTER_SHARE"),
+        env_file_path=tmp_path / ".agilab/.env",
+        args=bootstrap.parse_startup_args([]),
+        ports=ports,
+    )
+
+    assert outside_settings.read_text(encoding="utf-8") == (
+        "[cluster]\ncluster_enabled = true\n"
+    )
+    assert any(
+        "Automatic local recovery is unavailable" in body
+        for kind, body in fake_st.events
+        if kind == "error"
+    )
+    assert not [body for kind, body in fake_st.events if kind == "button"]
+    assert fake_st.stopped is True
+
+
+def test_bootstrap_sync_active_app_from_query_schedules_cold_transition(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    target_path = apps_path / "target_project"
+    target_path.mkdir(parents=True)
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app="default",
+        active_app=apps_path / "default",
+        _agilab_initialized=True,
+        init_done=True,
+        _agilab_authorized_app_container_roots=(apps_path,),
+    )
+    env_snapshot = dict(vars(env))
+    fake_st = _FakeStreamlit()
+    fake_st.query_params["active_app"] = "target_project"
+
+    assert bootstrap.sync_active_app_from_query(
+        env,
+        streamlit=fake_st,
+    ) is True
+
+    assert vars(env) == env_snapshot
+    assert fake_st.session_state["first_run"] is True
+    assert fake_st.query_params["active_app"] == str(target_path.resolve())
+    assert ("rerun", "") in fake_st.events
+
+
+def test_bootstrap_sync_active_app_from_query_rejects_warm_out_of_root_path(
+    tmp_path, monkeypatch
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    safe_project = apps_path / "safe_project"
+    outside_project = tmp_path / "outside/evil_project"
+    safe_project.mkdir(parents=True)
+    outside_project.mkdir(parents=True)
+    monkeypatch.setattr(bootstrap, "discover_installed_app_projects", lambda: ())
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        builtin_apps_path=apps_path / "builtin",
+        apps_repository_root=None,
+        projects={"safe_project"},
+        app="safe_project",
+        active_app=safe_project,
+        _agilab_authorized_app_container_roots=(
+            apps_path,
+            apps_path / "builtin",
+        ),
+    )
+    fake_st = _FakeStreamlit()
+    fake_st.query_params["active_app"] = str(outside_project)
+
+    assert bootstrap.sync_active_app_from_query(
+        env,
+        streamlit=fake_st,
+    ) is False
+
+    assert env.app == "safe_project"
+    assert env.active_app == safe_project
+    assert fake_st.query_params == {"active_app": "safe_project"}
+    assert ("rerun", "") not in fake_st.events
+
+
+def test_bootstrap_sync_active_app_from_query_does_not_promote_provider_parent(
+    tmp_path, monkeypatch
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    safe_project = apps_path / "safe_project"
+    provider_project = tmp_path / "providers/canonical_project"
+    unadvertised_project = provider_project.parent / "unadvertised_project"
+    for project in (safe_project, provider_project, unadvertised_project):
+        project.mkdir(parents=True)
+    installed_projects = (
+        SimpleNamespace(
+            name="canonical_project",
+            project_root=provider_project,
+            provider="advertised_project",
+        ),
+    )
+    monkeypatch.setattr(
+        bootstrap,
+        "discover_installed_app_projects",
+        lambda: installed_projects,
+    )
+
+    class FakeEnv:
+        def __init__(self):
+            self.apps_path = apps_path
+            self.builtin_apps_path = apps_path / "builtin"
+            self.apps_repository_root = None
+            self.projects = {"safe_project", "canonical_project"}
+            self.app = "safe_project"
+            self.active_app = safe_project
+            self.verbose = 1
+            self.init_done = True
+            self._agilab_authorized_app_container_roots = (
+                apps_path,
+                apps_path / "builtin",
+            )
+
+    env = FakeEnv()
+    fake_st = _FakeStreamlit()
+    fake_st.query_params["active_app"] = "advertised_project"
+
+    assert bootstrap.sync_active_app_from_query(
+        env,
+        streamlit=fake_st,
+    ) is True
+
+    assert env.app == "safe_project"
+    assert env.apps_path == apps_path
+    assert env._agilab_authorized_app_container_roots == (
+        apps_path,
+        apps_path / "builtin",
+    )
+    assert fake_st.query_params["active_app"] == str(provider_project.resolve())
+    assert fake_st.session_state["first_run"] is True
+
+    env.apps_path = provider_project.parent.resolve()
+    env.app = "canonical_project"
+    env.active_app = provider_project.resolve()
+    fake_st.session_state["first_run"] = False
+    fake_st.events.clear()
+
+    fake_st.query_params["active_app"] = str(unadvertised_project)
+    assert bootstrap.sync_active_app_from_query(
+        env,
+        streamlit=fake_st,
+    ) is False
+
+    assert env.app == "canonical_project"
+    assert env.active_app == provider_project.resolve()
+    assert fake_st.query_params["active_app"] == "canonical_project"
+    assert fake_st.session_state["first_run"] is False
+    assert ("rerun", "") not in fake_st.events
 
 
 def test_bootstrap_sync_active_app_from_query_keeps_matching_query(tmp_path):
     bootstrap = about_agilab._about_bootstrap
     env = SimpleNamespace(apps_path=tmp_path / "apps", app="target")
     fake_st = SimpleNamespace(query_params={"active_app": "target"})
-    stored_paths: list[Path] = []
-
-    bootstrap.sync_active_app_from_query(
+    assert bootstrap.sync_active_app_from_query(
         env,
         streamlit=fake_st,
-        store_last_active_app=stored_paths.append,
-        apply_request=lambda _env, _request_value: False,
-    )
+    ) is False
 
     assert fake_st.query_params == {"active_app": "target"}
-    assert stored_paths == []
+
+
+def test_bootstrap_page_environment_ignores_commented_app_default_for_construction(
+    tmp_path,
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    (apps_path / "flight_telemetry_project").mkdir(parents=True)
+    constructed_apps: list[str] = []
+    load_modes: list[bool] = []
+    requested_apps: list[str | None] = []
+
+    class FakeAgiEnv:
+        @classmethod
+        def session(cls, *, apps_path: Path, active_app: Path, verbose: int):
+            app = Path(active_app).name
+            constructed_apps.append(app)
+            return SimpleNamespace(
+                apps_path=apps_path,
+                active_app=Path(active_app),
+                app=app,
+                projects={app},
+                verbose=verbose,
+                is_source_env=False,
+                is_worker_env=False,
+                OPENAI_API_KEY="",
+                CLUSTER_CREDENTIALS="",
+                envars={},
+                init_done=False,
+                _agilab_session_scoped=True,
+            )
+
+        @staticmethod
+        def set_env_var(_key: str, _value: str) -> None:
+            return None
+
+    def load_env_file_map(_path, *, include_commented=True):
+        load_modes.append(include_commented)
+        if include_commented:
+            return {"APP_DEFAULT": "commented_project"}
+        return {}
+
+    fake_st = _FakeStreamlit()
+    ports, _port_calls = _make_bootstrap_ports(
+        FakeAgiEnv,
+        last_app=None,
+        environ={},
+    )
+
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=tmp_path / ".env",
+        load_env_file_map=load_env_file_map,
+        logger=None,
+        apply_active_app_request=lambda _env, requested: (
+            requested_apps.append(requested) or False
+        ),
+        handle_data_root_failure=lambda _exc, **_kwargs: False,
+        refresh_env_from_file=lambda _env: None,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+        argv=["--apps-path", str(apps_path)],
+        ports=ports,
+    )
+
+    assert result.handled_recovery is False
+    assert constructed_apps == ["flight_telemetry_project"]
+    assert requested_apps == []
+    assert load_modes[0] is False
 
 
 def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
@@ -1993,10 +2449,10 @@ def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
         def set_env_var(key: str, value: str) -> None:
             set_env_calls.append((key, value))
 
-        def __init__(self, *, apps_path: Path, verbose: int):
+        def __init__(self, *, apps_path: Path, app: str, verbose: int):
             self.apps_path = apps_path
             self.verbose = verbose
-            self.app = "default"
+            self.app = app
             self.projects = {"flight_telemetry_project"}
             self.is_source_env = True
             self.is_worker_env = False
@@ -2040,7 +2496,7 @@ def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+        load_env_file_map=lambda _path, **_kwargs: {"APPS_PATH": str(apps_path)},
         logger=None,
         apply_active_app_request=fake_apply_active_app_request,
         handle_data_root_failure=lambda _exc, **_kwargs: False,
@@ -2071,6 +2527,7 @@ def test_bootstrap_page_environment_replaces_legacy_warm_env_without_borrowing_s
     apps_path = tmp_path / "apps"
     app_path = apps_path / "sb3_trainer_project"
     app_path.mkdir(parents=True)
+    (apps_path / "flight_telemetry_project").mkdir()
     requested_apps: list[str | None] = []
     set_env_calls: list[tuple[str, str]] = []
     refreshed_envs: list[object] = []
@@ -2099,13 +2556,14 @@ def test_bootstrap_page_environment_replaces_legacy_warm_env_without_borrowing_s
             return existing_env
 
         @classmethod
-        def session(cls, *, apps_path: Path, verbose: int):
+        def session(cls, *, apps_path: Path, active_app: Path, verbose: int):
+            app = Path(active_app).name
             cls.session_calls += 1
             return SimpleNamespace(
                 apps_path=apps_path,
-                app="sb3_trainer_project",
-                active_app=apps_path / "sb3_trainer_project",
-                projects={"sb3_trainer_project"},
+                app=app,
+                active_app=Path(active_app),
+                projects={app},
                 is_source_env=True,
                 is_worker_env=False,
                 OPENAI_API_KEY="",
@@ -2136,7 +2594,7 @@ def test_bootstrap_page_environment_replaces_legacy_warm_env_without_borrowing_s
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+        load_env_file_map=lambda _path, **_kwargs: {"APPS_PATH": str(apps_path)},
         logger=None,
         apply_active_app_request=apply_request,
         handle_data_root_failure=lambda _exc, **_kwargs: False,
@@ -2151,7 +2609,7 @@ def test_bootstrap_page_environment_replaces_legacy_warm_env_without_borrowing_s
     assert result.env._agilab_session_scoped is True
     assert fake_st.session_state["first_run"] is False
     assert result.env.init_done is True
-    assert requested_apps == [None]
+    assert requested_apps == []
     assert refreshed_envs == [result.env]
     assert port_calls.activated == []
     assert WarmAgiEnv.current_calls == 0
@@ -2164,6 +2622,7 @@ def test_bootstrap_session_factory_failure_never_borrows_cli_singleton(
     bootstrap = about_agilab._about_bootstrap
     apps_path = tmp_path / "apps"
     apps_path.mkdir()
+    (apps_path / "flight_telemetry_project").mkdir()
     current_calls: list[str] = []
 
     class SessionAgiEnv:
@@ -2172,8 +2631,9 @@ def test_bootstrap_session_factory_failure_never_borrows_cli_singleton(
             return None
 
         @classmethod
-        def session(cls, *, apps_path: Path, verbose: int):
+        def session(cls, *, apps_path: Path, active_app: Path, verbose: int):
             assert apps_path == tmp_path / "apps"
+            assert Path(active_app).name == "flight_telemetry_project"
             assert verbose == 1
             raise RuntimeError(
                 "AgiEnv is already initialised with a different configuration; "
@@ -2197,7 +2657,7 @@ def test_bootstrap_session_factory_failure_never_borrows_cli_singleton(
         bootstrap.bootstrap_page_environment(
             streamlit=fake_st,
             env_file_path=tmp_path / ".env",
-            load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+            load_env_file_map=lambda _path, **_kwargs: {"APPS_PATH": str(apps_path)},
             logger=None,
             apply_active_app_request=lambda *_args: False,
             handle_data_root_failure=lambda _exc, **_kwargs: False,
@@ -2211,12 +2671,41 @@ def test_bootstrap_session_factory_failure_never_borrows_cli_singleton(
     assert "env" not in fake_st.session_state
 
 
+def test_bootstrap_session_factory_rejects_wrong_same_named_target(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    target_path = apps_path / "target_project"
+    wrong_path = tmp_path / "other/target_project"
+    target_path.mkdir(parents=True)
+    wrong_path.mkdir(parents=True)
+
+    class WrongTargetAgiEnv:
+        @classmethod
+        def session(cls, **_kwargs):
+            return SimpleNamespace(
+                app="target_project",
+                active_app=wrong_path,
+                _agilab_session_scoped=True,
+            )
+
+    with pytest.raises(RuntimeError, match="initialized a different project"):
+        bootstrap._create_streamlit_session_env(
+            WrongTargetAgiEnv,
+            apps_path=apps_path,
+            startup_app=bootstrap.StartupAppRequest(
+                "target_project", target_path, "query"
+            ),
+            verbose=1,
+        )
+
+
 def test_bootstrap_requires_session_factory_with_actionable_upgrade_error(
     tmp_path, monkeypatch
 ):
     bootstrap = about_agilab._about_bootstrap
     apps_path = tmp_path / "apps"
     apps_path.mkdir()
+    (apps_path / "flight_telemetry_project").mkdir()
 
     class LegacyAgiEnv:
         init_calls = 0
@@ -2247,7 +2736,7 @@ def test_bootstrap_requires_session_factory_with_actionable_upgrade_error(
         bootstrap.bootstrap_page_environment(
             streamlit=fake_st,
             env_file_path=tmp_path / ".env",
-            load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+            load_env_file_map=lambda _path, **_kwargs: {"APPS_PATH": str(apps_path)},
             logger=None,
             apply_active_app_request=lambda *_args: False,
             handle_data_root_failure=lambda _exc, **_kwargs: False,
@@ -2306,7 +2795,7 @@ def test_bootstrap_page_environment_reuses_matching_session_scoped_warm_env(
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+        load_env_file_map=lambda _path, **_kwargs: {"APPS_PATH": str(apps_path)},
         logger=None,
         apply_active_app_request=lambda _env, _requested: False,
         handle_data_root_failure=lambda _exc, **_kwargs: False,
@@ -2322,6 +2811,192 @@ def test_bootstrap_page_environment_reuses_matching_session_scoped_warm_env(
     assert refreshed_envs == [existing_env]
 
 
+def test_bootstrap_matching_warm_env_ignores_irrelevant_invalid_app_default(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    app_path = apps_path / "builtin/flight_telemetry_project"
+    app_path.mkdir(parents=True)
+    existing_env = SimpleNamespace(
+        apps_path=apps_path,
+        app="flight_telemetry_project",
+        active_app=app_path,
+        projects={"flight_telemetry_project"},
+        is_source_env=True,
+        is_worker_env=False,
+        OPENAI_API_KEY="",
+        CLUSTER_CREDENTIALS="",
+        envars={},
+        init_done=True,
+        _agilab_session_scoped=True,
+    )
+
+    class WarmAgiEnv:
+        @classmethod
+        def session(cls, **_kwargs):
+            raise AssertionError("the healthy matching warm environment must be reused")
+
+        @staticmethod
+        def set_env_var(_key: str, _value: str) -> None:
+            return None
+
+    fake_st = _FakeStreamlit()
+    fake_st.session_state["env"] = existing_env
+    ports, _calls = _make_bootstrap_ports(WarmAgiEnv, last_app=None, environ={})
+
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=tmp_path / ".env",
+        load_env_file_map=lambda _path, **_kwargs: {"APP_DEFAULT": "invalid"},
+        logger=None,
+        apply_active_app_request=lambda *_args: False,
+        handle_data_root_failure=lambda *_args, **_kwargs: False,
+        refresh_env_from_file=lambda _env: None,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+        argv=["--apps-path", str(apps_path)],
+        ports=ports,
+    )
+
+    assert result.env is existing_env
+    assert result.handled_recovery is False
+
+
+def test_bootstrap_warm_env_external_query_cluster_failure_uses_safe_recovery(
+    tmp_path,
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "public-apps"
+    warm_app = apps_path / "warm_project"
+    external_repo = tmp_path / "external-repo"
+    external_app = external_repo / "apps/external_project"
+    external_settings = external_app / "src/app_settings.toml"
+    warm_app.mkdir(parents=True)
+    external_settings.parent.mkdir(parents=True)
+    external_settings.write_text(
+        "[cluster]\ncluster_enabled = true\n", encoding="utf-8"
+    )
+    existing_env = SimpleNamespace(
+        apps_path=apps_path,
+        app="warm_project",
+        active_app=warm_app,
+        projects={"warm_project"},
+        is_source_env=True,
+        is_worker_env=False,
+        OPENAI_API_KEY="",
+        CLUSTER_CREDENTIALS="",
+        envars={},
+        init_done=True,
+        _agilab_session_scoped=True,
+    )
+    construction_targets: list[Path] = []
+
+    class FailingAgiEnv:
+        @classmethod
+        def session(cls, *, apps_path: Path, active_app: Path, verbose: int):
+            assert apps_path == tmp_path / "public-apps"
+            assert verbose == 1
+            construction_targets.append(Path(active_app))
+            raise RuntimeError(
+                "Cluster mode requires AGI_CLUSTER_SHARE to be mounted and writable. "
+                "Configured AGI_CLUSTER_SHARE='/missing/share' is not usable"
+            )
+
+        @staticmethod
+        def set_env_var(_key: str, _value: str) -> None:
+            return None
+
+    fake_st = _FakeStreamlit()
+    fake_st.session_state["env"] = existing_env
+    fake_st.query_params["active_app"] = str(external_app)
+    ports, _calls = _make_bootstrap_ports(
+        FailingAgiEnv,
+        last_app=warm_app,
+        environ={},
+    )
+
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=tmp_path / ".agilab/.env",
+        load_env_file_map=lambda _path, **_kwargs: {
+            "APPS_REPOSITORY": str(external_repo)
+        },
+        logger=None,
+        apply_active_app_request=lambda *_args: (_ for _ in ()).throw(
+            AssertionError("startup switching must happen inside session construction")
+        ),
+        handle_data_root_failure=lambda *_args, **_kwargs: False,
+        refresh_env_from_file=lambda _env: None,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+        argv=["--apps-path", str(apps_path)],
+        ports=ports,
+    )
+
+    assert result.handled_recovery is True
+    assert construction_targets == [external_app.resolve()]
+    assert fake_st.session_state["env"] is existing_env
+    assert existing_env.app == "warm_project"
+    assert existing_env.active_app == warm_app
+    assert existing_env.init_done is True
+    assert fake_st.query_params["active_app"] == str(external_app)
+    workspace_settings = tmp_path / ".agilab/apps/external_project/app_settings.toml"
+    assert any(
+        f"Workspace settings: `{workspace_settings}`" in body
+        for kind, body in fake_st.events
+        if kind == "error"
+    )
+
+
+def test_bootstrap_rejects_nonexistent_query_project_before_session_construction(
+    tmp_path,
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    (apps_path / "builtin/flight_telemetry_project").mkdir(parents=True)
+    missing_project = apps_path / "builtin/ghost_unavailable_project"
+    set_env_calls: list[tuple[str, str]] = []
+
+    class CountingAgiEnv:
+        session_calls = 0
+
+        @classmethod
+        def session(cls, **_kwargs):
+            cls.session_calls += 1
+            raise AssertionError("an invalid project must not reach construction")
+
+        @staticmethod
+        def set_env_var(key: str, value: str) -> None:
+            set_env_calls.append((key, value))
+
+    fake_st = _FakeStreamlit()
+    fake_st.query_params["active_app"] = str(missing_project)
+    ports, _calls = _make_bootstrap_ports(CountingAgiEnv, last_app=None, environ={})
+
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=tmp_path / ".env",
+        load_env_file_map=lambda _path, **_kwargs: {},
+        logger=None,
+        apply_active_app_request=lambda *_args: False,
+        handle_data_root_failure=lambda *_args, **_kwargs: False,
+        refresh_env_from_file=lambda _env: None,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+        argv=["--apps-path", str(apps_path)],
+        ports=ports,
+    )
+
+    assert result.handled_recovery is True
+    assert CountingAgiEnv.session_calls == 0
+    assert set_env_calls == []
+    assert missing_project.exists() is False
+    assert any(
+        "does not resolve to an existing app" in body
+        for kind, body in fake_st.events
+        if kind == "error"
+    )
+
+
 def test_bootstrap_page_environment_replaces_warm_env_with_different_apps_path(
     tmp_path, monkeypatch
 ):
@@ -2330,6 +3005,7 @@ def test_bootstrap_page_environment_replaces_warm_env_with_different_apps_path(
     app_path = apps_path / "sb3_trainer_project"
     stale_apps_path = tmp_path / "agi-space" / "apps"
     app_path.mkdir(parents=True)
+    (apps_path / "flight_telemetry_project").mkdir()
     stale_apps_path.mkdir(parents=True)
 
     existing_env = SimpleNamespace(
@@ -2355,12 +3031,13 @@ def test_bootstrap_page_environment_replaces_warm_env_with_different_apps_path(
             return existing_env
 
         @classmethod
-        def session(cls, *, apps_path: Path, verbose: int):
+        def session(cls, *, apps_path: Path, active_app: Path, verbose: int):
+            app = Path(active_app).name
             return SimpleNamespace(
                 apps_path=apps_path,
-                app="sb3_trainer_project",
-                active_app=apps_path / "sb3_trainer_project",
-                projects={"sb3_trainer_project"},
+                app=app,
+                active_app=Path(active_app),
+                projects={app},
                 is_source_env=True,
                 is_worker_env=False,
                 OPENAI_API_KEY="",
@@ -2387,7 +3064,7 @@ def test_bootstrap_page_environment_replaces_warm_env_with_different_apps_path(
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+        load_env_file_map=lambda _path, **_kwargs: {"APPS_PATH": str(apps_path)},
         logger=None,
         apply_active_app_request=lambda *_args: False,
         handle_data_root_failure=lambda _exc, **_kwargs: False,
@@ -2448,12 +3125,13 @@ def test_bootstrap_page_environment_never_resets_or_borrows_unusable_warm_single
             set_env_calls.append((key, value))
 
         @classmethod
-        def session(cls, *, apps_path: Path, verbose: int):
+        def session(cls, *, apps_path: Path, active_app: Path, verbose: int):
+            app = Path(active_app).name
             return SimpleNamespace(
                 apps_path=apps_path,
-                app="flight_telemetry_project",
-                active_app=apps_path / "flight_telemetry_project",
-                projects={"flight_telemetry_project"},
+                app=app,
+                active_app=Path(active_app),
+                projects={app},
                 is_source_env=True,
                 is_worker_env=False,
                 OPENAI_API_KEY="",
@@ -2476,7 +3154,7 @@ def test_bootstrap_page_environment_never_resets_or_borrows_unusable_warm_single
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {"APPS_PATH": str(apps_path)},
+        load_env_file_map=lambda _path, **_kwargs: {"APPS_PATH": str(apps_path)},
         logger=None,
         apply_active_app_request=lambda _env, _requested: False,
         handle_data_root_failure=lambda _exc, **_kwargs: False,
@@ -2942,17 +3620,255 @@ def test_bootstrap_sync_active_app_from_query_handles_missing_query_api(tmp_path
         def query_params(self):
             raise RuntimeError("query unavailable")
 
-    stored_paths: list[Path] = []
     env = SimpleNamespace(apps_path=tmp_path, app="default")
 
-    bootstrap.sync_active_app_from_query(
+    assert bootstrap.sync_active_app_from_query(
         env,
         streamlit=BrokenQueryStreamlit(),
-        store_last_active_app=stored_paths.append,
-        apply_request=lambda *_args: True,
+    ) is False
+
+
+def test_bootstrap_resolve_startup_app_request_precedence_and_stale_last_fallback(
+    tmp_path, monkeypatch
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    builtin_apps = apps_path / "builtin"
+    query_project = builtin_apps / "query_project"
+    cli_project = builtin_apps / "cli_project"
+    current_remembered = builtin_apps / "remembered_project"
+    default_project = builtin_apps / "default_project"
+    built_in_default = builtin_apps / "flight_telemetry_project"
+    for project in (
+        query_project,
+        cli_project,
+        current_remembered,
+        default_project,
+        built_in_default,
+    ):
+        project.mkdir(parents=True)
+    remembered_raw = tmp_path / "stale-install" / "remembered_project"
+    monkeypatch.setattr(bootstrap, "discover_installed_app_projects", lambda: ())
+
+    def make_ports(last_app):
+        return bootstrap.BootstrapPorts(
+            agi_env_cls=object(),
+            activate_mlflow=lambda _env: None,
+            background_services_enabled=lambda: False,
+            load_last_active_app=lambda: last_app,
+            store_last_active_app=lambda _path: None,
+            environ={},
+        )
+
+    query_raw = str(query_project)
+    streamlit = SimpleNamespace(query_params={"active_app": query_raw})
+    cli_args = bootstrap.parse_startup_args(["--active-app", str(cli_project)])
+    saved_env = {"APP_DEFAULT": str(default_project)}
+
+    assert bootstrap.resolve_startup_app_request(
+        streamlit=streamlit,
+        args=cli_args,
+        ports=make_ports(remembered_raw),
+        apps_path=apps_path,
+        saved_env=saved_env,
+    ) == bootstrap.StartupAppRequest("query_project", query_project.resolve(), "query")
+
+    streamlit.query_params = {}
+    assert bootstrap.resolve_startup_app_request(
+        streamlit=streamlit,
+        args=cli_args,
+        ports=make_ports(remembered_raw),
+        apps_path=apps_path,
+        saved_env=saved_env,
+    ) == bootstrap.StartupAppRequest("cli_project", cli_project.resolve(), "cli")
+
+    no_cli_args = bootstrap.parse_startup_args([])
+    assert bootstrap.resolve_startup_app_request(
+        streamlit=streamlit,
+        args=no_cli_args,
+        ports=make_ports(remembered_raw),
+        apps_path=apps_path,
+        saved_env=saved_env,
+    ) == bootstrap.StartupAppRequest(
+        "remembered_project", current_remembered.resolve(), "last"
     )
 
-    assert stored_paths == []
+    stale_absent = tmp_path / "stale-install" / "absent_project"
+    assert bootstrap.resolve_startup_app_request(
+        streamlit=streamlit,
+        args=no_cli_args,
+        ports=make_ports(stale_absent),
+        apps_path=apps_path,
+        saved_env=saved_env,
+    ) == bootstrap.StartupAppRequest(
+        "default_project", default_project.resolve(), "default"
+    )
+
+    assert bootstrap.resolve_startup_app_request(
+        streamlit=streamlit,
+        args=no_cli_args,
+        ports=make_ports(stale_absent),
+        apps_path=apps_path,
+        saved_env={},
+    ) == bootstrap.StartupAppRequest(
+        "flight_telemetry_project", built_in_default.resolve(), "default"
+    )
+
+    stale_warm = SimpleNamespace(
+        apps_path=apps_path,
+        app="deleted_project",
+        active_app=builtin_apps / "deleted_project",
+        _agilab_session_scoped=True,
+    )
+    assert bootstrap.resolve_startup_app_request(
+        streamlit=streamlit,
+        args=no_cli_args,
+        ports=make_ports(stale_absent),
+        apps_path=apps_path,
+        saved_env=saved_env,
+        warm_env=stale_warm,
+    ) == bootstrap.StartupAppRequest(
+        "default_project", default_project.resolve(), "default"
+    )
+
+    with pytest.raises(ValueError, match="APP_DEFAULT startup project"):
+        bootstrap.resolve_startup_app_request(
+            streamlit=streamlit,
+            args=no_cli_args,
+            ports=make_ports(stale_absent),
+            apps_path=apps_path,
+            saved_env={"APP_DEFAULT": "invalid"},
+        )
+
+    missing_query = builtin_apps / "missing_project"
+    streamlit.query_params = {"active_app": str(missing_query)}
+    with pytest.raises(ValueError, match="does not resolve to an existing app"):
+        bootstrap.resolve_startup_app_request(
+            streamlit=streamlit,
+            args=no_cli_args,
+            ports=make_ports(None),
+            apps_path=apps_path,
+            saved_env={},
+        )
+    assert missing_query.exists() is False
+
+
+def test_bootstrap_resolve_startup_app_request_keeps_configured_external_last_app(
+    tmp_path, monkeypatch
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "public-apps"
+    external_repo = tmp_path / "private-apps-repo"
+    external_project = external_repo / "apps/external_project"
+    external_project.mkdir(parents=True)
+    monkeypatch.setattr(bootstrap, "discover_installed_app_projects", lambda: ())
+    ports = bootstrap.BootstrapPorts(
+        agi_env_cls=object(),
+        activate_mlflow=lambda _env: None,
+        background_services_enabled=lambda: False,
+        load_last_active_app=lambda: external_project,
+        store_last_active_app=lambda _path: None,
+        environ={},
+    )
+
+    request = bootstrap.resolve_startup_app_request(
+        streamlit=SimpleNamespace(query_params={}),
+        args=bootstrap.parse_startup_args([]),
+        ports=ports,
+        apps_path=apps_path,
+        saved_env={"APPS_REPOSITORY": str(external_repo)},
+    )
+
+    assert request == bootstrap.StartupAppRequest(
+        "external_project", external_project.resolve(), "last"
+    )
+
+
+def test_bootstrap_startup_rejects_nested_path_inside_installed_provider(
+    tmp_path, monkeypatch
+):
+    bootstrap = about_agilab._about_bootstrap
+    provider_project = tmp_path / "providers/canonical_project"
+    nested_project = provider_project / "nested_project"
+    nested_project.mkdir(parents=True)
+    monkeypatch.setattr(
+        bootstrap,
+        "discover_installed_app_projects",
+        lambda: (
+            SimpleNamespace(
+                name="canonical_project",
+                project_root=provider_project,
+                provider="advertised_project",
+            ),
+        ),
+    )
+    ports = bootstrap.BootstrapPorts(
+        agi_env_cls=object(),
+        activate_mlflow=lambda _env: None,
+        background_services_enabled=lambda: False,
+        load_last_active_app=lambda: None,
+        store_last_active_app=lambda _path: None,
+        environ={},
+    )
+
+    request = bootstrap.resolve_startup_app_request(
+        streamlit=SimpleNamespace(query_params={"active_app": "advertised_project"}),
+        args=bootstrap.parse_startup_args([]),
+        ports=ports,
+        apps_path=tmp_path / "apps",
+        saved_env={},
+    )
+    assert request == bootstrap.StartupAppRequest(
+        "canonical_project", provider_project.resolve(), "query"
+    )
+
+    with pytest.raises(ValueError, match="does not resolve to an existing app"):
+        bootstrap.resolve_startup_app_request(
+            streamlit=SimpleNamespace(query_params={"active_app": str(nested_project)}),
+            args=bootstrap.parse_startup_args([]),
+            ports=ports,
+            apps_path=tmp_path / "apps",
+            saved_env={},
+        )
+
+
+@pytest.mark.parametrize("request_source", ["query", "cli"])
+def test_bootstrap_startup_rejects_nested_project_inside_configured_apps_root(
+    request_source, tmp_path, monkeypatch
+):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "apps"
+    nested_worker = apps_path / "builtin/container_project/src/container_worker"
+    nested_worker.mkdir(parents=True)
+    monkeypatch.setattr(bootstrap, "discover_installed_app_projects", lambda: ())
+    ports = bootstrap.BootstrapPorts(
+        agi_env_cls=object(),
+        activate_mlflow=lambda _env: None,
+        background_services_enabled=lambda: False,
+        load_last_active_app=lambda: None,
+        store_last_active_app=lambda _path: None,
+        environ={},
+    )
+    streamlit = SimpleNamespace(
+        query_params={
+            "active_app": str(nested_worker) if request_source == "query" else ""
+        }
+    )
+    args = bootstrap.parse_startup_args(
+        ["--active-app", str(nested_worker)] if request_source == "cli" else []
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=rf"The {request_source} startup project .* does not resolve",
+    ):
+        bootstrap.resolve_startup_app_request(
+            streamlit=streamlit,
+            args=args,
+            ports=ports,
+            apps_path=apps_path,
+            saved_env={},
+        )
 
 
 def test_bootstrap_startup_active_app_name_handles_query_lists_loader_errors_and_empty_values():
@@ -3011,39 +3927,39 @@ def test_bootstrap_startup_active_app_name_handles_query_lists_loader_errors_and
     )
 
 
-def test_bootstrap_sync_active_app_from_query_handles_empty_list_and_store_error(
+def test_bootstrap_sync_active_app_from_query_handles_empty_list_and_rerun(
     tmp_path,
 ):
     bootstrap = about_agilab._about_bootstrap
     apps_path = tmp_path / "apps"
-    env = SimpleNamespace(apps_path=apps_path, app="default")
-    empty_query_st = SimpleNamespace(query_params={"active_app": []})
-
-    bootstrap.sync_active_app_from_query(
-        env,
-        streamlit=empty_query_st,
-        store_last_active_app=lambda _path: None,
-        apply_request=lambda *_args: False,
+    (apps_path / "target_project").mkdir(parents=True)
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app="default",
+        _agilab_authorized_app_container_roots=(apps_path,),
     )
+    fake_st = _FakeStreamlit()
+    fake_st.query_params["active_app"] = []
 
-    assert empty_query_st.query_params["active_app"] == "default"
-
-    requested_query_st = SimpleNamespace(query_params={"active_app": ["target"]})
-
-    def apply_request(target_env, requested):
-        target_env.app = requested
-        return True
-
-    bootstrap.sync_active_app_from_query(
+    assert bootstrap.sync_active_app_from_query(
         env,
-        streamlit=requested_query_st,
-        store_last_active_app=lambda _path: (_ for _ in ()).throw(
-            RuntimeError("store failed")
-        ),
-        apply_request=apply_request,
-    )
+        streamlit=fake_st,
+    ) is False
 
-    assert requested_query_st.query_params["active_app"] == "target"
+    assert fake_st.query_params["active_app"] == "default"
+
+    fake_st.query_params["active_app"] = ["target_project"]
+
+    assert bootstrap.sync_active_app_from_query(
+        env,
+        streamlit=fake_st,
+    ) is True
+
+    assert fake_st.query_params["active_app"] == str(
+        (apps_path / "target_project").resolve()
+    )
+    assert fake_st.session_state["first_run"] is True
+    assert ("rerun", "") in fake_st.events
 
 
 def test_bootstrap_remember_active_app_ignores_store_errors(tmp_path):
@@ -3057,15 +3973,17 @@ def test_bootstrap_remember_active_app_ignores_store_errors(tmp_path):
 def test_bootstrap_page_environment_uses_injected_ports_and_services(tmp_path):
     bootstrap = about_agilab._about_bootstrap
     apps_path = tmp_path / "apps"
+    remembered_app = apps_path / "remembered_project"
+    remembered_app.mkdir(parents=True)
     requested_apps: list[str | None] = []
     saved_values: list[tuple[str, str]] = []
     stored_credentials: list[str] = []
 
     class FakeAgiEnv:
-        def __init__(self, *, apps_path: Path, verbose: int):
+        def __init__(self, *, apps_path: Path, app: str, verbose: int):
             self.apps_path = apps_path
             self.verbose = verbose
-            self.app = "default"
+            self.app = app
             self.is_source_env = True
             self.is_worker_env = False
             self.OPENAI_API_KEY = ""
@@ -3088,14 +4006,14 @@ def test_bootstrap_page_environment_uses_injected_ports_and_services(tmp_path):
     ports, port_calls = _make_bootstrap_ports(
         FakeAgiEnv,
         services_enabled=True,
-        last_app=apps_path / "remembered",
+        last_app=remembered_app,
         environ={},
     )
 
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {},
+        load_env_file_map=lambda _path, **_kwargs: {},
         logger=object(),
         apply_active_app_request=apply_request,
         handle_data_root_failure=lambda *_args, **_kwargs: False,
@@ -3117,10 +4035,10 @@ def test_bootstrap_page_environment_uses_injected_ports_and_services(tmp_path):
     assert result.env.init_done is True
     assert fake_st.session_state["apps_path"] == str(apps_path)
     assert fake_st.session_state["first_run"] is False
-    assert fake_st.query_params["active_app"] == "remembered"
-    assert requested_apps == [str(apps_path / "remembered")]
+    assert fake_st.query_params["active_app"] == "remembered_project"
+    assert requested_apps == []
     assert port_calls.activated == [result.env]
-    assert port_calls.stored == [apps_path / "remembered"]
+    assert port_calls.stored == [remembered_app]
     assert ("APPS_PATH", str(apps_path)) in saved_values
     assert not [message for event, message in fake_st.events if event == "warning"]
 
@@ -3128,13 +4046,15 @@ def test_bootstrap_page_environment_uses_injected_ports_and_services(tmp_path):
 def test_bootstrap_page_environment_cli_active_app_overrides_last_app(tmp_path):
     bootstrap = about_agilab._about_bootstrap
     apps_path = tmp_path / "apps"
+    cli_app = apps_path / "cli_app_project"
+    cli_app.mkdir(parents=True)
     requested_apps: list[str | None] = []
 
     class FakeAgiEnv:
-        def __init__(self, *, apps_path: Path, verbose: int):
+        def __init__(self, *, apps_path: Path, app: str, verbose: int):
             self.apps_path = apps_path
             self.verbose = verbose
-            self.app = "default"
+            self.app = app
             self.is_source_env = False
             self.is_worker_env = False
             self.OPENAI_API_KEY = "sk-" + "b" * 16
@@ -3152,26 +4072,29 @@ def test_bootstrap_page_environment_cli_active_app_overrides_last_app(tmp_path):
 
     fake_st = _FakeStreamlit()
     ports, port_calls = _make_bootstrap_ports(
-        FakeAgiEnv, services_enabled=False, last_app="remembered"
+        FakeAgiEnv, services_enabled=False, last_app="remembered_project"
     )
 
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {"OPENAI_API_KEY": "already-saved"},
+        load_env_file_map=lambda _path, **_kwargs: {"OPENAI_API_KEY": "already-saved"},
         logger=object(),
         apply_active_app_request=apply_request,
         handle_data_root_failure=lambda *_args, **_kwargs: False,
         refresh_env_from_file=lambda _env: None,
         clean_openai_key=lambda value: value,
         store_cluster_credentials=lambda *_args, **_kwargs: True,
-        argv=["--apps-path", str(apps_path), "--active-app", "cli-app"],
+        argv=["--apps-path", str(apps_path), "--active-app", "cli_app_project"],
         ports=ports,
     )
 
     assert result.should_rerun is False
-    assert requested_apps == ["cli-app"]
-    assert fake_st.query_params["active_app"] == "cli-app"
+    assert result.handled_recovery is False
+    assert result.env.app == "cli_app_project"
+    assert result.env.active_app == cli_app.resolve()
+    assert requested_apps == []
+    assert fake_st.query_params["active_app"] == "cli_app_project"
     assert port_calls.activated == []
 
 
@@ -3188,7 +4111,7 @@ def test_bootstrap_page_environment_handles_missing_apps_path(monkeypatch, tmp_p
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {},
+        load_env_file_map=lambda _path, **_kwargs: {},
         logger=object(),
         apply_active_app_request=lambda *_args: False,
         handle_data_root_failure=lambda *_args, **_kwargs: False,
@@ -3227,7 +4150,7 @@ def test_bootstrap_page_environment_handles_resolution_and_data_root_recovery(
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {},
+        load_env_file_map=lambda _path, **_kwargs: {},
         logger=object(),
         apply_active_app_request=lambda *_args: False,
         handle_data_root_failure=lambda *_args, **_kwargs: False,
@@ -3250,7 +4173,7 @@ def test_bootstrap_page_environment_handles_resolution_and_data_root_recovery(
     recovered = bootstrap.bootstrap_page_environment(
         streamlit=_FakeStreamlit(),
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {},
+        load_env_file_map=lambda _path, **_kwargs: {},
         logger=object(),
         apply_active_app_request=lambda *_args: False,
         handle_data_root_failure=lambda exc, **_kwargs: "bad data root" in str(exc),
@@ -3269,6 +4192,7 @@ def test_bootstrap_page_environment_reraises_unrecovered_data_root_error(
     tmp_path,
 ):
     bootstrap = about_agilab._about_bootstrap
+    (tmp_path / "apps/flight_telemetry_project").mkdir(parents=True)
 
     class FailingAgiEnv:
         def __init__(self, *_args, **_kwargs):
@@ -3283,7 +4207,7 @@ def test_bootstrap_page_environment_reraises_unrecovered_data_root_error(
         bootstrap.bootstrap_page_environment(
             streamlit=_FakeStreamlit(),
             env_file_path=tmp_path / ".env",
-            load_env_file_map=lambda _path: {},
+            load_env_file_map=lambda _path, **_kwargs: {},
             logger=object(),
             apply_active_app_request=lambda *_args: False,
             handle_data_root_failure=lambda *_args, **_kwargs: False,
@@ -3299,10 +4223,10 @@ def test_bootstrap_page_environment_ignores_query_param_write_errors(tmp_path):
     bootstrap = about_agilab._about_bootstrap
 
     class FakeAgiEnv:
-        def __init__(self, *, apps_path: Path, verbose: int):
+        def __init__(self, *, apps_path: Path, app: str, verbose: int):
             self.apps_path = apps_path
             self.verbose = verbose
-            self.app = "default"
+            self.app = app
             self.is_source_env = True
             self.is_worker_env = False
             self.OPENAI_API_KEY = "sk-" + "c" * 16
@@ -3324,7 +4248,9 @@ def test_bootstrap_page_environment_ignores_query_param_write_errors(tmp_path):
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
         env_file_path=tmp_path / ".env",
-        load_env_file_map=lambda _path: {"APPS_PATH": str(tmp_path / "apps")},
+        load_env_file_map=lambda _path, **_kwargs: {
+            "APPS_PATH": str(tmp_path / "apps")
+        },
         logger=object(),
         apply_active_app_request=lambda *_args: False,
         handle_data_root_failure=lambda *_args, **_kwargs: False,
