@@ -253,7 +253,7 @@ Execution is intentionally conservative:
   ``RunRequest`` payload that will be sent for each stage.
   The built-in submitter is configured from the active app's saved
   **ORCHESTRATE** cluster settings: ``cluster_enabled`` must be true, a
-  scheduler, workers, and ``Workers Data Path`` must be present, and each DAG
+  scheduler, workers, and ``Workflow share root`` must be present, and each DAG
   stage ``app`` must resolve under ``src/agilab/apps/builtin`` or
   ``src/agilab/apps``. Each submitted stage runs in an isolated AGILAB
   subprocess so parallel ready stages do not share the in-process ``AGI`` class

@@ -1,9 +1,9 @@
 ---
 schema: agilab.maintenance_memory.v1
 source: src/agilab/pages/4_ANALYSIS.py
-source_sha256: e7c08bc1b8b5a99ff21eb9343c57aaf2bd2ce13bea0bd740f7dc7a2f2634122c
+source_sha256: 7920028debd1a4f37e405380d5c448f218762b0f28345234d8d2df950d9d344e
 title: ANALYSIS page session environment and sidecar ownership contract
-verified_commit: f778af6d3ec49d21ba8afd37d3f26990c0eb055b
+verified_commit: c14c94d2a0adba4b3effe2890b25e07b4b6b469f
 ---
 
 # ANALYSIS page session environment and sidecar ownership contract
@@ -54,3 +54,7 @@ guard only after parent and descendant absence are both proven.
 optimized without changing session-environment, sidecar-ownership, or bounded
 preparation-cleanup behavior. Focused helpers, the AGI GUI parity profile, and
 the isolated PyTorch Playground ANALYSIS browser scenario passed.
+
+2026-07-28 re-verification: user-facing empty-evidence guidance now names the
+current ORCHESTRATE `RUN` action; session environment and sidecar ownership
+behavior is unchanged.

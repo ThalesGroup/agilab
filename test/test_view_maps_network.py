@@ -340,7 +340,7 @@ def test_view_maps_network_warns_when_no_dataset_exists(
     )
 
     assert not at.exception
-    assert any("Maps Network Graph" in title.value for title in at.title)
+    assert any("Network map" in title.value for title in at.title)
     assert any("No files found" in warning.value for warning in at.warning)
 
 

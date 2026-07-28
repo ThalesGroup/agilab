@@ -44,7 +44,8 @@ Main Content Area
   combination will execute and the settings are written back to
   ``~/.agilab/apps/<app>/app_settings.toml``.
 - ``Install`` renders the install snippet that provisions the project's virtual
-  environments. ``INSTALL`` streams stdout/stderr into ``Install logs`` so you
+  environments. ``Deploy scheduler & workers`` streams stdout/stderr into
+  ``Deployment logs`` so you
   know when the worker is ready. A successful install automatically enables the
   ``Run`` section.
 - ``Distribute`` is split into two parts:
@@ -67,7 +68,7 @@ Main Content Area
   streams logs into the ``Run logs`` expander and stores the output timings in
   ``benchmark.json``, which is summarised under ``Benchmark results``.
 - ``Notebook`` exports the current ORCHESTRATE recipe as ``<app>_orchestrate.ipynb``.
-  It includes the generated ``INSTALL``, ``CHECK distribute``, and ``RUN``
+  It includes the generated ``Deploy scheduler & workers``, ``CHECK distribute``, and ``RUN``
   snippets that are available for the active configuration. Use it when you want
   a review, handoff, or no-lock-in copy of the orchestration work that remains
   useful outside the AGILAB UI. It is export-only: notebook import remains in
@@ -224,7 +225,7 @@ the full step-by-step deployment guide.
 For a first pass through the UI, follow this sequence exactly:
 
 1. Open ``System settings`` and configure the scheduler host and worker map.
-2. Run ``INSTALL`` so the worker runtime is staged on the configured machines.
+2. Run ``Deploy scheduler & workers`` so the worker runtime is staged on the configured machines.
 3. Run ``CHECK DISTRIBUTE`` to inspect the generated distribution tree and
    confirm the work plan matches the selected workers.
 4. Open ``Run`` and copy or export the generated ``AGI.run`` snippet.
@@ -322,7 +323,7 @@ Troubleshooting and checks
 
 Use these checks if Orchestrate actions do not behave as expected:
 
-- If ``INSTALL`` stays stuck, check cluster host reachability, SSH credentials,
+- If ``Deploy scheduler & workers`` stays stuck, check cluster host reachability, SSH credentials,
   and whether ``~/.agilab/.env`` still points to valid venv paths.
 - If the generated snippet looks wrong, compare ``[args]`` in
   ``~/.agilab/apps/<project>/app_settings.toml`` with the values shown in

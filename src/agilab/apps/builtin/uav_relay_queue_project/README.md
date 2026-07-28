@@ -20,7 +20,7 @@ change when a UAV source can route through different relay paths.
 
 1. Select `uav_relay_queue_project` in `PROJECT`.
 2. Open `ORCHESTRATE`.
-3. Run `INSTALL`, then `EXECUTE`.
+3. Run `Deploy scheduler & workers`, then `RUN`.
 4. Open `ANALYSIS` and inspect relay, scenario, and network views.
 
 ## Expected Inputs
@@ -48,7 +48,7 @@ readable by `view_maps_network`.
 
 ## Troubleshooting
 
-If relay views show no data, confirm `EXECUTE` completed and exported queue
+If relay views show no data, confirm `RUN` completed and exported queue
 analysis artifacts. If a copied scenario gives impossible routes, check node ids
 and relay names before changing the worker.
 

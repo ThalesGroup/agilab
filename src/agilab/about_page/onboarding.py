@@ -41,7 +41,9 @@ FIRST_PROOF_NOTEBOOK_PROJECT = "flight_telemetry_from_notebook_project"
 FIRST_PROOF_NOTEBOOK_AFTER_HINT = (
     f"Then click PROJECT `Create`; it builds `{FIRST_PROOF_NOTEBOOK_PROJECT}`."
 )
-FIRST_PROOF_NOTEBOOK_RUN_HINT = "After creation, run ORCHESTRATE `INSTALL` and `EXECUTE`."
+FIRST_PROOF_NOTEBOOK_RUN_HINT = (
+    "After creation, run ORCHESTRATE `Deploy scheduler & workers` and `RUN`."
+)
 FIRST_PROOF_OWN_NOTEBOOK_HINT = (
     "For your own notebook: open PROJECT -> Create -> From notebook -> Upload your own notebook."
 )
@@ -321,7 +323,9 @@ def _first_proof_progress_rows(state: Dict[str, Any]) -> List[Dict[str, str]]:
         run_detail = f"Run evidence found under `{output_dir}`."
     elif state["current_app_matches"]:
         run_status = "Next"
-        run_detail = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
+        run_detail = (
+            "Go to `ORCHESTRATE`. Click Deploy scheduler & workers, then RUN."
+        )
     else:
         run_status = "Waiting"
         run_detail = "Select the built-in flight-telemetry project before running."
@@ -412,7 +416,10 @@ def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
         "tone": "next",
         "phase": "Next action",
         "title": "Run the demo once",
-        "detail": "Open `ORCHESTRATE`; keep cluster, benchmark, and service mode off; click `INSTALL`, then `EXECUTE`.",
+        "detail": (
+            "Open `ORCHESTRATE`; keep cluster, benchmark, and service mode off; "
+            "click `Deploy scheduler & workers`, then `RUN`."
+        ),
         "cta_label": "Open run page",
         "proof_hint": "Done when ANALYSIS opens and `run_manifest.json` is written.",
     }
@@ -423,13 +430,16 @@ def _first_proof_wizard_steps(state: Dict[str, Any]) -> List[Dict[str, str]]:
     return [
         {
             "id": "install",
-            "button": "1. INSTALL demo",
-            "hint": "Runs ORCHESTRATE `INSTALL` for `flight_telemetry_project`.",
+            "button": "1. DEPLOY demo",
+            "hint": (
+                "Runs ORCHESTRATE `Deploy scheduler & workers` for "
+                "`flight_telemetry_project`."
+            ),
         },
         {
             "id": "run",
-            "button": "2. EXECUTE demo",
-            "hint": "Runs ORCHESTRATE `EXECUTE` for the same demo.",
+            "button": "2. RUN demo",
+            "hint": "Runs ORCHESTRATE `RUN` for the same demo.",
         },
         {
             "id": "analysis",
@@ -673,15 +683,15 @@ def _notebook_to_validated_app_rows(env: Any) -> List[Dict[str, str]]:
             "proof": project_detail,
         },
         {
-            "stage": "Install",
+            "stage": "Deploy",
             "status": "Next" if project_exists else "Waiting",
-            "action": "Open ORCHESTRATE and click `INSTALL`.",
+            "action": "Open ORCHESTRATE and click `Deploy scheduler & workers`.",
             "proof": "A project environment and worker environment are prepared.",
         },
         {
-            "stage": "Execute",
+            "stage": "Run",
             "status": "Next" if project_exists else "Waiting",
-            "action": "Click ORCHESTRATE `EXECUTE` with cluster and service mode off.",
+            "action": "Click ORCHESTRATE `RUN` with cluster and service mode off.",
             "proof": "The imported notebook stages run as an AGILAB app.",
         },
         {

@@ -41,7 +41,7 @@ the project manually for the built-in proof:
 
 | Wizard action | What it does |
 |---|---|
-| `1. INSTALL` | Selects `flight_telemetry_project` and launches the ORCHESTRATE install. |
+| `1. Deploy scheduler & workers` | Selects `flight_telemetry_project` and launches the ORCHESTRATE deployment. |
 | `2. RUN` | Runs the project locally with cluster, benchmark, and service mode off. |
 | `3. ANALYSIS` | Opens the default analysis route after evidence exists. |
 | `Import notebook` | Starts the alternative notebook lane and exposes the notebook upload control. |

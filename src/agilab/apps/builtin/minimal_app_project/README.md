@@ -20,7 +20,7 @@ one sitting.
 
 1. Select `minimal_app_project` in `PROJECT`.
 2. Open `ORCHESTRATE`.
-3. Run `INSTALL`.
+3. Run `Deploy scheduler & workers`.
 4. Use it as a code reference before adapting a real app.
 
 ## Expected Inputs

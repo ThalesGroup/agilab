@@ -106,7 +106,7 @@ checked_against = []
 
 [[page]]
 id = "view_maps_network"
-title = "Network geospatial map"
+title = "Network map"
 package = "agi-page-network-map"
 purpose = "Synchronizes topology, routes, allocations, trajectories, and geographic views."
 when_to_use = "Use for relay or satellite queue-analysis runs where route choice and link availability need visual inspection."
@@ -119,7 +119,7 @@ checked_against = []
 
 [[page]]
 id = "view_queue_resilience"
-title = "Queue resilience"
+title = "Queue health"
 package = "agi-page-queue-health"
 purpose = "Reviews queue occupancy, packet events, routing summaries, and run metadata."
 when_to_use = "Use for compact queue-analysis artifacts from any producer writing the AGILAB queue contract."
@@ -145,7 +145,7 @@ checked_against = []
 
 [[page]]
 id = "view_release_decision"
-title = "Release decision cockpit"
+title = "Promotion gate"
 package = "agi-page-promotion-gate"
 purpose = "Builds an evidence cockpit for candidate/baseline review and promotion gates."
 when_to_use = "Use before handoff when a run needs explicit gates, indexed evidence, and a promotion_decision.json export."

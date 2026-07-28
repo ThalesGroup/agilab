@@ -284,13 +284,14 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             ),
             (
                 "ORCHESTRATE",
-                "Keep cluster, benchmark, and service options off. Click `INSTALL`, then `EXECUTE`.",
+                "Keep cluster, benchmark, and service options off. Click "
+                "`Deploy scheduler & workers`, then `RUN`.",
             ),
             ("ANALYSIS", "Open the default built-in view and confirm generated evidence is visible."),
         ),
         success_criteria=(
             "A visible `ANALYSIS` result opens for the built-in flight-telemetry project.",
-            "`INSTALL` and `EXECUTE` finish without an error.",
+            "`Deploy scheduler & workers` and `RUN` finish without an error.",
             "`run_manifest.json` and generated files appear under `~/log/execute/flight_telemetry/`.",
         ),
         links=(
@@ -472,7 +473,8 @@ def _first_proof_remediation(
             "status": "missing",
             "title": "No first-proof run manifest yet.",
             "actions": (
-                "In the UI: select the demo, then open the run page and click INSTALL and EXECUTE.",
+                "In the UI: select the demo, then open the run page and click "
+                "Deploy scheduler & workers and RUN.",
                 "Or run the first-proof JSON command from the repository root.",
                 "Run the compatibility report command after `run_manifest.json` appears.",
             ),
@@ -576,7 +578,9 @@ def newcomer_first_proof_state(env: Any, repo_root: Path = REPO_ROOT) -> dict[st
     elif not current_app_matches:
         next_step = "Select the built-in flight-telemetry demo (`flight_telemetry_project`) from this page."
     elif not run_manifest_loaded and not visible_outputs:
-        next_step = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
+        next_step = (
+            "Go to `ORCHESTRATE`. Click Deploy scheduler & workers, then RUN."
+        )
     elif not run_manifest_loaded:
         next_step = "Generate `run_manifest.json` with the first-proof JSON command."
     elif run_manifest_loaded and not run_manifest_passed:

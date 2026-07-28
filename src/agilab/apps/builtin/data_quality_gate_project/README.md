@@ -25,7 +25,7 @@ training begins.
 ## Run In AGILAB
 
 Select `data_quality_gate_project`, then open `ORCHESTRATE`. Keep the default
-arguments for the first run, click `INSTALL`, then click `RUN`.
+arguments for the first run, click `Deploy scheduler & workers`, then click `RUN`.
 
 The default configuration creates a deterministic candidate dataset with a
 small business distribution shift. The run should complete locally and write

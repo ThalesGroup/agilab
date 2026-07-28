@@ -155,7 +155,6 @@ INSTALL_POSTCONDITION_ACTION_LABELS = (
     "CHECK distribute",
     "DISTRIBUTE",
     "Run now",
-    "EXECUTE",
     "RUN",
     "Run -> Load -> Export",
 )

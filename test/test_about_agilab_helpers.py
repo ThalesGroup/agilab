@@ -5933,10 +5933,10 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         "markdown",
         "**First proof: built-in demo**",
     )
-    install_button = _event_index(fake_st.events, "link_button", "1. INSTALL demo")
-    install_hint = _event_index(fake_st.events, "caption", "ORCHESTRATE `INSTALL`")
-    run_button = _event_index(fake_st.events, "link_button", "2. EXECUTE demo")
-    run_hint = _event_index(fake_st.events, "caption", "ORCHESTRATE `EXECUTE`")
+    install_button = _event_index(fake_st.events, "link_button", "1. DEPLOY demo")
+    install_hint = _event_index(fake_st.events, "caption", "ORCHESTRATE `Deploy scheduler & workers`")
+    run_button = _event_index(fake_st.events, "link_button", "2. RUN demo")
+    run_hint = _event_index(fake_st.events, "caption", "ORCHESTRATE `RUN`")
     open_analysis = _event_index(fake_st.events, "link_button", "3. OPEN ANALYSIS")
     link_types = {
         body.rsplit(":", 1)[0]: body.rsplit(":", 1)[1]
@@ -6018,9 +6018,9 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     )
     assert (
         caption_bodies[1]
-        == "Runs ORCHESTRATE `INSTALL` for `flight_telemetry_project`."
+        == "Runs ORCHESTRATE `Deploy scheduler & workers` for `flight_telemetry_project`."
     )
-    assert caption_bodies[2] == "Runs ORCHESTRATE `EXECUTE` for the same demo."
+    assert caption_bodies[2] == "Runs ORCHESTRATE `RUN` for the same demo."
     assert (
         caption_bodies[3] == "Opens ANALYSIS on `view_maps` for the generated evidence."
     )
@@ -6032,7 +6032,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         "Then click PROJECT `Create`; it builds `flight_telemetry_from_notebook_project`."
     )
     assert (
-        caption_bodies[7] == "After creation, run ORCHESTRATE `INSTALL` and `EXECUTE`."
+        caption_bodies[7] == "After creation, run ORCHESTRATE `Deploy scheduler & workers` and `RUN`."
     )
     assert caption_bodies[8] == (
         "For your own notebook: open PROJECT -> Create -> From notebook -> Upload your own notebook."
@@ -6051,8 +6051,8 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert "Validate engineering evidence" in caption_bodies[12]
     assert "Capability Map" in caption_bodies[12]
     assert link_types == {
-        "1. INSTALL demo": "secondary",
-        "2. EXECUTE demo": "secondary",
+        "1. DEPLOY demo": "secondary",
+        "2. RUN demo": "secondary",
         "3. OPEN ANALYSIS": "secondary",
         "Create from built-in notebook": "secondary",
     }
@@ -6089,7 +6089,7 @@ def test_first_proof_action_columns_width_tracks_longest_text():
         notebook_hint="Upload.",
     )
     long_spec, long_width = onboarding._first_proof_action_columns_layout(
-        [{"button": "Run", "hint": "Then press `INSTALL`, then `EXECUTE`."}],
+        [{"button": "Run", "hint": "Then press `Deploy scheduler & workers`, then `RUN`."}],
         notebook_hint="Upload.",
     )
 
@@ -6372,8 +6372,8 @@ def test_first_proof_wizard_omits_redundant_select_demo_step(
     assert activated == []
     assert ("button", "1. Select demo") not in fake_st.events
     assert ("link_button", "1. Select demo") not in fake_st.events
-    assert ("link_button", "1. INSTALL demo") in fake_st.events
-    assert ("link_button", "2. EXECUTE demo") in fake_st.events
+    assert ("link_button", "1. DEPLOY demo") in fake_st.events
+    assert ("link_button", "2. RUN demo") in fake_st.events
     assert ("link_button", "3. OPEN ANALYSIS") in fake_st.events
     assert not any(kind == "switch_page" for kind, _body in fake_st.events)
 
@@ -6385,7 +6385,7 @@ def test_first_proof_wizard_install_link_opens_orchestrate_in_new_tab(
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"1. INSTALL demo": True})
+    fake_st = _FakeStreamlit(button_values={"1. DEPLOY demo": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="minimal_app_project",
@@ -6405,7 +6405,7 @@ def test_first_proof_wizard_install_link_opens_orchestrate_in_new_tab(
     install_url = next(
         body.split(":", 1)[1]
         for kind, body in fake_st.events
-        if kind == "link_url" and body.startswith("1. INSTALL demo:")
+        if kind == "link_url" and body.startswith("1. DEPLOY demo:")
     )
     parsed_url = urlparse(install_url)
     query = parse_qs(parsed_url.query)
@@ -6424,7 +6424,7 @@ def test_first_proof_wizard_run_link_opens_orchestrate_in_new_tab(
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"2. EXECUTE demo": True})
+    fake_st = _FakeStreamlit(button_values={"2. RUN demo": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="minimal_app_project",
@@ -6444,7 +6444,7 @@ def test_first_proof_wizard_run_link_opens_orchestrate_in_new_tab(
     run_url = next(
         body.split(":", 1)[1]
         for kind, body in fake_st.events
-        if kind == "link_url" and body.startswith("2. EXECUTE demo:")
+        if kind == "link_url" and body.startswith("2. RUN demo:")
     )
     parsed_url = urlparse(run_url)
     query = parse_qs(parsed_url.query)
@@ -6470,7 +6470,7 @@ def test_first_proof_wizard_links_do_not_replace_current_page(
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"1. INSTALL demo": True})
+    fake_st = _FakeStreamlit(button_values={"1. DEPLOY demo": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="flight_telemetry_project",
@@ -6493,7 +6493,7 @@ def test_first_proof_wizard_links_do_not_replace_current_page(
     about_agilab.render_newcomer_first_proof(env)
 
     assert ("button", "1. Demo selected") not in fake_st.events
-    assert ("link_button", "1. INSTALL demo") in fake_st.events
+    assert ("link_button", "1. DEPLOY demo") in fake_st.events
     assert ("switch_page", "ORCHESTRATE_PAGE_OBJECT") not in fake_st.events
     assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
     assert fake_st.query_params == {}

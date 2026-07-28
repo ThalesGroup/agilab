@@ -514,7 +514,7 @@ def page(env):
     if not st.session_state[dataset_key] and not session_loaded_df_ok:
         st.warning(
             f"No dataset found in {datadir} (filter: {ext_choice}). "
-            "Use the EXECUTE → EXPORT workflow to materialize CSV/Parquet/JSON outputs first."
+            "Use the RUN → EXPORT workflow to materialize CSV/Parquet/JSON outputs first."
         )
         st.stop()  # Stop further processing
 

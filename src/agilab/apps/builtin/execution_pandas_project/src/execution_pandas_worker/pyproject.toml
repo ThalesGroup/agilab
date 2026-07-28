@@ -1,5 +1,5 @@
 [project]
-name = "execution_pandas_project"
+name = "execution_pandas_worker"
 version = "2026.05.30.post1"
 description = "Built-in AGILab execution playground using PandasWorker"
 requires-python = ">=3.12"

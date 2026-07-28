@@ -31,10 +31,10 @@ strategy, open-weight model review, and inference or token-cost optimization.
 
 1. Select `tescia_diagnostic_project` in `PROJECT`.
 2. Open `ORCHESTRATE`.
-3. Run `INSTALL`.
+3. Run `Deploy scheduler & workers`.
 4. Keep the bundled cases for the first run, or select the bundled classroom
    sample.
-5. Run `EXECUTE`, then open the TeSciA analysis tabs.
+5. Run `RUN`, then open the TeSciA analysis tabs.
 
 ## Expected Inputs
 

@@ -777,7 +777,7 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
     assert "workers_data_path=None" in manager_install_snippet
     assert "RunRequest(" in run_snippet
     assert "mode=15" in run_snippet
-    assert 'workers_data_path="/tmp/share"' in run_snippet
+    assert 'workflow_share_root="/tmp/share"' in run_snippet
     assert "rapids_enabled=True" in run_snippet
     assert "benchmark_best_single_node=True" in run_snippet
     assert 'RUN_PARAMS = json.loads(\'{"foo": "bar", "n": 2}\')' in run_snippet

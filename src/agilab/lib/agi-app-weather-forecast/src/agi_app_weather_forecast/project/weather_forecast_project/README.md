@@ -22,7 +22,7 @@ views, and release-decision evidence.
 1. Select `weather_forecast_project` in `PROJECT`.
 2. Open `ORCHESTRATE`.
 3. Review paths and forecasting parameters.
-4. Run `INSTALL`, then `EXECUTE`.
+4. Run `Deploy scheduler & workers`, then `RUN`.
 5. Open `ANALYSIS` with `view_forecast_analysis` or `view_release_decision`.
 
 ## Expected Inputs
@@ -49,8 +49,8 @@ change while artifact names remain stable.
 
 ## Troubleshooting
 
-If `skforecast` is missing, run `INSTALL` for this app and test from the app
-environment. If analysis pages are empty, confirm `EXECUTE` produced forecast
+If `skforecast` is missing, run `Deploy scheduler & workers` for this app and test from the app
+environment. If analysis pages are empty, confirm `RUN` produced forecast
 artifacts before opening `ANALYSIS`.
 
 ## Scope

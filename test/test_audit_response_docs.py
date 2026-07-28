@@ -191,7 +191,7 @@ def test_adoption_guide_uses_current_first_proof_wizard() -> None:
     adoption = Path("ADOPTION.md").read_text(encoding="utf-8")
 
     assert "landing-page first-proof wizard" in adoption
-    assert "`1. INSTALL`" in adoption
+    assert "`1. Deploy scheduler & workers`" in adoption
     assert "`2. RUN`" in adoption
     assert "`3. ANALYSIS`" in adoption
     assert "`Import notebook`" in adoption

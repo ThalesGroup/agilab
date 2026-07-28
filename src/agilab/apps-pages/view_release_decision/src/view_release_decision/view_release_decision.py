@@ -40,6 +40,25 @@ from agilab.data_connectors.data_connector_ui_preview import build_data_connecto
 from agilab.ci.ci_artifact_harvest import SCHEMA as CI_ARTIFACT_HARVEST_SCHEMA
 from agi_node.reduction import ReduceArtifact
 
+
+def _load_page_meta() -> tuple[str, str]:
+    if __package__:
+        from .page_meta import PAGE_LOGO, PAGE_TITLE
+
+        return PAGE_LOGO, PAGE_TITLE
+    module_path = Path(__file__).with_name("page_meta.py")
+    spec = importlib.util.spec_from_file_location(
+        "view_release_decision_page_meta", module_path
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load page metadata from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.PAGE_LOGO, module.PAGE_TITLE
+
+
+PAGE_LOGO, PAGE_TITLE = _load_page_meta()
+
 LOWER_IS_BETTER_KEYWORDS = ("mae", "rmse", "mape", "loss", "error", "latency", "duration")
 HIGHER_IS_BETTER_KEYWORDS = ("accuracy", "f1", "precision", "recall", "throughput", "score", "auc", "r2")
 REDUCE_ARTIFACT_GLOB = "**/reduce_summary_worker_*.json"
@@ -2079,8 +2098,8 @@ _reset_app_scoped_session_defaults(st, env)
 
 render_streamlit_page_header(
     st,
-    title="Evidence cockpit",
-    logo_title="Evidence Cockpit",
+    title=PAGE_TITLE,
+    logo_title=PAGE_LOGO,
     caption=(
         "Review baseline versus candidate evidence, explain gate failures, "
         "and export a portable promotion decision."

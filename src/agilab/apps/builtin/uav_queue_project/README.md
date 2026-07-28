@@ -21,7 +21,7 @@ queue-health, topology, and trajectory evidence inside AGILAB.
 1. Select `uav_queue_project` in `PROJECT`.
 2. Open `ORCHESTRATE`.
 3. Review routing and path arguments.
-4. Run `INSTALL`, then `EXECUTE`.
+4. Run `Deploy scheduler & workers`, then `RUN`.
 5. Open `ANALYSIS` and inspect scenario, queue, and network-map views.
 
 ## Expected Inputs

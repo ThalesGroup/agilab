@@ -1,7 +1,12 @@
 # BSD 3-Clause License
 #
 # Copyright (c) 2026, Jean-Pierre Morard, THALES SIX GTS France SAS
-"""Static supply-chain attestation evidence for AGILAB public review."""
+"""Static supply-chain integrity inventory for AGILAB public review.
+
+The legacy module and schema names remain available for compatibility. This
+artifact fingerprints repository metadata; it is not a signed provenance
+attestation.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +19,7 @@ from typing import Any, Mapping
 
 
 SCHEMA = "agilab.supply_chain_attestation.v1"
+CANONICAL_SCHEMA = "agilab.supply_chain_integrity_snapshot.v1"
 CREATED_AT = "2026-04-25T00:00:34Z"
 UPDATED_AT = "2026-07-23T00:00:00Z"
 CORE_PYPROJECTS = {
@@ -612,7 +618,9 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
         )
     return {
         "schema": SCHEMA,
-        "run_id": "supply-chain-attestation-proof",
+        "canonical_schema": CANONICAL_SCHEMA,
+        "evidence_kind": "inventory_snapshot",
+        "run_id": "supply-chain-integrity-snapshot",
         "created_at": CREATED_AT,
         "updated_at": UPDATED_AT,
         "run_status": "validated" if not issues else "invalid",
@@ -620,6 +628,8 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
         "package": root_metadata,
         "summary": {
             "schema": SCHEMA,
+            "canonical_schema": CANONICAL_SCHEMA,
+            "evidence_kind": "inventory_snapshot",
             "package_name": root_metadata.get("name", ""),
             "package_version": root_version,
             "requires_python": root_metadata.get("requires_python", ""),

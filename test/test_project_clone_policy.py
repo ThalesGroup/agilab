@@ -1014,7 +1014,7 @@ def test_create_project_clone_action_reports_environment_finalization_failure(
         "Project 'partial_clone_project' was created, but environment finalization failed."
     )
     assert result.detail == "bad strategy"
-    assert "rerun INSTALL" in str(result.next_action)
+    assert "rerun Deploy scheduler & workers" in str(result.next_action)
     assert (tmp_path / "partial_clone_project").is_dir()
 
 
@@ -1836,9 +1836,9 @@ def test_notebook_import_create_copy_uses_newcomer_friendly_labels():
     assert "This notebook will create" in source
     assert "Upload your own notebook file" in source
     assert "AGILAB's included notebook is selected" in source
-    assert "ORCHESTRATE opens next for INSTALL and EXECUTE" in source
+    assert "ORCHESTRATE opens next for Deploy scheduler & workers and RUN" in source
     assert "Advanced" in source
-    assert "then EXECUTE" in source
+    assert "then RUN" in source
     assert "create_notebook_use_sample" not in source
     assert "create_notebook_sample_download" not in source
     assert 'st.session_state["project_selectbox"] = new_name' not in source
@@ -1848,7 +1848,7 @@ def test_notebook_import_create_copy_uses_newcomer_friendly_labels():
     assert 'return "workflow", "WORKFLOW", False' in source
     assert 'return "orchestrate", "ORCHESTRATE", True' in source
     assert "Notebook source" not in source
-    assert "INSTALL then RUN" not in source
+    assert "Deploy scheduler & workers then RUN" not in source
     assert "chosen app or template source" not in source
 
 
@@ -2285,7 +2285,7 @@ def test_rename_project_action_reports_environment_preservation_failure(
         "Project 'renamed_project' was cloned, but environment preservation failed."
     )
     assert result.detail == "venv locked"
-    assert "rerun INSTALL" in str(result.next_action)
+    assert "rerun Deploy scheduler & workers" in str(result.next_action)
     assert (tmp_path / "renamed_project").is_dir()
 
 

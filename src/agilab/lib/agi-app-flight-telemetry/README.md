@@ -39,7 +39,7 @@ package in isolation.
 ## Run In AGILAB
 
 From the UI, select `flight_telemetry_project`, open `ORCHESTRATE`, then run
-`INSTALL` and `EXECUTE`. From Python, create an AGILAB environment with
+`Deploy scheduler & workers` and `RUN`. From Python, create an AGILAB environment with
 `AgiEnv(app="flight_telemetry_project")` and run the project through the normal
 `AGI.run(..., request=RunRequest(...))` path.
 

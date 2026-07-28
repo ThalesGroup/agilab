@@ -58,7 +58,7 @@ than the read-only scenario comparison or service-handoff contract.
 
 1. Install or link the apps repository that contains ``sb3_trainer_project``.
 2. Open AGILAB, select ``sb3_trainer_project`` in ``PROJECT``, then run
-   ``INSTALL`` in ``ORCHESTRATE``.
+   ``Deploy scheduler & workers`` in ``ORCHESTRATE``.
 3. Choose one of the trainer templates in the app args form:
 
    - ``Train • UAV Active Mesh • PPO``

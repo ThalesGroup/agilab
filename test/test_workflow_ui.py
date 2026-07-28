@@ -720,7 +720,7 @@ def test_workflow_ui_project_context_remaining_edges(monkeypatch, tmp_path) -> N
     )
     assert (
         "caption",
-        "No evidence files found yet. Run ORCHESTRATE -> EXECUTE first.",
+        "No evidence files found yet. Run ORCHESTRATE -> RUN first.",
     ) in fake_st.events
     assert workflow_ui._normalize_artifact({"description": "Description only"}) == {
         "label": "Artifact",

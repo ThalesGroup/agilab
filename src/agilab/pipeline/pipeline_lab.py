@@ -3399,7 +3399,7 @@ def _render_global_runner_state_view(
                 else:
                     st.warning(
                         "Distributed backend is selected, but the active ORCHESTRATE cluster settings "
-                        "do not provide a complete scheduler, workers, and Workers Data Path request."
+                        "do not provide a complete scheduler, workers, and workflow share root request."
                     )
         run_next_col, run_ready_col = st.columns(2)
         with run_next_col:

@@ -383,7 +383,7 @@ How to run it
       uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
 
 2. In **PROJECT**, select ``src/agilab/apps/builtin/execution_pandas_project``.
-3. In **ORCHESTRATE**, run **INSTALL** once, then **EXECUTE**.
+3. In **ORCHESTRATE**, run **Deploy scheduler & workers** once, then **RUN**.
 4. Enable **Benchmark all modes** when you want AGILAB to compare execution paths.
 5. Repeat with ``src/agilab/apps/builtin/execution_polars_project``.
 6. Compare the benchmark table in **ORCHESTRATE > Benchmark results** and the generated outputs.

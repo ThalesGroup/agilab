@@ -105,14 +105,15 @@
 <text x="380" y="666" class="small">Recommended path: run the built-in flight telemetry demo, then inspect the generated evidence. Notebook-first paths are below: use AGILAB's included notebook first;</text>
 <text x="380" y="688" class="small">upload your own notebook from PROJECT Create when you are ready.</text>
 <rect x="380" y="711" width="124" height="40" rx="8" fill="#0b1727" stroke="#4f6471"/>
-<text x="393" y="736" class="button">1. INSTALL demo</text>
+<text x="393" y="736" class="button">1. DEPLOY demo</text>
 <rect x="712" y="711" width="130" height="40" rx="8" fill="#0b1727" stroke="#4f6471"/>
-<text x="726" y="736" class="button">2. EXECUTE demo</text>
+<text x="726" y="736" class="button">2. RUN demo</text>
 <rect x="1044" y="711" width="131" height="40" rx="8" fill="#0b1727" stroke="#4f6471"/>
 <text x="1058" y="736" class="button">3. OPEN ANALYSIS</text>
-<text x="380" y="782" class="small">Runs ORCHESTRATE <tspan class="code">INSTALL</tspan> for</text>
-<text x="380" y="805" class="code">flight_telemetry_project.</text>
-<text x="712" y="782" class="small">Runs ORCHESTRATE <tspan class="code">EXECUTE</tspan> for the same demo.</text>
+<text x="380" y="782" class="small">Runs ORCHESTRATE</text>
+<text x="380" y="805" class="code">Deploy scheduler &amp; workers</text>
+<text x="380" y="828" class="code">for flight_telemetry_project.</text>
+<text x="712" y="782" class="small">Runs ORCHESTRATE <tspan class="code">RUN</tspan> for the same demo.</text>
 <text x="1044" y="782" class="small">Opens ANALYSIS on <tspan class="code">view_maps</tspan> for the generated</text>
 <text x="1044" y="805" class="small">evidence.</text>
 </svg>

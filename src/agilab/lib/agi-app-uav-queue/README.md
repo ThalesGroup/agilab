@@ -43,8 +43,8 @@ wheel.
 
 ## Run In AGILAB
 
-Select `uav_queue_project`, open `ORCHESTRATE`, then run `INSTALL` and
-`EXECUTE`. Open the scenario cockpit, queue-resilience view, or network-map view
+Select `uav_queue_project`, open `ORCHESTRATE`, then run `Deploy scheduler & workers` and
+`RUN`. Open the scenario cockpit, queue-resilience view, or network-map view
 from `ANALYSIS` to inspect the produced artifacts.
 
 ## Expected Inputs

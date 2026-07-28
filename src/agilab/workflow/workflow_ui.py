@@ -400,7 +400,7 @@ def _project_install_status(env: Any | None) -> tuple[str, str, str]:
     if manager_ready and (workerless or worker_ready):
         return "Ready", "manager and worker ready" if not workerless else "manager ready", "ready"
     if manager_exists or worker_exists:
-        return "Incomplete", "rerun Deploy scheduler & workers before EXECUTE", "incomplete"
+        return "Incomplete", "rerun Deploy scheduler & workers before RUN", "incomplete"
     return "Not installed", "run ORCHESTRATE -> Deploy scheduler & workers", "incomplete"
 
 
@@ -499,7 +499,7 @@ def _project_next_action(
     return {
         "id": "execute",
         "label": "Create evidence",
-        "detail": "Run ORCHESTRATE -> EXECUTE so ANALYSIS has outputs to inspect.",
+        "detail": "Run ORCHESTRATE -> RUN so ANALYSIS has outputs to inspect.",
         "url": _project_page_url("ORCHESTRATE", env),
         "type": "primary",
     }
@@ -542,7 +542,7 @@ def _project_cockpit_cards(page_label: str, env: Any | None) -> list[dict[str, s
         evidence_state = "ready"
     else:
         evidence_value = "No evidence"
-        evidence_caption = "run ORCHESTRATE -> EXECUTE"
+        evidence_caption = "run ORCHESTRATE -> RUN"
         evidence_state = "incomplete"
     return [
         {
@@ -623,7 +623,7 @@ def render_project_evidence_drawer(
             _call_container_method(
                 expander,
                 "caption",
-                "No evidence files found yet. Run ORCHESTRATE -> EXECUTE first.",
+                "No evidence files found yet. Run ORCHESTRATE -> RUN first.",
             )
         return
     render_artifact_drawer(

@@ -908,14 +908,14 @@ def test_above_fold_result_probe_reports_missing_primary_target() -> None:
         app_name="flight_telemetry_project",
         display="ORCHESTRATE",
         url="http://demo/ORCHESTRATE",
-        expected_labels=("ORCHESTRATE", "Deploy scheduler & workers", "EXECUTE"),
+        expected_labels=("ORCHESTRATE", "Deploy scheduler & workers", "RUN"),
         seen_labels=("ORCHESTRATE", "Deploy scheduler & workers"),
         fold=900,
     )
 
     assert probe.status == "failed"
     assert probe.kind == "above_fold"
-    assert "EXECUTE" in probe.detail
+    assert "RUN" in probe.detail
 
 
 def test_above_fold_result_probe_accepts_primary_targets() -> None:
@@ -925,8 +925,8 @@ def test_above_fold_result_probe_accepts_primary_targets() -> None:
         app_name="flight_telemetry_project",
         display="ORCHESTRATE",
         url="http://demo/ORCHESTRATE",
-        expected_labels=("ORCHESTRATE", "Deploy scheduler & workers", "EXECUTE"),
-        seen_labels=("ORCHESTRATE", "Deploy scheduler & workers action", "EXECUTE action"),
+        expected_labels=("ORCHESTRATE", "Deploy scheduler & workers", "RUN"),
+        seen_labels=("ORCHESTRATE", "Deploy scheduler & workers action", "RUN action"),
         fold=900,
     )
 
@@ -4788,7 +4788,7 @@ def test_action_buttons_are_probed_by_default(tmp_path) -> None:
 
     status, detail = module._probe_widget(
         _Page(),
-        {"id": "w1", "kind": "button", "label": "EXECUTE"},
+        {"id": "w1", "kind": "button", "label": "RUN"},
         timeout_ms=100,
         interaction_mode="full",
         action_button_policy="trial",

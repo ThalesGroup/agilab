@@ -84,11 +84,11 @@ Workflow session directories
 
 ORCHESTRATE isolates cluster run data below the cluster share instead of writing
 directly into the user share root. When cluster mode is enabled and
-``AGI_CLUSTER_SHARE`` is usable, the default **Workers Data Path** becomes:
+``AGI_CLUSTER_SHARE`` is usable, the default **Workflow share root** becomes:
 
 .. code-block:: text
 
-   <AGI_CLUSTER_SHARE>/<cluster-user>/workflows/<app-name>/<session-id>/workers
+   <AGI_CLUSTER_SHARE>/<cluster-user>/<workflow-id>/<session-id>
 
 This avoids collisions when the same user runs several app workflows on the same
 cluster share. The cluster settings UI exposes two controls:
@@ -108,7 +108,7 @@ The same behavior can be preseeded with environment values:
 - ``AGI_WORKFLOW_SESSION=<session-id>``
 
 If the cluster share is unavailable and an explicit ``AGI_LOCAL_SHARE`` exists,
-ORCHESTRATE disables cluster mode and points **Workers Data Path** back to the
+ORCHESTRATE disables cluster mode and points **Workflow share root** back to the
 local share instead of creating a shadow cluster-share directory. Fix the mounted
 ``AGI_CLUSTER_SHARE`` before enabling cluster mode again.
 
@@ -128,7 +128,7 @@ is classified by SSH BatchMode auth, operating system, ``python3``, ``uv``,
 ``sshfs``, and reverse SSH back to the scheduler when ``--scheduler`` is
 provided.
 
-Discovery is not a trust decision. Before running ``INSTALL`` or sending files
+Discovery is not a trust decision. Before running ``Deploy scheduler & workers`` or sending files
 to a remote worker, verify each worker host-key fingerprint out of band and pin
 it in the manager user's SSH ``known_hosts`` file. Controller-to-worker SSH and
 SCP default to strict host-key verification using ``~/.ssh/known_hosts``. To use
@@ -192,8 +192,8 @@ scheduler source, or if a stale/unwritable SSHFS mount is found, AGILAB tries to
 unmount it with ``fusermount3``, ``fusermount``, or ``umount`` before
 remounting.
 
-The same contract is used by ORCHESTRATE ``INSTALL``. Keep ``AGI_CLUSTER_SHARE``
-as the scheduler-side shared root, keep **Workers Data Path** pointing to the
+The same contract is used by ORCHESTRATE ``Deploy scheduler & workers``. Keep
+``AGI_CLUSTER_SHARE`` as the scheduler-side shared root, keep **Workflow share root** pointing to the
 worker-visible mount target, and let the remote deployment mount the scheduler
 share with ``sshfs`` before worker post-install hooks read datasets or write
 outputs. Do not clear the cluster-share path just because workers are remote;
@@ -275,7 +275,7 @@ On macOS workers, make the SSHFS prerequisite explicit before running
   ``--scheduler``, because the worker-side mount command reads
   ``<scheduler-user>@<scheduler>:/...``
 - ensure the worker trusts the scheduler host key before running
-  ``--setup-share`` or ORCHESTRATE ``INSTALL``. For a new scheduler host, verify
+  ``--setup-share`` or ORCHESTRATE ``Deploy scheduler & workers``. For a new scheduler host, verify
   the fingerprint out of band, then seed ``known_hosts`` on the worker with
   ``ssh-keyscan -H <scheduler-host> >> ~/.ssh/known_hosts``.
 
@@ -365,7 +365,7 @@ after a crash, unmount the old target on the worker before rerunning setup:
    '
 
 Then rerun ``agilab doctor --cluster --setup-share sshfs --apply`` or
-ORCHESTRATE ``INSTALL``. The automatic installer already attempts this cleanup
+ORCHESTRATE ``Deploy scheduler & workers``. The automatic installer already attempts this cleanup
 for stale, unexpected-source, or unwritable mounts, but doing it manually makes
 scheduler switches explicit and easier to audit.
 

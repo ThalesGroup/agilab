@@ -3067,11 +3067,11 @@ def _render_analysis_workspace_overview(
             )
         if not artifact_summary["exists"]:
             st.info(
-                "No analysis workspace found. Run ORCHESTRATE -> EXECUTE, then return here to review manifests, tables, figures, logs, and notebooks."
+                "No analysis workspace found. Run ORCHESTRATE -> RUN, then return here to review manifests, tables, figures, logs, and notebooks."
             )
         elif not artifact_summary["examples"]:
             st.info(
-                "No evidence files detected yet. Run ORCHESTRATE -> EXECUTE or WORKFLOW, then use ANALYSIS to inspect the generated outputs."
+                "No evidence files detected yet. Run ORCHESTRATE -> RUN or WORKFLOW, then use ANALYSIS to inspect the generated outputs."
             )
 
 

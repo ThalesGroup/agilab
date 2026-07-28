@@ -1796,10 +1796,13 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
             st.session_state[workers_data_path_widget_key] = cluster_params.get("workers_data_path", "")
 
         workers_data_path_input = st.text_input(
-            "Workers Data Path",
+            "Workflow share root",
             key=workers_data_path_widget_key,
-            placeholder="/path/to/data",
-            help="Path to data directory on workers.",
+            placeholder="/path/to/clustershare/user/workflow/session",
+            help=(
+                "Shared workflow-session root visible to the manager and workers. "
+                "App module data_in and data_out paths are resolved below this root."
+            ),
         )
         workers_data_path_value = str(workers_data_path_input or "").strip()
         if (

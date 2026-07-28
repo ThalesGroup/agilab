@@ -1,5 +1,5 @@
 [project]
-name = "data_quality_gate_project"
+name = "data_quality_gate_worker"
 version = "2026.05.30.post1"
 description = "Worker package for the AGILAB data quality gate app"
 requires-python = ">=3.12"

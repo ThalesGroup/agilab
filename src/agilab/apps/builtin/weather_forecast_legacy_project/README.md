@@ -22,7 +22,7 @@ ids and paths available.
 1. Select `weather_forecast_legacy_project` in `PROJECT`.
 2. Open `ORCHESTRATE`.
 3. Review paths and forecast parameters.
-4. Run `INSTALL`, then `EXECUTE`.
+4. Run `Deploy scheduler & workers`, then `RUN`.
 5. Open `ANALYSIS` with `view_forecast_analysis` or `view_release_decision`.
 
 ## Expected Inputs
