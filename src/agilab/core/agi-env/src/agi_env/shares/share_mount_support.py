@@ -8,6 +8,11 @@ from pathlib import Path
 from typing import Callable, Mapping
 
 from agi_env.project.app_settings_support import read_app_settings
+from agi_env.runtime.runtime_bootstrap_support import (
+    CLUSTER_SHARE_ORIGIN_DEFAULT,
+    CLUSTER_SHARE_ORIGIN_ENV_FILE,
+    CLUSTER_SHARE_ORIGIN_PROCESS_ENV,
+)
 
 SETTINGS_READ_EXCEPTIONS = (OSError, ValueError)
 SETTINGS_LOOKUP_EXCEPTIONS = (OSError, TypeError, ValueError)
@@ -169,6 +174,27 @@ def is_mounted(path: str, *, home_path: Path) -> bool:
         return False
 
 
+def describe_cluster_share_origin(origin: str | None, *, env_path: Path) -> str:
+    """Describe where the active ``AGI_CLUSTER_SHARE`` value came from.
+
+    The share path is resolved from the env file, the process environment, or a
+    per-user default.  Reporting ``env=<env file>`` for every origin sends
+    operators to a file that may not define the key at all, so name the actual
+    source instead.
+    """
+
+    if origin == CLUSTER_SHARE_ORIGIN_ENV_FILE:
+        return f"set in env file {env_path}"
+    if origin == CLUSTER_SHARE_ORIGIN_PROCESS_ENV:
+        return "set in the process environment (AGI_CLUSTER_SHARE)"
+    if origin == CLUSTER_SHARE_ORIGIN_DEFAULT:
+        return (
+            "not configured; using the per-user default. Set AGI_CLUSTER_SHARE in "
+            f"{env_path} to override"
+        )
+    return f"env={env_path}"
+
+
 def resolve_share_path(
     *,
     cluster_share: str,
@@ -176,16 +202,18 @@ def resolve_share_path(
     cluster_enabled: bool,
     env_path: Path,
     home_path: Path,
+    cluster_share_origin: str | None = None,
 ) -> str:
     """Choose the active AGILAB share path or raise with a fail-fast message."""
 
     cluster_candidate = _abs_path(cluster_share, home_path=home_path)
     local_candidate = _abs_path(local_share, home_path=home_path)
+    origin_hint = describe_cluster_share_origin(cluster_share_origin, env_path=env_path)
 
     if cluster_enabled and os.path.normpath(cluster_candidate) == os.path.normpath(local_candidate):
         raise RuntimeError(
             "Cluster mode requires AGI_CLUSTER_SHARE to be distinct from AGI_LOCAL_SHARE. "
-            f"Both resolve to {cluster_candidate!r}; env={env_path}"
+            f"Both resolve to {cluster_candidate!r}; {origin_hint}"
         )
 
     mounted = is_mounted(cluster_candidate, home_path=home_path)
@@ -195,6 +223,6 @@ def resolve_share_path(
     if cluster_enabled and not mounted:
         raise RuntimeError(
             "Cluster mode requires AGI_CLUSTER_SHARE to be mounted and writable. "
-            f"Configured AGI_CLUSTER_SHARE={cluster_candidate!r} is not usable; env={env_path}"
+            f"Configured AGI_CLUSTER_SHARE={cluster_candidate!r} is not usable; {origin_hint}"
         )
     return local_share

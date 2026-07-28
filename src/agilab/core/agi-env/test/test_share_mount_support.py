@@ -5,6 +5,7 @@ from unittest import mock
 import pytest
 
 import agi_env.share_mount_support as share_mount_support
+import agi_env.runtime.runtime_bootstrap_support as runtime_bootstrap_support
 
 
 def test_read_cluster_setting_handles_empty_and_invalid_files(tmp_path: Path):
@@ -231,3 +232,85 @@ def test_resolve_share_path_fail_fast_and_local_fallback(tmp_path: Path, monkeyp
         )
         == "localshare"
     )
+
+
+def test_describe_cluster_share_origin_names_the_real_source(tmp_path: Path):
+    env_path = tmp_path / ".env"
+
+    assert share_mount_support.describe_cluster_share_origin(
+        runtime_bootstrap_support.CLUSTER_SHARE_ORIGIN_ENV_FILE, env_path=env_path
+    ) == f"set in env file {env_path}"
+    assert "process environment" in share_mount_support.describe_cluster_share_origin(
+        runtime_bootstrap_support.CLUSTER_SHARE_ORIGIN_PROCESS_ENV, env_path=env_path
+    )
+
+    default_hint = share_mount_support.describe_cluster_share_origin(
+        runtime_bootstrap_support.CLUSTER_SHARE_ORIGIN_DEFAULT, env_path=env_path
+    )
+    assert "not configured" in default_hint
+    assert str(env_path) in default_hint
+
+    # Callers that do not supply an origin keep the previous wording.
+    assert share_mount_support.describe_cluster_share_origin(
+        None, env_path=env_path
+    ) == f"env={env_path}"
+
+
+def test_resolve_share_path_error_does_not_blame_env_file_for_default(tmp_path: Path, monkeypatch):
+    """A defaulted share must not point operators at an env file lacking the key."""
+
+    env_path = tmp_path / ".env"
+    env_path.write_text("APPS_PATH=/somewhere\n", encoding="utf-8")
+    monkeypatch.setattr(share_mount_support, "is_mounted", lambda _path, home_path: False)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        share_mount_support.resolve_share_path(
+            cluster_share="clustershare/agi",
+            local_share="localshare/agi",
+            cluster_enabled=True,
+            env_path=env_path,
+            home_path=tmp_path,
+            cluster_share_origin=runtime_bootstrap_support.CLUSTER_SHARE_ORIGIN_DEFAULT,
+        )
+
+    message = str(excinfo.value)
+    assert "not configured" in message
+    assert f"env={env_path}" not in message
+
+
+def test_resolve_share_runtime_config_reports_origin(tmp_path: Path):
+    env_path = tmp_path / ".env"
+    seen: dict[str, object] = {}
+
+    def _fake_resolver(**kwargs):
+        seen.update(kwargs)
+        return "localshare/agi"
+
+    def _config(envars, environ):
+        seen.clear()
+        runtime_bootstrap_support.resolve_share_runtime_config(
+            envars=envars,
+            environ=environ,
+            is_worker_env=False,
+            resolve_workspace_settings_fn=lambda: None,
+            find_source_settings_fn=lambda: None,
+            clean_envar_value_fn=lambda _envars, _key, fallback_to_process=False: None,
+            resolve_cluster_enabled_fn=lambda **_kwargs: False,
+            resolve_runtime_share_path_fn=_fake_resolver,
+            env_path=env_path,
+            home_path=tmp_path,
+        )
+        return seen["cluster_share_origin"], seen["cluster_share"]
+
+    assert _config({"AGI_CLUSTER_SHARE": "from/envfile"}, {}) == (
+        runtime_bootstrap_support.CLUSTER_SHARE_ORIGIN_ENV_FILE,
+        "from/envfile",
+    )
+    assert _config({}, {"AGI_CLUSTER_SHARE": "from/process"}) == (
+        runtime_bootstrap_support.CLUSTER_SHARE_ORIGIN_PROCESS_ENV,
+        "from/process",
+    )
+
+    origin, share = _config({}, {"USER": "agi"})
+    assert origin == runtime_bootstrap_support.CLUSTER_SHARE_ORIGIN_DEFAULT
+    assert share == "clustershare/agi"
