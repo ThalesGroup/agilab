@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import json
 import sys
 from pathlib import Path
@@ -64,6 +65,45 @@ class _Mlflow:
         self.logged_artifacts.append(path)
 
 
+def test_manager_does_not_scan_or_import_mlflow_when_request_is_disabled(
+    tmp_path,
+    monkeypatch,
+):
+    share = tmp_path / "workflow"
+    share.mkdir()
+    real_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "mlflow":
+            raise AssertionError("MLflow must not be imported without a handoff")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+    def forbidden_rglob(_self, _pattern):
+        raise AssertionError("Disabled MLflow must not scan the workflow tree")
+
+    monkeypatch.setattr(Path, "rglob", forbidden_rglob)
+    agi = SimpleNamespace(
+        _workers_data_path=str(share),
+        _args={
+            "_agilab_run_stages": [
+                {
+                    "name": "fcas_routing_path_ac",
+                    "args": {
+                        "mlflow_enabled": False,
+                        "tracking_backend": "mlflow",
+                        "mlflow_tracking_uri": "http://192.0.2.10:5000",
+                    },
+                }
+            ]
+        },
+        env=SimpleNamespace(home_abs=str(tmp_path)),
+    )
+
+    assert register_shared_mlflow_handoffs(agi) == []
+
+
 def test_manager_registers_shared_handoff_and_is_idempotent(tmp_path, monkeypatch):
     share = tmp_path / "workflow"
     output = share / "sb3_trainer" / "pipeline" / "trainer_fcas_routing_path_ac"
@@ -86,6 +126,14 @@ def test_manager_registers_shared_handoff_and_is_idempotent(tmp_path, monkeypatc
     monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
     agi = SimpleNamespace(
         _workers_data_path=str(share),
+        _args={
+            "_agilab_run_stages": [
+                {
+                    "name": "fcas_routing_path_ac",
+                    "args": {"mlflow_enabled": True},
+                }
+            ]
+        },
         env=SimpleNamespace(
             home_abs=str(tmp_path),
             MLFLOW_TRACKING_DIR=str(tmp_path / "manager-mlflow"),
