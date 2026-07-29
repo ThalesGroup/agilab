@@ -158,9 +158,13 @@ class BaseWorker(ArtifactContract, abc.ABC):
         fields such as ``data_in`` and ``submission_inbox``. Applications whose
         planner reads other filesystem locations can expose those roots here
         without changing the stable ``build_distribution(workers)`` signature.
+        Set ``distribution_cache_inputs_mode`` to ``"replace"`` when these
+        declared paths are the complete planner input set.
         """
 
         return ()
+
+    distribution_cache_inputs_mode: ClassVar[str] = "augment"
 
     def _actual_work_pool(self, x: Any = None) -> Any:
         """Process one work item; dataframe families must override this."""
