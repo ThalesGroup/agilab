@@ -9,6 +9,7 @@ WORKFLOW_PATH = Path(".github/workflows/ci.yml")
 COVERAGE_WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
 DOCS_SOURCE_GUARD_WORKFLOW_PATH = Path(".github/workflows/docs-source-guard.yaml")
 DOCS_PUBLISH_WORKFLOW_PATH = Path(".github/workflows/docs-publish.yaml")
+PYPI_PUBLISH_WORKFLOW_PATH = Path(".github/workflows/pypi-publish.yaml")
 ENSURE_ROADMAP_LABEL_WORKFLOW_PATH = Path(".github/workflows/ensure-roadmap-label.yaml")
 UI_ROBOT_MATRIX_WORKFLOW_PATH = Path(".github/workflows/ui-robot-matrix.yml")
 WINDOWS_CORE_TESTS_WORKFLOW_PATH = Path(".github/workflows/windows-core-tests.yml")
@@ -362,6 +363,29 @@ def test_docs_workflows_block_stale_release_proof_github_runs() -> None:
         "-o addopts='' test/test_sync_docs_source.py test/test_release_proof_report.py"
     ) in guard_text
     assert "run --extra ui pytest -q -o addopts='' test/test_sync_docs_source.py" not in guard_text
+
+
+def test_docs_workflows_label_target_only_verification_honestly() -> None:
+    for path in (DOCS_SOURCE_GUARD_WORKFLOW_PATH, DOCS_PUBLISH_WORKFLOW_PATH):
+        text = path.read_text(encoding="utf-8")
+        assert "Verify checked-in docs mirror integrity" in text
+        assert (
+            "tools/sync_docs_source.py --verify-stamp --skip-missing-source --quiet"
+            in text
+        )
+
+    guard_text = DOCS_SOURCE_GUARD_WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "--check --delete --quiet --skip-missing-source" not in guard_text
+
+
+def test_release_workflow_writes_an_explicit_target_only_mirror_stamp() -> None:
+    text = PYPI_PUBLISH_WORKFLOW_PATH.read_text(encoding="utf-8")
+    stamp_block = text.split("python tools/sync_docs_source.py", 1)[1].split(
+        "release_metadata_paths=", 1
+    )[0]
+
+    assert "--write-target-only-stamp" in stamp_block
+    assert "--source docs/source" not in stamp_block
 
 
 def test_docs_source_guard_fetches_release_tags_for_exact_proof() -> None:

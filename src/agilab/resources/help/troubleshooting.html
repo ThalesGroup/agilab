@@ -53,6 +53,14 @@
   <h2 id="c-example-of-tests-sequence">C - Example Test Sequence</h2>
   <pre><code>./dev impact
 ./dev bugfix
+uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp --skip-missing-source</code></pre>
+  <p>
+    In a public-only clone, <code>--skip-missing-source</code> validates the
+    checked-in mirror target and reports that canonical drift was not checked.
+    Maintainers with the canonical docs checkout must instead configure its
+    source path and omit that option so source-to-mirror drift is mandatory:
+  </p>
+  <pre><code>AGILAB_DOCS_SOURCE=/path/to/canonical/docs/source \
 uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp</code></pre>
 
   <h1 id="known-limitations-and-deprecations">Known Limitations and Deprecations</h1>

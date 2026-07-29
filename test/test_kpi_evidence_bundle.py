@@ -82,8 +82,26 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "web_ui_robot_contract",
         "production_readiness_report_contract",
         "docs_mirror_stamp",
+        "docs_canonical_alignment",
         "public_docs_evidence_links",
     }
+
+
+def test_missing_canonical_docs_is_skipped_not_passed(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv("AGILAB_DOCS_SOURCE", str(tmp_path / "missing-canonical"))
+
+    target_check = module._check_docs_mirror_stamp(Path.cwd())
+    canonical_check = module._check_docs_canonical_alignment(Path.cwd())
+
+    assert target_check["status"] == "pass"
+    assert "target integrity" in target_check["summary"]
+    assert canonical_check["status"] == "skipped"
+    assert canonical_check["details"]["canonical_alignment_checked"] is False
+    assert "canonical drift NOT CHECKED" in canonical_check["summary"]
 
 
 def test_render_readme_summary_uses_kpi_bundle_scores() -> None:

@@ -28,7 +28,7 @@ Current public release
    * - Public guardrails
      - `repo-guardrails run 30244336462 <https://github.com/ThalesGroup/agilab/actions/runs/30244336462>`__ at commit ``411267613c11`` passed repository guardrails at the recorded post-release main commit; clean-install jobs were skipped and are not claimed as release proof
    * - Docs source guard
-     - `docs-source-guard run 30244336406 <https://github.com/ThalesGroup/agilab/actions/runs/30244336406>`__ at commit ``411267613c11`` passed docs mirror and release-proof consistency checks
+     - `docs-source-guard run 30244336406 <https://github.com/ThalesGroup/agilab/actions/runs/30244336406>`__ at commit ``411267613c11`` passed checked-in docs mirror integrity and release-proof consistency checks; canonical private-source drift is not checked by public CI
    * - Docs publish
      - `docs-publish run 30244336436 <https://github.com/ThalesGroup/agilab/actions/runs/30244336436>`__ at commit ``411267613c11`` built the public documentation from the managed docs mirror
    * - Coverage

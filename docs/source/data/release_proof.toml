@@ -57,7 +57,7 @@ workflow = "docs-source-guard"
 run_id = "30244336406"
 url = "https://github.com/ThalesGroup/agilab/actions/runs/30244336406"
 head_sha = "411267613c11109af85d6139a180bf72e9e999a8"
-summary = "passed docs mirror and release-proof consistency checks"
+summary = "passed checked-in docs mirror integrity and release-proof consistency checks; canonical private-source drift is not checked by public CI"
 
 [[ci_runs]]
 id = "docs-publish"

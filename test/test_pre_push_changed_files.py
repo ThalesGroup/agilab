@@ -35,11 +35,16 @@ def test_classify_docs_source_change_runs_docs_guard_only():
 
 
 def test_classify_release_proof_change_runs_both_doc_related_guards():
-    state = pre_push_changed_files.classify_changed_files(["docs/source/release-proof.rst"])
+    for path in (
+        "docs/source/data/release_proof.toml",
+        "docs/source/release-proof.rst",
+        "docs/source/data/ui_robot_evidence.json",
+    ):
+        state = pre_push_changed_files.classify_changed_files([path])
 
-    assert state.docs_changed
-    assert state.release_proof_changed
-    assert not state.app_contracts_changed
+        assert state.docs_changed, path
+        assert state.release_proof_changed, path
+        assert not state.app_contracts_changed, path
 
 
 def test_classify_release_tool_change_runs_release_proof_guard_only():
@@ -94,10 +99,13 @@ def test_classify_infra_scopes_do_not_count_as_mixed_push_scope():
 
 def test_pre_push_docs_guard_accepts_an_isolated_canonical_source():
     hook = (ROOT / ".githooks" / "pre-push").read_text(encoding="utf-8")
+    verify_block = hook.split("--verify-stamp", 1)[1].split(
+        "run_guard_python tools/sync_docs_source.py", 1
+    )[0]
 
     assert 'if [[ -n "${AGILAB_DOCS_SOURCE:-}" ]]' in hook
     assert 'docs_source_args=(--source "$AGILAB_DOCS_SOURCE")' in hook
-    assert '"${docs_source_args[@]}" \\' in hook
+    assert '"${docs_source_args[@]}" \\' in verify_block
 
 
 def test_pre_push_docs_source_override_fails_closed_when_missing(

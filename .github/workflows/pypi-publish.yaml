@@ -1061,10 +1061,8 @@ jobs:
             --check-github-runs \
             --compact
           python tools/sync_docs_source.py \
-            --source docs/source \
             --target docs/source \
-            --apply \
-            --delete \
+            --write-target-only-stamp \
             --quiet
 
           release_metadata_paths=(

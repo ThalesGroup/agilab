@@ -475,6 +475,11 @@ from GitHub. Maintainers who work with a separate canonical documentation
 checkout should edit that canonical source first, then sync the public mirror in
 ``agilab/docs/source`` before opening or updating the public PR.
 
+The release-proof manifest, its generated page, and the UI robot evidence are
+the exception. They are generated from the public AGILAB checkout and remain
+owned by that repository; private-to-public mirror sync preserves them. The
+canonical documentation source keeps only a pointer to the public release proof.
+
 For maintainer mirror syncs, run:
 
 .. code-block:: bash

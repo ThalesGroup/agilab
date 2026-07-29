@@ -48,11 +48,15 @@ def _check_result(
     *,
     evidence: Sequence[str] = (),
     details: dict[str, Any] | None = None,
+    status_override: str | None = None,
 ) -> dict[str, Any]:
+    status = status_override or ("pass" if passed else "fail")
+    if status not in {"pass", "fail", "skipped"}:
+        raise ValueError(f"unsupported check status: {status}")
     return {
         "id": check_id,
         "label": label,
-        "status": "pass" if passed else "fail",
+        "status": status,
         "summary": summary,
         "evidence": list(evidence),
         "details": details or {},
@@ -80,15 +84,42 @@ def _missing_required_tokens(
 def _check_docs_mirror_stamp(repo_root: Path) -> dict[str, Any]:
     try:
         sync_docs_source = _load_tool_module("sync_docs_source")
-        ok, message = sync_docs_source.verify_mirror_stamp(repo_root / "docs" / "source")
+        ok, message = sync_docs_source.verify_target_mirror_integrity(
+            repo_root / "docs" / "source"
+        )
     except Exception as exc:
         ok, message = False, str(exc)
     return _check_result(
         "docs_mirror_stamp",
-        "Docs mirror stamp",
+        "Checked-in docs mirror target integrity",
         ok,
         message,
         evidence=["docs/.docs_source_mirror_stamp.json", "tools/sync_docs_source.py"],
+    )
+
+
+def _check_docs_canonical_alignment(repo_root: Path) -> dict[str, Any]:
+    source = None
+    try:
+        sync_docs_source = _load_tool_module("sync_docs_source")
+        source = sync_docs_source.configured_canonical_source()
+        status, message = sync_docs_source.verify_canonical_mirror_alignment(
+            repo_root / "docs" / "source",
+            source,
+        )
+    except Exception as exc:
+        status, message = "fail", str(exc)
+    return _check_result(
+        "docs_canonical_alignment",
+        "Canonical-to-public docs alignment",
+        status == "pass",
+        message,
+        evidence=["docs/.docs_source_mirror_stamp.json", "tools/sync_docs_source.py"],
+        details={
+            "canonical_source": str(source) if source is not None else None,
+            "canonical_alignment_checked": status != "skipped",
+        },
+        status_override=status,
     )
 
 
@@ -924,6 +955,7 @@ def build_report(*, repo_root: Path = REPO_ROOT, run_docs_profile: bool = False)
     repo_root = repo_root.resolve()
     checks = [
         _check_docs_mirror_stamp(repo_root),
+        _check_docs_canonical_alignment(repo_root),
         _check_docs_workflow_profile(repo_root),
         _check_production_readiness_workflow_profile(repo_root),
         _check_architecture_scorecard(repo_root),
@@ -945,6 +977,7 @@ def build_report(*, repo_root: Path = REPO_ROOT, run_docs_profile: bool = False)
 
     passed = sum(1 for check in checks if check["status"] == "pass")
     failed = sum(1 for check in checks if check["status"] == "fail")
+    skipped = sum(1 for check in checks if check["status"] == "skipped")
     return {
         "kpi": "Production readiness",
         "supported_score": SUPPORTED_SCORE,
@@ -952,6 +985,7 @@ def build_report(*, repo_root: Path = REPO_ROOT, run_docs_profile: bool = False)
         "summary": {
             "passed": passed,
             "failed": failed,
+            "skipped": skipped,
             "total": len(checks),
             "docs_profile_executed": run_docs_profile,
         },

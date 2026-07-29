@@ -101,3 +101,11 @@ def test_packaged_help_uses_current_troubleshooting_page() -> None:
 
     assert typo_hits == []
     assert stale_heading_hits == []
+
+    troubleshooting = (help_root / "troubleshooting.html").read_text(encoding="utf-8")
+    assert (
+        "tools/sync_docs_source.py --verify-stamp --skip-missing-source"
+        in troubleshooting
+    )
+    assert "canonical drift was not checked" in troubleshooting
+    assert "AGILAB_DOCS_SOURCE=/path/to/canonical/docs/source" in troubleshooting
