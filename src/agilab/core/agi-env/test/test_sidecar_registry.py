@@ -675,3 +675,31 @@ def test_registry_start_failure_stops_only_observed_launcher_descendants(tmp_pat
     while _process_is_live(child_pid) and time.monotonic() < deadline:
         time.sleep(0.05)
     assert not _process_is_live(child_pid)
+
+
+def test_hosted_import_lease_is_reentrant_on_the_owning_thread() -> None:
+    """Nested inline renders on one thread never contend with themselves.
+
+    AGILAB page runners hold this lease across a whole page render, and the
+    inline surfaces they render (app surfaces, analysis views, ORCHESTRATE
+    import scopes) acquire it again on the same thread while keeping the short
+    generic timeout, which they can only do because the lease is re-entrant.
+    Downgrading it to a plain ``threading.Lock`` -- easy to do by accident,
+    since ``HOSTED_INLINE_RENDER_SESSION_LEASE`` is a plain lock declared on
+    the very next line -- would make every such nested render deadlock against
+    its own outer lease and fail as a phantom peer session.
+    """
+
+    assert isinstance(
+        sidecar_registry_module.HOSTED_INLINE_RENDER_LEASE,
+        type(threading.RLock()),
+    )
+
+    with sidecar_registry_module.isolated_import_process_state(timeout=30.0):
+        # A deliberately tiny inner timeout: a re-entrant acquisition must not
+        # consult it at all, so this cannot raise no matter how small it is.
+        with sidecar_registry_module.isolated_import_process_state(timeout=0.001):
+            with sidecar_registry_module.hosted_inline_render_guard(timeout=0.001):
+                nested = True
+
+    assert nested is True
