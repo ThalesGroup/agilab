@@ -6,3 +6,7 @@ mission_decision = [
   { D = "Inject failure and re-plan", Q = "Apply a bandwidth-drop event to the initially selected route, recompute candidate scores, and select the adapted strategy.", M = "", C = "APP = 'mission_decision_project'\nfailure_kind = 'bandwidth_drop'", R = "runpy" },
   { D = "Export final decision evidence", Q = "Write the summary metrics, generated pipeline, decision timeline, and route comparison artifacts for ANALYSIS.", M = "", C = "APP = 'mission_decision_project'\ndata_out = 'mission_decision/results'", R = "runpy" },
 ]
+
+[__meta__]
+schema = "agilab.lab_stages.v1"
+version = 1

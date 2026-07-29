@@ -19,6 +19,18 @@ from typing import Any, Mapping, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from agilab.workflow.lab_stages_contract import (  # noqa: E402
+    LAB_STAGES_META_KEY,
+    module_key_from_project,
+)
+from agilab.workflow.workflow_validation import (  # noqa: E402
+    validate_lab_stages_file,
+)
+
 SCHEMA = "agilab.app_contract_matrix.v1"
 BUILTIN_APPS_REL = Path("src/agilab/apps/builtin")
 APPS_PAGES_REL = Path("src/agilab/apps-pages")
@@ -41,23 +53,13 @@ OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS = frozenset(
         "pytorch_playground_project",
     }
 )
-# Apps that ship a lab_stages.toml the WORKFLOW page cannot render. Their files are
-# design manifests (id/label/kind/depends_on/produces) written into the executable
-# contract's filename: no entry carries Q or C, so none is displayable, and renaming
-# the table key alone would make things worse -- pipeline_editor rewrites the pruned
-# list on save, so renamed-but-undisplayable entries are deleted permanently the first
-# time an operator touches the pipeline. Each needs a per-app decision: author real
-# stages, or ship the decomposition as pipeline_view.dot and drop the file.
-# The list may shrink, never grow.
-UNRENDERABLE_LAB_STAGES_PROJECTS = frozenset(
+CONCEPTUAL_PIPELINE_VIEW_PROJECTS = frozenset(
     {
         "data_quality_gate_project",
         "r_runtime_bridge_project",
         "sklearn_pipeline_project",
-        "tescia_diagnostic_project",
     }
 )
-LAB_STAGES_META_KEY = "__meta__"
 PAYLOAD_EXCLUDED_DIRS = frozenset(
     {
         ".mypy_cache",
@@ -165,41 +167,56 @@ def _read_toml(path: Path) -> dict[str, Any]:
         return tomllib.load(stream)
 
 
-def _lab_stages_module_key(project_name: str) -> str:
-    """Return the key the WORKFLOW page looks the stage payload up under.
-
-    Mirrors the app-slug derivation in ``agilab.pipeline.pipeline_stages.module_keys``:
-    the export directory name, i.e. the project name without its ``_project`` suffix.
-    Reimplemented here so this contract tool stays importable without pulling in the
-    Streamlit UI stack.
-    """
-
-    suffix = "_project"
-    return project_name[: -len(suffix)] if project_name.endswith(suffix) else project_name
-
-
-def _lab_stage_is_displayable(entry: Any) -> bool:
-    """Mirror ``agilab.pipeline.pipeline_stages.is_displayable_stage``.
-
-    An entry survives ``prune_invalid_entries`` only when ``Q`` or ``C`` is a
-    non-empty string; everything else is dropped, and the WORKFLOW editor deletes
-    the dropped entries permanently on the next save.
-    """
-
-    if not isinstance(entry, dict):
-        return False
-    for field in ("Q", "C"):
-        value = entry.get(field, "")
-        if isinstance(value, str) and value.strip():
-            return True
-    return False
-
-
 def _relative(repo_root: Path, path: Path) -> str:
     try:
         return str(path.relative_to(repo_root))
     except ValueError:
         return str(path)
+
+
+def _conceptual_pipeline_view_contract(project_path: Path) -> dict[str, Any]:
+    """Validate the small file contract used by conceptual-only WORKFLOW apps."""
+
+    candidates = [
+        path
+        for path in (
+            project_path / "pipeline_view.dot",
+            project_path / "pipeline_view.json",
+        )
+        if path.is_file()
+    ]
+    details: dict[str, Any] = {
+        "paths": [path.name for path in candidates],
+        "valid": False,
+        "error": "",
+    }
+    if len(candidates) != 1:
+        details["error"] = (
+            "conceptual-only apps must ship exactly one pipeline_view.dot or "
+            "pipeline_view.json"
+        )
+        return details
+
+    path = candidates[0]
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+        if not text:
+            raise ValueError("conceptual pipeline view is empty")
+        if path.suffix == ".json":
+            payload = json.loads(text)
+            if not isinstance(payload, dict) or not (
+                str(payload.get("dot", "") or "").strip()
+                or isinstance(payload.get("nodes"), list)
+            ):
+                raise ValueError("conceptual JSON must contain dot text or a nodes list")
+        elif not re.match(r"^(?:strict\s+)?digraph\b", text, flags=re.IGNORECASE):
+            raise ValueError("conceptual DOT must start with a digraph declaration")
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        details["error"] = str(exc)
+        return details
+
+    details["valid"] = True
+    return details
 
 
 def _dependencies(payload: Mapping[str, Any]) -> tuple[str, ...]:
@@ -770,49 +787,67 @@ def _project_checks(repo_root: Path, project_path: Path) -> list[Check]:
         )
     )
 
-    if project_name in OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS:
+    lab_stage_evidence = [lab_stages_path]
+    if project_name in CONCEPTUAL_PIPELINE_VIEW_PROJECTS:
+        conceptual = _conceptual_pipeline_view_contract(project_path)
+        lab_stage_evidence = [
+            project_path / path for path in conceptual.get("paths", [])
+        ] or [project_path]
+        lab_stage_ok = not lab_stages_path.exists() and bool(conceptual["valid"])
+        lab_stage_summary = (
+            "conceptual-only app ships one loadable pipeline view and no "
+            "lab_stages.toml"
+            if lab_stage_ok
+            else "conceptual-only app contract requires no lab_stages.toml and one loadable pipeline view"
+        )
+        lab_stage_details = {
+            "required": False,
+            "exists": lab_stages_path.exists(),
+            "conceptual_only": True,
+            "conceptual_view": conceptual,
+        }
+    elif (
+        project_name in OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS
+        and not lab_stages_path.is_file()
+    ):
         lab_stage_ok = True
         lab_stage_summary = "lab_stages.toml is optional for this app contract"
         lab_stage_details: dict[str, Any] = {"required": False, "exists": lab_stages_path.is_file()}
     else:
         try:
             lab_stages = _read_toml(lab_stages_path)
-            module_key = _lab_stages_module_key(project_name)
+            module_key = module_key_from_project(project_name)
             entries = lab_stages.get(module_key)
             keyed = isinstance(entries, list) and bool(entries)
-            displayable = (
-                [entry for entry in entries if _lab_stage_is_displayable(entry)]
-                if keyed
-                else []
+            validation = validate_lab_stages_file(
+                lab_stages_path,
+                apps_root=repo_root / BUILTIN_APPS_REL,
+                repo_root=repo_root,
+                module_key=module_key,
+                require_metadata=True,
             )
-            renders = bool(displayable)
-            known_debt = project_name in UNRENDERABLE_LAB_STAGES_PROJECTS
-            # A known-debt app still passes so the gate stays actionable, but the
-            # evidence records that its WORKFLOW page is empty.
-            lab_stage_ok = renders or known_debt
-            if renders:
+            displayable_count = int(validation["summary"]["stage_count"])
+            renders = displayable_count > 0
+            lab_stage_ok = validation["status"] == "pass" and renders
+            if lab_stage_ok:
                 lab_stage_summary = (
-                    f"lab_stages.toml exposes {len(displayable)} displayable "
+                    f"lab_stages.toml validates and exposes {displayable_count} displayable "
                     f"stage(s) under the module key {module_key!r}"
-                )
-            elif known_debt:
-                lab_stage_summary = (
-                    "lab_stages.toml is a known-unrenderable design manifest; the "
-                    "WORKFLOW page shows no stage for this app"
                 )
             else:
                 lab_stage_summary = (
-                    f"lab_stages.toml exposes no displayable stage under the module "
-                    f"key {module_key!r}; the WORKFLOW page renders empty"
+                    f"lab_stages.toml does not satisfy the WORKFLOW contract for "
+                    f"module key {module_key!r}: validator status={validation['status']}"
                 )
             lab_stage_details = {
-                "required": True,
+                "required": project_name not in OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS,
                 "module_key": module_key,
                 "keyed_under_module_key": keyed,
                 "entry_count": len(entries) if keyed else 0,
-                "displayable_count": len(displayable),
+                "displayable_count": displayable_count,
                 "renders_in_workflow": renders,
-                "known_debt": known_debt,
+                "validator_status": validation["status"],
+                "validator_issues": validation["issues"],
                 "top_level_keys": sorted(
                     key for key in lab_stages if key != LAB_STAGES_META_KEY
                 ),
@@ -827,7 +862,9 @@ def _project_checks(repo_root: Path, project_path: Path) -> list[Check]:
             f"{project_name} lab stages",
             lab_stage_ok,
             lab_stage_summary,
-            evidence=(_relative(repo_root, lab_stages_path),),
+            evidence=tuple(
+                _relative(repo_root, path) for path in lab_stage_evidence
+            ),
             details=lab_stage_details,
         )
     )

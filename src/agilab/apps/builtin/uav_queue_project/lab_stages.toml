@@ -4,3 +4,7 @@ uav_queue = [
   { D = "Compare routing pressure", Q = "Switch between shortest-path and queue-aware forwarding to observe queue buildup, drops, and delivery ratio changes.", M = "", C = "routing_policy = 'queue_aware'\nqueue_weight = 2.5", R = "runpy" },
   { D = "Export queue telemetry for ANALYSIS", Q = "Write summary metrics, per-packet events, queue timeseries, node positions, route summaries, topology.gml, allocations_steps.csv, and trajectory CSVs so both dedicated and generic ANALYSIS pages can reuse the same run.", M = "", C = "artifact_dir = '~/export/uav_queue/queue_analysis'\npipeline_dir = artifact_dir + '/pipeline'", R = "runpy" }
 ]
+
+[__meta__]
+schema = "agilab.lab_stages.v1"
+version = 1

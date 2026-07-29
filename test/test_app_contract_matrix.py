@@ -38,7 +38,19 @@ def _seed_builtin_project(
     (manager / "__init__.py").write_text("", encoding="utf-8")
     (manager / "reduction.py").write_text("", encoding="utf-8")
     (worker / "__init__.py").write_text("", encoding="utf-8")
-    (project / "lab_stages.toml").write_text("[stage.demo]\nname = \"Demo\"\n", encoding="utf-8")
+    (project / "lab_stages.toml").write_text(
+        (
+            f"[[{module_name}]]\n"
+            'id = "demo"\n'
+            'Q = "Run the demo stage."\n'
+            'C = "value = 1"\n'
+            'R = "runpy"\n\n'
+            "[__meta__]\n"
+            'schema = "agilab.lab_stages.v1"\n'
+            "version = 1\n"
+        ),
+        encoding="utf-8",
+    )
     (project / "README.md").write_text(
         f"{name}\n\n"
         + " ".join(
@@ -496,6 +508,14 @@ def test_app_contract_matrix_detects_unrenderable_lab_stages(tmp_path: Path):
     assert lab_stages.details["keyed_under_module_key"] is False
     assert lab_stages.details["renders_in_workflow"] is False
     assert lab_stages.details["top_level_keys"] == ["steps"]
+    assert lab_stages.details["validator_status"] == "fail"
+    assert {
+        issue["check_id"] for issue in lab_stages.details["validator_issues"]
+    } == {
+        "metadata-missing",
+        "module-key-missing",
+        "unexpected-stage-lists",
+    }
 
 
 def test_app_contract_matrix_detects_undisplayable_lab_stages(tmp_path: Path):
@@ -515,6 +535,9 @@ def test_app_contract_matrix_detects_undisplayable_lab_stages(tmp_path: Path):
     assert lab_stages.details["keyed_under_module_key"] is True
     assert lab_stages.details["entry_count"] == 1
     assert lab_stages.details["displayable_count"] == 0
+    assert "undisplayable-stages" in {
+        issue["check_id"] for issue in lab_stages.details["validator_issues"]
+    }
 
 
 def test_app_contract_matrix_accepts_a_renderable_lab_stages(tmp_path: Path):
@@ -522,7 +545,7 @@ def test_app_contract_matrix_accepts_a_renderable_lab_stages(tmp_path: Path):
     project = _seed_builtin_project(tmp_path, "demo_project")
     (project / "lab_stages.toml").write_text(
         '[[demo]]\nD = "Demo"\nQ = "Do the thing."\nC = "x = 1"\nR = "runpy"\n'
-        "\n[__meta__]\nschema = \"agilab.lab_stages.v1\"\n",
+        "\n[__meta__]\nschema = \"agilab.lab_stages.v1\"\nversion = 1\n",
         encoding="utf-8",
     )
 
@@ -534,10 +557,36 @@ def test_app_contract_matrix_accepts_a_renderable_lab_stages(tmp_path: Path):
     assert lab_stages.details["top_level_keys"] == ["demo"]
 
 
-def test_unrenderable_lab_stages_debt_list_stays_closed():
-    """The documented debt may shrink, never grow."""
+def test_optional_lab_stages_exemptions_are_absence_only(tmp_path: Path):
+    """A conceptual app needs its view and must not ship an invalid stage file."""
 
     module = _load_module()
-    assert len(module.UNRENDERABLE_LAB_STAGES_PROJECTS) <= 4
-    overlap = module.UNRENDERABLE_LAB_STAGES_PROJECTS & module.OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS
-    assert not overlap, f"an app cannot be both exempt and in debt: {sorted(overlap)}"
+    project = _seed_builtin_project(tmp_path, "data_quality_gate_project")
+    (project / "lab_stages.toml").write_text(
+        '[[steps]]\nQ = "Wrong key"\nC = "value = 1"\n',
+        encoding="utf-8",
+    )
+
+    invalid = {
+        check.id: check for check in module._project_checks(tmp_path, project)
+    }["data_quality_gate_project:lab_stages"]
+    assert invalid.status == "fail"
+
+    (project / "lab_stages.toml").unlink()
+    (project / "pipeline_view.dot").write_text(
+        "digraph demo { source -> evidence; }\n",
+        encoding="utf-8",
+    )
+    absent = {
+        check.id: check for check in module._project_checks(tmp_path, project)
+    }["data_quality_gate_project:lab_stages"]
+    assert absent.status == "pass"
+    assert absent.details["exists"] is False
+    assert absent.details["conceptual_view"]["valid"] is True
+
+    (project / "pipeline_view.dot").write_text("", encoding="utf-8")
+    empty_view = {
+        check.id: check for check in module._project_checks(tmp_path, project)
+    }["data_quality_gate_project:lab_stages"]
+    assert empty_view.status == "fail"
+    assert empty_view.details["conceptual_view"]["valid"] is False

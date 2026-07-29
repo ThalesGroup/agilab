@@ -124,6 +124,40 @@ def test_run_r_stage_rejects_script_outside_app_root(tmp_path):
         )
 
 
+def test_r_runtime_bridge_ships_default_script_and_conceptual_view() -> None:
+    script = APP_ROOT / "scripts" / "summarize.R"
+    conceptual_view = APP_ROOT / "pipeline_view.dot"
+
+    assert script.is_file()
+    assert "jsonlite" in script.read_text(encoding="utf-8")
+    assert conceptual_view.read_text(encoding="utf-8").strip().startswith("digraph ")
+
+
+def test_run_r_stage_reports_missing_script_before_invoking_runner(tmp_path):
+    from r_runtime_bridge.r_runtime_adapter import RStageExecutionError, run_r_stage
+
+    runner_called = False
+
+    def fake_runner(*_args, **_kwargs):
+        nonlocal runner_called
+        runner_called = True
+        raise AssertionError("runner should not be called")
+
+    output_dir = tmp_path / "evidence"
+    with pytest.raises(RStageExecutionError, match="R stage script not found"):
+        run_r_stage(
+            tmp_path / "missing.R",
+            {"x": [1]},
+            output_dir,
+            runner=fake_runner,
+        )
+
+    assert runner_called is False
+    stderr = (output_dir / "stage_stderr.log").read_text(encoding="utf-8")
+    assert "R stage script not found" in stderr
+    assert len(stderr) < 512
+
+
 def test_run_r_stage_redacts_logs_and_manifest_secrets(tmp_path):
     from r_runtime_bridge.r_runtime_adapter import run_r_stage
 

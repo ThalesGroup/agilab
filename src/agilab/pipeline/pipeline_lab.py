@@ -4474,6 +4474,11 @@ def display_lab_tab(
         pipeline_stages=persisted_stages,
         stages_file=stages_file,
     )
+    _conceptual_source, conceptual_dot = load_pipeline_conceptual_dot(env, lab_dir)
+    if conceptual_dot:
+        with st.expander("Conceptual view", expanded=False):
+            st.graphviz_chart(conceptual_dot, width="content")
+
     stage_source_key = f"{safe_prefix}_new_stage_source"
     source_options = [GENERATE_STAGE_SOURCE] + list(snippet_option_map.keys())
     if st.session_state.get(stage_source_key) not in source_options:
@@ -5429,11 +5434,6 @@ def display_lab_tab(
                     st.warning(result.message)
                 else:
                     st.rerun()
-
-    _conceptual_source, conceptual_dot = load_pipeline_conceptual_dot(env, lab_dir)
-    if conceptual_dot:
-        with st.expander("Conceptual view", expanded=False):
-            st.graphviz_chart(conceptual_dot, width="content")
 
     render_stages = [persisted_stages[item.index] for item in render_page_state.visible_stages]
     render_pipeline_view(

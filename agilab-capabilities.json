@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-28T12:59:38Z",
+  "generated_at_utc": "2026-07-29T17:32:41Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 36,
     "public_app_count": 15,
     "agent_skill_count": 33,
-    "evidence_schema_count": 235,
+    "evidence_schema_count": 236,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1669,8 +1669,17 @@
     {
       "schema": "agilab.lab_stages.v1",
       "sources": [
-        "src/agilab/pipeline/pipeline_stages.py",
-        "src/agilab/workflow/workflow_validation.py",
+        "src/agilab/apps/builtin/mission_decision_project/lab_stages.toml",
+        "src/agilab/apps/builtin/multi_app_dag_project/lab_stages.toml",
+        "src/agilab/apps/builtin/tescia_diagnostic_project/lab_stages.toml",
+        "src/agilab/apps/builtin/uav_queue_project/lab_stages.toml",
+        "src/agilab/apps/builtin/uav_relay_queue_project/lab_stages.toml",
+        "src/agilab/apps/builtin/weather_forecast_legacy_project/lab_stages.toml",
+        "src/agilab/apps/builtin/weather_forecast_project/lab_stages.toml",
+        "src/agilab/lib/agi-app-mission-decision/src/agi_app_mission_decision/project/mission_decision_project/lab_stages.toml",
+        "src/agilab/lib/agi-app-uav-relay-queue/src/agi_app_uav_relay_queue/project/uav_relay_queue_project/lab_stages.toml",
+        "src/agilab/lib/agi-app-weather-forecast/src/agi_app_weather_forecast/project/weather_forecast_project/lab_stages.toml",
+        "src/agilab/workflow/lab_stages_contract.py",
         "tools/agilab_widget_robot.py",
         "tools/notebook_roundtrip_report.py"
       ]
@@ -2401,6 +2410,12 @@
       "schema": "agilab.tescia_diagnostic.report.v1",
       "sources": [
         "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/diagnostic.py"
+      ]
+    },
+    {
+      "schema": "agilab.tescia_diagnostic.reports.v1",
+      "sources": [
+        "src/agilab/apps/builtin/tescia_diagnostic_project/lab_stages.toml"
       ]
     },
     {

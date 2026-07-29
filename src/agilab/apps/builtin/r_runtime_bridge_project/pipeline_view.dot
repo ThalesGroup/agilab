@@ -1,0 +1,11 @@
+digraph r_runtime_bridge_project {
+  rankdir=LR;
+  node [shape=box, style="rounded"];
+
+  write_input_json [label="Write R stage input"];
+  run_rscript_stage [label="Execute Rscript stage"];
+  collect_evidence [label="Collect run evidence"];
+
+  write_input_json -> run_rscript_stage;
+  run_rscript_stage -> collect_evidence;
+}

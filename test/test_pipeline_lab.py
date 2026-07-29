@@ -271,7 +271,7 @@ def _make_lab_deps(**overrides):
         python_for_venv=lambda *_args, **_kwargs: "python",
         stream_run_command=lambda *_args, **_kwargs: None,
         run_locked_stage=lambda *_args, **_kwargs: None,
-        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: None,
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
         render_pipeline_view=lambda *_args, **_kwargs: None,
         default_df="",
         safe_service_template_filename="AGI_serve_safe_start_template.py",
@@ -3492,6 +3492,43 @@ def test_display_lab_tab_empty_pipeline_renders_generator_form(monkeypatch, tmp_
     assert fake_st.session_state["demo"][0] == 0
     assert fake_st.session_state["demo"][-1] == 0
     assert fake_st.session_state["demo_new_q"] == ""
+
+
+def test_display_lab_tab_empty_pipeline_still_renders_conceptual_view(
+    monkeypatch,
+    tmp_path,
+):
+    fake_st = _FakeStreamlit({"demo": [0, "", "", "", "", "", 0]})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(
+        pipeline_lab,
+        "normalize_runtime_path",
+        lambda raw: str(raw) if raw else "",
+    )
+    deps = _make_lab_deps(
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (
+            "pipeline_view.dot",
+            "digraph { source -> evidence }",
+        )
+    )
+    env = SimpleNamespace(
+        active_app=tmp_path / "r_runtime_bridge_project",
+        envars={},
+        app="r_runtime_bridge_project",
+    )
+
+    pipeline_lab.display_lab_tab(
+        tmp_path,
+        "demo",
+        tmp_path / "lab_stages.toml",
+        tmp_path / "r_runtime_bridge_project",
+        env,
+        deps,
+    )
+
+    assert fake_st.graphviz_sources == ["digraph { source -> evidence }"]
+    assert ("info", "No stages recorded yet. Generate your first stage below.") in fake_st.messages
 
 
 def test_display_lab_tab_empty_pipeline_populates_safe_action_templates(monkeypatch, tmp_path):

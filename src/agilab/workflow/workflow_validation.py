@@ -13,10 +13,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from agilab.workflow.lab_stages_contract import (
+    LAB_STAGES_SCHEMA,
+    LAB_STAGES_SCHEMA_VERSION,
+    displayable_stage_rows,
+    is_displayable_stage,
+    lab_stages_metadata_issues,
+    module_key_from_project,
+)
+
 
 WORKFLOW_DRY_RUN_SCHEMA = "agilab.workflow_dry_run_report.v1"
-LAB_STAGES_SCHEMA = "agilab.lab_stages.v1"
-SUPPORTED_LAB_STAGES_VERSION = 1
+SUPPORTED_LAB_STAGES_VERSION = LAB_STAGES_SCHEMA_VERSION
 SUPPORTED_ENGINES = {"", "runpy", "agi.run", "agi.install"}
 ROLE_KEYS = ("NB_RUNTIME_ROLE", "AGILAB_RUNTIME_ROLE", "runtime_role", "role")
 DANGEROUS_CALL_NAMES = {
@@ -90,15 +98,23 @@ def validate_lab_stages_file(
     *,
     apps_root: Path | None = None,
     repo_root: Path | None = None,
+    module_key: str | None = None,
+    require_metadata: bool = False,
 ) -> dict[str, Any]:
     """Validate a workflow contract without executing stage code."""
     stages_file = stages_file.expanduser()
     root = repo_root or _repo_root_from(stages_file)
+    resolved_module_key = (
+        str(module_key).strip()
+        if module_key is not None
+        else module_key_from_project(stages_file.parent)
+    )
     report: dict[str, Any] = {
         "schema": WORKFLOW_DRY_RUN_SCHEMA,
         "status": "fail",
         "mode": "static_dry_run",
         "stages_file": str(stages_file),
+        "module_key": resolved_module_key,
         "summary": {
             "stage_count": 0,
             "dependency_count": 0,
@@ -148,18 +164,86 @@ def validate_lab_stages_file(
         _finalize_report(report, issues)
         return report
 
-    issues.extend(_metadata_issues(payload))
-    raw_stages = _extract_stage_entries(payload)
-    if not raw_stages:
+    issues.extend(_metadata_issues(payload, require_metadata=require_metadata))
+    unexpected_stage_keys = sorted(
+        str(key)
+        for key, value in payload.items()
+        if str(key) not in {"__meta__", resolved_module_key}
+        and isinstance(value, list)
+    )
+    if unexpected_stage_keys:
         issues.append(
             WorkflowIssue(
                 "error",
-                "no-stages",
-                "No workflow stages were found.",
+                "unexpected-stage-lists",
+                (
+                    "lab_stages.toml contains stage lists WORKFLOW will ignore: "
+                    f"{unexpected_stage_keys!r}."
+                ),
                 path=str(stages_file),
-                hint="Use [[stages]], [[steps]], or an app-named list of stage tables.",
+                hint=(
+                    f"Reconcile those entries under {resolved_module_key!r}, then remove "
+                    "the stale lists; AGILAB will not delete user-owned stages automatically."
+                ),
             )
         )
+    module_entries = payload.get(resolved_module_key)
+    if isinstance(module_entries, list):
+        undisplayable_indices = [
+            index
+            for index, entry in enumerate(module_entries)
+            if not is_displayable_stage(entry)
+        ]
+        if undisplayable_indices:
+            issues.append(
+                WorkflowIssue(
+                    "error",
+                    "undisplayable-stages",
+                    (
+                        "WORKFLOW would prune stage entries at indices "
+                        f"{undisplayable_indices!r} under {resolved_module_key!r}."
+                    ),
+                    path=str(stages_file),
+                    hint="Give every stage a non-empty Q or C field.",
+                )
+            )
+    raw_stages = _extract_stage_entries(payload, resolved_module_key)
+    if not raw_stages:
+        entries = payload.get(resolved_module_key)
+        if not isinstance(entries, list):
+            available_keys = sorted(
+                str(key) for key in payload if str(key) != "__meta__"
+            )
+            issues.append(
+                WorkflowIssue(
+                    "error",
+                    "module-key-missing" if available_keys else "no-stages",
+                    (
+                        "No workflow stage list exists under the module key "
+                        f"{resolved_module_key!r}; found {available_keys!r}."
+                        if available_keys
+                        else "No workflow stages were found in lab_stages.toml."
+                    ),
+                    path=str(stages_file),
+                    hint=(
+                        f"Store stages under [[{resolved_module_key}]]; WORKFLOW does "
+                        "not render generic [[stages]] or [[steps]] tables."
+                    ),
+                )
+            )
+        else:
+            issues.append(
+                WorkflowIssue(
+                    "error",
+                    "no-displayable-stages",
+                    (
+                        f"No displayable workflow stages were found under "
+                        f"{resolved_module_key!r}."
+                    ),
+                    path=str(stages_file),
+                    hint="Give each stage a non-empty Q or C field so WORKFLOW keeps it.",
+                )
+            )
         _finalize_report(report, issues)
         return report
 
@@ -194,44 +278,36 @@ def validate_lab_stages_file(
     return report
 
 
-def _metadata_issues(payload: Mapping[str, Any]) -> list[WorkflowIssue]:
-    meta = payload.get("__meta__", {})
-    if meta in ({}, None):
-        return [
-            WorkflowIssue(
-                "info",
-                "metadata-missing",
-                "lab_stages.toml has no __meta__ schema block; treating it as a legacy-compatible contract.",
-                hint=f"Add [__meta__] schema = {LAB_STAGES_SCHEMA!r}, version = {SUPPORTED_LAB_STAGES_VERSION}.",
-            )
-        ]
-    if not isinstance(meta, Mapping):
-        return [WorkflowIssue("error", "metadata-shape", "lab_stages.toml __meta__ must be a TOML table.")]
-    issues: list[WorkflowIssue] = []
-    schema = str(meta.get("schema", "") or "")
-    if schema and schema != LAB_STAGES_SCHEMA:
-        issues.append(WorkflowIssue("error", "metadata-schema", f"Unsupported lab_stages.toml schema: {schema!r}."))
-    raw_version = meta.get("version")
-    if raw_version not in (None, ""):
-        try:
-            version = int(raw_version)
-        except (TypeError, ValueError):
-            issues.append(WorkflowIssue("error", "metadata-version", f"Unsupported schema version: {raw_version!r}."))
-        else:
-            if version < 1 or version > SUPPORTED_LAB_STAGES_VERSION:
-                issues.append(WorkflowIssue("error", "metadata-version", f"Unsupported schema version: {version}."))
-    return issues
+def _metadata_issues(
+    payload: Mapping[str, Any],
+    *,
+    require_metadata: bool = False,
+) -> list[WorkflowIssue]:
+    hint = (
+        f"Add [__meta__] schema = {LAB_STAGES_SCHEMA!r}, "
+        f"version = {SUPPORTED_LAB_STAGES_VERSION}."
+    )
+    return [
+        WorkflowIssue(
+            issue.severity,
+            issue.check_id,
+            issue.message,
+            hint=hint if issue.check_id == "metadata-missing" else "",
+        )
+        for issue in lab_stages_metadata_issues(
+            payload,
+            require_metadata=require_metadata,
+        )
+    ]
 
 
-def _extract_stage_entries(payload: Mapping[str, Any]) -> list[tuple[str, int, Mapping[str, Any]]]:
-    rows: list[tuple[str, int, Mapping[str, Any]]] = []
-    for key, value in payload.items():
-        if key == "__meta__" or not isinstance(value, list):
-            continue
-        for index, item in enumerate(value):
-            if isinstance(item, Mapping):
-                rows.append((str(key), index, item))
-    return rows
+def _extract_stage_entries(
+    payload: Mapping[str, Any],
+    module_key: str,
+) -> list[tuple[str, int, Mapping[str, Any]]]:
+    """Return exactly the rows the WORKFLOW page keeps for ``module_key``."""
+
+    return displayable_stage_rows(payload, module_key)
 
 
 def _stage_contract(
@@ -700,6 +776,16 @@ def _build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--dry-run", action="store_true", help="Accepted for explicitness; validation is always static.")
     validate.add_argument("--apps-root", default=None, help="Optional apps directory used to check APP references.")
     validate.add_argument("--repo-root", default=None, help="Optional source checkout root used to check built-in apps.")
+    validate.add_argument(
+        "--module-key",
+        default=None,
+        help="Expected WORKFLOW module key. Defaults to the stages file parent directory.",
+    )
+    validate.add_argument(
+        "--require-metadata",
+        action="store_true",
+        help="Reject legacy files that omit the __meta__ schema table.",
+    )
     validate.add_argument("--json", action="store_true", help="Print the full machine-readable report.")
     validate.add_argument("--strict", action="store_true", help="Return non-zero when warnings are present.")
     return parser
@@ -719,6 +805,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         stages_file,
         apps_root=Path(args.apps_root) if args.apps_root else None,
         repo_root=Path(args.repo_root) if args.repo_root else None,
+        module_key=args.module_key,
+        require_metadata=args.require_metadata,
     )
     print(_json_dump(report) if args.json else _text_report(report), end="")
     if report["status"] == "fail":

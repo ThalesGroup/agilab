@@ -9,6 +9,7 @@ from pathlib import Path
 import socket
 import sys
 import time
+import tomllib
 import types
 from types import SimpleNamespace
 
@@ -1228,6 +1229,41 @@ def test_pipeline_run_controls_run_all_stages_uses_active_app_for_agi_engine(tmp
         for line in fake_st.session_state["page__run_logs"]
     )
     assert releases == [{"path": "lock", "token": "t"}]
+
+
+def test_tescia_workflow_contract_selects_the_active_app_runtime(tmp_path) -> None:
+    module = _import_pipeline_run_controls()
+    repo_root = Path(__file__).resolve().parents[1]
+    stages_file = (
+        repo_root
+        / "src/agilab/apps/builtin/tescia_diagnostic_project/lab_stages.toml"
+    )
+    entries = tomllib.loads(stages_file.read_text(encoding="utf-8"))[
+        "tescia_diagnostic"
+    ]
+    runtime_root = tmp_path / "tescia_diagnostic_project"
+    runtime_python = runtime_root / ".venv" / "bin" / "python"
+    runtime_python.parent.mkdir(parents=True)
+    runtime_python.touch()
+    env = SimpleNamespace(active_app=str(runtime_root))
+
+    for index, entry in enumerate(entries):
+        engine, selected_runtime = module._resolve_stage_engine_runtime(
+            entry,
+            env=env,
+            idx=index,
+            selected_map={},
+            engine_map={},
+            default_runtime="",
+        )
+
+        assert engine == "agi.run"
+        assert selected_runtime == str(runtime_root)
+        assert module._pipeline_runtime.python_for_stage(
+            selected_runtime,
+            engine=engine,
+            code=entry["C"],
+        ) == runtime_python
 
 
 def test_utc_timestamp_is_timezone_aware_utc_with_legacy_z_format(monkeypatch):

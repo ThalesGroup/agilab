@@ -202,6 +202,14 @@ def run_r_stage(
     _write_json(input_path, dict(input_payload))
     started_at = time.time()
     script = _resolve_script_path(script_path, app_root)
+    if not script.is_file():
+        stdout_path.write_text("", encoding="utf-8")
+        stderr_path.write_text(f"R stage script not found: {script}\n", encoding="utf-8")
+        _raise_stage_error(
+            f"R stage script not found: {script}",
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+        )
     command = [
         rscript,
         str(script),
