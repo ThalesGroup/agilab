@@ -88,9 +88,21 @@ def _discover_input_paths(target_inst: Any) -> list[Path]:
             if isinstance(field_value, Mapping):
                 _visit(field_value)
 
-    _visit(_args_payload(getattr(target_inst, "args", None)))
-
     declared_inputs = getattr(target_inst, "distribution_cache_inputs", None)
+    input_mode = getattr(target_inst, "distribution_cache_inputs_mode", "augment")
+    if input_mode not in {"augment", "replace"}:
+        raise ValueError(
+            "distribution_cache_inputs_mode must be 'augment' or 'replace', "
+            f"got {input_mode!r}"
+        )
+    if input_mode == "augment":
+        _visit(_args_payload(getattr(target_inst, "args", None)))
+    elif declared_inputs is None:
+        raise TypeError(
+            "distribution_cache_inputs must be defined when "
+            "distribution_cache_inputs_mode is 'replace'"
+        )
+
     if declared_inputs is not None:
         if not callable(declared_inputs):
             raise TypeError("distribution_cache_inputs must be callable when defined")

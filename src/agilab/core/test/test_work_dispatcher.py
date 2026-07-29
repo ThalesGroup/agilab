@@ -15,6 +15,7 @@ from agi_node.agi_dispatcher import WorkDispatcher
 from agi_node.agi_dispatcher.agi_dispatcher import RUN_STAGES_KEY
 from agi_node.agi_dispatcher.distribution_cache_support import (
     DISTRIBUTION_CACHE_SCHEMA,
+    build_cache_context,
 )
 
 
@@ -43,6 +44,45 @@ def test_dispatcher_init_sets_instance_args_without_class_state():
     assert first.args == payload
     assert second.args == {"x": 2}
     assert "args" not in WorkDispatcher.__dict__
+
+
+def test_distribution_cache_declared_inputs_augment_inferred_paths(tmp_path):
+    data_in = tmp_path / "data"
+    planner_state = tmp_path / "planner.state"
+    data_in.mkdir()
+    planner_state.write_text("state", encoding="utf-8")
+    target = SimpleNamespace(
+        args=SimpleNamespace(data_in=data_in),
+        distribution_cache_inputs=lambda: [planner_state],
+        build_distribution=lambda _workers: None,
+    )
+
+    context = build_cache_context(target, capacities=None)
+
+    assert context["inputs"]["roots"] == sorted(
+        [data_in.resolve().as_posix(), planner_state.resolve().as_posix()]
+    )
+
+
+def test_distribution_cache_declared_inputs_can_replace_inferred_paths(tmp_path):
+    broad_data_in = tmp_path / "workflow"
+    planner_input = broad_data_in / "upstream"
+    unrelated_output = broad_data_in / "downstream" / "huge.json"
+    planner_input.mkdir(parents=True)
+    unrelated_output.parent.mkdir(parents=True)
+    (planner_input / "input.csv").write_text("value\n1\n", encoding="utf-8")
+    unrelated_output.write_text("must not be fingerprinted", encoding="utf-8")
+    target = SimpleNamespace(
+        args=SimpleNamespace(data_in=broad_data_in),
+        distribution_cache_inputs_mode="replace",
+        distribution_cache_inputs=lambda: [planner_input],
+        build_distribution=lambda _workers: None,
+    )
+
+    context = build_cache_context(target, capacities=None)
+
+    assert context["inputs"]["roots"] == [planner_input.resolve().as_posix()]
+    assert unrelated_output.as_posix() not in json.dumps(context)
 
 
 def test_dispatcher_run_stage_contract_rejects_legacy_and_invalid_payloads():
