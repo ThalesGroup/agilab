@@ -41,6 +41,23 @@ OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS = frozenset(
         "pytorch_playground_project",
     }
 )
+# Apps that ship a lab_stages.toml the WORKFLOW page cannot render. Their files are
+# design manifests (id/label/kind/depends_on/produces) written into the executable
+# contract's filename: no entry carries Q or C, so none is displayable, and renaming
+# the table key alone would make things worse -- pipeline_editor rewrites the pruned
+# list on save, so renamed-but-undisplayable entries are deleted permanently the first
+# time an operator touches the pipeline. Each needs a per-app decision: author real
+# stages, or ship the decomposition as pipeline_view.dot and drop the file.
+# The list may shrink, never grow.
+UNRENDERABLE_LAB_STAGES_PROJECTS = frozenset(
+    {
+        "data_quality_gate_project",
+        "r_runtime_bridge_project",
+        "sklearn_pipeline_project",
+        "tescia_diagnostic_project",
+    }
+)
+LAB_STAGES_META_KEY = "__meta__"
 PAYLOAD_EXCLUDED_DIRS = frozenset(
     {
         ".mypy_cache",
@@ -146,6 +163,36 @@ def _load_module(repo_root: Path, relative_path: Path, module_name: str):
 def _read_toml(path: Path) -> dict[str, Any]:
     with path.open("rb") as stream:
         return tomllib.load(stream)
+
+
+def _lab_stages_module_key(project_name: str) -> str:
+    """Return the key the WORKFLOW page looks the stage payload up under.
+
+    Mirrors the app-slug derivation in ``agilab.pipeline.pipeline_stages.module_keys``:
+    the export directory name, i.e. the project name without its ``_project`` suffix.
+    Reimplemented here so this contract tool stays importable without pulling in the
+    Streamlit UI stack.
+    """
+
+    suffix = "_project"
+    return project_name[: -len(suffix)] if project_name.endswith(suffix) else project_name
+
+
+def _lab_stage_is_displayable(entry: Any) -> bool:
+    """Mirror ``agilab.pipeline.pipeline_stages.is_displayable_stage``.
+
+    An entry survives ``prune_invalid_entries`` only when ``Q`` or ``C`` is a
+    non-empty string; everything else is dropped, and the WORKFLOW editor deletes
+    the dropped entries permanently on the next save.
+    """
+
+    if not isinstance(entry, dict):
+        return False
+    for field in ("Q", "C"):
+        value = entry.get(field, "")
+        if isinstance(value, str) and value.strip():
+            return True
+    return False
 
 
 def _relative(repo_root: Path, path: Path) -> str:
@@ -730,9 +777,46 @@ def _project_checks(repo_root: Path, project_path: Path) -> list[Check]:
     else:
         try:
             lab_stages = _read_toml(lab_stages_path)
-            lab_stage_ok = bool(lab_stages)
-            lab_stage_summary = "lab_stages.toml is parseable"
-            lab_stage_details = {"required": True, "top_level_keys": sorted(lab_stages)}
+            module_key = _lab_stages_module_key(project_name)
+            entries = lab_stages.get(module_key)
+            keyed = isinstance(entries, list) and bool(entries)
+            displayable = (
+                [entry for entry in entries if _lab_stage_is_displayable(entry)]
+                if keyed
+                else []
+            )
+            renders = bool(displayable)
+            known_debt = project_name in UNRENDERABLE_LAB_STAGES_PROJECTS
+            # A known-debt app still passes so the gate stays actionable, but the
+            # evidence records that its WORKFLOW page is empty.
+            lab_stage_ok = renders or known_debt
+            if renders:
+                lab_stage_summary = (
+                    f"lab_stages.toml exposes {len(displayable)} displayable "
+                    f"stage(s) under the module key {module_key!r}"
+                )
+            elif known_debt:
+                lab_stage_summary = (
+                    "lab_stages.toml is a known-unrenderable design manifest; the "
+                    "WORKFLOW page shows no stage for this app"
+                )
+            else:
+                lab_stage_summary = (
+                    f"lab_stages.toml exposes no displayable stage under the module "
+                    f"key {module_key!r}; the WORKFLOW page renders empty"
+                )
+            lab_stage_details = {
+                "required": True,
+                "module_key": module_key,
+                "keyed_under_module_key": keyed,
+                "entry_count": len(entries) if keyed else 0,
+                "displayable_count": len(displayable),
+                "renders_in_workflow": renders,
+                "known_debt": known_debt,
+                "top_level_keys": sorted(
+                    key for key in lab_stages if key != LAB_STAGES_META_KEY
+                ),
+            }
         except Exception as exc:
             lab_stage_ok = False
             lab_stage_summary = f"lab_stages.toml is required and could not be parsed: {exc}"
