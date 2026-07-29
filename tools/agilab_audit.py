@@ -158,8 +158,14 @@ def build_report(
     ]
     checks = [
         _command_check(
-            "docs-mirror-stamp",
-            [sys.executable, "tools/sync_docs_source.py", "--verify-stamp"],
+            "docs-mirror-target-integrity",
+            [
+                sys.executable,
+                "tools/sync_docs_source.py",
+                "--verify-stamp",
+                "--skip-missing-source",
+                "--quiet",
+            ],
         ),
         _command_check(
             "release-proof",

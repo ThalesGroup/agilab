@@ -72,11 +72,15 @@ def _check_result(
     evidence: Sequence[str] = (),
     details: dict[str, Any] | None = None,
     executed: bool = False,
+    status_override: str | None = None,
 ) -> dict[str, Any]:
+    status = status_override or ("pass" if passed else "fail")
+    if status not in {"pass", "fail", "skipped"}:
+        raise ValueError(f"unsupported check status: {status}")
     return {
         "id": check_id,
         "label": label,
-        "status": "pass" if passed else "fail",
+        "status": status,
         "summary": summary,
         "executed": executed,
         "evidence": list(evidence),
@@ -2333,15 +2337,42 @@ def _check_production_readiness_report(repo_root: Path) -> dict[str, Any]:
 def _check_docs_mirror_stamp(repo_root: Path) -> dict[str, Any]:
     try:
         sync_docs_source = _load_tool_module(repo_root, "sync_docs_source")
-        ok, message = sync_docs_source.verify_mirror_stamp(repo_root / "docs" / "source")
+        ok, message = sync_docs_source.verify_target_mirror_integrity(
+            repo_root / "docs" / "source"
+        )
     except Exception as exc:
         ok, message = False, str(exc)
     return _check_result(
         "docs_mirror_stamp",
-        "Docs mirror stamp",
+        "Checked-in docs mirror target integrity",
         ok,
         message,
         evidence=["docs/.docs_source_mirror_stamp.json", "tools/sync_docs_source.py"],
+    )
+
+
+def _check_docs_canonical_alignment(repo_root: Path) -> dict[str, Any]:
+    source = None
+    try:
+        sync_docs_source = _load_tool_module(repo_root, "sync_docs_source")
+        source = sync_docs_source.configured_canonical_source()
+        status, message = sync_docs_source.verify_canonical_mirror_alignment(
+            repo_root / "docs" / "source",
+            source,
+        )
+    except Exception as exc:
+        status, message = "fail", str(exc)
+    return _check_result(
+        "docs_canonical_alignment",
+        "Canonical-to-public docs alignment",
+        status == "pass",
+        message,
+        evidence=["docs/.docs_source_mirror_stamp.json", "tools/sync_docs_source.py"],
+        details={
+            "canonical_source": str(source) if source is not None else None,
+            "canonical_alignment_checked": status != "skipped",
+        },
+        status_override=status,
     )
 
 
@@ -2568,6 +2599,7 @@ def build_bundle(
         _check_web_robot_contract(repo_root),
         _check_production_readiness_report(repo_root),
         _check_docs_mirror_stamp(repo_root),
+        _check_docs_canonical_alignment(repo_root),
         _check_public_docs_links(repo_root),
     ]
     if run_hf_smoke:
@@ -2575,6 +2607,7 @@ def build_bundle(
 
     passed = sum(1 for check in checks if check["status"] == "pass")
     failed = sum(1 for check in checks if check["status"] == "fail")
+    skipped = sum(1 for check in checks if check["status"] == "skipped")
     return {
         "kpi": "Overall public evaluation",
         "supported_score": SUPPORTED_OVERALL_SCORE,
@@ -2583,6 +2616,7 @@ def build_bundle(
         "summary": {
             "passed": passed,
             "failed": failed,
+            "skipped": skipped,
             "total": len(checks),
             "hf_smoke_executed": run_hf_smoke,
             "score_components": {

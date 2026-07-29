@@ -122,3 +122,40 @@ def test_audit_preflight_accepts_selected_first_publish_project(monkeypatch) -> 
             ],
         }
     ]
+
+
+def test_release_audit_uses_explicit_target_only_docs_verification(monkeypatch) -> None:
+    commands: list[tuple[str, list[str]]] = []
+    monkeypatch.setattr(agilab_audit, "_worktrees", lambda: [])
+
+    def fake_command_check(name, command, timeout=120):
+        del timeout
+        commands.append((name, command))
+        return {
+            "name": name,
+            "status": "pass",
+            "returncode": 0,
+            "summary": (
+                "canonical docs source unavailable; target integrity only; "
+                "canonical drift NOT CHECKED"
+                if name == "docs-mirror-target-integrity"
+                else "ok"
+            ),
+        }
+
+    monkeypatch.setattr(agilab_audit, "_command_check", fake_command_check)
+
+    report = agilab_audit.build_report(fetch=False, network=False)
+
+    assert report["status"] == "pass"
+    assert commands[0] == (
+        "docs-mirror-target-integrity",
+        [
+            sys.executable,
+            "tools/sync_docs_source.py",
+            "--verify-stamp",
+            "--skip-missing-source",
+            "--quiet",
+        ],
+    )
+    assert "canonical drift NOT CHECKED" in report["checks"][0]["summary"]

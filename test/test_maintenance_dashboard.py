@@ -44,6 +44,23 @@ def test_maintenance_dashboard_exposes_long_term_contract_checks() -> None:
     } <= check_ids
 
 
+def test_docs_mirror_honors_configured_canonical_source(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    configured_source = tmp_path / "canonical-docs" / "source"
+    monkeypatch.setenv("AGILAB_DOCS_SOURCE", str(configured_source))
+
+    check = module.check_docs_mirror(ROOT).as_dict()
+
+    assert check["status"] == "warn"
+    assert check["summary"] == (
+        "canonical docs source is unavailable; mirror drift was not checked"
+    )
+    assert check["details"]["source"] == configured_source.resolve().as_posix()
+
+
 def test_extension_contract_kit_declares_required_extension_types() -> None:
     module = _load_module()
 

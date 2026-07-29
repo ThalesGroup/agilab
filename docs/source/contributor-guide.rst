@@ -110,7 +110,9 @@ check:
 - **Source/mirror parity**: contributors can edit public docs in their pull
   request. Maintainers keep the canonical ``../thales_agilab/docs/source`` tree
   and this repository's ``docs/source`` mirror aligned, verify the mirror stamp,
-  and build the page when layout or links matter. Never hand-edit
+  and build the page when layout or links matter. The public release-proof
+  manifest, generated release-proof page, and UI robot evidence are explicitly
+  public-owned and excluded from private-to-public sync. Never hand-edit
   ``docs/html``.
 - **Screenshots and diagrams**: update source screenshots, SVG diagrams,
   captions, alt text, and references together. Inspect the rendered page so old

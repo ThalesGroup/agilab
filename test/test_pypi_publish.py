@@ -1270,33 +1270,61 @@ def test_update_public_demo_release_test_skips_manifest_backed_constant(tmp_path
     assert public_test.read_text(encoding="utf-8") == text
 
 
-def test_update_release_proof_references_refreshes_canonical_docs_and_syncs(tmp_path, monkeypatch) -> None:
+def test_update_release_proof_references_refreshes_public_owned_proof_only(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_pypi_publish()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
     script = tmp_path / "tools" / "release_proof_report.py"
     script.parent.mkdir(parents=True)
     script.write_text("print('ok')\n", encoding="utf-8")
-    docs_repo = tmp_path / "thales_agilab"
-    canonical_source = docs_repo / "docs" / "source"
-    manifest = canonical_source / "data" / "release_proof.toml"
+    public_source = tmp_path / "docs" / "source"
+    manifest = public_source / "data" / "release_proof.toml"
     manifest.parent.mkdir(parents=True)
     manifest.write_text("[release]\n", encoding="utf-8")
     commands: list[list[str]] = []
-    synced: list[Path] = []
-    monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "default"))
-    monkeypatch.setattr(module, "run", lambda cmd, cwd=None, **_kwargs: commands.append([str(part) for part in cmd]))
-    monkeypatch.setattr(module, "sync_docs_source_mirror", synced.append)
+    monkeypatch.setattr(
+        module,
+        "run",
+        lambda cmd, cwd=None, **_kwargs: commands.append(
+            [str(part) for part in cmd]
+        ),
+    )
 
     module.update_release_proof_references("2026.04.24")
 
-    assert synced == [canonical_source]
     command = commands[0]
     assert "--docs-source" in command
-    assert str(canonical_source) in command
+    assert str(public_source) in command
     assert "--github-release-tag" in command
     assert "v2026.04.24" in command
     assert "--github-release-url" in command
     assert "https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.24" in command
+
+
+def test_update_public_docs_mirror_stamp_marks_canonical_source_unavailable(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    script = tmp_path / "tools" / "sync_docs_source.py"
+    script.parent.mkdir(parents=True)
+    script.write_text("print('ok')\n", encoding="utf-8")
+    public_source = tmp_path / "docs" / "source"
+    public_source.mkdir(parents=True)
+    commands: list[list[str]] = []
+    monkeypatch.setattr(
+        module,
+        "run",
+        lambda cmd, cwd=None, **_kwargs: commands.append([str(part) for part in cmd]),
+    )
+
+    module.update_public_docs_mirror_stamp_from_current_tree()
+
+    command = commands[0]
+    assert "--write-target-only-stamp" in command
+    assert "--source" not in command
+    assert command[command.index("--target") + 1] == str(public_source)
 
 
 def test_update_docs_index_release_link_requires_canonical_docs_repo(tmp_path, monkeypatch) -> None:

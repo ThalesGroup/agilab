@@ -106,9 +106,9 @@
             "tools/sync_docs_source.py"
           ],
           "commands": [
-            "uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --check"
+            "uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --check --skip-missing-source"
           ],
-          "why": "Route public wording through docs source discipline and evidence-boundary checks."
+          "why": "Route public wording through docs source discipline and evidence-boundary checks. In public-only clones this command checks target integrity and reports that canonical drift was not checked; when the canonical source is configured it also enforces source-to-mirror equality."
         },
         "release-publication": {
           "token_budget": 2600,

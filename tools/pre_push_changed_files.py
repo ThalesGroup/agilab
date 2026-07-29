@@ -34,6 +34,7 @@ RELEASE_PROOF_GUARD_FILES = {
     "README.md",
     "badges/pypi-version-agilab.svg",
     "docs/source/release-proof.rst",
+    "docs/source/data/ui_robot_evidence.json",
     "pyproject.toml",
     "test/test_release_proof_report.py",
     "tools/release_proof_report.py",

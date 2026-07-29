@@ -80,6 +80,7 @@ if [[ "${DOCS_CHANGED:-1}" == "1" ]]; then
   fi
   run_guard_python tools/sync_docs_source.py \
     --verify-stamp \
+    "${docs_source_args[@]}" \
     --quiet
   run_guard_python tools/sync_docs_source.py \
     "${docs_source_args[@]}" \

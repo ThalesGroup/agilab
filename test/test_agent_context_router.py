@@ -60,6 +60,20 @@ def test_recommend_context_matches_docs_and_evidence_rules() -> None:
     assert "agilab-evidence-contracts" in skill_names
 
 
+def test_docs_context_command_is_honest_without_canonical_checkout() -> None:
+    rules = json.loads(agent_context_router.DEFAULT_RULES.read_text(encoding="utf-8"))
+    docs_pack = rules["context_profiles"]["tokki"]["rule_packs"][
+        "docs-public-claims"
+    ]
+
+    assert docs_pack["commands"] == [
+        "uv --preview-features extra-build-dependencies run python "
+        "tools/sync_docs_source.py --check --skip-missing-source"
+    ]
+    assert "target integrity" in docs_pack["why"]
+    assert "canonical drift was not checked" in docs_pack["why"]
+
+
 def test_recommend_context_matches_release_prompt_without_files() -> None:
     payload = agent_context_router.recommend_context(
         prompt="ready for release, check PyPI and Hugging Face sync",

@@ -182,7 +182,7 @@ def check_adrs(repo_root: Path) -> Check:
 
 def check_docs_mirror(repo_root: Path) -> Check:
     sync_docs = _load_tool(repo_root, "tools/sync_docs_source.py", "maintenance_sync_docs_source")
-    source = (repo_root.parent / "thales_agilab" / "docs" / "source").resolve()
+    source = sync_docs.configured_canonical_source().expanduser().resolve()
     target = repo_root / "docs/source"
     if not source.is_dir():
         return _check(
@@ -195,7 +195,7 @@ def check_docs_mirror(repo_root: Path) -> Check:
             details={"source": source.as_posix()},
         )
     plan = sync_docs.make_sync_plan(source, target, delete_extra=True)
-    stamp_ok, stamp_message = sync_docs.verify_mirror_stamp(target)
+    stamp_ok, stamp_message = sync_docs.verify_mirror_stamp(target, source)
     ok = not plan.has_changes() and stamp_ok
     return _check(
         "docs_mirror",

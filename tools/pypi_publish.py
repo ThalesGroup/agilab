@@ -2330,19 +2330,10 @@ def update_release_proof_references_in_source(tag: str, docs_source: pathlib.Pat
 
 def update_release_proof_references(tag: str) -> None:
     public_source = REPO_ROOT / "docs/source"
-
-    docs_repo, source = find_docs_repository()
-    if docs_repo:
-        canonical_source = docs_repo / "docs/source"
-        manifest = canonical_source / "data/release_proof.toml"
-        if not manifest.exists():
-            raise SystemExit(f"ERROR: canonical release proof manifest not found: {manifest}")
-        update_release_proof_references_in_source(tag, canonical_source)
-        sync_docs_source_mirror(canonical_source)
-        return
-
-    if public_source.exists():
-        update_release_proof_references_in_source(tag, public_source)
+    manifest = public_source / "data/release_proof.toml"
+    if not manifest.exists():
+        raise SystemExit(f"ERROR: public release proof manifest not found: {manifest}")
+    update_release_proof_references_in_source(tag, public_source)
 
 
 def update_public_docs_mirror_stamp_from_current_tree() -> None:
@@ -2354,11 +2345,9 @@ def update_public_docs_mirror_stamp_from_current_tree() -> None:
         [
             sys.executable,
             str(script),
-            "--source",
-            str(public_source),
             "--target",
             str(public_source),
-            "--apply",
+            "--write-target-only-stamp",
             "--quiet",
         ],
         cwd=REPO_ROOT,

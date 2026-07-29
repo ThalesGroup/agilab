@@ -541,8 +541,14 @@ Use this runbook whenever you:
   `../thales_agilab/docs/source`; `docs/source` is the managed public mirror and
   `docs/html` is generated local output. After canonical docs edits, refresh the
   mirror and stamp with `uv --preview-features extra-build-dependencies run
-  python tools/sync_docs_source.py --apply --delete`. Never hand-edit, stage, or
-  commit `docs/html/**`.
+  python tools/sync_docs_source.py --apply --delete`. The exact public release
+  evidence paths `data/release_proof.toml`, `release-proof.rst`, and
+  `data/ui_robot_evidence.json` are intentionally excluded from that mirror:
+  they are generated and verified in this public repository, while the private
+  source keeps only its own excluded pointer page. A verified mirror stamp
+  proves canonical equality only when the canonical source was actually
+  supplied; target-only release stamps must record that canonical drift was not
+  checked. Never hand-edit, stage, or commit `docs/html/**`.
 - **VIRTUAL_ENV warning**: AGILAB-managed PyCharm configs and launch wrappers clear
   `VIRTUAL_ENV` before invoking `uv`, because AGILAB intentionally selects the target
   project `.venv` instead of a stale activated shell. If a direct `uv` command still

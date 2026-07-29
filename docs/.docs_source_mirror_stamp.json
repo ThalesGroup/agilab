@@ -1,9 +1,15 @@
 {
-  "file_count": 276,
-  "format_version": 1,
+  "file_count": 273,
+  "format_version": 2,
   "managed_target": "docs/source",
-  "source_digest_sha256": "1526a18c4fafb82e590e27631b6fa985b42d23ff1b5a453f12ce576bb79fbf03",
+  "public_owned_exclusions": [
+    "data/release_proof.toml",
+    "data/ui_robot_evidence.json",
+    "release-proof.rst"
+  ],
+  "source_digest_sha256": "2a9f314bc386459c9cf1b4232e8c656a8e2129a740a5f321a9f0c5b9d4d77692",
   "source_hint": "../thales_agilab/docs/source",
+  "source_status": "verified",
   "sync_tool": "tools/sync_docs_source.py",
-  "target_digest_sha256": "1526a18c4fafb82e590e27631b6fa985b42d23ff1b5a453f12ce576bb79fbf03"
+  "target_digest_sha256": "2a9f314bc386459c9cf1b4232e8c656a8e2129a740a5f321a9f0c5b9d4d77692"
 }

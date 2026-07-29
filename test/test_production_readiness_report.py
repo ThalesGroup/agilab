@@ -33,6 +33,7 @@ def test_build_report_passes_static_production_readiness_contracts() -> None:
     check_ids = {check["id"] for check in report["checks"]}
     assert check_ids == {
         "docs_mirror_stamp",
+        "docs_canonical_alignment",
         "docs_workflow_parity_profile",
         "production_readiness_workflow_profile",
         "architecture_scorecard",
@@ -49,6 +50,23 @@ def test_build_report_passes_static_production_readiness_contracts() -> None:
         "cluster_share_fail_fast",
         "production_boundary_docs",
     }
+
+
+def test_missing_canonical_docs_is_skipped_not_passed(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv("AGILAB_DOCS_SOURCE", str(tmp_path / "missing-canonical"))
+
+    target_check = module._check_docs_mirror_stamp(Path.cwd())
+    canonical_check = module._check_docs_canonical_alignment(Path.cwd())
+
+    assert target_check["status"] == "pass"
+    assert "target integrity" in target_check["summary"]
+    assert canonical_check["status"] == "skipped"
+    assert canonical_check["details"]["canonical_alignment_checked"] is False
+    assert "canonical drift NOT CHECKED" in canonical_check["summary"]
 
 
 def test_build_report_includes_shared_adoption_hardening_controls() -> None:

@@ -16,6 +16,12 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
 - The public Pages workflow in `agilab` currently builds from the mirrored
   `docs/source` tree in this repo, so that mirror must be kept in sync with the
   canonical source for published pages to stay correct.
+- Three exact paths form a public-owned release-evidence enclave and are not
+  copied from the private source: `data/release_proof.toml`,
+  `release-proof.rst`, and `data/ui_robot_evidence.json`. Generate and validate
+  those files only in the public `agilab` repository. The private page at the
+  same `release-proof.rst` path is an intentionally excluded pointer, not the
+  source for the public proof.
 - Refresh the public mirror with
   `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`.
   The generated stamp `docs/.docs_source_mirror_stamp.json` is part of the mirror
@@ -28,6 +34,8 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
 ## Required Workflow (No Direct `docs/html` Edits)
 
 1. Edit the canonical source file under `../thales_agilab/docs/source`.
+   For one of the three public-owned release-evidence paths above, edit or
+   regenerate the public file instead and run its dedicated proof validator.
 2. Sync the public mirror from the AGILAB repo root:
    `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
 3. If the change touches an SVG diagram, validate the SVG as XML, render a local
@@ -45,6 +53,11 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
    `docs/html/_images` or copied Sphinx outputs.
 5. Validate the mirror stamp before committing:
    `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`
+   A verified stamp proves canonical equality only when the canonical source is
+   available. Public CI may validate target integrity with
+   `--skip-missing-source`, but its mandatory warning means canonical drift was
+   not checked. A release refresh may write an explicit target-only stamp; it
+   must use `source_status = unavailable` and must never claim canonical sync.
 6. Rebuild or run the docs profile when the rendered page matters:
    `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile docs`
 7. Verify the change exists in both:
@@ -65,6 +78,9 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 - That means updating only `../thales_agilab/docs/source` is not sufficient for
   public publication; refresh `agilab/docs/source` with `tools/sync_docs_source.py`
   so the mirror stamp stays valid.
+- The public release-evidence enclave is deliberately different: private mirror
+  sync must preserve it, and `tools/release_proof_report.py --check` remains its
+  independent public owner guard.
 - Figures referenced by Sphinx may be copied to `_images/` in the built site, so a
   raw URL such as `/diagrams/foo.svg` can legitimately return `404` even when the
   published page is correct.
@@ -83,6 +99,9 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 - Do stage/commit mirrored `docs/source/**` updates and
   `docs/.docs_source_mirror_stamp.json` in `agilab` when a public page depends on
   the change.
+- For the three public-owned proof paths, stage the regenerated public files and
+  an explicit target-only stamp when the canonical checkout is unavailable;
+  never copy the private pointer or private snapshots over them.
 - Do not stage or commit `docs/html/**`; it is generated local output and should
   remain outside commits.
 - If `docs/html/**` was modified by a local build, leave it unstaged or clean the
@@ -195,6 +214,10 @@ the referenced artifact exists and is current.
 - Public mirror sync (from `agilab` repo root):
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`
+  - The stamp lists the public-owned exclusions. Use
+    `--write-target-only-stamp` only for a public release refresh that cannot
+    access the canonical checkout; the resulting proof is target integrity,
+    not canonical alignment.
 - SVG docs figure preview:
   - Parse the canonical and mirrored SVG with `xml.etree.ElementTree`.
   - Prefer `rsvg-convert -w 1600 -o /tmp/<name>.png <figure>.svg` when available
