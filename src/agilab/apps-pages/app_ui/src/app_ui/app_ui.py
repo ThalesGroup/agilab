@@ -20,6 +20,14 @@ from agi_pages.runtime import (
 )
 
 
+# The app UI sidecar imports an app-owned module and renders its initial screen
+# while temporarily owning process-global import state.  Five seconds is
+# sufficient for small pages but is too short for normal first renders of
+# app-backed project pages, causing a concurrent Streamlit rerun to replace the
+# app UI with a render error.  Keep the guard bounded so a real deadlock remains
+# diagnosable, while allowing a normal interactive render to finish.
+_APP_UI_INLINE_IMPORT_LEASE_TIMEOUT_SECONDS = 30.0
+
 PAGE_KEY = "app_ui"
 
 
@@ -88,6 +96,7 @@ def _run_app_ui(entrypoint: Path, active_app: Path) -> None:
         argv=[str(entrypoint), "--active-app", str(active_app)],
         prepend_paths=(app_src, entrypoint.parent),
         module_roots=(app_src, entrypoint.parent),
+        timeout=_APP_UI_INLINE_IMPORT_LEASE_TIMEOUT_SECONDS,
     ):
         module = _load_module(entrypoint)
         main_fn = getattr(module, "main", None)

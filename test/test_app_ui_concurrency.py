@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 
 APP_UI_PATH = Path(
@@ -111,3 +111,96 @@ def test_run_app_ui_serializes_and_restores_process_import_state(
     assert sys.argv == original_argv
     assert sys.path == original_path
     assert sys.modules.get("helper") is original_helper
+
+
+def test_run_app_ui_allows_a_normal_interactive_import_wait(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """App UI reruns receive a practical bounded import wait."""
+
+    from contextlib import contextmanager
+
+    module = _load_app_ui_module()
+    received_timeouts: list[float] = []
+
+    @contextmanager
+    def _capture_import_scope(*, timeout: float, **_kwargs):
+        received_timeouts.append(timeout)
+        yield
+
+    active_app = tmp_path / "alpha_project"
+    source_root = active_app / "src"
+    source_root.mkdir(parents=True)
+    entrypoint = source_root / "app_ui_entry.py"
+    entrypoint.write_text("def main():\n    pass\n", encoding="utf-8")
+    loaded = SimpleNamespace(main=lambda: None)
+    monkeypatch.setattr(module, "isolated_import_process_state", _capture_import_scope)
+    monkeypatch.setattr(module, "_load_module", lambda _path: loaded)
+
+    module._run_app_ui(entrypoint, active_app)
+
+    assert received_timeouts == [
+        module._APP_UI_INLINE_IMPORT_LEASE_TIMEOUT_SECONDS
+    ]
+    assert received_timeouts[0] > 5.0
+
+
+def test_run_app_ui_waits_past_generic_timeout_for_active_render(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """A second app UI rerun survives a first render lasting over five seconds."""
+
+    module = _load_app_ui_module()
+    coordination = ModuleType("agilab_app_ui_long_render_coordination")
+    coordination.alpha_started = threading.Event()
+    coordination.completed = []
+
+    def _enter(value: str) -> None:
+        if value == "alpha":
+            coordination.alpha_started.set()
+            time.sleep(5.5)
+        coordination.completed.append(value)
+
+    coordination.enter = _enter
+    monkeypatch.setitem(sys.modules, coordination.__name__, coordination)
+
+    apps: list[tuple[Path, Path]] = []
+    for app_name in ("alpha", "beta"):
+        active_app = tmp_path / f"{app_name}_project"
+        source_root = active_app / "src"
+        source_root.mkdir(parents=True)
+        (source_root / "helper.py").write_text(
+            f'VALUE = "{app_name}"\n',
+            encoding="utf-8",
+        )
+        entrypoint = source_root / "app_ui_entry.py"
+        entrypoint.write_text(
+            "import helper\n"
+            "import agilab_app_ui_long_render_coordination as coordination\n\n"
+            "def main():\n"
+            "    coordination.enter(helper.VALUE)\n",
+            encoding="utf-8",
+        )
+        apps.append((entrypoint, active_app))
+
+    errors: list[BaseException] = []
+
+    def _run(entrypoint: Path, active_app: Path) -> None:
+        try:
+            module._run_app_ui(entrypoint, active_app)
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    first = threading.Thread(target=_run, args=apps[0])
+    second = threading.Thread(target=_run, args=apps[1])
+    first.start()
+    assert coordination.alpha_started.wait(timeout=2)
+    second.start()
+    first.join(timeout=15)
+    second.join(timeout=15)
+
+    assert all(not worker.is_alive() for worker in (first, second))
+    assert errors == []
+    assert coordination.completed == ["alpha", "beta"]
