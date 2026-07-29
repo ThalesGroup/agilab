@@ -1472,6 +1472,65 @@ def test_page_file_runner_allows_a_normal_interactive_import_wait(
     assert received_timeouts[0] > 5.0
 
 
+def test_page_file_runner_waits_past_generic_timeout_for_active_render(
+    tmp_path, monkeypatch
+):
+    """A second page rerun survives a first render lasting over five seconds."""
+
+    main_page = _import_agilab_module("agilab.main_page")
+    main_page._PAGE_RUNNER_CACHE.clear()
+    main_page._RESOLVED_PAGE_PATH_CACHE.clear()
+    monkeypatch.setattr(
+        main_page, "_about_resources_path", lambda: tmp_path / "resources"
+    )
+    monkeypatch.setattr(
+        main_page, "_ensure_navigation_environment", lambda *_args, **_kwargs: object()
+    )
+    monkeypatch.setattr(main_page, "_record_ui_timing_span", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(main_page, "_render_page_load_timing", lambda *_args, **_kwargs: None)
+
+    first_started = threading.Event()
+    completed: list[str] = []
+    errors: list[BaseException] = []
+
+    def _first_main() -> None:
+        first_started.set()
+        time.sleep(5.5)
+        completed.append("first")
+
+    modules = {
+        (tmp_path / "first.py").resolve(): SimpleNamespace(main=_first_main),
+        (tmp_path / "second.py").resolve(): SimpleNamespace(
+            main=lambda: completed.append("second")
+        ),
+    }
+    monkeypatch.setattr(main_page, "_load_page_module", lambda path: modules[path])
+
+    def _run(runner) -> None:
+        try:
+            runner()
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    first = threading.Thread(
+        target=_run,
+        args=(main_page._page_file_runner(tmp_path / "first.py"),),
+    )
+    second = threading.Thread(
+        target=_run,
+        args=(main_page._page_file_runner(tmp_path / "second.py"),),
+    )
+    first.start()
+    assert first_started.wait(timeout=2)
+    second.start()
+    first.join(timeout=10)
+    second.join(timeout=10)
+
+    assert all(not worker.is_alive() for worker in (first, second))
+    assert errors == []
+    assert completed == ["first", "second"]
+
+
 def test_all_page_caches_disable_does_not_store_runner_or_module_name(
     tmp_path, monkeypatch
 ):
