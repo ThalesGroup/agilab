@@ -1638,7 +1638,11 @@ def _render_generation_failure(index_page: str) -> None:
 
 
 @st.cache_data(show_spinner=False)
-def _stages_file_validation_issues(stages_file: Path, mtime_ns: int) -> List[str]:
+def _stages_file_validation_issues(
+    stages_file: Path,
+    mtime_ns: int,
+    module_key: str,
+) -> List[str]:
     """Return cheap static validation issues for a stages file (cached on mtime)."""
     del mtime_ns
     try:
@@ -1646,7 +1650,10 @@ def _stages_file_validation_issues(stages_file: Path, mtime_ns: int) -> List[str
     except ImportError:
         return []
     try:
-        report = validate_lab_stages_file(Path(stages_file))
+        report = validate_lab_stages_file(
+            Path(stages_file),
+            module_key=module_key,
+        )
     except (OSError, RuntimeError, TypeError, ValueError):
         return []
     issues: List[str] = []
@@ -1686,7 +1693,11 @@ def _render_stages_file_summary(lab_dir: Path, stages_file: Path) -> None:
                 mtime_ns = stages_file.stat().st_mtime_ns
             except OSError:
                 mtime_ns = 0
-            issues = _stages_file_validation_issues(stages_file, mtime_ns)
+            issues = _stages_file_validation_issues(
+                stages_file,
+                mtime_ns,
+                _module_keys(lab_dir)[0],
+            )
             if issues:
                 st.caption("Validation issues:")
                 for issue in issues[:8]:

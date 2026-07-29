@@ -22,6 +22,35 @@ SAMPLE_CLASSROOM = APP_SRC / "tescia_diagnostic" / "sample_data" / "tescia_class
 APP_SURFACE = APP_SRC / "tescia_diagnostic" / "app_surface.py"
 
 
+def test_tescia_workflow_stages_materialize_declared_artifacts(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+    monkeypatch.chdir(tmp_path)
+    payload = tomllib.loads(
+        (APP_ROOT / "lab_stages.toml").read_text(encoding="utf-8")
+    )
+    stages = payload["tescia_diagnostic"]
+
+    assert len(stages) == 3
+    assert {stage["R"] for stage in stages} == {"agi.run"}
+    for stage in stages:
+        exec(compile(stage["C"], stage["id"], "exec"), {"__name__": "__main__"})
+        for relative_path in stage.get("produces", []):
+            assert Path(relative_path).exists(), (
+                f"stage {stage['id']} did not materialize {relative_path}"
+            )
+
+    reports = json.loads(
+        Path("tescia_diagnostic_workflow/diagnostic_reports.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert reports["schema"] == "agilab.tescia_diagnostic.reports.v1"
+    assert reports["reports"]
+
+
 class _FakeEnv:
     def __init__(self, tmp_path: Path) -> None:
         self._is_managed_pc = False

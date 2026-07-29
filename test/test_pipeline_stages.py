@@ -823,6 +823,12 @@ def test_lab_stages_contract_metadata_and_refusal_paths() -> None:
     assert pipeline_stages.lab_stages_contract_error({"__meta__": {"version": 999}}).startswith(
         "Unsupported lab_stages.toml schema version 999"
     )
+    assert pipeline_stages.lab_stages_contract_error(
+        {"__meta__": {"schema": "agilab.unknown", "version": 1}}
+    ) == "Unsupported lab_stages.toml schema 'agilab.unknown'."
+    assert pipeline_stages.lab_stages_contract_error(
+        {"__meta__": {"schema": "agilab.lab_stages.v1", "version": 1.1}}
+    ) == "Unsupported lab_stages.toml schema version 1.1."
     assert pipeline_stages.lab_stages_contract_error({"__meta__": "bad"}) == (
         "lab_stages.toml __meta__ must be a TOML table."
     )
@@ -841,7 +847,13 @@ def test_pipeline_stages_contract_and_small_helper_guard_branches(monkeypatch):
     assert pipeline_stages.lab_stages_contract_error({"__meta__": {"version": "bad"}}) == (
         "Unsupported lab_stages.toml schema version 'bad'."
     )
-    assert pipeline_stages.prepare_lab_stages_for_write({"__meta__": {"version": ""}})["__meta__"]["version"] == ""
+    prepared = pipeline_stages.prepare_lab_stages_for_write(
+        {"__meta__": {"version": ""}}
+    )
+    assert prepared["__meta__"] == {
+        "schema": "agilab.lab_stages.v1",
+        "version": 1,
+    }
 
     values = ["kept"]
     pipeline_stages._append_unique(values, "   ")

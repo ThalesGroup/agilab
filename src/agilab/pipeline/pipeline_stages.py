@@ -13,12 +13,15 @@ import tomli_w
 import tomllib
 
 from agi_env import AgiEnv
+from agilab.workflow.lab_stages_contract import (
+    LAB_STAGES_META_KEY,
+    ensure_lab_stages_metadata as _ensure_lab_stages_metadata,
+    is_displayable_stage as _contract_is_displayable_stage,
+    lab_stages_metadata_issues,
+)
 
 ORCHESTRATE_LOCKED_STAGE_KEY = "_orchestrate_locked_stage"
 ORCHESTRATE_LOCKED_SOURCE_KEY = "_orchestrate_snippet_source"
-LAB_STAGES_META_KEY = "__meta__"
-LAB_STAGES_SCHEMA = "agilab.lab_stages.v1"
-LAB_STAGES_SCHEMA_VERSION = 1
 LEGACY_AGI_RUN_KEYWORDS = frozenset(
     {
         "args",
@@ -36,35 +39,17 @@ logger = logging.getLogger(__name__)
 
 def ensure_lab_stages_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
     """Stamp lab_stages data with the current persisted artifact contract."""
-    meta = data.get(LAB_STAGES_META_KEY)
-    if not isinstance(meta, dict):
-        meta = {}
-        data[LAB_STAGES_META_KEY] = meta
-    meta.setdefault("schema", LAB_STAGES_SCHEMA)
-    meta.setdefault("version", LAB_STAGES_SCHEMA_VERSION)
-    return data
+    return _ensure_lab_stages_metadata(data)
 
 
 def lab_stages_contract_error(data: Dict[str, Any]) -> str:
     """Return a refusal reason when lab_stages metadata is unsupported."""
-    meta = data.get(LAB_STAGES_META_KEY, {})
-    if meta in ({}, None):
-        return ""
-    if not isinstance(meta, dict):
-        return "lab_stages.toml __meta__ must be a TOML table."
-    raw_version = meta.get("version")
-    if raw_version in (None, ""):
-        return ""
-    try:
-        version = int(raw_version)
-    except (TypeError, ValueError):
-        return f"Unsupported lab_stages.toml schema version {raw_version!r}."
-    if version < 1 or version > LAB_STAGES_SCHEMA_VERSION:
-        return (
-            f"Unsupported lab_stages.toml schema version {version}; "
-            "upgrade AGILAB before editing this pipeline."
-        )
-    return ""
+    errors = [
+        issue.message
+        for issue in lab_stages_metadata_issues(data)
+        if issue.severity == "error"
+    ]
+    return errors[0] if errors else ""
 
 
 def prepare_lab_stages_for_write(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -754,15 +739,7 @@ def persist_automation_preferences(
 
 def is_displayable_stage(entry: Dict[str, Any]) -> bool:
     """Return True if a stage should be shown in the UI."""
-    if not entry:
-        return False
-    question = entry.get("Q", "")
-    if isinstance(question, str) and question.strip():
-        return True
-    code = entry.get("C", "")
-    if isinstance(code, str) and code.strip():
-        return True
-    return False
+    return _contract_is_displayable_stage(entry)
 
 
 def is_runnable_stage(entry: Dict[str, Any]) -> bool:

@@ -5,10 +5,13 @@ import json
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from agilab import workflow_validation
 
 
 def _write_stages(path: Path, text: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(textwrap.dedent(text).strip() + "\n", encoding="utf-8")
     return path
 
@@ -25,13 +28,13 @@ def test_workflow_validation_builds_static_graph_and_artifact_edges(tmp_path: Pa
     apps_root = tmp_path / "apps"
     (apps_root / "demo_project").mkdir(parents=True)
     stages_file = _write_stages(
-        tmp_path / "lab_stages.toml",
+        tmp_path / "demo_project" / "lab_stages.toml",
         """
         [__meta__]
         schema = "agilab.lab_stages.v1"
         version = 1
 
-        [[stages]]
+        [[demo]]
         id = "load"
         label = "Load source data"
         R = "runpy"
@@ -41,7 +44,7 @@ def test_workflow_validation_builds_static_graph_and_artifact_edges(tmp_path: Pa
         data_out = "raw"
         '''
 
-        [[stages]]
+        [[demo]]
         id = "train"
         D = "Train model"
         R = "agi.run"
@@ -76,9 +79,9 @@ def test_workflow_validation_builds_static_graph_and_artifact_edges(tmp_path: Pa
 
 def test_workflow_validation_reports_dependency_and_code_hazards(tmp_path: Path) -> None:
     stages_file = _write_stages(
-        tmp_path / "lab_stages.toml",
+        tmp_path / "hazard_project" / "lab_stages.toml",
         """
-        [[stages]]
+        [[hazard]]
         R = "custom-engine"
         C = '''
         import os
@@ -89,14 +92,16 @@ def test_workflow_validation_reports_dependency_and_code_hazards(tmp_path: Path)
         eval("1")
         '''
 
-        [[stages]]
+        [[hazard]]
         id = "consumer"
+        Q = "Consume shared data"
         depends_on = ["missing", "later"]
         consumes = ["external.csv"]
         produces = ["shared"]
 
-        [[stages]]
+        [[hazard]]
         id = "later"
+        Q = "Produce shared data"
         depends_on = ["consumer"]
         produces = ["shared"]
         """,
@@ -108,7 +113,6 @@ def test_workflow_validation_reports_dependency_and_code_hazards(tmp_path: Path)
     assert report["status"] == "fail"
     assert {
         "metadata-missing",
-        "stage-id-missing",
         "stage-engine-unknown",
         "runtime-role-missing",
         "app-reference-missing",
@@ -118,7 +122,7 @@ def test_workflow_validation_reports_dependency_and_code_hazards(tmp_path: Path)
         "dependency-cycle",
         "artifact-produced-twice",
     } <= ids
-    assert {"stage_id": "stages_001", "artifact": "external.csv", "kind": "external_input"} in report[
+    assert {"stage_id": "hazard_001", "artifact": "external.csv", "kind": "external_input"} in report[
         "external_inputs"
     ]
     text_report = workflow_validation._text_report(report)
@@ -134,13 +138,13 @@ def test_workflow_validation_fail_fast_cases(tmp_path: Path) -> None:
     assert missing["status"] == "fail"
     assert _issue_ids(missing) == {"stages-file-missing"}
 
-    bad_toml = _write_stages(tmp_path / "bad.toml", "[__meta__")
+    bad_toml = _write_stages(tmp_path / "bad_project" / "lab_stages.toml", "[__meta__")
     unreadable = workflow_validation.validate_lab_stages_file(bad_toml)
     assert unreadable["status"] == "fail"
     assert _issue_ids(unreadable) == {"stages-file-unreadable"}
 
     empty = _write_stages(
-        tmp_path / "empty.toml",
+        tmp_path / "empty_project" / "lab_stages.toml",
         """
         [__meta__]
         schema = "agilab.lab_stages.v1"
@@ -152,25 +156,27 @@ def test_workflow_validation_fail_fast_cases(tmp_path: Path) -> None:
     assert _issue_ids(no_stages) == {"no-stages"}
 
     meta_shape = _write_stages(
-        tmp_path / "meta-shape.toml",
+        tmp_path / "meta_shape_project" / "lab_stages.toml",
         """
         __meta__ = "legacy"
 
-        [[steps]]
+        [[meta_shape]]
         id = "step"
+        Q = "Displayable"
         """,
     )
     assert "metadata-shape" in _issue_ids(workflow_validation.validate_lab_stages_file(meta_shape))
 
     meta_values = _write_stages(
-        tmp_path / "meta-values.toml",
+        tmp_path / "meta_values_project" / "lab_stages.toml",
         """
         [__meta__]
         schema = "agilab.unknown"
         version = "bad"
 
-        [[steps]]
+        [[meta_values]]
         id = "step"
+        Q = "Displayable"
         """,
     )
     assert {"metadata-schema", "metadata-version"} <= _issue_ids(
@@ -178,17 +184,183 @@ def test_workflow_validation_fail_fast_cases(tmp_path: Path) -> None:
     )
 
     meta_future = _write_stages(
-        tmp_path / "meta-future.toml",
+        tmp_path / "meta_future_project" / "lab_stages.toml",
         """
         [__meta__]
         schema = "agilab.lab_stages.v1"
         version = 999
 
-        [[steps]]
+        [[meta_future]]
         id = "step"
+        Q = "Displayable"
         """,
     )
     assert "metadata-version" in _issue_ids(workflow_validation.validate_lab_stages_file(meta_future))
+
+
+def test_workflow_validation_rejects_non_renderer_module_keys(tmp_path: Path) -> None:
+    stages_file = _write_stages(
+        tmp_path / "demo_project" / "lab_stages.toml",
+        """
+        [__meta__]
+        schema = "agilab.lab_stages.v1"
+        version = 1
+
+        [[steps]]
+        Q = "This generic key is not rendered for demo_project"
+        C = "value = 1"
+        """,
+    )
+
+    report = workflow_validation.validate_lab_stages_file(stages_file)
+
+    assert report["status"] == "fail"
+    assert report["module_key"] == "demo"
+    assert _issue_ids(report) == {
+        "module-key-missing",
+        "unexpected-stage-lists",
+    }
+
+
+def test_workflow_validation_rejects_polluted_legacy_stage_lists(
+    tmp_path: Path,
+) -> None:
+    stages_file = _write_stages(
+        tmp_path / "demo_project" / "lab_stages.toml",
+        """
+        [[demo]]
+        id = "current"
+        Q = "Visible current stage"
+
+        [[steps]]
+        id = "stale"
+        Q = "Hidden legacy stage"
+
+        [__meta__]
+        schema = "agilab.lab_stages.v1"
+        version = 1
+        """,
+    )
+
+    report = workflow_validation.validate_lab_stages_file(stages_file)
+    issue = next(
+        issue
+        for issue in report["issues"]
+        if issue["check_id"] == "unexpected-stage-lists"
+    )
+
+    assert report["status"] == "fail"
+    assert report["summary"]["stage_count"] == 1
+    assert "steps" in issue["message"]
+    assert "will not delete user-owned stages" in issue["hint"]
+
+
+def test_workflow_validation_rejects_rows_the_editor_would_prune(tmp_path: Path) -> None:
+    stages_file = _write_stages(
+        tmp_path / "demo_project" / "lab_stages.toml",
+        """
+        [__meta__]
+        schema = "agilab.lab_stages.v1"
+        version = 1
+
+        [[demo]]
+        id = "visible"
+        Q = "Visible stage"
+
+        [[demo]]
+        id = "silently_pruned"
+        D = "Description alone is not displayable"
+        """,
+    )
+
+    report = workflow_validation.validate_lab_stages_file(stages_file)
+
+    assert report["status"] == "fail"
+    assert report["summary"]["stage_count"] == 1
+    assert "undisplayable-stages" in _issue_ids(report)
+
+
+def test_workflow_validation_can_require_complete_schema_metadata(tmp_path: Path) -> None:
+    missing_metadata = _write_stages(
+        tmp_path / "demo_project" / "lab_stages.toml",
+        '[[demo]]\nQ = "Visible stage"',
+    )
+    incomplete_metadata = _write_stages(
+        tmp_path / "incomplete_project" / "lab_stages.toml",
+        """
+        [[incomplete]]
+        Q = "Visible stage"
+
+        [__meta__]
+        schema = "agilab.lab_stages.v1"
+        """,
+    )
+
+    missing = workflow_validation.validate_lab_stages_file(
+        missing_metadata,
+        require_metadata=True,
+    )
+    incomplete = workflow_validation.validate_lab_stages_file(
+        incomplete_metadata,
+        require_metadata=True,
+    )
+
+    assert "metadata-missing" in _issue_ids(missing)
+    assert "metadata-version" in _issue_ids(incomplete)
+
+
+def test_workflow_validation_preserves_explicit_nested_keys_and_windows_derivation(
+    tmp_path: Path,
+) -> None:
+    stages_file = _write_stages(
+        tmp_path / "app_project" / "lab_stages.toml",
+        """
+        [["nested/app"]]
+        Q = "Run a nested workflow key"
+        C = "value = 1"
+
+        [__meta__]
+        schema = "agilab.lab_stages.v1"
+        version = 1
+        """,
+    )
+
+    report = workflow_validation.validate_lab_stages_file(
+        stages_file,
+        module_key="nested/app",
+        require_metadata=True,
+    )
+
+    assert report["status"] == "pass"
+    assert report["module_key"] == "nested/app"
+    assert workflow_validation.module_key_from_project(
+        r"C:\apps\demo_project"
+    ) == "demo"
+
+
+@pytest.mark.parametrize("invalid_version_toml", ["true", "1.0", "1.9", '"01"'])
+def test_workflow_validation_rejects_non_integer_schema_versions(
+    tmp_path: Path,
+    invalid_version_toml: str,
+) -> None:
+    stages_file = _write_stages(
+        tmp_path / "demo_project" / "lab_stages.toml",
+        f"""
+        [[demo]]
+        Q = "Visible stage"
+
+        [__meta__]
+        schema = "agilab.lab_stages.v1"
+        version = {invalid_version_toml}
+        """,
+    )
+    report = workflow_validation.validate_lab_stages_file(
+        stages_file,
+        require_metadata=True,
+    )
+
+    assert report["status"] == "fail"
+    assert "metadata-version" in _issue_ids(report)
 
 
 def test_workflow_validation_cli_defaults_to_validate_and_honors_strict(
@@ -196,10 +368,11 @@ def test_workflow_validation_cli_defaults_to_validate_and_honors_strict(
     capsys,
 ) -> None:
     warning_only = _write_stages(
-        tmp_path / "warn.toml",
+        tmp_path / "warn_project" / "lab_stages.toml",
         """
-        [[stages]]
-        D = "Order-dependent generated id"
+        [[warn]]
+        Q = "Use an intentionally unknown engine"
+        R = "custom-engine"
         """,
     )
 
@@ -207,7 +380,7 @@ def test_workflow_validation_cli_defaults_to_validate_and_honors_strict(
     assert "status: warn" in capsys.readouterr().out
 
     assert workflow_validation.main(["validate", str(warning_only), "--strict"]) == 1
-    assert "stage-id-missing" in capsys.readouterr().out
+    assert "stage-engine-unknown" in capsys.readouterr().out
 
     assert workflow_validation.main(["validate", str(warning_only), "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["status"] == "warn"
@@ -219,7 +392,7 @@ def test_workflow_validation_cli_defaults_to_validate_and_honors_strict(
 def test_workflow_validation_parser_helper_edges(tmp_path: Path, monkeypatch) -> None:
     original_toml_loads = workflow_validation.tomllib.loads
     stages_file = _write_stages(
-        tmp_path / "shape.toml",
+        tmp_path / "shape_project" / "lab_stages.toml",
         """
         [__meta__]
         schema = "agilab.lab_stages.v1"
@@ -233,13 +406,13 @@ def test_workflow_validation_parser_helper_edges(tmp_path: Path, monkeypatch) ->
     monkeypatch.setattr(workflow_validation.tomllib, "loads", original_toml_loads)
 
     syntax_file = _write_stages(
-        tmp_path / "syntax.toml",
+        tmp_path / "syntax_project" / "lab_stages.toml",
         """
         [__meta__]
         schema = "agilab.lab_stages.v1"
         version = 1
 
-        [[steps]]
+        [[syntax]]
         id = "bad-code"
         C = "for"
         """,
@@ -248,13 +421,13 @@ def test_workflow_validation_parser_helper_edges(tmp_path: Path, monkeypatch) ->
     assert "stage-code-syntax" in _issue_ids(syntax)
 
     install_file = _write_stages(
-        tmp_path / "install.toml",
+        tmp_path / "install_project" / "lab_stages.toml",
         """
         [__meta__]
         schema = "agilab.lab_stages.v1"
         version = 1
 
-        [[steps]]
+        [[install]]
         id = "install"
         R = "agi.install"
         Q = '''
@@ -293,8 +466,11 @@ def test_workflow_validation_parser_helper_edges(tmp_path: Path, monkeypatch) ->
     assert workflow_validation._unique_texts(["", "a", "a", "b"]) == ["a", "b"]
     assert workflow_validation._first_line("\n\n  title\n  body") == "title"
     assert workflow_validation._first_line("\n  \n") == ""
-    assert workflow_validation._extract_stage_entries({"steps": ["skip", {"id": "kept"}]}) == [
-        ("steps", 1, {"id": "kept"})
+    assert workflow_validation._extract_stage_entries(
+        {"demo": ["skip", {"id": "kept", "Q": "Keep me"}]},
+        "demo",
+    ) == [
+        ("demo", 1, {"id": "kept", "Q": "Keep me"})
     ]
     assert workflow_validation._text_report({"summary": {}, "issues": ["bad-shape"]}).startswith(
         "status: unknown"
@@ -325,13 +501,15 @@ def test_workflow_validation_parser_helper_edges(tmp_path: Path, monkeypatch) ->
 
     duplicate = workflow_validation.validate_lab_stages_file(
         _write_stages(
-            tmp_path / "duplicate.toml",
+            tmp_path / "duplicate_project" / "lab_stages.toml",
             """
-            [[steps]]
+            [[duplicate]]
             id = "same"
+            Q = "First"
 
-            [[steps]]
+            [[duplicate]]
             id = "same"
+            Q = "Second"
             """,
         )
     )

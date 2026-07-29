@@ -1,23 +1,99 @@
-[[steps]]
-D = "Load exercise cases"
-Q = "Read TeSciA-style diagnostic exercises from the shared input directory."
-M = "deterministic"
-C = "Load JSON cases, catalog metadata, and optional student answers."
-E = "case_id, title, symptom, proposed_diagnosis"
-R = "validated_cases"
+[__meta__]
+schema = "agilab.lab_stages.v1"
+version = 1
 
-[[steps]]
+[[tescia_diagnostic]]
+id = "load_exercise_cases"
+D = "Load exercise cases"
+Q = "Load and validate the bundled deterministic TeSciA diagnostic case bank."
+M = "deterministic"
+C = '''
+import json
+from pathlib import Path
+from tescia_diagnostic import CASE_SCHEMA, load_case_bank
+
+APP = "tescia_diagnostic_project"
+data_out = "tescia_diagnostic_workflow/validated_cases.json"
+validated_cases_path = Path(data_out)
+validated_cases_path.parent.mkdir(parents=True, exist_ok=True)
+validated_cases_path.write_text(
+    json.dumps({"schema": CASE_SCHEMA, "cases": load_case_bank()}, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+'''
+R = "agi.run"
+produces = ["tescia_diagnostic_workflow/validated_cases.json"]
+
+[[tescia_diagnostic]]
+id = "evaluate_answer"
 D = "Evaluate the answer"
 Q = "Compare symptoms, evidence, assumptions, candidate fixes, and learner choices."
 M = "deterministic"
-C = "Score exercise quality and self-evaluate submitted student answers."
-E = "validated_cases"
-R = "diagnostic_reports"
+C = '''
+import json
+from pathlib import Path
+from tescia_diagnostic import diagnose_case
 
-[[steps]]
+data_in = "tescia_diagnostic_workflow/validated_cases.json"
+data_out = "tescia_diagnostic_workflow/diagnostic_reports.json"
+minimum_evidence_confidence = 0.65
+minimum_regression_coverage = 0.60
+cases_payload = json.loads(Path(data_in).read_text(encoding="utf-8"))
+reports = [
+    diagnose_case(
+        case,
+        minimum_evidence_confidence=minimum_evidence_confidence,
+        minimum_regression_coverage=minimum_regression_coverage,
+    )
+    for case in cases_payload["cases"]
+]
+Path(data_out).write_text(
+    json.dumps({"schema": "agilab.tescia_diagnostic.reports.v1", "reports": reports}, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+'''
+R = "agi.run"
+depends_on = ["load_exercise_cases"]
+consumes = ["tescia_diagnostic_workflow/validated_cases.json"]
+produces = ["tescia_diagnostic_workflow/diagnostic_reports.json"]
+
+[[tescia_diagnostic]]
+id = "export_classroom_feedback"
 D = "Export classroom feedback"
 Q = "Write scores, better-fix recommendations, correction sheets, and classroom progress artifacts."
 M = "deterministic"
-C = "Export JSON, CSV, feedback, classroom heatmaps, and reduce-contract summaries."
-E = "diagnostic_reports"
-R = "tescia_diagnostic/reports"
+C = '''
+import json
+from pathlib import Path
+from tescia_diagnostic import (
+    write_classroom_artifacts,
+    write_correction_index,
+    write_correction_sheet,
+)
+
+data_in = "tescia_diagnostic_workflow/diagnostic_reports.json"
+data_out = "tescia_diagnostic/reports"
+reports_payload = json.loads(Path(data_in).read_text(encoding="utf-8"))
+report_dir = Path(data_out)
+report_dir.mkdir(parents=True, exist_ok=True)
+write_classroom_artifacts(reports_payload["reports"], report_dir)
+correction_dir = report_dir / "correction_sheets"
+correction_paths = [
+    write_correction_sheet(report, correction_dir)
+    for report in reports_payload["reports"]
+]
+write_correction_index(correction_paths, correction_dir)
+(report_dir / "diagnostic_reports.json").write_text(
+    json.dumps(reports_payload, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+'''
+R = "agi.run"
+depends_on = ["evaluate_answer"]
+consumes = ["tescia_diagnostic_workflow/diagnostic_reports.json"]
+produces = [
+  "tescia_diagnostic/reports/classroom_run_report.json",
+  "tescia_diagnostic/reports/classroom_teacher_summary.md",
+  "tescia_diagnostic/reports/correction_sheets/correction_sheets_index.md",
+  "tescia_diagnostic/reports/diagnostic_reports.json",
+]

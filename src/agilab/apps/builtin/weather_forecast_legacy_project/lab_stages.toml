@@ -4,3 +4,7 @@ weather_forecast_legacy = [
   { D = "Backtest the skforecast forecaster", Q = "Run a recursive RandomForest forecaster on the validation window and compute MAE, RMSE, and MAPE.", M = "", C = "from sklearn.ensemble import RandomForestRegressor\nfrom skforecast.recursive import ForecasterRecursive\nfrom skforecast.model_selection import TimeSeriesFold, backtesting_forecaster", R = "runpy" },
   { D = "Export reusable analysis artifacts", Q = "Write forecast_predictions.csv and forecast_metrics.json so ANALYSIS can compare runs without reopening the notebook kernel.", M = "", C = "artifact_dir = '~/export/weather_forecast_legacy/forecast_analysis'", R = "runpy" }
 ]
+
+[__meta__]
+schema = "agilab.lab_stages.v1"
+version = 1
