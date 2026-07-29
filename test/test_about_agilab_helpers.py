@@ -1170,6 +1170,55 @@ def test_bootstrap_resolve_apps_path_prefers_cli_then_env(tmp_path):
     )
 
 
+def test_bootstrap_reports_a_busy_peer_render_as_recoverable_startup(monkeypatch):
+    """A busy inline render lease stops startup cleanly instead of raising.
+
+    ``parse_startup_args`` waits on the process-global inline render lease, and
+    a peer page render holds that lease for the whole of its render -- an
+    unbounded hold that no acquisition timeout can outlast.  Cold startup must
+    therefore treat a busy lease as a recoverable state, the way every other
+    cold-start failure in ``bootstrap_page_environment`` already is.
+    """
+
+    bootstrap = about_agilab._about_bootstrap
+    fake_st = _FakeStreamlit()
+    resolve_calls: list[object] = []
+
+    def _busy(_argv=None):
+        raise sidecar_registry_module.SidecarRegistryBusyError(
+            "Timed out waiting for hosted inline render lease; "
+            "another AGILAB session is still using it"
+        )
+
+    monkeypatch.setattr(bootstrap, "parse_startup_args", _busy)
+    monkeypatch.setattr(
+        bootstrap,
+        "resolve_apps_path",
+        lambda *_args, **_kwargs: resolve_calls.append(_args),
+    )
+
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=Path("/nonexistent/.env"),
+        load_env_file_map=lambda *_args, **_kwargs: {},
+        logger=object(),
+        apply_active_app_request=lambda *_args, **_kwargs: None,
+        handle_data_root_failure=lambda *_args, **_kwargs: False,
+        refresh_env_from_file=lambda _env: None,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+    )
+
+    assert result.env is None
+    assert result.handled_recovery is True
+    assert fake_st.stopped is True
+    assert resolve_calls == []
+    errors = [payload for kind, payload in fake_st.events if kind == "error"]
+    assert len(errors) == 1
+    assert "still initializing" in errors[0]
+    assert "Traceback" not in errors[0]
+
+
 def test_parse_startup_args_times_out_behind_peer_hosted_render(monkeypatch):
     bootstrap = about_agilab._about_bootstrap
     outcomes: list[BaseException | object] = []

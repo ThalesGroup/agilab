@@ -21,7 +21,10 @@ from agi_env.project.app_provider_registry import (
 )
 from agi_env.runtime.process_support import fix_windows_drive
 from agi_env.runtime.repository_support import get_apps_repository_root
-from agi_env.ui.sidecar_registry import hosted_inline_render_guard
+from agi_env.ui.sidecar_registry import (
+    SidecarRegistryBusyError,
+    hosted_inline_render_guard,
+)
 
 try:  # pragma: no cover - optional import fallback is exercised through behavior tests
     import tomli_w as _tomli_writer
@@ -1255,7 +1258,21 @@ def bootstrap_page_environment(
 ) -> BootstrapResult:
     """Create and persist the AGILAB environment for a cold Streamlit session."""
     ports = ports or default_bootstrap_ports()
-    args = parse_startup_args(argv)
+    # Reading startup arguments waits on the process-global inline render
+    # lease, which a peer page render holds for the whole of that render.  The
+    # wait is bounded, so a cold session starting behind a busy peer can
+    # legitimately fail to acquire it.  That is a transient condition, not a
+    # broken installation, so report it as a recoverable startup state instead
+    # of letting it escape as a traceback.
+    try:
+        args = parse_startup_args(argv)
+    except SidecarRegistryBusyError:
+        stop_startup_with_error(
+            streamlit,
+            "Another AGILAB view is still initializing. Reload this page to "
+            "finish starting up.",
+        )
+        return BootstrapResult(env=None, handled_recovery=True)
     try:
         apps_path = resolve_apps_path(
             args,
