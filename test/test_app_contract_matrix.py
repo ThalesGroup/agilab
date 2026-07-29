@@ -476,3 +476,68 @@ def test_app_contract_matrix_quiet_mode_suppresses_stdout(capsys):
     assert module.main(["--quiet"]) == 0
 
     assert capsys.readouterr().out == ""
+
+
+def test_app_contract_matrix_detects_unrenderable_lab_stages(tmp_path: Path):
+    """A stage file keyed anything but the module key renders an empty page."""
+
+    module = _load_module()
+    project = _seed_builtin_project(tmp_path, "demo_project")
+    (project / "lab_stages.toml").write_text(
+        '[[steps]]\nD = "Demo"\nQ = "Do the thing."\nC = "x = 1"\nR = "runpy"\n',
+        encoding="utf-8",
+    )
+
+    checks = {check.id: check for check in module._project_checks(tmp_path, project)}
+    lab_stages = checks["demo_project:lab_stages"]
+
+    assert lab_stages.status == "fail"
+    assert lab_stages.details["module_key"] == "demo"
+    assert lab_stages.details["keyed_under_module_key"] is False
+    assert lab_stages.details["renders_in_workflow"] is False
+    assert lab_stages.details["top_level_keys"] == ["steps"]
+
+
+def test_app_contract_matrix_detects_undisplayable_lab_stages(tmp_path: Path):
+    """Correct key, but entries without Q or C are pruned before rendering."""
+
+    module = _load_module()
+    project = _seed_builtin_project(tmp_path, "demo_project")
+    (project / "lab_stages.toml").write_text(
+        '[[demo]]\nid = "phase_one"\nlabel = "Phase one"\nkind = "data"\n',
+        encoding="utf-8",
+    )
+
+    checks = {check.id: check for check in module._project_checks(tmp_path, project)}
+    lab_stages = checks["demo_project:lab_stages"]
+
+    assert lab_stages.status == "fail"
+    assert lab_stages.details["keyed_under_module_key"] is True
+    assert lab_stages.details["entry_count"] == 1
+    assert lab_stages.details["displayable_count"] == 0
+
+
+def test_app_contract_matrix_accepts_a_renderable_lab_stages(tmp_path: Path):
+    module = _load_module()
+    project = _seed_builtin_project(tmp_path, "demo_project")
+    (project / "lab_stages.toml").write_text(
+        '[[demo]]\nD = "Demo"\nQ = "Do the thing."\nC = "x = 1"\nR = "runpy"\n'
+        "\n[__meta__]\nschema = \"agilab.lab_stages.v1\"\n",
+        encoding="utf-8",
+    )
+
+    checks = {check.id: check for check in module._project_checks(tmp_path, project)}
+    lab_stages = checks["demo_project:lab_stages"]
+
+    assert lab_stages.status == "pass"
+    assert lab_stages.details["displayable_count"] == 1
+    assert lab_stages.details["top_level_keys"] == ["demo"]
+
+
+def test_unrenderable_lab_stages_debt_list_stays_closed():
+    """The documented debt may shrink, never grow."""
+
+    module = _load_module()
+    assert len(module.UNRENDERABLE_LAB_STAGES_PROJECTS) <= 4
+    overlap = module.UNRENDERABLE_LAB_STAGES_PROJECTS & module.OPTIONAL_LAB_STAGES_EXEMPT_PROJECTS
+    assert not overlap, f"an app cannot be both exempt and in debt: {sorted(overlap)}"
