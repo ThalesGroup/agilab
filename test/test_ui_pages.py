@@ -1432,6 +1432,46 @@ def test_page_file_runner_serializes_and_restores_main_process_state(
     assert sys.path == original_path
 
 
+def test_page_file_runner_allows_a_normal_interactive_import_wait(
+    tmp_path, monkeypatch
+):
+    """Interactive page reruns receive a practical bounded import wait."""
+
+    from contextlib import contextmanager
+
+    main_page = _import_agilab_module("agilab.main_page")
+    main_page._PAGE_RUNNER_CACHE.clear()
+    main_page._RESOLVED_PAGE_PATH_CACHE.clear()
+    monkeypatch.setattr(
+        main_page, "_about_resources_path", lambda: tmp_path / "resources"
+    )
+    monkeypatch.setattr(
+        main_page, "_ensure_navigation_environment", lambda *_args, **_kwargs: object()
+    )
+    monkeypatch.setattr(main_page, "_record_ui_timing_span", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(main_page, "_render_page_load_timing", lambda *_args, **_kwargs: None)
+
+    received_timeouts: list[float] = []
+
+    @contextmanager
+    def _capture_import_scope(*, timeout: float, **_kwargs):
+        received_timeouts.append(timeout)
+        yield
+
+    page_file = tmp_path / "page.py"
+    page_file.write_text("def main():\n    pass\n", encoding="utf-8")
+    module = SimpleNamespace(main=lambda: None)
+    monkeypatch.setattr(main_page, "isolated_import_process_state", _capture_import_scope)
+    monkeypatch.setattr(main_page, "_load_page_module", lambda _path: module)
+
+    main_page._page_file_runner(page_file)()
+
+    assert received_timeouts == [
+        main_page._INTERACTIVE_PAGE_IMPORT_LEASE_TIMEOUT_SECONDS
+    ]
+    assert received_timeouts[0] > 5.0
+
+
 def test_all_page_caches_disable_does_not_store_runner_or_module_name(
     tmp_path, monkeypatch
 ):

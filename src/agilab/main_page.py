@@ -83,6 +83,14 @@ except ModuleNotFoundError:
 
 logger = AgiLogger.get_logger(__name__)
 
+# A page runner may import a sizeable app bundle and render its initial UI while
+# temporarily owning process-global import state.  Five seconds is sufficient
+# for small pages but is too short for normal first renders of app-backed
+# project pages, causing a concurrent Streamlit rerun to surface a traceback.
+# Keep the guard bounded so a real deadlock remains diagnosable, while allowing
+# a normal interactive render to finish.
+_INTERACTIVE_PAGE_IMPORT_LEASE_TIMEOUT_SECONDS = 30.0
+
 apply_streamlit_theme_environment(packaged_streamlit_config_path(__file__))
 
 import streamlit as st
@@ -1475,7 +1483,9 @@ def _page_file_runner(page_file: Path) -> Callable[[], None]:
         _record_ui_timing_span(
             f"{page_label}:bootstrap", bootstrap_started_at, category="bootstrap"
         )
-        with isolated_import_process_state():
+        with isolated_import_process_state(
+            timeout=_INTERACTIVE_PAGE_IMPORT_LEASE_TIMEOUT_SECONDS
+        ):
             import_started_at = time.perf_counter()
             module = _load_page_module(resolved_page)
             _record_ui_timing_span(
