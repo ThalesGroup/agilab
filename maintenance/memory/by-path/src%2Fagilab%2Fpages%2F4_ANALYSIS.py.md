@@ -1,9 +1,9 @@
 ---
 schema: agilab.maintenance_memory.v1
 source: src/agilab/pages/4_ANALYSIS.py
-source_sha256: 7920028debd1a4f37e405380d5c448f218762b0f28345234d8d2df950d9d344e
+source_sha256: 36792f9db9cb26858aebdd794ac7bae096c2c7d26ae6ba98c05c63e428bb4763
 title: ANALYSIS page session environment and sidecar ownership contract
-verified_commit: c14c94d2a0adba4b3effe2890b25e07b4b6b469f
+verified_commit: 844b0c05447aacdd999592aaa1f43d1e3373f8ed
 ---
 
 # ANALYSIS page session environment and sidecar ownership contract
@@ -58,3 +58,10 @@ the isolated PyTorch Playground ANALYSIS browser scenario passed.
 2026-07-28 re-verification: user-facing empty-evidence guidance now names the
 current ORCHESTRATE `RUN` action; session environment and sidecar ownership
 behavior is unchanged.
+
+2026-07-29 re-verification: project notebook sidecars now pass the configured
+AGILAB Python selector explicitly to `uv run`, so an ignored project `.venv`
+with a stale free-threaded ABI is replaced instead of silently reused. Analysis
+view sidecars retain their per-project interpreter selection. The polluted-venv
+regression, focused ANALYSIS/UI tests, AGI GUI parity profile, and an isolated
+browser launch of `lab_stages.ipynb` passed.
