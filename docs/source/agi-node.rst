@@ -3,36 +3,34 @@ agi-node API
 
 Path handling
 -------------
-Workers resolve any dataset or workspace URI through
-``BaseWorker.normalize_data_uri`` before touching the filesystem. The helper
-accepts ``str`` or ``pathlib.Path`` inputs and normalises them as follows:
+Workers do not resolve dataset or workspace paths themselves. Path
+normalisation lives in ``agi_node.agi_dispatcher.base_worker_path_support`` and
+is reached through private ``BaseWorker`` helpers (``_normalized_path``,
+``_share_root_path``, ``_resolve_data_dir``, ``_resolved_data_roots``). There is
+no public normalisation entry point: ``BaseWorker`` applies it for you from
+``setup_args``, ``from_toml``, and ``prepare_output_dir``.
 
-- UNC-style shares on Windows (for example ``\\server\share``) are preserved
-  by wrapping them in ``PureWindowsPath`` and returning the
-  ``os.path.normpath`` representation so network drives keep their double
-  backslashes.
-- Every other value is first joined against ``env.agi_share_path_abs`` when the
-  environment exposes one; otherwise the helper falls back to the current home
-  directory. This lets configuration files ship entries such as
-  ``<app>/dataset`` while still resolving to the correct worker share
-  (``$HOME/clustershare/<user>/<app>/dataset`` on macOS when using the
-  default user-scoped share, the mounted share on Linux remotes, and so on).
-- ``Path.resolve(strict=False)`` is applied to keep symlinks or bind mounts
-  created by installers while still accepting directories that are created
-  later during the run.
-- On non-managed Windows installs the helper also attempts to map the dataset
-  under ``\\127.0.0.1\…`` via ``net use`` so local workers gain access to the
-  same share paths used on Linux.
-- The function emits POSIX-style strings on Unix-like systems and uses
-  ``os.path.normpath`` on Windows so downstream code can hand the value to shell
-  commands or ``pathlib`` without further tweaks.
+What that resolution guarantees:
 
-All built-in workers, including ``flight_telemetry_worker`` and ``minimal_app_worker``, call
-this helper in ``start`` and ``work_pool`` to populate ``self.args.data_uri``
-and any per-file path passed to the pool. Extending these workers means you get
-consistent path semantics across local and distributed executions without
-copy-pasting platform-specific logic.
+- Relative values are resolved against the share root, so configuration files
+  can ship entries such as ``<app>/dataset`` and still land on the correct
+  worker share on every host.
+- UNC-style shares on Windows (for example ``\\server\share``) keep their
+  double backslashes.
+- Symlinks and bind mounts created by installers are preserved, and directories
+  that only appear later during the run are still accepted.
 
+The conventional argument fields are ``data_in`` and ``data_out``. ``data_uri``
+was the earlier name for ``data_in``; it survives only as a legacy alias that
+app argument models migrate on load — see
+``src/agilab/apps/builtin/minimal_app_project/src/minimal_app/app_args.py``.
+Do not introduce it in new code.
+
+.. note::
+
+   Earlier revisions of this page described a public
+   ``BaseWorker.normalize_data_uri`` helper and a ``self.args.data_uri`` field.
+   Neither exists. Call ``setup_args`` and let it resolve paths for you.
 
 Argument helpers
 ----------------
@@ -74,10 +72,15 @@ Output directory helpers
 ------------------------
 
 - ``prepare_output_dir`` centralises the setup of manager-side output folders
-  (defaulting to ``dataframe``). Hand it the base path you want to target and it
-  normalises the path, clears old contents when ``auto_clean_data_out`` is enabled,
-  creates the directory, and stores it on ``self.data_out`` unless you override the
-  target attribute.
+  (subdirectory ``dataframe`` by default). Hand it the base path you want to
+  target and it resolves the path through the share resolver, clears old
+  contents when ``clean`` is true (the default, and what ``setup_args`` passes
+  as ``output_clean``), creates the directory, and stores it on
+  ``self.data_out`` unless you override ``attribute``.
+- It is also a validation boundary: it raises ``ValueError`` for a
+  drive-relative root, for ``..`` traversal in either the root or the
+  subdirectory, and for a subdirectory that is absolute. Catch it if your
+  manager accepts an operator-supplied output path.
 
 With these attributes in place, ``BaseWorker.from_toml`` produces a configured
 instance and ``BaseWorker.to_toml`` writes the updated schema without each app
