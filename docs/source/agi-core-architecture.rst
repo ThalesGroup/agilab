@@ -1,13 +1,13 @@
 AGI Core Architecture
 =====================
 
-``agi_core`` is the shared framework-helper layer used by AGILAB pages, CLI
-mirrors, telemetry, and app-loading code. It is not the worker runtime and it
-does not own environment resolution or distributed execution. Those
-responsibilities live in ``agi_env``, ``agi_node``, and ``agi_cluster``.
+``agi-core`` is the meta-package that installs and wires ``agi-env``,
+``agi-node``, and ``agi-cluster`` together. It carries no framework logic of its
+own: environment resolution lives in ``agi_env``, the worker runtime in
+``agi_node``, and distributed execution in ``agi_cluster``.
 
-Use this page when you need to decide whether a change belongs in shared
-page/app helpers or should stay inside an app, page, or worker package.
+Use this page when you need to decide which of those three packages a change
+belongs in, or whether it should stay inside an app, page, or worker package.
 
 .. contents::
    :local:
@@ -17,36 +17,40 @@ Modules at a glance
 -------------------
 
 .. figure:: diagrams/agi-core-overview.svg
-   :alt: Visual summary of agi_core modules
+   :alt: Visual summary of the AGILAB runtime packages
    :class: diagram-panel diagram-standard
 
-   Web interface and CLI entry points call into ``agi_core`` helpers before
-   handing environment resolution to ``agi_env`` and execution to
-   ``agi_cluster``.
+   Web interface and CLI entry points resolve the environment through
+   ``agi_env`` and hand execution to ``agi_cluster``; ``agi-core`` is the
+   distribution that installs those packages together.
 
-``src/agilab/core/agi-core`` ships the following higher-level domains:
+``src/agilab/core/agi-core`` declares the three runtime packages as pinned
+dependencies and exposes no public API of its own. Installing ``agi-core``
+installs the set; importing ``agi_core`` gives you nothing to call:
 
-``agi_core.apps``
-    Helper mixins for app metadata, dataset manifests, and path helpers that
-    app managers can import from their project root. If you add a new manager or
-    need an app to opt in to common validation, start here.
-``agi_core.streamlit``
-    Shared web interface widgets (status panels, history view, deploy dialogs) used
-    by PROJECT/ORCHESTRATE/WORKFLOW/ANALYSIS. Keeping them here avoids circular imports from the
-    page packages.
-``agi_core.telemetry``
-    Structured logging, run-history helpers, and wrappers used by ``AGI.run`` to
-    emit consistent events back to the web interface and the CLI mirrors.
-``agi_core.services``
-    Small utility services (encryption, local cache, dataset registry) designed
-    to be reused by both the GUI and the app installers.
+.. code-block:: python
+
+   >>> import agi_core
+   >>> agi_core.__all__
+   ()
+
+The distribution contains a single module, ``agi_core.agi_env_runtime``, which
+holds the ``RUNTIME_PACKAGE_SPEC`` metadata dictionary that ``agi-env`` reads to
+order package resolution. It is framework plumbing, not an entry point.
+
+.. note::
+
+   Earlier revisions of this page described ``agi_core.apps``,
+   ``agi_core.streamlit``, ``agi_core.telemetry``, and ``agi_core.services``.
+   Those subpackages were never released. Import the shared helpers from
+   ``agi_env``, ``agi_node``, or ``agi_cluster`` instead.
 
 What belongs here
 -----------------
 
-Put code in ``agi_core`` only when it is shared by multiple pages, CLI mirrors,
-or app managers and does not require worker-runtime imports. Keep these outside
-``agi_core``:
+Nothing new belongs in ``agi_core``: it is a dependency aggregator, and adding a
+module there would give it a public surface it is not meant to have. Route
+shared code to the package that owns the responsibility:
 
 - active-project path and environment resolution: use ``agi_env``
 - worker base classes, package bootstrap, and worker install hooks: use
@@ -59,43 +63,42 @@ Execution flow
 --------------
 
 .. figure:: Agilab-Overview.svg
-   :alt: High-level flow linking the web interface to agi-core
+   :alt: High-level flow from the web interface to the runtime packages
    :class: diagram-panel diagram-hero
 
-   Web interface pages talk to ``agi_core`` services before dispatching work to
-   ``agi_env``/``agi_cluster``.
+   Web interface pages resolve an ``AgiEnv`` and dispatch work through the
+   public ``AGI`` facade in ``agi_cluster``.
 
 .. figure:: diagrams/packages_agi_env.svg
-   :alt: Package-level view highlighting agi_core dependencies
+   :alt: Package-level view of the runtime package dependencies
    :class: diagram-panel diagram-wide
 
-   Generated from ``pyreverse`` to show how ``agi_core`` orchestrates calls to
+   Generated from ``pyreverse`` to show how the page and CLI layers depend on
    ``agi_env`` helpers and dispatcher facades.
 
 Typical call stack when a user clicks **RUN** on the ORCHESTRATE page:
 
 1. ``src/agilab/pages/2_ORCHESTRATE.py`` collects form values and calls
    shared app/page helpers.
-2. ``agi_core`` builds app metadata, page state, telemetry context, or
-   ``WorkDispatcher`` inputs without importing worker-only dependencies.
+2. The page builds app metadata, page state, and ``WorkDispatcher`` inputs
+   from helpers it owns, without importing worker-only dependencies.
 3. The page resolves an ``AgiEnv`` and calls the public ``AGI`` facade.
 4. ``AGI.run`` hands execution to ``agi_cluster.agi_distributor`` and the
    worker package built by ``agi_node``.
-5. Results propagate back through ``agi_core`` helpers such as history,
-   downloads, telemetry, and status widgets before the UI renders the finished
-   run.
+5. Results propagate back to the page, which renders history, downloads, and
+   status from the run manifest.
 
 Repository pointers
 -------------------
 
-=============  =============================================================
-Directory      Purpose
-=============  =============================================================
-``apps``       Metadata helpers shared by ``src/agilab/apps`` managers.
-``streamlit``  Widgets, layout templates, and modal logic for ORCHESTRATE/ANALYSIS.
-``telemetry``  Structured logging, status persistence, and run history APIs.
-``services``   Standalone service objects (encryption, caching, dataset registry).
-=============  =============================================================
+===============  ===========================================================
+Package          Purpose
+===============  ===========================================================
+``agi-env``      Paths, configs, logging, credentials, and share roots.
+``agi-node``     Worker base classes, package bootstrap, and install hooks.
+``agi-cluster``  Run dispatch, Dask, SSH, service lifecycle, and ``AGI.run``.
+``agi-core``     Meta-package: installs the three above at a pinned version.
+===============  ===========================================================
 
 Tips for contributions
 ----------------------
@@ -103,17 +106,19 @@ Tips for contributions
 - Keep business logic for a specific app inside its app project root: source
   built-ins use ``src/agilab/apps/builtin/<project>``, packaged payloads use
   ``src/agilab/lib/agi-app-*``, and external apps stay in their app repository.
-  Only move code into ``agi_core`` when *multiple* apps/pages need the
+  Only move code into a runtime package when *multiple* apps/pages need the
   abstraction.
-- When adding a new web widget, place it under ``agi_core/streamlit`` and
-  export it through a small ``__all__``. That keeps import graphs manageable.
-- ``agi_core`` has no hard dependency on ``agi_env`` or ``agi_cluster``. If your
-  change requires environment or dispatcher behaviour, extract a thin interface
-  and inject the dependency so unit tests stay fast.
+- Web widgets shared across pages belong to the page bundle that owns them, or
+  to ``agi_env.ui`` when the whole UI layer needs them. There is no
+  ``agi_core`` widget namespace.
+- ``agi-core`` pins ``agi-env``, ``agi-node``, and ``agi-cluster`` with ``==``
+  constraints, so the four versions move together. A change that needs a new
+  runtime capability must ship in the package that owns it, and the pins must
+  be bumped in the same release.
 
 See also
 --------
 
 - :doc:`framework-api` for the high-level ``AGI.*`` orchestration entry points.
-- :doc:`agilab` for the user-facing web pages built on top of ``agi_core``.
-- :doc:`architecture` for the full-stack overview (pages → agi_core → agi_env/cluster).
+- :doc:`agilab` for the user-facing web pages built on the runtime packages.
+- :doc:`architecture` for the full-stack overview (pages → agi_env → agi_cluster).
