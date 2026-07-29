@@ -937,6 +937,11 @@ def _local_uv_command(
     ], process_env
 
 
+def _notebook_python_uv_spec(env: Any) -> str:
+    """Select AGILAB's configured runtime for project notebook environments."""
+    return str(getattr(env, "python_uv_spec", "") or sys.executable)
+
+
 def _format_bg_command(cmd: BgCommand) -> str:
     if isinstance(cmd, str):
         return cmd
@@ -3627,7 +3632,9 @@ def _ensure_notebook_sidecar(
     project_home = str(project_root.resolve())
     sidecar_token = token or _notebook_sidecar_token(notebook_key)
     tornado_settings = _notebook_iframe_tornado_settings_arg()
+    notebook_python = _notebook_python_uv_spec(env)
     attempts.append(f"Trying JupyterLab sidecar rooted at: {project_home}")
+    attempts.append(f"Using notebook Python selector: {notebook_python}")
 
     def _launch_notebook(allocated_port: int, registered_token: str):
         run_cmd = [
@@ -3635,6 +3642,8 @@ def _ensure_notebook_sidecar(
             "--preview-features",
             "extra-build-dependencies",
             "run",
+            "--python",
+            notebook_python,
             "--project",
             project_home,
             "--with",

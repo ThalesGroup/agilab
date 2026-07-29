@@ -1286,6 +1286,12 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     notebook_path = project_root / "notebooks" / "lab_stages.ipynb"
     notebook_path.parent.mkdir(parents=True)
     notebook_path.write_text("{}", encoding="utf-8")
+    polluted_venv = project_root / ".venv"
+    polluted_venv.mkdir()
+    (polluted_venv / "pyvenv.cfg").write_text(
+        "home = /uv/python/cpython-3.14+freethreaded/bin\nversion_info = 3.14\n",
+        encoding="utf-8",
+    )
     commands: list[tuple[object, str, dict[str, str] | None]] = []
 
     class _FakeProcess:
@@ -1304,6 +1310,7 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     fake_env = SimpleNamespace(
         envars={"127.0.0.1_CMD_PREFIX": 'export PATH="$HOME/.local/bin:$PATH";'},
         uv="uv --quiet",
+        python_uv_spec="3.14.6+gil",
         AGILAB_LOG_ABS=tmp_path,
         logger=fake_logger,
     )
@@ -1329,6 +1336,7 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "DEFAULT_SIDECAR_REGISTRY", FakeRegistry())
     monkeypatch.setattr(module, "_notebook_sidecar_token", lambda _key: "sidecar-token")
+    monkeypatch.setenv("UV_PYTHON", "3.14t")
 
     def _fake_exec_bg(_env, cmd, cwd: str, process_env=None):
         commands.append((cmd, cwd, process_env))
@@ -1346,6 +1354,7 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     assert "export" not in command
     assert process_env is not None
     assert process_env["PATH"].startswith(f"{Path.home()}/.local/bin:")
+    assert command[command.index("--python") + 1] == "3.14.6+gil"
     assert command[command.index("--project") + 1] == str(project_root.resolve())
     assert f"--ServerApp.root_dir={project_root.resolve()}" in command
     assert "jupyter" in command
@@ -1367,6 +1376,14 @@ def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Pat
     assert registry_calls[0]["key"] == str(project_root.resolve())
     assert all("sidecar-token" not in message for message in log_messages)
     assert any("<redacted>" in message for message in log_messages)
+
+
+def test_notebook_python_uv_spec_falls_back_to_running_interpreter(monkeypatch):
+    module = _load_analysis_module()
+    controller_python = "/controller-venv/bin/python"
+    monkeypatch.setattr(module, "sys", SimpleNamespace(executable=controller_python))
+
+    assert module._notebook_python_uv_spec(SimpleNamespace()) == controller_python
 
 
 def test_exec_bg_clears_parent_python_environment(tmp_path: Path, monkeypatch):
