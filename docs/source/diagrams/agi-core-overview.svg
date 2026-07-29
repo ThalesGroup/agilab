@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1240" height="640" viewBox="0 0 1240 640" role="img" aria-labelledby="title desc">
   <title id="title">AGI core orchestration</title>
-  <desc id="desc">Diagram showing web and CLI entrypoints feeding agi_core, then agi_env, agi_cluster, agi_node workers, and artifacts with a clear orchestration flow.</desc>
+  <desc id="desc">Diagram showing web and CLI entrypoints running in an agi-core install, then agi_env, agi_cluster, agi_node workers, and artifacts with a clear orchestration flow.</desc>
   <defs>
     <style>
       text {
@@ -81,7 +81,7 @@
 
   <g transform="translate(62,48)">
     <text class="title" x="0" y="0">AGI core orchestration</text>
-    <text class="subtitle" x="0" y="30">How entry points feed agi_core, then environment resolution, cluster dispatch, worker execution, and artifacts.</text>
+    <text class="subtitle" x="0" y="30">How entry points reach environment resolution, cluster dispatch, worker execution, and artifacts.</text>
   </g>
 
   <g transform="translate(60,120)">
@@ -111,12 +111,12 @@
 
   <g transform="translate(484,170)">
     <rect class="card" width="308" height="154" fill="#e3dcff" />
-    <text class="card-title" x="154" y="38" text-anchor="middle">agi_core</text>
-    <text class="card-body" x="24" y="72">Resolve app and args; build run plans</text>
-    <text class="card-body" x="24" y="96">Drive lab_stages and telemetry</text>
+    <text class="card-title" x="154" y="38" text-anchor="middle">agi-core</text>
+    <text class="card-body" x="24" y="72">Meta-package; no public API</text>
+    <text class="card-body" x="24" y="96">Pins the three runtime packages</text>
     <text class="card-note" x="24" y="128">
-      <tspan x="24" dy="0">Reusable widgets, services, history,</tspan>
-      <tspan x="24" dy="18">and orchestration helpers</tspan>
+      <tspan x="24" dy="0">Installs agi-env, agi-node and</tspan>
+      <tspan x="24" dy="18">agi-cluster at one version</tspan>
     </text>
   </g>
 
@@ -164,8 +164,8 @@
     <rect class="callout" width="520" height="66" fill="#ffffff" />
     <text class="callout-title" x="20" y="33">Reading guide</text>
     <text class="callout-body" x="136" y="30">
-      <tspan x="136" dy="0">Inputs converge into agi_core, then flow through</tspan>
-      <tspan x="136" dy="18">environment setup to cluster and worker execution.</tspan>
+      <tspan x="136" dy="0">Entry points run in an agi-core install, then flow</tspan>
+      <tspan x="136" dy="18">through environment setup to cluster and workers.</tspan>
     </text>
   </g>
 
