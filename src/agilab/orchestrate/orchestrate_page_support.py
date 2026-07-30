@@ -8,6 +8,11 @@ from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from agi_env.runtime.import_layout_support import (
+    inspect_pth_import_layout,
+    is_typing_only_distribution,
+    top_level_modules_from_distribution,
+)
 from agi_env.snippet_contract import snippet_contract_block
 from agilab.environment.logging_utils import compact_log_view, render_compact_log_view
 
@@ -188,7 +193,7 @@ _REQUIREMENT_NAME_PATTERN = re.compile(
 
 
 def _is_typing_only_distribution(normalized_name: str) -> bool:
-    return normalized_name.endswith("-stubs") or normalized_name.startswith("types-")
+    return is_typing_only_distribution(normalized_name)
 
 
 def _is_placeholder_top_level_module(module: str) -> bool:
@@ -1379,30 +1384,7 @@ def _venv_site_package_dirs(venv: Path) -> tuple[Path, ...]:
 
 
 def _pth_import_roots(site_packages: Path) -> tuple[Path, ...]:
-    roots: list[Path] = []
-    try:
-        pth_files = sorted(site_packages.glob("*.pth"))
-    except OSError:
-        return ()
-    for pth_file in pth_files:
-        try:
-            lines = pth_file.read_text(encoding="utf-8", errors="replace").splitlines()
-        except OSError:
-            continue
-        for raw_line in lines:
-            line = raw_line.strip()
-            if not line or line.startswith("#") or line.startswith("import "):
-                continue
-            candidate = Path(line).expanduser()
-            if not candidate.is_absolute():
-                candidate = site_packages / candidate
-            try:
-                candidate = candidate.resolve(strict=False)
-            except OSError:
-                pass
-            if candidate.exists() and candidate.is_dir():
-                roots.append(candidate)
-    return tuple(dict.fromkeys(roots))
+    return inspect_pth_import_layout(site_packages).roots
 
 
 def _module_available_on_root(root: Path, module: str) -> bool:
@@ -1440,12 +1422,14 @@ def _symbol_available_on_root(root: Path, dotted_module: str, symbol: str) -> bo
 
 def _missing_modules_on_import_roots(venv: Path, modules: Sequence[str]) -> tuple[tuple[str, ...], tuple[Path, ...]]:
     site_packages = _venv_site_package_dirs(venv)
-    editable_roots = tuple(root for site in site_packages for root in _pth_import_roots(site))
+    layouts = tuple(inspect_pth_import_layout(site) for site in site_packages)
+    editable_roots = tuple(root for layout in layouts for root in layout.roots)
     roots = tuple(dict.fromkeys((*site_packages, *editable_roots)))
     missing = tuple(
         module
         for module in modules
-        if not any(_module_available_on_root(root, module) for root in roots)
+        if not any(layout.exposes_module(module) for layout in layouts)
+        and not any(_module_available_on_root(root, module) for root in roots)
     )
     return missing, roots
 
@@ -1612,18 +1596,7 @@ def _top_level_modules_from_distribution(
     site_packages: Sequence[Path],
     distribution_name: str,
 ) -> tuple[str, ...]:
-    normalized = _normalized_distribution_name(distribution_name)
-    modules: list[str] = []
-    for site_package in site_packages:
-        try:
-            metadata_files = sorted(site_package.glob("*.dist-info/METADATA"))
-        except OSError:
-            continue
-        for metadata_file in metadata_files:
-            if _metadata_distribution_name(metadata_file) != normalized:
-                continue
-            modules.extend(_top_level_modules_from_metadata_dir(metadata_file.parent))
-    return tuple(dict.fromkeys(modules))
+    return top_level_modules_from_distribution(site_packages, distribution_name)
 
 
 def _dependency_modules_from_requirement(

@@ -1585,6 +1585,57 @@ def test_app_install_status_detects_editable_pth_import_roots(tmp_path: Path) ->
     assert status["worker_ready"] is True
 
 
+def test_app_install_status_detects_pep660_mapped_dependency_module(
+    tmp_path: Path,
+) -> None:
+    active_app = tmp_path / "routing_training_project"
+    worker_root = tmp_path / "wenv" / "routing_training_worker"
+    manager_site = _seed_fake_venv_modules(active_app / ".venv", "agi_env", "agi_node")
+    worker_site = _seed_fake_venv_modules(worker_root / ".venv", "agi_env", "agi_node")
+    active_app.mkdir(exist_ok=True)
+    worker_root.mkdir(parents=True, exist_ok=True)
+    dependency_manifest = (
+        '[project]\nname = "runtime"\ndependencies = ["link-sim-project"]\n'
+    )
+    (active_app / "pyproject.toml").write_text(
+        dependency_manifest,
+        encoding="utf-8",
+    )
+    (worker_root / "pyproject.toml").write_text(
+        dependency_manifest,
+        encoding="utf-8",
+    )
+    mapped_package = tmp_path / "link-source" / "link_sim_worker"
+    mapped_package.mkdir(parents=True)
+    (mapped_package / "__init__.py").write_text("", encoding="utf-8")
+
+    for site_packages in (manager_site, worker_site):
+        _seed_dist_info(
+            site_packages,
+            "link-sim-project",
+            top_level="link_sim_worker\n",
+        )
+        finder = "__editable___link_sim_project_1_0_finder"
+        (site_packages / f"{finder}.py").write_text(
+            f"MAPPING = {{'link_sim_worker': {str(mapped_package)!r}}}\n"
+            "NAMESPACES = {}\n",
+            encoding="utf-8",
+        )
+        (site_packages / "__editable__.link_sim_project-1.0.pth").write_text(
+            f"import {finder}; {finder}.install()\n",
+            encoding="utf-8",
+        )
+
+    status = orchestrate_page_support.app_install_status(
+        SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+    )
+
+    assert status["manager_ready"] is True
+    assert status["worker_ready"] is True
+    assert status["manager_missing_modules"] == ()
+    assert status["worker_missing_modules"] == ()
+
+
 def test_append_log_lines_filters_tracebacks_and_dask_noise():
     buffer: list[str] = []
     state = {"active": False}

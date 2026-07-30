@@ -17,9 +17,18 @@ from tempfile import TemporaryDirectory
 from typing import Any, Callable, cast
 
 import tomlkit
+from packaging.markers import default_environment
 from packaging.requirements import InvalidRequirement, Requirement
+from packaging.utils import canonicalize_name
 
 from agi_env.runtime.atomic_write_support import atomic_write_text
+from agi_env.runtime.import_layout_support import (
+    distribution_installation_matches,
+    inspect_pth_import_layout,
+    is_typing_only_distribution,
+    top_level_modules_from_distribution,
+    top_level_modules_from_project,
+)
 
 from agi_cluster.agi_distributor import deployment_dask_support
 from agi_cluster.agi_distributor.deployment.deployment_build_support import (
@@ -554,7 +563,7 @@ def _parse_dependency_names(entries: Any) -> set[str]:
         if not isinstance(entry, str):
             continue
         try:
-            names.add(Requirement(entry).name.lower())
+            names.add(canonicalize_name(Requirement(entry).name))
         except DEPENDENCY_PARSE_EXCEPTIONS:
             continue
     return names
@@ -569,17 +578,17 @@ def _manager_dependency_names(pyproject_file: Path) -> set[str]:
     return _parse_dependency_names(project.get("dependencies"))
 
 
-def _local_uv_source_names(pyproject_file: Path) -> set[str]:
+def _local_uv_source_projects(pyproject_file: Path) -> dict[str, Path]:
     try:
         data = tomlkit.parse(pyproject_file.read_text())
     except PYPROJECT_PARSE_EXCEPTIONS:
-        return set()
+        return {}
 
     sources = data.get("tool", {}).get("uv", {}).get("sources")
     if not isinstance(sources, dict):
-        return set()
+        return {}
 
-    names: set[str] = set()
+    projects: dict[str, Path] = {}
     for name, meta in sources.items():
         if not isinstance(meta, dict):
             continue
@@ -589,9 +598,17 @@ def _local_uv_source_names(pyproject_file: Path) -> set[str]:
         source_path = Path(path_value).expanduser()
         if not source_path.is_absolute():
             source_path = pyproject_file.parent / source_path
-        if source_path.resolve(strict=False).exists():
-            names.add(str(name).lower())
-    return names
+        source_path = source_path.resolve(strict=False)
+        projects[canonicalize_name(str(name))] = source_path
+    return projects
+
+
+def _local_uv_source_names(pyproject_file: Path) -> set[str]:
+    return {
+        name
+        for name, project in _local_uv_source_projects(pyproject_file).items()
+        if project.exists()
+    }
 
 
 def _filter_worker_core_add_specs(
@@ -768,6 +785,21 @@ def _update_pyproject_dependencies(
 _PYPROJECT_DEPENDENCY_CACHE: dict[tuple[str, int, int], tuple[str, ...] | None] = {}
 
 
+def _marker_environment_for_python_version(
+    python_version: str | None,
+) -> dict[str, str]:
+    environment = default_environment()
+    parsed = _python_version_tuple(python_version)
+    if not parsed:
+        return environment
+    major = parsed[0]
+    minor = parsed[1] if len(parsed) > 1 else 0
+    patch = parsed[2] if len(parsed) > 2 else 0
+    environment["python_version"] = f"{major}.{minor}"
+    environment["python_full_version"] = f"{major}.{minor}.{patch}"
+    return environment
+
+
 def _pyproject_dependency_strings(resolved_pyproject: Path) -> tuple[str, ...] | None:
     try:
         stat_result = resolved_pyproject.stat()
@@ -794,6 +826,8 @@ def _pyproject_dependency_strings(resolved_pyproject: Path) -> tuple[str, ...] |
 
 def _gather_dependency_specs(
     projects: list[Path | None],
+    *,
+    marker_environment: dict[str, str] | None = None,
 ) -> tuple[dict[str, dict[str, Any]], set[str]]:
     dependency_info: dict[str, dict[str, Any]] = {}
     worker_pyprojects: set[str] = set()
@@ -813,15 +847,16 @@ def _gather_dependency_specs(
         deps = _pyproject_dependency_strings(resolved_pyproject)
         if not deps:
             continue
+        local_source_projects = _local_uv_source_projects(resolved_pyproject)
         worker_pyprojects.add(str(resolved_pyproject))
         for dep in deps:
             try:
                 req = Requirement(str(dep))
             except DEPENDENCY_PARSE_EXCEPTIONS:
                 continue
-            if req.marker and not req.marker.evaluate():
+            if req.marker and not req.marker.evaluate(environment=marker_environment):
                 continue
-            normalized = req.name.lower()
+            normalized = canonicalize_name(req.name)
             if normalized.startswith("agi-") or normalized == "agilab":
                 continue
             meta = dependency_info.setdefault(
@@ -832,11 +867,15 @@ def _gather_dependency_specs(
                     "specifiers": [],
                     "has_exact": False,
                     "sources": set(),
+                    "source_projects": set(),
                 },
             )
             if req.extras:
                 meta["extras"].update(req.extras)
             meta["sources"].add(str(resolved_pyproject))
+            source_project = local_source_projects.get(normalized)
+            if source_project is not None:
+                meta["source_projects"].add(source_project)
             if req.specifier:
                 for specifier in req.specifier:
                     spec_str = str(specifier)
@@ -855,18 +894,32 @@ def _gather_dependency_specs(
 
 def _dependency_modules_from_info(
     dependency_info: dict[str, dict[str, Any]],
+    *,
+    site_packages: tuple[Path, ...] = (),
 ) -> tuple[str, ...]:
     modules: list[str] = []
     for key, meta in dependency_info.items():
         if key.startswith("agi-") or key == "agilab":
+            continue
+        if is_typing_only_distribution(key):
             continue
         extras = {
             str(item).strip().lower()
             for item in meta.get("extras", set())
             if str(item).strip()
         }
+        source_modules = tuple(
+            module
+            for project in sorted(
+                meta.get("source_projects", set()), key=lambda path: str(path)
+            )
+            for module in top_level_modules_from_project(project)
+        )
+        installed_modules = top_level_modules_from_distribution(site_packages, key)
         modules.extend(
-            DEPENDENCY_MODULE_ALIASES.get(
+            source_modules
+            or installed_modules
+            or DEPENDENCY_MODULE_ALIASES.get(
                 key,
                 (str(meta.get("name") or key).replace("-", "_"),),
             )
@@ -877,34 +930,24 @@ def _dependency_modules_from_info(
 
 
 def _pth_import_roots(site_packages: Path) -> tuple[Path, ...]:
-    roots: list[Path] = []
-    try:
-        pth_files = sorted(site_packages.glob("*.pth"))
-    except OSError:
-        return ()
-    for pth_file in pth_files:
-        try:
-            lines = pth_file.read_text(encoding="utf-8", errors="replace").splitlines()
-        except OSError:
-            continue
-        for line in lines:
-            value = line.strip()
-            if not value or value.startswith("#") or value.startswith("import "):
-                continue
-            candidate = Path(value).expanduser()
-            if not candidate.is_absolute():
-                candidate = site_packages / candidate
-            candidate = candidate.resolve(strict=False)
-            if candidate.is_dir():
-                roots.append(candidate)
-    return tuple(dict.fromkeys(roots))
+    return inspect_pth_import_layout(site_packages).roots
 
 
 def _module_available_on_root(root: Path, module: str) -> bool:
     package_path = root / module
     if package_path.exists():
         return True
-    return any((root / f"{module}{suffix}").exists() for suffix in (".py", ".so", ".pyd", ".dylib"))
+    if any(
+        (root / f"{module}{suffix}").exists()
+        for suffix in (".py", ".so", ".pyd", ".dylib")
+    ):
+        return True
+    try:
+        return any(root.glob(f"{module}.*.so")) or any(
+            root.glob(f"{module}.*.pyd")
+        )
+    except OSError:
+        return False
 
 
 def _project_venv_has_modules(
@@ -916,10 +959,85 @@ def _project_venv_has_modules(
     if not modules:
         return True
     site_packages = _project_site_packages_dir(project, python_version=python_version)
-    roots = tuple(dict.fromkeys((site_packages, *_pth_import_roots(site_packages))))
+    layout = inspect_pth_import_layout(site_packages)
+    roots = tuple(dict.fromkeys((site_packages, *layout.roots)))
     return all(
-        any(_module_available_on_root(root, module) for root in roots)
+        layout.exposes_module(module)
+        or any(_module_available_on_root(root, module) for root in roots)
         for module in modules
+    )
+
+
+def _project_venv_dependency_failures(
+    project: Path,
+    dependency_info: dict[str, dict[str, Any]],
+    *,
+    python_version: str | None = None,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    site_packages = _project_site_packages_dir(project, python_version=python_version)
+    site_package_dirs = (site_packages,)
+    missing_distributions = tuple(
+        key
+        for key, meta in dependency_info.items()
+        if not distribution_installation_matches(
+            site_package_dirs,
+            key,
+            expected_projects=meta.get("source_projects", set()),
+        )
+    )
+    modules = _dependency_modules_from_info(
+        dependency_info,
+        site_packages=site_package_dirs,
+    )
+    layout = inspect_pth_import_layout(site_packages)
+    roots = tuple(dict.fromkeys((site_packages, *layout.roots)))
+    missing_modules = tuple(
+        module
+        for module in modules
+        if not layout.exposes_module(module)
+        and not any(_module_available_on_root(root, module) for root in roots)
+    )
+    return missing_distributions, missing_modules
+
+
+def _project_venv_has_dependencies(
+    project: Path,
+    dependency_info: dict[str, dict[str, Any]],
+    *,
+    python_version: str | None = None,
+) -> bool:
+    return not any(
+        _project_venv_dependency_failures(
+            project,
+            dependency_info,
+            python_version=python_version,
+        )
+    )
+
+
+def _require_project_venv_dependencies(
+    project: Path,
+    dependency_info: dict[str, dict[str, Any]],
+    *,
+    environment_name: str,
+    python_version: str | None = None,
+) -> None:
+    missing_distributions, missing_modules = _project_venv_dependency_failures(
+        project,
+        dependency_info,
+        python_version=python_version,
+    )
+    if not missing_distributions and not missing_modules:
+        return
+    details: list[str] = []
+    if missing_distributions:
+        details.append("missing distributions: " + ", ".join(missing_distributions))
+    if missing_modules:
+        details.append("missing modules: " + ", ".join(missing_modules))
+    raise RuntimeError(
+        f"AGI.install did not establish the declared {environment_name} dependencies "
+        f"in {project}: {'; '.join(details)}. Re-run Deploy workers and inspect the "
+        "preceding uv sync output."
     )
 
 
@@ -933,6 +1051,9 @@ async def deploy_local_worker(
     runtime_file: str,
     run_fn: Callable[..., Any] = AgiEnv.run,
     set_env_var_fn: Callable[..., Any] = AgiEnv.set_env_var,
+    require_project_venv_dependencies_fn: Callable[..., None] = (
+        _require_project_venv_dependencies
+    ),
     log: Any = logger,
 ) -> None:
     env = agi_cls.env
@@ -954,7 +1075,8 @@ async def deploy_local_worker(
     repo_core_project: Path | None = None
     repo_cluster_project: Path | None = None
     repo_agilab_root: Path | None = None
-    dependency_info: dict[str, dict[str, Any]] = {}
+    manager_dependency_info: dict[str, dict[str, Any]] = {}
+    worker_dependency_info: dict[str, dict[str, Any]] = {}
     dep_versions: dict[str, str] = {}
     worker_pyprojects: set[str] = set()
 
@@ -1002,8 +1124,17 @@ async def deploy_local_worker(
             node_project,
             core_project,
         ]
-        dependency_info, worker_pyprojects = _gather_dependency_specs(
-            projects_for_specs
+        manager_dependency_info, _ = _gather_dependency_specs(
+            projects_for_specs,
+            marker_environment=_marker_environment_for_python_version(
+                getattr(env, "python_version", None)
+            ),
+        )
+        worker_dependency_info, worker_pyprojects = _gather_dependency_specs(
+            projects_for_specs,
+            marker_environment=_marker_environment_for_python_version(
+                getattr(env, "pyvers_worker", None)
+            ),
         )
     else:
         env_project = env.agi_env
@@ -1062,20 +1193,28 @@ async def deploy_local_worker(
         log.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
 
     app_path = env.active_app
-    manager_probe_dependency_info, _ = _gather_dependency_specs(
-        [env_project, node_project, core_project, cluster_project, app_path]
-    )
-    manager_probe_modules = _dependency_modules_from_info(manager_probe_dependency_info)
+    def manager_probe_dependency_info() -> dict[str, dict[str, Any]]:
+        probe_info, _ = _gather_dependency_specs(
+            [app_path],
+            marker_environment=_marker_environment_for_python_version(pyvers),
+        )
+        return probe_info
+
+    def worker_probe_dependency_info() -> dict[str, dict[str, Any]]:
+        probe_info, _ = _gather_dependency_specs(
+            [wenv_abs],
+            marker_environment=_marker_environment_for_python_version(
+                getattr(env, "pyvers_worker", None)
+            ),
+        )
+        return probe_info
 
     def worker_probe_modules() -> tuple[str, ...]:
-        worker_probe_dependency_info, _ = _gather_dependency_specs(
-            [env_project, node_project, wenv_abs]
-        )
-        return _dependency_modules_from_info(worker_probe_dependency_info)
+        return _dependency_modules_from_info(worker_probe_dependency_info())
 
     manager_pyproject = app_path / "pyproject.toml"
     manager_pyproject_is_repo_file = _is_within_repo(manager_pyproject, repo_root)
-    if (not env.is_source_env) and (not env.is_worker_env) and dependency_info:
+    if (not env.is_source_env) and (not env.is_worker_env) and manager_dependency_info:
         if manager_pyproject_is_repo_file:
             log.info(
                 "Skipping dependency rewrite for %s to avoid mutating source checkout.",
@@ -1084,7 +1223,7 @@ async def deploy_local_worker(
         else:
             _update_pyproject_dependencies(
                 manager_pyproject,
-                dependency_info,
+                manager_dependency_info,
                 worker_pyprojects,
                 pinned_versions=None,
                 filter_to_worker=False,
@@ -1172,9 +1311,9 @@ async def deploy_local_worker(
                 output_probe=lambda: _project_venv_matches(
                     app_path, python_version=pyvers
                 )
-                and _project_venv_has_modules(
+                and _project_venv_has_dependencies(
                     app_path,
-                    manager_probe_modules,
+                    manager_probe_dependency_info(),
                     python_version=pyvers,
                 ),
             )
@@ -1255,9 +1394,9 @@ async def deploy_local_worker(
         site_packages_manager = env.env_pck.parent
         _cleanup_editable(site_packages_manager)
 
-        if dependency_info:
+        if manager_dependency_info:
             dep_versions = {}
-            for key, meta in dependency_info.items():
+            for key, meta in manager_dependency_info.items():
                 try:
                     dep_versions[key] = pkg_version(meta["name"])
                 except PackageNotFoundError:
@@ -1277,6 +1416,13 @@ async def deploy_local_worker(
             python_version=pyvers,
             install_cache_enabled=stage_cache_enabled,
         )
+
+    require_project_venv_dependencies_fn(
+        app_path,
+        manager_probe_dependency_info(),
+        environment_name="manager",
+        python_version=pyvers,
+    )
 
     started_at = time.perf_counter()
     await agi_cls._build_lib_local()
@@ -1378,7 +1524,7 @@ async def deploy_local_worker(
     ):
         _update_pyproject_dependencies(
             wenv_abs / "pyproject.toml",
-            dependency_info,
+            worker_dependency_info,
             worker_pyprojects,
             dep_versions,
             filter_to_worker=True,
@@ -1501,13 +1647,20 @@ async def deploy_local_worker(
                 worker_venv_project,
                 python_version=pyvers_worker,
             )
-            and _project_venv_has_modules(
+            and _project_venv_has_dependencies(
                 worker_venv_project,
-                worker_probe_modules(),
+                worker_probe_dependency_info(),
                 python_version=pyvers_worker,
             ),
             dependencies=tuple(worker_dependency_names),
         )
+    )
+
+    require_project_venv_dependencies_fn(
+        worker_venv_project,
+        worker_probe_dependency_info(),
+        environment_name="worker",
+        python_version=pyvers_worker,
     )
 
     if deployment_dask_support.dask_mode_enabled(agi_cls):

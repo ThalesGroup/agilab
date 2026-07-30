@@ -116,6 +116,7 @@ async def _call_deploy_local_worker(
     run_fn,
     set_env_var_fn,
     log,
+    require_project_venv_dependencies_fn=None,
 ) -> None:
     # src/wenv_rel are accepted for call-site compatibility but the production
     # signature dropped them: deploy_local_worker derives both from agi_cls.env.
@@ -129,6 +130,10 @@ async def _call_deploy_local_worker(
         runtime_file=runtime_file or deployment_local_support.__file__,
         run_fn=run_fn,
         set_env_var_fn=set_env_var_fn,
+        require_project_venv_dependencies_fn=(
+            require_project_venv_dependencies_fn
+            or (lambda *_args, **_kwargs: None)
+        ),
         log=log,
     )
 
@@ -1117,6 +1122,173 @@ def test_dependency_module_and_pth_import_roots_cover_edge_branches(monkeypatch,
 
     monkeypatch.setattr(Path, "glob", _raise_for_site_packages)
     assert deployment_local_support._pth_import_roots(site_packages) == ()
+
+
+def test_dependency_specs_evaluate_markers_for_target_python(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "pyproject.toml").write_text(
+        """
+[project]
+name = "marker-demo"
+dependencies = [
+    "old-only; python_version < '3.14'",
+    "new-only; python_version >= '3.14'",
+]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    old_info, _ = deployment_local_support._gather_dependency_specs(
+        [project],
+        marker_environment=deployment_local_support._marker_environment_for_python_version(
+            "3.13.9"
+        ),
+    )
+    new_info, _ = deployment_local_support._gather_dependency_specs(
+        [project],
+        marker_environment=deployment_local_support._marker_environment_for_python_version(
+            "3.14.1"
+        ),
+    )
+
+    assert set(old_info) == {"old-only"}
+    assert set(new_info) == {"new-only"}
+
+
+def test_dependency_postcondition_rejects_shadow_module_without_distribution(
+    tmp_path,
+):
+    source_project = tmp_path / "link-source"
+    source_project.mkdir()
+    (source_project / "pyproject.toml").write_text(
+        """
+[project]
+name = "link-sim-project"
+
+[tool.setuptools]
+packages = ["link_sim_worker"]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    (consumer / "pyproject.toml").write_text(
+        f"""
+[project]
+name = "consumer"
+dependencies = ["link-sim-project"]
+
+[tool.uv.sources]
+link-sim-project = {{ path = {json.dumps(str(source_project))}, editable = true }}
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    dependency_info, _ = deployment_local_support._gather_dependency_specs(
+        [consumer],
+        marker_environment=deployment_local_support._marker_environment_for_python_version(
+            "3.14"
+        ),
+    )
+    _write_venv_python(consumer, python_version="3.14.1")
+    site_packages = deployment_local_support._project_site_packages_dir(
+        consumer,
+        python_version="3.14",
+    )
+    shadow = site_packages / "link_sim_worker"
+    shadow.mkdir(parents=True)
+    (shadow / "__init__.py").write_text("", encoding="utf-8")
+
+    assert deployment_local_support._project_venv_dependency_failures(
+        consumer,
+        dependency_info,
+        python_version="3.14",
+    ) == (("link-sim-project",), ())
+    with pytest.raises(RuntimeError, match="missing distributions: link-sim-project"):
+        deployment_local_support._require_project_venv_dependencies(
+            consumer,
+            dependency_info,
+            environment_name="manager",
+            python_version="3.14",
+        )
+
+    dist_info = site_packages / "link_sim_project-1.0.dist-info"
+    dist_info.mkdir()
+    (dist_info / "METADATA").write_text(
+        "Metadata-Version: 2.4\nName: link-sim-project\n",
+        encoding="utf-8",
+    )
+    (dist_info / "top_level.txt").write_text(
+        "link_sim_worker\n",
+        encoding="utf-8",
+    )
+    (dist_info / "direct_url.json").write_text(
+        json.dumps(
+            {
+                "url": source_project.resolve().as_uri(),
+                "dir_info": {"editable": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    deployment_local_support._require_project_venv_dependencies(
+        consumer,
+        dependency_info,
+        environment_name="manager",
+        python_version="3.14",
+    )
+
+
+@pytest.mark.parametrize("distribution", ("pandas-stubs", "types-requests"))
+def test_dependency_postcondition_requires_typing_distribution_without_runtime_module(
+    tmp_path,
+    distribution,
+):
+    project = tmp_path / distribution
+    _write_venv_python(project, python_version="3.14.1")
+    site_packages = deployment_local_support._project_site_packages_dir(
+        project,
+        python_version="3.14",
+    )
+    dist_info = site_packages / f"{distribution.replace('-', '_')}-1.0.dist-info"
+    dist_info.mkdir(parents=True)
+    (dist_info / "METADATA").write_text(
+        f"Metadata-Version: 2.4\nName: {distribution}\n",
+        encoding="utf-8",
+    )
+    dependency_info = {
+        distribution: {
+            "name": distribution,
+            "extras": set(),
+            "source_projects": set(),
+        }
+    }
+
+    assert deployment_local_support._project_venv_dependency_failures(
+        project,
+        dependency_info,
+        python_version="3.14",
+    ) == ((), ())
+    deployment_local_support._require_project_venv_dependencies(
+        project,
+        dependency_info,
+        environment_name="manager",
+        python_version="3.14",
+    )
+
+
+@pytest.mark.parametrize(
+    "filename",
+    ("native.cpython-314-darwin.so", "native.cp314-win_amd64.pyd"),
+)
+def test_module_probe_accepts_abi_tagged_extensions(tmp_path, filename):
+    (tmp_path / filename).write_bytes(b"")
+
+    assert deployment_local_support._module_available_on_root(tmp_path, "native")
 
 
 def test_worker_post_install_sync_args_only_skips_when_modules_are_ready(tmp_path):
@@ -2605,11 +2777,38 @@ dependencies = ["numpy>=1.0", "scipy>=1.0; python_version < '2'"]
 
 @pytest.mark.asyncio
 async def test_deploy_local_worker_non_source_flow(tmp_path):
+    link_source = tmp_path / "link-source"
+    link_source.mkdir()
+    (link_source / "pyproject.toml").write_text(
+        """
+[project]
+name = "link-sim-project"
+
+[tool.setuptools]
+packages = ["link_sim_worker"]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    def _dependency_manifest(name: str) -> str:
+        return f"""
+[project]
+name = {json.dumps(name)}
+dependencies = [
+    "link-sim-project",
+    "manager-only; python_version < '3.14'",
+    "worker-only; python_version >= '3.14'",
+]
+
+[tool.uv.sources]
+link-sim-project = {{ path = {json.dumps(str(link_source))}, editable = true }}
+"""
     app_path = tmp_path / "app"
     app_path.mkdir(parents=True, exist_ok=True)
     (app_path / "pyproject.toml").write_text(
-        "[project]\nname='demo-app'\n", encoding="utf-8"
+        _dependency_manifest("demo-app"), encoding="utf-8"
     )
+    _write_venv_python(app_path, python_version="3.13.1")
 
     agi_env_root = tmp_path / "agi_env"
     (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
@@ -2628,8 +2827,17 @@ async def test_deploy_local_worker_non_source_flow(tmp_path):
     wenv_abs = tmp_path / "worker_env"
     wenv_abs.mkdir(parents=True, exist_ok=True)
     (wenv_abs / "pyproject.toml").write_text(
-        "[project]\nname='worker-app'\n", encoding="utf-8"
+        _dependency_manifest("worker-app"), encoding="utf-8"
     )
+    _write_venv_python(wenv_abs, python_version="3.14.1")
+    for project, python_version in ((app_path, "3.13"), (wenv_abs, "3.14")):
+        site_packages = deployment_local_support._project_site_packages_dir(
+            project,
+            python_version=python_version,
+        )
+        shadow = site_packages / "link_sim_worker"
+        shadow.mkdir(parents=True)
+        (shadow / "__init__.py").write_text("", encoding="utf-8")
 
     env = SimpleNamespace(
         is_source_env=False,
@@ -2643,7 +2851,7 @@ async def test_deploy_local_worker_non_source_flow(tmp_path):
         uv="uv",
         uv_worker="uv",
         python_version="3.13",
-        pyvers_worker="3.13",
+        pyvers_worker="3.14",
         envars={},
         verbose=1,
         env_pck=agi_env_root / "src" / "agi_env",
@@ -2656,8 +2864,68 @@ async def test_deploy_local_worker_non_source_flow(tmp_path):
     )
     commands = []
 
+    def _install_distribution(
+        project: Path,
+        distribution: str,
+        module: str,
+        *,
+        python_version: str,
+        source: Path | None = None,
+    ) -> None:
+        site_packages = deployment_local_support._project_site_packages_dir(
+            project,
+            python_version=python_version,
+        )
+        dist_info = site_packages / f"{distribution.replace('-', '_')}-1.0.dist-info"
+        dist_info.mkdir(parents=True, exist_ok=True)
+        (dist_info / "METADATA").write_text(
+            f"Metadata-Version: 2.4\nName: {distribution}\n",
+            encoding="utf-8",
+        )
+        (dist_info / "top_level.txt").write_text(
+            f"{module}\n",
+            encoding="utf-8",
+        )
+        package = site_packages / module
+        package.mkdir(exist_ok=True)
+        (package / "__init__.py").write_text("", encoding="utf-8")
+        if source is not None:
+            (dist_info / "direct_url.json").write_text(
+                json.dumps(
+                    {
+                        "url": source.resolve().as_uri(),
+                        "dir_info": {"editable": True},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
     async def _fake_run(cmd, cwd):
         commands.append((cmd, str(cwd)))
+        if cmd.startswith("uv sync"):
+            project = Path(cwd)
+            python_version = "3.13" if project == app_path else "3.14"
+            _install_distribution(
+                project,
+                "link-sim-project",
+                "link_sim_worker",
+                python_version=python_version,
+                source=link_source,
+            )
+            if project == app_path:
+                _install_distribution(
+                    project,
+                    "manager-only",
+                    "manager_only",
+                    python_version=python_version,
+                )
+            else:
+                _install_distribution(
+                    project,
+                    "worker-only",
+                    "worker_only",
+                    python_version=python_version,
+                )
         return ""
 
     async def _fake_build():
@@ -2678,6 +2946,17 @@ async def test_deploy_local_worker_non_source_flow(tmp_path):
         _uninstall_modules=_fake_uninstall,
     )
 
+    observed_contracts: dict[str, set[str]] = {}
+
+    def _require_dependencies(project, info, *, environment_name, python_version):
+        observed_contracts[environment_name] = set(info)
+        deployment_local_support._require_project_venv_dependencies(
+            project,
+            info,
+            environment_name=environment_name,
+            python_version=python_version,
+        )
+
     await _call_deploy_local_worker(
         agi_cls,
         app_path,
@@ -2686,6 +2965,7 @@ async def test_deploy_local_worker_non_source_flow(tmp_path):
         agi_version_missing_on_pypi_fn=lambda _p: False,
         run_fn=_fake_run,
         set_env_var_fn=lambda *_a, **_k: None,
+        require_project_venv_dependencies_fn=_require_dependencies,
         log=mock.Mock(),
     )
 
@@ -2701,6 +2981,21 @@ async def test_deploy_local_worker_non_source_flow(tmp_path):
         for cmd, _ in commands
     )
     assert any("threaded" in cmd for cmd, _ in commands)
+    assert observed_contracts["manager"] == {"link-sim-project", "manager-only"}
+    assert observed_contracts["worker"] == {"link-sim-project", "worker-only"}
+    assert all(
+        deployment_local_support._project_venv_has_dependencies(
+            project,
+            deployment_local_support._gather_dependency_specs(
+                [project],
+                marker_environment=deployment_local_support._marker_environment_for_python_version(
+                    python_version
+                ),
+            )[0],
+            python_version=python_version,
+        )
+        for project, python_version in ((app_path, "3.13"), (wenv_abs, "3.14"))
+    )
 
 
 @pytest.mark.asyncio
@@ -3074,6 +3369,19 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
             "[project]\nname='demo'\ndependencies=['pip>=1']\n",
             encoding="utf-8",
         )
+    (env_project / "pyproject.toml").write_text(
+        """
+[project]
+name = "agi-env"
+dependencies = [
+    "pip>=1",
+    "manager-only; python_version < '3.14'",
+    "worker-only; python_version >= '3.14'",
+]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
     (env_project / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
     (env_project / "src" / "agi_env" / "resources" / "resource.txt").write_text(
         "x", encoding="utf-8"
@@ -3094,7 +3402,7 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     (wenv_abs / "pyproject.toml").write_text(
         "[project]\nname='worker'\n", encoding="utf-8"
     )
-    _write_venv_python(wenv_abs, python_version="3.13.13")
+    _write_venv_python(wenv_abs, python_version="3.14.1")
     (wenv_abs / "_uv_sources" / "ilp_worker").mkdir(parents=True, exist_ok=True)
 
     env_pck = tmp_path / "env_pck" / "agi_env"
@@ -3128,7 +3436,7 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
         uv="uv",
         uv_worker="uv",
         python_version="3.13",
-        pyvers_worker="3.13",
+        pyvers_worker="3.14",
         envars={},
         verbose=1,
         env_pck=env_pck,
@@ -3188,6 +3496,8 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     manager_toml = (app_path / "pyproject.toml").read_text(encoding="utf-8")
     worker_toml = (wenv_abs / "pyproject.toml").read_text(encoding="utf-8")
     assert "pip" in manager_toml
+    assert "manager-only" in manager_toml
+    assert "worker-only" not in manager_toml
     assert "pip==" not in worker_toml
     assert (wenv_abs / "src" / "demo_worker" / "dataset.7z").exists()
     # New contract: the generic deployer always copies archives; app-specific
@@ -3196,12 +3506,12 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     assert (wenv_abs / "src" / "demo_worker" / "Trajectory.7z").exists() is True
     pth_path = (
         deployment_local_support._project_site_packages_dir(
-            wenv_abs, python_version="3.13"
+            wenv_abs, python_version="3.14"
         )
         / "agilab_uv_sources.pth"
     )
     pth_content = pth_path.read_text(encoding="utf-8").strip()
-    # Path depth differs between POSIX (.venv/lib/python3.13/site-packages) and
+    # Path depth differs between POSIX (.venv/lib/pythonX.Y/site-packages) and
     # Windows (.venv/Lib/site-packages); compare against the actual depth.
     relative_levels = len(pth_path.parent.relative_to(wenv_abs).parts)
     expected_prefix = "../" * relative_levels + "_uv_sources"
@@ -3665,6 +3975,11 @@ async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
             encoding="utf-8",
         )
         (project / "dist").mkdir(parents=True, exist_ok=True)
+    (agi_cluster / "pyproject.toml").write_text(
+        "[project]\nname='agi-cluster'\nversion='0.0.1'\n"
+        "dependencies=['uninstalled-core-dependency']\n",
+        encoding="utf-8",
+    )
     (agi_env / "dist" / "agi_env-0.0.1-py3-none-any.whl").write_text(
         "whl", encoding="utf-8"
     )
@@ -3735,6 +4050,9 @@ async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
         agi_version_missing_on_pypi_fn=lambda _p: False,
         run_fn=_fake_run,
         set_env_var_fn=lambda *_a, **_k: None,
+        require_project_venv_dependencies_fn=(
+            deployment_local_support._require_project_venv_dependencies
+        ),
         log=mock.Mock(),
     )
 
