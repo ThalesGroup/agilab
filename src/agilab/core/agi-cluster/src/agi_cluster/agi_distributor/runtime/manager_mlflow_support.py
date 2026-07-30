@@ -69,6 +69,34 @@ def _numeric_metrics(payload: Any) -> dict[str, float]:
     return metrics
 
 
+def _metric_history(payload: Any) -> dict[str, list[tuple[int, float]]]:
+    """Validate compact app-produced metric histories for MLflow logging."""
+
+    if not isinstance(payload, dict):
+        return {}
+    histories: dict[str, list[tuple[int, float]]] = {}
+    for name, points in payload.items():
+        if not isinstance(name, str) or not name.strip() or not isinstance(points, list):
+            continue
+        valid_points: list[tuple[int, float]] = []
+        for point in points:
+            if not isinstance(point, dict):
+                continue
+            step = point.get("step")
+            value = point.get("value")
+            if isinstance(step, bool) or not isinstance(step, (int, float)):
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            numeric_value = float(value)
+            if not math.isfinite(numeric_value):
+                continue
+            valid_points.append((int(step), numeric_value))
+        if valid_points:
+            histories[name] = valid_points
+    return histories
+
+
 def _tracking_paths(env: Any) -> tuple[Path, Path, str]:
     tracking_dir = mlflow_store.resolve_mlflow_tracking_dir(env)
     tracking_dir.mkdir(parents=True, exist_ok=True)
@@ -103,53 +131,59 @@ def _register_handoff(path: Path, *, env: Any, mlflow: Any, log: Any) -> dict[st
             pass
 
     _db_path, artifact_dir, tracking_uri = _tracking_paths(env)
-    previous_uri = mlflow.get_tracking_uri()
-    try:
-        mlflow.set_tracking_uri(tracking_uri)
-        experiment_name = str(payload.get("experiment") or "AGILAB SB3 Trainer")
-        experiment = mlflow.get_experiment_by_name(experiment_name)
-        if experiment is None:
-            experiment_id = mlflow.create_experiment(
-                experiment_name,
-                artifact_location=artifact_dir.as_uri(),
-            )
-        else:
-            experiment_id = experiment.experiment_id
-        mlflow.set_experiment(experiment_name)
-
-        existing = mlflow.search_runs(
-            experiment_ids=[str(experiment_id)],
-            filter_string=f"tags.`agilab.handoff_key` = '{handoff_key}'",
+    client = mlflow.MlflowClient(tracking_uri=tracking_uri)
+    experiment_name = str(payload.get("experiment") or "AGILAB SB3 Trainer")
+    experiment = client.get_experiment_by_name(experiment_name)
+    if experiment is None:
+        experiment_id = client.create_experiment(
+            experiment_name,
+            artifact_location=artifact_dir.as_uri(),
         )
-        if not existing.empty:
-            run_id = str(existing.iloc[0]["run_id"])
-            status = {"status": "skipped", "reason": "already_logged", "run_id": run_id}
-        else:
-            params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
-            metrics = _numeric_metrics(payload.get("metrics"))
-            with mlflow.start_run(run_name=str(payload.get("run_name") or payload.get("trainer_name") or "worker")) as run:
-                mlflow.set_tags(
-                    {
-                        "agilab.handoff_key": handoff_key,
-                        "agilab.trainer_name": str(payload.get("trainer_name") or ""),
-                        "agilab.registration": "manager",
-                    }
-                )
-                for key, value in params.items():
-                    mlflow.log_param(str(key), value)
-                for key, value in metrics.items():
-                    mlflow.log_metric(key, value)
-                mlflow.log_artifact(str(path))
-                for value in payload.get("artifacts", []):
-                    artifact = _safe_relative(root, value)
-                    if artifact is None or not artifact.is_file():
-                        log.warning("Skipping invalid MLflow handoff artifact %r from %s", value, path)
-                        continue
-                    mlflow.log_artifact(str(artifact))
-                run_id = run.info.run_id
-            status = {"status": "logged", "run_id": run_id}
-    finally:
-        mlflow.set_tracking_uri(previous_uri)
+    else:
+        experiment_id = experiment.experiment_id
+
+    existing = client.search_runs(
+        experiment_ids=[str(experiment_id)],
+        filter_string=f"tags.`agilab.handoff_key` = '{handoff_key}'",
+    )
+    if existing:
+        run_id = str(existing[0].info.run_id)
+        status = {"status": "skipped", "reason": "already_logged", "run_id": run_id}
+    else:
+        params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+        metrics = _numeric_metrics(payload.get("metrics"))
+        metric_history = _metric_history(payload.get("metric_history"))
+        run = client.create_run(
+            str(experiment_id),
+            run_name=str(payload.get("run_name") or payload.get("trainer_name") or "worker"),
+            tags={
+                "agilab.handoff_key": handoff_key,
+                "agilab.trainer_name": str(payload.get("trainer_name") or ""),
+                "agilab.registration": "manager",
+            },
+        )
+        run_id = str(run.info.run_id)
+        try:
+            for key, value in params.items():
+                client.log_param(run_id, str(key), value)
+            for key, value in metrics.items():
+                client.log_metric(run_id, key, value)
+            for key, points in metric_history.items():
+                for step, value in points:
+                    client.log_metric(run_id, key, value, step=step)
+            client.log_artifact(run_id, str(path))
+            for value in payload.get("artifacts", []):
+                artifact = _safe_relative(root, value)
+                if artifact is None or not artifact.is_file():
+                    log.warning("Skipping invalid MLflow handoff artifact %r from %s", value, path)
+                    continue
+                client.log_artifact(run_id, str(artifact))
+        # MLflow backend and artifact plugins cross a third-party exception boundary.
+        except Exception:
+            client.set_terminated(run_id, status="FAILED")
+            raise
+        client.set_terminated(run_id, status="FINISHED")
+        status = {"status": "logged", "run_id": run_id}
 
     marker_payload = {
         "schema": HANDOFF_SCHEMA,
@@ -190,7 +224,8 @@ def register_shared_mlflow_handoffs(agi_cls: Any, *, log: Any = logger) -> list[
     for path in handoff_paths:
         try:
             results.append(_register_handoff(path, env=agi_cls.env, mlflow=mlflow, log=log))
-        except (OSError, TypeError, ValueError, RuntimeError) as exc:
+        # Handoff registration is best-effort and must not fail completed worker code.
+        except Exception as exc:
             log.warning("MLflow handoff registration failed for %s: %s", path, exc)
             results.append({"status": "error", "path": str(path), "message": str(exc)})
     return results
