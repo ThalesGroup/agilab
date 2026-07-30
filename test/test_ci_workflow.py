@@ -389,6 +389,37 @@ def test_release_workflow_preserves_valid_mirror_evidence_before_degrading() -> 
     assert "--source docs/source" not in stamp_block
 
 
+def test_hf_release_refresh_does_not_claim_or_rewrite_canonical_docs_index() -> None:
+    text = PYPI_PUBLISH_WORKFLOW_PATH.read_text(encoding="utf-8")
+    hf_refresh_block = text.split(
+        "- name: Update public release proof with HF Space commit", 1
+    )[1]
+    metadata_block = hf_refresh_block.split("release_metadata_paths=(", 1)[1].split(
+        ")", 1
+    )[0]
+
+    assert "update_public_release_references_for_guard" in hf_refresh_block
+    assert "update_docs_index_release_link" not in hf_refresh_block
+    assert "docs/source/index.rst" not in metadata_block
+
+
+def test_release_plan_validates_managed_docs_tag_before_publish_jobs() -> None:
+    text = PYPI_PUBLISH_WORKFLOW_PATH.read_text(encoding="utf-8")
+    release_plan_block = text.split("  release-plan:\n", 1)[1].split(
+        "  build-library-packages:\n", 1
+    )[0]
+
+    assert "Validate managed docs release tag before publication" in release_plan_block
+    assert "assert_public_docs_index_release_link" in release_plan_block
+    assert "steps.release-plan.outputs.pypi_publish_selected == 'true'" in release_plan_block
+    assert text.index("Validate managed docs release tag before publication") < text.index(
+        "  publish-library-packages:\n"
+    )
+    assert text.index("Validate managed docs release tag before publication") < text.index(
+        "  publish-agilab:\n"
+    )
+
+
 def test_docs_source_guard_fetches_release_tags_for_exact_proof() -> None:
     guard_text = DOCS_SOURCE_GUARD_WORKFLOW_PATH.read_text(encoding="utf-8")
 

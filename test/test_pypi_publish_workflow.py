@@ -421,7 +421,10 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     assert "--hf-space-commit \"$hf_commit\"" in text
     assert "tools/sync_docs_source.py" in text
     assert "badges/pypi-version-agilab.svg" in text
-    assert "docs/source/index.rst" in text
+    release_metadata_block = text.split("release_metadata_paths=(", 1)[1].split(
+        ")", 1
+    )[0]
+    assert "docs/source/index.rst" not in release_metadata_block
     assert "git add \"${release_metadata_paths[@]}\"" in text
     assert "git push origin HEAD:main" in text
 

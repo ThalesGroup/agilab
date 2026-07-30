@@ -124,23 +124,25 @@ def test_audit_preflight_accepts_selected_first_publish_project(monkeypatch) -> 
     ]
 
 
-def test_release_audit_uses_explicit_target_only_docs_verification(monkeypatch) -> None:
+def test_release_audit_separates_target_integrity_and_canonical_alignment(
+    monkeypatch,
+) -> None:
     commands: list[tuple[str, list[str]]] = []
     monkeypatch.setattr(agilab_audit, "_worktrees", lambda: [])
 
     def fake_command_check(name, command, timeout=120):
         del timeout
         commands.append((name, command))
+        summary = (
+            "canonical docs source unavailable; canonical drift NOT CHECKED"
+            if name == "docs-canonical-alignment"
+            else "checked-in docs mirror target integrity verified"
+        )
         return {
             "name": name,
             "status": "pass",
             "returncode": 0,
-            "summary": (
-                "canonical docs source unavailable; target integrity only; "
-                "canonical drift NOT CHECKED"
-                if name == "docs-mirror-target-integrity"
-                else "ok"
-            ),
+            "summary": summary,
         }
 
     monkeypatch.setattr(agilab_audit, "_command_check", fake_command_check)
@@ -153,9 +155,39 @@ def test_release_audit_uses_explicit_target_only_docs_verification(monkeypatch) 
         [
             sys.executable,
             "tools/sync_docs_source.py",
-            "--verify-stamp",
-            "--skip-missing-source",
-            "--quiet",
+            "--verify-target-integrity",
         ],
     )
-    assert "canonical drift NOT CHECKED" in report["checks"][0]["summary"]
+    assert commands[1] == (
+        "docs-canonical-alignment",
+        [
+            sys.executable,
+            "tools/sync_docs_source.py",
+            "--check",
+            "--delete",
+            "--skip-missing-source",
+        ],
+    )
+    assert "target integrity verified" in report["checks"][0]["summary"]
+    assert report["checks"][1]["status"] == "skipped"
+    assert report["status"] == "pass"
+
+
+def test_release_audit_fails_explicit_invalid_canonical_configuration(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        agilab_audit,
+        "_run",
+        lambda *_args, **_kwargs: (
+            2,
+            "",
+            "source directory not found: /definitely/missing (env:AGILAB_DOCS_SOURCE)",
+        ),
+    )
+
+    check = agilab_audit._docs_canonical_alignment_check()
+
+    assert check["status"] == "fail"
+    assert check["returncode"] == 2
+    assert "definitely/missing" in check["summary"]

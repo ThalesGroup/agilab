@@ -143,6 +143,25 @@ def _command_check(name: str, command: list[str], *, timeout: int = 120) -> dict
     }
 
 
+def _docs_canonical_alignment_check() -> dict[str, Any]:
+    check = _command_check(
+        "docs-canonical-alignment",
+        [
+            sys.executable,
+            "tools/sync_docs_source.py",
+            "--check",
+            "--delete",
+            "--skip-missing-source",
+        ],
+    )
+    if (
+        check["status"] == "pass"
+        and "canonical drift NOT CHECKED" in check["summary"]
+    ):
+        check["status"] = "skipped"
+    return check
+
+
 def build_report(
     *,
     fetch: bool = True,
@@ -162,11 +181,10 @@ def build_report(
             [
                 sys.executable,
                 "tools/sync_docs_source.py",
-                "--verify-stamp",
-                "--skip-missing-source",
-                "--quiet",
+                "--verify-target-integrity",
             ],
         ),
+        _docs_canonical_alignment_check(),
         _command_check(
             "release-proof",
             [sys.executable, "tools/release_proof_report.py", "--check", "--compact"],
@@ -192,7 +210,7 @@ def build_report(
         for report in worktree_reports
         for warning in report["warnings"]
     ]
-    failed_checks = [check for check in checks if check["status"] != "pass"]
+    failed_checks = [check for check in checks if check["status"] == "fail"]
     if pypi_report and pypi_report["status"] != "pass":
         warnings.append(f"PyPI preflight blockers: {pypi_report['summary']['blockers']}")
     status = "pass" if not warnings and not failed_checks else "warn"

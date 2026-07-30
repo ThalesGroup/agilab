@@ -357,6 +357,26 @@ jobs:
           fi
           python tools/release_plan.py "${args[@]}"
 
+      - name: Validate managed docs release tag before publication
+        if: steps.release-plan.outputs.pypi_publish_selected == 'true'
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          release_tag="${RELEASE_TAG#refs/tags/}"
+          if [[ "$release_tag" != v* ]]; then
+            release_tag="v${release_tag}"
+          fi
+          RELEASE_TAG_NORMALIZED="$release_tag" python - <<'PY'
+          import os
+
+          from tools import pypi_publish
+
+          pypi_publish.assert_public_docs_index_release_link(
+              os.environ["RELEASE_TAG_NORMALIZED"]
+          )
+          PY
+
       - name: Render PyPI trusted publisher contract
         run: |
           set -euxo pipefail
@@ -1068,7 +1088,6 @@ jobs:
           release_metadata_paths=(
             CHANGELOG.md
             badges/pypi-version-agilab.svg
-            docs/source/index.rst
             docs/source/data/release_proof.toml
             docs/source/release-proof.rst
             docs/.docs_source_mirror_stamp.json

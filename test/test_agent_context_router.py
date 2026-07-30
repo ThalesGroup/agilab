@@ -68,10 +68,43 @@ def test_docs_context_command_is_honest_without_canonical_checkout() -> None:
 
     assert docs_pack["commands"] == [
         "uv --preview-features extra-build-dependencies run python "
-        "tools/sync_docs_source.py --check --skip-missing-source"
+        "tools/sync_docs_source.py --verify-target-integrity --quiet",
+        "uv --preview-features extra-build-dependencies run python "
+        "tools/sync_docs_source.py --check --delete --skip-missing-source",
     ]
     assert "target integrity" in docs_pack["why"]
     assert "canonical drift was not checked" in docs_pack["why"]
+
+
+def test_absolute_canonical_docs_path_matches_from_registered_worktree_layout(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    projects_root = tmp_path / "PycharmProjects"
+    worktree_root = projects_root / "agilab-worktrees" / "task-branch"
+    canonical_source = projects_root / "thales_agilab" / "docs" / "source"
+    canonical_doc = canonical_source / "faq.rst"
+    worktree_root.mkdir(parents=True)
+    canonical_source.mkdir(parents=True)
+    canonical_doc.write_text("FAQ\n", encoding="utf-8")
+    monkeypatch.setattr(agent_context_router, "REPO_ROOT", worktree_root)
+    monkeypatch.setattr(
+        agent_context_router,
+        "_configured_canonical_docs_source",
+        lambda: canonical_source,
+    )
+
+    payload = agent_context_router.recommend_context(
+        files=[canonical_doc.as_posix()],
+        skills=_skill_index(),
+    )
+
+    docs_rule = next(
+        rule for rule in payload["matched_rules"] if rule["id"] == "docs-public-claims"
+    )
+    assert docs_rule["matched_paths"] == [
+        "../thales_agilab/docs/source/faq.rst"
+    ]
 
 
 def test_recommend_context_matches_release_prompt_without_files() -> None:

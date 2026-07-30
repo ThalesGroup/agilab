@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 import sys
+import threading
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -57,6 +58,74 @@ def _base_cfg(module, **overrides):
     }
     values.update(overrides)
     return module.Cfg(**values)
+
+
+def _prepare_minimal_tagged_release_main(
+    module,
+    tmp_path,
+    monkeypatch,
+    order,
+    *,
+    gen_docs=False,
+):
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir()
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname = 'agi-env'\nversion = '2026.03.16'\ndependencies = []\n",
+        encoding="utf-8",
+    )
+    docs_repo = tmp_path / "thales_agilab"
+    canonical_index = docs_repo / "docs" / "source" / "index.rst"
+    canonical_index.parent.mkdir(parents=True)
+    canonical_index.write_text("Index\n", encoding="utf-8")
+    cfg = _base_cfg(
+        module,
+        repo="pypi",
+        version="2026.07.30",
+        git_tag=True,
+        git_commit_version=True,
+        git_reset_on_failure=True,
+        packages=["agi-env"],
+        gen_docs=gen_docs,
+    )
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
+    monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "default"))
+    monkeypatch.setattr(module, "ensure_docs_repo_release_ready", lambda _repo: [])
+    monkeypatch.setattr(module, "ensure_docs_repo_push_ready", lambda _repo: None)
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: set())
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", list)
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        module,
+        "dist_files",
+        lambda _project_dir: [str(project_dir / "dist" / "fake.whl")],
+    )
+    monkeypatch.setattr(module, "twine_check", lambda _files: None)
+    monkeypatch.setattr(
+        module,
+        "twine_upload",
+        lambda *_args, **_kwargs: order.append("upload"),
+    )
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: None)
+    monkeypatch.setattr(module, "run_pre_upload_external_install_guard", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_pre_upload_release_guard", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_release_coverage_workflow_prerequisite", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.07.30")
+    monkeypatch.setattr(
+        module,
+        "update_public_release_references",
+        lambda *_args, **_kwargs: order.append("release-refs"),
+    )
+    return docs_repo
 
 
 def _write_wheel_metadata(path: Path, *, requires_dist: list[str]) -> None:
@@ -1024,19 +1093,331 @@ def test_main_cleanup_only_exact_delete_skips_publish_version_computation(monkey
     assert deleted == [["agilab"]]
 
 
-def test_find_docs_repository_uses_docs_repository_env_name(tmp_path, monkeypatch) -> None:
+def test_find_docs_repository_resolves_relative_docs_repository_from_repo_root(
+    tmp_path, monkeypatch
+) -> None:
     module = _load_pypi_publish()
+    repo_root = tmp_path / "agilab"
+    repo_root.mkdir()
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
+    monkeypatch.delenv("AGILAB_DOCS_SOURCE", raising=False)
 
-    generic_docs_repo = tmp_path / "docs_repo"
-    generic_docs_repo.mkdir()
+    generic_docs_repo = repo_root / "docs_repo"
+    docs_source = generic_docs_repo / "docs" / "source"
+    docs_source.mkdir(parents=True)
+    (docs_source / "index.rst").write_text("Index\n", encoding="utf-8")
 
-    monkeypatch.setenv("DOCS_REPOSITORY", str(generic_docs_repo))
-    monkeypatch.setattr(module, "_is_git_repo", lambda _path: True)
+    monkeypatch.setenv("DOCS_REPOSITORY", "docs_repo")
+    monkeypatch.setattr(module, "_is_git_repo", lambda path: path == generic_docs_repo)
+    monkeypatch.chdir(tmp_path)
 
     repo, source = module.find_docs_repository()
 
     assert repo == generic_docs_repo.resolve()
     assert source == "env:DOCS_REPOSITORY"
+
+
+def test_find_docs_repository_resolves_relative_docs_source_from_repo_root(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    repo_root = tmp_path / "agilab"
+    repo_root.mkdir()
+    docs_repo = repo_root / "canonical_docs"
+    docs_source = docs_repo / "docs" / "source"
+    docs_source.mkdir(parents=True)
+    (docs_source / "index.rst").write_text("Index\n", encoding="utf-8")
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
+    monkeypatch.setenv("AGILAB_DOCS_SOURCE", "canonical_docs/docs/source")
+    monkeypatch.setenv("DOCS_REPOSITORY", "must-not-be-used")
+    monkeypatch.setattr(module, "_is_git_repo", lambda path: path == docs_repo)
+    monkeypatch.chdir(tmp_path)
+
+    repo, source = module.find_docs_repository()
+
+    assert repo == docs_repo.resolve()
+    assert source == "env:AGILAB_DOCS_SOURCE"
+
+
+def test_find_docs_repository_accepts_arbitrary_configured_source_inside_git_repo(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    repo_root = tmp_path / "agilab"
+    repo_root.mkdir()
+    docs_repo = repo_root / "canonical-repository"
+    docs_source = docs_repo / "publication-tree"
+    docs_source.mkdir(parents=True)
+    (docs_source / "index.rst").write_text("Index\n", encoding="utf-8")
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
+    monkeypatch.setenv("AGILAB_DOCS_SOURCE", "canonical-repository/publication-tree")
+    monkeypatch.setenv("DOCS_REPOSITORY", "must-not-be-used")
+    monkeypatch.setattr(module, "_is_git_repo", lambda path: path == docs_repo)
+
+    repo, origin = module.find_docs_repository()
+
+    assert repo == docs_repo.resolve()
+    assert origin == "env:AGILAB_DOCS_SOURCE"
+    assert module._canonical_source_for_docs_repository(repo) == docs_source.resolve()
+
+    with pytest.raises(SystemExit, match="--gen-docs requires the canonical docs source"):
+        module.require_conventional_docs_generation_source(repo, docs_source)
+
+
+def test_find_docs_repository_rejects_missing_canonical_index_before_publication(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    repo_root = tmp_path / "agilab"
+    repo_root.mkdir()
+    docs_repo = repo_root / "canonical-repository"
+    docs_source = docs_repo / "publication-tree"
+    docs_source.mkdir(parents=True)
+    (docs_source / "guide.rst").write_text("Guide\n", encoding="utf-8")
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
+    monkeypatch.setenv("AGILAB_DOCS_SOURCE", str(docs_source))
+    monkeypatch.setattr(module, "_is_git_repo", lambda path: path == docs_repo)
+
+    with pytest.raises(SystemExit, match="canonical docs index not found before publication"):
+        module.find_docs_repository()
+
+
+def test_validate_planned_docs_release_is_non_mutating_for_future_tag(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    sync_docs = module._sync_docs_source_module()
+    repo_root = tmp_path / "agilab"
+    docs_repo = tmp_path / "canonical-repository"
+    canonical_source = docs_repo / "publication-tree"
+    public_source = repo_root / "docs" / "source"
+    canonical_source.mkdir(parents=True)
+    public_source.mkdir(parents=True)
+    old_index = (
+        "For release-level evidence, inspect the `latest public GitHub release\n"
+        "<https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.29>`__.\n"
+    )
+    (canonical_source / "index.rst").write_text(old_index, encoding="utf-8")
+    (public_source / "index.rst").write_text(old_index, encoding="utf-8")
+    sync_docs.write_mirror_stamp(canonical_source, public_source)
+    stamp_path = sync_docs.stamp_path_for_target(public_source)
+    before = {
+        "canonical": (canonical_source / "index.rst").read_bytes(),
+        "public": (public_source / "index.rst").read_bytes(),
+        "stamp": stamp_path.read_bytes(),
+    }
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
+    monkeypatch.setenv("AGILAB_DOCS_SOURCE", str(canonical_source))
+    monkeypatch.setattr(module, "_is_git_repo", lambda path: path == docs_repo)
+
+    module.validate_planned_docs_release("v2099.01.01")
+
+    assert (canonical_source / "index.rst").read_bytes() == before["canonical"]
+    assert (public_source / "index.rst").read_bytes() == before["public"]
+    assert stamp_path.read_bytes() == before["stamp"]
+
+
+def test_docs_release_scope_follows_arbitrary_configured_canonical_source(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    repo_root = tmp_path / "agilab"
+    docs_repo = tmp_path / "canonical-repository"
+    canonical_source = docs_repo / "publication-tree"
+    canonical_source.mkdir(parents=True)
+    (canonical_source / "index.rst").write_text("Index\n", encoding="utf-8")
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
+    monkeypatch.setenv("AGILAB_DOCS_SOURCE", str(canonical_source))
+    monkeypatch.setattr(
+        module,
+        "_git_repository_root_for_path",
+        lambda _path: docs_repo,
+    )
+    monkeypatch.setattr(
+        module,
+        "_git_status_paths",
+        lambda _repo: ["publication-tree/index.rst"],
+    )
+
+    assert module.ensure_docs_repo_release_ready(docs_repo) == [
+        "publication-tree/index.rst"
+    ]
+
+
+def test_docs_release_scope_rejects_paths_outside_arbitrary_canonical_source(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    repo_root = tmp_path / "agilab"
+    docs_repo = tmp_path / "canonical-repository"
+    canonical_source = docs_repo / "publication-tree"
+    canonical_source.mkdir(parents=True)
+    (canonical_source / "index.rst").write_text("Index\n", encoding="utf-8")
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
+    monkeypatch.setenv("AGILAB_DOCS_SOURCE", str(canonical_source))
+    monkeypatch.setattr(
+        module,
+        "_git_repository_root_for_path",
+        lambda _path: docs_repo,
+    )
+    monkeypatch.setattr(
+        module,
+        "_git_status_paths",
+        lambda _repo: ["docs/source/unrelated.rst"],
+    )
+
+    with pytest.raises(SystemExit, match="release-managed publication-tree/"):
+        module.ensure_docs_repo_release_ready(docs_repo)
+
+
+def test_unpublished_commit_scope_follows_arbitrary_canonical_source(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    repo_root = tmp_path / "agilab"
+    docs_repo = tmp_path / "canonical-repository"
+    canonical_source = docs_repo / "publication-tree"
+    canonical_source.mkdir(parents=True)
+    (canonical_source / "index.rst").write_text("Index\n", encoding="utf-8")
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
+    monkeypatch.setenv("AGILAB_DOCS_SOURCE", str(canonical_source))
+    monkeypatch.setattr(
+        module,
+        "_git_repository_root_for_path",
+        lambda _path: docs_repo,
+    )
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            ["git"], 0, stdout="abc123\n", stderr=""
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_git_commit_paths",
+        lambda _repo, _revision: ["publication-tree/index.rst"],
+    )
+
+    assert module._unpublished_non_release_commits(docs_repo, "origin/main") == []
+
+
+def test_main_rejects_missing_canonical_index_before_build_or_upload(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    repo_root = tmp_path / "agilab"
+    repo_root.mkdir()
+    docs_repo = repo_root / "canonical-repository"
+    docs_source = docs_repo / "publication-tree"
+    docs_source.mkdir(parents=True)
+    (docs_source / "guide.rst").write_text("Guide\n", encoding="utf-8")
+    cfg = _base_cfg(
+        module,
+        repo="pypi",
+        version="2026.07.30",
+        git_tag=True,
+        packages=["agilab"],
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
+    monkeypatch.setenv("AGILAB_DOCS_SOURCE", str(docs_source))
+    monkeypatch.setattr(module, "_is_git_repo", lambda path: path == docs_repo)
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "require_safe_pypi_release", lambda _cfg: None)
+    monkeypatch.setattr(
+        module,
+        "run_release_preflight",
+        lambda _cfg: calls.append("preflight"),
+    )
+    monkeypatch.setattr(
+        module,
+        "uv_build_repo_root",
+        lambda *_args, **_kwargs: calls.append("build"),
+    )
+    monkeypatch.setattr(
+        module,
+        "twine_upload",
+        lambda *_args, **_kwargs: calls.append("upload"),
+    )
+
+    with pytest.raises(SystemExit, match="canonical docs index not found before publication"):
+        module.main()
+
+    assert calls == ["preflight"]
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "message"),
+    [
+        ("AGILAB_DOCS_SOURCE", "", "AGILAB_DOCS_SOURCE is configured but empty"),
+        (
+            "AGILAB_DOCS_SOURCE",
+            "missing/docs/source",
+            "configured canonical docs source is not a directory",
+        ),
+        ("DOCS_REPOSITORY", "", "DOCS_REPOSITORY is configured but empty"),
+        (
+            "DOCS_REPOSITORY",
+            "missing-docs-repo",
+            "configured canonical docs source is not a directory",
+        ),
+    ],
+)
+def test_find_docs_repository_rejects_invalid_explicit_configuration_without_fallback(
+    tmp_path, monkeypatch, key, value, message
+) -> None:
+    module = _load_pypi_publish()
+    repo_root = tmp_path / "agilab"
+    repo_root.mkdir()
+    default_repo = tmp_path / "thales_agilab"
+    default_repo.mkdir()
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
+    monkeypatch.delenv("AGILAB_DOCS_SOURCE", raising=False)
+    monkeypatch.delenv("DOCS_REPOSITORY", raising=False)
+    monkeypatch.setenv(key, value)
+    monkeypatch.setattr(module, "_is_git_repo", lambda path: path == default_repo)
+
+    with pytest.raises(SystemExit, match=message):
+        module.find_docs_repository()
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "message"),
+    [
+        (
+            "AGILAB_DOCS_SOURCE",
+            "configured_docs/docs/source",
+            "not inside a usable git repository",
+        ),
+        (
+            "DOCS_REPOSITORY",
+            "configured_docs",
+            "not inside a usable git repository",
+        ),
+    ],
+)
+def test_find_docs_repository_rejects_explicit_non_git_path_without_fallback(
+    tmp_path, monkeypatch, key, value, message
+) -> None:
+    module = _load_pypi_publish()
+    repo_root = tmp_path / "agilab"
+    repo_root.mkdir()
+    configured_repo = repo_root / "configured_docs"
+    configured_source = configured_repo / "docs" / "source"
+    configured_source.mkdir(parents=True)
+    (configured_source / "index.rst").write_text("Index\n", encoding="utf-8")
+    default_repo = tmp_path / "thales_agilab"
+    default_repo.mkdir()
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
+    monkeypatch.delenv("AGILAB_DOCS_SOURCE", raising=False)
+    monkeypatch.delenv("DOCS_REPOSITORY", raising=False)
+    monkeypatch.setenv(key, value)
+    monkeypatch.setattr(module, "_is_git_repo", lambda path: path == default_repo)
+
+    with pytest.raises(SystemExit, match=message):
+        module.find_docs_repository()
 
 
 def test_builtin_app_pyprojects_includes_worker_manifests(tmp_path, monkeypatch) -> None:
@@ -1326,6 +1707,173 @@ def test_update_public_docs_mirror_stamp_preserves_valid_existing_evidence(
     assert "--write-target-only-stamp" not in command
     assert "--source" not in command
     assert command[command.index("--target") + 1] == str(public_source)
+
+
+def test_public_release_reference_refresh_reseals_v3_public_owned_evidence(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    sync_docs = module._sync_docs_source_module()
+    repo_root = tmp_path / "agilab"
+    canonical_source = tmp_path / "canonical" / "docs" / "source"
+    public_source = repo_root / "docs" / "source"
+    canonical_source.mkdir(parents=True)
+    (public_source / "data").mkdir(parents=True)
+    (canonical_source / "index.rst").write_text("Index\n", encoding="utf-8")
+    (public_source / "index.rst").write_text("Index\n", encoding="utf-8")
+    proof_manifest = public_source / "data" / "release_proof.toml"
+    proof_page = public_source / "release-proof.rst"
+    proof_manifest.write_text('[release]\ntag = "old"\n', encoding="utf-8")
+    proof_page.write_text("Old proof\n", encoding="utf-8")
+    sync_docs.write_mirror_stamp(canonical_source, public_source)
+    monkeypatch.setattr(module, "REPO_ROOT", repo_root)
+    monkeypatch.setattr(module, "update_docs_index_release_link", lambda _tag: None)
+    monkeypatch.setattr(module, "update_static_badge", lambda *_args: None)
+    monkeypatch.setattr(module, "update_changelog_release_entry", lambda *_args: None)
+    monkeypatch.setattr(module, "update_public_demo_release_test", lambda *_args: None)
+
+    def refresh_proof(_tag: str) -> None:
+        proof_manifest.write_text('[release]\ntag = "new"\n', encoding="utf-8")
+        proof_page.write_text("New proof\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "update_release_proof_references", refresh_proof)
+    monkeypatch.setattr(
+        module,
+        "update_public_docs_mirror_stamp_from_current_tree",
+        lambda: sync_docs.refresh_target_integrity_stamp(public_source),
+    )
+
+    module.update_public_release_references(
+        "v2026.07.30",
+        "2026.07.30",
+        ["agilab"],
+    )
+
+    ok, message = sync_docs.verify_target_mirror_integrity(public_source)
+    assert ok, message
+
+
+def test_guard_release_refresh_does_not_rewrite_managed_docs_index(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    public_index = tmp_path / "docs" / "source" / "index.rst"
+    public_index.parent.mkdir(parents=True)
+    original = (
+        "Canonical mirror content must remain unchanged.\n"
+        "`latest public GitHub release\n"
+        "<https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.30>`__.\n"
+    )
+    public_index.write_text(original, encoding="utf-8")
+
+    monkeypatch.setattr(
+        module,
+        "update_docs_index_release_link",
+        lambda _tag: pytest.fail("hosted release guard must not update the docs index"),
+    )
+    monkeypatch.setattr(module, "update_static_badge", lambda *_args: None)
+    monkeypatch.setattr(module, "update_changelog_release_entry", lambda *_args: None)
+    monkeypatch.setattr(module, "update_public_demo_release_test", lambda *_args: None)
+    refresh_calls: list[str] = []
+    monkeypatch.setattr(
+        module,
+        "update_release_proof_references_in_source",
+        lambda *_args: refresh_calls.append("proof"),
+    )
+    monkeypatch.setattr(
+        module,
+        "update_public_docs_mirror_stamp_from_current_tree",
+        lambda: refresh_calls.append("stamp"),
+    )
+
+    module.update_public_release_references_for_guard(
+        "v2026.07.30",
+        "2026.07.30",
+        ["agilab"],
+    )
+
+    assert public_index.read_text(encoding="utf-8") == original
+    assert refresh_calls == ["proof", "stamp"]
+
+
+def test_guard_rejects_stale_public_index_before_release_metadata_mutation(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    public_index = tmp_path / "docs" / "source" / "index.rst"
+    public_index.parent.mkdir(parents=True)
+    public_index.write_text(
+        # The expected URL is a strict prefix of this wrong tag; substring
+        # matching would incorrectly accept it.
+        "https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.300\n",
+        encoding="utf-8",
+    )
+    mutations: list[str] = []
+    monkeypatch.setattr(
+        module,
+        "update_static_badge",
+        lambda *_args: mutations.append("badge"),
+    )
+    monkeypatch.setattr(
+        module,
+        "update_changelog_release_entry",
+        lambda *_args: mutations.append("changelog"),
+    )
+    monkeypatch.setattr(
+        module,
+        "update_public_demo_release_test",
+        lambda *_args: mutations.append("test"),
+    )
+
+    with pytest.raises(SystemExit, match="public docs index is not prepared"):
+        module.update_public_release_references_for_guard(
+            "v2026.07.30",
+            "2026.07.30",
+            ["agilab"],
+        )
+
+    assert mutations == []
+
+
+def test_guard_rejects_matching_historical_url_when_latest_link_is_stale(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    public_index = tmp_path / "docs" / "source" / "index.rst"
+    public_index.parent.mkdir(parents=True)
+    public_index.write_text(
+        "Historical release: "
+        "https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.30\n\n"
+        "`latest public GitHub release\n"
+        "<https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.29>`__.\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit, match="public docs index is not prepared"):
+        module.assert_public_docs_index_release_link("v2026.07.30")
+
+
+def test_replace_latest_release_url_updates_only_marker_bound_link() -> None:
+    module = _load_pypi_publish()
+    historical_url = (
+        "https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.28"
+    )
+    text = (
+        f"Historical release: {historical_url}\n\n"
+        "`latest public GitHub release\n"
+        "<https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.29>`__.\n"
+    )
+    expected_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.30"
+
+    updated = module._replace_latest_release_url(text, expected_url)
+
+    assert historical_url in updated
+    assert (
+        "`latest public GitHub release\n" f"<{expected_url}>`__."
+    ) in updated
 
 
 def test_update_docs_index_release_link_requires_canonical_docs_repo(tmp_path, monkeypatch) -> None:
@@ -2382,7 +2930,9 @@ def test_ensure_docs_repo_release_ready_rejects_unrelated_dirty_paths(tmp_path, 
     module = _load_pypi_publish()
 
     docs_repo = tmp_path / "thales_agilab"
-    docs_repo.mkdir()
+    canonical_index = docs_repo / "docs" / "source" / "index.rst"
+    canonical_index.parent.mkdir(parents=True)
+    canonical_index.write_text("Index\n", encoding="utf-8")
 
     monkeypatch.setattr(module, "_git_status_paths", lambda _repo: ["docs/source/quick-start.rst", "apps/templates"])
 
@@ -2430,6 +2980,7 @@ def test_generate_docs_in_docs_repository_runs_in_docs_repo(monkeypatch, tmp_pat
 
     docs_repo = tmp_path / "thales_agilab"
     docs_repo.mkdir()
+    (docs_repo / "docs" / "source").mkdir(parents=True)
 
     calls: list[tuple[list[str], Path | None]] = []
 
@@ -2619,6 +3170,36 @@ def test_ensure_docs_repo_push_ready_blocks_behind_upstream(monkeypatch, tmp_pat
         raise AssertionError("ensure_docs_repo_push_ready() should reject behind branches")
 
 
+def test_non_generated_tag_release_checks_docs_repo_before_publication(
+    monkeypatch, tmp_path
+) -> None:
+    module = _load_pypi_publish()
+    docs_repo = tmp_path / "thales_agilab"
+    docs_repo.mkdir()
+    cfg = _base_cfg(
+        module,
+        repo="pypi",
+        git_tag=True,
+        gen_docs=False,
+        dry_run=False,
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(
+        module,
+        "ensure_docs_repo_release_ready",
+        lambda _repo: calls.append("dirty-scope") or [],
+    )
+    monkeypatch.setattr(
+        module,
+        "ensure_docs_repo_push_ready",
+        lambda _repo: calls.append("push-state"),
+    )
+
+    module.ensure_docs_repo_prepublication_ready(docs_repo, cfg)
+
+    assert calls == ["dirty-scope", "push-state"]
+
+
 def test_create_and_push_tag_includes_docs_repo_when_requested(monkeypatch, tmp_path) -> None:
     module = _load_pypi_publish()
 
@@ -2676,7 +3257,9 @@ def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -
     )
 
     docs_repo = tmp_path / "thales_agilab"
-    docs_repo.mkdir()
+    canonical_index = docs_repo / "docs" / "source" / "index.rst"
+    canonical_index.parent.mkdir(parents=True)
+    canonical_index.write_text("Index\n", encoding="utf-8")
 
     cfg = module.Cfg(
         repo="pypi",
@@ -2713,6 +3296,7 @@ def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -
     monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
     monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "env:DOCS_REPOSITORY"))
     monkeypatch.setattr(module, "ensure_docs_repo_release_ready", lambda _repo: [])
+    monkeypatch.setattr(module, "ensure_docs_repo_push_ready", lambda _repo: None)
     monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
     monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
@@ -2756,11 +3340,467 @@ def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -
         "coverage-workflow",
         "upload",
         "release-refs",
-        "commit",
         "commit-docs",
+        "commit",
         "tag",
         "github-release",
     ]
+
+
+def test_main_stops_before_public_push_when_canonical_push_fails(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    order: list[str] = []
+    _prepare_minimal_tagged_release_main(module, tmp_path, monkeypatch, order)
+
+    def fail_canonical_push(*_args, on_commit=None, **_kwargs):
+        order.append("canonical-commit")
+        assert on_commit is not None
+        on_commit()
+        order.append("canonical-push")
+        raise RuntimeError("canonical push failed")
+
+    monkeypatch.setattr(module, "git_commit_docs_repository", fail_canonical_push)
+    monkeypatch.setattr(
+        module,
+        "git_commit_version",
+        lambda *_args, **_kwargs: order.append("public-push"),
+    )
+    monkeypatch.setattr(
+        module,
+        "restore_release_file_state",
+        lambda _snapshot: order.append("restore"),
+    )
+
+    with pytest.raises(
+        module.CanonicalDocsManualRecoveryRequiredError,
+        match="All live release state was preserved",
+    ) as exc_info:
+        module.main()
+
+    assert isinstance(exc_info.value.__context__, RuntimeError)
+    assert "canonical push failed" in str(exc_info.value.__context__)
+    assert order == [
+        "upload",
+        "release-refs",
+        "canonical-commit",
+        "canonical-push",
+    ]
+
+
+def test_main_rejects_nonconventional_generator_source_before_build_or_upload(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    module = _load_pypi_publish()
+    order: list[str] = []
+    docs_repo = _prepare_minimal_tagged_release_main(
+        module,
+        tmp_path,
+        monkeypatch,
+        order,
+        gen_docs=True,
+    )
+    arbitrary_source = docs_repo / "publication-tree"
+    arbitrary_source.mkdir()
+    (arbitrary_source / "index.rst").write_text("Index\n", encoding="utf-8")
+    monkeypatch.setattr(
+        module,
+        "_canonical_source_for_docs_repository",
+        lambda _repo: arbitrary_source,
+    )
+    monkeypatch.setattr(
+        module,
+        "uv_build_project",
+        lambda *_args, **_kwargs: order.append("build"),
+    )
+
+    with pytest.raises(SystemExit, match="--gen-docs requires the canonical docs source"):
+        module.main()
+
+    assert order == []
+
+
+def test_main_rejects_missing_generator_repository_before_build_or_upload(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    module = _load_pypi_publish()
+    order: list[str] = []
+    _prepare_minimal_tagged_release_main(
+        module,
+        tmp_path,
+        monkeypatch,
+        order,
+        gen_docs=True,
+    )
+    monkeypatch.setattr(module, "find_docs_repository", lambda: (None, None))
+    monkeypatch.setattr(
+        module,
+        "uv_build_project",
+        lambda *_args, **_kwargs: order.append("build"),
+    )
+
+    with pytest.raises(
+        SystemExit,
+        match="--gen-docs requires an available canonical docs repository",
+    ):
+        module.main()
+
+    assert order == []
+
+
+def test_main_restores_public_snapshot_before_canonical_mutation_begins(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    module = _load_pypi_publish()
+    order: list[str] = []
+    _prepare_minimal_tagged_release_main(
+        module,
+        tmp_path,
+        monkeypatch,
+        order,
+        gen_docs=True,
+    )
+    pyproject = tmp_path / "agi-env" / "pyproject.toml"
+    original = pyproject.read_bytes()
+    monkeypatch.setattr(
+        module,
+        "run_pre_upload_release_guard",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("pre-mutation guard failed")
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="pre-mutation guard failed"):
+        module.main()
+
+    assert pyproject.read_bytes() == original
+
+
+def test_main_preserves_clean_generator_output_after_later_failure(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    module = _load_pypi_publish()
+    order: list[str] = []
+    docs_repo = _prepare_minimal_tagged_release_main(
+        module,
+        tmp_path,
+        monkeypatch,
+        order,
+        gen_docs=True,
+    )
+    canonical_source = docs_repo / "docs" / "source"
+    dirty_file = canonical_source / "operator-dirty.rst"
+    deleted_file = canonical_source / "deleted-by-generator.rst"
+    empty_directory = canonical_source / "operator-empty"
+    generated_file = canonical_source / "created-by-generator.rst"
+    dirty_file.write_bytes(b"operator dirty bytes\n")
+    dirty_file.chmod(0o640)
+    deleted_file.write_bytes(b"restore me\n")
+    empty_directory.mkdir()
+    empty_directory.chmod(0o500)
+    canonical_source.chmod(0o750)
+
+    def mutate_canonical_tree() -> None:
+        dirty_file.write_bytes(b"generated replacement\n")
+        dirty_file.chmod(0o600)
+        deleted_file.unlink()
+        empty_directory.rmdir()
+        generated_file.write_bytes(b"new generated file\n")
+
+    monkeypatch.setattr(module, "generate_docs_in_docs_repository", mutate_canonical_tree)
+    monkeypatch.setattr(
+        module,
+        "run_release_coverage_workflow_prerequisite",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("later guard failed")
+        ),
+    )
+
+    with pytest.raises(
+        module.CanonicalDocsManualRecoveryRequiredError,
+        match="automatic rollback of both the canonical docs tree and public release metadata is disabled",
+    ) as exc_info:
+        module.main()
+
+    assert isinstance(exc_info.value.__context__, RuntimeError)
+    assert "later guard failed" in str(exc_info.value.__context__)
+    assert dirty_file.read_bytes() == b"generated replacement\n"
+    assert dirty_file.stat().st_mode & 0o777 == 0o600
+    assert not deleted_file.exists()
+    assert not empty_directory.exists()
+    assert canonical_source.stat().st_mode & 0o777 == 0o750
+    assert generated_file.read_bytes() == b"new generated file\n"
+    assert "version = \"2026.07.30\"" in (
+        tmp_path / "agi-env" / "pyproject.toml"
+    ).read_text(encoding="utf-8")
+
+
+def test_main_preserves_partial_generator_writes_when_mutation_fails(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    module = _load_pypi_publish()
+    order: list[str] = []
+    docs_repo = _prepare_minimal_tagged_release_main(
+        module,
+        tmp_path,
+        monkeypatch,
+        order,
+        gen_docs=True,
+    )
+    canonical_source = docs_repo / "docs" / "source"
+    operator_file = canonical_source / "operator-dirty.rst"
+    generated_file = canonical_source / "partial-generator-output.rst"
+    operator_file.write_bytes(b"operator bytes before generator\n")
+
+    def partially_fail_generator() -> None:
+        operator_file.write_bytes(b"generator partial replacement\n")
+        generated_file.write_bytes(b"partial generated output\n")
+        raise RuntimeError("generator failed after partial writes")
+
+    monkeypatch.setattr(
+        module,
+        "generate_docs_in_docs_repository",
+        partially_fail_generator,
+    )
+
+    with pytest.raises(
+        module.CanonicalDocsManualRecoveryRequiredError,
+        match="All live release state was preserved",
+    ) as exc_info:
+        module.main()
+
+    assert isinstance(exc_info.value.__context__, RuntimeError)
+    assert "generator failed after partial writes" in str(exc_info.value.__context__)
+    assert operator_file.read_bytes() == b"generator partial replacement\n"
+    assert generated_file.read_bytes() == b"partial generated output\n"
+
+
+def test_main_preserves_operator_write_during_canonical_generator(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    module = _load_pypi_publish()
+    order: list[str] = []
+    docs_repo = _prepare_minimal_tagged_release_main(
+        module,
+        tmp_path,
+        monkeypatch,
+        order,
+        gen_docs=True,
+    )
+    canonical_source = docs_repo / "docs" / "source"
+    operator_file = canonical_source / "operator-dirty.rst"
+    generated_file = canonical_source / "release-generated.rst"
+    concurrent_file = canonical_source / "concurrent-operator-file.rst"
+    operator_file.write_bytes(b"operator bytes before release\n")
+    generator_entered = threading.Event()
+    operator_finished = threading.Event()
+
+    def successful_generator() -> None:
+        generator_entered.set()
+        assert operator_finished.wait(timeout=5)
+        generated_file.write_bytes(b"owned generated output\n")
+
+    def operator_edit() -> None:
+        assert generator_entered.wait(timeout=5)
+        operator_file.write_bytes(b"concurrent operator edit\n")
+        concurrent_file.write_bytes(b"concurrent operator file\n")
+        operator_finished.set()
+
+    operator_thread = threading.Thread(target=operator_edit, daemon=True)
+    operator_thread.start()
+
+    monkeypatch.setattr(
+        module,
+        "generate_docs_in_docs_repository",
+        successful_generator,
+    )
+    monkeypatch.setattr(
+        module,
+        "run_release_coverage_workflow_prerequisite",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("later guard failed after concurrent work")
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "restore_release_file_state",
+        lambda _snapshot: order.append("public-restore"),
+    )
+
+    with pytest.raises(
+        module.CanonicalDocsManualRecoveryRequiredError,
+        match="All live release state was preserved",
+    ) as exc_info:
+        module.main()
+    operator_thread.join(timeout=5)
+
+    assert not operator_thread.is_alive()
+    assert isinstance(exc_info.value.__context__, RuntimeError)
+    assert operator_file.read_bytes() == b"concurrent operator edit\n"
+    assert concurrent_file.read_bytes() == b"concurrent operator file\n"
+    assert generated_file.read_bytes() == b"owned generated output\n"
+    assert "public-restore" not in order
+
+
+def test_main_preserves_successful_release_reference_mutation_after_later_failure(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    module = _load_pypi_publish()
+    order: list[str] = []
+    docs_repo = _prepare_minimal_tagged_release_main(
+        module,
+        tmp_path,
+        monkeypatch,
+        order,
+    )
+    canonical_index = docs_repo / "docs" / "source" / "index.rst"
+    def update_release_references(*_args, **_kwargs) -> None:
+        canonical_index.write_bytes(b"release-owned reference update\n")
+
+    def fail_before_commit(*_args, **_kwargs) -> None:
+        raise RuntimeError("docs commit hook failed")
+
+    monkeypatch.setattr(
+        module,
+        "update_public_release_references",
+        update_release_references,
+    )
+    monkeypatch.setattr(
+        module,
+        "git_commit_docs_repository",
+        fail_before_commit,
+    )
+
+    with pytest.raises(
+        module.CanonicalDocsManualRecoveryRequiredError,
+        match="release-reference update.*All live release state was preserved",
+    ) as exc_info:
+        module.main()
+
+    assert isinstance(exc_info.value.__context__, RuntimeError)
+    assert "docs commit hook failed" in str(exc_info.value.__context__)
+    assert canonical_index.read_bytes() == b"release-owned reference update\n"
+
+
+def test_main_preserves_partial_release_reference_mutation_on_failure(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    module = _load_pypi_publish()
+    order: list[str] = []
+    docs_repo = _prepare_minimal_tagged_release_main(
+        module,
+        tmp_path,
+        monkeypatch,
+        order,
+    )
+    canonical_index = docs_repo / "docs" / "source" / "index.rst"
+
+    def partially_fail_release_references(*_args, **_kwargs) -> None:
+        canonical_index.write_bytes(b"partial release-reference update\n")
+        raise RuntimeError("release-reference update failed")
+
+    monkeypatch.setattr(
+        module,
+        "update_public_release_references",
+        partially_fail_release_references,
+    )
+
+    with pytest.raises(
+        module.CanonicalDocsManualRecoveryRequiredError,
+        match="release-reference update.*All live release state was preserved",
+    ) as exc_info:
+        module.main()
+
+    assert isinstance(exc_info.value.__context__, RuntimeError)
+    assert "release-reference update failed" in str(exc_info.value.__context__)
+    assert canonical_index.read_bytes() == b"partial release-reference update\n"
+
+
+def test_main_preserves_release_bytes_after_post_push_failure(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_pypi_publish()
+    order: list[str] = []
+    docs_repo = _prepare_minimal_tagged_release_main(
+        module,
+        tmp_path,
+        monkeypatch,
+        order,
+    )
+    canonical_generated_file = docs_repo / "docs" / "source" / "generated.rst"
+
+    def update_release_references(*_args, **_kwargs) -> None:
+        order.append("release-refs")
+        canonical_generated_file.write_bytes(b"generated after snapshot\n")
+
+    monkeypatch.setattr(
+        module,
+        "update_public_release_references",
+        update_release_references,
+    )
+
+    def record_commit(label):
+        def commit(*_args, on_commit=None, **_kwargs):
+            order.append(label)
+            assert on_commit is not None
+            on_commit()
+            return True
+
+        return commit
+
+    monkeypatch.setattr(
+        module,
+        "git_commit_docs_repository",
+        record_commit("canonical-push"),
+    )
+    monkeypatch.setattr(
+        module,
+        "git_commit_version",
+        record_commit("public-push"),
+    )
+    monkeypatch.setattr(
+        module,
+        "create_and_push_tag",
+        lambda *_args, **_kwargs: order.append("tag-push"),
+    )
+    monkeypatch.setattr(
+        module,
+        "create_or_update_github_release",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("GitHub Release failed")
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "restore_release_file_state",
+        lambda _snapshot: order.append("restore"),
+    )
+
+    with pytest.raises(
+        module.CanonicalDocsManualRecoveryRequiredError,
+        match="All live release state was preserved",
+    ) as exc_info:
+        module.main()
+
+    assert isinstance(exc_info.value.__context__, RuntimeError)
+    assert "GitHub Release failed" in str(exc_info.value.__context__)
+    assert order == [
+        "upload",
+        "release-refs",
+        "canonical-push",
+        "public-push",
+        "tag-push",
+    ]
+    assert canonical_generated_file.read_bytes() == b"generated after snapshot\n"
 
 
 def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -> None:
@@ -2795,8 +3835,8 @@ def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -
 
     monkeypatch.setattr(
         module,
-        "update_public_release_references_for_guard",
-        lambda *_args, **_kwargs: calls.append("release-refs-guard"),
+        "validate_planned_docs_release",
+        lambda *_args, **_kwargs: calls.append("docs-plan-validation"),
     )
     monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: calls.append("preflight"))
 
@@ -2825,7 +3865,7 @@ def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -
     )
 
     assert calls == [
-        "release-refs-guard",
+        "docs-plan-validation",
         "preflight",
         "coverage-badge-refresh",
         "coverage-guard-all",

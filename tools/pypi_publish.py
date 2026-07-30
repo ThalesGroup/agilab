@@ -50,7 +50,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.parser import Parser
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple
 from html.parser import HTMLParser
 
 try:
@@ -333,10 +333,7 @@ WHEEL_ONLY_PACKAGES = set(WHEEL_ONLY_PACKAGE_NAMES)
 APPS_REPO_ENV_KEYS: tuple[str, ...] = ("APPS_REPOSITORY",)
 DEFAULT_APPS_REPO_DIRNAME = "agilab-apps"
 APPS_REPO_REMOTE_ENV = "APPS_REPOSITORY_REMOTE"
-DOCS_REPO_ENV_KEYS: tuple[str, ...] = ("DOCS_REPOSITORY",)
-DEFAULT_DOCS_REPO_DIRNAME = "thales_agilab"
 DOCS_REPO_REMOTE_ENV = "DOCS_REPOSITORY_REMOTE"
-DOCS_REPO_RELEASE_PATH_PREFIXES: tuple[str, ...] = ("docs/source/",)
 GITHUB_RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
 GITHUB_REPO = "ThalesGroup/agilab"
 COVERAGE_WORKFLOW = "coverage.yml"
@@ -350,6 +347,11 @@ PUBLIC_RELEASE_METADATA_PATHS: tuple[str, ...] = (
 )
 GITHUB_RELEASE_URL_RE = re.compile(
     r"https://github\.com/ThalesGroup/agilab/releases/tag/v[0-9A-Za-z._-]+"
+)
+LATEST_PUBLIC_GITHUB_RELEASE_LINK_RE = re.compile(
+    rf"(?P<prefix>`latest public GitHub release\s*<)"
+    rf"(?P<url>{GITHUB_RELEASE_URL_RE.pattern})"
+    r"(?P<suffix>>`__)"
 )
 
 PYPI_JSON = {
@@ -708,7 +710,7 @@ def run_pre_upload_release_guard(
     if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only:
         return
     if planned_tag is not None:
-        update_public_release_references_for_guard(planned_tag, chosen_version, version_targets)
+        validate_planned_docs_release(planned_tag)
     print(f"[preflight] Running pre-upload release metadata guard for {chosen_version}")
     run_release_preflight(cfg)
     run_release_coverage_badge_refresh()
@@ -1394,6 +1396,10 @@ def restore_release_file_state(snapshot: Dict[pathlib.Path, bytes | None]) -> No
         path.write_bytes(data)
 
 
+class CanonicalDocsManualRecoveryRequiredError(RuntimeError):
+    """Raised after canonical mutation begins and automatic rollback is unsafe."""
+
+
 @contextlib.contextmanager
 def defer_sigint(label: str):
     interrupted = {"value": False}
@@ -1751,22 +1757,116 @@ def find_apps_repository() -> Tuple[pathlib.Path | None, str | None]:
     return None, None
 
 
+def _sync_docs_source_module():
+    try:
+        from tools import sync_docs_source
+    except ModuleNotFoundError:  # pragma: no cover - direct tools/ execution
+        import sync_docs_source  # type: ignore[no-redef]
+    return sync_docs_source
+
+
+def _git_repository_root_for_path(path: pathlib.Path) -> pathlib.Path | None:
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(path),
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError, NotADirectoryError):
+        pass
+    else:
+        root = (completed.stdout or "").strip()
+        if completed.returncode == 0 and root:
+            return pathlib.Path(root).resolve()
+
+    # Keep the injected predicate fallback for callers/tests that provide a
+    # virtual repository detector instead of a real Git checkout.
+    candidates: list[pathlib.Path] = []
+    for candidate in (path, *path.parents):
+        if _is_git_repo(candidate):
+            candidates.append(candidate)
+        elif candidates:
+            break
+    return candidates[-1] if candidates else None
+
+
+def _find_docs_repository_details() -> tuple[
+    pathlib.Path | None,
+    pathlib.Path | None,
+    str | None,
+]:
+    sync_docs_source = _sync_docs_source_module()
+    try:
+        configuration = sync_docs_source.canonical_source_configuration(REPO_ROOT)
+    except ValueError as exc:
+        raise SystemExit(f"ERROR: {exc}") from exc
+    source_path = pathlib.Path(configuration.path)
+    if not source_path.exists() and not configuration.required:
+        return None, None, None
+    if not source_path.is_dir():
+        qualifier = "configured " if configuration.required else ""
+        raise SystemExit(
+            f"ERROR: {qualifier}canonical docs source is not a directory: {source_path}"
+        )
+    try:
+        sync_docs_source.build_manifest(source_path)
+    except (OSError, ValueError) as exc:
+        raise SystemExit(f"ERROR: canonical docs source is not usable: {exc}") from exc
+    canonical_index = source_path / "index.rst"
+    if not canonical_index.is_file():
+        raise SystemExit(
+            f"ERROR: canonical docs index not found before publication: {canonical_index}"
+        )
+    docs_repo = _git_repository_root_for_path(source_path)
+    if docs_repo is None:
+        raise SystemExit(
+            "ERROR: canonical docs source is not inside a usable git repository: "
+            f"{source_path}"
+        )
+    return docs_repo, source_path, configuration.origin
+
+
 def find_docs_repository() -> Tuple[pathlib.Path | None, str | None]:
-    for source, raw_path in _candidate_repo_paths(DOCS_REPO_ENV_KEYS, DEFAULT_DOCS_REPO_DIRNAME):
-        try:
-            resolved = raw_path.resolve()
-        except FileNotFoundError:
-            resolved = raw_path
-        if not resolved.exists():
-            if source.startswith("env:"):
-                print(f"[git] docs repository path '{resolved}' from {source.split(':',1)[1]} does not exist; skipping")
-            continue
-        if not _is_git_repo(resolved):
-            if source.startswith("env:"):
-                print(f"[git] docs repository path '{resolved}' from {source.split(':',1)[1]} is not a git repository; skipping")
-            continue
-        return resolved, source
-    return None, None
+    docs_repo, _source_path, origin = _find_docs_repository_details()
+    return docs_repo, origin
+
+
+def _canonical_source_for_docs_repository(docs_repo: pathlib.Path) -> pathlib.Path:
+    sync_docs_source = _sync_docs_source_module()
+    try:
+        configured = pathlib.Path(
+            sync_docs_source.canonical_source_configuration(REPO_ROOT).path
+        )
+    except ValueError:
+        configured = docs_repo / "docs" / "source"
+    if configured.is_dir() and _git_repository_root_for_path(configured) == docs_repo:
+        return configured
+    return docs_repo / "docs" / "source"
+
+
+def require_conventional_docs_generation_source(
+    docs_repo: pathlib.Path,
+    canonical_source: pathlib.Path,
+) -> None:
+    """Require the only output root understood by the canonical generator."""
+
+    conventional_source = docs_repo / "docs" / "source"
+    try:
+        matches_generator_root = os.path.samefile(
+            canonical_source,
+            conventional_source,
+        )
+    except (FileNotFoundError, OSError):
+        matches_generator_root = False
+    if not matches_generator_root:
+        raise SystemExit(
+            "ERROR: --gen-docs requires the canonical docs source to be the "
+            "generator-owned <docs-repository>/docs/source directory; "
+            f"resolved source={canonical_source}, expected={conventional_source}. "
+            "Remove --gen-docs or configure the conventional source before publishing."
+        )
 
 
 def _git_status_paths(repo: pathlib.Path) -> list[str]:
@@ -1797,8 +1897,27 @@ def _git_status_paths(repo: pathlib.Path) -> list[str]:
     return sorted(set(paths))
 
 
-def _is_docs_repo_release_path(path: str) -> bool:
-    return any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in DOCS_REPO_RELEASE_PATH_PREFIXES)
+def _docs_repo_release_path_prefix(repo: pathlib.Path) -> str:
+    source = _canonical_source_for_docs_repository(repo)
+    try:
+        relative_source = source.resolve().relative_to(repo.resolve())
+    except ValueError as exc:
+        raise SystemExit(
+            "ERROR: canonical docs source is outside its Git repository: "
+            f"source={source} repository={repo}"
+        ) from exc
+    normalized = relative_source.as_posix().strip("/")
+    if not normalized or normalized == ".":
+        raise SystemExit(
+            "ERROR: canonical docs source cannot be the repository root; "
+            f"got {source}"
+        )
+    return normalized + "/"
+
+
+def _is_docs_repo_release_path(path: str, *, repo: pathlib.Path) -> bool:
+    prefix = _docs_repo_release_path_prefix(repo)
+    return path == prefix.rstrip("/") or path.startswith(prefix)
 
 
 def _git_upstream(repo: pathlib.Path) -> str | None:
@@ -1871,7 +1990,9 @@ def _unpublished_non_release_commits(repo: pathlib.Path, upstream: str) -> list[
     non_release: list[str] = []
     for revision in [line.strip() for line in proc.stdout.splitlines() if line.strip()]:
         paths = _git_commit_paths(repo, revision)
-        if not paths or any(not _is_docs_repo_release_path(path) for path in paths):
+        if not paths or any(
+            not _is_docs_repo_release_path(path, repo=repo) for path in paths
+        ):
             non_release.append(_git_commit_summary(repo, revision))
     return non_release
 
@@ -1896,7 +2017,8 @@ def ensure_docs_repo_push_ready(repo: pathlib.Path) -> None:
         if non_release:
             raise SystemExit(
                 f"ERROR: docs repository '{repo}' has unpublished non-docs commits outside "
-                "release-managed docs/source/; refusing to push the docs release branch: "
+                f"release-managed {_docs_repo_release_path_prefix(repo)}; refusing to "
+                "push the docs release branch: "
                 + ", ".join(non_release)
             )
 
@@ -1905,14 +2027,28 @@ def ensure_docs_repo_release_ready(repo: pathlib.Path) -> list[str]:
     dirty_paths = _git_status_paths(repo)
     if not dirty_paths:
         return []
-    release_paths = [path for path in dirty_paths if _is_docs_repo_release_path(path)]
-    unrelated_paths = [path for path in dirty_paths if not _is_docs_repo_release_path(path)]
+    release_paths = [
+        path for path in dirty_paths if _is_docs_repo_release_path(path, repo=repo)
+    ]
+    unrelated_paths = [
+        path for path in dirty_paths if not _is_docs_repo_release_path(path, repo=repo)
+    ]
     if unrelated_paths:
         raise SystemExit(
-            "ERROR: docs repository has dirty paths outside release-managed docs/source/; "
+            "ERROR: docs repository has dirty paths outside release-managed "
+            f"{_docs_repo_release_path_prefix(repo)}; "
             "refusing to create a mixed-scope release commit: "
             + ", ".join(sorted(unrelated_paths))
         )
+    return release_paths
+
+
+def ensure_docs_repo_prepublication_ready(repo: pathlib.Path, cfg: Cfg) -> list[str]:
+    """Fail before release mutation if the canonical docs repo cannot finalize."""
+
+    release_paths = ensure_docs_repo_release_ready(repo)
+    if cfg.repo == "pypi" and cfg.git_tag and not cfg.dry_run:
+        ensure_docs_repo_push_ready(repo)
     return release_paths
 
 
@@ -2075,16 +2211,22 @@ def _write_text_if_changed(path: pathlib.Path, text: str) -> bool:
 
 
 def _replace_latest_release_url(text: str, release_url: str) -> str:
-    updated, count = GITHUB_RELEASE_URL_RE.subn(release_url, text, count=1)
-    if count:
-        return updated
-    marker = "latest public GitHub release"
-    if marker in text:
-        raise SystemExit(
-            "ERROR: docs/source/index.rst mentions the latest public GitHub release "
-            "but no GitHub release URL was found to update."
+    try:
+        match = _latest_public_github_release_link(text)
+    except ValueError as exc:
+        raise SystemExit(f"ERROR: docs/source/index.rst {exc}") from exc
+    return text[: match.start("url")] + release_url + text[match.end("url") :]
+
+
+def _latest_public_github_release_link(text: str) -> re.Match[str]:
+    matches = list(LATEST_PUBLIC_GITHUB_RELEASE_LINK_RE.finditer(text))
+    if len(matches) != 1:
+        raise ValueError(
+            "must contain exactly one managed `latest public GitHub release "
+            "<https://github.com/ThalesGroup/agilab/releases/tag/v...>`__ link; "
+            f"found {len(matches)}"
         )
-    return text
+    return matches[0]
 
 
 def sync_docs_source_mirror(source: pathlib.Path) -> None:
@@ -2108,13 +2250,13 @@ def sync_docs_source_mirror(source: pathlib.Path) -> None:
 
 def update_docs_index_release_link(tag: str) -> None:
     release_url = github_release_url(tag)
-    docs_repo, source = find_docs_repository()
+    docs_repo, _source = find_docs_repository()
     public_index = REPO_ROOT / "docs/source/index.rst"
 
     if docs_repo:
-        canonical_source = docs_repo / "docs/source"
+        canonical_source = _canonical_source_for_docs_repository(docs_repo)
         canonical_index = canonical_source / "index.rst"
-        if not canonical_index.exists():
+        if not canonical_index.is_file():
             raise SystemExit(f"ERROR: canonical docs index not found: {canonical_index}")
         text = canonical_index.read_text(encoding="utf-8")
         if _write_text_if_changed(canonical_index, _replace_latest_release_url(text, release_url)):
@@ -2125,19 +2267,48 @@ def update_docs_index_release_link(tag: str) -> None:
     if public_index.exists():
         raise SystemExit(
             "ERROR: canonical docs repository was not found; refusing to update only the "
-            "public docs/source mirror because the mirror stamp would drift. Set DOCS_REPOSITORY "
-            "or keep ../thales_agilab available before publishing to PyPI."
+            "public docs/source mirror because the mirror stamp would drift. Set "
+            "AGILAB_DOCS_SOURCE or DOCS_REPOSITORY, or keep ../thales_agilab "
+            "available before publishing to PyPI."
         )
 
 
-def update_public_docs_index_release_link(tag: str) -> None:
-    public_index = REPO_ROOT / "docs/source/index.rst"
-    if not public_index.exists():
-        return
-    release_url = github_release_url(tag)
-    text = public_index.read_text(encoding="utf-8")
-    if _write_text_if_changed(public_index, _replace_latest_release_url(text, release_url)):
-        print(f"[docs] updated public latest release link: {public_index}")
+def validate_planned_docs_release(tag: str) -> None:
+    """Validate a future docs release without mutating either checkout."""
+
+    docs_repo, _origin = find_docs_repository()
+    if docs_repo is None:
+        raise SystemExit(
+            "ERROR: canonical docs repository was not found before release preflight"
+        )
+    canonical_source = _canonical_source_for_docs_repository(docs_repo)
+    canonical_index = canonical_source / "index.rst"
+    if not canonical_index.is_file():
+        raise SystemExit(
+            f"ERROR: canonical docs index not found before publication: {canonical_index}"
+        )
+    planned_index = _replace_latest_release_url(
+        canonical_index.read_text(encoding="utf-8"),
+        github_release_url(tag),
+    )
+    if github_release_url(tag) not in planned_index:
+        raise SystemExit(
+            "ERROR: canonical docs index cannot represent the planned release tag: "
+            f"{tag}"
+        )
+
+    sync_docs_source = _sync_docs_source_module()
+    target = REPO_ROOT / "docs" / "source"
+    alignment = sync_docs_source.canonical_mirror_alignment_result(
+        target,
+        canonical_source,
+        source_required=True,
+    )
+    if alignment.status != "pass":
+        raise SystemExit(
+            "ERROR: canonical docs must be aligned before release metadata is "
+            f"prepared: {alignment.message}"
+        )
 
 
 def _format_package_list(package_names: list[str]) -> str:
@@ -2360,6 +2531,31 @@ def update_public_release_references(tag: str, chosen_version: str, package_name
     update_changelog_release_entry(chosen_version, tag, package_names)
     update_public_demo_release_test(tag)
     update_release_proof_references(tag)
+    update_public_docs_mirror_stamp_from_current_tree()
+
+
+def assert_public_docs_index_release_link(tag: str) -> None:
+    """Require the managed public index to be canonically prepared for a release."""
+
+    public_index = REPO_ROOT / "docs/source/index.rst"
+    release_url = github_release_url(tag)
+    if not public_index.is_file():
+        raise SystemExit(f"ERROR: public docs index not found: {public_index}")
+    try:
+        managed_link = _latest_public_github_release_link(
+            public_index.read_text(encoding="utf-8")
+        )
+    except ValueError as exc:
+        raise SystemExit(
+            "ERROR: public docs index is not prepared for the release tag: "
+            f"{exc}"
+        ) from exc
+    if managed_link.group("url") != release_url:
+        raise SystemExit(
+            "ERROR: public docs index is not prepared for the release tag; update "
+            "the canonical docs source and sync it before release metadata: "
+            f"expected {release_url} in {public_index}"
+        )
 
 
 def update_public_release_references_for_guard(
@@ -2369,7 +2565,7 @@ def update_public_release_references_for_guard(
 ) -> None:
     """Update only release metadata tracked in this repository for pre-upload tests."""
 
-    update_public_docs_index_release_link(tag)
+    assert_public_docs_index_release_link(tag)
     update_static_badge(static_badge_path(UMBRELLA[0]), chosen_version)
     update_changelog_release_entry(chosen_version, tag, package_names)
     update_public_demo_release_test(tag)
@@ -2382,8 +2578,12 @@ def update_public_release_references_for_guard(
 def generate_docs_in_docs_repository():
     docs_repo, source = find_docs_repository()
     if not docs_repo:
-        print("[docs] docs repository not found; skipping --gen-docs")
-        return
+        raise SystemExit(
+            "ERROR: --gen-docs requires an available canonical docs repository "
+            "with source at <docs-repository>/docs/source"
+        )
+    canonical_source = _canonical_source_for_docs_repository(docs_repo)
+    require_conventional_docs_generation_source(docs_repo, canonical_source)
     print(f"[docs] generating docs in {docs_repo} (source={source})")
     commands = [
         ["uv", "sync", "--dev", "--group", "sphinx"],
@@ -2393,11 +2593,16 @@ def generate_docs_in_docs_repository():
         run(cmd, cwd=docs_repo)
 
 
-def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
-    docs_repo, source = find_docs_repository()
+def git_commit_docs_repository(
+    chosen_version: str,
+    *,
+    push: bool = False,
+    on_commit: Callable[[], None] | None = None,
+) -> bool:
+    docs_repo, _source = find_docs_repository()
     if not docs_repo:
         print("[git] docs repository not found; skipping docs repo commit")
-        return
+        return False
 
     if push:
         ensure_docs_repo_push_ready(docs_repo)
@@ -2405,7 +2610,7 @@ def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
     dirty_paths = ensure_docs_repo_release_ready(docs_repo)
     if not dirty_paths:
         print("[git] no docs repository release changes to commit")
-        return
+        return False
 
     unique_paths = sorted(set(dirty_paths))
     run(["git", "add", "-A", "--", *unique_paths], cwd=docs_repo)
@@ -2416,7 +2621,7 @@ def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
     )
     if diff_status.returncode == 0:
         print("[git] no staged docs repository changes to commit")
-        return
+        return False
 
     run(
         [
@@ -2429,6 +2634,8 @@ def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
         ],
         cwd=docs_repo,
     )
+    if on_commit is not None:
+        on_commit()
     print(f"[git] committed docs repository changes for {chosen_version}")
     if push:
         ensure_docs_repo_push_ready(docs_repo)
@@ -2436,6 +2643,7 @@ def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
         remote = os.environ.get(DOCS_REPO_REMOTE_ENV, "origin")
         run(["git", "push", remote, branch], cwd=docs_repo)
         print(f"[git] pushed docs repository changes on {branch}")
+    return True
 
 
 def should_commit_docs_repository_after_release(
@@ -2497,11 +2705,17 @@ def current_git_branch(repo: pathlib.Path = REPO_ROOT) -> str:
     return result.stdout.strip()
 
 
-def git_commit_version(chosen_version: str, include_docs: bool = False, *, push: bool = False):
+def git_commit_version(
+    chosen_version: str,
+    include_docs: bool = False,
+    *,
+    push: bool = False,
+    on_commit: Callable[[], None] | None = None,
+) -> bool:
     files = git_paths_to_commit(include_docs=include_docs)
     if not files:
         print("[git] nothing to commit")
-        return
+        return False
     app_prefixed = [f for f in files if f.startswith("src/agilab/apps/")]
     regular_files = [f for f in files if not f.startswith("src/agilab/apps/")]
     if regular_files:
@@ -2517,14 +2731,17 @@ def git_commit_version(chosen_version: str, include_docs: bool = False, *, push:
     if diff_status.returncode == 0:
         print("[git] no staged release metadata changes to commit")
         ensure_release_metadata_committed(files)
-        return
+        return False
     run(["git", "commit", "-m", f"chore(release): bump version to {chosen_version}"], cwd=REPO_ROOT)
+    if on_commit is not None:
+        on_commit()
     ensure_release_metadata_committed(files)
     print(f"[git] committed version bump to {chosen_version}")
     if push:
         branch = current_git_branch(REPO_ROOT)
         run(["git", "push", "origin", branch], cwd=REPO_ROOT)
         print(f"[git] pushed release metadata on {branch}")
+    return True
 
 
 def ensure_release_metadata_committed(files: list[str]) -> None:
@@ -2569,6 +2786,27 @@ def main():
     docs_generated = False
     release_snapshot: Dict[pathlib.Path, bytes | None] | None = None
     docs_repo_ready = False
+    docs_source_ready: pathlib.Path | None = None
+    canonical_mutation_started = False
+    canonical_mutation_labels: list[str] = []
+    irreversible_release_started = False
+
+    def mark_irreversible_release_started() -> None:
+        nonlocal irreversible_release_started
+        irreversible_release_started = True
+
+    def run_canonical_docs_mutation(
+        label: str,
+        mutation: Callable[[], object],
+    ) -> object:
+        nonlocal canonical_mutation_started
+        # There is no reliable CAS primitive for an arbitrary generator that
+        # mutates a directory in place. Cross the recovery boundary before the
+        # callback so direct operator writes during it can never be mistaken for
+        # release-owned state and deleted by a later rollback.
+        canonical_mutation_started = True
+        canonical_mutation_labels.append(label)
+        return mutation()
 
     print(f"[config] repo={cfg.repo} python={sys.executable} dist={cfg.dist} "
           f"skip_existing={cfg.skip_existing} retries={cfg.retries} clean={not cfg.skip_cleanup}")
@@ -2597,9 +2835,25 @@ def main():
     run_release_preflight(cfg)
     if cfg.gen_docs or (cfg.repo == "pypi" and cfg.git_tag):
         docs_repo, source = find_docs_repository()
+        if cfg.gen_docs and docs_repo is None:
+            raise SystemExit(
+                "ERROR: --gen-docs requires an available canonical docs repository "
+                "with source at <docs-repository>/docs/source"
+            )
         if docs_repo:
+            docs_source_ready = _canonical_source_for_docs_repository(docs_repo)
+            canonical_index = docs_source_ready / "index.rst"
+            if not canonical_index.is_file():
+                raise SystemExit(
+                    "ERROR: canonical docs index not found before publication: "
+                    f"{canonical_index}"
+                )
             if cfg.gen_docs:
-                ensure_docs_repo_release_ready(docs_repo)
+                require_conventional_docs_generation_source(
+                    docs_repo,
+                    docs_source_ready,
+                )
+            ensure_docs_repo_prepublication_ready(docs_repo, cfg)
             docs_repo_ready = True
 
     # Validate explicit version if provided
@@ -2748,7 +3002,10 @@ def main():
         )
 
         if cfg.repo == "pypi" and cfg.gen_docs:
-            generate_docs_in_docs_repository()
+            run_canonical_docs_mutation(
+                "canonical docs generation",
+                generate_docs_in_docs_repository,
+            )
             docs_generated = True
 
         run_release_coverage_workflow_prerequisite(cfg)
@@ -2802,6 +3059,12 @@ def main():
                 chosen_version=chosen2,
                 version_targets=version_targets,
             )
+            if cfg.repo == "pypi" and cfg.gen_docs:
+                run_canonical_docs_mutation(
+                    "canonical docs regeneration after upload collision",
+                    generate_docs_in_docs_repository,
+                )
+                docs_generated = True
             twine_check(all_files2)
             globals()['UPLOAD_COLLISION_DETECTED'] = False
             globals()['UPLOAD_SUCCESS_COUNT'] = 0
@@ -2828,24 +3091,47 @@ def main():
             if cfg.dry_run:
                 print("[docs] --gen-docs requested; skipping because this is a dry-run")
             else:
-                generate_docs_in_docs_repository()
+                run_canonical_docs_mutation(
+                    "canonical docs generation",
+                    generate_docs_in_docs_repository,
+                )
 
         # Git tag/commit (optional)
         if cfg.git_commit_version or (cfg.repo == "pypi" and cfg.git_tag):
             with defer_sigint("release metadata finalization") as deferred_interrupt:
                 tag = planned_tag if cfg.repo == "pypi" and cfg.git_tag else None
                 if tag is not None and not release_references_updated:
-                    update_public_release_references(tag, chosen, version_targets)
+                    run_canonical_docs_mutation(
+                        "release-reference update",
+                        lambda: update_public_release_references(
+                            tag,
+                            chosen,
+                            version_targets,
+                        ),
+                    )
                     release_references_updated = True
                 if cfg.git_commit_version and not release_metadata_committed:
-                    git_commit_version(chosen, include_docs=cfg.gen_docs, push=True)
                     if should_commit_docs_repository_after_release(
                         docs_repo_ready=docs_repo_ready,
                         gen_docs=cfg.gen_docs,
                         release_tag=tag,
                     ):
-                        git_commit_docs_repository(chosen, push=True)
+                        git_commit_docs_repository(
+                            chosen,
+                            push=True,
+                            on_commit=mark_irreversible_release_started,
+                        )
+                    git_commit_version(
+                        chosen,
+                        include_docs=cfg.gen_docs,
+                        push=True,
+                        on_commit=mark_irreversible_release_started,
+                    )
                 if tag is not None:
+                    # Tag creation may succeed locally or remotely before a later
+                    # secondary-repository operation fails. Never restore stale
+                    # release bytes across that publication boundary.
+                    mark_irreversible_release_started()
                     create_and_push_tag(tag, include_docs_repo=bool(docs_repo_ready))
                     create_or_update_github_release(tag, chosen, version_targets)
                     release_finalized = True
@@ -2858,11 +3144,37 @@ def main():
             release_finalized = upload_completed
 
     finally:
+        failure_active = sys.exc_info()[0] is not None
         if removed_symlinks:
             restore_symlinks(removed_symlinks)
         if cfg.dry_run and release_snapshot is not None:
             restore_release_file_state(release_snapshot)
-        if cfg.git_reset_on_failure and not cfg.dry_run and not release_finalized:
+        if (
+            failure_active
+            and not cfg.dry_run
+            and not release_finalized
+            and canonical_mutation_started
+        ):
+            mutations = ", ".join(canonical_mutation_labels)
+            raise CanonicalDocsManualRecoveryRequiredError(
+                "canonical docs mutation began before the release failed "
+                f"({mutations}); automatic rollback of both the canonical docs tree "
+                "and public release metadata is disabled because concurrent operator "
+                "writes cannot be distinguished from generator output. All live "
+                "release state was preserved; inspect both repositories and recover "
+                "or commit them explicitly."
+            )
+        if (
+            cfg.git_reset_on_failure
+            and not cfg.dry_run
+            and not release_finalized
+            and irreversible_release_started
+        ):
+            print(
+                "[git] release commit/tag finalization started; preserving current "
+                "metadata for explicit recovery instead of restoring stale bytes"
+            )
+        elif cfg.git_reset_on_failure and not cfg.dry_run and not release_finalized:
             if release_snapshot is not None:
                 restore_release_file_state(release_snapshot)
                 print("[git] restored release metadata files to pre-run snapshot")
