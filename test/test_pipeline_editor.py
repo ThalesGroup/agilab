@@ -2289,6 +2289,32 @@ def test_notebook_export_and_import_cleanup_edge_helpers(monkeypatch, tmp_path, 
     assert support._project_notebook_mirror_path(context, "lab_stages.ipynb") is None
 
 
+def test_related_page_manifest_records_accept_tuple_artifacts():
+    """RelatedPageExport.artifacts is a tuple; manifest records must keep them.
+
+    Regression: asdict(RelatedPageExport) leaves artifacts as a tuple and the
+    manifest builder silently dropped every curated artifact glob
+    (sb3_trainer_project exports shipped related pages with zero artifacts).
+    """
+    records = notebook_export_support._related_page_manifest_records(
+        {
+            "related_pages": [
+                {
+                    "module": "view_curated",
+                    "label": "Curated",
+                    "artifacts": ("demo/*.json", "", "demo/*.csv"),
+                },
+                {
+                    "module": "view_list",
+                    "artifacts": ["plain.json"],
+                },
+            ]
+        }
+    )
+    assert records[0]["artifacts"] == ["demo/*.json", "demo/*.csv"]
+    assert records[1]["artifacts"] == ["plain.json"]
+
+
 def test_notebook_export_related_page_and_provider_edge_helpers(monkeypatch, tmp_path):
     support = notebook_export_support
 
@@ -3513,6 +3539,74 @@ launch_note = "Open this after the run."
         "analysis_page_script",
         "analysis_page_inline_renderer",
     } <= sync_kinds
+
+
+def test_build_notebook_export_context_manifest_leads_settings_pages(tmp_path):
+    """The app-owned notebook_export.toml contract must not lose to user settings.
+
+    Regression for the sb3_trainer_project export: the app ships a curated
+    related-pages manifest (labels, artifact globs, launch notes) while the
+    workspace settings list different generic views. The export must lead with
+    the curated manifest pages and append settings-only pages, instead of
+    dropping the manifest wholesale.
+    """
+    pages_root = tmp_path / "apps-pages"
+    for module in ("view_curated", "view_generic"):
+        page_script = pages_root / module / "src" / module / f"{module}.py"
+        page_script.parent.mkdir(parents=True, exist_ok=True)
+        page_script.write_text("print('page')\n", encoding="utf-8")
+
+    source_app = tmp_path / "apps" / "demo_project"
+    source_settings = source_app / "src" / "app_settings.toml"
+    source_settings.parent.mkdir(parents=True, exist_ok=True)
+    source_settings.write_text("[pages]\nview_module=['view_generic']\n", encoding="utf-8")
+    (source_app / "notebook_export.toml").write_text(
+        """
+[notebook_export]
+
+[[notebook_export.related_pages]]
+module = "view_curated"
+label = "Curated Analysis"
+description = "Curated export contract page."
+artifacts = ["demo/pipeline/*/allocations_steps.json"]
+launch_note = "Open this first."
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    workspace_settings = tmp_path / ".agilab" / "apps" / "demo_project" / "app_settings.toml"
+    workspace_settings.parent.mkdir(parents=True, exist_ok=True)
+    workspace_settings.write_text("[pages]\nview_module=['view_generic']\n", encoding="utf-8")
+
+    env = SimpleNamespace(
+        AGILAB_PAGES_ABS=pages_root,
+        active_app=source_app,
+        app_settings_file=workspace_settings,
+        resolve_user_app_settings_file=lambda app_name, ensure_exists=False: workspace_settings,
+        find_source_app_settings_file=lambda app_name: source_settings,
+        read_agilab_path=lambda: tmp_path,
+    )
+
+    context = pipeline_editor.build_notebook_export_context(
+        env,
+        Path("demo_project"),
+        tmp_path / "export" / "demo_project" / "lab_stages.toml",
+        project_name="demo_project",
+    )
+
+    assert tuple(page.module for page in context.related_pages) == (
+        "view_curated",
+        "view_generic",
+    )
+    curated = context.related_pages[0]
+    assert curated.label == "Curated Analysis"
+    assert curated.artifacts == ("demo/pipeline/*/allocations_steps.json",)
+    assert curated.launch_note == "Open this first."
+    generic = context.related_pages[1]
+    assert generic.module == "view_generic"
+    assert generic.label == ""
+    assert context.view_sync["related_page_modules"] == ["view_curated", "view_generic"]
 
 
 def test_notebook_export_view_sync_detects_changed_analysis_page_source(tmp_path):

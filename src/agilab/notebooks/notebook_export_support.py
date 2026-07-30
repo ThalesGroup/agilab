@@ -611,7 +611,7 @@ def _build_view_sync_snapshot(
     modules = [page.module for page in related_pages if page.module]
     payload = {
         "schema": "agilab.notebook_view_sync.v1",
-        "source": "app_settings_and_page_bundles",
+        "source": "notebook_export_manifest_and_app_settings",
         "related_page_modules": modules,
         "sources": normalized_sources,
     }
@@ -796,7 +796,15 @@ def build_notebook_export_context(
         "",
     )
     page_manifest, manifest_order = _load_related_page_manifest(active_app)
-    related_pages = _load_related_pages_from_settings(settings_file) or _load_related_pages_from_settings(source_settings) or manifest_order
+    settings_pages = _load_related_pages_from_settings(
+        settings_file
+    ) or _load_related_pages_from_settings(source_settings)
+    # The app-owned notebook_export.toml is the curated export contract
+    # (labels, artifact globs, launch notes); it leads the related-page list.
+    # Settings-only pages are appended so live view selections stay visible.
+    related_pages = tuple(
+        dict.fromkeys((*manifest_order, *settings_pages))
+    )
     pages_root = _normalize_path(getattr(env, "AGILAB_PAGES_ABS", ""))
     related_page_records_list: list[RelatedPageExport] = []
     for page in related_pages:
@@ -1524,7 +1532,7 @@ def _related_page_manifest_records(metadata: Mapping[str, Any]) -> list[dict[str
                 "label": str(page.get("label", "") or ""),
                 "description": str(page.get("description", "") or ""),
                 "artifacts": [str(item) for item in page.get("artifacts", []) if str(item or "").strip()]
-                if isinstance(page.get("artifacts", []), list)
+                if isinstance(page.get("artifacts", []), (list, tuple))
                 else [],
                 "launch_note": str(page.get("launch_note", "") or ""),
                 "script_path": str(page.get("script_path", "") or ""),
