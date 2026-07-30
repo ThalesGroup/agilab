@@ -124,8 +124,8 @@
     <rect class="card" width="296" height="104" fill="#ffe8ac" />
     <text class="card-title" x="148" y="36" text-anchor="middle">agi_env</text>
     <text class="card-body" x="24" y="62">
-      <tspan x="24" dy="0">Paths, configs, logging, credentials</tspan>
-      <tspan x="24" dy="20">and share roots</tspan>
+      <tspan x="24" dy="0">Paths, configs, logging,</tspan>
+      <tspan x="24" dy="20">credentials and share roots</tspan>
     </text>
   </g>
 
@@ -162,7 +162,7 @@
 
   <g transform="translate(54,566)">
     <rect class="callout" width="520" height="66" fill="#ffffff" />
-    <text class="callout-title" x="20" y="33">Reading guide</text>
+    <text class="callout-title" x="20" y="30">Reading guide</text>
     <text class="callout-body" x="136" y="30">
       <tspan x="136" dy="0">Entry points run in an agi-core install, then flow</tspan>
       <tspan x="136" dy="18">through environment setup to cluster and workers.</tspan>
@@ -182,7 +182,7 @@
 
   <line class="arrow" x1="470" y1="166" x2="484" y2="210" marker-end="url(#arrowhead-core)" />
   <line class="arrow" x1="470" y1="302" x2="484" y2="254" marker-end="url(#arrowhead-core)" />
-  <line class="arrow" x1="648" y1="312" x2="648" y2="350" marker-end="url(#arrowhead-core)" />
+  <line class="arrow" x1="648" y1="324" x2="648" y2="350" marker-end="url(#arrowhead-core)" />
   <line class="arrow" x1="792" y1="236" x2="864" y2="198" marker-end="url(#arrowhead-core)" />
   <line class="arrow" x1="796" y1="396" x2="864" y2="331" marker-end="url(#arrowhead-core)" />
   <line class="arrow" x1="1024" y1="388" x2="1024" y2="420" marker-end="url(#arrowhead-core)" />

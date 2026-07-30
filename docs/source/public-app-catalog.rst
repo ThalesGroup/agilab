@@ -44,7 +44,9 @@ Status legend:
      - ``agi-app-weather-forecast``
      - PyPI app package
      - Notebook-to-app migration using a small weather forecast dataset,
-       forecast metrics, and promotion evidence.
+       forecast metrics, and promotion evidence. Historical
+       ``weather_forecast_legacy_project`` identifiers resolve here for
+       compatibility; new work should use the maintained name.
    * - ``sklearn_pipeline_project``
      - ``agi-app-sklearn-pipeline``
      - PyPI app package
