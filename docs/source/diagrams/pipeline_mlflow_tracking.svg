@@ -13,13 +13,14 @@
       .muted { fill: #334155; }
       .arrow { stroke: #0f172a; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
       .soft-arrow { stroke: #475569; stroke-width: 2; fill: none; marker-end: url(#arrow-soft); }
+      .line { stroke: #0f172a; stroke-width: 2.2; fill: none; }
       .pill { fill: #ffffff; stroke: #94a3b8; stroke-width: 1.2; rx: 12; ry: 12; }
     </style>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L10,5 L0,10 z" fill="#0f172a" />
+    <marker id="arrow" markerWidth="17" markerHeight="17" refX="16" refY="8" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L16,8 L0,16 z" fill="#0f172a" />
     </marker>
-    <marker id="arrow-soft" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L9,4.5 L0,9 z" fill="#475569" />
+    <marker id="arrow-soft" markerWidth="15" markerHeight="15" refX="14" refY="7" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L14,7 L0,14 z" fill="#475569" />
     </marker>
   </defs>
 
@@ -41,11 +42,11 @@
     <text class="body" x="134" y="92" text-anchor="middle">prompt, model, engine, runtime</text>
   </g>
 
-  <g transform="translate(48,528)">
-    <rect class="box" width="268" height="122" fill="#e2e8f0" />
+  <g transform="translate(48,589)">
+    <rect class="box" width="268" height="114" fill="#e2e8f0" />
     <text class="caption" x="134" y="36" text-anchor="middle">Execution paths</text>
-    <text class="body" x="134" y="70" text-anchor="middle">runpy in the managed env</text>
-    <text class="body" x="134" y="92" text-anchor="middle">or subprocess in a selected venv</text>
+    <text class="body" x="134" y="68" text-anchor="middle">runpy in the managed env</text>
+    <text class="body" x="134" y="90" text-anchor="middle">or subprocess in a selected venv</text>
   </g>
 
   <!-- Center column -->
@@ -91,10 +92,10 @@
 
   <g transform="translate(392,589)">
     <rect class="box" width="560" height="114" fill="#e0f2fe" />
-    <text class="caption" x="280" y="38" text-anchor="middle">Shared runtime contract</text>
-    <text class="body" x="280" y="72" text-anchor="middle">
+    <text class="caption" x="280" y="36" text-anchor="middle">Shared runtime contract</text>
+    <text class="body" x="280" y="68" text-anchor="middle">
       <tspan x="280" dy="0">runpy and subprocess stages both receive</tspan>
-      <tspan x="280" dy="18">the same MLFLOW_TRACKING_URI</tspan>
+      <tspan x="280" dy="22">the same MLFLOW_TRACKING_URI</tspan>
     </text>
   </g>
 
@@ -111,9 +112,9 @@
 
   <g transform="translate(1064,591)">
     <rect class="box" width="208" height="112" fill="#bae6fd" />
-    <text class="caption" x="104" y="38" text-anchor="middle">MLflow UI</text>
-    <text class="body" x="104" y="72" text-anchor="middle">sidebar Open UI link</text>
-    <text class="body" x="104" y="94" text-anchor="middle">reads the same store</text>
+    <text class="caption" x="104" y="36" text-anchor="middle">MLflow UI</text>
+    <text class="body" x="104" y="68" text-anchor="middle">sidebar Open UI link</text>
+    <text class="body" x="104" y="90" text-anchor="middle">reads the same store</text>
   </g>
 
   <!-- Orthogonal flow arrows -->

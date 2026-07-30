@@ -21,10 +21,10 @@
   <text class="title" x="480" y="56" text-anchor="middle">Complex problems need an algorithm set</text>
   <text class="t" x="480" y="82" text-anchor="middle">Example: communications planning under constraints, uncertainty, and scale.</text>
 
-  <rect class="center" x="330" y="210" rx="18" ry="18" width="300" height="148"/>
-  <text class="h" x="480" y="248" text-anchor="middle">System objective</text>
-  <text class="t" x="480" y="278" text-anchor="middle">Decisions, allocations, and KPIs</text>
-  <text class="t" x="480" y="306" text-anchor="middle">must satisfy constraints</text>
+  <rect class="center" x="330" y="224" rx="18" ry="18" width="300" height="148"/>
+  <text class="h" x="480" y="272" text-anchor="middle">System objective</text>
+  <text class="t" x="480" y="302" text-anchor="middle">Decisions, allocations, and KPIs</text>
+  <text class="t" x="480" y="330" text-anchor="middle">must satisfy constraints</text>
 
   <rect class="box" x="80" y="120" rx="14" ry="14" width="220" height="84"/>
   <text class="h" x="190" y="150" text-anchor="middle">Simulation</text>
@@ -34,13 +34,13 @@
   <text class="h" x="770" y="150" text-anchor="middle">Optimization</text>
   <text class="t" x="770" y="174" text-anchor="middle">ILP / heuristics</text>
 
-  <rect class="box" x="80" y="250" rx="14" ry="14" width="220" height="84"/>
-  <text class="h" x="190" y="280" text-anchor="middle">Data pipelines</text>
-  <text class="t" x="190" y="304" text-anchor="middle">cleaning, features</text>
+  <rect class="box" x="80" y="256" rx="14" ry="14" width="220" height="84"/>
+  <text class="h" x="190" y="286" text-anchor="middle">Data pipelines</text>
+  <text class="t" x="190" y="310" text-anchor="middle">cleaning, features</text>
 
-  <rect class="box" x="660" y="250" rx="14" ry="14" width="220" height="84"/>
-  <text class="h" x="770" y="280" text-anchor="middle">Learning</text>
-  <text class="t" x="770" y="304" text-anchor="middle">ML / RL policies</text>
+  <rect class="box" x="660" y="256" rx="14" ry="14" width="220" height="84"/>
+  <text class="h" x="770" y="286" text-anchor="middle">Learning</text>
+  <text class="t" x="770" y="310" text-anchor="middle">ML / RL policies</text>
 
   <rect class="box" x="80" y="392" rx="14" ry="14" width="220" height="84"/>
   <text class="h" x="190" y="422" text-anchor="middle">Verification</text>
@@ -50,12 +50,12 @@
   <text class="h" x="770" y="422" text-anchor="middle">Visualisation</text>
   <text class="t" x="770" y="446" text-anchor="middle">maps, KPIs, reports</text>
 
-  <line class="arrow" x1="300" y1="162" x2="330" y2="240"/>
-  <line class="arrow" x1="660" y1="162" x2="630" y2="240"/>
-  <line class="arrow" x1="300" y1="292" x2="330" y2="284"/>
-  <line class="arrow" x1="660" y1="292" x2="630" y2="284"/>
-  <line class="arrow" x1="300" y1="434" x2="330" y2="322"/>
-  <line class="arrow" x1="660" y1="434" x2="630" y2="322"/>
+  <line class="arrow" x1="300" y1="162" x2="330" y2="254"/>
+  <line class="arrow" x1="660" y1="162" x2="630" y2="254"/>
+  <line class="arrow" x1="300" y1="298" x2="330" y2="298"/>
+  <line class="arrow" x1="660" y1="298" x2="630" y2="298"/>
+  <line class="arrow" x1="300" y1="434" x2="330" y2="342"/>
+  <line class="arrow" x1="660" y1="434" x2="630" y2="342"/>
 
   <text class="t" x="480" y="545" text-anchor="middle">AGILab orchestrates these components into repeatable, scalable experiments.</text>
 </svg>

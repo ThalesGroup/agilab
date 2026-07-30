@@ -19,7 +19,7 @@
     <filter id="shadow" x="-12%" y="-12%" width="124%" height="134%">
       <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.12"/>
     </filter>
-    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto">
+    <marker id="arrow" viewBox="0 0 12 12" refX="11" refY="6" markerUnits="userSpaceOnUse" markerWidth="21" markerHeight="21" orient="auto">
       <path d="M 1 1 L 11 6 L 1 11 Z" fill="#3f5870"/>
     </marker>
     <style>
@@ -62,7 +62,7 @@
     </text>
     <text class="note" x="96" y="294">No workers start from the file alone.</text>
 
-    <path class="arrow" d="M 384 222 L 438 222"/>
+    <path class="arrow" d="M 375 222 L 448 222"/>
 
     <rect class="panel" x="448" y="138" width="305" height="168" rx="22"/>
     <circle cx="480" cy="170" r="18" fill="#1d4ed8"/>
@@ -70,7 +70,7 @@
     <text class="step-label" x="510" y="166">Partition plan</text>
     <text class="step-title" x="510" y="193">Create work units</text>
     <rect class="soft" x="478" y="216" width="245" height="58" rx="14"/>
-    <g transform="translate(498 232)">
+    <g transform="translate(488 232)">
       <rect class="partition" x="0" y="0" width="37" height="26" rx="7"/>
       <rect class="partition" x="47" y="0" width="37" height="26" rx="7"/>
       <rect class="partition" x="94" y="0" width="37" height="26" rx="7"/>
@@ -79,7 +79,7 @@
     </g>
     <text class="note" x="478" y="294">Partitions, not files, are scheduled.</text>
 
-    <path class="arrow" d="M 762 222 L 816 222"/>
+    <path class="arrow" d="M 753 222 L 826 222"/>
 
     <rect class="panel" x="826" y="138" width="305" height="168" rx="22"/>
     <circle cx="858" cy="170" r="18" fill="#d97706"/>
@@ -99,7 +99,7 @@
 
   <g id="mode-cards">
     <g transform="translate(65 420)">
-      <rect class="card" x="0" y="0" width="200" height="224" rx="20"/>
+      <rect class="card" x="0" y="0" width="200" height="248" rx="20"/>
       <text class="mode-label" x="24" y="34">Preview</text>
       <text class="card-title" x="24" y="63">Plan only</text>
       <text class="body" x="24" y="96">
@@ -109,12 +109,12 @@
         <tspan x="24" dy="21">contract and</tspan>
         <tspan x="24" dy="21">estimates partitions.</tspan>
       </text>
-      <line class="muted-line" x1="24" y1="184" x2="176" y2="184"/>
-      <text class="note" x="24" y="207">Output: preview JSON</text>
+      <line class="muted-line" x1="24" y1="198" x2="176" y2="198"/>
+      <text class="note" x="24" y="224">Output: preview JSON</text>
     </g>
 
     <g transform="translate(295 420)">
-      <rect class="card" x="0" y="0" width="200" height="224" rx="20"/>
+      <rect class="card" x="0" y="0" width="200" height="248" rx="20"/>
       <text class="mode-label" x="24" y="34">Local</text>
       <text class="card-title" x="24" y="63">Dispatcher pool</text>
       <text class="body" x="24" y="96">
@@ -124,12 +124,12 @@
         <tspan x="24" dy="21">run partitions on</tspan>
         <tspan x="24" dy="21">one machine.</tspan>
       </text>
-      <line class="muted-line" x1="24" y1="184" x2="176" y2="184"/>
-      <text class="note" x="24" y="207">No Dask dashboard</text>
+      <line class="muted-line" x1="24" y1="198" x2="176" y2="198"/>
+      <text class="note" x="24" y="224">No Dask dashboard</text>
     </g>
 
     <g transform="translate(525 420)">
-      <rect class="card" x="0" y="0" width="200" height="224" rx="20"/>
+      <rect class="card" x="0" y="0" width="200" height="248" rx="20"/>
       <text class="mode-label" x="24" y="34">Dask</text>
       <text class="card-title" x="24" y="63">Outer scheduler</text>
       <g transform="translate(24 88)">
@@ -143,11 +143,11 @@
         <tspan x="24" dy="21">coarse AGILAB</tspan>
         <tspan x="24" dy="21">work-plan tasks.</tspan>
       </text>
-      <text class="note" x="24" y="207">Nested inner work is opaque</text>
+      <text class="note" x="24" y="224">Nested inner work is opaque</text>
     </g>
 
     <g transform="translate(755 420)">
-      <rect class="card" x="0" y="0" width="200" height="224" rx="20"/>
+      <rect class="card" x="0" y="0" width="200" height="248" rx="20"/>
       <text class="mode-label" x="24" y="34">Service</text>
       <text class="card-title" x="24" y="63">Persistent workers</text>
       <text class="body" x="24" y="96">
@@ -157,12 +157,12 @@
         <tspan x="24" dy="21">Health gates decide</tspan>
         <tspan x="24" dy="21">if work proceeds.</tspan>
       </text>
-      <line class="muted-line" x1="24" y1="184" x2="176" y2="184"/>
-      <text class="note" x="24" y="207">Best for repeated runs</text>
+      <line class="muted-line" x1="24" y1="198" x2="176" y2="198"/>
+      <text class="note" x="24" y="224">Best for repeated runs</text>
     </g>
 
     <g transform="translate(985 420)">
-      <rect class="card" x="0" y="0" width="200" height="224" rx="20"/>
+      <rect class="card" x="0" y="0" width="200" height="248" rx="20"/>
       <text class="mode-label" x="24" y="34">Inside worker</text>
       <text class="card-title" x="24" y="63">Library threads</text>
       <rect class="inner" x="24" y="86" width="150" height="42" rx="12"/>
@@ -172,7 +172,7 @@
         <tspan x="24" dy="21">not separate</tspan>
         <tspan x="24" dy="21">AGILAB tasks.</tspan>
       </text>
-      <text class="note" x="24" y="207">Avoid over-stacking workers</text>
+      <text class="note" x="24" y="224">Avoid over-stacking workers</text>
     </g>
   </g>
 

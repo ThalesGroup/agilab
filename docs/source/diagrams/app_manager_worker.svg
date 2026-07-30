@@ -81,8 +81,8 @@
   <path class="arrow-soft" d="M992 158 C992 170 992 171 992 182" marker-end="url(#arrowhead-soft)"/>
   <path class="arrow-soft" d="M992 256 C992 268 992 269 992 280" marker-end="url(#arrowhead-soft)"/>
 
-  <text class="note" x="274" y="174">work plan</text>
-  <text class="note" x="578" y="174">dispatch</text>
-  <text class="note" x="856" y="128">tasks</text>
-  <text class="note" x="858" y="232">tasks</text>
+  <text class="note" x="289" y="174" text-anchor="middle">work plan</text>
+  <text class="note" x="597" y="174" text-anchor="middle">dispatch</text>
+  <text class="note" x="865" y="124" text-anchor="middle">tasks</text>
+  <text class="note" x="867" y="232" text-anchor="middle">tasks</text>
 </svg>
