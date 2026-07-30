@@ -90,12 +90,43 @@ def _load_module(path: Path) -> ModuleType:
     return module
 
 
+def _manager_editable_import_roots(active_app: Path) -> tuple[Path, ...]:
+    try:
+        from agi_env.runtime import import_layout_support
+    except (ImportError, ModuleNotFoundError) as exc:
+        raise RuntimeError(
+            "The installed AGILAB UI runtime cannot inspect manager editables. "
+            "Upgrade the aligned AGILAB packages and restart Streamlit."
+        ) from exc
+    resolver = getattr(
+        import_layout_support,
+        "hosted_editable_source_import_roots",
+        None,
+    )
+    if not callable(resolver):
+        raise RuntimeError(
+            "The installed AGILAB UI runtime is stale: agi_env does not expose "
+            "hosted editable import support. Upgrade the aligned AGILAB packages "
+            "and restart Streamlit."
+        )
+    return resolver(active_app / ".venv")
+
+
 def _run_app_ui(entrypoint: Path, active_app: Path) -> None:
     app_src = active_app / "src"
+    import_roots = tuple(
+        dict.fromkeys(
+            (
+                app_src,
+                entrypoint.parent,
+                *_manager_editable_import_roots(active_app),
+            )
+        )
+    )
     with isolated_import_process_state(
         argv=[str(entrypoint), "--active-app", str(active_app)],
-        prepend_paths=(app_src, entrypoint.parent),
-        module_roots=(app_src, entrypoint.parent),
+        prepend_paths=import_roots,
+        module_roots=import_roots,
         timeout=_APP_UI_INLINE_IMPORT_LEASE_TIMEOUT_SECONDS,
     ):
         module = _load_module(entrypoint)

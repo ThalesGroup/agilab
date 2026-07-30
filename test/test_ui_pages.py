@@ -2106,6 +2106,85 @@ def test_execute_page_hides_distribution_preview_for_workerless_app(mock_ui_env)
     )
 
 
+def test_orchestrate_custom_form_imports_manager_editable_dependency(mock_ui_env):
+    """Custom forms reuse source-only dependencies deployed by ``AGI.install``."""
+
+    apps_dir = mock_ui_env["apps_dir"]
+    project_dir = apps_dir / "routing_like_project"
+    source_root = project_dir / "src"
+    manager_package = source_root / "routing_like"
+    manager_package.mkdir(parents=True)
+    (manager_package / "__init__.py").write_text("", encoding="utf-8")
+    (project_dir / "pyproject.toml").write_text(
+        "[project]\nname = 'routing-like-project'\nrequires-python = '>=3.12'\n"
+        "\n[tool.agilab.app]\nruntime = 'local'\nworkerless = true\n",
+        encoding="utf-8",
+    )
+    (source_root / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
+    marker = "manager editable dependency loaded"
+    (source_root / "app_args_form.py").write_text(
+        "import streamlit as st\n"
+        "import sb3_trainer\n"
+        "st.caption(sb3_trainer.MARKER)\n",
+        encoding="utf-8",
+    )
+
+    dependency_root = project_dir.parent / "sb3-trainer-source"
+    dependency_package = dependency_root / "sb3_trainer"
+    dependency_package.mkdir(parents=True)
+    (dependency_package / "__init__.py").write_text(
+        f"MARKER = {marker!r}\n",
+        encoding="utf-8",
+    )
+    manager_site_packages = (
+        project_dir / ".venv" / "Lib" / "site-packages"
+        if os.name == "nt"
+        else project_dir / ".venv" / "lib" / "python3.14" / "site-packages"
+    )
+    manager_site_packages.mkdir(parents=True)
+    (project_dir / ".venv" / "pyvenv.cfg").write_text(
+        "version_info = 3.14.0\n",
+        encoding="utf-8",
+    )
+    metadata = manager_site_packages / "sb3_trainer-1.0.dist-info"
+    metadata.mkdir()
+    (metadata / "direct_url.json").write_text(
+        json.dumps(
+            {
+                "url": dependency_root.resolve().as_uri(),
+                "dir_info": {"editable": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (manager_site_packages / "sb3-editable.pth").write_text(
+        f"{dependency_root}\n",
+        encoding="utf-8",
+    )
+
+    at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
+    env = AgiEnv(apps_path=apps_dir, app="routing_like_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (
+        Path(__file__).resolve().parents[1] / "src/agilab/resources"
+    ).resolve()
+    at.session_state["env"] = env
+    at.session_state["app_settings"] = {
+        "args": {},
+        "cluster": {"cluster_enabled": False},
+    }
+
+    at.run()
+
+    assert not at.exception
+    assert marker in [str(item.value) for item in at.caption]
+    assert all(
+        "No module named 'sb3_trainer'" not in str(item.value)
+        for item in at.warning
+    )
+    assert "sb3_trainer" not in sys.modules
+
+
 def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui_env):
     """Robot-style INSTALL regression for handled remote uv self-update warnings."""
 

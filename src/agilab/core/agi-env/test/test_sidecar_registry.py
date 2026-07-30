@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import importlib
 import socket
 import subprocess
 import sys
 import threading
 import time
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import psutil
 import pytest
@@ -703,3 +704,109 @@ def test_hosted_import_lease_is_reentrant_on_the_owning_thread() -> None:
                 nested = True
 
     assert nested is True
+
+
+def test_isolated_import_state_replaces_and_restores_pep420_namespaces(
+    tmp_path: Path,
+) -> None:
+    namespace = "_agi_env_test_pep420_namespace"
+    fresh_namespace = "_agi_env_test_fresh_namespace"
+    old_root = tmp_path / "old"
+    current_root = tmp_path / "current"
+    old_package = old_root / namespace
+    current_package = current_root / namespace
+    old_package.mkdir(parents=True)
+    current_package.mkdir(parents=True)
+    (old_package / "value.py").write_text("VALUE = 'old'\n", encoding="utf-8")
+    (current_package / "value.py").write_text(
+        "VALUE = 'current'\n",
+        encoding="utf-8",
+    )
+    (current_package / "transient.py").write_text(
+        "VALUE = 'transient'\n",
+        encoding="utf-8",
+    )
+    (current_root / fresh_namespace).mkdir()
+
+    relevant_names = (
+        namespace,
+        f"{namespace}.value",
+        f"{namespace}.transient",
+        fresh_namespace,
+    )
+    missing = object()
+    previous_modules = {name: sys.modules.get(name, missing) for name in relevant_names}
+    original_path = list(sys.path)
+    try:
+        sys.path.insert(0, str(old_root))
+        importlib.invalidate_caches()
+        old_namespace = importlib.import_module(namespace)
+        old_value = importlib.import_module(f"{namespace}.value")
+        assert old_value.VALUE == "old"
+        sys.path.remove(str(old_root))
+        path_before_scope = list(sys.path)
+
+        with sidecar_registry_module.isolated_import_process_state(
+            prepend_paths=(current_root,),
+            module_roots=(current_root,),
+        ):
+            current_namespace = importlib.import_module(namespace)
+            current_value = importlib.import_module(f"{namespace}.value")
+            transient = importlib.import_module(f"{namespace}.transient")
+            imported_fresh_namespace = importlib.import_module(fresh_namespace)
+
+            assert current_namespace is not old_namespace
+            assert current_value is not old_value
+            assert current_value.VALUE == "current"
+            assert transient.VALUE == "transient"
+            assert tuple(imported_fresh_namespace.__path__) == (
+                str(current_root / fresh_namespace),
+            )
+
+        assert sys.path == path_before_scope
+        assert sys.modules[namespace] is old_namespace
+        assert sys.modules[f"{namespace}.value"] is old_value
+        assert f"{namespace}.transient" not in sys.modules
+        assert fresh_namespace not in sys.modules
+    finally:
+        sys.path[:] = original_path
+        for name, previous in previous_modules.items():
+            if previous is missing:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = previous
+        importlib.invalidate_caches()
+
+
+def test_isolated_import_state_restores_tagged_native_module_names(
+    tmp_path: Path,
+) -> None:
+    module_name = "_agi_env_test_native_scope"
+    old_root = tmp_path / "old-native"
+    current_root = tmp_path / "current-native"
+    old_root.mkdir()
+    current_root.mkdir()
+    old_module_path = old_root / f"{module_name}.cpython-old.so"
+    current_module_path = current_root / f"{module_name}.cpython-current.so"
+    old_module_path.write_bytes(b"")
+    current_module_path.write_bytes(b"")
+    old_module = ModuleType(module_name)
+    old_module.__file__ = str(old_module_path)
+    previous = sys.modules.get(module_name)
+    sys.modules[module_name] = old_module
+    try:
+        with sidecar_registry_module.isolated_import_process_state(
+            prepend_paths=(current_root,),
+            module_roots=(current_root,),
+        ):
+            assert module_name not in sys.modules
+            current_module = ModuleType(module_name)
+            current_module.__file__ = str(current_module_path)
+            sys.modules[module_name] = current_module
+
+        assert sys.modules[module_name] is old_module
+    finally:
+        if previous is None:
+            sys.modules.pop(module_name, None)
+        else:
+            sys.modules[module_name] = previous

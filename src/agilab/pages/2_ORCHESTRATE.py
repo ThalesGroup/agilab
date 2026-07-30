@@ -208,6 +208,7 @@ import_agilab_symbols(
     globals(),
     "agilab.app_surface",
     {
+        "app_editable_import_roots": "app_editable_import_roots",
         "configured_app_surface_entrypoint": "configured_app_surface_entrypoint",
         "render_app_surface": "render_app_surface",
     },
@@ -362,10 +363,11 @@ AgiEnv = _LazyAgiEnv()
 
 
 def _active_app_import_scope(env: Any):
-    app_src = Path(env.active_app).expanduser().resolve(strict=False) / "src"
+    active_app = Path(env.active_app).expanduser().resolve(strict=False)
+    import_roots = app_editable_import_roots(active_app)
     return isolated_import_process_state(
-        prepend_paths=(app_src,),
-        module_roots=(app_src,),
+        prepend_paths=import_roots,
+        module_roots=import_roots,
     )
 
 

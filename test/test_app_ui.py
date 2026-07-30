@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -18,6 +19,22 @@ def _load_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def test_app_ui_reports_stale_agi_env_import_layout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from agi_env.runtime import import_layout_support
+
+    module = _load_module()
+    monkeypatch.delattr(
+        import_layout_support,
+        "hosted_editable_source_import_roots",
+    )
+
+    with pytest.raises(RuntimeError, match="AGILAB UI runtime is stale"):
+        module._manager_editable_import_roots(tmp_path / "demo_project")
 
 
 def test_app_ui_resolves_project_scoped_entrypoint(tmp_path: Path) -> None:
@@ -133,6 +150,73 @@ def test_app_ui_runs_app_main_with_script_local_imports(
     module._run_app_ui(ui, app)
 
     assert marker.read_text(encoding="utf-8") == "script-local-core"
+    assert sys.path == original_path
+
+
+def test_app_ui_imports_owned_manager_editable_dependency_and_cleans_modules(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    app = tmp_path / "demo_project"
+    ui = app / "src" / "demo" / "ui.py"
+    marker = tmp_path / "editable_dependency.txt"
+    ui.parent.mkdir(parents=True)
+
+    dependency_project = tmp_path / "editable_dependency_project"
+    dependency_root = dependency_project / "src"
+    dependency_package = dependency_root / "editable_app_ui_dep"
+    dependency_package.mkdir(parents=True)
+    (dependency_package / "__init__.py").write_text(
+        "VALUE = 'manager-editable-dependency'\n",
+        encoding="utf-8",
+    )
+
+    venv = app / ".venv"
+    version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    (venv / "pyvenv.cfg").parent.mkdir(parents=True)
+    (venv / "pyvenv.cfg").write_text(
+        f"version_info = {version}.0\n",
+        encoding="utf-8",
+    )
+    if sys.platform == "win32":
+        site_packages = venv / "Lib" / "site-packages"
+    else:
+        site_packages = venv / "lib" / f"python{version}" / "site-packages"
+    metadata = site_packages / "editable_dependency-1.0.dist-info"
+    metadata.mkdir(parents=True)
+    (metadata / "direct_url.json").write_text(
+        json.dumps(
+            {
+                "url": dependency_project.resolve().as_uri(),
+                "dir_info": {"editable": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (site_packages / "editable-dependency.pth").write_text(
+        f"{dependency_root}\n",
+        encoding="utf-8",
+    )
+    ui.write_text(
+        "\n".join(
+            [
+                "from pathlib import Path",
+                "import editable_app_ui_dep",
+                "def main():",
+                f"    Path({str(marker)!r}).write_text(editable_app_ui_dep.VALUE, encoding='utf-8')",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    original_path = list(sys.path)
+    monkeypatch.delitem(sys.modules, "editable_app_ui_dep", raising=False)
+
+    module._run_app_ui(ui, app)
+
+    assert marker.read_text(encoding="utf-8") == "manager-editable-dependency"
+    assert "editable_app_ui_dep" not in sys.modules
     assert sys.path == original_path
 
 

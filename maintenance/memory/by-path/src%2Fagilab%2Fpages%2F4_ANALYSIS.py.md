@@ -1,9 +1,9 @@
 ---
 schema: agilab.maintenance_memory.v1
 source: src/agilab/pages/4_ANALYSIS.py
-source_sha256: 36792f9db9cb26858aebdd794ac7bae096c2c7d26ae6ba98c05c63e428bb4763
+source_sha256: 210ec42e45e5904bc20ea49014e5a923b500193970081ed873df9ce04535546d
 title: ANALYSIS page session environment and sidecar ownership contract
-verified_commit: 844b0c05447aacdd999592aaa1f43d1e3373f8ed
+verified_commit: c8387f96015503d20420664334f58968a9390551
 ---
 
 # ANALYSIS page session environment and sidecar ownership contract
@@ -65,3 +65,11 @@ with a stale free-threaded ABI is replaced instead of silently reused. Analysis
 view sidecars retain their per-project interpreter selection. The polluted-venv
 regression, focused ANALYSIS/UI tests, AGI GUI parity profile, and an isolated
 browser launch of `lab_stages.ipynb` passed.
+
+2026-07-30 re-verification: hosted inline views now prepend the active app and
+safe editable manager dependency source roots while applying the same roots to
+module eviction and restoration. Manager `site-packages`, foreign hosted
+runtime packages, native extensions, and source-tree escapes remain excluded.
+Focused ANALYSIS/UI and import-isolation tests, the AGI GUI parity profile, the
+real routing-training form import, and an isolated ORCHESTRATE browser robot
+scenario passed.
