@@ -6,6 +6,11 @@ exact ./dev impact
 exact ./dev --print-only impact
 exact ./dev test
 exact ./dev lint
+exact ./dev typing
+exact ./dev regress
+exact ./dev robust
+exact ./dev perf-startup
+exact ./dev clean
 exact ./dev --print-only docs
 exact ./dev release
 exact ./dev --print-only release
@@ -31,6 +36,8 @@ exact python3 tools/sync_agent_skills.py --check
 exact uv --preview-features extra-build-dependencies run python tools/agent_context_router.py --check
 exact uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --check --check-github-runs --compact
 exact uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
+exact uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-target-integrity --quiet
+exact uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --check --delete --skip-missing-source
 template ./dev impact --files <safe-file>
 template ./dev test <safe-file>
 template ./dev flow <safe-component>
