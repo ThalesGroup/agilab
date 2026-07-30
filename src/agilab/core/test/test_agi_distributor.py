@@ -95,10 +95,10 @@ async def test_stop_handles_scheduler_info_and_retire_failures(monkeypatch):
     retire_fails_client = _RetireFailsClient()
     AGI._dask_client = retire_fails_client
     monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
-    with pytest.raises(RuntimeCleanupRequiredError, match="worker retirement"):
-        await AGI._stop()
+    await AGI._stop()
     assert retire_fails_client.shutdown_calls == 1
     assert AGI._dask_client is None
+    assert AGI._service_cleanup_unproven is False
     assert closed["count"] == 1
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import shlex
 import subprocess
@@ -762,7 +763,7 @@ async def test_stop_retry_reuses_client_shutdown_proof_until_process_cleanup_suc
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("phase", ["scheduler_info", "retire_workers", "shutdown"])
+@pytest.mark.parametrize("phase", ["scheduler_info", "shutdown"])
 async def test_stop_marks_operational_cleanup_errors_unproven(monkeypatch, phase):
     class _Client:
         def __init__(self):
@@ -771,13 +772,9 @@ async def test_stop_marks_operational_cleanup_errors_unproven(monkeypatch, phase
         async def scheduler_info(self):
             if phase == "scheduler_info":
                 raise RuntimeError("expected shutdown failure")
-            if phase == "retire_workers":
-                return {"workers": {"tcp://127.0.0.1:8787": {}}}
             return {"workers": {}}
 
         async def retire_workers(self, workers, close_workers=True, remove=True):
-            if phase == "retire_workers":
-                raise RuntimeError("expected shutdown failure")
             return None
 
         async def shutdown(self):
@@ -806,6 +803,93 @@ async def test_stop_marks_operational_cleanup_errors_unproven(monkeypatch, phase
         await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
 
     assert closed["count"] == 1
+    assert AGI._service_cleanup_unproven is True
+
+
+@pytest.mark.asyncio
+async def test_stop_accepts_retirement_failure_after_proven_shutdown(monkeypatch, caplog):
+    class _Client:
+        def __init__(self):
+            self.retire_calls = 0
+            self.shutdown_calls = 0
+
+        async def scheduler_info(self):
+            return {"workers": {"tcp://127.0.0.1:8787": {}}}
+
+        async def retire_workers(self, workers, close_workers=True, remove=True):
+            self.retire_calls += 1
+
+        async def shutdown(self):
+            self.shutdown_calls += 1
+
+    client = _Client()
+    AGI._dask_client = client
+    AGI._mode_auto = False
+    AGI._mode = AGI.DASK_MODE
+    AGI._TIMEOUT = 2
+
+    async def _fake_close_all():
+        return None
+
+    async def _fake_background_cleanup(_agi_cls, *, log):
+        return None
+
+    async def _fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
+    monkeypatch.setattr(
+        runtime_distribution_support,
+        "_terminate_owned_background_jobs",
+        _fake_background_cleanup,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
+
+    assert client.retire_calls == 2
+    assert client.shutdown_calls == 1
+    assert AGI._dask_client is None
+    assert AGI._service_cleanup_unproven is False
+    assert "final scheduler and owned-process cleanup succeeded" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_stop_keeps_retirement_failure_when_shutdown_is_unproven(monkeypatch):
+    class _Client:
+        def __init__(self):
+            self.retire_calls = 0
+
+        async def scheduler_info(self):
+            return {"workers": {"tcp://127.0.0.1:8787": {}}}
+
+        async def retire_workers(self, workers, close_workers=True, remove=True):
+            self.retire_calls += 1
+
+        async def shutdown(self):
+            raise RuntimeError("scheduler shutdown failed")
+
+    client = _Client()
+    AGI._dask_client = client
+    AGI._mode_auto = False
+    AGI._mode = AGI.DASK_MODE
+    AGI._TIMEOUT = 2
+
+    async def _fake_close_all():
+        return None
+
+    async def _fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(AGI, "_close_all_connections", staticmethod(_fake_close_all))
+
+    with pytest.raises(
+        runtime_distribution_support.RuntimeCleanupRequiredError,
+        match="worker retirement",
+    ):
+        await runtime_distribution_support.stop(AGI, sleep_fn=_fake_sleep)
+
+    assert client.retire_calls == 2
     assert AGI._service_cleanup_unproven is True
 
 
