@@ -5,13 +5,29 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 
 MODULE_PATH = Path("tools/kpi_evidence_bundle.py").resolve()
+SYNC_DOCS_MODULE_PATH = Path("tools/sync_docs_source.py").resolve()
 
 
 def _load_module():
     spec = importlib.util.spec_from_file_location("kpi_evidence_bundle_test_module", MODULE_PATH)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_sync_docs_module():
+    spec = importlib.util.spec_from_file_location(
+        "kpi_evidence_sync_docs_test_module",
+        SYNC_DOCS_MODULE_PATH,
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -87,21 +103,209 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
     }
 
 
-def test_missing_canonical_docs_is_skipped_not_passed(
+def test_explicit_missing_canonical_docs_fails_without_claiming_comparison(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     module = _load_module()
-    monkeypatch.setenv("AGILAB_DOCS_SOURCE", str(tmp_path / "missing-canonical"))
+    configured_source = tmp_path / "missing-canonical"
+    calls: list[str] = []
+
+    def verify_target(_target: Path) -> tuple[bool, str]:
+        calls.append("target")
+        return True, "target integrity verified"
+
+    def verify_canonical(
+        _target: Path,
+        source: Path,
+        *,
+        source_required: bool,
+    ) -> tuple[str, str]:
+        calls.append("canonical")
+        assert source == configured_source
+        assert source_required is True
+        return "fail", f"configured canonical docs source not found: {source}"
+
+    fake_sync_docs = SimpleNamespace(
+        verify_target_mirror_integrity=verify_target,
+        canonical_source_configuration=lambda _repo_root: SimpleNamespace(
+            path=configured_source,
+            origin="env:AGILAB_DOCS_SOURCE",
+            required=True,
+        ),
+        verify_canonical_mirror_alignment=verify_canonical,
+    )
+    monkeypatch.setattr(
+        module,
+        "_load_tool_module",
+        lambda _repo_root, _name: fake_sync_docs,
+    )
 
     target_check = module._check_docs_mirror_stamp(Path.cwd())
     canonical_check = module._check_docs_canonical_alignment(Path.cwd())
 
     assert target_check["status"] == "pass"
     assert "target integrity" in target_check["summary"]
-    assert canonical_check["status"] == "skipped"
+    assert canonical_check["status"] == "fail"
     assert canonical_check["details"]["canonical_alignment_checked"] is False
-    assert "canonical drift NOT CHECKED" in canonical_check["summary"]
+    assert canonical_check["details"]["canonical_source_required"] is True
+    assert "configured canonical docs source not found" in canonical_check["summary"]
+    assert calls == ["target", "target", "canonical"]
+
+
+def test_canonical_comparison_exception_does_not_claim_checked(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    canonical_source = tmp_path / "canonical"
+    canonical_source.mkdir()
+
+    def raise_during_comparison(*_args, **_kwargs):
+        raise RuntimeError("comparison exploded")
+
+    fake_sync_docs = SimpleNamespace(
+        verify_target_mirror_integrity=lambda _target: (
+            True,
+            "target integrity verified",
+        ),
+        canonical_source_configuration=lambda _repo_root: SimpleNamespace(
+            path=canonical_source,
+            origin="default",
+            required=False,
+        ),
+        verify_canonical_mirror_alignment=raise_during_comparison,
+    )
+    monkeypatch.setattr(
+        module,
+        "_load_tool_module",
+        lambda _repo_root, _name: fake_sync_docs,
+    )
+
+    check = module._check_docs_canonical_alignment(Path.cwd())
+
+    assert check["status"] == "fail"
+    assert check["details"]["target_integrity_ok"] is True
+    assert check["details"]["canonical_alignment_checked"] is False
+    assert "comparison exploded" in check["summary"]
+
+
+def test_target_integrity_exception_does_not_claim_checked(monkeypatch) -> None:
+    module = _load_module()
+
+    def raise_during_target_check(_target: Path):
+        raise RuntimeError("target check exploded")
+
+    fake_sync_docs = SimpleNamespace(
+        verify_target_mirror_integrity=raise_during_target_check,
+    )
+    monkeypatch.setattr(
+        module,
+        "_load_tool_module",
+        lambda _repo_root, _name: fake_sync_docs,
+    )
+
+    check = module._check_docs_canonical_alignment(Path.cwd())
+
+    assert check["status"] == "fail"
+    assert check["details"]["target_integrity_checked"] is False
+    assert check["details"]["target_integrity_ok"] is False
+    assert check["details"]["canonical_alignment_checked"] is False
+    assert "target check exploded" in check["summary"]
+
+
+def test_default_missing_canonical_source_is_skipped_and_not_checked(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    default_source = tmp_path / "missing-default-source"
+    fake_sync_docs = SimpleNamespace(
+        verify_target_mirror_integrity=lambda _target: (
+            True,
+            "target integrity verified",
+        ),
+        canonical_source_configuration=lambda _repo_root: SimpleNamespace(
+            path=default_source,
+            origin="default",
+            required=False,
+        ),
+        verify_canonical_mirror_alignment=lambda *_args, **_kwargs: (
+            "skipped",
+            "canonical drift NOT CHECKED",
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "_load_tool_module",
+        lambda _repo_root, _name: fake_sync_docs,
+    )
+
+    check = module._check_docs_canonical_alignment(Path.cwd())
+
+    assert check["status"] == "skipped"
+    assert check["details"]["target_integrity_ok"] is True
+    assert check["details"]["canonical_alignment_checked"] is False
+    assert "canonical drift NOT CHECKED" in check["summary"]
+
+
+def test_target_integrity_failure_blocks_canonical_comparison(monkeypatch) -> None:
+    module = _load_module()
+
+    def unexpected_configuration(_repo_root: Path):
+        raise AssertionError("canonical configuration must not be resolved")
+
+    fake_sync_docs = SimpleNamespace(
+        verify_target_mirror_integrity=lambda _target: (
+            False,
+            "target stamp mismatch",
+        ),
+        canonical_source_configuration=unexpected_configuration,
+    )
+    monkeypatch.setattr(
+        module,
+        "_load_tool_module",
+        lambda _repo_root, _name: fake_sync_docs,
+    )
+
+    check = module._check_docs_canonical_alignment(Path.cwd())
+
+    assert check["status"] == "fail"
+    assert check["details"]["target_integrity_checked"] is True
+    assert check["details"]["target_integrity_ok"] is False
+    assert check["details"]["canonical_alignment_checked"] is False
+    assert "target integrity failed" in check["summary"]
+
+
+def test_symlink_canonical_root_fails_without_claiming_tree_comparison(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    sync_docs = _load_sync_docs_module()
+    repo_root = tmp_path / "public"
+    target = repo_root / "docs" / "source"
+    canonical = tmp_path / "canonical"
+    target.mkdir(parents=True)
+    canonical.mkdir()
+    (target / "guide.rst").write_text("same\n", encoding="utf-8")
+    (canonical / "guide.rst").write_text("same\n", encoding="utf-8")
+    sync_docs.write_mirror_stamp(canonical, target)
+    configured_link = tmp_path / "configured-canonical"
+    try:
+        configured_link.symlink_to(canonical, target_is_directory=True)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlink creation is unavailable: {exc}")
+    monkeypatch.setenv(sync_docs.DOCS_SOURCE_ENV, str(configured_link))
+    monkeypatch.setattr(module, "_load_tool_module", lambda *_args: sync_docs)
+
+    check = module._check_docs_canonical_alignment(repo_root)
+
+    assert check["status"] == "fail"
+    assert check["details"]["target_integrity_checked"] is True
+    assert check["details"]["target_integrity_ok"] is True
+    assert check["details"]["canonical_alignment_checked"] is False
+    assert "symlink or junction" in check["summary"]
 
 
 def test_render_readme_summary_uses_kpi_bundle_scores() -> None:

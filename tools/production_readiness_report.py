@@ -18,8 +18,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SUPPORTED_SCORE = "3.2 / 5"
 
 
-def _load_tool_module(name: str) -> Any:
-    module_path = REPO_ROOT / "tools" / f"{name}.py"
+def _load_tool_module(repo_root: Path, name: str) -> Any:
+    module_path = repo_root / "tools" / f"{name}.py"
     spec = importlib.util.spec_from_file_location(
         f"{name}_for_production_report", module_path
     )
@@ -83,7 +83,7 @@ def _missing_required_tokens(
 
 def _check_docs_mirror_stamp(repo_root: Path) -> dict[str, Any]:
     try:
-        sync_docs_source = _load_tool_module("sync_docs_source")
+        sync_docs_source = _load_tool_module(repo_root, "sync_docs_source")
         ok, message = sync_docs_source.verify_target_mirror_integrity(
             repo_root / "docs" / "source"
         )
@@ -100,13 +100,54 @@ def _check_docs_mirror_stamp(repo_root: Path) -> dict[str, Any]:
 
 def _check_docs_canonical_alignment(repo_root: Path) -> dict[str, Any]:
     source = None
+    source_origin = None
+    source_required = False
+    target_integrity_checked = False
+    target_integrity_ok = False
+    canonical_alignment_checked = False
     try:
-        sync_docs_source = _load_tool_module("sync_docs_source")
-        source = sync_docs_source.configured_canonical_source()
-        status, message = sync_docs_source.verify_canonical_mirror_alignment(
-            repo_root / "docs" / "source",
-            source,
+        sync_docs_source = _load_tool_module(repo_root, "sync_docs_source")
+        target = repo_root / "docs" / "source"
+        target_integrity_ok, target_message = (
+            sync_docs_source.verify_target_mirror_integrity(target)
         )
+        target_integrity_checked = True
+        if not target_integrity_ok:
+            status = "fail"
+            message = (
+                "canonical alignment not checked because target integrity failed: "
+                f"{target_message}"
+            )
+        else:
+            source_configuration = sync_docs_source.canonical_source_configuration(
+                repo_root
+            )
+            source = source_configuration.path
+            source_origin = source_configuration.origin
+            source_required = source_configuration.required
+            result_builder = getattr(
+                sync_docs_source,
+                "canonical_mirror_alignment_result",
+                None,
+            )
+            if result_builder is None:
+                status, message = sync_docs_source.verify_canonical_mirror_alignment(
+                    target,
+                    source,
+                    source_required=source_required,
+                )
+                # Older verifier modules do not expose whether a failed result
+                # came from a completed comparison or from pre-comparison path
+                # validation. Never claim a comparison in that ambiguous case.
+                canonical_alignment_checked = status == "pass"
+            else:
+                alignment = result_builder(
+                    target,
+                    source,
+                    source_required=source_required,
+                )
+                status, message = alignment.status, alignment.message
+                canonical_alignment_checked = alignment.checked
     except Exception as exc:
         status, message = "fail", str(exc)
     return _check_result(
@@ -117,7 +158,11 @@ def _check_docs_canonical_alignment(repo_root: Path) -> dict[str, Any]:
         evidence=["docs/.docs_source_mirror_stamp.json", "tools/sync_docs_source.py"],
         details={
             "canonical_source": str(source) if source is not None else None,
-            "canonical_alignment_checked": status != "skipped",
+            "canonical_source_origin": source_origin,
+            "canonical_source_required": source_required,
+            "target_integrity_checked": target_integrity_checked,
+            "target_integrity_ok": target_integrity_ok,
+            "canonical_alignment_checked": canonical_alignment_checked,
         },
         status_override=status,
     )
@@ -125,7 +170,7 @@ def _check_docs_canonical_alignment(repo_root: Path) -> dict[str, Any]:
 
 def _check_docs_workflow_profile(repo_root: Path) -> dict[str, Any]:
     try:
-        workflow_parity = _load_tool_module("workflow_parity")
+        workflow_parity = _load_tool_module(repo_root, "workflow_parity")
         args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
         profiles = workflow_parity._profile_commands(args)
         docs_commands = profiles.get("docs") or []
@@ -194,7 +239,7 @@ def _check_docs_workflow_profile(repo_root: Path) -> dict[str, Any]:
 
 def _check_production_readiness_workflow_profile(repo_root: Path) -> dict[str, Any]:
     try:
-        workflow_parity = _load_tool_module("workflow_parity")
+        workflow_parity = _load_tool_module(repo_root, "workflow_parity")
         args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
         profiles = workflow_parity._profile_commands(args)
         commands = profiles.get("production-readiness") or []
@@ -279,7 +324,7 @@ def _run_docs_workflow_profile(repo_root: Path) -> dict[str, Any]:
 
 def _check_architecture_scorecard(repo_root: Path) -> dict[str, Any]:
     try:
-        architecture_scorecard = _load_tool_module("architecture_scorecard")
+        architecture_scorecard = _load_tool_module(repo_root, "architecture_scorecard")
         report = architecture_scorecard.build_report(repo_root=repo_root)
         checks = report.get("checks", [])
         score_scope = str(report.get("score_scope", ""))
@@ -321,7 +366,7 @@ def _check_runtime_robustness_matrix(repo_root: Path) -> dict[str, Any]:
         "tampered_workflow_evidence_manifest_is_rejected",
     }
     try:
-        robustness_matrix = _load_tool_module("robustness_matrix")
+        robustness_matrix = _load_tool_module(repo_root, "robustness_matrix")
         report = robustness_matrix.build_report(repo_root=repo_root, profile="all")
         scenarios = report.get("scenarios", [])
         scenario_ids = {
@@ -487,7 +532,10 @@ def _check_service_health_contract(repo_root: Path) -> dict[str, Any]:
 
 def _check_controlled_pilot_readiness_gate(repo_root: Path) -> dict[str, Any]:
     try:
-        controlled_pilot = _load_tool_module("controlled_pilot_readiness_report")
+        controlled_pilot = _load_tool_module(
+            repo_root,
+            "controlled_pilot_readiness_report",
+        )
         report = controlled_pilot.build_report(repo_root=repo_root)
         check_ids = [check.get("id") for check in report.get("checks", [])]
         required_ids = {

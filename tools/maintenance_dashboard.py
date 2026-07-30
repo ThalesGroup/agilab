@@ -182,34 +182,124 @@ def check_adrs(repo_root: Path) -> Check:
 
 def check_docs_mirror(repo_root: Path) -> Check:
     sync_docs = _load_tool(repo_root, "tools/sync_docs_source.py", "maintenance_sync_docs_source")
-    source = sync_docs.configured_canonical_source().expanduser().resolve()
     target = repo_root / "docs/source"
-    if not source.is_dir():
+    target_ok, target_message = sync_docs.verify_target_mirror_integrity(target)
+    if not target_ok:
         return _check(
             "docs_mirror",
             "Docs mirror",
             False,
-            "canonical docs source is unavailable; mirror drift was not checked",
-            status="warn",
-            evidence=(target.as_posix(),),
-            details={"source": source.as_posix()},
+            f"checked-in docs mirror target integrity failed: {target_message}",
+            evidence=(target.as_posix(), "docs/.docs_source_mirror_stamp.json"),
+            details={
+                "target_integrity_checked": True,
+                "target_integrity_ok": False,
+                "target_integrity_message": target_message,
+                "canonical_alignment_checked": False,
+                "stamp_ok": False,
+                "stamp_message": target_message,
+            },
         )
-    plan = sync_docs.make_sync_plan(source, target, delete_extra=True)
-    stamp_ok, stamp_message = sync_docs.verify_mirror_stamp(target, source)
-    ok = not plan.has_changes() and stamp_ok
+
+    try:
+        source_configuration = sync_docs.canonical_source_configuration(repo_root)
+    except ValueError as exc:
+        return _check(
+            "docs_mirror",
+            "Docs mirror",
+            False,
+            str(exc),
+            evidence=(target.as_posix(), "docs/.docs_source_mirror_stamp.json"),
+            details={
+                "target_integrity_checked": True,
+                "target_integrity_ok": True,
+                "target_integrity_message": target_message,
+                "canonical_alignment_checked": False,
+                "stamp_ok": True,
+                "stamp_message": target_message,
+            },
+        )
+
+    source = source_configuration.path
+    plan = None
+    canonical_alignment_checked = False
+    if source.exists() and source.is_dir():
+        try:
+            plan = sync_docs.make_sync_plan(source, target, delete_extra=True)
+            result_builder = getattr(
+                sync_docs,
+                "canonical_mirror_alignment_result",
+                None,
+            )
+            if result_builder is None:
+                status, message = sync_docs.verify_canonical_mirror_alignment(
+                    target,
+                    source,
+                    source_required=source_configuration.required,
+                )
+                canonical_alignment_checked = status == "pass"
+            else:
+                alignment = result_builder(
+                    target,
+                    source,
+                    source_required=source_configuration.required,
+                )
+                status, message = alignment.status, alignment.message
+                canonical_alignment_checked = alignment.checked
+        except (OSError, ValueError) as exc:
+            status, message = "fail", str(exc)
+    else:
+        try:
+            result_builder = getattr(
+                sync_docs,
+                "canonical_mirror_alignment_result",
+                None,
+            )
+            if result_builder is None:
+                status, message = sync_docs.verify_canonical_mirror_alignment(
+                    target,
+                    source,
+                    source_required=source_configuration.required,
+                )
+            else:
+                alignment = result_builder(
+                    target,
+                    source,
+                    source_required=source_configuration.required,
+                )
+                status, message = alignment.status, alignment.message
+                canonical_alignment_checked = alignment.checked
+        except (OSError, ValueError) as exc:
+            status, message = "fail", str(exc)
+
+    maintenance_status = "warn" if status == "skipped" else status
+    details = {
+        "source": source.as_posix(),
+        "source_origin": source_configuration.origin,
+        "source_required": source_configuration.required,
+        "target_integrity_checked": True,
+        "target_integrity_ok": True,
+        "target_integrity_message": target_message,
+        "canonical_alignment_checked": canonical_alignment_checked,
+        "stamp_ok": True,
+        "stamp_message": target_message,
+    }
+    if plan is not None:
+        details.update(
+            {
+                "create": len(plan.created),
+                "update": len(plan.updated),
+                "delete": len(plan.deleted),
+            }
+        )
     return _check(
         "docs_mirror",
         "Docs mirror",
-        ok,
-        "canonical docs and public mirror are aligned",
+        status == "pass",
+        message,
+        status=maintenance_status,
         evidence=(source.as_posix(), target.as_posix(), "docs/.docs_source_mirror_stamp.json"),
-        details={
-            "create": len(plan.created),
-            "update": len(plan.updated),
-            "delete": len(plan.deleted),
-            "stamp_ok": stamp_ok,
-            "stamp_message": stamp_message,
-        },
+        details=details,
     )
 
 

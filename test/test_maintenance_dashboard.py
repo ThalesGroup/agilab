@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,21 +45,174 @@ def test_maintenance_dashboard_exposes_long_term_contract_checks() -> None:
     } <= check_ids
 
 
-def test_docs_mirror_honors_configured_canonical_source(
+def test_docs_mirror_fails_for_explicit_missing_canonical_source_after_target_check(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     module = _load_module()
     configured_source = tmp_path / "canonical-docs" / "source"
-    monkeypatch.setenv("AGILAB_DOCS_SOURCE", str(configured_source))
+    calls: list[str] = []
+
+    def verify_target(_target: Path) -> tuple[bool, str]:
+        calls.append("target")
+        return True, "target integrity verified"
+
+    def verify_canonical(
+        _target: Path,
+        source: Path,
+        *,
+        source_required: bool,
+    ) -> tuple[str, str]:
+        calls.append("canonical")
+        assert source == configured_source
+        assert source_required is True
+        return "fail", f"configured canonical docs source not found: {source}"
+
+    fake_sync_docs = SimpleNamespace(
+        verify_target_mirror_integrity=verify_target,
+        canonical_source_configuration=lambda _repo_root: SimpleNamespace(
+            path=configured_source,
+            origin="env:AGILAB_DOCS_SOURCE",
+            required=True,
+        ),
+        verify_canonical_mirror_alignment=verify_canonical,
+    )
+    monkeypatch.setattr(module, "_load_tool", lambda *_args: fake_sync_docs)
+
+    check = module.check_docs_mirror(ROOT).as_dict()
+
+    assert check["status"] == "fail"
+    assert "configured canonical docs source not found" in check["summary"]
+    assert check["details"]["source"] == configured_source.as_posix()
+    assert check["details"]["target_integrity_ok"] is True
+    assert check["details"]["canonical_alignment_checked"] is False
+    assert calls == ["target", "canonical"]
+
+
+def test_docs_mirror_default_missing_source_warns_after_target_integrity(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    default_source = tmp_path / "missing-default-source"
+    fake_sync_docs = SimpleNamespace(
+        verify_target_mirror_integrity=lambda _target: (
+            True,
+            "target integrity verified",
+        ),
+        canonical_source_configuration=lambda _repo_root: SimpleNamespace(
+            path=default_source,
+            origin="default",
+            required=False,
+        ),
+        verify_canonical_mirror_alignment=lambda *_args, **_kwargs: (
+            "skipped",
+            "canonical drift NOT CHECKED",
+        ),
+    )
+    monkeypatch.setattr(module, "_load_tool", lambda *_args: fake_sync_docs)
 
     check = module.check_docs_mirror(ROOT).as_dict()
 
     assert check["status"] == "warn"
-    assert check["summary"] == (
-        "canonical docs source is unavailable; mirror drift was not checked"
+    assert check["details"]["target_integrity_ok"] is True
+    assert check["details"]["canonical_alignment_checked"] is False
+    assert "canonical drift NOT CHECKED" in check["summary"]
+
+
+def test_docs_mirror_target_failure_blocks_canonical_alignment(monkeypatch) -> None:
+    module = _load_module()
+
+    def unexpected_configuration(_repo_root: Path):
+        raise AssertionError("canonical configuration must not be read")
+
+    fake_sync_docs = SimpleNamespace(
+        verify_target_mirror_integrity=lambda _target: (
+            False,
+            "target stamp mismatch",
+        ),
+        canonical_source_configuration=unexpected_configuration,
     )
-    assert check["details"]["source"] == configured_source.resolve().as_posix()
+    monkeypatch.setattr(module, "_load_tool", lambda *_args: fake_sync_docs)
+
+    check = module.check_docs_mirror(ROOT).as_dict()
+
+    assert check["status"] == "fail"
+    assert "target integrity failed" in check["summary"]
+    assert check["details"]["canonical_alignment_checked"] is False
+
+
+def test_docs_mirror_drift_failure_summary_does_not_claim_alignment(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    canonical_source = tmp_path / "canonical"
+    canonical_source.mkdir()
+    plan = SimpleNamespace(created=["new.rst"], updated=[], deleted=[])
+    fake_sync_docs = SimpleNamespace(
+        verify_target_mirror_integrity=lambda _target: (
+            True,
+            "target integrity verified",
+        ),
+        canonical_source_configuration=lambda _repo_root: SimpleNamespace(
+            path=canonical_source,
+            origin="env:AGILAB_DOCS_SOURCE",
+            required=True,
+        ),
+        make_sync_plan=lambda *_args, **_kwargs: plan,
+        canonical_mirror_alignment_result=lambda *_args, **_kwargs: SimpleNamespace(
+            status="fail",
+            message="canonical source drift: create=1 update=0 delete=0",
+            checked=True,
+        ),
+    )
+    monkeypatch.setattr(module, "_load_tool", lambda *_args: fake_sync_docs)
+
+    check = module.check_docs_mirror(ROOT).as_dict()
+
+    assert check["status"] == "fail"
+    assert "canonical source drift" in check["summary"]
+    assert "are aligned" not in check["summary"]
+    assert check["details"]["canonical_alignment_checked"] is True
+    assert check["details"]["create"] == 1
+
+
+def test_docs_mirror_does_not_claim_unfinished_structured_alignment(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    canonical_source = tmp_path / "canonical"
+    canonical_source.mkdir()
+    fake_sync_docs = SimpleNamespace(
+        verify_target_mirror_integrity=lambda _target: (
+            True,
+            "target integrity verified",
+        ),
+        canonical_source_configuration=lambda _repo_root: SimpleNamespace(
+            path=canonical_source,
+            origin="env:AGILAB_DOCS_SOURCE",
+            required=True,
+        ),
+        make_sync_plan=lambda *_args, **_kwargs: SimpleNamespace(
+            created=[],
+            updated=[],
+            deleted=[],
+        ),
+        canonical_mirror_alignment_result=lambda *_args, **_kwargs: SimpleNamespace(
+            status="fail",
+            message="canonical source changed while alignment was checked",
+            checked=False,
+        ),
+    )
+    monkeypatch.setattr(module, "_load_tool", lambda *_args: fake_sync_docs)
+
+    check = module.check_docs_mirror(ROOT).as_dict()
+
+    assert check["status"] == "fail"
+    assert "changed while alignment" in check["summary"]
+    assert check["details"]["canonical_alignment_checked"] is False
 
 
 def test_extension_contract_kit_declares_required_extension_types() -> None:

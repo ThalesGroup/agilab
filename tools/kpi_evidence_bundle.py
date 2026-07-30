@@ -2353,13 +2353,54 @@ def _check_docs_mirror_stamp(repo_root: Path) -> dict[str, Any]:
 
 def _check_docs_canonical_alignment(repo_root: Path) -> dict[str, Any]:
     source = None
+    source_origin = None
+    source_required = False
+    target_integrity_checked = False
+    target_integrity_ok = False
+    canonical_alignment_checked = False
     try:
         sync_docs_source = _load_tool_module(repo_root, "sync_docs_source")
-        source = sync_docs_source.configured_canonical_source()
-        status, message = sync_docs_source.verify_canonical_mirror_alignment(
-            repo_root / "docs" / "source",
-            source,
+        target = repo_root / "docs" / "source"
+        target_integrity_ok, target_message = (
+            sync_docs_source.verify_target_mirror_integrity(target)
         )
+        target_integrity_checked = True
+        if not target_integrity_ok:
+            status = "fail"
+            message = (
+                "canonical alignment not checked because target integrity failed: "
+                f"{target_message}"
+            )
+        else:
+            source_configuration = sync_docs_source.canonical_source_configuration(
+                repo_root
+            )
+            source = source_configuration.path
+            source_origin = source_configuration.origin
+            source_required = source_configuration.required
+            result_builder = getattr(
+                sync_docs_source,
+                "canonical_mirror_alignment_result",
+                None,
+            )
+            if result_builder is None:
+                status, message = sync_docs_source.verify_canonical_mirror_alignment(
+                    target,
+                    source,
+                    source_required=source_required,
+                )
+                # Older verifier modules do not expose whether a failed result
+                # came from a completed comparison or from pre-comparison path
+                # validation. Never claim a comparison in that ambiguous case.
+                canonical_alignment_checked = status == "pass"
+            else:
+                alignment = result_builder(
+                    target,
+                    source,
+                    source_required=source_required,
+                )
+                status, message = alignment.status, alignment.message
+                canonical_alignment_checked = alignment.checked
     except Exception as exc:
         status, message = "fail", str(exc)
     return _check_result(
@@ -2370,7 +2411,11 @@ def _check_docs_canonical_alignment(repo_root: Path) -> dict[str, Any]:
         evidence=["docs/.docs_source_mirror_stamp.json", "tools/sync_docs_source.py"],
         details={
             "canonical_source": str(source) if source is not None else None,
-            "canonical_alignment_checked": status != "skipped",
+            "canonical_source_origin": source_origin,
+            "canonical_source_required": source_required,
+            "target_integrity_checked": target_integrity_checked,
+            "target_integrity_ok": target_integrity_ok,
+            "canonical_alignment_checked": canonical_alignment_checked,
         },
         status_override=status,
     )
