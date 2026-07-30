@@ -4,13 +4,41 @@ import importlib
 import importlib.util
 import shlex
 import sys
+import threading
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Iterable, Mapping, MutableMapping
 
-
 class MixedCheckoutImportError(ImportError):
     """Raised when AGILAB code is imported from a different checkout."""
+
+
+_PROCESS_STATE_MODULE_NAME = "_agilab_import_guard_process_state"
+
+
+def _process_state() -> ModuleType:
+    existing = sys.modules.get(_PROCESS_STATE_MODULE_NAME)
+    if isinstance(existing, ModuleType):
+        state = existing
+    else:
+        candidate = ModuleType(_PROCESS_STATE_MODULE_NAME)
+        candidate.fallback_load_lock = threading.RLock()
+        candidate.missing_module = object()
+        state = sys.modules.setdefault(_PROCESS_STATE_MODULE_NAME, candidate)
+    lock = getattr(state, "fallback_load_lock", None)
+    if (
+        not isinstance(state, ModuleType)
+        or not callable(getattr(lock, "acquire", None))
+        or not callable(getattr(lock, "release", None))
+        or "missing_module" not in state.__dict__
+    ):
+        raise RuntimeError("Invalid AGILAB import-guard process state")
+    return state
+
+
+_PROCESS_STATE = _process_state()
+FALLBACK_LOAD_LOCK = _PROCESS_STATE.fallback_load_lock
+MISSING_MODULE = _PROCESS_STATE.missing_module
 
 
 def _resolve_path(value: str | Path) -> Path:
@@ -289,13 +317,23 @@ def assert_python_environment_alignment(current_file: str | Path, package_name: 
 def _load_module_from_path(module_name: str, fallback_path: str | Path, fallback_name: str | None = None) -> ModuleType:
     module_path = _resolve_path(fallback_path)
     synthetic_name = fallback_name or f"{module_name.replace('.', '_')}_fallback"
-    spec = importlib.util.spec_from_file_location(synthetic_name, module_path)
-    if spec is None or spec.loader is None:
-        raise ModuleNotFoundError(f"Unable to load local fallback module at {module_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[synthetic_name] = module
-    spec.loader.exec_module(module)
-    return module
+    with FALLBACK_LOAD_LOCK:
+        spec = importlib.util.spec_from_file_location(synthetic_name, module_path)
+        if spec is None or spec.loader is None:
+            raise ModuleNotFoundError(f"Unable to load local fallback module at {module_path}")
+        module = importlib.util.module_from_spec(spec)
+        previous = sys.modules.get(synthetic_name, MISSING_MODULE)
+        sys.modules[synthetic_name] = module
+        try:
+            spec.loader.exec_module(module)
+        except Exception:
+            if sys.modules.get(synthetic_name) is module:
+                if previous is MISSING_MODULE:
+                    sys.modules.pop(synthetic_name, None)
+                else:
+                    sys.modules[synthetic_name] = previous
+            raise
+        return module
 
 
 def _should_fallback_module_not_found(exc: ModuleNotFoundError, module_name: str, package_name: str) -> bool:
@@ -373,7 +411,14 @@ def import_agilab_symbols(
     fallback_path: str | Path,
     fallback_name: str | None = None,
 ) -> ModuleType:
-    """Compatibility helper for legacy call sites that mutate globals()."""
+    """Compatibility helper for legacy call sites that mutate globals().
+
+    Long-lived Streamlit processes can retain a compatibility shim whose
+    classified target predates an additive source update.  When that shim is
+    the only reason a requested symbol is absent, reload the already-aligned
+    local fallback under its isolated synthetic name.  Ordinary modules and
+    genuinely missing symbols keep the existing fail-closed behavior.
+    """
     module = import_agilab_module(
         module_name,
         current_file=current_file,
@@ -384,6 +429,44 @@ def import_agilab_symbols(
         binding_items = list(bindings.items())
     else:
         binding_items = [(name, name) for name in bindings]
+    missing_attributes = [
+        attribute_name
+        for attribute_name, _target_name in binding_items
+        if not hasattr(module, attribute_name)
+    ]
+    compat_target = getattr(module, "_AGILAB_COMPAT_TARGET_MODULE", None)
+    if missing_attributes and isinstance(compat_target, ModuleType):
+        expected_root = resolve_package_root(current_file)
+        fallback_origin = _resolve_path(fallback_path)
+        outside = _paths_outside_expected((fallback_origin,), expected_root)
+        if outside:
+            raise MixedCheckoutImportError(
+                _mixed_checkout_message(
+                    current_file=current_file,
+                    expected_root=expected_root,
+                    actual_paths=outside,
+                    module_name=module_name,
+                )
+            )
+        refreshed = _load_module_from_path(
+            module_name,
+            fallback_path,
+            fallback_name=fallback_name,
+        )
+        refreshed_outside = _paths_outside_expected(
+            _module_origin_paths(refreshed),
+            expected_root,
+        )
+        if refreshed_outside:
+            raise MixedCheckoutImportError(
+                _mixed_checkout_message(
+                    current_file=current_file,
+                    expected_root=expected_root,
+                    actual_paths=refreshed_outside,
+                    module_name=module_name,
+                )
+            )
+        module = refreshed
     for attribute_name, target_name in binding_items:
         try:
             target_globals[target_name] = getattr(module, attribute_name)
