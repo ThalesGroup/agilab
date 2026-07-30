@@ -12,7 +12,7 @@ from typing import Any, Callable
 from pathspec import PathSpec
 from pathspec.gitignore import GitIgnoreSpec
 
-from .app_provider_registry import aliased_app_runtime_target
+from .app_provider_registry import default_app_runtime_target
 
 try:
     from pathlib import UnsupportedOperation  # ty: ignore[unresolved-import]
@@ -319,8 +319,11 @@ def create_rename_map(target_project: Path, dest_project: Path) -> dict[str, str
                 return name[: -len(suffix)]
         return name
 
-    tp = aliased_app_runtime_target(strip_suffix(name_tp))
-    dp = aliased_app_runtime_target(strip_suffix(name_dp))
+    # Clone renaming follows the concrete source tree and requested destination
+    # names. Public aliases belong to discovery; applying them here would skip
+    # legacy symbols that still exist inside an older local project tree.
+    tp = default_app_runtime_target(strip_suffix(name_tp))
+    dp = default_app_runtime_target(strip_suffix(name_dp))
 
     tm = tp.replace("-", "_")
     dm = dp.replace("-", "_")

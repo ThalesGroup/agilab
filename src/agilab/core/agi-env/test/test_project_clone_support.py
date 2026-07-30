@@ -37,6 +37,17 @@ def test_create_rename_map_covers_data_io_2026_to_mission_decision():
     assert mapping["DataIo2026Args"] == "MissionDecisionArgs"
 
 
+def test_create_rename_map_uses_concrete_names_for_public_aliases():
+    mapping = create_rename_map(
+        Path("weather_forecast_legacy_project"),
+        Path("weather_demo_project"),
+    )
+
+    assert mapping["weather_forecast_legacy"] == "weather_demo"
+    assert mapping["WeatherForecastLegacyWorker"] == "WeatherDemoWorker"
+    assert "weather_forecast" not in mapping
+
+
 def test_clone_project_uses_template_source_and_updates_projects(tmp_path: Path):
     apps_path = tmp_path / "apps"
     template_src = apps_path / "templates" / "alpha_project"

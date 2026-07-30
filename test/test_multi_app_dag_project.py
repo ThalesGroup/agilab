@@ -17,7 +17,7 @@ def _make_env(tmp_path: Path) -> SimpleNamespace:
     settings_file = tmp_path / "app_settings.toml"
     settings_file.write_text(
         "[args]\n"
-        'dag_path = "dag_templates/flight_to_weather_legacy_multi_app_dag.json"\n'
+        'dag_path = "dag_templates/flight_to_weather_multi_app_dag.json"\n'
         'output_path = "~/log/execute/multi_app_dag/runner_state.json"\n'
         "reset_target = false\n",
         encoding="utf-8",
@@ -52,7 +52,31 @@ def test_app_args_form_prefers_project_src_when_package_dir_shadows_imports(
 
         assert not at.exception
         assert at.text_input(key="multi_app_dag_project:app_args_form:dag_path").value == (
-            "dag_templates/flight_to_weather_legacy_multi_app_dag.json"
+            "dag_templates/flight_to_weather_multi_app_dag.json"
         )
+    finally:
+        _clear_multi_app_dag_modules()
+
+
+def test_persisted_legacy_weather_dag_path_migrates_to_shipped_template(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    settings_file = tmp_path / "app_settings.toml"
+    settings_file.write_text(
+        "[args]\n"
+        'dag_path = "dag_templates/flight_to_weather_legacy_multi_app_dag.json"\n'
+        'output_path = "~/log/execute/multi_app_dag/runner_state.json"\n'
+        "reset_target = false\n",
+        encoding="utf-8",
+    )
+    _clear_multi_app_dag_modules()
+    monkeypatch.syspath_prepend(str(APP_SRC))
+    try:
+        app_args = importlib.import_module("multi_app_dag.app_args")
+        migrated = app_args.ensure_defaults(app_args.load_args(settings_file))
+
+        assert migrated.dag_path == app_args.DEFAULT_DAG_PATH
+        assert (APP_SRC.parent / migrated.dag_path).is_file()
     finally:
         _clear_multi_app_dag_modules()

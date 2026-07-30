@@ -43,7 +43,6 @@ PROFILE_BUILTIN_APP_ENTRIES = {
         "execution_polars_project",
         "flight_telemetry_project",
         "multi_app_dag_project",
-        "weather_forecast_legacy_project",
         "mission_decision_project",
         "minimal_app_project",
         "tescia_diagnostic_project",

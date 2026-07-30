@@ -199,6 +199,12 @@ def resolve_installed_app_project(*args: Any, **kwargs: Any) -> Any:
     )(*args, **kwargs)
 
 
+def app_name_aliases(*args: Any, **kwargs: Any) -> Any:
+    return _lazy_import_attr(
+        "agi_env.app_provider_registry", "app_name_aliases"
+    )(*args, **kwargs)
+
+
 def _gitignore_spec_from_lines(patterns: list[str]) -> Any:
     gitignore_spec = _lazy_import_attr("pathspec.gitignore", "GitIgnoreSpec")
     return gitignore_spec.from_lines(patterns)
@@ -973,6 +979,18 @@ def _resolve_clone_source_project(env: AgiEnv, target_project: Path) -> Path:
             ):
                 if active_app_path.exists():
                     return active_app_path
+
+        for alias in app_name_aliases(source_project.name):
+            if alias == source_project.name:
+                continue
+            alias_path = Path(alias)
+            if (env.apps_path / alias_path).exists() or (
+                templates_root / alias_path
+            ).exists():
+                return alias_path
+            builtin_alias = Path("builtin") / alias_path
+            if (env.apps_path / builtin_alias).exists():
+                return builtin_alias
 
         try:
             installed_project = resolve_installed_app_project(source_project.name)

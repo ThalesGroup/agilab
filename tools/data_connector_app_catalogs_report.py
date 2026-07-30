@@ -43,9 +43,17 @@ EXPECTED_APPS = [
     "flight_telemetry_project",
     "uav_queue_project",
     "uav_relay_queue_project",
-    "weather_forecast_legacy_project",
     "weather_forecast_project",
 ]
+EXPECTED_CONNECTOR_COUNTS = {
+    app: (6 if app == "weather_forecast_project" else 3)
+    for app in EXPECTED_APPS
+}
+WEATHER_COMPATIBILITY_CONNECTOR_IDS = {
+    "meteo_training_sql",
+    "meteo_ops_opensearch",
+    "meteo_artifact_store",
+}
 
 
 def _check_result(
@@ -153,12 +161,20 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             "data_connector_app_catalogs_facility_contract",
             "Data connector app catalogs facility contract",
             all(row.get("catalog_run_status") == "validated" for row in app_rows)
-            and all(row.get("connector_count") == 3 for row in app_rows)
+            and all(
+                row.get("connector_count") == EXPECTED_CONNECTOR_COUNTS.get(
+                    str(row.get("app", ""))
+                )
+                for row in app_rows
+            )
             and all(
                 row.get("supported_kinds") == ["object_storage", "opensearch", "sql"]
                 for row in app_rows
+            )
+            and WEATHER_COMPATIBILITY_CONNECTOR_IDS.issubset(
+                set(apps.get("weather_forecast_project", {}).get("connector_ids", []))
             ),
-            "each app-local catalog validates SQL, OpenSearch, and object storage",
+            "each app-local catalog validates its canonical facilities and declared compatibility aliases",
             evidence=catalog_paths,
             details={"apps": app_rows},
         ),
@@ -167,7 +183,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             "Data connector app catalogs resolution",
             all(row.get("resolution_run_status") == "resolved" for row in app_rows)
             and all(row.get("missing_ref_count") == 0 for row in app_rows)
-            and summary.get("page_connector_ref_count") == 15,
+            and summary.get("page_connector_ref_count") == 13,
             "app-local connector references resolve for app and page settings",
             evidence=[str(row.get("settings_path", "")) for row in app_rows],
             details={"apps": app_rows},
@@ -175,7 +191,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         _check_result(
             "data_connector_app_catalogs_legacy_fallbacks",
             "Data connector app catalogs legacy fallbacks",
-            summary.get("legacy_path_count") == 14
+            summary.get("legacy_path_count") == 12
             and all(row.get("legacy_path_count") == 2 for row in app_rows),
             "app-local catalog migration keeps legacy path fallbacks visible",
             evidence=[str(row.get("settings_path", "")) for row in app_rows],

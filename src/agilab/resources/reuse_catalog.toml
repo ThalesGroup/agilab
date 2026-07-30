@@ -378,19 +378,6 @@ reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend
 checked_against = []
 
 [[project]]
-id = "weather_forecast_legacy_project"
-title = "Weather forecast legacy"
-package = "None"
-purpose = "Source-checkout weather migration reference kept beside the packaged weather forecast path."
-when_to_use = "Use only when comparing against the legacy source-checkout weather migration flow."
-artifacts = ["forecast metrics", "forecast predictions", "legacy migration evidence"]
-tags = ["weather", "forecast", "legacy", "migration", "timeseries"]
-reuse_policy = "Prefer weather_forecast_project for new work; use this legacy project only for compatibility comparison."
-reuse_decision = "reuse"
-reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend or clone it before creating an equivalent view or project."
-checked_against = []
-
-[[project]]
 id = "weather_forecast_project"
 title = "Weather forecast"
 package = "agi-app-weather-forecast"

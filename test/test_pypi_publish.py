@@ -4,6 +4,7 @@ import importlib.util
 import subprocess
 import sys
 import threading
+import tomllib
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,7 +16,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 TOOLS_ROOT = REPO_ROOT / "tools"
 sys.path.insert(0, str(TOOLS_ROOT))
 
-from package_split_contract import LIBRARY_PACKAGE_CONTRACTS, WHEEL_ONLY_PACKAGE_NAMES
+from package_split_contract import (  # noqa: E402
+    LIBRARY_PACKAGE_CONTRACTS,
+    WHEEL_ONLY_PACKAGE_NAMES,
+)
 
 
 MODULE_PATH = REPO_ROOT / "tools/pypi_publish.py"
@@ -315,6 +319,145 @@ def test_sync_builtin_app_versions_lower_bounds_internal_runtime_deps(tmp_path, 
     assert '"agi-env>=2026.04.28.post4"' in text
     assert '"agi-node>=2026.04.28.post4"' in text
     assert "[tool.uv.sources]" in text
+
+
+@pytest.mark.parametrize(
+    "package_name",
+    ["agi-app-weather-forecast", "agi-page-timeseries-forecast"],
+)
+def test_release_prep_raises_only_selected_asset_internal_floors(
+    tmp_path: Path,
+    package_name: str,
+) -> None:
+    module = _load_pypi_publish()
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        "\n".join(
+            [
+                "[project]",
+                f'name = "{package_name}"',
+                'version = "2026.07.17"',
+                "dependencies = [",
+                '  "agi-env[cli]>=2026.05.31,<2027.0; python_version >= \'3.12\'",',
+                '  "agi-node>=2026.05.31,<2027.0",',
+                '  "requests>=2,<3",',
+                "]",
+                "",
+                "[project.optional-dependencies]",
+                'analysis = ["agi-gui>=2026.05.31,<2027.0"]',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    changed = module.pin_internal_deps_for_package(
+        package_name,
+        pyproject,
+        {
+            "agi-env": "2026.07.30",
+            "agi-node": "2026.07.30",
+            "agi-gui": "2026.07.30",
+        },
+        selected_release_versions={
+            "agi-env": "2026.07.30",
+            package_name: "2026.07.30",
+        },
+    )
+
+    project = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]
+    assert changed is True
+    assert project["dependencies"] == [
+        "agi-env[cli]>=2026.07.30,<2027.0; python_version >= '3.12'",
+        "agi-node>=2026.05.31,<2027.0",
+        "requests>=2,<3",
+    ]
+    assert project["optional-dependencies"]["analysis"] == [
+        "agi-gui>=2026.05.31,<2027.0"
+    ]
+
+
+def test_release_prep_keeps_exact_pin_behavior_for_bundle_packages(tmp_path: Path) -> None:
+    module = _load_pypi_publish()
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        "\n".join(
+            [
+                "[project]",
+                'name = "agi-core"',
+                'version = "2026.07.17"',
+                'dependencies = ["agi-env>=2026.05.31,<2027.0", "requests>=2,<3"]',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    changed = module.pin_internal_deps_for_package(
+        "agi-core",
+        pyproject,
+        {"agi-env": "2026.07.30"},
+        selected_release_versions={"agi-env": "2026.07.30"},
+    )
+
+    dependencies = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"][
+        "dependencies"
+    ]
+    assert changed is True
+    assert dependencies == ["agi-env==2026.07.30", "requests>=2,<3"]
+
+
+def test_release_prep_rejects_selected_asset_version_above_preserved_cap(
+    tmp_path: Path,
+) -> None:
+    module = _load_pypi_publish()
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\n"
+        'name = "agi-app-weather-forecast"\n'
+        'version = "2026.07.17"\n'
+        'dependencies = ["agi-env>=2026.05.31,<2027.0"]\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="excluded by asset requirement"):
+        module.pin_internal_deps_for_package(
+            "agi-app-weather-forecast",
+            pyproject,
+            {"agi-env": "2027.01.01"},
+            selected_release_versions={"agi-env": "2027.01.01"},
+        )
+
+
+@pytest.mark.parametrize(
+    "requirement",
+    [
+        "agi-env>2026.07.30,<2027.0",
+        "agi-env>=2026.08.01,<2027.0",
+    ],
+    ids=["strict-equal-floor", "higher-floor"],
+)
+def test_release_prep_rejects_asset_floor_that_excludes_selected_version(
+    tmp_path: Path,
+    requirement: str,
+) -> None:
+    module = _load_pypi_publish()
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\n"
+        'name = "agi-app-weather-forecast"\n'
+        'version = "2026.07.17"\n'
+        f'dependencies = ["{requirement}"]\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="excluded by asset requirement"):
+        module.pin_internal_deps_for_package(
+            "agi-app-weather-forecast",
+            pyproject,
+            {"agi-env": "2026.07.30"},
+            selected_release_versions={"agi-env": "2026.07.30"},
+        )
 
 
 def test_main_does_not_rewrite_builtin_apps_for_umbrella_build(tmp_path, monkeypatch) -> None:

@@ -45,8 +45,9 @@ Status legend:
      - PyPI app package
      - Notebook-to-app migration using a small weather forecast dataset,
        forecast metrics, and promotion evidence. Historical
-       ``weather_forecast_legacy_project`` identifiers resolve here for
-       compatibility; new work should use the maintained name.
+       ``weather_forecast_legacy_project`` identifiers resolve here when the
+       app and AGILAB core come from the same release; new work should use the
+       maintained name.
    * - ``sklearn_pipeline_project``
      - ``agi-app-sklearn-pipeline``
      - PyPI app package
@@ -116,11 +117,6 @@ Status legend:
      - Source built-in
      - Minimal app structure reference for adapting manager, worker, settings,
        and app argument form code.
-   * - ``weather_forecast_legacy_project``
-     - None
-     - Source built-in
-     - Source-checkout weather migration reference kept beside the packaged
-       ``weather_forecast_project`` path.
 
 Recommended first choices
 -------------------------

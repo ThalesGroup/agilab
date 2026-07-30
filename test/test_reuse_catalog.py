@@ -75,12 +75,32 @@ def test_reuse_catalog_validation_covers_current_source_surfaces() -> None:
     projects = {
         path.name
         for path in (ROOT / "src/agilab/apps/builtin").iterdir()
-        if path.is_dir() and path.name.endswith("_project")
+        if path.is_dir()
+        and path.name.endswith("_project")
+        and (path / "pyproject.toml").is_file()
     }
 
     validation = module.validate_catalog(expected_pages=pages, expected_projects=projects)
 
     assert validation["status"] == "pass"
+
+
+def test_repo_surface_discovery_ignores_empty_retired_project_directory(
+    tmp_path: Path,
+) -> None:
+    module = _load_module(MODULE_PATH, "agilab_reuse_catalog_polluted_inventory_test_module")
+    builtin_root = tmp_path / "src/agilab/apps/builtin"
+    active_project = builtin_root / "active_project"
+    active_project.mkdir(parents=True)
+    (active_project / "pyproject.toml").write_text(
+        "[project]\nname = 'active_project'\nversion = '1'\n",
+        encoding="utf-8",
+    )
+    (builtin_root / "retired_project").mkdir()
+
+    surfaces = module.discover_repo_surfaces(tmp_path)
+
+    assert surfaces["project"] == {"active_project"}
 
 
 def test_reuse_catalog_validation_requires_reuse_decision(tmp_path: Path) -> None:

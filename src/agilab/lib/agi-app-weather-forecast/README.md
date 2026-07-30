@@ -17,9 +17,12 @@ inspect the resulting predictions.
 ## Installed Project
 
 The distribution name is `agi-app-weather-forecast`; the AGILAB project name is
-`weather_forecast_project`. The package exposes both `weather_forecast` and
+`weather_forecast_project`. The package exposes `weather_forecast` and
 `weather_forecast_project` through the `agilab.apps` entry point group, so
 `AgiEnv(app="weather_forecast_project")` works without a monorepo checkout.
+The retired `weather_forecast_legacy` and `weather_forecast_legacy_project`
+names remain provider and import aliases when this package is installed with
+its matching AGILAB core release; new work should use the maintained name.
 
 ## Install
 

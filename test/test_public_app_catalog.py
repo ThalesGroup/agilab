@@ -84,8 +84,12 @@ def test_public_app_catalog_status_matches_release_contract() -> None:
         for project, (package, status) in sorted(expected.items())
         if rows.get(project, {}).get("package") != package or rows.get(project, {}).get("status") != status
     }
+    stale_projects = sorted(set(rows) - set(expected))
 
-    assert mismatches == {}
+    assert {"mismatches": mismatches, "stale_projects": stale_projects} == {
+        "mismatches": {},
+        "stale_projects": [],
+    }
 
 
 def test_public_app_catalog_lists_all_builtin_projects() -> None:

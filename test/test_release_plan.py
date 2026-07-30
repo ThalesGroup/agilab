@@ -237,6 +237,31 @@ def test_release_plan_expands_runtime_component_to_only_required_dependents() ->
     assert "agi-app-pytorch-playground" not in packages
 
 
+def test_release_plan_selects_changed_runtime_and_asset_app_together() -> None:
+    module = _load_module()
+
+    packages = module.impacted_release_package_names(
+        REPO_ROOT,
+        "unused",
+        changed_paths=[
+            "src/agilab/core/agi-env/src/agi_env/project/app_provider_registry.py",
+            "src/agilab/lib/agi-app-weather-forecast/pyproject.toml",
+        ],
+    )
+
+    assert packages == [
+        "agi-env",
+        "agi-gui",
+        "agi-pages",
+        "agi-node",
+        "agi-cluster",
+        "agi-core",
+        "agi-app-weather-forecast",
+        "agi-apps",
+        "agilab",
+    ]
+
+
 def test_release_plan_can_select_impacted_packages_from_base_ref(monkeypatch) -> None:
     module = _load_module()
     monkeypatch.setattr(

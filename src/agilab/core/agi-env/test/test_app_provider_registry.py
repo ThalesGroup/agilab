@@ -57,12 +57,66 @@ def test_app_name_aliases_cover_public_runtime_aliases(monkeypatch) -> None:
         "public_demo",
         "public_demo_project",
         "internal_demo",
+        "internal_demo_project",
     )
     assert app_name_aliases("internal-demo") == (
         "internal_demo",
         "internal_demo_project",
         "public_demo",
         "public_demo_project",
+    )
+
+
+def test_weather_forecast_legacy_resolves_to_the_current_public_app(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "weather_forecast_project"
+    project.mkdir()
+    (project / "pyproject.toml").write_text(
+        "[project]\nname='weather_forecast_project'\n\n"
+        "[tool.agilab]\nruntime_target='weather_forecast'\n",
+        encoding="utf-8",
+    )
+    installed = [
+        InstalledAppProject(
+            name="weather_forecast_project",
+            project_root=project,
+            provider="weather_forecast",
+        )
+    ]
+
+    assert (
+        app_provider_registry.aliased_app_runtime_target(
+            "weather_forecast_legacy_project"
+        )
+        == "weather_forecast"
+    )
+    assert app_name_aliases("weather_forecast_legacy") == (
+        "weather_forecast_legacy",
+        "weather_forecast_legacy_project",
+        "weather_forecast",
+        "weather_forecast_project",
+    )
+    assert app_name_aliases("weather_forecast") == (
+        "weather_forecast",
+        "weather_forecast_project",
+        "weather_forecast_legacy",
+        "weather_forecast_legacy_project",
+    )
+    assert (
+        resolve_installed_app_project("weather_forecast_legacy", projects=installed)
+        == project
+    )
+    assert (
+        resolve_installed_app_project(
+            "weather_forecast_legacy_project",
+            projects=installed,
+        )
+        == project
+    )
+    assert (
+        resolve_app_runtime_target(project, "weather_forecast_legacy_project")
+        == "weather_forecast"
     )
 
 

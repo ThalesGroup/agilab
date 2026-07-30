@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-29T17:32:41Z",
+  "generated_at_utc": "2026-07-30T11:47:35Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -20,7 +20,7 @@
     "cli_command_count": 13,
     "streamlit_page_count": 6,
     "package_count": 36,
-    "public_app_count": 15,
+    "public_app_count": 14,
     "agent_skill_count": 33,
     "evidence_schema_count": 236,
     "catalog_file_count": 12
@@ -764,14 +764,6 @@
       "description": "AGILAB UAV relay queue simulation demo with routing, delay, and resilience artifacts"
     },
     {
-      "project": "weather_forecast_legacy_project",
-      "package": null,
-      "status": "Source built-in",
-      "source": "src/agilab/apps/builtin/weather_forecast_legacy_project",
-      "version": "2026.05.30.post1",
-      "description": "Built-in AGILAB legacy weather forecasting app for migration comparison"
-    },
-    {
       "project": "weather_forecast_project",
       "package": "agi-app-weather-forecast",
       "status": "PyPI app package",
@@ -1504,7 +1496,6 @@
     {
       "schema": "agilab.example.mlflow_auto_tracking.v1",
       "sources": [
-        "src/agilab/apps/builtin/weather_forecast_legacy_project/tracking_templates/mlflow_auto_tracking_run_config.json",
         "src/agilab/apps/builtin/weather_forecast_project/tracking_templates/mlflow_auto_tracking_run_config.json",
         "src/agilab/lib/agi-app-weather-forecast/src/agi_app_weather_forecast/project/weather_forecast_project/tracking_templates/mlflow_auto_tracking_run_config.json"
       ]
@@ -1674,7 +1665,6 @@
         "src/agilab/apps/builtin/tescia_diagnostic_project/lab_stages.toml",
         "src/agilab/apps/builtin/uav_queue_project/lab_stages.toml",
         "src/agilab/apps/builtin/uav_relay_queue_project/lab_stages.toml",
-        "src/agilab/apps/builtin/weather_forecast_legacy_project/lab_stages.toml",
         "src/agilab/apps/builtin/weather_forecast_project/lab_stages.toml",
         "src/agilab/lib/agi-app-mission-decision/src/agi_app_mission_decision/project/mission_decision_project/lab_stages.toml",
         "src/agilab/lib/agi-app-uav-relay-queue/src/agi_app_uav_relay_queue/project/uav_relay_queue_project/lab_stages.toml",
@@ -1773,7 +1763,6 @@
         "docs/source/data/multi_app_dag_sample.json",
         "docs/source/roadmap/agilab-future-work.md",
         "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json",
-        "src/agilab/apps/builtin/multi_app_dag_project/dag_templates/flight_to_weather_legacy_multi_app_dag.json",
         "src/agilab/apps/builtin/multi_app_dag_project/dag_templates/flight_to_weather_multi_app_dag.json",
         "src/agilab/apps/builtin/multi_app_dag_project/src/multi_app_dag/preview_multi_app_dag.py",
         "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json",
@@ -1864,7 +1853,6 @@
       "schema": "agilab.notebook_import_views.v1",
       "sources": [
         "src/agilab/apps/builtin/flight_telemetry_project/notebook_import_views.toml",
-        "src/agilab/apps/builtin/weather_forecast_legacy_project/notebook_import_views.toml",
         "src/agilab/apps/builtin/weather_forecast_project/notebook_import_views.toml",
         "src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/project/flight_telemetry_project/notebook_import_views.toml",
         "src/agilab/lib/agi-app-weather-forecast/src/agi_app_weather_forecast/project/weather_forecast_project/notebook_import_views.toml",

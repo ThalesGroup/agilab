@@ -204,6 +204,15 @@ def test_first_proof_profile_uses_public_weather_demo() -> None:
     assert pages == ("view_maps", "view_forecast_analysis", "view_release_decision")
 
 
+def test_advanced_profile_excludes_retired_weather_clone() -> None:
+    module = _load_module()
+
+    apps, _pages = module.profile_entries("advanced")
+
+    assert "weather_forecast_project" in apps
+    assert "weather_forecast_legacy_project" not in apps
+
+
 def test_stage_space_tree_prunes_private_app_entries_before_validation(tmp_path: Path) -> None:
     module = _load_module()
     repo = tmp_path / "repo"

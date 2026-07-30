@@ -23,6 +23,13 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Changed
+
+- Folded the source-only `weather_forecast_legacy_project` clone into
+  `weather_forecast_project`, while preserving the retired project ID and
+  Python import paths as compatibility aliases and moving the multi-app DAG
+  example to the maintained weather app.
+
 ## [2026.07.17.1] - 2026-07-23
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17_1

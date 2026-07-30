@@ -25,3 +25,39 @@ provider = "s3"
 bucket = "agilab-artifacts"
 prefix = "weather_forecast/"
 auth_ref = "env:AWS_PROFILE"
+
+# Retired weather_forecast_legacy_project connector IDs remain resolvable for
+# persisted app_settings.toml files. New settings should use the weather_* IDs.
+[[connectors]]
+id = "meteo_training_sql"
+kind = "sql"
+label = "Meteo Training SQL (legacy alias)"
+description = "Deprecated alias for weather_training_sql."
+uri = "postgresql://meteo.example.invalid/agilab"
+driver = "postgresql"
+query_mode = "read_only"
+deprecated = true
+alias_of = "weather_training_sql"
+
+[[connectors]]
+id = "meteo_ops_opensearch"
+kind = "opensearch"
+label = "Meteo Operations OpenSearch (legacy alias)"
+description = "Deprecated alias for weather_ops_opensearch."
+url = "https://opensearch.example.invalid"
+index = "agilab-meteo-*"
+auth_ref = "env:OPENSEARCH_TOKEN"
+deprecated = true
+alias_of = "weather_ops_opensearch"
+
+[[connectors]]
+id = "meteo_artifact_store"
+kind = "object_storage"
+label = "Meteo Artifact Store (legacy alias)"
+description = "Deprecated alias retaining the historical object prefix."
+provider = "s3"
+bucket = "agilab-artifacts"
+prefix = "weather_forecast_legacy/"
+auth_ref = "env:AWS_PROFILE"
+deprecated = true
+alias_of = "weather_artifact_store"

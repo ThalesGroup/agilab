@@ -40,10 +40,10 @@ def test_data_connector_app_catalogs_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["schema"] == "agilab.data_connector_app_catalogs.v1"
     assert report["summary"]["run_status"] == "validated"
     assert report["summary"]["execution_mode"] == "app_catalog_validation_only"
-    assert report["summary"]["app_catalog_count"] == 7
+    assert report["summary"]["app_catalog_count"] == 6
     assert report["summary"]["connector_count"] == 21
-    assert report["summary"]["page_connector_ref_count"] == 15
-    assert report["summary"]["legacy_path_count"] == 14
+    assert report["summary"]["page_connector_ref_count"] == 13
+    assert report["summary"]["legacy_path_count"] == 12
     assert report["summary"]["missing_ref_count"] == 0
     assert report["summary"]["network_probe_count"] == 0
     assert report["summary"]["apps"] == [
@@ -52,7 +52,6 @@ def test_data_connector_app_catalogs_report_passes(tmp_path: Path) -> None:
         "flight_telemetry_project",
         "uav_queue_project",
         "uav_relay_queue_project",
-        "weather_forecast_legacy_project",
         "weather_forecast_project",
     ]
     assert report["summary"]["round_trip_ok"] is True
@@ -88,9 +87,6 @@ def test_data_connector_app_catalogs_resolve_relative_to_app_settings(tmp_path: 
         "execution_polars_project/src/connectors/data_connectors.toml"
     )
     assert paths["flight_telemetry_project"].endswith("flight_telemetry_project/src/connectors/data_connectors.toml")
-    assert paths["weather_forecast_legacy_project"].endswith(
-        "weather_forecast_legacy_project/src/connectors/data_connectors.toml"
-    )
     assert paths["weather_forecast_project"].endswith(
         "weather_forecast_project/src/connectors/data_connectors.toml"
     )
@@ -98,6 +94,48 @@ def test_data_connector_app_catalogs_resolve_relative_to_app_settings(tmp_path: 
     assert paths["uav_relay_queue_project"].endswith(
         "uav_relay_queue_project/src/connectors/data_connectors.toml"
     )
+
+
+def test_current_weather_catalog_resolves_persisted_legacy_connector_refs() -> None:
+    module = _load_module(CORE_PATH, "data_connector_legacy_weather_refs_test_module")
+    catalog_path = Path(
+        "src/agilab/apps/builtin/weather_forecast_project/src/connectors/data_connectors.toml"
+    ).resolve()
+    catalog = module.load_connector_catalog(catalog_path)
+    facility = module.build_data_connector_facility(catalog, source_path=catalog_path)
+    legacy_settings = {
+        "connector_refs": {
+            "training_sql": "meteo_training_sql",
+            "operator_events": "meteo_ops_opensearch",
+            "artifact_store": "meteo_artifact_store",
+        },
+        "page_connector_refs": {
+            "release_decision": {
+                "evidence_index": "meteo_ops_opensearch",
+                "artifact_store": "meteo_artifact_store",
+            }
+        },
+        "legacy_paths": {
+            "data_in": "weather_forecast_legacy/dataset",
+            "data_out": "weather_forecast_legacy/results",
+        },
+    }
+
+    resolution = module.build_data_connector_resolution(
+        settings=legacy_settings,
+        facility_state=facility,
+        settings_path="persisted/app_settings.toml",
+        catalog_path=catalog_path,
+    )
+
+    assert resolution["run_status"] == "resolved"
+    assert resolution["summary"]["resolved_connector_ref_count"] == 5
+    assert resolution["summary"]["missing_ref_count"] == 0
+    targets = {
+        row["connector_id"]: row["resolved_target"]
+        for row in resolution["resolutions"]
+    }
+    assert targets["meteo_artifact_store"].endswith("/weather_forecast_legacy/")
 
 
 def test_data_connector_app_catalogs_core_reports_invalid_app_catalog_edges(tmp_path: Path, monkeypatch) -> None:

@@ -44,7 +44,6 @@ def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
         "execution_pandas_project",
         "execution_polars_project",
         "flight_telemetry_project",
-        "weather_forecast_legacy_project",
         "mission_decision_project",
         "pytorch_playground_project",
         "r_runtime_bridge_project",
@@ -55,6 +54,25 @@ def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
         "weather_forecast_project",
     ])
     assert check["details"]["template_only_exemptions"] == TEMPLATE_ONLY_BUILTIN_APPS
+
+
+def test_manager_package_resolution_uses_declared_runtime_target_with_compatibility_shims(
+    tmp_path: Path,
+) -> None:
+    module = _load_kpi_bundle_module()
+    project = tmp_path / "public_weather_project"
+    canonical = project / "src" / "weather_forecast"
+    compatibility = project / "src" / "weather_forecast_legacy"
+    canonical.mkdir(parents=True)
+    compatibility.mkdir(parents=True)
+    (canonical / "__init__.py").write_text("", encoding="utf-8")
+    (compatibility / "__init__.py").write_text("", encoding="utf-8")
+    (project / "pyproject.toml").write_text(
+        "[tool.agilab]\nruntime_target = 'weather_forecast'\n",
+        encoding="utf-8",
+    )
+
+    assert module._manager_package_dir(project) == canonical
 
 
 def test_mission_decision_reduce_contract_merges_decision_summaries(monkeypatch) -> None:

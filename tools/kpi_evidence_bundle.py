@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import sys
 import tempfile
+import tomllib
 from types import SimpleNamespace
 from typing import Any, Sequence
 from zipfile import ZipFile
@@ -340,8 +341,8 @@ def _check_revision_traceability_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("schema") == "agilab.revision_traceability.v1"
             and summary.get("execution_mode") == "revision_traceability_static"
             and summary.get("core_component_count") == 5
-            and summary.get("builtin_app_count") == 15
-            and summary.get("app_fingerprint_count") == 15
+            and summary.get("builtin_app_count") == 14
+            and summary.get("app_fingerprint_count") == 14
             and summary.get("command_execution_count") == 0
             and summary.get("network_probe_count") == 0
         )
@@ -444,7 +445,7 @@ def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("page_lib_release_graph_aligned") is True
             and summary.get("app_lib_component_count") == 1
             and summary.get("app_lib_release_graph_aligned") is True
-            and summary.get("builtin_app_pyproject_count") == 15
+            and summary.get("builtin_app_pyproject_count") == 14
             and summary.get("aligned_builtin_app_versions") is True
             and summary.get("mismatched_builtin_app_version_count") == 0
             and summary.get("aligned_builtin_app_internal_dependency_bounds") is True
@@ -911,16 +912,25 @@ def _builtin_project_dirs(repo_root: Path) -> list[Path]:
 
 
 def _manager_package_dir(project_dir: Path) -> Path:
-    packages = sorted(
-        child
-        for child in (project_dir / "src").iterdir()
-        if child.is_dir()
-        and (child / "__init__.py").is_file()
-        and not child.name.endswith("_worker")
-    )
-    if len(packages) != 1:
-        raise ValueError(f"{project_dir.name} should expose one manager package")
-    return packages[0]
+    expected_name = project_dir.name.removesuffix("_project")
+    pyproject = project_dir / "pyproject.toml"
+    if pyproject.is_file():
+        metadata = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        declared_target = metadata.get("tool", {}).get("agilab", {}).get("runtime_target")
+        if declared_target is not None:
+            if not isinstance(declared_target, str) or not re.fullmatch(
+                r"[A-Za-z_][A-Za-z0-9_]*",
+                declared_target,
+            ):
+                raise ValueError(f"{project_dir.name} declares an invalid runtime_target")
+            expected_name = declared_target
+
+    package_dir = project_dir / "src" / expected_name
+    if not (package_dir / "__init__.py").is_file():
+        raise ValueError(
+            f"{project_dir.name} should expose canonical manager package {expected_name}"
+        )
+    return package_dir
 
 
 def _reduce_contract_adoption_details(repo_root: Path) -> dict[str, Any]:
@@ -2149,10 +2159,10 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
             and summary.get("schema") == "agilab.data_connector_app_catalogs.v1"
             and summary.get("run_status") == "validated"
             and summary.get("execution_mode") == "app_catalog_validation_only"
-            and summary.get("app_catalog_count") == 7
+            and summary.get("app_catalog_count") == 6
             and summary.get("connector_count") == 21
-            and summary.get("page_connector_ref_count") == 15
-            and summary.get("legacy_path_count") == 14
+            and summary.get("page_connector_ref_count") == 13
+            and summary.get("legacy_path_count") == 12
             and summary.get("missing_ref_count") == 0
             and summary.get("network_probe_count") == 0
             and summary.get("apps")
@@ -2162,7 +2172,6 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
                 "flight_telemetry_project",
                 "uav_queue_project",
                 "uav_relay_queue_project",
-                "weather_forecast_legacy_project",
                 "weather_forecast_project",
             ]
             and summary.get("round_trip_ok") is True
@@ -2189,7 +2198,6 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
             "tools/data_connector_app_catalogs_report.py",
             "src/agilab/data_connector_app_catalogs.py",
             "src/agilab/apps/builtin/flight_telemetry_project/src/app_settings.toml",
-            "src/agilab/apps/builtin/weather_forecast_legacy_project/src/app_settings.toml",
             "src/agilab/apps/builtin/weather_forecast_project/src/app_settings.toml",
             "src/agilab/apps/builtin/uav_queue_project/src/app_settings.toml",
             "src/agilab/apps/builtin/uav_relay_queue_project/src/app_settings.toml",

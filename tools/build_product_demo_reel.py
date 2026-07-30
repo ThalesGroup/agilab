@@ -245,7 +245,7 @@ UAV_QUEUE_SCENES: tuple[Scene, ...] = (
 )
 
 
-WEATHER_FORECAST_LEGACY_SCENES: tuple[Scene, ...] = (
+WEATHER_FORECAST_SCENES: tuple[Scene, ...] = (
     Scene(
         name="intro",
         image=PAGE_SHOTS / "core-pages-overview.png",
@@ -502,10 +502,10 @@ VARIANTS: dict[str, Variant] = {
         app_badge="PANDAS EXECUTION",
         scenes=EXECUTION_PANDAS_SCENES,
     ),
-    "weather_forecast_legacy": Variant(
-        key="weather_forecast_legacy",
+    "weather_forecast": Variant(
+        key="weather_forecast",
         app_badge="WEATHER FORECAST",
-        scenes=WEATHER_FORECAST_LEGACY_SCENES,
+        scenes=WEATHER_FORECAST_SCENES,
     ),
     "sb3_routing": Variant(
         key="sb3_routing",
@@ -1546,7 +1546,7 @@ def draw_meteo_orchestrate_forecast_overlay(canvas: Image.Image, scene: Scene, s
         "",
         "APP = \"weather_forecast_project\"",
         "env = AgiEnv(app=APP, verbose=1)",
-        "request = RunRequest(mode=15, data_in=\"weather_forecast_legacy/dataset\")",
+        "request = RunRequest(mode=15, data_in=\"weather_forecast/dataset\")",
         "await AGI.run(env, request=request)",
         "# exports forecast_metrics.json + forecast_predictions.csv",
     ]

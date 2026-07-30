@@ -36,10 +36,6 @@ MANAGER_PATHS = (
         "uav_relay_queue/uav_relay_queue.py"
     ),
     Path(
-        "src/agilab/apps/builtin/weather_forecast_legacy_project/src/"
-        "weather_forecast_legacy/weather_forecast_legacy.py"
-    ),
-    Path(
         "src/agilab/apps/builtin/weather_forecast_project/src/"
         "weather_forecast/weather_forecast.py"
     ),

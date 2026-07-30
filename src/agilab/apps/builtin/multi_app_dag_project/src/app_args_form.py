@@ -70,7 +70,7 @@ _persisted_sig_key = _k("__persisted_payload")
 _reseed = st.session_state.get(_persisted_sig_key) != current_payload
 st.session_state[_persisted_sig_key] = current_payload
 for key, default in (
-    ("dag_path", str(current_payload.get("dag_path", "dag_templates/flight_to_weather_legacy_multi_app_dag.json"))),
+    ("dag_path", str(current_payload.get("dag_path", "dag_templates/flight_to_weather_multi_app_dag.json"))),
     ("output_path", str(current_payload.get("output_path", "~/log/execute/multi_app_dag/runner_state.json"))),
     ("reset_target", bool(current_payload.get("reset_target", False))),
 ):

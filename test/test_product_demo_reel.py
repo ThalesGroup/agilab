@@ -122,6 +122,13 @@ def test_three_project_reel_uses_data_io_decision_positioning() -> None:
     assert "data_ml_rl" not in module.DEFAULT_MP4
 
 
+def test_weather_reel_uses_current_project_identity() -> None:
+    module = _load_module()
+
+    assert module.VARIANTS["weather_forecast"].scenes == module.WEATHER_FORECAST_SCENES
+    assert "weather_forecast_legacy" not in module.VARIANTS
+
+
 def test_public_demo_guide_avoids_private_routing_app_names() -> None:
     text = PUBLIC_DEMO_GUIDE.read_text(encoding="utf-8")
 

@@ -1340,6 +1340,18 @@ def test_per_app_project_packages_expose_self_contained_project_payloads() -> No
     assert not missing_entry_points
 
 
+def test_weather_forecast_package_preserves_legacy_provider_names() -> None:
+    pyproject = _agi_app_project_pyproject("agi-app-weather-forecast")
+    entry_points = pyproject["project"]["entry-points"]["agilab.apps"]
+
+    assert {
+        "weather_forecast": "agi_app_weather_forecast:project_root",
+        "weather_forecast_project": "agi_app_weather_forecast:project_root",
+        "weather_forecast_legacy": "agi_app_weather_forecast:project_root",
+        "weather_forecast_legacy_project": "agi_app_weather_forecast:project_root",
+    }.items() <= entry_points.items()
+
+
 def test_per_app_project_package_readmes_are_useful_for_pypi() -> None:
     for distribution, project_path in APP_PROJECT_PACKAGE_SPECS:
         package_dir = ROOT / project_path
