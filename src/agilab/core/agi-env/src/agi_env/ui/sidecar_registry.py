@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 import hashlib
 import hmac
+from importlib.machinery import EXTENSION_SUFFIXES
 import json
 import os
 from pathlib import Path
@@ -78,6 +79,13 @@ _PREPARATION_THREAD_GUARDS: dict[str, threading.RLock] = {}
 HOSTED_INLINE_RENDER_LEASE = threading.RLock()
 HOSTED_INLINE_RENDER_SESSION_LEASE = threading.Lock()
 _HOSTED_INLINE_RENDER_LOCK_TIMEOUT_SECONDS = 5.0
+_NATIVE_IMPORT_SUFFIXES = tuple(
+    sorted(
+        {*EXTENSION_SUFFIXES, ".dylib", ".pyd", ".so"},
+        key=len,
+        reverse=True,
+    )
+)
 
 
 @contextmanager
@@ -127,27 +135,44 @@ def _importable_root_names(root: Path) -> set[str]:
     except OSError:
         return names
     for child in children:
-        if child.is_file() and child.suffix == ".py" and child.stem != "__init__":
-            names.add(child.stem)
-        elif child.is_dir() and (child / "__init__.py").is_file():
+        if child.is_file():
+            if child.suffix == ".py" and child.stem != "__init__":
+                names.add(child.stem)
+                continue
+            for suffix in _NATIVE_IMPORT_SUFFIXES:
+                if not child.name.endswith(suffix):
+                    continue
+                module_name = child.name[: -len(suffix)].partition(".")[0]
+                if module_name.isidentifier():
+                    names.add(module_name)
+                break
+        elif child.is_dir() and child.name.isidentifier():
+            # PEP 420 namespace packages are importable without __init__.py and
+            # must be evicted/restored just like regular packages.
             names.add(child.name)
     return names
 
 
 def _module_is_below(module: Any, roots: tuple[Path, ...]) -> bool:
-    raw_path = getattr(module, "__file__", None)
-    if not raw_path:
-        return False
+    raw_paths: list[Any] = []
+    raw_file = getattr(module, "__file__", None)
+    if raw_file:
+        raw_paths.append(raw_file)
     try:
-        module_path = Path(raw_path).resolve(strict=False)
-    except (OSError, TypeError, ValueError):
-        return False
-    for root in roots:
+        raw_paths.extend(getattr(module, "__path__", ()) or ())
+    except TypeError:
+        pass
+    for raw_path in raw_paths:
         try:
-            module_path.relative_to(root)
-            return True
-        except ValueError:
+            module_path = Path(raw_path).resolve(strict=False)
+        except (OSError, TypeError, ValueError):
             continue
+        for root in roots:
+            try:
+                module_path.relative_to(root)
+                return True
+            except ValueError:
+                continue
     return False
 
 

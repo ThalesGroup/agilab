@@ -16,6 +16,31 @@ from urllib.parse import unquote, urlsplit
 _EDITABLE_FINDER_PREFIX = "__editable___"
 _EDITABLE_FINDER_SUFFIX = "_finder"
 _MODULE_SUFFIXES = (".py", ".so", ".pyd", ".dylib")
+_NATIVE_MODULE_SUFFIXES = (".so", ".pyd", ".dylib")
+_NATIVE_SCAN_SKIP_DIRS = frozenset(
+    {
+        ".git",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".venv",
+        "__pycache__",
+    }
+)
+HOSTED_UI_RUNTIME_MODULES = frozenset(
+    {
+        "agilab",
+        "agi_apps",
+        "agi_cluster",
+        "agi_core",
+        "agi_env",
+        "agi_gui",
+        "agi_node",
+        "agi_pages",
+        "agi_web",
+        "streamlit",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -85,6 +110,47 @@ def inspect_pth_import_layout(site_packages: Path) -> PthImportLayout:
         roots=tuple(dict.fromkeys(roots)),
         module_locations=tuple(dict.fromkeys(module_locations)),
     )
+
+
+def hosted_editable_source_import_roots(venv: Path) -> tuple[Path, ...]:
+    """Return manager-owned editable source roots safe for hosted UI imports.
+
+    The manager interpreter may use a different Python minor version from the
+    long-lived Streamlit process.  This function therefore reads ``.pth`` and
+    canonical PEP 660 metadata without executing it, requires an editable local
+    ``direct_url.json`` owner, rejects foreign AGILAB UI runtime packages, and
+    refuses source trees containing native code or external directory symlinks.
+    The manager's ``site-packages`` directory itself is never returned.
+    """
+
+    manager_version = _venv_python_version(venv)
+    roots: list[Path] = []
+    for site_packages in _active_venv_site_package_dirs(venv, manager_version):
+        editable_projects = _editable_project_roots(site_packages)
+        if not editable_projects:
+            continue
+        layout = inspect_pth_import_layout(site_packages)
+        for root in layout.roots:
+            if not any(_path_is_within(root, project) for project in editable_projects):
+                continue
+            if _hosted_source_root_is_safe(root):
+                roots.append(root)
+        for module, location in layout.module_locations:
+            owners = tuple(
+                project
+                for project in editable_projects
+                if _path_is_within(location, project)
+            )
+            if not owners:
+                continue
+            source_root = _structural_source_import_root(module, location)
+            if source_root is None or not any(
+                _path_is_within(source_root, owner) for owner in owners
+            ):
+                continue
+            if _hosted_source_root_is_safe(source_root):
+                roots.append(source_root)
+    return tuple(dict.fromkeys(roots))
 
 
 def top_level_modules_from_distribution(
@@ -333,6 +399,181 @@ def _resolve_without_failure(path: Path) -> Path:
         return path
 
 
+def _venv_python_version(venv: Path) -> tuple[int, int] | None:
+    try:
+        lines = (venv / "pyvenv.cfg").read_text(
+            encoding="utf-8",
+            errors="replace",
+        ).splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        key, separator, raw_value = line.partition("=")
+        if not separator or key.strip().lower() not in {"version", "version_info"}:
+            continue
+        match = re.match(r"\s*(\d+)\.(\d+)", raw_value)
+        if match is not None:
+            return int(match.group(1)), int(match.group(2))
+    return None
+
+
+def _active_venv_site_package_dirs(
+    venv: Path,
+    manager_version: tuple[int, int] | None,
+) -> tuple[Path, ...]:
+    if os.name == "nt":
+        candidate = venv / "Lib" / "site-packages"
+        return (candidate,) if candidate.is_dir() else ()
+    try:
+        candidates = tuple(
+            candidate
+            for candidate in sorted((venv / "lib").glob("python*/site-packages"))
+            if candidate.is_dir()
+        )
+    except OSError:
+        return ()
+    if not candidates:
+        return ()
+    if manager_version is None:
+        return candidates if len(candidates) == 1 else ()
+    directory_name = f"python{manager_version[0]}.{manager_version[1]}"
+    supported_directory_names = {directory_name, f"{directory_name}t"}
+    matching = tuple(
+        candidate
+        for candidate in candidates
+        if candidate.parent.name in supported_directory_names
+    )
+    return matching if len(matching) == 1 else ()
+
+
+def _editable_project_roots(site_packages: Path) -> tuple[Path, ...]:
+    try:
+        direct_url_files = sorted(site_packages.glob("*.dist-info/direct_url.json"))
+    except OSError:
+        return ()
+    projects: list[Path] = []
+    for direct_url_file in direct_url_files:
+        project = _direct_url_project(direct_url_file, editable_only=True)
+        try:
+            if project is not None and project.is_dir():
+                projects.append(project)
+        except OSError:
+            continue
+    return tuple(dict.fromkeys(projects))
+
+
+def _path_is_within(path: Path, root: Path) -> bool:
+    try:
+        _resolve_without_failure(path).relative_to(_resolve_without_failure(root))
+        return True
+    except ValueError:
+        return False
+
+
+def _structural_source_import_root(module: str, location: Path) -> Path | None:
+    """Project a non-aliased pure-Python PEP 660 mapping onto ``sys.path``."""
+
+    parts = module.split(".")
+    if not parts or any(not part.isidentifier() for part in parts):
+        return None
+    try:
+        source_backed = location.is_dir() or location.with_suffix(".py").is_file()
+    except OSError:
+        return None
+    if not source_backed:
+        return None
+    root = location
+    for part in reversed(parts):
+        if root.name != part:
+            return None
+        root = root.parent
+    try:
+        return root.resolve(strict=False) if root.is_dir() else None
+    except OSError:
+        return None
+
+
+def _root_exposes_hosted_runtime(root: Path) -> bool:
+    try:
+        return any(
+            (root / module).is_dir()
+            or (root / f"{module}.py").is_file()
+            or any(
+                (root / f"{module}{suffix}").is_file()
+                or any(root.glob(f"{module}.*{suffix}"))
+                for suffix in _NATIVE_MODULE_SUFFIXES
+            )
+            for module in HOSTED_UI_RUNTIME_MODULES
+        )
+    except OSError:
+        return True
+
+
+def _root_contains_native_code(root: Path) -> bool:
+    """Fail closed on native modules or directory links escaping ``root``."""
+
+    scan_failed = False
+
+    def _record_error(_error: OSError) -> None:
+        nonlocal scan_failed
+        scan_failed = True
+
+    try:
+        root = root.resolve(strict=True)
+    except (FileNotFoundError, OSError, RuntimeError):
+        return True
+
+    seen_directories: set[tuple[int, int]] = set()
+    try:
+        for dirpath, dirnames, filenames in os.walk(
+            root,
+            topdown=True,
+            onerror=_record_error,
+            followlinks=True,
+        ):
+            current = Path(dirpath)
+            try:
+                current_stat = current.stat()
+            except OSError:
+                return True
+            current_identity = (current_stat.st_dev, current_stat.st_ino)
+            if current_identity in seen_directories:
+                dirnames[:] = []
+                continue
+            seen_directories.add(current_identity)
+
+            dirnames[:] = sorted(
+                name for name in dirnames if name not in _NATIVE_SCAN_SKIP_DIRS
+            )
+            safe_dirnames: list[str] = []
+            for name in dirnames:
+                child = current / name
+                try:
+                    if child.is_symlink():
+                        child.resolve(strict=True).relative_to(root)
+                    child_stat = child.stat()
+                except (FileNotFoundError, OSError, RuntimeError, ValueError):
+                    return True
+                child_identity = (child_stat.st_dev, child_stat.st_ino)
+                if child_identity not in seen_directories:
+                    safe_dirnames.append(name)
+            dirnames[:] = safe_dirnames
+            if any(
+                Path(name).suffix.lower() in _NATIVE_MODULE_SUFFIXES
+                for name in filenames
+            ):
+                return True
+    except OSError:
+        return True
+    return scan_failed
+
+
+def _hosted_source_root_is_safe(root: Path) -> bool:
+    if _root_exposes_hosted_runtime(root):
+        return False
+    return not _root_contains_native_code(root)
+
+
 def _valid_dotted_module(value: object) -> bool:
     return (
         isinstance(value, str)
@@ -374,12 +615,25 @@ def _distribution_metadata_dirs(
     return tuple(dict.fromkeys(metadata_dirs))
 
 
-def _direct_url_project(direct_url_file: Path) -> Path | None:
+def _direct_url_project(
+    direct_url_file: Path,
+    *,
+    editable_only: bool = False,
+) -> Path | None:
     try:
         payload = json.loads(direct_url_file.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError, TypeError, ValueError):
         return None
-    url = payload.get("url") if isinstance(payload, dict) else None
+    if not isinstance(payload, dict):
+        return None
+    if editable_only:
+        directory_info = payload.get("dir_info")
+        if (
+            not isinstance(directory_info, dict)
+            or directory_info.get("editable") is not True
+        ):
+            return None
+    url = payload.get("url")
     if not isinstance(url, str):
         return None
     parsed = urlsplit(url)

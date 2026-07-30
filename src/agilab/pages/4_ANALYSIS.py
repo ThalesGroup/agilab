@@ -153,6 +153,7 @@ import_agilab_symbols(
     globals(),
     "agilab.app_surface",
     {
+        "app_editable_import_roots": "app_editable_import_roots",
         "app_surface_config": "app_surface_config",
         "app_surface_title": "app_surface_title",
         "configured_app_surface_entrypoint": "configured_app_surface_entrypoint",
@@ -3505,6 +3506,16 @@ async def _render_view_page_inline(view_path: Path, active_app: str) -> None:
         if not resolved_view.exists():
             raise FileNotFoundError(f"Analysis view does not exist: {resolved_view}")
 
+        import_roots = [resolved_view.parent]
+        if active_app:
+            try:
+                active_app_path = Path(active_app).expanduser().resolve(strict=True)
+            except OSError:
+                active_app_path = None
+            if active_app_path is not None and active_app_path.is_dir():
+                import_roots.extend(app_editable_import_roots(active_app_path))
+        scoped_import_roots = tuple(dict.fromkeys(import_roots))
+
         module_name = f"agilab_analysis_inline_{resolved_view.stem}_{_short_page_token(resolved_view)}"
         original_module = sys.modules.get(module_name)
         try:
@@ -3514,8 +3525,8 @@ async def _render_view_page_inline(view_path: Path, active_app: str) -> None:
 
             with isolated_import_process_state(
                 argv=render_argv,
-                prepend_paths=(resolved_view.parent,),
-                module_roots=(resolved_view.parent,),
+                prepend_paths=scoped_import_roots,
+                module_roots=scoped_import_roots,
             ):
                 spec = importlib.util.spec_from_file_location(module_name, resolved_view)
                 if spec is None or spec.loader is None:

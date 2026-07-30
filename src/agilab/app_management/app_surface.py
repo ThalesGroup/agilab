@@ -299,6 +299,49 @@ def _isolated_import_process_state() -> Any:
     return isolated_import_process_state
 
 
+def app_editable_import_roots(
+    active_app: str | Path,
+) -> tuple[Path, ...]:
+    """Return isolated source roots for an app and its installed editables.
+
+    ``AGI.install`` owns the manager environment, but inline Streamlit forms and
+    surfaces execute in the AGILAB UI interpreter.  This reads the manager's
+    editable layout as data, without executing its ``.pth`` code or adding its
+    foreign-version ``site-packages`` directory.
+    """
+
+    app_path = Path(active_app).expanduser().resolve(strict=False)
+    app_source = app_path / "src"
+    try:
+        from agi_env.runtime import import_layout_support
+    except ModuleNotFoundError as exc:
+        if exc.name and not (
+            exc.name == "agi_env" or exc.name.startswith("agi_env.")
+        ):
+            raise
+        return (app_source,)
+    except ImportError as exc:
+        raise RuntimeError(
+            "The installed AGILAB UI runtime cannot inspect manager editables. "
+            "Upgrade the aligned AGILAB packages and restart Streamlit."
+        ) from exc
+    editable_roots = getattr(
+        import_layout_support,
+        "hosted_editable_source_import_roots",
+        None,
+    )
+    if not callable(editable_roots):
+        raise RuntimeError(
+            "The installed AGILAB UI runtime is stale: agi_env does not expose "
+            "hosted editable import support. Upgrade the aligned AGILAB packages "
+            "and restart Streamlit."
+        )
+
+    return tuple(
+        dict.fromkeys((app_source, *editable_roots(app_path / ".venv")))
+    )
+
+
 def render_app_surface(
     active_app: str | Path | None,
     *,
@@ -319,7 +362,12 @@ def render_app_surface(
     entrypoint = resolve_app_surface_entrypoint(active_app_path, selected.entrypoint)
     if entrypoint is None:
         return False
-    import_roots = (active_app_path / "src", entrypoint.parent)
+    app_import_roots = app_editable_import_roots(active_app_path)
+    import_roots = tuple(
+        dict.fromkeys(
+            (app_import_roots[0], entrypoint.parent, *app_import_roots[1:])
+        )
+    )
     with _isolated_import_process_state()(
         argv=[str(entrypoint), "--active-app", str(active_app_path)],
         prepend_paths=import_roots,

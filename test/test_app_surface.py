@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
+import json
+import os
 import sys
 import threading
 import time
@@ -12,6 +14,37 @@ import pytest
 
 MODULE_PATH = Path("src/agilab/app_surface.py")
 IMPLEMENTATION_MODULE_PATH = Path("src/agilab/app_management/app_surface.py")
+
+
+def _manager_site_packages(app: Path) -> Path:
+    venv = app / ".venv"
+    (venv / "pyvenv.cfg").parent.mkdir(parents=True, exist_ok=True)
+    (venv / "pyvenv.cfg").write_text("version_info = 99.99.0\n", encoding="utf-8")
+    if os.name == "nt":
+        site_packages = venv / "Lib" / "site-packages"
+    else:
+        site_packages = venv / "lib" / "python99.99" / "site-packages"
+    site_packages.mkdir(parents=True, exist_ok=True)
+    return site_packages
+
+
+def _write_editable_owner(
+    site_packages: Path,
+    *,
+    distribution: str,
+    project: Path,
+) -> None:
+    metadata = site_packages / f"{distribution}-1.0.dist-info"
+    metadata.mkdir(parents=True)
+    (metadata / "direct_url.json").write_text(
+        json.dumps(
+            {
+                "url": project.resolve().as_uri(),
+                "dir_info": {"editable": True},
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def _load_app_surface_module():
@@ -45,6 +78,40 @@ def test_base_app_surface_import_does_not_require_optional_agi_env(
 
     with pytest.raises(ModuleNotFoundError, match=r"agilab\[ui\]"):
         module._isolated_import_process_state()
+
+
+def test_app_editable_import_roots_reports_stale_agi_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from agi_env.runtime import import_layout_support
+
+    module = _load_app_surface_module()
+    monkeypatch.delattr(
+        import_layout_support,
+        "hosted_editable_source_import_roots",
+    )
+
+    with pytest.raises(RuntimeError, match="AGILAB UI runtime is stale"):
+        module.app_editable_import_roots(tmp_path / "demo_project")
+
+
+def test_app_editable_import_roots_reports_missing_import_layout_module(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load_app_surface_module()
+    real_import = builtins.__import__
+
+    def _without_import_layout(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "agi_env.runtime" and "import_layout_support" in fromlist:
+            raise ImportError("cannot import name 'import_layout_support'")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _without_import_layout)
+
+    with pytest.raises(RuntimeError, match="cannot inspect manager editables"):
+        module.app_editable_import_roots(tmp_path / "demo_project")
 
 
 def _write_app_surface_project(tmp_path: Path) -> Path:
@@ -186,6 +253,140 @@ def test_render_app_surface_calls_project_render_hook_and_restores_argv(tmp_path
         }
     ]
     assert sys.argv == before_argv
+
+
+def test_app_editable_import_roots_admits_source_without_foreign_site_packages(
+    tmp_path: Path,
+) -> None:
+    module = _load_app_surface_module()
+    app = tmp_path / "manager_project"
+    app_source = app / "src"
+    app_source.mkdir(parents=True)
+    site_packages = _manager_site_packages(app)
+
+    plain_project = tmp_path / "plain-project"
+    plain_root = plain_project / "src"
+    (plain_root / "plain_dep").mkdir(parents=True)
+    (plain_root / "plain_dep" / "__init__.py").write_text("", encoding="utf-8")
+    _write_editable_owner(
+        site_packages,
+        distribution="plain_dep",
+        project=plain_project,
+    )
+    (site_packages / "plain-editable.pth").write_text(
+        f"{plain_root}\n",
+        encoding="utf-8",
+    )
+    foreign_project = tmp_path / "other-agilab-checkout"
+    foreign_framework_root = foreign_project / "src"
+    (foreign_framework_root / "agi_web").mkdir(parents=True)
+    _write_editable_owner(
+        site_packages,
+        distribution="foreign_framework",
+        project=foreign_project,
+    )
+    (site_packages / "foreign-framework.pth").write_text(
+        f"{foreign_framework_root}\n",
+        encoding="utf-8",
+    )
+
+    mapped_project = tmp_path / "mapped-project"
+    mapped_root = mapped_project / "src"
+    mapped_package = mapped_root / "mapped_dep"
+    mapped_package.mkdir(parents=True)
+    (mapped_package / "__init__.py").write_text("", encoding="utf-8")
+    _write_editable_owner(
+        site_packages,
+        distribution="mapped_dep",
+        project=mapped_project,
+    )
+    finder_name = "__editable___manager_deps_finder"
+    (site_packages / f"{finder_name}.py").write_text(
+        "from __future__ import annotations\n"
+        f"MAPPING = {{'mapped_dep': {str(mapped_package)!r}}}\n"
+        "NAMESPACES = {}\n"
+        "def install():\n    pass\n",
+        encoding="utf-8",
+    )
+    (site_packages / "mapped-editable.pth").write_text(
+        f"import {finder_name}; {finder_name}.install()\n",
+        encoding="utf-8",
+    )
+
+    unowned_root = tmp_path / "unowned-source"
+    unowned_root.mkdir()
+    (site_packages / "unowned.pth").write_text(
+        f"{unowned_root}\n",
+        encoding="utf-8",
+    )
+
+    native_project = tmp_path / "native-project"
+    native_root = native_project / "src"
+    native_root.mkdir(parents=True)
+    (native_root / "native_dep.so").write_bytes(b"foreign ABI")
+    _write_editable_owner(
+        site_packages,
+        distribution="native_dep",
+        project=native_project,
+    )
+    (site_packages / "native.pth").write_text(
+        f"{native_root}\n",
+        encoding="utf-8",
+    )
+
+    assert module.app_editable_import_roots(app) == (
+        app_source.resolve(strict=False),
+        plain_root.resolve(strict=False),
+        mapped_root.resolve(strict=False),
+    )
+    assert site_packages not in module.app_editable_import_roots(app)
+    assert foreign_framework_root not in module.app_editable_import_roots(app)
+    assert unowned_root not in module.app_editable_import_roots(app)
+    assert native_root not in module.app_editable_import_roots(app)
+
+
+def test_render_app_surface_imports_manager_editable_dependency(
+    tmp_path: Path,
+) -> None:
+    module = _load_app_surface_module()
+    app = _write_app_surface_project(tmp_path)
+    dependency_project = tmp_path / "dependency-project"
+    dependency_root = dependency_project / "src"
+    dependency = dependency_root / "surface_dependency"
+    dependency.mkdir(parents=True)
+    (dependency / "__init__.py").write_text(
+        "MARKER = 'surface dependency loaded'\n",
+        encoding="utf-8",
+    )
+    site_packages = _manager_site_packages(app)
+    _write_editable_owner(
+        site_packages,
+        distribution="surface_dependency",
+        project=dependency_project,
+    )
+    (site_packages / "surface-dependency.pth").write_text(
+        f"{dependency_root}\n",
+        encoding="utf-8",
+    )
+    entrypoint = app / "src" / "demo" / "app_surface.py"
+    entrypoint.write_text(
+        "import surface_dependency\n"
+        "def render(*, container, **_kwargs):\n"
+        "    container.append(surface_dependency.MARKER)\n",
+        encoding="utf-8",
+    )
+    events: list[str] = []
+
+    assert (
+        module.render_app_surface(
+            app,
+            mode="configure",
+            container=events,
+        )
+        is True
+    )
+    assert events == ["surface dependency loaded"]
+    assert "surface_dependency" not in sys.modules
 
 
 def test_render_app_surface_serializes_and_restores_project_import_state(

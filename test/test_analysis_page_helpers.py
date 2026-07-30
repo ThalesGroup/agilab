@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 from contextlib import contextmanager
 import importlib.util
+import json
 import os
 import signal
 import subprocess
@@ -3000,6 +3001,93 @@ def main():
     asyncio.run(module._render_view_page_inline(page_path, str(active_app)))
 
     assert fake_streamlit.session_state["inline_active_app"] == str(active_app)
+
+
+def test_render_view_page_inline_scopes_app_and_owned_editable_dependencies(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_analysis_module()
+    coordination = types.ModuleType("agilab_inline_editable_coordination")
+    monkeypatch.setitem(sys.modules, coordination.__name__, coordination)
+
+    active_app = tmp_path / "demo_project"
+    app_source = active_app / "src"
+    app_source.mkdir(parents=True)
+    (app_source / "app_inline_helper.py").write_text(
+        'VALUE = "app"\n',
+        encoding="utf-8",
+    )
+
+    dependency_project = tmp_path / "manager_dependency"
+    dependency_source = dependency_project / "src"
+    dependency_source.mkdir(parents=True)
+    (dependency_source / "manager_inline_dependency.py").write_text(
+        'VALUE = "manager"\n',
+        encoding="utf-8",
+    )
+
+    python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    manager_venv = active_app / ".venv"
+    manager_venv.mkdir()
+    (manager_venv / "pyvenv.cfg").write_text(
+        f"version_info = {python_version}.0\n",
+        encoding="utf-8",
+    )
+    site_packages = (
+        manager_venv / "Lib" / "site-packages"
+        if os.name == "nt"
+        else manager_venv / "lib" / f"python{python_version}" / "site-packages"
+    )
+    site_packages.mkdir(parents=True)
+    (site_packages / "manager-dependency.pth").write_text(
+        f"{dependency_source}\n",
+        encoding="utf-8",
+    )
+    dist_info = site_packages / "manager_dependency-1.0.dist-info"
+    dist_info.mkdir()
+    (dist_info / "direct_url.json").write_text(
+        json.dumps(
+            {
+                "url": dependency_project.resolve().as_uri(),
+                "dir_info": {"editable": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    view_dir = tmp_path / "views"
+    view_dir.mkdir()
+    (view_dir / "view_inline_helper.py").write_text(
+        'VALUE = "view"\n',
+        encoding="utf-8",
+    )
+    page_path = view_dir / "demo_view.py"
+    page_path.write_text(
+        "import app_inline_helper\n"
+        "import manager_inline_dependency\n"
+        "import view_inline_helper\n"
+        "import agilab_inline_editable_coordination as coordination\n\n"
+        "def main():\n"
+        "    coordination.values = (\n"
+        "        view_inline_helper.VALUE,\n"
+        "        app_inline_helper.VALUE,\n"
+        "        manager_inline_dependency.VALUE,\n"
+        "    )\n",
+        encoding="utf-8",
+    )
+    original_path = list(sys.path)
+
+    asyncio.run(module._render_view_page_inline(page_path, str(active_app)))
+
+    assert coordination.values == ("view", "app", "manager")
+    assert sys.path == original_path
+    for imported_name in (
+        "view_inline_helper",
+        "app_inline_helper",
+        "manager_inline_dependency",
+    ):
+        assert imported_name not in sys.modules
 
 
 def test_render_view_page_inline_fails_fast_and_restores_process_state(tmp_path: Path, monkeypatch):
