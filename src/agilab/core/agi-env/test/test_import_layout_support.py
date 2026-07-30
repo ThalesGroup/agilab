@@ -324,8 +324,8 @@ def test_hosted_editable_roots_use_only_owned_active_minor_safe_sources(
     hosted_project = tmp_path / "hosted-runtime-project"
     hosted_root = hosted_project / "src"
     _write_importable_package(hosted_root, "otherwise_safe_dep")
-    (hosted_root / "agi_web").mkdir(parents=True)
-    (hosted_root / "agi_core").mkdir()
+    (hosted_root / "agi_future_runtime").mkdir(parents=True)
+    (hosted_root / "streamlit.py").write_text("", encoding="utf-8")
     _write_editable_owner(active_site, "hosted_runtime_project", hosted_project)
     (active_site / "40-hosted-runtime.pth").write_text(
         f"{hosted_root}\n",

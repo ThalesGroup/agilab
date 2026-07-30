@@ -27,20 +27,8 @@ _NATIVE_SCAN_SKIP_DIRS = frozenset(
         "__pycache__",
     }
 )
-HOSTED_UI_RUNTIME_MODULES = frozenset(
-    {
-        "agilab",
-        "agi_apps",
-        "agi_cluster",
-        "agi_core",
-        "agi_env",
-        "agi_gui",
-        "agi_node",
-        "agi_pages",
-        "agi_web",
-        "streamlit",
-    }
-)
+_HOSTED_RUNTIME_EXACT_MODULES = frozenset({"agilab", "streamlit"})
+_HOSTED_RUNTIME_MODULE_PREFIXES = ("agi_",)
 
 
 @dataclass(frozen=True)
@@ -495,18 +483,29 @@ def _structural_source_import_root(module: str, location: Path) -> Path | None:
 
 def _root_exposes_hosted_runtime(root: Path) -> bool:
     try:
-        return any(
-            (root / module).is_dir()
-            or (root / f"{module}.py").is_file()
-            or any(
-                (root / f"{module}{suffix}").is_file()
-                or any(root.glob(f"{module}.*{suffix}"))
-                for suffix in _NATIVE_MODULE_SUFFIXES
-            )
-            for module in HOSTED_UI_RUNTIME_MODULES
-        )
+        entries = sorted(root.iterdir(), key=lambda path: path.name)
     except OSError:
         return True
+    for entry in entries:
+        try:
+            if entry.is_dir():
+                module = entry.name
+            elif entry.is_file() and entry.suffix.lower() in (
+                ".py",
+                *_NATIVE_MODULE_SUFFIXES,
+            ):
+                module = entry.name.split(".", 1)[0]
+            else:
+                continue
+        except OSError:
+            return True
+        if not module.isidentifier():
+            continue
+        if module in _HOSTED_RUNTIME_EXACT_MODULES or module.startswith(
+            _HOSTED_RUNTIME_MODULE_PREFIXES
+        ):
+            return True
+    return False
 
 
 def _root_contains_native_code(root: Path) -> bool:
