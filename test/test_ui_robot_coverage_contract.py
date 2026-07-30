@@ -44,7 +44,7 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
     assert payload["coverage"]["configured_apps_pages_scenarios"] == ["isolated-entry-and-app-pages"]
     assert payload["coverage"]["editor_routes"] == {
         "PROJECT_EDITOR": {
-            "forbidden_text": ["Environment Health", "Source LOC", "Worker class"],
+            "forbidden_text": ["Environment Health", "Source KLOC", "Worker class"],
             "required_text": ["Edit project files"],
             "scenarios": ["isolated-project-editor-page"],
         }
@@ -219,7 +219,7 @@ def test_ui_robot_coverage_contract_accepts_explicit_full_app_profile(monkeypatc
         "isolated-project-editor-page",
         pages="PROJECT_EDITOR",
         required_text="Edit project files",
-        forbidden_text="Environment Health,Source LOC,Worker class",
+        forbidden_text="Environment Health,Source KLOC,Worker class",
     )
     hf_visual = scenario(
         "hf-first-proof-visual-smoke",

@@ -68,13 +68,14 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert project.apps_pages == "none"
     assert project.runtime_isolation == "isolated"
     assert project.action_button_policy == "safe-click"
+    assert project.required_text == "Project metrics,Source KLOC"
     assert project.action_timeout_seconds == 30.0
     assert project_editor.pages == "PROJECT_EDITOR"
     assert project_editor.apps_pages == "none"
     assert project_editor.runtime_isolation == "isolated"
     assert project_editor.action_button_policy == "safe-click"
     assert project_editor.required_text == "Edit project files"
-    assert project_editor.forbidden_text == "Worker class,Source LOC,Environment Health"
+    assert project_editor.forbidden_text == "Worker class,Source KLOC,Environment Health"
     assert project_notebook.pages == "PROJECT"
     assert project_notebook.route_query == "start=notebook-import"
     assert project_notebook.apps_pages == "none"
@@ -1125,7 +1126,7 @@ def test_build_robot_command_covers_project_editor_page(tmp_path) -> None:
     assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
     assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
     assert argv[argv.index("--required-text") + 1] == "Edit project files"
-    assert argv[argv.index("--forbidden-text") + 1] == "Worker class,Source LOC,Environment Health"
+    assert argv[argv.index("--forbidden-text") + 1] == "Worker class,Source KLOC,Environment Health"
     assert argv[argv.index("--screenshot-dir") + 1] == str(
         tmp_path / "screenshots" / "isolated-project-editor-page"
     )

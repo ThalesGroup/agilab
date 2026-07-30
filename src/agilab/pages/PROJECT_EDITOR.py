@@ -20,7 +20,6 @@ import json
 import shlex
 import subprocess
 import zipfile
-import html
 import hashlib
 import tomllib
 from pathlib import Path
@@ -2689,8 +2688,15 @@ def render_project_dashboard(env) -> None:
     """Render PROJECT-owned dashboard panels for the active project."""
     with st.container(border=True):
         health = render_environment_health_panel(st, env, render_details=False)
-    with st.expander("Project metrics", expanded=False):
-        _render_project_software_metrics(env)
+    metrics_expander = st.expander(
+        "Project metrics",
+        expanded=False,
+        key="project:development_metrics",
+        on_change="rerun",
+    )
+    if metrics_expander.open:
+        with metrics_expander:
+            _render_project_software_metrics(env)
     render_environment_details(st, health.details)
 
 
@@ -2852,43 +2858,6 @@ def _safe_display_path(value) -> str:
         return str(value)
 
 
-_INCOMPLETE_HEADER_VALUE_TOKENS = (
-    "incomplete",
-    "missing",
-    "not configured",
-    "not selected",
-    "not set",
-    "unknown",
-)
-
-
-def _header_value_state(value: str, caption: str = "") -> str:
-    normalized = f"{value or ''} {caption or ''}".strip().lower()
-    if not normalized:
-        return "incomplete"
-    if any(token in normalized for token in _INCOMPLETE_HEADER_VALUE_TOKENS):
-        return "incomplete"
-    return "ready"
-
-
-def _render_metric_card(container, label: str, value: str, caption: str) -> None:
-    state = _header_value_state(value, caption)
-    container.markdown(
-        (
-            f"<div class='agilab-header-card agilab-header-card--{state}'>"
-            f"<div class='agilab-header-label'>{html.escape(label)}</div>"
-            f"<div class='agilab-header-value agilab-header-value--{state}'>{html.escape(str(value))}</div>"
-            f"<div class='agilab-header-caption'>{html.escape(caption)}</div>"
-            "</div>"
-        ),
-        unsafe_allow_html=True,
-    )
-
-
-def _render_project_metric(label: str, value: str, caption: str) -> None:
-    _render_metric_card(st, label, value, caption)
-
-
 _SOFTWARE_METRIC_EXCLUDED_DIRS = {
     ".git",
     ".mypy_cache",
@@ -2908,10 +2877,14 @@ _SOFTWARE_METRIC_CONFIG_NAMES = {".env", ".gitignore", "Dockerfile"}
 
 def _iter_project_metric_files(project_root: Path):
     try:
-        root = Path(project_root)
+        root = Path(project_root).resolve()
     except TypeError:
         return
     if not root.exists():
+        return
+    git_files = _git_visible_project_metric_files(root)
+    if git_files is not None:
+        yield from git_files
         return
     for current_root, dirs, files in os.walk(root):
         dirs[:] = sorted(
@@ -2924,11 +2897,83 @@ def _iter_project_metric_files(project_root: Path):
             yield Path(current_root) / filename
 
 
+def _git_visible_project_metric_files(project_root: Path) -> tuple[Path, ...] | None:
+    try:
+        top_level = subprocess.run(
+            ["git", "-C", str(project_root), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if top_level.returncode != 0:
+        return None
+    repository_root = Path(top_level.stdout.strip()).resolve()
+    try:
+        project_relative = project_root.relative_to(repository_root)
+    except ValueError:
+        return None
+    pathspec = "." if project_relative == Path(".") else project_relative.as_posix()
+    try:
+        inventory = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository_root),
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "-z",
+                "--",
+                pathspec,
+            ],
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if inventory.returncode != 0:
+        return None
+    visible: set[Path] = set()
+    for raw_path in inventory.stdout.split(b"\0"):
+        if not raw_path:
+            continue
+        try:
+            path = (repository_root / os.fsdecode(raw_path)).resolve()
+            relative = path.relative_to(project_root)
+        except (OSError, ValueError):
+            continue
+        if any(
+            part in _SOFTWARE_METRIC_EXCLUDED_DIRS or part.startswith(".")
+            for part in relative.parts[:-1]
+        ):
+            continue
+        if path.is_file():
+            visible.add(path)
+    return tuple(sorted(visible, key=str))
+
+
 def _python_source_line_count(source: str) -> int:
     return sum(
         1
         for line in source.splitlines()
         if line.strip() and not line.lstrip().startswith("#")
+    )
+
+
+def _python_structure_counts(source: str) -> tuple[int, int, int]:
+    tree = ast.parse(source)
+    functions = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+    return (
+        len(functions),
+        sum(isinstance(node, ast.ClassDef) for node in ast.walk(tree)),
+        sum(node.name.startswith("test_") for node in functions),
     )
 
 
@@ -2988,16 +3033,21 @@ def _iter_repo_project_test_files(project_root: Path):
 
 def _project_software_metric_summary(
     project_root: Path | None,
-) -> dict[str, int] | None:
+) -> dict[str, int | str] | None:
     if project_root is None or not project_root.exists():
         return None
+    project_root = Path(project_root).resolve()
     summary = {
         "source_files": 0,
         "source_lines": 0,
         "test_files": 0,
+        "test_lines": 0,
+        "test_cases": 0,
         "functions": 0,
         "classes": 0,
         "docs_config": 0,
+        "largest_module_lines": 0,
+        "largest_module": "none",
     }
     counted_tests: set[Path] = set()
     for path in _iter_project_metric_files(project_root):
@@ -3021,25 +3071,39 @@ def _project_software_metric_summary(
             source = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        if not is_test:
-            summary["source_lines"] += _python_source_line_count(source)
+        if is_test:
+            summary["test_lines"] += _python_source_line_count(source)
+        else:
+            source_lines = _python_source_line_count(source)
+            summary["source_lines"] += source_lines
+            if source_lines > summary["largest_module_lines"]:
+                summary["largest_module_lines"] = source_lines
+                summary["largest_module"] = path.relative_to(project_root).as_posix()
         try:
-            tree = ast.parse(source)
+            functions, classes, test_cases = _python_structure_counts(source)
         except SyntaxError:
             continue
-        summary["functions"] += sum(
-            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            for node in ast.walk(tree)
-        )
-        summary["classes"] += sum(
-            isinstance(node, ast.ClassDef) for node in ast.walk(tree)
-        )
+        if is_test:
+            summary["test_cases"] += test_cases
+        else:
+            summary["functions"] += functions
+            summary["classes"] += classes
     for path in _iter_repo_project_test_files(project_root):
         resolved = path.resolve()
         if resolved in counted_tests:
             continue
         summary["test_files"] += 1
         counted_tests.add(resolved)
+        try:
+            source = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        summary["test_lines"] += _python_source_line_count(source)
+        try:
+            _, _, test_cases = _python_structure_counts(source)
+        except SyntaxError:
+            continue
+        summary["test_cases"] += test_cases
     return summary
 
 
@@ -3140,7 +3204,18 @@ def _format_project_kloc(source_lines: object) -> str:
         lines = int(source_lines)
     except (TypeError, ValueError):
         return "unknown"
-    return f"{lines / 1000:.1f} KLOC"
+    return f"{lines / 1000:.2f} KLOC"
+
+
+def _format_project_test_source_ratio(test_lines: object, source_lines: object) -> str:
+    try:
+        tests = int(test_lines)
+        source = int(source_lines)
+    except (TypeError, ValueError):
+        return "unknown"
+    if source <= 0:
+        return "n/a"
+    return f"{tests / source:.0%}"
 
 
 def _render_project_software_metrics(env) -> None:
@@ -3157,19 +3232,54 @@ def _render_project_software_metrics(env) -> None:
         )
         return
     worker_class, worker_caption = _project_worker_class_summary(active_app)
-    st.code(
-        "\n".join(
-            (
-                f"Worker class: {worker_class} ({worker_caption})",
-                f"Source KLOC: {_format_project_kloc(summary['source_lines'])}",
-                f"Tests: {summary['test_files']}",
-                f"Functions: {summary['functions']}",
-                f"Classes: {summary['classes']}",
-                f"Docs/config files: {summary['docs_config']}",
-                f"UI pages: {_project_ui_page_count(active_app)}",
-            )
-        ),
-        language="text",
+    with st.container(horizontal=True):
+        st.metric(
+            "Source KLOC",
+            _format_project_kloc(summary["source_lines"]),
+            help=(
+                f"{summary['source_lines']:,} non-empty, non-comment Python lines "
+                f"across {summary['source_files']} files."
+            ),
+            border=True,
+        )
+        st.metric(
+            "Test KLOC",
+            _format_project_kloc(summary["test_lines"]),
+            help=(
+                f"{summary['test_lines']:,} lines across {summary['test_files']} files; "
+                f"{summary['test_cases']} test_* definitions."
+            ),
+            border=True,
+        )
+        st.metric(
+            "Test/source LOC",
+            _format_project_test_source_ratio(
+                summary["test_lines"], summary["source_lines"]
+            ),
+            help="Non-empty, non-comment test lines divided by source lines. This is not coverage.",
+            border=True,
+        )
+        st.metric(
+            "Largest module",
+            f"{summary['largest_module_lines']:,} LOC",
+            help=str(summary["largest_module"]),
+            border=True,
+        )
+    st.caption(
+        f"Source: {summary['source_lines']:,} LOC in {summary['source_files']} files · "
+        f"Tests: {summary['test_lines']:,} LOC, {summary['test_cases']} definitions in "
+        f"{summary['test_files']} files."
+    )
+    st.caption(
+        f"Architecture inventory: {summary['functions']} functions · "
+        f"{summary['classes']} classes · {_project_ui_page_count(active_app)} UI pages · "
+        f"{summary['docs_config']} docs/config files · Worker: {worker_class} "
+        f"({worker_caption})."
+    )
+    st.caption(
+        "Structural inventory, not a quality score. Git-ignored files are excluded when "
+        "a Git inventory is available; build outputs, virtual environments, caches, "
+        "blank lines, and comment-only lines are always excluded."
     )
 
 

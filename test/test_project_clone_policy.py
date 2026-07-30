@@ -169,12 +169,18 @@ def test_project_software_metric_summary_counts_repository_tests_for_builtin_fli
     project_root = Path("src/agilab/apps/builtin/flight_telemetry_project")
 
     repo_test_names = {path.name for path in module._iter_repo_project_test_files(project_root)}
+    visible_metric_files = set(module._iter_project_metric_files(project_root))
     summary = module._project_software_metric_summary(project_root)
 
     assert "test_cluster_flight_validation.py" in repo_test_names
     assert "test_flight_telemetry_project_runtime_args.py" in repo_test_names
     assert "test_notebook_import_preflight.py" not in repo_test_names
+    assert (
+        project_root.resolve() / "notebooks" / "sitecustomize.py"
+    ) not in visible_metric_files
     assert summary["test_files"] >= len(repo_test_names) > 0
+    assert summary["test_lines"] > 0
+    assert summary["test_cases"] > 0
 
 
 def test_project_worker_class_summary_detects_builtin_flight_telemetry_worker_class():

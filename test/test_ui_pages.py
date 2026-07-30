@@ -6,6 +6,7 @@ import importlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -3192,6 +3193,7 @@ def test_edit_page_load(mock_ui_env):
     assert "Worker env" not in markdown_text
     assert "Settings" not in markdown_text
     assert "Cluster share" not in markdown_text
+    assert not at.metric
     assert "API keys" not in markdown_text
     assert "Project</div>" not in markdown_text
     assert "Project workspace" not in markdown_text
@@ -3232,14 +3234,17 @@ def test_project_sidebar_orders_active_project_before_actions():
     dashboard_body = source[source.index("def render_project_dashboard(env)") :]
     dashboard_body = dashboard_body.split("def handle_project_selection(", 1)[0]
     assert "with st.container(border=True):" in dashboard_body
-    assert 'st.expander("Project metrics", expanded=False)' in dashboard_body
+    assert '"Project metrics",\n        expanded=False,' in dashboard_body
+    assert 'key="project:development_metrics"' in dashboard_body
+    assert 'on_change="rerun"' in dashboard_body
+    assert "if metrics_expander.open:" in dashboard_body
     assert "_render_project_software_metrics(env)" in dashboard_body
     assert dashboard_body.index("with st.container(border=True):") < dashboard_body.index(
-        'st.expander("Project metrics", expanded=False)'
+        '"Project metrics",\n        expanded=False,'
     )
 
     assert dashboard_body.index(
-        'st.expander("Project metrics", expanded=False)'
+        '"Project metrics",\n        expanded=False,'
     ) < dashboard_body.index("render_environment_details(st, health.details)")
     assert "_render_edit_project_metric" not in source
     assert "Choose what to do with the active project" not in source
@@ -4022,8 +4027,81 @@ def test_project_metrics_count_ui_pages_and_format_kloc(tmp_path):
     (package / "streamlit_app.py").write_text("import streamlit as st\n", encoding="utf-8")
 
     assert project_page._project_ui_page_count(project) == 4
-    assert project_page._format_project_kloc(1540) == "1.5 KLOC"
+    assert project_page._format_project_kloc(1540) == "1.54 KLOC"
+    assert project_page._format_project_kloc(42) == "0.04 KLOC"
     assert project_page._format_project_kloc("bad") == "unknown"
+    assert project_page._format_project_test_source_ratio(770, 1540) == "50%"
+    assert project_page._format_project_test_source_ratio(0, 0) == "n/a"
+    assert project_page._format_project_test_source_ratio("bad", 1540) == "unknown"
+
+
+def test_project_software_metric_summary_separates_source_and_test_kpis(tmp_path):
+    project_page = _load_project_page_module()
+    project = tmp_path / "demo_project"
+    package = project / "src" / "demo_project"
+    tests = project / "tests"
+    package.mkdir(parents=True)
+    tests.mkdir(parents=True)
+    (package / "module.py").write_text(
+        "# excluded comment\n"
+        "class Demo:\n"
+        "    def run(self):\n"
+        "        return 1\n"
+        "\n"
+        "async def fetch():\n"
+        "    return 2\n",
+        encoding="utf-8",
+    )
+    (tests / "test_module.py").write_text(
+        "# excluded comment\n"
+        "def test_run():\n"
+        "    assert True\n"
+        "\n"
+        "def helper():\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+    (project / "README.md").write_text("# Demo\n", encoding="utf-8")
+    (project / "pyproject.toml").write_text("[project]\nname='demo'\n", encoding="utf-8")
+    (project / ".gitignore").write_text("ignored.py\n", encoding="utf-8")
+    (project / "ignored.py").write_text(
+        "def ignored_function():\n    return 'ignored'\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+
+    summary = project_page._project_software_metric_summary(project)
+
+    assert summary == {
+        "source_files": 1,
+        "source_lines": 5,
+        "test_files": 1,
+        "test_lines": 4,
+        "test_cases": 1,
+        "functions": 2,
+        "classes": 1,
+        "docs_config": 3,
+        "largest_module_lines": 5,
+        "largest_module": "src/demo_project/module.py",
+    }
+
+
+def test_project_metric_files_fall_back_when_git_is_unavailable(tmp_path, monkeypatch):
+    project_page = _load_project_page_module()
+    project = tmp_path / "demo_project"
+    source = project / "src" / "module.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("value = 1\n", encoding="utf-8")
+    ignored = project / ".venv" / "ignored.py"
+    ignored.parent.mkdir()
+    ignored.write_text("value = 2\n", encoding="utf-8")
+
+    def git_unavailable(*_args, **_kwargs):
+        raise OSError("git is unavailable")
+
+    monkeypatch.setattr(project_page.subprocess, "run", git_unavailable)
+
+    assert list(project_page._iter_project_metric_files(project)) == [source]
 
 
 def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_actions(mock_ui_env):
@@ -4040,6 +4118,11 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
     at.session_state["env"] = env
 
+    at.run()
+    assert not at.exception
+    assert not at.metric
+
+    at.session_state["project:development_metrics"] = True
     at.run()
     assert not at.exception
 
@@ -4089,14 +4172,20 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     expander_labels = [str(item.label) for item in at.expander]
     assert "Project metrics" in expander_labels
-    code_text = "\n".join(str(item.value) for item in at.code)
-    assert "Worker class" in code_text
     assert "agilab-project-metric" not in markdown_text
-    assert "Source KLOC" in code_text
-    assert "Functions" in code_text
-    assert "Classes" in code_text
-    assert "Docs/config files" in code_text
-    assert "UI pages" in code_text
+    metric_values = {str(item.label): str(item.value) for item in at.metric}
+    assert {
+        "Source KLOC",
+        "Test KLOC",
+        "Test/source LOC",
+        "Largest module",
+    } <= metric_values.keys()
+    assert metric_values["Source KLOC"].endswith(" KLOC")
+    assert metric_values["Test KLOC"].endswith(" KLOC")
+    assert metric_values["Test/source LOC"].endswith("%")
+    caption_text = "\n".join(str(item.value) for item in at.caption)
+    assert "Structural inventory, not a quality score" in caption_text
+    assert "Architecture inventory" in caption_text
     assert "Project path" in markdown_text
     assert "Manager env" in markdown_text
     assert "Worker env" in markdown_text
