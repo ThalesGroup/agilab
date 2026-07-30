@@ -28,14 +28,14 @@
       .trace { stroke: #738987; stroke-width: 2.1; stroke-dasharray: 8 8; fill: none; }
       .divider { stroke: #c7d1d2; stroke-width: 1.4; stroke-dasharray: 5 7; }
     </style>
-    <marker id="arrowConcept" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#2d6f9f"/>
+    <marker id="arrowConcept" markerUnits="userSpaceOnUse" markerWidth="18" markerHeight="16" refX="18" refY="8" orient="auto">
+      <path d="M 0 0 L 18 8 L 0 16 z" fill="#2d6f9f"/>
     </marker>
-    <marker id="arrowExecution" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#8b6724"/>
+    <marker id="arrowExecution" markerUnits="userSpaceOnUse" markerWidth="18" markerHeight="16" refX="18" refY="8" orient="auto">
+      <path d="M 0 0 L 18 8 L 0 16 z" fill="#8b6724"/>
     </marker>
-    <marker id="arrowSource" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#60727a"/>
+    <marker id="arrowSource" markerUnits="userSpaceOnUse" markerWidth="18" markerHeight="16" refX="18" refY="8" orient="auto">
+      <path d="M 0 0 L 18 8 L 0 16 z" fill="#60727a"/>
     </marker>
   </defs>
 
@@ -88,17 +88,17 @@
     </text>
     <text class="small" x="892" y="326">Example: queue_metrics</text>
 
-    <rect class="concept-node" x="1121" y="228" width="200" height="116" rx="16" ry="16"/>
+    <rect class="concept-node" x="1113" y="228" width="216" height="116" rx="16" ry="16"/>
     <text class="box-title" x="1221" y="260" text-anchor="middle">Review map</text>
-    <text class="body" x="1145" y="288">
-      <tspan x="1145" dy="0">Clear graph for design,</tspan>
-      <tspan x="1145" dy="21">QA, and documentation.</tspan>
+    <text class="body" x="1137" y="288">
+      <tspan x="1137" dy="0">Clear graph for design,</tspan>
+      <tspan x="1137" dy="21">QA, and documentation.</tspan>
     </text>
-    <text class="small" x="1145" y="326">No runner side effects</text>
+    <text class="small" x="1137" y="326">No runner side effects</text>
 
-    <path class="concept-arrow" d="M 562 286 L 600 286"/>
-    <path class="concept-arrow" d="M 815 286 L 853 286"/>
-    <path class="concept-arrow" d="M 1068 286 L 1106 286"/>
+    <path class="concept-arrow" d="M 562 286 L 615 286"/>
+    <path class="concept-arrow" d="M 815 286 L 868 286"/>
+    <path class="concept-arrow" d="M 1068 286 L 1113 286"/>
   </g>
 
   <g id="projection-bridge">
@@ -110,10 +110,10 @@
     <path class="trace" d="M 715 344 L 715 418"/>
     <path class="trace" d="M 968 344 L 968 418"/>
     <path class="trace" d="M 1221 344 L 1221 418"/>
-    <path class="trace" d="M 462 484 L 462 600"/>
-    <path class="trace" d="M 715 484 L 715 600"/>
-    <path class="trace" d="M 968 484 L 968 600"/>
-    <path class="trace" d="M 1221 484 L 1221 600"/>
+    <path class="trace" d="M 462 484 L 462 500"/>
+    <path class="trace" d="M 715 484 L 715 500"/>
+    <path class="trace" d="M 968 484 L 968 500"/>
+    <path class="trace" d="M 1221 484 L 1221 500"/>
   </g>
 
   <g id="execution-view">
@@ -145,41 +145,41 @@
     </text>
     <text class="small" x="892" y="706">auditable state</text>
 
-    <rect class="execution-node" x="1121" y="608" width="200" height="116" rx="16" ry="16"/>
+    <rect class="execution-node" x="1113" y="608" width="216" height="116" rx="16" ry="16"/>
     <text class="box-title" x="1221" y="640" text-anchor="middle">Operator UI</text>
-    <text class="body" x="1145" y="668">
-      <tspan x="1145" dy="0">Status, dependency view,</tspan>
-      <tspan x="1145" dy="21">retry, and partial rerun.</tspan>
+    <text class="body" x="1137" y="668">
+      <tspan x="1137" dy="0">Status, dependency view,</tspan>
+      <tspan x="1137" dy="21">retry, and partial rerun.</tspan>
     </text>
-    <text class="small" x="1145" y="706">actionable controls</text>
+    <text class="small" x="1137" y="706">actionable controls</text>
 
-    <path class="execution-arrow" d="M 562 666 L 600 666"/>
-    <path class="execution-arrow" d="M 815 666 L 853 666"/>
-    <path class="execution-arrow" d="M 1068 666 L 1106 666"/>
+    <path class="execution-arrow" d="M 562 666 L 615 666"/>
+    <path class="execution-arrow" d="M 815 666 L 868 666"/>
+    <path class="execution-arrow" d="M 1068 666 L 1113 666"/>
   </g>
 
   <g id="source-projections">
-    <path class="source-arrow" d="M 260 392 C 302 392 294 286 348 286"/>
-    <rect class="label-pill" x="268" y="318" width="86" height="28" rx="12" ry="12"/>
+    <path class="source-arrow" d="M 260 392 C 302 392 294 286 330 286"/>
+    <rect class="label-pill" x="265" y="318" width="92" height="28" rx="12" ry="12"/>
     <text class="label-text" x="311" y="336" text-anchor="middle">review view</text>
 
-    <path class="source-arrow" d="M 260 504 C 302 504 294 666 348 666"/>
-    <rect class="label-pill" x="268" y="574" width="86" height="28" rx="12" ry="12"/>
+    <path class="source-arrow" d="M 260 504 C 302 504 294 666 330 666"/>
+    <rect class="label-pill" x="265" y="574" width="92" height="28" rx="12" ry="12"/>
     <text class="label-text" x="311" y="592" text-anchor="middle">runner view</text>
   </g>
 
   <g id="footer">
     <line class="divider" x1="56" y1="806" x2="1344" y2="806"/>
-    <rect class="chip" x="182" y="828" width="262" height="42" rx="16" ry="16"/>
-    <text class="chip-text" x="313" y="854" text-anchor="middle">one contract, no duplicate graph</text>
+    <rect class="chip" x="133" y="828" width="262" height="42" rx="16" ry="16"/>
+    <text class="chip-text" x="264" y="854" text-anchor="middle">one contract, no duplicate graph</text>
 
-    <rect class="chip" x="486" y="828" width="248" height="42" rx="16" ry="16"/>
-    <text class="chip-text" x="610" y="854" text-anchor="middle">conceptual view explains intent</text>
+    <rect class="chip" x="437" y="828" width="248" height="42" rx="16" ry="16"/>
+    <text class="chip-text" x="561" y="854" text-anchor="middle">conceptual view explains intent</text>
 
-    <rect class="chip" x="776" y="828" width="238" height="42" rx="16" ry="16"/>
-    <text class="chip-text" x="895" y="854" text-anchor="middle">execution view drives state</text>
+    <rect class="chip" x="727" y="828" width="238" height="42" rx="16" ry="16"/>
+    <text class="chip-text" x="846" y="854" text-anchor="middle">execution view drives state</text>
 
-    <rect class="chip" x="1056" y="828" width="260" height="42" rx="16" ry="16"/>
-    <text class="chip-text" x="1186" y="854" text-anchor="middle">provenance links them together</text>
+    <rect class="chip" x="1007" y="828" width="260" height="42" rx="16" ry="16"/>
+    <text class="chip-text" x="1137" y="854" text-anchor="middle">provenance links them together</text>
   </g>
 </svg>
