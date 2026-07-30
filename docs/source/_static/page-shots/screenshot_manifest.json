@@ -88,20 +88,20 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-06-02T14:01:51Z",
+      "created_at": "2026-07-30T16:26:13Z",
       "height_px": 850,
       "image_path": "project-page.png",
       "page": "project",
       "project": "",
-      "sha256": "7a2a872a12e0d35f52989b905bb1f9eae2efb8650703fd6a816bbe5eb56d9d3f",
-      "size_bytes": 418764,
+      "sha256": "0397ac3217d56b4200bda245d4939ae28eadd450aa35ffe2ee08f3db4541eaaf",
+      "size_bytes": 382528,
       "source_command": [
-        "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
+        "uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot.py --apps flight_telemetry_project --pages PROJECT --apps-pages none --browser chromium --viewport-width 1440 --viewport-height 850 --runtime-isolation isolated --interaction-mode actionability --action-button-policy trial --combination-mode off --max-action-clicks-per-page 0 --required-text 'Project metrics,Source KLOC' --layout-integrity-check --browser-error-check --above-fold-check --visual-mask-dynamic-regions --success-screenshot --screenshot-dir screenshots/dev-kpi-review"
       ],
       "svg_summary_kind": "screenshot-derived-vector-summary",
       "svg_summary_path": "project-page.svg",
-      "svg_summary_sha256": "4374b08229304aa0e7d7e76a94b018f56dad88e1edc6e0d9a4797b43fcbb7076",
-      "svg_summary_size_bytes": 8518,
+      "svg_summary_sha256": "3bafbeb18712e617988bf5d7b8e02bf38da428a09ecc5d44a5d9827b59e6b807",
+      "svg_summary_size_bytes": 9834,
       "url": "",
       "width_px": 1440
     },

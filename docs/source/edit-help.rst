@@ -8,11 +8,11 @@ Page snapshot
 -------------
 
 .. figure:: _static/page-shots/project-page.svg
-   :alt: Screenshot of the PROJECT page with the project selector and source-file expanders.
+   :alt: Screenshot of the PROJECT dashboard with environment health and development KPI cards.
    :align: center
    :class: diagram-panel diagram-wide
 
-   The PROJECT page keeps project selection in the sidebar and exposes the editable source/config sections in the main panel.
+   The PROJECT page keeps project selection in the sidebar and presents environment health plus reproducible development indicators in the main panel.
 
 .. figure:: _static/page-shots/project-create-page.svg
    :alt: Screenshot of the PROJECT Create action with starting point, environment strategy, and new project name controls.
@@ -82,9 +82,39 @@ What to do next:
 
 Main Content Area
 -----------------
-- When ``Select`` is active the page reveals a stack of expanders backed by the
-  in-browser code editor. Each expander streams syntax-highlighted content and
-  writes any saved changes straight back to disk:
+
+The selected project opens on an operational overview. The first card group
+reports the project path, manager and worker environments, settings, data and
+cluster shares, API-key state, and run inventory. ``Environment details`` keeps
+the corresponding paths and diagnostics available below the overview.
+
+Development KPIs
+~~~~~~~~~~~~~~~~
+
+Open ``Project metrics`` to compute a structural inventory on demand. The
+expander is lazy: a collapsed panel does not rescan the project on every page
+rerun. Four cards provide the primary development indicators:
+
+- ``Source KLOC`` counts non-empty, non-comment physical Python source lines.
+- ``Test KLOC`` applies the same rule to test files and also reports the number
+  of ``test_*`` definitions. A parametrised definition is still one definition.
+- ``Test/source LOC`` divides test LOC by source LOC. It describes repository
+  structure and is explicitly **not** a code-coverage measurement.
+- ``Largest module`` identifies the largest source module by the same LOC rule.
+
+For projects inside a Git worktree, the inventory includes tracked files and
+new non-ignored files while excluding Git-ignored content. Build outputs,
+virtual environments, caches, blank lines, and comment-only lines are excluded.
+The secondary caption keeps functions, classes, UI pages, documentation/config
+files, and the detected worker class separate from the KPI cards. None of these
+figures is presented as a quality score.
+
+Editor route
+~~~~~~~~~~~~
+
+Use ``Edit`` beside the project selector to open the in-browser editor. Its
+expanders stream syntax-highlighted content and write saved changes straight
+back to disk:
 
   - ``PYTHON-ENV`` edits the project ``pyproject.toml`` so you can manage
     dependencies without leaving the browser.

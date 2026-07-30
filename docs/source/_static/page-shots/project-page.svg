@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 850" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 850" role="img" aria-labelledby="title desc" font-family="Arial, Helvetica, sans-serif">
 <title id="title">AGILAB project page vector screenshot summary</title>
-<desc id="desc">Screenshot-derived SVG summary generated from project-page.png, sha256 7a2a872a12e0d35f. The PNG remains the canonical raster evidence.</desc>
+<desc id="desc">Screenshot-derived SVG summary generated from project-page.png, sha256 0397ac3217d56b42. The PNG remains the canonical raster evidence.</desc>
 <defs><linearGradient id="panelGradient" x1="0" x2="1"><stop offset="0" stop-color="#1f2c2f"/><stop offset="0.55" stop-color="#0f3033"/><stop offset="1" stop-color="#243b24"/></linearGradient></defs>
 <rect x="0" y="0" width="1440" height="850" rx="0" fill="#07111f"/>
 <rect x="0" y="0" width="300" height="850" rx="0" fill="#10293b"/>
@@ -23,9 +23,9 @@
 <text x="20" y="466" font-size="13" font-weight="800" fill="#c7cdd0" text-anchor="start">Catalog page</text>
 <text x="20" y="496" font-size="13" font-weight="800" fill="#c7cdd0" text-anchor="start">Manual requirement</text>
 <text x="20" y="526" font-size="13" font-weight="800" fill="#c7cdd0" text-anchor="start">Environment type</text>
-<text x="16" y="830" font-size="12" font-weight="400" fill="#b9c5ca" text-anchor="start">AGILAB v2026.06.02+dev.95dee1cf7</text>
+<text x="16" y="830" font-size="12" font-weight="400" fill="#b9c5ca" text-anchor="start">AGILAB v2026.07.17.1+dev.c24f4b3</text>
 <text x="1340" y="34" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Deploy</text>
-<rect x="380" y="120" width="980" height="210" rx="20" fill="url(#panelGradient)" stroke="#4f6471" stroke-width="1"/>
+<rect x="380" y="120" width="980" height="335" rx="20" fill="url(#panelGradient)" stroke="#4f6471" stroke-width="1"/>
 <line x1="400" y1="135" x2="1328" y2="135" stroke="#cda759" stroke-width="1" opacity="0.8"/>
 <rect x="410" y="210" width="216" height="105" rx="12" fill="#20363b" stroke="#4f6471" stroke-width="1" opacity="0.96"/>
 <rect x="420" y="222" width="4" height="81" rx="2" fill="#7ee6c6"/>
@@ -67,16 +67,29 @@
 <text x="1133" y="360" font-size="11" font-weight="800" fill="#c7cdd0" text-anchor="start">RUNS</text>
 <text x="1133" y="392" font-size="22" font-weight="800" fill="#f4b44d" text-anchor="start">0</text>
 <text x="1133" y="423" font-size="12" font-weight="400" fill="#aeb9bd" text-anchor="start">no run logs yet</text>
-<rect x="380" y="462" width="980" height="260" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
-<text x="418" y="488" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Project metrics</text>
-<rect x="412" y="498" width="150" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>
-<text x="487" y="517" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="middle">masked metrics area</text>
-<rect x="380" y="742" width="980" height="260" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
-<text x="418" y="768" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Environment details</text>
-<rect x="412" y="778" width="150" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>
-<text x="487" y="797" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="middle">manager env</text>
-<rect x="587" y="778" width="150" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>
-<text x="662" y="797" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="middle">worker env</text>
-<rect x="762" y="778" width="150" height="28" rx="6" fill="#101f2f" stroke="#4f6471" stroke-width="1"/>
-<text x="837" y="797" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="middle">data share</text>
+<rect x="380" y="476" width="980" height="300" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
+<text x="418" y="503" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Project metrics</text>
+<rect x="412" y="520" width="215" height="102" rx="10" fill="#091525" stroke="#4f6471" stroke-width="1"/>
+<text x="428" y="550" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="start">Source KLOC</text>
+<text x="428" y="598" font-size="30" font-weight="500" fill="#f7f7f2" text-anchor="start">1.26 KLOC</text>
+<rect x="641" y="520" width="215" height="102" rx="10" fill="#091525" stroke="#4f6471" stroke-width="1"/>
+<text x="657" y="550" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="start">Test KLOC</text>
+<text x="657" y="598" font-size="30" font-weight="500" fill="#f7f7f2" text-anchor="start">1.85 KLOC</text>
+<rect x="870" y="520" width="215" height="102" rx="10" fill="#091525" stroke="#4f6471" stroke-width="1"/>
+<text x="886" y="550" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="start">Test/source LOC</text>
+<text x="886" y="598" font-size="30" font-weight="500" fill="#f7f7f2" text-anchor="start">147%</text>
+<rect x="1099" y="520" width="229" height="102" rx="10" fill="#091525" stroke="#4f6471" stroke-width="1"/>
+<text x="1115" y="550" font-size="12" font-weight="600" fill="#f7f7f2" text-anchor="start">Largest module</text>
+<text x="1115" y="598" font-size="30" font-weight="500" fill="#f7f7f2" text-anchor="start">305 LOC</text>
+<text x="412" y="651" font-size="11" font-weight="400" fill="#aeb9bd" text-anchor="start">Source: 1,263 LOC in 7 files · Tests: 1,852 LOC, 66 definitions in 3 files.</text>
+<text x="412" y="680" font-size="11" font-weight="400" fill="#aeb9bd" text-anchor="start">
+  <tspan x="412" dy="0">Architecture inventory: 62 functions · 5 classes · 1 UI page · 10 docs/config files.</tspan>
+  <tspan x="412" dy="18">Worker: PolarsWorker (FlightTelemetryWorker).</tspan>
+</text>
+<text x="412" y="726" font-size="11" font-weight="400" fill="#aeb9bd" text-anchor="start">
+  <tspan x="412" dy="0">Structural inventory, not a quality score. Git-ignored files are excluded when a Git inventory is available;</tspan>
+  <tspan x="412" dy="18">build outputs, virtual environments, caches, blank lines, and comment-only lines are always excluded.</tspan>
+</text>
+<rect x="380" y="792" width="980" height="42" rx="8" fill="#0b1727" stroke="#4f6471" stroke-width="1"/>
+<text x="418" y="819" font-size="14" font-weight="700" fill="#f7f7f2" text-anchor="start">Environment details</text>
 </svg>
