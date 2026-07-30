@@ -29,7 +29,8 @@ Use this runbook whenever you:
   apps are symlinked into `src/agilab/apps/`. Before concluding an app does not
   exist, list `src/agilab/apps/` (the symlink targets reveal the apps repo) and
   search `$APPS_REPOSITORY/apps/`. Note that `.tokki/scope` may exclude apps
-  from Tokki repo maps, so a Tokki-first search will not see them.
+  from Tokki repo maps; check it before trusting a Tokki-first search to have
+  covered them (the checked-in scope currently declares no exclusions).
 - **uv everywhere**: Invoke Python entry points through `uv` (`uv --preview-features extra-build-dependencies run python …`,
   `uv --preview-features extra-build-dependencies run --extra ui streamlit …` for source UI launches) so dependencies resolve inside the managed environments that
   ship with AGILab.
