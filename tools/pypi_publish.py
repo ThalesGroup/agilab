@@ -56,8 +56,10 @@ from html.parser import HTMLParser
 try:
     from package_split_contract import (
         APP_PACKAGE_NAMES,
+        ASSET_PACKAGE_NAMES,
         CORE_PACKAGE_NAMES,
         EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES,
+        PACKAGE_NAMES,
         PAGE_PACKAGE_NAMES,
         UMBRELLA_PACKAGE_CONTRACT,
         WHEEL_ONLY_PACKAGE_NAMES,
@@ -66,8 +68,10 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.pypi_publish
     from tools.package_split_contract import (
         APP_PACKAGE_NAMES,
+        ASSET_PACKAGE_NAMES,
         CORE_PACKAGE_NAMES,
         EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES,
+        PACKAGE_NAMES,
         PAGE_PACKAGE_NAMES,
         UMBRELLA_PACKAGE_CONTRACT,
         WHEEL_ONLY_PACKAGE_NAMES,
@@ -92,6 +96,7 @@ _ensure_pkgs()
 from tomlkit import parse as toml_parse, dumps as toml_dumps  # type: ignore  # noqa: E402
 from packaging.markers import default_environment  # type: ignore  # noqa: E402
 from packaging.requirements import InvalidRequirement, Requirement  # type: ignore  # noqa: E402
+from packaging.utils import canonicalize_name  # type: ignore  # noqa: E402
 from packaging.version import Version, InvalidVersion  # type: ignore  # noqa: E402
 
 try:
@@ -1168,10 +1173,147 @@ def primary_release_version(package_versions: Dict[str, str]) -> str:
         raise SystemExit("ERROR: no packages selected for release") from exc
 
 
-def pin_internal_deps_for_package(package_name: str, pyproject_path: pathlib.Path, pins: Dict[str, str]) -> bool:
-    if package_name not in EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES:
+_REQUIREMENT_PREFIX_RE = re.compile(
+    r"^(?P<prefix>\s*[A-Za-z0-9_.-]+(?:\s*\[[^\]]*\])?)(?P<specifiers>.*)$"
+)
+_LOWER_BOUND_TOKEN_RE = re.compile(
+    r"^(?P<leading>\s*)(?P<operator>>=|>)(?P<spacing>\s*)"
+    r"(?P<version>[^,\s]+)(?P<trailing>\s*)$"
+)
+
+
+def _raise_requirement_floor(raw_requirement: str, target_version: str) -> str:
+    """Raise one compatible requirement floor without discarding its other clauses."""
+
+    requirement = Requirement(raw_requirement)
+    if requirement.url is not None:
+        raise ValueError(
+            f"cannot raise the release floor of direct-URL requirement {raw_requirement!r}"
+        )
+
+    target = Version(target_version)
+    requirement_text, marker_separator, marker_text = raw_requirement.partition(";")
+    match = _REQUIREMENT_PREFIX_RE.fullmatch(requirement_text)
+    if match is None:  # pragma: no cover - Requirement already validated the common syntax
+        raise ValueError(f"cannot locate requirement specifiers in {raw_requirement!r}")
+
+    specifier_text = match.group("specifiers")
+    tokens = specifier_text.split(",") if specifier_text.strip() else []
+    lower_bounds: list[tuple[int, str, Version, re.Match[str]]] = []
+    for index, token in enumerate(tokens):
+        token_match = _LOWER_BOUND_TOKEN_RE.fullmatch(token)
+        if token_match is None:
+            continue
+        lower_bounds.append(
+            (
+                index,
+                token_match.group("operator"),
+                Version(token_match.group("version")),
+                token_match,
+            )
+        )
+
+    if lower_bounds:
+        index, operator, current_floor, token_match = max(
+            lower_bounds,
+            key=lambda item: (item[2], item[1] == ">"),
+        )
+        if current_floor > target or (current_floor == target and operator == ">"):
+            raise ValueError(
+                f"selected release {requirement.name}=={target_version} is excluded by "
+                f"asset requirement {raw_requirement!r}"
+            )
+        if current_floor == target:
+            return raw_requirement
+        tokens[index] = (
+            f"{token_match.group('leading')}>={token_match.group('spacing')}"
+            f"{target_version}{token_match.group('trailing')}"
+        )
+        updated_specifiers = ",".join(tokens)
+    else:
+        stripped_specifiers = specifier_text.rstrip()
+        trailing_space = specifier_text[len(stripped_specifiers):]
+        separator = "," if stripped_specifiers else ""
+        updated_specifiers = (
+            f"{stripped_specifiers}{separator}>={target_version}{trailing_space}"
+        )
+
+    marker_suffix = f"{marker_separator}{marker_text}" if marker_separator else ""
+    updated_requirement = (
+        f"{match.group('prefix')}{updated_specifiers}{marker_suffix}"
+    )
+    parsed_updated = Requirement(updated_requirement)
+    if not parsed_updated.specifier.contains(target, prereleases=True):
+        raise ValueError(
+            f"selected release {requirement.name}=={target_version} is excluded by "
+            f"asset requirement {raw_requirement!r}"
+        )
+    return updated_requirement
+
+
+def raise_selected_internal_dependency_floors(
+    pyproject_path: pathlib.Path,
+    selected_release_versions: Dict[str, str],
+) -> bool:
+    """Raise asset floors only for internal dependencies in this release set."""
+
+    if not pyproject_path.exists() or not selected_release_versions:
         return False
-    return pin_internal_deps(pyproject_path, pins)
+    internal_names = {canonicalize_name(name) for name in PACKAGE_NAMES}
+    selected_versions = {
+        canonicalize_name(name): version
+        for name, version in selected_release_versions.items()
+        if canonicalize_name(name) in internal_names
+    }
+    if not selected_versions:
+        return False
+
+    doc = load_doc(pyproject_path)
+    proj = doc.get("project") or {}
+    changed = False
+
+    def _raise_seq(seq):
+        nonlocal changed
+        updated = []
+        for dependency in seq:
+            raw_dependency = str(dependency)
+            requirement = Requirement(raw_dependency)
+            target_version = selected_versions.get(canonicalize_name(requirement.name))
+            if target_version is None:
+                updated.append(raw_dependency)
+                continue
+            raised = _raise_requirement_floor(raw_dependency, target_version)
+            changed = changed or raised != raw_dependency
+            updated.append(raised)
+        return updated
+
+    if "dependencies" in proj and proj["dependencies"] is not None:
+        proj["dependencies"] = _raise_seq(proj["dependencies"])
+    if "optional-dependencies" in proj and proj["optional-dependencies"] is not None:
+        for group, dependencies in list(proj["optional-dependencies"].items()):
+            proj["optional-dependencies"][group] = _raise_seq(dependencies)
+
+    if changed:
+        doc["project"] = proj
+        save_doc(pyproject_path, doc)
+    return changed
+
+
+def pin_internal_deps_for_package(
+    package_name: str,
+    pyproject_path: pathlib.Path,
+    pins: Dict[str, str],
+    *,
+    selected_release_versions: Dict[str, str] | None = None,
+) -> bool:
+    if package_name in EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES:
+        return pin_internal_deps(pyproject_path, pins)
+    if package_name in ASSET_PACKAGE_NAMES:
+        return raise_selected_internal_dependency_floors(
+            pyproject_path,
+            selected_release_versions or {},
+        )
+    return False
 
 
 # ---------- TOML ops ----------
@@ -2953,7 +3095,12 @@ def main():
                 set_version_in_pyproject(toml, package_version)
             except Exception as e:
                 raise SystemExit(f"fatal: Could not update version in {toml}\n{e}")
-            pin_internal_deps_for_package(name, toml, pins)
+            pin_internal_deps_for_package(
+                name,
+                toml,
+                pins,
+                selected_release_versions=package_versions,
+            )
             update_release_badge_for_project(name, toml, project)
             dist_kind = effective_dist_kind(name, cfg.dist)
             if cfg.dry_run:
@@ -2974,7 +3121,12 @@ def main():
                 set_version_in_pyproject(umbrella_toml, package_version)
             except Exception as e:
                 raise SystemExit(f"fatal: Could not update version in {umbrella_toml}\n{e}")
-            pin_internal_deps_for_package(UMBRELLA[0], umbrella_toml, pins)
+            pin_internal_deps_for_package(
+                UMBRELLA[0],
+                umbrella_toml,
+                pins,
+                selected_release_versions=package_versions,
+            )
             update_release_badge_for_project(UMBRELLA[0], umbrella_toml, UMBRELLA[2])
             if cfg.dry_run:
                 print(f"[build] umbrella: (dry-run would build {cfg.dist} artifacts for {package_version})")
@@ -3041,14 +3193,24 @@ def main():
             all_files2: List[str] = []
             for name, toml, project in selected_core_entries:
                 set_version_in_pyproject(toml, package_versions2[name])
-                pin_internal_deps_for_package(name, toml, pins2)
+                pin_internal_deps_for_package(
+                    name,
+                    toml,
+                    pins2,
+                    selected_release_versions=package_versions2,
+                )
                 update_release_badge_for_project(name, toml, project)
                 uv_build_project(project, effective_dist_kind(name, cfg.dist))
                 all_files2.extend(dist_files(project))
             if build_umbrella:
                 _, umbrella_toml, _ = UMBRELLA
                 set_version_in_pyproject(umbrella_toml, package_versions2[UMBRELLA[0]])
-                pin_internal_deps_for_package(UMBRELLA[0], umbrella_toml, pins2)
+                pin_internal_deps_for_package(
+                    UMBRELLA[0],
+                    umbrella_toml,
+                    pins2,
+                    selected_release_versions=package_versions2,
+                )
                 update_release_badge_for_project(UMBRELLA[0], umbrella_toml, UMBRELLA[2])
                 uv_build_repo_root(cfg.dist)
                 all_files2.extend(dist_files_root())

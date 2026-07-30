@@ -1828,12 +1828,12 @@ def test_workflow_artifact_helpers_cover_query_paths_and_bad_contracts(tmp_path)
     assert run_log in module._snapshot_workflow_run_logs(context).files
 
     file_root_context = module.WorkflowArtifactContext(
-        app_name="weather_forecast_legacy_project",
-        active_app_query="weather_forecast_legacy_project",
+        app_name="weather_forecast_project",
+        active_app_query="weather_forecast_project",
         home_root=tmp_path,
         export_root=tmp_path / "export",
     )
-    file_root = tmp_path / "log" / "execute" / "weather_forecast_legacy"
+    file_root = tmp_path / "log" / "execute" / "weather_forecast"
     file_root.parent.mkdir(parents=True, exist_ok=True)
     file_root.write_text("single log root", encoding="utf-8")
     assert file_root in module._snapshot_workflow_run_logs(file_root_context).files

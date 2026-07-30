@@ -116,7 +116,6 @@ RISKY_ACTION_LABEL_TOKENS = {
 PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {
     "flight_telemetry",
     "weather_forecast",
-    "weather_forecast_legacy",
     "uav_queue",
     "uav_relay_queue",
 }
@@ -1775,7 +1774,7 @@ def seed_public_demo_artifacts(app_name: str, *, export_root: Path, share_root: 
         _seed_flight_artifacts(export_root, share_root)
     elif target in {"uav_queue", "uav_relay_queue"}:
         _seed_queue_artifacts(export_root, target)
-    elif target in {"weather_forecast", "weather_forecast_legacy"}:
+    elif target == "weather_forecast":
         _seed_forecast_artifacts(export_root, target)
 
 

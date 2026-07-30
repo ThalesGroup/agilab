@@ -166,7 +166,11 @@ def discover_repo_surfaces(repo_root: Path) -> dict[str, set[str]]:
     projects_root = root / BUILTIN_PROJECTS_REL
     if projects_root.is_dir():
         for path in projects_root.iterdir():
-            if path.is_dir() and path.name.endswith("_project"):
+            if (
+                path.is_dir()
+                and path.name.endswith("_project")
+                and (path / "pyproject.toml").is_file()
+            ):
                 projects.add(path.name)
     return {"page": pages, "project": projects}
 

@@ -53,6 +53,14 @@ If `skforecast` is missing, run `Deploy scheduler & workers` for this app and te
 environment. If analysis pages are empty, confirm `RUN` produced forecast
 artifacts before opening `ANALYSIS`.
 
+## Legacy Compatibility
+
+The former source-only `weather_forecast_legacy_project` clone is retired.
+Existing project IDs and Python imports resolve to this maintained app through
+the `weather_forecast_legacy` compatibility packages when the app and AGILAB
+core come from the same release. New projects and DAGs should use
+`weather_forecast_project` directly.
+
 ## Scope
 
 This is a notebook-migration and forecast-evidence demo. It is not a live

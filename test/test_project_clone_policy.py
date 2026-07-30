@@ -785,6 +785,51 @@ def test_create_project_clone_action_resolves_builtin_source_project(tmp_path: P
     assert result.data["resolved_clone_source"] == Path("builtin") / "flight_telemetry_project"
 
 
+def test_create_project_clone_action_resolves_retired_public_alias(tmp_path: Path):
+    module = _load_project_module()
+    clone_calls: list[tuple[Path, Path]] = []
+    (tmp_path / "builtin" / "weather_forecast_project").mkdir(parents=True)
+
+    def _clone_project(source: Path, target: Path):
+        clone_calls.append((source, target))
+        (tmp_path / target).mkdir()
+
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=_clone_project)
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="weather_forecast_legacy_project",
+        raw_project_name="Weather Forecast Copy",
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "success"
+    assert clone_calls == [
+        (
+            Path("builtin") / "weather_forecast_project",
+            Path("weather_forecast_copy_project"),
+        )
+    ]
+    assert result.data["resolved_clone_source"] == (
+        Path("builtin") / "weather_forecast_project"
+    )
+
+
+def test_clone_source_resolution_prefers_exact_active_legacy_tree(tmp_path: Path):
+    module = _load_project_module()
+    (tmp_path / "builtin" / "weather_forecast_project").mkdir(parents=True)
+    active_legacy = tmp_path / "external" / "weather_forecast_legacy_project"
+    active_legacy.mkdir(parents=True)
+    env = SimpleNamespace(apps_path=tmp_path, active_app=active_legacy)
+
+    resolved = module._resolve_clone_source_project(
+        env,
+        Path("weather_forecast_legacy_project"),
+    )
+
+    assert resolved == active_legacy
+
+
 def test_create_project_clone_action_repairs_builtin_core_paths(tmp_path: Path):
     module = _load_project_module()
     (tmp_path / "builtin" / "flight_telemetry_project").mkdir(parents=True)

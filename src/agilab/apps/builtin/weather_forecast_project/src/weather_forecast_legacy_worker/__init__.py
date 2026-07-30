@@ -1,4 +1,4 @@
-"""Worker package for the built-in weather forecast legacy project."""
+"""Compatibility worker package for the retired legacy app project."""
 
 from .weather_forecast_legacy_worker import WeatherForecastLegacyWorker
 

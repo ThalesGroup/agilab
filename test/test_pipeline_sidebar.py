@@ -84,6 +84,20 @@ def test_load_last_active_app_name_accepts_path_string(monkeypatch):
     assert resolved == "network_sim_project"
 
 
+def test_load_last_active_app_name_maps_retired_weather_project_to_current_catalog(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        pipeline_sidebar,
+        "load_last_active_app",
+        lambda: Path("/tmp/apps/weather_forecast_legacy_project"),
+    )
+
+    resolved = pipeline_sidebar.load_last_active_app_name(["weather_forecast_project"])
+
+    assert resolved == "weather_forecast_project"
+
+
 def test_load_last_active_app_name_returns_none_when_missing_or_unknown(monkeypatch):
     monkeypatch.setattr(pipeline_sidebar, "load_last_active_app", lambda: None)
     assert pipeline_sidebar.load_last_active_app_name(["demo_project"]) is None

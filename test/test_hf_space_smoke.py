@@ -38,6 +38,9 @@ def test_profile_helpers_reject_unknown_profiles() -> None:
 def test_advanced_profile_accepts_full_public_payload() -> None:
     module = _load_module()
 
+    assert "weather_forecast_project" in module.profile_builtin_app_entries("advanced")
+    assert "weather_forecast_legacy_project" not in module.profile_builtin_app_entries("advanced")
+
     missing, unexpected = module.builtin_app_entry_mismatch(
         [{"path": f"src/agilab/apps/builtin/{name}"} for name in module.profile_builtin_app_entries("advanced")],
         profile="advanced",

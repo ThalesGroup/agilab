@@ -1,4 +1,4 @@
-"""Weather forecasting builtin app migrated from the notebook pilot."""
+"""Compatibility API for the retired weather forecast legacy app project."""
 
 from .app_args import (
     ArgsModel,
@@ -10,17 +10,17 @@ from .app_args import (
     load_args,
     merge_args,
 )
-from .weather_forecast_legacy import WeatherForecastLegacy, WeatherForecastLegacyApp
 from .reduction import WEATHER_FORECAST_LEGACY_REDUCE_CONTRACT
+from .weather_forecast_legacy import WeatherForecastLegacy, WeatherForecastLegacyApp
 
 __all__ = [
+    "WEATHER_FORECAST_LEGACY_REDUCE_CONTRACT",
     "ArgsModel",
     "ArgsOverrides",
-    "WEATHER_FORECAST_LEGACY_REDUCE_CONTRACT",
-    "WeatherForecastLegacyArgs",
-    "WeatherForecastLegacyArgsTD",
     "WeatherForecastLegacy",
     "WeatherForecastLegacyApp",
+    "WeatherForecastLegacyArgs",
+    "WeatherForecastLegacyArgsTD",
     "dump_args",
     "ensure_defaults",
     "load_args",

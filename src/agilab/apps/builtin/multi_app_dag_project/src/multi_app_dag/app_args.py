@@ -10,12 +10,18 @@ from pydantic import BaseModel, ConfigDict, Field
 from agi_env.app_args import dump_model_to_toml, load_model_from_toml, merge_model_data
 
 
+DEFAULT_DAG_PATH = Path("dag_templates/flight_to_weather_multi_app_dag.json")
+LEGACY_WEATHER_DAG_PATH = Path(
+    "dag_templates/flight_to_weather_legacy_multi_app_dag.json"
+)
+
+
 class MultiAppDagArgs(BaseModel):
     """Runtime parameters for the multi-app DAG preview project."""
 
     model_config = ConfigDict(extra="forbid")
 
-    dag_path: Path = Field(default_factory=lambda: Path("dag_templates/flight_to_weather_legacy_multi_app_dag.json"))
+    dag_path: Path = Field(default_factory=lambda: DEFAULT_DAG_PATH)
     output_path: Path = Field(default_factory=lambda: Path("~/log/execute/multi_app_dag/runner_state.json"))
     reset_target: bool = False
 
@@ -49,6 +55,8 @@ def dump_args(
 
 
 def ensure_defaults(args: MultiAppDagArgs, **_: Any) -> MultiAppDagArgs:
+    if args.dag_path == LEGACY_WEATHER_DAG_PATH:
+        return args.model_copy(update={"dag_path": DEFAULT_DAG_PATH})
     return args
 
 

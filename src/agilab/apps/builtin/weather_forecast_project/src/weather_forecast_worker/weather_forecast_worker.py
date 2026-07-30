@@ -29,6 +29,7 @@ class WeatherForecastWorker(PandasWorker):
     """Execute the weather forecasting workflow and export stable analysis artifacts."""
 
     pool_vars: dict[str, object] = {}
+    reduce_artifact_writer = staticmethod(write_reduce_artifact)
 
     def start(self):
         global _runtime
@@ -218,7 +219,7 @@ class WeatherForecastWorker(PandasWorker):
                 json.dumps(metrics, indent=2),
                 encoding="utf-8",
             )
-            write_reduce_artifact(
+            self.reduce_artifact_writer(
                 metrics,
                 root,
                 worker_id=getattr(self, "_worker_id", 0),

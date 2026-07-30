@@ -9,10 +9,11 @@ import re
 import tomllib
 from typing import Any, Callable, Iterable, Mapping
 
-
 APP_PROVIDER_ENTRYPOINT_GROUP = "agilab.apps"
 _RUNTIME_TARGET_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-PUBLIC_RUNTIME_TARGET_ALIASES: dict[str, str] = {}
+PUBLIC_RUNTIME_TARGET_ALIASES: dict[str, str] = {
+    "weather_forecast_legacy": "weather_forecast",
+}
 RUNTIME_TARGET_PROJECT_ALIAS_EXCEPTIONS: set[str] = set()
 APP_PROVIDER_DISCOVERY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
 
@@ -116,6 +117,8 @@ def app_name_aliases(value: str | None) -> tuple[str, ...]:
     public_alias_target = PUBLIC_RUNTIME_TARGET_ALIASES.get(runtime_target)
     if public_alias_target:
         add(public_alias_target)
+        if public_alias_target not in RUNTIME_TARGET_PROJECT_ALIAS_EXCEPTIONS:
+            add(f"{public_alias_target}_project")
     if normalized.endswith("_project"):
         add(normalized.removesuffix("_project"))
     else:
