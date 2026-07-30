@@ -1262,6 +1262,19 @@ async def _stop_runtime_resources(
             fatal_error = fatal_error or exc
 
     if shutdown_owned_runtime and client_shutdown_proven and background_cleanup_proven:
+        retirement_failures = [
+            exc for phase, exc in failures if phase == "worker retirement"
+        ]
+        if retirement_failures:
+            log.warning(
+                "AGI worker retirement was not observed before scheduler shutdown; "
+                "final scheduler and owned-process cleanup succeeded"
+            )
+            failures = [
+                (phase, exc)
+                for phase, exc in failures
+                if phase != "worker retirement"
+            ]
         # Do not retain a successfully closed client across a lifecycle retry.
         # A service-state unlink may fail after runtime cleanup and keep the
         # ownership lease; the next stop must not query the already-closed
