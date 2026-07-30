@@ -325,17 +325,19 @@ def app_editable_import_roots(
             "The installed AGILAB UI runtime cannot inspect manager editables. "
             "Upgrade the aligned AGILAB packages and restart Streamlit."
         ) from exc
-    editable_roots = getattr(
-        import_layout_support,
-        "hosted_editable_source_import_roots",
-        None,
-    )
-    if not callable(editable_roots):
+    try:
+        from agi_env.runtime.hot_source_support import aligned_module_callable
+
+        editable_roots = aligned_module_callable(
+            import_layout_support,
+            "hosted_editable_source_import_roots",
+        )
+    except (ImportError, RuntimeError) as exc:
         raise RuntimeError(
             "The installed AGILAB UI runtime is stale: agi_env does not expose "
             "hosted editable import support. Upgrade the aligned AGILAB packages "
             "and restart Streamlit."
-        )
+        ) from exc
 
     return tuple(
         dict.fromkeys((app_source, *editable_roots(app_path / ".venv")))

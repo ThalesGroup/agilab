@@ -80,7 +80,7 @@ def test_base_app_surface_import_does_not_require_optional_agi_env(
         module._isolated_import_process_state()
 
 
-def test_app_editable_import_roots_reports_stale_agi_env(
+def test_app_editable_import_roots_refreshes_stale_agi_env_from_aligned_source(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -92,8 +92,9 @@ def test_app_editable_import_roots_reports_stale_agi_env(
         "hosted_editable_source_import_roots",
     )
 
-    with pytest.raises(RuntimeError, match="AGILAB UI runtime is stale"):
-        module.app_editable_import_roots(tmp_path / "demo_project")
+    app = tmp_path / "demo_project"
+
+    assert module.app_editable_import_roots(app) == (app.resolve() / "src",)
 
 
 def test_app_editable_import_roots_reports_missing_import_layout_module(

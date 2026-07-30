@@ -21,7 +21,7 @@ def _load_module():
     return module
 
 
-def test_app_ui_reports_stale_agi_env_import_layout(
+def test_app_ui_refreshes_stale_agi_env_import_layout_from_aligned_source(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -33,8 +33,7 @@ def test_app_ui_reports_stale_agi_env_import_layout(
         "hosted_editable_source_import_roots",
     )
 
-    with pytest.raises(RuntimeError, match="AGILAB UI runtime is stale"):
-        module._manager_editable_import_roots(tmp_path / "demo_project")
+    assert module._manager_editable_import_roots(tmp_path / "demo_project") == ()
 
 
 def test_app_ui_resolves_project_scoped_entrypoint(tmp_path: Path) -> None:

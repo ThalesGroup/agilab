@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import sys
+import threading
 import types
 
 import pytest
@@ -18,6 +19,14 @@ if _IMPORT_GUARD_SPEC is None or _IMPORT_GUARD_SPEC.loader is None:
     raise ModuleNotFoundError(f"Unable to load import_guard.py from {_IMPORT_GUARD_PATH}")
 import_guard = importlib.util.module_from_spec(_IMPORT_GUARD_SPEC)
 _IMPORT_GUARD_SPEC.loader.exec_module(import_guard)
+
+
+def _load_independent_import_guard(name: str):
+    spec = importlib.util.spec_from_file_location(name, _IMPORT_GUARD_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_repo_src_root_is_not_a_python_package() -> None:
@@ -91,6 +100,222 @@ def test_import_agilab_symbols_remains_backward_compatible() -> None:
 
     assert module.VALUE == 11
     assert target_globals["loaded_value"] == 11
+
+
+def test_fallback_load_restores_previous_module_after_failure(tmp_path: Path) -> None:
+    fallback_name = "agilab_broken_fallback_test"
+    previous = types.ModuleType(fallback_name)
+    broken = tmp_path / "broken.py"
+    broken.write_text("raise RuntimeError('broken fallback')\n", encoding="utf-8")
+    sys.modules[fallback_name] = previous
+    try:
+        with pytest.raises(RuntimeError, match="broken fallback"):
+            import_guard._load_module_from_path(
+                "agilab.broken",
+                broken,
+                fallback_name=fallback_name,
+            )
+        assert sys.modules[fallback_name] is previous
+    finally:
+        sys.modules.pop(fallback_name, None)
+
+
+def test_independent_import_guards_serialize_fallback_execution(tmp_path: Path) -> None:
+    first_guard = _load_independent_import_guard("agilab_import_guard_concurrency_one")
+    second_guard = _load_independent_import_guard("agilab_import_guard_concurrency_two")
+    assert first_guard.FALLBACK_LOAD_LOCK is second_guard.FALLBACK_LOAD_LOCK
+
+    state_name = "agilab_import_guard_concurrency_state"
+    fallback_name = "agilab_import_guard_concurrency_fallback"
+    state = types.ModuleType(state_name)
+    state.counter_lock = threading.Lock()
+    state.active = 0
+    state.maximum = 0
+    fallback = tmp_path / "concurrent.py"
+    fallback.write_text(
+        "\n".join(
+            [
+                "import time",
+                f"import {state_name} as state",
+                "with state.counter_lock:",
+                "    state.active += 1",
+                "    state.maximum = max(state.maximum, state.active)",
+                "try:",
+                "    time.sleep(0.05)",
+                "finally:",
+                "    with state.counter_lock:",
+                "        state.active -= 1",
+                "VALUE = True",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    start = threading.Barrier(2)
+    failures: list[BaseException] = []
+
+    def _load(guard) -> None:
+        try:
+            start.wait(timeout=2.0)
+            guard._load_module_from_path(
+                "agilab.concurrent",
+                fallback,
+                fallback_name=fallback_name,
+            )
+        except BaseException as exc:  # pragma: no cover - asserted below.
+            failures.append(exc)
+
+    sys.modules[state_name] = state
+    try:
+        threads = [
+            threading.Thread(target=_load, args=(guard,))
+            for guard in (first_guard, second_guard)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=2.0)
+        assert not any(thread.is_alive() for thread in threads)
+        assert failures == []
+        assert state.maximum == 1
+    finally:
+        sys.modules.pop(state_name, None)
+        sys.modules.pop(fallback_name, None)
+
+
+def test_import_guard_bootstraps_before_rejecting_foreign_agilab_package(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    foreign_package = tmp_path / "foreign" / "agilab"
+    foreign_package.mkdir(parents=True)
+    (foreign_package / "__init__.py").write_text("", encoding="utf-8")
+    foreign = types.ModuleType("agilab")
+    foreign.__file__ = str(foreign_package / "__init__.py")
+    foreign.__path__ = [str(foreign_package)]
+    monkeypatch.setitem(sys.modules, "agilab", foreign)
+
+    guard = _load_independent_import_guard("agilab_import_guard_foreign_bootstrap")
+
+    with pytest.raises(guard.MixedCheckoutImportError, match="Mixed AGILAB checkout"):
+        guard.assert_agilab_checkout_alignment(_IMPORT_GUARD_PATH)
+
+
+def test_import_guard_rejects_invalid_process_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(
+        sys.modules,
+        "_agilab_import_guard_process_state",
+        types.ModuleType("_agilab_import_guard_process_state"),
+    )
+
+    with pytest.raises(RuntimeError, match="Invalid AGILAB import-guard process state"):
+        _load_independent_import_guard("agilab_import_guard_invalid_process_state")
+
+
+def test_import_agilab_symbols_refreshes_stale_compat_shim_from_local_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stale_target = types.ModuleType("agilab.classified_stale")
+    stale_target.VALUE = "stale"
+    stale_shim = types.ModuleType("agilab.legacy_stale")
+    stale_shim.VALUE = "stale"
+    stale_shim._AGILAB_COMPAT_TARGET_MODULE = stale_target
+    refreshed = types.ModuleType("agilab_stale_fallback")
+    refreshed.__file__ = str(_SRC_ROOT / "agilab" / "app_surface.py")
+    refreshed.VALUE = "fresh"
+    refreshed.ADDED = "available"
+    fallback_calls: list[tuple[str, Path, str | None]] = []
+
+    monkeypatch.setattr(
+        import_guard,
+        "import_agilab_module",
+        lambda *_args, **_kwargs: stale_shim,
+    )
+
+    def _load_fallback(module_name, fallback_path, fallback_name=None):
+        fallback_calls.append((module_name, Path(fallback_path), fallback_name))
+        return refreshed
+
+    monkeypatch.setattr(import_guard, "_load_module_from_path", _load_fallback)
+    target_globals: dict[str, object] = {}
+
+    loaded = import_guard.import_agilab_symbols(
+        target_globals,
+        "agilab.legacy_stale",
+        {"VALUE": "value", "ADDED": "added"},
+        current_file=_SRC_ROOT / "agilab" / "pages" / "2_ORCHESTRATE.py",
+        fallback_path=_SRC_ROOT / "agilab" / "app_surface.py",
+        fallback_name="agilab_app_surface_fallback",
+    )
+
+    assert loaded is refreshed
+    assert target_globals == {"value": "fresh", "added": "available"}
+    assert fallback_calls == [
+        (
+            "agilab.legacy_stale",
+            _SRC_ROOT / "agilab" / "app_surface.py",
+            "agilab_app_surface_fallback",
+        )
+    ]
+
+
+def test_import_agilab_symbols_rejects_external_compat_refresh_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    stale_target = types.ModuleType("agilab.classified_stale")
+    stale_shim = types.ModuleType("agilab.legacy_stale")
+    stale_shim._AGILAB_COMPAT_TARGET_MODULE = stale_target
+    external_fallback = tmp_path / "outside.py"
+    external_fallback.write_text(
+        "raise AssertionError('external fallback must not execute')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        import_guard,
+        "import_agilab_module",
+        lambda *_args, **_kwargs: stale_shim,
+    )
+
+    with pytest.raises(import_guard.MixedCheckoutImportError, match="Mixed AGILAB"):
+        import_guard.import_agilab_symbols(
+            {},
+            "agilab.legacy_stale",
+            ["ADDED"],
+            current_file=_SRC_ROOT / "agilab" / "pages" / "2_ORCHESTRATE.py",
+            fallback_path=external_fallback,
+        )
+
+
+def test_import_agilab_symbols_recovers_stale_shim_and_stale_agi_env_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from agi_env.runtime import import_layout_support
+    import agilab.app_surface as stale_shim
+
+    monkeypatch.delattr(stale_shim, "app_editable_import_roots")
+    monkeypatch.delattr(
+        import_layout_support,
+        "hosted_editable_source_import_roots",
+    )
+    app = tmp_path / "demo_project"
+    target_globals: dict[str, object] = {}
+
+    import_guard.import_agilab_symbols(
+        target_globals,
+        "agilab.app_surface",
+        ["app_editable_import_roots"],
+        current_file=_SRC_ROOT / "agilab" / "pages" / "2_ORCHESTRATE.py",
+        fallback_path=_SRC_ROOT / "agilab" / "app_surface.py",
+        fallback_name="agilab_app_surface_hot_refresh_test",
+    )
+
+    recovered = target_globals["app_editable_import_roots"]
+    assert callable(recovered)
+    assert recovered(app) == (app.resolve() / "src",)
 
 
 def test_python_environment_alignment_rejects_other_source_root(tmp_path, monkeypatch) -> None:
