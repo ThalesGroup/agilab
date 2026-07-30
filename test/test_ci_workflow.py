@@ -378,13 +378,14 @@ def test_docs_workflows_label_target_only_verification_honestly() -> None:
     assert "--check --delete --quiet --skip-missing-source" not in guard_text
 
 
-def test_release_workflow_writes_an_explicit_target_only_mirror_stamp() -> None:
+def test_release_workflow_preserves_valid_mirror_evidence_before_degrading() -> None:
     text = PYPI_PUBLISH_WORKFLOW_PATH.read_text(encoding="utf-8")
     stamp_block = text.split("python tools/sync_docs_source.py", 1)[1].split(
         "release_metadata_paths=", 1
     )[0]
 
-    assert "--write-target-only-stamp" in stamp_block
+    assert "--refresh-target-integrity-stamp" in stamp_block
+    assert "--write-target-only-stamp" not in stamp_block
     assert "--source docs/source" not in stamp_block
 
 

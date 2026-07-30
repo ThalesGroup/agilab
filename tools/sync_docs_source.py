@@ -177,6 +177,26 @@ def write_target_only_mirror_stamp(target: Path) -> Path:
     return stamp_path
 
 
+def refresh_target_integrity_stamp(target: Path) -> tuple[Path, bool]:
+    """Preserve valid evidence or replace stale evidence with target-only state.
+
+    Release-owned exclusions do not contribute to the managed target digest.
+    When only those files changed, an existing verified canonical stamp remains
+    valid and must not be downgraded. A missing, malformed, or stale stamp is
+    replaced with honest target-only evidence.
+    """
+
+    stamp_path = stamp_path_for_target(target)
+    target_ok, _message = verify_mirror_stamp(
+        target,
+        source=None,
+        skip_missing_source=True,
+    )
+    if target_ok:
+        return stamp_path, False
+    return write_target_only_mirror_stamp(target), True
+
+
 def verify_mirror_stamp(
     target: Path,
     source: Path | None = None,
@@ -431,6 +451,15 @@ def build_parser() -> argparse.ArgumentParser:
             "This never claims that the canonical source was checked."
         ),
     )
+    mode.add_argument(
+        "--refresh-target-integrity-stamp",
+        action="store_true",
+        help=(
+            "Preserve an existing valid mirror stamp when the managed target is "
+            "unchanged; otherwise write target-only evidence with "
+            "source_status=unavailable."
+        ),
+    )
     parser.add_argument(
         "--skip-missing-source",
         action="store_true",
@@ -449,6 +478,22 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     target = args.target.expanduser().resolve()
+
+    if args.refresh_target_integrity_stamp:
+        if not target.exists():
+            parser.error(f"target directory not found: {target}")
+        if not target.is_dir():
+            parser.error(f"target path is not a directory: {target}")
+        stamp_path, written = refresh_target_integrity_stamp(target)
+        if not args.quiet:
+            if written:
+                print(
+                    f"target-only mirror stamp written: {stamp_path}; "
+                    "canonical drift NOT CHECKED"
+                )
+            else:
+                print(f"existing mirror stamp preserved: {stamp_path}")
+        return 0
 
     if args.write_target_only_stamp:
         if not target.exists():
@@ -497,12 +542,30 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"source path is not a directory: {source}")
 
     target.mkdir(parents=True, exist_ok=True)
-    plan = make_sync_plan(source, target, delete_extra=args.delete)
+    complete_plan = make_sync_plan(source, target, delete_extra=True)
+    plan = (
+        complete_plan
+        if args.delete
+        else SyncPlan(
+            created=complete_plan.created,
+            updated=complete_plan.updated,
+            deleted=[],
+        )
+    )
 
     if plan.has_changes() or not args.quiet:
         print(render_plan(plan, source=source, target=target))
 
     if args.apply:
+        if complete_plan.deleted and not args.delete:
+            print(
+                "sync not applied: the managed mirror contains "
+                f"{len(complete_plan.deleted)} file(s) absent from the canonical "
+                "source. No changes were applied; rerun with --apply --delete "
+                "so the complete sync plan and verified stamp stay aligned",
+                file=sys.stderr,
+            )
+            return 1
         apply_sync_plan(source, target, plan)
         try:
             write_mirror_stamp(source, target)

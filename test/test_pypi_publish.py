@@ -1302,7 +1302,7 @@ def test_update_release_proof_references_refreshes_public_owned_proof_only(
     assert "https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.24" in command
 
 
-def test_update_public_docs_mirror_stamp_marks_canonical_source_unavailable(
+def test_update_public_docs_mirror_stamp_preserves_valid_existing_evidence(
     tmp_path, monkeypatch
 ) -> None:
     module = _load_pypi_publish()
@@ -1322,7 +1322,8 @@ def test_update_public_docs_mirror_stamp_marks_canonical_source_unavailable(
     module.update_public_docs_mirror_stamp_from_current_tree()
 
     command = commands[0]
-    assert "--write-target-only-stamp" in command
+    assert "--refresh-target-integrity-stamp" in command
+    assert "--write-target-only-stamp" not in command
     assert "--source" not in command
     assert command[command.index("--target") + 1] == str(public_source)
 

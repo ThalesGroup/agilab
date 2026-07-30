@@ -2347,7 +2347,7 @@ def update_public_docs_mirror_stamp_from_current_tree() -> None:
             str(script),
             "--target",
             str(public_source),
-            "--write-target-only-stamp",
+            "--refresh-target-integrity-stamp",
             "--quiet",
         ],
         cwd=REPO_ROOT,
