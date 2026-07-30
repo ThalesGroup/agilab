@@ -194,6 +194,36 @@ def test_main_check_and_apply_modes(tmp_path: Path, capsys) -> None:
     )
 
 
+def test_apply_without_delete_fails_before_mutating_target_or_stamp(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    module = _load_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "guide.rst").write_text("canonical\n", encoding="utf-8")
+    (source / "new.rst").write_text("new\n", encoding="utf-8")
+    (target / "guide.rst").write_text("stale\n", encoding="utf-8")
+    (target / "removed.rst").write_text("extra\n", encoding="utf-8")
+    stamp_path = module.write_target_only_mirror_stamp(target)
+    stamp_before = stamp_path.read_bytes()
+
+    exit_code = module.main(
+        ["--source", str(source), "--target", str(target), "--apply"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "No changes were applied" in captured.err
+    assert "rerun with --apply --delete" in captured.err
+    assert (target / "guide.rst").read_text(encoding="utf-8") == "stale\n"
+    assert not (target / "new.rst").exists()
+    assert (target / "removed.rst").read_text(encoding="utf-8") == "extra\n"
+    assert stamp_path.read_bytes() == stamp_before
+
+
 def test_main_missing_canonical_source_requires_explicit_degraded_mode(
     tmp_path: Path,
     capsys,
@@ -366,6 +396,114 @@ def test_target_only_stamp_is_explicitly_noncanonical(tmp_path: Path, capsys) ->
     )
     assert exit_code == 1
     assert "canonical source drift" in capsys.readouterr().out
+
+
+def test_refresh_target_integrity_stamp_preserves_verified_evidence_for_exclusions(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    module = _load_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "guide.rst").write_text("guide\n", encoding="utf-8")
+    (target / "guide.rst").write_text("guide\n", encoding="utf-8")
+    stamp_path = module.write_mirror_stamp(source, target)
+    stamp_before = stamp_path.read_bytes()
+    release_proof = target / "data" / "release_proof.toml"
+    release_proof.parent.mkdir(parents=True)
+    release_proof.write_text("[release]\n", encoding="utf-8")
+
+    exit_code = module.main(
+        ["--target", str(target), "--refresh-target-integrity-stamp"]
+    )
+
+    assert exit_code == 0
+    assert "existing mirror stamp preserved" in capsys.readouterr().out
+    assert stamp_path.read_bytes() == stamp_before
+    payload = json.loads(stamp_path.read_text(encoding="utf-8"))
+    assert payload["source_status"] == "verified"
+    assert payload["source_digest_sha256"] == payload["target_digest_sha256"]
+
+
+def test_refresh_target_integrity_stamp_downgrades_changed_managed_target(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "guide.rst").write_text("guide\n", encoding="utf-8")
+    (target / "guide.rst").write_text("guide\n", encoding="utf-8")
+    stamp_path = module.write_mirror_stamp(source, target)
+    (target / "guide.rst").write_text("release changed managed docs\n", encoding="utf-8")
+
+    exit_code = module.main(
+        [
+            "--target",
+            str(target),
+            "--refresh-target-integrity-stamp",
+            "--quiet",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(stamp_path.read_text(encoding="utf-8"))
+    assert payload["source_status"] == "unavailable"
+    assert payload["source_digest_sha256"] is None
+    assert payload["target_digest_sha256"] == module._manifest_state(target)[
+        "digest_sha256"
+    ]
+
+
+def test_refresh_target_integrity_stamp_preserves_valid_target_only_evidence(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / "guide.rst").write_text("guide\n", encoding="utf-8")
+    stamp_path = module.write_target_only_mirror_stamp(target)
+    stamp_before = stamp_path.read_bytes()
+
+    exit_code = module.main(
+        [
+            "--target",
+            str(target),
+            "--refresh-target-integrity-stamp",
+            "--quiet",
+        ]
+    )
+
+    assert exit_code == 0
+    assert stamp_path.read_bytes() == stamp_before
+
+
+def test_refresh_target_integrity_stamp_repairs_missing_stamp_honestly(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / "guide.rst").write_text("guide\n", encoding="utf-8")
+    stamp_path = module.stamp_path_for_target(target)
+    assert not stamp_path.exists()
+
+    exit_code = module.main(
+        [
+            "--target",
+            str(target),
+            "--refresh-target-integrity-stamp",
+            "--quiet",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(stamp_path.read_text(encoding="utf-8"))
+    assert payload["source_status"] == "unavailable"
+    assert payload["source_digest_sha256"] is None
 
 
 def test_target_only_stamp_still_detects_target_mutation(

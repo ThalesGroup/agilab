@@ -1062,7 +1062,7 @@ jobs:
             --compact
           python tools/sync_docs_source.py \
             --target docs/source \
-            --write-target-only-stamp \
+            --refresh-target-integrity-stamp \
             --quiet
 
           release_metadata_paths=(
