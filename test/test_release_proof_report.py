@@ -26,10 +26,12 @@ def _load_module():
 
 def test_release_proof_manifest_renders_checked_in_page(monkeypatch) -> None:
     module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+    expected_app_count = manifest["ui_robot"]["expected_app_count"]
     monkeypatch.setattr(
         module,
         "_local_release_app_count",
-        lambda _repo_root, _release_ref: 15,
+        lambda _repo_root, _release_ref: expected_app_count,
     )
 
     report = module.build_report(
@@ -53,13 +55,15 @@ def test_release_proof_manifest_renders_checked_in_page(monkeypatch) -> None:
         check for check in report["checks"] if check["id"] == "release_app_inventory"
     )
     assert release_apps["details"] == {
-        "expected_app_count": 15,
-        "local_release_app_count": 15,
+        "expected_app_count": expected_app_count,
+        "local_release_app_count": expected_app_count,
     }
 
 
 def test_release_proof_allows_unavailable_local_tag_tree(monkeypatch) -> None:
     module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+    expected_app_count = manifest["ui_robot"]["expected_app_count"]
     monkeypatch.setattr(
         module,
         "_local_release_app_count",
@@ -80,7 +84,7 @@ def test_release_proof_allows_unavailable_local_tag_tree(monkeypatch) -> None:
         "manifest records the release app count; local tag tree is unavailable"
     )
     assert release_apps["details"] == {
-        "expected_app_count": 15,
+        "expected_app_count": expected_app_count,
         "local_release_app_count": None,
     }
 
@@ -496,7 +500,10 @@ def test_release_proof_ui_robot_historical_mode_is_not_release_proof() -> None:
     release_check = module._ui_robot_evidence_check(
         evidence_path,
         release=release,
-        ui_robot={"mode": "release", "expected_app_count": 15},
+        ui_robot={
+            "mode": "release",
+            "expected_app_count": ui_robot["expected_app_count"],
+        },
         repo_root=Path.cwd(),
         github_repo=None,
         check_github_runs=False,
@@ -505,7 +512,10 @@ def test_release_proof_ui_robot_historical_mode_is_not_release_proof() -> None:
     assert historical_check["status"] == "pass"
     assert historical_check["details"]["mode"] == "historical"
     assert historical_check["details"]["app_count"] == 10
-    assert historical_check["details"]["expected_app_count"] == 15
+    assert (
+        historical_check["details"]["expected_app_count"]
+        == ui_robot["expected_app_count"]
+    )
     assert historical_check["details"]["represents_release"] is False
     assert "not proof for the current release" in historical_check["summary"]
     assert release_check["status"] == "fail"

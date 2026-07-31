@@ -26,15 +26,15 @@ Current public release
    * - Hosted demo
      - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``85f28330cd50f810f0e229816e45c7ee5b1bffae``
    * - Public guardrails
-     - `repo-guardrails run 30244336462 <https://github.com/ThalesGroup/agilab/actions/runs/30244336462>`__ at commit ``411267613c11`` passed repository guardrails at the recorded post-release main commit; clean-install jobs were skipped and are not claimed as release proof
+     - `repo-guardrails run 30618909264 <https://github.com/ThalesGroup/agilab/actions/runs/30618909264>`__ at commit ``bae393fe6aef`` passed repository guardrails; skipped jobs remain out of scope unless separately evidenced
    * - Docs source guard
-     - `docs-source-guard run 30244336406 <https://github.com/ThalesGroup/agilab/actions/runs/30244336406>`__ at commit ``411267613c11`` passed checked-in docs mirror integrity and release-proof consistency checks; canonical private-source drift is not checked by public CI
+     - `docs-source-guard run 30618909234 <https://github.com/ThalesGroup/agilab/actions/runs/30618909234>`__ at commit ``bae393fe6aef`` passed docs mirror and release-proof consistency checks; canonical private-source drift is not checked by public CI
    * - Docs publish
-     - `docs-publish run 30244336436 <https://github.com/ThalesGroup/agilab/actions/runs/30244336436>`__ at commit ``411267613c11`` built the public documentation from the managed docs mirror
+     - `docs-publish run 30619166574 <https://github.com/ThalesGroup/agilab/actions/runs/30619166574>`__ at commit ``81797b8193f6`` built the public documentation from the managed docs mirror
    * - Coverage
-     - `coverage run 30244336419 <https://github.com/ThalesGroup/agilab/actions/runs/30244336419>`__ at commit ``411267613c11`` passed component coverage and badge freshness checks
+     - `coverage run 30618909177 <https://github.com/ThalesGroup/agilab/actions/runs/30618909177>`__ at commit ``bae393fe6aef`` passed component coverage and badge freshness checks
    * - PyPI publish
-     - `pypi-publish run 29984947394 <https://github.com/ThalesGroup/agilab/actions/runs/29984947394>`__ at commit ``1e13a4eec5e1`` tested and published the release artifacts from the recorded release commit
+     - `pypi-publish run 30616241713 <https://github.com/ThalesGroup/agilab/actions/runs/30616241713>`__ at commit ``3e88def4dda5`` tested and published the release artifacts from the recorded release commit
 
 What was proved
 ---------------
