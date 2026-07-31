@@ -75,8 +75,14 @@ below.</sub>
 <p>
   <a href="https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml"><img src="https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main" alt="Repo guardrails" /></a>
   <a href="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml"><img src="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main" alt="Coverage workflow" /></a>
-  <a href="https://codecov.io/gh/ThalesGroup/agilab"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg" alt="agilab coverage" /></a>
+  <a href="https://codecov.io/gh/ThalesGroup/agilab"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg" alt="Measured-scope coverage" /></a>
 </p>
+
+<sub>The measured-scope badge aggregates the tested <code>agi-env</code>,
+<code>agi-node</code>, <code>agi-cluster</code>, and <code>agi-gui</code>
+surfaces. It is not whole-repository coverage: the GUI measurement intentionally
+omits the Streamlit entrypoints and <code>src/agilab/pages/*.py</code>; the exact
+scope is declared in <a href=".coveragerc.agi-gui"><code>.coveragerc.agi-gui</code></a>.</sub>
 
 <details>
 <summary>More project badges</summary>

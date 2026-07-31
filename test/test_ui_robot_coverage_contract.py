@@ -130,7 +130,7 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "apps": ["execution_pandas_project"],
         "flags": ["browser_error_check"],
         "pages": ["ORCHESTRATE"],
-        "required_text": ["Auto (ORCHESTRATE setting)", "Pool executor"],
+        "required_text": ["Pool executor", "auto pool executor"],
     }
     assert payload["coverage"]["pytorch_analysis_robot"] == {
         "apps": ["pytorch_playground_project"],

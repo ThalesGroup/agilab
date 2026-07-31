@@ -56,6 +56,12 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
         pool_parameters,
         execution_pandas_pool,
     ) = scenarios
+    assert project.combination_mode == "exhaustive"
+    assert all(
+        scenario.combination_mode == "off"
+        for name, scenario in module.ALL_SCENARIOS.items()
+        if name != "isolated-project-page"
+    )
     assert isolated.pages == "ORCHESTRATE,WORKFLOW,ANALYSIS"
     assert isolated.runtime_isolation == "isolated"
     assert isolated.action_button_policy == "trial"
@@ -136,7 +142,7 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert execution_pandas_pool.interaction_mode == "actionability"
     assert execution_pandas_pool.combination_mode == "off"
     assert execution_pandas_pool.max_action_clicks_per_page == 0
-    assert execution_pandas_pool.required_text == "Pool executor,Auto (ORCHESTRATE setting)"
+    assert execution_pandas_pool.required_text == "Pool executor,auto pool executor"
     assert execution_pandas_pool.browser_error_check is True
     assert "isolated-browser-history" not in [scenario.name for scenario in scenarios]
     assert "isolated-mobile-core-pages" not in [scenario.name for scenario in scenarios]
@@ -326,7 +332,7 @@ def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--runtime-isolation") + 1] == "current-home"
     assert argv[argv.index("--interaction-mode") + 1] == "full"
-    assert argv[argv.index("--combination-mode") + 1] == "exhaustive"
+    assert argv[argv.index("--combination-mode") + 1] == "off"
     assert argv[argv.index("--action-button-policy") + 1] == "click-selected"
     assert argv[argv.index("--click-action-labels") + 1] == "CHECK distribute,Run -> Load -> Export"
     assert argv[argv.index("--preselect-labels") + 1] == "Run now"
@@ -648,7 +654,7 @@ def test_build_robot_command_covers_execution_pandas_pool_executor_text(tmp_path
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--interaction-mode") + 1] == "actionability"
     assert argv[argv.index("--combination-mode") + 1] == "off"
-    assert argv[argv.index("--required-text") + 1] == "Pool executor,Auto (ORCHESTRATE setting)"
+    assert argv[argv.index("--required-text") + 1] == "Pool executor,auto pool executor"
     assert "--browser-error-check" in argv
     assert summary_path == tmp_path / "isolated-execution-pandas-orchestrate-pool-executor.json"
     assert progress_path == tmp_path / "isolated-execution-pandas-orchestrate-pool-executor.ndjson"

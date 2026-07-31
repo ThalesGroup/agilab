@@ -23,6 +23,10 @@ LOCKED_TOOL_JOBS = {
     ): ".github/requirements/ci-pypi-web.txt",
     ("pypi-publish.yaml", "sync-hf-space"): ".github/requirements/ci-hf-release.txt",
     (
+        "pypi-publish.yaml",
+        "publish-release-proof",
+    ): ".github/requirements/ci-hf-release.txt",
+    (
         "pypi-pending-trusted-publisher.yaml",
         "register",
     ): ".github/requirements/ci-pypi-web.txt",
@@ -204,6 +208,7 @@ def test_release_workflow_defaults_to_read_only_and_limits_oidc_jobs() -> None:
         "publish-agilab",
         "publish-dataset-release-assets",
         "publish-library-packages",
+        "publish-release-proof",
         "publish-release-assets",
     }
 
@@ -263,6 +268,7 @@ def test_distribution_publish_jobs_do_not_execute_checkout_or_local_code() -> No
         assert job["steps"][-1]["with"]["print-hash"] is True
 
     assert set(release["jobs"]["publish-library-packages"]["needs"]) == {
+        "release-approval",
         "release-plan",
         "build-library-packages",
     }
@@ -285,6 +291,35 @@ def test_distribution_publish_jobs_do_not_execute_checkout_or_local_code() -> No
     assert publish_step["with"]["attestations"] is False
     assert publish_step["with"]["print-hash"] is True
     assert "TWINE_PASSWORD" not in json.dumps(test_pypi["jobs"], sort_keys=True)
+
+
+def test_hf_secret_and_github_release_write_credentials_are_compartmentalized() -> None:
+    release = _load_yaml(WORKFLOW_ROOT / "pypi-publish.yaml")
+    hf_sync = release["jobs"]["sync-hf-space"]
+    proof = release["jobs"]["publish-release-proof"]
+
+    assert hf_sync["permissions"] == {"contents": "read"}
+    assert "HF_TOKEN" in json.dumps(hf_sync, sort_keys=True)
+    assert "HF_TOKEN" not in json.dumps(proof, sort_keys=True)
+    assert proof["permissions"] == {
+        "actions": "write",
+        "artifact-metadata": "write",
+        "attestations": "write",
+        "contents": "write",
+        "id-token": "write",
+        "pull-requests": "write",
+    }
+    assert set(proof["needs"]) == {
+        "release-approval",
+        "release-plan",
+        "sync-hf-space",
+    }
+    assert proof["env"]["PROVENANCE_PACKAGES"] == (
+        "${{ needs.release-plan.outputs.provenance_packages }}"
+    )
+    assert "needs.sync-hf-space.outputs.hf_space_commit" in json.dumps(
+        proof, sort_keys=True
+    )
 
 
 def test_unprivileged_build_jobs_own_checkout_build_and_artifact_upload() -> None:

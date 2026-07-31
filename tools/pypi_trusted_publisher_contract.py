@@ -96,6 +96,11 @@ def validate_workflow_contract(
     text = workflow_path.read_text(encoding="utf-8")
     required_fragments = {
         "id-token: write": "workflow must grant OIDC token permission",
+        "release-approval:": "one reviewed environment must gate release publication",
+        "name: pypi-release-approval": "release approval environment",
+        "needs.release-approval.result == 'success'": (
+            "mutating release jobs must fail closed when approval is absent"
+        ),
         "uses: pypa/gh-action-pypi-publish@": "workflow must use trusted publishing action",
         "actions/download-artifact@": "publisher jobs must consume immutable workflow artifacts",
         "build-agilab:": "agilab build must run outside the OIDC publisher job",

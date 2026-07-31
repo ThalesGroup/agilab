@@ -18,6 +18,8 @@ def test_compat_shim_inventory_is_capped() -> None:
     inventory = compat_shim_inventory.build_inventory()
 
     assert inventory["total"] <= compat_shim_inventory.DEFAULT_MAX_COUNT
+    assert inventory["headroom"] == inventory["max_allowed"] - inventory["total"]
+    assert "zero headroom" in inventory["baseline"]["rationale"]
     assert inventory["baseline"] == compat_shim_inventory.COMPAT_SHIM_BASELINE
     assert inventory["baseline"]["owner"]
     assert inventory["baseline"]["removal_milestone"] == (
@@ -45,6 +47,15 @@ def test_compat_shim_inventory_cli_fails_on_growth() -> None:
 
     assert result.returncode == 1
     assert "exceeds cap" in result.stderr
+
+
+def test_compat_shim_inventory_reports_intentional_zero_headroom() -> None:
+    inventory = compat_shim_inventory.build_inventory()
+
+    assert inventory["headroom"] == 0
+    assert "headroom: 0 (zero is intentional and fail-closed)" in (
+        compat_shim_inventory.render_text(inventory)
+    )
 
 
 def test_compat_shim_marker_must_be_a_declaration(tmp_path: Path) -> None:

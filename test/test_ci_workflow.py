@@ -82,6 +82,12 @@ def _single_option(argv: list[str], option: str) -> str:
     return values[0]
 
 
+def _optional_single_option(argv: list[str], option: str) -> str | None:
+    values = _option_values(argv, option)
+    assert len(values) <= 1
+    return values[0] if values else None
+
+
 def _ui_robot_matrix_option(argv: list[str], option: str) -> str:
     value = _single_option(argv, option)
     workflow_defaults = {
@@ -99,6 +105,8 @@ def _ui_robot_matrix_command_contract(argv: list[str]) -> dict[str, object]:
         "apps": _ui_robot_matrix_option(argv, "--apps"),
         "timeout": _ui_robot_matrix_option(argv, "--timeout"),
         "widget_timeout": _ui_robot_matrix_option(argv, "--widget-timeout"),
+        "scenario_timeout": _ui_robot_matrix_option(argv, "--scenario-timeout"),
+        "fail_fast": "--fail-fast" in argv,
         "json": "--json" in argv,
         "quiet_progress": "--quiet-progress" in argv,
         "no_result_cache": "--no-result-cache" in argv,
@@ -107,6 +115,8 @@ def _ui_robot_matrix_command_contract(argv: list[str]) -> dict[str, object]:
         "failure_bundle_dir": _single_option(argv, "--failure-bundle-dir"),
         "retry_failed_with_artifacts": "--retry-failed-with-artifacts" in argv,
         "retry_trace_dir": _single_option(argv, "--retry-trace-dir"),
+        "retry_har_dir": _optional_single_option(argv, "--retry-har-dir"),
+        "retry_video_dir": _optional_single_option(argv, "--retry-video-dir"),
         "failure_retry_timeout": _single_option(argv, "--failure-retry-timeout"),
     }
 
@@ -120,14 +130,18 @@ def _ui_robot_matrix_workflow_contracts() -> dict[str, dict[str, object]]:
             "apps": str(plan_rows[shard]["apps"]),
             "timeout": "90",
             "widget_timeout": "3",
+            "scenario_timeout": "900",
+            "fail_fast": True,
             "json": True,
-            "quiet_progress": True,
+            "quiet_progress": False,
             "no_result_cache": True,
             "output_dir": f"test-results/ui-robot-matrix/{shard}",
             "screenshot_dir": f"screenshots/ui-robot-matrix/{shard}",
             "failure_bundle_dir": f"test-results/ui-robot-matrix/{shard}/failure-bundles",
             "retry_failed_with_artifacts": True,
             "retry_trace_dir": f"test-results/ui-robot-matrix/{shard}/failure-artifacts/traces",
+            "retry_har_dir": None,
+            "retry_video_dir": None,
             "failure_retry_timeout": "300",
         }
         for shard, scenarios in _ui_robot_matrix_workflow_shards().items()
@@ -402,8 +416,8 @@ def test_release_workflow_preserves_valid_mirror_evidence_before_degrading() -> 
 def test_hf_release_refresh_does_not_claim_or_rewrite_canonical_docs_index() -> None:
     text = PYPI_PUBLISH_WORKFLOW_PATH.read_text(encoding="utf-8")
     hf_refresh_block = text.split(
-        "- name: Update public release proof with HF Space commit", 1
-    )[1]
+        "- name: Prepare immutable release proof and review branch", 1
+    )[1].split("- name: Attest immutable release proof assets", 1)[0]
     metadata_block = hf_refresh_block.split("release_metadata_paths=(", 1)[1].split(
         ")", 1
     )[0]
@@ -495,8 +509,10 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
         assert scenario in planner_text
     assert '"${scenario_args[@]}"' in text
     assert "--apps \"${robot_apps}\"" in text
+    assert "--scenario-timeout 900" in text
+    assert "--fail-fast" in text
     assert "--json" in text
-    assert "--quiet-progress" in text
+    assert "--quiet-progress" not in text
     assert "--no-result-cache" in text
     assert 'result_dir="test-results/ui-robot-matrix/${ROBOT_SHARD}"' in text
     assert 'screenshot_dir="screenshots/ui-robot-matrix/${ROBOT_SHARD}"' in text

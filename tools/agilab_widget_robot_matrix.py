@@ -77,6 +77,9 @@ class RobotScenario:
     action_timeout_seconds: float = 90.0
     page_timeout_seconds: float = 420.0
     target_seconds: float = 1800.0
+    # Matrix scenarios already sweep every widget individually and add focused
+    # probes. Keep Cartesian state expansion for explicit standalone deep runs.
+    combination_mode: str = "off"
     max_action_clicks_per_page: int = 25
     assert_orchestrate_artifacts: bool = False
     assert_workflow_artifacts: bool = False
@@ -470,7 +473,9 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         interaction_mode="actionability",
         combination_mode="off",
         max_action_clicks_per_page=0,
-        required_text="Pool executor,Auto (ORCHESTRATE setting)",
+        # Select option captions are not part of the page text while the menu is
+        # closed. The workload caption exposes the effective default value.
+        required_text="Pool executor,auto pool executor",
         browser_error_check=True,
     ),
 }

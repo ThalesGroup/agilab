@@ -146,8 +146,9 @@ jobs:
             --apps "${robot_apps}" \
             --timeout "${robot_timeout}" \
             --widget-timeout "${robot_widget_timeout}" \
+            --scenario-timeout 900 \
+            --fail-fast \
             --json \
-            --quiet-progress \
             --no-result-cache \
             --output-dir "${result_dir}" \
             --screenshot-dir "${screenshot_dir}" \

@@ -348,7 +348,6 @@ PUBLIC_RELEASE_METADATA_PATHS: tuple[str, ...] = (
     "docs/source/index.rst",
     "docs/source/data/release_proof.toml",
     "docs/source/release-proof.rst",
-    "test/test_public_demo_links.py",
 )
 GITHUB_RELEASE_URL_RE = re.compile(
     r"https://github\.com/ThalesGroup/agilab/releases/tag/v[0-9A-Za-z._-]+"
@@ -2671,7 +2670,6 @@ def update_public_release_references(tag: str, chosen_version: str, package_name
     update_docs_index_release_link(tag)
     update_static_badge(static_badge_path(UMBRELLA[0]), chosen_version)
     update_changelog_release_entry(chosen_version, tag, package_names)
-    update_public_demo_release_test(tag)
     update_release_proof_references(tag)
     update_public_docs_mirror_stamp_from_current_tree()
 
@@ -2710,7 +2708,6 @@ def update_public_release_references_for_guard(
     assert_public_docs_index_release_link(tag)
     update_static_badge(static_badge_path(UMBRELLA[0]), chosen_version)
     update_changelog_release_entry(chosen_version, tag, package_names)
-    update_public_demo_release_test(tag)
     public_source = REPO_ROOT / "docs/source"
     if public_source.exists():
         update_release_proof_references_in_source(tag, public_source)

@@ -52,7 +52,7 @@ COMPONENTS = {
         "badge": REPO_ROOT / "badges" / "coverage-agi-core.svg",
     },
     "agilab": {
-        "label": "agilab coverage",
+        "label": "measured scope coverage",
         "aggregate": ("agi-env", "agi-node", "agi-cluster", "agi-gui"),
         "badge": REPO_ROOT / "badges" / "coverage-agilab.svg",
     },

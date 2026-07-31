@@ -665,7 +665,7 @@ def test_aggregate_evidence_requires_the_exact_app_inventory_even_when_empty(
     assert inventory_check["details"]["aggregate_inventory_required"] is True
 
 
-def test_checked_historical_v1_evidence_remains_explicit_count_only_baseline() -> None:
+def test_checked_historical_v1_evidence_records_exact_release_app_inventory() -> None:
     module = _load_module()
     evidence = module.load_evidence(Path("docs/source/data/ui_robot_evidence.json"))
 
@@ -675,8 +675,14 @@ def test_checked_historical_v1_evidence_remains_explicit_count_only_baseline() -
     )
 
     assert inventory_check["status"] == "pass"
-    assert inventory_check["details"]["legacy_count_only"] is True
-    assert "count-only compatibility" in inventory_check["summary"]
+    assert inventory_check["details"]["aggregate_inventory_required"] is True
+    assert inventory_check["details"]["legacy_count_only"] is False
+    assert inventory_check["details"]["app_count"] == 14
+    assert (
+        inventory_check["details"]["apps"]
+        == inventory_check["details"]["canonical_apps"]
+    )
+    assert "exact app inventory" in inventory_check["summary"]
 
 
 def test_load_aggregate_artifact_payloads_defaults_missing_exit_code_from_success(tmp_path: Path) -> None:

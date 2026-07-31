@@ -1658,11 +1658,10 @@ def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path
         "docs/source/index.rst",
         "docs/source/data/release_proof.toml",
         "docs/source/release-proof.rst",
-        "test/test_public_demo_links.py",
     ]
 
 
-def test_update_public_release_references_updates_docs_changelog_and_test(tmp_path, monkeypatch) -> None:
+def test_update_public_release_references_updates_docs_and_changelog_not_tests(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
 
@@ -1711,7 +1710,7 @@ def test_update_public_release_references_updates_docs_changelog_and_test(tmp_pa
     assert "## [2026.4.27] - 2026-04-24" in changelog_text
     assert "Published AGILAB `2026.4.27` to PyPI for `agilab`, `agi-core`, and `agi-env`." in changelog_text
     assert f"[2026.4.27]: {release_url}" in changelog_text
-    assert 'LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.24"' in public_test.read_text(encoding="utf-8")
+    assert 'LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.01"' in public_test.read_text(encoding="utf-8")
     assert refreshed_release_proofs == ["2026.04.24"]
 
 

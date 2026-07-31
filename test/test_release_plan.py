@@ -356,9 +356,11 @@ def test_release_plan_job_gate_validation_flags_semantic_violations(tmp_path: Pa
 
     workflow.write_text(
         live.replace(
-            "if: ${{ !cancelled() && needs.release-plan.result == 'success' "
+            "if: ${{ !cancelled() && needs.release-approval.result == 'success' "
+            "&& needs.release-plan.result == 'success' "
             "&& needs.release-audit.result == 'success'",
-            "if: ${{ always() && needs.release-plan.result == 'success' "
+            "if: ${{ always() && needs.release-approval.result == 'success' "
+            "&& needs.release-plan.result == 'success' "
             "&& needs.release-audit.result == 'success'",
         ),
         encoding="utf-8",

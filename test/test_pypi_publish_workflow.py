@@ -43,7 +43,7 @@ def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None
         "      - supply-chain-evidence"
     ) in text
     assert (
-        "publish-library-packages:\n    needs:\n      - release-plan\n"
+        "publish-library-packages:\n    needs:\n      - release-approval\n      - release-plan\n"
         "      - build-library-packages"
     ) in text
     assert "      - release-plan" in text
@@ -95,6 +95,7 @@ def test_pypi_publish_blocks_downstream_publish_jobs_when_preflight_fails() -> N
     assert "always()" not in publish_agilab["if"]
     assert "needs.build-agilab.result == 'success'" in publish_agilab["if"]
     assert set(publish_agilab["needs"]) == {
+        "release-approval",
         "release-plan",
         "build-agilab",
         "publish-library-packages",
@@ -415,7 +416,9 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     assert "tools/hf_space_release_sync.py" in text
     assert "HF_TOKEN secret is required" in text
     assert "--github-output \"$GITHUB_OUTPUT\"" in text
-    assert "hf_commit=\"${{ steps.hf-sync.outputs.hf_space_commit }}\"" in text
+    assert "HF_SPACE_COMMIT: ${{ needs.sync-hf-space.outputs.hf_space_commit }}" in text
+    assert 'hf_commit="${HF_SPACE_COMMIT}"' in text
+    assert "Invalid Hugging Face commit" in text
     assert "PROVENANCE_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}" in text
     assert "update_public_release_references_for_guard(" in text
     assert "--hf-space-commit \"$hf_commit\"" in text
@@ -425,8 +428,50 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
         ")", 1
     )[0]
     assert "docs/source/index.rst" not in release_metadata_block
+    assert "test/test_public_demo_links.py" not in release_metadata_block
     assert "git add \"${release_metadata_paths[@]}\"" in text
-    assert "git push origin HEAD:main" in text
+    assert "git push origin HEAD:main" not in text
+    assert 'release_branch="automation/release-evidence-' in text
+    assert "git push --set-upstream origin \"$release_branch\"" in text
+    assert "gh pr create" in text
+    assert "gh workflow run ci.yml --ref \"$RELEASE_BRANCH\"" in text
+    assert "gh workflow run root-test-suite.yml --ref \"$RELEASE_BRANCH\"" in text
+    assert "gh workflow run docs-source-guard.yaml --ref \"$RELEASE_BRANCH\"" in text
+    assert "release-proof-assets/agilab-${release_version}-release-proof.toml" in text
+    assert "release-proof-assets/agilab-${release_version}-release-proof.rst" in text
+    assert "release-proof-SHA256SUMS.txt" in text
+    assert "Existing immutable release asset differs" in text
+    assert "subject-path: release-proof-assets/**" in text
+
+
+def test_pypi_publish_has_one_human_approval_gate_for_every_mutating_job() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    approval = text.split("  release-approval:", 1)[1].split("\n  build-library-packages:", 1)[0]
+
+    assert "name: pypi-release-approval" in approval
+    assert "needs.release-audit.result == 'success'" in approval
+    assert "needs.release-plan.result == 'success'" in approval
+    assert "      - test" in approval
+    assert "      - release-evidence" in approval
+    assert "      - supply-chain-evidence" in approval
+    assert "needs.test.result == 'success'" in approval
+    assert "needs.release-evidence.result == 'success'" in approval
+    assert "needs.supply-chain-evidence.result == 'success'" in approval
+    assert "needs.release-plan.outputs.pypi_publish_selected != 'true'" in approval
+    for job, next_job in (
+        ("publish-library-packages", "build-agilab"),
+        ("publish-agilab", "pypi-provenance-evidence"),
+        ("publish-release-assets", "pypi-release-retention"),
+        ("pypi-release-retention", "publish-dataset-release-assets"),
+        ("publish-dataset-release-assets", "sync-hf-space"),
+        ("sync-hf-space", "publish-release-proof"),
+        ("publish-release-proof", ""),
+    ):
+        block = text.split(f"  {job}:", 1)[1]
+        if next_job:
+            block = block.split(f"\n  {next_job}:", 1)[0]
+        assert "      - release-approval" in block, job
+        assert "needs.release-approval.result == 'success'" in block, job
 
 
 def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_assets() -> None:

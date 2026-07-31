@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-31T13:27:33Z",
+  "generated_at_utc": "2026-07-31T16:31:52Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 36,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 237,
+    "evidence_schema_count": 238,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1584,6 +1584,12 @@
       ]
     },
     {
+      "schema": "agilab.github_platform_policy.v1",
+      "sources": [
+        "tools/release/github_platform_policy.py"
+      ]
+    },
+    {
       "schema": "agilab.global_pipeline_app_dispatch_smoke.v1",
       "sources": [
         "src/agilab/global_pipeline/global_pipeline_app_dispatch_smoke.py"
@@ -2453,6 +2459,7 @@
     {
       "schema": "agilab.ui_robot_matrix_aggregate.v1",
       "sources": [
+        "docs/source/data/ui_robot_evidence.json",
         "tools/ui_robot_evidence.py",
         "tools/ui_robot_matrix_aggregate.py"
       ]

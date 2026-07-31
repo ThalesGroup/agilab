@@ -1,0 +1,39 @@
+{
+  "schema": "agilab.github_platform_policy.v1",
+  "repository": "ThalesGroup/agilab",
+  "release_approval_environment": {
+    "name": "pypi-release-approval",
+    "reviewer_team": "agilab-maintainers",
+    "prevent_self_review": true
+  },
+  "pypi_environment_prefix": "pypi-",
+  "deployment_ref_policies": [
+    {
+      "name": "main",
+      "type": "branch"
+    },
+    {
+      "name": "v*.*.*",
+      "type": "tag"
+    }
+  ],
+  "main_ruleset": {
+    "name": "protected-main",
+    "required_status_checks": [
+      "root-tests",
+      "local-only-policy",
+      "base-python-compat (3.12)",
+      "base-python-compat (3.14)",
+      "clean-public-install (ubuntu-latest)",
+      "clean-public-install (macos-latest)",
+      "clean-public-install (windows-latest)"
+    ]
+  },
+  "release_tag_ruleset": {
+    "name": "protected-release-tags",
+    "bypass_team": "agilab-admins"
+  },
+  "retire_rulesets": [
+    "donotouch"
+  ]
+}

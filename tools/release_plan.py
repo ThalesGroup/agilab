@@ -533,14 +533,38 @@ JOB_GATE_CONTRACT: dict[str, dict[str, Any]] = {
         ),
         "if_forbidden": ("always()",),
     },
+    "release-approval": {
+        "description": (
+            "every externally mutating release path must cross one reviewed "
+            "environment after audit, planning, tests, and evidence succeed"
+        ),
+        "needs": {
+            "release-audit",
+            "release-plan",
+            "test",
+            "release-evidence",
+            "supply-chain-evidence",
+        },
+        "if_required": (
+            "!cancelled()",
+            "needs.release-audit.result == 'success'",
+            "needs.release-plan.result == 'success'",
+            "needs.release-plan.outputs.pypi_publish_selected != 'true'",
+            "needs.test.result == 'success'",
+            "needs.release-evidence.result == 'success'",
+            "needs.supply-chain-evidence.result == 'success'",
+        ),
+        "if_forbidden": ("always()",),
+    },
     "publish-library-packages": {
         "description": (
             "credentialed library publication must stop when a release run is "
             "cancelled and consume only a successful unprivileged build"
         ),
-        "needs": {"release-plan", "build-library-packages"},
+        "needs": {"release-approval", "release-plan", "build-library-packages"},
         "if_required": (
             "!cancelled()",
+            "needs.release-approval.result == 'success'",
             "needs.release-plan.outputs.library_selected == 'true'",
             "needs.build-library-packages.result == 'success'",
         ),
@@ -551,9 +575,15 @@ JOB_GATE_CONTRACT: dict[str, dict[str, Any]] = {
             "credentialed umbrella publication must stop when a release run is "
             "cancelled and consume only successful prerequisite artifacts"
         ),
-        "needs": {"release-plan", "build-agilab", "publish-library-packages"},
+        "needs": {
+            "release-approval",
+            "release-plan",
+            "build-agilab",
+            "publish-library-packages",
+        },
         "if_required": (
             "!cancelled()",
+            "needs.release-approval.result == 'success'",
             "needs.release-plan.outputs.umbrella_selected == 'true'",
             "needs.build-agilab.result == 'success'",
             (
@@ -568,14 +598,33 @@ JOB_GATE_CONTRACT: dict[str, dict[str, Any]] = {
             "dataset release assets must pass the audit and still run when the "
             "PyPI-only preflight is intentionally skipped"
         ),
-        "needs": {"test", "release-plan", "release-audit"},
+        "needs": {"release-approval", "test", "release-plan", "release-audit"},
         "if_required": (
             "!cancelled()",
+            "needs.release-approval.result == 'success'",
             "needs.release-plan.result == 'success'",
             "needs.release-audit.result == 'success'",
             "needs.test.result == 'success' || needs.test.result == 'skipped'",
         ),
         "if_forbidden": ("always()",),
+    },
+    "publish-release-assets": {
+        "description": "GitHub release assets require the reviewed release boundary",
+        "needs": {"release-approval"},
+        "if_required": ("needs.release-approval.result == 'success'",),
+        "if_forbidden": (),
+    },
+    "pypi-release-retention": {
+        "description": "destructive PyPI retention requires the reviewed release boundary",
+        "needs": {"release-approval"},
+        "if_required": ("needs.release-approval.result == 'success'",),
+        "if_forbidden": (),
+    },
+    "sync-hf-space": {
+        "description": "Hugging Face publication requires the reviewed release boundary",
+        "needs": {"release-approval"},
+        "if_required": ("needs.release-approval.result == 'success'",),
+        "if_forbidden": (),
     },
 }
 
@@ -804,6 +853,19 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
             "dataset release job must upload dataset assets to the dataset release"
         ),
         "release_mode:": "workflow must require explicit stable/hotfix/candidate/repair release intent",
+        "Validate release tag namespace": (
+            "workflow must reject unsafe or out-of-namespace release tags before mutation"
+        ),
+        "Invalid release tag: $release_tag": (
+            "workflow release-tag validation must fail with an actionable error"
+        ),
+        "release-approval:": "workflow must define one human approval boundary before publication",
+        "name: pypi-release-approval": (
+            "workflow must use the dedicated protected release approval environment"
+        ),
+        "needs.release-approval.result == 'success'": (
+            "externally mutating release jobs must consume the human approval result"
+        ),
         "tools/pypi_release_version_policy.py": (
             "workflow must validate public release cadence before publishing"
         ),
@@ -857,7 +919,7 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
             "non-published package artifacts must stay workflow-only"
         ),
         "sync-hf-space:": "workflow must sync the public Hugging Face Space after release assets",
-        "sync-hf-space:\n    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true'": (
+        "sync-hf-space:\n    if: ${{ always() && needs.release-approval.result == 'success' && needs.release-plan.outputs.umbrella_selected == 'true'": (
             "HF Space sync and release-proof refresh must run only for the umbrella AGILAB release"
         ),
         "ref: ${{ github.sha }}": (
