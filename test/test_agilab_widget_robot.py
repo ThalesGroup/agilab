@@ -710,6 +710,82 @@ def test_layout_integrity_collector_uses_painted_geometry_for_expander_content(
                         width: 200px;
                         height: 40px;
                       }
+                      .scroll-edge {
+                        position: fixed;
+                        inset: 180px auto auto 400px;
+                        width: 220px;
+                        height: 40px;
+                        overflow: auto;
+                      }
+                      .scroll-edge button {
+                        position: absolute;
+                        inset: 39px auto auto 0;
+                        width: 200px;
+                        height: 40px;
+                      }
+                      .hard-clip {
+                        position: fixed;
+                        inset: 240px auto auto 700px;
+                        width: 220px;
+                        height: 1px;
+                        overflow: hidden;
+                      }
+                      .hard-clip button {
+                        position: absolute;
+                        inset: 0 auto auto 0;
+                        width: 200px;
+                        height: 40px;
+                      }
+                      .actual-tiny {
+                        position: fixed;
+                        inset: 260px auto auto 400px;
+                        width: 1px;
+                        height: 1px;
+                        min-width: 0;
+                        min-height: 0;
+                        padding: 0;
+                        border: 0;
+                      }
+                      .custom-tiny-input {
+                        inset: 300px auto auto 400px;
+                      }
+                      .framework-tiny-input {
+                        inset: 320px auto auto 400px;
+                      }
+                      .off-left {
+                        position: fixed;
+                        inset: 360px auto auto -10px;
+                        width: 40px;
+                        height: 30px;
+                      }
+                      .grid-canvas {
+                        position: fixed;
+                        width: 120px;
+                        height: 60px;
+                      }
+                      .framework-grid-canvas {
+                        inset: 420px auto auto 400px;
+                      }
+                      .custom-grid-canvas {
+                        inset: 500px auto auto 400px;
+                      }
+                      .animated-expander {
+                        position: fixed;
+                        inset: 420px auto auto 20px;
+                        width: 340px;
+                        height: 55px;
+                        overflow: hidden;
+                        transition: height 500ms cubic-bezier(0.2, 0, 0, 1);
+                      }
+                      .animated-expander[open] {
+                        height: 140px;
+                      }
+                      .animated-expander button {
+                        position: absolute;
+                        inset: 95px auto auto 10px;
+                        width: 300px;
+                        height: 40px;
+                      }
                     </style>
                     <details open>
                       <summary>Preview distribution workplan</summary>
@@ -727,10 +803,47 @@ def test_layout_integrity_collector_uses_painted_geometry_for_expander_content(
                       <button>Visible primary</button>
                       <button>Visible secondary</button>
                     </div>
+                    <div class="scroll-edge">
+                      <button>Normal control at scroll edge</button>
+                    </div>
+                    <div class="hard-clip">
+                      <button>Hard-clipped custom</button>
+                    </div>
+                    <button class="actual-tiny">Tiny control</button>
+                    <input class="actual-tiny custom-tiny-input">
+                    <div data-testid="stSelectbox">
+                      <input class="actual-tiny framework-tiny-input">
+                    </div>
+                    <button class="off-left">Off left</button>
+                    <div data-testid="stDataFrame">
+                      <canvas
+                        class="grid-canvas framework-grid-canvas"
+                        data-testid="data-grid-canvas"
+                        tabindex="0"
+                      ></canvas>
+                    </div>
+                    <canvas
+                      class="grid-canvas custom-grid-canvas"
+                      data-testid="data-grid-canvas"
+                      tabindex="0"
+                    ></canvas>
+                    <details class="animated-expander">
+                      <summary>Animated Streamlit expander</summary>
+                      <button>Transient expander control</button>
+                    </details>
                     """
                 )
 
+                page.evaluate(module.OPEN_EXPANDERS_JS)
+                page.wait_for_timeout(250)
+                opening_issues = page.evaluate(module.LAYOUT_INTEGRITY_COLLECTOR_JS)
+                settled_probe = module._layout_integrity_probe(
+                    page,
+                    app_name="test_app",
+                    display="PROJECT",
+                )
                 issues = page.evaluate(module.LAYOUT_INTEGRITY_COLLECTOR_JS)
+                accessibility_issues = page.evaluate(module.ACCESSIBILITY_COLLECTOR_JS)
             finally:
                 browser.close()
     except sync_api.Error as exc:
@@ -749,6 +862,110 @@ def test_layout_integrity_collector_uses_painted_geometry_for_expander_content(
     )
     assert all("CHECK distribute" not in detail for detail in overlap_details)
     assert all("Benchmark modes" not in detail for detail in overlap_details)
+    zero_size_issues = [
+        issue
+        for issue in issues
+        if issue.get("kind") == "zero_size_control"
+    ]
+    zero_size_labels = {issue.get("label", "") for issue in zero_size_issues}
+    assert "Normal control at scroll edge" not in zero_size_labels
+    assert "Tiny control" in zero_size_labels
+    assert any(
+        issue.get("label") == "INPUT" and issue.get("framework_owned") is False
+        for issue in zero_size_issues
+    )
+    assert any(
+        issue.get("label") == "INPUT"
+        and issue.get("framework_owned") is True
+        and issue.get("framework_owner") == "stSelectbox"
+        for issue in zero_size_issues
+    )
+
+    clipped_labels = {
+        issue.get("label", "")
+        for issue in issues
+        if issue.get("kind") == "clipped_control"
+    }
+    assert "Hard-clipped custom" in clipped_labels
+    assert settled_probe.status == "failed"
+    assert "Hard-clipped custom" in settled_probe.detail
+    assert any(
+        issue.get("kind") == "clipped_control"
+        and issue.get("label") == "Transient expander control"
+        for issue in opening_issues
+    )
+    assert "Transient expander control" not in clipped_labels
+    assert "Normal control at scroll edge" not in clipped_labels
+    assert "CHECK distribute" not in clipped_labels
+    assert "Benchmark modes" not in clipped_labels
+
+    horizontal_overflow_labels = {
+        issue.get("label", "")
+        for issue in issues
+        if issue.get("kind") == "horizontal_overflow"
+    }
+    assert "Off left" in horizontal_overflow_labels
+
+    custom_tiny_issue = next(
+        issue
+        for issue in zero_size_issues
+        if issue.get("label") == "INPUT" and issue.get("framework_owned") is False
+    )
+    framework_tiny_issue = next(
+        issue
+        for issue in zero_size_issues
+        if issue.get("label") == "INPUT" and issue.get("framework_owned") is True
+    )
+    assert (
+        module._layout_integrity_result_probe(
+            app_name="test_app",
+            display="PROJECT",
+            url=page.url,
+            issues=[custom_tiny_issue],
+        ).status
+        == "failed"
+    )
+    assert (
+        module._layout_integrity_result_probe(
+            app_name="test_app",
+            display="PROJECT",
+            url=page.url,
+            issues=[framework_tiny_issue],
+        ).status
+        == "interacted"
+    )
+
+    data_grid_issues = [
+        issue
+        for issue in accessibility_issues
+        if issue.get("kind") == "missing_accessible_name"
+        and issue.get("label") == "data-grid-canvas"
+    ]
+    assert {issue.get("framework_owned") for issue in data_grid_issues} == {False, True}
+    framework_grid_issue = next(
+        issue for issue in data_grid_issues if issue.get("framework_owned") is True
+    )
+    custom_grid_issue = next(
+        issue for issue in data_grid_issues if issue.get("framework_owned") is False
+    )
+    assert (
+        module._accessibility_result_probe(
+            app_name="test_app",
+            display="PROJECT",
+            url=page.url,
+            issues=[framework_grid_issue],
+        ).status
+        == "interacted"
+    )
+    assert (
+        module._accessibility_result_probe(
+            app_name="test_app",
+            display="PROJECT",
+            url=page.url,
+            issues=[custom_grid_issue],
+        ).status
+        == "failed"
+    )
 
 
 def test_layout_integrity_result_probe_ignores_framework_artifacts() -> None:
@@ -759,7 +976,12 @@ def test_layout_integrity_result_probe_ignores_framework_artifacts() -> None:
         display="PROJECT",
         url="http://demo/PROJECT",
         issues=[
-            {"kind": "zero_size_control", "label": "INPUT", "detail": "control rendered at 1.0x1.0"},
+            {
+                "kind": "zero_size_control",
+                "label": "INPUT",
+                "detail": "control rendered at 1.0x1.0",
+                "framework_owned": True,
+            },
             {"kind": "text_overflow", "label": "Install agi-app", "detail": "text width 95px exceeds container 79px"},
             {
                 "kind": "control_overlap",
@@ -841,7 +1063,12 @@ def test_layout_integrity_result_probe_keeps_actionable_issue_after_filtering() 
         display="PROJECT",
         url="http://demo/PROJECT",
         issues=[
-            {"kind": "zero_size_control", "label": "INPUT", "detail": "control rendered at 1.0x1.0"},
+            {
+                "kind": "zero_size_control",
+                "label": "INPUT",
+                "detail": "control rendered at 1.0x1.0",
+                "framework_owned": True,
+            },
             {"kind": "horizontal_overflow", "label": "RUN", "detail": "control spans outside viewport"},
         ],
     )
@@ -899,6 +1126,12 @@ def test_accessibility_result_probe_ignores_framework_noise() -> None:
                 "detail": "visible interactive control has no accessible name",
             },
             {
+                "kind": "missing_accessible_name",
+                "label": "data-grid-canvas",
+                "detail": "visible interactive control has no accessible name",
+                "framework_owned": True,
+            },
+            {
                 "kind": "heading_level_jump",
                 "label": "Runtime diagnostics",
                 "detail": "heading jumps from h2 to h4",
@@ -907,7 +1140,28 @@ def test_accessibility_result_probe_ignores_framework_noise() -> None:
     )
 
     assert probe.status == "interacted"
-    assert "ignored 3" in probe.detail
+    assert "ignored 4" in probe.detail
+
+
+def test_accessibility_result_probe_keeps_custom_canvas_name_issue_actionable() -> None:
+    module = _load_module()
+
+    probe = module._accessibility_result_probe(
+        app_name="flight_telemetry_project",
+        display="PROJECT",
+        url="http://demo/PROJECT",
+        issues=[
+            {
+                "kind": "missing_accessible_name",
+                "label": "data-grid-canvas",
+                "detail": "visible interactive control has no accessible name",
+                "framework_owned": False,
+            },
+        ],
+    )
+
+    assert probe.status == "failed"
+    assert "data-grid-canvas" in probe.detail
 
 
 def test_accessibility_result_probe_keeps_actionable_issues_after_filtering() -> None:

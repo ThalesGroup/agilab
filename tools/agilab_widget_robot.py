@@ -59,6 +59,7 @@ DEFAULT_PAGE_TIMEOUT_SECONDS = 300.0
 DEFAULT_ACTION_TIMEOUT_SECONDS = 30.0
 PAGE_READY_POLL_MS = 150
 PAGE_READY_STABILIZE_MS = 100
+LAYOUT_INTEGRITY_EXPANDER_SETTLE_MS = 600
 WIDGET_READY_POLL_MS = 150
 ACTION_OUTCOME_POLL_MS = 100
 # Short Playwright timeouts for "is it on screen right now?" probes that run inside polling
@@ -593,10 +594,14 @@ LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
 () => {
   const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
   const clips = (value) => ["auto", "clip", "hidden", "scroll"].includes(value);
+  const hardClips = (value) => ["clip", "hidden"].includes(value);
   const paintedRect = (el) => {
     const raw = el.getBoundingClientRect();
     if (raw.width <= 0 || raw.height <= 0) return null;
     const rect = {left: raw.left, right: raw.right, top: raw.top, bottom: raw.bottom};
+    let hardClippedX = false;
+    let hardClippedY = false;
+    let hardClipOwner = "";
     for (let current = el; current; current = current.parentElement) {
       const style = window.getComputedStyle(current);
       if (
@@ -614,17 +619,32 @@ LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
       }
       if (current === el || current === document.body || current === document.documentElement) continue;
       const contain = String(style.contain || "").split(/\s+/);
-      const clipX = clips(style.overflowX) || contain.some((value) => ["content", "paint", "strict"].includes(value));
-      const clipY = clips(style.overflowY) || contain.some((value) => ["content", "paint", "strict"].includes(value));
+      const containedPaint = contain.some((value) => ["content", "paint", "strict"].includes(value));
+      const clipX = clips(style.overflowX) || containedPaint;
+      const clipY = clips(style.overflowY) || containedPaint;
+      const hardClipX = hardClips(style.overflowX) || containedPaint;
+      const hardClipY = hardClips(style.overflowY) || containedPaint;
       if (!clipX && !clipY) continue;
       const ancestor = current.getBoundingClientRect();
       if (clipX) {
-        rect.left = Math.max(rect.left, ancestor.left);
-        rect.right = Math.min(rect.right, ancestor.right);
+        const nextLeft = Math.max(rect.left, ancestor.left);
+        const nextRight = Math.min(rect.right, ancestor.right);
+        if (hardClipX && (nextLeft > rect.left + 2 || nextRight < rect.right - 2)) {
+          hardClippedX = true;
+          hardClipOwner ||= clean(current.getAttribute("data-testid") || current.tagName);
+        }
+        rect.left = nextLeft;
+        rect.right = nextRight;
       }
       if (clipY) {
-        rect.top = Math.max(rect.top, ancestor.top);
-        rect.bottom = Math.min(rect.bottom, ancestor.bottom);
+        const nextTop = Math.max(rect.top, ancestor.top);
+        const nextBottom = Math.min(rect.bottom, ancestor.bottom);
+        if (hardClipY && (nextTop > rect.top + 2 || nextBottom < rect.bottom - 2)) {
+          hardClippedY = true;
+          hardClipOwner ||= clean(current.getAttribute("data-testid") || current.tagName);
+        }
+        rect.top = nextTop;
+        rect.bottom = nextBottom;
       }
       if (rect.right <= rect.left || rect.bottom <= rect.top) return null;
     }
@@ -635,6 +655,9 @@ LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
       bottom: rect.bottom,
       width: rect.right - rect.left,
       height: rect.bottom - rect.top,
+      hardClippedX,
+      hardClippedY,
+      hardClipOwner,
     };
   };
   const visible = (el) => paintedRect(el) !== null;
@@ -649,11 +672,24 @@ LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
     ""
   ).slice(0, 120);
   const issues = [];
+  const frameworkInputOwner = (el) => {
+    if (el.tagName !== "INPUT") return "";
+    const owner = el.closest([
+      "[data-testid='stFileUploader']",
+      "[data-testid='stFileUploaderDropzoneInput']",
+      "[data-testid='stMultiSelect']",
+      "[data-testid='stSelectbox']",
+    ].join(", "));
+    return clean(owner?.getAttribute("data-testid"));
+  };
   const push = (kind, el, detail) => {
+    const frameworkOwner = frameworkInputOwner(el);
     issues.push({
       kind,
       label: labelFor(el),
       detail: clean(detail).slice(0, 260),
+      framework_owned: Boolean(frameworkOwner),
+      framework_owner: frameworkOwner,
     });
   };
   const controlSelector = [
@@ -670,13 +706,22 @@ LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
   ].join(", ");
   const controls = Array.from(document.querySelectorAll(controlSelector)).filter(visible);
   for (const el of controls) {
-    const rect = paintedRect(el);
-    if (!rect) continue;
-    if (rect.width < 2 || rect.height < 2) {
-      push("zero_size_control", el, `control rendered at ${rect.width.toFixed(1)}x${rect.height.toFixed(1)}`);
+    const painted = paintedRect(el);
+    if (!painted) continue;
+    const rendered = el.getBoundingClientRect();
+    if (rendered.width < 2 || rendered.height < 2) {
+      push("zero_size_control", el, `control rendered at ${rendered.width.toFixed(1)}x${rendered.height.toFixed(1)}`);
     }
-    if (rect.left < -4 || rect.right > window.innerWidth + 4) {
-      push("horizontal_overflow", el, `control spans x=${rect.left.toFixed(1)}..${rect.right.toFixed(1)} viewport=${window.innerWidth}`);
+    if (painted.hardClippedX || painted.hardClippedY) {
+      const axes = [painted.hardClippedX ? "horizontal" : "", painted.hardClippedY ? "vertical" : ""].filter(Boolean).join("+");
+      push(
+        "clipped_control",
+        el,
+        `control clipped from ${rendered.width.toFixed(1)}x${rendered.height.toFixed(1)} to ${painted.width.toFixed(1)}x${painted.height.toFixed(1)} by ${painted.hardClipOwner || "non-scrollable ancestor"} (${axes})`,
+      );
+    }
+    if (painted.left < -4 || painted.right > window.innerWidth + 4) {
+      push("horizontal_overflow", el, `control spans x=${painted.left.toFixed(1)}..${painted.right.toFixed(1)} viewport=${window.innerWidth}`);
     }
   }
   const textSelector = [
@@ -748,11 +793,16 @@ ACCESSIBILITY_COLLECTOR_JS = r"""
     return clean(textFor(container || el)).slice(0, 160);
   };
   const issues = [];
+  const frameworkDataGridCanvas = (el) => (
+    el.getAttribute("data-testid") === "data-grid-canvas" &&
+    Boolean(el.closest("[data-testid='stDataFrame'], [data-testid='stDataEditor']"))
+  );
   const push = (kind, el, detail) => {
     issues.push({
       kind,
       label: clean(labelFor(el) || el.getAttribute("data-testid") || el.tagName).slice(0, 120),
       detail: clean(detail).slice(0, 260),
+      framework_owned: frameworkDataGridCanvas(el),
     });
   };
   const interactiveSelector = [
@@ -5585,7 +5635,12 @@ def _ignored_layout_issue_reason(issue: Mapping[str, Any], *, display: str) -> s
     kind = str(issue.get("kind") or "")
     label = str(issue.get("label") or "")
     detail = str(issue.get("detail") or "")
-    if kind == "zero_size_control" and label == "INPUT" and "1.0x1.0" in detail:
+    if (
+        kind == "zero_size_control"
+        and label == "INPUT"
+        and "1.0x1.0" in detail
+        and issue.get("framework_owned") is True
+    ):
         return "Streamlit hidden input"
     if kind == "text_overflow" and label == "Install agi-app":
         return "intentional Streamlit sidebar action label measurement"
@@ -5627,6 +5682,11 @@ def _layout_span_is_fully_offscreen_left(detail: str) -> bool:
 
 def _layout_integrity_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:  # pragma: no cover - live browser path
     try:
+        # OPEN_EXPANDERS_JS is also called during readiness, but Streamlit animates
+        # the height of newly opened details for 500 ms.  Keep this longer settle
+        # local to geometry checks so other expander callers stay fast.
+        page.evaluate(OPEN_EXPANDERS_JS)
+        _wait_for_timeout(page, LAYOUT_INTEGRITY_EXPANDER_SETTLE_MS)
         issues = page.evaluate(LAYOUT_INTEGRITY_COLLECTOR_JS)
     except Exception as exc:
         issues = [{"kind": "collector_error", "label": "", "detail": str(exc)}]
@@ -5684,6 +5744,12 @@ def _ignored_accessibility_issue_reason(issue: Mapping[str, Any]) -> str | None:
     label = str(issue.get("label") or "")
     if kind == "contrast_risk":
         return "contrast heuristic is conservative with Streamlit computed backgrounds"
+    if (
+        kind == "missing_accessible_name"
+        and label == "data-grid-canvas"
+        and issue.get("framework_owned") is True
+    ):
+        return "Streamlit dataframe canvas is backed by framework-owned grid semantics"
     if kind == "missing_accessible_name" and label in {
         "stFileUploaderDropzoneInput",
         "stNumberInputStepDown",
