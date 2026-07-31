@@ -25,6 +25,11 @@ SHIM_MARKERS = (
     "Compatibility shim",
     "Compatibility import",
 )
+SHIM_DECLARATION_PREFIXES = tuple(
+    f"{leader}{marker}"
+    for leader in ('"""', "'''", "# ")
+    for marker in SHIM_MARKERS
+)
 
 
 def _tracked_python_files(repo_root: Path) -> list[Path]:
@@ -43,7 +48,10 @@ def is_compat_shim(path: Path) -> bool:
         prefix = path.read_text(encoding="utf-8").splitlines()[:12]
     except UnicodeDecodeError:
         return False
-    return any(marker in "\n".join(prefix) for marker in SHIM_MARKERS)
+    return any(
+        line.lstrip().startswith(SHIM_DECLARATION_PREFIXES)
+        for line in prefix
+    )
 
 
 def _area_for(path: Path, repo_root: Path) -> str:
