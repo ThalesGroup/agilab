@@ -150,6 +150,9 @@ def _template_context(manifest: Mapping[str, Any]) -> dict[str, Any]:
     release = manifest.get("release", {})
     if not isinstance(release, Mapping):
         raise TypeError("[release] must be a table")
+    ui_robot = manifest.get("ui_robot", {})
+    if not isinstance(ui_robot, Mapping):
+        raise TypeError("[ui_robot] must be a table")
     package_name = str(release.get("package_name", ""))
     package_version = str(release.get("package_version", ""))
     package_extras = release.get("package_extras", []) or []
@@ -160,6 +163,7 @@ def _template_context(manifest: Mapping[str, Any]) -> dict[str, Any]:
     return {
         **{str(key): value for key, value in release.items()},
         "package_spec": f"{package_spec_name}=={package_version}",
+        "expected_app_count": ui_robot.get("expected_app_count"),
     }
 
 
@@ -813,6 +817,9 @@ def refresh_manifest_from_local(
     release = refreshed.get("release")
     if not isinstance(release, dict):
         raise TypeError("[release] must be a table")
+    ui_robot = refreshed.get("ui_robot")
+    if not isinstance(ui_robot, dict):
+        raise TypeError("[ui_robot] must be a table")
 
     package_version = _load_project_version(repo_root) or str(release.get("package_version", ""))
     if package_version:
@@ -832,6 +839,9 @@ def refresh_manifest_from_local(
             release["github_release_commit"] = tag_commit
         elif tag != previous_tag:
             release.pop("github_release_commit", None)
+        release_app_count = _local_release_app_count(repo_root, tag)
+        if release_app_count is not None:
+            ui_robot["expected_app_count"] = release_app_count
     elif github_release_url:
         release["github_release_url"] = github_release_url
 
