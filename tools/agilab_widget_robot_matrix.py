@@ -4,10 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
+import os
+import signal
 import subprocess
 import sys
+import threading
 import time
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
@@ -21,6 +25,17 @@ SCHEMA = "agilab.widget_robot_matrix.v1"
 FAILURE_BUNDLE_SCHEMA = "agilab.widget_robot_matrix_failure_bundle.v1"
 FAILURE_BUNDLE_TAIL_LINES = 120
 FAILURE_BUNDLE_TEXT_LIMIT = 30_000
+# A wedged robot child (Streamlit sidecar plus a headless browser that never
+# reaches a ready state) produces no output and never exits, so the streaming
+# read loop below would block until the CI job's own `timeout-minutes` cap fires.
+# That kills the whole shard without a per-scenario verdict or failure bundle.
+# This wall-clock budget bounds each child instead, so one wedged scenario is
+# reported as a failure and the remaining scenarios still run.
+DEFAULT_SCENARIO_TIMEOUT_SECONDS = 900.0
+# Conventional shell exit status for "killed by timeout" (128 + SIGTERM).
+SCENARIO_TIMEOUT_RETURNCODE = 124
+# Grace period for the child to die after SIGTERM before we escalate to SIGKILL.
+SCENARIO_TERMINATE_GRACE_SECONDS = 10.0
 RESULT_CACHE_SCHEMA = "agilab.widget_robot_matrix_result_cache.v1"
 DEFAULT_RESULT_CACHE_PATH = REPO_ROOT / ".pytest_cache" / "agilab" / "ui_robot_matrix_results.json"
 RESULT_CACHE_MAX_ENTRIES = 256
@@ -99,6 +114,8 @@ class MatrixOptions:
     retry_trace_dir: Path | None = None
     retry_har_dir: Path | None = None
     retry_video_dir: Path | None = None
+    # Per-scenario wall-clock budget. ``None`` disables the watchdog entirely.
+    scenario_timeout_seconds: float | None = DEFAULT_SCENARIO_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True)
@@ -129,8 +146,47 @@ class ScenarioResult:
     artifact_retry: FailureArtifactRetry | None = None
 
 
-def _run_robot_command_streaming(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
-    """Run a robot child process while keeping matrix stdout JSON-clean."""
+def _terminate_process_tree(proc: subprocess.Popen[str]) -> None:
+    """Kill a wedged robot child together with the processes it spawned.
+
+    The robot starts a Streamlit sidecar and a headless browser, so signalling
+    only the direct child leaves those orphaned and holding the shard's ports.
+    On POSIX the child runs in its own session (see ``start_new_session`` below)
+    so the whole group can be signalled at once; Windows has no session groups,
+    so fall back to terminating the child itself.
+    """
+
+    def _signal_group(sig: int) -> None:
+        if os.name != "nt":
+            with contextlib.suppress(OSError, ProcessLookupError):
+                os.killpg(os.getpgid(proc.pid), sig)
+                return
+        with contextlib.suppress(OSError, ProcessLookupError):
+            proc.terminate() if sig == signal.SIGTERM else proc.kill()
+
+    _signal_group(signal.SIGTERM)
+    try:
+        proc.wait(timeout=SCENARIO_TERMINATE_GRACE_SECONDS)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    _signal_group(signal.SIGKILL if os.name != "nt" else signal.SIGTERM)
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        proc.wait(timeout=SCENARIO_TERMINATE_GRACE_SECONDS)
+
+
+def _run_robot_command_streaming(
+    argv: Sequence[str],
+    *,
+    timeout_seconds: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a robot child process while keeping matrix stdout JSON-clean.
+
+    ``timeout_seconds`` bounds the child's total wall-clock time. Output is
+    drained on a reader thread so the deadline is enforced even when the child
+    goes completely silent -- a blocking ``for line in proc.stdout`` would
+    otherwise never return and could not be interrupted.
+    """
 
     print(f"[ui-robot-matrix] start: {' '.join(argv)}", file=sys.stderr, flush=True)
     proc = subprocess.Popen(
@@ -140,13 +196,44 @@ def _run_robot_command_streaming(argv: Sequence[str]) -> subprocess.CompletedPro
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         bufsize=1,
+        # Own process group so a timeout can reap the whole robot process tree.
+        start_new_session=os.name != "nt",
     )
     output_lines: list[str] = []
     assert proc.stdout is not None
-    for line in proc.stdout:
-        output_lines.append(line)
-        print(line, end="", file=sys.stderr, flush=True)
-    returncode = proc.wait()
+
+    def _drain() -> None:
+        # The pipe is closed when the child exits or is killed, which ends this
+        # loop; failures here must never take down the matrix run.
+        with contextlib.suppress(ValueError, OSError):
+            for line in proc.stdout:  # type: ignore[union-attr]
+                output_lines.append(line)
+                print(line, end="", file=sys.stderr, flush=True)
+
+    reader = threading.Thread(target=_drain, name="ui-robot-output", daemon=True)
+    reader.start()
+
+    timed_out = False
+    try:
+        returncode = proc.wait(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        print(
+            f"[ui-robot-matrix] TIMEOUT after {timeout_seconds:.0f}s, terminating: "
+            f"{' '.join(argv)}",
+            file=sys.stderr,
+            flush=True,
+        )
+        _terminate_process_tree(proc)
+        returncode = proc.returncode if proc.returncode is not None else SCENARIO_TIMEOUT_RETURNCODE
+
+    reader.join(timeout=SCENARIO_TERMINATE_GRACE_SECONDS)
+    if timed_out:
+        returncode = SCENARIO_TIMEOUT_RETURNCODE
+        output_lines.append(
+            f"\n[ui-robot-matrix] scenario exceeded its {timeout_seconds:.0f}s "
+            "wall-clock budget and was terminated\n"
+        )
     print(f"[ui-robot-matrix] exit={returncode}: {' '.join(argv)}", file=sys.stderr, flush=True)
     return subprocess.CompletedProcess(list(argv), returncode, stdout="".join(output_lines))
 
@@ -779,6 +866,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--timeout", type=float, default=90.0)
     parser.add_argument("--widget-timeout", type=float, default=3.0)
+    parser.add_argument(
+        "--scenario-timeout",
+        type=float,
+        default=DEFAULT_SCENARIO_TIMEOUT_SECONDS,
+        help=(
+            "Per-scenario wall-clock budget in seconds. A scenario that exceeds it is "
+            "terminated and reported as a failure so the remaining scenarios still run. "
+            "Use 0 to disable the watchdog."
+        ),
+    )
     parser.add_argument("--browser", choices=("chromium", "firefox", "webkit"), default="chromium")
     parser.add_argument("--headful", action="store_true")
     parser.add_argument("--url", help="Existing AGILAB URL to test instead of launching source Streamlit.")
@@ -814,6 +911,7 @@ def options_from_args(args: argparse.Namespace) -> MatrixOptions:
         failure_bundle_dir=args.failure_bundle_dir,
         timeout_seconds=args.timeout,
         widget_timeout_seconds=args.widget_timeout,
+        scenario_timeout_seconds=args.scenario_timeout if args.scenario_timeout > 0 else None,
         quiet_progress=args.quiet_progress,
         no_seed_demo_artifacts=args.no_seed_demo_artifacts,
         browser=args.browser,
@@ -996,7 +1094,9 @@ def run_failure_artifact_retry(
     argv, summary_path, progress_path = build_robot_command(scenario, options=retry_options)
     started = time.perf_counter()
     if runner is subprocess.run:
-        completed = _run_robot_command_streaming(argv)
+        completed = _run_robot_command_streaming(
+            argv, timeout_seconds=options.scenario_timeout_seconds
+        )
     else:
         completed = runner(
             argv,
@@ -1414,7 +1514,9 @@ def run_scenario(
     argv, summary_path, progress_path = build_robot_command(scenario, options=options)
     started = time.perf_counter()
     if runner is subprocess.run:
-        completed = _run_robot_command_streaming(argv)
+        completed = _run_robot_command_streaming(
+            argv, timeout_seconds=options.scenario_timeout_seconds
+        )
     else:
         completed = runner(
             argv,
