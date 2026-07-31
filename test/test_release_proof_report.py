@@ -149,6 +149,11 @@ def test_release_proof_refresh_from_local_updates_manifest_and_page(
         "_local_tag_commit",
         lambda _repo_root, _tag: "test-release-commit",
     )
+    monkeypatch.setattr(
+        module,
+        "_local_release_app_count",
+        lambda _repo_root, _tag: 14,
+    )
     docs_source = tmp_path / "docs" / "source"
     data_dir = docs_source / "data"
     data_dir.mkdir(parents=True)
@@ -178,6 +183,7 @@ def test_release_proof_refresh_from_local_updates_manifest_and_page(
     assert refreshed["release"]["github_release_tag"] == "v2026.05.01-2"
     assert refreshed["release"]["github_release_url"].endswith("/releases/tag/v2026.05.01-2")
     assert refreshed["release"]["github_release_commit"] == "test-release-commit"
+    assert refreshed["ui_robot"]["expected_app_count"] == 14
     dataset_release_tag = refreshed["release"]["dataset_release_tag"]
     assert dataset_release_tag.startswith("datasets-")
     assert refreshed["release"]["dataset_release_url"].endswith(
@@ -185,7 +191,9 @@ def test_release_proof_refresh_from_local_updates_manifest_and_page(
     )
     assert refreshed["release"]["dataset_count"] > 0
     assert refreshed["release"]["hf_space_commit"] == "test-hf-commit"
-    assert (docs_source / "release-proof.rst").read_text(encoding="utf-8") == module.render_release_proof(
+    rendered = (docs_source / "release-proof.rst").read_text(encoding="utf-8")
+    assert "14-app release inventory" in " ".join(rendered.split())
+    assert rendered == module.render_release_proof(
         refreshed,
         ui_robot_evidence_path=data_dir / "ui_robot_evidence.json",
     )
