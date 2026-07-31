@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import sys
 import time
 from pathlib import Path
 
+import pytest
 
 MODULE_PATH = Path("tools/agilab_widget_robot.py").resolve()
+REAL_HOME = Path.home().resolve()
+REAL_PLAYWRIGHT_BROWSERS_PATH = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "")
+REQUIRE_PLAYWRIGHT_LAYOUT_REGRESSION_ENV = "AGILAB_REQUIRE_PLAYWRIGHT_LAYOUT_REGRESSION"
 
 
 def _load_module():
@@ -651,6 +656,99 @@ def test_layout_integrity_result_probe_accepts_clean_geometry() -> None:
 
     assert probe.status == "interacted"
     assert "no obvious overflow" in probe.detail
+
+
+def test_layout_integrity_collector_uses_painted_geometry_for_expander_content(
+    monkeypatch,
+) -> None:
+    require_browser = os.environ.get(REQUIRE_PLAYWRIGHT_LAYOUT_REGRESSION_ENV) == "1"
+    try:
+        from playwright import sync_api
+    except ModuleNotFoundError:
+        if require_browser:
+            pytest.fail("Playwright is required by the layout-regression gate", pytrace=False)
+        pytest.skip("Playwright is not installed")
+    module = _load_module()
+
+    cache_candidates = [
+        Path(REAL_PLAYWRIGHT_BROWSERS_PATH) if REAL_PLAYWRIGHT_BROWSERS_PATH else None,
+        REAL_HOME / "Library" / "Caches" / "ms-playwright",
+        REAL_HOME / ".cache" / "ms-playwright",
+        REAL_HOME / "AppData" / "Local" / "ms-playwright",
+    ]
+    cache_root = next(
+        (path for path in cache_candidates if path is not None and path.is_dir()), None
+    )
+    if cache_root is not None:
+        monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(cache_root))
+
+    try:
+        with sync_api.sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": 1000, "height": 700})
+                page.set_content(
+                    """
+                    <style>
+                      .expander-content {
+                        position: fixed;
+                        inset: 20px auto auto 20px;
+                        width: 240px;
+                        height: 0;
+                        overflow: hidden;
+                      }
+                      .expander-content button,
+                      .actual-overlap button {
+                        position: absolute;
+                        inset: 0 auto auto 0;
+                        width: 200px;
+                        height: 40px;
+                      }
+                      .actual-overlap {
+                        position: fixed;
+                        inset: 100px auto auto 400px;
+                        width: 200px;
+                        height: 40px;
+                      }
+                    </style>
+                    <details open>
+                      <summary>Preview distribution workplan</summary>
+                      <div class="expander-content">
+                        <button>CHECK distribute</button>
+                      </div>
+                    </details>
+                    <details open>
+                      <summary>Advanced benchmark options</summary>
+                      <div class="expander-content">
+                        <button>Benchmark modes</button>
+                      </div>
+                    </details>
+                    <div class="actual-overlap">
+                      <button>Visible primary</button>
+                      <button>Visible secondary</button>
+                    </div>
+                    """
+                )
+
+                issues = page.evaluate(module.LAYOUT_INTEGRITY_COLLECTOR_JS)
+            finally:
+                browser.close()
+    except sync_api.Error as exc:
+        if require_browser:
+            pytest.fail(f"Chromium is required by the layout-regression gate: {exc}", pytrace=False)
+        pytest.skip(f"Chromium is unavailable for layout collector regression: {exc}")
+
+    overlap_details = [
+        f"{issue.get('label', '')} {issue.get('detail', '')}"
+        for issue in issues
+        if issue.get("kind") == "control_overlap"
+    ]
+    assert any(
+        "Visible primary" in detail and "Visible secondary" in detail
+        for detail in overlap_details
+    )
+    assert all("CHECK distribute" not in detail for detail in overlap_details)
+    assert all("Benchmark modes" not in detail for detail in overlap_details)
 
 
 def test_layout_integrity_result_probe_ignores_framework_artifacts() -> None:
@@ -2737,9 +2835,19 @@ def test_summarize_counts_interactions_and_failures() -> None:
         )
     ]
 
-    summary = module.summarize(pages, app_count=1, target_seconds=10.0)
+    summary = module.summarize(
+        pages,
+        app_count=99,
+        target_seconds=10.0,
+        apps=["weather_forecast_project", "flight_telemetry_project"],
+    )
 
     assert summary.success is False
+    assert summary.app_count == 2
+    assert summary.apps == ["flight_telemetry_project", "weather_forecast_project"]
+    assert summary.covered_apps == ["flight_telemetry_project"]
+    assert summary.missing_apps == ["weather_forecast_project"]
+    assert summary.unexpected_apps == []
     assert summary.widget_count == 3
     assert summary.main_widget_count == 2
     assert summary.sidebar_widget_count == 1
@@ -2953,7 +3061,7 @@ def test_streamlit_health_failure_detail_handles_running_process() -> None:
     assert "output tail: tail" in detail
 
 
-def test_write_summary_json_includes_page_status(tmp_path) -> None:
+def test_write_summary_json_includes_page_status_and_exact_app_coverage(tmp_path) -> None:
     module = _load_module()
     page = module.PageSweep(
         app="flight_telemetry_project",
@@ -2971,12 +3079,72 @@ def test_write_summary_json_includes_page_status(tmp_path) -> None:
         status="passed",
     )
     output = tmp_path / "summary.json"
+    weather_page = module.PageSweep(
+        app="weather_forecast_project",
+        page="PROJECT",
+        success=True,
+        duration_seconds=1.0,
+        widget_count=1,
+        interacted_count=1,
+        probed_count=0,
+        skipped_count=0,
+        failed_count=0,
+        url="http://demo",
+        failures=[],
+        skips=[],
+        status="passed",
+    )
 
-    module.write_summary_json(output, [page], app_count=1, target_seconds=10.0)
+    module.write_summary_json(
+        output,
+        [page, weather_page],
+        app_count=2,
+        target_seconds=10.0,
+        apps=["weather_forecast_project", "flight_telemetry_project"],
+    )
 
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["success"] is True
+    assert payload["app_count"] == 2
+    assert payload["apps"] == ["flight_telemetry_project", "weather_forecast_project"]
+    assert payload["covered_apps"] == ["flight_telemetry_project", "weather_forecast_project"]
+    assert payload["missing_apps"] == []
+    assert payload["unexpected_apps"] == []
     assert payload["pages"][0]["status"] == "passed"
+
+
+def test_summarize_fails_when_a_selected_app_has_no_completed_page() -> None:
+    module = _load_module()
+    page = module.PageSweep(
+        app="flight_telemetry_project",
+        page="PROJECT",
+        success=True,
+        duration_seconds=1.0,
+        widget_count=1,
+        interacted_count=1,
+        probed_count=0,
+        skipped_count=0,
+        failed_count=0,
+        url="http://demo",
+        failures=[],
+        skips=[],
+        status="passed",
+    )
+
+    summary = module.summarize(
+        [page],
+        app_count=2,
+        target_seconds=10.0,
+        apps=["weather_forecast_project", "flight_telemetry_project"],
+    )
+
+    assert summary.success is False
+    assert summary.within_target is False
+    assert summary.failed_count == 0
+    assert summary.apps == ["flight_telemetry_project", "weather_forecast_project"]
+    assert summary.covered_apps == ["flight_telemetry_project"]
+    assert summary.missing_apps == ["weather_forecast_project"]
+    assert summary.unexpected_apps == []
 
 
 def test_page_watchdog_helper_raises_when_deadline_expired() -> None:
@@ -4748,6 +4916,7 @@ def test_render_human_reports_sidebar_widget_counts() -> None:
     report = module.render_human(summary)
 
     assert "widgets=3 main=2 sidebar=1" in report
+    assert "coverage: covered=flight_telemetry_project missing=- unexpected=-" in report
     assert "combinations: space=2 executed=2" in report
     assert "flight_telemetry_project/PROJECT: FAIL status=failed widgets=3 main=2 sidebar=1" in report
     assert "combinations=2/2" in report

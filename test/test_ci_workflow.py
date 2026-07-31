@@ -16,6 +16,7 @@ WINDOWS_CORE_TESTS_WORKFLOW_PATH = Path(".github/workflows/windows-core-tests.ym
 ROOT_TEST_SUITE_WORKFLOW_PATH = Path(".github/workflows/root-test-suite.yml")
 ROOT_CONFTEST_PATH = Path("test/conftest.py")
 WORKFLOW_PARITY_PATH = Path("tools/workflow_parity.py")
+UI_ROBOT_MATRIX_PLAN_PATH = Path("tools/testing/ui_robot_matrix_plan.py")
 PYPROJECT_PATH = Path("pyproject.toml")
 
 VALIDATION_WORKFLOW_PATHS = (
@@ -42,27 +43,27 @@ def _load_workflow_parity_module():
     return module
 
 
+def _ui_robot_matrix_plan_rows() -> dict[str, dict[str, object]]:
+    spec = importlib.util.spec_from_file_location(
+        "ci_ui_robot_matrix_plan_test_module",
+        UI_ROBOT_MATRIX_PLAN_PATH,
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    plan = module.build_plan()
+    return {
+        str(row["shard"]): dict(row)
+        for row in plan["matrix"]["include"]
+    }
+
+
 def _ui_robot_matrix_workflow_shards() -> dict[str, list[str]]:
-    shards: dict[str, list[str]] = {}
-    current_shard = ""
-    collecting = False
-    for line in UI_ROBOT_MATRIX_WORKFLOW_PATH.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped.startswith("- shard:"):
-            current_shard = stripped.split(":", 1)[1].strip()
-            shards[current_shard] = []
-            collecting = False
-            continue
-        if current_shard and stripped == "scenarios: >-":
-            collecting = True
-            continue
-        if collecting:
-            if line.startswith("              ") and stripped:
-                shards[current_shard].append(stripped)
-                continue
-            collecting = False
-    assert shards
-    return shards
+    return {
+        shard: str(row["scenarios"]).split()
+        for shard, row in _ui_robot_matrix_plan_rows().items()
+    }
 
 
 def _ui_robot_matrix_parity_commands():
@@ -112,11 +113,12 @@ def _ui_robot_matrix_command_contract(argv: list[str]) -> dict[str, object]:
 
 
 def _ui_robot_matrix_workflow_contracts() -> dict[str, dict[str, object]]:
+    plan_rows = _ui_robot_matrix_plan_rows()
     return {
         shard: {
             "script": True,
             "scenarios": scenarios,
-            "apps": "all",
+            "apps": str(plan_rows[shard]["apps"]),
             "timeout": "90",
             "widget_timeout": "3",
             "json": True,
@@ -420,13 +422,16 @@ def test_release_plan_validates_managed_docs_tag_before_publish_jobs() -> None:
     )
 
 
-def test_docs_source_guard_fetches_release_tags_for_exact_proof() -> None:
-    guard_text = DOCS_SOURCE_GUARD_WORKFLOW_PATH.read_text(encoding="utf-8")
-
-    checkout_block = guard_text.split("- name: Checkout", 1)[1].split(
-        "- name: Setup Python", 1
-    )[0]
-    assert "fetch-depth: 0" in checkout_block
+def test_docs_workflows_fetch_release_tags_for_exact_proof() -> None:
+    for workflow_path in (
+        DOCS_SOURCE_GUARD_WORKFLOW_PATH,
+        DOCS_PUBLISH_WORKFLOW_PATH,
+    ):
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        checkout_block = workflow_text.split("- name: Checkout", 1)[1].split(
+            "- name: Setup Python", 1
+        )[0]
+        assert "fetch-depth: 0" in checkout_block
 
 
 def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
@@ -440,12 +445,12 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
     assert "pull_request:" not in text
     assert "\n  push:" not in text
     assert "ui-robot-matrix:" in text
+    assert "plan_ui_robot_matrix:" in text
+    assert "tools/testing/ui_robot_matrix_plan.py" in text
+    assert "--github-output" in text
+    assert "matrix: ${{ fromJSON(needs.plan_ui_robot_matrix.outputs.matrix) }}" in text
     assert "strategy:" in text
     assert "fail-fast: false" in text
-    assert "- shard: core" in text
-    assert "- shard: state" in text
-    assert "- shard: quality" in text
-    assert "- shard: layout" in text
     assert "tools/agilab_widget_robot_matrix.py" in text
     assert "Resolve Playwright version for browser cache key" in text
     assert "id: playwright-version" in text
@@ -464,7 +469,7 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
         "python -m playwright install --with-deps chromium"
     ) in text
     assert "Save Playwright browser cache" in text
-    assert "steps.playwright-cache.outputs.cache-hit != 'true' && matrix.shard == 'core'" in text
+    assert "steps.playwright-cache.outputs.cache-hit != 'true' && matrix.shard == 'core-01'" in text
     assert "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae" in text
     assert text.index("Restore Playwright browser cache") < text.index(
         "Install Playwright browser"
@@ -473,12 +478,13 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
         "Save Playwright browser cache"
     )
     assert "uv --preview-features extra-build-dependencies run --extra ai --with playwright python tools/agilab_widget_robot_matrix.py" in text
+    planner_text = UI_ROBOT_MATRIX_PLAN_PATH.read_text(encoding="utf-8")
     for scenario in {
         scenario
         for scenarios in _ui_robot_matrix_workflow_shards().values()
         for scenario in scenarios
     }:
-        assert scenario in text
+        assert scenario in planner_text
     assert '"${scenario_args[@]}"' in text
     assert "--apps \"${robot_apps}\"" in text
     assert "--json" in text
@@ -488,6 +494,8 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
     assert 'screenshot_dir="screenshots/ui-robot-matrix/${ROBOT_SHARD}"' in text
     assert 'failure_bundle_dir="${result_dir}/failure-bundles"' in text
     assert 'failure_artifact_dir="${result_dir}/failure-artifacts"' in text
+    assert 'robot_apps="${ROBOT_APPS}"' in text
+    assert "ROBOT_APPS: ${{ matrix.apps }}" in text
     assert '--output-dir "${result_dir}"' in text
     assert '--screenshot-dir "${screenshot_dir}"' in text
     assert '--failure-bundle-dir "${failure_bundle_dir}"' in text
@@ -516,11 +524,13 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
     assert "test-results/ui-robot-matrix/${{ matrix.shard }}/**" in text
     assert "screenshots/ui-robot-matrix/${{ matrix.shard }}/**" in text
     assert "aggregate-ui-robot-matrix:" in text
-    assert "needs: ui-robot-matrix" in text
+    assert "- plan_ui_robot_matrix" in text
+    assert "- ui-robot-matrix" in text
     assert "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1" in text
     assert "pattern: ui-robot-matrix-*-${{ github.run_attempt }}" in text
     assert "uv --preview-features extra-build-dependencies run python tools/ui_robot_matrix_aggregate.py" in text
-    assert "--expected-shards core,state,quality,layout" in text
+    assert '--expected-shards "${EXPECTED_SHARDS}"' in text
+    assert '--expected-apps "${EXPECTED_APPS}"' in text
     assert "--output test-results/ui-robot-matrix-aggregate/aggregate.json" in text
     assert "--summary-markdown test-results/ui-robot-matrix-aggregate/summary.md" in text
     assert "ui-robot-matrix-aggregate-${{ github.run_attempt }}" in text
@@ -556,4 +566,10 @@ def test_dev_extra_installs_ruff_for_local_linting() -> None:
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
     dev_dependencies = pyproject["project"]["optional-dependencies"]["dev"]
 
-    assert any(dependency.startswith("ruff>=") for dependency in dev_dependencies)
+    ruff_dependencies = [
+        dependency
+        for dependency in dev_dependencies
+        if dependency.startswith("ruff>=")
+    ]
+
+    assert ruff_dependencies == ["ruff>=0.15.14,<0.16"]

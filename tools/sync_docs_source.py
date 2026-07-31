@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import errno
 import hashlib
+import importlib.util
 import json
 import os
 import secrets
@@ -38,11 +39,15 @@ PUBLIC_OWNED_EXCLUSIONS = frozenset(
         "release-proof.rst",
     }
 )
+UI_ROBOT_EVIDENCE_PUBLIC_OWNED = "data/ui_robot_evidence.json"
 RELEASE_REFRESHABLE_PUBLIC_OWNED = frozenset(
     {
         "data/release_proof.toml",
         "release-proof.rst",
     }
+)
+UI_ROBOT_REFRESHABLE_PUBLIC_OWNED = frozenset(
+    {UI_ROBOT_EVIDENCE_PUBLIC_OWNED}
 )
 CANONICAL_DRIFT_NOT_CHECKED = (
     "canonical docs source unavailable; target integrity only; "
@@ -1107,7 +1112,7 @@ def _validate_public_owned_rebaseline(
     *,
     stamp_path: Path,
     allowed_changes: frozenset[str],
-) -> None:
+) -> set[str]:
     previous_files = stamp.get("public_owned_files_sha256")
     if not isinstance(previous_files, dict) or not all(
         isinstance(path, str) and isinstance(digest, str)
@@ -1127,6 +1132,56 @@ def _validate_public_owned_rebaseline(
             "refusing to re-baseline public-owned evidence not allowed by this "
             "operation: " + ", ".join(forbidden_changes)
         )
+    return changed_public_files
+
+
+def _validate_ui_robot_evidence_at_boundary(
+    boundary: PinnedMutationBoundary,
+    *,
+    expected_digest: str,
+) -> None:
+    evidence_path = boundary.target / UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+    with _pinned_destination_parent(
+        boundary,
+        evidence_path,
+        create=False,
+    ) as parent:
+        content, fingerprint = _read_regular_at(
+            parent,
+            parent.leaf_name,
+            label="UI robot evidence",
+        )
+    if fingerprint[-1] != expected_digest:
+        raise ValueError(
+            "UI robot evidence changed between target-state capture and validation"
+        )
+    validator_path = Path(__file__).with_name("ui_robot_evidence.py")
+    validator_spec = importlib.util.spec_from_file_location(
+        "agilab_ui_robot_evidence_validator",
+        validator_path,
+    )
+    if validator_spec is None or validator_spec.loader is None:
+        raise RuntimeError(
+            f"unable to load UI robot evidence validator: {validator_path}"
+        )
+    validator = importlib.util.module_from_spec(validator_spec)
+    validator_spec.loader.exec_module(validator)
+    with tempfile.TemporaryDirectory(prefix="agilab-ui-robot-validation-") as temp:
+        validation_path = Path(temp) / "ui_robot_evidence.json"
+        validation_path.write_bytes(content)
+        try:
+            evidence = validator.load_evidence(validation_path)
+        except (OSError, UnicodeError, ValueError) as exc:
+            raise ValueError(f"invalid UI robot evidence: {exc}") from exc
+    checks = validator.validate_evidence(evidence)
+    failed_checks = [
+        str(check.get("id") or "unknown")
+        for check in checks
+        if check.get("status") != "pass"
+    ]
+    if not checks or failed_checks:
+        details = ", ".join(failed_checks) if failed_checks else "no checks returned"
+        raise ValueError(f"UI robot evidence validation failed: {details}")
 
 
 def _validate_existing_public_evidence_before_full_sync(
@@ -1173,16 +1228,20 @@ def _validate_existing_public_evidence_before_full_sync(
     return public_files
 
 
-def refresh_target_integrity_stamp(target: Path) -> tuple[Path, bool]:
-    """Refresh public integrity while preserving valid managed provenance.
-
-    Only release-proof files may change during this refresh. Other public-owned
-    evidence, including UI robot evidence, must still match its previous v3
-    per-file digest. Missing, malformed, legacy-v1, or stale managed evidence
-    fails closed and requires an explicit recovery operation.
-    """
-
+def _refresh_target_integrity_stamp(
+    target: Path,
+    *,
+    allowed_changes: frozenset[str],
+    operation_description: str,
+    source: Path | None = None,
+    required_existing_path: str | None = None,
+    require_passing_ui_robot_evidence: bool = False,
+) -> tuple[Path, bool]:
     with _pinned_mutation_boundary(target) as boundary:
+        if source is not None:
+            if not source.is_dir():
+                raise ValueError(f"canonical docs source is not a directory: {source}")
+            _ensure_disjoint_directories(source, boundary.target)
         stamp_path = stamp_path_for_target(boundary.target)
         previous = _capture_regular_stamp(stamp_path, boundary=boundary)
         stamp = _stamp_object_from_snapshot(previous, stamp_path)
@@ -1212,14 +1271,69 @@ def refresh_target_integrity_stamp(target: Path) -> tuple[Path, bool]:
         if not managed_ok:
             raise ValueError(
                 message
-                + "; refusing to re-baseline changed managed docs during a release refresh"
+                + "; refusing to re-baseline changed managed docs during "
+                + operation_description
             )
-        _validate_public_owned_rebaseline(
+        if source is not None:
+            if stamp.get("source_status") != "verified":
+                raise ValueError(
+                    f"{operation_description} requires verified canonical-source "
+                    f"provenance in {stamp_path}"
+                )
+            source_state = _stable_manifest_state(source)
+            if (
+                source_state["digest_sha256"] != stamp.get("source_digest_sha256")
+                or source_state["file_count"] != stamp.get("file_count")
+            ):
+                raise ValueError(
+                    f"canonical source drift for {source}: stamp expected digest "
+                    f"{stamp.get('source_digest_sha256')} and file_count "
+                    f"{stamp.get('file_count')}, got {source_state['digest_sha256']} "
+                    f"and {source_state['file_count']}"
+                )
+            if source_state != target_state:
+                raise ValueError(
+                    "canonical source and managed mirror target differ; refusing "
+                    f"{operation_description}"
+                )
+        changed_public_files = _validate_public_owned_rebaseline(
             stamp,
             public_owned_files,
             stamp_path=stamp_path,
-            allowed_changes=RELEASE_REFRESHABLE_PUBLIC_OWNED,
+            allowed_changes=allowed_changes,
         )
+        if required_existing_path is not None:
+            previous_files = stamp.get("public_owned_files_sha256")
+            if (
+                not isinstance(previous_files, dict)
+                or required_existing_path not in previous_files
+                or required_existing_path not in public_owned_files
+            ):
+                raise ValueError(
+                    f"{operation_description} requires an existing stamped "
+                    f"{required_existing_path} file; creation or deletion cannot be "
+                    "re-baselined"
+                )
+            if changed_public_files not in (
+                set(),
+                {required_existing_path},
+            ):
+                raise ValueError(
+                    f"{operation_description} may refresh only "
+                    f"{required_existing_path}"
+                )
+        if require_passing_ui_robot_evidence:
+            evidence_digest = public_owned_files.get(
+                UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+            )
+            if not isinstance(evidence_digest, str):
+                raise ValueError(
+                    "UI robot evidence refresh requires a captured evidence digest"
+                )
+            _validate_ui_robot_evidence_at_boundary(
+                boundary,
+                expected_digest=evidence_digest,
+            )
         source_status = str(stamp["source_status"])
         raw_source_digest = stamp.get("source_digest_sha256")
         source_digest = (
@@ -1237,7 +1351,7 @@ def refresh_target_integrity_stamp(target: Path) -> tuple[Path, bool]:
             ok, verification_message = _verify_payload_at_boundary(
                 boundary,
                 payload,
-                source=None,
+                source=source,
             )
             if not ok:
                 raise ValueError(
@@ -1258,7 +1372,7 @@ def refresh_target_integrity_stamp(target: Path) -> tuple[Path, bool]:
             lambda: _verify_payload_at_boundary(
                 boundary,
                 payload,
-                source=None,
+                source=source,
             ),
         )
         # Verified provenance is intentionally preserved without re-reading the
@@ -1267,6 +1381,43 @@ def refresh_target_integrity_stamp(target: Path) -> tuple[Path, bool]:
         if final.content != _render_stamp_payload(payload):
             raise ValueError("refreshed mirror stamp changed after publication")
         return stamp_path, True
+
+
+def refresh_target_integrity_stamp(target: Path) -> tuple[Path, bool]:
+    """Refresh release-proof integrity while preserving managed provenance.
+
+    Only release-proof files may change during this refresh. Other public-owned
+    evidence, including UI robot evidence, must still match its previous v3
+    per-file digest. Missing, malformed, legacy-v1, or stale managed evidence
+    fails closed and requires an explicit recovery operation.
+    """
+
+    return _refresh_target_integrity_stamp(
+        target,
+        allowed_changes=RELEASE_REFRESHABLE_PUBLIC_OWNED,
+        operation_description="a release refresh",
+    )
+
+
+def refresh_ui_robot_evidence_stamp(
+    source: Path,
+    target: Path,
+) -> tuple[Path, bool]:
+    """Refresh only an existing UI-robot evidence digest.
+
+    This operation requires live canonical-source alignment and verified v3
+    provenance. It cannot create or delete the UI evidence file, bless managed
+    docs drift, or re-baseline any other public-owned artifact.
+    """
+
+    return _refresh_target_integrity_stamp(
+        target,
+        allowed_changes=UI_ROBOT_REFRESHABLE_PUBLIC_OWNED,
+        operation_description="a UI robot evidence refresh",
+        source=source,
+        required_existing_path=UI_ROBOT_EVIDENCE_PUBLIC_OWNED,
+        require_passing_ui_robot_evidence=True,
+    )
 
 
 def _verify_target_stamp_once(
@@ -3017,6 +3168,16 @@ def build_parser() -> argparse.ArgumentParser:
             "Other evidence changes and older stamp formats fail closed."
         ),
     )
+    mode.add_argument(
+        "--refresh-ui-robot-evidence-stamp",
+        action="store_true",
+        help=(
+            "Refresh only the digest for an existing public-owned "
+            "data/ui_robot_evidence.json in a valid v3 stamp. The canonical "
+            "source, managed target, and all other public-owned evidence must "
+            "still match their stamped state."
+        ),
+    )
     parser.add_argument(
         "--skip-missing-source",
         action="store_true",
@@ -3061,6 +3222,45 @@ def main(argv: list[str] | None = None) -> int:
                 print(
                     f"mirror stamp refreshed: {stamp_path}; source_status={source_status}"
                 )
+            else:
+                print(f"existing mirror stamp preserved: {stamp_path}")
+        return 0
+
+    if args.refresh_ui_robot_evidence_stamp:
+        if not target.exists():
+            parser.error(f"target directory not found: {target}")
+        if not target.is_dir():
+            parser.error(f"target path is not a directory: {target}")
+        if args.source is not None:
+            source_configuration = CanonicalSourceConfiguration(
+                path=_absolute_path(args.source, base=Path.cwd()),
+                origin="cli:--source",
+                required=True,
+            )
+        else:
+            try:
+                source_configuration = canonical_source_configuration()
+            except ValueError as exc:
+                parser.error(str(exc))
+        source = source_configuration.path
+        if not source.exists():
+            print(
+                "UI robot evidence mirror stamp not refreshed: canonical docs "
+                f"source not found: {source} ({source_configuration.origin})",
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            stamp_path, written = refresh_ui_robot_evidence_stamp(source, target)
+        except (OSError, RuntimeError, ValueError) as exc:
+            print(
+                f"UI robot evidence mirror stamp not refreshed: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+        if not args.quiet:
+            if written:
+                print(f"UI robot evidence mirror stamp refreshed: {stamp_path}")
             else:
                 print(f"existing mirror stamp preserved: {stamp_path}")
         return 0

@@ -13,6 +13,7 @@ from types import SimpleNamespace
 MODULE_PATH = Path("tools/workflow_parity.py").resolve()
 WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
 SHARD_PLAN_PATH = Path("tools/coverage_shard_plan.py").resolve()
+UI_ROBOT_MATRIX_PLAN_PATH = Path("tools/testing/ui_robot_matrix_plan.py").resolve()
 
 
 def _has_with_dependency(argv: list[str], dependency: str) -> bool:
@@ -70,6 +71,18 @@ def _coverage_workflow_agi_gui_targets() -> dict[str, list[str]]:
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module.static_chunk_args()
+
+
+def _ui_robot_matrix_plan() -> dict[str, object]:
+    spec = importlib.util.spec_from_file_location(
+        "workflow_parity_ui_robot_matrix_plan_test_module",
+        UI_ROBOT_MATRIX_PLAN_PATH,
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.build_plan()
 
 
 def _parity_agi_gui_targets(module) -> dict[str, list[str]]:
@@ -500,40 +513,14 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "screenshots/ui-frontend-smoke" in ui_frontend_smoke.argv
     assert _has_extra(ui_frontend_smoke.argv, "ui")
     assert _has_with_dependency(ui_frontend_smoke.argv, "playwright")
-    assert set(ui_robot_matrix) == {"core", "state", "quality", "layout"}
-    expected_matrix_scenarios = {
-        "core": {
-            "isolated-core-pages",
-            "isolated-entry-and-app-pages",
-            "isolated-project-page",
-            "isolated-project-editor-page",
-            "isolated-project-notebook-import",
-            "isolated-project-import-sidebar",
-            "isolated-project-rename-sidebar",
-            "isolated-settings-page",
-            "isolated-all-builtins-orchestrate-smoke",
-            "isolated-execution-pandas-orchestrate-pool-executor",
-            "isolated-all-builtins-core-render-smoke",
-        },
-        "state": {
-            "isolated-fresh-session-core-pages",
-            "isolated-browser-history",
-        },
-        "quality": {
-            "isolated-browser-error-core-pages",
-            "isolated-pytorch-playground-analysis",
-            "isolated-release-evidence",
-            "isolated-above-fold-core-pages",
-            "isolated-keyboard-focus-core-pages",
-            "isolated-accessibility-core-pages",
-        },
-        "layout": {
-            "isolated-layout-integrity-desktop",
-            "isolated-mobile-core-pages",
-            "isolated-layout-integrity-mobile",
-        },
+    matrix_plan = _ui_robot_matrix_plan()
+    expected_matrix_rows = {
+        str(row["shard"]): row
+        for row in matrix_plan["matrix"]["include"]
     }
+    assert set(ui_robot_matrix) == set(expected_matrix_rows)
     for shard, command in ui_robot_matrix.items():
+        expected_row = expected_matrix_rows[shard]
         assert command.label == f"ui robot matrix ({shard})"
         assert command.timeout_seconds == 50 * 60
         assert command.remove_paths == [
@@ -541,9 +528,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
             f"screenshots/ui-robot-matrix/{shard}",
         ]
         assert "tools/agilab_widget_robot_matrix.py" in command.argv
-        assert expected_matrix_scenarios[shard] == set(
+        assert set(str(expected_row["scenarios"]).split()) == set(
             _option_values(command.argv, "--scenario")
         )
+        assert _option_values(command.argv, "--apps") == [expected_row["apps"]]
         assert "--quiet-progress" in command.argv
         assert "--json" in command.argv
         assert "--no-result-cache" in command.argv

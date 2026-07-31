@@ -21,7 +21,7 @@ import urllib.parse
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -492,12 +492,52 @@ ACTIVE_FOCUS_STATE_JS = r"""
 LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
 () => {
   const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
-  const visible = (el) => {
-    if (el.closest("details:not([open])") && !el.closest("summary")) return false;
-    const rect = el.getBoundingClientRect();
-    const style = window.getComputedStyle(el);
-    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  const clips = (value) => ["auto", "clip", "hidden", "scroll"].includes(value);
+  const paintedRect = (el) => {
+    const raw = el.getBoundingClientRect();
+    if (raw.width <= 0 || raw.height <= 0) return null;
+    const rect = {left: raw.left, right: raw.right, top: raw.top, bottom: raw.bottom};
+    for (let current = el; current; current = current.parentElement) {
+      const style = window.getComputedStyle(current);
+      if (
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        style.visibility === "collapse" ||
+        style.contentVisibility === "hidden" ||
+        Number(style.opacity || "1") <= 0.01
+      ) {
+        return null;
+      }
+      if (current.tagName === "DETAILS" && !current.open) {
+        const summary = Array.from(current.children).find((child) => child.tagName === "SUMMARY");
+        if (!summary || !summary.contains(el)) return null;
+      }
+      if (current === el || current === document.body || current === document.documentElement) continue;
+      const contain = String(style.contain || "").split(/\s+/);
+      const clipX = clips(style.overflowX) || contain.some((value) => ["content", "paint", "strict"].includes(value));
+      const clipY = clips(style.overflowY) || contain.some((value) => ["content", "paint", "strict"].includes(value));
+      if (!clipX && !clipY) continue;
+      const ancestor = current.getBoundingClientRect();
+      if (clipX) {
+        rect.left = Math.max(rect.left, ancestor.left);
+        rect.right = Math.min(rect.right, ancestor.right);
+      }
+      if (clipY) {
+        rect.top = Math.max(rect.top, ancestor.top);
+        rect.bottom = Math.min(rect.bottom, ancestor.bottom);
+      }
+      if (rect.right <= rect.left || rect.bottom <= rect.top) return null;
+    }
+    return {
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom,
+      width: rect.right - rect.left,
+      height: rect.bottom - rect.top,
+    };
   };
+  const visible = (el) => paintedRect(el) !== null;
   const labelFor = (el) => clean(
     el.getAttribute("aria-label") ||
     el.getAttribute("title") ||
@@ -530,7 +570,8 @@ LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
   ].join(", ");
   const controls = Array.from(document.querySelectorAll(controlSelector)).filter(visible);
   for (const el of controls) {
-    const rect = el.getBoundingClientRect();
+    const rect = paintedRect(el);
+    if (!rect) continue;
     if (rect.width < 2 || rect.height < 2) {
       push("zero_size_control", el, `control rendered at ${rect.width.toFixed(1)}x${rect.height.toFixed(1)}`);
     }
@@ -558,7 +599,9 @@ LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
     const y = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
     return x * y;
   };
-  const rects = controls.map((el) => ({el, rect: el.getBoundingClientRect(), label: labelFor(el)}));
+  const rects = controls
+    .map((el) => ({el, rect: paintedRect(el), label: labelFor(el)}))
+    .filter((item) => item.rect !== null);
   for (let i = 0; i < rects.length; i += 1) {
     for (let j = i + 1; j < rects.length; j += 1) {
       const a = rects[i];
@@ -1141,6 +1184,10 @@ class WidgetSweepSummary:
     target_seconds: float
     within_target: bool
     app_count: int
+    apps: list[str]
+    covered_apps: list[str]
+    missing_apps: list[str]
+    unexpected_apps: list[str]
     page_count: int
     widget_count: int
     interacted_count: int
@@ -1310,10 +1357,17 @@ def load_completed_page_results(progress_log: Path) -> dict[str, PageSweep]:
     return completed
 
 
-def write_summary_json(path: Path, pages: Sequence[PageSweep], *, app_count: int, target_seconds: float) -> None:
+def write_summary_json(
+    path: Path,
+    pages: Sequence[PageSweep],
+    *,
+    app_count: int,
+    target_seconds: float,
+    apps: Sequence[Path | str] | None = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_name(f"{path.name}.tmp")
-    summary = summarize(pages, app_count=app_count, target_seconds=target_seconds)
+    summary = summarize(pages, app_count=app_count, target_seconds=target_seconds, apps=apps)
     tmp_path.write_text(json.dumps(asdict(summary), indent=2) + "\n", encoding="utf-8")
     tmp_path.replace(path)
 
@@ -6764,17 +6818,51 @@ def sweep_remote_app(  # pragma: no cover - live browser path
     return results
 
 
-def summarize(pages: Sequence[PageSweep], *, app_count: int, target_seconds: float) -> WidgetSweepSummary:
+def summarize(
+    pages: Sequence[PageSweep],
+    *,
+    app_count: int,
+    target_seconds: float,
+    apps: Sequence[Path | str] | None = None,
+) -> WidgetSweepSummary:
     total = sum(page.duration_seconds for page in pages)
     failed_count = sum(page.failed_count for page in pages)
     skipped_count = sum(page.skipped_count for page in pages)
-    success = bool(pages) and failed_count == 0 and all(page.failed_count == 0 and page.status != "failed" for page in pages)
+    selected_apps = sorted(
+        {
+            active_app_slug(str(app))
+            for app in apps
+        }
+        if apps is not None
+        else {page.app for page in pages if page.app}
+    )
+    covered_apps = sorted(
+        {
+            page.app.strip()
+            for page in pages
+            if isinstance(page.app, str) and page.app.strip()
+        }
+    )
+    missing_apps = sorted(set(selected_apps) - set(covered_apps))
+    unexpected_apps = sorted(set(covered_apps) - set(selected_apps))
+    exact_app_coverage = apps is None or (not missing_apps and not unexpected_apps)
+    success = (
+        bool(pages)
+        and failed_count == 0
+        and all(page.failed_count == 0 and page.status != "failed" for page in pages)
+        and exact_app_coverage
+    )
+    selected_app_count = len(selected_apps) if apps is not None else app_count
     return WidgetSweepSummary(
         success=success,
         total_duration_seconds=total,
         target_seconds=target_seconds,
         within_target=success and total <= target_seconds,
-        app_count=app_count,
+        app_count=selected_app_count,
+        apps=selected_apps,
+        covered_apps=covered_apps,
+        missing_apps=missing_apps,
+        unexpected_apps=unexpected_apps,
         page_count=len(pages),
         widget_count=sum(page.widget_count for page in pages),
         main_widget_count=sum(page.main_widget_count for page in pages),
@@ -6901,6 +6989,10 @@ def render_human(summary: WidgetSweepSummary) -> str:
         f"verdict: {'PASS' if summary.success else 'FAIL'}",
         f"kpi: total={summary.total_duration_seconds:.2f}s target<={summary.target_seconds:.2f}s within_target={'yes' if summary.within_target else 'no'}",
         f"apps={summary.app_count} pages={summary.page_count} widgets={summary.widget_count} main={summary.main_widget_count} sidebar={summary.sidebar_widget_count} interacted={summary.interacted_count} probed={summary.probed_count} skipped={summary.skipped_count} failed={summary.failed_count}",
+        "coverage: "
+        f"covered={','.join(summary.covered_apps) or '-'} "
+        f"missing={','.join(summary.missing_apps) or '-'} "
+        f"unexpected={','.join(summary.unexpected_apps) or '-'}",
         f"combinations: space={summary.combination_space_count} executed={summary.combination_count} failed={summary.combination_failed_count} skipped={summary.combination_skipped_count}",
     ]
     for page in summary.pages:
@@ -6977,7 +7069,13 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - live b
     def on_page_result(page: PageSweep) -> None:
         results.append(page)
         if json_output is not None:
-            write_summary_json(json_output, results, app_count=len(apps), target_seconds=args.target_seconds)
+            write_summary_json(
+                json_output,
+                results,
+                app_count=len(apps),
+                target_seconds=args.target_seconds,
+                apps=apps,
+            )
 
     progress.emit("run_start", app_count=len(apps), page_count=expected_page_count)
     for app, app_pages in app_specs:
@@ -7093,9 +7191,15 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - live b
                 resume_page_results=resume_page_results,
                 on_page_result=on_page_result,
             )
-    summary = summarize(results, app_count=len(apps), target_seconds=args.target_seconds)
+    summary = summarize(results, app_count=len(apps), target_seconds=args.target_seconds, apps=apps)
     if json_output is not None:
-        write_summary_json(json_output, results, app_count=len(apps), target_seconds=args.target_seconds)
+        write_summary_json(
+            json_output,
+            results,
+            app_count=len(apps),
+            target_seconds=args.target_seconds,
+            apps=apps,
+        )
     progress.emit(
         "run_done",
         status="passed" if summary.success else "failed",

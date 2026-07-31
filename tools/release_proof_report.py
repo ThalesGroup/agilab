@@ -573,7 +573,7 @@ def _local_tag_commit(repo_root: Path, tag: str) -> str | None:
     return _run_git(repo_root, ["rev-list", "-n", "1", tag])
 
 
-def _local_release_app_count(repo_root: Path, release_ref: str) -> int | None:
+def _local_release_apps(repo_root: Path, release_ref: str) -> list[str] | None:
     if not release_ref:
         return None
     output = _run_git(
@@ -582,7 +582,18 @@ def _local_release_app_count(repo_root: Path, release_ref: str) -> int | None:
     )
     if output is None:
         return None
-    return len([line for line in output.splitlines() if line.strip()])
+    return sorted(
+        {
+            line.strip()
+            for line in output.splitlines()
+            if line.strip().endswith("_project")
+        }
+    )
+
+
+def _local_release_app_count(repo_root: Path, release_ref: str) -> int | None:
+    apps = _local_release_apps(repo_root, release_ref)
+    return len(apps) if apps is not None else None
 
 
 def _github_repo_base_url(repo_root: Path) -> str | None:
@@ -1061,6 +1072,24 @@ def _ui_robot_evidence_check(
     expected_app_count = ui_robot.get("expected_app_count")
     evidence_head_sha = str(source.get("head_sha", "") or "").strip()
     evidence_app_count = result.get("app_count")
+    raw_evidence_apps = result.get("apps")
+    evidence_apps = (
+        list(raw_evidence_apps)
+        if isinstance(raw_evidence_apps, list)
+        and raw_evidence_apps == sorted(
+            {
+                app.strip()
+                for app in raw_evidence_apps
+                if isinstance(app, str) and app.strip()
+            }
+        )
+        else None
+    )
+    release_ref = str(release.get("github_release_tag", "") or "").strip()
+    local_release_apps = _local_release_apps(repo_root, release_ref)
+    exact_app_inventory_matches = (
+        local_release_apps is not None and evidence_apps == local_release_apps
+    )
     if mode not in UI_ROBOT_EVIDENCE_MODES:
         failures.append(
             "manifest: ui_robot.mode must be one of "
@@ -1075,6 +1104,7 @@ def _ui_robot_evidence_check(
         and bool(expected_release_commit)
         and evidence_head_sha == expected_release_commit
         and evidence_app_count == expected_app_count
+        and exact_app_inventory_matches
     )
     if mode == "release":
         if not expected_release_commit:
@@ -1088,6 +1118,18 @@ def _ui_robot_evidence_check(
         if evidence_app_count != expected_app_count:
             failures.append(
                 "release: UI evidence app_count does not match ui_robot.expected_app_count"
+            )
+        if local_release_apps is None:
+            failures.append(
+                "release: exact app inventory is unavailable from the local release tag tree"
+            )
+        elif evidence_apps is None:
+            failures.append(
+                "release: UI evidence does not record a sorted, unique exact app inventory"
+            )
+        elif evidence_apps != local_release_apps:
+            failures.append(
+                "release: UI evidence apps do not match the release tag inventory"
             )
     github_run: dict[str, Any] | None = None
     if check_github_runs:
@@ -1145,9 +1187,12 @@ def _ui_robot_evidence_check(
             "run_url": source.get("run_url", ""),
             "head_sha": source.get("head_sha", ""),
             "app_count": result.get("app_count", 0),
+            "apps": evidence_apps,
             "mode": mode,
             "expected_release_commit": expected_release_commit,
             "expected_app_count": expected_app_count,
+            "local_release_apps": local_release_apps,
+            "exact_app_inventory_matches": exact_app_inventory_matches,
             "represents_release": represented_release,
             "page_count": result.get("page_count", 0),
             "widget_count": result.get("widget_count", 0),

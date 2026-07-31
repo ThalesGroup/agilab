@@ -1485,16 +1485,115 @@ def run_matrix(
     return results
 
 
+def _legacy_summary_apps(summary: dict) -> list[str]:
+    pages = summary.get("pages")
+    if not isinstance(pages, list):
+        return []
+    return sorted(
+        {
+            app_name
+            for page in pages
+            if isinstance(page, dict)
+            and (app_name := str(page.get("app") or "").strip())
+        }
+    )
+
+
+def _summary_app_inventory(
+    summary: dict,
+    *,
+    scenario: str,
+) -> tuple[list[str], int, bool, list[str]]:
+    """Return a proven inventory without repairing malformed exact metadata."""
+
+    if "apps" in summary:
+        raw_apps = summary.get("apps")
+        raw_count = summary.get("app_count")
+        errors: list[str] = []
+        if not isinstance(raw_apps, list):
+            errors.append(f"{scenario}: summary apps must be a list")
+            apps: list[str] = []
+        else:
+            apps = sorted(
+                {
+                    item.strip()
+                    for item in raw_apps
+                    if isinstance(item, str) and item.strip()
+                }
+            )
+            if raw_apps != apps:
+                errors.append(
+                    f"{scenario}: summary apps must be sorted, unique, non-empty strings"
+                )
+        if type(raw_count) is not int:
+            errors.append(f"{scenario}: summary app_count must be an integer")
+            declared_count = 0
+        else:
+            declared_count = raw_count
+            if declared_count != len(apps):
+                errors.append(
+                    f"{scenario}: summary app_count {declared_count} does not match "
+                    f"the {len(apps)} listed apps"
+                )
+        return (apps if not errors else []), declared_count, True, errors
+
+    apps = _legacy_summary_apps(summary)
+    try:
+        declared_count = int(summary.get("app_count") or 0)
+    except (TypeError, ValueError):
+        declared_count = 0
+    return apps, max(0, declared_count, len(apps)), False, []
+
+
+def _matrix_app_inventory(
+    results: Sequence[ScenarioResult],
+) -> tuple[int, list[str], list[list[str]]]:
+    inventories = [
+        _summary_app_inventory(result.summary, scenario=result.scenario.name)
+        for result in results
+    ]
+    apps = sorted(
+        {
+            app_name
+            for inventory, _count, _present, errors in inventories
+            if not errors
+            for app_name in inventory
+        }
+    )
+    # A matrix frequently combines a complete ``apps=all`` sweep with focused
+    # scenario overrides. Explicit inventories are authoritative and their
+    # union counts disjoint cohorts exactly. The largest count from a legacy
+    # summary remains a conservative fallback without multiplying repeated
+    # sweeps. Invalid exact metadata contributes no unproven app names.
+    legacy_declared_count = max(
+        (count for _apps, count, present, errors in inventories if not present and not errors),
+        default=0,
+    )
+    inventory_errors = [errors for _apps, _count, _present, errors in inventories]
+    return max(legacy_declared_count, len(apps)), apps, inventory_errors
+
+
 def summarize_matrix(results: Sequence[ScenarioResult]) -> dict:
     summaries = [result.summary for result in results]
+    app_count, apps, scenario_inventory_errors = _matrix_app_inventory(results)
+    inventory_errors = [
+        error
+        for errors in scenario_inventory_errors
+        for error in errors
+    ]
     success = bool(results) and all(
-        result.returncode == 0 and result.summary.get("success") is True
-        for result in results
+        result.returncode == 0
+        and result.summary.get("success") is True
+        and not scenario_inventory_errors[index]
+        for index, result in enumerate(results)
     )
     return {
         "schema": SCHEMA,
         "success": success,
         "scenario_count": len(results),
+        "app_count": app_count,
+        "apps": apps,
+        "inventory_errors": inventory_errors,
         "page_count": sum(int(summary.get("page_count") or 0) for summary in summaries),
         "widget_count": sum(int(summary.get("widget_count") or 0) for summary in summaries),
         "interacted_count": sum(int(summary.get("interacted_count") or 0) for summary in summaries),
@@ -1513,20 +1612,43 @@ def summarize_matrix(results: Sequence[ScenarioResult]) -> dict:
         ),
         "failed_scenarios": [
             result.scenario.name
-            for result in results
-            if result.returncode != 0 or result.summary.get("success") is not True
+            for index, result in enumerate(results)
+            if (
+                result.returncode != 0
+                or result.summary.get("success") is not True
+                or scenario_inventory_errors[index]
+            )
         ],
         "failure_samples": _failure_samples(results),
         "scenarios": [
             {
                 "name": result.scenario.name,
                 "description": result.scenario.description,
-                "success": result.returncode == 0 and result.summary.get("success") is True,
+                "success": (
+                    result.returncode == 0
+                    and result.summary.get("success") is True
+                    and not scenario_inventory_errors[index]
+                ),
                 "returncode": result.returncode,
                 "duration_seconds": result.duration_seconds,
                 "cached": result.cached,
                 "summary_path": str(result.summary_path),
                 "progress_path": str(result.progress_path),
+                "app_count": result.summary.get(
+                    "app_count",
+                    _summary_app_inventory(
+                        result.summary,
+                        scenario=result.scenario.name,
+                    )[1],
+                ),
+                "apps": result.summary.get(
+                    "apps",
+                    _summary_app_inventory(
+                        result.summary,
+                        scenario=result.scenario.name,
+                    )[0],
+                ),
+                "inventory_errors": scenario_inventory_errors[index],
                 "page_count": int(result.summary.get("page_count") or 0),
                 "widget_count": int(result.summary.get("widget_count") or 0),
                 "interacted_count": int(result.summary.get("interacted_count") or 0),
@@ -1535,7 +1657,7 @@ def summarize_matrix(results: Sequence[ScenarioResult]) -> dict:
                 "failed_count": int(result.summary.get("failed_count") or 0),
                 "failure_artifact_retry": _failure_artifact_retry_summary(result.artifact_retry),
             }
-            for result in results
+            for index, result in enumerate(results)
         ],
     }
 
