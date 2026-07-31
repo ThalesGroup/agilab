@@ -8,6 +8,12 @@ This page is the public verification index for the current AGILAB release. It
 records install, CI, demo, and scope evidence in one place so reviewers can
 check the release without inferring status from scattered badges.
 
+.. note::
+
+   The source checkout is intentionally ahead of the public release
+   ``2026.07.17.1``. The package and links below still describe that exact
+   published release.
+
 Current public release
 ----------------------
 

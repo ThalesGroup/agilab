@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-geospatial-map"
-version = "2026.07.17"
+version = "2026.07.31"
 description = "AGILAB page bundle for 2D geospatial map exploration."
 readme = { text = "AGILAB page bundle for 2D geospatial map exploration.", content-type = "text/markdown" }
 requires-python = ">=3.12"
@@ -12,14 +12,7 @@ keywords = [
     "page-bundle",
     "reproducibility",
 ]
-dependencies = [
-    "agi-pages>=2026.05.30.post1,<2027.0",
-    "agi-env>=2026.05.12.post3,<2027.0",
-    "agi-gui>=2026.05.12.post3,<2027.0",
-    "agi-node>=2026.05.12.post3,<2027.0",
-    "plotly>=6.8,<7",
-    "sqlalchemy>=2.0.43,<3",
-]
+dependencies = ["agi-pages>=2026.07.31,<2027.0", "agi-env>=2026.07.31,<2027.0", "agi-gui>=2026.07.31,<2027.0", "agi-node>=2026.07.31,<2027.0", "plotly>=6.8,<7", "sqlalchemy>=2.0.43,<3"]
 
 [project.entry-points."agilab.pages"]
 view_maps = "view_maps:bundle_root"

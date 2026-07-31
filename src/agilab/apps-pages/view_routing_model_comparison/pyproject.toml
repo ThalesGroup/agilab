@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-routing-model-comparison"
-version = "2026.07.17"
+version = "2026.07.31"
 description = "AGILAB page bundle for comparing routing model allocation decisions."
 readme = { text = "AGILAB page bundle for comparing routing model allocation decisions.", content-type = "text/markdown" }
 requires-python = ">=3.12"
@@ -13,15 +13,7 @@ keywords = [
     "page-bundle",
     "reproducibility",
 ]
-dependencies = [
-    "agi-pages>=2026.05.30.post1,<2027.0",
-    "agi-env>=2026.05.12.post3,<2027.0",
-    "agi-node>=2026.05.12.post3,<2027.0",
-    "agi-gui>=2026.05.12.post3,<2027.0",
-    "numpy>=2.3.0,<3",
-    "pandas>=2.3.0,<4",
-    "plotly>=6.8,<7",
-]
+dependencies = ["agi-pages>=2026.07.31,<2027.0", "agi-env>=2026.07.31,<2027.0", "agi-node>=2026.07.31,<2027.0", "agi-gui>=2026.07.31,<2027.0", "numpy>=2.3.0,<3", "pandas>=2.3.0,<4", "plotly>=6.8,<7"]
 
 [project.entry-points."agilab.pages"]
 view_routing_model_comparison = "view_routing_model_comparison:bundle_root"
