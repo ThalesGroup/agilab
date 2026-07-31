@@ -71,6 +71,39 @@ def _write_v2_stamp(module, source: Path, target: Path) -> Path:
     )
 
 
+def _passing_ui_robot_evidence(*, run_id: str = "123") -> dict[str, object]:
+    return {
+        "schema": "agilab.ui_robot_evidence.v1",
+        "source": {
+            "workflow": "ui-robot-matrix",
+            "run_id": run_id,
+            "run_url": f"https://example.invalid/runs/{run_id}",
+            "status": "completed",
+            "conclusion": "success",
+        },
+        "artifact": {
+            "name": "ui-robot-matrix-aggregate-1",
+            "required_files_present": True,
+            "exit_code": "0",
+            "trend_report_schema": "agilab.ui_robot_trend_report.v1",
+            "expired": False,
+        },
+        "result": {
+            "success": True,
+            "failed_count": 0,
+            "within_target": True,
+            "trend": {
+                "schema": "agilab.ui_robot_trend_report.v1",
+                "success": True,
+                "failed_page_count": 0,
+                "flaky_page_count": 0,
+                "parse_error_count": 0,
+                "budget_violation_count": 0,
+            },
+        },
+    }
+
+
 def _symlink_or_skip(link: Path, target: Path, *, target_is_directory: bool) -> None:
     try:
         link.symlink_to(target, target_is_directory=target_is_directory)
@@ -1510,6 +1543,305 @@ def test_release_refresh_refuses_unrelated_ui_robot_evidence_change(
     assert stamp_path.read_bytes() == stamp_before
     ok, _message = module.verify_target_mirror_integrity(target)
     assert ok is False
+
+
+def test_ui_robot_evidence_refresh_rebaselines_only_existing_ui_evidence(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    module = _load_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "guide.rst").write_text("guide\n", encoding="utf-8")
+    (target / "guide.rst").write_text("guide\n", encoding="utf-8")
+    public_contents = {
+        "data/release_proof.toml": "[release]\n",
+        "data/ui_robot_evidence.json": json.dumps(
+            _passing_ui_robot_evidence(run_id="1")
+        ),
+        "release-proof.rst": "Release proof\n",
+    }
+    for rel_path, content in public_contents.items():
+        path = target / rel_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    stamp_path = module.write_mirror_stamp(source, target)
+    payload_before = json.loads(stamp_path.read_text(encoding="utf-8"))
+    evidence = target / module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+    evidence.write_text(
+        json.dumps(_passing_ui_robot_evidence(run_id="2")),
+        encoding="utf-8",
+    )
+
+    exit_code = module.main(
+        [
+            "--source",
+            str(source),
+            "--target",
+            str(target),
+            "--refresh-ui-robot-evidence-stamp",
+        ]
+    )
+
+    assert exit_code == 0
+    assert "UI robot evidence mirror stamp refreshed" in capsys.readouterr().out
+    payload = json.loads(stamp_path.read_text(encoding="utf-8"))
+    assert payload["source_status"] == "verified"
+    assert payload["source_digest_sha256"] == payload_before["source_digest_sha256"]
+    before_files = payload_before["public_owned_files_sha256"]
+    after_files = payload["public_owned_files_sha256"]
+    assert (
+        after_files[module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED]
+        != before_files[module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED]
+    )
+    assert {
+        path: digest
+        for path, digest in after_files.items()
+        if path != module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+    } == {
+        path: digest
+        for path, digest in before_files.items()
+        if path != module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+    }
+    ok, message = module.verify_mirror_stamp(target, source)
+    assert ok is True, message
+
+
+def test_ui_robot_evidence_refresh_validates_an_idempotent_noop(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "guide.rst").write_text("guide\n", encoding="utf-8")
+    (target / "guide.rst").write_text("guide\n", encoding="utf-8")
+    evidence = target / module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text(
+        json.dumps(_passing_ui_robot_evidence()),
+        encoding="utf-8",
+    )
+    stamp_path = module.write_mirror_stamp(source, target)
+    stamp_before = stamp_path.read_bytes()
+    metadata_before = stamp_path.stat()
+
+    returned_path, written = module.refresh_ui_robot_evidence_stamp(source, target)
+
+    metadata_after = stamp_path.stat()
+    assert returned_path == stamp_path
+    assert written is False
+    assert stamp_path.read_bytes() == stamp_before
+    assert (metadata_after.st_dev, metadata_after.st_ino, metadata_after.st_mtime_ns) == (
+        metadata_before.st_dev,
+        metadata_before.st_ino,
+        metadata_before.st_mtime_ns,
+    )
+
+
+def test_ui_robot_evidence_refresh_refuses_malformed_json(tmp_path: Path) -> None:
+    module = _load_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "guide.rst").write_text("guide\n", encoding="utf-8")
+    (target / "guide.rst").write_text("guide\n", encoding="utf-8")
+    evidence = target / module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text(
+        json.dumps(_passing_ui_robot_evidence()),
+        encoding="utf-8",
+    )
+    stamp_path = module.write_mirror_stamp(source, target)
+    stamp_before = stamp_path.read_bytes()
+    evidence.write_text("{", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="invalid UI robot evidence"):
+        module.refresh_ui_robot_evidence_stamp(source, target)
+
+    assert stamp_path.read_bytes() == stamp_before
+
+
+def test_ui_robot_evidence_refresh_refuses_failing_evidence_checks(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "guide.rst").write_text("guide\n", encoding="utf-8")
+    (target / "guide.rst").write_text("guide\n", encoding="utf-8")
+    evidence = target / module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text(
+        json.dumps(_passing_ui_robot_evidence()),
+        encoding="utf-8",
+    )
+    stamp_path = module.write_mirror_stamp(source, target)
+    stamp_before = stamp_path.read_bytes()
+    failing_evidence = _passing_ui_robot_evidence(run_id="456")
+    source_payload = failing_evidence["source"]
+    assert isinstance(source_payload, dict)
+    source_payload["conclusion"] = "failure"
+    evidence.write_text(json.dumps(failing_evidence), encoding="utf-8")
+
+    with pytest.raises(
+        ValueError,
+        match="UI robot evidence validation failed: run_success",
+    ):
+        module.refresh_ui_robot_evidence_stamp(source, target)
+
+    assert stamp_path.read_bytes() == stamp_before
+
+
+def test_ui_robot_evidence_refresh_rolls_back_if_evidence_changes_after_validation(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "guide.rst").write_text("guide\n", encoding="utf-8")
+    (target / "guide.rst").write_text("guide\n", encoding="utf-8")
+    evidence = target / module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text(
+        json.dumps(_passing_ui_robot_evidence(run_id="1")),
+        encoding="utf-8",
+    )
+    stamp_path = module.write_mirror_stamp(source, target)
+    stamp_before = stamp_path.read_bytes()
+    evidence.write_text(
+        json.dumps(_passing_ui_robot_evidence(run_id="2")),
+        encoding="utf-8",
+    )
+    original_validate = module._validate_ui_robot_evidence_at_boundary
+
+    def validate_then_replace(*args, **kwargs):
+        original_validate(*args, **kwargs)
+        evidence.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(
+        module,
+        "_validate_ui_robot_evidence_at_boundary",
+        validate_then_replace,
+    )
+
+    with pytest.raises(ValueError, match="published mirror stamp failed verification"):
+        module.refresh_ui_robot_evidence_stamp(source, target)
+
+    assert evidence.read_text(encoding="utf-8") == "{}"
+    assert stamp_path.read_bytes() == stamp_before
+
+
+def test_ui_robot_evidence_refresh_refuses_other_public_owned_drift(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    module = _load_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "guide.rst").write_text("guide\n", encoding="utf-8")
+    (target / "guide.rst").write_text("guide\n", encoding="utf-8")
+    evidence = target / module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+    release_proof = target / "data" / "release_proof.toml"
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text('{"run_id": 1}\n', encoding="utf-8")
+    release_proof.write_text("[release]\n", encoding="utf-8")
+    stamp_path = module.write_mirror_stamp(source, target)
+    stamp_before = stamp_path.read_bytes()
+    evidence.write_text('{"run_id": 2}\n', encoding="utf-8")
+    release_proof.write_text("[release]\nversion = 2\n", encoding="utf-8")
+
+    exit_code = module.main(
+        [
+            "--source",
+            str(source),
+            "--target",
+            str(target),
+            "--refresh-ui-robot-evidence-stamp",
+            "--quiet",
+        ]
+    )
+
+    assert exit_code == 1
+    assert "data/release_proof.toml" in capsys.readouterr().err
+    assert stamp_path.read_bytes() == stamp_before
+
+
+def test_ui_robot_evidence_refresh_refuses_canonical_source_drift(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    module = _load_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    source_guide = source / "guide.rst"
+    source_guide.write_text("guide\n", encoding="utf-8")
+    (target / "guide.rst").write_text("guide\n", encoding="utf-8")
+    evidence = target / module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text('{"run_id": 1}\n', encoding="utf-8")
+    stamp_path = module.write_mirror_stamp(source, target)
+    stamp_before = stamp_path.read_bytes()
+    evidence.write_text('{"run_id": 2}\n', encoding="utf-8")
+    source_guide.write_text("canonical drift\n", encoding="utf-8")
+
+    exit_code = module.main(
+        [
+            "--source",
+            str(source),
+            "--target",
+            str(target),
+            "--refresh-ui-robot-evidence-stamp",
+            "--quiet",
+        ]
+    )
+
+    assert exit_code == 1
+    assert "canonical source drift" in capsys.readouterr().err
+    assert stamp_path.read_bytes() == stamp_before
+
+
+@pytest.mark.parametrize("mutation", ["create", "delete"])
+def test_ui_robot_evidence_refresh_refuses_creation_or_deletion(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    module = _load_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    source.mkdir()
+    target.mkdir()
+    (source / "guide.rst").write_text("guide\n", encoding="utf-8")
+    (target / "guide.rst").write_text("guide\n", encoding="utf-8")
+    evidence = target / module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+    if mutation == "delete":
+        evidence.parent.mkdir(parents=True)
+        evidence.write_text('{"run_id": 1}\n', encoding="utf-8")
+    stamp_path = module.write_mirror_stamp(source, target)
+    stamp_before = stamp_path.read_bytes()
+    if mutation == "create":
+        evidence.parent.mkdir(parents=True)
+        evidence.write_text('{"run_id": 1}\n', encoding="utf-8")
+    else:
+        evidence.unlink()
+
+    with pytest.raises(ValueError, match="creation or deletion"):
+        module.refresh_ui_robot_evidence_stamp(source, target)
+
+    assert stamp_path.read_bytes() == stamp_before
 
 
 def test_refresh_target_integrity_stamp_refuses_changed_managed_target(
