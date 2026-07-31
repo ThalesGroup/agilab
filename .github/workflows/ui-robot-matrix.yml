@@ -49,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p test-results/ui-robot-matrix-plan
-          python3 tools/ui_robot_matrix_plan.py \
+          python3 tools/testing/ui_robot_matrix_plan.py \
             --apps "${INPUT_APPS:-all}" \
             --output test-results/ui-robot-matrix-plan/plan.json \
             --github-output \

@@ -16,7 +16,7 @@ WINDOWS_CORE_TESTS_WORKFLOW_PATH = Path(".github/workflows/windows-core-tests.ym
 ROOT_TEST_SUITE_WORKFLOW_PATH = Path(".github/workflows/root-test-suite.yml")
 ROOT_CONFTEST_PATH = Path("test/conftest.py")
 WORKFLOW_PARITY_PATH = Path("tools/workflow_parity.py")
-UI_ROBOT_MATRIX_PLAN_PATH = Path("tools/ui_robot_matrix_plan.py")
+UI_ROBOT_MATRIX_PLAN_PATH = Path("tools/testing/ui_robot_matrix_plan.py")
 PYPROJECT_PATH = Path("pyproject.toml")
 
 VALIDATION_WORKFLOW_PATHS = (
@@ -446,7 +446,7 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
     assert "\n  push:" not in text
     assert "ui-robot-matrix:" in text
     assert "plan_ui_robot_matrix:" in text
-    assert "tools/ui_robot_matrix_plan.py" in text
+    assert "tools/testing/ui_robot_matrix_plan.py" in text
     assert "--github-output" in text
     assert "matrix: ${{ fromJSON(needs.plan_ui_robot_matrix.outputs.matrix) }}" in text
     assert "strategy:" in text

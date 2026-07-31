@@ -13,7 +13,7 @@ from types import SimpleNamespace
 MODULE_PATH = Path("tools/workflow_parity.py").resolve()
 WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
 SHARD_PLAN_PATH = Path("tools/coverage_shard_plan.py").resolve()
-UI_ROBOT_MATRIX_PLAN_PATH = Path("tools/ui_robot_matrix_plan.py").resolve()
+UI_ROBOT_MATRIX_PLAN_PATH = Path("tools/testing/ui_robot_matrix_plan.py").resolve()
 
 
 def _has_with_dependency(argv: list[str], dependency: str) -> bool:

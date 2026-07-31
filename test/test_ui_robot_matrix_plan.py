@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-PLAN_MODULE_PATH = Path("tools/ui_robot_matrix_plan.py").resolve()
+PLAN_MODULE_PATH = Path("tools/testing/ui_robot_matrix_plan.py").resolve()
 MATRIX_MODULE_PATH = Path("tools/agilab_widget_robot_matrix.py").resolve()
 EXPECTED_WORKFLOW_SCENARIOS = {
     "isolated-core-pages",

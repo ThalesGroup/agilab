@@ -10,7 +10,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_APPS_ROOT = REPO_ROOT / "src" / "agilab" / "apps" / "builtin"
 SCHEMA = "agilab.ui_robot_matrix_plan.v1"
 MAX_ESTIMATED_PAGES_PER_SHARD = 32

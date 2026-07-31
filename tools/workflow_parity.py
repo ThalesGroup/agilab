@@ -68,7 +68,7 @@ def _coverage_shard_plan_module():
 
 
 def _ui_robot_matrix_plan_module():
-    module_path = REPO_ROOT / "tools" / "ui_robot_matrix_plan.py"
+    module_path = REPO_ROOT / "tools" / "testing" / "ui_robot_matrix_plan.py"
     spec = importlib.util.spec_from_file_location(
         "agilab_ui_robot_matrix_plan", module_path
     )
