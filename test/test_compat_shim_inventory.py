@@ -45,3 +45,21 @@ def test_compat_shim_inventory_cli_fails_on_growth() -> None:
 
     assert result.returncode == 1
     assert "exceeds cap" in result.stderr
+
+
+def test_compat_shim_marker_must_be_a_declaration(tmp_path: Path) -> None:
+    ordinary_module = tmp_path / "ordinary_module.py"
+    ordinary_module.write_text(
+        '"""Render a package map.\n\n'
+        "Compatibility shims are collapsed in the generated diagram.\n"
+        '"""\n',
+        encoding="utf-8",
+    )
+    shim_module = tmp_path / "shim_module.py"
+    shim_module.write_text(
+        '"""Compatibility shim for a historical import path."""\n',
+        encoding="utf-8",
+    )
+
+    assert not compat_shim_inventory.is_compat_shim(ordinary_module)
+    assert compat_shim_inventory.is_compat_shim(shim_module)
