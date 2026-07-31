@@ -74,28 +74,28 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert project_editor.pages == "PROJECT_EDITOR"
     assert project_editor.apps_pages == "none"
     assert project_editor.runtime_isolation == "isolated"
-    assert project_editor.action_button_policy == "safe-click"
+    assert project_editor.action_button_policy == "trial"
     assert project_editor.required_text == "Edit project files"
     assert project_editor.forbidden_text == "Worker class,Source LOC,Environment Health"
     assert project_notebook.pages == "PROJECT"
     assert project_notebook.route_query == "start=notebook-import"
     assert project_notebook.apps_pages == "none"
     assert project_notebook.runtime_isolation == "isolated"
-    assert project_notebook.action_button_policy == "safe-click"
+    assert project_notebook.action_button_policy == "trial"
     assert project_import.pages == "PROJECT"
     assert project_import.preselect_labels == "Import"
     assert project_import.apps_pages == "none"
     assert project_import.runtime_isolation == "isolated"
-    assert project_import.action_button_policy == "safe-click"
+    assert project_import.action_button_policy == "trial"
     assert project_rename.pages == "PROJECT"
     assert project_rename.preselect_labels == "Rename"
     assert project_rename.apps_pages == "none"
     assert project_rename.runtime_isolation == "isolated"
-    assert project_rename.action_button_policy == "safe-click"
+    assert project_rename.action_button_policy == "trial"
     assert settings.pages == "SETTINGS"
     assert settings.apps_pages == "none"
     assert settings.runtime_isolation == "isolated"
-    assert settings.action_button_policy == "safe-click"
+    assert settings.action_button_policy == "trial"
     assert settings.action_timeout_seconds == 30.0
     assert current_home.pages == "ORCHESTRATE"
     assert current_home.runtime_isolation == "current-home"
@@ -124,6 +124,8 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert pool_parameters.apps == "flight_telemetry_project"
     assert pool_parameters.runtime_isolation == "isolated"
     assert pool_parameters.action_button_policy == "trial"
+    assert pool_parameters.interaction_mode == "actionability"
+    assert pool_parameters.combination_mode == "off"
     assert pool_parameters.max_action_clicks_per_page == 0
     assert pool_parameters.required_text == "Pool parameters,Max workers,Item timeout seconds,Pool executor"
     assert pool_parameters.browser_error_check is True
@@ -131,6 +133,8 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert execution_pandas_pool.apps == "execution_pandas_project"
     assert execution_pandas_pool.runtime_isolation == "isolated"
     assert execution_pandas_pool.action_button_policy == "trial"
+    assert execution_pandas_pool.interaction_mode == "actionability"
+    assert execution_pandas_pool.combination_mode == "off"
     assert execution_pandas_pool.max_action_clicks_per_page == 0
     assert execution_pandas_pool.required_text == "Pool executor,Auto (ORCHESTRATE setting)"
     assert execution_pandas_pool.browser_error_check is True
@@ -167,7 +171,7 @@ def test_opt_in_browser_history_scenario_is_not_part_of_default_all() -> None:
     assert history.pages == "PROJECT"
     assert history.apps_pages == "none"
     assert history.runtime_isolation == "isolated"
-    assert history.action_button_policy == "safe-click"
+    assert history.action_button_policy == "trial"
     assert history.browser_history_check is True
 
 
@@ -230,6 +234,8 @@ def test_opt_in_mobile_and_release_evidence_scenarios_are_not_part_of_default_al
     assert hf_apps_pages_smoke.name not in default_names
     assert hf_view_maps_smoke.name not in default_names
     assert cross_browser.name not in default_names
+    assert pytorch_analysis.interaction_mode == "actionability"
+    assert pytorch_analysis.combination_mode == "off"
     assert mobile.viewport_width == 390
     assert mobile.viewport_height == 844
     assert evidence.success_screenshot is True
@@ -319,6 +325,8 @@ def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
     assert argv[argv.index("--pages") + 1] == "ORCHESTRATE"
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--runtime-isolation") + 1] == "current-home"
+    assert argv[argv.index("--interaction-mode") + 1] == "full"
+    assert argv[argv.index("--combination-mode") + 1] == "exhaustive"
     assert argv[argv.index("--action-button-policy") + 1] == "click-selected"
     assert argv[argv.index("--click-action-labels") + 1] == "CHECK distribute,Run -> Load -> Export"
     assert argv[argv.index("--preselect-labels") + 1] == "Run now"
@@ -443,7 +451,7 @@ def test_build_robot_command_enables_browser_history_check(tmp_path) -> None:
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
     assert argv[argv.index("--pages") + 1] == "PROJECT"
-    assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
+    assert argv[argv.index("--action-button-policy") + 1] == "trial"
     assert "--browser-history-check" in argv
     assert argv[argv.index("--screenshot-dir") + 1] == str(tmp_path / "screenshots" / "isolated-browser-history")
     assert summary_path == tmp_path / "isolated-browser-history.json"
@@ -608,6 +616,8 @@ def test_build_robot_command_covers_pytorch_playground_analysis_text(tmp_path) -
     assert argv[argv.index("--apps") + 1] == "pytorch_playground_project"
     assert argv[argv.index("--pages") + 1] == "ANALYSIS"
     assert argv[argv.index("--apps-pages") + 1] == "none"
+    assert argv[argv.index("--interaction-mode") + 1] == "actionability"
+    assert argv[argv.index("--combination-mode") + 1] == "off"
     assert argv[argv.index("--route-query") + 1] == "current_page=app_ui"
     assert argv[argv.index("--required-text") + 1] == "PyTorch Playground,Refresh evidence,Synced RUN snippet,Settings"
     assert argv[argv.index("--forbidden-sidebar-text") + 1] == "Project:"
@@ -616,6 +626,39 @@ def test_build_robot_command_covers_pytorch_playground_analysis_text(tmp_path) -
     assert "--browser-error-check" in argv
     assert summary_path == tmp_path / "isolated-pytorch-playground-analysis.json"
     assert progress_path == tmp_path / "isolated-pytorch-playground-analysis.ndjson"
+
+
+def test_build_robot_command_covers_execution_pandas_pool_executor_text(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-execution-pandas-orchestrate-pool-executor"]
+    options = module.MatrixOptions(
+        apps="all",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--apps") + 1] == "execution_pandas_project"
+    assert argv[argv.index("--pages") + 1] == "ORCHESTRATE"
+    assert argv[argv.index("--apps-pages") + 1] == "none"
+    assert argv[argv.index("--interaction-mode") + 1] == "actionability"
+    assert argv[argv.index("--combination-mode") + 1] == "off"
+    assert argv[argv.index("--required-text") + 1] == "Pool executor,Auto (ORCHESTRATE setting)"
+    assert "--browser-error-check" in argv
+    assert summary_path == tmp_path / "isolated-execution-pandas-orchestrate-pool-executor.json"
+    assert progress_path == tmp_path / "isolated-execution-pandas-orchestrate-pool-executor.ndjson"
+
+    pool_argv, _, _ = module.build_robot_command(
+        module.ALL_SCENARIOS["isolated-orchestrate-pool-parameters"],
+        options=options,
+    )
+    assert pool_argv[pool_argv.index("--interaction-mode") + 1] == "actionability"
+    assert pool_argv[pool_argv.index("--combination-mode") + 1] == "off"
 
 
 def test_build_robot_command_covers_network_sim_analysis_no_app_ui_link(tmp_path) -> None:
@@ -1125,7 +1168,7 @@ def test_build_robot_command_covers_project_editor_page(tmp_path) -> None:
     assert argv[argv.index("--pages") + 1] == "PROJECT_EDITOR"
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
-    assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
+    assert argv[argv.index("--action-button-policy") + 1] == "trial"
     assert argv[argv.index("--required-text") + 1] == "Edit project files"
     assert argv[argv.index("--forbidden-text") + 1] == "Worker class,Source LOC,Environment Health"
     assert argv[argv.index("--screenshot-dir") + 1] == str(
@@ -1153,7 +1196,7 @@ def test_build_robot_command_covers_project_notebook_import_deep_link(tmp_path) 
     assert argv[argv.index("--pages") + 1] == "PROJECT"
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
-    assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
+    assert argv[argv.index("--action-button-policy") + 1] == "trial"
     assert argv[argv.index("--route-query") + 1] == "start=notebook-import"
     assert argv[argv.index("--screenshot-dir") + 1] == str(
         tmp_path / "screenshots" / "isolated-project-notebook-import"
@@ -1180,7 +1223,7 @@ def test_build_robot_command_covers_project_import_sidebar(tmp_path) -> None:
     assert argv[argv.index("--pages") + 1] == "PROJECT"
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
-    assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
+    assert argv[argv.index("--action-button-policy") + 1] == "trial"
     assert argv[argv.index("--preselect-labels") + 1] == "Import"
     assert argv[argv.index("--screenshot-dir") + 1] == str(
         tmp_path / "screenshots" / "isolated-project-import-sidebar"
@@ -1207,7 +1250,7 @@ def test_build_robot_command_covers_project_rename_sidebar(tmp_path) -> None:
     assert argv[argv.index("--pages") + 1] == "PROJECT"
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
-    assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
+    assert argv[argv.index("--action-button-policy") + 1] == "trial"
     assert argv[argv.index("--preselect-labels") + 1] == "Rename"
     assert argv[argv.index("--screenshot-dir") + 1] == str(
         tmp_path / "screenshots" / "isolated-project-rename-sidebar"
@@ -1234,7 +1277,7 @@ def test_build_robot_command_covers_settings_page(tmp_path) -> None:
     assert argv[argv.index("--pages") + 1] == "SETTINGS"
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
-    assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
+    assert argv[argv.index("--action-button-policy") + 1] == "trial"
     assert argv[argv.index("--action-timeout") + 1] == "30.0"
     assert argv[argv.index("--screenshot-dir") + 1] == str(
         tmp_path / "screenshots" / "isolated-settings-page"
@@ -1338,6 +1381,19 @@ def test_scenario_timeout_option_is_plumbed_from_cli() -> None:
     assert default_opts.scenario_timeout_seconds == module.DEFAULT_SCENARIO_TIMEOUT_SECONDS
     assert disabled_opts.scenario_timeout_seconds is None
     assert custom_opts.scenario_timeout_seconds == 45.0
+
+    assert (
+        default_opts.failure_retry_timeout_seconds
+        == module.DEFAULT_FAILURE_RETRY_TIMEOUT_SECONDS
+    )
+    disabled_retry = module.options_from_args(
+        module._build_parser().parse_args(["--failure-retry-timeout", "0"])
+    )
+    custom_retry = module.options_from_args(
+        module._build_parser().parse_args(["--failure-retry-timeout", "75"])
+    )
+    assert disabled_retry.failure_retry_timeout_seconds is None
+    assert custom_retry.failure_retry_timeout_seconds == 75.0
 
 
 def test_load_summary_falls_back_to_stdout_json_and_default_failure(tmp_path) -> None:
@@ -1598,16 +1654,16 @@ def test_streaming_default_paths_for_scenario_and_failure_retry(tmp_path, monkey
     assert result.returncode == 0
     assert retry.returncode == 0
     assert len(calls) == 2
-    # Both the main scenario run and the failure-artifact retry must inherit the
-    # per-scenario watchdog budget; an unbounded retry would reopen the hang.
+    # The main scenario retains its watchdog while the diagnostic retry is
+    # deliberately shorter so evidence collection cannot reopen the hang.
     assert seen_timeouts == [
         module.DEFAULT_SCENARIO_TIMEOUT_SECONDS,
-        module.DEFAULT_SCENARIO_TIMEOUT_SECONDS,
+        module.DEFAULT_FAILURE_RETRY_TIMEOUT_SECONDS,
     ]
     assert retry_options.screenshot_dir == options.output_dir / "failure-artifacts" / "screenshots"
     assert retry_options.trace_dir == options.output_dir / "failure-artifacts" / "traces"
-    assert retry_options.har_dir == options.output_dir / "failure-artifacts" / "har"
-    assert retry_options.video_dir == options.output_dir / "failure-artifacts" / "video"
+    assert retry_options.har_dir is None
+    assert retry_options.video_dir is None
 
 
 def test_run_matrix_ignores_malformed_cache_entries_and_failure_sample_limits(tmp_path, monkeypatch) -> None:
@@ -2030,8 +2086,7 @@ def test_run_scenario_retries_failed_scenario_with_artifacts(tmp_path) -> None:
         no_seed_demo_artifacts=False,
         retry_failed_with_artifacts=True,
         retry_trace_dir=tmp_path / "retry" / "traces",
-        retry_har_dir=tmp_path / "retry" / "har",
-        retry_video_dir=tmp_path / "retry" / "video",
+        failure_retry_timeout_seconds=30.0,
     )
     calls: list[list[str]] = []
 
@@ -2040,6 +2095,14 @@ def test_run_scenario_retries_failed_scenario_with_artifacts(tmp_path) -> None:
         summary_path = Path(argv[argv.index("--json-output") + 1])
         progress_path = Path(argv[argv.index("--progress-log") + 1])
         is_retry = "failure-retry" in summary_path.parts
+        page_result = {
+            "app": "flight_telemetry_project",
+            "page": "PROJECT",
+            "success": True,
+            "status": "passed",
+            "failed_count": 0,
+            "failures": [],
+        }
         summary_path.parent.mkdir(parents=True, exist_ok=True)
         progress_path.parent.mkdir(parents=True, exist_ok=True)
         summary_path.write_text(
@@ -2051,7 +2114,8 @@ def test_run_scenario_retries_failed_scenario_with_artifacts(tmp_path) -> None:
                     "interacted_count": 0,
                     "probed_count": 1,
                     "skipped_count": 0,
-                    "failed_count": 0 if is_retry else 1,
+                    "failed_count": 0,
+                    "pages": [page_result],
                 }
             ),
             encoding="utf-8",
@@ -2062,12 +2126,17 @@ def test_run_scenario_retries_failed_scenario_with_artifacts(tmp_path) -> None:
                     "event": "page_done",
                     "scenario": scenario.name,
                     "success": is_retry,
+                    "result": page_result,
                 }
             )
             + "\n",
             encoding="utf-8",
         )
-        return subprocess.CompletedProcess(argv, 0 if is_retry else 1, stdout="")
+        return subprocess.CompletedProcess(
+            argv,
+            0 if is_retry else module.SCENARIO_TIMEOUT_RETURNCODE,
+            stdout="",
+        )
 
     result = module.run_scenario(scenario, options=options, runner=_runner)
     summary = module.summarize_matrix([result])
@@ -2080,13 +2149,12 @@ def test_run_scenario_retries_failed_scenario_with_artifacts(tmp_path) -> None:
     assert retry_argv[retry_argv.index("--trace-dir") + 1] == str(
         tmp_path / "retry" / "traces" / "isolated-project-page"
     )
-    assert retry_argv[retry_argv.index("--har-dir") + 1] == str(
-        tmp_path / "retry" / "har" / "isolated-project-page"
+    assert "--har-dir" not in retry_argv
+    assert "--video-dir" not in retry_argv
+    assert retry_argv[retry_argv.index("--resume-from-progress") + 1] == str(
+        tmp_path / "results" / "isolated-project-page.ndjson"
     )
-    assert retry_argv[retry_argv.index("--video-dir") + 1] == str(
-        tmp_path / "retry" / "video" / "isolated-project-page"
-    )
-    assert result.returncode == 1
+    assert result.returncode == module.SCENARIO_TIMEOUT_RETURNCODE
     assert result.artifact_retry is not None
     assert result.artifact_retry.returncode == 0
     assert summary["success"] is False
@@ -2104,6 +2172,248 @@ def test_run_scenario_retries_failed_scenario_with_artifacts(tmp_path) -> None:
         ).read_text(encoding="utf-8")
     )
     assert manifest["failure_artifact_retry"]["success"] is True
+
+
+def test_failure_artifact_retry_rejects_semantic_and_page_watchdog_failures(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-project-page"]
+
+    cases = [
+        (
+            1,
+            {"success": False, "failed_count": 1, "pages": []},
+            "not an infrastructure watchdog",
+        ),
+        (
+            module.SCENARIO_TIMEOUT_RETURNCODE,
+            {
+                "success": False,
+                "failed_count": 1,
+                "pages": [
+                    {
+                        "app": "flight_telemetry_project",
+                        "page": "ORCHESTRATE",
+                        "success": False,
+                        "status": "timed_out",
+                        "failed_count": 1,
+                        "failures": [
+                            {
+                                "kind": "page_watchdog",
+                                "detail": "page watchdog expired after 420 seconds",
+                            }
+                        ],
+                    }
+                ],
+            },
+            "already contains failure evidence",
+        ),
+        (
+            module.SCENARIO_TIMEOUT_RETURNCODE,
+            {
+                "success": False,
+                "failed_count": 1,
+                "pages": [
+                    {
+                        "app": "flight_telemetry_project",
+                        "page": "PROJECT",
+                        "success": False,
+                        "status": "failed",
+                        "failed_count": 1,
+                        "failures": [
+                            {
+                                "kind": "combination_space",
+                                "detail": "combination space was capped",
+                            }
+                        ],
+                    }
+                ],
+            },
+            "already contains failure evidence",
+        ),
+    ]
+
+    for index, (returncode, summary, expected_reason) in enumerate(cases):
+        result = module.ScenarioResult(
+            scenario=scenario,
+            argv=["robot"],
+            returncode=returncode,
+            duration_seconds=1.0,
+            summary_path=tmp_path / f"summary-{index}.json",
+            progress_path=tmp_path / f"progress-{index}.ndjson",
+            summary=summary,
+            output="",
+        )
+        eligible, reason = module._failure_artifact_retry_decision(result)
+        assert eligible is False
+        assert expected_reason in reason
+
+
+def test_run_scenario_does_not_retry_a_page_watchdog(tmp_path, capsys) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path / "results",
+        screenshot_dir=None,
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        retry_failed_with_artifacts=True,
+    )
+    calls = 0
+
+    def _runner(argv, **_kwargs):
+        nonlocal calls
+        calls += 1
+        summary_path = Path(argv[argv.index("--json-output") + 1])
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(
+                {
+                    "success": False,
+                    "failed_count": 1,
+                    "pages": [
+                        {
+                            "app": "flight_telemetry_project",
+                            "page": "ORCHESTRATE",
+                            "success": False,
+                            "status": "timed_out",
+                            "failed_count": 1,
+                            "failures": [
+                                {"kind": "page_watchdog", "detail": "page watchdog expired"}
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(
+            argv, module.SCENARIO_TIMEOUT_RETURNCODE, stdout=""
+        )
+
+    result = module.run_scenario(scenario, options=options, runner=_runner)
+
+    assert calls == 1
+    assert result.artifact_retry is None
+    assert "compact retry skipped" in capsys.readouterr().err
+
+
+def test_run_scenario_uses_progress_log_to_reject_retry_when_summary_is_missing(
+    tmp_path, capsys
+) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path / "results",
+        screenshot_dir=None,
+        timeout_seconds=10.0,
+        widget_timeout_seconds=1.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+        retry_failed_with_artifacts=True,
+    )
+    calls = 0
+
+    def _runner(argv, **_kwargs):
+        nonlocal calls
+        calls += 1
+        progress_path = Path(argv[argv.index("--progress-log") + 1])
+        progress_path.parent.mkdir(parents=True, exist_ok=True)
+        progress_path.write_text(
+            json.dumps(
+                {
+                    "event": "page_done",
+                    "result": {
+                        "app": "flight_telemetry_project",
+                        "page": "ORCHESTRATE",
+                        "success": False,
+                        "status": "timed_out",
+                        "failed_count": 1,
+                        "failures": [
+                            {
+                                "kind": "combination",
+                                "detail": "page watchdog expired after 420 seconds",
+                            }
+                        ],
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(
+            argv, module.SCENARIO_TIMEOUT_RETURNCODE, stdout="not-json"
+        )
+
+    result = module.run_scenario(scenario, options=options, runner=_runner)
+
+    assert calls == 1
+    assert result.summary["error"] == "robot did not emit a JSON summary"
+    assert result.artifact_retry is None
+    assert "already contains failure evidence" in capsys.readouterr().err
+
+
+def test_failure_artifact_retry_rejects_a_truncated_progress_log(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
+    progress_path = tmp_path / "progress.ndjson"
+    progress_path.write_text(
+        '{"event":"page_start","app":"flight_telemetry_project"}\n{"event":"page_done"',
+        encoding="utf-8",
+    )
+    result = module.ScenarioResult(
+        scenario=scenario,
+        argv=["robot"],
+        returncode=module.SCENARIO_TIMEOUT_RETURNCODE,
+        duration_seconds=1.0,
+        summary_path=tmp_path / "missing.json",
+        progress_path=progress_path,
+        summary={"success": False, "error": "robot did not emit a JSON summary"},
+        output="",
+    )
+
+    eligible, reason = module._failure_artifact_retry_decision(result)
+
+    assert eligible is False
+    assert "progress evidence is malformed" in reason
+
+
+def test_failure_artifact_retry_rejects_incomplete_page_done_evidence(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
+    progress_path = tmp_path / "progress.ndjson"
+    progress_path.write_text(
+        json.dumps(
+            {
+                "event": "page_done",
+                "result": {
+                    "app": "flight_telemetry_project",
+                    "page": "ORCHESTRATE",
+                    "failed_count": 0,
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    result = module.ScenarioResult(
+        scenario=scenario,
+        argv=["robot"],
+        returncode=module.SCENARIO_TIMEOUT_RETURNCODE,
+        duration_seconds=1.0,
+        summary_path=tmp_path / "missing.json",
+        progress_path=progress_path,
+        summary={"success": False, "error": "robot did not emit a JSON summary"},
+        output="",
+    )
+
+    eligible, reason = module._failure_artifact_retry_decision(result)
+
+    assert eligible is False
+    assert "already contains failure evidence" in reason
 
 
 def test_run_matrix_fail_fast_stops_on_first_failed_scenario(tmp_path) -> None:

@@ -32,6 +32,10 @@ FAILURE_BUNDLE_TEXT_LIMIT = 30_000
 # This wall-clock budget bounds each child instead, so one wedged scenario is
 # reported as a failure and the remaining scenarios still run.
 DEFAULT_SCENARIO_TIMEOUT_SECONDS = 900.0
+# Infrastructure-only diagnostic retries must remain shorter than the original
+# scenario budget. They resume passed pages and collect a trace, not a second
+# full matrix worth of HAR/video evidence.
+DEFAULT_FAILURE_RETRY_TIMEOUT_SECONDS = 300.0
 # Conventional shell exit status for "killed by timeout" (128 + SIGTERM).
 SCENARIO_TIMEOUT_RETURNCODE = 124
 # Grace period for the child to die after SIGTERM before we escalate to SIGKILL.
@@ -58,6 +62,8 @@ class RobotScenario:
     apps_pages: str
     runtime_isolation: str
     action_button_policy: str
+    interaction_mode: str = "full"
+    combination_mode: str = "exhaustive"
     apps: str = ""
     click_action_labels: str = ""
     preselect_labels: str = ""
@@ -116,6 +122,8 @@ class MatrixOptions:
     retry_video_dir: Path | None = None
     # Per-scenario wall-clock budget. ``None`` disables the watchdog entirely.
     scenario_timeout_seconds: float | None = DEFAULT_SCENARIO_TIMEOUT_SECONDS
+    # Wall-clock budget for the single infrastructure-only diagnostic retry.
+    failure_retry_timeout_seconds: float | None = DEFAULT_FAILURE_RETRY_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True)
@@ -249,6 +257,9 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
+        max_action_clicks_per_page=0,
         assert_workflow_artifacts=True,
     ),
     "isolated-entry-and-app-pages": RobotScenario(
@@ -261,6 +272,8 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="configured",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
         max_action_clicks_per_page=0,
@@ -275,6 +288,8 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="safe-click",
+        interaction_mode="full",
+        combination_mode="exhaustive",
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
     ),
@@ -287,11 +302,14 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         pages="PROJECT_EDITOR",
         apps_pages="none",
         runtime_isolation="isolated",
-        action_button_policy="safe-click",
+        action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         required_text="Edit project files",
         forbidden_text="Worker class,Source LOC,Environment Health",
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
+        max_action_clicks_per_page=0,
     ),
     "isolated-project-notebook-import": RobotScenario(
         name="isolated-project-notebook-import",
@@ -303,10 +321,13 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         pages="PROJECT",
         apps_pages="none",
         runtime_isolation="isolated",
-        action_button_policy="safe-click",
+        action_button_policy="trial",
+        interaction_mode="full",
+        combination_mode="off",
         route_query="start=notebook-import",
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
+        max_action_clicks_per_page=0,
     ),
     "isolated-project-import-sidebar": RobotScenario(
         name="isolated-project-import-sidebar",
@@ -318,10 +339,13 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         pages="PROJECT",
         apps_pages="none",
         runtime_isolation="isolated",
-        action_button_policy="safe-click",
+        action_button_policy="trial",
+        interaction_mode="full",
+        combination_mode="off",
         preselect_labels="Import",
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
+        max_action_clicks_per_page=0,
     ),
     "isolated-project-rename-sidebar": RobotScenario(
         name="isolated-project-rename-sidebar",
@@ -333,10 +357,13 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         pages="PROJECT",
         apps_pages="none",
         runtime_isolation="isolated",
-        action_button_policy="safe-click",
+        action_button_policy="trial",
+        interaction_mode="full",
+        combination_mode="off",
         preselect_labels="Rename",
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
+        max_action_clicks_per_page=0,
     ),
     "isolated-settings-page": RobotScenario(
         name="isolated-settings-page",
@@ -347,9 +374,12 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         pages="SETTINGS",
         apps_pages="none",
         runtime_isolation="isolated",
-        action_button_policy="safe-click",
+        action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
+        max_action_clicks_per_page=0,
     ),
     "current-home-actions": RobotScenario(
         name="current-home-actions",
@@ -420,6 +450,8 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         max_action_clicks_per_page=0,
         required_text="Pool parameters,Max workers,Item timeout seconds,Pool executor",
         browser_error_check=True,
@@ -435,6 +467,8 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         max_action_clicks_per_page=0,
         required_text="Pool executor,Auto (ORCHESTRATE setting)",
         browser_error_check=True,
@@ -454,6 +488,8 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=15.0,
         page_timeout_seconds=120.0,
         target_seconds=900.0,
@@ -473,6 +509,8 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=15.0,
         page_timeout_seconds=120.0,
         target_seconds=900.0,
@@ -488,10 +526,13 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         pages="PROJECT",
         apps_pages="none",
         runtime_isolation="isolated",
-        action_button_policy="safe-click",
+        action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=30.0,
         page_timeout_seconds=360.0,
         target_seconds=900.0,
+        max_action_clicks_per_page=0,
         browser_history_check=True,
     ),
     "isolated-mobile-core-pages": RobotScenario(
@@ -504,9 +545,12 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=30.0,
         page_timeout_seconds=420.0,
         target_seconds=1200.0,
+        max_action_clicks_per_page=0,
         viewport_width=390,
         viewport_height=844,
     ),
@@ -520,9 +564,12 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=30.0,
         page_timeout_seconds=420.0,
         target_seconds=1200.0,
+        max_action_clicks_per_page=0,
         success_screenshot=True,
         max_first_render_seconds=90.0,
         max_widgets_ready_seconds=30.0,
@@ -538,9 +585,12 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=30.0,
         page_timeout_seconds=420.0,
         target_seconds=1200.0,
+        max_action_clicks_per_page=0,
         fresh_browser_context_per_page=True,
     ),
     "isolated-keyboard-focus-core-pages": RobotScenario(
@@ -553,9 +603,12 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=30.0,
         page_timeout_seconds=420.0,
         target_seconds=1200.0,
+        max_action_clicks_per_page=0,
         keyboard_focus_check=True,
     ),
     "isolated-layout-integrity-desktop": RobotScenario(
@@ -568,9 +621,12 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=30.0,
         page_timeout_seconds=420.0,
         target_seconds=1200.0,
+        max_action_clicks_per_page=0,
         layout_integrity_check=True,
     ),
     "isolated-layout-integrity-mobile": RobotScenario(
@@ -583,9 +639,12 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=30.0,
         page_timeout_seconds=420.0,
         target_seconds=1200.0,
+        max_action_clicks_per_page=0,
         layout_integrity_check=True,
         viewport_width=390,
         viewport_height=844,
@@ -600,9 +659,12 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=30.0,
         page_timeout_seconds=420.0,
         target_seconds=1200.0,
+        max_action_clicks_per_page=0,
         accessibility_check=True,
     ),
     "isolated-browser-error-core-pages": RobotScenario(
@@ -615,9 +677,12 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=30.0,
         page_timeout_seconds=420.0,
         target_seconds=1200.0,
+        max_action_clicks_per_page=0,
         browser_error_check=True,
     ),
     "isolated-cross-browser-core-pages": RobotScenario(
@@ -646,6 +711,9 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
+        max_action_clicks_per_page=0,
         apps="pytorch_playground_project",
         route_query="current_page=app_ui",
         required_text="PyTorch Playground,Refresh evidence,Synced RUN snippet,Settings",
@@ -687,9 +755,12 @@ OPT_IN_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        interaction_mode="actionability",
+        combination_mode="off",
         action_timeout_seconds=30.0,
         page_timeout_seconds=420.0,
         target_seconds=1200.0,
+        max_action_clicks_per_page=0,
         above_fold_check=True,
     ),
     "isolated-visual-baseline-core-pages": RobotScenario(
@@ -834,8 +905,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "--retry-failed-with-artifacts",
         action="store_true",
         help=(
-            "When a scenario fails, rerun only that scenario once with trace, "
-            "HAR, and video artifact directories enabled."
+            "When a scenario hits the infrastructure watchdog without a completed "
+            "semantic failure, resume passed pages once and collect compact diagnostics."
         ),
     )
     parser.add_argument(
@@ -876,6 +947,15 @@ def _build_parser() -> argparse.ArgumentParser:
             "Use 0 to disable the watchdog."
         ),
     )
+    parser.add_argument(
+        "--failure-retry-timeout",
+        type=float,
+        default=DEFAULT_FAILURE_RETRY_TIMEOUT_SECONDS,
+        help=(
+            "Wall-clock budget in seconds for the single infrastructure-only failure "
+            "retry. The retry resumes passed pages. Use 0 to disable its watchdog."
+        ),
+    )
     parser.add_argument("--browser", choices=("chromium", "firefox", "webkit"), default="chromium")
     parser.add_argument("--headful", action="store_true")
     parser.add_argument("--url", help="Existing AGILAB URL to test instead of launching source Streamlit.")
@@ -912,6 +992,9 @@ def options_from_args(args: argparse.Namespace) -> MatrixOptions:
         timeout_seconds=args.timeout,
         widget_timeout_seconds=args.widget_timeout,
         scenario_timeout_seconds=args.scenario_timeout if args.scenario_timeout > 0 else None,
+        failure_retry_timeout_seconds=(
+            args.failure_retry_timeout if args.failure_retry_timeout > 0 else None
+        ),
         quiet_progress=args.quiet_progress,
         no_seed_demo_artifacts=args.no_seed_demo_artifacts,
         browser=args.browser,
@@ -968,7 +1051,9 @@ def build_robot_command(
         "--target-seconds",
         str(scenario.target_seconds),
         "--interaction-mode",
-        "full",
+        scenario.interaction_mode,
+        "--combination-mode",
+        scenario.combination_mode,
         "--action-button-policy",
         scenario.action_button_policy,
         "--missing-selected-action-policy",
@@ -1059,6 +1144,77 @@ def _scenario_failed(result: ScenarioResult) -> bool:
     return result.returncode != 0 or result.summary.get("success") is not True
 
 
+def _completed_page_failure_reason(page: object) -> str:
+    if not isinstance(page, dict):
+        return "completed page evidence is malformed"
+    status = str(page.get("status") or "").strip().casefold()
+    failures = page.get("failures")
+    try:
+        failed_count = int(page.get("failed_count") or 0)
+    except (TypeError, ValueError):
+        return "completed page failed_count is malformed"
+    if page.get("success") is not True or status != "passed" or failed_count != 0:
+        app = str(page.get("app") or "?")
+        page_name = str(page.get("page") or "?")
+        return f"completed page {app}/{page_name} already contains failure evidence"
+    if not isinstance(failures, list):
+        return "completed page failures evidence is malformed"
+    if failures:
+        app = str(page.get("app") or "?")
+        page_name = str(page.get("page") or "?")
+        return f"completed page {app}/{page_name} already contains failure evidence"
+    return ""
+
+
+def _progress_failure_reason(path: Path) -> str:
+    if not path.exists():
+        return ""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        return f"progress evidence is unreadable: {exc.__class__.__name__}"
+    for line_number, line in enumerate(lines, start=1):
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            return f"progress evidence is malformed at line {line_number}"
+        if not isinstance(record, dict):
+            return f"progress evidence is malformed at line {line_number}"
+        if record.get("event") != "page_done":
+            continue
+        if "result" not in record:
+            return f"page_done evidence is incomplete at line {line_number}"
+        reason = _completed_page_failure_reason(record.get("result"))
+        if reason:
+            return reason
+    return ""
+
+
+def _failure_artifact_retry_decision(result: ScenarioResult) -> tuple[bool, str]:
+    """Retry only an infrastructure watchdog with no completed semantic failure."""
+
+    if result.returncode != SCENARIO_TIMEOUT_RETURNCODE:
+        return False, f"return code {result.returncode} is not an infrastructure watchdog"
+
+    pages = result.summary.get("pages")
+    if "pages" in result.summary and not isinstance(pages, list):
+        return False, "summary page evidence is malformed"
+    if not isinstance(pages, list):
+        pages = []
+    for page in pages:
+        reason = _completed_page_failure_reason(page)
+        if reason:
+            return False, reason
+
+    progress_reason = _progress_failure_reason(result.progress_path)
+    if progress_reason:
+        return False, progress_reason
+
+    return True, "scenario watchdog fired without completed semantic failure evidence"
+
+
 def _failure_artifact_retry_options(options: MatrixOptions) -> MatrixOptions:
     retry_output_dir = options.output_dir / "failure-retry"
     retry_artifact_root = options.output_dir / "failure-artifacts"
@@ -1073,8 +1229,8 @@ def _failure_artifact_retry_options(options: MatrixOptions) -> MatrixOptions:
         screenshot_dir=retry_screenshot_dir,
         failure_bundle_dir=None,
         trace_dir=options.retry_trace_dir or retry_artifact_root / "traces",
-        har_dir=options.retry_har_dir or retry_artifact_root / "har",
-        video_dir=options.retry_video_dir or retry_artifact_root / "video",
+        har_dir=options.retry_har_dir,
+        video_dir=options.retry_video_dir,
         result_cache_path=None,
         retry_failed_with_artifacts=False,
         retry_trace_dir=None,
@@ -1087,15 +1243,27 @@ def run_failure_artifact_retry(
     scenario: RobotScenario,
     *,
     options: MatrixOptions,
+    resume_from_progress: Path | None = None,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> FailureArtifactRetry:
     retry_options = _failure_artifact_retry_options(options)
     retry_options.output_dir.mkdir(parents=True, exist_ok=True)
     argv, summary_path, progress_path = build_robot_command(scenario, options=retry_options)
+    if resume_from_progress is not None:
+        argv.extend(["--resume-from-progress", str(resume_from_progress)])
+        print(
+            f"[ui-robot-matrix] infrastructure retry resumes passed pages from "
+            f"{resume_from_progress}",
+            file=sys.stderr,
+            flush=True,
+        )
     started = time.perf_counter()
     if runner is subprocess.run:
+        retry_timeout = options.failure_retry_timeout_seconds
+        if retry_timeout is not None and options.scenario_timeout_seconds is not None:
+            retry_timeout = min(retry_timeout, options.scenario_timeout_seconds)
         completed = _run_robot_command_streaming(
-            argv, timeout_seconds=options.scenario_timeout_seconds
+            argv, timeout_seconds=retry_timeout
         )
     else:
         completed = runner(
@@ -1538,10 +1706,23 @@ def run_scenario(
         output=output,
     )
     if options.retry_failed_with_artifacts and _scenario_failed(result):
-        result = replace(
-            result,
-            artifact_retry=run_failure_artifact_retry(scenario, options=options, runner=runner),
-        )
+        retry_eligible, retry_reason = _failure_artifact_retry_decision(result)
+        if retry_eligible:
+            result = replace(
+                result,
+                artifact_retry=run_failure_artifact_retry(
+                    scenario,
+                    options=options,
+                    resume_from_progress=progress_path,
+                    runner=runner,
+                ),
+            )
+        else:
+            print(
+                f"[ui-robot-matrix] compact retry skipped for {scenario.name}: {retry_reason}",
+                file=sys.stderr,
+                flush=True,
+            )
     _write_matrix_failure_bundle(result, options=options)
     return result
 

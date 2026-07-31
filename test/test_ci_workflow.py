@@ -107,8 +107,7 @@ def _ui_robot_matrix_command_contract(argv: list[str]) -> dict[str, object]:
         "failure_bundle_dir": _single_option(argv, "--failure-bundle-dir"),
         "retry_failed_with_artifacts": "--retry-failed-with-artifacts" in argv,
         "retry_trace_dir": _single_option(argv, "--retry-trace-dir"),
-        "retry_har_dir": _single_option(argv, "--retry-har-dir"),
-        "retry_video_dir": _single_option(argv, "--retry-video-dir"),
+        "failure_retry_timeout": _single_option(argv, "--failure-retry-timeout"),
     }
 
 
@@ -129,8 +128,7 @@ def _ui_robot_matrix_workflow_contracts() -> dict[str, dict[str, object]]:
             "failure_bundle_dir": f"test-results/ui-robot-matrix/{shard}/failure-bundles",
             "retry_failed_with_artifacts": True,
             "retry_trace_dir": f"test-results/ui-robot-matrix/{shard}/failure-artifacts/traces",
-            "retry_har_dir": f"test-results/ui-robot-matrix/{shard}/failure-artifacts/har",
-            "retry_video_dir": f"test-results/ui-robot-matrix/{shard}/failure-artifacts/video",
+            "failure_retry_timeout": "300",
         }
         for shard, scenarios in _ui_robot_matrix_workflow_shards().items()
     }
@@ -171,6 +169,16 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
         "Install Playwright browser for frontend smoke", 1
     )[0]
     assert "Install Playwright browser for frontend smoke" in text
+    assert "Validate widget layout visibility collector" in text
+    assert 'AGILAB_REQUIRE_PLAYWRIGHT_LAYOUT_REGRESSION: "1"' in text
+    assert (
+        "test/test_agilab_widget_robot.py::"
+        "test_layout_integrity_collector_uses_painted_geometry_for_expander_content"
+    ) in text
+    assert (
+        "test/test_agilab_widget_robot.py::"
+        "test_visible_combobox_semantics_collector_filters_hidden_controls"
+    ) in text
     assert "Validate Streamlit frontend smoke" in text
     assert (
         'uv --preview-features extra-build-dependencies run --with "playwright==${{ steps.playwright-version.outputs.version }}" '
@@ -501,8 +509,10 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
     assert '--failure-bundle-dir "${failure_bundle_dir}"' in text
     assert "--retry-failed-with-artifacts" in text
     assert '--retry-trace-dir "${failure_artifact_dir}/traces"' in text
-    assert '--retry-har-dir "${failure_artifact_dir}/har"' in text
-    assert '--retry-video-dir "${failure_artifact_dir}/video"' in text
+    assert "--retry-har-dir" not in text
+    assert "--retry-video-dir" not in text
+    assert "--failure-retry-timeout 300" in text
+    assert "retention-days: 3" in text
     assert "tools/ui_robot_trend_report.py" in text
     assert '--glob "${result_dir}/*.ndjson"' in text
     assert "--max-total-seconds 2700" in text

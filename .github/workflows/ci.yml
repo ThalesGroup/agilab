@@ -201,7 +201,8 @@ jobs:
             --extra ui \
             --with "playwright==${{ steps.playwright-version.outputs.version }}" \
             python -m pytest -q -o addopts='' \
-            test/test_agilab_widget_robot.py::test_layout_integrity_collector_uses_painted_geometry_for_expander_content
+            test/test_agilab_widget_robot.py::test_layout_integrity_collector_uses_painted_geometry_for_expander_content \
+            test/test_agilab_widget_robot.py::test_visible_combobox_semantics_collector_filters_hidden_controls
 
       - name: Save Playwright browser cache
         if: steps.playwright-cache.outputs.cache-hit != 'true'

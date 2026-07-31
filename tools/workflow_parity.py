@@ -1718,10 +1718,8 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
                 "--retry-failed-with-artifacts",
                 "--retry-trace-dir",
                 f"{result_dir}/failure-artifacts/traces",
-                "--retry-har-dir",
-                f"{result_dir}/failure-artifacts/har",
-                "--retry-video-dir",
-                f"{result_dir}/failure-artifacts/video",
+                "--failure-retry-timeout",
+                "300",
             ]
         )
         commands.append(

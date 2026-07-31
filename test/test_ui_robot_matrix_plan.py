@@ -88,7 +88,7 @@ def test_current_all_app_plan_is_complete_bounded_and_deterministic() -> None:
     ]
     assert plan["apps"] == filesystem_apps
     assert plan["app_count"] == 14
-    assert plan["shard_count"] == 34
+    assert plan["shard_count"] == 35
     assert plan["estimated_page_count"] == 951
     assert plan["max_estimated_pages"] == 32
     assert max(int(shard["estimated_pages"]) for shard in shards) <= 32
@@ -97,6 +97,7 @@ def test_current_all_app_plan_is_complete_bounded_and_deterministic() -> None:
     planned_scenarios = set(_scenario_names(plan))
     configured_scenarios = {
         *planner.CORE_SCENARIOS,
+        *planner.APP_PAGE_SCENARIOS,
         *planner.STATE_MOBILE_SCENARIOS,
         *planner.QUALITY_SCENARIOS,
         *planner.LAYOUT_SCENARIOS,
@@ -133,6 +134,44 @@ def test_current_all_app_plan_is_complete_bounded_and_deterministic() -> None:
                 [shard for shard in shards if str(shard["shard"]).startswith(f"{prefix}-")]
             )
 
+    configured_page_apps = sorted(
+        app
+        for app in filesystem_apps
+        if planner.configured_apps_page_count(planner.DEFAULT_APPS_ROOT / app) > 0
+    )
+    app_page_shards = [
+        shard
+        for shard in shards
+        if str(shard["shard"]).startswith("app-pages-")
+    ]
+    app_page_apps = [
+        app
+        for shard in app_page_shards
+        for app in str(shard["apps"]).split(",")
+    ]
+    assert configured_page_apps == [
+        "flight_telemetry_project",
+        "mission_decision_project",
+        "uav_queue_project",
+        "uav_relay_queue_project",
+        "weather_forecast_project",
+    ]
+    assert sorted(app_page_apps) == configured_page_apps
+    assert len(app_page_apps) == len(set(app_page_apps))
+    assert all(
+        str(shard["scenarios"]) == "isolated-entry-and-app-pages"
+        for shard in app_page_shards
+    )
+    for scenario in planner.APP_PAGE_SCENARIOS:
+        assert _scenario_names(plan).count(scenario) == len(app_page_shards)
+
+    covered_by_any_shard = {
+        app
+        for shard in shards
+        for app in str(shard["apps"]).split(",")
+    }
+    assert sorted(covered_by_any_shard) == filesystem_apps
+
     for scenario, _app in planner.FOCUSED_SCENARIOS:
         assert _scenario_names(plan).count(scenario) == 1
 
@@ -146,13 +185,96 @@ def test_subset_plan_excludes_unrequested_apps_and_focused_overrides() -> None:
     selected = {"flight_telemetry_project", "pytorch_playground_project"}
     shards = plan["matrix"]["include"]
     focused = next(shard for shard in shards if shard["shard"] == "focused")
+    app_pages = next(shard for shard in shards if shard["shard"] == "app-pages-01")
 
     assert plan["apps"] == sorted(selected)
     assert all(set(str(shard["apps"]).split(",")) <= selected for shard in shards)
     assert focused["scenarios"] == "isolated-pytorch-playground-analysis"
+    assert app_pages["scenarios"] == "isolated-entry-and-app-pages"
+    assert app_pages["apps"] == "flight_telemetry_project"
     assert "execution_pandas_project" not in focused["apps"]
     assert _scenario_names(plan).count("isolated-pytorch-playground-analysis") == 1
     assert "isolated-execution-pandas-orchestrate-pool-executor" not in _scenario_names(plan)
+
+
+def test_scheduled_scenarios_have_one_bounded_exhaustive_lane() -> None:
+    planner = _load_module("ui_robot_matrix_plan_modes_module", PLAN_MODULE_PATH)
+    matrix = _load_module("ui_robot_matrix_modes_module", MATRIX_MODULE_PATH)
+
+    scheduled = {
+        *planner.CORE_SCENARIOS,
+        *planner.APP_PAGE_SCENARIOS,
+        *planner.STATE_MOBILE_SCENARIOS,
+        *planner.QUALITY_SCENARIOS,
+        *planner.LAYOUT_SCENARIOS,
+        *(scenario for scenario, _app in planner.FOCUSED_SCENARIOS),
+    }
+    expected = {
+        name: ("actionability", "off", "trial", 0)
+        for name in scheduled
+    }
+    expected["isolated-project-page"] = (
+        "full",
+        "exhaustive",
+        "safe-click",
+        25,
+    )
+    for name in (
+        "isolated-project-notebook-import",
+        "isolated-project-import-sidebar",
+        "isolated-project-rename-sidebar",
+    ):
+        expected[name] = ("full", "off", "trial", 0)
+
+    actual = {
+        name: (
+            matrix.ALL_SCENARIOS[name].interaction_mode,
+            matrix.ALL_SCENARIOS[name].combination_mode,
+            matrix.ALL_SCENARIOS[name].action_button_policy,
+            matrix.ALL_SCENARIOS[name].max_action_clicks_per_page,
+        )
+        for name in scheduled
+    }
+
+    assert scheduled == EXPECTED_WORKFLOW_SCENARIOS
+    assert len(scheduled) == 22
+    assert actual == expected
+    assert sum(mode[0] == "full" for mode in actual.values()) == 4
+    assert sum(mode[1] == "exhaustive" for mode in actual.values()) == 1
+
+
+def test_app_page_shards_exclude_zero_page_apps_without_losing_exact_inventory(
+    tmp_path: Path,
+) -> None:
+    planner = _load_module("ui_robot_matrix_plan_app_pages_module", PLAN_MODULE_PATH)
+    apps_root = tmp_path / "builtin"
+    configured_src = apps_root / "configured_project" / "src"
+    configured_src.mkdir(parents=True)
+    (configured_src / "app_settings.toml").write_text(
+        "[pages]\nview_module = [\"view_a\", \"view_b\"]\n",
+        encoding="utf-8",
+    )
+    (apps_root / "plain_project" / "src").mkdir(parents=True)
+
+    plan = planner.build_plan(apps_root=apps_root)
+    shards = plan["matrix"]["include"]
+    app_page_shards = [
+        shard
+        for shard in shards
+        if str(shard["shard"]).startswith("app-pages-")
+    ]
+
+    assert plan["apps"] == ["configured_project", "plain_project"]
+    assert plan["app_count"] == 2
+    assert len(app_page_shards) == 1
+    assert app_page_shards[0]["apps"] == "configured_project"
+    assert app_page_shards[0]["estimated_pages"] == 2
+    assert app_page_shards[0]["scenarios"] == "isolated-entry-and-app-pages"
+    assert {
+        app
+        for shard in shards
+        for app in str(shard["apps"]).split(",")
+    } == {"configured_project", "plain_project"}
 
 
 def test_plan_rejects_unknown_empty_and_overweight_inventory(tmp_path: Path) -> None:

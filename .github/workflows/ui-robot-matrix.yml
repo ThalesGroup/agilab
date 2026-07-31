@@ -128,9 +128,7 @@ jobs:
           mkdir -p \
             "${failure_bundle_dir}" \
             "${screenshot_dir}" \
-            "${failure_artifact_dir}/traces" \
-            "${failure_artifact_dir}/har" \
-            "${failure_artifact_dir}/video"
+            "${failure_artifact_dir}/traces"
           robot_apps="${ROBOT_APPS}"
           robot_timeout="${INPUT_TIMEOUT:-90}"
           robot_widget_timeout="${INPUT_WIDGET_TIMEOUT:-3}"
@@ -156,8 +154,7 @@ jobs:
             --failure-bundle-dir "${failure_bundle_dir}" \
             --retry-failed-with-artifacts \
             --retry-trace-dir "${failure_artifact_dir}/traces" \
-            --retry-har-dir "${failure_artifact_dir}/har" \
-            --retry-video-dir "${failure_artifact_dir}/video" \
+            --failure-retry-timeout 300 \
             | tee "${result_dir}/summary.json"
           status="${PIPESTATUS[0]}"
           set -e
@@ -299,7 +296,7 @@ jobs:
             test-results/ui-robot-matrix/${{ matrix.shard }}/**
             screenshots/ui-robot-matrix/${{ matrix.shard }}/**
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 3
 
   aggregate-ui-robot-matrix:
     name: ui-robot-matrix aggregate

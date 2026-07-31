@@ -1131,6 +1131,498 @@ def test_required_text_probe_reads_child_frames() -> None:
     assert probe.kind == "required_text"
 
 
+def test_required_text_probe_reads_visible_combobox_semantics() -> None:
+    module = _load_module()
+
+    class _Locator:
+        @staticmethod
+        def inner_text(**_kwargs) -> str:
+            return "ORCHESTRATE"
+
+    class _Page:
+        url = "http://demo/ORCHESTRATE"
+        frames: list[object] = []
+        main_frame = None
+
+        @staticmethod
+        def locator(_selector: str) -> _Locator:
+            return _Locator()
+
+        @staticmethod
+        def evaluate(script: str) -> list[str]:
+            assert script == module.VISIBLE_COMBOBOX_SEMANTICS_COLLECTOR_JS
+            return ["Pool executor", "Auto (ORCHESTRATE setting)"]
+
+    probe = module._required_text_probe(
+        _Page(),
+        app_name="execution_pandas_project",
+        display="ORCHESTRATE",
+        required_text=("Pool executor", "Auto (ORCHESTRATE setting)"),
+        timeout_ms=100,
+    )
+
+    assert probe.status == "interacted"
+    assert probe.kind == "required_text"
+
+
+def test_required_text_probe_reads_combobox_semantics_when_body_text_fails() -> None:
+    module = _load_module()
+
+    class _Locator:
+        @staticmethod
+        def inner_text(**_kwargs) -> str:
+            raise RuntimeError("body text unavailable")
+
+    class _Page:
+        url = "http://demo/ORCHESTRATE"
+        frames: list[object] = []
+        main_frame = None
+
+        @staticmethod
+        def locator(_selector: str) -> _Locator:
+            return _Locator()
+
+        @staticmethod
+        def evaluate(script: str) -> list[str]:
+            assert script == module.VISIBLE_COMBOBOX_SEMANTICS_COLLECTOR_JS
+            return ["Pool executor", "Auto (ORCHESTRATE setting)"]
+
+    probe = module._required_text_probe(
+        _Page(),
+        app_name="execution_pandas_project",
+        display="ORCHESTRATE",
+        required_text=("Pool executor", "Auto (ORCHESTRATE setting)"),
+        timeout_ms=100,
+    )
+
+    assert probe.status == "interacted"
+
+
+def test_required_text_probe_scrolls_to_materialize_combobox_semantics() -> None:
+    module = _load_module()
+
+    class _Locator:
+        @staticmethod
+        def inner_text(**_kwargs) -> str:
+            return "ORCHESTRATE"
+
+    class _Page:
+        url = "http://demo/ORCHESTRATE"
+        frames: list[object] = []
+        main_frame = None
+
+        def __init__(self) -> None:
+            self.scroll_y = 125
+            self.scrolls: list[int] = []
+            self.restore_roots: list[str] = []
+            self.semantic_collections = 0
+
+        @staticmethod
+        def locator(_selector: str) -> _Locator:
+            return _Locator()
+
+        def evaluate(self, script: str, *args: int) -> object:
+            if script == module.VISIBLE_COMBOBOX_SEMANTICS_COLLECTOR_JS:
+                self.semantic_collections += 1
+                if self.scroll_y >= 800:
+                    return ["Pool executor", "Auto (ORCHESTRATE setting)"]
+                return []
+            if script == module.SCROLL_METRICS_JS:
+                return {"root": "stMain", "y": self.scroll_y, "height": 1000, "scrollHeight": 1800}
+            if script == module.SCROLL_TO_JS:
+                target = args[0]
+                if isinstance(target, dict):
+                    self.restore_roots.append(str(target["root"]))
+                    target = target["y"]
+                self.scroll_y = int(target)
+                self.scrolls.append(self.scroll_y)
+                return None
+            raise AssertionError(f"unexpected script: {script}")
+
+        @staticmethod
+        def wait_for_timeout(_timeout_ms: float) -> None:
+            return None
+
+    page = _Page()
+    probe = module._required_text_probe(
+        page,
+        app_name="execution_pandas_project",
+        display="ORCHESTRATE",
+        required_text=("Pool executor", "Auto (ORCHESTRATE setting)"),
+        timeout_ms=100,
+    )
+
+    assert probe.status == "interacted"
+    assert page.semantic_collections >= 2
+    assert page.scrolls == [0, 800, 125]
+    assert page.scroll_y == 125
+    assert page.restore_roots == ["stMain"]
+
+
+def test_required_text_probe_retries_scroll_metrics_until_dom_materializes() -> None:
+    module = _load_module()
+
+    class _Locator:
+        @staticmethod
+        def inner_text(**_kwargs) -> str:
+            return "ORCHESTRATE"
+
+    class _Page:
+        url = "http://demo/ORCHESTRATE"
+        frames: list[object] = []
+        main_frame = None
+
+        def __init__(self) -> None:
+            self.scroll_y = 125
+            self.scrolls: list[int] = []
+            self.restore_targets: list[dict[str, object]] = []
+            self.metrics_collections = 0
+            self.semantic_collections = 0
+
+        @staticmethod
+        def locator(_selector: str) -> _Locator:
+            return _Locator()
+
+        def evaluate(self, script: str, *args: object) -> object:
+            if script == module.VISIBLE_COMBOBOX_SEMANTICS_COLLECTOR_JS:
+                self.semantic_collections += 1
+                if self.metrics_collections >= 4 and self.scroll_y >= 800:
+                    return ["Pool executor", "Auto (ORCHESTRATE setting)"]
+                return []
+            if script == module.SCROLL_METRICS_JS:
+                self.metrics_collections += 1
+                return {
+                    "root": "stMain",
+                    "y": self.scroll_y,
+                    "height": 1000,
+                    "scrollHeight": 1800 if self.metrics_collections >= 4 else 1000,
+                }
+            if script == module.SCROLL_TO_JS:
+                target = args[0]
+                if isinstance(target, dict):
+                    self.restore_targets.append(target)
+                    target = target["y"]
+                self.scroll_y = int(target)
+                self.scrolls.append(self.scroll_y)
+                return None
+            raise AssertionError(f"unexpected script: {script}")
+
+        @staticmethod
+        def wait_for_timeout(_timeout_ms: float) -> None:
+            return None
+
+    page = _Page()
+    probe = module._required_text_probe(
+        page,
+        app_name="execution_pandas_project",
+        display="ORCHESTRATE",
+        required_text=("Pool executor", "Auto (ORCHESTRATE setting)"),
+        timeout_ms=1000,
+    )
+
+    assert probe.status == "interacted"
+    assert page.metrics_collections == 4
+    assert page.semantic_collections == 5
+    assert page.scrolls == [0, 0, 0, 800, 125]
+    assert page.restore_targets == [{"root": "stMain", "y": 125}]
+
+
+def test_required_text_probe_bounds_scroll_positions_and_deadline(monkeypatch) -> None:
+    module = _load_module()
+
+    class _Clock:
+        now = 0.0
+
+    clock = _Clock()
+    monkeypatch.setattr(module.time, "perf_counter", lambda: clock.now)
+    monkeypatch.setattr(module, "_page_scroll_positions", lambda _page: list(range(100)))
+
+    class _Locator:
+        @staticmethod
+        def inner_text(**_kwargs) -> str:
+            return "ORCHESTRATE"
+
+    class _Page:
+        url = "http://demo/ORCHESTRATE"
+        frames: list[object] = []
+        main_frame = None
+
+        def __init__(self) -> None:
+            self.scrolls: list[int] = []
+            self.restore_roots: list[str] = []
+            self.semantic_collections = 0
+
+        @staticmethod
+        def locator(_selector: str) -> _Locator:
+            return _Locator()
+
+        def evaluate(self, script: str, *args: int) -> object:
+            if script == module.VISIBLE_COMBOBOX_SEMANTICS_COLLECTOR_JS:
+                self.semantic_collections += 1
+                return []
+            if script == module.SCROLL_METRICS_JS:
+                return {"root": "stMain", "y": 17, "height": 1000, "scrollHeight": 100_000}
+            if script == module.SCROLL_TO_JS:
+                target = args[0]
+                if isinstance(target, dict):
+                    self.restore_roots.append(str(target["root"]))
+                    target = target["y"]
+                self.scrolls.append(int(target))
+                return None
+            raise AssertionError(f"unexpected script: {script}")
+
+        @staticmethod
+        def wait_for_timeout(timeout_ms: float) -> None:
+            clock.now += timeout_ms / 1000.0
+
+    page = _Page()
+    probe = module._required_text_probe(
+        page,
+        app_name="execution_pandas_project",
+        display="ORCHESTRATE",
+        required_text=("Pool executor",),
+        timeout_ms=250,
+    )
+
+    assert probe.status == "failed"
+    assert clock.now == pytest.approx(0.25)
+    assert page.scrolls[-1] == 17
+    assert len(page.scrolls) - 1 < module.REQUIRED_TEXT_MAX_SCROLL_POSITIONS
+    assert page.semantic_collections == 3
+    assert page.restore_roots == ["stMain"]
+
+
+def test_required_text_probe_caps_repeated_scroll_attempts(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "_page_scroll_positions", lambda _page: [0])
+
+    class _Locator:
+        @staticmethod
+        def inner_text(**_kwargs) -> str:
+            return "ORCHESTRATE"
+
+    class _Page:
+        url = "http://demo/ORCHESTRATE"
+        frames: list[object] = []
+        main_frame = None
+
+        def __init__(self) -> None:
+            self.scrolls: list[int] = []
+            self.restore_targets: list[dict[str, object]] = []
+            self.semantic_collections = 0
+
+        @staticmethod
+        def locator(_selector: str) -> _Locator:
+            return _Locator()
+
+        def evaluate(self, script: str, *args: object) -> object:
+            if script == module.VISIBLE_COMBOBOX_SEMANTICS_COLLECTOR_JS:
+                self.semantic_collections += 1
+                return []
+            if script == module.SCROLL_METRICS_JS:
+                return {"root": "window", "y": 9, "height": 1000, "scrollHeight": 1000}
+            if script == module.SCROLL_TO_JS:
+                target = args[0]
+                if isinstance(target, dict):
+                    self.restore_targets.append(target)
+                    return None
+                self.scrolls.append(int(target))
+                return None
+            raise AssertionError(f"unexpected script: {script}")
+
+        @staticmethod
+        def wait_for_timeout(_timeout_ms: float) -> None:
+            return None
+
+    page = _Page()
+    probe = module._required_text_probe(
+        page,
+        app_name="execution_pandas_project",
+        display="ORCHESTRATE",
+        required_text=("Pool executor",),
+        timeout_ms=1000,
+    )
+
+    assert probe.status == "failed"
+    assert page.scrolls == [0] * module.REQUIRED_TEXT_MAX_SCROLL_POSITIONS
+    assert page.semantic_collections == module.REQUIRED_TEXT_MAX_SCROLL_POSITIONS + 1
+    assert page.restore_targets == [{"root": "window", "y": 9}]
+
+
+def test_required_text_scroll_positions_are_evenly_bounded() -> None:
+    module = _load_module()
+
+    positions = module._bounded_required_text_scroll_positions(range(100))
+
+    assert len(positions) == module.REQUIRED_TEXT_MAX_SCROLL_POSITIONS
+    assert positions == sorted(set(positions))
+    assert positions[0] == 0
+    assert positions[-1] == 99
+
+
+def test_visible_combobox_semantics_collector_filters_hidden_controls(monkeypatch) -> None:
+    require_browser = os.environ.get(REQUIRE_PLAYWRIGHT_LAYOUT_REGRESSION_ENV) == "1"
+    try:
+        from playwright import sync_api
+    except ModuleNotFoundError:
+        if require_browser:
+            pytest.fail("Playwright is required by the layout-regression gate", pytrace=False)
+        pytest.skip("Playwright is not installed")
+    module = _load_module()
+
+    cache_candidates = [
+        Path(REAL_PLAYWRIGHT_BROWSERS_PATH) if REAL_PLAYWRIGHT_BROWSERS_PATH else None,
+        REAL_HOME / "Library" / "Caches" / "ms-playwright",
+        REAL_HOME / ".cache" / "ms-playwright",
+        REAL_HOME / "AppData" / "Local" / "ms-playwright",
+    ]
+    cache_root = next(
+        (path for path in cache_candidates if path is not None and path.is_dir()), None
+    )
+    if cache_root is not None:
+        monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(cache_root))
+
+    try:
+        with sync_api.sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": 800, "height": 600})
+                page.set_content(
+                    """
+                    <style>
+                      html, body {
+                        height: 100%;
+                        margin: 0;
+                        overflow: hidden;
+                      }
+                      .offscreen {
+                        position: absolute;
+                        top: 2400px;
+                        left: 20px;
+                        width: 220px;
+                        height: 40px;
+                      }
+                      .offscreen input { width: 200px; height: 28px; }
+                      .opacity-zero { opacity: 0; }
+                      .visibility-hidden { visibility: hidden; }
+                      .visibility-collapse { visibility: collapse; }
+                      .content-hidden { content-visibility: hidden; }
+                      .clipped-ancestor {
+                        height: 0;
+                        overflow: hidden;
+                      }
+                      .outer-viewport {
+                        position: fixed;
+                        top: 20px;
+                        left: 280px;
+                        width: 300px;
+                        height: 340px;
+                        overflow: hidden;
+                      }
+                      section[data-testid="stMain"] {
+                        width: 280px;
+                        height: 300px;
+                        overflow: auto;
+                      }
+                      .scrollable-content {
+                        position: relative;
+                        height: 2800px;
+                      }
+                      .scrollable-choice {
+                        position: absolute;
+                        top: 2400px;
+                        left: 20px;
+                        width: 200px;
+                        height: 28px;
+                      }
+                      .zero-size {
+                        width: 0;
+                        height: 0;
+                        padding: 0;
+                        border: 0;
+                      }
+                      .sr-only {
+                        position: absolute;
+                        width: 1px;
+                        height: 1px;
+                        padding: 0;
+                        margin: -1px;
+                        overflow: hidden;
+                        clip: rect(0, 0, 0, 0);
+                        clip-path: inset(50%);
+                        white-space: nowrap;
+                        border: 0;
+                      }
+                    </style>
+                    <div class="offscreen">
+                      <input role="combobox" aria-label="Offscreen choice" value="Available">
+                    </div>
+                    <div hidden>
+                      <input role="combobox" aria-label="Hidden attribute" value="Hidden">
+                    </div>
+                    <div style="display: none">
+                      <input role="combobox" aria-label="Display none" value="Hidden">
+                    </div>
+                    <div class="opacity-zero">
+                      <input role="combobox" aria-label="Opacity zero" value="Hidden">
+                    </div>
+                    <div class="visibility-hidden">
+                      <input role="combobox" aria-label="Visibility hidden" value="Hidden">
+                    </div>
+                    <div class="visibility-collapse">
+                      <input role="combobox" aria-label="Visibility collapse" value="Hidden">
+                    </div>
+                    <div class="content-hidden">
+                      <input role="combobox" aria-label="Content hidden" value="Hidden">
+                    </div>
+                    <div class="clipped-ancestor">
+                      <input role="combobox" aria-label="Ancestor clipped" value="Hidden">
+                    </div>
+                    <div class="outer-viewport">
+                      <section data-testid="stMain">
+                        <div class="scrollable-content">
+                          <input class="scrollable-choice" role="combobox" aria-label="Scrollable choice" value="Reachable">
+                        </div>
+                      </section>
+                    </div>
+                    <input class="zero-size" role="combobox" aria-label="Zero size" value="Hidden">
+                    <input class="sr-only" role="combobox" aria-label="Screen reader only" value="Hidden">
+                    """
+                )
+
+                page.evaluate(module.SCROLL_TO_JS, 125)
+                offscreen_box = page.locator("[aria-label='Offscreen choice']").bounding_box()
+                sr_only_box = page.locator("[aria-label='Screen reader only']").bounding_box()
+                initial_metrics = page.evaluate(module.SCROLL_METRICS_JS)
+                initial_semantics = page.evaluate(module.VISIBLE_COMBOBOX_SEMANTICS_COLLECTOR_JS)
+                probe = module._required_text_probe(
+                    page,
+                    app_name="execution_pandas_project",
+                    display="ORCHESTRATE",
+                    required_text=("Scrollable choice", "Reachable"),
+                    timeout_ms=3000,
+                )
+                final_metrics = page.evaluate(module.SCROLL_METRICS_JS)
+                restored_semantics = page.evaluate(module.VISIBLE_COMBOBOX_SEMANTICS_COLLECTOR_JS)
+            finally:
+                browser.close()
+    except sync_api.Error as exc:
+        if require_browser:
+            pytest.fail(f"Chromium is required by the layout-regression gate: {exc}", pytrace=False)
+        pytest.skip(f"Chromium is unavailable for combobox collector regression: {exc}")
+
+    assert offscreen_box is not None
+    assert offscreen_box["y"] > 600
+    assert sr_only_box is not None
+    assert sr_only_box["width"] == 1
+    assert sr_only_box["height"] == 1
+    assert initial_metrics == {"root": "stMain", "y": 125, "height": 300, "scrollHeight": 2800}
+    assert initial_semantics == ["Offscreen choice", "Available"]
+    assert probe.status == "interacted"
+    assert final_metrics == initial_metrics
+    assert restored_semantics == initial_semantics
+
+
 def test_required_text_probe_reports_missing_text() -> None:
     module = _load_module()
 
