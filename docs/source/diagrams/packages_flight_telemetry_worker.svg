@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="828" height="321" viewBox="0 0 828 321" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="714" height="321" viewBox="0 0 714 321" role="img" aria-labelledby="title desc">
   <title id="title">flight_telemetry_worker package layout</title>
   <desc id="desc">A separately packaged PolarsWorker whose hot loop is compiled with Cython.</desc>
   <defs>
@@ -17,7 +17,7 @@
       <stop offset="100%" stop-color="#edf3fb" />
     </linearGradient>
   </defs>
-  <rect width="828" height="321" fill="url(#bg)" rx="28" ry="28" />
+  <rect width="714" height="321" fill="url(#bg)" rx="28" ry="28" />
   <text class="title" x="46" y="52">flight_telemetry_worker package layout</text>
   <text class="subtitle" x="46" y="80">A separately packaged PolarsWorker whose hot loop is compiled with Cython.</text>
   <rect x="46" y="104" width="316" height="119" rx="18" ry="18" fill="#d9f0ff" stroke="#0e223f" stroke-width="2" />
@@ -26,5 +26,5 @@
   <text class="card-note" x="66" y="156">PolarsWorker subclass with the Cython</text>
   <text class="card-note" x="66" y="176">hot loop.</text>
   <text class="member" x="66" y="200">flight_telemetry_worker</text>
-  <text class="footer" x="46" y="255">1 module · groups are curated in tools/render_package_maps.py; members are read from the package source</text>
+  <text class="footer" x="46" y="255">1 logical module · compatibility shims collapsed · groups: tools/render_package_maps.py</text>
 </svg>

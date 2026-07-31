@@ -45,6 +45,45 @@ def test_groups_are_disjoint_so_counts_cannot_inflate(package) -> None:
 
 
 @pytest.mark.parametrize("package", PACKAGES, ids=lambda pkg: pkg.slug)
+def test_duplicate_stems_are_only_explicit_compatibility_shims(package) -> None:
+    assert MODULE.ambiguous_module_stems(package) == {}
+
+
+def test_distinct_modules_with_the_same_stem_cannot_disappear(tmp_path: Path) -> None:
+    for folder in (tmp_path / "alpha", tmp_path / "beta"):
+        folder.mkdir()
+        (folder / "worker.py").write_text("VALUE = 1\n", encoding="utf-8")
+    package = MODULE.PackageMap(
+        slug="ambiguous",
+        title="Ambiguous",
+        subtitle="",
+        source_root=tmp_path,
+        groups=(MODULE.Group("Workers", ("**/*.py",)),),
+    )
+
+    assert MODULE.ambiguous_module_stems(package) == {
+        "worker": ("alpha/worker.py", "beta/worker.py")
+    }
+
+
+@pytest.mark.parametrize("package", PACKAGES, ids=lambda pkg: pkg.slug)
+def test_every_curated_group_contains_at_least_one_module(package) -> None:
+    empty = [group.title for group in MODULE._resolved_groups(package) if not group.members]
+    assert not empty, f"{package.slug}: empty responsibility groups: {empty}"
+
+
+def test_distributor_capacity_modules_stay_in_their_named_group() -> None:
+    package = next(pkg for pkg in PACKAGES if pkg.slug == "packages_agi_distributor")
+    groups = {group.title: group.members for group in MODULE._resolved_groups(package)}
+
+    assert groups["Capacity and cleanup"] == (
+        "background_jobs_support",
+        "capacity_support",
+        "cleanup_support",
+    )
+
+
+@pytest.mark.parametrize("package", PACKAGES, ids=lambda pkg: pkg.slug)
 def test_rendered_text_stays_inside_its_container(package) -> None:
     """The defect that motivated these figures: labels crossing a box edge."""
 
