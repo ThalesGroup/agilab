@@ -17,7 +17,6 @@ MAX_ESTIMATED_PAGES_PER_SHARD = 32
 
 CORE_SCENARIOS = (
     "isolated-core-pages",
-    "isolated-entry-and-app-pages",
     "isolated-project-page",
     "isolated-project-editor-page",
     "isolated-project-notebook-import",
@@ -27,6 +26,7 @@ CORE_SCENARIOS = (
     "isolated-all-builtins-orchestrate-smoke",
     "isolated-all-builtins-core-render-smoke",
 )
+APP_PAGE_SCENARIOS = ("isolated-entry-and-app-pages",)
 STATE_MOBILE_SCENARIOS = (
     "isolated-fresh-session-core-pages",
     "isolated-browser-history",
@@ -51,8 +51,9 @@ FOCUSED_SCENARIOS = (
     ("isolated-pytorch-playground-analysis", "pytorch_playground_project"),
 )
 
-# The broad scenario groups render this many core pages per selected app. The
-# configured apps-page count is added separately to the core estimate.
+# The broad scenario groups render this many pages per selected app. Configured
+# apps-pages use a dedicated shard so apps without such pages are never selected
+# for a zero-page scenario that cannot satisfy exact coverage.
 CORE_PAGES_PER_APP = 12
 STATE_MOBILE_PAGES_PER_APP = 9
 QUALITY_PAGES_PER_APP = 32
@@ -184,10 +185,14 @@ def build_plan(
     available_apps = discover_builtin_apps(apps_root)
     apps = resolve_requested_apps(requested_apps, available_apps=available_apps)
 
-    core_loads = {
-        app: CORE_PAGES_PER_APP + configured_apps_page_count(apps_root / app)
+    configured_page_loads = {
+        app: configured_apps_page_count(apps_root / app)
         for app in apps
     }
+    apps_with_configured_pages = tuple(
+        app for app in apps if configured_page_loads[app] > 0
+    )
+    core_loads = {app: CORE_PAGES_PER_APP for app in apps}
     state_mobile_loads = {app: STATE_MOBILE_PAGES_PER_APP for app in apps}
     quality_loads = {app: QUALITY_PAGES_PER_APP for app in apps}
     layout_loads = {app: LAYOUT_PAGES_PER_APP for app in apps}
@@ -198,6 +203,13 @@ def build_plan(
             apps=apps,
             scenarios=CORE_SCENARIOS,
             page_loads=core_loads,
+            max_pages=max_estimated_pages,
+        ),
+        *_broad_shards(
+            prefix="app-pages",
+            apps=apps_with_configured_pages,
+            scenarios=APP_PAGE_SCENARIOS,
+            page_loads=configured_page_loads,
             max_pages=max_estimated_pages,
         ),
         *_broad_shards(

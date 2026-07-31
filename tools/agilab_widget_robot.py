@@ -65,6 +65,8 @@ ACTION_OUTCOME_POLL_MS = 100
 # loops. They must stay small so a missing element does not stall the loop for seconds.
 LOCATOR_VISIBILITY_TIMEOUT_MS = 500
 BODY_TEXT_PROBE_TIMEOUT_MS = 1000
+REQUIRED_TEXT_MAX_SCROLL_POSITIONS = 24
+REQUIRED_TEXT_SCROLL_SETTLE_MS = 100.0
 # Substring (lower-cased) of the AGILAB boot spinner copy rendered by
 # ``st.spinner("Initializing environment...")`` in src/agilab/main_page.py. Readiness detection
 # keys off this text, so keep it in sync if that copy changes.
@@ -341,6 +343,76 @@ WIDGET_COLLECTOR_JS = r"""
 }
 """
 
+VISIBLE_COMBOBOX_SEMANTICS_COLLECTOR_JS = r"""
+() => {
+  const semantics = [];
+  const seen = new Set();
+  const clips = (value) => ["auto", "clip", "hidden", "scroll"].includes(value);
+  const paintedRect = (el) => {
+    const raw = el.getBoundingClientRect();
+    if (raw.width <= 0 || raw.height <= 0) return null;
+    const rect = {left: raw.left, right: raw.right, top: raw.top, bottom: raw.bottom};
+    for (let current = el; current; current = current.parentElement) {
+      const style = window.getComputedStyle(current);
+      if (
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        style.visibility === "collapse" ||
+        style.contentVisibility === "hidden" ||
+        Number(style.opacity || "1") <= 0.01
+      ) {
+        return null;
+      }
+      if (current.tagName === "DETAILS" && !current.open) {
+        const summary = Array.from(current.children).find((child) => child.tagName === "SUMMARY");
+        if (!summary || !summary.contains(el)) return null;
+      }
+      if (current === el || current === document.body || current === document.documentElement) continue;
+      const contain = String(style.contain || "").split(/\s+/);
+      const clipX = clips(style.overflowX) || contain.some((value) => ["content", "paint", "strict"].includes(value));
+      const clipY = clips(style.overflowY) || contain.some((value) => ["content", "paint", "strict"].includes(value));
+      if (!clipX && !clipY) continue;
+      const ancestor = current.getBoundingClientRect();
+      if (clipX) {
+        rect.left = Math.max(rect.left, ancestor.left);
+        rect.right = Math.min(rect.right, ancestor.right);
+      }
+      if (clipY) {
+        rect.top = Math.max(rect.top, ancestor.top);
+        rect.bottom = Math.min(rect.bottom, ancestor.bottom);
+      }
+      if (rect.right <= rect.left || rect.bottom <= rect.top) return null;
+    }
+    return {
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom,
+      width: rect.right - rect.left,
+      height: rect.bottom - rect.top,
+    };
+  };
+  const isHidden = (element) => {
+    if (element.closest("[aria-hidden='true']")) return true;
+    const rect = paintedRect(element);
+    return rect === null || rect.width < 2 || rect.height < 2;
+  };
+  const append = (value) => {
+    const normalized = String(value || "").trim().replace(/\s+/g, " ");
+    if (normalized && !seen.has(normalized)) {
+      seen.add(normalized);
+      semantics.push(normalized);
+    }
+  };
+  for (const element of document.querySelectorAll("[role='combobox']")) {
+    if (isHidden(element)) continue;
+    append(element.getAttribute("aria-label"));
+    append(element.value);
+  }
+  return semantics;
+}
+"""
+
 OPEN_EXPANDERS_JS = r"""
 () => {
   let changed = 0;
@@ -411,13 +483,41 @@ CLOSE_EXPANDERS_EXCEPT_WIDGET_JS = r"""
 
 SCROLL_METRICS_JS = r"""
 () => {
+  const main = document.querySelector("section[data-testid='stMain']");
+  if (main && main.scrollHeight > main.clientHeight) {
+    return {
+      root: "stMain",
+      y: main.scrollTop || 0,
+      height: main.clientHeight || 1,
+      scrollHeight: main.scrollHeight || 0,
+    };
+  }
   const doc = document.documentElement;
   const body = document.body || doc;
   return {
+    root: "window",
     y: window.scrollY || doc.scrollTop || body.scrollTop || 0,
     height: window.innerHeight || doc.clientHeight || 1000,
     scrollHeight: Math.max(body.scrollHeight || 0, doc.scrollHeight || 0),
   };
+}
+"""
+
+SCROLL_TO_JS = r"""
+(target) => {
+  const request = target && typeof target === "object" ? target : {root: "auto", y: target};
+  const requestedRoot = String(request.root || "auto");
+  const targetY = Math.max(Number(request.y) || 0, 0);
+  const main = document.querySelector("section[data-testid='stMain']");
+  if (requestedRoot === "stMain" || (requestedRoot === "auto" && main && main.scrollHeight > main.clientHeight)) {
+    if (!main) return {root: "stMain", y: 0, found: false};
+    main.scrollTop = targetY;
+    return {root: "stMain", y: main.scrollTop || 0};
+  }
+  window.scrollTo(0, targetY);
+  const doc = document.documentElement;
+  const body = document.body || doc;
+  return {root: "window", y: window.scrollY || doc.scrollTop || body.scrollTop || 0};
 }
 """
 
@@ -3502,11 +3602,26 @@ def _page_scroll_positions(page: Any) -> list[int]:  # pragma: no cover - live b
     return sorted(set(positions))
 
 
-def _scroll_to(page: Any, y: int) -> None:  # pragma: no cover - live browser path
+def _bounded_required_text_scroll_positions(positions: Sequence[int]) -> list[int]:
+    normalized = sorted({max(int(position), 0) for position in positions})
+    if len(normalized) <= REQUIRED_TEXT_MAX_SCROLL_POSITIONS:
+        return normalized
+    last_index = len(normalized) - 1
+    sampled_indexes = {
+        round(index * last_index / (REQUIRED_TEXT_MAX_SCROLL_POSITIONS - 1))
+        for index in range(REQUIRED_TEXT_MAX_SCROLL_POSITIONS)
+    }
+    return [normalized[index] for index in sorted(sampled_indexes)]
+
+
+def _scroll_to(page: Any, y: int, *, root: str | None = None) -> None:  # pragma: no cover - live browser path
+    target: int | dict[str, object] = int(y)
+    if root is not None:
+        target = {"root": str(root), "y": int(y)}
     try:
-        page.evaluate("targetY => window.scrollTo(0, targetY)", y)
+        page.evaluate(SCROLL_TO_JS, target)
     except TypeError:
-        page.evaluate(f"() => window.scrollTo(0, {int(y)})")
+        page.evaluate(f"() => ({SCROLL_TO_JS})({json.dumps(target)})")
     except Exception:
         logger.debug("Unable to scroll page to %s", y, exc_info=True)
         return
@@ -5722,16 +5837,33 @@ def _above_fold_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:
     )
 
 
+def _remaining_timeout_ms(deadline: float) -> float:
+    return max((deadline - time.perf_counter()) * 1000.0, 0.0)
+
+
 def _page_and_frame_text(page: Any, *, timeout_ms: float = 1000.0) -> str:  # pragma: no cover - live browser path
     texts: list[str] = []
+    deadline = time.perf_counter() + max(timeout_ms, 0.0) / 1000.0
 
     def append_locator_text(owner: Any) -> None:
-        try:
-            text = owner.locator("body").inner_text(timeout=timeout_ms)
-        except Exception:
+        remaining_ms = _remaining_timeout_ms(deadline)
+        if remaining_ms <= 0:
             return
+        try:
+            text = owner.locator("body").inner_text(timeout=remaining_ms)
+        except Exception:
+            text = ""
         if text:
             texts.append(str(text))
+
+        if _remaining_timeout_ms(deadline) <= 0:
+            return
+        try:
+            combobox_semantics = owner.evaluate(VISIBLE_COMBOBOX_SEMANTICS_COLLECTOR_JS)
+        except Exception:
+            combobox_semantics = []
+        if isinstance(combobox_semantics, list):
+            texts.extend(str(value) for value in combobox_semantics if str(value).strip())
 
     append_locator_text(page)
     try:
@@ -5775,9 +5907,54 @@ def _required_text_probe(  # pragma: no cover - live browser path
     timeout_ms: float,
 ) -> WidgetProbe:
     expected = tuple(str(label).strip() for label in required_text if str(label).strip())
-    text = _page_and_frame_text(page, timeout_ms=timeout_ms)
+    deadline = time.perf_counter() + max(timeout_ms, 0.0) / 1000.0
+    text = _page_and_frame_text(page, timeout_ms=_remaining_timeout_ms(deadline))
     normalized_text = text.lower()
     missing = [label for label in expected if label.lower() not in normalized_text]
+    if missing and _remaining_timeout_ms(deadline) > 0:
+        try:
+            metrics = page.evaluate(SCROLL_METRICS_JS)
+        except Exception:
+            metrics = {}
+        try:
+            original_scroll_y = int(float((metrics or {}).get("y") or 0))
+        except (AttributeError, TypeError, ValueError):
+            original_scroll_y = 0
+        try:
+            original_scroll_root = str((metrics or {}).get("root") or "window")
+        except AttributeError:
+            original_scroll_root = "window"
+        collected_texts = [text] if text else []
+        scroll_attempts = 0
+        try:
+            while (
+                missing
+                and scroll_attempts < REQUIRED_TEXT_MAX_SCROLL_POSITIONS
+                and _remaining_timeout_ms(deadline) > 0
+            ):
+                positions = _bounded_required_text_scroll_positions(_page_scroll_positions(page)) or [0]
+                for scroll_y in positions:
+                    if scroll_attempts >= REQUIRED_TEXT_MAX_SCROLL_POSITIONS:
+                        break
+                    remaining_ms = _remaining_timeout_ms(deadline)
+                    if remaining_ms <= 0:
+                        break
+                    scroll_attempts += 1
+                    _scroll_to(page, scroll_y)
+                    _wait_for_timeout(page, min(remaining_ms, REQUIRED_TEXT_SCROLL_SETTLE_MS))
+                    remaining_ms = _remaining_timeout_ms(deadline)
+                    if remaining_ms <= 0:
+                        break
+                    scrolled_text = _page_and_frame_text(page, timeout_ms=remaining_ms)
+                    if scrolled_text:
+                        collected_texts.append(scrolled_text)
+                    text = "\n".join(collected_texts)
+                    normalized_text = text.lower()
+                    missing = [label for label in expected if label.lower() not in normalized_text]
+                    if not missing:
+                        break
+        finally:
+            _scroll_to(page, original_scroll_y, root=original_scroll_root)
     if missing:
         detail = f"required text missing: {missing}; page/frame text sample={text[:500]!r}"
         return WidgetProbe(
