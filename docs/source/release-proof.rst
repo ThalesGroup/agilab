@@ -59,8 +59,8 @@ What was proved
   exact app inventory matches the 14-app release inventory. Use
   ``tools/ui_robot_coverage_contract.py --json`` and the local
   ``ui-robot-matrix`` profile to verify the current checkout. Historical UI
-  robot baseline: run ``30645071346``, commit ``d315d747bad9``, generated
-  ``2026-07-31T16:13:18Z``. It records ``14`` apps while this release expects
+  robot baseline: run ``30646957592``, commit ``adf8c597b5e4``, generated
+  ``2026-07-31T17:20:14Z``. It records ``14`` apps while this release expects
   ``14``; it is not UI proof for this release.
 - The public demo scope includes the lightweight ``flight_telemetry_project``
   and ``weather_forecast_project`` routes documented in :doc:`agilab-demo` and

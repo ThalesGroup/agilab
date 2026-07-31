@@ -2,7 +2,7 @@
   "artifact": {
     "aggregate_report_file": "aggregate.json",
     "aggregate_report_schema": "agilab.ui_robot_matrix_aggregate.v1",
-    "archive_download_url": "https://api.github.com/repos/ThalesGroup/agilab/actions/artifacts/8799482872/zip",
+    "archive_download_url": "https://api.github.com/repos/ThalesGroup/agilab/actions/artifacts/8800220834/zip",
     "exit_code": "0",
     "exit_code_file": "exit-code.txt",
     "expired": false,
@@ -14,11 +14,11 @@
     "scenario_summary_file": "aggregate.json",
     "screenshot_count": 56,
     "shard_count": 35,
-    "size_bytes": 9556,
+    "size_bytes": 9587,
     "trend_report_file": "aggregate.json",
     "trend_report_schema": "agilab.ui_robot_trend_report.v1"
   },
-  "generated_at": "2026-07-31T16:13:18Z",
+  "generated_at": "2026-07-31T17:20:14Z",
   "result": {
     "app_count": 14,
     "apps": [
@@ -40,40 +40,40 @@
     "failed_count": 0,
     "failed_scenarios": [],
     "failure_samples": [],
-    "interacted_count": 1553,
+    "interacted_count": 1561,
     "page_count": 951,
-    "probed_count": 33808,
-    "skipped_count": 53,
+    "probed_count": 33697,
+    "skipped_count": 32,
     "status": "pass",
     "success": true,
-    "total_duration_seconds": 9761.135791534,
+    "total_duration_seconds": 9888.920752407,
     "trend": {
       "budget_violation_count": 0,
       "failed_page_count": 0,
       "flaky_page_count": 0,
-      "mean_page_duration_seconds": 25.0630647934212,
+      "mean_page_duration_seconds": 25.42363079754155,
       "page_count": 349,
       "parse_error_count": 0,
       "schema": "agilab.ui_robot_trend_report.v1",
       "slow_page_count": 0,
       "success": true,
-      "total_duration_seconds": 8747.009612904
+      "total_duration_seconds": 8872.847148342
     },
-    "widget_count": 35414,
+    "widget_count": 35290,
     "within_target": true
   },
   "schema": "agilab.ui_robot_evidence.v1",
   "source": {
     "conclusion": "success",
-    "created_at": "2026-07-31T15:57:07Z",
+    "created_at": "2026-07-31T16:24:02Z",
     "event": "workflow_dispatch",
-    "head_branch": "agent/audit-remediation-2026-07-31",
-    "head_sha": "d315d747bad9502b92ce0a0b9f01c3f75e5d49f6",
+    "head_branch": "main",
+    "head_sha": "adf8c597b5e4b852bc301e1adb9cf7bbb8fb3a7c",
     "run_attempt": "1",
-    "run_id": "30645071346",
-    "run_url": "https://github.com/ThalesGroup/agilab/actions/runs/30645071346",
+    "run_id": "30646957592",
+    "run_url": "https://github.com/ThalesGroup/agilab/actions/runs/30646957592",
     "status": "completed",
-    "updated_at": "2026-07-31T16:12:40Z",
+    "updated_at": "2026-07-31T16:39:59Z",
     "workflow": "ui-robot-matrix"
   }
 }
