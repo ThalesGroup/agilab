@@ -370,12 +370,17 @@ class WorkDispatcher:
         chunks and chunks_sizes must be left to None
 
         Args:
-          nchunk2: list of number of chunks level 2
-          weights: the list of weight level2
+          nchunk2: number of level-2 works, kept for reporting and backwards
+            compatibility. It does NOT select the partitioning algorithm: the
+            exponential/heuristic gate is derived from ``len(weights)``, which is
+            what actually drives the search cost. Callers that understate this
+            value can no longer force a large work list down the exponential path.
+          weights: the list of level-2 weights as ``(label, size)`` tuples
           capacities: the list of workers capacity (Default value = None)
           verbose: whether to display run detail or not (Default value = 0)
-          threshold: the number of nchunk2 max to run the optimal algo otherwise downgrade to suboptimal one (Default value = 12)
-          weights: list:
+          threshold: maximum number of works for which the optimal (exponential)
+            algorithm is used; at or above it the suboptimal LPT heuristic runs
+            instead (Default value = 12)
 
 
         Returns:
@@ -389,11 +394,25 @@ class WorkDispatcher:
         capacities = WorkDispatcher._normalize_worker_capacities(capacities, workers)  # ty: ignore[invalid-assignment]
 
         if len(weights) > 1:
-            if nchunk2 < threshold:
-                logging.info(f"optimal - workers capacities {capacities} - {nchunk2} works to be done")
+            # Gate on the actual work size, not on the caller-supplied ``nchunk2``.
+            # ``_make_chunks_optimal`` is an exponential branch-and-bound whose cost is
+            # driven by ``len(weights)``; keying the threshold off a separate argument
+            # let a caller that understated it send an arbitrarily large work list down
+            # the exponential path and hang plan construction with no diagnostic
+            # (measured: 16 works ~0.2s, 20 works >20s).
+            nwork = len(weights)
+            if nwork != nchunk2:
+                logging.warning(
+                    "make_chunks called with nchunk2=%s but %s weighted works; "
+                    "using the work count to pick the partitioning algorithm",
+                    nchunk2,
+                    nwork,
+                )
+            if nwork < threshold:
+                logging.info(f"optimal - workers capacities {capacities} - {nwork} works to be done")
                 chunks = WorkDispatcher._make_chunks_optimal(weights, capacities)  # ty: ignore[invalid-argument-type]
             else:
-                logging.info(f"fastest - workers capacities {capacities} - {nchunk2} works to be done")
+                logging.info(f"fastest - workers capacities {capacities} - {nwork} works to be done")
                 chunks = WorkDispatcher._make_chunks_fastest(weights, capacities)  # ty: ignore[invalid-argument-type]
 
             return chunks
