@@ -8,12 +8,6 @@ This page is the public verification index for the current AGILAB release. It
 records install, CI, demo, and scope evidence in one place so reviewers can
 check the release without inferring status from scattered badges.
 
-.. note::
-
-   The source checkout is intentionally ahead of the public release
-   ``2026.07.17.1``. The package and links below still describe that exact
-   published release.
-
 Current public release
 ----------------------
 
@@ -24,13 +18,13 @@ Current public release
    * - Item
      - Public evidence
    * - Package version
-     - ``agilab[examples]==2026.07.17.1`` on `PyPI <https://pypi.org/project/agilab/>`__
+     - ``agilab[examples]==2026.07.31`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
-     - `v2026.07.17_1 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17_1>`__
+     - `v2026.07.31 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.31>`__
    * - Dataset release
-     - `datasets-2f602a17b4745f05 <https://github.com/ThalesGroup/agilab/releases/tag/datasets-2f602a17b4745f05>`__ for ``13`` tracked dataset files; manifest ``2f602a17b4745f05cf3b2612d720675b7063cabf90164326a25bc080b2396a0f``
+     - `datasets-f3c9b30733ce0232 <https://github.com/ThalesGroup/agilab/releases/tag/datasets-f3c9b30733ce0232>`__ for ``12`` tracked dataset files; manifest ``f3c9b30733ce02322da542deae8ae6edb70082f537764570816413b321a4cd8f``
    * - Hosted demo
-     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``2fe632da08dad04cd24f15af153e4d37ab3f1894``
+     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``85f28330cd50f810f0e229816e45c7ee5b1bffae``
    * - Public guardrails
      - `repo-guardrails run 30244336462 <https://github.com/ThalesGroup/agilab/actions/runs/30244336462>`__ at commit ``411267613c11`` passed repository guardrails at the recorded post-release main commit; clean-install jobs were skipped and are not claimed as release proof
    * - Docs source guard
@@ -49,7 +43,7 @@ What was proved
 
   .. code-block:: bash
 
-     python -m pip install "agilab[examples]==2026.07.17.1"
+     python -m pip install "agilab[examples]==2026.07.31"
      python -m agilab.lab_run first-proof --json --max-seconds 60
 
 - The pinned GitHub Actions rows record successful repository, documentation,
@@ -61,12 +55,12 @@ What was proved
   pinned or supplied separately.
 - The checked-in ``docs/source/data/ui_robot_evidence.json`` records a
   successful historical UI robot baseline. It is not release-bound UI proof for
-  this release because its commit and 10-app inventory predate the 15-app
+  this release because its commit and 10-app inventory predate the 14-app
   release inventory. Use ``tools/ui_robot_coverage_contract.py --json`` and the
   local ``ui-robot-matrix`` profile to verify the current checkout. Historical
   UI robot baseline: run ``25577485125``, commit ``2a36df530b48``, generated
   ``2026-05-08T20:34:30Z``. It records ``10`` apps while this release expects
-  ``15``; it is not UI proof for this release.
+  ``14``; it is not UI proof for this release.
 - The public demo scope includes the lightweight ``flight_telemetry_project``
   and ``weather_forecast_project`` routes documented in :doc:`agilab-demo` and
   aligned with the packaged examples catalog.
@@ -85,7 +79,7 @@ the current source checkout:
    python -m venv .venv
    . .venv/bin/activate
    python -m pip install --upgrade pip
-   python -m pip install "agilab[examples]==2026.07.17.1"
+   python -m pip install "agilab[examples]==2026.07.31"
    python -m agilab.lab_run first-proof --json --max-seconds 60
 
 Use :doc:`quick-start` when you want the fuller source-checkout path with the

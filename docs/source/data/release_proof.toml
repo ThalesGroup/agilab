@@ -20,26 +20,26 @@ related_pages = [
 
 [release]
 package_name = "agilab"
-package_version = "2026.07.17.1"
-source_version_relation = "ahead"
+package_version = "2026.07.31"
+source_version_relation = "exact"
 package_extras = [
   "examples",
 ]
 pypi_url = "https://pypi.org/project/agilab/"
-github_release_tag = "v2026.07.17_1"
-github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17_1"
-github_release_commit = "1e13a4eec5e1fdddf4d89c9d39deba4c6c322abd"
+github_release_tag = "v2026.07.31"
+github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.31"
+github_release_commit = "3e88def4dda5be155d8d9a91537a671c00851c83"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
-hf_space_commit = "2fe632da08dad04cd24f15af153e4d37ab3f1894"
-dataset_release_tag = "datasets-2f602a17b4745f05"
-dataset_manifest_sha256 = "2f602a17b4745f05cf3b2612d720675b7063cabf90164326a25bc080b2396a0f"
-dataset_count = 13
-dataset_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/datasets-2f602a17b4745f05"
+hf_space_commit = "85f28330cd50f810f0e229816e45c7ee5b1bffae"
+dataset_release_tag = "datasets-f3c9b30733ce0232"
+dataset_manifest_sha256 = "f3c9b30733ce02322da542deae8ae6edb70082f537764570816413b321a4cd8f"
+dataset_count = 12
+dataset_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/datasets-f3c9b30733ce0232"
 
 [ui_robot]
 mode = "historical"
-expected_app_count = 15
+expected_app_count = 14
 
 [[ci_runs]]
 id = "release-guardrails"
