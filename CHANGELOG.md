@@ -23,12 +23,50 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+Release target: **2026.07.31 (Guillaume-Demets)**
+
+### Security
+
+- Confined external app resources, generated runtime commands, public UI binds,
+  and PyPI-installed app payloads to explicit trust boundaries.
+- Redacted secrets from MCP-derived evidence, exposed the effective MCP read
+  boundary, and standardized JSON-RPC error reporting.
+- Locked privileged CI tools and required supply-chain evidence before release.
+
+### Added
+
+- Registered FCAS worker handoffs in manager-side MLflow tracking.
+- Added routing decision timing by demand load and Parquet-backed allocation
+  step analysis.
+- Exposed shipped CLI subcommands directly through `agilab --help`.
+
+### Fixed
+
+- Made Streamlit app and page imports recover from concurrent renders, stale
+  runtime symbols, and unavailable persisted cluster shares without a restart.
+- Restored safe ORCHESTRATE manager dependency loading, declared installer
+  dependency enforcement, deterministic remote-worker Python selection,
+  timed-out worker cleanup, and proven cluster shutdown handling.
+- Unified built-in `lab_stages.toml` renderability checks and stage keys,
+  repaired multi-app DAG WORKFLOW rendering, and pinned its real two-app
+  execution contract.
+- Recovered notebook sidecars across Python ABI changes and gave app-owned
+  analysis pages priority in notebook exports.
+- Corrected distribution-cache invalidation, app-provided distribution inputs,
+  and manager registration when MLflow tracking is disabled.
+- Restored deterministic release and CI gates, the root test suite, exact
+  release-proof evidence, and generated coverage badge geometry.
+
 ### Changed
 
+- Aligned PROJECT page filenames and visible naming contracts while preserving
+  bounded compatibility aliases.
 - Folded the source-only `weather_forecast_legacy_project` clone into
   `weather_forecast_project`, while preserving the retired project ID and
   Python import paths as compatibility aliases and moving the multi-app DAG
   example to the maintained weather app.
+- Replaced stale generated package diagrams with curated, freshness-checked
+  architecture maps and synchronized the canonical documentation mirror.
 
 ## [2026.07.17.1] - 2026-07-23
 

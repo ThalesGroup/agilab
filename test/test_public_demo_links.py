@@ -760,11 +760,30 @@ def test_changelog_documents_current_public_release() -> None:
     assert "create or update the" in changelog
 
 
-def test_docs_index_links_to_latest_public_release() -> None:
+def test_docs_index_links_to_release_matching_source_state() -> None:
     text = Path("docs/source/index.rst").read_text(encoding="utf-8")
+    release = _release_proof_manifest()["release"]
+    source = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    links = re.findall(
+        r"`latest public GitHub release\s*"
+        r"<(https://github\.com/ThalesGroup/agilab/releases/tag/(v[^>]+))>`__",
+        text,
+    )
 
     assert "latest public GitHub release" in text
-    assert LATEST_RELEASE_URL in text
+    assert len(links) == 1
+
+    linked_url, linked_tag = links[0]
+    relation = release["source_version_relation"]
+    if relation == "exact":
+        assert linked_url == LATEST_RELEASE_URL
+        return
+
+    assert relation == "ahead"
+    source_version = Version(source["project"]["version"])
+    assert source_version > Version(release["package_version"])
+    assert linked_url != LATEST_RELEASE_URL
+    assert Version(linked_tag.removeprefix("v").replace("_", ".")) == source_version
 
 
 def test_public_docs_expose_three_clear_adoption_routes() -> None:

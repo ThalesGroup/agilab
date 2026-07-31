@@ -21,7 +21,7 @@ related_pages = [
 [release]
 package_name = "agilab"
 package_version = "2026.07.17.1"
-source_version_relation = "exact"
+source_version_relation = "ahead"
 package_extras = [
   "examples",
 ]
