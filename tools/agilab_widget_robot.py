@@ -1389,6 +1389,10 @@ class PageWatchdogTimeout(TimeoutError):
     """Raised when one page sweep exceeds the whole-page watchdog."""
 
 
+class WidgetChoiceUnavailable(RuntimeError):
+    """Raised when a dependent widget state makes a planned choice unavailable."""
+
+
 PageResultCallback = Callable[[PageSweep], None]
 
 
@@ -1687,6 +1691,18 @@ def configured_apps_pages_for_app(app: Path | str, *, pages_root: Path = DEFAULT
         return []
     registry = discover_page_bundles(pages_root, require_pyproject=True)
     return [_apps_page_route(bundle) for bundle in registry.select(configured_page_bundle_names(settings))]
+
+
+def applicable_app_specs(
+    app_specs: Sequence[tuple[Path | str, Sequence[AppsPageRoute]]],
+    *,
+    pages: Sequence[str],
+    configured_apps_pages: bool,
+) -> list[tuple[Path | str, Sequence[AppsPageRoute]]]:
+    """Keep only apps that have work in a configured-app-pages-only sweep."""
+    if pages or not configured_apps_pages:
+        return list(app_specs)
+    return [(app, app_pages) for app, app_pages in app_specs if app_pages]
 
 
 def _apps_page_route(bundle: PageBundleSpec) -> AppsPageRoute:
@@ -4302,22 +4318,42 @@ def _locator_checked(locator: Any, *, timeout_ms: float) -> bool | None:  # prag
 def _apply_widget_choice(page: Any, choice: WidgetChoice, *, timeout_ms: float) -> None:  # pragma: no cover - live browser path
     locator = _widget_locator(page, dict(choice.widget))
     locator.scroll_into_view_if_needed(timeout=timeout_ms)
-    if not locator.is_visible(timeout=timeout_ms):
-        raise RuntimeError(f"{choice.kind} {choice.label!r} is not visible")
-    if not locator.is_enabled(timeout=timeout_ms):
-        raise RuntimeError(f"{choice.kind} {choice.label!r} is not enabled")
+    visible = locator.is_visible(timeout=timeout_ms)
+    enabled = locator.is_enabled(timeout=timeout_ms)
     if choice.kind in {"checkbox", "toggle"}:
         current = _locator_checked(locator, timeout_ms=timeout_ms)
+        if not visible or not enabled:
+            if current is not None and current == choice.checked:
+                return
+            state = "visible" if visible else "hidden"
+            availability = "enabled" if enabled else "disabled"
+            raise WidgetChoiceUnavailable(
+                f"{choice.kind} {choice.label!r} is {state} and {availability} in this widget state"
+            )
         if current is None or current != choice.checked:
             _click_with_force_fallback(locator, timeout_ms=timeout_ms)
             page.wait_for_timeout(150)
         return
     if choice.kind == "radio":
         current = _locator_checked(locator, timeout_ms=timeout_ms)
+        if not visible or not enabled:
+            if current is True:
+                return
+            state = "visible" if visible else "hidden"
+            availability = "enabled" if enabled else "disabled"
+            raise WidgetChoiceUnavailable(
+                f"{choice.kind} {choice.label!r} is {state} and {availability} in this widget state"
+            )
         if current is not True:
             _click_with_force_fallback(locator, timeout_ms=timeout_ms)
             page.wait_for_timeout(150)
         return
+    if not visible or not enabled:
+        state = "visible" if visible else "hidden"
+        availability = "enabled" if enabled else "disabled"
+        raise WidgetChoiceUnavailable(
+            f"{choice.kind} {choice.label!r} is {state} and {availability} in this widget state"
+        )
     if choice.kind == "selectbox":
         if choice.option_index is None:
             raise RuntimeError(f"selectbox {choice.label!r} has no option index")
@@ -4789,6 +4825,33 @@ def _exercise_widget_combinations(  # pragma: no cover - live browser path
                 )
             )
             executed_count += 1
+        except PageWatchdogTimeout as exc:
+            failed_count += 1
+            probes.append(
+                _combination_probe(
+                    app_name=app_name,
+                    page_name=page_name,
+                    kind="combination_watchdog",
+                    label="widget state grid",
+                    status="failed",
+                    detail=f"stopped after combination #{index}: {exc}",
+                    url=page.url,
+                )
+            )
+            break
+        except WidgetChoiceUnavailable as exc:
+            skipped_count += 1
+            probes.append(
+                _combination_probe(
+                    app_name=app_name,
+                    page_name=page_name,
+                    kind="combination",
+                    label=f"combination #{index}",
+                    status="skipped",
+                    detail=f"{detail}: {exc}",
+                    url=page.url,
+                )
+            )
         except Exception as exc:
             failed_count += 1
             probes.append(
@@ -5611,12 +5674,12 @@ def _layout_integrity_result_probe(
     actionable = [issue for issue in issues if not _ignored_layout_issue_reason(issue, display=display)]
     ignored_count = len(issues) - len(actionable)
     if actionable:
-        first = actionable[0]
-        ignored_suffix = f"; ignored {ignored_count} known framework/layout artifact(s)" if ignored_count else ""
-        detail = (
-            f"{len(actionable)} layout issue(s); first={first.get('kind')}: "
-            f"{first.get('label')} - {first.get('detail')}{ignored_suffix}"
+        samples = "; ".join(
+            f"{issue.get('kind')}: {issue.get('label')} - {issue.get('detail')}"
+            for issue in actionable[:3]
         )
+        ignored_suffix = f"; ignored {ignored_count} known framework/layout artifact(s)" if ignored_count else ""
+        detail = f"{len(actionable)} layout issue(s); samples={samples}{ignored_suffix}"
         return WidgetProbe(app_name, display, "layout_integrity", "visible_geometry", "failed", _short_detail(detail), url)
     if ignored_count:
         return WidgetProbe(
@@ -7090,7 +7153,7 @@ def summarize(
     unexpected_apps = sorted(set(covered_apps) - set(selected_apps))
     exact_app_coverage = apps is None or (not missing_apps and not unexpected_apps)
     success = (
-        bool(pages)
+        (bool(pages) or (apps is not None and not selected_apps))
         and failed_count == 0
         and all(page.failed_count == 0 and page.status != "failed" for page in pages)
         and exact_app_coverage
@@ -7304,7 +7367,16 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - live b
     json_output = Path(args.json_output).expanduser().resolve() if args.json_output else None
     progress = ProgressReporter(progress_log, stderr=not args.quiet_progress)
     resume_page_results = load_completed_page_results(resume_progress_log) if resume_progress_log is not None else None
-    app_specs = [(app, configured_apps_pages_for_app(app) if global_apps_pages is None else global_apps_pages) for app in apps]
+    app_specs = [
+        (app, configured_apps_pages_for_app(app) if global_apps_pages is None else global_apps_pages)
+        for app in apps
+    ]
+    app_specs = applicable_app_specs(
+        app_specs,
+        pages=pages,
+        configured_apps_pages=global_apps_pages is None,
+    )
+    expected_apps = [app for app, _app_pages in app_specs]
     expected_page_count = sum(len(pages) + len(app_pages) for _, app_pages in app_specs)
     results: list[PageSweep] = []
     remote_url = normalize_remote_url(args.url) if args.url else None
@@ -7315,12 +7387,12 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - live b
             write_summary_json(
                 json_output,
                 results,
-                app_count=len(apps),
+                app_count=len(expected_apps),
                 target_seconds=args.target_seconds,
-                apps=apps,
+                apps=expected_apps,
             )
 
-    progress.emit("run_start", app_count=len(apps), page_count=expected_page_count)
+    progress.emit("run_start", app_count=len(expected_apps), page_count=expected_page_count)
     for app, app_pages in app_specs:
         if remote_url:
             sweep_remote_app(
@@ -7434,14 +7506,19 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - live b
                 resume_page_results=resume_page_results,
                 on_page_result=on_page_result,
             )
-    summary = summarize(results, app_count=len(apps), target_seconds=args.target_seconds, apps=apps)
+    summary = summarize(
+        results,
+        app_count=len(expected_apps),
+        target_seconds=args.target_seconds,
+        apps=expected_apps,
+    )
     if json_output is not None:
         write_summary_json(
             json_output,
             results,
-            app_count=len(apps),
+            app_count=len(expected_apps),
             target_seconds=args.target_seconds,
-            apps=apps,
+            apps=expected_apps,
         )
     progress.emit(
         "run_done",

@@ -6,7 +6,7 @@ intro = [
 proof_bullets = [
   "The pinned GitHub Actions rows record successful repository, documentation, coverage, and release-publication workflows at their exact commits. A successful workflow is not presented as proof for jobs that the workflow skipped.",
   "The release proof records the hosted Hugging Face Space URL and commit. Live public-demo availability is checked only when a public-demo-smoke run is pinned or supplied separately.",
-  "The checked-in ``docs/source/data/ui_robot_evidence.json`` records a successful historical UI robot baseline. It is not release-bound UI proof for this release because its commit and 10-app inventory predate the {expected_app_count}-app release inventory. Use ``tools/ui_robot_coverage_contract.py --json`` and the local ``ui-robot-matrix`` profile to verify the current checkout.",
+  "The checked-in ``docs/source/data/ui_robot_evidence.json`` records a successful historical UI robot baseline. It is not release-bound UI proof for this release because its commit is not the release tag commit, even when its exact app inventory matches the {expected_app_count}-app release inventory. Use ``tools/ui_robot_coverage_contract.py --json`` and the local ``ui-robot-matrix`` profile to verify the current checkout.",
   "The public demo scope includes the lightweight ``flight_telemetry_project`` and ``weather_forecast_project`` routes documented in :doc:`agilab-demo` and aligned with the packaged examples catalog.",
   "The release tag, PyPI package, public documentation, and hosted demo point to the same public product story: browser preview, local first proof, then source-checkout expansion.",
 ]

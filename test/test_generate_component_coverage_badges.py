@@ -44,13 +44,27 @@ def test_selected_component_items_defaults_to_all_components() -> None:
 def test_component_badges_use_component_name_in_label() -> None:
     module = _load_module()
 
-    assert module.COMPONENTS["agilab"]["label"] == "agilab coverage"
+    assert module.COMPONENTS["agilab"]["label"] == "measured scope coverage"
     assert module.COMPONENTS["agi-env"]["label"] == "agi-env coverage"
     assert module.COMPONENTS["agi-node"]["label"] == "agi-node coverage"
     assert module.COMPONENTS["agi-cluster"]["label"] == "agi-cluster coverage"
     assert module.COMPONENTS["agi-gui"]["label"] == "agi-gui coverage"
     assert module.COMPONENTS["agi-web"]["label"] == "agi-web coverage"
     assert module.COMPONENTS["agi-core"]["label"] == "agi-core coverage"
+
+
+def test_public_aggregate_badge_discloses_its_omitted_gui_scope() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+    config = Path(".coveragerc.agi-gui").read_text(encoding="utf-8")
+    badge = Path("badges/coverage-agilab.svg").read_text(encoding="utf-8")
+
+    assert "Measured-scope coverage" in readme
+    assert "It is not whole-repository coverage" in readme
+    assert "src/agilab/pages/*.py" in readme
+    assert ".coveragerc.agi-gui" in readme
+    assert "src/agilab/main_page.py" in config
+    assert "src/agilab/pages/*.py" in config
+    assert 'aria-label="measured scope coverage:' in badge
 
 
 def test_resolve_component_counts_falls_back_to_aggregate_xml(tmp_path: Path) -> None:

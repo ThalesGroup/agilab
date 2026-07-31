@@ -1,18 +1,19 @@
 # Windows Core Test Failures — Fix Guide (updated)
 
-**Last Windows validation:** 2026-05-29 - GitHub Actions `windows-core-tests`
-run 26650203561
-**Machine:** GitHub Actions `windows-latest` (Windows Server 2025, Python
-3.13.13)
-**Last verified count:** 0 failed · 1676 passed · 7 skipped · 57 warnings
-**Current repo note (2026-05-29):** all named historical buckets in this tracker
-are now covered by a live Windows CI pass. The historical details below are
-retained as a fix guide and regression index, not as open failures.
+**Current validation:** [live `windows-core-tests` workflow status and run
+history](https://github.com/ThalesGroup/agilab/actions/workflows/windows-core-tests.yml).
+The workflow and its retained JUnit/log artifacts are the source of truth for
+the current runner image, Python patch version, pass count, warnings, and
+conclusion. This guide deliberately does not freeze those changing values.
+
+All named buckets below are historical regressions with automated coverage.
+They are retained as a fix guide and regression index, not as current test
+results or open failures.
 
 Reproduce live Windows validation:
 ```powershell
 cd C:\Users\julie\agilab
-uv --preview-features extra-build-dependencies run -p 3.13.13 --no-sync -m pytest `
+uv --preview-features extra-build-dependencies run -p 3.13 --no-sync -m pytest `
   src/agilab/core/test src/agilab/core/agi-env/test -q 2>&1 | Tee-Object test_results.txt
 ```
 
@@ -26,8 +27,8 @@ Automated GitHub validation:
   `test-results/windows-core-tests.xml`
 - Scope: the same Windows core test directories tracked here,
   `src/agilab/core/test src/agilab/core/agi-env/test`
-- Last passing run: GitHub Actions run 26650203561, job 78546276328, completed
-  2026-05-29 with `1676 passed, 7 skipped, 57 warnings`
+- Current result: use the linked workflow history and the artifact attached to
+  the selected run; do not infer current status from a dated entry in this guide.
 
 ---
 

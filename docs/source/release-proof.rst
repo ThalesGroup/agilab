@@ -55,11 +55,12 @@ What was proved
   pinned or supplied separately.
 - The checked-in ``docs/source/data/ui_robot_evidence.json`` records a
   successful historical UI robot baseline. It is not release-bound UI proof for
-  this release because its commit and 10-app inventory predate the 14-app
-  release inventory. Use ``tools/ui_robot_coverage_contract.py --json`` and the
-  local ``ui-robot-matrix`` profile to verify the current checkout. Historical
-  UI robot baseline: run ``25577485125``, commit ``2a36df530b48``, generated
-  ``2026-05-08T20:34:30Z``. It records ``10`` apps while this release expects
+  this release because its commit is not the release tag commit, even when its
+  exact app inventory matches the 14-app release inventory. Use
+  ``tools/ui_robot_coverage_contract.py --json`` and the local
+  ``ui-robot-matrix`` profile to verify the current checkout. Historical UI
+  robot baseline: run ``30645071346``, commit ``d315d747bad9``, generated
+  ``2026-07-31T16:13:18Z``. It records ``14`` apps while this release expects
   ``14``; it is not UI proof for this release.
 - The public demo scope includes the lightweight ``flight_telemetry_project``
   and ``weather_forecast_project`` routes documented in :doc:`agilab-demo` and

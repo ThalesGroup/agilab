@@ -16,8 +16,9 @@ COMPAT_SHIM_BASELINE = {
     "owner": "AGILAB maintainers",
     "removal_milestone": "2027.01 compatibility cleanup",
     "rationale": (
-        "Existing legacy import paths remain supported while first-party callers "
-        "move to the classified package layout. New shims remain blocked."
+        "The cap intentionally equals the checked-in inventory: zero headroom "
+        "blocks every new shim. Remove a shim and lower this baseline before "
+        "adding any replacement compatibility surface."
     ),
 }
 DEFAULT_MAX_COUNT = COMPAT_SHIM_BASELINE["max_count"]
@@ -80,6 +81,7 @@ def build_inventory(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         "baseline": dict(COMPAT_SHIM_BASELINE),
         "total": len(shims),
         "max_allowed": DEFAULT_MAX_COUNT,
+        "headroom": DEFAULT_MAX_COUNT - len(shims),
         "by_area": dict(sorted(by_area.items())),
         "files": sorted(shims),
     }
@@ -90,6 +92,7 @@ def render_text(inventory: dict[str, Any]) -> str:
         "AGILAB compatibility shim inventory",
         f"total: {inventory['total']}",
         f"max allowed: {inventory['max_allowed']}",
+        f"headroom: {inventory['headroom']} (zero is intentional and fail-closed)",
         "by area:",
     ]
     for area, count in inventory["by_area"].items():
@@ -120,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = args.repo_root.resolve()
     inventory = build_inventory(repo_root)
     inventory["max_allowed"] = args.max_count
+    inventory["headroom"] = args.max_count - inventory["total"]
     if args.json:
         print(json.dumps(inventory, indent=2, sort_keys=True))
     else:

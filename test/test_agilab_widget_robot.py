@@ -442,6 +442,74 @@ def test_widget_robot_main_forwards_artifact_capture_dirs(
     assert '"success": true' in capsys.readouterr().out
 
 
+def test_widget_robot_main_uses_only_configured_app_page_cohort(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+    route = module.AppsPageRoute("view_data_io_decision", tmp_path / "view.py")
+    swept_apps: list[str] = []
+    output = tmp_path / "summary.json"
+
+    monkeypatch.setattr(
+        module,
+        "resolve_apps",
+        lambda _value: ["minimal_app_project", "mission_decision_project"],
+    )
+    monkeypatch.setattr(module, "resolve_pages", lambda _value: [])
+    monkeypatch.setattr(
+        module,
+        "configured_apps_pages_for_app",
+        lambda app: [route] if app == "mission_decision_project" else [],
+    )
+
+    def _fake_sweep_app(**kwargs: object) -> list[object]:
+        app = str(kwargs["app"])
+        swept_apps.append(app)
+        page = module.PageSweep(
+            app=app,
+            page="APPS_PAGE:view_data_io_decision",
+            success=True,
+            duration_seconds=0.1,
+            widget_count=1,
+            main_widget_count=1,
+            sidebar_widget_count=0,
+            interacted_count=1,
+            probed_count=0,
+            skipped_count=0,
+            failed_count=0,
+            url="http://local",
+            failures=[],
+            skips=[],
+        )
+        kwargs["on_page_result"](page)  # type: ignore[operator]
+        return [page]
+
+    monkeypatch.setattr(module, "sweep_app", _fake_sweep_app)
+
+    exit_code = module.main(
+        [
+            "--apps",
+            "all",
+            "--pages",
+            "none",
+            "--apps-pages",
+            "configured",
+            "--json-output",
+            str(output),
+            "--quiet-progress",
+        ]
+    )
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert swept_apps == ["mission_decision_project"]
+    assert payload["success"] is True
+    assert payload["app_count"] == 1
+    assert payload["apps"] == ["mission_decision_project"]
+    assert payload["missing_apps"] == []
+
+
 def test_write_failure_bundle_sanitizes_names_and_records_manifest(tmp_path) -> None:
     module = _load_module()
     failure = module.WidgetProbe(
@@ -4083,6 +4151,44 @@ def test_dynamic_selectboxes_are_excluded_from_exhaustive_combinations() -> None
     assert probes == []
 
 
+def test_configured_app_page_only_sweep_excludes_apps_without_views() -> None:
+    module = _load_module()
+    configured_view = object()
+    specs = [
+        ("minimal_app_project", []),
+        ("mission_decision_project", [configured_view]),
+    ]
+
+    assert module.applicable_app_specs(
+        specs,
+        pages=[],
+        configured_apps_pages=True,
+    ) == [("mission_decision_project", [configured_view])]
+    assert module.applicable_app_specs(
+        specs,
+        pages=["ANALYSIS"],
+        configured_apps_pages=True,
+    ) == specs
+    assert module.applicable_app_specs(
+        specs,
+        pages=[],
+        configured_apps_pages=False,
+    ) == specs
+
+
+def test_summarize_accepts_empty_explicit_app_page_cohort() -> None:
+    module = _load_module()
+
+    summary = module.summarize([], app_count=0, target_seconds=30.0, apps=[])
+
+    assert summary.success is True
+    assert summary.within_target is True
+    assert summary.app_count == 0
+    assert summary.apps == []
+    assert summary.covered_apps == []
+    assert summary.missing_apps == []
+
+
 def test_build_widget_combination_plan_is_exhaustive_and_reports_truncation() -> None:
     module = _load_module()
     checkbox = module.WidgetControl(
@@ -4123,6 +4229,132 @@ def test_build_widget_combination_plan_is_exhaustive_and_reports_truncation() ->
     else:
         raise AssertionError("max_combinations=0 should fail")
     assert module.build_widget_combination_plan((), max_combinations=1).total_count == 0
+
+
+def test_dependent_disabled_widget_choices_are_noops_or_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+
+    class _Locator:
+        def scroll_into_view_if_needed(self, *, timeout: float) -> None:
+            assert timeout == 1000
+
+        def is_visible(self, *, timeout: float) -> bool:
+            assert timeout == 1000
+            return True
+
+        def is_enabled(self, *, timeout: float) -> bool:
+            assert timeout == 1000
+            return False
+
+        def is_checked(self, *, timeout: float) -> bool:
+            assert timeout == 1000
+            return False
+
+    locator = _Locator()
+    monkeypatch.setattr(module, "_widget_locator", lambda _page, _widget: locator)
+    off = module.WidgetChoice("cluster", "checkbox", "Enable Cluster", "off", {}, checked=False)
+    on = module.WidgetChoice("cluster", "checkbox", "Enable Cluster", "on", {}, checked=True)
+
+    module._apply_widget_choice(object(), off, timeout_ms=1000)
+    with pytest.raises(module.WidgetChoiceUnavailable, match="disabled in this widget state"):
+        module._apply_widget_choice(object(), on, timeout_ms=1000)
+
+
+def test_unavailable_dependent_widget_combination_is_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    choice = module.WidgetChoice("cluster", "checkbox", "Enable Cluster", "on", {}, checked=True)
+    control = module.WidgetControl("cluster", "checkbox", "Enable Cluster", (choice,))
+
+    class _Page:
+        url = "http://demo"
+
+        def evaluate(self, _script: str) -> list[dict[str, object]]:
+            return []
+
+        def wait_for_timeout(self, _timeout: float) -> None:
+            raise AssertionError("an unavailable combination must not be probed")
+
+    monkeypatch.setattr(
+        module,
+        "collect_widget_combination_controls",
+        lambda *_args, **_kwargs: ([control], []),
+    )
+    monkeypatch.setattr(
+        module,
+        "_apply_widget_choice",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(module.WidgetChoiceUnavailable("disabled dependency")),
+    )
+
+    space, executed, failed, skipped, probes = module._exercise_widget_combinations(
+        _Page(),
+        app_name="pytorch_playground_project",
+        page_name="ORCHESTRATE",
+        widget_timeout_ms=1000,
+        interaction_mode="full",
+        action_button_policy="trial",
+        upload_file=Path("upload.txt"),
+        restore_view=lambda: None,
+        known=set(),
+        max_combinations=8,
+        max_options_per_widget=8,
+        discovery_passes=1,
+        action_click_budget=[0],
+    )
+
+    assert (space, executed, failed, skipped) == (1, 0, 0, 1)
+    assert [(probe.status, probe.detail) for probe in probes] == [
+        ("skipped", "Enable Cluster=on: disabled dependency")
+    ]
+
+
+def test_combination_watchdog_stops_remaining_state_expansion(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load_module()
+    choices = tuple(
+        module.WidgetChoice("flag", "checkbox", "Flag", str(index), {}, checked=bool(index))
+        for index in range(2)
+    )
+    control = module.WidgetControl("flag", "checkbox", "Flag", choices)
+    attempts = 0
+
+    class _Page:
+        url = "http://demo"
+
+        def evaluate(self, _script: str) -> list[dict[str, object]]:
+            return []
+
+    def _expired(*_args: object, **_kwargs: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        raise module.PageWatchdogTimeout("page budget expired")
+
+    monkeypatch.setattr(
+        module,
+        "collect_widget_combination_controls",
+        lambda *_args, **_kwargs: ([control], []),
+    )
+    monkeypatch.setattr(module, "_apply_widget_choice", _expired)
+
+    space, executed, failed, skipped, probes = module._exercise_widget_combinations(
+        _Page(),
+        app_name="demo_project",
+        page_name="ORCHESTRATE",
+        widget_timeout_ms=1000,
+        interaction_mode="full",
+        action_button_policy="trial",
+        upload_file=Path("upload.txt"),
+        restore_view=lambda: None,
+        known=set(),
+        max_combinations=8,
+        max_options_per_widget=8,
+        discovery_passes=1,
+        action_click_budget=[0],
+    )
+
+    assert attempts == 1
+    assert (space, executed, failed, skipped) == (2, 0, 1, 0)
+    assert [(probe.kind, probe.status, probe.detail) for probe in probes] == [
+        ("combination_watchdog", "failed", "stopped after combination #1: page budget expired")
+    ]
 
 
 def test_widget_robot_parser_enables_exhaustive_combinations_by_default() -> None:

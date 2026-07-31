@@ -357,6 +357,20 @@ jobs:
           fi
           python tools/release_plan.py "${args[@]}"
 
+      - name: Validate release tag namespace
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          release_tag="${RELEASE_TAG#refs/tags/}"
+          if [[ "$release_tag" != v* ]]; then
+            release_tag="v${release_tag}"
+          fi
+          if [[ ! "$release_tag" =~ ^v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}([._]?[A-Za-z0-9]+)?(-[0-9]+)?$ ]]; then
+            echo "Invalid release tag: $release_tag" >&2
+            exit 2
+          fi
+
       - name: Validate managed docs release tag before publication
         if: steps.release-plan.outputs.pypi_publish_selected == 'true'
         env:
@@ -408,6 +422,27 @@ jobs:
           fi
           args+=(--release-mode "$RELEASE_MODE")
           python tools/pypi_release_version_policy.py "${args[@]}"
+
+  # One human approval gates every externally mutating release job. Individual
+  # package environments retain their PyPI OIDC identity and ref restrictions,
+  # while this dedicated environment avoids asking for the same approval once
+  # per package in the publish matrix.
+  release-approval:
+    needs:
+      - release-audit
+      - release-plan
+      - test
+      - release-evidence
+      - supply-chain-evidence
+    if: ${{ !cancelled() && needs.release-audit.result == 'success' && needs.release-plan.result == 'success' && (needs.release-plan.outputs.pypi_publish_selected != 'true' || (needs.test.result == 'success' && needs.release-evidence.result == 'success' && needs.supply-chain-evidence.result == 'success')) }}
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi-release-approval
+      url: https://github.com/${{ github.repository }}/releases/tag/${{ github.event.inputs.release_tag || github.ref_name }}
+    permissions: {}
+    steps:
+      - name: Record approved release boundary
+        run: echo "Release publication evidence approved for ${GITHUB_REF_NAME}."
 
   build-library-packages:
     needs:
@@ -531,9 +566,10 @@ jobs:
   # executes repository code while OIDC is available.
   publish-library-packages:
     needs:
+      - release-approval
       - release-plan
       - build-library-packages
-    if: ${{ !cancelled() && needs.release-plan.outputs.library_selected == 'true' && needs.build-library-packages.result == 'success' }}
+    if: ${{ !cancelled() && needs.release-approval.result == 'success' && needs.release-plan.outputs.library_selected == 'true' && needs.build-library-packages.result == 'success' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -664,8 +700,9 @@ jobs:
   # artifact-consumer job. The pinned download action checks the immutable
   # artifact digest before the pinned publisher action uploads distributions.
   publish-agilab:
-    if: ${{ !cancelled() && needs.release-plan.outputs.umbrella_selected == 'true' && needs.build-agilab.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') }}
+    if: ${{ !cancelled() && needs.release-approval.result == 'success' && needs.release-plan.outputs.umbrella_selected == 'true' && needs.build-agilab.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') }}
     needs:
+      - release-approval
       - release-plan
       - build-agilab
       - publish-library-packages
@@ -740,8 +777,9 @@ jobs:
           retention-days: 90
 
   publish-release-assets:
-    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.supply-chain-evidence.result == 'success' && needs.pypi-provenance-evidence.result == 'success' && (needs.pypi-release-retention.result == 'success' || needs.pypi-release-retention.result == 'skipped') && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
+    if: ${{ always() && needs.release-approval.result == 'success' && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.supply-chain-evidence.result == 'success' && needs.pypi-provenance-evidence.result == 'success' && (needs.pypi-release-retention.result == 'success' || needs.pypi-release-retention.result == 'skipped') && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
     needs:
+      - release-approval
       - release-plan
       - publish-library-packages
       - publish-agilab
@@ -821,8 +859,9 @@ jobs:
           gh release upload "$release_tag" github-release-assets/* --clobber
 
   pypi-release-retention:
-    if: ${{ always() && (github.event.inputs.include_existing_pypi || 'false') != 'true' && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.pypi-provenance-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
+    if: ${{ always() && needs.release-approval.result == 'success' && (github.event.inputs.include_existing_pypi || 'false') != 'true' && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.pypi-provenance-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
     needs:
+      - release-approval
       - release-plan
       - publish-library-packages
       - publish-agilab
@@ -925,8 +964,9 @@ jobs:
           PY
 
   publish-dataset-release-assets:
-    if: ${{ !cancelled() && needs.release-plan.result == 'success' && needs.release-audit.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
+    if: ${{ !cancelled() && needs.release-approval.result == 'success' && needs.release-plan.result == 'success' && needs.release-audit.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     needs:
+      - release-approval
       - test
       - release-plan
       - release-audit
@@ -986,19 +1026,20 @@ jobs:
             --notes "Complete AGILAB dataset assets for manifest $DATASET_MANIFEST_SHA256. PyPI packages keep their packaged datasets; this separate release is for source checkouts and Git LFS pointer replacement. Code release: $RELEASE_TAG."
 
   sync-hf-space:
-    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true' && needs.publish-release-assets.result == 'success' }}
+    if: ${{ always() && needs.release-approval.result == 'success' && needs.release-plan.outputs.umbrella_selected == 'true' && needs.publish-release-assets.result == 'success' }}
     needs:
+      - release-approval
       - release-plan
       - publish-release-assets
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      actions: read
+      contents: read
+    outputs:
+      hf_space_commit: ${{ steps.hf-sync.outputs.hf_space_commit }}
     env:
       RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
       HF_SPACE_ID: ${{ vars.AGILAB_HF_SPACE_ID || 'jpmorard/agilab' }}
       HF_SPACE_PROFILE: ${{ vars.AGILAB_HF_SPACE_PROFILE || 'first-proof' }}
-      PROVENANCE_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}
     steps:
       - name: Checkout release source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1034,13 +1075,57 @@ jobs:
             --github-output "$GITHUB_OUTPUT" \
             --json
 
-      - name: Update public release proof with HF Space commit
+  # Keep the Hugging Face secret out of the job that can write GitHub refs,
+  # releases, attestations, and workflow dispatches. The immutable HF commit is
+  # the only value crossing this credential boundary.
+  publish-release-proof:
+    if: ${{ always() && needs.release-approval.result == 'success' && needs.sync-hf-space.result == 'success' }}
+    needs:
+      - release-approval
+      - release-plan
+      - sync-hf-space
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+      pull-requests: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
+      PROVENANCE_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          lfs: true
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up locked release-proof dependencies
+        uses: ./.github/actions/setup-locked-python-tools
+        with:
+          requirements: .github/requirements/ci-hf-release.txt
+
+      - name: Prepare immutable release proof and review branch
+        id: release-proof
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HF_SPACE_COMMIT: ${{ needs.sync-hf-space.outputs.hf_space_commit }}
         run: |
           set -euo pipefail
-          hf_commit="${{ steps.hf-sync.outputs.hf_space_commit }}"
-          test -n "$hf_commit"
+          hf_commit="${HF_SPACE_COMMIT}"
+          if [[ ! "$hf_commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid Hugging Face commit: expected a 40-character lowercase SHA." >&2
+            exit 2
+          fi
 
           release_tag="${RELEASE_TAG#refs/tags/}"
           if [[ "$release_tag" != v* ]]; then
@@ -1051,7 +1136,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           gh auth setup-git
           git fetch origin main
-          git switch -C main origin/main
+          release_branch="automation/release-evidence-${release_tag#v}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -C "$release_branch" origin/main
 
           RELEASE_TAG_NORMALIZED="$release_tag" python - <<'PY'
           import os
@@ -1091,14 +1177,99 @@ jobs:
             docs/source/data/release_proof.toml
             docs/source/release-proof.rst
             docs/.docs_source_mirror_stamp.json
-            test/test_public_demo_links.py
           )
+
+          release_version="${release_tag#v}"
+          mkdir -p release-proof-assets
+          cp docs/source/data/release_proof.toml \
+            "release-proof-assets/agilab-${release_version}-release-proof.toml"
+          cp docs/source/release-proof.rst \
+            "release-proof-assets/agilab-${release_version}-release-proof.rst"
+          (
+            cd release-proof-assets
+            shasum -a 256 \
+              "agilab-${release_version}-release-proof.toml" \
+              "agilab-${release_version}-release-proof.rst" \
+              > "agilab-${release_version}-release-proof-SHA256SUMS.txt"
+          )
+
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+          echo "release_version=${release_version}" >> "$GITHUB_OUTPUT"
+          echo "release_branch=${release_branch}" >> "$GITHUB_OUTPUT"
 
           if git diff --quiet -- "${release_metadata_paths[@]}"; then
             echo "Release proof already records HF Space commit ${hf_commit}."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           git add "${release_metadata_paths[@]}"
           git commit -m "docs(release): record HF Space sync"
-          git push origin HEAD:main
+          git push --set-upstream origin "$release_branch"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Attest immutable release proof assets
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-path: release-proof-assets/**
+
+      - name: Upload immutable release proof assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG_NORMALIZED: ${{ steps.release-proof.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          existing_dir="$(mktemp -d)"
+          for asset in release-proof-assets/*; do
+            name="$(basename "$asset")"
+            if gh release view "$RELEASE_TAG_NORMALIZED" --json assets \
+              --jq ".assets[] | select(.name == \"${name}\") | .name" | grep -Fxq "$name"; then
+              gh release download "$RELEASE_TAG_NORMALIZED" \
+                --pattern "$name" \
+                --dir "$existing_dir"
+              cmp "$asset" "$existing_dir/$name" || {
+                echo "Existing immutable release asset differs: $name" >&2
+                exit 1
+              }
+              echo "Reused identical immutable release asset: $name"
+            else
+              gh release upload "$RELEASE_TAG_NORMALIZED" "$asset"
+            fi
+          done
+
+      - name: Open release evidence pull request and dispatch checks
+        if: steps.release-proof.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_BRANCH: ${{ steps.release-proof.outputs.release_branch }}
+          RELEASE_VERSION: ${{ steps.release-proof.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          cat > release-evidence-pr.md <<EOF
+          ## Summary
+
+          - record the final Hugging Face Space commit for release ${RELEASE_VERSION}
+          - refresh the public release-proof manifest, rendered page, badge, and mirror integrity stamp
+          - preserve review and required-check enforcement instead of writing directly to main
+
+          ## Validation
+
+          - release proof render and live GitHub-run checks passed in the publishing workflow
+          - repository, root-test, and docs-source workflows are dispatched below for this exact commit
+
+          ## Agent Metadata
+
+          - Tokki version: not used
+          - Agent/runtime: github-actions[bot]
+          - Model: not used
+          - Reasoning effort: not used
+          - Fast mode: not used
+          EOF
+          gh pr create \
+            --base main \
+            --head "$RELEASE_BRANCH" \
+            --title "docs(release): record ${RELEASE_VERSION} evidence" \
+            --body-file release-evidence-pr.md
+          gh workflow run ci.yml --ref "$RELEASE_BRANCH"
+          gh workflow run root-test-suite.yml --ref "$RELEASE_BRANCH"
+          gh workflow run docs-source-guard.yaml --ref "$RELEASE_BRANCH"

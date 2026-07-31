@@ -532,9 +532,11 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
             _option_values(command.argv, "--scenario")
         )
         assert _option_values(command.argv, "--apps") == [expected_row["apps"]]
-        assert "--quiet-progress" in command.argv
+        assert "--quiet-progress" not in command.argv
         assert "--json" in command.argv
         assert "--no-result-cache" in command.argv
+        assert command.argv[command.argv.index("--scenario-timeout") + 1] == "900"
+        assert "--fail-fast" in command.argv
         assert "--screenshot-dir" in command.argv
         assert f"screenshots/ui-robot-matrix/{shard}" in command.argv
         assert f"test-results/ui-robot-matrix/{shard}/failure-bundles" in command.argv

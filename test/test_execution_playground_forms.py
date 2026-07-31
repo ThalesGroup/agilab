@@ -66,6 +66,7 @@ def test_execution_pandas_form_renders_and_persists_args(tmp_path: Path) -> None
         "Thread",
     ]
     assert pool_executor.value == "auto"
+    assert any("`auto` pool executor" in caption.value for caption in at.caption)
 
     at.number_input(key="execution_pandas_project:app_args_form:nfile").set_value(8)
     at.number_input(key="execution_pandas_project:app_args_form:rows_per_file").set_value(50000)

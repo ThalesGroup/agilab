@@ -6,7 +6,14 @@ import importlib
 import importlib.util
 import runpy
 import sys
+import warnings
 from types import ModuleType
+
+
+_IMPORT_RUNTIME_MODULE_PREFIXES = (
+    "_frozen_importlib",
+    "importlib.",
+)
 
 
 class _CompatModule(ModuleType):
@@ -88,6 +95,22 @@ def _execute_target_in_current_module(
     return None
 
 
+def _legacy_import_has_external_caller(legacy_name: str) -> bool:
+    """Return whether the first non-import-runtime caller is outside AGILAB."""
+
+    frame = sys._getframe(2)
+    while frame is not None:
+        module_name = str(frame.f_globals.get("__name__") or "")
+        if (
+            module_name
+            and module_name not in {__name__, legacy_name}
+            and not module_name.startswith(_IMPORT_RUNTIME_MODULE_PREFIXES)
+        ):
+            return not module_name.startswith("agilab.")
+        frame = frame.f_back
+    return True
+
+
 def activate_compat_module(
     current_name: str, target_name: str, *, legacy_name: str | None = None
 ) -> ModuleType | None:
@@ -97,14 +120,27 @@ def activate_compat_module(
     module into a classified subpackage. When a shim is executed as a module,
     it delegates to the target module with ``__main__`` semantics.
 
-    TODO: emit a ``DeprecationWarning`` for external callers of the legacy path
-    once the internal call sites have migrated. Adding it now would spam every
-    first-party import that still routes through these shims.
+    Importing the exact legacy path from outside the ``agilab`` package emits a
+    standard ``DeprecationWarning``. Python hides this category by default for
+    normal library consumers, while warning-aware migration tooling gets a
+    concrete replacement path without warning on first-party transitional use.
     """
 
     if current_name == "__main__":
         runpy.run_module(target_name, run_name="__main__")
         return None
+
+    if (
+        legacy_name is not None
+        and current_name == legacy_name
+        and _legacy_import_has_external_caller(legacy_name)
+    ):
+        warnings.warn(
+            f"{legacy_name} is deprecated; import {target_name} instead "
+            "(planned removal: 2027.01 compatibility cleanup)",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     if legacy_name is not None and (
         current_name != legacy_name or not current_name.startswith("agilab.")

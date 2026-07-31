@@ -603,12 +603,17 @@ def test_local_release_apps_filters_and_sorts_project_directories(monkeypatch) -
     assert module._local_release_app_count(Path.cwd(), "v2099.01.01") == 2
 
 
-def test_release_proof_ui_robot_historical_mode_is_not_release_proof() -> None:
+def test_release_proof_ui_robot_historical_mode_is_not_release_proof(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     module = _load_module()
     manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
     release = manifest["release"]
     ui_robot = manifest["ui_robot"]
     evidence_path = Path("docs/source/data/ui_robot_evidence.json")
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence_apps = evidence["result"]["apps"]
+    monkeypatch.setattr(module, "_local_release_apps", lambda *_args: evidence_apps)
 
     historical_check = module._ui_robot_evidence_check(
         evidence_path,
@@ -632,18 +637,19 @@ def test_release_proof_ui_robot_historical_mode_is_not_release_proof() -> None:
 
     assert historical_check["status"] == "pass"
     assert historical_check["details"]["mode"] == "historical"
-    assert historical_check["details"]["app_count"] == 10
+    assert historical_check["details"]["app_count"] == 14
     assert (
         historical_check["details"]["expected_app_count"]
         == ui_robot["expected_app_count"]
     )
+    assert historical_check["details"]["exact_app_inventory_matches"] is True
     assert historical_check["details"]["represents_release"] is False
     assert "not proof for the current release" in historical_check["summary"]
     assert release_check["status"] == "fail"
     failures = " ".join(release_check["details"]["failures"])
     assert "head SHA" in failures
-    assert "app_count" in failures
-    assert "exact app inventory" in failures
+    assert "app_count" not in failures
+    assert "exact app inventory" not in failures
 
 
 def test_release_proof_renderer_fails_unknown_template_key(tmp_path: Path) -> None:
