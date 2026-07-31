@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -1258,6 +1260,86 @@ def test_streaming_runner_keeps_child_output_on_stderr(capsys) -> None:
     assert "[ui-robot-matrix] exit=0:" in captured.err
 
 
+def test_streaming_runner_terminates_a_silent_wedged_child(capsys) -> None:
+    """A child that emits nothing and never exits must not block the matrix.
+
+    This reproduces the ui-robot-matrix hang: before the watchdog, the streaming
+    read loop blocked until the CI job's own timeout-minutes cap fired, killing
+    the shard with no per-scenario verdict.
+    """
+    module = _load_module()
+
+    started = time.monotonic()
+    result = module._run_robot_command_streaming(
+        [sys.executable, "-c", "import time; time.sleep(120)"],
+        timeout_seconds=2.0,
+    )
+    elapsed = time.monotonic() - started
+    captured = capsys.readouterr()
+
+    assert result.returncode == module.SCENARIO_TIMEOUT_RETURNCODE
+    # Must return promptly rather than running the child's full 120s sleep.
+    assert elapsed < 30.0
+    assert "wall-clock budget" in result.stdout
+    assert "TIMEOUT" in captured.err
+
+
+def test_streaming_runner_reaps_grandchildren_on_timeout(capsys) -> None:
+    """The robot spawns Streamlit and a browser; both must die with the child."""
+    module = _load_module()
+
+    # Parent spawns a long-lived grandchild, prints its pid, then hangs.
+    script = (
+        "import subprocess, sys, time; "
+        "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)']); "
+        "print(g.pid, flush=True); "
+        "time.sleep(120)"
+    )
+    result = module._run_robot_command_streaming(
+        [sys.executable, "-c", script], timeout_seconds=3.0
+    )
+
+    assert result.returncode == module.SCENARIO_TIMEOUT_RETURNCODE
+    grandchild_pid = int(result.stdout.strip().splitlines()[0])
+    deadline = time.monotonic() + 15.0
+    while time.monotonic() < deadline:
+        try:
+            os.kill(grandchild_pid, 0)
+        except OSError:
+            break
+        time.sleep(0.2)
+    else:  # pragma: no cover - only reached when the reap failed
+        raise AssertionError(f"grandchild {grandchild_pid} survived the scenario timeout")
+
+
+def test_streaming_runner_without_timeout_still_completes(capsys) -> None:
+    module = _load_module()
+
+    result = module._run_robot_command_streaming(
+        [sys.executable, "-c", "print('done')"], timeout_seconds=None
+    )
+
+    assert result.returncode == 0
+    assert "done" in result.stdout
+    assert "wall-clock budget" not in result.stdout
+
+
+def test_scenario_timeout_option_is_plumbed_from_cli() -> None:
+    module = _load_module()
+
+    default_opts = module.options_from_args(module._build_parser().parse_args([]))
+    disabled_opts = module.options_from_args(
+        module._build_parser().parse_args(["--scenario-timeout", "0"])
+    )
+    custom_opts = module.options_from_args(
+        module._build_parser().parse_args(["--scenario-timeout", "45"])
+    )
+
+    assert default_opts.scenario_timeout_seconds == module.DEFAULT_SCENARIO_TIMEOUT_SECONDS
+    assert disabled_opts.scenario_timeout_seconds is None
+    assert custom_opts.scenario_timeout_seconds == 45.0
+
+
 def test_load_summary_falls_back_to_stdout_json_and_default_failure(tmp_path) -> None:
     module = _load_module()
 
@@ -1481,9 +1563,11 @@ def test_streaming_default_paths_for_scenario_and_failure_retry(tmp_path, monkey
         no_seed_demo_artifacts=False,
     )
     calls: list[list[str]] = []
+    seen_timeouts: list[float | None] = []
 
-    def _fake_streaming(argv):
+    def _fake_streaming(argv, *, timeout_seconds=None):
         calls.append(list(argv))
+        seen_timeouts.append(timeout_seconds)
         summary_path = Path(argv[argv.index("--json-output") + 1])
         progress_path = Path(argv[argv.index("--progress-log") + 1])
         summary_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1514,6 +1598,12 @@ def test_streaming_default_paths_for_scenario_and_failure_retry(tmp_path, monkey
     assert result.returncode == 0
     assert retry.returncode == 0
     assert len(calls) == 2
+    # Both the main scenario run and the failure-artifact retry must inherit the
+    # per-scenario watchdog budget; an unbounded retry would reopen the hang.
+    assert seen_timeouts == [
+        module.DEFAULT_SCENARIO_TIMEOUT_SECONDS,
+        module.DEFAULT_SCENARIO_TIMEOUT_SECONDS,
+    ]
     assert retry_options.screenshot_dir == options.output_dir / "failure-artifacts" / "screenshots"
     assert retry_options.trace_dir == options.output_dir / "failure-artifacts" / "traces"
     assert retry_options.har_dir == options.output_dir / "failure-artifacts" / "har"
