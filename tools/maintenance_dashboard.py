@@ -542,6 +542,67 @@ def _coverage_percent(svg_text: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def check_stat_badge_freshness(repo_root: Path) -> Check:
+    """Report drift in the hand-maintained GitHub stat badges.
+
+    These have no generator, so they rot silently: stars sat two behind and
+    commit activity thirty-four behind before anyone noticed. Drift is a
+    warning and never a failure, because a single new star would otherwise
+    turn this red. Offline runs report "not checked" rather than guessing.
+    """
+
+    refresher = _load_tool(
+        repo_root, "tools/refresh_repo_stat_badges.py", "maintenance_stat_badges"
+    )
+    try:
+        report = refresher.drift_report()
+    except Exception as exc:  # pragma: no cover - defensive
+        return _check(
+            "stat_badge_freshness",
+            "GitHub stat badge freshness",
+            True,
+            f"stat badge drift not checked: {exc}",
+            status="warn",
+            evidence=("tools/refresh_repo_stat_badges.py",),
+        )
+
+    evidence = ("badges/github-stars.svg", "badges/commit-activity.svg")
+    if not report["available"]:
+        return _check(
+            "stat_badge_freshness",
+            "GitHub stat badge freshness",
+            True,
+            "GitHub stats unavailable; stat badge drift NOT CHECKED",
+            status="pass",
+            evidence=evidence,
+            details={"checked": False},
+        )
+    drifted = report["drifted"]
+    if drifted:
+        summary = "; ".join(
+            f"{entry['badge']} committed {entry['committed']} vs live {entry['live']}"
+            for entry in drifted
+        )
+        return _check(
+            "stat_badge_freshness",
+            "GitHub stat badge freshness",
+            True,
+            f"stat badges behind GitHub: {summary}; "
+            "refresh with `python tools/refresh_repo_stat_badges.py --apply`",
+            status="warn",
+            evidence=evidence,
+            details={"checked": True, "drifted": drifted},
+        )
+    return _check(
+        "stat_badge_freshness",
+        "GitHub stat badge freshness",
+        True,
+        "stat badges match live GitHub values",
+        evidence=evidence,
+        details={"checked": True, "drifted": []},
+    )
+
+
 def check_coverage_badges(repo_root: Path) -> Check:
     badge = repo_root / "badges/coverage-agilab.svg"
     percent = _coverage_percent(_read(badge)) if badge.is_file() else None
@@ -589,6 +650,7 @@ def build_report(
         check_shared_core_guardrails(repo_root),
         check_generated_artifact_hygiene(repo_root),
         check_coverage_badges(repo_root),
+        check_stat_badge_freshness(repo_root),
     ]
     if include_app_contracts:
         checks.insert(4, check_app_contracts(repo_root))
