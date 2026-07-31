@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import datetime
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -825,9 +826,45 @@ def test_make_chunks_selects_optimal_or_fastest(monkeypatch):
     monkeypatch.setattr(WorkDispatcher, "_make_chunks_optimal", lambda *_args, **_kwargs: [["optimal"]])
     monkeypatch.setattr(WorkDispatcher, "_make_chunks_fastest", lambda *_args, **_kwargs: [["fastest"]])
 
-    weights = [("a", 3), ("b", 1)]
-    assert WorkDispatcher.make_chunks(2, weights, workers={"127.0.0.1": 1}, threshold=3) == [["optimal"]]
-    assert WorkDispatcher.make_chunks(5, weights, workers={"127.0.0.1": 1}, threshold=3) == [["fastest"]]
+    small = [("a", 3), ("b", 1)]
+    large = [("a", 3), ("b", 1), ("c", 2), ("d", 4)]
+
+    # The gate follows the number of weighted works, not ``nchunk2``.
+    assert WorkDispatcher.make_chunks(
+        len(small), small, workers={"127.0.0.1": 1}, threshold=3
+    ) == [["optimal"]]
+    assert WorkDispatcher.make_chunks(
+        len(large), large, workers={"127.0.0.1": 1}, threshold=3
+    ) == [["fastest"]]
+
+    # Regression: an understated ``nchunk2`` must not force a large work list down
+    # the exponential path. This previously selected ``_make_chunks_optimal``.
+    assert WorkDispatcher.make_chunks(
+        1, large, workers={"127.0.0.1": 1}, threshold=3
+    ) == [["fastest"]]
+
+
+def test_make_chunks_understated_nchunk2_cannot_trigger_exponential_hang():
+    """Run the real partitioner: an understated ``nchunk2`` must stay bounded.
+
+    Before the gate was derived from ``len(weights)``, ``make_chunks(1, weights, ...)``
+    routed any work list into the exponential branch-and-bound. Measured on this
+    surface: 16 works completed in ~0.2s while 20 works exceeded 20s, so plan
+    construction hung with no diagnostic. Nothing is monkeypatched here — the point
+    is that the real code path terminates.
+    """
+    weights = [(f"job-{index}", float((index % 7) + 1)) for index in range(24)]
+
+    started = time.perf_counter()
+    chunks = WorkDispatcher.make_chunks(
+        1, weights, workers={"127.0.0.1": 4}, threshold=12
+    )
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 5.0, f"partitioning 24 works took {elapsed:.1f}s; exponential path reachable"
+    # Every work must be placed exactly once, whichever algorithm ran.
+    placed = [item for chunk in chunks for item in chunk]
+    assert sorted(placed) == sorted(weights)
 
 
 def test_make_chunks_uses_default_workers_and_builds_default_capacities(monkeypatch):
