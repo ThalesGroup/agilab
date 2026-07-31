@@ -125,7 +125,7 @@
     <filter id="shadow" x="-12%" y="-12%" width="132%" height="136%">
       <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#748aa5" flood-opacity="0.16" />
     </filter>
-    <filter id="soft-shadow" x="-10%" y="-10%" width="125%" height="130%">
+    <filter id="soft-shadow" filterUnits="userSpaceOnUse" x="-40" y="-40" width="500" height="250">
       <feDropShadow dx="0" dy="5" stdDeviation="8" flood-color="#748aa5" flood-opacity="0.11" />
     </filter>
     <marker id="arrowhead" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">

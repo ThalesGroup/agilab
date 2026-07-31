@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="394" viewBox="0 0 1040 394" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="420" viewBox="0 0 1040 420" role="img" aria-labelledby="title desc">
   <title id="title">Same AGI.run API from local to distributed</title>
   <desc id="desc">Comparison showing that local and distributed AGILAB runs share the same AGI.run call shape while distributed execution adds scheduler and worker fields.</desc>
   <defs>
@@ -16,14 +16,14 @@
       <stop offset="0" stop-color="#fff2df"/>
       <stop offset="1" stop-color="#e8fbf1"/>
     </linearGradient>
-    <filter id="shadow" x="-12%" y="-12%" width="124%" height="134%">
+    <filter id="shadow" filterUnits="userSpaceOnUse" x="-29" y="-21" width="1052" height="436">
       <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0f172a" flood-opacity="0.12"/>
     </filter>
     <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="16" markerHeight="16" orient="auto" markerUnits="userSpaceOnUse">
       <path d="M 1 1 L 11 6 L 1 11 Z" fill="#315c7a"/>
     </marker>
     <clipPath id="canvasClip">
-      <rect x="0" y="0" width="1040" height="394" rx="26"/>
+      <rect x="0" y="0" width="1040" height="420" rx="26"/>
     </clipPath>
     <style>
       text { font-family: Arial, Helvetica, sans-serif; fill: #14283f; }
@@ -45,7 +45,7 @@
     </style>
   </defs>
 
-  <rect class="bg" x="0" y="0" width="1040" height="394" rx="26" fill="url(#bg)"/>
+  <rect class="bg" x="0" y="0" width="1040" height="420" rx="26" fill="url(#bg)"/>
   <g clip-path="url(#canvasClip)">
     <circle cx="930" cy="38" r="112" fill="#dbeafe" opacity="0.45"/>
     <circle cx="90" cy="364" r="92" fill="#fde6c8" opacity="0.45"/>

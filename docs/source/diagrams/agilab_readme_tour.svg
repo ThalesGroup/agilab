@@ -102,7 +102,7 @@
       <stop offset="0%" stop-color="#fbfdff"/>
       <stop offset="100%" stop-color="#eef4fb"/>
     </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+    <filter id="shadow" filterUnits="userSpaceOnUse" x="-40" y="-40" width="1440" height="1020">
       <feDropShadow dx="0" dy="7" stdDeviation="12" flood-color="#8da4be" flood-opacity="0.18"/>
     </filter>
     <marker id="arrowHead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">

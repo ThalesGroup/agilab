@@ -85,10 +85,10 @@
       <stop offset="0%" stop-color="#fbfdff" />
       <stop offset="100%" stop-color="#eef4fb" />
     </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+    <filter id="shadow" filterUnits="userSpaceOnUse" x="-32" y="-26" width="364" height="212">
       <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#90a5c1" flood-opacity="0.18" />
     </filter>
-    <filter id="shadow-soft" x="-10%" y="-10%" width="130%" height="130%">
+    <filter id="shadow-soft" filterUnits="userSpaceOnUse" x="-26" y="-22" width="482" height="130">
       <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#90a5c1" flood-opacity="0.12" />
     </filter>
   </defs>

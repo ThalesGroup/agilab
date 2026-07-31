@@ -16,7 +16,7 @@
       <stop offset="0" stop-color="#ecfdf5"/>
       <stop offset="1" stop-color="#dbeafe"/>
     </linearGradient>
-    <filter id="shadow" x="-12%" y="-12%" width="124%" height="134%">
+    <filter id="shadow" filterUnits="userSpaceOnUse" x="-26" y="-18" width="1183" height="842">
       <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.12"/>
     </filter>
     <marker id="arrow" viewBox="0 0 12 12" refX="11" refY="6" markerUnits="userSpaceOnUse" markerWidth="21" markerHeight="21" orient="auto">
@@ -161,7 +161,7 @@
       <text class="note" x="24" y="224">Best for repeated runs</text>
     </g>
 
-    <g transform="translate(985 420)">
+    <g transform="translate(973 420)">
       <rect class="card" x="0" y="0" width="200" height="248" rx="20"/>
       <text class="mode-label" x="24" y="34">Inside worker</text>
       <text class="card-title" x="24" y="63">Library threads</text>
