@@ -38,23 +38,25 @@
   <text class="member" x="404" y="238">deployment_editable_install_support</text>
   <text class="member" x="404" y="257">+11 more</text>
   <rect x="722" y="104" width="316" height="176" rx="18" ry="18" fill="#ffe8ac" stroke="#0e223f" stroke-width="2" />
-  <text class="card-title" x="742" y="134">Runtime and transport</text>
-  <text class="count" x="1018" y="134" text-anchor="end">11 modules</text>
-  <text class="card-note" x="742" y="156">Scheduler IO and distribution modes.</text>
-  <text class="member" x="742" y="180">runtime_distribution_support</text>
-  <text class="member" x="742" y="199">runtime_misc_support</text>
-  <text class="member" x="742" y="218">transport_support</text>
-  <text class="member" x="742" y="237">+8 more</text>
+  <text class="card-title" x="742" y="134">Capacity and cleanup</text>
+  <text class="count" x="1018" y="134" text-anchor="end">3 modules</text>
+  <text class="card-note" x="742" y="156">Worker capacity and teardown.</text>
+  <text class="member" x="742" y="180">background_jobs_support</text>
+  <text class="member" x="742" y="199">capacity_support, cleanup_support</text>
   <rect x="46" y="302" width="316" height="176" rx="18" ry="18" fill="#d6f6d8" stroke="#0e223f" stroke-width="2" />
-  <text class="card-title" x="66" y="332">Service lifecycle</text>
-  <text class="count" x="342" y="332" text-anchor="end">3 modules</text>
-  <text class="card-note" x="66" y="354">Persistent workers and health gates.</text>
-  <text class="member" x="66" y="378">service_lifecycle_support</text>
-  <text class="member" x="66" y="397">service_runtime_support</text>
-  <text class="member" x="66" y="416">service_state_support</text>
+  <text class="card-title" x="66" y="332">Runtime and transport</text>
+  <text class="count" x="342" y="332" text-anchor="end">8 modules</text>
+  <text class="card-note" x="66" y="354">Scheduler IO and distribution modes.</text>
+  <text class="member" x="66" y="378">runtime_distribution_support</text>
+  <text class="member" x="66" y="397">runtime_misc_support</text>
+  <text class="member" x="66" y="416">transport_support</text>
+  <text class="member" x="66" y="435">+5 more</text>
   <rect x="384" y="302" width="316" height="176" rx="18" ry="18" fill="#ffdbe2" stroke="#0e223f" stroke-width="2" />
-  <text class="card-title" x="404" y="332">Capacity and cleanup</text>
-  <text class="count" x="680" y="332" text-anchor="end">0 modules</text>
-  <text class="card-note" x="404" y="354">Worker capacity and teardown.</text>
-  <text class="footer" x="46" y="510">34 modules · groups are curated in tools/render_package_maps.py; members are read from the package source</text>
+  <text class="card-title" x="404" y="332">Service lifecycle</text>
+  <text class="count" x="680" y="332" text-anchor="end">3 modules</text>
+  <text class="card-note" x="404" y="354">Persistent workers and health gates.</text>
+  <text class="member" x="404" y="378">service_lifecycle_support</text>
+  <text class="member" x="404" y="397">service_runtime_support</text>
+  <text class="member" x="404" y="416">service_state_support</text>
+  <text class="footer" x="46" y="510">34 logical modules · compatibility shims collapsed · groups: tools/render_package_maps.py</text>
 </svg>

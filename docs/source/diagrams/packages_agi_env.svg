@@ -71,5 +71,5 @@
   <text class="member" x="742" y="397">source_analysis_ast</text>
   <text class="member" x="742" y="416">source_analysis_support</text>
   <text class="member" x="742" y="435">+1 more</text>
-  <text class="footer" x="46" y="510">60 modules · groups are curated in tools/render_package_maps.py; members are read from the package source</text>
+  <text class="footer" x="46" y="510">60 logical modules · compatibility shims collapsed · groups: tools/render_package_maps.py</text>
 </svg>

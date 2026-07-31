@@ -7,8 +7,9 @@
 holds 55 modules, so the generated view is either a wall of disconnected boxes
 with clipped labels or, when regenerated today, a 15k-wide canvas. This module
 renders a curated responsibility map instead: the *groups* are hand-declared and
-stable, while every member list is read from the filesystem, so a stale figure
-is impossible and the counts can never lie.
+stable, while every member list is read from the filesystem. Compatibility shims
+are collapsed into their canonical module responsibility; any other duplicate
+module stem fails validation instead of disappearing silently.
 
 Run ``python tools/render_package_maps.py --check`` to fail on drift, or
 ``--apply`` to rewrite the checked-in SVGs.
@@ -82,6 +83,47 @@ def uncovered_modules(package: PackageMap) -> tuple[str, ...]:
                 in_scope.append(path.stem)
     claimed = {member for group in _resolved_groups(package) for member in group.members}
     return tuple(name for name in in_scope if name not in claimed)
+
+
+def _scoped_python_paths(package: PackageMap) -> tuple[Path, ...]:
+    paths: list[Path] = []
+    for pattern in package.scope:
+        for path in sorted(package.source_root.glob(pattern)):
+            if path.suffix != ".py" or path.stem == "__init__":
+                continue
+            if "__pycache__" in path.parts or "build" in path.parts:
+                continue
+            if path not in paths:
+                paths.append(path)
+    return tuple(paths)
+
+
+def _is_compatibility_shim(path: Path) -> bool:
+    try:
+        source = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return "activate_compat_module" in source and "_TARGET_MODULE" in source
+
+
+def ambiguous_module_stems(package: PackageMap) -> dict[str, tuple[str, ...]]:
+    """Return duplicate stems that are not one canonical module plus shims."""
+
+    by_stem: dict[str, list[Path]] = {}
+    for path in _scoped_python_paths(package):
+        by_stem.setdefault(path.stem, []).append(path)
+
+    ambiguous: dict[str, tuple[str, ...]] = {}
+    for stem, paths in by_stem.items():
+        if len(paths) < 2:
+            continue
+        canonical = [path for path in paths if not _is_compatibility_shim(path)]
+        if len(canonical) == 1:
+            continue
+        ambiguous[stem] = tuple(
+            path.relative_to(package.source_root).as_posix() for path in paths
+        )
+    return ambiguous
 
 
 def _module_names(source_root: Path, patterns: tuple[str, ...]) -> tuple[str, ...]:
@@ -194,8 +236,8 @@ def render_svg(package: PackageMap) -> str:
     body_w = card_w - 40  # card padding left+right
 
     footer_text = (
-        f"{total} module{'s' if total != 1 else ''} · groups are curated in "
-        "tools/render_package_maps.py; members are read from the package source"
+        f"{total} logical module{'s' if total != 1 else ''} · compatibility shims collapsed · "
+        "groups: tools/render_package_maps.py"
     )
 
     # Size every card to the tallest content in the family so peers keep a
@@ -332,14 +374,14 @@ PACKAGE_MAPS: tuple[PackageMap, ...] = (
                   "AGI facade, CLI, and request shaping."),
             Group("Deployment", ("deployment_*.py", "deployment/*.py"),
                   "Env build, install, and worker venv staging."),
+            Group("Capacity and cleanup", ("background_jobs_support.py", "capacity_support.py",
+                                           "cleanup_support.py"),
+                  "Worker capacity and teardown."),
             Group("Runtime and transport", ("runtime_*.py", "transport_support.py", "scheduler_io_support.py",
                                             "uv_source_support.py", "runtime/*.py"),
                   "Scheduler IO and distribution modes."),
             Group("Service lifecycle", ("service_*.py", "lifecycle_guard_support.py"),
                   "Persistent workers and health gates."),
-            Group("Capacity and cleanup", ("capacity_support.py", "cleanup_support.py",
-                                           "background_jobs_support.py"),
-                  "Worker capacity and teardown."),
         ),
         columns=3,
     ),
@@ -411,6 +453,24 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     output_dir = args.output_dir.expanduser().resolve()
+
+    ambiguities = {
+        package.slug: ambiguous_module_stems(package) for package in PACKAGE_MAPS
+    }
+    ambiguities = {slug: stems for slug, stems in ambiguities.items() if stems}
+    if ambiguities:
+        for slug, stems in ambiguities.items():
+            for stem, paths in stems.items():
+                print(
+                    f"{slug}: ambiguous module stem {stem!r}: {', '.join(paths)}",
+                    file=sys.stderr,
+                )
+        print(
+            "rename the responsibility or mark one duplicate as an explicit "
+            "activate_compat_module shim",
+            file=sys.stderr,
+        )
+        return 1
 
     gaps = {package.slug: uncovered_modules(package) for package in PACKAGE_MAPS}
     gaps = {slug: names for slug, names in gaps.items() if names}

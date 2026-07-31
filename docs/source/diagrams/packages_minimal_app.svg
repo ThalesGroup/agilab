@@ -37,5 +37,5 @@
   <text class="card-note" x="742" y="156">Streamlit form rendered by the PROJECT</text>
   <text class="card-note" x="742" y="176">page.</text>
   <text class="member" x="742" y="200">app_args_form</text>
-  <text class="footer" x="46" y="255">4 modules · groups are curated in tools/render_package_maps.py; members are read from the package source</text>
+  <text class="footer" x="46" y="255">4 logical modules · compatibility shims collapsed · groups: tools/render_package_maps.py</text>
 </svg>
