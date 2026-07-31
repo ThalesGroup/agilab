@@ -16,6 +16,13 @@ cat > "$push_spec_file"
 run_guard_python tools/agent_commit_provenance_guard.py \
   --pre-push-spec "$push_spec_file"
 
+if [[ "${AGILAB_ALLOW_SKIP_CI:-}" == "1" ]]; then
+  echo "[agilab pre-push] AGILAB_ALLOW_SKIP_CI=1; skipping the skip-ci scope guard." >&2
+else
+  run_guard_python tools/skip_ci_scope_guard.py \
+    --pre-push-spec "$push_spec_file"
+fi
+
 guard_state="$(
   run_guard_python tools/pre_push_changed_files.py \
     --pre-push-spec "$push_spec_file"
