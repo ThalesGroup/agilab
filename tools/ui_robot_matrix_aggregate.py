@@ -52,6 +52,31 @@ def _mapping(value: object) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
+def _summary_app_inventory(
+    summary: Mapping[str, Any],
+    *,
+    shard: str,
+) -> tuple[list[str], int, bool, list[str]]:
+    declared_count = _int_value(summary, "app_count")
+    if "apps" not in summary:
+        return [], declared_count, False, []
+
+    raw_apps = summary.get("apps")
+    if not isinstance(raw_apps, list):
+        return [], declared_count, True, [f"{shard}: summary apps must be a list"]
+    parsed_apps = [item.strip() for item in raw_apps if isinstance(item, str) and item.strip()]
+    apps = sorted(set(parsed_apps))
+    errors: list[str] = []
+    if raw_apps != apps:
+        errors.append(f"{shard}: summary apps must be sorted, unique, non-empty strings")
+    if declared_count != len(apps):
+        errors.append(
+            f"{shard}: summary app_count {declared_count} does not match "
+            f"the {len(apps)} listed apps"
+        )
+    return apps, max(declared_count, len(apps)), True, errors
+
+
 def _relative(path: Path, root: Path) -> str:
     try:
         return path.relative_to(root).as_posix()
@@ -251,6 +276,10 @@ def _load_shard_payload(
     screenshot_count: int = 0,
 ) -> dict[str, Any]:
     summary = _load_json(summary_path) if summary_path.is_file() else {}
+    apps, app_count, apps_metadata_present, inventory_errors = _summary_app_inventory(
+        summary,
+        shard=shard,
+    )
     trend_report = _load_json(trend_path) if trend_path.is_file() else {}
     trend_summary = _mapping(trend_report.get("summary"))
     exit_code = exit_code_path.read_text(encoding="utf-8").strip() if exit_code_path.is_file() else ""
@@ -288,6 +317,7 @@ def _load_shard_payload(
         and exit_code == "0"
         and _trend_ok(trend_report)
         and _int_value(summary, "failed_count") == 0
+        and not inventory_errors
     )
     return {
         "name": shard,
@@ -298,7 +328,10 @@ def _load_shard_payload(
         "trend_report_file": _relative(trend_path, root) if trend_path.is_file() else "",
         "exit_code_file": _relative(exit_code_path, root) if exit_code_path.is_file() else "",
         "scenario_count": _int_value(summary, "scenario_count"),
-        "app_count": _int_value(summary, "app_count"),
+        "apps": apps,
+        "app_count": app_count,
+        "apps_metadata_present": apps_metadata_present,
+        "inventory_errors": inventory_errors,
         "page_count": _int_value(summary, "page_count"),
         "widget_count": _int_value(summary, "widget_count"),
         "interacted_count": _int_value(summary, "interacted_count"),
@@ -381,8 +414,16 @@ def _load_shard_from_manifest(
     )
 
 
-def build_aggregate(root: Path, *, expected_shards: Sequence[str] = DEFAULT_EXPECTED_SHARDS) -> dict[str, Any]:
+def build_aggregate(
+    root: Path,
+    *,
+    expected_shards: Sequence[str] = DEFAULT_EXPECTED_SHARDS,
+    expected_apps: Sequence[str] = (),
+) -> dict[str, Any]:
     root = root.resolve(strict=False)
+    expected_app_inventory = sorted(
+        set(str(app).strip() for app in expected_apps if str(app).strip())
+    )
     manifests = discover_shard_manifests(root)
     discovery_mode = "manifest" if manifests else "summary"
     if manifests:
@@ -403,6 +444,37 @@ def build_aggregate(root: Path, *, expected_shards: Sequence[str] = DEFAULT_EXPE
     shards.extend(load_discovered_shard(shard) for shard in extra_shards)
     missing_shards = [shard for shard in expected_shards if shard not in discovered]
     failed_shards = [str(shard["name"]) for shard in shards if shard.get("success") is not True]
+    apps = sorted(
+        {
+            str(app)
+            for shard in shards
+            for app in shard.get("apps", [])
+            if isinstance(app, str) and app
+        }
+    )
+    legacy_app_count = max([_int_value(shard, "app_count") for shard in shards] or [0])
+    missing_apps = sorted(set(expected_app_inventory) - set(apps))
+    unexpected_apps = sorted(set(apps) - set(expected_app_inventory)) if expected_app_inventory else []
+    inventory_errors = [
+        str(error)
+        for shard in shards
+        for error in shard.get("inventory_errors", [])
+        if str(error)
+    ]
+    if expected_app_inventory:
+        inventory_errors.extend(
+            f"{shard['name']}: summary is missing top-level apps inventory"
+            for shard in shards
+            if shard.get("apps_metadata_present") is not True
+        )
+        if missing_apps:
+            inventory_errors.append(
+                "aggregate: expected apps are missing: " + ", ".join(missing_apps)
+            )
+        if unexpected_apps:
+            inventory_errors.append(
+                "aggregate: unexpected apps were reported: " + ", ".join(unexpected_apps)
+            )
     failure_samples = [
         sample
         for shard in shards
@@ -439,14 +511,21 @@ def build_aggregate(root: Path, *, expected_shards: Sequence[str] = DEFAULT_EXPE
     trend["mean_page_duration_seconds"] = (
         float(trend["total_duration_seconds"]) / max(1, int(trend["page_count"]))
     )
-    success = bool(shards) and not missing_shards and not failed_shards and bool(trend["success"])
+    success = (
+        bool(shards)
+        and not missing_shards
+        and not failed_shards
+        and bool(trend["success"])
+        and not inventory_errors
+    )
     summary = {
         "expected_shard_count": len(expected_shards),
         "shard_count": len(shards),
         "missing_shard_count": len(missing_shards),
         "failed_shard_count": len(failed_shards),
         "scenario_count": sum(_int_value(shard, "scenario_count") for shard in shards),
-        "app_count": max([_int_value(shard, "app_count") for shard in shards] or [0]),
+        "apps": apps,
+        "app_count": max(len(apps), legacy_app_count),
         "page_count": sum(_int_value(shard, "page_count") for shard in shards),
         "widget_count": sum(_int_value(shard, "widget_count") for shard in shards),
         "interacted_count": sum(_int_value(shard, "interacted_count") for shard in shards),
@@ -468,9 +547,13 @@ def build_aggregate(root: Path, *, expected_shards: Sequence[str] = DEFAULT_EXPE
         "success": success,
         "root": root.as_posix(),
         "expected_shards": list(expected_shards),
+        "expected_apps": expected_app_inventory,
         "missing_shards": missing_shards,
         "failed_shards": failed_shards,
         "extra_shards": extra_shards,
+        "missing_apps": missing_apps,
+        "unexpected_apps": unexpected_apps,
+        "inventory_errors": inventory_errors,
         "summary": summary,
         "discovery": {
             "mode": discovery_mode,
@@ -495,6 +578,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         "",
         f"- Status: `{status}`",
         f"- Shards: `{summary.get('shard_count', 0)}/{summary.get('expected_shard_count', 0)}`",
+        f"- Apps: `{summary.get('app_count', 0)}`",
         f"- Pages: `{summary.get('page_count', 0)}`",
         f"- Widgets: `{summary.get('widget_count', 0)}`",
         f"- Failed: `{summary.get('failed_count', 0)}`",
@@ -530,6 +614,11 @@ def render_markdown(report: Mapping[str, Any]) -> str:
     missing = report.get("missing_shards") or []
     if missing:
         lines.extend(["", "### Missing Shards", *[f"- `{shard}`" for shard in missing]])
+    inventory_errors = report.get("inventory_errors") or []
+    if inventory_errors:
+        lines.extend(
+            ["", "### App Inventory Errors", *[f"- {error}" for error in inventory_errors]]
+        )
     samples = report.get("failure_samples") or []
     lines.append("")
     lines.append("### Failure Samples")
@@ -570,6 +659,10 @@ def _parse_expected_shards(value: str) -> tuple[str, ...]:
     return shards or DEFAULT_EXPECTED_SHARDS
 
 
+def _parse_expected_apps(value: str) -> tuple[str, ...]:
+    return tuple(sorted(set(item.strip() for item in value.split(",") if item.strip())))
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -578,6 +671,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=REPO_ROOT / "test-results" / "ui-robot-matrix-artifacts",
     )
     parser.add_argument("--expected-shards", default=",".join(DEFAULT_EXPECTED_SHARDS))
+    parser.add_argument("--expected-apps", default="")
     parser.add_argument(
         "--output",
         type=Path,
@@ -610,7 +704,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(manifest, **json_kwargs))
         return 0
 
-    report = build_aggregate(args.root, expected_shards=_parse_expected_shards(args.expected_shards))
+    report = build_aggregate(
+        args.root,
+        expected_shards=_parse_expected_shards(args.expected_shards),
+        expected_apps=_parse_expected_apps(args.expected_apps),
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(report, **json_kwargs) + "\n",

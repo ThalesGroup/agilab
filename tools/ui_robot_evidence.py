@@ -245,13 +245,35 @@ def _relative_to_root(path: Path | None, root: Path) -> str:
         return path.name
 
 
+def _sorted_app_names(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return sorted(
+        {
+            item.strip()
+            for item in value
+            if isinstance(item, str) and item.strip()
+        }
+    )
+
+
+def _exact_app_inventory_valid(raw_apps: Any, raw_app_count: Any) -> bool:
+    canonical_apps = _sorted_app_names(raw_apps)
+    return (
+        isinstance(raw_apps, list)
+        and raw_apps == canonical_apps
+        and type(raw_app_count) is int
+        and raw_app_count == len(canonical_apps)
+    )
+
+
 def _aggregate_summary_as_matrix_summary(report: Mapping[str, Any]) -> dict[str, Any]:
     summary = report.get("summary") if isinstance(report.get("summary"), Mapping) else {}
-    return {
+    projection = {
         "schema": "agilab.widget_robot_matrix.aggregate_projection.v1",
         "success": bool(report.get("success")),
         "scenario_count": _int_value(summary, "scenario_count"),
-        "app_count": _int_value(summary, "app_count"),
+        "app_count": summary.get("app_count"),
         "page_count": _int_value(summary, "page_count"),
         "widget_count": _int_value(summary, "widget_count"),
         "interacted_count": _int_value(summary, "interacted_count"),
@@ -263,14 +285,17 @@ def _aggregate_summary_as_matrix_summary(report: Mapping[str, Any]) -> dict[str,
         "failed_scenarios": list(report.get("failed_scenarios") or []),
         "failure_samples": list(report.get("failure_samples") or []),
     }
+    if "apps" in summary:
+        projection["apps"] = summary.get("apps")
+    return projection
 
 
 def _aggregate_summary_as_scenario_summary(report: Mapping[str, Any]) -> dict[str, Any]:
     summary = report.get("summary") if isinstance(report.get("summary"), Mapping) else {}
     trend = summary.get("trend") if isinstance(summary.get("trend"), Mapping) else {}
-    return {
+    projection = {
         "success": bool(report.get("success")),
-        "app_count": _int_value(summary, "app_count"),
+        "app_count": summary.get("app_count"),
         "page_count": _int_value(summary, "page_count"),
         "widget_count": _int_value(summary, "widget_count"),
         "interacted_count": _int_value(summary, "interacted_count"),
@@ -280,6 +305,9 @@ def _aggregate_summary_as_scenario_summary(report: Mapping[str, Any]) -> dict[st
         "total_duration_seconds": _float_value(summary, "duration_seconds"),
         "within_target": _int_value(trend, "budget_violation_count") == 0,
     }
+    if "apps" in summary:
+        projection["apps"] = summary.get("apps")
+    return projection
 
 
 def _aggregate_summary_as_trend_report(report: Mapping[str, Any]) -> dict[str, Any]:
@@ -409,6 +437,17 @@ def build_evidence(
 ) -> dict[str, Any]:
     failed_count = _int_value(scenario_summary, "failed_count")
     skipped_count = _int_value(scenario_summary, "skipped_count")
+    app_count = scenario_summary.get("app_count")
+    apps_present = "apps" in scenario_summary
+    raw_apps = scenario_summary.get("apps")
+    aggregate_inventory_required = (
+        artifact_checks.get("aggregate_report_schema") == AGGREGATE_REPORT_SCHEMA
+    )
+    app_inventory_valid = (
+        _exact_app_inventory_valid(raw_apps, app_count)
+        if apps_present
+        else not aggregate_inventory_required
+    )
     trend_summary = _trend_summary(trend_report)
     trend_valid = (
         trend_report.get("schema") == TREND_REPORT_SCHEMA
@@ -421,9 +460,39 @@ def build_evidence(
         and scenario_summary.get("success") is True
         and trend_valid
         and failed_count == 0
+        and app_inventory_valid
         and str(artifact_checks.get("exit_code", "")) == "0"
         and not bool(artifact.get("expired"))
     )
+    result = {
+        "status": "pass" if success else "fail",
+        "success": success,
+        "app_count": app_count,
+        "page_count": _int_value(scenario_summary, "page_count"),
+        "widget_count": _int_value(scenario_summary, "widget_count"),
+        "interacted_count": _int_value(scenario_summary, "interacted_count"),
+        "probed_count": _int_value(scenario_summary, "probed_count"),
+        "skipped_count": skipped_count,
+        "failed_count": failed_count,
+        "total_duration_seconds": _float_value(scenario_summary, "total_duration_seconds"),
+        "within_target": bool(scenario_summary.get("within_target")),
+        "failed_scenarios": list(matrix_summary.get("failed_scenarios") or []),
+        "failure_samples": list(matrix_summary.get("failure_samples") or []),
+        "trend": {
+            "schema": str(trend_report.get("schema", "") or ""),
+            "success": bool(trend_report.get("success")),
+            "page_count": _int_value(trend_summary, "page_count"),
+            "failed_page_count": _int_value(trend_summary, "failed_page_count"),
+            "flaky_page_count": _int_value(trend_summary, "flaky_page_count"),
+            "slow_page_count": _int_value(trend_summary, "slow_page_count"),
+            "parse_error_count": _int_value(trend_summary, "parse_error_count"),
+            "budget_violation_count": _int_value(trend_summary, "budget_violation_count"),
+            "total_duration_seconds": _float_value(trend_summary, "total_duration_seconds"),
+            "mean_page_duration_seconds": _float_value(trend_summary, "mean_page_duration_seconds"),
+        },
+    }
+    if apps_present:
+        result["apps"] = raw_apps
     return {
         "schema": SCHEMA,
         "generated_at": generated_at or utc_now_iso(),
@@ -447,33 +516,7 @@ def build_evidence(
             "archive_download_url": str(artifact.get("archive_download_url", "") or ""),
             **dict(artifact_checks),
         },
-        "result": {
-            "status": "pass" if success else "fail",
-            "success": success,
-            "app_count": _int_value(scenario_summary, "app_count"),
-            "page_count": _int_value(scenario_summary, "page_count"),
-            "widget_count": _int_value(scenario_summary, "widget_count"),
-            "interacted_count": _int_value(scenario_summary, "interacted_count"),
-            "probed_count": _int_value(scenario_summary, "probed_count"),
-            "skipped_count": skipped_count,
-            "failed_count": failed_count,
-            "total_duration_seconds": _float_value(scenario_summary, "total_duration_seconds"),
-            "within_target": bool(scenario_summary.get("within_target")),
-            "failed_scenarios": list(matrix_summary.get("failed_scenarios") or []),
-            "failure_samples": list(matrix_summary.get("failure_samples") or []),
-            "trend": {
-                "schema": str(trend_report.get("schema", "") or ""),
-                "success": bool(trend_report.get("success")),
-                "page_count": _int_value(trend_summary, "page_count"),
-                "failed_page_count": _int_value(trend_summary, "failed_page_count"),
-                "flaky_page_count": _int_value(trend_summary, "flaky_page_count"),
-                "slow_page_count": _int_value(trend_summary, "slow_page_count"),
-                "parse_error_count": _int_value(trend_summary, "parse_error_count"),
-                "budget_violation_count": _int_value(trend_summary, "budget_violation_count"),
-                "total_duration_seconds": _float_value(trend_summary, "total_duration_seconds"),
-                "mean_page_duration_seconds": _float_value(trend_summary, "mean_page_duration_seconds"),
-            },
-        },
+        "result": result,
     }
 
 
@@ -486,6 +529,19 @@ def validate_evidence(evidence: Mapping[str, Any]) -> list[dict[str, Any]]:
     artifact = evidence.get("artifact") if isinstance(evidence.get("artifact"), Mapping) else {}
     result = evidence.get("result") if isinstance(evidence.get("result"), Mapping) else {}
     trend = result.get("trend") if isinstance(result.get("trend"), Mapping) else {}
+    aggregate_inventory_required = (
+        artifact.get("aggregate_report_schema") == AGGREGATE_REPORT_SCHEMA
+    )
+    raw_apps = result.get("apps")
+    apps = _sorted_app_names(raw_apps)
+    exact_app_inventory_present = isinstance(raw_apps, list) and raw_apps == apps
+    app_count_matches = type(result.get("app_count")) is int and result.get(
+        "app_count"
+    ) == len(apps)
+    legacy_count_only = not aggregate_inventory_required and "apps" not in result
+    app_inventory_valid = legacy_count_only or (
+        exact_app_inventory_present and app_count_matches
+    )
     checks = [
         {
             "id": "schema",
@@ -539,6 +595,22 @@ def validate_evidence(evidence: Mapping[str, Any]) -> list[dict[str, Any]]:
                 else "fail"
             ),
             "summary": "UI robot trend report is present, valid, parse-error free, and within health budgets",
+        },
+        {
+            "id": "app_inventory",
+            "status": "pass" if app_inventory_valid else "fail",
+            "summary": (
+                "legacy v1 evidence predates exact app inventory; count-only compatibility applies"
+                if legacy_count_only
+                else "evidence app_count matches its sorted, unique exact app inventory"
+            ),
+            "details": {
+                "aggregate_inventory_required": aggregate_inventory_required,
+                "legacy_count_only": legacy_count_only,
+                "app_count": result.get("app_count"),
+                "apps": raw_apps,
+                "canonical_apps": apps,
+            },
         },
         {
             "id": "robot_result",

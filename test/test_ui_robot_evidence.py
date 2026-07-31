@@ -11,6 +11,18 @@ import pytest
 
 
 MODULE_PATH = Path("tools/ui_robot_evidence.py").resolve()
+AGGREGATE_APPS = [
+    "data_quality_gate_project",
+    "execution_pandas_project",
+    "execution_polars_project",
+    "flight_telemetry_project",
+    "minimal_app_project",
+    "mission_decision_project",
+    "multi_app_dag_project",
+    "pytorch_playground_project",
+    "r_runtime_bridge_project",
+    "sklearn_pipeline_project",
+]
 
 
 def _load_module():
@@ -111,6 +123,7 @@ def _aggregate_report() -> dict[str, object]:
             "missing_shard_count": 0,
             "failed_shard_count": 0,
             "scenario_count": 16,
+            "apps": AGGREGATE_APPS,
             "app_count": 10,
             "page_count": 60,
             "widget_count": 900,
@@ -479,7 +492,191 @@ def test_load_aggregate_artifact_payloads_and_build_evidence_contract(tmp_path: 
     assert artifact_checks["aggregate_report_schema"] == module.AGGREGATE_REPORT_SCHEMA
     assert artifact_checks["screenshot_count"] == 42
     assert evidence["result"]["status"] == "pass"
+    assert evidence["result"]["apps"] == AGGREGATE_APPS
+    assert evidence["result"]["app_count"] == len(AGGREGATE_APPS)
     assert evidence["result"]["page_count"] == 60
+
+
+def test_aggregate_evidence_rejects_app_count_that_differs_from_exact_inventory(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    artifact_root = _write_aggregate_artifact_payloads(tmp_path)
+    aggregate_report = _aggregate_report()
+    aggregate_report["summary"] = {
+        **aggregate_report["summary"],
+        "app_count": len(AGGREGATE_APPS) + 1,
+    }
+    (artifact_root / "aggregate.json").write_text(
+        json.dumps(aggregate_report),
+        encoding="utf-8",
+    )
+
+    matrix_summary, scenario_summary, trend_report, artifact_checks = (
+        module.load_artifact_payloads(tmp_path)
+    )
+    evidence = module.build_evidence(
+        run=_successful_run(),
+        artifact={**_artifact(), "name": "ui-robot-matrix-aggregate-1"},
+        matrix_summary=matrix_summary,
+        scenario_summary=scenario_summary,
+        trend_report=trend_report,
+        artifact_checks=artifact_checks,
+        generated_at="2026-05-08T20:30:00Z",
+    )
+    report = module.build_report(evidence)
+
+    assert evidence["result"]["apps"] == AGGREGATE_APPS
+    assert evidence["result"]["status"] == "fail"
+    assert "app_inventory" in {
+        check["id"] for check in report["checks"] if check["status"] == "fail"
+    }
+
+
+@pytest.mark.parametrize(
+    "raw_apps",
+    [
+        ["flight_telemetry_project", "data_quality_gate_project"],
+        ["data_quality_gate_project", "data_quality_gate_project"],
+        ["data_quality_gate_project", 7],
+        [" data_quality_gate_project"],
+        "data_quality_gate_project",
+        None,
+    ],
+)
+def test_aggregate_evidence_preserves_and_rejects_malformed_raw_app_inventory(
+    tmp_path: Path,
+    raw_apps: object,
+) -> None:
+    module = _load_module()
+    artifact_root = _write_aggregate_artifact_payloads(tmp_path)
+    aggregate_report = _aggregate_report()
+    aggregate_report["summary"] = {
+        **aggregate_report["summary"],
+        "apps": raw_apps,
+        "app_count": len(raw_apps) if isinstance(raw_apps, list) else 1,
+    }
+    (artifact_root / "aggregate.json").write_text(
+        json.dumps(aggregate_report),
+        encoding="utf-8",
+    )
+
+    matrix_summary, scenario_summary, trend_report, artifact_checks = (
+        module.load_artifact_payloads(tmp_path)
+    )
+    evidence = module.build_evidence(
+        run=_successful_run(),
+        artifact={**_artifact(), "name": "ui-robot-matrix-aggregate-1"},
+        matrix_summary=matrix_summary,
+        scenario_summary=scenario_summary,
+        trend_report=trend_report,
+        artifact_checks=artifact_checks,
+        generated_at="2026-05-08T20:30:00Z",
+    )
+    inventory_check = next(
+        check for check in module.validate_evidence(evidence)
+        if check["id"] == "app_inventory"
+    )
+
+    assert matrix_summary["apps"] == raw_apps
+    assert scenario_summary["apps"] == raw_apps
+    assert evidence["result"]["apps"] == raw_apps
+    assert evidence["result"]["status"] == "fail"
+    assert inventory_check["status"] == "fail"
+    assert inventory_check["details"]["apps"] == raw_apps
+
+
+@pytest.mark.parametrize("raw_app_count", [str(len(AGGREGATE_APPS)), True])
+def test_aggregate_evidence_preserves_and_rejects_non_integer_raw_app_count(
+    tmp_path: Path,
+    raw_app_count: object,
+) -> None:
+    module = _load_module()
+    artifact_root = _write_aggregate_artifact_payloads(tmp_path)
+    aggregate_report = _aggregate_report()
+    aggregate_report["summary"] = {
+        **aggregate_report["summary"],
+        "app_count": raw_app_count,
+    }
+    (artifact_root / "aggregate.json").write_text(
+        json.dumps(aggregate_report),
+        encoding="utf-8",
+    )
+
+    matrix_summary, scenario_summary, trend_report, artifact_checks = (
+        module.load_artifact_payloads(tmp_path)
+    )
+    evidence = module.build_evidence(
+        run=_successful_run(),
+        artifact={**_artifact(), "name": "ui-robot-matrix-aggregate-1"},
+        matrix_summary=matrix_summary,
+        scenario_summary=scenario_summary,
+        trend_report=trend_report,
+        artifact_checks=artifact_checks,
+        generated_at="2026-05-08T20:30:00Z",
+    )
+    inventory_check = next(
+        check for check in module.validate_evidence(evidence)
+        if check["id"] == "app_inventory"
+    )
+
+    assert matrix_summary["app_count"] == raw_app_count
+    assert scenario_summary["app_count"] == raw_app_count
+    assert evidence["result"]["app_count"] == raw_app_count
+    assert evidence["result"]["status"] == "fail"
+    assert inventory_check["status"] == "fail"
+
+
+def test_aggregate_evidence_requires_the_exact_app_inventory_even_when_empty(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    artifact_root = _write_aggregate_artifact_payloads(tmp_path)
+    aggregate_report = _aggregate_report()
+    summary = dict(aggregate_report["summary"])
+    summary.pop("apps")
+    summary["app_count"] = 0
+    aggregate_report["summary"] = summary
+    (artifact_root / "aggregate.json").write_text(
+        json.dumps(aggregate_report),
+        encoding="utf-8",
+    )
+
+    matrix_summary, scenario_summary, trend_report, artifact_checks = (
+        module.load_artifact_payloads(tmp_path)
+    )
+    evidence = module.build_evidence(
+        run=_successful_run(),
+        artifact={**_artifact(), "name": "ui-robot-matrix-aggregate-1"},
+        matrix_summary=matrix_summary,
+        scenario_summary=scenario_summary,
+        trend_report=trend_report,
+        artifact_checks=artifact_checks,
+        generated_at="2026-05-08T20:30:00Z",
+    )
+
+    inventory_check = next(
+        check for check in module.validate_evidence(evidence)
+        if check["id"] == "app_inventory"
+    )
+    assert "apps" not in evidence["result"]
+    assert evidence["result"]["status"] == "fail"
+    assert inventory_check["status"] == "fail"
+    assert inventory_check["details"]["aggregate_inventory_required"] is True
+
+
+def test_checked_historical_v1_evidence_remains_explicit_count_only_baseline() -> None:
+    module = _load_module()
+    evidence = module.load_evidence(Path("docs/source/data/ui_robot_evidence.json"))
+
+    inventory_check = next(
+        check for check in module.validate_evidence(evidence)
+        if check["id"] == "app_inventory"
+    )
+
+    assert inventory_check["status"] == "pass"
+    assert inventory_check["details"]["legacy_count_only"] is True
+    assert "count-only compatibility" in inventory_check["summary"]
 
 
 def test_load_aggregate_artifact_payloads_defaults_missing_exit_code_from_success(tmp_path: Path) -> None:

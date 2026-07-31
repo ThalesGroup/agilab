@@ -26,44 +26,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  plan_ui_robot_matrix:
+    name: ui-robot-matrix plan
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      expected_shards: ${{ steps.plan.outputs.expected_shards }}
+      expected_apps: ${{ steps.plan.outputs.expected_apps }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+
+      - name: Plan bounded UI robot shards
+        id: plan
+        env:
+          INPUT_APPS: ${{ github.event.inputs.apps }}
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/ui-robot-matrix-plan
+          python3 tools/ui_robot_matrix_plan.py \
+            --apps "${INPUT_APPS:-all}" \
+            --output test-results/ui-robot-matrix-plan/plan.json \
+            --github-output \
+            --compact \
+            | tee test-results/ui-robot-matrix-plan/plan.txt
+
   ui-robot-matrix:
-    name: ui-robot-matrix (${{ matrix.shard }})
+    name: ui-robot-matrix (${{ matrix.shard }}, ~${{ matrix.estimated_pages }} pages)
+    needs: plan_ui_robot_matrix
     runs-on: ubuntu-latest
     timeout-minutes: 50
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - shard: core
-            scenarios: >-
-              isolated-core-pages
-              isolated-entry-and-app-pages
-              isolated-project-page
-              isolated-project-editor-page
-              isolated-project-notebook-import
-              isolated-project-import-sidebar
-              isolated-project-rename-sidebar
-              isolated-settings-page
-              isolated-all-builtins-orchestrate-smoke
-              isolated-execution-pandas-orchestrate-pool-executor
-              isolated-all-builtins-core-render-smoke
-          - shard: state
-            scenarios: >-
-              isolated-fresh-session-core-pages
-              isolated-browser-history
-          - shard: quality
-            scenarios: >-
-              isolated-browser-error-core-pages
-              isolated-pytorch-playground-analysis
-              isolated-release-evidence
-              isolated-above-fold-core-pages
-              isolated-keyboard-focus-core-pages
-              isolated-accessibility-core-pages
-          - shard: layout
-            scenarios: >-
-              isolated-layout-integrity-desktop
-              isolated-mobile-core-pages
-              isolated-layout-integrity-mobile
+      matrix: ${{ fromJSON(needs.plan_ui_robot_matrix.outputs.matrix) }}
     env:
       AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
       OPENAI_API_KEY: "sk-test-ui-robot-000000000000"
@@ -106,7 +106,7 @@ jobs:
           uv --preview-features extra-build-dependencies run --with "playwright==${{ steps.playwright-version.outputs.version }}" python -m playwright install --with-deps chromium
 
       - name: Save Playwright browser cache
-        if: steps.playwright-cache.outputs.cache-hit != 'true' && matrix.shard == 'core'
+        if: steps.playwright-cache.outputs.cache-hit != 'true' && matrix.shard == 'core-01'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/ms-playwright
@@ -114,9 +114,9 @@ jobs:
 
       - name: Run UI robot matrix shard
         env:
-          INPUT_APPS: ${{ github.event.inputs.apps }}
           INPUT_TIMEOUT: ${{ github.event.inputs.timeout }}
           INPUT_WIDGET_TIMEOUT: ${{ github.event.inputs.widget_timeout }}
+          ROBOT_APPS: ${{ matrix.apps }}
           ROBOT_SCENARIOS: ${{ matrix.scenarios }}
           ROBOT_SHARD: ${{ matrix.shard }}
         run: |
@@ -131,7 +131,7 @@ jobs:
             "${failure_artifact_dir}/traces" \
             "${failure_artifact_dir}/har" \
             "${failure_artifact_dir}/video"
-          robot_apps="${INPUT_APPS:-all}"
+          robot_apps="${ROBOT_APPS}"
           robot_timeout="${INPUT_TIMEOUT:-90}"
           robot_widget_timeout="${INPUT_WIDGET_TIMEOUT:-3}"
           scenario_args=()
@@ -304,7 +304,9 @@ jobs:
   aggregate-ui-robot-matrix:
     name: ui-robot-matrix aggregate
     runs-on: ubuntu-latest
-    needs: ui-robot-matrix
+    needs:
+      - plan_ui_robot_matrix
+      - ui-robot-matrix
     if: always()
     steps:
       - name: Checkout
@@ -328,12 +330,20 @@ jobs:
           path: test-results/ui-robot-matrix-artifacts
 
       - name: Aggregate UI robot matrix shards
+        env:
+          EXPECTED_APPS: ${{ needs.plan_ui_robot_matrix.outputs.expected_apps }}
+          EXPECTED_SHARDS: ${{ needs.plan_ui_robot_matrix.outputs.expected_shards }}
         run: |
+          if [ -z "${EXPECTED_APPS}" ] || [ -z "${EXPECTED_SHARDS}" ]; then
+            echo "UI robot matrix plan outputs are missing" >&2
+            exit 2
+          fi
           set +e
           mkdir -p test-results/ui-robot-matrix-aggregate
           uv --preview-features extra-build-dependencies run python tools/ui_robot_matrix_aggregate.py \
             --root test-results/ui-robot-matrix-artifacts \
-            --expected-shards core,state,quality,layout \
+            --expected-shards "${EXPECTED_SHARDS}" \
+            --expected-apps "${EXPECTED_APPS}" \
             --output test-results/ui-robot-matrix-aggregate/aggregate.json \
             --summary-markdown test-results/ui-robot-matrix-aggregate/summary.md \
             | tee test-results/ui-robot-matrix-aggregate/aggregate.txt

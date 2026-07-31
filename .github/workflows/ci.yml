@@ -191,6 +191,18 @@ jobs:
           set -euo pipefail
           uv --preview-features extra-build-dependencies run --with "playwright==${{ steps.playwright-version.outputs.version }}" python -m playwright install --with-deps chromium
 
+      - name: Validate widget layout visibility collector
+        env:
+          AGILAB_REQUIRE_PLAYWRIGHT_LAYOUT_REGRESSION: "1"
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run \
+            --extra dev \
+            --extra ui \
+            --with "playwright==${{ steps.playwright-version.outputs.version }}" \
+            python -m pytest -q -o addopts='' \
+            test/test_agilab_widget_robot.py::test_layout_integrity_collector_uses_painted_geometry_for_expander_content
+
       - name: Save Playwright browser cache
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5

@@ -1625,6 +1625,8 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
                     "probed_count": 2,
                     "skipped_count": 0,
                     "failed_count": 0,
+                    "apps": ["flight_telemetry_project"],
+                    "pages": [{"app": "flight_telemetry_project"}],
                 }
             ),
             encoding="utf-8",
@@ -1657,12 +1659,153 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
     ]
     assert summary["success"] is True
     assert summary["scenario_count"] == 13
+    assert summary["app_count"] == 1
+    assert summary["apps"] == ["flight_telemetry_project"]
     assert summary["page_count"] == 26
     assert summary["widget_count"] == 65
     assert summary["interacted_count"] == 39
     assert summary["probed_count"] == 26
     assert summary["failed_scenarios"] == []
     assert summary["failure_samples"] == []
+
+
+def test_summarize_matrix_preserves_complete_app_inventory_with_focused_override(tmp_path) -> None:
+    module = _load_module()
+    app_names = [
+        "data_quality_gate_project",
+        "execution_pandas_project",
+        "execution_polars_project",
+        "flight_telemetry_project",
+        "minimal_app_project",
+        "mission_decision_project",
+        "multi_app_dag_project",
+        "pytorch_playground_project",
+        "r_runtime_bridge_project",
+        "sklearn_pipeline_project",
+        "tescia_diagnostic_project",
+        "uav_queue_project",
+        "uav_relay_queue_project",
+        "weather_forecast_project",
+    ]
+
+    def _result(scenario_name: str, summary: dict) -> module.ScenarioResult:
+        scenario = module.ALL_SCENARIOS[scenario_name]
+        return module.ScenarioResult(
+            scenario=scenario,
+            argv=["robot"],
+            returncode=0,
+            duration_seconds=1.0,
+            summary_path=tmp_path / f"{scenario_name}.json",
+            progress_path=tmp_path / f"{scenario_name}.ndjson",
+            summary={
+                "success": True,
+                "page_count": len(summary["pages"]),
+                "widget_count": 0,
+                "interacted_count": 0,
+                "probed_count": 0,
+                "skipped_count": 0,
+                "failed_count": 0,
+                **summary,
+            },
+            output="",
+        )
+
+    all_apps = _result(
+        "isolated-all-builtins-core-render-smoke",
+        {
+            "app_count": len(app_names),
+            "apps": app_names,
+            "pages": [{"app": app_name} for app_name in reversed(app_names)],
+        },
+    )
+    focused = _result(
+        "isolated-pytorch-playground-analysis",
+        {
+            "app_count": 1,
+            "apps": ["pytorch_playground_project"],
+            "pages": [{"app": "pytorch_playground_project"}],
+        },
+    )
+
+    summary = module.summarize_matrix([all_apps, focused])
+
+    assert summary["success"] is True
+    assert summary["app_count"] == 14
+    assert summary["apps"] == app_names
+    assert summary["inventory_errors"] == []
+    assert summary["scenarios"][0]["app_count"] == 14
+    assert summary["scenarios"][0]["apps"] == app_names
+    assert summary["scenarios"][1]["app_count"] == 1
+    assert summary["scenarios"][1]["apps"] == ["pytorch_playground_project"]
+
+    other_focused = _result(
+        "isolated-execution-pandas-orchestrate-pool-executor",
+        {
+            "app_count": 1,
+            "apps": ["execution_pandas_project"],
+            "pages": [{"app": "execution_pandas_project"}],
+        },
+    )
+    focused_summary = module.summarize_matrix([focused, other_focused])
+
+    assert focused_summary["app_count"] == 2
+    assert focused_summary["apps"] == [
+        "execution_pandas_project",
+        "pytorch_playground_project",
+    ]
+
+
+def test_summarize_matrix_fails_closed_on_malformed_exact_app_inventory(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.ALL_SCENARIOS["isolated-core-pages"]
+    cases = [
+        (
+            ["weather_forecast_project", "flight_telemetry_project"],
+            2,
+            "sorted, unique",
+        ),
+        (
+            ["flight_telemetry_project", "flight_telemetry_project"],
+            2,
+            "sorted, unique",
+        ),
+        (["flight_telemetry_project", 7], 2, "non-empty strings"),
+        ("flight_telemetry_project", 1, "must be a list"),
+        (["flight_telemetry_project"], "1", "must be an integer"),
+        (["flight_telemetry_project"], True, "must be an integer"),
+        (["flight_telemetry_project"], 2, "does not match"),
+    ]
+
+    for index, (raw_apps, raw_count, expected_error) in enumerate(cases):
+        result = module.ScenarioResult(
+            scenario=scenario,
+            argv=["robot"],
+            returncode=0,
+            duration_seconds=1.0,
+            summary_path=tmp_path / f"summary-{index}.json",
+            progress_path=tmp_path / f"progress-{index}.ndjson",
+            summary={
+                "success": True,
+                "app_count": raw_count,
+                "apps": raw_apps,
+                "page_count": 1,
+                "widget_count": 0,
+                "interacted_count": 0,
+                "probed_count": 0,
+                "skipped_count": 0,
+                "failed_count": 0,
+            },
+            output="",
+        )
+
+        summary = module.summarize_matrix([result])
+
+        assert summary["success"] is False
+        assert summary["failed_scenarios"] == [scenario.name]
+        assert any(expected_error in error for error in summary["inventory_errors"])
+        assert summary["scenarios"][0]["success"] is False
+        assert summary["scenarios"][0]["apps"] == raw_apps
+        assert summary["scenarios"][0]["app_count"] == raw_count
 
 
 def test_run_matrix_reuses_cached_successful_scenario(tmp_path, monkeypatch) -> None:

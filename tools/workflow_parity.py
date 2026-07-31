@@ -54,52 +54,6 @@ AGI_GUI_COVERAGE_CHUNKS = (
 )
 AGI_GUI_COVERAGE_MANIFEST_SCHEMA = "agilab.workflow_parity.agi_gui_coverage_chunk.v1"
 AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS = 120.0
-UI_ROBOT_MATRIX_SHARDS = (
-    (
-        "core",
-        (
-            "isolated-core-pages",
-            "isolated-entry-and-app-pages",
-            "isolated-project-page",
-            "isolated-project-editor-page",
-            "isolated-project-notebook-import",
-            "isolated-project-import-sidebar",
-            "isolated-project-rename-sidebar",
-            "isolated-settings-page",
-            "isolated-all-builtins-orchestrate-smoke",
-            "isolated-execution-pandas-orchestrate-pool-executor",
-            "isolated-all-builtins-core-render-smoke",
-        ),
-    ),
-    (
-        "state",
-        (
-            "isolated-fresh-session-core-pages",
-            "isolated-browser-history",
-        ),
-    ),
-    (
-        "quality",
-        (
-            "isolated-browser-error-core-pages",
-            "isolated-pytorch-playground-analysis",
-            "isolated-release-evidence",
-            "isolated-above-fold-core-pages",
-            "isolated-keyboard-focus-core-pages",
-            "isolated-accessibility-core-pages",
-        ),
-    ),
-    (
-        "layout",
-        (
-            "isolated-layout-integrity-desktop",
-            "isolated-mobile-core-pages",
-            "isolated-layout-integrity-mobile",
-        ),
-    ),
-)
-
-
 def _coverage_shard_plan_module():
     module_path = REPO_ROOT / "tools" / "coverage_shard_plan.py"
     spec = importlib.util.spec_from_file_location(
@@ -107,6 +61,19 @@ def _coverage_shard_plan_module():
     )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load coverage shard planner from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _ui_robot_matrix_plan_module():
+    module_path = REPO_ROOT / "tools" / "ui_robot_matrix_plan.py"
+    spec = importlib.util.spec_from_file_location(
+        "agilab_ui_robot_matrix_plan", module_path
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load UI robot matrix planner from {module_path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -1711,7 +1678,10 @@ def _cloud_emulators_profile() -> list[CommandSpec]:
 
 def _ui_robot_matrix_profile() -> list[CommandSpec]:
     commands: list[CommandSpec] = []
-    for shard, scenarios in UI_ROBOT_MATRIX_SHARDS:
+    plan = _ui_robot_matrix_plan_module().build_plan()
+    for row in plan["matrix"]["include"]:
+        shard = str(row["shard"])
+        scenarios = str(row["scenarios"]).split()
         result_dir = f"test-results/ui-robot-matrix/{shard}"
         screenshot_dir = f"screenshots/ui-robot-matrix/{shard}"
         argv = [
@@ -1731,7 +1701,7 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
         argv.extend(
             [
                 "--apps",
-                "all",
+                str(row["apps"]),
                 "--timeout",
                 "90",
                 "--widget-timeout",

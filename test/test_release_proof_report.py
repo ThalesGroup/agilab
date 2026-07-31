@@ -397,6 +397,7 @@ def test_release_proof_ui_robot_evidence_check_validates_github_run(
 ) -> None:
     module = _load_module()
     ui_robot_evidence = module._load_ui_robot_evidence_module()
+    apps = [f"app_{index}_project" for index in range(10)]
     run = {
         "attempt": 1,
         "conclusion": "success",
@@ -427,6 +428,7 @@ def test_release_proof_ui_robot_evidence_check_validates_github_run(
         },
         scenario_summary={
             "success": True,
+            "apps": apps,
             "app_count": 10,
             "page_count": 30,
             "widget_count": 532,
@@ -467,10 +469,18 @@ def test_release_proof_ui_robot_evidence_check_validates_github_run(
         return run
 
     monkeypatch.setattr(module, "_run_gh_json", fake_gh_json)
+    monkeypatch.setattr(
+        module,
+        "_local_release_apps",
+        lambda _repo_root, _release_ref: apps,
+    )
 
     check = module._ui_robot_evidence_check(
         evidence_path,
-        release={"github_release_commit": "abc123"},
+        release={
+            "github_release_commit": "abc123",
+            "github_release_tag": "v2099.01.01",
+        },
         ui_robot={"mode": "release", "expected_app_count": 10},
         repo_root=Path.cwd(),
         github_repo="ThalesGroup/agilab",
@@ -480,6 +490,117 @@ def test_release_proof_ui_robot_evidence_check_validates_github_run(
     assert check["status"] == "pass"
     assert check["details"]["run_id"] == "25577485125"
     assert check["details"]["failed_count"] == 0
+    assert check["details"]["local_release_apps"] == apps
+
+
+def test_release_proof_ui_robot_release_mode_requires_exact_local_tag_inventory(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    evidence = json.loads(
+        Path("docs/source/data/ui_robot_evidence.json").read_text(encoding="utf-8")
+    )
+    evidence["source"]["head_sha"] = "release-commit"
+    evidence["result"]["apps"] = ["alpha_project", "beta_project"]
+    evidence["result"]["app_count"] = 2
+    evidence_path = tmp_path / "ui_robot_evidence.json"
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    monkeypatch.setattr(
+        module,
+        "_local_release_apps",
+        lambda _repo_root, _release_ref: ["alpha_project", "beta_project"],
+    )
+
+    matching = module._ui_robot_evidence_check(
+        evidence_path,
+        release={
+            "github_release_commit": "release-commit",
+            "github_release_tag": "v2099.01.01",
+        },
+        ui_robot={"mode": "release", "expected_app_count": 2},
+        repo_root=tmp_path,
+        github_repo=None,
+        check_github_runs=False,
+    )
+
+    assert matching["status"] == "pass"
+    assert matching["details"]["represents_release"] is True
+    assert matching["details"]["exact_app_inventory_matches"] is True
+
+    monkeypatch.setattr(
+        module,
+        "_local_release_apps",
+        lambda _repo_root, _release_ref: ["alpha_project", "gamma_project"],
+    )
+    mismatching = module._ui_robot_evidence_check(
+        evidence_path,
+        release={
+            "github_release_commit": "release-commit",
+            "github_release_tag": "v2099.01.01",
+        },
+        ui_robot={"mode": "release", "expected_app_count": 2},
+        repo_root=tmp_path,
+        github_repo=None,
+        check_github_runs=False,
+    )
+
+    assert mismatching["status"] == "fail"
+    assert mismatching["details"]["represents_release"] is False
+    assert "release tag inventory" in " ".join(mismatching["details"]["failures"])
+
+    monkeypatch.setattr(
+        module,
+        "_local_release_apps",
+        lambda _repo_root, _release_ref: None,
+    )
+    unavailable = module._ui_robot_evidence_check(
+        evidence_path,
+        release={
+            "github_release_commit": "release-commit",
+            "github_release_tag": "v2099.01.01",
+        },
+        ui_robot={"mode": "release", "expected_app_count": 2},
+        repo_root=tmp_path,
+        github_repo=None,
+        check_github_runs=False,
+    )
+
+    assert unavailable["status"] == "fail"
+    assert unavailable["details"]["represents_release"] is False
+    assert "inventory is unavailable" in " ".join(
+        unavailable["details"]["failures"]
+    )
+
+    historical_unavailable = module._ui_robot_evidence_check(
+        evidence_path,
+        release={
+            "github_release_commit": "release-commit",
+            "github_release_tag": "v2099.01.01",
+        },
+        ui_robot={"mode": "historical", "expected_app_count": 2},
+        repo_root=tmp_path,
+        github_repo=None,
+        check_github_runs=False,
+    )
+
+    assert historical_unavailable["status"] == "pass"
+    assert historical_unavailable["details"]["represents_release"] is False
+
+
+def test_local_release_apps_filters_and_sorts_project_directories(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(
+        module,
+        "_run_git",
+        lambda _repo_root, _args: "zeta_project\nREADME\nalpha_project\n",
+    )
+
+    assert module._local_release_apps(Path.cwd(), "v2099.01.01") == [
+        "alpha_project",
+        "zeta_project",
+    ]
+    assert module._local_release_app_count(Path.cwd(), "v2099.01.01") == 2
 
 
 def test_release_proof_ui_robot_historical_mode_is_not_release_proof() -> None:
@@ -522,6 +643,7 @@ def test_release_proof_ui_robot_historical_mode_is_not_release_proof() -> None:
     failures = " ".join(release_check["details"]["failures"])
     assert "head SHA" in failures
     assert "app_count" in failures
+    assert "exact app inventory" in failures
 
 
 def test_release_proof_renderer_fails_unknown_template_key(tmp_path: Path) -> None:

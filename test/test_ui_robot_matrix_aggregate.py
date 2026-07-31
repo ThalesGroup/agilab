@@ -35,41 +35,48 @@ def _write_shard(
     failed_count: int = 0,
     exit_code: str = "0",
     retry_artifacts: bool = False,
+    apps: list[str] | None = None,
+    app_count: int | None = None,
 ) -> Path:
     shard_root = _shard_result_dir(root, shard)
     shard_root.mkdir(parents=True)
-    (shard_root / "summary.json").write_text(
-        json.dumps(
-            {
-                "schema": "agilab.widget_robot_matrix.v1",
-                "success": success,
-                "scenario_count": 2,
-                "app_count": 3,
-                "page_count": 4,
-                "widget_count": 10,
-                "interacted_count": 6,
-                "probed_count": 4,
-                "skipped_count": 0,
-                "failed_count": failed_count,
-                "cached_count": 1,
-                "failure_artifact_retry_count": 1 if retry_artifacts else 0,
-                "failure_artifact_retry_passed_count": 0,
-                "duration_seconds": 12.5,
-                "failed_scenarios": [f"{shard}-scenario"] if failed_count else [],
-                "failure_samples": [
-                    {
-                        "scenario": f"{shard}-scenario",
-                        "app": "flight_telemetry_project",
-                        "page": "ORCHESTRATE",
-                        "kind": "button",
-                        "label": "Run",
-                        "detail": "failed",
-                    }
-                ]
-                if failed_count
-                else [],
-            }
+    summary = {
+        "schema": "agilab.widget_robot_matrix.v1",
+        "success": success,
+        "scenario_count": 2,
+        "app_count": (
+            app_count
+            if app_count is not None
+            else (len(apps) if apps is not None else 3)
         ),
+        "page_count": 4,
+        "widget_count": 10,
+        "interacted_count": 6,
+        "probed_count": 4,
+        "skipped_count": 0,
+        "failed_count": failed_count,
+        "cached_count": 1,
+        "failure_artifact_retry_count": 1 if retry_artifacts else 0,
+        "failure_artifact_retry_passed_count": 0,
+        "duration_seconds": 12.5,
+        "failed_scenarios": [f"{shard}-scenario"] if failed_count else [],
+        "failure_samples": [
+            {
+                "scenario": f"{shard}-scenario",
+                "app": "flight_telemetry_project",
+                "page": "ORCHESTRATE",
+                "kind": "button",
+                "label": "Run",
+                "detail": "failed",
+            }
+        ]
+        if failed_count
+        else [],
+    }
+    if apps is not None:
+        summary["apps"] = apps
+    (shard_root / "summary.json").write_text(
+        json.dumps(summary),
         encoding="utf-8",
     )
     (shard_root / "trend-report.json").write_text(
@@ -154,6 +161,88 @@ def test_build_aggregate_summarizes_all_shards(tmp_path: Path) -> None:
     assert report["summary"]["failure_artifact_retry_count"] == 0
     assert report["summary"]["trend"]["failed_page_count"] == 0
     assert "| core | PASS |" in markdown
+
+
+def test_build_aggregate_unions_partitioned_app_inventory(tmp_path: Path) -> None:
+    module = _load_module()
+    _write_shard(
+        tmp_path,
+        "core-01",
+        apps=["data_quality_gate_project", "execution_pandas_project"],
+    )
+    _write_shard(
+        tmp_path,
+        "core-02",
+        apps=["flight_telemetry_project"],
+    )
+
+    report = module.build_aggregate(
+        tmp_path,
+        expected_shards=("core-01", "core-02"),
+        expected_apps=(
+            "data_quality_gate_project",
+            "execution_pandas_project",
+            "flight_telemetry_project",
+        ),
+    )
+
+    assert report["success"] is True
+    assert report["expected_apps"] == [
+        "data_quality_gate_project",
+        "execution_pandas_project",
+        "flight_telemetry_project",
+    ]
+    assert report["summary"]["apps"] == report["expected_apps"]
+    assert report["summary"]["app_count"] == 3
+    assert report["missing_apps"] == []
+    assert report["unexpected_apps"] == []
+    assert report["inventory_errors"] == []
+
+
+def test_build_aggregate_fails_closed_on_malformed_shard_inventory(tmp_path: Path) -> None:
+    module = _load_module()
+    _write_shard(
+        tmp_path,
+        "core-01",
+        apps=["flight_telemetry_project", "data_quality_gate_project"],
+        app_count=3,
+    )
+
+    report = module.build_aggregate(
+        tmp_path,
+        expected_shards=("core-01",),
+        expected_apps=("data_quality_gate_project", "flight_telemetry_project"),
+    )
+
+    assert report["success"] is False
+    assert report["failed_shards"] == ["core-01"]
+    assert report["summary"]["apps"] == [
+        "data_quality_gate_project",
+        "flight_telemetry_project",
+    ]
+    assert report["summary"]["app_count"] == 3
+    assert any("sorted, unique" in error for error in report["inventory_errors"])
+    assert any("app_count 3" in error for error in report["inventory_errors"])
+
+
+def test_build_aggregate_fails_when_expected_inventory_is_unproven(tmp_path: Path) -> None:
+    module = _load_module()
+    _write_shard(tmp_path, "core-01", apps=["data_quality_gate_project"])
+    _write_shard(tmp_path, "state-01")
+
+    report = module.build_aggregate(
+        tmp_path,
+        expected_shards=("core-01", "state-01"),
+        expected_apps=("data_quality_gate_project", "flight_telemetry_project"),
+    )
+    markdown = module.render_markdown(report)
+
+    assert report["success"] is False
+    assert report["missing_apps"] == ["flight_telemetry_project"]
+    assert report["unexpected_apps"] == []
+    assert any("state-01: summary is missing" in error for error in report["inventory_errors"])
+    assert any("expected apps are missing" in error for error in report["inventory_errors"])
+    assert "### App Inventory Errors" in markdown
 
 
 def test_build_aggregate_includes_extra_shards_after_expected_shards(tmp_path: Path) -> None:
@@ -575,6 +664,7 @@ def test_parse_expected_shards_uses_default_for_empty_input() -> None:
     module = _load_module()
 
     assert module._parse_expected_shards(" ,, ") == module.DEFAULT_EXPECTED_SHARDS
+    assert module._parse_expected_apps(" beta,alpha,beta ") == ("alpha", "beta")
 
 
 def test_module_entrypoint_writes_compact_aggregate(tmp_path: Path, monkeypatch, capsys) -> None:

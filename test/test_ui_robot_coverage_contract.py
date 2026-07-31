@@ -58,7 +58,13 @@ def test_ui_robot_coverage_contract_passes_for_current_matrix() -> None:
         "uav_queue_project",
         "uav_relay_queue_project",
     ]
-    assert payload["coverage"]["public_demo_contract"]["ui_apps_covered_by"] == "ui-robot-matrix --apps all"
+    assert (
+        payload["coverage"]["public_demo_contract"]["ui_apps_covered_by"]
+        == "ui-robot-matrix explicit --apps"
+    )
+    assert payload["coverage"]["ui_robot_matrix_profile_apps"] == payload["coverage"][
+        "built_in_apps"
+    ]
     assert payload["coverage"]["public_demo_contract"]["apps_pages"] == [
         "view_maps",
         "view_forecast_analysis",
