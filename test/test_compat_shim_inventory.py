@@ -28,6 +28,37 @@ def test_compat_shim_inventory_is_capped() -> None:
     assert inventory["files"] == sorted(inventory["files"])
 
 
+def test_prose_about_shims_is_not_counted_as_a_shim(tmp_path: Path) -> None:
+    """Documentation may say "compatibility shim" without becoming one.
+
+    Regression: a docstring in tools/render_package_maps.py explaining that it
+    collapses compatibility shims was itself counted, pushing the inventory one
+    over its cap and turning main red.
+    """
+
+    prose = tmp_path / "renderer.py"
+    prose.write_text(
+        '"""Render maps.\n\n'
+        "Members are read from the filesystem. Compatibility shims are collapsed\n"
+        'into their canonical module responsibility.\n"""\n',
+        encoding="utf-8",
+    )
+    assert not compat_shim_inventory.is_compat_shim(prose)
+
+
+def test_real_shim_banners_are_still_detected(tmp_path: Path) -> None:
+    for index, body in enumerate(
+        (
+            '"""Compatibility shim for agi_env.legacy."""\n',
+            '"""Legacy entrypoint.\n\nCompatibility shim retained for downstream imports.\n"""\n',
+            "# Compatibility import for the classified layout\n",
+        )
+    ):
+        path = tmp_path / f"shim_{index}.py"
+        path.write_text(body, encoding="utf-8")
+        assert compat_shim_inventory.is_compat_shim(path), body
+
+
 def test_compat_shim_inventory_cli_fails_on_growth() -> None:
     inventory = compat_shim_inventory.build_inventory()
 

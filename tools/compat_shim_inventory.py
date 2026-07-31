@@ -39,11 +39,28 @@ def _tracked_python_files(repo_root: Path) -> list[Path]:
 
 
 def is_compat_shim(path: Path) -> bool:
+    """Detect a real compatibility shim by its leading banner line.
+
+    A shim announces itself: its docstring or header *starts* a line with
+    "Compatibility shim"/"Compatibility import". Matching the phrase anywhere
+    in the first twelve lines also caught prose that merely discusses shims —
+    tools/render_package_maps.py tripped the cap that way and turned main red
+    with a file that is a renderer, not a shim. Anchoring to the start of a
+    line keeps every real shim detected while letting documentation say the
+    words.
+    """
+
     try:
         prefix = path.read_text(encoding="utf-8").splitlines()[:12]
     except UnicodeDecodeError:
         return False
-    return any(marker in "\n".join(prefix) for marker in SHIM_MARKERS)
+    for line in prefix:
+        # Strip docstring quotes and comment markers so a banner still matches
+        # whether it opens a docstring, follows one, or sits in a comment.
+        stripped = line.strip().lstrip("\"'# ")
+        if any(stripped.startswith(marker) for marker in SHIM_MARKERS):
+            return True
+    return False
 
 
 def _area_for(path: Path, repo_root: Path) -> str:
