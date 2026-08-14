@@ -53,6 +53,37 @@ def test_build_streamlit_command_uses_source_ui_and_active_app() -> None:
     assert str(module.DEFAULT_APPS_PATH) in command
 
 
+def test_build_streamlit_command_includes_external_app_dependencies(tmp_path: Path) -> None:
+    module = _load_module()
+    external_app = tmp_path / "external_project"
+    external_app.mkdir()
+    (external_app / "pyproject.toml").write_text("[project]\nname = 'external-project'\nversion = '0.1.0'\n")
+
+    command = module.build_streamlit_command(
+        active_app=external_app,
+        apps_path=module.DEFAULT_APPS_PATH,
+        port=8899,
+    )
+
+    assert command[6:14] == [
+        "--with", str(external_app.resolve()),
+        "--with", str(module.LOCAL_CORE_PROJECTS[0]),
+        "--with", str(module.LOCAL_CORE_PROJECTS[1]),
+        "--with", str(module.LOCAL_CORE_PROJECTS[2]),
+    ]
+
+
+def test_startup_health_timeout_allows_cold_external_project(tmp_path: Path) -> None:
+    module = _load_module()
+    external_app = tmp_path / "external_project"
+    external_app.mkdir()
+    (external_app / "pyproject.toml").write_text("[project]\nname = 'external-project'\nversion = '0.1.0'\n")
+
+    assert module.startup_health_timeout(external_app, 120.0) == 300.0
+    assert module.startup_health_timeout(external_app, 600.0) == 600.0
+    assert module.startup_health_timeout(module.DEFAULT_ACTIVE_APP, 120.0) == 120.0
+
+
 def test_web_robot_entrypoint_help_exits_before_launch(monkeypatch, capsys) -> None:
     src_root = str(MODULE_PATH.parents[1] / "src")
     monkeypatch.setattr(sys, "path", [path for path in sys.path if path != src_root])

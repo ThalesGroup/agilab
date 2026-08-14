@@ -2466,6 +2466,7 @@ def test_build_seeded_server_env_isolates_home_and_share_paths(tmp_path) -> None
     )
 
     assert seeded.env["HOME"] == str(tmp_path / "home")
+    assert seeded.env["UV_CACHE_DIR"] == "/real-home/.cache/uv"
     assert seeded.env["AGI_EXPORT_DIR"] == str(tmp_path / "export")
     assert seeded.env["AGI_LOCAL_SHARE"] == str(tmp_path / "localshare")
     assert seeded.env["AGI_CLUSTER_ENABLED"] == "0"
@@ -2492,9 +2493,36 @@ def test_build_seeded_server_env_can_use_current_home_runtime(tmp_path, monkeypa
     )
 
     assert seeded.env["HOME"] == str(fake_home)
+    assert seeded.env["UV_CACHE_DIR"] == "/real-home/.cache/uv"
     assert "AGI_LOCAL_SHARE" not in seeded.env
     assert seeded.share_root == fake_home / "localshare"
     assert seeded.env["AGI_CLUSTER_ENABLED"] == "0"
+
+
+def test_external_app_cache_guard_rejects_isolated_uv_cache(tmp_path) -> None:
+    module = _load_module()
+    external_app = tmp_path / "external_project"
+    external_app.mkdir()
+    (external_app / "pyproject.toml").write_text("[project]\nname = 'external-project'\nversion = '0.1.0'\n")
+    isolated_home = tmp_path / "runtime" / "home"
+
+    class _WebRobot:
+        @staticmethod
+        def is_external_app_project(active_app):
+            return Path(active_app) == external_app
+
+    assert module.external_app_cache_guard_detail(
+        _WebRobot(),
+        active_app=external_app,
+        server_env={"UV_CACHE_DIR": str(tmp_path / "shared-uv-cache")},
+        isolated_home=isolated_home,
+    ) is None
+    assert "rebuild for every page" in module.external_app_cache_guard_detail(
+        _WebRobot(),
+        active_app=external_app,
+        server_env={"UV_CACHE_DIR": str(isolated_home / ".cache" / "uv")},
+        isolated_home=isolated_home,
+    )
 
 
 def test_build_orchestrate_artifact_context_uses_agilab_env_file(tmp_path) -> None:

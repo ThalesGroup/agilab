@@ -119,6 +119,12 @@ UV_RUN_STREAMLIT = (
     "ui",
     "streamlit",
 )
+LOCAL_CORE_PROJECTS = (
+    REPO_ROOT / "src/agilab/core/agi-env",
+    REPO_ROOT / "src/agilab/core/agi-node",
+    REPO_ROOT / "src/agilab/core/agi-cluster",
+)
+EXTERNAL_APP_STARTUP_TIMEOUT_SECONDS = 300.0
 DEV_SCOPE_COMMAND = ("./dev", "scope")
 
 
@@ -414,6 +420,26 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
 
 
+def is_external_app_project(active_app: Path | str) -> bool:
+    """Return whether ``active_app`` is an app project outside built-in apps."""
+
+    app_path = Path(active_app).expanduser()
+    builtin_apps_root = (DEFAULT_APPS_PATH / "builtin").resolve()
+    return (
+        app_path.is_dir()
+        and (app_path / "pyproject.toml").is_file()
+        and not app_path.resolve().is_relative_to(builtin_apps_root)
+    )
+
+
+def startup_health_timeout(active_app: Path | str, requested_timeout: float) -> float:
+    """Allow a cold external project's declared dependencies time to resolve."""
+
+    if is_external_app_project(active_app):
+        return max(requested_timeout, EXTERNAL_APP_STARTUP_TIMEOUT_SECONDS)
+    return requested_timeout
+
+
 def build_streamlit_command(
     *,
     active_app: Path | str,
@@ -421,8 +447,22 @@ def build_streamlit_command(
     port: int,
 ) -> list[str]:
     about_page = REPO_ROOT / "src/agilab/main_page.py"
+    app_path = Path(active_app).expanduser()
+    external_app = is_external_app_project(app_path)
+    uv_run = list(UV_RUN_STREAMLIT)
+    if external_app:
+        # An external app is not part of the AGILAB source project's dependency
+        # graph.  Include its project metadata so Streamlit renders with the
+        # dependencies declared by that app rather than failing at import time.
+        streamlit_index = uv_run.index("streamlit")
+        requirements = [app_path.resolve(), *LOCAL_CORE_PROJECTS]
+        uv_run[streamlit_index:streamlit_index] = [
+            item
+            for requirement in requirements
+            for item in ("--with", str(requirement))
+        ]
     return [
-        *UV_RUN_STREAMLIT,
+        *uv_run,
         "run",
         str(about_page),
         "--server.address",

@@ -2007,6 +2007,12 @@ def build_seeded_server_env(
     runtime_isolation: str = "isolated",
 ) -> SeededRuntime:
     env = web_robot.build_server_env()
+    # Runtime isolation deliberately changes HOME so app data, shares, and
+    # settings cannot leak between robot pages.  uv also derives its cache
+    # from HOME, however; changing it would rebuild every external app's
+    # dependency environment for every page.  Pin the cache before isolating
+    # HOME: cached wheels/build artifacts are not application runtime state.
+    env.setdefault("UV_CACHE_DIR", str(Path(env.get("HOME") or Path.home()) / ".cache" / "uv"))
     if runtime_isolation == "current-home":
         home_root = Path.home()
         export_root = Path(env.get("AGI_EXPORT_DIR") or home_root / "export")
@@ -2037,6 +2043,29 @@ def build_seeded_server_env(
     if seed_demo_artifacts:
         seed_public_demo_artifacts(app_name, export_root=export_root, share_root=share_root)
     return SeededRuntime(env, home_root, export_root, share_root, cluster_share_root)
+
+
+def external_app_cache_guard_detail(
+    web_robot: Any,
+    *,
+    active_app: Path | str,
+    server_env: Mapping[str, str],
+    isolated_home: Path,
+) -> str | None:
+    """Detect an external-app launch that would rebuild dependencies per page."""
+
+    if not web_robot.is_external_app_project(active_app):
+        return None
+    cache_value = server_env.get("UV_CACHE_DIR")
+    if not cache_value:
+        return "external app robot launch has no UV_CACHE_DIR; dependency resolution would be isolated per page"
+    cache_dir = Path(cache_value).expanduser().resolve()
+    if cache_dir.is_relative_to(isolated_home.resolve()):
+        return (
+            "external app robot launch isolates UV_CACHE_DIR under its temporary HOME; "
+            "dependency resolution would rebuild for every page"
+        )
+    return None
 
 
 def _any_visible_locator(locator: Any, *, timeout_ms: float = 100.0, limit: int = 8) -> bool:
@@ -6634,8 +6663,38 @@ def sweep_app(  # pragma: no cover - live browser path
             seed_demo_artifacts=seed_demo_artifacts,
             runtime_isolation=runtime_isolation,
         )
+        if runtime_isolation == "isolated":
+            cache_guard = external_app_cache_guard_detail(
+                web_robot,
+                active_app=local_active_app,
+                server_env=seeded_runtime.env,
+                isolated_home=seeded_runtime.home_root,
+            )
+            if cache_guard:
+                result = PageSweep(
+                    app_name,
+                    "SERVER",
+                    False,
+                    0.0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    base_url,
+                    [WidgetProbe(app_name, "SERVER", "dependency_cache", "", "failed", cache_guard, base_url)],
+                    [],
+                    status="failed",
+                )
+                _emit_page_result(result, progress=progress, on_page_result=on_page_result)
+                return [result]
+            if web_robot.is_external_app_project(local_active_app) and progress is not None:
+                progress.emit("external_app_dependency_cache", app=app_name, status="shared")
         with web_robot.StreamlitServer(command, env=seeded_runtime.env, url=base_url) as server:
-            health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
+            health = web_robot.wait_for_streamlit_health(
+                base_url,
+                timeout=web_robot.startup_health_timeout(local_active_app, timeout),
+            )
             if not health.success:
                 detail = _streamlit_health_failure_detail(health, server, base_url=base_url)
                 result = PageSweep(
