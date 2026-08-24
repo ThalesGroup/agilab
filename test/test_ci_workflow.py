@@ -308,6 +308,7 @@ def test_root_test_suite_runs_canonical_isolated_plan_on_every_change() -> None:
     assert "paths:" not in text
     assert "lfs: true" in checkout
     assert "--extra ui" in text
+    assert "--extra ai" in text
     assert "--extra notebook" in text
     assert "python -m tools.testing.root_test_runner" in text
     assert "known-failures" not in text
@@ -606,3 +607,19 @@ def test_dev_extra_installs_ruff_for_local_linting() -> None:
     # Exact version bounds belong to dependency-policy tests. This contract only
     # requires the local lint tool to remain present exactly once.
     assert len(ruff_dependencies) == 1
+
+def test_openai_extras_install_explicit_secure_transport_dependency() -> None:
+    pyproject = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
+
+    for extra in ("ai", "agents"):
+        dependencies = pyproject["project"]["optional-dependencies"][extra]
+        httpx_dependencies = [
+            dependency
+            for dependency in dependencies
+            if dependency.startswith("httpx>=")
+        ]
+
+        # OpenAI v3 no longer installs legacy HTTPX, while AGILAB deliberately
+        # injects its pinned no-redirect HTTPX transport into the SDK.
+        assert httpx_dependencies == ["httpx>=0.28.1,<0.29"]
+
