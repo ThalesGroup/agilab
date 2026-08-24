@@ -52,5 +52,6 @@ jobs:
           set -euo pipefail
           uv --preview-features extra-build-dependencies run \
             --extra ui \
+            --extra ai \
             --extra notebook \
             python -m tools.testing.root_test_runner
