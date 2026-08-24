@@ -665,6 +665,25 @@ def test_windows_capacity_model_owner_error_allows_verified_owner_rights_write_d
     assert error is None
 
 
+def test_windows_capacity_model_owner_error_rejects_owner_rights_for_untrusted_owner(
+    tmp_path,
+):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+
+    error = runtime_misc_support._windows_capacity_model_owner_error(
+        model_path,
+        identities_fn=lambda _path: (
+            "S-1-5-21-2000",
+            ("S-1-5-21-1000",),
+            "DOMAIN\\other",
+        ),
+        acl_grants_fn=lambda _path: (("S-1-3-4", 0x10000000),),
+    )
+
+    assert error == "model file is owned by DOMAIN\\other, not the current Windows token"
+
+
 def test_windows_capacity_model_owner_error_fails_closed_on_dacl_lookup_error(
     tmp_path,
 ):
