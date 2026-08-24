@@ -37,6 +37,9 @@ _WINDOWS_PRIVILEGED_TRUSTED_SIDS = frozenset(
         "s-1-5-32-544",  # BUILTIN\\Administrators, privileged local root group
     }
 )
+# OWNER RIGHTS is a special principal representing the object's current owner.
+# Trust it only after the owner SID has matched the current process token.
+_WINDOWS_OWNER_RIGHTS_SID = "s-1-3-4"
 # File/directory write rights, DELETE, WRITE_DAC, WRITE_OWNER, MAXIMUM_ALLOWED,
 # GENERIC_ALL, and GENERIC_WRITE. These values are stable Win32 ACCESS_MASK bits
 # and intentionally avoid importing pywin32 on non-Windows platforms.
@@ -538,7 +541,9 @@ def _windows_capacity_model_owner_error(
         return f"{label} is owned by {owner}, not the current Windows token"
     return _windows_capacity_model_dacl_error(
         model_path,
-        trusted_sids=tuple(normalized_trusted_sids),
+        trusted_sids=tuple(
+            normalized_trusted_sids | {_WINDOWS_OWNER_RIGHTS_SID}
+        ),
         grants_fn=acl_grants_fn,
         label=label,
     )
