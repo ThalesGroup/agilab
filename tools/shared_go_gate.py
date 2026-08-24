@@ -9,24 +9,17 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+try:
+    from tools.profile_supply_chain_scan import DEFAULT_PROFILES
+except ModuleNotFoundError:  # Direct execution via ``python tools/...``.
+    from profile_supply_chain_scan import DEFAULT_PROFILES
 
 SCHEMA = "agilab.shared_go_gate.v1"
 DEFAULT_SECURITY_CHECK = Path("test-results/security-check.json")
 DEFAULT_SUPPLY_CHAIN_DIR = Path("test-results/supply-chain")
 DEFAULT_OUTPUT = Path("test-results/shared_go_gate.json")
 DEFAULT_MAX_AGE_DAYS = 30
-INSTALL_PROFILES = (
-    "base",
-    "ui",
-    "pages",
-    "ai",
-    "agents",
-    "examples",
-    "mlflow",
-    "local-llm",
-    "offline",
-    "dev",
-)
+INSTALL_PROFILES = DEFAULT_PROFILES
 
 
 def _utc_now() -> datetime:

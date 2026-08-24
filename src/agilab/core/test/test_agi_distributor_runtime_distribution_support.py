@@ -94,11 +94,44 @@ def _reset_agi_runtime_distribution_state():
             setattr(AGI, field, value)
 
 
-def test_dask_env_prefix_and_scale_cluster_trim_workers():
+@pytest.mark.parametrize(
+    ("configured_level", "expected_level"),
+    [
+        ("critical", "CRITICAL"),
+        ("Error", "ERROR"),
+        (" warning ", "WARNING"),
+        ("INFO", "INFO"),
+        ("Debug", "DEBUG"),
+        ("notset", "NOTSET"),
+    ],
+)
+def test_dask_env_prefix_normalizes_standard_levels(configured_level, expected_level):
+    AGI._dask_log_level = configured_level
+    assert runtime_distribution_support.dask_env_prefix(AGI) == (
+        f"DASK_DISTRIBUTED__LOGGING__distributed={expected_level} "
+    )
+
+
+@pytest.mark.parametrize(
+    "configured_level",
+    [
+        "critical; touch /tmp/agilab-injected",
+        "critical\nprintf injected",
+        "$(touch /tmp/agilab-injected)",
+        "INFO with spaces",
+        "INFO'quoted",
+        'INFO"quoted',
+    ],
+)
+def test_dask_env_prefix_rejects_shell_control_input(configured_level):
+    AGI._dask_log_level = configured_level
+    with pytest.raises(ValueError, match="AGI_DASK_LOG_LEVEL must be one of"):
+        runtime_distribution_support.dask_env_prefix(AGI)
+
+
+def test_dask_env_prefix_empty_and_scale_cluster_trim_workers():
     AGI._dask_log_level = ""
     assert runtime_distribution_support.dask_env_prefix(AGI) == ""
-    AGI._dask_log_level = "INFO"
-    assert "DASK_DISTRIBUTED__LOGGING__distributed=INFO" in runtime_distribution_support.dask_env_prefix(AGI)
 
     AGI._workers = {"10.0.0.1": 1}
     AGI._dask_workers = ["10.0.0.1:1001", "10.0.0.1:1002", "10.0.0.2:1001"]

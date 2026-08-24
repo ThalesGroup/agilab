@@ -836,6 +836,8 @@ async def test_prepare_cluster_env_uses_powershell_installer_before_continuing(t
     assert any("install.ps1" in cmd for _ip, cmd in remote_cmds)
     assert not any("curl -LsSf https://astral.sh/uv/install.sh | sh" in cmd for _ip, cmd in remote_cmds)
     assert not any("irm https://astral.sh/uv/install.ps1 | iex" in cmd for _ip, cmd in remote_cmds)
+    assert any("Get-FileHash -Algorithm SHA256" in cmd for _ip, cmd in remote_cmds)
+    assert any(deployment_prepare_support.UV_INSTALLER_PS1_SHA256 in cmd for _ip, cmd in remote_cmds)
 
 
 @pytest.mark.asyncio
@@ -1187,7 +1189,9 @@ async def test_prepare_cluster_env_fallback_installer_and_no_download(tmp_path):
     assert "install.ps1" in joined
     assert "install.sh | sh" not in joined
     assert "irm https://astral.sh/uv/install.ps1 | iex" not in joined
-    assert "curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh -o" in joined
+    assert deployment_prepare_support.UV_INSTALLER_SH_URL in joined
+    assert deployment_prepare_support.UV_INSTALLER_SH_SHA256 in joined
+    assert "sha256sum" in joined
     assert 'sh "$tmp"' in joined
     assert any("python install 3.13" in cmd for _, cmd in cmds)
     assert any(item[2] == "wenv" for item in sent)

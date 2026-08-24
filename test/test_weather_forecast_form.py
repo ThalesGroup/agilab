@@ -6,7 +6,8 @@ from types import SimpleNamespace
 from streamlit.testing.v1 import AppTest
 
 
-APP_FORM = "src/agilab/apps/builtin/weather_forecast_project/src/app_args_form.py"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+APP_FORM = str(REPO_ROOT / "src/agilab/apps/builtin/weather_forecast_project/src/app_args_form.py")
 
 
 def _make_env(tmp_path: Path) -> SimpleNamespace:

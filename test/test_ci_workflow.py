@@ -258,6 +258,10 @@ def test_ci_security_hygiene_uses_required_supply_chain_artifacts() -> None:
     assert "--run" in scan_step
     assert "--pip-audit-json test-results/supply-chain/base/pip-audit.json" in security_step
     assert "--sbom-json test-results/supply-chain/base/sbom-cyclonedx.json" in security_step
+    assert (
+        "--scan-requirements test-results/supply-chain/base/requirements.txt"
+        in security_step
+    )
     assert "--require-scan-artifacts" in security_step
     assert text.index("Generate base supply-chain evidence") < text.index(
         "Validate security hygiene report"

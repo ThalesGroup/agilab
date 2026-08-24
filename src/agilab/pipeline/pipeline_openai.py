@@ -7,6 +7,10 @@ import streamlit as st
 
 from agi_env.defaults import get_default_openai_model
 from agi_env.runtime.env_config_support import update_env_file_text
+from agilab.security.llm_endpoint_policy import (
+    build_no_redirect_http_client,
+    validate_llm_endpoint,
+)
 
 _ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -60,13 +64,12 @@ def persist_env_var(name: str, value: str) -> None:
 def prompt_for_openai_api_key(message: str) -> None:
     """Prompt for a missing OpenAI API key and optionally persist it."""
     st.warning(message)
-    default_value = st.session_state.get("openai_api_key", "")
     with st.form("experiment_missing_openai_api_key"):
         new_key = st.text_input(
             "OpenAI API key",
-            value=default_value,
+            value="",
             type="password",
-            help="Paste a valid OpenAI API token.",
+            help="Paste a valid OpenAI API token. Existing credentials are never displayed.",
         )
         save_profile = st.checkbox(
             "Save to ~/.agilab/.env",
@@ -103,8 +106,13 @@ def prompt_for_openai_api_key(message: str) -> None:
     st.stop()
 
 
-def make_openai_client_and_model(envars: Dict[str, str], api_key: str):
-    """Return (client, model_name, is_azure) for OpenAI, Azure OpenAI, or proxies."""
+def make_openai_client_and_model(
+    envars: Dict[str, str],
+    api_key: str,
+    *,
+    include_http_client: bool = False,
+):
+    """Return an OpenAI client and optionally its owned secure HTTP transport."""
     base_url = (
         envars.get("OPENAI_BASE_URL")
         or os.getenv("OPENAI_BASE_URL")
@@ -129,6 +137,8 @@ def make_openai_client_and_model(envars: Dict[str, str], api_key: str):
     is_azure = bool(azure_endpoint) or bool(os.getenv("OPENAI_API_TYPE") == "azure") or bool(
         os.getenv("AZURE_OPENAI_API_KEY")
     )
+    endpoint = (azure_endpoint or base_url) if is_azure else (base_url or "https://api.openai.com/v1")
+    validate_llm_endpoint(endpoint, envars=envars)
 
     try:
         import openai
@@ -143,39 +153,63 @@ def make_openai_client_and_model(envars: Dict[str, str], api_key: str):
     except ImportError:
         OpenAIClient = getattr(openai, "OpenAI", None)
 
-    if is_azure:
+    secure_http_client = build_no_redirect_http_client(endpoint, envars=envars)
+
+    def _result(client: Any, selected_model: str, azure: bool):
+        result = (client, selected_model, azure)
+        if include_http_client:
+            return (*result, secure_http_client)
+        return result
+
+    try:
+        if is_azure:
+            try:
+                from openai import AzureOpenAI
+            except ImportError:
+                AzureOpenAI = None
+
+            if AzureOpenAI is not None:
+                client = AzureOpenAI(
+                    api_key=api_key,
+                    azure_endpoint=azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT"),
+                    api_version=azure_version,
+                    http_client=secure_http_client,
+                )
+                model_name = (
+                    os.getenv("AZURE_OPENAI_DEPLOYMENT")
+                    or envars.get("AZURE_OPENAI_DEPLOYMENT")
+                    or model_name
+                )
+                return _result(client, model_name, True)
+
+            if OpenAIClient:
+                client = OpenAIClient(
+                    api_key=api_key,
+                    base_url=base_url or None,
+                    http_client=secure_http_client,
+                )
+                return _result(client, model_name, True)
+
+        elif OpenAIClient:
+            client_kwargs: Dict[str, Any] = {
+                "api_key": api_key,
+                "http_client": secure_http_client,
+            }
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            client = OpenAIClient(**client_kwargs)
+            return _result(client, model_name, False)
+
+        raise RuntimeError(
+            "Secure OpenAI endpoint handling requires a modern OpenAI client with redirect controls. "
+            "Upgrade the optional AI dependency."
+        )
+    except BaseException:
         try:
-            from openai import AzureOpenAI
-        except ImportError:
-            AzureOpenAI = None
-
-        if AzureOpenAI is not None:
-            client = AzureOpenAI(
-                api_key=api_key,
-                azure_endpoint=azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT"),
-                api_version=azure_version,
-            )
-            model_name = (
-                os.getenv("AZURE_OPENAI_DEPLOYMENT")
-                or envars.get("AZURE_OPENAI_DEPLOYMENT")
-                or model_name
-            )
-            return client, model_name, True
-
-        client = OpenAIClient(api_key=api_key, base_url=base_url or None) if OpenAIClient else None
-        return client, model_name, True
-
-    if OpenAIClient:
-        client_kwargs: Dict[str, Any] = {"api_key": api_key}
-        if base_url:
-            client_kwargs["base_url"] = base_url
-        client = OpenAIClient(**client_kwargs)
-        return client, model_name, False
-
-    openai.api_key = api_key
-    if base_url:
-        openai.api_base = base_url
-    return openai, model_name, False
+            secure_http_client.close()
+        except Exception:
+            pass
+        raise
 
 
 def ensure_cached_api_key(

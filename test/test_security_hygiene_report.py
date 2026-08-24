@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -64,6 +65,7 @@ def test_security_hygiene_report_passes_static_contract(tmp_path: Path) -> None:
     assert checks["pypi_trusted_publishing_only"]["status"] == "pass"
     assert checks["codecov_uploads_are_blocking_gates"]["status"] == "pass"
     assert checks["local_secret_storage_is_developer_only"]["status"] == "pass"
+    assert checks["tracked_source_secret_patterns_absent"]["status"] == "pass"
     assert checks["release_evidence_scope_is_bounded"]["status"] == "pass"
     assert checks["adoption_profile_go_no_go_documented"]["status"] == "pass"
     assert checks["security_release_process_documented"]["status"] == "pass"
@@ -127,9 +129,20 @@ def test_security_hygiene_artifact_parsers_cover_supported_shapes(tmp_path: Path
 
     assert module._read_toml_artifact(invalid_toml)[0] is None
     assert module._pip_audit_vulnerability_count(None) is None
-    assert module._pip_audit_vulnerability_count({"vulnerabilities": [{}, {}]}) == 2
-    assert module._pip_audit_vulnerability_count([{"name": "a", "vulns": [{}]}]) == 1
+    valid_vulnerability = {
+        "id": "GHSA-test-test-test",
+        "fix_versions": ["2.0"],
+        "aliases": ["CVE-2099-0001"],
+        "description": "synthetic vulnerability",
+    }
+    assert module._pip_audit_vulnerability_count(
+        [{"name": "a", "version": "1.0", "vulns": [valid_vulnerability]}]
+    ) == 1
     assert module._pip_audit_vulnerability_count({"unexpected": []}) is None
+    assert module._pip_audit_vulnerability_count({"dependencies": [{}]}) is None
+    assert module._pip_audit_vulnerability_count(
+        {"dependencies": [{"name": "a", "version": "1.0", "vulns": "not-a-list"}]}
+    ) is None
     assert module._component_count({"components": [{}, {}]}) == 2
     assert module._component_count([]) is None
 
@@ -202,11 +215,52 @@ def test_security_hygiene_static_checks_report_missing_or_unsafe_files(tmp_path:
     ][0]
 
 
+def test_tracked_source_secret_scan_rejects_mapbox_tokens_and_allows_marked_synthetic_tests(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "test").mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    synthetic = "sk." + "SYNTHETIC_TEST_TOKEN_1234567890"
+    (repo / "test" / "fixture.py").write_text(
+        f'TOKEN = "{synthetic}"  # {module.SYNTHETIC_SECRET_ALLOW_MARKER}\n',
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "-C", str(repo), "add", "test/fixture.py"], check=True)
+
+    allowed = module._tracked_source_secret_pattern_check(repo)
+
+    assert allowed["status"] == "pass"
+    assert allowed["details"]["allowed_synthetic_matches"] == [
+        "test/fixture.py:1:mapbox_secret_token"
+    ]
+
+    token = "sk." + ("A" * 32)
+    (repo / "src" / "config.py").write_text(f'TOKEN = "{token}"\n', encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "src/config.py"], check=True)
+
+    rejected = module._tracked_source_secret_pattern_check(repo)
+
+    assert rejected["status"] == "fail"
+    assert rejected["details"]["matches"] == ["src/config.py:1:mapbox_secret_token"]
+    assert token not in json.dumps(rejected)
+
+
 def test_security_hygiene_report_accepts_scan_artifacts(tmp_path: Path) -> None:
     module = _load_module()
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text(
+        "Agilab==1.0\n"
+        "-e .\n"
+        'ignored-package==9.0 ; python_version < "1"\n'
+        '-e ./inactive ; python_version < "1"\n',
+        encoding="utf-8",
+    )
     pip_audit = tmp_path / "pip-audit.json"
     pip_audit.write_text(
-        json.dumps({"dependencies": [{"name": "agilab", "vulns": []}]}),
+        json.dumps({"dependencies": [{"name": "agilab", "version": "1.0", "vulns": []}]}),
         encoding="utf-8",
     )
     sbom = tmp_path / "sbom-cyclonedx.json"
@@ -214,7 +268,48 @@ def test_security_hygiene_report_accepts_scan_artifacts(tmp_path: Path) -> None:
         json.dumps(
             {
                 "bomFormat": "CycloneDX",
-                "components": [{"name": "agilab", "type": "library"}],
+                "components": [
+                    {
+                        "name": "agilab",
+                        "version": "1.0",
+                        "type": "library",
+                        "purl": "pkg:pypi/agilab@1.0",
+                    },
+                    {
+                        "name": "ignored-package",
+                        "version": "9.0",
+                        "type": "library",
+                        "purl": "pkg:pypi/ignored-package@9.0",
+                    },
+                    {
+                        "bom-ref": "requirements-L2",
+                        "description": "requirements line 2: -e .",
+                        "name": "unknown",
+                        "type": "library",
+                        "externalReferences": [
+                            {
+                                "type": "other",
+                                "url": ".",
+                                "comment": "explicit local path",
+                            }
+                        ],
+                    },
+                    {
+                        "bom-ref": "requirements-L4",
+                        "description": (
+                            'requirements line 4: -e ./inactive ; python_version < "1"'
+                        ),
+                        "name": "unknown",
+                        "type": "library",
+                        "externalReferences": [
+                            {
+                                "type": "other",
+                                "url": "./inactive",
+                                "comment": "explicit local path",
+                            }
+                        ],
+                    },
+                ],
             }
         ),
         encoding="utf-8",
@@ -224,6 +319,7 @@ def test_security_hygiene_report_accepts_scan_artifacts(tmp_path: Path) -> None:
         repo_root=Path.cwd(),
         pip_audit_json=pip_audit,
         sbom_json=sbom,
+        scan_requirements=requirements,
         require_scan_artifacts=True,
     )
 
@@ -237,8 +333,10 @@ def test_security_hygiene_report_accepts_scan_artifacts(tmp_path: Path) -> None:
     assert checks["pip_audit_artifact_valid"]["details"]["provided"] is True
     assert checks["pip_audit_artifact_valid"]["details"]["required"] is True
     assert checks["pip_audit_artifact_valid"]["details"]["vulnerability_count"] == 0
+    assert checks["pip_audit_artifact_valid"]["details"]["expected_dependency_count"] == 1
     assert checks["sbom_artifact_valid"]["status"] == "pass"
-    assert checks["sbom_artifact_valid"]["details"]["component_count"] == 1
+    assert checks["sbom_artifact_valid"]["details"]["component_count"] == 4
+    assert checks["sbom_artifact_valid"]["details"]["expected_dependency_count"] == 2
 
 
 def test_security_hygiene_report_rejects_missing_required_scan_artifacts() -> None:
@@ -255,11 +353,147 @@ def test_security_hygiene_report_rejects_missing_required_scan_artifacts() -> No
     assert module.main(["--require-scan-artifacts", "--compact"]) == 1
 
 
+def test_security_hygiene_report_rejects_empty_required_scan_inventories(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    requirements = tmp_path / "requirements-audit.txt"
+    requirements.write_text("agilab==1.0\n", encoding="utf-8")
+    pip_audit = tmp_path / "pip-audit.json"
+    pip_audit.write_text(json.dumps({"dependencies": []}), encoding="utf-8")
+    sbom = tmp_path / "sbom.json"
+    sbom.write_text(
+        json.dumps({"bomFormat": "CycloneDX", "components": []}),
+        encoding="utf-8",
+    )
+
+    report = module.build_report(
+        repo_root=Path.cwd(),
+        pip_audit_json=pip_audit,
+        sbom_json=sbom,
+        scan_requirements=requirements,
+        require_scan_artifacts=True,
+    )
+
+    checks = {check["id"]: check for check in report["checks"]}
+    assert report["status"] == "fail"
+    assert checks["pip_audit_artifact_valid"]["status"] == "fail"
+    assert "at least one scanned dependency" in checks["pip_audit_artifact_valid"][
+        "details"
+    ]["error"]
+    assert checks["sbom_artifact_valid"]["status"] == "fail"
+    assert "at least one scanned component" in checks["sbom_artifact_valid"]["details"][
+        "error"
+    ]
+
+
+def test_security_hygiene_report_rejects_dummy_artifacts_not_bound_to_scan_input(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    requirements = tmp_path / "requirements-audit.txt"
+    requirements.write_text("real-package==2.0\n", encoding="utf-8")
+    pip_audit = tmp_path / "pip-audit.json"
+    pip_audit.write_text(
+        json.dumps(
+            {"dependencies": [{"name": "dummy", "version": "1.0", "vulns": []}]}
+        ),
+        encoding="utf-8",
+    )
+    sbom = tmp_path / "sbom.json"
+    sbom.write_text(
+        json.dumps(
+            {
+                "bomFormat": "CycloneDX",
+                "components": [
+                    {
+                        "name": "dummy",
+                        "version": "1.0",
+                        "type": "library",
+                        "purl": "pkg:pypi/dummy@1.0",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = module.build_report(
+        repo_root=Path.cwd(),
+        pip_audit_json=pip_audit,
+        sbom_json=sbom,
+        scan_requirements=requirements,
+        require_scan_artifacts=True,
+    )
+
+    checks = {check["id"]: check for check in report["checks"]}
+    assert checks["pip_audit_artifact_valid"]["status"] == "fail"
+    assert "does not match scan requirements" in checks["pip_audit_artifact_valid"][
+        "details"
+    ]["error"]
+    assert checks["sbom_artifact_valid"]["status"] == "fail"
+    assert "does not match scan requirements" in checks["sbom_artifact_valid"][
+        "details"
+    ]["error"]
+
+
+def test_security_hygiene_report_rejects_sbom_component_without_identity(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    requirements = tmp_path / "requirements-audit.txt"
+    requirements.write_text("agilab==1.0\n", encoding="utf-8")
+    pip_audit = tmp_path / "pip-audit.json"
+    pip_audit.write_text(
+        json.dumps(
+            {"dependencies": [{"name": "agilab", "version": "1.0", "vulns": []}]}
+        ),
+        encoding="utf-8",
+    )
+    sbom = tmp_path / "sbom.json"
+    sbom.write_text(
+        json.dumps(
+            {"bomFormat": "CycloneDX", "components": [{"name": "agilab", "type": "library"}]}
+        ),
+        encoding="utf-8",
+    )
+
+    report = module.build_report(
+        repo_root=Path.cwd(),
+        pip_audit_json=pip_audit,
+        sbom_json=sbom,
+        scan_requirements=requirements,
+        require_scan_artifacts=True,
+    )
+    check = next(item for item in report["checks"] if item["id"] == "sbom_artifact_valid")
+
+    assert report["status"] == "fail"
+    assert check["status"] == "fail"
+    assert "version must be a non-empty string" in check["details"]["error"]
+
+
 def test_security_hygiene_report_rejects_vulnerable_audit_artifact(tmp_path: Path) -> None:
     module = _load_module()
     pip_audit = tmp_path / "pip-audit.json"
     pip_audit.write_text(
-        json.dumps({"dependencies": [{"name": "agilab", "vulns": [{"id": "GHSA-test"}]}]}),
+        json.dumps(
+            {
+                "dependencies": [
+                    {
+                        "name": "agilab",
+                        "version": "1.0",
+                        "vulns": [
+                            {
+                                "id": "GHSA-test",
+                                "fix_versions": ["2.0"],
+                                "aliases": [],
+                                "description": "synthetic vulnerability",
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -269,6 +503,22 @@ def test_security_hygiene_report_rejects_vulnerable_audit_artifact(tmp_path: Pat
     assert report["status"] == "fail"
     assert checks["pip_audit_artifact_valid"]["status"] == "fail"
     assert checks["pip_audit_artifact_valid"]["details"]["vulnerability_count"] == 1
+
+
+def test_security_hygiene_report_rejects_incomplete_audit_entries(tmp_path: Path) -> None:
+    module = _load_module()
+    pip_audit = tmp_path / "pip-audit.json"
+    pip_audit.write_text(
+        json.dumps({"dependencies": [{"name": "agilab", "vulns": []}]}),
+        encoding="utf-8",
+    )
+
+    report = module.build_report(repo_root=Path.cwd(), pip_audit_json=pip_audit)
+    check = next(item for item in report["checks"] if item["id"] == "pip_audit_artifact_valid")
+
+    assert report["status"] == "fail"
+    assert check["status"] == "fail"
+    assert "version must be a non-empty string" in check["details"]["error"]
 
 
 def test_security_hygiene_report_rejects_non_cyclonedx_sbom(tmp_path: Path) -> None:

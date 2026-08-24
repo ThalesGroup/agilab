@@ -68,6 +68,9 @@ _data_archive_support_module = import_agilab_module(
 validate_archive_members_stay_within_dest = (
     _data_archive_support_module.validate_archive_members_stay_within_dest
 )
+validate_archive_extraction_quota = (
+    _data_archive_support_module.validate_archive_extraction_quota
+)
 
 _public_bind_guard_module = import_agilab_module(
     "agilab.ui_public_bind_guard",
@@ -1936,6 +1939,11 @@ def _import_project_action(
     try:
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             validate_archive_members_stay_within_dest(zip_ref, staged_dir)
+            validate_archive_extraction_quota(
+                zip_ref,
+                staged_dir,
+                archive_size_bytes=zip_path.stat().st_size,
+            )
             zip_ref.extractall(staged_dir)
         if not staged_dir.exists():
             raise ValueError("Project archive did not contain any project files")

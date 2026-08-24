@@ -505,16 +505,79 @@ def test_shell_installers_stage_remote_scripts_before_execution() -> None:
         assert "--no-remote-installers" in script_text
         assert "NO_REMOTE_INSTALLERS" in script_text
         assert "curl --proto '=https' --tlsv1.2 -fsSL" in script_text
+        assert "SHA-256 verification failed" in script_text
+        assert "expected_sha256" in script_text
         assert "curl -fsSL https://ollama.com/install.sh | sh" not in script_text
         assert "curl -LsSf https://astral.sh/uv/install.sh | sh" not in script_text
         assert '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' not in script_text
         assert "confirm_privileged_action" in script_text
         assert "sudo systemctl enable --now ollama" in script_text
 
-    assert (
-        'run_remote_shell_installer "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh" '
-        '"Homebrew" "/bin/bash"'
-    ) in root_text
+    assert "UV_INSTALLER_URL=\"https://github.com/astral-sh/uv/releases/download/0.10.7/uv-installer.sh\"" in root_text
+    assert "raw.githubusercontent.com/ollama/ollama/fb30760996871fa9460115c753afd2c60d4ab0f7/scripts/install.sh" in root_text
+    assert "raw.githubusercontent.com/Homebrew/install/b9990527570f7e07d5393f37447b8293ec0a78de/install.sh" in root_text
+    assert "https://astral.sh/uv/install.sh" not in root_text
+    assert "https://ollama.com/install.sh" not in root_text
+    assert "Homebrew/install/HEAD/install.sh" not in root_text
+
+
+def test_shell_installer_hash_verification_is_portable_to_system_bash(tmp_path: Path) -> None:
+    expected_sha256 = "A" * 64
+    actual_sha256 = expected_sha256.lower()
+
+    for script_path in (INSTALL_SH, INSTALL_ENDUSER_SH):
+        script_text = script_path.read_text(encoding="utf-8")
+        if script_path == INSTALL_SH:
+            function_body = _extract_function(
+                script_text,
+                "run_remote_shell_installer",
+                "default_agi_share_user",
+            )
+        else:
+            function_body = _extract_until_marker(
+                script_text,
+                "run_remote_shell_installer",
+                "\n# -----------------------------\n# Config",
+            )
+        assert re.search(r"\$\{[^}\n]+,,\}", function_body) is None
+
+        bash_script = f"""#!/bin/bash
+set -euo pipefail
+BLUE=''
+NC=''
+NO_REMOTE_INSTALLERS=0
+TMPDIR="$1"
+warn() {{
+  printf '%s\\n' "$*" >&2
+}}
+curl() {{
+  local output_path=''
+  while [[ "$#" -gt 0 ]]; do
+    if [[ "$1" == "-o" ]]; then
+      output_path="$2"
+      shift 2
+      continue
+    fi
+    shift
+  done
+  printf '%s\\n' '#!/bin/sh' 'exit 0' > "$output_path"
+}}
+sha256sum() {{
+  printf '%s\\n' '{actual_sha256}'
+}}
+shasum() {{
+  printf '%s\\n' '{actual_sha256}'
+}}
+{function_body}
+run_remote_shell_installer 'https://example.invalid/installer.sh' 'Synthetic' '{expected_sha256}' sh
+"""
+        completed = subprocess.run(
+            ["/bin/bash", "-c", bash_script, "installer_hash_test", str(tmp_path)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert completed.returncode == 0, completed.stderr
 
 
 def test_windows_enduser_local_source_installs_core_packages_with_dependencies() -> None:

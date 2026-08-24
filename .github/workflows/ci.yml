@@ -240,6 +240,7 @@ jobs:
           python tools/security_hygiene_report.py \
             --pip-audit-json test-results/supply-chain/base/pip-audit.json \
             --sbom-json test-results/supply-chain/base/sbom-cyclonedx.json \
+              --scan-requirements test-results/supply-chain/base/requirements.txt \
             --require-scan-artifacts \
             --output security-hygiene.json \
             --compact

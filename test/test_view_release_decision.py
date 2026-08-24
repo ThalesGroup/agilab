@@ -11,8 +11,10 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 
-PAGE_PATH = (
-    "src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PAGE_PATH = str(
+    REPO_ROOT
+    / "src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py"
 )
 
 

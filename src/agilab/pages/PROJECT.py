@@ -9,6 +9,10 @@ from types import ModuleType
 
 import streamlit as st
 
+from agilab.ui_public_bind_guard import enforce_public_bind_policy_or_stop
+
+enforce_public_bind_policy_or_stop(st)
+
 from agilab.ui.page_bootstrap import ensure_page_env, render_page_chrome
 from agilab.ui.page_project_selector import render_project_selector
 from agilab.projects.project_sidebar_support import PROJECT_STATUS_ACTIONS

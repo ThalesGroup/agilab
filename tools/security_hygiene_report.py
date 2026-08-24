@@ -10,8 +10,14 @@ import os
 from pathlib import Path
 import platform
 import re
+import subprocess
 import tomllib
 from typing import Any, Mapping, Sequence
+
+from packaging.markers import default_environment
+from packaging.requirements import InvalidRequirement, Requirement
+from packaging.utils import canonicalize_name
+from packaging.version import InvalidVersion, Version
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +41,8 @@ SCAN_EXCLUDED_PARTS = {
     "site-packages",
     "test",
 }
+MAPBOX_SECRET_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_-])sk\.[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])")
+SYNTHETIC_SECRET_ALLOW_MARKER = "agilab-secret-scan: allow-synthetic-mapbox-token"
 
 
 def _check_result(
@@ -101,30 +109,321 @@ def _read_toml_artifact(path: Path) -> tuple[dict[str, Any] | None, str | None]:
         return None, str(exc)
 
 
-def _pip_audit_vulnerability_count(payload: dict[str, Any] | list[Any] | None) -> int | None:
+def _validate_pip_audit_payload(
+    payload: dict[str, Any] | list[Any] | None,
+    *,
+    require_inventory: bool = False,
+    expected_inventory: Mapping[str, str] | None = None,
+) -> tuple[int | None, str | None]:
     if payload is None:
-        return None
-    if isinstance(payload, dict) and isinstance(payload.get("vulnerabilities"), list):
-        return len(payload["vulnerabilities"])
-    if isinstance(payload, dict) and isinstance(payload.get("dependencies"), list):
-        total = 0
-        for dependency in payload["dependencies"]:
-            if isinstance(dependency, dict) and isinstance(dependency.get("vulns"), list):
-                total += len(dependency["vulns"])
-        return total
-    if isinstance(payload, list):
-        total = 0
-        for dependency in payload:
-            if isinstance(dependency, dict) and isinstance(dependency.get("vulns"), list):
-                total += len(dependency["vulns"])
-        return total
-    return None
+        return None, "payload is missing"
+    if isinstance(payload, dict):
+        dependencies = payload.get("dependencies")
+        if not isinstance(dependencies, list):
+            return None, "top-level dependencies must be a list"
+    elif isinstance(payload, list):
+        dependencies = payload
+    else:
+        return None, "top-level payload must be an object or dependency list"
+
+    if require_inventory and not dependencies:
+        return None, "dependencies must contain at least one scanned dependency"
+
+    total = 0
+    inventory: dict[str, str] = {}
+    for dependency_index, dependency in enumerate(dependencies):
+        if not isinstance(dependency, dict):
+            return None, f"dependencies[{dependency_index}] must be an object"
+        for field in ("name", "version"):
+            if not isinstance(dependency.get(field), str) or not dependency[field].strip():
+                return None, f"dependencies[{dependency_index}].{field} must be a non-empty string"
+        identity, identity_error = _canonical_package_identity(
+            dependency["name"],
+            dependency["version"],
+            label=f"dependencies[{dependency_index}]",
+        )
+        if identity_error is not None or identity is None:
+            return None, identity_error
+        name, version = identity
+        if name in inventory:
+            return None, f"pip-audit inventory contains duplicate package {name}"
+        inventory[name] = version
+        vulnerabilities = dependency.get("vulns")
+        if not isinstance(vulnerabilities, list):
+            return None, f"dependencies[{dependency_index}].vulns must be a list"
+        for vulnerability_index, vulnerability in enumerate(vulnerabilities):
+            prefix = f"dependencies[{dependency_index}].vulns[{vulnerability_index}]"
+            if not isinstance(vulnerability, dict):
+                return None, f"{prefix} must be an object"
+            if not isinstance(vulnerability.get("id"), str) or not vulnerability["id"].strip():
+                return None, f"{prefix}.id must be a non-empty string"
+            for list_field in ("fix_versions", "aliases"):
+                values = vulnerability.get(list_field)
+                if not isinstance(values, list) or not all(
+                    isinstance(value, str) and value.strip() for value in values
+                ):
+                    return None, f"{prefix}.{list_field} must be a string list"
+            if not isinstance(vulnerability.get("description"), str):
+                return None, f"{prefix}.description must be a string"
+        total += len(vulnerabilities)
+    if expected_inventory is not None:
+        inventory_error = _inventory_binding_error(
+            expected_inventory,
+            inventory,
+            label="pip-audit",
+        )
+        if inventory_error is not None:
+            return None, inventory_error
+    return total, None
+
+
+def _pip_audit_vulnerability_count(payload: dict[str, Any] | list[Any] | None) -> int | None:
+    count, _error = _validate_pip_audit_payload(payload)
+    return count
 
 
 def _component_count(payload: dict[str, Any] | list[Any] | None) -> int | None:
     if isinstance(payload, dict) and isinstance(payload.get("components"), list):
         return len(payload["components"])
     return None
+
+
+def _canonical_package_identity(
+    name: Any,
+    version: Any,
+    *,
+    label: str,
+) -> tuple[tuple[str, str] | None, str | None]:
+    if not isinstance(name, str) or not name.strip():
+        return None, f"{label}.name must be a non-empty string"
+    if not isinstance(version, str) or not version.strip():
+        return None, f"{label}.version must be a non-empty string"
+    try:
+        normalized_version = str(Version(version.strip()))
+    except InvalidVersion:
+        return None, f"{label}.version is invalid"
+    return (str(canonicalize_name(name.strip())), normalized_version), None
+
+
+def _inventory_binding_error(
+    expected: Mapping[str, str],
+    actual: Mapping[str, str],
+    *,
+    label: str,
+) -> str | None:
+    if dict(expected) == dict(actual):
+        return None
+    missing = sorted(set(expected) - set(actual))
+    unexpected = sorted(set(actual) - set(expected))
+    mismatched = sorted(
+        name
+        for name in set(expected) & set(actual)
+        if expected[name] != actual[name]
+    )
+    details: list[str] = []
+    if missing:
+        details.append("missing=" + ",".join(missing))
+    if unexpected:
+        details.append("unexpected=" + ",".join(unexpected))
+    if mismatched:
+        details.append("version_mismatch=" + ",".join(mismatched))
+    return f"{label} inventory does not match scan requirements ({'; '.join(details)})"
+
+
+EditableRequirement = tuple[int, str, str]
+ScanRequirementsInventory = tuple[
+    dict[str, str],
+    dict[str, str],
+    tuple[EditableRequirement, ...],
+]
+
+
+def _scan_requirements_inventory(
+    path: Path,
+) -> tuple[ScanRequirementsInventory | None, str | None]:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        return None, str(exc)
+
+    environment = default_environment()
+    inventory: dict[str, str] = {}
+    complete_inventory: dict[str, str] = {}
+    editables: list[EditableRequirement] = []
+    for line_number, raw_line in enumerate(lines, start=1):
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("--hash"):
+            continue
+        if raw_line[:1].isspace():
+            return None, f"requirements line {line_number} has an unsupported continuation"
+        requirement_text = stripped.removesuffix("\\").strip()
+        editable_prefix = next(
+            (
+                prefix
+                for prefix in ("-e ", "--editable ")
+                if requirement_text.startswith(prefix)
+            ),
+            None,
+        )
+        if editable_prefix is not None:
+            editable_value = requirement_text[len(editable_prefix) :].strip()
+            editable_path, separator, marker_text = editable_value.partition(";")
+            editable_path = editable_path.strip()
+            if not editable_path or not (
+                editable_path == "." or editable_path.startswith("./")
+            ):
+                return None, (
+                    f"requirements line {line_number} must use a relative local "
+                    "editable path"
+                )
+            if separator:
+                try:
+                    marker_requirement = Requirement(
+                        f"editable-placeholder==0; {marker_text.strip()}"
+                    )
+                except InvalidRequirement as exc:
+                    return None, f"requirements line {line_number} is invalid: {exc}"
+                if marker_requirement.marker is None:
+                    return None, f"requirements line {line_number} has an empty marker"
+                marker_requirement.marker.evaluate(environment)
+            rendered_requirement = requirement_text
+            editables.append((line_number, editable_path, rendered_requirement))
+            continue
+        if requirement_text.startswith("-"):
+            return None, f"requirements line {line_number} uses an unsupported directive"
+        try:
+            requirement = Requirement(requirement_text)
+        except InvalidRequirement as exc:
+            return None, f"requirements line {line_number} is invalid: {exc}"
+        if requirement.url is not None:
+            return None, f"requirements line {line_number} must identify a pinned package"
+        specifiers = list(requirement.specifier)
+        if (
+            len(specifiers) != 1
+            or specifiers[0].operator not in {"==", "==="}
+            or "*" in specifiers[0].version
+        ):
+            return None, f"requirements line {line_number} must use one exact version pin"
+        identity, identity_error = _canonical_package_identity(
+            requirement.name,
+            specifiers[0].version,
+            label=f"requirements line {line_number}",
+        )
+        if identity_error is not None or identity is None:
+            return None, identity_error
+        name, version = identity
+        if name in complete_inventory:
+            return None, f"requirements inventory contains duplicate package {name}"
+        complete_inventory[name] = version
+        if requirement.marker is None or requirement.marker.evaluate(environment):
+            inventory[name] = version
+    if not complete_inventory:
+        return None, "scan requirements must contain at least one pinned package"
+    return (inventory, complete_inventory, tuple(editables)), None
+
+
+def _matched_local_editable_line(
+    component: Mapping[str, Any],
+    expected_editables: Sequence[EditableRequirement],
+) -> int | None:
+    references = component.get("externalReferences")
+    if not (
+        set(component)
+        == {"bom-ref", "description", "externalReferences", "name", "type"}
+        and component.get("type") == "library"
+        and component.get("name") == "unknown"
+        and isinstance(references, list)
+        and len(references) == 1
+        and isinstance(references[0], dict)
+        and set(references[0]) == {"comment", "type", "url"}
+        and references[0].get("type") == "other"
+        and references[0].get("comment") == "explicit local path"
+    ):
+        return None
+    for line_number, editable_path, rendered_requirement in expected_editables:
+        if (
+            component.get("bom-ref") == f"requirements-L{line_number}"
+            and component.get("description")
+            == f"requirements line {line_number}: {rendered_requirement}"
+            and references[0].get("url") == editable_path
+        ):
+            return line_number
+    return None
+
+
+def _validate_sbom_payload(
+    payload: dict[str, Any] | list[Any] | None,
+    *,
+    require_inventory: bool = False,
+    expected_inventory: Mapping[str, str] | None = None,
+    expected_editables: Sequence[EditableRequirement] = (),
+) -> tuple[int | None, str | None]:
+    if not isinstance(payload, dict) or payload.get("bomFormat") != "CycloneDX":
+        return None, "top-level payload must be a CycloneDX object"
+    components = payload.get("components")
+    if not isinstance(components, list):
+        return None, "top-level components must be a list"
+    if require_inventory and not components:
+        return None, "components must contain at least one scanned component"
+
+    inventory: dict[str, str] = {}
+    matched_editable_lines: set[int] = set()
+    for component_index, component in enumerate(components):
+        label = f"components[{component_index}]"
+        if not isinstance(component, dict):
+            return None, f"{label} must be an object"
+        if component.get("name") == "unknown":
+            editable_line = _matched_local_editable_line(component, expected_editables)
+            if editable_line is None:
+                return None, f"{label} is not bound to an active editable requirement"
+            if editable_line in matched_editable_lines:
+                return None, f"{label} duplicates editable requirements line {editable_line}"
+            matched_editable_lines.add(editable_line)
+            continue
+        identity, identity_error = _canonical_package_identity(
+            component.get("name"),
+            component.get("version"),
+            label=label,
+        )
+        if identity_error is not None or identity is None:
+            return None, identity_error
+        name, version = identity
+        purl = component.get("purl")
+        purl_match = re.fullmatch(r"pkg:pypi/([^@?#]+)@([^?#]+)(?:\?[^#]*)?(?:#.*)?", str(purl or ""))
+        if purl_match is None:
+            return None, f"{label}.purl must identify a versioned PyPI package"
+        purl_identity, purl_error = _canonical_package_identity(
+            purl_match.group(1),
+            purl_match.group(2),
+            label=f"{label}.purl",
+        )
+        if purl_error is not None or purl_identity != identity:
+            return None, purl_error or f"{label}.purl does not match component identity"
+        if name in inventory:
+            return None, f"SBOM inventory contains duplicate package {name}"
+        inventory[name] = version
+    if expected_inventory is not None:
+        inventory_error = _inventory_binding_error(
+            expected_inventory,
+            inventory,
+            label="SBOM",
+        )
+        if inventory_error is not None:
+            return None, inventory_error
+    expected_editable_lines = {line_number for line_number, _, _ in expected_editables}
+    if matched_editable_lines != expected_editable_lines:
+        missing = sorted(expected_editable_lines - matched_editable_lines)
+        unexpected = sorted(matched_editable_lines - expected_editable_lines)
+        details: list[str] = []
+        if missing:
+            details.append("missing=" + ",".join(str(line) for line in missing))
+        if unexpected:
+            details.append("unexpected=" + ",".join(str(line) for line in unexpected))
+        return None, (
+            "SBOM editable inventory does not match scan requirements "
+            f"({'; '.join(details)})"
+        )
+    return len(components), None
 
 
 def _read_text(path: Path) -> str:
@@ -286,6 +585,60 @@ def _local_secret_storage_policy_check(repo_root: Path, security_text: str) -> d
         "Local .env persistence is documented as plaintext developer convenience, with keyring/vault/short-lived alternatives for sensitive use",
         evidence=["SECURITY.md", "docs/source/environment.rst"],
         details={"missing_tokens": missing},
+    )
+
+
+def _tracked_source_secret_pattern_check(repo_root: Path) -> dict[str, Any]:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "ls-files", "-z"],
+            check=True,
+            capture_output=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        return _check_result(
+            "tracked_source_secret_patterns_absent",
+            "Tracked source is free of recognized secret-token patterns",
+            False,
+            "Tracked-source secret scan could not enumerate git-controlled files",
+            evidence=["git ls-files"],
+            details={"error": str(exc), "matches": []},
+        )
+
+    matches: list[str] = []
+    allowed_synthetic: list[str] = []
+    for raw_path in result.stdout.split(b"\0"):
+        if not raw_path:
+            continue
+        relative_path = Path(os.fsdecode(raw_path))
+        source_path = repo_root / relative_path
+        if not source_path.is_file():
+            continue
+        text = source_path.read_text(encoding="utf-8", errors="ignore")
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            for match in MAPBOX_SECRET_TOKEN_RE.finditer(line):
+                is_synthetic_test = (
+                    relative_path.parts
+                    and relative_path.parts[0] in {"test", "tests"}
+                    and SYNTHETIC_SECRET_ALLOW_MARKER in line
+                    and "SYNTHETIC" in match.group(0).upper()
+                )
+                location = f"{relative_path.as_posix()}:{line_number}:mapbox_secret_token"
+                if is_synthetic_test:
+                    allowed_synthetic.append(location)
+                else:
+                    matches.append(location)
+    return _check_result(
+        "tracked_source_secret_patterns_absent",
+        "Tracked source is free of recognized secret-token patterns",
+        not matches,
+        "Tracked files contain no Mapbox secret-token pattern outside explicitly marked synthetic tests",
+        evidence=["git ls-files"],
+        details={
+            "matches": matches,
+            "allowed_synthetic_matches": allowed_synthetic,
+            "allow_marker": SYNTHETIC_SECRET_ALLOW_MARKER,
+        },
     )
 
 
@@ -643,23 +996,32 @@ def _remote_installer_staging_check(repo_root: Path) -> dict[str, Any]:
         "curl -fsSL https://ollama.com/install.sh | sh",
         "curl -LsSf https://astral.sh/uv/install.sh | sh",
         "irm https://astral.sh/uv/install.ps1 | iex",
+        "https://astral.sh/uv/install.sh",
+        "https://astral.sh/uv/install.ps1",
+        "https://ollama.com/install.sh",
+        "Homebrew/install/HEAD/install.sh",
         '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
     ]
     combined = "\n".join(texts.values())
     found_forbidden = [token for token in forbidden_tokens if token in combined]
     required_tokens = [
         "run_remote_shell_installer()",
-        'run_remote_shell_installer "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh" "Homebrew" "/bin/bash"',
+        "expected_sha256",
+        "UV_INSTALLER_SHA256",
+        "OLLAMA_INSTALLER_SHA256",
+        "HOMEBREW_INSTALLER_SHA256",
         "_staged_uv_install_command",
         "_staged_uv_powershell_install_command",
         "curl --proto '=https' --tlsv1.2",
+        "Get-FileHash -Algorithm SHA256",
+        "sha256sum",
     ]
     missing_required = [token for token in required_tokens if token not in combined]
     return _check_result(
         "remote_installers_are_staged_before_execution",
-        "Remote installer scripts are staged before execution",
+        "Remote installer scripts are pinned and verified before execution",
         not found_forbidden and not missing_required,
-        "Installer bootstrap downloads remote scripts to temporary files before executing them instead of piping network responses directly to shells",
+        "Installer bootstrap uses immutable upstream assets and verifies pinned SHA-256 digests before execution",
         evidence=files,
         details={
             "found_forbidden_tokens": found_forbidden,
@@ -757,6 +1119,7 @@ def build_report(
     repo_root: Path = REPO_ROOT,
     pip_audit_json: Path | None = None,
     sbom_json: Path | None = None,
+    scan_requirements: Path | None = None,
     require_scan_artifacts: bool = False,
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
@@ -820,6 +1183,7 @@ def build_report(
         _pypi_trusted_publishing_check(repo_root),
         _coverage_upload_gate_check(repo_root),
         _local_secret_storage_policy_check(repo_root, security_text),
+        _tracked_source_secret_pattern_check(repo_root),
         _release_evidence_scope_check(repo_root, security_text),
         _adoption_profile_check(security_text),
         _security_release_process_check(security_text),
@@ -834,9 +1198,31 @@ def build_report(
         _github_actions_sha_pin_check(repo_root),
     ]
 
+    requirements_inventory: dict[str, str] | None = None
+    requirements_sbom_inventory: dict[str, str] | None = None
+    requirements_editables: tuple[EditableRequirement, ...] = ()
+    requirements_error: str | None = None
+    if scan_requirements is not None:
+        parsed_requirements, requirements_error = _scan_requirements_inventory(
+            scan_requirements
+        )
+        if parsed_requirements is not None:
+            (
+                requirements_inventory,
+                requirements_sbom_inventory,
+                requirements_editables,
+            ) = parsed_requirements
+    elif require_scan_artifacts:
+        requirements_error = "required scan requirements manifest was not provided"
+
     pip_audit_provided, pip_audit_payload, pip_audit_error = _read_json_artifact(pip_audit_json)
-    vulnerability_count = _pip_audit_vulnerability_count(pip_audit_payload)
-    pip_audit_valid = pip_audit_error is None and vulnerability_count == 0
+    vulnerability_count, pip_audit_schema_error = _validate_pip_audit_payload(
+        pip_audit_payload,
+        require_inventory=require_scan_artifacts,
+        expected_inventory=requirements_inventory,
+    )
+    pip_audit_error = pip_audit_error or requirements_error or pip_audit_schema_error
+    pip_audit_valid = pip_audit_provided and pip_audit_error is None and vulnerability_count == 0
     if not pip_audit_provided:
         pip_audit_summary = (
             "required pip-audit artifact was not provided"
@@ -863,18 +1249,27 @@ def build_report(
             details={
                 "error": pip_audit_error,
                 "vulnerability_count": vulnerability_count,
+                "expected_dependency_count": (
+                    len(requirements_inventory)
+                    if requirements_inventory is not None
+                    else None
+                ),
+                "scan_requirements": (
+                    str(scan_requirements) if scan_requirements is not None else None
+                ),
             },
         )
     )
 
     sbom_provided, sbom_payload, sbom_error = _read_json_artifact(sbom_json)
-    component_count = _component_count(sbom_payload)
-    sbom_valid = (
-        sbom_error is None
-        and isinstance(sbom_payload, dict)
-        and sbom_payload.get("bomFormat") == "CycloneDX"
-        and component_count is not None
+    component_count, sbom_schema_error = _validate_sbom_payload(
+        sbom_payload,
+        require_inventory=require_scan_artifacts,
+        expected_inventory=requirements_sbom_inventory,
+        expected_editables=requirements_editables,
     )
+    sbom_error = sbom_error or requirements_error or sbom_schema_error
+    sbom_valid = sbom_error is None and component_count is not None
     if not sbom_provided:
         sbom_summary = (
             "required SBOM artifact was not provided"
@@ -897,6 +1292,14 @@ def build_report(
             details={
                 "error": sbom_error,
                 "component_count": component_count,
+                "expected_dependency_count": (
+                    len(requirements_sbom_inventory)
+                    if requirements_sbom_inventory is not None
+                    else None
+                ),
+                "scan_requirements": (
+                    str(scan_requirements) if scan_requirements is not None else None
+                ),
             },
         )
     )
@@ -936,6 +1339,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pip-audit-json", type=Path, default=None)
     parser.add_argument("--sbom-json", type=Path, default=None)
     parser.add_argument(
+        "--scan-requirements",
+        type=Path,
+        default=None,
+        help=(
+            "Independent marker-aware pinned requirements inventory used to bind "
+            "pip-audit and CycloneDX evidence."
+        ),
+    )
+    parser.add_argument(
         "--require-scan-artifacts",
         action="store_true",
         help="Fail when pip-audit or CycloneDX SBOM evidence is missing.",
@@ -950,6 +1362,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = build_report(
         pip_audit_json=args.pip_audit_json,
         sbom_json=args.sbom_json,
+        scan_requirements=args.scan_requirements,
         require_scan_artifacts=args.require_scan_artifacts,
     )
     if args.output is not None:

@@ -34,6 +34,24 @@ def _import_agilab_module(module_name: str):
 pipeline_mistral = _import_agilab_module("agilab.pipeline_mistral")
 
 
+@pytest.fixture(autouse=True)
+def _offline_public_llm_dns(monkeypatch):
+    policy = _import_agilab_module("agilab.security.llm_endpoint_policy")
+
+    def resolve(_host, port, **_kwargs):
+        return [
+            (
+                policy.socket.AF_INET,
+                policy.socket.SOCK_STREAM,
+                policy.socket.IPPROTO_TCP,
+                "",
+                ("93.184.216.34", port),
+            )
+        ]
+
+    monkeypatch.setattr(policy.socket, "getaddrinfo", resolve)
+
+
 class _StopCalled(RuntimeError):
     pass
 
