@@ -91,6 +91,21 @@ def test_compact_log_view_redacts_secret_like_values() -> None:
     assert "token=<redacted>" in rendered
 
 
+def test_redact_log_value_covers_environment_and_authorization_secrets() -> None:
+    raw = (
+        "OPENAI_API_KEY=sk-super-secret-value\n"
+        "AWS_SECRET_ACCESS_KEY='aws-super-secret-value'\n"
+        "Authorization: Bearer bearer-super-secret-value"
+    )
+
+    redacted = logging_utils.redact_log_value(raw)
+
+    assert "sk-super-secret-value" not in redacted
+    assert "aws-super-secret-value" not in redacted
+    assert "bearer-super-secret-value" not in redacted
+    assert redacted.count("<redacted>") == 3
+
+
 def test_compact_log_view_has_budget_ceiling_for_large_stdout_artifacts() -> None:
     noisy_lines = [
         f"stdout progress NOISY_FILLER_{index:03d} " + ("x" * 120)

@@ -10,6 +10,10 @@ BLUE='\033[1;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Pinned immutable upstream installer. Update the commit URL and digest together.
+OLLAMA_INSTALLER_URL="https://raw.githubusercontent.com/ollama/ollama/fb30760996871fa9460115c753afd2c60d4ab0f7/scripts/install.sh"
+OLLAMA_INSTALLER_SHA256="25f64b810b947145095956533e1bdf56eacea2673c55a7e586be4515fc882c9f"
+
 warn() {
   echo -e "${YELLOW}[warn] $*" >&2
 }
@@ -266,7 +270,8 @@ bootstrap_enduser_environment() {
 run_remote_shell_installer() {
   local url="$1"
   local label="$2"
-  local interpreter="${3:-sh}"
+  local expected_sha256="$3"
+  local interpreter="${4:-sh}"
   if [[ "${NO_REMOTE_INSTALLERS:-0}" == "1" ]]; then
     warn "Remote shell installers are disabled (--no-remote-installers); refusing ${label} from ${url}."
     return 1
@@ -278,6 +283,28 @@ run_remote_shell_installer() {
 
   echo -e "${BLUE}Downloading ${label} installer from ${url}...${NC}"
   if ! curl --proto '=https' --tlsv1.2 -fsSL "$url" -o "$script_path"; then
+    rm -f "$script_path"
+    return 1
+  fi
+  if [[ ! "$expected_sha256" =~ ^[0-9a-fA-F]{64}$ ]]; then
+    warn "Invalid pinned SHA-256 for ${label}; refusing to execute the installer."
+    rm -f "$script_path"
+    return 1
+  fi
+  local actual_sha256
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual_sha256="$(sha256sum "$script_path" | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    actual_sha256="$(shasum -a 256 "$script_path" | awk '{print $1}')"
+  else
+    warn "No SHA-256 verifier is available; refusing to execute the ${label} installer."
+    rm -f "$script_path"
+    return 1
+  fi
+  actual_sha256="$(printf '%s' "$actual_sha256" | tr '[:upper:]' '[:lower:]')"
+  expected_sha256="$(printf '%s' "$expected_sha256" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$actual_sha256" != "$expected_sha256" ]]; then
+    warn "SHA-256 verification failed for ${label}; refusing to execute the installer."
     rm -f "$script_path"
     return 1
   fi
@@ -477,7 +504,7 @@ ensure_ollama_runtime() {
   elif [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux"* ]]; then
     if ! command -v ollama >/dev/null 2>&1; then
       echo -e "${BLUE}Installing Ollama (Linux)...${NC}"
-      if run_remote_shell_installer "https://ollama.com/install.sh" "Ollama"; then
+      if run_remote_shell_installer "$OLLAMA_INSTALLER_URL" "Ollama" "$OLLAMA_INSTALLER_SHA256"; then
         echo -e "${GREEN}Ollama installed.${NC}"
       else
         warn "Failed to install Ollama via script. Install manually from https://ollama.com."

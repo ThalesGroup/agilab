@@ -19,6 +19,14 @@ _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_module = _import_guard_module.import_agilab_module
 
+_llm_endpoint_policy_module = import_agilab_module(
+    "agilab.security.llm_endpoint_policy",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "security/llm_endpoint_policy.py",
+    fallback_name="agilab_llm_endpoint_policy_fallback",
+)
+clear_credentials_on_origin_change = _llm_endpoint_policy_module.clear_credentials_on_origin_change
+
 _pipeline_ai_uoaic_module = import_agilab_module(
     "agilab.pipeline_ai_uoaic",
     current_file=__file__,
@@ -251,6 +259,14 @@ def configure_assistant_engine(
                 help="Base URL for vLLM, LM Studio, OpenRouter, or another Chat Completions-compatible endpoint.",
             )
         )
+        origin_changed = clear_credentials_on_origin_change(
+            base_url,
+            session_state=deps.session_state,
+            envars=env.envars,
+            origin_state_key="_openai_compat_credential_origin",
+            session_secret_keys=("openai_compat_api_key",),
+            env_secret_keys=(OPENAI_COMPAT_API_KEY_ENV,),
+        )
         deps.session_state["openai_compat_base_url"] = base_url
         env.envars[OPENAI_COMPAT_BASE_URL_ENV] = base_url
 
@@ -267,17 +283,23 @@ def configure_assistant_engine(
         deps.session_state["openai_compat_model"] = model
         env.envars[OPENAI_COMPAT_MODEL_ENV] = model
 
-        api_key_default = str(
+        configured_api_key = "" if origin_changed else str(
             deps.session_state.get("openai_compat_api_key")
             or env.envars.get(OPENAI_COMPAT_API_KEY_ENV)
-            or os.getenv(OPENAI_COMPAT_API_KEY_ENV, DEFAULT_OPENAI_COMPAT_API_KEY)
-        ).strip() or DEFAULT_OPENAI_COMPAT_API_KEY
-        api_key = deps.sidebar.text_input(
+            or os.getenv(OPENAI_COMPAT_API_KEY_ENV, "")
+        ).strip()
+        entered_api_key = deps.sidebar.text_input(
             "OpenAI-compatible API key",
-            value=api_key_default,
-            help="Use `EMPTY` for local vLLM unless your gateway requires a real key.",
-        ).strip() or DEFAULT_OPENAI_COMPAT_API_KEY
-        deps.session_state["openai_compat_api_key"] = api_key
+            value="",
+            type="password",
+            help=(
+                "Enter a replacement key, or leave blank to keep the configured credential. "
+                "Existing credentials are never displayed. Use `EMPTY` for local vLLM."
+            ),
+        ).strip()
+        api_key = entered_api_key or configured_api_key or DEFAULT_OPENAI_COMPAT_API_KEY
+        if entered_api_key:
+            deps.session_state["openai_compat_api_key"] = entered_api_key
         env.envars[OPENAI_COMPAT_API_KEY_ENV] = api_key
 
         temperature_default = str(

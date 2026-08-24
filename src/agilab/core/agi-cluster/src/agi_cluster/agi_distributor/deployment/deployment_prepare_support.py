@@ -20,6 +20,15 @@ from agi_env import AgiEnv
 
 logger = logging.getLogger(__name__)
 UV_SELF_UPDATE_ENV = "AGILAB_UV_SELF_UPDATE"
+UV_INSTALLER_VERSION = "0.10.7"
+UV_INSTALLER_SH_URL = (
+    f"https://github.com/astral-sh/uv/releases/download/{UV_INSTALLER_VERSION}/uv-installer.sh"
+)
+UV_INSTALLER_SH_SHA256 = "bcada2f4ddb9d0196fcf33510633a1a892b948fc0d0a8dc7650ddb67f074b6c6"
+UV_INSTALLER_PS1_URL = (
+    f"https://github.com/astral-sh/uv/releases/download/{UV_INSTALLER_VERSION}/uv-installer.ps1"
+)
+UV_INSTALLER_PS1_SHA256 = "bbb12c223db2a8a43708b6e6af3fe503fb9d9333f67eb23188e6698878c484bf"
 
 
 def _is_local_ip(ip: str) -> bool:
@@ -96,7 +105,10 @@ def _staged_uv_install_command() -> str:
     return (
         "tmp=$(mktemp -t agilab-uv-install.XXXXXX.sh) && "
         "trap 'rm -f \"$tmp\"' EXIT && "
-        "curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh -o \"$tmp\" && "
+        f"curl --proto '=https' --tlsv1.2 -LsSf {UV_INSTALLER_SH_URL} -o \"$tmp\" && "
+        "{ if command -v sha256sum >/dev/null 2>&1; then actual=$(sha256sum \"$tmp\"); "
+        "else actual=$(shasum -a 256 \"$tmp\"); fi; actual=${actual%% *}; "
+        f"[ \"$actual\" = \"{UV_INSTALLER_SH_SHA256}\" ]; }} && "
         "chmod 700 \"$tmp\" && "
         "sh \"$tmp\""
     )
@@ -106,7 +118,9 @@ def _staged_uv_powershell_install_command() -> str:
     return (
         'powershell -ExecutionPolicy ByPass -c "'
         "$p=Join-Path $env:TEMP 'agilab-uv-install.ps1'; "
-        "Invoke-WebRequest -UseBasicParsing https://astral.sh/uv/install.ps1 -OutFile $p; "
+        f"Invoke-WebRequest -UseBasicParsing {UV_INSTALLER_PS1_URL} -OutFile $p; "
+        "$actual=(Get-FileHash -Algorithm SHA256 $p).Hash.ToLowerInvariant(); "
+        f"if ($actual -ne '{UV_INSTALLER_PS1_SHA256}') {{ Remove-Item -Force $p; throw 'uv installer SHA-256 mismatch' }}; "
         "powershell -ExecutionPolicy ByPass -File $p; "
         "Remove-Item -Force $p"
         '"'

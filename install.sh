@@ -38,6 +38,15 @@ BLUE='\033[1;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Remote installers are pinned to immutable upstream release/commit assets and
+# verified before execution. Update each URL and digest together.
+UV_INSTALLER_URL="https://github.com/astral-sh/uv/releases/download/0.10.7/uv-installer.sh"
+UV_INSTALLER_SHA256="bcada2f4ddb9d0196fcf33510633a1a892b948fc0d0a8dc7650ddb67f074b6c6"
+OLLAMA_INSTALLER_URL="https://raw.githubusercontent.com/ollama/ollama/fb30760996871fa9460115c753afd2c60d4ab0f7/scripts/install.sh"
+OLLAMA_INSTALLER_SHA256="25f64b810b947145095956533e1bdf56eacea2673c55a7e586be4515fc882c9f"
+HOMEBREW_INSTALLER_URL="https://raw.githubusercontent.com/Homebrew/install/b9990527570f7e07d5393f37447b8293ec0a78de/install.sh"
+HOMEBREW_INSTALLER_SHA256="12479a24be3f5307eecac7cde670fad7118640f031229e964f544b1367b52a41"
+
 export PATH="$HOME/.local/bin:$PATH"
 
 UV="uv --preview-features extra-build-dependencies"
@@ -138,7 +147,8 @@ print_uv_resolver_mode() {
 run_remote_shell_installer() {
     local url="$1"
     local label="$2"
-    local interpreter="${3:-sh}"
+    local expected_sha256="$3"
+    local interpreter="${4:-sh}"
     if [[ "${NO_REMOTE_INSTALLERS:-0}" == "1" ]]; then
         warn "Remote shell installers are disabled (--no-remote-installers); refusing ${label} from ${url}."
         return 1
@@ -150,6 +160,28 @@ run_remote_shell_installer() {
 
     echo -e "${BLUE}Downloading ${label} installer from ${url}...${NC}"
     if ! curl --proto '=https' --tlsv1.2 -fsSL "$url" -o "$script_path"; then
+        rm -f "$script_path"
+        return 1
+    fi
+    if [[ ! "$expected_sha256" =~ ^[0-9a-fA-F]{64}$ ]]; then
+        warn "Invalid pinned SHA-256 for ${label}; refusing to execute the installer."
+        rm -f "$script_path"
+        return 1
+    fi
+    local actual_sha256
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual_sha256="$(sha256sum "$script_path" | awk '{print $1}')"
+    elif command -v shasum >/dev/null 2>&1; then
+        actual_sha256="$(shasum -a 256 "$script_path" | awk '{print $1}')"
+    else
+        warn "No SHA-256 verifier is available; refusing to execute the ${label} installer."
+        rm -f "$script_path"
+        return 1
+    fi
+    actual_sha256="$(printf '%s' "$actual_sha256" | tr '[:upper:]' '[:lower:]')"
+    expected_sha256="$(printf '%s' "$expected_sha256" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$actual_sha256" != "$expected_sha256" ]]; then
+        warn "SHA-256 verification failed for ${label}; refusing to execute the installer."
         rm -f "$script_path"
         return 1
     fi
@@ -643,7 +675,7 @@ ensure_ollama_runtime() {
     elif [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux"* ]]; then
         if ! command -v ollama >/dev/null 2>&1; then
             echo -e "${BLUE}Installing Ollama (Linux)...${NC}"
-            if run_remote_shell_installer "https://ollama.com/install.sh" "Ollama"; then
+            if run_remote_shell_installer "$OLLAMA_INSTALLER_URL" "Ollama" "$OLLAMA_INSTALLER_SHA256"; then
                 echo -e "${GREEN}Ollama installed.${NC}"
             else
                 warn "Failed to install Ollama via script. Install manually from https://ollama.com."
@@ -912,7 +944,7 @@ install_dependencies() {
 
     if ! command -v uv > /dev/null 2>&1; then
         echo -e "${GREEN}Installing uv...${NC}"
-        run_remote_shell_installer "https://astral.sh/uv/install.sh" "uv"
+        run_remote_shell_installer "$UV_INSTALLER_URL" "uv" "$UV_INSTALLER_SHA256"
         [[ -f "$HOME/.local/bin/env" ]] && source "$HOME/.local/bin/env"
     fi
 
@@ -937,7 +969,7 @@ install_dependencies() {
         brew cleanup
     else
         echo -e "${BLUE}Installing Homebrew.${NC}"
-        run_remote_shell_installer "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh" "Homebrew" "/bin/bash"
+        run_remote_shell_installer "$HOMEBREW_INSTALLER_URL" "Homebrew" "$HOMEBREW_INSTALLER_SHA256" "/bin/bash"
         echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
         eval "$(/opt/homebrew/bin/brew shellenv)"
         brew install wget curl unzip openssl readline sqlite libxml2 xz hudochenkov/sshpass/sshpass tree Graphviz sshpass

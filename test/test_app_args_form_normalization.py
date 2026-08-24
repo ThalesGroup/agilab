@@ -16,7 +16,8 @@ from agi_env.shares.share_runtime_support import (
 )
 
 
-APP_ARGS_FORM_ROOT = Path("src/agilab")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+APP_ARGS_FORM_ROOT = REPO_ROOT / "src/agilab"
 APP_ARGS_FORM_PATTERNS = (
     "apps/builtin/*_project/src/app_args_form.py",
     "apps/templates/*_template/src/app_args_form.py",
@@ -25,36 +26,36 @@ APP_ARGS_FORM_PATTERNS = (
 
 PACKAGED_FORM_PAIRS = (
     (
-        Path("src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py"),
-        Path(
+        REPO_ROOT / "src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py",
+        REPO_ROOT / (
             "src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/"
             "project/flight_telemetry_project/src/app_args_form.py"
         ),
     ),
     (
-        Path("src/agilab/apps/builtin/mission_decision_project/src/app_args_form.py"),
-        Path(
+        REPO_ROOT / "src/agilab/apps/builtin/mission_decision_project/src/app_args_form.py",
+        REPO_ROOT / (
             "src/agilab/lib/agi-app-mission-decision/src/agi_app_mission_decision/"
             "project/mission_decision_project/src/app_args_form.py"
         ),
     ),
     (
-        Path("src/agilab/apps/builtin/pytorch_playground_project/src/app_args_form.py"),
-        Path(
+        REPO_ROOT / "src/agilab/apps/builtin/pytorch_playground_project/src/app_args_form.py",
+        REPO_ROOT / (
             "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/"
             "project/pytorch_playground_project/src/app_args_form.py"
         ),
     ),
     (
-        Path("src/agilab/apps/builtin/uav_relay_queue_project/src/app_args_form.py"),
-        Path(
+        REPO_ROOT / "src/agilab/apps/builtin/uav_relay_queue_project/src/app_args_form.py",
+        REPO_ROOT / (
             "src/agilab/lib/agi-app-uav-relay-queue/src/agi_app_uav_relay_queue/"
             "project/uav_relay_queue_project/src/app_args_form.py"
         ),
     ),
     (
-        Path("src/agilab/apps/builtin/weather_forecast_project/src/app_args_form.py"),
-        Path(
+        REPO_ROOT / "src/agilab/apps/builtin/weather_forecast_project/src/app_args_form.py",
+        REPO_ROOT / (
             "src/agilab/lib/agi-app-weather-forecast/src/agi_app_weather_forecast/"
             "project/weather_forecast_project/src/app_args_form.py"
         ),
@@ -97,7 +98,7 @@ def _app_args_forms() -> list[Path]:
 
 
 def _builtin_app_args_forms() -> list[Path]:
-    return sorted(Path("src/agilab/apps/builtin").glob("*_project/src/app_args_form.py"))
+    return sorted((REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/src/app_args_form.py"))
 
 
 BUILTIN_SHARED_OUTPUT_FORMS = tuple(
@@ -108,21 +109,21 @@ BUILTIN_SHARED_OUTPUT_FORMS = tuple(
 
 
 TEMPLATE_SHARED_PATH_FORMS = (
-    (Path("src/agilab/apps/templates/dag_app_template/src/app_args_form.py"), "Data In"),
+    (REPO_ROOT / "src/agilab/apps/templates/dag_app_template/src/app_args_form.py", "Data In"),
     (
-        Path("src/agilab/apps/templates/fireducks_app_template/src/app_args_form.py"),
+        REPO_ROOT / "src/agilab/apps/templates/fireducks_app_template/src/app_args_form.py",
         "Data In",
     ),
     (
-        Path("src/agilab/apps/templates/pandas_app_template/src/app_args_form.py"),
+        REPO_ROOT / "src/agilab/apps/templates/pandas_app_template/src/app_args_form.py",
         "Data In",
     ),
     (
-        Path("src/agilab/apps/templates/polars_app_template/src/app_args_form.py"),
+        REPO_ROOT / "src/agilab/apps/templates/polars_app_template/src/app_args_form.py",
         "Data In",
     ),
     (
-        Path("src/agilab/apps/templates/simple_app_template/src/app_args_form.py"),
+        REPO_ROOT / "src/agilab/apps/templates/simple_app_template/src/app_args_form.py",
         "Data Out",
     ),
 )
@@ -179,7 +180,7 @@ def test_app_args_form_environment_wording_is_normalized() -> None:
 
 
 def test_template_forms_accept_public_and_private_env_session_keys() -> None:
-    template_forms = sorted(Path("src/agilab/apps/templates").glob("*_template/src/app_args_form.py"))
+    template_forms = sorted((REPO_ROOT / "src/agilab/apps/templates").glob("*_template/src/app_args_form.py"))
     assert template_forms
     for path in template_forms:
         source = path.read_text(encoding="utf-8")
@@ -225,7 +226,7 @@ def test_builtin_app_args_form_renders_without_streamlit_exception(
 
 
 def test_flight_app_args_form_repairs_foreign_workspace_args(tmp_path: Path) -> None:
-    form_path = Path("src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py")
+    form_path = REPO_ROOT / "src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py"
     settings_file = tmp_path / "flight_telemetry_project" / "app_settings.toml"
     settings_file.parent.mkdir(parents=True)
     settings_file.write_text(
@@ -403,7 +404,7 @@ def test_template_app_args_forms_reject_escaped_paths_before_persisting(
 def test_flight_app_args_form_reports_invalid_date_range_without_saving(tmp_path: Path) -> None:
     import datetime as _dt
 
-    form_path = Path("src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py")
+    form_path = REPO_ROOT / "src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py"
     settings_file = _seed_settings_for_form(form_path, tmp_path)
     env = _make_builtin_env(form_path, settings_file, tmp_path)
 
@@ -428,7 +429,7 @@ def test_flight_app_args_form_reports_invalid_date_range_without_saving(tmp_path
 
 
 def test_flight_app_args_form_reseeds_widgets_after_external_settings_change(tmp_path: Path) -> None:
-    form_path = Path("src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py")
+    form_path = REPO_ROOT / "src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py"
     settings_file = _seed_settings_for_form(form_path, tmp_path)
     env = _make_builtin_env(form_path, settings_file, tmp_path)
 
@@ -456,7 +457,7 @@ def test_flight_app_args_form_reseeds_widgets_after_external_settings_change(tmp
 
 
 def test_tescia_app_args_form_reseeds_widgets_after_external_settings_change(tmp_path: Path) -> None:
-    form_path = Path("src/agilab/apps/builtin/tescia_diagnostic_project/src/app_args_form.py")
+    form_path = REPO_ROOT / "src/agilab/apps/builtin/tescia_diagnostic_project/src/app_args_form.py"
     settings_file = _seed_settings_for_form(form_path, tmp_path)
     env = _make_builtin_env(form_path, settings_file, tmp_path)
 
@@ -477,7 +478,7 @@ def test_tescia_app_args_form_reseeds_widgets_after_external_settings_change(tmp
 
 
 def test_pytorch_playground_form_reseeds_widgets_after_external_settings_change(tmp_path: Path) -> None:
-    form_path = Path("src/agilab/apps/builtin/pytorch_playground_project/src/app_args_form.py")
+    form_path = REPO_ROOT / "src/agilab/apps/builtin/pytorch_playground_project/src/app_args_form.py"
     settings_file = _seed_settings_for_form(form_path, tmp_path)
     env = _make_builtin_env(form_path, settings_file, tmp_path)
     dataset_key = f"pytorch_playground_args:{env.active_app}:dataset"
@@ -511,7 +512,7 @@ def test_minimal_app_app_args_form_renders_and_persists_args(tmp_path: Path) -> 
     )
 
     at = AppTest.from_file(
-        "src/agilab/apps/builtin/minimal_app_project/src/app_args_form.py",
+        str(REPO_ROOT / "src/agilab/apps/builtin/minimal_app_project/src/app_args_form.py"),
         default_timeout=20,
     )
     at.session_state["env"] = env
@@ -551,7 +552,7 @@ def test_minimal_app_form_reseeds_widgets_when_settings_change_on_disk(tmp_path:
     )
 
     at = AppTest.from_file(
-        "src/agilab/apps/builtin/minimal_app_project/src/app_args_form.py",
+        str(REPO_ROOT / "src/agilab/apps/builtin/minimal_app_project/src/app_args_form.py"),
         default_timeout=20,
     )
     at.session_state["env"] = env
@@ -572,7 +573,7 @@ def test_minimal_app_form_reseeds_widgets_when_settings_change_on_disk(tmp_path:
 
 
 def test_r_runtime_bridge_form_reports_actionable_x_parse_error(tmp_path: Path) -> None:
-    form_path = Path("src/agilab/apps/builtin/r_runtime_bridge_project/src/app_args_form.py")
+    form_path = REPO_ROOT / "src/agilab/apps/builtin/r_runtime_bridge_project/src/app_args_form.py"
     settings_file = _seed_settings_for_form(form_path, tmp_path)
     env = _BuiltinFormEnv(
         AGILAB_EXPORT_ABS=str(tmp_path / "export"),

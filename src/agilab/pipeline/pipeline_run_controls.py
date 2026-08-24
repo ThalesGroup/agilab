@@ -55,6 +55,13 @@ _logging_utils = import_agilab_module(
 
 logger = logging.getLogger(__name__)
 
+
+def _redact_stage_output(value: Any) -> str:
+    """Redact credentials before stage output reaches any persistent sink."""
+
+    return _logging_utils.redact_log_value(value)
+
+
 PIPELINE_LOCK_SCHEMA = "agilab.pipeline.lock.v1"
 PIPELINE_LOCK_FILENAME = "pipeline_run.lock"
 PIPELINE_LOCK_DEFAULT_TTL_SEC = 6 * 3600.0
@@ -998,7 +1005,9 @@ def _run_stage_subprocess(
         capture_output=True,
         check=False,
     )
-    output = "\n".join(part for part in [completed.stdout, completed.stderr] if part)
+    output = _redact_stage_output(
+        "\n".join(part for part in [completed.stdout, completed.stderr] if part)
+    )
     if completed.returncode != 0:
         raise RuntimeError(
             f"Command exited with status {completed.returncode}: {' '.join(command)}\n{output.strip()}"
@@ -1204,12 +1213,12 @@ def _run_parallel_agi_wave(
                 record["status"] = "failed"
                 record["finished_at"] = _utc_timestamp()
                 record["duration_seconds"] = max(time.time() - float(item["started"]), 0.0)
-                record["error"] = str(exc)
+                record["error"] = _redact_stage_output(exc)
                 _push_run_log(index_page, f"Stage {idx + 1}: failed in parallel wave: {exc}", log_placeholder)
                 if first_error is None:
                     first_error = exc
                 continue
-            preview = (output or "").strip()
+            preview = _redact_stage_output(output).strip()
             if preview:
                 _push_run_log(index_page, f"Output (stage {idx + 1}):\n{preview}", log_placeholder)
             else:
@@ -1510,6 +1519,7 @@ def _mlflow_stage_payload(
 
 def _append_run_log(index_page: str, message: str) -> None:
     """Add a log line to the run log buffer and keep the last 200 entries."""
+    message = _redact_stage_output(message)
     key = f"{index_page}__run_logs"
     logs: List[str] = st.session_state.setdefault(key, [])
     logs.append(message)
@@ -1519,6 +1529,7 @@ def _append_run_log(index_page: str, message: str) -> None:
 
 def _push_run_log(index_page: str, message: str, placeholder: Optional[Any] = None) -> None:
     """Append a log entry and refresh the visible placeholder if provided."""
+    message = _redact_stage_output(message)
     _append_run_log(index_page, message)
     log_file_key = f"{index_page}__run_log_file"
     log_file_path = st.session_state.get(log_file_key)
@@ -1608,14 +1619,19 @@ def _pipeline_lock_path(env: AgiEnv) -> Path:
 
 
 def _read_pipeline_lock_payload(path: Path) -> Dict[str, Any]:
-    """Read lock payload and return an empty dict on parse or read failure."""
-    try:
-        with open(path, "r", encoding="utf-8") as stream:
-            payload = json.load(stream)
-        if isinstance(payload, dict):
-            return payload
-    except (FileNotFoundError, OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
-        pass
+    """Read lock metadata, retrying a transient in-place heartbeat rewrite."""
+    for attempt in range(3):
+        try:
+            with open(path, "r", encoding="utf-8") as stream:
+                payload = json.load(stream)
+            if isinstance(payload, dict):
+                return payload
+        except FileNotFoundError:
+            return {}
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+            pass
+        if attempt < 2:
+            time.sleep(0.001)
     return {}
 
 
@@ -2400,7 +2416,7 @@ def run_all_stages(
                                 )
                             _refresh_pipeline_run_lock(lock_handle)
 
-                            preview = (output or "").strip()
+                            preview = _redact_stage_output(output).strip()
                             if preview:
                                 _push_run_log(
                                     index_page_str,
@@ -2474,7 +2490,7 @@ def run_all_stages(
             _push_run_log(index_page_str, "Run workflow completed: no runnable code found.", log_placeholder)
     except BaseException as exc:
         run_status = "failed"
-        run_error = str(exc)
+        run_error = _redact_stage_output(exc)
         for stage_record in reversed(manifest_stage_records):
             if stage_record.get("status") == "running":
                 stage_record["status"] = "failed"

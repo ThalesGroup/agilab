@@ -32,6 +32,29 @@ def _import_agilab_module(module_name: str):
 pipeline_openai = _import_agilab_module("agilab.pipeline_openai")
 
 
+@pytest.fixture(autouse=True)
+def _offline_public_llm_dns(monkeypatch):
+    policy = _import_agilab_module("agilab.security.llm_endpoint_policy")
+
+    def resolve(_host, port, **_kwargs):
+        return [
+            (
+                policy.socket.AF_INET,
+                policy.socket.SOCK_STREAM,
+                policy.socket.IPPROTO_TCP,
+                "",
+                ("93.184.216.34", port),
+            )
+        ]
+
+    monkeypatch.setattr(policy.socket, "getaddrinfo", resolve)
+    monkeypatch.setattr(
+        pipeline_openai,
+        "build_no_redirect_http_client",
+        lambda *_args, **_kwargs: types.SimpleNamespace(follow_redirects=False),
+    )
+
+
 def test_ensure_cached_api_key_uses_secret(monkeypatch):
     fake_st = types.SimpleNamespace(session_state={}, secrets={"OPENAI_API_KEY": "sk-secret-value-12345"})
     monkeypatch.setattr(pipeline_openai, "st", fake_st)
@@ -142,6 +165,7 @@ def test_make_openai_client_and_model_prefers_azure(monkeypatch):
     assert isinstance(client, _AzureClient)
     assert model_name == "gpt-5"
     assert is_azure is True
+    assert captured["azure"].pop("http_client").follow_redirects is False
     assert captured["azure"] == {
         "api_key": "azure-secret",
         "azure_endpoint": "https://azure.example",
@@ -207,6 +231,7 @@ def test_make_openai_client_and_model_uses_standard_openai_client(monkeypatch):
     assert isinstance(client, _OpenAIClient)
     assert model_name == "gpt-5.4"
     assert is_azure is False
+    assert captured["openai"].pop("http_client").follow_redirects is False
     assert captured["openai"] == {
         "api_key": "openai-secret",
         "base_url": "https://proxy.example/v1",
@@ -231,25 +256,54 @@ def test_make_openai_client_and_model_uses_standard_openai_client_without_base_u
     assert isinstance(client, _OpenAIClient)
     assert model_name
     assert is_azure is False
+    assert captured["openai"].pop("http_client").follow_redirects is False
     assert captured["openai"] == {"api_key": "openai-secret"}
 
 
-def test_make_openai_client_and_model_falls_back_to_module_level_openai_api(monkeypatch):
+def test_make_openai_client_and_model_rejects_module_level_openai_api(monkeypatch):
     fake_openai = types.ModuleType("openai")
     monkeypatch.setitem(sys.modules, "openai", fake_openai)
     monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_TYPE", raising=False)
 
-    client, model_name, is_azure = pipeline_openai.make_openai_client_and_model(
-        {"OPENAI_BASE_URL": "https://proxy.example/v1", "OPENAI_MODEL": "gpt-5.4"},
-        "module-secret",
+    with pytest.raises(RuntimeError, match="modern OpenAI client"):
+        pipeline_openai.make_openai_client_and_model(
+            {"OPENAI_BASE_URL": "https://proxy.example/v1", "OPENAI_MODEL": "gpt-5.4"},
+            "module-secret",
+        )
+
+
+def test_make_openai_client_and_model_closes_transport_when_sdk_construction_fails(monkeypatch):
+    class _CloseTrackingHttpClient:
+        def __init__(self):
+            self.close_calls = 0
+
+        def close(self):
+            self.close_calls += 1
+
+    transport = _CloseTrackingHttpClient()
+    monkeypatch.setattr(
+        pipeline_openai,
+        "build_no_redirect_http_client",
+        lambda *_args, **_kwargs: transport,
     )
 
-    assert client is fake_openai
-    assert model_name == "gpt-5.4"
-    assert is_azure is False
-    assert fake_openai.api_key == "module-secret"
-    assert fake_openai.api_base == "https://proxy.example/v1"
+    class _BrokenOpenAIClient:
+        def __init__(self, **_kwargs):
+            raise RuntimeError("constructor failed")
+
+    fake_openai = types.ModuleType("openai")
+    fake_openai.OpenAI = _BrokenOpenAIClient
+    monkeypatch.setitem(sys.modules, "openai", fake_openai)
+
+    with pytest.raises(RuntimeError, match="constructor failed"):
+        pipeline_openai.make_openai_client_and_model(
+            {"OPENAI_BASE_URL": "https://gateway.example/v1"},
+            "proxy-secret",
+            include_http_client=True,
+        )
+
+    assert transport.close_calls == 1
 
 
 def test_is_placeholder_api_key_catches_short_and_template_values():
@@ -501,25 +555,21 @@ def test_make_openai_client_and_model_azure_falls_back_to_openai_client(monkeypa
     assert isinstance(client, _OpenAIClient)
     assert model_name == "azure-deploy"
     assert is_azure is True
+    assert captured["openai"].pop("http_client").follow_redirects is False
     assert captured["openai"] == {
         "api_key": "azure-secret",
         "base_url": "https://proxy.example/v1",
     }
 
 
-def test_make_openai_client_and_model_module_fallback_without_base_url(monkeypatch):
+def test_make_openai_client_and_model_rejects_module_fallback_without_base_url(monkeypatch):
     fake_openai = types.ModuleType("openai")
     monkeypatch.setitem(sys.modules, "openai", fake_openai)
     monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_TYPE", raising=False)
 
-    client, model_name, is_azure = pipeline_openai.make_openai_client_and_model({}, "module-secret")
-
-    assert client is fake_openai
-    assert model_name
-    assert is_azure is False
-    assert fake_openai.api_key == "module-secret"
-    assert not hasattr(fake_openai, "api_base")
+    with pytest.raises(RuntimeError, match="modern OpenAI client"):
+        pipeline_openai.make_openai_client_and_model({}, "module-secret")
 
 
 def test_make_openai_client_and_model_reports_missing_optional_ai_extra(monkeypatch):

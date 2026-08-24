@@ -424,11 +424,13 @@ def test_ci_tool_locks_have_a_path_scoped_unprivileged_install_smoke() -> None:
         for step in steps
         if step.get("uses") == "./.github/actions/setup-locked-python-tools"
     ]
-    assert [step["with"]["requirements"] for step in lock_setups] == [
-        ".github/requirements/ci-publish.txt",
-        ".github/requirements/ci-pypi-web.txt",
-        ".github/requirements/ci-hf-release.txt",
-    ]
+    setup_requirements = [step["with"]["requirements"] for step in lock_setups]
+    expected_requirements = {
+        path.as_posix() for path in REQUIREMENTS_ROOT.glob("ci-*.txt")
+    }
+    assert setup_requirements[0] == ".github/requirements/ci-lock-audit.txt"
+    assert len(setup_requirements) == len(set(setup_requirements))
+    assert set(setup_requirements) == expected_requirements
     run_text = "\n".join(str(step.get("run", "")) for step in steps)
     assert "python tools/ci_tool_lock_integrity.py" in run_text
     assert "--requirements-dir .github/requirements" in run_text

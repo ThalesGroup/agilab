@@ -32,9 +32,29 @@ def test_current_ci_tool_locks_match_direct_inputs() -> None:
 
     assert [input_path.name for input_path, _lock_path in pairs] == [
         "ci-hf-release.in",
+        "ci-lock-audit.in",
         "ci-publish.in",
         "ci-pypi-web.in",
     ]
+
+
+def test_ci_tool_lock_workflow_audits_release_locks() -> None:
+    workflow = Path(".github/workflows/ci-tool-lock-integrity.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "requirements: .github/requirements/ci-lock-audit.txt" in workflow
+    for lock_name in (
+        "ci-lock-audit.txt",
+        "ci-publish.txt",
+        "ci-pypi-web.txt",
+        "ci-hf-release.txt",
+    ):
+        assert f".github/requirements/{lock_name}" in workflow
+    assert "pip-audit" in workflow
+    assert '--requirement "$requirements"' in workflow
+    assert "--no-deps" in workflow
+    assert "--disable-pip" in workflow
 
 
 def test_ci_tool_lock_integrity_rejects_stale_direct_version(tmp_path: Path) -> None:

@@ -355,8 +355,16 @@ def dask_env_prefix(agi_cls: Any) -> str:
     level = agi_cls._dask_log_level
     if not level:
         return ""
+    normalized_level = str(level).strip().upper()
+    allowed_levels = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"}
+    if normalized_level not in allowed_levels:
+        raise ValueError(
+            "AGI_DASK_LOG_LEVEL must be one of: "
+            + ", ".join(sorted(allowed_levels))
+        )
     env_vars = [
-        f"DASK_DISTRIBUTED__LOGGING__distributed={level}",
+        "DASK_DISTRIBUTED__LOGGING__distributed="
+        f"{shlex.quote(normalized_level)}",
     ]
     return "".join(f"{var} " for var in env_vars)
 

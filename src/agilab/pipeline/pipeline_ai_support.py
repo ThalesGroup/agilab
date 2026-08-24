@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 from contextlib import nullcontext
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Callable
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 import pandas as pd
 
@@ -36,6 +36,24 @@ except ImportError:  # pragma: no cover - supports direct file loading in tests/
         _boundary_module = importlib.util.module_from_spec(_boundary_spec)
         _boundary_spec.loader.exec_module(_boundary_module)
         build_untrusted_content_boundary = _boundary_module.build_untrusted_content_boundary
+
+try:
+    from agilab.security.llm_endpoint_policy import (
+        build_same_origin_llm_opener,
+        validate_llm_endpoint,
+    )
+except ImportError:  # pragma: no cover - supports direct file loading in tests/tools.
+    _endpoint_policy_path = Path(__file__).resolve().parents[1] / "security/llm_endpoint_policy.py"
+    _endpoint_policy_spec = importlib.util.spec_from_file_location(
+        "agilab_llm_endpoint_policy_local",
+        _endpoint_policy_path,
+    )
+    if _endpoint_policy_spec is None or _endpoint_policy_spec.loader is None:
+        raise
+    _endpoint_policy_module = importlib.util.module_from_spec(_endpoint_policy_spec)
+    _endpoint_policy_spec.loader.exec_module(_endpoint_policy_module)
+    build_same_origin_llm_opener = _endpoint_policy_module.build_same_origin_llm_opener
+    validate_llm_endpoint = _endpoint_policy_module.validate_llm_endpoint
 
 DEFAULT_GPT_OSS_ENDPOINT = "http://127.0.0.1:8000/v1/responses"
 
@@ -202,14 +220,15 @@ def fetch_ollama_models(
     *,
     timeout_s: float = 2.0,
     urlopen_fn: Callable[..., Any] | None = None,
+    envars: Mapping[str, str] | None = None,
 ) -> List[str]:
     """Return models from Ollama, raising RuntimeError when the service cannot be probed."""
 
-    base = normalize_ollama_endpoint(endpoint)
+    base = validate_llm_endpoint(normalize_ollama_endpoint(endpoint), envars=envars)
     url = f"{base}/api/tags"
     req = urllib.request.Request(url, method="GET")
     if urlopen_fn is None:
-        urlopen_fn = urllib.request.urlopen
+        urlopen_fn = build_same_origin_llm_opener(envars=envars).open
     try:
         with urlopen_fn(req, timeout=timeout_s) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
@@ -253,10 +272,21 @@ def ollama_readiness(
     model: str,
     *,
     model_fetcher: Callable[[str], List[str]] | None = None,
+    envars: Mapping[str, str] | None = None,
 ) -> LocalLlmReadiness:
     """Classify whether a configured Ollama model is ready for WORKFLOW."""
 
-    normalized_endpoint = normalize_ollama_endpoint(endpoint)
+    try:
+        normalized_endpoint = validate_llm_endpoint(normalize_ollama_endpoint(endpoint), envars=envars)
+    except ValueError as exc:
+        return LocalLlmReadiness(
+            backend="ollama",
+            status="service_unreachable",
+            endpoint=normalize_ollama_endpoint(endpoint),
+            model=str(model or "").strip(),
+            detail=str(exc),
+            action="Use a loopback endpoint or explicitly trust the exact private/custom gateway origin.",
+        )
     requested_model = str(model or "").strip()
     if not requested_model:
         return LocalLlmReadiness(
@@ -270,7 +300,7 @@ def ollama_readiness(
 
     if model_fetcher is None:
         def model_fetcher(base: str) -> list[str]:
-            return fetch_ollama_models(base, timeout_s=0.5)
+            return fetch_ollama_models(base, timeout_s=0.5, envars=envars)
 
     try:
         available = tuple(model_fetcher(normalized_endpoint))
@@ -376,9 +406,10 @@ def _ollama_generate(
     seed: Optional[int] = None,
     timeout_s: float = 120.0,
     endpoint_var_name: str = "UOAIC_OLLAMA_ENDPOINT_ENV",
+    envars: Mapping[str, str] | None = None,
 ) -> str:
     """Call Ollama's /api/generate endpoint and return the response text."""
-    base = normalize_ollama_endpoint(endpoint)
+    base = validate_llm_endpoint(normalize_ollama_endpoint(endpoint), envars=envars)
     url = f"{base}/api/generate"
 
     options: Dict[str, Any] = {
@@ -407,7 +438,7 @@ def _ollama_generate(
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=float(timeout_s)) as resp:
+        with build_same_origin_llm_opener(envars=envars).open(req, timeout=float(timeout_s)) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
         detail = ""
@@ -604,10 +635,21 @@ def gpt_oss_readiness(
     *,
     timeout_s: float = 0.5,
     urlopen_fn: Callable[..., Any] | None = None,
+    envars: Mapping[str, str] | None = None,
 ) -> LocalLlmReadiness:
     """Probe a GPT-OSS Responses endpoint without sending a completion request."""
 
-    normalized_endpoint = normalize_gpt_oss_endpoint(endpoint)
+    try:
+        normalized_endpoint = validate_llm_endpoint(normalize_gpt_oss_endpoint(endpoint), envars=envars)
+    except ValueError as exc:
+        return LocalLlmReadiness(
+            backend="gpt-oss",
+            status="service_unreachable",
+            endpoint=normalize_gpt_oss_endpoint(endpoint),
+            model="",
+            detail=str(exc),
+            action="Use a loopback endpoint or explicitly trust the exact private/custom gateway origin.",
+        )
     if not normalized_endpoint:
         return LocalLlmReadiness(
             backend="gpt-oss",
@@ -619,7 +661,7 @@ def gpt_oss_readiness(
         )
 
     if urlopen_fn is None:
-        urlopen_fn = urllib.request.urlopen
+        urlopen_fn = build_same_origin_llm_opener(envars=envars).open
 
     request = urllib.request.Request(normalized_endpoint, method="GET")
     try:

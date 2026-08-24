@@ -360,6 +360,14 @@ def test_resolve_uoaic_path_uses_cwd_for_relative_and_absolute_paths(monkeypatch
     assert pipeline_ai._resolve_uoaic_path("docs/manual.pdf", env=None) == (tmp_path / "docs" / "manual.pdf").resolve()
 
 
+def _patch_same_origin_opener(monkeypatch, implementation, open_fn) -> None:
+    monkeypatch.setitem(
+        implementation.__globals__,
+        "build_same_origin_llm_opener",
+        lambda **_kwargs: SimpleNamespace(open=open_fn),
+    )
+
+
 def test_ollama_available_models_deduplicates_and_handles_invalid_payloads(monkeypatch):
     class FakeResponse:
         def __init__(self, body: str):
@@ -376,18 +384,19 @@ def test_ollama_available_models_deduplicates_and_handles_invalid_payloads(monke
 
     available = getattr(pipeline_ai._ollama_available_models, "__wrapped__", pipeline_ai._ollama_available_models)
 
-    monkeypatch.setattr(
-        pipeline_ai.urllib.request,
-        "urlopen",
+    implementation = available.__globals__["_ollama_available_models_impl"]
+    _patch_same_origin_opener(
+        monkeypatch,
+        implementation,
         lambda *_args, **_kwargs: FakeResponse(
             '{"models":[{"name":"qwen2.5-coder:latest"},{"name":"deepseek-coder"},{"name":"qwen2.5-coder:latest"}]}'
         ),
     )
     assert available("http://127.0.0.1:11434") == ["qwen2.5-coder:latest", "deepseek-coder"]
 
-    monkeypatch.setattr(
-        pipeline_ai.urllib.request,
-        "urlopen",
+    _patch_same_origin_opener(
+        monkeypatch,
+        implementation,
         lambda *_args, **_kwargs: FakeResponse("not-json"),
     )
     assert available("http://127.0.0.1:11434") == []
@@ -441,6 +450,11 @@ def test_prompt_to_plaintext_flattens_list_content_and_unknown_roles():
     assert text.endswith("User: continue")
 
 
+def _patch_ollama_opener(monkeypatch, open_fn) -> None:
+    implementation = pipeline_ai._ollama_generate.__globals__["_ollama_generate_impl"]
+    _patch_same_origin_opener(monkeypatch, implementation, open_fn)
+
+
 def test_ollama_generate_success_and_error_paths(monkeypatch):
     captured = {}
 
@@ -463,7 +477,7 @@ def test_ollama_generate_success_and_error_paths(monkeypatch):
         captured["payload"] = request.data.decode("utf-8")
         return FakeResponse('{"response":"  print(42)  "}')
 
-    monkeypatch.setattr(pipeline_ai.urllib.request, "urlopen", fake_urlopen)
+    _patch_ollama_opener(monkeypatch, fake_urlopen)
     text = pipeline_ai._ollama_generate(
         endpoint="http://127.0.0.1:11434",
         model="deepseek-coder",
@@ -486,18 +500,18 @@ def test_ollama_generate_success_and_error_paths(monkeypatch):
         fp=None,
     )
     http_error.read = lambda: b"server exploded"  # type: ignore[attr-defined]
-    monkeypatch.setattr(
-        pipeline_ai.urllib.request,
-        "urlopen",
+    _patch_ollama_opener(
+        monkeypatch,
         lambda *_args, **_kwargs: (_ for _ in ()).throw(http_error),
     )
     with pytest.raises(RuntimeError, match="Ollama error 500: server exploded"):
         pipeline_ai._ollama_generate(endpoint="http://127.0.0.1:11434", model="x", prompt="q")
 
-    monkeypatch.setattr(
-        pipeline_ai.urllib.request,
-        "urlopen",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(pipeline_ai.urllib.error.URLError("down")),
+    _patch_ollama_opener(
+        monkeypatch,
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            pipeline_ai.urllib.error.URLError("down")
+        ),
     )
     with pytest.raises(RuntimeError, match="Unable to reach Ollama"):
         pipeline_ai._ollama_generate(endpoint="http://127.0.0.1:11434", model="x", prompt="q")
@@ -517,11 +531,17 @@ def test_ollama_generate_rejects_invalid_json_and_non_dict_payloads(monkeypatch)
         def read(self):
             return self._body.encode("utf-8")
 
-    monkeypatch.setattr(pipeline_ai.urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse("not-json"))
+    _patch_ollama_opener(
+        monkeypatch,
+        lambda *_args, **_kwargs: FakeResponse("not-json"),
+    )
     with pytest.raises(RuntimeError, match="invalid JSON"):
         pipeline_ai._ollama_generate(endpoint="http://127.0.0.1:11434", model="x", prompt="q")
 
-    monkeypatch.setattr(pipeline_ai.urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse('["bad"]'))
+    _patch_ollama_opener(
+        monkeypatch,
+        lambda *_args, **_kwargs: FakeResponse('["bad"]'),
+    )
     with pytest.raises(RuntimeError, match="unexpected payload"):
         pipeline_ai._ollama_generate(endpoint="http://127.0.0.1:11434", model="x", prompt="q")
 
@@ -576,7 +596,7 @@ def test_chat_offline_success_stub_and_request_error(monkeypatch):
 
     fake_requests = SimpleNamespace(
         exceptions=SimpleNamespace(RequestException=FakeRequestException),
-        post=lambda endpoint, json, timeout: FakeResponse(
+        post=lambda endpoint, json, timeout, allow_redirects: FakeResponse(
             {
                 "output": [
                     {
@@ -594,11 +614,11 @@ def test_chat_offline_success_stub_and_request_error(monkeypatch):
     assert model == "gpt-oss-mini"
 
     fake_st.session_state["gpt_oss_backend_active"] = "stub"
-    fake_requests.post = lambda endpoint, json, timeout: FakeResponse({"output": []})
+    fake_requests.post = lambda endpoint, json, timeout, allow_redirects: FakeResponse({"output": []})
     text, _model = pipeline_ai.chat_offline("smooth column", [], {"GPT_OSS_MODEL": "gpt-oss-mini"})
     assert "stub backend" in text
 
-    def failing_post(endpoint, json, timeout):
+    def failing_post(endpoint, json, timeout, allow_redirects):
         raise FakeRequestException("offline")
 
     fake_requests.post = failing_post
@@ -624,7 +644,7 @@ def test_chat_offline_handles_invalid_json_payload(monkeypatch):
 
     fake_requests = SimpleNamespace(
         exceptions=SimpleNamespace(RequestException=FakeRequestException),
-        post=lambda endpoint, json, timeout: FakeResponse(),
+        post=lambda endpoint, json, timeout, allow_redirects: FakeResponse(),
     )
     monkeypatch.setitem(sys.modules, "requests", fake_requests)
 
@@ -741,7 +761,7 @@ def test_pipeline_ai_import_fallback_raises_when_pipeline_stages_local_spec_is_m
     fake_openai = SimpleNamespace(
         ensure_cached_api_key=lambda *_args, **_kwargs: "",
         is_placeholder_api_key=lambda *_args, **_kwargs: False,
-        make_openai_client_and_model=lambda *_args, **_kwargs: (None, "", False),
+        make_openai_client_and_model=lambda *_args, **_kwargs: (None, "", False, None),
         persist_env_var=lambda *_args, **_kwargs: None,
         prompt_for_openai_api_key=lambda *_args, **_kwargs: "",
     )
@@ -980,9 +1000,10 @@ def test_load_uoaic_modules_record_read_failure_uses_generic_error(monkeypatch, 
 
 def test_pipeline_ai_support_direct_module_covers_ollama_defaults_and_safety_edges(monkeypatch):
     readiness = pipeline_ai_support_direct.ollama_readiness(
-        "http://ollama",
+        "http://10.20.30.40",
         "missing-model",
         model_fetcher=lambda _endpoint: [f"model-{idx}" for idx in range(6)],
+        envars={"AGILAB_LLM_TRUSTED_ORIGINS": "http://10.20.30.40"},
     )
     assert readiness.status == "model_missing"
     assert "model-4, ..." in readiness.detail
@@ -1611,14 +1632,36 @@ def test_chat_online_handles_success_key_prompt_and_model_errors(monkeypatch):
 
     monkeypatch.setattr(pipeline_ai, "ensure_cached_api_key", lambda _envars: "sk-demo-1234567890")
     monkeypatch.setattr(pipeline_ai, "is_placeholder_api_key", lambda _key: False)
+
+    class CloseTrackingHttpClient:
+        def __init__(self):
+            self.close_calls = 0
+            self.is_closed = False
+
+        def close(self):
+            self.close_calls += 1
+            self.is_closed = True
+
+    success_http_client = CloseTrackingHttpClient()
+
+    success_client = SuccessClient()
+    success_client.close_calls = 0
+
+    def close_success_client():
+        success_client.close_calls += 1
+        success_http_client.close()
+
+    success_client.close = close_success_client
     monkeypatch.setattr(
         pipeline_ai,
         "make_openai_client_and_model",
-        lambda envars, api_key: (SuccessClient(), "gpt-5", False),
+        lambda envars, api_key, **_kwargs: (success_client, "gpt-5", False, success_http_client),
     )
     text, model = pipeline_ai.chat_online("question", [], {})
     assert "print(1)" in text
     assert model == "gpt-5"
+    assert success_client.close_calls == 1
+    assert success_http_client.close_calls == 1
 
     class FailingClient:
         class chat:
@@ -1627,14 +1670,25 @@ def test_chat_online_handles_success_key_prompt_and_model_errors(monkeypatch):
                 def create(model, messages):
                     raise FakeOpenAIError("model_not_found", status_code=404)
 
+    failing_http_client = CloseTrackingHttpClient()
+    failing_client = FailingClient()
+    failing_client.close_calls = 0
+
+    def close_failing_client():
+        failing_client.close_calls += 1
+        failing_http_client.close()
+
+    failing_client.close = close_failing_client
     monkeypatch.setattr(
         pipeline_ai,
         "make_openai_client_and_model",
-        lambda envars, api_key: (FailingClient(), "missing-model", False),
+        lambda envars, api_key, **_kwargs: (failing_client, "missing-model", False, failing_http_client),
     )
     with pytest.raises(RuntimeError, match="model_not_found"):
         pipeline_ai.chat_online("question", [], {})
     assert any("requested model is unavailable" in message for message in infos)
+    assert failing_client.close_calls == 1
+    assert failing_http_client.close_calls == 1
 
 
 def test_chat_online_reports_missing_optional_ai_extra(monkeypatch):
@@ -1719,7 +1773,7 @@ def test_configure_assistant_engine_and_gpt_oss_controls(monkeypatch):
                 return "stub"
             raise AssertionError(label)
 
-        def text_input(self, label, value="", help=None):
+        def text_input(self, label, value="", help=None, type=None):
             return value
 
         def button(self, *args, **kwargs):
@@ -1893,7 +1947,7 @@ def test_configure_assistant_engine_selects_mistral_medium(monkeypatch):
                 return "high"
             raise AssertionError(label)
 
-        def text_input(self, label, value="", help=None):
+        def text_input(self, label, value="", help=None, type=None):
             if label == "Mistral model":
                 return value
             if label == "Mistral temperature":
@@ -1930,7 +1984,7 @@ def test_configure_assistant_engine_selects_openai_compatible_endpoint(monkeypat
                 return "vLLM / OpenAI-compatible (self-hosted)"
             raise AssertionError(label)
 
-        def text_input(self, label, value="", help=None):
+        def text_input(self, label, value="", help=None, type=None):
             values = {
                 "OpenAI-compatible base URL": "http://gpu-box:8000",
                 "OpenAI-compatible model": "served-model",
@@ -1971,7 +2025,7 @@ def test_configure_assistant_engine_clears_empty_openai_compatible_optional_valu
                 return "vLLM / OpenAI-compatible (self-hosted)"
             raise AssertionError(label)
 
-        def text_input(self, label, value="", help=None):
+        def text_input(self, label, value="", help=None, type=None):
             values = {
                 "OpenAI-compatible base URL": "http://gpu-box:8000",
                 "OpenAI-compatible model": "served-model",
@@ -2692,6 +2746,24 @@ def test_ask_gpt_safe_actions_fails_closed_for_raw_python_and_unknown_column(mon
 def test_chat_openai_compatible_uses_openai_sdk_without_openai_api_key(monkeypatch):
     captured: dict[str, object] = {}
 
+    class CloseTrackingHttpClient:
+        follow_redirects = False
+
+        def __init__(self):
+            self.close_calls = 0
+            self.is_closed = False
+
+        def close(self):
+            self.close_calls += 1
+            self.is_closed = True
+
+    http_client = CloseTrackingHttpClient()
+    monkeypatch.setattr(
+        pipeline_ai,
+        "_build_no_redirect_http_client",
+        lambda *_args, **_kwargs: http_client,
+    )
+
     class FakeOpenAIError(Exception):
         pass
 
@@ -2709,7 +2781,14 @@ def test_chat_openai_compatible_uses_openai_sdk_without_openai_api_key(monkeypat
     class FakeOpenAIClient:
         def __init__(self, **kwargs):
             captured["client"] = kwargs
+            captured["sdk_client"] = self
+            self.http_client = kwargs["http_client"]
+            self.close_calls = 0
             self.chat = SimpleNamespace(completions=FakeCompletions())
+
+        def close(self):
+            self.close_calls += 1
+            self.http_client.close()
 
     fake_openai = ModuleType("openai")
     fake_openai.OpenAI = FakeOpenAIClient
@@ -2723,7 +2802,8 @@ def test_chat_openai_compatible_uses_openai_sdk_without_openai_api_key(monkeypat
         "question",
         [{"role": "assistant", "content": "history"}],
         {
-            "AGILAB_LLM_BASE_URL": "http://gpu-box:8000",
+            "AGILAB_LLM_BASE_URL": "http://10.20.30.40:8000",
+            "AGILAB_LLM_TRUSTED_ORIGINS": "http://10.20.30.40:8000",
             "AGILAB_LLM_MODEL": "served-model",
             "AGILAB_LLM_TEMPERATURE": "0.2",
         },
@@ -2731,11 +2811,16 @@ def test_chat_openai_compatible_uses_openai_sdk_without_openai_api_key(monkeypat
 
     assert "print('compatible')" in text
     assert model == "served-model"
+    captured_http_client = captured["client"].pop("http_client")
     assert captured["client"] == {
         "api_key": "EMPTY",
-        "base_url": "http://gpu-box:8000/v1",
+        "base_url": "http://10.20.30.40:8000/v1",
         "timeout": 120.0,
     }
+    assert captured_http_client is http_client
+    assert captured["sdk_client"].close_calls == 1
+    assert http_client.close_calls == 1
+    assert http_client.is_closed is True
     payload = captured["payload"]
     assert payload["model"] == "served-model"
     assert payload["temperature"] == 0.2
@@ -2746,7 +2831,7 @@ def test_chat_openai_compatible_uses_openai_sdk_without_openai_api_key(monkeypat
 def test_openai_compatible_error_paths_and_safe_redaction(monkeypatch):
     captured: dict[str, object] = {}
     settings = pipeline_ai.OpenAICompatibleSettings(
-        base_url="http://gpu-box:8000/v1",
+        base_url="http://10.20.30.40:8000/v1",
         api_key="secret-token",
         model="served-model",
         temperature=0.1,
@@ -2755,7 +2840,7 @@ def test_openai_compatible_error_paths_and_safe_redaction(monkeypatch):
     )
     assert pipeline_ai._openai_compatible_safe_error("bad secret-token", settings) == "bad <redacted>"
     default_key_settings = pipeline_ai.OpenAICompatibleSettings(
-        base_url="http://gpu-box:8000/v1",
+        base_url="http://10.20.30.40:8000/v1",
         api_key=pipeline_ai.DEFAULT_OPENAI_COMPAT_API_KEY,
         model="served-model",
         temperature=0.1,
@@ -2787,6 +2872,24 @@ def test_openai_compatible_error_paths_and_safe_redaction(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", real_import)
 
+    class CloseTrackingHttpClient:
+        def __init__(self):
+            self.close_calls = 0
+            self.is_closed = False
+
+        def close(self):
+            self.close_calls += 1
+            self.is_closed = True
+
+    transports: list[CloseTrackingHttpClient] = []
+
+    def build_http_client(*_args, **_kwargs):
+        transport = CloseTrackingHttpClient()
+        transports.append(transport)
+        return transport
+
+    monkeypatch.setattr(pipeline_ai, "_build_no_redirect_http_client", build_http_client)
+
     class FakeOpenAIError(Exception):
         pass
 
@@ -2798,7 +2901,14 @@ def test_openai_compatible_error_paths_and_safe_redaction(monkeypatch):
     class FailingOpenAIClient:
         def __init__(self, **kwargs):
             captured["client"] = kwargs
+            captured["failing_sdk_client"] = self
+            self.http_client = kwargs["http_client"]
+            self.close_calls = 0
             self.chat = SimpleNamespace(completions=FailingCompletions())
+
+        def close(self):
+            self.close_calls += 1
+            self.http_client.close()
 
     fake_openai = ModuleType("openai")
     fake_openai.OpenAI = FailingOpenAIClient
@@ -2811,12 +2921,15 @@ def test_openai_compatible_error_paths_and_safe_redaction(monkeypatch):
             "question",
             [{"role": "assistant", "content": ""}],
             {
-                "AGILAB_LLM_BASE_URL": "http://gpu-box:8000",
+                "AGILAB_LLM_BASE_URL": "http://10.20.30.40:8000",
+                "AGILAB_LLM_TRUSTED_ORIGINS": "http://10.20.30.40:8000",
                 "AGILAB_LLM_API_KEY": "secret-token",
             },
         )
     assert captured["payload"]["model"] == "env-model"
     assert any("endpoint rejected <redacted>" in message for message in errors)
+    assert captured["failing_sdk_client"].close_calls == 1
+    assert transports[0].close_calls == 1
 
     class BrokenOpenAIClient:
         def __init__(self, **_kwargs):
@@ -2827,9 +2940,13 @@ def test_openai_compatible_error_paths_and_safe_redaction(monkeypatch):
         pipeline_ai.chat_openai_compatible(
             "question",
             [],
-            {"AGILAB_LLM_BASE_URL": "http://gpu-box:8000"},
+            {
+                "AGILAB_LLM_BASE_URL": "http://10.20.30.40:8000",
+                "AGILAB_LLM_TRUSTED_ORIGINS": "http://10.20.30.40:8000",
+            },
         )
     assert any("OpenAI-compatible endpoint failed" in message for message in errors)
+    assert transports[1].close_calls == 1
 
 
 def test_mistral_online_env_update_and_api_error(monkeypatch):
@@ -3189,9 +3306,15 @@ def test_extract_code_covers_fenced_blocks_without_newline_and_non_python_langua
 
 
 def test_ollama_model_helpers_cover_error_empty_names_and_first_available(monkeypatch):
-    monkeypatch.setattr(
-        pipeline_ai.urllib.request,
-        "urlopen",
+    available = getattr(
+        pipeline_ai._ollama_available_models,
+        "__wrapped__",
+        pipeline_ai._ollama_available_models,
+    )
+    implementation = available.__globals__["_ollama_available_models_impl"]
+    _patch_same_origin_opener(
+        monkeypatch,
+        implementation,
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
     )
     assert pipeline_ai._ollama_available_models("http://127.0.0.1:11434") == []
@@ -3215,7 +3338,11 @@ def test_ollama_model_helpers_cover_error_empty_names_and_first_available(monkey
                 }
             ).encode("utf-8")
 
-    monkeypatch.setattr(pipeline_ai.urllib.request, "urlopen", lambda *_args, **_kwargs: _Resp())
+    _patch_same_origin_opener(
+        monkeypatch,
+        implementation,
+        lambda *_args, **_kwargs: _Resp(),
+    )
     pipeline_ai._ollama_available_models.clear()
     assert pipeline_ai._ollama_available_models("http://127.0.0.1:11434") == [
         "llama3:8b",
@@ -3237,10 +3364,14 @@ def test_ollama_generate_handles_http_error_without_readable_detail(monkeypatch)
     def _raise(*_args, **_kwargs):
         raise _BrokenHttpError("http://ollama/api/generate", 500, "server error", hdrs=None, fp=None)
 
-    monkeypatch.setattr(pipeline_ai.urllib.request, "urlopen", _raise)
+    _patch_ollama_opener(monkeypatch, _raise)
 
     with pytest.raises(RuntimeError, match="Ollama error 500: server error"):
-        pipeline_ai._ollama_generate(endpoint="http://ollama", model="demo", prompt="hi")
+        pipeline_ai._ollama_generate(
+            endpoint="http://127.0.0.1:11434",
+            model="demo",
+            prompt="hi",
+        )
 
 
 def test_chat_online_covers_legacy_client_auth_and_unexpected_failures(monkeypatch):
@@ -3274,7 +3405,7 @@ def test_chat_online_covers_legacy_client_auth_and_unexpected_failures(monkeypat
     monkeypatch.setattr(
         pipeline_ai,
         "make_openai_client_and_model",
-        lambda envars, api_key: (LegacyClient(), "legacy-model", False),
+        lambda envars, api_key, **_kwargs: (LegacyClient(), "legacy-model", False, None),
     )
 
     text, model = pipeline_ai.chat_online("question", [{"role": "assistant", "content": ""}], {})
@@ -3284,7 +3415,7 @@ def test_chat_online_covers_legacy_client_auth_and_unexpected_failures(monkeypat
     monkeypatch.setattr(
         pipeline_ai,
         "make_openai_client_and_model",
-        lambda _envars, _api_key: (_ for _ in ()).throw(RuntimeError("init boom")),
+        lambda _envars, _api_key, **_kwargs: (_ for _ in ()).throw(RuntimeError("init boom")),
     )
     with pytest.raises(RuntimeError, match="init boom"):
         pipeline_ai.chat_online("question", [], {})
@@ -3299,7 +3430,7 @@ def test_chat_online_covers_legacy_client_auth_and_unexpected_failures(monkeypat
     monkeypatch.setattr(
         pipeline_ai,
         "make_openai_client_and_model",
-        lambda envars, api_key: (ForbiddenClient(), "secure-model", False),
+        lambda envars, api_key, **_kwargs: (ForbiddenClient(), "secure-model", False, None),
     )
     with pytest.raises(RuntimeError, match="bad key"):
         pipeline_ai.chat_online("question", [], {})
@@ -3314,7 +3445,7 @@ def test_chat_online_covers_legacy_client_auth_and_unexpected_failures(monkeypat
     monkeypatch.setattr(
         pipeline_ai,
         "make_openai_client_and_model",
-        lambda envars, api_key: (WeirdClient(), "secure-model", False),
+        lambda envars, api_key, **_kwargs: (WeirdClient(), "secure-model", False, None),
     )
     with pytest.raises(RuntimeError, match="weird"):
         pipeline_ai.chat_online("question", [], {})
@@ -4385,7 +4516,7 @@ def test_chat_online_covers_generic_openai_error_branch(monkeypatch):
     monkeypatch.setattr(
         pipeline_ai,
         "make_openai_client_and_model",
-        lambda _envars, _api_key: (GenericFailClient(), "gpt-5.4", False),
+        lambda _envars, _api_key, **_kwargs: (GenericFailClient(), "gpt-5.4", False, None),
     )
 
     with pytest.raises(RuntimeError, match="server exploded"):
@@ -4408,7 +4539,7 @@ def test_chat_offline_uses_instructions_and_response_object(monkeypatch):
 
     fake_requests = ModuleType("requests")
     fake_requests.exceptions = SimpleNamespace(RequestException=RuntimeError)
-    fake_requests.post = lambda endpoint, json=None, timeout=None: captured.update(  # type: ignore[attr-defined]
+    fake_requests.post = lambda endpoint, json=None, timeout=None, allow_redirects=None: captured.update(  # type: ignore[attr-defined]
         {"endpoint": endpoint, "payload": json, "timeout": timeout}
     ) or _FakeResponse()
 
@@ -4457,7 +4588,7 @@ def test_chat_offline_falls_back_to_plain_dict_output(monkeypatch):
 
     fake_requests = ModuleType("requests")
     fake_requests.exceptions = SimpleNamespace(RequestException=RuntimeError)
-    fake_requests.post = lambda endpoint, json=None, timeout=None: captured.update(  # type: ignore[attr-defined]
+    fake_requests.post = lambda endpoint, json=None, timeout=None, allow_redirects=None: captured.update(  # type: ignore[attr-defined]
         {"endpoint": endpoint, "payload": json, "timeout": timeout}
     ) or _FakeResponse()
 

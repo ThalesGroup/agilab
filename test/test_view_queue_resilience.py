@@ -14,7 +14,11 @@ from agi_pages.queue_resilience import (
     queue_peer_csv_paths,
 )
 
-PAGE_PATH = "src/agilab/apps-pages/view_queue_resilience/src/view_queue_resilience/view_queue_resilience.py"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PAGE_PATH = str(
+    REPO_ROOT
+    / "src/agilab/apps-pages/view_queue_resilience/src/view_queue_resilience/view_queue_resilience.py"
+)
 PAGE_META_PATH = Path(
     "src/agilab/apps-pages/view_queue_resilience/src/view_queue_resilience/page_meta.py"
 )

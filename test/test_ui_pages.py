@@ -25,6 +25,7 @@ from pydantic import BaseModel, model_validator
 
 APP_ARGS_FORM = "src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py"
 DEFAULT_APPTEST_TIMEOUT = 20
+REPO_ROOT = Path(__file__).resolve().parents[1]
 ENV_TEMPLATE_PATH = Path("src/agilab/core/agi-env/src/agi_env/resources/.agilab/.env")
 
 
@@ -65,7 +66,13 @@ def _widget_or_none(collections, key: str):
 
 
 def _app_test(path: str, *, default_timeout: int = DEFAULT_APPTEST_TIMEOUT):
-    return AppTest.from_file(path, default_timeout=default_timeout)
+    page_path = Path(path)
+    if not page_path.is_absolute():
+        page_path = REPO_ROOT / page_path
+    return AppTest.from_file(
+        str(page_path.resolve()),
+        default_timeout=default_timeout,
+    )
 
 
 def _assert_ordered_fragments(source: str, fragments: tuple[str, ...]) -> None:
