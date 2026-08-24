@@ -373,8 +373,8 @@ def test_root_apple_silicon_dependencies_are_optional_and_platform_marked() -> N
 def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
     pyproject = REPO_ROOT / "pyproject.toml"
 
-    assert _optional_dependency_names(pyproject, "ai") == {"openai"}
-    assert _optional_dependency_names(pyproject, "agents") == {"openai"}
+    assert _optional_dependency_names(pyproject, "ai") == {"httpx", "openai"}
+    assert _optional_dependency_names(pyproject, "agents") == {"httpx", "openai"}
     assert _optional_dependency_names(pyproject, "core") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["core"])
     assert set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["examples"]) | {"jupyterlab", "matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "examples")
     assert _optional_dependency_names(pyproject, "pages") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["pages"]) | {
