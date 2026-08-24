@@ -646,6 +646,25 @@ def test_windows_capacity_model_owner_error_allows_privileged_system_write_dacl(
     assert error is None
 
 
+def test_windows_capacity_model_owner_error_allows_verified_owner_rights_write_dacl(
+    tmp_path,
+):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+
+    error = runtime_misc_support._windows_capacity_model_owner_error(
+        model_path,
+        identities_fn=lambda _path: (
+            "S-1-5-21-1000",
+            ("S-1-5-21-1000",),
+            "DOMAIN\\runner",
+        ),
+        acl_grants_fn=lambda _path: (("S-1-3-4", 0x10000000),),
+    )
+
+    assert error is None
+
+
 def test_windows_capacity_model_owner_error_fails_closed_on_dacl_lookup_error(
     tmp_path,
 ):
@@ -836,6 +855,7 @@ def test_load_capacity_predictor_rejects_world_writable_trusted_model(tmp_path):
     assert calls == {"load": 0, "retrain": 1}
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX account database semantics")
 def test_posix_group_is_user_private_rejects_shared_primary_gid(monkeypatch):
     current_user = SimpleNamespace(pw_name="runner", pw_gid=1000)
     other_user = SimpleNamespace(pw_name="other", pw_gid=1000)
@@ -859,6 +879,7 @@ def test_posix_group_is_user_private_rejects_shared_primary_gid(monkeypatch):
     )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX account database semantics")
 def test_posix_group_is_user_private_allows_proven_single_user_group(monkeypatch):
     current_user = SimpleNamespace(pw_name="runner", pw_gid=1000)
     unrelated_user = SimpleNamespace(pw_name="other", pw_gid=2000)
