@@ -256,6 +256,7 @@ def test_ci_security_hygiene_uses_required_supply_chain_artifacts() -> None:
     assert "--profile base" in scan_step
     assert "--output-dir test-results/supply-chain" in scan_step
     assert "--run" in scan_step
+    assert "uv --preview-features extra-build-dependencies run" in security_step
     assert "--pip-audit-json test-results/supply-chain/base/pip-audit.json" in security_step
     assert "--sbom-json test-results/supply-chain/base/sbom-cyclonedx.json" in security_step
     assert (

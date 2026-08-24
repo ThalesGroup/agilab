@@ -237,10 +237,11 @@ jobs:
       - name: Validate security hygiene report
         run: |
           set -euo pipefail
-          python tools/security_hygiene_report.py \
+          uv --preview-features extra-build-dependencies run \
+            python tools/security_hygiene_report.py \
             --pip-audit-json test-results/supply-chain/base/pip-audit.json \
             --sbom-json test-results/supply-chain/base/sbom-cyclonedx.json \
-              --scan-requirements test-results/supply-chain/base/requirements.txt \
+            --scan-requirements test-results/supply-chain/base/requirements.txt \
             --require-scan-artifacts \
             --output security-hygiene.json \
             --compact
