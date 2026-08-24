@@ -138,6 +138,36 @@ def test_persist_env_var_applies_update_to_latest_disjoint_content(
     )
 
 
+def test_make_openai_client_and_model_supports_installed_openai_v3(monkeypatch):
+    openai = pytest.importorskip("openai")
+    assert str(openai.__version__).split(".", 1)[0] == "3"
+
+    policy = _import_agilab_module("agilab.security.llm_endpoint_policy")
+    monkeypatch.setattr(
+        pipeline_openai,
+        "build_no_redirect_http_client",
+        policy.build_no_redirect_http_client,
+    )
+
+    client, model_name, is_azure, http_client = (
+        pipeline_openai.make_openai_client_and_model(
+            {
+                "OPENAI_BASE_URL": "http://127.0.0.1:8765/v1",
+                "OPENAI_MODEL": "gpt-test",
+            },
+            "sk-test-not-a-secret",
+            include_http_client=True,
+        )
+    )
+    try:
+        assert model_name == "gpt-test"
+        assert is_azure is False
+        assert http_client.follow_redirects is False
+    finally:
+        client.close()
+        http_client.close()
+
+
 def test_make_openai_client_and_model_prefers_azure(monkeypatch):
     captured = {}
 
